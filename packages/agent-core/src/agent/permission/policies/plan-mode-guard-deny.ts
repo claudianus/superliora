@@ -65,16 +65,36 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
     switch (phase) {
       case 'interview': {
         // Only AskUserQuestion allowed; everything else blocked
-        if (toolName === 'AskUserQuestion') return;
+        if (toolName === 'AskUserQuestion') {
+          // After AskUserQuestion, evaluate ambiguity and potentially auto-advance
+          const engine = this.agent.planMode.ultraEngine;
+          const rounds = this.agent.planMode.interviewRoundCount;
+          // Note: actual round data is added by the engine elsewhere
+          // Here we just track the count for the guard
+          this.agent.planMode.incrementInterviewRound();
+          // If we have enough rounds, try to calculate ambiguity
+          if (rounds >= 3) {
+            const score = engine.calculateAmbiguityScore();
+            if (score.isReadyForSeed && engine.canAutoComplete()) {
+              // Auto-advance to design phase
+              this.agent.planMode.setPhase('design');
+              // Auto-generate seed spec from interview
+              const seed = engine.autoGenerateSeedSpecFromInterview('AutoOntology');
+              engine.setSeedSpec(seed);
+            }
+          }
+          return;
+        }
+        if (toolName === 'NextPhase') return; // Allow manual phase advance
         if (toolName === 'ExitPlanMode') {
           return {
             kind: 'deny',
-            message: 'ExitPlanMode is blocked in Interview phase. You must complete the interview first. Use AskUserQuestion to clarify requirements. After at least 3 interview rounds, use NextPhase to advance to Design.',
+            message: 'ExitPlanMode is blocked in Interview phase. Ambiguity must be resolved first. Use AskUserQuestion to clarify requirements. After at least 3 interview rounds with ambiguity score ≤ 0.2, the system will auto-advance to Design.',
           };
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Interview phase. Only AskUserQuestion is allowed. Complete at least 3 interview rounds, then use NextPhase to advance.`,
+          message: `${toolName} is blocked in Interview phase. Only AskUserQuestion and NextPhase are allowed. Use AskUserQuestion to reduce ambiguity.`,
         };
       }
       case 'design': {

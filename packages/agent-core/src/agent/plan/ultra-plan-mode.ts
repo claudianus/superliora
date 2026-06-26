@@ -69,6 +69,13 @@ export function isDriftAcceptable(metrics: DriftMetrics): boolean {
   return combinedDrift(metrics) <= 0.3;
 }
 
+export type InterviewPerspective =
+  | 'researcher'
+  | 'simplifier'
+  | 'architect'
+  | 'breadth-keeper'
+  | 'seed-closer';
+
 export type UltraPlanPhase = 'interview' | 'design' | 'review' | 'write' | 'exit';
 
 
@@ -143,7 +150,7 @@ export class UltraPlanModeEngine {
     return this._seedSpec;
   }
 
-  generateSeedSpecFromInterview(
+  buildSeedSpec(
     goal: string,
     constraints: string[],
     acceptanceCriteria: string[],
@@ -419,6 +426,234 @@ export class UltraPlanModeEngine {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Interview & Ambiguity Scoring
+  // ---------------------------------------------------------------------------
+
+  private _currentPerspective: InterviewPerspective = 'researcher';
+  private readonly _perspectives: InterviewPerspective[] = [
+    'researcher',
+    'simplifier',
+    'architect',
+    'breadth-keeper',
+    'seed-closer',
+  ];
+
+  private _interviewState: InterviewState = {
+    rounds: [],
+    initialContext: '',
+    ambiguityScore: null,
+    completionCandidateStreak: 0,
+  };
+
+  get interviewState(): InterviewState {
+    return this._interviewState;
+  }
+
+  get currentPerspective(): InterviewPerspective {
+    return this._currentPerspective;
+  }
+
+  advancePerspective(): void {
+    const idx = this._perspectives.indexOf(this._currentPerspective);
+    this._currentPerspective = this._perspectives[(idx + 1) % this._perspectives.length];
+  }
+
+  getPerspectiveDescription(): string {
+    const descriptions: Record<InterviewPerspective, string> = {
+      researcher: 'Explore the problem space broadly. Ask about background, context, and what has been tried before.',
+      simplifier: 'Reduce complexity. Challenge assumptions and ask what can be removed or simplified.',
+      architect: 'Think about structure and design. Ask about components, interfaces, and technical decisions.',
+      'breadth-keeper': 'Ensure nothing is missed. Ask about edge cases, non-goals, and scope boundaries.',
+      'seed-closer': 'Focus on precision and closure. Ask for specific, measurable criteria and final details.',
+    };
+    return descriptions[this._currentPerspective];
+  }
+
+  startInterview(initialContext: string): void {
+    this._interviewState = {
+      rounds: [],
+      initialContext,
+      ambiguityScore: null,
+      completionCandidateStreak: 0,
+    };
+  }
+
+  addInterviewRound(question: string, userResponse: string): void {
+    const round: InterviewRound = {
+      roundNumber: this._interviewState.rounds.length + 1,
+      question,
+      userResponse,
+      timestamp: Date.now(),
+    };
+    this.advancePerspective();
+    this._interviewState = {
+      ...this._interviewState,
+      rounds: [...this._interviewState.rounds, round],
+    };
+  }
+
+  /**
+   * Calculate ambiguity score from interview state.
+   * This is a heuristic based on the content of Q&A, not an LLM call.
+   * In a full implementation, this would call an LLM to evaluate clarity.
+   */
+  calculateAmbiguityScore(): AmbiguityScoreResult {
+    const rounds = this._interviewState.rounds;
+    const totalRounds = rounds.length;
+
+    // Heuristic: more rounds = more clarity (diminishing returns)
+    // After 3 rounds: base clarity 0.3, each additional round adds ~0.1 up to 0.9
+    const roundBasedClarity = Math.min(0.3 + totalRounds * 0.12, 0.9);
+
+    // Heuristic: longer responses = more detail = more clarity
+    const avgResponseLength = totalRounds > 0
+      ? rounds.reduce((sum, r) => sum + r.userResponse.length, 0) / totalRounds
+      : 0;
+    const lengthClarity = Math.min(avgResponseLength / 200, 1.0);
+
+    // Heuristic: presence of key terms indicates clarity
+    const allText = rounds.map((r) => r.question + ' ' + r.userResponse).join(' ').toLowerCase();
+    const hasGoal = /goal|objective|purpose|aim/.test(allText);
+    const hasConstraints = /constraint|limit|restriction|must|should|cannot/.test(allText);
+    const hasCriteria = /criteria|requirement|accept|verify|test|check/.test(allText);
+    const hasScope = /scope|in scope|out of scope|non-goal/.test(allText);
+    const hasRisk = /risk|edge case|failure|error|exception/.test(allText);
+
+    const keywordScore = (Number(hasGoal) + Number(hasConstraints) + Number(hasCriteria) + Number(hasScope) + Number(hasRisk)) / 5;
+
+    // Goal clarity (40%): rounds + keywords
+    const goalClarity = (roundBasedClarity * 0.6 + keywordScore * 0.4);
+
+    // Constraint clarity (30%): response detail + constraint keywords
+    const constraintClarity = (lengthClarity * 0.5 + (hasConstraints ? 0.5 : 0.2));
+
+    // Success criteria clarity (30%): criteria keywords + verification mentions
+    const criteriaClarity = (keywordScore * 0.6 + (hasCriteria ? 0.4 : 0.1));
+
+    const overall = 1.0 - (
+      goalClarity * 0.4 +
+      constraintClarity * 0.3 +
+      criteriaClarity * 0.3
+    );
+
+    const boundedOverall = Math.max(0, Math.min(1, overall));
+
+    const milestone: AmbiguityMilestone =
+      boundedOverall <= 0.2 ? 'ready' :
+      boundedOverall <= 0.3 ? 'refined' :
+      boundedOverall <= 0.4 ? 'progress' : 'initial';
+
+    const isReady = boundedOverall <= 0.2 && totalRounds >= 3;
+
+    // Track completion streak
+    if (isReady) {
+      this._interviewState = {
+        ...this._interviewState,
+        completionCandidateStreak: this._interviewState.completionCandidateStreak + 1,
+      };
+    } else {
+      this._interviewState = {
+        ...this._interviewState,
+        completionCandidateStreak: 0,
+      };
+    }
+
+    const result: AmbiguityScoreResult = {
+      overallScore: boundedOverall,
+      breakdown: [
+        { name: 'goal_clarity', clarityScore: goalClarity, weight: 0.4, justification: `Based on ${totalRounds} interview rounds and keyword coverage` },
+        { name: 'constraint_clarity', clarityScore: constraintClarity, weight: 0.3, justification: `Response detail and constraint keywords present` },
+        { name: 'success_criteria_clarity', clarityScore: criteriaClarity, weight: 0.3, justification: `Criteria keywords and verification mentions` },
+      ],
+      isReadyForSeed: isReady,
+      milestone,
+    };
+
+    this._interviewState = {
+      ...this._interviewState,
+      ambiguityScore: result,
+    };
+
+    return result;
+  }
+
+  /**
+   * Check if interview can auto-complete (2 consecutive ready scores).
+   */
+  canAutoComplete(): boolean {
+    return (
+      this._interviewState.ambiguityScore?.isReadyForSeed === true &&
+      this._interviewState.completionCandidateStreak >= 2
+    );
+  }
+
+  /**
+   * Generate Seed Spec from interview results.
+   * Extracts Goal, Constraints, AC, and Ontology from Q&A.
+   */
+  autoGenerateSeedSpecFromInterview(ontologyName: string): SeedSpec {
+    const rounds = this._interviewState.rounds;
+    const allText = rounds.map((r) => r.question + ' ' + r.userResponse).join('\n');
+
+    // Extract goal from first round or initial context
+    const goal = this._extractGoal(allText) || this._interviewState.initialContext;
+
+    // Extract constraints from responses
+    const constraints = this._extractConstraints(allText);
+
+    // Extract acceptance criteria
+    const acceptanceCriteria = this._extractAcceptanceCriteria(allText);
+
+    // Generate ontology from domain terms
+    const ontologyFields = this._extractOntologyFields(allText);
+
+    return this.buildSeedSpec(
+      goal,
+      constraints,
+      acceptanceCriteria,
+      ontologyName,
+      ontologyFields,
+    );
+  }
+
+  private _extractGoal(text: string): string {
+    const match = text.match(/goal[:\s]+(.+?)(?:\n|$)/i);
+    return match ? match[1].trim() : '';
+  }
+
+  private _extractConstraints(text: string): string[] {
+    const matches = text.matchAll(/constraint[:\s]+(.+?)(?:\n|$)/gi);
+    return Array.from(matches).map((m) => m[1].trim()).filter(Boolean);
+  }
+
+  private _extractAcceptanceCriteria(text: string): string[] {
+    const matches = text.matchAll(/(?:criteria|requirement)[:\s]+(.+?)(?:\n|$)/gi);
+    return Array.from(matches).map((m) => m[1].trim()).filter(Boolean);
+  }
+
+  private _extractOntologyFields(text: string): OntologyField[] {
+    // Extract capitalized compound terms as ontology candidates
+    const words = text.toLowerCase().split(/[^a-z0-9_]+/);
+    const freq: Record<string, number> = {};
+    for (const word of words) {
+      if (word.length > 4) {
+        freq[word] = (freq[word] || 0) + 1;
+      }
+    }
+    const topTerms = Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([name]) => name);
+
+    return topTerms.map((name) => ({
+      name,
+      type: 'string',
+      description: `Auto-extracted concept: ${name}`,
+      required: false,
+    }));
+  }
+
   deserialize(data: Record<string, unknown>): void {
     if (data.seedSpec) this._seedSpec = data.seedSpec as SeedSpec;
     if (data.driftMetrics) this._driftMetrics = data.driftMetrics as DriftMetrics;
@@ -426,5 +661,6 @@ export class UltraPlanModeEngine {
       this._stagnationHistory = data.stagnationHistory as StagnationHistoryEntry[];
     if (data.evaluationPlan) this._evaluationPlan = data.evaluationPlan as EvaluationPlan;
     if (data.lateralThinking) this._lateralThinking = data.lateralThinking as LateralThinkingResult;
+    if (data.interviewState) this._interviewState = data.interviewState as InterviewState;
   }
 }

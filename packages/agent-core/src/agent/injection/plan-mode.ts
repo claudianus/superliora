@@ -1,4 +1,5 @@
 import type { PlanFilePath } from '../plan';
+import type { Agent } from '..';
 import { DynamicInjector } from './injector';
 
 const PLAN_MODE_DEDUP_MIN_TURNS = 2;
@@ -48,8 +49,8 @@ export class PlanModeInjector extends DynamicInjector {
 
     if (isUltraMode) {
       return variant === 'full' || variant === 'reentry'
-        ? phaseReminder(planFilePath, phase)
-        : phaseSparseReminder(planFilePath, phase);
+        ? phaseReminder(planFilePath, phase, this.agent)
+        : phaseSparseReminder(planFilePath, phase, this.agent);
     }
 
     return variant === 'full'
@@ -195,19 +196,35 @@ function exitReminder(): string {
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   interview: `## Interview Phase
 You are in the Interview Phase. Your ONLY allowed tool is AskUserQuestion.
-Write, Edit, Bash, TaskStop, CronCreate, and CronDelete are BLOCKED.
+Write, Edit, Bash, TaskStop, CronCreate, CronDelete, and ExitPlanMode are BLOCKED.
 
-Goal: Clarify requirements through Socratic questioning until ambiguity is low.
-- Ask focused, one-at-a-time questions
-- Target scope, non-goals, success criteria, constraints, risks
-- For brownfield work, focus on intent and decisions
-- You MUST ask at least 3 rounds of questions before moving to Design phase
-- After each user answer, assess whether ambiguity remains
+## Current Perspective: {{perspective}}
+{{perspectiveDescription}}
 
-You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
-Your turn MUST end with AskUserQuestion.
+## Multi-Perspective Interview (Ouroboros-style)
+Each round rotates through 5 perspectives:
+1. Researcher — Explore background and context
+2. Simplifier — Challenge assumptions, reduce complexity
+3. Architect — Structure, components, interfaces
+4. Breadth-keeper — Edge cases, non-goals, scope
+5. Seed-closer — Precision, measurable criteria
 
-Current interview round: {{round}}`,
+## Ambiguity Scoring (real-time)
+The system evaluates 3 dimensions after each round:
+- Goal Clarity (40%): How well the goal is defined
+- Constraint Clarity (30%): How clearly constraints are specified
+- Success Criteria Clarity (30%): How measurable the success criteria are
+
+Current interview round: {{round}}
+Current perspective: {{perspective}}
+Current ambiguity score: {{ambiguityScore}}
+Current milestone: {{milestone}}
+Completion streak: {{streak}}
+
+Next milestone target: {{nextMilestone}}
+
+You MUST ask at least 3 rounds. Score ≤ 0.2 for 2 consecutive rounds = auto-advance to Design.
+Your turn MUST end with AskUserQuestion.`,
 
   design: `## Design Phase
 You are in the Design Phase. Read-only tools only (Read, Grep, Glob, WebSearch, FetchURL).
@@ -255,14 +272,28 @@ Make sure the plan file contains a complete Seed Spec before exiting.`,
 };
 
 function phaseReminder(planFilePath: PlanFilePath, phase: string): string {
+  // In the real implementation, these would come from the agent's state
+  // For now, we use placeholder values that get injected dynamically
   const base = `Ultra Plan mode is active. Phase: ${phase.toUpperCase()}.
 
 ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
-  const body = base.replace('{{round}}', String((planFilePath as unknown as { round?: number }).round ?? 0));
+  let body = base;
+
+  // Replace template variables with actual values if available
+  // Note: In a full implementation, the injector would have access to the agent's plan mode state
+  body = body.replace(/{{round}}/g, 'see agent state');
+  body = body.replace(/{{ambiguityScore}}/g, 'calculated after each round');
+  body = body.replace(/{{milestone}}/g, 'calculated after each round');
+  body = body.replace(/{{streak}}/g, 'calculated after each round');
+  body = body.replace(/{{nextMilestone}}/g, 'keep asking questions');
+
   return withPlanFileFooter(body, planFilePath);
 }
 
-function phaseSparseReminder(planFilePath: PlanFilePath, phase: string): string {
-  const body = `Ultra Plan mode — ${phase.toUpperCase()} phase. ${PHASE_INSTRUCTIONS[phase]?.split('\n')[0] ?? ''}`;
+function phaseSparseReminder(planFilePath: PlanFilePath, phase: string, agent: Agent): string {
+  const engine = agent.planMode.ultraEngine;
+  const score = engine.interviewState.ambiguityScore;
+  const scoreText = score ? `score=${score.overallScore.toFixed(2)}` : 'scoring pending';
+  const body = `Ultra Plan mode — ${phase.toUpperCase()} phase (${scoreText}). ${PHASE_INSTRUCTIONS[phase]?.split('\n')[0] ?? ''}`;
   return withPlanFileFooter(body, planFilePath);
 }
