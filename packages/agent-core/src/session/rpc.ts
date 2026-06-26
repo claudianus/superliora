@@ -1,5 +1,5 @@
 import { ErrorCodes, KimiError } from '#/errors';
-import type { SessionWarning } from '@moonshot-ai/protocol';
+import type { SessionWarning } from '@super-kimi/protocol';
 import type {
   ActivateSkillPayload,
   AddAdditionalDirPayload,
@@ -147,7 +147,7 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).getModel(payload);
   }
 
-  async enterPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+  async enterPlan({ agentId, ...payload }: AgentScopedPayload<EnterPlanPayload>) {
     return (await this.getAgent(agentId)).enterPlan(payload);
   }
 

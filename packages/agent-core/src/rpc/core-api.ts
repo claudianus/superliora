@@ -18,8 +18,8 @@ import type { KimiConfig, KimiConfigPatch, McpServerConfig } from '#/config';
 import type { ExperimentalFeatureState } from '#/flags';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
-import type { ContentPart } from '@moonshot-ai/kosong';
-import type { SessionWarning } from '@moonshot-ai/protocol';
+import type { ContentPart } from '@super-kimi/kosong';
+import type { SessionWarning } from '@super-kimi/protocol';
 
 import type { PluginInfo, PluginSummary, ReloadSummary } from '#/plugin';
 import type { UsageStatus } from './events';
@@ -39,6 +39,10 @@ export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'vi
 export type PromptInput = readonly PromptPart[];
 
 export type EmptyPayload = {};
+
+export interface EnterPlanPayload {
+  readonly ultra?: boolean;
+}
 export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
 
 export interface ClientTelemetryInfo {
@@ -104,8 +108,8 @@ export interface ExportSessionPayload {
   readonly sessionId: string;
   readonly outputPath?: string | undefined;
   /**
-   * When true, the active global diagnostic log (`$KIMI_CODE_HOME/logs/kimi-code.log`)
-   * is copied into the zip at `logs/global/kimi-code.log`. Off by default to
+   * When true, the active global diagnostic log (`$SUPER_KIMI_CODE_HOME/logs/super-kimi-code.log`)
+   * is copied into the zip at `logs/global/super-kimi-code.log`. Off by default to
    * avoid bundling events from concurrent sessions / other projects.
    */
   readonly includeGlobalLog?: boolean | undefined;
@@ -378,7 +382,7 @@ export interface AgentAPI {
   setPermission: (payload: SetPermissionPayload) => void;
   setModel: (payload: SetModelPayload) => SetModelResult;
   getModel: (payload: EmptyPayload) => string;
-  enterPlan: (payload: EmptyPayload) => void;
+  enterPlan: (payload: EnterPlanPayload) => void;
   cancelPlan: (payload: CancelPlanPayload) => void;
   clearPlan: (payload: EmptyPayload) => void;
   enterSwarm: (payload: EnterSwarmPayload) => void;

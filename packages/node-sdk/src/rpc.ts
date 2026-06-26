@@ -16,8 +16,8 @@ import {
   type ToolCallRequest,
   type ToolCallResponse,
   type SwarmModeTrigger,
-} from '@moonshot-ai/agent-core';
-import type { Kaos } from '@moonshot-ai/kaos';
+} from '@super-kimi/agent-core';
+import type { Kaos } from '@super-kimi/kaos';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {
@@ -89,6 +89,7 @@ export interface SetSessionPermissionRpcInput extends SessionIdRpcInput {
 
 export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
+  readonly ultra?: boolean;
 }
 
 export type SetSessionSwarmModeRpcInput =
@@ -343,6 +344,7 @@ export abstract class SDKRpcClientBase {
     return rpc.enterPlan({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
+      ultra: input.ultra ?? false,
     });
   }
 

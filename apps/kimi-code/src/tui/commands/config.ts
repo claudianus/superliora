@@ -3,7 +3,7 @@ import type {
   FlagId,
   PermissionMode,
   Session,
-} from '@moonshot-ai/kimi-code-sdk';
+} from '@super-kimi/super-kimi-code-sdk';
 
 import { EditorSelectorComponent } from '../components/dialogs/editor-selector';
 import {
@@ -45,25 +45,30 @@ export async function handlePlanCommand(host: SlashCommandHost, args: string): P
   }
 
   let enabled: boolean;
+  let ultra = false;
   if (subcmd.length === 0) enabled = !host.state.appState.planMode;
   else if (subcmd === 'on') enabled = true;
   else if (subcmd === 'off') enabled = false;
+  else if (subcmd === 'ultra') {
+    enabled = true;
+    ultra = true;
+  }
   else {
     host.showError(`Unknown plan subcommand: ${subcmd}`);
     return;
   }
 
-  await applyPlanMode(host, session, enabled);
+  await applyPlanMode(host, session, enabled, ultra);
 }
 
-async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean): Promise<void> {
+async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {
   try {
-    await session.setPlanMode(enabled);
+    await session.setPlanMode(enabled, ultra);
     host.setAppState({ planMode: enabled });
     if (enabled) {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(
-        'Plan mode: ON',
+        ultra ? 'Ultra Plan mode: ON' : 'Plan mode: ON',
         plan?.path !== undefined ? `Plan will be created here: ${plan.path}` : undefined,
       );
       return;

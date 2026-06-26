@@ -111,14 +111,14 @@ import type {
 } from './core-api';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
-import type { SessionWarning } from '@moonshot-ai/protocol';
+import type { SessionWarning } from '@super-kimi/protocol';
 import { proxyWithExtraPayload } from './types';
-import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@moonshot-ai/kaos';
+import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@super-kimi/kaos';
 import type { ToolServices } from '../tools/support/services';
 
-const KIMI_CODE_PROVIDER_NAME = 'managed:kimi-code';
-const KIMI_CODE_BASE_URL_ENV = 'KIMI_CODE_BASE_URL';
-const KIMI_CODE_OAUTH_HOST_ENV = 'KIMI_CODE_OAUTH_HOST';
+const SUPER_KIMI_CODE_PROVIDER_NAME = 'managed:super-kimi-code';
+const SUPER_KIMI_CODE_BASE_URL_ENV = 'SUPER_KIMI_CODE_BASE_URL';
+const SUPER_KIMI_CODE_OAUTH_HOST_ENV = 'SUPER_KIMI_CODE_OAUTH_HOST';
 const KIMI_OAUTH_HOST_ENV = 'KIMI_OAUTH_HOST';
 type AgentScopedPayload<T> = T & { readonly agentId: string };
 type SessionScopedPayload<T> = T & { readonly sessionId: string };
@@ -231,11 +231,11 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, options.mcpServers);
     const parentKaos = overrides.kaos ?? (await this.getKaos());
     const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
-    // Read the workspace local config (`.kimi-code/local.toml`) through the
+    // Read the workspace local config (`.super-kimi-code/local.toml`) through the
     // persistence (local) kaos, not the tool kaos. In ACP mode the tool kaos is
     // the reverse-RPC bridge and the client does not know the session yet during
     // `session/new`, so reading through it fails with "unknown session"
-    // (https://github.com/MoonshotAI/kimi-code/issues/988). The local config is
+    // (https://github.com/SuperKimi/super-kimi-code/issues/988). The local config is
     // a system file and must not depend on the tool bridge — same reason
     // `Session.systemContextKaos` is backed by the persistence sink.
     const localWorkspaceDirs = await readWorkspaceAdditionalDirs(persistenceKaos, workDir);
@@ -365,7 +365,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   ): Promise<ResumeSessionResult> {
     const summary = await this.sessionStore.get(input.sessionId);
     const parentKaosForRead = overrides.kaos ?? (await this.getKaos());
-    // Read `.kimi-code/local.toml` through the persistence (local) kaos, not the
+    // Read `.super-kimi-code/local.toml` through the persistence (local) kaos, not the
     // tool kaos — see createSessionWithOverrides and issue #988.
     const localWorkspaceDirs = await readWorkspaceAdditionalDirs(
       overrides.persistenceKaos ?? parentKaosForRead,
@@ -630,7 +630,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).getModel(payload);
   }
 
-  enterPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+  enterPlan({ sessionId, ...payload }: SessionAgentPayload<EnterPlanPayload>) {
     return this.sessionApi(sessionId).enterPlan(payload);
   }
 
@@ -956,16 +956,16 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   }
 
   private managedKimiCodeEnvForPlugins(): Record<string, string> {
-    const provider = this.config.providers[KIMI_CODE_PROVIDER_NAME];
-    const envBaseUrl = process.env[KIMI_CODE_BASE_URL_ENV];
-    const envOAuthHost = process.env[KIMI_CODE_OAUTH_HOST_ENV] ?? process.env[KIMI_OAUTH_HOST_ENV];
+    const provider = this.config.providers[SUPER_KIMI_CODE_PROVIDER_NAME];
+    const envBaseUrl = process.env[SUPER_KIMI_CODE_BASE_URL_ENV];
+    const envOAuthHost = process.env[SUPER_KIMI_CODE_OAUTH_HOST_ENV] ?? process.env[KIMI_OAUTH_HOST_ENV];
     const hasEnvOverride = envBaseUrl !== undefined || envOAuthHost !== undefined;
     const baseUrl =
       envBaseUrl !== undefined ? envBaseUrl.replace(/\/+$/, '') : provider?.baseUrl;
     const oauthHost = hasEnvOverride ? envOAuthHost : provider?.oauth?.oauthHost;
     const env: Record<string, string> = {};
-    if (baseUrl !== undefined) env[KIMI_CODE_BASE_URL_ENV] = baseUrl;
-    if (oauthHost !== undefined) env[KIMI_CODE_OAUTH_HOST_ENV] = oauthHost;
+    if (baseUrl !== undefined) env[SUPER_KIMI_CODE_BASE_URL_ENV] = baseUrl;
+    if (oauthHost !== undefined) env[SUPER_KIMI_CODE_OAUTH_HOST_ENV] = oauthHost;
     return env;
   }
 
@@ -1101,7 +1101,7 @@ function serviceCredentials(
     apiKey,
     tokenProvider:
       service.oauth !== undefined
-        ? resolveOAuthTokenProvider?.(KIMI_CODE_PROVIDER_NAME, service.oauth)
+        ? resolveOAuthTokenProvider?.(SUPER_KIMI_CODE_PROVIDER_NAME, service.oauth)
         : undefined,
     customHeaders: service.customHeaders,
   };

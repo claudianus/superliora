@@ -4,7 +4,7 @@ import {
   type AgentContextData,
   type KimiErrorCode,
   type SwarmModeTrigger,
-} from '@moonshot-ai/agent-core';
+} from '@super-kimi/agent-core';
 
 import { type ApprovalHandler, type Event, type QuestionHandler } from '#/events';
 import type { SDKRpcClientBase } from '#/rpc';
@@ -214,7 +214,7 @@ export class Session {
     await this.rpc.setPermission({ sessionId: this.id, mode });
   }
 
-  async setPlanMode(enabled: boolean): Promise<void> {
+  async setPlanMode(enabled: boolean, ultra = false): Promise<void> {
     this.ensureOpen();
     if (typeof enabled !== 'boolean') {
       throw new KimiError(
@@ -222,7 +222,7 @@ export class Session {
         'Session plan mode must be a boolean',
       );
     }
-    await this.rpc.setPlanMode({ sessionId: this.id, enabled });
+    await this.rpc.setPlanMode({ sessionId: this.id, enabled, ultra });
   }
 
   async setSwarmMode(enabled: boolean, trigger: SwarmModeTrigger): Promise<void> {

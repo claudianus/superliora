@@ -5,7 +5,7 @@ import { ErrorCodes, KimiError, makeErrorPayload } from '#/errors';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import type { AgentAPI, AgentEvent, KimiConfig, SDKAgentRPC, UsageStatus } from '#/rpc';
-import { generate } from '@moonshot-ai/kosong';
+import { generate } from '@super-kimi/kosong';
 
 import type { EnabledPluginSessionStart } from '#/plugin';
 
@@ -49,7 +49,7 @@ import { KosongLLM } from './turn/kosong-llm';
 import { UsageRecorder } from './usage';
 import { LlmRequestLogger, splitGenerateOptions } from './llm-request-logger';
 import { resolveCompletionBudget } from '../utils/completion-budget';
-import type { Kaos } from '@moonshot-ai/kaos';
+import type { Kaos } from '@super-kimi/kaos';
 import type { ToolServices } from '../tools/support/services';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
@@ -335,8 +335,8 @@ export class Agent {
       getModel: () => {
         return this.config.modelAlias ?? '';
       },
-      enterPlan: async () => {
-        await this.planMode.enter();
+      enterPlan: async (payload) => {
+        await this.planMode.enter(undefined, false, true, payload.ultra ?? false);
       },
       cancelPlan: (payload) => {
         this.planMode.cancel(payload.id);
