@@ -126,21 +126,23 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       };
     }
 
+    const isUltra = this.agent.planMode.isUltraMode;
     const resolvedPlan = await this.resolvePlan();
     if (!resolvedPlan.ok) return resolvedPlan.error;
 
     this.agent.telemetry.track('plan_submitted', {
       has_options: args.options !== undefined && args.options.length >= 2,
+      ultra: isUltra,
     });
 
     const failed = this.exitPlanMode();
     if (failed !== undefined) return failed;
 
-    this.agent.telemetry.track('plan_resolved', { outcome: 'auto_approved' });
+    this.agent.telemetry.track('plan_resolved', { outcome: 'auto_approved', ultra: isUltra });
 
     return {
       isError: false,
-      output: `Exited plan mode. ${formatPlanForOutput(resolvedPlan.plan, resolvedPlan.path)}`,
+      output: formatPlanForOutput(resolvedPlan.plan, resolvedPlan.path, isUltra, this.agent),
     };
   }
 
@@ -209,7 +211,20 @@ function normalizeOptionLabel(label: string): string {
   return label.trim().toLowerCase();
 }
 
-function formatPlanForOutput(plan: string, path: string | undefined): string {
+function formatPlanForOutput(plan: string, path: string | undefined, isUltra: boolean, agent: Agent): string {
   const savedTo = path !== undefined ? `Plan saved to: ${path}\n\n` : '';
-  return `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${plan}`;
+  let output = `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${plan}`;
+
+  if (isUltra) {
+    const drift = agent.planMode.ultraEngine.calculateDrift(plan, []);
+    const combined = (drift.goalDrift * 0.5 + drift.constraintDrift * 0.3 + drift.ontologyDrift * 0.2).toFixed(3);
+    output += `\n\n---\n## Ultra Plan Metrics\n`;
+    output += `- Goal Drift: ${drift.goalDrift.toFixed(3)}\n`;
+    output += `- Constraint Drift: ${drift.constraintDrift.toFixed(3)}\n`;
+    output += `- Ontology Drift: ${drift.ontologyDrift.toFixed(3)}\n`;
+    output += `- Combined Drift: ${combined} (threshold: 0.3)\n`;
+    output += `- Status: ${Number(combined) <= 0.3 ? 'ACCEPTABLE' : 'WARNING — plan may deviate from seed spec'}\n`;
+  }
+
+  return output;
 }

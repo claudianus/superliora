@@ -10,8 +10,9 @@ const PLAN_MODE_FULL_REFRESH_TURNS = 5;
  * `reentry` is used once when a restored planning session already has plan
  * content. `full` is used for the first reminder and periodic refreshes.
  * `sparse` keeps the read-only invariant visible between full reminders.
+ * `ultra` is used when ultra plan mode is active.
  */
-export type PlanModeVariant = 'full' | 'sparse' | 'reentry';
+export type PlanModeVariant = 'full' | 'sparse' | 'reentry' | 'ultra';
 
 export class PlanModeInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'plan_mode';
@@ -23,7 +24,7 @@ export class PlanModeInjector extends DynamicInjector {
   }
 
   override async getInjection(): Promise<string | undefined> {
-    const { isActive, planFilePath } = this.agent.planMode;
+    const { isActive, planFilePath, isUltraMode } = this.agent.planMode;
     if (!isActive) {
       if (!this.wasActive) {
         return undefined;
@@ -35,12 +36,21 @@ export class PlanModeInjector extends DynamicInjector {
     if (!this.wasActive) {
       this.injectedAt = null;
       this.wasActive = true;
+      if (isUltraMode) {
+        return ultraReminder(planFilePath);
+      }
       if (await this.hasCurrentPlanContent()) {
         return reentryReminder(planFilePath);
       }
     }
     const variant = this.getVariant();
     if (variant === null) return undefined;
+
+    if (isUltraMode) {
+      return variant === 'full' || variant === 'reentry'
+        ? ultraReminder(planFilePath)
+        : ultraSparseReminder(planFilePath);
+    }
 
     return variant === 'full'
       ? fullReminder(planFilePath)
@@ -178,4 +188,73 @@ Your turn must end with either AskUserQuestion (to clarify requirements) or Exit
 
 function exitReminder(): string {
   return `Plan mode is no longer active. The read-only and plan-file-only restrictions from plan mode no longer apply. Continue with the approved plan using the normal tool and permission rules.`;
+}
+
+// ── Ultra Plan Mode reminders ───────────────────────────────────────────────
+
+function ultraReminder(planFilePath: PlanFilePath): string {
+  if (planFilePath === null || planFilePath.length === 0) {
+    return inlineUltraReminder();
+  }
+
+  const body = `Ultra Plan mode is active. You MUST NOT make any edits (with the exception of the current plan file) or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received. TaskStop, CronCreate, and CronDelete are also blocked — call ExitPlanMode first if you need them.
+
+## Ultra Plan Mode Workflow
+This is an advanced planning mode with Ouroboros-inspired rigor:
+
+  1. Interview — Use AskUserQuestion to clarify requirements until ambiguity is low.
+  2. Seed Spec — Write the immutable Seed Spec (Goal, Constraints, Acceptance Criteria, Ontology) to the plan file.
+  3. Design — Converge on the best approach; consider trade-offs.
+  4. Review — Re-read key files to verify understanding.
+  5. Write Plan — Include AC Tree, Evaluation Plan, and Execution Plan in the plan file.
+  6. Exit — Call ExitPlanMode for user approval.
+
+## Seed Spec (immutable once written)
+- Goal: Primary objective
+- Constraints: Hard constraints that must never be violated
+- Acceptance Criteria: Hierarchical AC tree with statuses
+- Ontology: Conceptual lens defining the domain
+- Evaluation Principles: How success is measured
+- Exit Conditions: When to stop
+
+## Drift & Stagnation Detection
+The system monitors for:
+- Goal drift: deviation from the stated objective
+- Stagnation patterns: spinning, oscillation, no drift, diminishing returns
+- If stagnation is detected, lateral thinking personas will be suggested
+
+## Handling multiple approaches
+Same as normal plan mode: at most 2-3 approaches, pass via ExitPlanMode options.
+
+Your turn must end with either AskUserQuestion (to clarify requirements) or ExitPlanMode (to request plan approval). Do NOT end your turn any other way.`;
+  return withPlanFileFooter(body, planFilePath);
+}
+
+function ultraSparseReminder(planFilePath: PlanFilePath): string {
+  if (planFilePath === null || planFilePath.length === 0) {
+    return inlineUltraSparseReminder();
+  }
+
+  const body = `Ultra Plan mode still active (see full instructions earlier). Prefer read-only tools except the current plan file. Maintain the Seed Spec, AC Tree, and Evaluation Plan in the plan file. Use AskUserQuestion to clarify requirements. End turns with AskUserQuestion or ExitPlanMode.`;
+  return withPlanFileFooter(body, planFilePath);
+}
+
+function inlineUltraReminder(): string {
+  return `Ultra Plan mode is active. You MUST NOT make any edits or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received.
+
+## Ultra Plan Mode Workflow
+  1. Interview — Clarify requirements with AskUserQuestion.
+  2. Seed Spec — Write the immutable spec to the plan file.
+  3. Design — Converge on the best approach.
+  4. Review — Verify understanding.
+  5. Write Plan — AC Tree, Evaluation Plan, Execution Plan.
+  6. Exit — Call ExitPlanMode for approval.
+
+No plan file path is available in this host. Wait for the host to provide one before writing the plan.
+
+Your turn must end with either AskUserQuestion or ExitPlanMode.`;
+}
+
+function inlineUltraSparseReminder(): string {
+  return `Ultra Plan mode still active (see full instructions earlier). Read-only; no plan file path is available. Wait for the host to provide a plan file path before writing the plan. End turns with AskUserQuestion or ExitPlanMode.`;
 }

@@ -5,7 +5,6 @@
  * does not require approval in any permission mode.
  */
 
-
 import type { Agent } from '#/agent';
 import { z } from 'zod';
 
@@ -16,7 +15,9 @@ import DESCRIPTION from './enter-plan-mode.md?raw';
 
 // ── Input schema ─────────────────────────────────────────────────────
 
-export const EnterPlanModeInputSchema = z.object({}).strict();
+export const EnterPlanModeInputSchema = z.object({
+  ultra: z.boolean().optional().describe('Enter Ultra Plan mode with Seed Spec, AC Tree, and Evaluation Plan support.'),
+}).strict();
 export type EnterPlanModeInput = z.infer<typeof EnterPlanModeInputSchema>;
 
 export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
@@ -26,9 +27,9 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
 
   constructor(private readonly agent: Agent) {}
 
-  resolveExecution(_args: EnterPlanModeInput): ToolExecution {
+  resolveExecution(args: EnterPlanModeInput): ToolExecution {
     return {
-      description: 'Requesting to enter plan mode',
+      description: args.ultra ? 'Requesting to enter Ultra Plan mode' : 'Requesting to enter plan mode',
       approvalRule: this.name,
       execute: async () => {
         // Guard: already in plan mode
@@ -40,20 +41,54 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
         }
 
         try {
-          await this.agent.planMode.enter();
+          await this.agent.planMode.enter(undefined, false, true, args.ultra ?? false);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to enter plan mode.';
           return { isError: true, output: `Failed to enter plan mode: ${message}` };
         }
 
-        this.agent.telemetry.track('plan_enter_resolved', { outcome: 'auto_approved' });
-        return { output: enteredPlanModeMessage(this.agent.planMode.planFilePath) };
+        this.agent.telemetry.track('plan_enter_resolved', { outcome: 'auto_approved', ultra: args.ultra ?? false });
+        return { output: enteredPlanModeMessage(this.agent.planMode.planFilePath, args.ultra ?? false) };
       },
     };
   }
 }
 
-function enteredPlanModeMessage(planPath: string | null): string {
+function enteredPlanModeMessage(planPath: string | null, ultra: boolean): string {
+  if (ultra) {
+    if (planPath === null) {
+      return [
+        'Ultra Plan mode is now active. Your workflow:',
+        '',
+        '1. Interview — Use AskUserQuestion to clarify requirements until ambiguity is low.',
+        '2. Seed Spec — Define the immutable Goal, Constraints, AC Tree, and Ontology.',
+        '3. Design — Converge on the best approach; consider trade-offs.',
+        '4. Review — Re-read key files to verify understanding.',
+        '5. Write Plan — Include Evaluation Plan and Execution Plan in the plan file.',
+        '6. Exit — Call ExitPlanMode for user approval.',
+        '',
+        'No plan file path is available in this host yet.',
+        'Use Bash only when needed; Bash follows the normal permission mode and rules.',
+      ].join('\n');
+    }
+
+    return [
+      'Ultra Plan mode is now active. Your workflow:',
+      '',
+      `Plan file: ${planPath}`,
+      '',
+      '1. Interview — Use AskUserQuestion to clarify requirements until ambiguity is low.',
+      '2. Seed Spec — Write the immutable Goal, Constraints, AC Tree, and Ontology to the plan file.',
+      '3. Design — Converge on the best approach; consider trade-offs.',
+      '4. Review — Re-read key files to verify understanding.',
+      '5. Write Plan — Include Evaluation Plan and Execution Plan in the plan file.',
+      '6. Exit — Call ExitPlanMode for user approval.',
+      '',
+      'Do NOT edit files other than the plan file while Ultra Plan mode is active.',
+      'Use Bash only when needed; Bash follows the normal permission mode and rules.',
+    ].join('\n');
+  }
+
   if (planPath === null) {
     return [
       'Plan mode is now active. Your workflow:',

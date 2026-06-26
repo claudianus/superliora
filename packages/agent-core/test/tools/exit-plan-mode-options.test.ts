@@ -159,7 +159,7 @@ describe('ExitPlanMode option output', () => {
 
     expect(requestApproval).not.toHaveBeenCalled();
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
-    expect(result.output).toContain('Exited plan mode');
+    expect(result.output).toContain('Plan mode deactivated');
   });
 
   it('does not use inline plan fallback for option approval when no plan file exists', async () => {

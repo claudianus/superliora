@@ -3,6 +3,7 @@ import { dirname, join } from 'pathe';
 
 import type { Agent } from '..';
 import { generateHeroSlug } from '../../utils/hero-slug';
+import { UltraPlanModeEngine, type UltraPlanData } from './ultra-plan-mode';
 
 export type PlanData = null | {
   id: string;
@@ -15,14 +16,23 @@ export class PlanMode {
   protected _isActive = false;
   protected _planId: null | string = null;
   protected _planFilePath: PlanFilePath = null;
+  protected _isUltraMode = false;
+  readonly ultraEngine: UltraPlanModeEngine;
 
-  constructor(protected readonly agent: Agent) {}
+  constructor(protected readonly agent: Agent) {
+    this.ultraEngine = new UltraPlanModeEngine(agent);
+  }
 
   createPlanId(): string {
     return generateHeroSlug(randomUUID(), new Set());
   }
 
-  async enter(id = this.createPlanId(), createFile = false, emitStatus = true): Promise<void> {
+  async enter(
+    id = this.createPlanId(),
+    createFile = false,
+    emitStatus = true,
+    ultra = false,
+  ): Promise<void> {
     if (this._isActive) {
       throw new Error('Already in plan mode');
     }
@@ -30,16 +40,20 @@ export class PlanMode {
     this._isActive = true;
     this._planId = id;
     this._planFilePath = null;
+    this._isUltraMode = ultra;
 
     let enterRecorded = false;
     try {
       const planFilePath = this.planFilePathFor(id);
       this._planFilePath = planFilePath;
       await this.ensurePlanDirectory(planFilePath);
-      this.agent.records.logRecord({ type: 'plan_mode.enter', id });
+      this.agent.records.logRecord({ type: 'plan_mode.enter', id, ultra });
       enterRecorded = true;
       if (createFile) {
         await this.writeEmptyPlanFile(planFilePath);
+      }
+      if (ultra) {
+        await this.writeUltraPlanTemplate(planFilePath);
       }
     } catch (error) {
       if (enterRecorded) {
@@ -48,6 +62,7 @@ export class PlanMode {
         this._isActive = false;
         this._planId = null;
         this._planFilePath = null;
+        this._isUltraMode = false;
       }
       throw error;
     }
@@ -55,7 +70,7 @@ export class PlanMode {
     if (emitStatus) this.agent.emitStatusUpdated();
   }
 
-  restoreEnter({ id }: { readonly id: string }): void {
+  restoreEnter({ id, ultra }: { readonly id: string; readonly ultra?: boolean }): void {
     this.agent.replayBuilder.push({
       type: 'plan_updated',
       enabled: true,
@@ -64,6 +79,7 @@ export class PlanMode {
     this._isActive = true;
     this._planId = id;
     this._planFilePath = this.planFilePathFor(id);
+    this._isUltraMode = ultra ?? false;
   }
 
   cancel(id?: string): void {
@@ -75,6 +91,7 @@ export class PlanMode {
     this._isActive = false;
     this._planId = null;
     this._planFilePath = null;
+    this._isUltraMode = false;
     this.agent.emitStatusUpdated();
   }
 
@@ -92,11 +109,16 @@ export class PlanMode {
     this._isActive = false;
     this._planId = null;
     this._planFilePath = null;
+    this._isUltraMode = false;
     this.agent.emitStatusUpdated();
   }
 
   get isActive() {
     return this._isActive;
+  }
+
+  get isUltraMode() {
+    return this._isUltraMode;
   }
 
   get planFilePath(): PlanFilePath {
@@ -118,9 +140,26 @@ export class PlanMode {
     };
   }
 
+  async ultraData(): Promise<UltraPlanData> {
+    const planData = await this.data();
+    return {
+      seedSpec: this.ultraEngine.seedSpec,
+      driftMetrics: this.ultraEngine.calculateDrift(planData?.content ?? '', []),
+      stagnationPatterns: [],
+      lateralThinking: this.ultraEngine.generateLateralThinking('researcher', '', ''),
+      evaluationPlan: this.ultraEngine.evaluationPlan,
+    };
+  }
+
   private async writeEmptyPlanFile(path: string): Promise<void> {
     await this.ensurePlanDirectory(path);
     await this.agent.kaos.writeText(path, '');
+  }
+
+  private async writeUltraPlanTemplate(path: string): Promise<void> {
+    await this.ensurePlanDirectory(path);
+    const template = `# Ultra Plan\n\n## Seed Spec\n- Goal: \n- Constraints: \n- Acceptance Criteria: \n\n## Ontology\n- Name: \n- Fields: \n\n## Evaluation Plan\n- Stage 1 (Mechanical): lint, build, test\n- Stage 2 (Semantic): compliance, quality\n- Stage 3 (Consensus): if needed\n\n## Execution Plan\n<!-- Write your step-by-step plan here -->\n`;
+    await this.agent.kaos.writeText(path, template);
   }
 
   private async ensurePlanDirectory(path: string): Promise<void> {

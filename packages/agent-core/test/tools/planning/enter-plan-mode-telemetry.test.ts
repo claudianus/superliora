@@ -49,6 +49,7 @@ describe('EnterPlanMode telemetry', () => {
       expect(requestApproval).not.toHaveBeenCalled();
       expect(telemetryTrack).toHaveBeenCalledWith('plan_enter_resolved', {
         outcome: 'auto_approved',
+        ultra: false,
       });
     },
   );
