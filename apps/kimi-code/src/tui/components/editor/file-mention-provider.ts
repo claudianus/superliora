@@ -10,12 +10,15 @@ import {
   type SlashCommand,
 } from '@earendil-works/pi-tui';
 
+import type { SlashCommandVisibility } from '#/tui/commands';
+
 const PATH_DELIMITERS = new Set([' ', '\t', '"', "'", '=']);
 const MAX_FALLBACK_SCAN = 2000;
 const MAX_FALLBACK_SUGGESTIONS = 50;
 
 export interface SlashAutocompleteCommand extends SlashCommand {
   readonly aliases?: readonly string[];
+  readonly visibility?: SlashCommandVisibility;
 }
 
 export type DynamicSlashCommandProvider = (
@@ -130,6 +133,7 @@ export class FileMentionProvider implements AutocompleteProvider {
         const matches: SlashMatch[] = [];
 
         for (const cmd of this.slashCommands) {
+          if (!shouldOfferSlashCommand(cmd, tokens)) continue;
           const nameScore = scoreTokens(tokens, cmd.name);
           if (nameScore !== null) {
             matches.push({ cmd, score: nameScore, viaAlias: false, label: cmd.name });
@@ -425,6 +429,16 @@ function findSlashCommand(
   commandName: string,
 ): SlashAutocompleteCommand | undefined {
   return slashCommands.find((cmd) => cmd.name === commandName || (cmd.aliases ?? []).includes(commandName));
+}
+
+function shouldOfferSlashCommand(
+  command: SlashAutocompleteCommand,
+  tokens: readonly string[],
+): boolean {
+  const visibility = command.visibility ?? 'primary';
+  if (visibility === 'hidden' || visibility === 'diagnostic') return false;
+  if (tokens.length === 0) return visibility === 'primary';
+  return visibility === 'primary' || visibility === 'advanced';
 }
 
 function shouldSuppressLeadingWhitespaceSlashPath(

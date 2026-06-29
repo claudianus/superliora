@@ -49,6 +49,13 @@ const HELP_FULL_COMMAND = {
   description: 'Show help',
 };
 
+const ULTRAWORK_COMMAND = {
+  name: 'ultrawork',
+  aliases: ['uw'],
+  description: 'Start a guided autonomous coding workflow',
+  visibility: 'advanced' as const,
+};
+
 const ADD_DIR_COMMAND = {
   name: 'add-dir',
   description: 'Add or list an additional workspace directory',
@@ -216,6 +223,21 @@ describe('FileMentionProvider', () => {
     expect(result!.items[0]).toMatchObject({
       value: 'new',
       label: 'new',
+    });
+  });
+
+  it('keeps advanced commands out of bare slash but finds them by prefix', async () => {
+    const provider = new FileMentionProvider([HELP_COMMAND, ULTRAWORK_COMMAND], workDir, NO_FD);
+
+    const bare = await provider.getSuggestions(['/'], 0, 1, { signal: ctrl() });
+    const prefixed = await provider.getSuggestions(['/ul'], 0, 3, { signal: ctrl() });
+
+    expect(bare).not.toBeNull();
+    expect(bare!.items.map((item) => item.value)).not.toContain('ultrawork');
+    expect(prefixed).not.toBeNull();
+    expect(prefixed!.items[0]).toMatchObject({
+      value: 'ultrawork',
+      label: 'ultrawork',
     });
   });
 

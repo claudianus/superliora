@@ -367,12 +367,20 @@ export class KimiTUI {
   }
 
   private setupAutocomplete(): void {
-    const slashCommands: SlashAutocompleteCommand[] = this.getSlashCommands().map((cmd) => {
+    const primaryCommands = this.getSlashCommands('primary');
+    const advancedCommands = this
+      .getSlashCommands('advanced')
+      .filter((cmd) => !this.skillCommands.includes(cmd));
+    const slashCommands: SlashAutocompleteCommand[] = [
+      ...primaryCommands,
+      ...advancedCommands,
+    ].map((cmd) => {
       const completer = cmd.completeArgs;
       return {
         name: cmd.name,
         aliases: cmd.aliases,
         description: cmd.description,
+        visibility: cmd.visibility ?? 'primary',
         ...(cmd.argumentHint !== undefined ? { argumentHint: cmd.argumentHint } : {}),
         ...(completer !== undefined
           ? { getArgumentCompletions: (prefix: string) => completer(prefix) }
