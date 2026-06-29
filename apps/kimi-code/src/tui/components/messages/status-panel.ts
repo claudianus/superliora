@@ -94,7 +94,7 @@ function formatWorktreeStatus(status: GitStatus): string {
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
-const COVERAGE_GATE = 'public behavior covered by tests';
+const COVERAGE_GATE = 'test public behavior changes';
 const SCREEN_CHECK_GATE = 'open changed screen before finishing';
 const DONE_GATE = 'tests/typecheck/lint/build + clean diff + TUI';
 const READINESS_GATE_ROWS: readonly FieldRow[] = [
