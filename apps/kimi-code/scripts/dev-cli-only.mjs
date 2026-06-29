@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(SCRIPT_DIR, '..');
+const WORKSPACE_ROOT = resolve(APP_ROOT, '../..');
+const LAUNCH_CWD = process.env.KIMI_CODE_DEV_CWD || WORKSPACE_ROOT;
 
 const cliArgs = process.argv.slice(2);
 if (cliArgs[0] === '--') cliArgs.shift();
@@ -16,14 +18,14 @@ const child = spawn(
   [
     require.resolve('tsx/cli'),
     '--tsconfig',
-    './tsconfig.dev.json',
+    resolve(APP_ROOT, 'tsconfig.dev.json'),
     '--import',
-    '../../build/register-raw-text-loader.mjs',
-    './src/main.ts',
+    resolve(APP_ROOT, '../../build/register-raw-text-loader.mjs'),
+    resolve(APP_ROOT, 'src/main.ts'),
     ...cliArgs,
   ],
   {
-    cwd: APP_ROOT,
+    cwd: LAUNCH_CWD,
     env: process.env,
     stdio: 'inherit',
   },
