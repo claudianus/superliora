@@ -35,6 +35,7 @@ const SUPPORTED_PHASES = Object.freeze([
   'direct-cli',
   'server',
   'tui-launch',
+  'tui-real-workflow',
   'tui-iteration',
   'autonomous',
   'bench',
@@ -61,6 +62,7 @@ const EVIDENCE_SUBDIRS = Object.freeze([
   'logs',
   'screens',
   'tui',
+  'workflow',
   'server',
   'autonomous',
   'bench',
@@ -100,6 +102,9 @@ const TUI_OUROBOROS_PASS_THRESHOLD = 0.85;
 const TUI_PROMPT_ENTRY_TEXT = 'visible qa prompt entry only';
 const TUI_VIBE_MODE_TEXT = 'Vibe mode: ON';
 const TUI_INPUT_STEP_DELAY_MS = 150;
+const TUI_REAL_WORKFLOW_FIXTURE = 'super-kimi-real-workflow-fixture.txt';
+const TUI_REAL_WORKFLOW_SENTINEL = 'REAL_WORKFLOW_DONE';
+const TUI_REAL_WORKFLOW_TIMEOUT_MS = 120_000;
 const REQUIRED_TUI_CAPTURE_SCENARIOS = TUI_CAPTURE_SCENARIOS.map((scenario) => scenario.name);
 const MIN_SCREENSHOT_WIDTH = 80;
 const MIN_SCREENSHOT_HEIGHT = 40;
@@ -147,6 +152,7 @@ const AGGREGATE_COMMAND_LOGS = Object.freeze([
   'direct-cli.jsonl',
   'server.jsonl',
   'tui-launch.jsonl',
+  'tui-real-workflow.jsonl',
   'autonomous.jsonl',
   'bench.jsonl',
   'commands.jsonl',
@@ -397,7 +403,9 @@ async function runHarness(options, runId) {
         ? 'Todo 5 live server proof'
         : phases.includes('tui-launch')
           ? 'Todo 6 direct visible TUI screen operation proof'
-          : phases.includes('tui-iteration')
+          : phases.includes('tui-real-workflow')
+            ? 'Ultrawork real TUI vibe-coding workflow proof'
+            : phases.includes('tui-iteration')
           ? 'Todo 7 TUI iterative improvement and design QA loop'
           : phases.includes('direct-cli')
             ? 'Todo 4 direct CLI runtime proof'
@@ -493,8 +501,10 @@ async function runHarness(options, runId) {
                 ? await runServerPhase(context)
                 : phase === 'tui-launch'
               ? await runTuiLaunchPhase(context)
-              : phase === 'tui-iteration'
-                ? await runTuiIterationPhase(context)
+              : phase === 'tui-real-workflow'
+                ? await runTuiRealWorkflowPhase(context)
+                : phase === 'tui-iteration'
+                  ? await runTuiIterationPhase(context)
                 : phase === 'cleanup'
                   ? await runCleanupPhase(context, cleanupOverrides)
                   : phase === 'bench'
@@ -569,10 +579,12 @@ async function runHarness(options, runId) {
       ? 'server-pass'
       : phases.includes('static')
         ? 'static-pass'
-        : phases.includes('tui-launch')
+      : phases.includes('tui-launch')
           ? 'tui-launch-pass'
-          : phases.includes('tui-iteration')
-            ? 'tui-iteration-pass'
+          : phases.includes('tui-real-workflow')
+            ? 'tui-real-workflow-pass'
+            : phases.includes('tui-iteration')
+              ? 'tui-iteration-pass'
             : phases.includes('direct-cli')
               ? 'direct-cli-pass'
               : phases.includes('autonomous')
@@ -596,8 +608,10 @@ async function runHarness(options, runId) {
       ? 'Static integrity phase completed.'
       : phases.includes('tui-launch')
         ? 'Visible TUI launch proof completed with computer-use and tmux evidence.'
-        : phases.includes('tui-iteration')
-          ? 'TUI before/after evidence, targeted logs, and QA verdict completed.'
+        : phases.includes('tui-real-workflow')
+          ? 'Real TUI vibe-coding workflow proof completed with submitted prompt, workspace diff, verification command, and cleanup evidence.'
+          : phases.includes('tui-iteration')
+            ? 'TUI before/after evidence, targeted logs, and QA verdict completed.'
           : phases.includes('direct-cli')
             ? 'Direct CLI runtime proof completed.'
             : phases.includes('autonomous')
@@ -3797,6 +3811,419 @@ async function finishTuiLaunchPhase(context, summary, cleanupOverrides) {
   return { phaseEntry, cleanupOverrides };
 }
 
+async function runTuiRealWorkflowPhase(context) {
+  const startedAt = new Date().toISOString();
+  const workflowDir = path.join(context.evidenceRoot, 'workflow');
+  const tmuxSession = context.options.tmuxSession ?? `super-kimi-real-workflow-${context.runId}`;
+  const commandRecords = [];
+  const cleanupOverrides = {
+    status: 'tui-real-workflow-completed',
+    reason: 'Real TUI workflow phase recorded prompt submission, workspace evidence, and cleanup state.',
+    liveProcessesStarted: false,
+    liveProductCommandsStarted: false,
+    closedTmuxSessions: [],
+    proofCommands: [],
+  };
+  const fixturePath = path.join(context.targetWorktree, TUI_REAL_WORKFLOW_FIXTURE);
+  const workflowPrompt = buildTuiRealWorkflowPrompt(fixturePath);
+  const summary = {
+    schemaVersion: 1,
+    phase: 'tui-real-workflow',
+    status: 'BLOCKED',
+    reason: 'Real TUI workflow did not run yet.',
+    startedAt,
+    completedAt: undefined,
+    sourceCwd: context.sourceCheckout,
+    targetWorkspace: context.targetWorktree,
+    targetWorkspaceKind: 'disposable-git-worktree',
+    kimiCodeHome: context.plannedKimiCodeHome,
+    tmuxSession,
+    terminalTitle: context.titlePrefix,
+    fixture: {
+      relativePath: TUI_REAL_WORKFLOW_FIXTURE,
+      expectedSentinel: TUI_REAL_WORKFLOW_SENTINEL,
+    },
+    prompt: workflowPrompt,
+    commands: commandRecords,
+    inputTraces: [],
+    captures: [],
+    validations: {},
+    workflow: {},
+    workspace: {},
+  };
+  let targetWorktreeCreated = false;
+  let tempHomeCreated = false;
+  let tempRootCreated = false;
+  let tmuxSessionCreated = false;
+
+  await mkdir(workflowDir, { recursive: true });
+  await mkdir(path.join(context.evidenceRoot, 'tui'), { recursive: true });
+  await writeTuiAttachHelpers(context, tmuxSession);
+
+  try {
+    summary.validations.tmuxPreflight = passFail(
+      context.preflight?.tmux?.status === 'PASS',
+      context.preflight?.tmux?.detail ?? 'tmux preflight was not recorded.',
+    );
+    if (summary.validations.tmuxPreflight.status !== 'PASS') {
+      summary.reason = `BLOCKED: tmux unavailable (${context.preflight?.tmux?.actual ?? 'unknown'}).`;
+      return await finishTuiRealWorkflowPhase(context, summary, cleanupOverrides);
+    }
+
+    await mkdir(context.tempRoot, { recursive: true });
+    tempRootCreated = true;
+    await mkdir(context.plannedKimiCodeHome, { recursive: true, mode: 0o700 });
+    tempHomeCreated = true;
+    const migrationSkipMarker = path.join(context.plannedKimiCodeHome, '.skip-migration-from-kimi-cli');
+    await writeFile(migrationSkipMarker, '', 'utf8');
+    await createDisposableGitWorktree(context);
+    targetWorktreeCreated = true;
+    await writeFile(
+      fixturePath,
+      [
+        'Super Kimi real TUI workflow fixture.',
+        'A real vibe-coding run must replace TODO_REAL_WORKFLOW below.',
+        'status=TODO_REAL_WORKFLOW',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeJson(path.join(workflowDir, 'fixture-before.json'), {
+      path: fixturePath,
+      content: await readFile(fixturePath, 'utf8'),
+    });
+    const intentToAddRecord = await runTuiCommand(context, {
+      name: 'real-workflow-fixture-intent-to-add',
+      command: 'git',
+      args: ['add', '-N', TUI_REAL_WORKFLOW_FIXTURE],
+      cwd: context.targetWorktree,
+      timeoutMs: 10_000,
+      logName: 'tui-real-workflow',
+    });
+    commandRecords.push(intentToAddRecord);
+    cleanupOverrides.proofCommands.push(commandProofFromRecord(intentToAddRecord));
+    if (intentToAddRecord.exitCode !== 0) {
+      summary.status = 'FAIL';
+      summary.reason = 'failed to mark the real workflow fixture for diff tracking.';
+      return await finishTuiRealWorkflowPhase(context, summary, cleanupOverrides);
+    }
+
+    const launchShellCommand = [
+      `KIMI_CODE_HOME=${shellQuote(context.plannedKimiCodeHome)}`,
+      `corepack pnpm -C ${shellQuote(path.join(context.sourceCheckout, 'apps', 'kimi-code'))} run dev --`,
+      '--auto',
+      '--add-dir',
+      shellQuote(context.targetWorktree),
+    ].join(' ');
+    const launchRecord = await runTuiCommand(context, {
+      name: 'real-workflow-tmux-new-session',
+      command: 'tmux',
+      args: [
+        'new-session',
+        '-d',
+        '-s',
+        tmuxSession,
+        '-x',
+        '120',
+        '-y',
+        '40',
+        '-c',
+        context.targetWorktree,
+        launchShellCommand,
+      ],
+      cwd: context.sourceCheckout,
+      timeoutMs: 30_000,
+      logName: 'tui-real-workflow',
+    });
+    commandRecords.push(launchRecord);
+    cleanupOverrides.proofCommands.push(commandProofFromRecord(launchRecord));
+    if (launchRecord.exitCode !== 0) {
+      summary.status = 'FAIL';
+      summary.reason = 'tmux new-session failed; see command stderr evidence.';
+      return await finishTuiRealWorkflowPhase(context, summary, cleanupOverrides);
+    }
+    tmuxSessionCreated = true;
+    cleanupOverrides.liveProcessesStarted = true;
+    cleanupOverrides.liveProductCommandsStarted = true;
+
+    await sleep(4_000);
+    summary.captures.push(await captureTmuxPane(context, tmuxSession, 'startup'));
+    const promptTrace = await sendTmuxKeySequence(context, tmuxSession, 'real-workflow-prompt', [
+      workflowPrompt,
+      'Enter',
+    ]);
+    summary.inputTraces.push(promptTrace);
+    commandRecords.push(...promptTrace.commands);
+    cleanupOverrides.proofCommands.push(
+      ...promptTrace.commands.map((record) => commandProofFromRecord(record)),
+    );
+    await sleep(2_000);
+    summary.captures.push(await captureTmuxPane(context, tmuxSession, 'real-workflow-submitted'));
+
+    const waitResult = await waitForRealWorkflowOutcome(context, tmuxSession, fixturePath);
+    summary.workflow.wait = waitResult;
+    summary.captures.push(await captureTmuxPane(context, tmuxSession, 'real-workflow-after-wait'));
+    await writeJson(path.join(workflowDir, 'fixture-after.json'), {
+      path: fixturePath,
+      content: await readFileIfExists(fixturePath),
+    });
+
+    const diffRecord = await runTuiCommand(context, {
+      name: 'real-workflow-git-diff',
+      command: 'git',
+      args: ['diff', '--', TUI_REAL_WORKFLOW_FIXTURE],
+      cwd: context.targetWorktree,
+      timeoutMs: 10_000,
+      logName: 'tui-real-workflow',
+    });
+    commandRecords.push(diffRecord);
+    cleanupOverrides.proofCommands.push(commandProofFromRecord(diffRecord));
+    await writeFile(path.join(workflowDir, 'git-diff.patch'), diffRecord.stdout, 'utf8');
+
+    const verificationRecord = await runTuiCommand(context, {
+      name: 'real-workflow-verification',
+      command: 'node',
+      args: [
+        '-e',
+        `const fs=require('fs'); const text=fs.readFileSync(${JSON.stringify(TUI_REAL_WORKFLOW_FIXTURE)}, 'utf8'); if(!text.includes(${JSON.stringify(TUI_REAL_WORKFLOW_SENTINEL)})) process.exit(1);`,
+      ],
+      cwd: context.targetWorktree,
+      timeoutMs: 10_000,
+      logName: 'tui-real-workflow',
+    });
+    commandRecords.push(verificationRecord);
+    cleanupOverrides.proofCommands.push(commandProofFromRecord(verificationRecord));
+
+    const fixtureText = await readFileIfExists(fixturePath);
+    summary.validations.promptSubmitted = passFail(
+      promptTrace.status === 'PASS',
+      promptTrace.reason,
+    );
+    summary.validations.workspaceChanged = passFail(
+      typeof fixtureText === 'string' &&
+        fixtureText.includes(TUI_REAL_WORKFLOW_SENTINEL) &&
+        !fixtureText.includes('TODO_REAL_WORKFLOW'),
+      'fixture must contain the requested sentinel and no longer contain TODO_REAL_WORKFLOW.',
+    );
+    summary.validations.diffContainsSentinel = passFail(
+      diffRecord.exitCode === 0 && diffRecord.stdout.includes(TUI_REAL_WORKFLOW_SENTINEL),
+      'git diff must show the real workflow sentinel in the disposable target worktree.',
+    );
+    summary.validations.verificationCommand = passFail(
+      verificationRecord.exitCode === 0,
+      'verification command must pass against the edited fixture.',
+    );
+    summary.validations.screenEvidence = passFail(
+      summary.captures.every((capture) => capture.status === 'PASS'),
+      'startup, submitted, and after-wait screen captures must show recognizable TUI evidence.',
+    );
+    summary.workspace = {
+      fixturePath,
+      fixtureBytes: typeof fixtureText === 'string' ? Buffer.byteLength(fixtureText) : 0,
+      diffPath: path.join(workflowDir, 'git-diff.patch'),
+      diffExitCode: diffRecord.exitCode,
+      verificationExitCode: verificationRecord.exitCode,
+    };
+
+    const failedValidation = Object.values(summary.validations).find(
+      (validation) => validation.status !== 'PASS',
+    );
+    if (failedValidation === undefined) {
+      summary.status = 'PASS';
+      summary.reason =
+        'Real TUI vibe-coding workflow submitted a coding prompt, produced workspace diff evidence, and passed verification.';
+    } else {
+      summary.status = waitResult.status === 'BLOCKED' ? 'BLOCKED' : 'FAIL';
+      summary.reason =
+        waitResult.status === 'BLOCKED'
+          ? waitResult.reason
+          : `Real TUI workflow evidence failed: ${failedValidation.reason}`;
+    }
+  } catch (error) {
+    summary.status = 'FAIL';
+    summary.reason = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (tmuxSessionCreated) {
+      const exitTrace = await sendTmuxKeySequence(context, tmuxSession, 'real-workflow-exit', [
+        'C-c',
+        '/exit',
+        'Enter',
+      ]);
+      summary.inputTraces.push(exitTrace);
+      commandRecords.push(...exitTrace.commands);
+      cleanupOverrides.proofCommands.push(
+        ...exitTrace.commands.map((record) => commandProofFromRecord(record)),
+      );
+      await sleep(2_000);
+      const hasSession = runBoundedCommand('tmux', ['has-session', '-t', tmuxSession], {
+        cwd: context.sourceCheckout,
+        timeoutMs: 10_000,
+      });
+      cleanupOverrides.proofCommands.push(commandProof(hasSession));
+      if (hasSession.status === 0) {
+        const killSession = runBoundedCommand('tmux', ['kill-session', '-t', tmuxSession], {
+          cwd: context.sourceCheckout,
+          timeoutMs: 10_000,
+        });
+        cleanupOverrides.proofCommands.push(commandProof(killSession));
+        cleanupOverrides.closedTmuxSessions = [
+          {
+            name: tmuxSession,
+            status: killSession.status === 0 ? 'closed' : 'close-failed',
+            exitCode: killSession.status,
+          },
+        ];
+      }
+    }
+    if (!context.options.keepTemp) {
+      if (targetWorktreeCreated) {
+        const removal = runBoundedCommand(
+          'git',
+          ['worktree', 'remove', '--force', context.targetWorktree],
+          {
+            cwd: context.sourceCheckout,
+            timeoutMs: 60_000,
+          },
+        );
+        cleanupOverrides.proofCommands.push(commandProof(removal));
+        cleanupOverrides.targetWorktree = {
+          path: context.targetWorktree,
+          created: true,
+          removed: removal.status === 0,
+          retained: removal.status !== 0,
+          detail: 'Disposable real TUI workflow target worktree cleanup.',
+        };
+      }
+      if (tempRootCreated) {
+        await rm(context.tempRoot, { recursive: true, force: true });
+      }
+    }
+    cleanupOverrides.tempHome = {
+      path: context.plannedKimiCodeHome,
+      created: tempHomeCreated,
+      removed: tempRootCreated && !context.options.keepTemp,
+      retained: tempRootCreated && context.options.keepTemp,
+      detail: tempHomeCreated
+        ? 'Real TUI workflow KIMI_CODE_HOME was created for isolated launch.'
+        : 'Real TUI workflow KIMI_CODE_HOME was not created before block/failure.',
+    };
+    cleanupOverrides.targetWorktree = cleanupOverrides.targetWorktree ?? {
+      path: context.targetWorktree,
+      created: targetWorktreeCreated,
+      removed: false,
+      retained: targetWorktreeCreated,
+      detail: targetWorktreeCreated
+        ? 'Disposable real TUI workflow target worktree was created.'
+        : 'Disposable real TUI workflow target worktree was not created before block/failure.',
+    };
+    cleanupOverrides.tempRoot = {
+      path: context.tempRoot,
+      created: tempRootCreated,
+      removed: tempRootCreated && !context.options.keepTemp,
+      retained: tempRootCreated && context.options.keepTemp,
+      detail: tempRootCreated
+        ? 'Real TUI workflow temp root cleanup recorded.'
+        : 'Real TUI workflow temp root was not created.',
+    };
+  }
+
+  return finishTuiRealWorkflowPhase(context, summary, cleanupOverrides);
+}
+
+async function finishTuiRealWorkflowPhase(context, summary, cleanupOverrides) {
+  summary.completedAt = new Date().toISOString();
+  cleanupOverrides.status =
+    summary.status === 'PASS'
+      ? 'tui-real-workflow-pass-cleaned'
+      : summary.status === 'BLOCKED'
+        ? 'tui-real-workflow-blocked-cleaned'
+        : 'tui-real-workflow-failed-cleaned';
+  cleanupOverrides.reason = summary.reason;
+  await writeJson(path.join(context.evidenceRoot, 'tui-real-workflow.json'), summary);
+  await writeJson(path.join(context.evidenceRoot, 'workflow', 'summary.json'), summary);
+  const phaseEntry = {
+    name: 'tui-real-workflow',
+    status: summary.status,
+    reason: summary.reason,
+    subprocessStarted: summary.commands.length > 0,
+    liveProductCommandStarted: summary.commands.some(
+      (command) => command.name === 'real-workflow-tmux-new-session',
+    ),
+    startedAt: summary.startedAt,
+    completedAt: summary.completedAt,
+  };
+  await writeStatusFile(context.evidenceRoot, phaseEntry);
+  return { phaseEntry, cleanupOverrides };
+}
+
+async function waitForRealWorkflowOutcome(context, tmuxSession, fixturePath) {
+  const startedAt = Date.now();
+  const observations = [];
+  while (Date.now() - startedAt < TUI_REAL_WORKFLOW_TIMEOUT_MS) {
+    const fixtureText = await readFileIfExists(fixturePath);
+    if (typeof fixtureText === 'string' && fixtureText.includes(TUI_REAL_WORKFLOW_SENTINEL)) {
+      return {
+        status: 'PASS',
+        reason: 'fixture contained the requested sentinel before timeout.',
+        durationMs: Date.now() - startedAt,
+        observations,
+      };
+    }
+    const screen = runBoundedCommand('tmux', ['capture-pane', '-pt', tmuxSession, '-S', '-80'], {
+      cwd: context.sourceCheckout,
+      timeoutMs: 10_000,
+    });
+    const normalized = normalizeScreenText(screen.stdout);
+    const blocker = detectRealWorkflowScreenBlocker(normalized);
+    observations.push({
+      atMs: Date.now() - startedAt,
+      captureExitCode: screen.status,
+      blocker,
+      sample: normalized.slice(0, 240),
+    });
+    if (blocker !== undefined) {
+      return {
+        status: 'BLOCKED',
+        reason: blocker,
+        durationMs: Date.now() - startedAt,
+        observations,
+      };
+    }
+    await sleep(2_000);
+  }
+  return {
+    status: 'FAIL',
+    reason: `timed out after ${String(TUI_REAL_WORKFLOW_TIMEOUT_MS)}ms waiting for ${TUI_REAL_WORKFLOW_SENTINEL}.`,
+    durationMs: Date.now() - startedAt,
+    observations,
+  };
+}
+
+function detectRealWorkflowScreenBlocker(output) {
+  if (matchesAny(output, [/\/login/i, /log in/i, /login required/i, /not authenticated/i, /llm not set/i])) {
+    return 'TUI requires login before a real vibe-coding workflow can run.';
+  }
+  if (matchesAny(output, [/model/i]) && matchesAny(output, [/not found/i, /unavailable/i, /select/i])) {
+    return 'TUI could not start the requested model for a real vibe-coding workflow.';
+  }
+  if (matchesAny(output, [/rate limit/i, /quota/i, /billing/i])) {
+    return 'Provider quota/rate limit blocked the real vibe-coding workflow.';
+  }
+  return undefined;
+}
+
+function buildTuiRealWorkflowPrompt(fixturePath) {
+  const verificationScript = [
+    'const fs=require("fs");',
+    `const text=fs.readFileSync(${JSON.stringify(fixturePath)},"utf8");`,
+    `if(!text.includes(${JSON.stringify(TUI_REAL_WORKFLOW_SENTINEL)})) process.exit(1);`,
+  ].join(' ');
+  return [
+    `Please edit ${fixturePath}: replace TODO_REAL_WORKFLOW with ${TUI_REAL_WORKFLOW_SENTINEL}.`,
+    `Then run node -e ${shellQuote(verificationScript)} and stop.`,
+  ].join(' ');
+}
+
 async function runTuiIterationPhase(context) {
   const startedAt = new Date().toISOString();
   const cleanupOverrides = {
@@ -5072,7 +5499,7 @@ async function runTuiCommand(context, spec) {
     error: result.error,
   };
   await appendFile(
-    path.join(context.evidenceRoot, 'commands', 'tui-launch.jsonl'),
+    path.join(context.evidenceRoot, 'commands', `${spec.logName ?? 'tui-launch'}.jsonl`),
     `${JSON.stringify(record)}\n`,
     'utf8',
   );
@@ -5207,6 +5634,16 @@ function inspectTuiCapture(scenario, output) {
     case 'exit':
       if (!normalized.includes('/exit')) {
         failures.push('exit capture does not show the /exit command before submission');
+      }
+      break;
+    case 'real-workflow-submitted':
+      if (!matchesAny(normalized, [/kimi/i, /message/i, /editor/i, /tool/i, /login/i, /llm not set/i])) {
+        failures.push('real-workflow-submitted capture does not show an inspectable TUI workflow state');
+      }
+      break;
+    case 'real-workflow-after-wait':
+      if (!matchesAny(normalized, [/kimi/i, /message/i, /editor/i, /tool/i, /login/i])) {
+        failures.push('real-workflow-after-wait capture does not show an inspectable TUI workflow state');
       }
       break;
     default:

@@ -623,7 +623,7 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate) {
           .filter((scenario) => scenario.status === 'PASS')
           .map((scenario) => scenario.scenario),
       },
-      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-launch --evidence-root .omo/evidence/<real-vibe-coding-before-after>',
+      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-real-workflow --evidence-root .omo/evidence/<real-vibe-coding-before-after>',
     );
   }
 
