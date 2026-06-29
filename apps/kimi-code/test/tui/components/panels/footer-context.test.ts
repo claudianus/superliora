@@ -102,6 +102,15 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(off.render(120)[0]!)).not.toContain('thinking');
   });
 
+  it('labels plan mode as plan-first in the footer', () => {
+    const footer = new FooterComponent(baseState({ planMode: true }));
+
+    const out = strip(footer.render(120)[0]!);
+
+    expect(out).toContain('plan-first');
+    expect(out).not.toContain('plan  k2');
+  });
+
   it('renders transient hints on the context line', () => {
     const footer = new FooterComponent(baseState());
 
