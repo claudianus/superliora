@@ -113,8 +113,13 @@ function main() {
   });
   const runtimeEvidenceCandidateAction = buildRuntimeEvidenceCandidateAction(
     runtimeEvidenceCandidates,
-    runtimeEvidenceRoot,
   );
+  const runtimeEvidenceCandidateTarget = runtimeEvidenceCandidateAction === undefined
+    ? undefined
+    : runtimeEvidenceRoot;
+  const runtimeEvidenceCandidateRerunCommand = runtimeEvidenceCandidateAction === undefined
+    ? undefined
+    : 'node scripts/kimi-preflight-refresh.mjs';
   const missingOrStaleRuntimeEvidence = CHANNELS
     .filter((channel) => runtimeEvidence[channel.id].state !== 'fresh')
     .map((channel) => ({
@@ -170,6 +175,8 @@ function main() {
     runtimeEvidence,
     runtimeEvidenceCandidates,
     runtimeEvidenceCandidateAction,
+    runtimeEvidenceCandidateTarget,
+    runtimeEvidenceCandidateRerunCommand,
     missingOrStaleRuntimeEvidence,
     secretScan: 'pass',
   });
@@ -196,6 +203,8 @@ function main() {
     if (candidateLabels.length > 0) {
       console.log(`Existing candidate evidence: ${candidateLabels.join(', ')}`);
       console.log(`Candidate action: ${runtimeEvidenceCandidateAction}`);
+      console.log(`Candidate target: ${runtimeEvidenceCandidateTarget}`);
+      console.log(`Candidate rerun: ${runtimeEvidenceCandidateRerunCommand}`);
     }
   }
 
@@ -460,11 +469,11 @@ function discoverRuntimeEvidenceCandidates({
   }));
 }
 
-function buildRuntimeEvidenceCandidateAction(runtimeEvidenceCandidates, runtimeEvidenceRoot) {
+function buildRuntimeEvidenceCandidateAction(runtimeEvidenceCandidates) {
   const count = Object.keys(runtimeEvidenceCandidates).length;
   if (count === 0) return undefined;
   const noun = count === 1 ? 'candidate' : 'candidates';
-  return `${count} ${noun} found; recapture matching evidence under ${runtimeEvidenceRoot}, then rerun preflight refresh.`;
+  return `recapture ${count} ${noun}`;
 }
 
 function collectFiles(root, maxFiles) {
@@ -544,7 +553,7 @@ function renderMarkdown(summary) {
     .join('\n');
   const candidateSection = candidateRows.length === 0
     ? ''
-    : `\nCandidate runtime evidence found outside readiness root:\n\n${summary.runtimeEvidenceCandidateAction}\n\n| channel | state | source |\n|---|---|---|\n${candidateRows}\n`;
+    : `\nCandidate runtime evidence found outside readiness root:\n\nAction: ${summary.runtimeEvidenceCandidateAction}\nTarget: ${summary.runtimeEvidenceCandidateTarget}\nRerun: ${summary.runtimeEvidenceCandidateRerunCommand}\n\n| channel | state | source |\n|---|---|---|\n${candidateRows}\n`;
   const blocked = summary.readinessGates.blocked.length === 0
     ? 'none'
     : summary.readinessGates.blocked.map((gate) => gate.id).join(',');

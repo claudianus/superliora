@@ -277,8 +277,9 @@ export function buildPreflightLines(status: PreflightStatus): string[] {
       lines.push(`Refresh candidates  ${candidatesSummary}`);
       lines.push(`Refresh candidate action  ${refreshCandidateActionSummary(
         status.refreshRun.runtimeCandidates,
-        status.refreshPlan.runtimeEvidencePath,
       )}`);
+      lines.push(`Refresh candidate target  ${status.refreshPlan.runtimeEvidencePath}`);
+      lines.push('Refresh candidate rerun  node scripts/kimi-preflight-refresh.mjs');
     }
     lines.push(`Refresh last evidence  ${status.refreshRun.evidencePath}`);
   }
@@ -898,11 +899,10 @@ function refreshCandidatesSummary(candidates: readonly PreflightRuntimeCandidate
 
 function refreshCandidateActionSummary(
   candidates: readonly PreflightRuntimeCandidate[],
-  runtimeEvidencePath: string,
 ): string {
   const count = candidates.length;
   const noun = count === 1 ? 'candidate' : 'candidates';
-  return `${count} ${noun} found; recapture matching evidence under ${runtimeEvidencePath}, then run Refresh command.`;
+  return `recapture ${count} ${noun}`;
 }
 
 function formatMetric(value: number | undefined, suffix = ''): string {

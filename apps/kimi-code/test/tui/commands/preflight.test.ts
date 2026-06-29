@@ -284,8 +284,10 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Refresh gates  1/5; blocked llmWiki,knowledgeMap,browserUse,computerUse; next refresh_runtime_evidence');
     expect(text).toContain('Refresh candidates  browserUse:fresh .omo/evidence/lint-clean-tui-launch-smoke/tui/summary.json');
     expect(text).toContain(
-      'Refresh candidate action  1 candidate found; recapture matching evidence under .omo/evidence/preflight-readiness, then run Refresh command.',
+      'Refresh candidate action  recapture 1 candidate',
     );
+    expect(text).toContain('Refresh candidate target  .omo/evidence/preflight-readiness');
+    expect(text).toContain('Refresh candidate rerun  node scripts/kimi-preflight-refresh.mjs');
     expect(text).toContain('Refresh last evidence  .omo/evidence/super-kimi-preflight-refresh');
     expect(text).not.toContain('Refresh verify');
     expect(text).toContain('Warning  memory: Malformed evidence ignored');
