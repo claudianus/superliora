@@ -78,14 +78,35 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('ultraswarm');
     expect(primaryNames).not.toContain('btw');
     expect(primaryNames).not.toContain('experiments');
+    expect(primaryNames).not.toContain('permission');
     expect(primaryNames).not.toContain('reload');
     expect(primaryNames).not.toContain('reload-tui');
+    expect(primaryNames).not.toContain('settings');
+    expect(primaryNames).not.toContain('swarm');
     expect(primaryNames).not.toContain('export-debug-zip');
     expect(advancedNames).toEqual(
-      expect.arrayContaining(['btw', 'experiments', 'reload', 'reload-tui', 'ultrawork', 'ultraswarm']),
+      expect.arrayContaining([
+        'btw',
+        'experiments',
+        'permission',
+        'reload',
+        'reload-tui',
+        'settings',
+        'swarm',
+        'ultrawork',
+        'ultraswarm',
+      ]),
     );
     expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight']));
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced', 'diagnostics']);
+  });
+
+  it('puts core vibe-coding controls first in primary help order', () => {
+    const primaryNames = sortSlashCommands(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary')).map(
+      (command) => command.name,
+    );
+
+    expect(primaryNames.slice(0, 4)).toEqual(['auto', 'model', 'plan', 'yolo']);
   });
 
   it('describes long-work controls without telling users to start with command names', () => {

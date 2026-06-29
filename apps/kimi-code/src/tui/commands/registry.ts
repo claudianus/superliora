@@ -195,6 +195,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Select permission mode',
     priority: 100,
+    visibility: 'advanced',
     availability: 'always',
   },
   {
@@ -202,6 +203,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: ['config'],
     description: 'Open TUI settings',
     priority: 100,
+    visibility: 'advanced',
     availability: 'always',
   },
   {
@@ -216,6 +218,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Toggle swarm mode or run one task in swarm mode',
     priority: 100,
+    visibility: 'advanced',
     argumentHint: '[on|off] | <task>',
     completeArgs: swarmArgumentCompletions,
     availability: 'idle-only',
