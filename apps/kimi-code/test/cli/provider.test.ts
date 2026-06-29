@@ -460,6 +460,7 @@ describe('kimi provider list', () => {
         model: 'a',
         maxContextSize: 1024,
         capabilities: [],
+        displayName: 'KoHub A',
       },
       'kohub/b': {
         provider: 'kohub',
@@ -485,11 +486,11 @@ describe('kimi provider list', () => {
 
     const out = stdout.join('');
     expect(out).toMatch(/kohub\s+type=anthropic\s+models=2\s+source=apiJson\(/);
-    expect(out).toContain('aliases: kohub/a, kohub/b');
     expect(out).toMatch(/managed:kimi-code\s+type=kimi\s+models=0\s+source=oauth/);
     expect(out).toMatch(/manual\s+type=openai\s+models=1\s+source=inline/);
     expect(out).toContain('aliases: manual/x');
-    expect(out).toContain('Default model: kohub/a');
+    expect(out).toContain('aliases: kohub/a (KoHub A), kohub/b');
+    expect(out).toContain('Default model: KoHub A (kohub/a)');
   });
 
   it('prints a friendly message when nothing is configured', async () => {
@@ -510,6 +511,7 @@ describe('kimi provider list', () => {
     const parsed = JSON.parse(stdout.join('')) as {
       providers: Record<string, unknown>;
       models: Record<string, unknown>;
+      defaultModel?: string;
     };
     expect(Object.keys(parsed.providers).toSorted()).toEqual([
       'kohub',
@@ -517,6 +519,7 @@ describe('kimi provider list', () => {
       'manual',
     ]);
     expect(Object.keys(parsed.models)).toContain('kohub/a');
+    expect(parsed.defaultModel).toBe('kohub/a');
   });
 });
 
@@ -535,6 +538,7 @@ describe('kimi provider use', () => {
         model: 'kimi-for-coding',
         maxContextSize: 1024,
         capabilities: [],
+        displayName: 'K2.7 Code',
       },
     },
   } as unknown as KimiConfig;
@@ -549,7 +553,9 @@ describe('kimi provider use', () => {
     expect(stderr.join('')).toBe('');
     expect(setConfigCalls).toEqual([{ defaultModel: 'kimi-code/kimi-for-coding' }]);
     expect(current().defaultModel).toBe('kimi-code/kimi-for-coding');
-    expect(stdout.join('')).toContain('Default model set to kimi-code/kimi-for-coding.');
+    expect(stdout.join('')).toContain(
+      'Default model set to K2.7 Code (kimi-code/kimi-for-coding).',
+    );
   });
 
   it('exits 1 when the model alias is not configured', async () => {
@@ -610,10 +616,11 @@ describe('registerProviderCommand', () => {
       models: {
         'kimi-code/kimi-for-coding': {
           provider: 'managed:kimi-code',
-          model: 'kimi-for-coding',
-          maxContextSize: 1024,
-          capabilities: [],
-        },
+            model: 'kimi-for-coding',
+            maxContextSize: 1024,
+            capabilities: [],
+            displayName: 'K2.7 Code',
+          },
       },
     } as unknown as KimiConfig);
     const { deps, stdout, stderr, exitCodes } = makeDeps(harness);
@@ -630,7 +637,9 @@ describe('registerProviderCommand', () => {
     expect(exitCodes).toEqual([]);
     expect(stderr.join('')).toBe('');
     expect(current().defaultModel).toBe('kimi-code/kimi-for-coding');
-    expect(stdout.join('')).toContain('Default model set to kimi-code/kimi-for-coding.');
+    expect(stdout.join('')).toContain(
+      'Default model set to K2.7 Code (kimi-code/kimi-for-coding).',
+    );
   });
 
   it('describes the user-facing subcommand and routes flags through commander', async () => {

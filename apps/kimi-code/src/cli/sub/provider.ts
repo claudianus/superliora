@@ -172,13 +172,22 @@ export async function handleProviderList(
 
   if (opts.json) {
     deps.stdout.write(
-      `${JSON.stringify({ providers: config.providers, models: config.models ?? {} }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          providers: config.providers,
+          models: config.models ?? {},
+          defaultModel: config.defaultModel,
+        },
+        null,
+        2,
+      )}\n`,
     );
     return;
   }
 
+  const models = config.models ?? {};
   const modelsByProvider = new Map<string, string[]>();
-  for (const [alias, model] of Object.entries(config.models ?? {})) {
+  for (const [alias, model] of Object.entries(models)) {
     const list = modelsByProvider.get(model.provider) ?? [];
     list.push(alias);
     modelsByProvider.set(model.provider, list);
@@ -198,11 +207,16 @@ export async function handleProviderList(
       `${id}  type=${provider.type}  models=${String(aliases.length)}  source=${sourceLabel}\n`,
     );
     if (aliases.length > 0) {
-      deps.stdout.write(`  aliases: ${aliases.toSorted().join(', ')}\n`);
+      const labels = aliases
+        .toSorted()
+        .map((alias) => formatAliasListLabel(alias, models[alias]));
+      deps.stdout.write(`  aliases: ${labels.join(', ')}\n`);
     }
   }
   if (config.defaultModel !== undefined) {
-    deps.stdout.write(`\nDefault model: ${config.defaultModel}\n`);
+    deps.stdout.write(
+      `\nDefault model: ${formatModelSelectionLabel(config.defaultModel, models[config.defaultModel])}\n`,
+    );
   }
 }
 
@@ -234,7 +248,26 @@ export async function handleProviderUse(
   }
 
   await harness.setConfig({ defaultModel: alias });
-  deps.stdout.write(`Default model set to ${alias}.\n`);
+  deps.stdout.write(`Default model set to ${formatModelSelectionLabel(alias, model)}.\n`);
+}
+
+type ConfigModelAlias = NonNullable<KimiConfig['models']>[string];
+
+function formatAliasListLabel(alias: string, model: ConfigModelAlias | undefined): string {
+  const displayName = modelDisplayName(model);
+  return displayName === undefined ? alias : `${alias} (${displayName})`;
+}
+
+function formatModelSelectionLabel(alias: string, model: ConfigModelAlias | undefined): string {
+  const displayName = modelDisplayName(model);
+  return displayName === undefined ? alias : `${displayName} (${alias})`;
+}
+
+function modelDisplayName(model: ConfigModelAlias | undefined): string | undefined {
+  const displayName = model?.displayName?.trim();
+  if (displayName === undefined || displayName.length === 0) return undefined;
+  if (displayName === model?.model) return undefined;
+  return displayName;
 }
 
 /**
