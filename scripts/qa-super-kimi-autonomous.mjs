@@ -8446,6 +8446,7 @@ function inspectTuiCapture(scenario, output) {
   if (/Already in plan mode/i.test(normalized)) {
     failures.push('capture shows internal plan-mode re-entry error');
   }
+  failures.push(...defaultUserSurfaceLeakFailures(scenario, normalized));
 
   switch (scenario) {
     case 'startup':
@@ -8553,6 +8554,22 @@ function inspectTuiCapture(scenario, output) {
         : failures.join('; '),
     failures,
   };
+}
+
+function defaultUserSurfaceLeakFailures(scenario, output) {
+  if (scenario !== 'help' && scenario !== 'autocomplete') return [];
+  const leakPatterns = [
+    { label: 'diagnostics help mode', pattern: /\bdiagnostics?\b/i },
+    { label: 'preflight command', pattern: /\/?preflight\b/i },
+    { label: 'bench command', pattern: /\/?bench\b/i },
+    { label: 'internal QA wording', pattern: /\binternal\s+QA\b/i },
+    { label: 'harness QA wording', pattern: /\bharness\s+QA\b/i },
+    { label: 'Ultrawork manual command', pattern: /\/?ultrawork\b/i },
+    { label: 'Ultraswarm manual command', pattern: /\/?ultraswarm\b/i },
+  ];
+  return leakPatterns
+    .filter((entry) => entry.pattern.test(output))
+    .map((entry) => `default ${scenario} capture exposes ${entry.label}`);
 }
 
 function validateTuiScreenProof(captures) {
