@@ -15,15 +15,18 @@ const LAUNCH_CWD = process.env.KIMI_CODE_DEV_CWD || WORKSPACE_ROOT;
 const MARKETPLACE_ENV = 'KIMI_CODE_PLUGIN_MARKETPLACE_URL';
 // Opt-in for dev: point this run at an external marketplace instead of a local one.
 const EXTERNAL_MARKETPLACE_ENV = 'KIMI_CODE_DEV_MARKETPLACE_URL';
+const VERBOSE_ENV = 'KIMI_CODE_DEV_VERBOSE';
 
 let marketplaceServer;
 const env = { ...process.env };
+env.KIMI_CODE_NO_AUTO_UPDATE ??= '1';
+const verbose = process.env[VERBOSE_ENV]?.trim() === '1';
 
 const externalUrl = process.env[EXTERNAL_MARKETPLACE_ENV]?.trim();
 if (externalUrl !== undefined && externalUrl.length > 0) {
   // Explicitly asked to use an external marketplace; don't start a local server.
   env[MARKETPLACE_ENV] = externalUrl;
-  console.error(`Using external plugin marketplace: ${externalUrl}`);
+  if (verbose) console.error(`Using external plugin marketplace: ${externalUrl}`);
 } else {
   // Default: every `pnpm run dev:cli` runs its own isolated marketplace server on a
   // random port, so multiple concurrent dev instances never collide. Overwrite any
@@ -31,8 +34,13 @@ if (externalUrl !== undefined && externalUrl.length > 0) {
   const inherited = process.env[MARKETPLACE_ENV]?.trim();
   marketplaceServer = await startPluginMarketplaceServer();
   env[MARKETPLACE_ENV] = marketplaceServer.marketplaceUrl;
-  console.error(`Plugin marketplace dev server: ${marketplaceServer.marketplaceUrl}`);
-  if (inherited !== undefined && inherited.length > 0 && inherited !== marketplaceServer.marketplaceUrl) {
+  if (verbose) console.error(`Plugin marketplace dev server: ${marketplaceServer.marketplaceUrl}`);
+  if (
+    verbose &&
+    inherited !== undefined &&
+    inherited.length > 0 &&
+    inherited !== marketplaceServer.marketplaceUrl
+  ) {
     console.error(
       `(ignored inherited ${MARKETPLACE_ENV}=${inherited}; set ${EXTERNAL_MARKETPLACE_ENV} to use an external marketplace)`,
     );
