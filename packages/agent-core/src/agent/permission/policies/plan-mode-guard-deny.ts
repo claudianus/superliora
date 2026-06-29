@@ -2,6 +2,8 @@ import type { Agent } from '../..';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
+const MIN_ULTRA_INTERVIEW_ROUNDS = 3;
+
 export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
   readonly name = 'plan-mode-guard-deny';
 
@@ -15,11 +17,6 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
 
     // Ultra Plan Mode: phase-aware tool restrictions
     if (isUltraMode) {
-      // Track interview rounds
-      if (phase === 'interview' && toolName === 'AskUserQuestion') {
-        this.agent.planMode.incrementInterviewRound();
-      }
-
       const phaseResult = this.evaluateUltraPhase(toolName, phase);
       if (phaseResult !== undefined) return phaseResult;
     }
@@ -64,23 +61,18 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
   private evaluateUltraPhase(toolName: string, phase: string): PermissionPolicyResult | undefined {
     switch (phase) {
       case 'interview': {
-        // Only AskUserQuestion allowed; everything else blocked
         if (toolName === 'AskUserQuestion') {
-          // After AskUserQuestion, evaluate ambiguity and potentially auto-advance
           const engine = this.agent.planMode.ultraEngine;
-          const rounds = this.agent.planMode.interviewRoundCount;
-          // Note: actual round data is added by the engine elsewhere
-          // Here we just track the count for the guard
+          const rounds = this.agent.planMode.interviewRoundCount + 1;
           this.agent.planMode.incrementInterviewRound();
-          // If we have enough rounds, try to calculate ambiguity
-          if (rounds >= 3) {
+          if (rounds >= MIN_ULTRA_INTERVIEW_ROUNDS) {
             const score = engine.calculateAmbiguityScore();
             if (score.isReadyForSeed && engine.canAutoComplete()) {
-              // Auto-advance to design phase
               this.agent.planMode.setPhase('design');
-              // Auto-generate seed spec from interview
               const seed = engine.autoGenerateSeedSpecFromInterview('AutoOntology');
               engine.setSeedSpec(seed);
+            } else if (engine.interviewState.rounds.length === 0) {
+              this.agent.planMode.setPhase('design');
             }
           }
           return;

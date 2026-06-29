@@ -14,7 +14,9 @@ import type { ToolExecutionHookContext } from '../../src/loop';
 
 const signal = new AbortController().signal;
 
-async function activePlanAgent(): Promise<{ agent: Agent; planMode: PlanMode }> {
+async function activePlanAgent(
+  options: { ultra?: boolean } = {},
+): Promise<{ agent: Agent; planMode: PlanMode }> {
   const agent = {
     homedir: '/tmp/kimi-plan-test',
     emitStatusUpdated: vi.fn(),
@@ -22,11 +24,12 @@ async function activePlanAgent(): Promise<{ agent: Agent; planMode: PlanMode }> 
     replayBuilder: { push: vi.fn() },
     kaos: {
       mkdir: vi.fn().mockResolvedValue(undefined),
+      writeText: vi.fn().mockResolvedValue(undefined),
     },
   } as unknown as Agent;
   const planMode = new PlanMode(agent);
   Object.assign(agent, { planMode });
-  await planMode.enter('current-plan', false);
+  await planMode.enter('current-plan', false, true, options.ultra ?? false);
   return { agent, planMode };
 }
 
@@ -213,6 +216,28 @@ describe('Plan mode permission policy', () => {
 
     expect(evaluatePlanPolicy(agent, 'Read', { path: '/workspace/src/main.ts' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'Grep', { pattern: 'TODO', path: '/workspace' })).toBeUndefined();
+  });
+
+  it('advances ultra interview after three question rounds when engine has no stored answers', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+
+    expect(
+      evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'What matters most?' }),
+    ).toBeUndefined();
+    expect(planMode.phase).toBe('interview');
+    expect(planMode.interviewRoundCount).toBe(1);
+
+    expect(
+      evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'What should be verified?' }),
+    ).toBeUndefined();
+    expect(planMode.phase).toBe('interview');
+    expect(planMode.interviewRoundCount).toBe(2);
+
+    expect(
+      evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'What can wait?' }),
+    ).toBeUndefined();
+    expect(planMode.phase).toBe('design');
+    expect(planMode.interviewRoundCount).toBe(3);
   });
 
   it.each(['manual', 'yolo', 'auto'] as const)(

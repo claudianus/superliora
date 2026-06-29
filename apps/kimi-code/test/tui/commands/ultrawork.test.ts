@@ -110,6 +110,9 @@ describe('buildUltraworkPrompt', () => {
     );
     expect(prompt).toContain('use only AskUserQuestion or NextPhase');
     expect(prompt).toContain('at most 4 options per question');
+    expect(prompt).toContain('Never ask more than 3 total interview questions');
+    expect(prompt).toContain('continue the same Ultrawork turn toward implementation');
+    expect(prompt).toContain('call NextPhase before any search, read, edit, shell, or skill tool');
     expect(prompt).toContain('UpdateGoal');
   });
 });

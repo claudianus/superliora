@@ -110,6 +110,9 @@ export function buildUltraworkPrompt(
     '- Interview the user only when a missing decision blocks correctness; otherwise proceed with best judgment.',
     '- During the Ultra Plan interview phase, use only AskUserQuestion or NextPhase; do not call search, read, edit, or shell tools until the interview advances.',
     '- When using AskUserQuestion, ask 1-3 focused questions and provide at most 4 options per question.',
+    '- Never ask more than 3 total interview questions for one Ultrawork turn; after 3 answered questions, call NextPhase and proceed with best judgment.',
+    '- After an AskUserQuestion response, continue the same Ultrawork turn toward implementation and verification; do not wait for a new user message unless another missing decision blocks correctness.',
+    '- After the final needed AskUserQuestion response, call NextPhase before any search, read, edit, shell, or skill tool.',
     '- Finish by verifying the real surface, reporting concise evidence, and calling UpdateGoal complete or blocked.',
     '</ultrawork_flow>',
   ].join('\n');
