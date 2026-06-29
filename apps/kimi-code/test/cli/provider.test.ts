@@ -14,6 +14,7 @@ import {
   handleProviderAdd,
   handleProviderList,
   handleProviderRemove,
+  handleProviderUse,
   registerProviderCommand,
   type ProviderDeps,
 } from '#/cli/sub/provider';
@@ -484,8 +485,10 @@ describe('kimi provider list', () => {
 
     const out = stdout.join('');
     expect(out).toMatch(/kohub\s+type=anthropic\s+models=2\s+source=apiJson\(/);
+    expect(out).toContain('aliases: kohub/a, kohub/b');
     expect(out).toMatch(/managed:kimi-code\s+type=kimi\s+models=0\s+source=oauth/);
     expect(out).toMatch(/manual\s+type=openai\s+models=1\s+source=inline/);
+    expect(out).toContain('aliases: manual/x');
     expect(out).toContain('Default model: kohub/a');
   });
 
@@ -517,7 +520,119 @@ describe('kimi provider list', () => {
   });
 });
 
+describe('kimi provider use', () => {
+  const config: KimiConfig = {
+    providers: {
+      'managed:kimi-code': {
+        type: 'kimi',
+        baseUrl: 'https://api.kimi.com/coding/v1',
+        oauth: { storage: 'file', key: 'oauth/kimi-code' },
+      },
+    },
+    models: {
+      'kimi-code/kimi-for-coding': {
+        provider: 'managed:kimi-code',
+        model: 'kimi-for-coding',
+        maxContextSize: 1024,
+        capabilities: [],
+      },
+    },
+  } as unknown as KimiConfig;
+
+  it('sets the default model to an existing alias', async () => {
+    const { harness, current, setConfigCalls } = makeHarness(config);
+    const { deps, stdout, stderr, exitCodes } = makeDeps(harness);
+
+    await tryRun(() => handleProviderUse(deps, 'kimi-code/kimi-for-coding'));
+
+    expect(exitCodes).toEqual([]);
+    expect(stderr.join('')).toBe('');
+    expect(setConfigCalls).toEqual([{ defaultModel: 'kimi-code/kimi-for-coding' }]);
+    expect(current().defaultModel).toBe('kimi-code/kimi-for-coding');
+    expect(stdout.join('')).toContain('Default model set to kimi-code/kimi-for-coding.');
+  });
+
+  it('exits 1 when the model alias is not configured', async () => {
+    const { harness } = makeHarness(config);
+    const { deps, stderr, exitCodes } = makeDeps(harness);
+
+    await tryRun(() => handleProviderUse(deps, 'missing/model'));
+
+    expect(exitCodes).toEqual([1]);
+    expect(stderr.join('')).toContain('Model "missing/model" not found');
+    expect(stderr.join('')).toContain('kimi provider list --json');
+  });
+});
+
 describe('registerProviderCommand', () => {
+  it('shows the configured provider list when run without a subcommand', async () => {
+    const { harness } = makeHarness({
+      providers: {
+        'managed:kimi-code': {
+          type: 'kimi',
+          baseUrl: 'https://api.kimi.com/coding/v1',
+          oauth: { storage: 'file', key: 'oauth/kimi-code' },
+        },
+      },
+      models: {
+        'managed:kimi-code/k2': {
+          provider: 'managed:kimi-code',
+          model: 'k2',
+          maxContextSize: 1024,
+          capabilities: [],
+        },
+      },
+      defaultModel: 'managed:kimi-code/k2',
+    } as unknown as KimiConfig);
+    const { deps, stdout, stderr, exitCodes } = makeDeps(harness);
+
+    const program = new Command('kimi');
+    registerProviderCommand(program, deps);
+
+    await tryRun(() => program.parseAsync(['node', 'kimi', 'provider'], { from: 'node' }));
+
+    expect(exitCodes).toEqual([]);
+    expect(stderr.join('')).toBe('');
+    expect(stdout.join('')).toContain('managed:kimi-code  type=kimi  models=1  source=oauth');
+    expect(stdout.join('')).toContain('aliases: managed:kimi-code/k2');
+    expect(stdout.join('')).toContain('Default model: managed:kimi-code/k2');
+  });
+
+  it('routes provider use through commander', async () => {
+    const { harness, current } = makeHarness({
+      providers: {
+        'managed:kimi-code': {
+          type: 'kimi',
+          baseUrl: 'https://api.kimi.com/coding/v1',
+          oauth: { storage: 'file', key: 'oauth/kimi-code' },
+        },
+      },
+      models: {
+        'kimi-code/kimi-for-coding': {
+          provider: 'managed:kimi-code',
+          model: 'kimi-for-coding',
+          maxContextSize: 1024,
+          capabilities: [],
+        },
+      },
+    } as unknown as KimiConfig);
+    const { deps, stdout, stderr, exitCodes } = makeDeps(harness);
+
+    const program = new Command('kimi');
+    registerProviderCommand(program, deps);
+
+    await tryRun(() =>
+      program.parseAsync(['node', 'kimi', 'provider', 'use', 'kimi-code/kimi-for-coding'], {
+        from: 'node',
+      }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    expect(stderr.join('')).toBe('');
+    expect(current().defaultModel).toBe('kimi-code/kimi-for-coding');
+    expect(stdout.join('')).toContain('Default model set to kimi-code/kimi-for-coding.');
+  });
+
   it('describes the user-facing subcommand and routes flags through commander', async () => {
     const fetchMock = mockRegistryFetch();
     const { harness, current } = makeHarness({ providers: {} } as KimiConfig);

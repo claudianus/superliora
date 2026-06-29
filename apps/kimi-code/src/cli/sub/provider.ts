@@ -197,10 +197,44 @@ export async function handleProviderList(
     deps.stdout.write(
       `${id}  type=${provider.type}  models=${String(aliases.length)}  source=${sourceLabel}\n`,
     );
+    if (aliases.length > 0) {
+      deps.stdout.write(`  aliases: ${aliases.toSorted().join(', ')}\n`);
+    }
   }
   if (config.defaultModel !== undefined) {
     deps.stdout.write(`\nDefault model: ${config.defaultModel}\n`);
   }
+}
+
+export async function handleProviderUse(
+  deps: ProviderDeps,
+  modelAlias: string,
+): Promise<void> {
+  const alias = modelAlias.trim();
+  if (alias.length === 0) {
+    deps.stderr.write('Model alias is required.\n');
+    deps.exit(1);
+  }
+
+  const harness = deps.getHarness();
+  await harness.ensureConfigFile();
+  const config = await harness.getConfig();
+  const model = config.models?.[alias];
+  if (model === undefined) {
+    deps.stderr.write(
+      `Model "${alias}" not found. Run \`kimi provider list --json\` to see configured model aliases.\n`,
+    );
+    deps.exit(1);
+  }
+  if (config.providers[model.provider] === undefined) {
+    deps.stderr.write(
+      `Model "${alias}" points at missing provider "${model.provider}". Run \`kimi provider\` to inspect configured providers.\n`,
+    );
+    deps.exit(1);
+  }
+
+  await harness.setConfig({ defaultModel: alias });
+  deps.stdout.write(`Default model set to ${alias}.\n`);
 }
 
 /**
@@ -409,7 +443,11 @@ async function loadCatalogOrExit(deps: ProviderDeps, url: string): Promise<Catal
 export function registerProviderCommand(parent: Command, deps?: Partial<ProviderDeps>): void {
   const provider = parent
     .command('provider')
-    .description('Manage LLM providers non-interactively.');
+    .description('Manage LLM providers non-interactively.')
+    .action(async () => {
+      const resolved = resolveDeps(deps);
+      await runAction(resolved, () => handleProviderList(resolved, { json: false }));
+    });
 
   // Last-resort boundary: handlers report expected failures themselves, but
   // anything that escapes (e.g. a config write rejected because config.toml
@@ -448,6 +486,14 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
     .action(async (options: { json?: boolean }) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderList(resolved, { json: options.json === true }));
+    });
+
+  provider
+    .command('use <modelAlias>')
+    .description('Set the default model alias for future runs.')
+    .action(async (modelAlias: string) => {
+      const resolved = resolveDeps(deps);
+      await runAction(resolved, () => handleProviderUse(resolved, modelAlias));
     });
 
   const catalog = provider

@@ -354,8 +354,8 @@ describe('main entry command handling', () => {
         '401 Invalid API Key',
         '',
         'next steps:',
-        '- Run `kimi provider` to inspect the active provider.',
-        '- Update the API key or switch providers, then rerun the same command.',
+        '- Run `kimi provider` to inspect configured providers and the default model.',
+        '- Run `kimi provider use <model-alias>` to switch defaults, or update the API key; then rerun the same command.',
         '',
       ].join('\n'),
     );
@@ -387,8 +387,8 @@ describe('main entry command handling', () => {
         'error: failed to run prompt: provider.auth_error: 401 Invalid API Key',
         '',
         'next steps:',
-        '- Run `kimi provider` to inspect the active provider.',
-        '- Update the API key or switch providers, then rerun the same command.',
+        '- Run `kimi provider` to inspect configured providers and the default model.',
+        '- Run `kimi provider use <model-alias>` to switch defaults, or update the API key; then rerun the same command.',
         '',
       ].join('\n'),
     );

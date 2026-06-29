@@ -59,8 +59,8 @@ function authNextSteps(code: string): readonly string[] {
   }
   if (code === ErrorCodes.PROVIDER_AUTH_ERROR) {
     return [
-      'Run `kimi provider` to inspect the active provider.',
-      'Update the API key or switch providers, then rerun the same command.',
+      'Run `kimi provider` to inspect configured providers and the default model.',
+      'Run `kimi provider use <model-alias>` to switch defaults, or update the API key; then rerun the same command.',
     ];
   }
   return [];
