@@ -187,7 +187,8 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (safeUsage(state.contextUsage) >= 0.85) return 'next: /compact before long work';
   if (state.streamingPhase !== 'idle') return null;
   if (git?.dirty === true) return 'next: review changes';
-  return 'next: describe task';
+  if (state.planMode) return 'next: describe task; Kimi plans and verifies';
+  return 'next: describe task; Kimi verifies';
 }
 
 export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): string {

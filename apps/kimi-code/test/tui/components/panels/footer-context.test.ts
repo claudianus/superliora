@@ -117,10 +117,12 @@ describe('FooterComponent — context NaN resilience', () => {
   it('labels plan mode as plan-first in the footer', () => {
     const footer = new FooterComponent(baseState({ planMode: true }));
 
-    const out = strip(footer.render(120)[0]!);
+    const [line1, line2] = footer.render(120);
+    const out = strip(line1 ?? '');
 
     expect(out).toContain('plan-first');
     expect(out).not.toContain('plan  k2');
+    expect(strip(line2 ?? '')).toContain('next: describe task; Kimi plans and verifies');
   });
 
   it('renders transient hints on the context line', () => {
@@ -138,7 +140,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
     const [, line2] = footer.render(120);
 
-    expect(strip(line2 ?? '')).toContain('next: describe task');
+    expect(strip(line2 ?? '')).toContain('next: describe task; Kimi verifies');
     expect(strip(line2 ?? '')).toContain('context: 0.0%');
   });
 
