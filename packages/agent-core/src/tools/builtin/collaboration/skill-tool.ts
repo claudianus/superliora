@@ -52,7 +52,7 @@ export const SkillToolInputSchema: z.ZodType<SkillToolInput> = z.object({
   skill: z
     .string()
     .describe(
-      'The exact name of the skill to invoke, spelled as returned by SearchSkill or direct slash activation (e.g. "commit", "pdf").',
+      'The exact name of one skill to invoke, spelled as returned by the top-level SearchSkill tool or direct slash activation (e.g. "commit", "pdf"). Do not pass "search", "search-skill", or "SearchSkill" here; use the SearchSkill tool for discovery.',
     ),
   args: z
     .string()

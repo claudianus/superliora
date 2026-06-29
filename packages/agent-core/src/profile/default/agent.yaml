@@ -22,6 +22,7 @@ tools:
   - ReadMediaFile
   - TodoList
   - Skill
+  - SearchSkill
   - WebSearch
   - Agent
   - AgentSwarm

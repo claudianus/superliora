@@ -50,6 +50,14 @@ describe('default agent profiles', () => {
     }
   });
 
+  it('keeps the root skill runtime prompt aligned with exposed tools', () => {
+    const agent = DEFAULT_AGENT_PROFILES['agent'];
+    expect(agent?.tools).toEqual(expect.arrayContaining(['Skill', 'SearchSkill']));
+
+    const prompt = agent?.systemPrompt(promptContext) ?? '';
+    expect(prompt).toContain('Discover skills with SearchSkill');
+  });
+
   it('exposes KimiContext to coding profiles as the default compact code-context surface', () => {
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('KimiContext');
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('KimiContext');

@@ -28,6 +28,10 @@ import {
   AskUserQuestionInputSchema,
   AskUserQuestionTool,
 } from '../../src/tools/builtin/collaboration/ask-user';
+import {
+  SearchSkillInputSchema,
+  SearchSkillTool,
+} from '../../src/tools/builtin/collaboration/search-skill';
 import { SkillTool, SkillToolInputSchema } from '../../src/tools/builtin/collaboration/skill-tool';
 import { EditInputSchema, EditTool } from '../../src/tools/builtin/file/edit';
 import { GlobInputSchema, GlobTool } from '../../src/tools/builtin/file/glob';
@@ -923,6 +927,33 @@ describe('current builtin collaboration tools', () => {
     const result = await executeTool(tool, context({ skill: 'missing' }));
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('not found');
+  });
+
+  it('SearchSkill exposes parameters and returns matching skill candidates', async () => {
+    const registry = new SessionSkillRegistry();
+    registry.register({
+      name: 'write-tui',
+      description: 'Terminal UI work',
+      path: '/skills/write-tui/SKILL.md',
+      dir: '/skills/write-tui',
+      content: 'body',
+      metadata: {},
+      source: 'user',
+    });
+    const tool = new SearchSkillTool({
+      skills: { registry },
+    } as unknown as Agent);
+
+    expect(SearchSkillInputSchema.safeParse({ query: 'tui approval' }).success).toBe(true);
+    expect(tool.parameters).toMatchObject({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+    });
+
+    const result = await executeTool(tool, context({ query: 'tui approval' }));
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('<skill-search-results query="tui approval">');
+    expect(result.output).toContain('name="write-tui"');
   });
 });
 

@@ -78,7 +78,7 @@ function renderSearchHit(skill: SkillSearchHit, rank: number): string {
     `score="${String(Math.round(skill.score * 1000) / 1000)}"`,
     `match_reason="${escapeXmlAttr(skill.matchReason)}"`,
     skill.type !== undefined ? `type="${escapeXmlAttr(skill.type)}"` : undefined,
-    skill.risk !== undefined ? `risk="${escapeXmlAttr(String(skill.risk))}"` : undefined,
+    skill.risk !== undefined ? `risk="${escapeXmlAttr(skill.risk)}"` : undefined,
     skill.category !== undefined ? `category="${escapeXmlAttr(skill.category)}"` : undefined,
   ].filter((attr): attr is string => attr !== undefined);
   return [

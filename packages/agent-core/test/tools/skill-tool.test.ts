@@ -130,7 +130,10 @@ describe('SkillTool metadata and schema', () => {
       properties: { skill: { description?: string }; args: { description?: string } };
     };
 
-    expect(params.properties.skill.description ?? '').toContain('SearchSkill');
+    expect(params.properties.skill.description ?? '').toContain('top-level SearchSkill tool');
+    expect(params.properties.skill.description ?? '').toContain(
+      'Do not pass "search", "search-skill", or "SearchSkill"',
+    );
     expect(params.properties.args.description ?? '').toMatch(/argument/i);
     // A skill loaded earlier surfaces a <kimi-skill-loaded> block; the description
     // must steer the model to follow it rather than re-invoking the tool.
@@ -147,6 +150,19 @@ describe('SkillTool metadata and schema', () => {
 });
 
 describe('SearchSkillTool execution', () => {
+  it('presents SearchSkill as a top-level discovery tool', () => {
+    const tool = searchSkillTool(registry([skill('write-tui')]));
+
+    expect(tool.name).toBe('SearchSkill');
+    expect(tool.description).toContain('top-level tool');
+    expect(tool.description).toContain(
+      'Do not call `Skill` with `search`, `search-skill`, or `SearchSkill`',
+    );
+    expect(SearchSkillInputSchema.safeParse({ query: 'tui approval dialogs' }).success).toBe(
+      true,
+    );
+  });
+
   it('returns escaped untrusted metadata and points activation to Skill', async () => {
     const malicious = {
       ...skill('evil-review'),

@@ -1,4 +1,6 @@
-Search the skill catalog for skills relevant to a given query. Returns matching skill candidates as untrusted metadata. After reviewing the results, call the Skill tool with the exact name of the skill you want to use.
+Search the skill catalog for skills relevant to a given query. SearchSkill is a top-level tool, not a skill name: call this tool directly when you need discovery. Do not call `Skill` with `search`, `search-skill`, or `SearchSkill`.
+
+Returns matching skill candidates as untrusted metadata. After reviewing the results, call the Skill tool with the exact name of the skill you want to use.
 
 Use this tool when:
 - You are unsure which skill is best for a task.
