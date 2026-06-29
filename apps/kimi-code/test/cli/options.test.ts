@@ -39,6 +39,7 @@ describe('CLI options parsing', () => {
       expect(opts.session).toBeUndefined();
       expect(opts.model).toBeUndefined();
       expect(opts.outputFormat).toBeUndefined();
+      expect(opts.showThinking).toBe(false);
       expect(opts.prompt).toBeUndefined();
       expect(opts.skillsDirs).toEqual([]);
       expect(opts.addDirs).toEqual([]);
@@ -294,11 +295,25 @@ describe('CLI options parsing', () => {
       expect(opts.outputFormat).toBe('text');
     });
 
+    it('parses --show-thinking in prompt mode', () => {
+      const opts = parse(['-p', 'run this', '--show-thinking']);
+      expect(opts.showThinking).toBe(true);
+      expect(validateOptions(opts).uiMode).toBe('print');
+    });
+
     it('rejects --output-format outside prompt mode', () => {
       const opts = parse(['--output-format=stream-json']);
       expect(() => validateOptions(opts)).toThrow(OptionConflictError);
       expect(() => validateOptions(opts)).toThrow(
         'Output format is only supported in prompt mode.',
+      );
+    });
+
+    it('rejects --show-thinking outside prompt mode', () => {
+      const opts = parse(['--show-thinking']);
+      expect(() => validateOptions(opts)).toThrow(OptionConflictError);
+      expect(() => validateOptions(opts)).toThrow(
+        'Show thinking is only supported in prompt mode.',
       );
     });
   });

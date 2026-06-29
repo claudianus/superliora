@@ -66,6 +66,7 @@ export function createProgram(
         'Output format for prompt mode. Defaults to text.',
       ).choices(['text', 'stream-json']),
     )
+    .option('--show-thinking', 'Print model thinking to stderr in prompt text mode.', false)
     .addOption(
       new Option(
         '--skills-dir <dir>',
@@ -131,6 +132,7 @@ export function createProgram(
       plan: raw['plan'] as boolean,
       model: raw['model'] as string | undefined,
       outputFormat: raw['outputFormat'] as CLIOptions['outputFormat'],
+      showThinking: raw['showThinking'] as boolean,
       prompt: raw['prompt'] as string | undefined,
       skillsDirs: raw['skillsDir'] as string[],
       addDirs: raw['addDir'] as string[],

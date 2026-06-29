@@ -296,7 +296,34 @@ describe('runPrompt', () => {
     expect(mocks.harnessTrack).toHaveBeenCalledWith('first_launch');
   });
 
-  it('formats thinking and assistant output as transcript blocks', async () => {
+  it('hides thinking output by default in text prompt mode', async () => {
+    mocks.session.prompt.mockImplementationOnce(async () => {
+      for (const handler of mocks.eventHandlers) {
+        handler(
+          mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }),
+        );
+        handler(
+          mocks.mainEvent({
+            type: 'thinking.delta',
+            turnId: 3,
+            delta: 'The user wants an exact reply.',
+          }),
+        );
+        handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 3, delta: 'prompt-mode-ok' }));
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 3, reason: 'completed' }));
+      }
+    });
+    const stdout = writer();
+    const stderr = writer();
+
+    await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
+
+    expect(stdout.text()).toBe('• prompt-mode-ok\n\n');
+    expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
+    expect(stderr.text()).not.toContain('exact reply');
+  });
+
+  it('formats thinking and assistant output as transcript blocks with --show-thinking', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
         handler(
@@ -323,7 +350,7 @@ describe('runPrompt', () => {
     const stdout = writer();
     const stderr = writer();
 
-    await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
+    await runPrompt(opts({ showThinking: true }), '1.2.3-test', { stdout, stderr });
 
     expect(stderr.text()).toBe(
       '• The user wants an exact reply.\n  No tools are needed.\n\nTo resume this session: kimi -r ses_prompt\n',
@@ -375,7 +402,7 @@ describe('runPrompt', () => {
     const stdout = writer(10);
     const stderr = writer(10);
 
-    await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
+    await runPrompt(opts({ showThinking: true }), '1.2.3-test', { stdout, stderr });
 
     expect(stderr.text()).toBe('• thinking\n  -wrap\n\nTo resume this session: kimi -r ses_prompt\n');
     expect(stdout.text()).toBe('• answer-w\n  rap\n\n');

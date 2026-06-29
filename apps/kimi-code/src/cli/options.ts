@@ -9,6 +9,7 @@ export interface CLIOptions {
   plan: boolean;
   model: string | undefined;
   outputFormat: PromptOutputFormat | undefined;
+  showThinking?: boolean;
   prompt: string | undefined;
   skillsDirs: string[];
   addDirs?: string[];
@@ -37,6 +38,9 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   }
   if (!promptMode && opts.outputFormat !== undefined) {
     throw new OptionConflictError('Output format is only supported in prompt mode.');
+  }
+  if (!promptMode && opts.showThinking === true) {
+    throw new OptionConflictError('Show thinking is only supported in prompt mode.');
   }
   if (promptMode && opts.yolo) {
     throw new OptionConflictError('Cannot combine --prompt with --yolo.');

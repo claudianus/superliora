@@ -146,9 +146,24 @@ export async function runPrompt(
     // distinct exit code.
     const goalCreate = parseHeadlessGoalCreate(opts.prompt!);
     if (goalCreate !== undefined) {
-      await runHeadlessGoal(session, goalCreate, goalModel, outputFormat, stdout, stderr);
+      await runHeadlessGoal(
+        session,
+        goalCreate,
+        goalModel,
+        outputFormat,
+        opts.showThinking === true,
+        stdout,
+        stderr,
+      );
     } else {
-      await runPromptTurn(session, opts.prompt!, outputFormat, stdout, stderr);
+      await runPromptTurn(
+        session,
+        opts.prompt!,
+        outputFormat,
+        opts.showThinking === true,
+        stdout,
+        stderr,
+      );
     }
     writeResumeHint(session.id, outputFormat, stdout, stderr);
 
@@ -165,6 +180,7 @@ async function runHeadlessGoal(
   goal: HeadlessGoalCreate,
   model: string | undefined,
   outputFormat: PromptOutputFormat,
+  showThinking: boolean,
   stdout: PromptOutput,
   stderr: PromptOutput,
 ): Promise<void> {
@@ -189,7 +205,7 @@ async function runHeadlessGoal(
     });
     goalCreated = true;
     const turnPrompt = goal.prompt ?? goal.objective;
-    await runPromptTurn(session, turnPrompt, outputFormat, stdout, stderr);
+    await runPromptTurn(session, turnPrompt, outputFormat, showThinking, stdout, stderr);
   } catch (error) {
     if (!goalCreated && setup !== undefined) {
       await rollbackHeadlessUltrawork(session, setup);
@@ -432,6 +448,7 @@ function runPromptTurn(
   session: Session,
   prompt: string,
   outputFormat: PromptOutputFormat,
+  showThinking: boolean,
   stdout: PromptOutput,
   stderr: PromptOutput,
 ): Promise<void> {
@@ -440,7 +457,7 @@ function runPromptTurn(
   const outputWriter =
     outputFormat === 'stream-json'
       ? new PromptJsonWriter(stdout)
-      : new PromptTranscriptWriter(stdout, stderr);
+      : new PromptTranscriptWriter(stdout, stderr, showThinking);
   let settled = false;
   let unsubscribe: (() => void) | undefined;
 
@@ -573,7 +590,11 @@ class PromptTranscriptWriter implements PromptTurnWriter {
   private readonly assistantWriter: PromptBlockWriter;
   private readonly thinkingWriter: PromptBlockWriter;
 
-  constructor(stdout: PromptOutput, stderr: PromptOutput) {
+  constructor(
+    stdout: PromptOutput,
+    stderr: PromptOutput,
+    private readonly showThinking: boolean,
+  ) {
     this.assistantWriter = new PromptBlockWriter(stdout);
     this.thinkingWriter = new PromptBlockWriter(stderr);
   }
@@ -591,6 +612,7 @@ class PromptTranscriptWriter implements PromptTurnWriter {
   }
 
   writeThinkingDelta(delta: string): void {
+    if (!this.showThinking) return;
     this.thinkingWriter.write(delta);
   }
 
