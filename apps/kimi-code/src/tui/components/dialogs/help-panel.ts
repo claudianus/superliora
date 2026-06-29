@@ -110,7 +110,7 @@ export class HelpPanelComponent extends Container implements Focusable {
       return `/${c.name}${aliases}`;
     });
     const cmdWidth = Math.max(12, ...cmdLabels.map((l) => l.length));
-    const intro = this.opts.intro ?? 'Sure, Kimi is ready to help! Just send a message to get started.';
+    const intro = this.opts.intro ?? 'Describe the task to start. Use /help advanced for manual controls.';
     const commandSectionTitle = this.opts.commandSectionTitle ?? 'Slash commands';
     const lines: string[] = [
       accent('─'.repeat(width)),
