@@ -14,6 +14,8 @@ import net from 'node:net';
 const DEFAULT_EVIDENCE_BASE = '.omo/evidence/super-kimi-autonomous-qa-env';
 const DEFAULT_SOTA_TUI_SUMMARY_PATH =
   '.omo/evidence/kimi-agent-bench/system-suite/tui-launch-tmux/tui/summary.json';
+const DEFAULT_SOTA_WORKFLOW_SUMMARY_PATH =
+  '.omo/evidence/super-kimi-autonomous-qa-env/tui-real-workflow/tui-real-workflow.json';
 const SOTA_TUI_SUMMARY_SCAN_LIMIT = 2_000;
 const REQUIRED_NODE_VERSION = '24.15.0';
 const REQUIRED_PNPM_VERSION = '10.33.0';
@@ -639,7 +641,7 @@ async function runHarness(options, runId) {
               : phases.includes('bench-system-loop')
                 ? 'Internal system benchmark bounded improvement loop completed.'
               : phases.includes('sota-gate')
-                ? 'Internal SOTA gate completed over local bench and live TUI artifacts.'
+                ? 'Internal SOTA gate completed over local bench, live TUI launch, and real workflow artifacts.'
               : phases.includes('bench-system')
                 ? 'Internal system benchmark covered the QA harness and TUI contracts.'
               : phases.includes('bench-loop')
@@ -902,6 +904,7 @@ async function runSotaGatePhase(context) {
   const reportDir = path.join(context.evidenceRoot, 'bench', 'sota-gate');
   await mkdir(reportDir, { recursive: true });
   const tuiSummarySelection = await selectSotaTuiSummary(context);
+  const workflowSummarySelection = await selectSotaWorkflowSummary(context);
   const args = [
     'scripts/kimi-agent-sota-gate.mjs',
     '--system-summary',
@@ -910,6 +913,8 @@ async function runSotaGatePhase(context) {
     '.omo/evidence/super-kimi-autonomous-qa-env/bench-system-loop-with-live-tui/bench/system-loop-summary.json',
     '--tui-summary',
     tuiSummarySelection.path,
+    '--workflow-summary',
+    workflowSummarySelection.path,
     '--require-cleanup-receipt',
     '--output-dir',
     reportDir,
@@ -938,7 +943,7 @@ async function runSotaGatePhase(context) {
     phase: 'sota-gate',
     status: pass ? 'PASS' : 'FAIL',
     reason: pass
-      ? 'Internal SOTA gate passed over local bench-system, bounded loop, and live TUI artifacts.'
+      ? 'Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, and real workflow artifacts.'
       : result.timedOut
         ? 'super-kimi-sota-gate timed out.'
         : `super-kimi-sota-gate exited ${result.status}; gate status=${String(gateSummary?.status)}.`,
@@ -946,6 +951,7 @@ async function runSotaGatePhase(context) {
     completedAt,
     command: argv,
     tuiSummarySelection,
+    workflowSummarySelection,
     summaryFile: summaryPath,
     markdownFile: markdownPath,
     gateSummary,
@@ -976,6 +982,7 @@ async function runSotaGatePhase(context) {
     exitCodePath: `${basePath}.exit-code.txt`,
     summaryFile: summaryPath,
     tuiSummarySelection,
+    workflowSummarySelection,
     reportFile,
   };
   const line = `${JSON.stringify(record)}\n`;
@@ -1021,6 +1028,24 @@ async function selectSotaTuiSummary(context) {
   };
 }
 
+async function selectSotaWorkflowSummary(context) {
+  const auto = await findLatestSotaWorkflowSummary(context);
+  if (auto !== undefined) return auto;
+  const fallbackPath = path.resolve(context.sourceCheckout, DEFAULT_SOTA_WORKFLOW_SUMMARY_PATH);
+  const fallbackSummary = await readJsonIfFile(fallbackPath);
+  return {
+    status: 'FALLBACK',
+    source: 'legacy-fixed-path',
+    path: fallbackPath,
+    reason:
+      'No newer passing live TUI real workflow summary was found; using the fixed SOTA workflow summary path.',
+    summaryStatus: fallbackSummary?.status,
+    agentVerificationStatus: fallbackSummary?.validations?.agentVerificationObserved?.status,
+    captures: Array.isArray(fallbackSummary?.captures) ? fallbackSummary.captures.length : 0,
+    inputTraces: Array.isArray(fallbackSummary?.inputTraces) ? fallbackSummary.inputTraces.length : 0,
+  };
+}
+
 async function findLatestSotaTuiSummary(context) {
   const evidenceRoot = path.join(context.sourceCheckout, '.omo', 'evidence');
   const candidates = await findTuiSummaryCandidates(evidenceRoot, context.evidenceRoot);
@@ -1041,7 +1066,37 @@ async function findLatestSotaTuiSummary(context) {
   return undefined;
 }
 
+async function findLatestSotaWorkflowSummary(context) {
+  const evidenceRoot = path.join(context.sourceCheckout, '.omo', 'evidence');
+  const candidates = await findWorkflowSummaryCandidates(evidenceRoot, context.evidenceRoot);
+  for (const candidate of candidates) {
+    const summary = await readJsonIfFile(candidate.path);
+    if (!isUsableSotaWorkflowSummary(summary)) continue;
+    return {
+      status: 'FOUND',
+      source: 'auto-latest-pass',
+      path: candidate.path,
+      reason:
+        'Selected the latest passing live TUI real workflow summary with agent-run verification evidence.',
+      summaryStatus: summary.status,
+      agentVerificationStatus: summary.validations.agentVerificationObserved.status,
+      captures: summary.captures.length,
+      inputTraces: summary.inputTraces.length,
+      modifiedAt: candidate.modifiedAt,
+    };
+  }
+  return undefined;
+}
+
 async function findTuiSummaryCandidates(evidenceRoot, excludeDir) {
+  return findEvidenceSummaryCandidates(evidenceRoot, excludeDir, isTuiSummaryCandidate);
+}
+
+async function findWorkflowSummaryCandidates(evidenceRoot, excludeDir) {
+  return findEvidenceSummaryCandidates(evidenceRoot, excludeDir, isWorkflowSummaryCandidate);
+}
+
+async function findEvidenceSummaryCandidates(evidenceRoot, excludeDir, isCandidate) {
   const files = [];
   const stack = [''];
   while (stack.length > 0 && files.length < SOTA_TUI_SUMMARY_SCAN_LIMIT) {
@@ -1061,7 +1116,7 @@ async function findTuiSummaryCandidates(evidenceRoot, excludeDir) {
         stack.push(relativePath);
         continue;
       }
-      if (!entry.isFile() || !isTuiSummaryCandidate(relativePath)) continue;
+      if (!entry.isFile() || !isCandidate(relativePath)) continue;
       const info = await statFileOrUndefined(absolutePath);
       if (info === undefined) continue;
       files.push({ path: absolutePath, modifiedAt: info.mtimeMs });
@@ -1073,7 +1128,12 @@ async function findTuiSummaryCandidates(evidenceRoot, excludeDir) {
 
 function isTuiSummaryCandidate(relativePath) {
   const normalized = relativePath.split(path.sep).join('/');
-  return normalized.endsWith('/tui-launch.json') || normalized.endsWith('/tui/summary.json');
+  return ['/tui-launch.json', '/tui/summary.json'].some((suffix) => normalized.endsWith(suffix));
+}
+
+function isWorkflowSummaryCandidate(relativePath) {
+  const normalized = relativePath.split(path.sep).join('/');
+  return normalized.endsWith('/tui-real-workflow.json');
 }
 
 function isUsableSotaTuiSummary(summary) {
@@ -1088,6 +1148,27 @@ function isUsableSotaTuiSummary(summary) {
   return ['help', 'clear', 'vibe-mode', 'autocomplete', 'prompt-entry', 'escape-cancel', 'exit'].every(
     (scenario) => traceScenarios.has(scenario),
   );
+}
+
+function isUsableSotaWorkflowSummary(summary) {
+  if (summary?.phase !== 'tui-real-workflow' || summary.status !== 'PASS') return false;
+  if (summary.kimiCodeHomeMode !== 'real-user-opt-in') return false;
+  const requiredValidations = [
+    'directCodingMode',
+    'planModeFrictionAvoided',
+    'agentVerificationObserved',
+    'adaptiveOperatorLoop',
+    'operatorTrajectory',
+    'kimiModelReady',
+    'verificationCommand',
+  ];
+  if (requiredValidations.some((name) => summary.validations?.[name]?.status !== 'PASS')) {
+    return false;
+  }
+  if (!Array.isArray(summary.workflow?.wait?.agentVerificationEvidence)) return false;
+  if (summary.workflow.wait.agentVerificationEvidence.length === 0) return false;
+  if (!Array.isArray(summary.captures) || !Array.isArray(summary.inputTraces)) return false;
+  return summary.workspace?.diffExitCode === 0 && summary.workspace?.verificationExitCode === 0;
 }
 
 async function statFileOrUndefined(filePath) {

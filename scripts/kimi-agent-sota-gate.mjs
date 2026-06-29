@@ -45,6 +45,7 @@ const TUI_UX_SCORE_THRESHOLD = 85;
 const TUI_TARGET_DURATION_MS = 30_000;
 const PRIMARY_TUI_SUCCESS_SURFACE = 'live-tui-real-user-workflow';
 const AUXILIARY_PROMPT_BENCH_SURFACE = 'prompt-only-benchmarks-auxiliary-regression-signal';
+const ROOT_EVIDENCE_SUMMARY_FILES = new Set(['tui-launch.json', 'tui-real-workflow.json']);
 const ULTRAWORK_CONTRACT_PATH = 'apps/kimi-code/src/tui/commands/ultrawork-contract.ts';
 const WEB_UI_SUCCESS_BOUNDARY =
   'Do not use apps/kimi-web or browser UI paths as a success surface';
@@ -64,6 +65,7 @@ Required inputs:
   --system-summary <path>             bench-system phase summary JSON.
   --loop-summary <path>               bench-system-loop phase summary JSON.
   --tui-summary <path>                live TUI launch summary JSON.
+  --workflow-summary <path>           live TUI real workflow summary JSON.
 
 Options:
   --help                              Show this help.
@@ -98,6 +100,7 @@ function parseArgs(argv) {
     requireCleanupReceipt: false,
     systemSummary: undefined,
     tuiSummary: undefined,
+    workflowSummary: undefined,
   };
   const errors = [];
   const valueOptions = new Set([
@@ -106,6 +109,7 @@ function parseArgs(argv) {
     '--system-summary',
     '--loop-summary',
     '--tui-summary',
+    '--workflow-summary',
     '--max-wall-clock-ms',
     '--max-command-count',
     '--max-estimated-tokens',
@@ -143,6 +147,7 @@ function parseArgs(argv) {
     if (options.systemSummary === undefined) errors.push('Missing required input: --system-summary <path>');
     if (options.loopSummary === undefined) errors.push('Missing required input: --loop-summary <path>');
     if (options.tuiSummary === undefined) errors.push('Missing required input: --tui-summary <path>');
+    if (options.workflowSummary === undefined) errors.push('Missing required input: --workflow-summary <path>');
   }
   return { errors, options };
 }
@@ -160,6 +165,7 @@ function setValueOption(options, flag, value, errors) {
   if (flag === '--system-summary') options.systemSummary = value;
   if (flag === '--loop-summary') options.loopSummary = value;
   if (flag === '--tui-summary') options.tuiSummary = value;
+  if (flag === '--workflow-summary') options.workflowSummary = value;
   if (flag === '--max-wall-clock-ms') options.maxWallClockMs = parsePositiveInteger(flag, value, errors);
   if (flag === '--max-command-count') options.maxCommandCount = parsePositiveInteger(flag, value, errors);
   if (flag === '--max-estimated-tokens') options.maxEstimatedTokens = parsePositiveInteger(flag, value, errors);
@@ -227,6 +233,7 @@ async function buildReport(options, outputDir, runId) {
     systemSummary: path.resolve(options.systemSummary),
     loopSummary: path.resolve(options.loopSummary),
     tuiSummary: path.resolve(options.tuiSummary),
+    workflowSummary: path.resolve(options.workflowSummary),
   };
   const baselineSelection = await selectBaselineSotaSummary(options, outputDir);
   const inputs = { ...evidenceInputs };
@@ -234,12 +241,18 @@ async function buildReport(options, outputDir, runId) {
   const systemSummary = await readJsonRequired(evidenceInputs.systemSummary, 'bench-system summary');
   const loopSummary = await readJsonRequired(evidenceInputs.loopSummary, 'bench-system-loop summary');
   const tuiSummary = await readJsonRequired(evidenceInputs.tuiSummary, 'live TUI summary');
+  const workflowSummary = await readJsonRequired(
+    evidenceInputs.workflowSummary,
+    'live TUI real workflow summary',
+  );
 
   const tuiGate = await evaluateTuiGate(tuiSummary);
+  const workflowGate = await evaluateWorkflowGate(workflowSummary);
   const gates = [
     evaluateSystemGate(systemSummary),
     evaluateLoopGate(loopSummary),
     tuiGate,
+    workflowGate,
     evaluateBudgetGate(systemSummary, budgets),
     await evaluateNoWebUiSurfaceGate(evidenceInputs),
     await evaluateSecretScanGate(inputs, criteriaPath),
@@ -250,7 +263,7 @@ async function buildReport(options, outputDir, runId) {
       ? undefined
       : evaluateTuiUxDeltaGate(baselineSelection.summary, tuiGate.observed?.uxFriction);
   if (tuiUxDelta !== undefined) gates.push(tuiUxDelta);
-  const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta);
+  const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta, workflowGate);
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
   return {
     schemaVersion: 1,
@@ -259,7 +272,7 @@ async function buildReport(options, outputDir, runId) {
     status,
     reason:
       status === 'PASS'
-        ? 'All required SOTA gates passed against local bench and live TUI artifacts.'
+        ? 'All required SOTA gates passed against local bench, live TUI launch, and real workflow artifacts.'
         : gates.filter((gate) => gate.status !== 'PASS' && gate.required !== false).map((gate) => gate.reason).join('; '),
     startedAt,
     completedAt: new Date().toISOString(),
@@ -275,6 +288,7 @@ async function buildReport(options, outputDir, runId) {
     auxiliarySuccessSurfaces: [AUXILIARY_PROMPT_BENCH_SURFACE],
     tuiUxBaseline: baselineSelection?.metadata,
     tuiUxFriction: tuiGate.observed?.uxFriction,
+    tuiWorkflowProof: workflowGate.observed,
     tuiUxDelta: tuiUxDelta?.observed,
     tuiNextActions,
     gates,
@@ -478,6 +492,149 @@ async function evaluateTuiGate(summary) {
   };
 }
 
+async function evaluateWorkflowGate(summary) {
+  const failures = [];
+  if (summary.phase !== 'tui-real-workflow') {
+    failures.push(`workflow phase is ${String(summary.phase)}`);
+  }
+  if (summary.status !== 'PASS') failures.push(`workflow status is ${String(summary.status)}`);
+  if (summary.kimiCodeHomeMode !== 'real-user-opt-in') {
+    failures.push(`KIMI_CODE_HOME mode is ${String(summary.kimiCodeHomeMode)}`);
+  }
+
+  const requiredValidations = [
+    'tmuxPreflight',
+    'kimiCodeHomeReady',
+    'promptSubmitted',
+    'directCodingMode',
+    'planModeFrictionAvoided',
+    'workspaceChanged',
+    'diffContainsSentinel',
+    'verificationCommand',
+    'agentVerificationObserved',
+    'screenEvidence',
+    'kimiModelReady',
+    'adaptiveOperatorLoop',
+    'operatorTrajectory',
+  ];
+  const validationStatuses = {};
+  for (const name of requiredValidations) {
+    const status = summary.validations?.[name]?.status;
+    validationStatuses[name] = status;
+    if (status !== 'PASS') failures.push(`${name} validation is ${String(status)}`);
+  }
+
+  const workflowWait = summary.workflow?.wait;
+  if (workflowWait?.status !== 'PASS') failures.push(`workflow wait status is ${String(workflowWait?.status)}`);
+  if (!Array.isArray(workflowWait?.agentVerificationEvidence) || workflowWait.agentVerificationEvidence.length === 0) {
+    failures.push('agent-run verification evidence is missing from workflow wait');
+  }
+  if (summary.workspace?.diffExitCode !== 0) {
+    failures.push(`workflow diff exit code is ${String(summary.workspace?.diffExitCode)}`);
+  }
+  if (summary.workspace?.verificationExitCode !== 0) {
+    failures.push(`workflow verification exit code is ${String(summary.workspace?.verificationExitCode)}`);
+  }
+  const failedTrajectorySteps = Array.isArray(summary.operatorTrajectory?.steps)
+    ? summary.operatorTrajectory.steps.filter((step) => step.status !== 'PASS')
+    : [];
+  if (!Array.isArray(summary.operatorTrajectory?.steps) || failedTrajectorySteps.length > 0) {
+    failures.push('operator trajectory has failing or missing steps');
+  }
+
+  const captureResults = await validateWorkflowCaptures(summary);
+  for (const capture of captureResults.filter((result) => result.status !== 'PASS')) {
+    failures.push(`workflow capture ${capture.scenario} is ${capture.status}`);
+  }
+  const inputResults = validateWorkflowInputTraces(summary);
+  for (const trace of inputResults.filter((result) => result.status !== 'PASS')) {
+    failures.push(`workflow input ${trace.scenario} is ${trace.status}`);
+  }
+
+  return {
+    name: 'real-tui-workflow-proof',
+    status: failures.length === 0 ? 'PASS' : 'FAIL',
+    required: true,
+    reason:
+      failures.length === 0
+        ? 'Real TUI workflow proof passed with direct mode, agent-run verification, diff, and cleanup evidence.'
+        : failures.join('; '),
+    observed: {
+      phase: summary.phase,
+      status: summary.status,
+      kimiCodeHomeMode: summary.kimiCodeHomeMode,
+      validationStatuses,
+      workflowWaitStatus: workflowWait?.status,
+      agentVerificationEvidenceCount: Array.isArray(workflowWait?.agentVerificationEvidence)
+        ? workflowWait.agentVerificationEvidence.length
+        : 0,
+      adaptiveObservationCount: summary.validations?.adaptiveOperatorLoop?.observationCount,
+      adaptiveInterventionsAttempted: summary.validations?.adaptiveOperatorLoop?.interventionsAttempted,
+      trajectorySteps: Array.isArray(summary.operatorTrajectory?.steps)
+        ? summary.operatorTrajectory.steps.map((step) => ({
+            name: step.name,
+            status: step.status,
+          }))
+        : [],
+      captureResults,
+      inputResults,
+      workspace: {
+        diffExitCode: summary.workspace?.diffExitCode,
+        verificationExitCode: summary.workspace?.verificationExitCode,
+        diffPath: summary.workspace?.diffPath,
+      },
+    },
+  };
+}
+
+async function validateWorkflowCaptures(summary) {
+  const captures = Array.isArray(summary.captures) ? summary.captures : [];
+  const requiredScenarios = [
+    'startup',
+    'real-workflow-vibe-mode',
+    'real-workflow-submitted',
+    'real-workflow-after-wait',
+  ];
+  const results = [];
+  for (const scenario of requiredScenarios) {
+    const capture = captures.find((entry) => entry.scenario === scenario);
+    const file = capture?.path;
+    const artifact = file === undefined ? { exists: false, bytes: 0 } : await fileStatus(file);
+    results.push({
+      scenario,
+      status: capture?.status === 'PASS' && artifact.exists && artifact.bytes > 0 ? 'PASS' : 'FAIL',
+      captureStatus: capture?.status,
+      path: file,
+      bytes: artifact.bytes,
+    });
+  }
+  return results;
+}
+
+function validateWorkflowInputTraces(summary) {
+  const inputTraces = Array.isArray(summary.inputTraces) ? summary.inputTraces : [];
+  const requiredScenarios = ['real-workflow-vibe-mode', 'real-workflow-prompt'];
+  return requiredScenarios.map((scenario) => {
+    const trace = inputTraces.find((entry) => entry.scenario === scenario);
+    const steps = Array.isArray(trace?.steps) ? trace.steps : [];
+    const failedStep = steps.find((step) => step.exitCode !== 0 || step.timedOut === true);
+    return {
+      scenario,
+      status:
+        trace?.status === 'PASS' &&
+        steps.length > 0 &&
+        Array.isArray(trace.keys) &&
+        trace.keys.length > 0 &&
+        failedStep === undefined
+          ? 'PASS'
+          : 'FAIL',
+      traceStatus: trace?.status,
+      steps: steps.length,
+      keys: Array.isArray(trace?.keys) ? trace.keys : [],
+    };
+  });
+}
+
 function evaluateTuiUxDeltaGate(baselineSummary, currentFriction) {
   const baselineFriction = extractTuiUxFriction(baselineSummary);
   const baselineScore = baselineFriction?.score;
@@ -526,7 +683,7 @@ function evaluateTuiUxDeltaGate(baselineSummary, currentFriction) {
   };
 }
 
-function recommendTuiNextActions(tuiGate, tuiUxDeltaGate) {
+function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
   const uxFriction = tuiGate.observed?.uxFriction;
   const scenarios = Array.isArray(tuiGate.observed?.scenarios) ? tuiGate.observed.scenarios : [];
   const penalties = Array.isArray(uxFriction?.penalties) ? uxFriction.penalties : [];
@@ -550,6 +707,15 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate) {
         currentScore: tuiUxDeltaGate.observed.currentScore,
         scoreDelta: tuiUxDeltaGate.observed.scoreDelta,
       },
+    );
+  }
+
+  if (workflowGate.status !== 'PASS') {
+    addAction(
+      'repair-real-tui-workflow-proof',
+      'The real TUI workflow gate did not prove direct coding, screen-state classification, agent-run verification, diff review, and verification together.',
+      workflowGate.observed,
+      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-real-workflow --use-real-kimi-home --evidence-root .omo/evidence/<real-workflow-repair>',
     );
   }
 
@@ -614,11 +780,13 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate) {
 
   if (actions.length === 0) {
     addAction(
-      'expand-to-real-vibe-coding-task',
-      'Current live TUI smoke interaction evidence passes; the next loop must drive an observed realistic coding change through adaptive screen-driven TUI steering rather than blind prompt/result scoring.',
+      'advance-to-longer-real-vibe-coding-task',
+      'Current live TUI launch and real workflow evidence pass; the next loop should drive a longer multi-file coding task through the same screen-driven TUI gate.',
       {
         currentScore: uxFriction?.score,
         deltaVerdict: tuiUxDeltaGate?.observed?.verdict ?? 'not-compared',
+        workflowGate: workflowGate.status,
+        agentVerificationEvidenceCount: workflowGate.observed?.agentVerificationEvidenceCount,
         requiredOperatorEvidence: [
           'startup screen observation',
           'direct coding mode activation',
@@ -1098,6 +1266,9 @@ function pathSegments(file) {
 }
 
 function cleanupReceiptPathFor(inputPath) {
+  if (ROOT_EVIDENCE_SUMMARY_FILES.has(path.basename(inputPath))) {
+    return path.join(path.dirname(inputPath), 'cleanup', 'receipt.json');
+  }
   const parsed = path.parse(inputPath);
   const parts = inputPath.slice(parsed.root.length).split(path.sep).filter(Boolean);
   const benchIndex = parts.lastIndexOf('bench');
@@ -1170,6 +1341,7 @@ function renderMarkdown(report) {
     `- bench-system: ${report.inputs.systemSummary}`,
     `- bench-system-loop: ${report.inputs.loopSummary}`,
     `- live TUI: ${report.inputs.tuiSummary}`,
+    `- real workflow: ${report.inputs.workflowSummary}`,
     ...(report.inputs.baselineSotaSummary === undefined
       ? []
       : [`- baseline SOTA: ${report.inputs.baselineSotaSummary}`]),
@@ -1223,6 +1395,19 @@ function renderMarkdown(report) {
       `- score delta: ${formatSignedNumber(report.tuiUxDelta.scoreDelta ?? 0)}`,
       `- verdict: ${report.tuiUxDelta.verdict}`,
       `- duration delta ms: ${String(report.tuiUxDelta.durationDeltaMs ?? 'unavailable')}`,
+    );
+  }
+  if (report.tuiWorkflowProof !== undefined) {
+    lines.push(
+      '',
+      '## Real TUI Workflow Proof',
+      '',
+      `- status: ${report.tuiWorkflowProof.status}`,
+      `- mode: ${report.tuiWorkflowProof.kimiCodeHomeMode}`,
+      `- agent verification evidence: ${String(report.tuiWorkflowProof.agentVerificationEvidenceCount)}`,
+      `- adaptive observations: ${String(report.tuiWorkflowProof.adaptiveObservationCount ?? 'unavailable')}`,
+      `- adaptive interventions: ${String(report.tuiWorkflowProof.adaptiveInterventionsAttempted ?? 'unavailable')}`,
+      `- verification exit code: ${String(report.tuiWorkflowProof.workspace?.verificationExitCode ?? 'unavailable')}`,
     );
   }
   if (report.tuiNextActions !== undefined) {
