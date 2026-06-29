@@ -182,8 +182,15 @@ async function waitForAssertion(assertion: () => void): Promise<void> {
   throw lastError;
 }
 
+async function flushMicrotasks(times = 10): Promise<void> {
+  for (let index = 0; index < times; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 describe('runPrompt', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     mocks.eventHandlers.clear();
     mocks.createKimiDeviceId.mockImplementation(() => 'device-1');
@@ -321,6 +328,78 @@ describe('runPrompt', () => {
     expect(stdout.text()).toBe('• prompt-mode-ok\n\n');
     expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
     expect(stderr.text()).not.toContain('exact reply');
+  });
+
+  it('prints a delayed progress line while text prompt mode has no visible output', async () => {
+    vi.useFakeTimers();
+    let releasePrompt!: () => void;
+    mocks.session.prompt.mockImplementationOnce(async () => {
+      for (const handler of mocks.eventHandlers) {
+        handler(
+          mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }),
+        );
+      }
+      await new Promise<void>((resolve) => {
+        releasePrompt = resolve;
+      });
+    });
+    const stdout = writer();
+    const stderr = writer();
+
+    const run = runPrompt(opts(), '1.2.3-test', { stdout, stderr });
+    await flushMicrotasks();
+    expect(mocks.session.prompt).toHaveBeenCalledWith('say hello');
+
+    expect(stderr.text()).toBe('');
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(stderr.text()).toBe('');
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stderr.text()).toBe('Working...\n');
+
+    for (const handler of mocks.eventHandlers) {
+      handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 3, delta: 'done' }));
+      handler(mocks.mainEvent({ type: 'turn.ended', turnId: 3, reason: 'completed' }));
+    }
+    releasePrompt();
+    await run;
+
+    expect(stdout.text()).toBe('• done\n\n');
+    expect(stderr.text()).toBe('Working...\nTo resume this session: kimi -r ses_prompt\n');
+  });
+
+  it('clears pending progress when a tool starts in text prompt mode', async () => {
+    vi.useFakeTimers();
+    mocks.session.prompt.mockImplementationOnce(async () => {
+      for (const handler of mocks.eventHandlers) {
+        handler(
+          mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }),
+        );
+        handler(
+          mocks.mainEvent({
+            type: 'tool.call.started',
+            turnId: 3,
+            toolCallId: 'tc_write',
+            name: 'Write',
+            args: { file_path: '/tmp/notes.md' },
+          }),
+        );
+      }
+    });
+    const stdout = writer();
+    const stderr = writer();
+
+    const run = runPrompt(opts(), '1.2.3-test', { stdout, stderr });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(2_000);
+    for (const handler of mocks.eventHandlers) {
+      handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 3, delta: 'done' }));
+      handler(mocks.mainEvent({ type: 'turn.ended', turnId: 3, reason: 'completed' }));
+    }
+    await run;
+
+    expect(stdout.text()).toBe('• done\n\n');
+    expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
   });
 
   it('formats thinking and assistant output as transcript blocks with --show-thinking', async () => {

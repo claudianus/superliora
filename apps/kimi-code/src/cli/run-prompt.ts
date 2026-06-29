@@ -53,6 +53,7 @@ const PROMPT_UI_MODE = 'print';
 const PROMPT_MAIN_AGENT_ID = 'main';
 const PROMPT_BLOCK_BULLET = '• ';
 const PROMPT_BLOCK_INDENT = '  ';
+const PROMPT_PROGRESS_DELAY_MS = 2_000;
 
 export async function runPrompt(
   opts: CLIOptions,
@@ -488,6 +489,7 @@ function runPromptTurn(
         }
         activeTurnId = event.turnId;
         activeAgentId = event.agentId;
+        outputWriter.startProgress();
         return;
       }
       if (
@@ -571,6 +573,7 @@ function runPromptTurn(
 }
 
 interface PromptTurnWriter {
+  startProgress(): void;
   writeAssistantDelta(delta: string): void;
   writeHookResult(event: HookResultEvent): void;
   writeThinkingDelta(delta: string): void;
@@ -589,22 +592,33 @@ interface PromptTurnWriter {
 class PromptTranscriptWriter implements PromptTurnWriter {
   private readonly assistantWriter: PromptBlockWriter;
   private readonly thinkingWriter: PromptBlockWriter;
+  private progressTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     stdout: PromptOutput,
-    stderr: PromptOutput,
+    private readonly stderr: PromptOutput,
     private readonly showThinking: boolean,
   ) {
     this.assistantWriter = new PromptBlockWriter(stdout);
     this.thinkingWriter = new PromptBlockWriter(stderr);
   }
 
+  startProgress(): void {
+    if (this.showThinking || this.progressTimer !== undefined) return;
+    this.progressTimer = setTimeout(() => {
+      this.progressTimer = undefined;
+      this.stderr.write('Working...\n');
+    }, PROMPT_PROGRESS_DELAY_MS);
+  }
+
   writeAssistantDelta(delta: string): void {
+    this.clearPendingProgress();
     this.thinkingWriter.finish();
     this.assistantWriter.write(delta);
   }
 
   writeHookResult(event: HookResultEvent): void {
+    this.clearPendingProgress();
     this.thinkingWriter.finish();
     this.assistantWriter.finish();
     this.assistantWriter.write(formatHookResultPlain(event));
@@ -616,7 +630,9 @@ class PromptTranscriptWriter implements PromptTurnWriter {
     this.thinkingWriter.write(delta);
   }
 
-  writeToolCall(): void {}
+  writeToolCall(): void {
+    this.clearPendingProgress();
+  }
 
   writeToolCallDelta(): void {}
 
@@ -627,8 +643,15 @@ class PromptTranscriptWriter implements PromptTurnWriter {
   discardAssistant(): void {}
 
   finish(): void {
+    this.clearPendingProgress();
     this.thinkingWriter.finish();
     this.assistantWriter.finish();
+  }
+
+  private clearPendingProgress(): void {
+    if (this.progressTimer === undefined) return;
+    clearTimeout(this.progressTimer);
+    this.progressTimer = undefined;
   }
 }
 
@@ -688,6 +711,8 @@ class PromptJsonWriter implements PromptTurnWriter {
   private readonly toolCalls: PromptJsonToolCall[] = [];
 
   constructor(private readonly stdout: PromptOutput) {}
+
+  startProgress(): void {}
 
   writeAssistantDelta(delta: string): void {
     this.assistantText += delta;
