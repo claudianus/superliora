@@ -101,10 +101,11 @@ export class ThinkingComponent implements Component {
 
     let rendered: string[];
     if (this.mode === 'live') {
-      const visibleLines =
-        contentLines.length > THINKING_PREVIEW_LINES
+      const visibleLines = this.expanded
+        ? contentLines.length > THINKING_PREVIEW_LINES
           ? contentLines.slice(contentLines.length - THINKING_PREVIEW_LINES)
-          : contentLines;
+          : contentLines
+        : [];
       const spinner = currentTheme.fg(
         'textDim',
         `${BRAILLE_SPINNER_FRAMES[this.spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
@@ -121,19 +122,19 @@ export class ThinkingComponent implements Component {
         lines.push(p + contentLines[i]);
       }
 
-      if (this.expanded || contentLines.length <= THINKING_PREVIEW_LINES) {
+      if (this.expanded) {
         rendered = lines;
       } else {
-        // Leading blank + first PREVIEW_LINES content lines + hint line.
-        const truncated = lines.slice(0, 1 + THINKING_PREVIEW_LINES);
-        const remaining = contentLines.length - THINKING_PREVIEW_LINES;
-        const hint = `... (${String(remaining)} more lines, ctrl+o to expand)`;
+        const marker = this.showMarker ? currentTheme.fg('textDim', STATUS_BULLET) : MESSAGE_INDENT;
+        const summary = `${marker}${currentTheme.fg('textDim', 'thinking complete')}`;
+        const hint = `... (${String(contentLines.length)} lines hidden, ctrl+o to expand)`;
         const indentWidth = Math.min(MESSAGE_INDENT.length, Math.max(0, width));
         const hintWidth = Math.max(0, width - indentWidth);
-        truncated.push(
+        rendered = [
+          '',
+          summary,
           ' '.repeat(indentWidth) + currentTheme.dim(truncateToWidth(hint, hintWidth, '…')),
-        );
-        rendered = truncated;
+        ];
       }
     }
 

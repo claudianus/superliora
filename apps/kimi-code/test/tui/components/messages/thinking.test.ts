@@ -11,18 +11,31 @@ function strip(text: string): string {
 const longThinking = ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'line7'].join('\n');
 
 describe('ThinkingComponent', () => {
-  it('shows the live spinner header before thinking content', () => {
+  it('shows only the live spinner header while collapsed', () => {
     const component = new ThinkingComponent('working it out', true, 'live');
     const out = strip(component.render(80).join('\n'));
 
     expect(out).toContain('⠋ thinking...');
     expect(out).not.toContain('  ⠋ thinking...');
     expect(out).not.toContain(`${STATUS_BULLET}⠋`);
-    expect(out).toContain('  working it out');
+    expect(out).not.toContain('working it out');
   });
 
-  it('keeps live thinking height-limited to the tail', () => {
+  it('hides live thinking content while collapsed', () => {
     const component = new ThinkingComponent(longThinking, true, 'live');
+    const out = strip(component.render(80).join('\n'));
+
+    expect(out).not.toContain('line1');
+    expect(out).not.toContain('line4');
+    expect(out).not.toContain('line5');
+    expect(out).not.toContain('line6');
+    expect(out).not.toContain('line7');
+    expect(out).not.toContain('ctrl+o to expand');
+  });
+
+  it('keeps expanded live thinking height-limited to the tail', () => {
+    const component = new ThinkingComponent(longThinking, true, 'live');
+    component.setExpanded(true);
     const out = strip(component.render(80).join('\n'));
 
     expect(out).not.toContain('line1');
@@ -53,17 +66,18 @@ describe('ThinkingComponent', () => {
     vi.useRealTimers();
   });
 
-  it('finalizes in place into a collapsed preview', () => {
+  it('finalizes in place into a hidden collapsed summary', () => {
     const component = new ThinkingComponent(longThinking, true, 'live');
 
     component.finalize();
 
     const out = strip(component.render(80).join('\n'));
-    expect(out).toContain('line1');
-    expect(out).toContain('line2');
+    expect(out).toContain('thinking complete');
+    expect(out).toContain('... (7 lines hidden, ctrl+o to expand)');
+    expect(out).not.toContain('line1');
+    expect(out).not.toContain('line2');
     expect(out).not.toContain('line3');
     expect(out).not.toContain('line4');
-    expect(out).toContain('... (5 more lines, ctrl+o to expand)');
   });
 
   it('expands and collapses after finalization', () => {
@@ -77,6 +91,7 @@ describe('ThinkingComponent', () => {
 
     component.setExpanded(false);
     const collapsed = strip(component.render(80).join('\n'));
+    expect(collapsed).toContain('thinking complete');
     expect(collapsed).not.toContain('line7');
     expect(collapsed).toContain('ctrl+o to expand');
   });
