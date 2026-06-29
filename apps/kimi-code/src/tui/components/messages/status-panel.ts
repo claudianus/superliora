@@ -113,7 +113,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     return [
       { label: 'State', value: 'Model needed', severity: 'error' },
       ...READINESS_GATE_ROWS,
-      { label: 'Next', value: 'Run /login or /model before work.' },
+      { label: 'Next', value: 'Run /login first; use /model after sign-in.' },
     ];
   }
 
