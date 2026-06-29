@@ -87,6 +87,7 @@ function contextValues(options: StatusReportOptions): {
 }
 
 const READINESS_CHECKS = 'read -> test -> change -> verify -> TUI check';
+const DONE_GATE = 'tests -> typecheck -> lint -> build -> TUI check';
 
 function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   const model = (options.status?.model ?? options.model).trim();
@@ -94,6 +95,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     return [
       { label: 'State', value: 'Model needed', severity: 'error' },
       { label: 'Checks', value: READINESS_CHECKS },
+      { label: 'Done gate', value: DONE_GATE },
       { label: 'Next', value: 'Run /login or /model before work.' },
     ];
   }
@@ -103,6 +105,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     return [
       { label: 'State', value: 'Context high' },
       { label: 'Checks', value: READINESS_CHECKS },
+      { label: 'Done gate', value: DONE_GATE },
       { label: 'Next', value: 'Run /compact before long work.' },
     ];
   }
@@ -111,6 +114,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   return [
     { label: 'State', value: 'Ready' },
     { label: 'Checks', value: READINESS_CHECKS },
+    { label: 'Done gate', value: DONE_GATE },
     {
       label: 'Next',
       value: planMode ? 'Describe the task; Kimi will plan first.' : 'Describe the task to start.',
