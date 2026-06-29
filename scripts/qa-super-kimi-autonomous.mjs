@@ -4347,7 +4347,21 @@ async function runTuiRealWorkflowPhase(context) {
       summary.reason = startupReady.reason;
       return await finishTuiRealWorkflowPhase(context, summary, cleanupOverrides);
     }
-    summary.captures.push(await captureTmuxPane(context, tmuxSession, 'startup'));
+    const startupCapture = await captureTmuxPane(context, tmuxSession, 'startup');
+    summary.captures.push(startupCapture);
+    summary.validations.kimiModelReady = await validateTuiRealWorkflowModelEvidence(summary.captures);
+    if (summary.validations.kimiModelReady.status !== 'PASS') {
+      summary.validations.kimiModelReady = {
+        ...summary.validations.kimiModelReady,
+        status: 'BLOCKED',
+        reason:
+          `${summary.validations.kimiModelReady.reason} ` +
+          'Run the live workflow with --use-real-kimi-home after /login selects K2.7 Code.',
+      };
+      summary.status = 'BLOCKED';
+      summary.reason = summary.validations.kimiModelReady.reason;
+      return await finishTuiRealWorkflowPhase(context, summary, cleanupOverrides);
+    }
 
     const planOffTrace = await sendTmuxKeySequence(context, tmuxSession, 'real-workflow-plan-off', [
       '/plan off',
@@ -4845,7 +4859,21 @@ async function runTuiUltraworkWorkflowPhase(context) {
       summary.reason = startupReady.reason;
       return await finishTuiUltraworkWorkflowPhase(context, summary, cleanupOverrides);
     }
-    summary.captures.push(await captureTmuxPane(context, tmuxSession, 'ultrawork-startup'));
+    const startupCapture = await captureTmuxPane(context, tmuxSession, 'ultrawork-startup');
+    summary.captures.push(startupCapture);
+    summary.validations.kimiModelReady = await validateTuiRealWorkflowModelEvidence(summary.captures);
+    if (summary.validations.kimiModelReady.status !== 'PASS') {
+      summary.validations.kimiModelReady = {
+        ...summary.validations.kimiModelReady,
+        status: 'BLOCKED',
+        reason:
+          `${summary.validations.kimiModelReady.reason} ` +
+          'Run the Ultrawork workflow with --use-real-kimi-home after /login selects K2.7 Code.',
+      };
+      summary.status = 'BLOCKED';
+      summary.reason = summary.validations.kimiModelReady.reason;
+      return await finishTuiUltraworkWorkflowPhase(context, summary, cleanupOverrides);
+    }
     const planResetTrace = await sendTmuxKeySequence(context, tmuxSession, 'ultrawork-plan-reset', [
       '/plan off',
       'Enter',
