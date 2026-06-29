@@ -8,8 +8,10 @@ import path from 'node:path';
 
 const DEFAULT_EVIDENCE_ROOT = '.omo/evidence/super-kimi-preflight-refresh';
 const DEFAULT_RUNTIME_EVIDENCE_ROOT = '.omo/evidence/preflight-readiness';
+const DEFAULT_EVIDENCE_SEARCH_ROOT = '.omo/evidence';
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_SCAN_FILES = 200;
+const MAX_DISCOVERY_SCAN_FILES = 2000;
 
 const CHANNELS = [
   {
@@ -49,6 +51,8 @@ Options:
   --evidence-root <dir>          Output directory. Default: ${DEFAULT_EVIDENCE_ROOT}
   --runtime-evidence-root <dir>  Runtime evidence root, relative to --workdir unless absolute.
                                   Default: ${DEFAULT_RUNTIME_EVIDENCE_ROOT}
+  --evidence-search-root <dir>   Read-only root for existing runtime evidence candidates.
+                                  Default: ${DEFAULT_EVIDENCE_SEARCH_ROOT}
   --max-age-ms <n>               Freshness window. Default: ${DEFAULT_MAX_AGE_MS}
   --expect-status <PASS|BLOCKED|FAIL>
                                   Fail if final status differs.
@@ -80,6 +84,7 @@ function main() {
   const evidenceRoot = path.resolve(repoRoot, parsed.options.evidenceRoot);
   const benchEvidenceRoot = path.join(evidenceRoot, 'bench');
   const runtimeEvidenceRoot = resolveMaybeRelative(workDir, parsed.options.runtimeEvidenceRoot);
+  const evidenceSearchRoot = resolveMaybeRelative(workDir, parsed.options.evidenceSearchRoot);
   mkdirSync(evidenceRoot, { recursive: true });
 
   const commandsPath = path.join(evidenceRoot, 'commands.jsonl');
@@ -100,6 +105,12 @@ function main() {
 
   const benchSummary = readJson(path.join(benchEvidenceRoot, 'summary.json'));
   const runtimeEvidence = auditRuntimeEvidence(runtimeEvidenceRoot, parsed.options.maxAgeMs);
+  const runtimeEvidenceCandidates = discoverRuntimeEvidenceCandidates({
+    evidenceSearchRoot,
+    maxAgeMs: parsed.options.maxAgeMs,
+    runtimeEvidence,
+    runtimeEvidenceRoot,
+  });
   const missingOrStaleRuntimeEvidence = CHANNELS
     .filter((channel) => runtimeEvidence[channel.id].state !== 'fresh')
     .map((channel) => ({
@@ -107,6 +118,8 @@ function main() {
       label: channel.label,
       state: runtimeEvidence[channel.id].state,
       path: runtimeEvidence[channel.id].sourcePath ?? runtimeEvidenceRoot,
+      candidatePath: runtimeEvidenceCandidates[channel.id]?.sourcePath,
+      candidateState: runtimeEvidenceCandidates[channel.id]?.state,
     }));
 
   const benchStatus = typeof benchSummary?.status === 'string' ? benchSummary.status : 'UNKNOWN';
@@ -138,6 +151,7 @@ function main() {
     evidenceRoot,
     benchEvidenceRoot,
     runtimeEvidenceRoot,
+    evidenceSearchRoot,
     noWebUiSuccessSurface: true,
     providerCallStarted: false,
     readinessGates,
@@ -150,6 +164,7 @@ function main() {
       summaryPath: path.join(benchEvidenceRoot, 'summary.json'),
     },
     runtimeEvidence,
+    runtimeEvidenceCandidates,
     missingOrStaleRuntimeEvidence,
     secretScan: 'pass',
   });
@@ -170,6 +185,12 @@ function main() {
   console.log(`Reason: ${reason}`);
   if (missingOrStaleRuntimeEvidence.length > 0) {
     console.log(`Missing/stale runtime evidence: ${missingOrStaleRuntimeEvidence.map((item) => item.label).join(', ')}`);
+    const candidateLabels = missingOrStaleRuntimeEvidence
+      .filter((item) => item.candidatePath !== undefined)
+      .map((item) => `${item.label}=${item.candidatePath}`);
+    if (candidateLabels.length > 0) {
+      console.log(`Existing candidate evidence: ${candidateLabels.join(', ')}`);
+    }
   }
 
   if (parsed.options.expectStatus !== undefined && status !== parsed.options.expectStatus) {
@@ -227,6 +248,7 @@ function buildReadinessGates({ benchPassed, benchStatus, missingOrStaleRuntimeEv
 function parseArgs(argv) {
   const options = {
     evidenceRoot: DEFAULT_EVIDENCE_ROOT,
+    evidenceSearchRoot: DEFAULT_EVIDENCE_SEARCH_ROOT,
     expectStatus: undefined,
     help: false,
     maxAgeMs: DEFAULT_MAX_AGE_MS,
@@ -238,6 +260,7 @@ function parseArgs(argv) {
   const valueOptions = new Set([
     '--workdir',
     '--evidence-root',
+    '--evidence-search-root',
     '--runtime-evidence-root',
     '--max-age-ms',
     '--expect-status',
@@ -280,6 +303,7 @@ function parseArgs(argv) {
 function setOption(options, flag, value) {
   if (flag === '--workdir') options.workDir = value;
   if (flag === '--evidence-root') options.evidenceRoot = value;
+  if (flag === '--evidence-search-root') options.evidenceSearchRoot = value;
   if (flag === '--runtime-evidence-root') options.runtimeEvidenceRoot = value;
   if (flag === '--max-age-ms') options.maxAgeMs = Number(value);
   if (flag === '--expect-status') options.expectStatus = value;
@@ -368,7 +392,7 @@ function commandRecord(name, result) {
 }
 
 function auditRuntimeEvidence(root, maxAgeMs) {
-  const files = collectFiles(root);
+  const files = collectFiles(root, MAX_SCAN_FILES);
   const nowMs = Date.now();
   return Object.fromEntries(CHANNELS.map((channel) => {
     const matches = files
@@ -400,15 +424,45 @@ function auditRuntimeEvidence(root, maxAgeMs) {
   }));
 }
 
-function collectFiles(root) {
+function discoverRuntimeEvidenceCandidates({
+  evidenceSearchRoot,
+  maxAgeMs,
+  runtimeEvidence,
+  runtimeEvidenceRoot,
+}) {
+  if (!existsSync(evidenceSearchRoot)) return {};
+  const nowMs = Date.now();
+  const files = collectFiles(evidenceSearchRoot, MAX_DISCOVERY_SCAN_FILES)
+    .filter((file) => !file.startsWith(`${runtimeEvidenceRoot}${path.sep}`));
+  return Object.fromEntries(CHANNELS.flatMap((channel) => {
+    if (runtimeEvidence[channel.id].state === 'fresh') return [];
+    const matches = files
+      .map((file) => ({ file, text: readText(file) }))
+      .filter(({ file, text }) => channel.pathPattern.test(file) || channel.textPattern.test(text));
+    if (matches.length === 0) return [];
+    const newest = matches
+      .map(({ file }) => ({ file, mtimeMs: statSync(file).mtimeMs }))
+      .toSorted((a, b) => b.mtimeMs - a.mtimeMs)[0];
+    const ageMs = Math.max(0, nowMs - newest.mtimeMs);
+    return [[channel.id, {
+      state: ageMs <= maxAgeMs ? 'fresh' : 'stale',
+      ageMs,
+      matchCount: matches.length,
+      sourcePath: newest.file,
+      summary: `Found ${channel.label} candidate evidence outside the readiness root.`,
+    }]];
+  }));
+}
+
+function collectFiles(root, maxFiles) {
   if (!existsSync(root)) return [];
   const files = [];
-  visit(root, files);
+  visit(root, files, maxFiles);
   return files;
 }
 
-function visit(target, files) {
-  if (files.length >= MAX_SCAN_FILES) return;
+function visit(target, files, maxFiles) {
+  if (files.length >= maxFiles) return;
   const stat = safeStat(target);
   if (stat === undefined) return;
   if (stat.isFile()) {
@@ -417,8 +471,8 @@ function visit(target, files) {
   }
   if (!stat.isDirectory()) return;
   for (const entry of readdirSync(target)) {
-    visit(path.join(target, entry), files);
-    if (files.length >= MAX_SCAN_FILES) return;
+    visit(path.join(target, entry), files, maxFiles);
+    if (files.length >= maxFiles) return;
   }
 }
 
@@ -467,6 +521,17 @@ function renderMarkdown(summary) {
     const evidence = summary.runtimeEvidence[channel.id];
     return `| ${channel.label} | ${evidence.state} | ${evidence.sourcePath ?? summary.runtimeEvidenceRoot} |`;
   }).join('\n');
+  const candidateRows = CHANNELS
+    .map((channel) => {
+      const candidate = summary.runtimeEvidenceCandidates[channel.id];
+      if (candidate === undefined) return undefined;
+      return `| ${channel.label} | ${candidate.state} | ${candidate.sourcePath} |`;
+    })
+    .filter((row) => row !== undefined)
+    .join('\n');
+  const candidateSection = candidateRows.length === 0
+    ? ''
+    : `\nCandidate runtime evidence found outside readiness root:\n\n| channel | state | source |\n|---|---|---|\n${candidateRows}\n`;
   const blocked = summary.readinessGates.blocked.length === 0
     ? 'none'
     : summary.readinessGates.blocked.map((gate) => gate.id).join(',');
@@ -482,6 +547,7 @@ Readiness gates: ${summary.readinessGates.passed}/${summary.readinessGates.total
 |---|---|---|
 | benchmark | ${summary.bench.status} | ${summary.bench.summaryPath} |
 ${runtimeRows}
+${candidateSection}
 `;
 }
 

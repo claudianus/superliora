@@ -235,6 +235,13 @@ describe('preflight slash command status surface', () => {
           blocked: ['llmWiki', 'knowledgeMap', 'browserUse', 'computerUse'],
           nextAction: 'refresh_runtime_evidence',
         },
+        runtimeCandidates: [
+          {
+            channel: 'browserUse',
+            state: 'fresh',
+            sourcePath: '.omo/evidence/lint-clean-tui-launch-smoke/tui/summary.json',
+          },
+        ],
         missingChannels: ['llmWiki', 'knowledgeMap', 'browserUse', 'computerUse'],
       },
     });
@@ -275,6 +282,7 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Refresh age  fresh; 0m; due 23h');
     expect(text).toContain('Refresh bench  score 1.00; passRate 100%; tasks 1/1 passed; q 1; cost 2ms; tok 53; cmd 1');
     expect(text).toContain('Refresh gates  1/5; blocked llmWiki,knowledgeMap,browserUse,computerUse; next refresh_runtime_evidence');
+    expect(text).toContain('Refresh candidates  browserUse:fresh .omo/evidence/lint-clean-tui-launch-smoke/tui/summary.json');
     expect(text).toContain('Refresh last evidence  .omo/evidence/super-kimi-preflight-refresh');
     expect(text).not.toContain('Refresh verify');
     expect(text).toContain('Warning  memory: Malformed evidence ignored');
@@ -513,6 +521,7 @@ describe('preflight slash command status surface', () => {
           blocked: [],
           nextAction: 'ready',
         },
+        runtimeCandidates: [],
         missingChannels: [],
       },
     });
@@ -608,6 +617,7 @@ describe('preflight slash command status surface', () => {
         evidencePath: '.omo/evidence/super-kimi-preflight-refresh',
         durationMs: 61,
         bench: refreshBench(),
+        runtimeCandidates: [],
         missingChannels: [],
       },
     });
@@ -675,6 +685,12 @@ describe('preflight slash command status surface', () => {
           { channel: 'knowledgeMap' },
           { channel: 'browserUse' },
         ],
+        runtimeEvidenceCandidates: {
+          browserUse: {
+            state: 'fresh',
+            sourcePath: '.omo/evidence/browser-use/summary.json',
+          },
+        },
       }), 'utf8');
 
       const refreshRun = loadPreflightRefreshRun(workDir);
@@ -684,6 +700,13 @@ describe('preflight slash command status surface', () => {
         blocked: ['llmWiki', 'knowledgeMap', 'browserUse'],
         nextAction: 'refresh_runtime_evidence',
       });
+      expect(refreshRun?.runtimeCandidates).toEqual([
+        {
+          channel: 'browserUse',
+          state: 'fresh',
+          sourcePath: '.omo/evidence/browser-use/summary.json',
+        },
+      ]);
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }

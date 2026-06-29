@@ -55,8 +55,15 @@ export interface PreflightRefreshRun {
   readonly completedAt?: string;
   readonly bench?: PreflightRefreshBench;
   readonly readinessGates?: PreflightRefreshGates;
+  readonly runtimeCandidates: readonly PreflightRuntimeCandidate[];
   readonly missingChannels: readonly string[];
   readonly warning?: string;
+}
+
+export interface PreflightRuntimeCandidate {
+  readonly channel: string;
+  readonly state: string;
+  readonly sourcePath: string;
 }
 
 export interface PreflightRefreshGates {
@@ -265,6 +272,8 @@ export function buildPreflightLines(status: PreflightStatus): string[] {
     if (benchSummary !== undefined) lines.push(`Refresh bench  ${benchSummary}`);
     const gatesSummary = refreshGatesSummary(status.refreshRun.readinessGates);
     if (gatesSummary !== undefined) lines.push(`Refresh gates  ${gatesSummary}`);
+    const candidatesSummary = refreshCandidatesSummary(status.refreshRun.runtimeCandidates);
+    if (candidatesSummary !== undefined) lines.push(`Refresh candidates  ${candidatesSummary}`);
     lines.push(`Refresh last evidence  ${status.refreshRun.evidencePath}`);
   }
 
@@ -326,12 +335,14 @@ export function loadPreflightRefreshRun(workDir: string): PreflightRefreshRun | 
       completedAt: typeof data['completedAt'] === 'string' ? data['completedAt'] : undefined,
       bench: loadPreflightRefreshBench(bench),
       readinessGates: loadPreflightRefreshGates(asRecord(data['readinessGates'])),
+      runtimeCandidates: loadPreflightRuntimeCandidates(asRecord(data['runtimeEvidenceCandidates'])),
       missingChannels: missing,
     };
   } catch (error) {
     return {
       status: 'UNREADABLE',
       evidencePath: PREFLIGHT_REFRESH_EVIDENCE_ROOT,
+      runtimeCandidates: [],
       missingChannels: [],
       warning: `unreadable refresh summary at ${summaryPath}: ${formatPreflightError(error)}`,
     };
@@ -398,7 +409,7 @@ export function loadPreflightLoopRun(workDir: string): PreflightLoopRun | undefi
 
 function fallbackLoopRerunCommand(evidenceRoot: string | undefined, maxIterations: number | undefined): string {
   const iterations = maxIterations ?? PREFLIGHT_BENCH_LOOP_MAX_ITERATIONS;
-  if (evidenceRoot === undefined) return `${PREFLIGHT_BENCH_LOOP_COMMAND}`;
+  if (evidenceRoot === undefined) return PREFLIGHT_BENCH_LOOP_COMMAND;
   return `node scripts/kimi-agent-bench.mjs --loop --max-iterations ${iterations} --evidence-root ${evidenceRoot}`;
 }
 
@@ -486,6 +497,19 @@ function loadPreflightRefreshGates(record: Record<string, unknown> | undefined):
     return undefined;
   }
   return gates;
+}
+
+function loadPreflightRuntimeCandidates(
+  record: Record<string, unknown> | undefined,
+): readonly PreflightRuntimeCandidate[] {
+  if (record === undefined) return [];
+  return Object.entries(record).flatMap(([channel, value]) => {
+    const candidate = asRecord(value);
+    const state = typeof candidate?.['state'] === 'string' ? candidate['state'] : undefined;
+    const sourcePath = typeof candidate?.['sourcePath'] === 'string' ? candidate['sourcePath'] : undefined;
+    if (state === undefined || sourcePath === undefined) return [];
+    return [{ channel, state, sourcePath }];
+  });
 }
 
 function readJsonRecord(path: string): Record<string, unknown> | undefined {
@@ -852,6 +876,14 @@ function refreshGatesSummary(gates: PreflightRefreshGates | undefined): string |
   const blocked = gates.blocked.length === 0 ? 'none' : gates.blocked.join(',');
   const next = gates.nextAction === undefined ? '' : `; next ${gates.nextAction}`;
   return `${count}; blocked ${blocked}${next}`;
+}
+
+function refreshCandidatesSummary(candidates: readonly PreflightRuntimeCandidate[]): string | undefined {
+  if (candidates.length === 0) return undefined;
+  return candidates
+    .slice(0, 4)
+    .map((candidate) => `${candidate.channel}:${candidate.state} ${candidate.sourcePath}`)
+    .join('; ');
 }
 
 function formatMetric(value: number | undefined, suffix = ''): string {
