@@ -181,6 +181,14 @@ function formatContextStatus(usage: number, tokens?: number, maxTokens?: number)
   return `context: ${pct}`;
 }
 
+function footerNextAction(state: AppState): string | null {
+  if (state.isCompacting) return 'compacting context';
+  if (state.isReplaying) return 'replaying session';
+  if (safeUsage(state.contextUsage) >= 0.85) return 'next: /compact before long work';
+  if (state.streamingPhase !== 'idle') return null;
+  return 'next: describe task';
+}
+
 export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): string {
   const base = chalk.hex(colors.textDim)(formatGitBadgeBase(status));
   if (status.pullRequest === null) return base;
@@ -334,16 +342,21 @@ export class FooterComponent implements Component {
     );
     const contextWidth = visibleWidth(contextText);
     let line2: string;
-    if (this.transientHint) {
+    const nextAction = footerNextAction(state);
+    const leftHint = this.transientHint ?? nextAction;
+    if (leftHint !== null) {
       const maxHintWidth = Math.max(0, width - contextWidth - 1);
       const shownHint =
-        visibleWidth(this.transientHint) <= maxHintWidth
-          ? this.transientHint
-          : truncateToWidth(this.transientHint, maxHintWidth, '…');
+        visibleWidth(leftHint) <= maxHintWidth
+          ? leftHint
+          : truncateToWidth(leftHint, maxHintWidth, '…');
       const hintWidth = visibleWidth(shownHint);
       const pad = Math.max(0, width - hintWidth - contextWidth);
+      const hintStyle = this.transientHint !== null
+        ? chalk.hex(colors.warning).bold
+        : chalk.hex(colors.textDim);
       line2 =
-        chalk.hex(colors.warning).bold(shownHint) +
+        hintStyle(shownHint) +
         ' '.repeat(pad) +
         chalk.hex(colors.text)(contextText);
     } else {

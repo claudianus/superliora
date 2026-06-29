@@ -121,6 +121,15 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(line2 ?? '')).toContain('context: 0.0%');
   });
 
+  it('keeps the idle next action visible beside context usage', () => {
+    const footer = new FooterComponent(baseState());
+
+    const [, line2] = footer.render(120);
+
+    expect(strip(line2 ?? '')).toContain('next: describe task');
+    expect(strip(line2 ?? '')).toContain('context: 0.0%');
+  });
+
   it('highlights the pull request badge separately from git status text', () => {
     const previousLevel = chalk.level;
     chalk.level = 3;
