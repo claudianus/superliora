@@ -119,6 +119,12 @@ const TUI_REAL_WORKFLOW_EDIT_FILES = Object.freeze([
   TUI_REAL_WORKFLOW_SOURCE_FILE,
   TUI_REAL_WORKFLOW_TEST_FILE,
 ]);
+const TUI_REAL_WORKFLOW_ALLOWED_STATUS_PATHS = Object.freeze([
+  ...TUI_REAL_WORKFLOW_EDIT_FILES,
+  TUI_REAL_WORKFLOW_VERIFIER,
+  'node_modules',
+  'apps/kimi-code/node_modules',
+]);
 const TUI_REAL_WORKFLOW_SENTINEL = 'REAL_REPO_WORKFLOW_DONE';
 const TUI_REAL_WORKFLOW_TIMEOUT_MS = 180_000;
 const TUI_ULTRAWORK_WORKFLOW_TIMEOUT_MS = 360_000;
@@ -4866,6 +4872,18 @@ async function runTuiRealWorkflowPhase(context) {
     cleanupOverrides.proofCommands.push(commandProofFromRecord(diffRecord));
     await writeFile(path.join(workflowDir, 'git-diff.patch'), diffRecord.stdout, 'utf8');
 
+    const statusRecord = await runTuiCommand(context, {
+      name: 'real-workflow-git-status',
+      command: 'git',
+      args: ['status', '--short', '--untracked-files=all'],
+      cwd: context.targetWorktree,
+      timeoutMs: 10_000,
+      logName: 'tui-real-workflow',
+    });
+    commandRecords.push(statusRecord);
+    cleanupOverrides.proofCommands.push(commandProofFromRecord(statusRecord));
+    await writeFile(path.join(workflowDir, 'git-status.txt'), statusRecord.stdout, 'utf8');
+
     const verificationRecord = await runTuiCommand(context, {
       name: 'real-workflow-verification',
       command: 'node',
@@ -4928,6 +4946,8 @@ async function runTuiRealWorkflowPhase(context) {
         TUI_REAL_WORKFLOW_EDIT_FILES.every((file) => diffRecord.stdout.includes(file)),
       'git diff must show the real workflow guidance across both edited repository files.',
     );
+    summary.validations.statusLimitedToWorkflowFiles =
+      validateTuiRealWorkflowStatus(statusRecord);
     summary.validations.verificationCommand = passFail(
       verificationRecord.exitCode === 0 && targetedTestRecord.exitCode === 0,
       'harness verifier and targeted repository test must pass against the edited source/test files.',
@@ -4964,6 +4984,8 @@ async function runTuiRealWorkflowPhase(context) {
       },
       diffPath: path.join(workflowDir, 'git-diff.patch'),
       diffExitCode: diffRecord.exitCode,
+      statusPath: path.join(workflowDir, 'git-status.txt'),
+      statusExitCode: statusRecord.exitCode,
       verificationExitCode: verificationRecord.exitCode,
       targetedTestCommand: workflowPaths.targetedTestCommand,
       targetedTestExitCode: targetedTestRecord.exitCode,
@@ -5365,6 +5387,18 @@ async function runTuiUltraworkWorkflowPhase(context) {
     cleanupOverrides.proofCommands.push(commandProofFromRecord(diffRecord));
     await writeFile(path.join(ultraworkDir, 'git-diff.patch'), diffRecord.stdout, 'utf8');
 
+    const statusRecord = await runTuiCommand(context, {
+      name: 'ultrawork-workflow-git-status',
+      command: 'git',
+      args: ['status', '--short', '--untracked-files=all'],
+      cwd: context.targetWorktree,
+      timeoutMs: 10_000,
+      logName: 'tui-ultrawork-workflow',
+    });
+    commandRecords.push(statusRecord);
+    cleanupOverrides.proofCommands.push(commandProofFromRecord(statusRecord));
+    await writeFile(path.join(ultraworkDir, 'git-status.txt'), statusRecord.stdout, 'utf8');
+
     const verificationRecord = await runTuiCommand(context, {
       name: 'ultrawork-workflow-verification',
       command: 'node',
@@ -5426,6 +5460,8 @@ async function runTuiUltraworkWorkflowPhase(context) {
         TUI_REAL_WORKFLOW_EDIT_FILES.every((file) => diffRecord.stdout.includes(file)),
       'git diff must show the real workflow guidance across both edited repository files.',
     );
+    summary.validations.statusLimitedToWorkflowFiles =
+      validateTuiRealWorkflowStatus(statusRecord);
     summary.validations.verificationCommand = passFail(
       verificationRecord.exitCode === 0 && targetedTestRecord.exitCode === 0,
       'harness verifier and targeted repository test must pass against the edited source/test files.',
@@ -5458,6 +5494,8 @@ async function runTuiUltraworkWorkflowPhase(context) {
       },
       diffPath: path.join(ultraworkDir, 'git-diff.patch'),
       diffExitCode: diffRecord.exitCode,
+      statusPath: path.join(ultraworkDir, 'git-status.txt'),
+      statusExitCode: statusRecord.exitCode,
       verificationExitCode: verificationRecord.exitCode,
       targetedTestCommand: workflowPaths.targetedTestCommand,
       targetedTestExitCode: targetedTestRecord.exitCode,
@@ -6667,6 +6705,38 @@ function buildTuiRealWorkflowVerifierSource() {
     `console.log(${JSON.stringify(`${TUI_REAL_WORKFLOW_SENTINEL} source and test verified`)});`,
     '',
   ].join('\n');
+}
+
+function validateTuiRealWorkflowStatus(record) {
+  const paths = parseGitStatusShortPaths(record.stdout);
+  const allowed = new Set(TUI_REAL_WORKFLOW_ALLOWED_STATUS_PATHS);
+  const unexpected = paths.filter((filePath) => !allowed.has(filePath));
+  const passed = record.exitCode === 0 && unexpected.length === 0;
+  return {
+    status: passed ? 'PASS' : 'FAIL',
+    reason:
+      record.exitCode !== 0
+        ? `git status failed with exit code ${record.exitCode}.`
+        : unexpected.length === 0
+        ? 'git status is limited to the expected source/test edits and harness-owned helper files.'
+        : `git status included unexpected workflow changes: ${unexpected.join(', ')}`,
+    exitCode: record.exitCode,
+    paths,
+    allowedPaths: Array.from(allowed),
+    unexpectedPaths: unexpected,
+  };
+}
+
+function parseGitStatusShortPaths(stdout) {
+  return String(stdout ?? '')
+    .split(/\r?\n/u)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .flatMap((line) => {
+      const body = line.length > 3 ? line.slice(3) : line;
+      const renamed = body.split(' -> ');
+      return renamed.map((part) => part.replaceAll(/^"|"$/gu, ''));
+    });
 }
 
 function buildTuiRealWorkflowTargetedTestArgs(context) {
