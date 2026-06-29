@@ -268,8 +268,9 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Loop next  run_loop_first');
     expect(text).toContain('Refresh  benchmark evidence unavailable');
     expect(text).toContain('Refresh command  node scripts/kimi-preflight-refresh.mjs');
-    expect(text).toContain('--runtime-evidence-root .omo/evidence/preflight-readiness');
     expect(text).toContain('Refresh evidence  .omo/evidence/super-kimi-preflight-refresh');
+    expect(text).toContain('Refresh runtime  .omo/evidence/preflight-readiness');
+    expect(text).not.toContain('--runtime-evidence-root .omo/evidence/preflight-readiness');
     expect(text).toContain('Refresh last  BLOCKED; elapsed 742ms; missing llmWiki,knowledgeMap,browserUse,computerUse');
     expect(text).toContain('Refresh age  fresh; 0m; due 23h');
     expect(text).toContain('Refresh bench  score 1.00; passRate 100%; tasks 1/1 passed; q 1; cost 2ms; tok 53; cmd 1');
@@ -537,8 +538,9 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Loop next  run_loop_first');
     expect(text).toContain('Refresh  evidence stale or missing');
     expect(text).toContain('Refresh command  node scripts/kimi-preflight-refresh.mjs');
-    expect(text).toContain('--runtime-evidence-root .omo/evidence/preflight-readiness');
     expect(text).toContain('Refresh evidence  .omo/evidence/super-kimi-preflight-refresh');
+    expect(text).toContain('Refresh runtime  .omo/evidence/preflight-readiness');
+    expect(text).not.toContain('--runtime-evidence-root .omo/evidence/preflight-readiness');
     expect(text).toContain('Refresh last  PASS; elapsed 1.5s; runtime ok');
     expect(text).toMatch(/Refresh age  stale; 2d; expired (24h|1d)/);
     expect(text).toContain('Refresh bench  score 1.00; passRate 100%; tasks 1/1 passed; q 1; cost 2ms; tok 53; cmd 1');

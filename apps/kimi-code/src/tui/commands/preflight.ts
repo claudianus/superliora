@@ -16,6 +16,7 @@ const PREFLIGHT_RECALL_MEMORY_SUBJECT = 'preflight-readiness';
 const PREFLIGHT_FRESHNESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PREFLIGHT_REFRESH_EVIDENCE_ROOT = '.omo/evidence/super-kimi-preflight-refresh';
 const PREFLIGHT_RUNTIME_EVIDENCE_ROOT = '.omo/evidence/preflight-readiness';
+const PREFLIGHT_REFRESH_COMMAND = 'node scripts/kimi-preflight-refresh.mjs';
 const PREFLIGHT_BENCH_LOOP_COMMAND = 'node scripts/kimi-agent-bench.mjs --loop --max-iterations 2';
 const PREFLIGHT_BENCH_LOOP_EVIDENCE_ROOT = '.omo/evidence/kimi-agent-bench';
 const PREFLIGHT_BENCH_LOOP_MAX_ITERATIONS = 2;
@@ -44,6 +45,7 @@ export interface PreflightRefreshPlan {
   readonly reason: string;
   readonly command: string;
   readonly evidencePath: string;
+  readonly runtimeEvidencePath: string;
 }
 
 export interface PreflightRefreshRun {
@@ -253,6 +255,7 @@ export function buildPreflightLines(status: PreflightStatus): string[] {
     lines.push(`Refresh  ${status.refreshPlan.reason}`);
     lines.push(`Refresh command  ${status.refreshPlan.command}`);
     lines.push(`Refresh evidence  ${status.refreshPlan.evidencePath}`);
+    lines.push(`Refresh runtime  ${status.refreshPlan.runtimeEvidencePath}`);
   }
 
   if (status.refreshRun !== undefined) {
@@ -576,8 +579,9 @@ function buildPreflightRefreshPlan(
   return {
     needed,
     reason: needed ? refreshReason(bench, memory, freshness) : 'not needed',
-    command: `node scripts/kimi-preflight-refresh.mjs --evidence-root ${PREFLIGHT_REFRESH_EVIDENCE_ROOT} --runtime-evidence-root ${PREFLIGHT_RUNTIME_EVIDENCE_ROOT}`,
+    command: PREFLIGHT_REFRESH_COMMAND,
     evidencePath: `${PREFLIGHT_REFRESH_EVIDENCE_ROOT} (bench + runtime audit)`,
+    runtimeEvidencePath: PREFLIGHT_RUNTIME_EVIDENCE_ROOT,
   };
 }
 
