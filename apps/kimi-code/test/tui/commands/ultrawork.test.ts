@@ -126,6 +126,9 @@ describe('handleUltraworkCommand', () => {
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
+    expect(host.setAppState).toHaveBeenCalledWith({
+      activityTip: 'Ultrawork: autonomous plan, swarm, verify loop',
+    });
     expect(renderedMarker(host)).toContain('Ultrawork activated');
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('Ship feature X'));
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));

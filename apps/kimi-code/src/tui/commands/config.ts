@@ -28,6 +28,7 @@ import type { SlashCommandHost } from './dispatch';
 // ---------------------------------------------------------------------------
 
 const MODEL_PICKER_REFRESH_TIMEOUT_MS = 2_000;
+const VIBE_ACTIVITY_TIP = 'Vibe mode: direct coding, no plan gate';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
@@ -71,7 +72,9 @@ export async function handleVibeCommand(host: SlashCommandHost, args: string): P
   try {
     if (host.state.appState.planMode) {
       await session.setPlanMode(false, false);
-      host.setAppState({ planMode: false });
+      host.setAppState({ planMode: false, activityTip: VIBE_ACTIVITY_TIP });
+    } else {
+      host.setAppState({ activityTip: VIBE_ACTIVITY_TIP });
     }
     host.showNotice('Vibe mode: ON', 'Plan mode disabled for direct coding.');
     if (prompt.length > 0) {
@@ -86,7 +89,7 @@ export async function handleVibeCommand(host: SlashCommandHost, args: string): P
 async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {
   try {
     await session.setPlanMode(enabled, ultra);
-    host.setAppState({ planMode: enabled });
+    host.setAppState({ planMode: enabled, activityTip: null });
     if (enabled) {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(

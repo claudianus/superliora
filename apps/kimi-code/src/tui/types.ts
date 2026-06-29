@@ -41,6 +41,7 @@ export interface AppState {
   isReplaying: boolean;
   streamingPhase: 'idle' | 'waiting' | 'thinking' | 'composing' | 'shell';
   streamingStartTime: number;
+  activityTip?: string | null;
   theme: ThemeName;
   version: string;
   editorCommand: string | null;

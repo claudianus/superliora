@@ -24,6 +24,8 @@ interface UltraworkSetupState {
   swarmEnabled: boolean;
 }
 
+const ULTRAWORK_ACTIVITY_TIP = 'Ultrawork: autonomous plan, swarm, verify loop';
+
 export {
   buildUltraworkPrompt,
   parseUltraworkCommand,
@@ -128,6 +130,7 @@ async function startUltrawork(
   }
 
   host.track('ultrawork_start', { source, replace: request.replace });
+  host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP });
   host.state.transcriptContainer.addChild(
     new UltraworkModeMarkerComponent('active', request.objective),
   );

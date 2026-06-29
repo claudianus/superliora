@@ -211,6 +211,7 @@ function createInitialAppState(input: KimiTUIStartupInput): AppState {
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
+    activityTip: null,
     theme: input.tuiConfig.theme,
     version: input.version,
     editorCommand: input.tuiConfig.editorCommand,
@@ -261,7 +262,7 @@ export class KimiTUI {
   private readonly migrateOnly: boolean;
   private startupNotice: string | undefined;
   private lastActivityMode: string | undefined;
-  private currentLoadingTip: { kind: LoadingTipKind; tip: string | undefined } | undefined =
+  private currentLoadingTip: { kind: LoadingTipKind; tip: string | undefined; pinned: boolean } | undefined =
     undefined;
   private lastHistoryContent: string | undefined;
   // Live `!` shell output entries, keyed by commandId so concurrent commands
@@ -922,7 +923,9 @@ export class KimiTUI {
       renderMode: 'plain',
       content: '',
     };
-    const outputComponent = new ShellRunComponent(() => this.state.ui.requestRender());
+    const outputComponent = new ShellRunComponent(() => {
+      this.state.ui.requestRender();
+    });
     this.shellOutputStreams.set(commandId, { entry: outputEntry, component: outputComponent });
     this.state.transcriptEntries.push(outputEntry);
     markTranscriptComponent(outputComponent, outputEntry);
@@ -2093,15 +2096,29 @@ export class KimiTUI {
     // cache only when there is no loading UI at all.
     if (effectiveMode === 'idle' || effectiveMode === 'session' || effectiveMode === 'hidden') {
       this.currentLoadingTip = undefined;
-    } else if (
-      tipKind !== undefined &&
-      (this.currentLoadingTip === undefined || this.currentLoadingTip.kind !== tipKind)
-    ) {
-      const previousTip = this.currentLoadingTip?.tip;
-      this.currentLoadingTip = {
-        kind: tipKind,
-        tip: pickRandomWorkingTip(previousTip)?.text,
-      };
+    } else if (tipKind !== undefined) {
+      const pinnedTip = this.state.appState.activityTip ?? undefined;
+      if (pinnedTip !== undefined) {
+        if (
+          this.currentLoadingTip === undefined ||
+          this.currentLoadingTip.kind !== tipKind ||
+          this.currentLoadingTip.tip !== pinnedTip ||
+          !this.currentLoadingTip.pinned
+        ) {
+          this.currentLoadingTip = { kind: tipKind, tip: pinnedTip, pinned: true };
+        }
+      } else if (
+        this.currentLoadingTip === undefined ||
+        this.currentLoadingTip.kind !== tipKind ||
+        this.currentLoadingTip.pinned
+      ) {
+        const previousTip = this.currentLoadingTip?.tip;
+        this.currentLoadingTip = {
+          kind: tipKind,
+          tip: pickRandomWorkingTip(previousTip)?.text,
+          pinned: false,
+        };
+      }
     }
     this.syncTerminalProgress(this.shouldShowTerminalProgress(effectiveMode));
     const placeSpinnerInAgentSwarm = this.shouldPlaceActivitySpinnerInAgentSwarm(effectiveMode);
