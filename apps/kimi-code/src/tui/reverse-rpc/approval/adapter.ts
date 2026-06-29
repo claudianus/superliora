@@ -3,6 +3,7 @@ import type { ApprovalRequest, ApprovalResponse, ToolInputDisplay } from '@moons
 import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval-panel';
 import { goalStartOptions } from '#/tui/components/dialogs/goal-start-permission-prompt';
 import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui/reverse-rpc/types';
+import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 
 const DEFAULT_APPROVAL_CHOICES: ApprovalPanelChoice[] = [
   { label: 'Approve once', response: 'approved' },
@@ -43,6 +44,8 @@ function resolveDisplay(
     const extracted = extractFromArgs(toolName, display.detail);
     if (extracted !== null) return extracted;
   }
+  const mcpDisplay = resolveMcpDisplay(toolName, display);
+  if (mcpDisplay !== null) return mcpDisplay;
   return {
     blocks: adaptDisplay(display),
     description: describeApproval(display, action),
@@ -141,6 +144,54 @@ function extractFromArgs(
   }
 
   return null;
+}
+
+function resolveMcpDisplay(toolName: string, display: ToolInputDisplay): ResolvedDisplay | null {
+  const mcp = decodeMcpToolName(toolName);
+  if (mcp === null) return null;
+
+  const argumentSummary = summarizeMcpArguments(display) ?? 'none';
+  return {
+    blocks: [
+      {
+        type: 'brief',
+        text: `MCP server: ${mcp.serverName}\nTool: ${mcp.toolName}\nArguments: ${argumentSummary}`,
+      },
+    ],
+    description: '',
+  };
+}
+
+function summarizeMcpArguments(display: ToolInputDisplay): string | undefined {
+  if (display.kind !== 'generic') return undefined;
+  const detail = display.detail;
+  if (detail === undefined || detail === null) return undefined;
+  if (typeof detail === 'string') {
+    const trimmed = detail.trim();
+    if (trimmed.length === 0 || /^(approve|call)\s+mcp__/i.test(trimmed)) return undefined;
+    return truncateSummary(trimmed);
+  }
+  if (isRecord(detail)) {
+    const entries = Object.entries(detail);
+    if (entries.length === 0) return undefined;
+    return truncateSummary(JSON.stringify(detail));
+  }
+  if (Array.isArray(detail)) {
+    if (detail.length === 0) return undefined;
+    return truncateSummary(JSON.stringify(detail));
+  }
+  if (
+    typeof detail === 'number' ||
+    typeof detail === 'boolean' ||
+    typeof detail === 'bigint'
+  ) {
+    return truncateSummary(String(detail));
+  }
+  return undefined;
+}
+
+function truncateSummary(text: string): string {
+  return text.length > 200 ? `${text.slice(0, 199)}…` : text;
 }
 
 function inferFileOp(toolName: string): 'read' | 'write' | 'edit' | 'glob' | 'grep' {

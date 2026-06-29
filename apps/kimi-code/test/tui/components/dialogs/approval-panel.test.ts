@@ -88,6 +88,32 @@ describe('ApprovalPanelComponent', () => {
     expect(out).toContain('2. Do not start');
   });
 
+  it('renders MCP approvals with a readable title and structured details', () => {
+    const pending: PendingApproval = {
+      data: {
+        id: 'approval_mcp',
+        tool_call_id: 'tool_mcp',
+        tool_name: 'mcp__maru-deep-pro-search__list_engines',
+        action: 'Call mcp__maru-deep-pro-search__list_engines',
+        description: '',
+        display: [
+          {
+            type: 'brief',
+            text: 'MCP server: maru-deep-pro-search\nTool: list_engines\nArguments: none',
+          },
+        ],
+        choices: [{ label: 'Approve once', response: 'approved' }],
+      },
+    };
+    const out = strip(new ApprovalPanelComponent(pending, () => {}).render(80).join('\n'));
+
+    expect(out).toContain('Approve MCP tool list_engines?');
+    expect(out).toContain('MCP server: maru-deep-pro-search');
+    expect(out).toContain('Tool: list_engines');
+    expect(out).toContain('Arguments: none');
+    expect(out).not.toContain('Approve mcp__maru-deep-pro-search__list_engines?');
+  });
+
   it('renders dangerous shell warnings with simple copy and no icon', () => {
     const pending: PendingApproval = {
       data: {

@@ -42,6 +42,47 @@ describe('approval adapter', () => {
     ]);
   });
 
+  it('summarizes MCP tool approvals with server, tool, and arguments', () => {
+    const adapted = adaptApprovalRequest({
+      toolCallId: 'tc-mcp',
+      toolName: 'mcp__maru-deep-pro-search__list_engines',
+      action: 'Call mcp__maru-deep-pro-search__list_engines',
+      display: {
+        kind: 'generic',
+        summary: 'Approve mcp__maru-deep-pro-search__list_engines',
+        detail: 'Approve mcp__maru-deep-pro-search__list_engines',
+      },
+    });
+
+    expect(adapted.description).toBe('');
+    expect(adapted.display).toEqual([
+      {
+        type: 'brief',
+        text: 'MCP server: maru-deep-pro-search\nTool: list_engines\nArguments: none',
+      },
+    ]);
+  });
+
+  it('includes compact MCP argument details when available', () => {
+    const adapted = adaptApprovalRequest({
+      toolCallId: 'tc-mcp-args',
+      toolName: 'mcp__docs__fetch',
+      action: 'Call mcp__docs__fetch',
+      display: {
+        kind: 'generic',
+        summary: 'List docs',
+        detail: { engine: 'balanced', limit: '5' },
+      },
+    });
+
+    expect(adapted.display).toEqual([
+      {
+        type: 'brief',
+        text: 'MCP server: docs\nTool: fetch\nArguments: {"engine":"balanced","limit":"5"}',
+      },
+    ]);
+  });
+
   it('emits only a diff block for Edit — no separate file_op title row', () => {
     const adapted = adaptApprovalRequest(
       {

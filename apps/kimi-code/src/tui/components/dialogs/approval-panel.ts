@@ -25,6 +25,7 @@ import type {
   FileContentDisplayBlock,
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
+import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 
 export interface ApprovalPanelResponse {
   readonly response: 'approved' | 'approved_for_session' | 'rejected' | 'cancelled';
@@ -189,6 +190,11 @@ function isDuplicateBriefBlock(block: DisplayBlock, description: string): boolea
 }
 
 function headerFor(toolName: string): string {
+  const mcp = decodeMcpToolName(toolName);
+  if (mcp !== null) {
+    return `Approve MCP tool ${mcp.toolName}?`;
+  }
+
   switch (toolName) {
     case 'Bash':
       return 'Run this command?';
