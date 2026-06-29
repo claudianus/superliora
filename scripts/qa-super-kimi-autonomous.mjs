@@ -3935,11 +3935,11 @@ async function runTuiRealWorkflowPhase(context) {
     captures: [],
     validations: {},
     evaluation: {
-      tier: 'real-tui-observed-workflow',
-      primaryUse: 'live TUI coding smoke gate',
+      tier: 'adaptive-vibecoder-operator-loop',
+      primaryUse: 'live TUI coding operator gate',
       limitation:
-        'This phase observes screens and sends ordered keyboard input, but does not yet adaptively steer mid-run like an expert vibe coder.',
-      nextTier: 'adaptive-vibecoder-operator-loop',
+        'This phase uses heuristic terminal-screen steering, not full multimodal desktop control.',
+      previousTier: 'real-tui-observed-workflow',
     },
     workflow: {},
     workspace: {},
@@ -4074,6 +4074,15 @@ async function runTuiRealWorkflowPhase(context) {
 
     const waitResult = await waitForRealWorkflowOutcome(context, tmuxSession, fixturePath);
     summary.workflow.wait = waitResult;
+    if (Array.isArray(waitResult.inputTraces)) {
+      summary.inputTraces.push(...waitResult.inputTraces);
+      for (const inputTrace of waitResult.inputTraces) {
+        commandRecords.push(...inputTrace.commands);
+        cleanupOverrides.proofCommands.push(
+          ...inputTrace.commands.map((record) => commandProofFromRecord(record)),
+        );
+      }
+    }
     summary.captures.push(await captureTmuxPane(context, tmuxSession, 'real-workflow-after-wait'));
     await writeJson(path.join(workflowDir, 'fixture-after.json'), {
       path: fixturePath,
@@ -4131,6 +4140,9 @@ async function runTuiRealWorkflowPhase(context) {
     );
     summary.validations.kimiModelReady = await validateTuiRealWorkflowModelEvidence(
       summary.captures,
+    );
+    summary.validations.adaptiveOperatorLoop = validateTuiRealWorkflowAdaptiveOperatorLoop(
+      waitResult,
     );
     summary.workspace = {
       fixturePath,
@@ -4286,6 +4298,9 @@ async function finishTuiRealWorkflowPhase(context, summary, cleanupOverrides) {
 async function waitForRealWorkflowOutcome(context, tmuxSession, fixturePath) {
   const startedAt = Date.now();
   const observations = [];
+  const interventions = [];
+  const inputTraces = [];
+  const attemptedActions = new Set();
   while (Date.now() - startedAt < TUI_REAL_WORKFLOW_TIMEOUT_MS) {
     const fixtureText = await readFileIfExists(fixturePath);
     if (typeof fixtureText === 'string' && fixtureText.includes(TUI_REAL_WORKFLOW_SENTINEL)) {
@@ -4294,6 +4309,9 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, fixturePath) {
         reason: 'fixture contained the requested sentinel before timeout.',
         durationMs: Date.now() - startedAt,
         observations,
+        interventions,
+        inputTraces,
+        operatorLoop: buildRealWorkflowOperatorLoopSummary(observations, interventions),
       };
     }
     const screen = runBoundedCommand('tmux', ['capture-pane', '-pt', tmuxSession, '-S', '-80'], {
@@ -4302,10 +4320,14 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, fixturePath) {
     });
     const normalized = normalizeScreenText(screen.stdout);
     const blocker = detectRealWorkflowScreenBlocker(normalized);
+    const classification = classifyRealWorkflowScreenState(normalized);
+    const decision = decideRealWorkflowOperatorAction(classification, attemptedActions);
     observations.push({
       atMs: Date.now() - startedAt,
       captureExitCode: screen.status,
       blocker,
+      state: classification.state,
+      decision,
       sample: normalized.slice(0, 240),
     });
     if (blocker !== undefined) {
@@ -4314,7 +4336,31 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, fixturePath) {
         reason: blocker,
         durationMs: Date.now() - startedAt,
         observations,
+        interventions,
+        inputTraces,
+        operatorLoop: buildRealWorkflowOperatorLoopSummary(observations, interventions),
       };
+    }
+    if (decision.action !== 'wait') {
+      attemptedActions.add(decision.action);
+      const trace = await sendTmuxKeySequence(
+        context,
+        tmuxSession,
+        `real-workflow-operator-${decision.action}`,
+        decision.keys,
+      );
+      inputTraces.push(trace);
+      interventions.push({
+        atMs: Date.now() - startedAt,
+        action: decision.action,
+        reason: decision.reason,
+        state: classification.state,
+        status: trace.status,
+        keys: trace.keys,
+        commandNames: trace.commands.map((command) => command.name),
+      });
+      await sleep(1_000);
+      continue;
     }
     await sleep(2_000);
   }
@@ -4323,6 +4369,9 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, fixturePath) {
     reason: `timed out after ${String(TUI_REAL_WORKFLOW_TIMEOUT_MS)}ms waiting for ${TUI_REAL_WORKFLOW_SENTINEL}.`,
     durationMs: Date.now() - startedAt,
     observations,
+    interventions,
+    inputTraces,
+    operatorLoop: buildRealWorkflowOperatorLoopSummary(observations, interventions),
   };
 }
 
@@ -4337,6 +4386,78 @@ function detectRealWorkflowScreenBlocker(output) {
     return 'Provider quota/rate limit blocked the real vibe-coding workflow.';
   }
   return undefined;
+}
+
+function classifyRealWorkflowScreenState(output) {
+  if (matchesAny(output, [/\/login/i, /log in/i, /login required/i, /not authenticated/i, /llm not set/i])) {
+    return { state: 'login-required', terminal: true };
+  }
+  if (matchesAny(output, [/rate limit/i, /quota/i, /billing/i])) {
+    return { state: 'provider-quota-blocked', terminal: true };
+  }
+  if (matchesAny(output, [/model/i]) && matchesAny(output, [/not found/i, /unavailable/i, /select/i])) {
+    return { state: 'model-unavailable', terminal: true };
+  }
+  if (matchesAny(output, [/current plan/i]) && matchesAny(output, [/approved/i])) {
+    return { state: 'plan-approved', terminal: false };
+  }
+  if (
+    matchesAny(output, [/current plan/i, /plan mode/i, /approve/i]) &&
+    matchesAny(output, [/press enter/i, /enter to approve/i, /approve/i, /accept/i, /confirm/i])
+  ) {
+    return { state: 'plan-approval-awaiting-operator', terminal: false };
+  }
+  if (matchesAny(output, [/used edit/i, /used write/i, /used bash/i, /tool/i])) {
+    return { state: 'tool-progress-visible', terminal: false };
+  }
+  if (matchesAny(output, [/thinking/i, /thinking complete/i])) {
+    return { state: 'agent-thinking-visible', terminal: false };
+  }
+  if (matchesAny(output, [/│\s*>\s*│/, /\n\s*>/])) {
+    return { state: 'idle-input-visible', terminal: false };
+  }
+  return { state: 'unclassified-visible-screen', terminal: false };
+}
+
+function decideRealWorkflowOperatorAction(classification, attemptedActions) {
+  if (
+    classification.state === 'plan-approval-awaiting-operator' &&
+    !attemptedActions.has('approve-plan')
+  ) {
+    return {
+      action: 'approve-plan',
+      keys: ['Enter'],
+      reason: 'Screen appears to be waiting for operator approval of a visible plan.',
+    };
+  }
+  return {
+    action: 'wait',
+    keys: [],
+    reason: `Screen state ${classification.state} does not require a safe operator keypress.`,
+  };
+}
+
+function buildRealWorkflowOperatorLoopSummary(observations, interventions) {
+  const stateCounts = {};
+  for (const observation of observations) {
+    stateCounts[observation.state] = (stateCounts[observation.state] ?? 0) + 1;
+  }
+  const failedInterventions = interventions.filter((intervention) => intervention.status !== 'PASS');
+  return {
+    tier: 'adaptive-vibecoder-operator-loop',
+    status: observations.length > 0 && failedInterventions.length === 0 ? 'PASS' : 'FAIL',
+    reason:
+      observations.length > 0
+        ? failedInterventions.length === 0
+          ? 'Screen-driven operator loop classified live TUI states and applied only safe interventions.'
+          : 'One or more screen-driven operator interventions failed.'
+        : 'No live TUI observations were captured during the operator loop.',
+    observationCount: observations.length,
+    stateCounts,
+    interventionsAttempted: interventions.length,
+    interventionsSucceeded: interventions.filter((intervention) => intervention.status === 'PASS').length,
+    failedInterventions,
+  };
 }
 
 async function validateTuiRealWorkflowModelEvidence(captures) {
@@ -4355,6 +4476,22 @@ async function validateTuiRealWorkflowModelEvidence(captures) {
     status: 'FAIL',
     reason: 'Live TUI screen evidence must show Model: K2.7 Code.',
     checkedCaptures: readable.map((capture) => capture.path),
+  };
+}
+
+function validateTuiRealWorkflowAdaptiveOperatorLoop(waitResult) {
+  const operatorLoop = waitResult.operatorLoop;
+  const status = operatorLoop?.status === 'PASS' && waitResult.status === 'PASS' ? 'PASS' : 'FAIL';
+  return {
+    status,
+    reason:
+      status === 'PASS'
+        ? operatorLoop.reason
+        : `Adaptive operator loop did not prove a passing screen-driven workflow: ${operatorLoop?.reason ?? waitResult.reason}.`,
+    tier: operatorLoop?.tier ?? 'adaptive-vibecoder-operator-loop',
+    observationCount: operatorLoop?.observationCount ?? 0,
+    interventionsAttempted: operatorLoop?.interventionsAttempted ?? 0,
+    stateCounts: operatorLoop?.stateCounts ?? {},
   };
 }
 
@@ -4391,6 +4528,11 @@ function buildTuiRealWorkflowOperatorTrajectory(summary) {
       evidence: 'tui/real-workflow-after-wait.txt',
     },
     {
+      name: 'classify-screen-state-during-run',
+      status: summary.validations?.adaptiveOperatorLoop?.status === 'PASS' ? 'PASS' : 'FAIL',
+      evidence: 'workflow.wait.operatorLoop',
+    },
+    {
       name: 'review-workspace-diff',
       status: summary.workspace?.diffExitCode === 0 ? 'PASS' : 'FAIL',
       evidence: 'workflow/git-diff.patch',
@@ -4402,14 +4544,14 @@ function buildTuiRealWorkflowOperatorTrajectory(summary) {
     },
   ];
   return {
-    tier: 'real-tui-observed-workflow',
-    verdict: 'real-screen-and-keyboard-smoke-not-full-vibecoder-benchmark',
+    tier: 'adaptive-vibecoder-operator-loop',
+    verdict: 'screen-driven-terminal-operator-loop',
     principle:
       'A vibe-coder gate must observe the TUI and operate it through visible input, not score only a hidden prompt/final-output exchange.',
     steps,
     limitation:
-      'The current phase still waits for the model outcome instead of making adaptive mid-run steering decisions from screen state.',
-    nextTier: 'adaptive-vibecoder-operator-loop',
+      'The current phase uses terminal text heuristics and safe keypress interventions; richer future gates should add visual layout and mouse-level control.',
+    previousTier: 'real-tui-observed-workflow',
   };
 }
 
@@ -4420,7 +4562,7 @@ function validateTuiRealWorkflowOperatorTrajectory(summary) {
     status: failedSteps.length === 0 ? 'PASS' : 'FAIL',
     reason:
       failedSteps.length === 0
-        ? 'Real TUI workflow includes visible screen observation, ordered keyboard input, diff review, and verification evidence; adaptive steering remains the next-tier requirement.'
+        ? 'Real TUI workflow includes visible screen observation, ordered keyboard input, screen-state classification, diff review, and verification evidence.'
         : `Real TUI workflow is too close to blind prompting; missing operator evidence: ${failedSteps
             .map((step) => step.name)
             .join(', ')}.`,

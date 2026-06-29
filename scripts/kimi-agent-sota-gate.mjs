@@ -615,7 +615,7 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate) {
   if (actions.length === 0) {
     addAction(
       'expand-to-real-vibe-coding-task',
-      'Current live TUI smoke interaction evidence passes; the next loop must drive an observed realistic coding change through the TUI, then upgrade toward adaptive screen-driven steering rather than blind prompt/result scoring.',
+      'Current live TUI smoke interaction evidence passes; the next loop must drive an observed realistic coding change through adaptive screen-driven TUI steering rather than blind prompt/result scoring.',
       {
         currentScore: uxFriction?.score,
         deltaVerdict: tuiUxDeltaGate?.observed?.verdict ?? 'not-compared',
@@ -623,10 +623,12 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate) {
           'startup screen observation',
           'ordered keyboard prompt submission',
           'submitted/result screen observation',
+          'screen-state classification during the run',
+          'operator wait/intervention decisions',
           'workspace diff review',
           'verification command',
         ],
-        nextTier: 'adaptive-vibecoder-operator-loop',
+        currentTier: 'adaptive-vibecoder-operator-loop',
         passingScenarios: scenarios
           .filter((scenario) => scenario.status === 'PASS')
           .map((scenario) => scenario.scenario),
