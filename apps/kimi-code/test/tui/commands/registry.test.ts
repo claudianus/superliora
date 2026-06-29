@@ -69,12 +69,16 @@ describe('built-in slash command registry', () => {
 
   it('keeps harness QA commands out of primary help while preserving diagnostics help', () => {
     const primaryNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').map((command) => command.name);
+    const advancedNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').map((command) => command.name);
     const diagnosticNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'diagnostics').map((command) => command.name);
 
     expect(primaryNames).not.toContain('bench');
     expect(primaryNames).not.toContain('preflight');
+    expect(primaryNames).not.toContain('ultrawork');
+    expect(primaryNames).not.toContain('ultraswarm');
+    expect(advancedNames).toEqual(expect.arrayContaining(['ultrawork', 'ultraswarm']));
     expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'preflight']));
-    expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['diagnostics']);
+    expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced', 'diagnostics']);
   });
 
   it('offers swarm subcommand argument completions', () => {

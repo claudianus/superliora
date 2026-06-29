@@ -31,6 +31,7 @@ const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const HELP_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'advanced', description: 'Show manual workflow commands' },
   { value: 'diagnostics', description: 'Show internal QA and diagnostics commands' },
 ];
 
@@ -224,6 +225,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: ['us'],
     description: 'Run a complex task with specialist agents',
     priority: 100,
+    visibility: 'advanced',
     argumentHint: '<task description>',
     availability: 'idle-only',
   },
@@ -232,6 +234,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: ['ultragoal', 'uw', 'ug'],
     description: 'Start a guided autonomous coding workflow',
     priority: 100,
+    visibility: 'advanced',
     argumentHint: '[replace] <objective>',
     completeArgs: ultraworkArgumentCompletions,
     availability: 'idle-only',
@@ -504,12 +507,12 @@ export function sortSlashCommands(commands: readonly KimiSlashCommand[]): KimiSl
   );
 }
 
-export type SlashCommandHelpMode = 'primary' | 'diagnostics';
+export type SlashCommandHelpMode = 'primary' | 'advanced' | 'diagnostics';
 
 export function slashCommandsForHelp(
   commands: readonly KimiSlashCommand[],
   mode: SlashCommandHelpMode,
 ): KimiSlashCommand[] {
-  const visibility: SlashCommandVisibility = mode === 'diagnostics' ? 'diagnostic' : 'primary';
+  const visibility: SlashCommandVisibility = mode === 'diagnostics' ? 'diagnostic' : mode;
   return commands.filter((command) => (command.visibility ?? 'primary') === visibility);
 }

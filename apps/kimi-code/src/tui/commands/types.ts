@@ -2,7 +2,7 @@ import type { AutocompleteItem, SlashCommand } from '@earendil-works/pi-tui';
 import type { FlagId } from '@moonshot-ai/kimi-code-sdk';
 
 export type SlashCommandAvailability = 'always' | 'idle-only';
-export type SlashCommandVisibility = 'primary' | 'diagnostic';
+export type SlashCommandVisibility = 'primary' | 'advanced' | 'diagnostic';
 
 export interface KimiSlashCommand<Name extends string = string> extends SlashCommand {
   readonly name: Name;

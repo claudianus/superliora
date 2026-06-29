@@ -2545,8 +2545,14 @@ export class KimiTUI {
         commands: this.getSlashCommands(mode),
         intro: mode === 'diagnostics'
           ? 'Advanced QA commands for Super Kimi harness development.'
+          : mode === 'advanced'
+            ? 'Optional manual workflow commands. You can usually just describe the task.'
           : undefined,
-        commandSectionTitle: mode === 'diagnostics' ? 'Diagnostic commands' : undefined,
+        commandSectionTitle: mode === 'diagnostics'
+          ? 'Diagnostic commands'
+          : mode === 'advanced'
+            ? 'Advanced commands'
+            : undefined,
         onClose: () => {
           this.hideHelpPanel();
         },
@@ -2561,9 +2567,10 @@ export class KimiTUI {
 
   private helpModeFromArgs(args: string): SlashCommandHelpMode {
     const normalized = args.trim().toLowerCase();
-    return normalized === 'diagnostics' || normalized === 'diagnostic' || normalized === 'internal'
-      ? 'diagnostics'
-      : 'primary';
+    if (normalized === 'diagnostics' || normalized === 'diagnostic' || normalized === 'internal') {
+      return 'diagnostics';
+    }
+    return normalized === 'advanced' || normalized === 'manual' ? 'advanced' : 'primary';
   }
 
   private sessionPickerOptions: {
