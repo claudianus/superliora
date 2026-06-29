@@ -288,6 +288,10 @@ async function buildReport(options, outputDir, runId) {
   if (tuiUxDelta !== undefined) gates.push(tuiUxDelta);
   const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta, workflowGate, ultraworkGate);
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
+  const passReason =
+    ultraworkGate === undefined
+      ? 'All required SOTA gates passed against local bench, live TUI launch, and real workflow artifacts.'
+      : 'All required SOTA gates passed against local bench, live TUI launch, real workflow, and Ultrawork artifacts.';
   return {
     schemaVersion: 1,
     gate: 'super-kimi-agent-sota-gate',
@@ -295,7 +299,7 @@ async function buildReport(options, outputDir, runId) {
     status,
     reason:
       status === 'PASS'
-        ? 'All required SOTA gates passed against local bench, live TUI launch, and real workflow artifacts.'
+        ? passReason
         : gates.filter((gate) => gate.status !== 'PASS' && gate.required !== false).map((gate) => gate.reason).join('; '),
     startedAt,
     completedAt: new Date().toISOString(),

@@ -663,7 +663,7 @@ async function runHarness(options, runId) {
               : phases.includes('bench-system-loop')
                 ? 'Internal system benchmark bounded improvement loop completed.'
               : phases.includes('sota-gate')
-                ? 'Internal SOTA gate completed over local bench, live TUI launch, and real workflow artifacts.'
+                ? 'Internal SOTA gate completed over local bench, live TUI launch, real workflow, and Ultrawork artifacts.'
               : phases.includes('bench-system')
                 ? 'Internal system benchmark covered the QA harness and TUI contracts.'
               : phases.includes('bench-loop')
@@ -964,12 +964,16 @@ async function runSotaGatePhase(context) {
   const markdownPath = path.join(reportDir, 'sota-gate-summary.md');
   const gateSummary = await readJsonIfFile(summaryPath);
   const pass = result.status === 0 && !result.timedOut && gateSummary?.status === 'PASS';
+  const passReason =
+    ultraworkSummarySelection === undefined
+      ? 'Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, and real workflow artifacts.'
+      : 'Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, real workflow, and Ultrawork artifacts.';
   const phaseSummary = {
     schemaVersion: 1,
     phase: 'sota-gate',
     status: pass ? 'PASS' : 'FAIL',
     reason: pass
-      ? 'Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, and real workflow artifacts.'
+      ? passReason
       : result.timedOut
         ? 'super-kimi-sota-gate timed out.'
         : `super-kimi-sota-gate exited ${result.status}; gate status=${String(gateSummary?.status)}.`,
