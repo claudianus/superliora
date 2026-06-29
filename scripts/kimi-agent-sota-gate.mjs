@@ -87,6 +87,24 @@ const KNOWLEDGE_MAP_CONTRACT_PHRASES = Object.freeze([
   'EXTRACTED, INFERRED, or AMBIGUOUS',
   'path/affected-style questions',
 ]);
+const REQUIRED_XP_LITE_CONTRACTS = Object.freeze([
+  { name: 'inspect-first', pattern: /\binspect\b.*\bfiles\b.*\btests\b.*\bproject\b/i },
+  { name: 'small-focused-change', pattern: /\bsmall\b.*\bfocused\b/i },
+  { name: 'test-before-core-logic', pattern: /\btests?\b.*\bbefore\b.*\bcore logic\b/i },
+  { name: 'minimum-code', pattern: /\bminimum code\b/i },
+  { name: 'verify-available-gates', pattern: /\btests?\b.*\btypecheck\b.*\blint\b.*\bbuild\b/i },
+  { name: 'report-blockers', pattern: /\bblockers?\b/i },
+  { name: 'finish-summary', pattern: /\bchanged files\b.*\bbehavior changed\b.*\btests run\b.*\bremaining risks\b/i },
+]);
+const REQUIRED_DEFINITION_OF_DONE_CONTRACTS = Object.freeze([
+  { name: 'relevant-tests-pass', pattern: /\brelevant tests pass\b/i },
+  { name: 'typecheck-pass', pattern: /\btypecheck passes\b/i },
+  { name: 'lint-pass', pattern: /\blint passes\b/i },
+  { name: 'no-unrelated-files', pattern: /\bno unrelated files changed\b/i },
+  { name: 'no-broad-refactor', pattern: /\bno broad refactor\b/i },
+  { name: 'public-behavior-tested', pattern: /\bpublic behavior\b.*\btests\b/i },
+  { name: 'real-surface-observed', pattern: /\bTUI\/CLI surface\b.*\bobserved\b/i },
+]);
 const SECRET_PATTERNS = Object.freeze([
   /\bsk-[A-Za-z0-9_-]{8,}/,
   /\b[A-Za-z0-9_]*API_KEY\s*[:=]\s*["']?[A-Za-z0-9_-]{12,}/,
@@ -328,7 +346,7 @@ async function buildReport(options, outputDir, runId) {
     secretGate: gates.find((gate) => gate.name === 'no-secret-like-evidence'),
     tuiUxDelta,
   });
-  gates.push(evaluateLoopScoreGate(loopScorecard));
+  gates.push(evaluateLoopScoreGate(loopScorecard), evaluateXpDodHarnessGate(loopScorecard));
   const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta, workflowGate, ultraworkGate);
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
   const passReason =
@@ -683,6 +701,46 @@ function evaluateLoopScoreGate(scorecard) {
       })),
     },
   };
+}
+
+function evaluateXpDodHarnessGate(scorecard) {
+  const missingXpLite = missingContractTopics(scorecard.xpLite, REQUIRED_XP_LITE_CONTRACTS);
+  const missingDefinitionOfDone = missingContractTopics(
+    scorecard.definitionOfDone,
+    REQUIRED_DEFINITION_OF_DONE_CONTRACTS,
+  );
+  const principle = typeof scorecard.principle === 'string' ? scorecard.principle : '';
+  const principleMissing =
+    /XP-lite/i.test(principle) && /Definition of Done/i.test(principle) && /harness-level/i.test(principle)
+      ? []
+      : ['harness-level-principle'];
+  const missing = [...principleMissing, ...missingXpLite, ...missingDefinitionOfDone];
+  return {
+    name: 'xp-dod-harness-contract',
+    status: missing.length === 0 ? 'PASS' : 'FAIL',
+    required: true,
+    reason:
+      missing.length === 0
+        ? 'XP-lite and Definition of Done are enforced as harness-level SOTA gate inputs.'
+        : `XP-lite/Definition of Done harness contract is missing: ${missing.join(', ')}.`,
+    observed: {
+      principle,
+      xpLiteCount: Array.isArray(scorecard.xpLite) ? scorecard.xpLite.length : 0,
+      definitionOfDoneCount: Array.isArray(scorecard.definitionOfDone)
+        ? scorecard.definitionOfDone.length
+        : 0,
+      missingXpLite,
+      missingDefinitionOfDone,
+      missingPrinciple: principleMissing,
+    },
+  };
+}
+
+function missingContractTopics(items, requiredTopics) {
+  const text = Array.isArray(items) ? items.join('\n') : '';
+  return requiredTopics
+    .filter((topic) => !topic.pattern.test(text))
+    .map((topic) => topic.name);
 }
 
 function gatePass(gate) {
