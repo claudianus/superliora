@@ -13,6 +13,7 @@ const AUTO_BASELINE_SCAN_LIMIT = 20_000;
 const REQUIRED_TUI_SCENARIOS = Object.freeze([
   'startup',
   'help',
+  'status',
   'clear',
   'autocomplete',
   'prompt-entry',
@@ -1238,6 +1239,20 @@ function inspectTuiScreenText(scenario, output) {
         failures.push('help capture does not show help or slash-command content');
       }
       break;
+    case 'status':
+      for (const pattern of [/\bstatus\b/i, /\breadiness\b/i, /\bstate\b/i, /\bchecks\b/i, /\bnext\b/i]) {
+        if (!pattern.test(normalized)) {
+          failures.push('status capture does not show the status readiness panel');
+          break;
+        }
+      }
+      if (!/inspect\s*->\s*(?:test\s*->\s*)?change\s*->\s*verify\s*->\s*summarize/i.test(normalized)) {
+        failures.push('status capture does not show the readiness check flow');
+      }
+      if (!hasXpDodReadinessContract(normalized)) {
+        failures.push('status capture does not show the XP-lite/Definition of Done readiness gates');
+      }
+      break;
     case 'clear':
       if (!matchesAny(normalized, [/kimi/i, /message/i, /editor/i, /prompt/i])) {
         failures.push('clear capture does not show a returned Kimi prompt/editor state');
@@ -1324,6 +1339,15 @@ function hasKimiTuiChrome(output) {
     /\/exit/i,
     /ask kimi/i,
   ]);
+}
+
+function hasXpDodReadinessContract(output) {
+  return [
+    /\bScope\b\s+small focused diff;\s*no broad refactor/i,
+    /\bCoverage\b\s+test public behavior changes/i,
+    /\bScreen check\b\s+open changed screen before finishing/i,
+    /\bDone gate\b\s+tests\/typecheck\/lint\/build\s+\+\s+clean diff\s+\+\s+TUI/i,
+  ].every((pattern) => pattern.test(output));
 }
 
 function matchesAny(output, patterns) {
