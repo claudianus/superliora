@@ -60,6 +60,7 @@ const PHASES_FOR_ALL = Object.freeze([
   'autonomous',
   'bench',
   'bench-system',
+  'sota-gate',
   'cleanup',
 ]);
 const EVIDENCE_SUBDIRS = Object.freeze([
@@ -184,6 +185,7 @@ const REQUIRED_ALL_PHASES = Object.freeze([
   'autonomous',
   'bench',
   'bench-system',
+  'sota-gate',
   'cleanup',
 ]);
 
@@ -962,11 +964,16 @@ async function runSotaGatePhase(context) {
   const summaryPath = path.join(reportDir, 'sota-gate-summary.json');
   const markdownPath = path.join(reportDir, 'sota-gate-summary.md');
   const gateSummary = await readJsonIfFile(summaryPath);
-  const pass = result.status === 0 && !result.timedOut && gateSummary?.status === 'PASS';
+  const loopScoreAudit = validateSotaLoopScore(gateSummary);
+  const pass =
+    result.status === 0 &&
+    !result.timedOut &&
+    gateSummary?.status === 'PASS' &&
+    loopScoreAudit.status === 'PASS';
   const passReason =
     ultraworkSummarySelection === undefined
-      ? 'Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, and real workflow artifacts.'
-      : 'Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, real workflow, and Ultrawork artifacts.';
+      ? `Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, real workflow artifacts, and loop score ${loopScoreAudit.observed.score}/${loopScoreAudit.observed.maxScore}.`
+      : `Internal SOTA gate passed over local bench-system, bounded loop, live TUI launch, real workflow, Ultrawork artifacts, and loop score ${loopScoreAudit.observed.score}/${loopScoreAudit.observed.maxScore}.`;
   const phaseSummary = {
     schemaVersion: 1,
     phase: 'sota-gate',
@@ -975,7 +982,7 @@ async function runSotaGatePhase(context) {
       ? passReason
       : result.timedOut
         ? 'super-kimi-sota-gate timed out.'
-        : `super-kimi-sota-gate exited ${result.status}; gate status=${String(gateSummary?.status)}.`,
+        : `super-kimi-sota-gate exited ${result.status}; gate status=${String(gateSummary?.status)}; loop score status=${loopScoreAudit.status}: ${loopScoreAudit.reason}`,
     startedAt,
     completedAt,
     command: argv,
@@ -984,6 +991,7 @@ async function runSotaGatePhase(context) {
     ultraworkSummarySelection,
     summaryFile: summaryPath,
     markdownFile: markdownPath,
+    loopScore: loopScoreAudit.observed,
     gateSummary,
     stdoutPath: `${basePath}.stdout.txt`,
     stderrPath: `${basePath}.stderr.txt`,
@@ -1011,6 +1019,7 @@ async function runSotaGatePhase(context) {
     stderrPath: `${basePath}.stderr.txt`,
     exitCodePath: `${basePath}.exit-code.txt`,
     summaryFile: summaryPath,
+    loopScore: loopScoreAudit.observed,
     tuiSummarySelection,
     workflowSummarySelection,
     reportFile,
@@ -1038,6 +1047,61 @@ async function runSotaGatePhase(context) {
       liveProcessesStarted: false,
       liveProductCommandsStarted: false,
       proofCommands: [commandProof(result)],
+    },
+  };
+}
+
+function validateSotaLoopScore(gateSummary) {
+  const scorecard = gateSummary?.loopScorecard;
+  const scoreGate = Array.isArray(gateSummary?.gates)
+    ? gateSummary.gates.find((gate) => gate?.name === 'super-kimi-loop-score')
+    : undefined;
+  const failures = [];
+  if (gateSummary?.status !== 'PASS') {
+    failures.push(`SOTA gate status is ${String(gateSummary?.status)}`);
+  }
+  if (scorecard === undefined) {
+    failures.push('loopScorecard is missing');
+  }
+  if (scoreGate === undefined) {
+    failures.push('super-kimi-loop-score gate is missing');
+  }
+  if (scorecard?.status !== 'PASS') {
+    failures.push(`loopScorecard status is ${String(scorecard?.status)}`);
+  }
+  if (scoreGate?.status !== 'PASS') {
+    failures.push(`super-kimi-loop-score gate status is ${String(scoreGate?.status)}`);
+  }
+  if (scorecard?.score !== scoreGate?.observed?.score) {
+    failures.push('loopScorecard score does not match gate observed score');
+  }
+  if (scorecard?.maxScore !== 100) {
+    failures.push(`loopScorecard maxScore is ${String(scorecard?.maxScore)}`);
+  }
+  if (typeof scorecard?.threshold !== 'number') {
+    failures.push('loopScorecard threshold is missing');
+  }
+  if (typeof scorecard?.score !== 'number' || typeof scorecard?.threshold !== 'number') {
+    failures.push('loopScorecard score/threshold are not numeric');
+  } else if (scorecard.score < scorecard.threshold) {
+    failures.push(`loopScorecard score ${scorecard.score} is below threshold ${scorecard.threshold}`);
+  }
+  if (!Array.isArray(scorecard?.dimensions) || scorecard.dimensions.length !== 7) {
+    failures.push(`loopScorecard dimension count is ${String(scorecard?.dimensions?.length)}`);
+  }
+  return {
+    status: failures.length === 0 ? 'PASS' : 'FAIL',
+    reason:
+      failures.length === 0
+        ? `Loop score ${scorecard.score}/${scorecard.maxScore} passed threshold ${scorecard.threshold}.`
+        : failures.join('; '),
+    observed: {
+      status: scorecard?.status,
+      score: scorecard?.score,
+      maxScore: scorecard?.maxScore,
+      threshold: scorecard?.threshold,
+      dimensionCount: Array.isArray(scorecard?.dimensions) ? scorecard.dimensions.length : 0,
+      scoreGateStatus: scoreGate?.status,
     },
   };
 }
@@ -1767,6 +1831,7 @@ async function evaluateAggregateGate(context, phase, entry) {
   if (phase === 'tui-iteration') return evaluateTuiIterationGate(context, entry);
   if (phase === 'bench') return evaluateBenchGate(context, entry);
   if (phase === 'bench-system') return evaluateBenchSystemGate(context, entry);
+  if (phase === 'sota-gate') return evaluateSotaGate(context, entry);
   if (phase === 'cleanup') {
     return {
       name: phase,
@@ -1780,6 +1845,38 @@ async function evaluateAggregateGate(context, phase, entry) {
     status: entry.status,
     verdict: entry.status === 'PASS' || entry.status === 'planned' ? 'PASS' : entry.status,
     reason: entry.reason,
+  };
+}
+
+async function evaluateSotaGate(context, entry) {
+  const summaryPath = path.join(context.evidenceRoot, 'bench', 'sota-gate-summary.json');
+  const summary = await readJsonIfFile(summaryPath);
+  const nestedSummaryPath = path.join(context.evidenceRoot, 'bench', 'sota-gate', 'sota-gate-summary.json');
+  const nestedSummary = summary?.gateSummary ?? (await readJsonIfFile(nestedSummaryPath));
+  const loopScoreAudit = validateSotaLoopScore(nestedSummary);
+  const failures = [];
+  if (entry.status !== 'PASS') failures.push(entry.reason);
+  if (summary === undefined) {
+    failures.push('bench/sota-gate-summary.json is missing');
+  } else if (summary.status !== 'PASS') {
+    failures.push(`sota-gate phase status is ${summary.status}`);
+  }
+  if (summary?.loopScore?.status !== 'PASS') {
+    failures.push(`sota-gate phase loop score status is ${String(summary?.loopScore?.status)}`);
+  }
+  if (loopScoreAudit.status !== 'PASS') failures.push(loopScoreAudit.reason);
+  return {
+    name: 'sota-gate',
+    status: entry.status,
+    verdict: failures.length === 0 ? 'PASS' : 'FAIL',
+    reason:
+      failures.length === 0
+        ? `SOTA gate passed with required Super Kimi loop score ${loopScoreAudit.observed.score}/${loopScoreAudit.observed.maxScore}.`
+        : failures.join('; '),
+    summaryPath,
+    nestedSummaryPath,
+    loopScore: loopScoreAudit.observed,
+    markdownPath: summary?.markdownFile,
   };
 }
 
@@ -2068,6 +2165,8 @@ function buildAggregateArtifactLinks(context) {
     benchLoopSummary: path.join(context.evidenceRoot, 'bench', 'loop-summary.json'),
     benchSystemSummary: path.join(context.evidenceRoot, 'bench', 'system-summary.json'),
     benchSystemLoopSummary: path.join(context.evidenceRoot, 'bench', 'system-loop-summary.json'),
+    sotaGateSummary: path.join(context.evidenceRoot, 'bench', 'sota-gate-summary.json'),
+    sotaGateMarkdown: path.join(context.evidenceRoot, 'bench', 'sota-gate', 'sota-gate-summary.md'),
   };
 }
 
@@ -2120,6 +2219,20 @@ function renderAggregateMarkdown(aggregate) {
     const evidence = gate.summaryPath ?? gate.failurePath ?? gate.providerBlockedPath ?? gate.authPath ?? gate.computerUsePath ?? '';
     lines.push(
       `| ${gate.name} | ${gate.status} | ${gate.verdict} | ${evidence === '' ? '' : markdownFileLink(evidence)} |`,
+    );
+  }
+  const sotaGate = aggregate.gates.find((gate) => gate.name === 'sota-gate');
+  if (sotaGate?.loopScore !== undefined) {
+    lines.push(
+      '',
+      '## Super Kimi Loop Score',
+      '',
+      `- status: ${sotaGate.loopScore.status ?? '<unknown>'}`,
+      `- score: ${String(sotaGate.loopScore.score ?? '<unknown>')}/${String(sotaGate.loopScore.maxScore ?? '<unknown>')}`,
+      `- threshold: ${String(sotaGate.loopScore.threshold ?? '<unknown>')}`,
+      `- dimensions: ${String(sotaGate.loopScore.dimensionCount ?? '<unknown>')}`,
+      `- gate: ${sotaGate.loopScore.scoreGateStatus ?? '<unknown>'}`,
+      ...(sotaGate.markdownPath === undefined ? [] : [`- SOTA report: ${markdownFileLink(sotaGate.markdownPath)}`]),
     );
   }
   lines.push('', '## Allowed BLOCKED Proofs', '');

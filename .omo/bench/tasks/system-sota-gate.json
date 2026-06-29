@@ -6,7 +6,7 @@
   "kind": "harness-qa",
   "risk": "medium",
   "tags": ["sota-gate", "rubric", "evidence", "terminal"],
-  "prompt": "Run the local SOTA gate over existing bench-system, bounded loop, and live TUI artifacts, then verify that it emits PASS JSON and Markdown evidence without using browser UI as a success surface.",
+  "prompt": "Run the local SOTA gate over existing bench-system, bounded loop, live TUI, real workflow, and Ultrawork artifacts, then verify that it emits PASS JSON, Markdown evidence, and a required Super Kimi loop score without using browser UI as a success surface.",
   "budgets": {
     "maxWallMs": 60000,
     "maxCommands": 2,
@@ -24,6 +24,10 @@
         ".omo/evidence/super-kimi-autonomous-qa-env/bench-system-loop-with-live-tui/bench/system-loop-summary.json",
         "--tui-summary",
         ".omo/evidence/kimi-agent-bench/system-suite/tui-launch-tmux/tui/summary.json",
+        "--workflow-summary",
+        ".omo/evidence/real-home-direct-workflow-current/tui-real-workflow.json",
+        "--ultrawork-summary",
+        ".omo/evidence/real-home-ultrawork-workflow/tui-ultrawork-workflow.json",
         "--require-cleanup-receipt",
         "--output-dir",
         ".omo/evidence/kimi-agent-bench/system-suite/sota-gate"
@@ -36,7 +40,7 @@
       "command": "node",
       "args": [
         "-e",
-        "const fs=require('node:fs'); const summary=JSON.parse(fs.readFileSync('.omo/evidence/kimi-agent-bench/system-suite/sota-gate/sota-gate-summary.json','utf8')); const md=fs.readFileSync('.omo/evidence/kimi-agent-bench/system-suite/sota-gate/sota-gate-summary.md','utf8'); if (summary.status !== 'PASS') throw new Error(`SOTA gate status ${summary.status}`); for (const name of ['system-score-pass-rate','bounded-loop-best-score','live-tui-required-scenarios','system-budget','no-web-ui-success-surface','no-secret-like-evidence','cleanup-receipt-presence']) { const gate=summary.gates?.find((entry)=>entry.name===name); if (gate?.status !== 'PASS') throw new Error(`missing passing gate ${name}`); } if (!md.includes('Terminal-Bench') || !md.includes('SWE-bench') || !md.includes('OSWorld') || !md.includes('tau-bench') || !md.includes('VeRO') || !md.includes('Meta-Harness')) throw new Error('missing rubric references');"
+        "const fs=require('node:fs'); const summary=JSON.parse(fs.readFileSync('.omo/evidence/kimi-agent-bench/system-suite/sota-gate/sota-gate-summary.json','utf8')); const md=fs.readFileSync('.omo/evidence/kimi-agent-bench/system-suite/sota-gate/sota-gate-summary.md','utf8'); if (summary.status !== 'PASS') throw new Error(`SOTA gate status ${summary.status}`); for (const name of ['system-score-pass-rate','bounded-loop-best-score','live-tui-required-scenarios','real-tui-workflow-proof','live-tui-ultrawork-source-test-proof','system-budget','no-web-ui-success-surface','no-secret-like-evidence','cleanup-receipt-presence','super-kimi-loop-score']) { const gate=summary.gates?.find((entry)=>entry.name===name); if (gate?.status !== 'PASS') throw new Error(`missing passing gate ${name}`); } if (summary.loopScorecard?.status !== 'PASS' || summary.loopScorecard?.score !== 100 || summary.loopScorecard?.dimensions?.length !== 7) throw new Error('missing passing Super Kimi loop scorecard'); if (!md.includes('Super Kimi Loop Score') || !md.includes('Definition of Done') || !md.includes('XP-lite Harness Rules')) throw new Error('missing loop score markdown'); if (!md.includes('Terminal-Bench') || !md.includes('SWE-bench') || !md.includes('OSWorld') || !md.includes('tau-bench') || !md.includes('VeRO') || !md.includes('Meta-Harness')) throw new Error('missing rubric references');"
       ],
       "timeoutMs": 30000,
       "weight": 1
