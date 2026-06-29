@@ -43,6 +43,32 @@ const DEFAULT_BUDGETS = Object.freeze({
   commandCount: 10,
   estimatedTokens: 800,
 });
+const DEFAULT_LOOP_SCORE_THRESHOLD = 90;
+const DEFAULT_LOOP_SCORE_RUBRIC = Object.freeze([
+  { id: 'vibe-coder-ux', label: 'Vibe coder UX improvement', maxPoints: 20 },
+  {
+    id: 'autonomy-auto-activation',
+    label: 'Autonomy and auto activation quality',
+    maxPoints: 15,
+  },
+  {
+    id: 'verification-eyes-hands',
+    label: 'Verification and eyes-hands practicality',
+    maxPoints: 15,
+  },
+  { id: 'tui-state-expression', label: 'TUI state expression', maxPoints: 15 },
+  {
+    id: 'coding-success-bug-prevention',
+    label: 'Coding success and bug prevention',
+    maxPoints: 15,
+  },
+  {
+    id: 'speed-token-cache-efficiency',
+    label: 'Speed, token, and cache efficiency',
+    maxPoints: 10,
+  },
+  { id: 'stuck-loop-stability', label: 'Stuck prevention and loop stability', maxPoints: 10 },
+]);
 const TUI_UX_SCORE_THRESHOLD = 85;
 const TUI_TARGET_DURATION_MS = 30_000;
 const PRIMARY_TUI_SUCCESS_SURFACE = 'live-tui-real-user-workflow';
@@ -290,12 +316,25 @@ async function buildReport(options, outputDir, runId) {
       ? undefined
       : evaluateTuiUxDeltaGate(baselineSelection.summary, tuiGate.observed?.uxFriction);
   if (tuiUxDelta !== undefined) gates.push(tuiUxDelta);
+  const loopScorecard = buildLoopScorecard(criteria, {
+    loopGate: gates.find((gate) => gate.name === 'bounded-loop-best-score'),
+    systemGate: gates.find((gate) => gate.name === 'system-score-pass-rate'),
+    tuiGate,
+    workflowGate,
+    ultraworkGate,
+    budgetGate: gates.find((gate) => gate.name === 'system-budget'),
+    cleanupGate: gates.find((gate) => gate.name === 'cleanup-receipt-presence'),
+    noWebGate: gates.find((gate) => gate.name === 'no-web-ui-success-surface'),
+    secretGate: gates.find((gate) => gate.name === 'no-secret-like-evidence'),
+    tuiUxDelta,
+  });
+  gates.push(evaluateLoopScoreGate(loopScorecard));
   const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta, workflowGate, ultraworkGate);
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
   const passReason =
     ultraworkGate === undefined
-      ? 'All required SOTA gates passed against local bench, live TUI launch, and real workflow artifacts.'
-      : 'All required SOTA gates passed against local bench, live TUI launch, real workflow, and Ultrawork artifacts.';
+      ? `All required SOTA gates passed against local bench, live TUI launch, real workflow artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`
+      : `All required SOTA gates passed against local bench, live TUI launch, real workflow, Ultrawork artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`;
   return {
     schemaVersion: 1,
     gate: 'super-kimi-agent-sota-gate',
@@ -322,6 +361,7 @@ async function buildReport(options, outputDir, runId) {
     tuiWorkflowProof: workflowGate.observed,
     tuiUltraworkProof: ultraworkGate?.observed,
     tuiUxDelta: tuiUxDelta?.observed,
+    loopScorecard,
     tuiNextActions,
     gates,
     rubricReferences: criteria.references ?? [],
@@ -384,6 +424,398 @@ function evaluateLoopGate(summary) {
       iterations: Array.isArray(bench?.iterations) ? bench.iterations.length : 0,
       wallClockMs: bench?.wallClockMs,
     },
+  };
+}
+
+function buildLoopScorecard(criteria, evidence) {
+  const rubric = normalizeLoopScoreRubric(criteria.loopScoreRubric);
+  const dimensions = [
+    buildLoopScoreDimension(rubric, 'vibe-coder-ux', [
+      {
+        name: 'live TUI scenario coverage',
+        units: 10,
+        pass: gatePass(evidence.tuiGate),
+        evidence: gateEvidence(evidence.tuiGate),
+      },
+      {
+        name: 'UX friction threshold',
+        units: 6,
+        pass: evidence.tuiGate?.observed?.uxFriction?.status === 'PASS',
+        evidence: {
+          score: evidence.tuiGate?.observed?.uxFriction?.score,
+          threshold: evidence.tuiGate?.observed?.uxFriction?.threshold,
+          durationMs: evidence.tuiGate?.observed?.uxFriction?.durationMs,
+        },
+      },
+      {
+        name: 'UX no-regression baseline',
+        units: 4,
+        pass:
+          evidence.tuiUxDelta === undefined
+            ? evidence.tuiGate?.observed?.uxFriction?.status === 'PASS'
+            : gatePass(evidence.tuiUxDelta),
+        evidence:
+          evidence.tuiUxDelta?.observed ?? {
+            verdict: 'not-compared',
+            currentScore: evidence.tuiGate?.observed?.uxFriction?.score,
+          },
+      },
+    ]),
+    buildLoopScoreDimension(rubric, 'autonomy-auto-activation', [
+      {
+        name: 'bounded improvement loop',
+        units: 5,
+        pass: gatePass(evidence.loopGate),
+        evidence: gateEvidence(evidence.loopGate),
+      },
+      {
+        name: 'Ultrawork auto activation workflow',
+        units: 10,
+        pass: ultraworkActivationPass(evidence.ultraworkGate),
+        evidence: gateEvidence(evidence.ultraworkGate),
+      },
+    ]),
+    buildLoopScoreDimension(rubric, 'verification-eyes-hands', [
+      {
+        name: 'live TUI screen and input evidence',
+        units: 5,
+        pass: gatePass(evidence.tuiGate),
+        evidence: gateEvidence(evidence.tuiGate),
+      },
+      {
+        name: 'real workflow source/test proof',
+        units: 5,
+        pass: gatePass(evidence.workflowGate),
+        evidence: gateEvidence(evidence.workflowGate),
+      },
+      {
+        name: 'cleanup receipts',
+        units: 3,
+        pass: gatePass(evidence.cleanupGate),
+        evidence: gateEvidence(evidence.cleanupGate),
+      },
+      {
+        name: 'safe evidence boundaries',
+        units: 2,
+        pass: gatePass(evidence.noWebGate) && gatePass(evidence.secretGate),
+        evidence: {
+          noWebUiSurface: gateStatus(evidence.noWebGate),
+          secretScan: gateStatus(evidence.secretGate),
+        },
+      },
+    ]),
+    buildLoopScoreDimension(rubric, 'tui-state-expression', [
+      {
+        name: 'status readiness and XP/DoD signals',
+        units: 7,
+        pass: statusScenarioHasReadinessSignals(evidence.tuiGate),
+        evidence: statusScenarioEvidence(evidence.tuiGate),
+      },
+      {
+        name: 'complete live TUI scenario observations',
+        units: 5,
+        pass: allTuiScenariosPass(evidence.tuiGate),
+        evidence: {
+          required: REQUIRED_TUI_SCENARIOS.length,
+          passing: countPassingTuiScenarios(evidence.tuiGate),
+        },
+      },
+      {
+        name: 'ordered input traces',
+        units: 3,
+        pass: allRequiredTuiInputsPass(evidence.tuiGate),
+        evidence: {
+          required: REQUIRED_TUI_INPUT_SCENARIOS.length,
+          passing: countPassingRequiredTuiInputs(evidence.tuiGate),
+        },
+      },
+    ]),
+    buildLoopScoreDimension(rubric, 'coding-success-bug-prevention', [
+      {
+        name: 'system benchmark pass rate',
+        units: 5,
+        pass: gatePass(evidence.systemGate),
+        evidence: gateEvidence(evidence.systemGate),
+      },
+      {
+        name: 'real workflow verification and targeted test',
+        units: 5,
+        pass: workflowCodeProofPass(evidence.workflowGate),
+        evidence: workflowCodeEvidence(evidence.workflowGate),
+      },
+      {
+        name: 'Ultrawork verification and targeted test',
+        units: 5,
+        pass: workflowCodeProofPass(evidence.ultraworkGate),
+        evidence: workflowCodeEvidence(evidence.ultraworkGate),
+      },
+    ]),
+    buildLoopScoreDimension(rubric, 'speed-token-cache-efficiency', [
+      {
+        name: 'system budget gate',
+        units: 7,
+        pass: gatePass(evidence.budgetGate),
+        evidence: gateEvidence(evidence.budgetGate),
+      },
+      {
+        name: 'TUI duration and command friction',
+        units: 3,
+        pass: tuiDurationAndCommandFrictionPass(evidence.tuiGate),
+        evidence: evidence.tuiGate?.observed?.uxFriction,
+      },
+    ]),
+    buildLoopScoreDimension(rubric, 'stuck-loop-stability', [
+      {
+        name: 'bounded loop guardrails',
+        units: 4,
+        pass: gatePass(evidence.loopGate),
+        evidence: gateEvidence(evidence.loopGate),
+      },
+      {
+        name: 'real workflow adaptive operator loop',
+        units: 3,
+        pass: workflowStabilityPass(evidence.workflowGate),
+        evidence: workflowStabilityEvidence(evidence.workflowGate),
+      },
+      {
+        name: 'Ultrawork adaptive operator loop',
+        units: 3,
+        pass: workflowStabilityPass(evidence.ultraworkGate),
+        evidence: workflowStabilityEvidence(evidence.ultraworkGate),
+      },
+    ]),
+  ];
+  const score = dimensions.reduce((sum, dimension) => sum + dimension.score, 0);
+  const maxScore = dimensions.reduce((sum, dimension) => sum + dimension.maxPoints, 0);
+  return {
+    status: score >= rubric.threshold ? 'PASS' : 'FAIL',
+    score,
+    maxScore,
+    threshold: rubric.threshold,
+    principle: rubric.principle,
+    dimensions,
+    definitionOfDone: rubric.definitionOfDone,
+    xpLite: rubric.xpLite,
+  };
+}
+
+function normalizeLoopScoreRubric(config) {
+  const configuredDimensions = Array.isArray(config?.dimensions) ? config.dimensions : [];
+  const byId = new Map(configuredDimensions.map((dimension) => [dimension?.id, dimension]));
+  return {
+    threshold:
+      typeof config?.threshold === 'number' && Number.isFinite(config.threshold)
+        ? config.threshold
+        : DEFAULT_LOOP_SCORE_THRESHOLD,
+    principle:
+      typeof config?.principle === 'string'
+        ? config.principle
+        : 'XP-lite and Definition of Done are required harness-level loop design inputs.',
+    dimensions: DEFAULT_LOOP_SCORE_RUBRIC.map((defaults) => {
+      const override = byId.get(defaults.id);
+      const maxPoints =
+        typeof override?.maxPoints === 'number' && Number.isFinite(override.maxPoints)
+          ? override.maxPoints
+          : defaults.maxPoints;
+      return {
+        id: defaults.id,
+        label: typeof override?.label === 'string' ? override.label : defaults.label,
+        maxPoints,
+      };
+    }),
+    definitionOfDone: Array.isArray(config?.definitionOfDone) ? config.definitionOfDone : [],
+    xpLite: Array.isArray(config?.xpLite) ? config.xpLite : [],
+  };
+}
+
+function buildLoopScoreDimension(rubric, id, specs) {
+  const dimension = rubric.dimensions.find((entry) => entry.id === id);
+  if (dimension === undefined) {
+    throw new Error(`Missing loop score dimension in rubric: ${id}`);
+  }
+  const parts = buildLoopScoreParts(dimension.maxPoints, specs);
+  const score = parts.reduce((sum, part) => sum + part.points, 0);
+  return {
+    id,
+    label: dimension.label,
+    status: score === dimension.maxPoints ? 'PASS' : score > 0 ? 'PARTIAL' : 'FAIL',
+    score,
+    maxPoints: dimension.maxPoints,
+    parts,
+  };
+}
+
+function buildLoopScoreParts(maxPoints, specs) {
+  const totalUnits = specs.reduce((sum, spec) => sum + spec.units, 0);
+  let allocated = 0;
+  return specs.map((spec, index) => {
+    const partMax =
+      index === specs.length - 1 ? maxPoints - allocated : Math.round((maxPoints * spec.units) / totalUnits);
+    allocated += partMax;
+    return {
+      name: spec.name,
+      status: spec.pass ? 'PASS' : 'MISS',
+      points: spec.pass ? partMax : 0,
+      maxPoints: partMax,
+      evidence: spec.evidence,
+    };
+  });
+}
+
+function evaluateLoopScoreGate(scorecard) {
+  return {
+    name: 'super-kimi-loop-score',
+    status: scorecard.status,
+    required: true,
+    reason:
+      scorecard.status === 'PASS'
+        ? `Super Kimi loop score ${scorecard.score}/${scorecard.maxScore} meets threshold ${scorecard.threshold}.`
+        : `Super Kimi loop score ${scorecard.score}/${scorecard.maxScore} is below threshold ${scorecard.threshold}.`,
+    observed: {
+      score: scorecard.score,
+      maxScore: scorecard.maxScore,
+      threshold: scorecard.threshold,
+      dimensions: scorecard.dimensions.map((dimension) => ({
+        id: dimension.id,
+        status: dimension.status,
+        score: dimension.score,
+        maxPoints: dimension.maxPoints,
+      })),
+    },
+  };
+}
+
+function gatePass(gate) {
+  return gate?.status === 'PASS';
+}
+
+function gateStatus(gate) {
+  return gate?.status ?? 'MISSING';
+}
+
+function gateEvidence(gate) {
+  return {
+    gate: gate?.name,
+    status: gateStatus(gate),
+    reason: gate?.reason,
+  };
+}
+
+function statusScenarioEvidence(tuiGate) {
+  const scenario = getTuiScenario(tuiGate, 'status');
+  return {
+    scenario: scenario?.scenario,
+    status: scenario?.status,
+    screenObservationStatus: scenario?.screenObservationStatus,
+    signals: scenario?.screenObservationSignals,
+  };
+}
+
+function statusScenarioHasReadinessSignals(tuiGate) {
+  const signals = getTuiScenario(tuiGate, 'status')?.screenObservationSignals;
+  return (
+    Array.isArray(signals) &&
+    ['status-readiness', 'xp-dod-readiness', 'done-gate'].every((signal) => signals.includes(signal))
+  );
+}
+
+function allTuiScenariosPass(tuiGate) {
+  const scenarios = tuiScenarios(tuiGate);
+  return scenarios.length >= REQUIRED_TUI_SCENARIOS.length && scenarios.every((scenario) => scenario.status === 'PASS');
+}
+
+function countPassingTuiScenarios(tuiGate) {
+  return tuiScenarios(tuiGate).filter((scenario) => scenario.status === 'PASS').length;
+}
+
+function allRequiredTuiInputsPass(tuiGate) {
+  return REQUIRED_TUI_INPUT_SCENARIOS.every((scenario) => {
+    const entry = getTuiScenario(tuiGate, scenario);
+    return entry?.inputTraceStatus === 'PASS';
+  });
+}
+
+function countPassingRequiredTuiInputs(tuiGate) {
+  return REQUIRED_TUI_INPUT_SCENARIOS.filter((scenario) => {
+    const entry = getTuiScenario(tuiGate, scenario);
+    return entry?.inputTraceStatus === 'PASS';
+  }).length;
+}
+
+function getTuiScenario(tuiGate, scenario) {
+  return tuiScenarios(tuiGate).find((entry) => entry.scenario === scenario);
+}
+
+function tuiScenarios(tuiGate) {
+  return Array.isArray(tuiGate?.observed?.scenarios) ? tuiGate.observed.scenarios : [];
+}
+
+function workflowCodeProofPass(gate) {
+  const workspace = gate?.observed?.workspace;
+  return (
+    gatePass(gate) &&
+    workspace?.diffExitCode === 0 &&
+    workspace?.verificationExitCode === 0 &&
+    workspace?.targetedTestExitCode === 0 &&
+    (workspace?.editedFileCount ?? 0) >= 2
+  );
+}
+
+function workflowCodeEvidence(gate) {
+  const workspace = gate?.observed?.workspace;
+  return {
+    gate: gate?.name,
+    status: gateStatus(gate),
+    diffExitCode: workspace?.diffExitCode,
+    verificationExitCode: workspace?.verificationExitCode,
+    targetedTestExitCode: workspace?.targetedTestExitCode,
+    editedFileCount: workspace?.editedFileCount,
+  };
+}
+
+function ultraworkActivationPass(gate) {
+  const observed = gate?.observed;
+  return (
+    gatePass(gate) &&
+    (observed?.activationEvidenceCount ?? 0) > 0 &&
+    (observed?.interviewEvidenceCount ?? 0) > 0 &&
+    (observed?.questionAnswerEvidenceCount ?? 0) > 0 &&
+    (observed?.postQuestionProgressEvidenceCount ?? 0) > 0 &&
+    (observed?.questionToolErrorEvidenceCount ?? 0) === 0 &&
+    (observed?.policyConflictEvidenceCount ?? 0) === 0
+  );
+}
+
+function tuiDurationAndCommandFrictionPass(tuiGate) {
+  const friction = tuiGate?.observed?.uxFriction;
+  return (
+    friction?.status === 'PASS' &&
+    typeof friction.durationMs === 'number' &&
+    friction.durationMs <= TUI_TARGET_DURATION_MS &&
+    friction.dimensions?.commandFailureCount === 0 &&
+    friction.dimensions?.commandTimeoutCount === 0
+  );
+}
+
+function workflowStabilityPass(gate) {
+  const observed = gate?.observed;
+  const trajectory = Array.isArray(observed?.trajectorySteps) ? observed.trajectorySteps : [];
+  return (
+    gatePass(gate) &&
+    (observed?.adaptiveObservationCount ?? 0) > 0 &&
+    trajectory.length > 0 &&
+    trajectory.every((step) => step.status === 'PASS')
+  );
+}
+
+function workflowStabilityEvidence(gate) {
+  const observed = gate?.observed;
+  return {
+    gate: gate?.name,
+    status: gateStatus(gate),
+    adaptiveObservationCount: observed?.adaptiveObservationCount,
+    adaptiveInterventionsAttempted: observed?.adaptiveInterventionsAttempted,
+    trajectorySteps: observed?.trajectorySteps,
   };
 }
 
@@ -1753,12 +2185,52 @@ function renderMarkdown(report) {
     ...(report.inputs.baselineSotaSummary === undefined
       ? []
       : [`- baseline SOTA: ${report.inputs.baselineSotaSummary}`]),
+  ];
+  if (report.loopScorecard !== undefined) {
+    lines.push(
+      '',
+      '## Super Kimi Loop Score',
+      '',
+      `- score: ${report.loopScorecard.score}/${report.loopScorecard.maxScore}`,
+      `- threshold: ${report.loopScorecard.threshold}`,
+      `- status: ${report.loopScorecard.status}`,
+      `- principle: ${report.loopScorecard.principle}`,
+      '',
+      '| Dimension | Score | Status | Evidence |',
+      '|---|---:|---:|---|',
+    );
+    for (const dimension of report.loopScorecard.dimensions) {
+      const misses = dimension.parts
+        .filter((part) => part.status !== 'PASS')
+        .map((part) => part.name);
+      const evidence =
+        misses.length === 0
+          ? 'all evidence parts passed'
+          : `missing: ${misses.map((part) => escapeMarkdown(part)).join(', ')}`;
+      lines.push(
+        `| ${escapeMarkdown(dimension.label)} | ${dimension.score}/${dimension.maxPoints} | ${dimension.status} | ${evidence} |`,
+      );
+    }
+    if (Array.isArray(report.loopScorecard.definitionOfDone) && report.loopScorecard.definitionOfDone.length > 0) {
+      lines.push('', '### Definition of Done', '');
+      for (const item of report.loopScorecard.definitionOfDone) {
+        lines.push(`- ${item}`);
+      }
+    }
+    if (Array.isArray(report.loopScorecard.xpLite) && report.loopScorecard.xpLite.length > 0) {
+      lines.push('', '### XP-lite Harness Rules', '');
+      for (const item of report.loopScorecard.xpLite) {
+        lines.push(`- ${item}`);
+      }
+    }
+  }
+  lines.push(
     '',
     '## Gates',
     '',
     '| Gate | Status | Required | Reason |',
     '|---|---:|---:|---|',
-  ];
+  );
   for (const gate of report.gates) {
     lines.push(`| ${gate.name} | ${gate.status} | ${String(gate.required)} | ${escapeMarkdown(gate.reason)} |`);
   }

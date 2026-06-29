@@ -6,9 +6,69 @@
     "commandCount": 10,
     "estimatedTokens": 800
   },
+  "loopScoreRubric": {
+    "threshold": 90,
+    "principle": "XP-lite and Definition of Done are harness-level design gates: every Ultrawork loop should prove a small focused change, relevant verification, live TUI observation, and clean next action before claiming progress.",
+    "dimensions": [
+      {
+        "id": "vibe-coder-ux",
+        "label": "Vibe coder UX improvement",
+        "maxPoints": 20
+      },
+      {
+        "id": "autonomy-auto-activation",
+        "label": "Autonomy and auto activation quality",
+        "maxPoints": 15
+      },
+      {
+        "id": "verification-eyes-hands",
+        "label": "Verification and eyes-hands practicality",
+        "maxPoints": 15
+      },
+      {
+        "id": "tui-state-expression",
+        "label": "TUI state expression",
+        "maxPoints": 15
+      },
+      {
+        "id": "coding-success-bug-prevention",
+        "label": "Coding success and bug prevention",
+        "maxPoints": 15
+      },
+      {
+        "id": "speed-token-cache-efficiency",
+        "label": "Speed, token, and cache efficiency",
+        "maxPoints": 10
+      },
+      {
+        "id": "stuck-loop-stability",
+        "label": "Stuck prevention and loop stability",
+        "maxPoints": 10
+      }
+    ],
+    "definitionOfDone": [
+      "Relevant tests pass.",
+      "Typecheck passes if available.",
+      "Lint passes if available.",
+      "No unrelated files changed.",
+      "No broad refactor mixed into the task.",
+      "Public behavior is covered by tests unless the change is purely cosmetic or documentation-only.",
+      "User-facing TUI/CLI surface changes are directly opened and observed before finishing."
+    ],
+    "xpLite": [
+      "Inspect relevant files, tests, and project conventions first.",
+      "Keep changes small and focused.",
+      "Write or update tests before implementation when practical for bugs and core logic.",
+      "Implement the minimum code needed.",
+      "Run the most relevant tests, typecheck, lint, and build commands available.",
+      "Fix verification failures or report blockers clearly.",
+      "Finish with changed files, behavior changed, tests run, and remaining risks."
+    ]
+  },
   "requiredTuiScenarios": [
     "startup",
     "help",
+    "status",
     "clear",
     "autocomplete",
     "prompt-entry",
