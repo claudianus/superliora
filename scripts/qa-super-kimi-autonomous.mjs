@@ -67,6 +67,11 @@ const TUI_CAPTURE_SCENARIOS = Object.freeze([
   { name: 'startup', description: 'Initial visible Kimi TUI chrome/editor state.' },
   { name: 'help', keys: ['/help', 'Enter'], description: 'Open /help dialog.' },
   { name: 'clear', keys: ['Escape', '/clear', 'Enter'], description: 'Run /clear local command.' },
+  {
+    name: 'vibe-mode',
+    keys: ['/vibe', 'Enter'],
+    description: 'Toggle local Vibe mode without submitting a model prompt.',
+  },
   { name: 'autocomplete', keys: ['/', 'Tab'], description: 'Open slash-command autocomplete.' },
   {
     name: 'prompt-entry',
@@ -85,6 +90,7 @@ const COMPUTER_USE_STATE_MAX_AGE_MS = 10 * 60_000;
 const COMPUTER_USE_STATE_FUTURE_SKEW_MS = 60_000;
 const TUI_OUROBOROS_PASS_THRESHOLD = 0.85;
 const TUI_PROMPT_ENTRY_TEXT = 'visible qa prompt entry only';
+const TUI_VIBE_MODE_TEXT = 'Vibe mode: ON';
 const REQUIRED_TUI_CAPTURE_SCENARIOS = TUI_CAPTURE_SCENARIOS.map((scenario) => scenario.name);
 const MIN_SCREENSHOT_WIDTH = 80;
 const MIN_SCREENSHOT_HEIGHT = 40;
@@ -5011,6 +5017,16 @@ function inspectTuiCapture(scenario, output) {
     case 'clear':
       if (!matchesAny(normalized, [/kimi/i, /message/i, /editor/i, /prompt/i])) {
         failures.push('clear capture does not show a returned Kimi prompt/editor state');
+      }
+      break;
+    case 'vibe-mode':
+      if (!normalized.includes(TUI_VIBE_MODE_TEXT)) {
+        failures.push(
+          `vibe-mode capture does not show local Vibe mode activation: "${TUI_VIBE_MODE_TEXT}"`,
+        );
+      }
+      if (!matchesAny(normalized, [/direct coding/i, /no plan gate/i, /plan mode disabled/i])) {
+        failures.push('vibe-mode capture does not show direct-coding/no-plan feedback');
       }
       break;
     case 'autocomplete':

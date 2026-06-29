@@ -11,6 +11,7 @@ const REQUIRED_TUI_SCENARIOS = Object.freeze([
   'startup',
   'help',
   'clear',
+  'vibe-mode',
   'autocomplete',
   'prompt-entry',
   'escape-cancel',
