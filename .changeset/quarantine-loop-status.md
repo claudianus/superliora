@@ -1,0 +1,5 @@
+---
+"@moonshot-ai/kimi-code": patch
+---
+
+Show benchmark loops with pending quarantined tasks as blocked, include rerun commands in preflight output, split guard tasks from the default seed loop, enforce task budgets in benchmark scoring, surface actionable `/bench` budget violation details with inspect/rerun commands, show bounded loop score/efficiency trends with latest proposal, guardrail, and rerun context, and expose loop failure focus metadata, reasons, repo-relative direct actions, task-result inspection paths, repo-relative local source paths, scope-preserving loop rerun commands, machine-readable rerun argv in `/bench` loop summaries, a replay mode for those summaries, a shell-safe `/bench` Loop replay command for safe local structured summaries, replay-wrapper provenance in `/bench` for replay evidence roots, shell-safe replay inspect/log actions, a compact replay trust verdict that marks replay artifacts as trusted, suspect, or blocked from wrapper provenance, Next guidance that follows that verdict before continuing autonomous loop work, and a shell-safe Replay diff action for comparing source and replay loop summaries.

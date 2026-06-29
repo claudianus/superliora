@@ -102,7 +102,11 @@ export function resolveSkillCommand(
   skillCommandMap: ReadonlyMap<string, string>,
   commandName: string,
 ): string | undefined {
-  return skillCommandMap.get(commandName) ?? skillCommandMap.get(`skill:${commandName}`);
+  const mapped = skillCommandMap.get(commandName) ?? skillCommandMap.get(`skill:${commandName}`);
+  if (mapped !== undefined) return mapped;
+  if (!commandName.startsWith('skill:')) return undefined;
+  const skillName = commandName.slice('skill:'.length).trim();
+  return skillName.length > 0 ? skillName : undefined;
 }
 
 export function slashCommandBusyReason(

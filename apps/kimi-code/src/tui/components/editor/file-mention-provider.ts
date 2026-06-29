@@ -18,6 +18,11 @@ export interface SlashAutocompleteCommand extends SlashCommand {
   readonly aliases?: readonly string[];
 }
 
+export type DynamicSlashCommandProvider = (
+  query: string,
+  signal: AbortSignal,
+) => Promise<readonly SlashAutocompleteCommand[]>;
+
 interface FsMentionCandidate {
   readonly path: string;
   readonly absolutePath: string;
@@ -44,6 +49,7 @@ export class FileMentionProvider implements AutocompleteProvider {
     private readonly workDir: string,
     private readonly fdPath: string | null,
     additionalDirs: readonly string[] = [],
+    private readonly dynamicSlashCommands?: DynamicSlashCommandProvider,
   ) {
     this.additionalDirs = additionalDirs.map((dir) => normalizePath(resolve(workDir, dir)));
     // Build an expanded list that includes alias entries so that
@@ -149,6 +155,16 @@ export class FileMentionProvider implements AutocompleteProvider {
           }
         }
 
+        const dynamicMatches = await this.getDynamicSlashCommandMatches(
+          textBeforeCursor.slice(1).trim(),
+          tokens,
+          options.signal,
+        );
+        for (const match of dynamicMatches) {
+          if (matches.some((existing) => existing.cmd.name === match.cmd.name)) continue;
+          matches.push(match);
+        }
+
         // Primary-name matches outrank alias matches on score ties.
         matches.sort((a, b) => a.score - b.score || Number(a.viaAlias) - Number(b.viaAlias));
 
@@ -184,6 +200,31 @@ export class FileMentionProvider implements AutocompleteProvider {
     prefix: string,
   ): { lines: string[]; cursorLine: number; cursorCol: number } {
     return this.inner.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+  }
+
+  private async getDynamicSlashCommandMatches(
+    query: string,
+    tokens: readonly string[],
+    signal: AbortSignal,
+  ): Promise<
+    Array<{
+      cmd: SlashAutocompleteCommand;
+      score: number;
+      viaAlias: boolean;
+      label: string;
+    }>
+  > {
+    if (this.dynamicSlashCommands === undefined) return [];
+    if (!query.startsWith('skill:')) return [];
+    if (query.length <= 'skill:'.length) return [];
+    const commands = await this.dynamicSlashCommands(query, signal);
+    if (commands.length === 0 || signal.aborted) return [];
+    return commands.map((cmd) => ({
+      cmd,
+      score: scoreTokens(tokens, cmd.name) ?? 1_000,
+      viaAlias: false,
+      label: cmd.name,
+    }));
   }
 }
 

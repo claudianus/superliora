@@ -3,7 +3,7 @@ import type {
   FlagId,
   PermissionMode,
   Session,
-} from '@super-kimi/super-kimi-code-sdk';
+} from '@moonshot-ai/kimi-code-sdk';
 
 import { EditorSelectorComponent } from '../components/dialogs/editor-selector';
 import {
@@ -520,7 +520,7 @@ export async function applyExperimentalFeatureChanges(
     return;
   }
 
-  const experimental: Partial<Record<FlagId, boolean>> = {};
+  const experimental: Record<string, boolean> = {};
   for (const change of changes) {
     experimental[change.id] = change.enabled;
   }

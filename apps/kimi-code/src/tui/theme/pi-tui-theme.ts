@@ -10,7 +10,7 @@
 
 import type { MarkdownTheme, EditorTheme } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
-import { highlight, supportsLanguage } from 'cli-highlight';
+import { highlight, supportsLanguage, type Theme } from 'cli-highlight';
 
 import { currentTheme } from './theme';
 
@@ -21,6 +21,53 @@ import { currentTheme } from './theme';
 // "### Title" and reads like unparsed markdown.
 // eslint-disable-next-line no-control-regex -- intentionally matches the ESC byte that opens ANSI SGR sequences.
 const HEADING_HASH_PREFIX = /^((?:\u001B\[[0-9;]*m)*)#{1,6}[ \t]+/;
+
+function buildHighlightTheme(): Theme {
+  return {
+    default: (s) => chalk.hex(currentTheme.color('text'))(s),
+    keyword: (s) => chalk.hex(currentTheme.color('primary'))(s),
+    built_in: (s) => chalk.hex(currentTheme.color('primary'))(s),
+    type: (s) => chalk.hex(currentTheme.color('accent'))(s),
+    literal: (s) => chalk.hex(currentTheme.color('primary'))(s),
+    number: (s) => chalk.hex(currentTheme.color('accent'))(s),
+    regexp: (s) => chalk.hex(currentTheme.color('error'))(s),
+    string: (s) => chalk.hex(currentTheme.color('success'))(s),
+    subst: (s) => chalk.hex(currentTheme.color('text'))(s),
+    symbol: (s) => chalk.hex(currentTheme.color('text'))(s),
+    class: (s) => chalk.hex(currentTheme.color('primary'))(s),
+    function: (s) => chalk.hex(currentTheme.color('accent'))(s),
+    title: (s) => chalk.hex(currentTheme.color('text'))(s),
+    params: (s) => chalk.hex(currentTheme.color('text'))(s),
+    comment: (s) => chalk.hex(currentTheme.color('textDim'))(s),
+    doctag: (s) => chalk.hex(currentTheme.color('textDim'))(s),
+    meta: (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'meta-keyword': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'meta-string': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    section: (s) => chalk.hex(currentTheme.color('text'))(s),
+    tag: (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    name: (s) => chalk.hex(currentTheme.color('primary'))(s),
+    'builtin-name': (s) => chalk.hex(currentTheme.color('primary'))(s),
+    attr: (s) => chalk.hex(currentTheme.color('primary'))(s),
+    attribute: (s) => chalk.hex(currentTheme.color('text'))(s),
+    variable: (s) => chalk.hex(currentTheme.color('text'))(s),
+    bullet: (s) => chalk.hex(currentTheme.color('text'))(s),
+    code: (s) => chalk.hex(currentTheme.color('text'))(s),
+    emphasis: (s) => chalk.italic(s),
+    strong: (s) => chalk.bold(s),
+    formula: (s) => chalk.hex(currentTheme.color('text'))(s),
+    link: (s) => chalk.hex(currentTheme.color('primary'))(s),
+    quote: (s) => chalk.hex(currentTheme.color('text'))(s),
+    'selector-tag': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'selector-id': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'selector-class': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'selector-attr': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'selector-pseudo': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'template-tag': (s) => chalk.hex(currentTheme.color('textMuted'))(s),
+    'template-variable': (s) => chalk.hex(currentTheme.color('text'))(s),
+    addition: (s) => chalk.hex(currentTheme.color('success'))(s),
+    deletion: (s) => chalk.hex(currentTheme.color('error'))(s),
+  };
+}
 
 export function createMarkdownTheme(options?: { transient?: boolean }): MarkdownTheme {
   const transient = options?.transient === true;
@@ -51,7 +98,7 @@ export function createMarkdownTheme(options?: { transient?: boolean }): Markdown
       const language =
         normalizedLang !== undefined && supportsLanguage(normalizedLang) ? normalizedLang : 'text';
       try {
-        const highlighted = highlight(code, { language, ignoreIllegals: true });
+        const highlighted = highlight(code, { language, ignoreIllegals: true, theme: buildHighlightTheme() });
         return highlighted.split('\n');
       } catch {
         return code.split('\n');

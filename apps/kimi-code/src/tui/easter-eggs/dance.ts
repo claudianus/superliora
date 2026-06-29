@@ -14,7 +14,7 @@ import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 
 import type { SlashCommandHost } from '../commands/dispatch';
 import type { ParsedSlashInput } from '../commands/types';
-import { currentTheme } from '../theme';
+import { currentTheme } from '../theme/theme';
 
 /** Frame interval for the rainbow flow animation. */
 export const DANCE_FRAME_MS = 110;

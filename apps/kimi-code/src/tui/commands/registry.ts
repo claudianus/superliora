@@ -26,8 +26,23 @@ const SWARM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'off', description: 'Turn swarm mode off' },
 ];
 
+const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'replace', description: 'Replace the current goal with an ultragoal' },
+];
+
 const ADD_DIR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'Show configured additional workspace directories' },
+];
+
+const MEMORY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'stats', description: 'Show Kimi Recall memory stats' },
+  { value: 'list', description: 'List recent memories' },
+  { value: 'search', description: 'Search memories' },
+  { value: 'readiness', description: 'Show Super Kimi memory harness readiness' },
+  { value: 'health', description: 'Alias for readiness' },
+  { value: 'remember', description: 'Write a memory' },
+  { value: 'forget', description: 'Forget a memory by id' },
+  { value: 'consolidate', description: 'Merge exact duplicate memories' },
 ];
 
 /** Argument autocompletion for the `/goal` command (subcommands). */
@@ -49,12 +64,20 @@ export function swarmArgumentCompletions(argumentPrefix: string): AutocompleteIt
   return completeLeadingArg(SWARM_ARG_COMPLETIONS, argumentPrefix);
 }
 
+export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(ULTRAWORK_ARG_COMPLETIONS, argumentPrefix);
+}
+
 /** Argument autocompletion for the `/add-dir` command. */
 export function addDirArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   if (isPathLikeAddDirArgument(argumentPrefix)) {
     return completeAddDirPath(argumentPrefix);
   }
   return completeLeadingArg(ADD_DIR_ARG_COMPLETIONS, argumentPrefix);
+}
+
+export function memoryArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(MEMORY_ARG_COMPLETIONS, argumentPrefix);
 }
 
 function isPathLikeAddDirArgument(argumentPrefix: string): boolean {
@@ -178,6 +201,23 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'idle-only',
   },
   {
+    name: 'ultraswarm',
+    aliases: ['us'],
+    description: 'Summon an UltraSwarm of expert agents for complex tasks',
+    priority: 100,
+    argumentHint: '<task description>',
+    availability: 'idle-only',
+  },
+  {
+    name: 'ultrawork',
+    aliases: ['ultragoal', 'uw', 'ug'],
+    description: 'Start an Ultrawork flow with ultra-plan, swarm, memory, and an ultragoal',
+    priority: 100,
+    argumentHint: '[replace] <objective>',
+    completeArgs: ultraworkArgumentCompletions,
+    availability: 'idle-only',
+  },
+  {
     name: 'model',
     aliases: [],
     description: 'Switch LLM model',
@@ -196,6 +236,22 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Ask a forked side agent a question',
     priority: 90,
+    availability: 'always',
+  },
+  {
+    name: 'bench',
+    aliases: [],
+    description: 'Show local Super Kimi benchmark status',
+    priority: 80,
+    argumentHint: '[evidence-path]',
+    availability: 'always',
+  },
+  {
+    name: 'preflight',
+    aliases: ['pf'],
+    description: 'Show unified Super Kimi harness preflight',
+    priority: 80,
+    argumentHint: '[bench-evidence-path] [--query=<recall query>]',
     availability: 'always',
   },
   {
@@ -237,6 +293,15 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Manage plugins',
     priority: 60,
     availability: 'always',
+  },
+  {
+    name: 'memory',
+    aliases: ['recall'],
+    description: 'Manage Kimi Recall long-term memory',
+    priority: 60,
+    availability: 'always',
+    argumentHint: '[stats|list|search|readiness|remember|forget|consolidate]',
+    completeArgs: memoryArgumentCompletions,
   },
   {
     name: 'add-dir',
@@ -376,13 +441,6 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Export current session as a debug ZIP archive',
     priority: 40,
-  },
-  {
-    name: 'web',
-    aliases: [],
-    description: 'Open the current session in the Web UI and exit the terminal',
-    priority: 40,
-    availability: 'always',
   },
   {
     name: 'exit',

@@ -1,3 +1,4 @@
+import { visibleWidth } from '@earendil-works/pi-tui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FooterComponent } from '#/tui/components/chrome/footer';
@@ -72,6 +73,40 @@ describe('FooterComponent — goal badge', () => {
     expect(out).not.toMatch(/\d+\/\d+ turns/);
   });
 
+  it('surfaces the Super Kimi SOTA pulse for an Ultrawork goal', () => {
+    const footer = new FooterComponent(
+      baseState({
+        goal: goal({
+          objective: 'Super Kimi Ultrawork SOTA footer harness pass',
+        }),
+      }),
+    );
+
+    const out = strip(footer.render(160)[0]!);
+
+    expect(out).toContain('[goal');
+    expect(out).toContain('Super Kimi SOTA / active');
+  });
+
+  it('keeps a compact SOTA marker visible in a narrow footer without overflow', () => {
+    const width = 60;
+    const footer = new FooterComponent(
+      baseState({
+        goal: goal({
+          objective: 'Super Kimi Ultrawork SOTA footer harness pass',
+        }),
+      }),
+    );
+
+    const lines = footer.render(width);
+    const stripped = lines.map((line) => strip(line));
+
+    expect(stripped[0]!).toContain('SOTA');
+    for (const line of lines) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+    }
+  });
+
   it('keeps counting elapsed time for an active goal between snapshots', () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
@@ -89,10 +124,11 @@ describe('FooterComponent — goal badge', () => {
     vi.useFakeTimers();
     const onRefresh = vi.fn();
 
-    new FooterComponent(baseState({ goal: goal({ wallClockMs: 0 }) }), onRefresh);
+    const footer = new FooterComponent(baseState({ goal: goal({ wallClockMs: 0 }) }), onRefresh);
 
     vi.advanceTimersByTime(1_000);
     expect(onRefresh).toHaveBeenCalledTimes(1);
+    footer.invalidate();
   });
 
   it('shows used/limit turns only when a turn budget is set', () => {

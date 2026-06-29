@@ -2,7 +2,7 @@ import type { Session, SkillSummary } from '@moonshot-ai/kimi-code-sdk';
 
 import type { KimiSlashCommand } from './types';
 
-export type SkillListSession = Pick<Session, 'listSkills'>;
+export type SkillListSession = Pick<Session, 'searchSkills'>;
 
 export interface SkillSlashCommands {
   readonly commands: readonly KimiSlashCommand[];

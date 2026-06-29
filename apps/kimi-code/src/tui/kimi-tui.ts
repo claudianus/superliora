@@ -8,7 +8,7 @@ import {
   getCapabilities,
   Spacer,
 } from '@earendil-works/pi-tui';
-import type { DeviceAuthorization } from '@super-kimi/super-kimi-code-oauth';
+import type { DeviceAuthorization } from '@moonshot-ai/kimi-code-oauth';
 import type {
   ApprovalRequest,
   ApprovalResponse,
@@ -18,8 +18,8 @@ import type {
   PermissionMode,
   PromptPart,
   Session,
-} from '@super-kimi/super-kimi-code-sdk';
-import type { MigrationPlan } from '@super-kimi/migration-legacy';
+} from '@moonshot-ai/kimi-code-sdk';
+import type { MigrationPlan } from '@moonshot-ai/migration-legacy';
 import { resolve } from 'pathe';
 
 import type { CLIOptions } from '#/cli/options';
@@ -385,6 +385,7 @@ export class KimiTUI {
       this.state.appState.workDir,
       this.fdPath,
       this.state.appState.additionalDirs,
+      (query, signal) => this.searchSkillSlashCommands(query, signal),
     );
     this.state.editor.setAutocompleteProvider(provider);
 
@@ -403,27 +404,32 @@ export class KimiTUI {
     this.setupAutocomplete();
   }
 
-  async refreshSkillCommands(session?: SkillListSession): Promise<void> {
-    if (session === undefined) {
-      this.skillCommands = [];
-      this.skillCommandMap.clear();
-      this.setupAutocomplete();
-      return;
-    }
+  async refreshSkillCommands(_session?: SkillListSession): Promise<void> {
+    this.skillCommands = [];
+    this.skillCommandMap.clear();
+    this.setupAutocomplete();
+  }
 
+  private async searchSkillSlashCommands(
+    query: string,
+    signal: AbortSignal,
+  ): Promise<readonly KimiSlashCommand[]> {
+    const session = this.session;
+    if (session === undefined || signal.aborted) return [];
+    const skillQuery = query.startsWith('skill:') ? query.slice('skill:'.length) : query;
+    if (skillQuery.trim().length === 0) return [];
     let skills;
     try {
-      skills = await session.listSkills();
+      skills = await session.searchSkills(skillQuery, { limit: 5 });
     } catch {
-      return;
+      return [];
     }
+    if (signal.aborted) return [];
     const skillCommands = buildSkillSlashCommands(skills);
-    this.skillCommands = skillCommands.commands;
-    this.skillCommandMap.clear();
     for (const [commandName, skillName] of skillCommands.commandMap) {
       this.skillCommandMap.set(commandName, skillName);
     }
-    this.setupAutocomplete();
+    return skillCommands.commands;
   }
 
   // =========================================================================

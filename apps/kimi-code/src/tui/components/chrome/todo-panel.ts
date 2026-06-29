@@ -13,7 +13,7 @@ import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
-import { currentTheme } from '#/tui/theme';
+import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
@@ -152,13 +152,11 @@ export class TodoPanelComponent implements Component {
     const c = currentTheme.palette;
     const lines: string[] = [
       chalk.hex(c.border)('─'.repeat(width)),
-      chalk.hex(c.primary).bold('  Todo'),
+      chalk.hex(c.primary).bold('  Todo Board'),
     ];
 
     if (this.expanded) {
-      for (const todo of this.todos) {
-        lines.push(renderRow(todo, c));
-      }
+      lines.push(...renderLanes(this.todos, c));
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
           chalk.hex(c.textDim)(`  all ${String(this.todos.length)} items · ctrl+t to collapse`),
@@ -166,9 +164,7 @@ export class TodoPanelComponent implements Component {
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-      for (const todo of rows) {
-        lines.push(renderRow(todo, c));
-      }
+      lines.push(...renderLanes(rows, c));
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
         const suffix = distribution.length > 0 ? ` (${distribution})` : '';
@@ -180,6 +176,19 @@ export class TodoPanelComponent implements Component {
 
     return lines.map((line) => truncateToWidth(line, width));
   }
+}
+
+function renderLanes(todos: readonly TodoItem[], colors: ColorPalette): string[] {
+  const lines: string[] = [];
+  for (const lane of TODO_LANES) {
+    const laneTodos = todos.filter((todo) => todo.status === lane.status);
+    if (laneTodos.length === 0) continue;
+    lines.push(chalk.hex(colors.textDim)(`  ${lane.label}`));
+    for (const todo of laneTodos) {
+      lines.push(renderRow(todo, colors));
+    }
+  }
+  return lines;
 }
 
 function renderRow(todo: TodoItem, colors: ColorPalette): string {
@@ -214,6 +223,12 @@ const STATUS_LABELS: readonly { status: TodoStatus; label: string }[] = [
   { status: 'done', label: 'done' },
   { status: 'in_progress', label: 'in progress' },
   { status: 'pending', label: 'pending' },
+];
+
+const TODO_LANES: readonly { status: TodoStatus; label: string }[] = [
+  { status: 'in_progress', label: 'Doing' },
+  { status: 'pending', label: 'Next' },
+  { status: 'done', label: 'Done' },
 ];
 
 export function formatHiddenCounts(counts: Record<TodoStatus, number>): string {

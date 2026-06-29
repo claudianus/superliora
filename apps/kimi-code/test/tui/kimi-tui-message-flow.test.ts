@@ -168,6 +168,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     onEvent: vi.fn(() => vi.fn()),
     listMcpServers: vi.fn(async () => []),
     listSkills: vi.fn(async () => []),
+    searchSkills: vi.fn(async () => []),
     getResumeState: vi.fn(() => ({
       sessionMetadata: {},
       agents: {
@@ -975,7 +976,7 @@ command = "vim"
     driver.state.editor.onShiftTab?.();
 
     await vi.waitFor(() => {
-      expect(session.setPlanMode).toHaveBeenCalledWith(true);
+      expect(session.setPlanMode).toHaveBeenCalledWith(true, false);
     });
     expect(harness.track).toHaveBeenCalledWith('shortcut_plan_toggle', { enabled: true });
     expect(harness.track).toHaveBeenCalledWith('shortcut_mode_switch', { to_mode: 'plan' });

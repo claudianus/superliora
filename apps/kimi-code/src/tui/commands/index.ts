@@ -7,6 +7,12 @@ export * from './types';
 
 export { dispatchInput, type SlashCommandHost } from './dispatch';
 export { handleLoginCommand, handleLogoutCommand } from './auth';
+export {
+  buildBenchStatusLines,
+  handleBenchCommand,
+  loadBenchStatus,
+  redactBenchStatusText,
+} from './bench';
 export { handleBtwCommand } from './btw';
 export {
   handleCompactCommand,
@@ -21,7 +27,26 @@ export {
   showSettingsSelector,
 } from './config';
 export { handleSwarmCommand } from './swarm';
+export {
+  buildUltraworkPrompt,
+  handleUltraworkCommand,
+  parseUltraworkCommand,
+  shouldAutoActivateUltrawork,
+} from './ultrawork';
 export { handleFeedbackCommand, showMcpServers, showStatusReport, showUsage } from './info';
+export {
+  buildMemoryReadinessLines,
+  handleMemoryCommand,
+  loadMemoryReadinessEvidence,
+  redactMemoryReadinessText,
+} from './memory';
+export {
+  buildPreflightLines,
+  buildPreflightStatus,
+  handlePreflightCommand,
+  loadPreflightStatus,
+  redactPreflightText,
+} from './preflight';
 export { handlePluginsCommand } from './plugins';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
 export { handleGoalCommand, parseGoalCommand } from './goal';

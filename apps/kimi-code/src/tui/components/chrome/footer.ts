@@ -12,8 +12,8 @@ import chalk from 'chalk';
 
 import { ALL_TIPS, type ToolbarTip } from '#/tui/constant/tips';
 import { isRainbowDancing, renderDanceFooterModel } from '#/tui/easter-eggs/dance';
-import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
+import { currentTheme } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import {
   createGitStatusCache,
@@ -26,6 +26,7 @@ import { safeUsageRatio } from '#/utils/usage/usage-format';
 
 const MAX_CWD_SEGMENTS = 3;
 const GOAL_TIMER_INTERVAL_MS = 1_000;
+const SOTA_GOAL_OBJECTIVE_PATTERN = /\b(?:ultrawork|sota|harness|tui)\b|super\s+kimi/i;
 
 // Toolbar tips — rotates every 10s. Most tips are short and pair up (two
 // joined by " | ") when space allows; tips flagged `solo` are long or
@@ -113,7 +114,18 @@ function formatGoalBadge(
     goal.budget.turnBudget !== null
       ? `${goal.turnsUsed}/${goal.budget.turnBudget} turns`
       : `${goal.turnsUsed} ${goal.turnsUsed === 1 ? 'turn' : 'turns'}`;
-  const label = `${goal.status} · ${formatBadgeElapsed(wallClockMs ?? goal.wallClockMs)} · ${turns}`;
+  const elapsed = formatBadgeElapsed(wallClockMs ?? goal.wallClockMs);
+  const isSotaGoal = SOTA_GOAL_OBJECTIVE_PATTERN.test(goal.objective);
+  const label = `${goal.status} · ${elapsed} · ${turns}`;
+  if (isSotaGoal) {
+    return (
+      chalk.hex(colors.textMuted)('[goal ') +
+      chalk.hex(dotColor)('●') +
+      chalk.hex(colors.textMuted)(' ') +
+      chalk.hex(colors.primary).bold('Super Kimi SOTA') +
+      chalk.hex(colors.textMuted)(` / ${label}]`)
+    );
+  }
   return (
     chalk.hex(colors.textMuted)('[goal ') +
     chalk.hex(dotColor)('●') +

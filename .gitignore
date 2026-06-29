@@ -29,9 +29,14 @@ reports/
 .skill-index/
 .ouroboros/
 .ouroboros_eval_artifact.md
-kimi-code/
+/kimi-code/
 .omo/evidence/
+.omo/boulder.json
+.omo/drafts/
 .omo/notepads/
+.omo/plans/
 .omo/research/
+.omo/runbooks/
+.omo/scripts/
 .omo/start-work/
 .omo/ulw-loop/

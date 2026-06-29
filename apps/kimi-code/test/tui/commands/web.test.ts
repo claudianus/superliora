@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findBuiltInSlashCommand, resolveSlashCommandAvailability } from '#/tui/commands/index';
+import { findBuiltInSlashCommand } from '#/tui/commands/index';
 import type { SlashCommandHost } from '#/tui/commands/dispatch';
 import { handleWebCommand, webSessionUrl } from '#/tui/commands/web';
 
@@ -60,10 +60,8 @@ function makeHost() {
 }
 
 describe('web slash command', () => {
-  it('is registered as an always-available built-in', () => {
-    const command = findBuiltInSlashCommand('web');
-    expect(command).toBeDefined();
-    expect(resolveSlashCommandAvailability(command!, '')).toBe('always');
+  it('is not registered as a built-in TUI command', () => {
+    expect(findBuiltInSlashCommand('web')).toBeUndefined();
   });
 });
 

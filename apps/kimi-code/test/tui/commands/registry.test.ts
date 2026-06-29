@@ -35,9 +35,13 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('q')?.name).toBe('exit');
     expect(findBuiltInSlashCommand('clear')?.name).toBe('new');
     expect(findBuiltInSlashCommand('btw')?.name).toBe('btw');
+    expect(findBuiltInSlashCommand('bench')?.name).toBe('bench');
+    expect(findBuiltInSlashCommand('preflight')?.name).toBe('preflight');
+    expect(findBuiltInSlashCommand('pf')?.name).toBe('preflight');
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
     expect(findBuiltInSlashCommand('usage')?.aliases).not.toContain('status');
+    expect(findBuiltInSlashCommand('web')).toBeUndefined();
     expect(findBuiltInSlashCommand('unknown')).toBeUndefined();
   });
 
@@ -146,6 +150,9 @@ describe('built-in slash command registry', () => {
     const names = BUILTIN_SLASH_COMMANDS.map((command) => command.name);
 
     expect(new Set(names).size).toBe(names.length);
+    expect(names).not.toContain('web');
+    expect(names).toContain('bench');
+    expect(names).toContain('preflight');
     expect(names).toEqual(
       expect.arrayContaining([
         'add-dir',
@@ -164,6 +171,7 @@ describe('built-in slash command registry', () => {
         'new',
         'permission',
         'plan',
+        'preflight',
         'reload',
         'reload-tui',
         'sessions',

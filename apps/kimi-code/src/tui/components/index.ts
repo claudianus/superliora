@@ -29,6 +29,7 @@ export * from './messages/shell-execution';
 export * from './messages/skill-activation';
 export * from './messages/status-message';
 export * from './messages/swarm-markers';
+export * from './messages/ultra-swarm-markers';
 export * from './messages/thinking';
 export * from './messages/tool-call';
 export * from './messages/usage-panel';

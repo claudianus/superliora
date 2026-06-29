@@ -1,6 +1,10 @@
 import type { GoalSnapshot } from '@moonshot-ai/kimi-code-sdk';
 
-import { parseGoalCommand } from '#/tui/commands/index';
+import { parseGoalCommand } from '#/tui/commands/goal';
+import {
+  buildUltraworkPrompt,
+  parseUltraworkCommand,
+} from '#/tui/commands/ultrawork-contract';
 
 /**
  * Headless goal-mode support for the `kimi -p "/goal <objective>"` prompt path.
@@ -14,6 +18,8 @@ import { parseGoalCommand } from '#/tui/commands/index';
 export interface HeadlessGoalCreate {
   readonly objective: string;
   readonly replace: boolean;
+  readonly prompt?: string;
+  readonly ultrawork?: boolean;
 }
 
 /**
@@ -41,6 +47,7 @@ export function goalExitCode(status: string | undefined): number {
 }
 
 const GOAL_PREFIX = /^\/goal(\s|$)/;
+const ULTRAGOAL_PREFIX = /^\/(?:ultragoal|ultrawork|uw|ug)(\s|$)/;
 
 /**
  * Parses a headless prompt into a goal-create request, or `undefined` when the
@@ -50,6 +57,17 @@ const GOAL_PREFIX = /^\/goal(\s|$)/;
  */
 export function parseHeadlessGoalCreate(prompt: string): HeadlessGoalCreate | undefined {
   const trimmed = prompt.trim();
+  if (ULTRAGOAL_PREFIX.test(trimmed)) {
+    const args = trimmed.replace(/^\/(?:ultragoal|ultrawork|uw|ug)/, '').trim();
+    const parsed = parseUltraworkCommand(args);
+    if (parsed.kind !== 'create') return undefined;
+    return {
+      objective: parsed.objective,
+      replace: parsed.replace,
+      prompt: buildUltraworkPrompt(parsed.objective, 'headless'),
+      ultrawork: true,
+    };
+  }
   if (!GOAL_PREFIX.test(trimmed)) return undefined;
   const args = trimmed.replace(/^\/goal/, '').trim();
   const parsed = parseGoalCommand(args);

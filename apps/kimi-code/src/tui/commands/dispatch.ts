@@ -37,8 +37,11 @@ import {
 import { handleGoalCommand } from './goal';
 import { handleFeedbackCommand, showMcpServers, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
+import { handleBenchCommand } from './bench';
+import { handleMemoryCommand } from './memory';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
+import { handlePreflightCommand } from './preflight';
 import { handleProviderCommand } from './provider';
 import type { BuiltinSlashCommandName } from './registry';
 import { handleReloadCommand, handleReloadTuiCommand } from './reload';
@@ -51,14 +54,16 @@ import {
   handleTitleCommand,
 } from './session';
 import { handleSwarmCommand } from './swarm';
+import { handleUltraSwarmCommand } from './ultra-swarm';
+import { handleUltraworkCommand, shouldAutoActivateUltrawork } from './ultrawork';
 import { handleUndoCommand } from './undo';
-import { handleWebCommand } from './web';
 
 // ---------------------------------------------------------------------------
 // Re-exports — keep existing consumers working
 // ---------------------------------------------------------------------------
 
 export { handleLoginCommand, handleLogoutCommand } from './auth';
+export { handleBenchCommand } from './bench';
 export { handleBtwCommand } from './btw';
 export { handleAddDirCommand } from './add-dir';
 export {
@@ -75,8 +80,12 @@ export {
   showSettingsSelector,
 } from './config';
 export { handleSwarmCommand } from './swarm';
+export { handleUltraSwarmCommand } from './ultra-swarm';
+export { handleUltraworkCommand } from './ultrawork';
 export { handleFeedbackCommand, showMcpServers, showStatusReport, showUsage } from './info';
+export { handleMemoryCommand } from './memory';
 export { handlePluginsCommand } from './plugins';
+export { handlePreflightCommand } from './preflight';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
 export { handleGoalCommand } from './goal';
 export {
@@ -87,7 +96,6 @@ export {
   handleTitleCommand,
 } from './session';
 export { handleUndoCommand } from './undo';
-export { handleWebCommand } from './web';
 
 // ---------------------------------------------------------------------------
 // Host interface
@@ -154,6 +162,14 @@ export interface SlashCommandHost {
 export function dispatchInput(host: SlashCommandHost, text: string): void {
   if (parseSlashInput(text) !== null) {
     void executeSlashCommand(host, text);
+    return;
+  }
+  if (
+    host.state.appState.streamingPhase === 'idle' &&
+    !host.state.appState.isCompacting &&
+    shouldAutoActivateUltrawork(text)
+  ) {
+    void handleUltraworkCommand(host, text, 'auto');
     return;
   }
   host.sendNormalUserInput(text);
@@ -249,6 +265,9 @@ async function handleBuiltInSlashCommand(
     case 'plugins':
       void handlePluginsCommand(host, args);
       return;
+    case 'memory':
+      await handleMemoryCommand(host, args);
+      return;
     case 'add-dir':
       await handleAddDirCommand(host, args);
       return;
@@ -291,6 +310,12 @@ async function handleBuiltInSlashCommand(
     case 'btw':
       await handleBtwCommand(host, args);
       return;
+    case 'bench':
+      await handleBenchCommand(host, args);
+      return;
+    case 'preflight':
+      await handlePreflightCommand(host, args);
+      return;
     case 'title':
       await handleTitleCommand(host, args);
       return;
@@ -305,6 +330,12 @@ async function handleBuiltInSlashCommand(
       return;
     case 'swarm':
       await handleSwarmCommand(host, args);
+      return;
+    case 'ultraswarm':
+      await handleUltraSwarmCommand(host, args);
+      return;
+    case 'ultrawork':
+      await handleUltraworkCommand(host, args);
       return;
     case 'compact':
       await handleCompactCommand(host, args);
@@ -332,9 +363,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'undo':
       await handleUndoCommand(host, args);
-      return;
-    case 'web':
-      await handleWebCommand(host);
       return;
     default:
       host.showError(`Unknown slash command: /${String(name)}`);

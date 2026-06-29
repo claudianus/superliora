@@ -122,6 +122,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     onEvent: vi.fn(() => () => {}),
     getResumeState: vi.fn(() => null),
     listSkills: vi.fn(async () => []),
+    searchSkills: vi.fn(async () => []),
     close: vi.fn(async () => {}),
     ...overrides,
   };

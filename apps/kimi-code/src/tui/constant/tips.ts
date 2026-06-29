@@ -30,7 +30,7 @@ export const WORKING_TIPS: readonly ToolbarTip[] = [
   { text: '/sessions to browse and resume earlier sessions', solo: true },
   { text: '/goal for multi-step work with a clear finish line', priority: 2, solo: true  },
   { text: '/goal next to queue follow-up work while the current goal keeps running', solo: true },
-  { text: '/web: use the Web UI for a better experience', solo: true },
+  { text: '/ultrawork for terminal-first benchmarked coding loops', solo: true, priority: 3 },
   { text: '@: mention files', priority: 2 },
   { text: '! to run a shell command', priority: 2 },
 ];

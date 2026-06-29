@@ -154,6 +154,45 @@ describe('FileMentionProvider', () => {
     expect(result!.items[0]?.value).not.toBe('skill:lark-calendar');
   });
 
+  it('fetches skill-prefixed slash completions from the dynamic provider', async () => {
+    const calls: string[] = [];
+    const provider = new FileMentionProvider(
+      [HELP_COMMAND],
+      workDir,
+      NO_FD,
+      [],
+      async (query) => {
+        calls.push(query);
+        return [LARK_CALENDAR_COMMAND];
+      },
+    );
+    const line = '/skill:lark';
+
+    const result = await provider.getSuggestions([line], 0, line.length, { signal: ctrl() });
+
+    expect(calls).toEqual(['skill:lark']);
+    expect(result).not.toBeNull();
+    expect(result!.prefix).toBe('/skill:lark');
+    expect(result!.items[0]).toMatchObject({
+      value: 'skill:lark-calendar',
+      label: 'skill:lark-calendar',
+    });
+  });
+
+  it('does not call the dynamic slash provider for normal built-in prefixes', async () => {
+    let calls = 0;
+    const provider = new FileMentionProvider([HELP_COMMAND], workDir, NO_FD, [], async () => {
+      calls += 1;
+      return [LARK_CALENDAR_COMMAND];
+    });
+
+    const result = await provider.getSuggestions(['/h'], 0, 2, { signal: ctrl() });
+
+    expect(calls).toBe(0);
+    expect(result).not.toBeNull();
+    expect(result!.items[0]?.value).toBe('help');
+  });
+
   it('does not show aliases when the primary name already matches', async () => {
     const provider = new FileMentionProvider([HELP_COMMAND], workDir, NO_FD);
     const line = '/h';

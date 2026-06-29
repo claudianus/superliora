@@ -1,4 +1,4 @@
-import type { Session } from '@super-kimi/super-kimi-code-sdk';
+import type { Session } from '@moonshot-ai/kimi-code-sdk';
 
 import { ClipboardMediaError, readClipboardMedia } from '#/utils/clipboard/clipboard-image';
 import { parseImageMeta } from '#/utils/image/image-mime';

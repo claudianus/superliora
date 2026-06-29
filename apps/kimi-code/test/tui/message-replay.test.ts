@@ -194,6 +194,7 @@ function makeSession(
     onEvent: vi.fn(() => vi.fn()),
     listMcpServers: vi.fn(async () => []),
     listSkills: vi.fn(async () => []),
+    searchSkills: vi.fn(async () => []),
     getResumeState: vi.fn(() => ({
       sessionMetadata: {},
       agents: { main: agent },

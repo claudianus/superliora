@@ -169,10 +169,8 @@ async function runHeadlessGoal(
   stderr: PromptOutput,
 ): Promise<void> {
   requireConfiguredModel(model);
-  await session.createGoal({
-    objective: goal.objective,
-    replace: goal.replace,
-  });
+  const setup = goal.ultrawork ? await prepareHeadlessUltrawork(session) : undefined;
+  let goalCreated = false;
   let completedSnapshot: GoalSnapshot | null = null;
   const unsubscribeGoalEvents = session.onEvent((event) => {
     if (
@@ -185,22 +183,74 @@ async function runHeadlessGoal(
     }
   });
   try {
-    // The objective is sent as the normal prompt; goal continuation keeps the
-    // turn alive until a terminal state is reached.
-    await runPromptTurn(session, goal.objective, outputFormat, stdout, stderr);
+    await session.createGoal({
+      objective: goal.objective,
+      replace: goal.replace,
+    });
+    goalCreated = true;
+    const turnPrompt = goal.prompt ?? goal.objective;
+    await runPromptTurn(session, turnPrompt, outputFormat, stdout, stderr);
+  } catch (error) {
+    if (!goalCreated && setup !== undefined) {
+      await rollbackHeadlessUltrawork(session, setup);
+    }
+    throw error;
   } finally {
     unsubscribeGoalEvents();
-    const snapshot = completedSnapshot ?? (await session.getGoal()).goal;
-    if (outputFormat === 'stream-json') {
-      stdout.write(`${JSON.stringify(goalSummaryJson(snapshot))}\n`);
-    } else {
-      stderr.write(`${formatGoalSummaryText(snapshot)}\n`);
+    if (goalCreated || completedSnapshot !== null) {
+      const snapshot = completedSnapshot ?? (await session.getGoal()).goal;
+      if (outputFormat === 'stream-json') {
+        stdout.write(`${JSON.stringify(goalSummaryJson(snapshot))}\n`);
+      } else {
+        stderr.write(`${formatGoalSummaryText(snapshot)}\n`);
+      }
+      // Map the terminal goal status to a distinct, non-fatal exit code. A turn
+      // that threw (error / cancellation) already propagates its own exit path.
+      if (snapshot !== null && snapshot.status !== 'complete') {
+        process.exitCode = goalExitCode(snapshot.status);
+      }
     }
-    // Map the terminal goal status to a distinct, non-fatal exit code. A turn
-    // that threw (error / cancellation) already propagates its own exit path.
-    if (snapshot !== null && snapshot.status !== 'complete') {
-      process.exitCode = goalExitCode(snapshot.status);
+  }
+}
+
+interface HeadlessUltraworkSetup {
+  readonly planModeWasEnabled: boolean;
+  readonly swarmModeWasEnabled: boolean;
+  planChanged: boolean;
+  swarmEnabled: boolean;
+}
+
+async function prepareHeadlessUltrawork(session: Session): Promise<HeadlessUltraworkSetup> {
+  const status = await session.getStatus();
+  const setup: HeadlessUltraworkSetup = {
+    planModeWasEnabled: status.planMode,
+    swarmModeWasEnabled: status.swarmMode === true,
+    planChanged: false,
+    swarmEnabled: false,
+  };
+  try {
+    if (!setup.swarmModeWasEnabled) {
+      await session.setSwarmMode(true, 'task');
+      setup.swarmEnabled = true;
     }
+    await session.setPlanMode(true, true);
+    setup.planChanged = true;
+  } catch (error) {
+    await rollbackHeadlessUltrawork(session, setup);
+    throw error;
+  }
+  return setup;
+}
+
+async function rollbackHeadlessUltrawork(
+  session: Session,
+  setup: HeadlessUltraworkSetup,
+): Promise<void> {
+  if (setup.planChanged) {
+    await session.setPlanMode(setup.planModeWasEnabled, false).catch(() => {});
+  }
+  if (setup.swarmEnabled) {
+    await session.setSwarmMode(false, 'task').catch(() => {});
   }
 }
 

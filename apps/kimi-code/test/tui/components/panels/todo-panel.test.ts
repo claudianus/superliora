@@ -33,6 +33,25 @@ describe('TodoPanelComponent', () => {
     expect(joined).toMatch(/○ Open PR/);
   });
 
+  it('renders todos as kanban lanes by status', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'Investigate parser', status: 'done' },
+      { title: 'Add tests', status: 'in_progress' },
+      { title: 'Open PR', status: 'pending' },
+    ]);
+
+    const joined = panel.render(80).map(strip).join('\n');
+
+    expect(joined).toContain('Todo Board');
+    expect(joined).toContain('Doing');
+    expect(joined).toContain('Done');
+    expect(joined).toContain('Next');
+    expect(joined.indexOf('Doing')).toBeLessThan(joined.indexOf('Add tests'));
+    expect(joined.indexOf('Done')).toBeLessThan(joined.indexOf('Investigate parser'));
+    expect(joined.indexOf('Next')).toBeLessThan(joined.indexOf('Open PR'));
+  });
+
   it('setTodos replaces the list (not appends)', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([{ title: 'old', status: 'pending' }]);

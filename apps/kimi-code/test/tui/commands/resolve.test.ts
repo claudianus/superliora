@@ -29,6 +29,15 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('hello')).toEqual({ kind: 'not-command' });
   });
 
+  it('resolves explicit skill-prefixed commands without a preloaded skill map', () => {
+    expect(resolve('/skill:review src/app.ts')).toEqual({
+      kind: 'skill',
+      commandName: 'skill:review',
+      skillName: 'review',
+      args: 'src/app.ts',
+    });
+  });
+
   it('resolves built-in commands by name and alias', () => {
     expect(resolve('/help')).toMatchObject({ kind: 'builtin', name: 'help', args: '' });
     expect(resolve('/q')).toMatchObject({ kind: 'builtin', name: 'exit', args: '' });
@@ -55,10 +64,40 @@ describe('resolveSlashCommandInput', () => {
       name: 'btw',
       args: 'what are you doing?',
     });
+    expect(resolve('/preflight')).toMatchObject({
+      kind: 'builtin',
+      name: 'preflight',
+      args: '',
+    });
+    expect(resolve('/pf .omo/evidence/bench')).toMatchObject({
+      kind: 'builtin',
+      name: 'preflight',
+      args: '.omo/evidence/bench',
+    });
     expect(resolve('/experiments')).toMatchObject({
       kind: 'builtin',
       name: 'experiments',
       args: '',
+    });
+    expect(resolve('/ultrawork Ship feature X')).toMatchObject({
+      kind: 'builtin',
+      name: 'ultrawork',
+      args: 'Ship feature X',
+    });
+    expect(resolve('/ultragoal replace Ship feature X')).toMatchObject({
+      kind: 'builtin',
+      name: 'ultrawork',
+      args: 'replace Ship feature X',
+    });
+    expect(resolve('/uw Ship feature X')).toMatchObject({
+      kind: 'builtin',
+      name: 'ultrawork',
+      args: 'Ship feature X',
+    });
+    expect(resolve('/ug Ship feature X')).toMatchObject({
+      kind: 'builtin',
+      name: 'ultrawork',
+      args: 'Ship feature X',
     });
   });
 
@@ -113,6 +152,16 @@ describe('resolveSlashCommandInput', () => {
       commandName: 'swarm',
       reason: 'streaming',
     });
+    expect(resolve('/ultrawork Ship feature X', { isStreaming: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'ultrawork',
+      reason: 'streaming',
+    });
+    expect(resolve('/ultragoal Ship feature X', { isStreaming: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'ultragoal',
+      reason: 'streaming',
+    });
   });
 
   it('blocks model and session pickers while compacting', () => {
@@ -149,6 +198,16 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/swarm off', { isCompacting: true })).toEqual({
       kind: 'blocked',
       commandName: 'swarm',
+      reason: 'compacting',
+    });
+    expect(resolve('/ultrawork Ship feature X', { isCompacting: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'ultrawork',
+      reason: 'compacting',
+    });
+    expect(resolve('/ultragoal Ship feature X', { isCompacting: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'ultragoal',
       reason: 'compacting',
     });
   });
@@ -241,6 +300,13 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/does-not-exist arg')).toEqual({
       kind: 'message',
       input: '/does-not-exist arg',
+    });
+  });
+
+  it('does not expose the retired Web UI handoff as a built-in TUI command', () => {
+    expect(resolve('/web')).toEqual({
+      kind: 'message',
+      input: '/web',
     });
   });
 
