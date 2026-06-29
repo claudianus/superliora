@@ -509,6 +509,8 @@ async function evaluateWorkflowGate(summary) {
     'directCodingMode',
     'planModeFrictionAvoided',
     'workspaceChanged',
+    'multiFileWorkspaceChanged',
+    'verifierUnchanged',
     'diffContainsSentinel',
     'verificationCommand',
     'agentVerificationObserved',
@@ -534,6 +536,12 @@ async function evaluateWorkflowGate(summary) {
   }
   if (summary.workspace?.verificationExitCode !== 0) {
     failures.push(`workflow verification exit code is ${String(summary.workspace?.verificationExitCode)}`);
+  }
+  if (!Array.isArray(summary.workspace?.editFiles) || summary.workspace.editFiles.length < 2) {
+    failures.push('workflow edit file list must include at least two files');
+  }
+  if (summary.workspace?.editedFileCount < 2) {
+    failures.push(`workflow edited file count is ${String(summary.workspace?.editedFileCount)}`);
   }
   const failedTrajectorySteps = Array.isArray(summary.operatorTrajectory?.steps)
     ? summary.operatorTrajectory.steps.filter((step) => step.status !== 'PASS')
@@ -582,6 +590,9 @@ async function evaluateWorkflowGate(summary) {
         diffExitCode: summary.workspace?.diffExitCode,
         verificationExitCode: summary.workspace?.verificationExitCode,
         diffPath: summary.workspace?.diffPath,
+        editedFileCount: summary.workspace?.editedFileCount,
+        editFiles: summary.workspace?.editFiles,
+        fileState: summary.workspace?.fileState,
       },
     },
   };
@@ -713,7 +724,7 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
   if (workflowGate.status !== 'PASS') {
     addAction(
       'repair-real-tui-workflow-proof',
-      'The real TUI workflow gate did not prove direct coding, screen-state classification, agent-run verification, diff review, and verification together.',
+      'The real TUI workflow gate did not prove direct coding, multi-file workspace change, screen-state classification, agent-run verification, diff review, and verification together.',
       workflowGate.observed,
       'node scripts/qa-super-kimi-autonomous.mjs --phase tui-real-workflow --use-real-kimi-home --evidence-root .omo/evidence/<real-workflow-repair>',
     );
@@ -780,13 +791,14 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
 
   if (actions.length === 0) {
     addAction(
-      'advance-to-longer-real-vibe-coding-task',
-      'Current live TUI launch and real workflow evidence pass; the next loop should drive a longer multi-file coding task through the same screen-driven TUI gate.',
+      'advance-to-real-repository-vibe-coding-task',
+      'Current live TUI launch and multi-file real workflow evidence pass; the next loop should drive a bounded task against real repository source and tests through the same screen-driven TUI gate.',
       {
         currentScore: uxFriction?.score,
         deltaVerdict: tuiUxDeltaGate?.observed?.verdict ?? 'not-compared',
         workflowGate: workflowGate.status,
         agentVerificationEvidenceCount: workflowGate.observed?.agentVerificationEvidenceCount,
+        editedFileCount: workflowGate.observed?.workspace?.editedFileCount,
         requiredOperatorEvidence: [
           'startup screen observation',
           'direct coding mode activation',
@@ -796,6 +808,7 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
           'operator wait/intervention decisions',
           'no plan-mode false-starts',
           'agent-run verification observed in TUI',
+          'multi-file acceptance evidence',
           'workspace diff review',
           'verification command',
         ],
@@ -1405,6 +1418,7 @@ function renderMarkdown(report) {
       `- status: ${report.tuiWorkflowProof.status}`,
       `- mode: ${report.tuiWorkflowProof.kimiCodeHomeMode}`,
       `- agent verification evidence: ${String(report.tuiWorkflowProof.agentVerificationEvidenceCount)}`,
+      `- edited files: ${String(report.tuiWorkflowProof.workspace?.editedFileCount ?? 'unavailable')}`,
       `- adaptive observations: ${String(report.tuiWorkflowProof.adaptiveObservationCount ?? 'unavailable')}`,
       `- adaptive interventions: ${String(report.tuiWorkflowProof.adaptiveInterventionsAttempted ?? 'unavailable')}`,
       `- verification exit code: ${String(report.tuiWorkflowProof.workspace?.verificationExitCode ?? 'unavailable')}`,
