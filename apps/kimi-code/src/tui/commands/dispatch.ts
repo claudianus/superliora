@@ -28,7 +28,6 @@ import {
   handleModelCommand,
   handlePlanCommand,
   handleThemeCommand,
-  handleVibeCommand,
   handleYoloCommand,
   showExperimentsPanel,
   showModelPicker,
@@ -74,7 +73,6 @@ export {
   handleModelCommand,
   handlePlanCommand,
   handleThemeCommand,
-  handleVibeCommand,
   handleYoloCommand,
   showModelPicker,
   showExperimentsPanel,
@@ -329,9 +327,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'plan':
       await handlePlanCommand(host, args);
-      return;
-    case 'vibe':
-      await handleVibeCommand(host, args);
       return;
     case 'swarm':
       await handleSwarmCommand(host, args);

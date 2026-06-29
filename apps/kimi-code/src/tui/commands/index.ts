@@ -20,7 +20,6 @@ export {
   handleModelCommand,
   handlePlanCommand,
   handleThemeCommand,
-  handleVibeCommand,
   handleYoloCommand,
   showExperimentsPanel,
   showModelPicker,
