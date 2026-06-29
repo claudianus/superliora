@@ -86,7 +86,7 @@ function contextValues(options: StatusReportOptions): {
   };
 }
 
-const READINESS_CHECKS = 'inspect -> change -> verify -> summarize';
+const READINESS_CHECKS = 'read -> test -> change -> verify -> TUI check';
 
 function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   const model = (options.status?.model ?? options.model).trim();

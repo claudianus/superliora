@@ -63,7 +63,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('(3.0k / 12.0k)');
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
-    expect(output).toMatch(/Checks\s+inspect -> change -> verify -> summarize/);
+    expect(output).toMatch(/Checks\s+read -> test -> change -> verify -> TUI check/);
     expect(output).toMatch(/Next\s+Describe the task to start\./);
     expect(output).not.toContain('Advanced');
     expect(output).not.toContain('manual workflow commands');
@@ -99,7 +99,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('Warning      No active session');
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
-    expect(output).toMatch(/Checks\s+inspect -> change -> verify -> summarize/);
+    expect(output).toMatch(/Checks\s+read -> test -> change -> verify -> TUI check/);
     expect(output).toMatch(/Next\s+Run \/login or \/model before work\./);
   });
 
