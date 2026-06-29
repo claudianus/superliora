@@ -508,9 +508,12 @@ async function evaluateWorkflowGate(summary) {
     'promptSubmitted',
     'directCodingMode',
     'planModeFrictionAvoided',
+    'targetWorktreeToolingLinked',
     'workspaceChanged',
     'multiFileWorkspaceChanged',
     'verifierUnchanged',
+    'repositorySourceTestChanged',
+    'repositoryTargetedTest',
     'diffContainsSentinel',
     'verificationCommand',
     'agentVerificationObserved',
@@ -536,6 +539,9 @@ async function evaluateWorkflowGate(summary) {
   }
   if (summary.workspace?.verificationExitCode !== 0) {
     failures.push(`workflow verification exit code is ${String(summary.workspace?.verificationExitCode)}`);
+  }
+  if (summary.workspace?.targetedTestExitCode !== 0) {
+    failures.push(`workflow targeted test exit code is ${String(summary.workspace?.targetedTestExitCode)}`);
   }
   if (!Array.isArray(summary.workspace?.editFiles) || summary.workspace.editFiles.length < 2) {
     failures.push('workflow edit file list must include at least two files');
@@ -593,6 +599,8 @@ async function evaluateWorkflowGate(summary) {
         editedFileCount: summary.workspace?.editedFileCount,
         editFiles: summary.workspace?.editFiles,
         fileState: summary.workspace?.fileState,
+        targetedTestCommand: summary.workspace?.targetedTestCommand,
+        targetedTestExitCode: summary.workspace?.targetedTestExitCode,
       },
     },
   };
@@ -724,7 +732,7 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
   if (workflowGate.status !== 'PASS') {
     addAction(
       'repair-real-tui-workflow-proof',
-      'The real TUI workflow gate did not prove direct coding, multi-file workspace change, screen-state classification, agent-run verification, diff review, and verification together.',
+      'The real TUI workflow gate did not prove direct coding, real repository source/test change, screen-state classification, agent-run verification, diff review, and targeted test verification together.',
       workflowGate.observed,
       'node scripts/qa-super-kimi-autonomous.mjs --phase tui-real-workflow --use-real-kimi-home --evidence-root .omo/evidence/<real-workflow-repair>',
     );
@@ -791,14 +799,19 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
 
   if (actions.length === 0) {
     addAction(
-      'advance-to-real-repository-vibe-coding-task',
-      'Current live TUI launch and multi-file real workflow evidence pass; the next loop should drive a bounded task against real repository source and tests through the same screen-driven TUI gate.',
+      'add-dedicated-ultrawork-workflow-gate',
+      'Current direct live TUI launch and real repository source/test workflow evidence pass; the next loop must add a separate Ultrawork workflow gate for automatic activation, planning/interview behavior, and deadlock-free handoff.',
       {
         currentScore: uxFriction?.score,
         deltaVerdict: tuiUxDeltaGate?.observed?.verdict ?? 'not-compared',
         workflowGate: workflowGate.status,
+        directGateScope: 'ultrawork-disabled-real-repository-coding',
+        requiredNextGate: 'ultrawork-activation-planning-workflow',
+        knownRisk:
+          'Ultrawork plan/interview automation can deadlock when the workflow requests AskUserQuestion while autonomous TUI QA expects tool-driven progress.',
         agentVerificationEvidenceCount: workflowGate.observed?.agentVerificationEvidenceCount,
         editedFileCount: workflowGate.observed?.workspace?.editedFileCount,
+        targetedTestExitCode: workflowGate.observed?.workspace?.targetedTestExitCode,
         requiredOperatorEvidence: [
           'startup screen observation',
           'direct coding mode activation',
@@ -808,9 +821,9 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
           'operator wait/intervention decisions',
           'no plan-mode false-starts',
           'agent-run verification observed in TUI',
-          'multi-file acceptance evidence',
+          'real repository source/test evidence',
           'workspace diff review',
-          'verification command',
+          'targeted test command',
         ],
         currentTier: 'adaptive-vibecoder-operator-loop',
         passingScenarios: scenarios
@@ -1419,6 +1432,7 @@ function renderMarkdown(report) {
       `- mode: ${report.tuiWorkflowProof.kimiCodeHomeMode}`,
       `- agent verification evidence: ${String(report.tuiWorkflowProof.agentVerificationEvidenceCount)}`,
       `- edited files: ${String(report.tuiWorkflowProof.workspace?.editedFileCount ?? 'unavailable')}`,
+      `- targeted test exit code: ${String(report.tuiWorkflowProof.workspace?.targetedTestExitCode ?? 'unavailable')}`,
       `- adaptive observations: ${String(report.tuiWorkflowProof.adaptiveObservationCount ?? 'unavailable')}`,
       `- adaptive interventions: ${String(report.tuiWorkflowProof.adaptiveInterventionsAttempted ?? 'unavailable')}`,
       `- verification exit code: ${String(report.tuiWorkflowProof.workspace?.verificationExitCode ?? 'unavailable')}`,

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 
-import { appendFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { createWriteStream, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -104,22 +104,17 @@ const TUI_OUROBOROS_PASS_THRESHOLD = 0.85;
 const TUI_PROMPT_ENTRY_TEXT = 'visible qa prompt entry only';
 const TUI_VIBE_MODE_TEXT = 'Vibe mode: ON';
 const TUI_INPUT_STEP_DELAY_MS = 150;
-const TUI_REAL_WORKFLOW_FIXTURE_DIR = 'super-kimi-real-workflow';
-const TUI_REAL_WORKFLOW_FIXTURE = path.posix.join(TUI_REAL_WORKFLOW_FIXTURE_DIR, 'README.md');
-const TUI_REAL_WORKFLOW_STATUS_FIXTURE = path.posix.join(
-  TUI_REAL_WORKFLOW_FIXTURE_DIR,
-  'status.json',
-);
-const TUI_REAL_WORKFLOW_VERIFIER = path.posix.join(TUI_REAL_WORKFLOW_FIXTURE_DIR, 'check.mjs');
+const TUI_REAL_WORKFLOW_SOURCE_FILE = 'apps/kimi-code/src/tui/commands/ultrawork-contract.ts';
+const TUI_REAL_WORKFLOW_TEST_FILE = 'apps/kimi-code/test/tui/commands/ultrawork.test.ts';
+const TUI_REAL_WORKFLOW_VERIFIER_DIR = '.super-kimi-real-workflow';
+const TUI_REAL_WORKFLOW_VERIFIER = path.posix.join(TUI_REAL_WORKFLOW_VERIFIER_DIR, 'check.mjs');
+const TUI_REAL_WORKFLOW_GUIDANCE =
+  'real repository source/test workflow evidence';
 const TUI_REAL_WORKFLOW_EDIT_FILES = Object.freeze([
-  TUI_REAL_WORKFLOW_FIXTURE,
-  TUI_REAL_WORKFLOW_STATUS_FIXTURE,
+  TUI_REAL_WORKFLOW_SOURCE_FILE,
+  TUI_REAL_WORKFLOW_TEST_FILE,
 ]);
-const TUI_REAL_WORKFLOW_TRACKED_FILES = Object.freeze([
-  ...TUI_REAL_WORKFLOW_EDIT_FILES,
-  TUI_REAL_WORKFLOW_VERIFIER,
-]);
-const TUI_REAL_WORKFLOW_SENTINEL = 'REAL_WORKFLOW_DONE';
+const TUI_REAL_WORKFLOW_SENTINEL = 'REAL_REPO_WORKFLOW_DONE';
 const TUI_REAL_WORKFLOW_TIMEOUT_MS = 120_000;
 const REQUIRED_TUI_CAPTURE_SCENARIOS = TUI_CAPTURE_SCENARIOS.map((scenario) => scenario.name);
 const MIN_SCREENSHOT_WIDTH = 80;
@@ -1091,10 +1086,11 @@ async function findLatestSotaWorkflowSummary(context) {
       source: 'auto-latest-pass',
       path: candidate.path,
       reason:
-        'Selected the latest passing live TUI real workflow summary with multi-file and agent-run verification evidence.',
+        'Selected the latest passing live TUI real workflow summary with real repository source/test and agent-run verification evidence.',
       summaryStatus: summary.status,
       agentVerificationStatus: summary.validations.agentVerificationObserved.status,
       multiFileStatus: summary.validations.multiFileWorkspaceChanged.status,
+      repositoryTargetedTestStatus: summary.validations.repositoryTargetedTest.status,
       editedFileCount: summary.workspace.editedFileCount,
       captures: summary.captures.length,
       inputTraces: summary.inputTraces.length,
@@ -1172,8 +1168,11 @@ function isUsableSotaWorkflowSummary(summary) {
   const requiredValidations = [
     'directCodingMode',
     'planModeFrictionAvoided',
+    'targetWorktreeToolingLinked',
     'multiFileWorkspaceChanged',
     'verifierUnchanged',
+    'repositorySourceTestChanged',
+    'repositoryTargetedTest',
     'agentVerificationObserved',
     'adaptiveOperatorLoop',
     'operatorTrajectory',
@@ -1188,6 +1187,7 @@ function isUsableSotaWorkflowSummary(summary) {
   if (!Array.isArray(summary.captures) || !Array.isArray(summary.inputTraces)) return false;
   if (!Array.isArray(summary.workspace?.editFiles) || summary.workspace.editFiles.length < 2) return false;
   if (summary.workspace?.editedFileCount < 2) return false;
+  if (summary.workspace?.targetedTestExitCode !== 0) return false;
   return summary.workspace?.diffExitCode === 0 && summary.workspace?.verificationExitCode === 0;
 }
 
@@ -3514,6 +3514,42 @@ async function createDisposableGitWorktree(context) {
   }
 }
 
+async function linkDisposableWorktreeTooling(context) {
+  const links = [
+    ['root-node-modules', path.join(context.sourceCheckout, 'node_modules'), path.join(context.targetWorktree, 'node_modules')],
+    [
+      'kimi-code-node-modules',
+      path.join(context.sourceCheckout, 'apps', 'kimi-code', 'node_modules'),
+      path.join(context.targetWorktree, 'apps', 'kimi-code', 'node_modules'),
+    ],
+  ];
+  const results = [];
+  for (const [name, sourcePath, targetPath] of links) {
+    const sourceStatus = await fileOrDirectoryStatus(sourcePath);
+    if (!sourceStatus.exists) {
+      results.push({ name, sourcePath, targetPath, status: 'MISSING_SOURCE' });
+      continue;
+    }
+    const targetStatus = await fileOrDirectoryStatus(targetPath);
+    if (targetStatus.exists) {
+      results.push({ name, sourcePath, targetPath, status: 'ALREADY_PRESENT' });
+      continue;
+    }
+    await symlink(sourcePath, targetPath, 'dir');
+    results.push({ name, sourcePath, targetPath, status: 'LINKED' });
+  }
+  return results;
+}
+
+async function fileOrDirectoryStatus(filePath) {
+  try {
+    const info = await stat(filePath);
+    return { exists: true, isDirectory: info.isDirectory(), bytes: info.size };
+  } catch {
+    return { exists: false, isDirectory: false, bytes: 0 };
+  }
+}
+
 async function readKimiCodePackageVersion(sourceCheckout) {
   const packageJsonPath = path.join(sourceCheckout, 'apps', 'kimi-code', 'package.json');
   const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
@@ -4011,11 +4047,12 @@ async function runTuiRealWorkflowPhase(context) {
     proofCommands: [],
   };
   const workflowPaths = {
-    readmePath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_FIXTURE),
-    statusPath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_STATUS_FIXTURE),
+    sourcePath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_SOURCE_FILE),
+    testPath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_TEST_FILE),
     verifierPath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_VERIFIER),
+    targetedTestCommand: buildTuiRealWorkflowTargetedTestCommand(context),
   };
-  const fixturePath = workflowPaths.readmePath;
+  const fixturePath = workflowPaths.sourcePath;
   const workflowPrompt = buildTuiRealWorkflowPrompt(workflowPaths);
   const summary = {
     schemaVersion: 1,
@@ -4027,15 +4064,22 @@ async function runTuiRealWorkflowPhase(context) {
     sourceCwd: context.sourceCheckout,
     targetWorkspace: context.targetWorktree,
     targetWorkspaceKind: 'disposable-git-worktree',
+    gateScope: {
+      kind: 'direct-tui-coding',
+      ultraworkAutomation: 'explicitly-disabled-for-this-gate',
+      reason:
+        'This gate proves screen-driven direct coding on real repository source/tests; Ultrawork activation and planning must be covered by a separate workflow gate.',
+    },
     kimiCodeHome: context.plannedKimiCodeHome,
     kimiCodeHomeMode: context.kimiCodeHomeMode,
     tmuxSession,
     terminalTitle: context.titlePrefix,
     fixture: {
-      relativePath: TUI_REAL_WORKFLOW_FIXTURE,
+      relativePath: TUI_REAL_WORKFLOW_SOURCE_FILE,
       expectedSentinel: TUI_REAL_WORKFLOW_SENTINEL,
       editFiles: TUI_REAL_WORKFLOW_EDIT_FILES,
       verificationFile: TUI_REAL_WORKFLOW_VERIFIER,
+      targetedTestFile: TUI_REAL_WORKFLOW_TEST_FILE,
       minimumEditedFiles: TUI_REAL_WORKFLOW_EDIT_FILES.length,
     },
     prompt: workflowPrompt,
@@ -4099,6 +4143,7 @@ async function runTuiRealWorkflowPhase(context) {
     }
     await createDisposableGitWorktree(context);
     targetWorktreeCreated = true;
+    summary.toolingLinks = await linkDisposableWorktreeTooling(context);
     await writeTuiRealWorkflowFixtures(context);
     await writeJson(path.join(workflowDir, 'fixture-before.json'), {
       files: await readTuiRealWorkflowFileState(workflowPaths),
@@ -4106,7 +4151,7 @@ async function runTuiRealWorkflowPhase(context) {
     const intentToAddRecord = await runTuiCommand(context, {
       name: 'real-workflow-fixture-intent-to-add',
       command: 'git',
-      args: ['add', '-N', ...TUI_REAL_WORKFLOW_TRACKED_FILES],
+      args: ['add', '-N', ...TUI_REAL_WORKFLOW_EDIT_FILES],
       cwd: context.targetWorktree,
       timeoutMs: 10_000,
       logName: 'tui-real-workflow',
@@ -4201,7 +4246,7 @@ async function runTuiRealWorkflowPhase(context) {
     const diffRecord = await runTuiCommand(context, {
       name: 'real-workflow-git-diff',
       command: 'git',
-      args: ['diff', '--', TUI_REAL_WORKFLOW_FIXTURE_DIR],
+      args: ['diff', '--', ...TUI_REAL_WORKFLOW_EDIT_FILES],
       cwd: context.targetWorktree,
       timeoutMs: 10_000,
       logName: 'tui-real-workflow',
@@ -4221,10 +4266,26 @@ async function runTuiRealWorkflowPhase(context) {
     commandRecords.push(verificationRecord);
     cleanupOverrides.proofCommands.push(commandProofFromRecord(verificationRecord));
 
+    const targetedTestRecord = await runTuiCommand(context, {
+      name: 'real-workflow-targeted-test',
+      command: 'corepack',
+      args: buildTuiRealWorkflowTargetedTestArgs(context),
+      cwd: context.targetWorktree,
+      timeoutMs: 60_000,
+      logName: 'tui-real-workflow',
+    });
+    commandRecords.push(targetedTestRecord);
+    cleanupOverrides.proofCommands.push(commandProofFromRecord(targetedTestRecord));
+
     const fileState = await readTuiRealWorkflowFileState(workflowPaths);
     summary.validations.promptSubmitted = passFail(
       promptTrace.status === 'PASS',
       promptTrace.reason,
+    );
+    summary.validations.targetWorktreeToolingLinked = passFail(
+      Array.isArray(summary.toolingLinks) &&
+        summary.toolingLinks.every((link) => link.status === 'LINKED' || link.status === 'ALREADY_PRESENT'),
+      'disposable target worktree must resolve installed repository test tooling.',
     );
     summary.validations.directCodingMode = await validateTuiRealWorkflowDirectCodingMode(
       summary.captures,
@@ -4235,26 +4296,34 @@ async function runTuiRealWorkflowPhase(context) {
       waitResult,
     );
     summary.validations.workspaceChanged = passFail(
-      fileState.readme.complete,
-      'README fixture must contain the requested sentinel and no longer contain status=TODO_REAL_WORKFLOW.',
+      fileState.source.complete,
+      'Ultrawork contract source must contain the requested real-repository guidance.',
     );
     summary.validations.multiFileWorkspaceChanged = passFail(
-      fileState.readme.complete && fileState.statusJson.complete,
-      'README and status.json must both be completed by the real TUI workflow.',
+      fileState.source.complete && fileState.test.complete,
+      'Ultrawork contract source and its real test must both be completed by the real TUI workflow.',
     );
     summary.validations.verifierUnchanged = passFail(
       fileState.verifier.unchanged,
       'The harness-owned check.mjs verifier must not be edited by the agent.',
     );
+    summary.validations.repositorySourceTestChanged = passFail(
+      fileState.source.complete && fileState.test.complete,
+      'The real repository source file and its real test file must both contain the requested evidence phrase.',
+    );
     summary.validations.diffContainsSentinel = passFail(
       diffRecord.exitCode === 0 &&
-        diffRecord.stdout.includes(TUI_REAL_WORKFLOW_SENTINEL) &&
+        diffRecord.stdout.includes(TUI_REAL_WORKFLOW_GUIDANCE) &&
         TUI_REAL_WORKFLOW_EDIT_FILES.every((file) => diffRecord.stdout.includes(file)),
-      'git diff must show the real workflow sentinel across both edited acceptance files.',
+      'git diff must show the real workflow guidance across both edited repository files.',
     );
     summary.validations.verificationCommand = passFail(
-      verificationRecord.exitCode === 0,
-      'verification command must pass against the edited fixture.',
+      verificationRecord.exitCode === 0 && targetedTestRecord.exitCode === 0,
+      'harness verifier and targeted repository test must pass against the edited source/test files.',
+    );
+    summary.validations.repositoryTargetedTest = passFail(
+      targetedTestRecord.exitCode === 0,
+      'targeted Ultrawork command test must pass against the disposable target worktree.',
     );
     summary.validations.agentVerificationObserved = validateTuiRealWorkflowAgentVerification(
       waitResult,
@@ -4271,20 +4340,22 @@ async function runTuiRealWorkflowPhase(context) {
     );
     summary.workspace = {
       fixturePath,
-      statusFixturePath: workflowPaths.statusPath,
+      testFixturePath: workflowPaths.testPath,
       verifierPath: workflowPaths.verifierPath,
       fixtureBytes:
-        typeof fileState.readme.text === 'string' ? Buffer.byteLength(fileState.readme.text) : 0,
+        typeof fileState.source.text === 'string' ? Buffer.byteLength(fileState.source.text) : 0,
       editFiles: TUI_REAL_WORKFLOW_EDIT_FILES,
       editedFileCount: TUI_REAL_WORKFLOW_EDIT_FILES.length,
       fileState: {
-        readmeComplete: fileState.readme.complete,
-        statusJsonComplete: fileState.statusJson.complete,
+        sourceComplete: fileState.source.complete,
+        testComplete: fileState.test.complete,
         verifierUnchanged: fileState.verifier.unchanged,
       },
       diffPath: path.join(workflowDir, 'git-diff.patch'),
       diffExitCode: diffRecord.exitCode,
       verificationExitCode: verificationRecord.exitCode,
+      targetedTestCommand: workflowPaths.targetedTestCommand,
+      targetedTestExitCode: targetedTestRecord.exitCode,
     };
     summary.operatorTrajectory = buildTuiRealWorkflowOperatorTrajectory(summary);
     summary.validations.operatorTrajectory = validateTuiRealWorkflowOperatorTrajectory(summary);
@@ -4295,7 +4366,7 @@ async function runTuiRealWorkflowPhase(context) {
     if (failedValidation === undefined) {
       summary.status = 'PASS';
       summary.reason =
-        'Real TUI vibe-coding workflow completed a multi-file coding prompt, observed agent-run verification, produced workspace diff evidence, and passed verification.';
+        'Real TUI vibe-coding workflow completed a real repository source/test prompt, observed agent-run verification, produced workspace diff evidence, and passed targeted tests.';
     } else {
       summary.status = waitResult.status === 'BLOCKED' ? 'BLOCKED' : 'FAIL';
       summary.reason =
@@ -4444,7 +4515,7 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, workflowPaths) {
     });
     const normalized = normalizeScreenText(screen.stdout);
     const fileState = await readTuiRealWorkflowFileState(workflowPaths);
-    const workspaceComplete = fileState.readme.complete && fileState.statusJson.complete;
+    const workspaceComplete = fileState.source.complete && fileState.test.complete;
     const agentVerification = inspectRealWorkflowAgentVerification(normalized);
     if (agentVerification.status === 'PASS' && agentVerificationEvidence.length === 0) {
       agentVerificationEvidence.push({
@@ -4463,8 +4534,8 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, workflowPaths) {
       decision,
       workspaceComplete,
       completedFiles: {
-        readme: fileState.readme.complete,
-        statusJson: fileState.statusJson.complete,
+        source: fileState.source.complete,
+        test: fileState.test.complete,
       },
       agentVerificationStatus: agentVerification.status,
       sample: normalized.slice(0, 240),
@@ -4473,7 +4544,7 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, workflowPaths) {
       return {
         status: 'PASS',
         reason:
-          'all multi-file fixtures were completed and the TUI showed the agent-run verification command before timeout.',
+          'real repository source/test files were completed and the TUI showed verification commands before timeout.',
         durationMs: Date.now() - startedAt,
         observations,
         interventions,
@@ -4519,7 +4590,7 @@ async function waitForRealWorkflowOutcome(context, tmuxSession, workflowPaths) {
   }
   return {
     status: 'FAIL',
-    reason: `timed out after ${String(TUI_REAL_WORKFLOW_TIMEOUT_MS)}ms waiting for multi-file ${TUI_REAL_WORKFLOW_SENTINEL} completion and in-TUI agent verification.`,
+    reason: `timed out after ${String(TUI_REAL_WORKFLOW_TIMEOUT_MS)}ms waiting for real repository source/test completion and in-TUI agent verification.`,
     durationMs: Date.now() - startedAt,
     observations,
     interventions,
@@ -4617,11 +4688,12 @@ function buildRealWorkflowOperatorLoopSummary(observations, interventions) {
 function inspectRealWorkflowAgentVerification(output) {
   const hasVerificationCommand =
     matchesAny(output, [/Used Bash/i, /\bBash\b/i]) &&
-    matchesAny(output, [/node -e/i, /check\.mjs/i, /REAL_WORKFLOW_DONE/i]);
+    matchesAny(output, [/node -e/i, /check\.mjs/i, /vitest run/i, /REAL_REPO_WORKFLOW_DONE/i]);
   const succeeded = matchesAny(output, [
     /Command executed successfully/i,
     /exited with code 0/i,
-    /REAL_WORKFLOW_DONE multi-file workflow verified/i,
+    /REAL_REPO_WORKFLOW_DONE source and test verified/i,
+    /Test Files\s+1 passed/i,
   ]);
   return {
     status: hasVerificationCommand && succeeded ? 'PASS' : 'FAIL',
@@ -4694,7 +4766,14 @@ async function validateTuiRealWorkflowDirectCodingMode(captures, vibeModeTrace) 
 }
 
 async function validateTuiRealWorkflowPlanModeFriction(captures, waitResult) {
-  const frictionPatterns = [/Plan mode is active/i, /No plan file found/i, /Current plan/i];
+  const frictionPatterns = [
+    /Plan mode is active/i,
+    /No plan file found/i,
+    /Current plan/i,
+    /Ultra Plan mode/i,
+    /Interview phase/i,
+    /Only AskUserQuestion/i,
+  ];
   const findings = [];
   for (const capture of captures) {
     const raw = typeof capture.path === 'string' ? await readFileIfExists(capture.path) : undefined;
@@ -4783,7 +4862,7 @@ function buildTuiRealWorkflowOperatorTrajectory(summary) {
       evidence: 'validations.planModeFrictionAvoided',
     },
     {
-      name: 'complete-multi-file-acceptance-task',
+      name: 'complete-real-repository-source-test-task',
       status: summary.validations?.multiFileWorkspaceChanged?.status === 'PASS' ? 'PASS' : 'FAIL',
       evidence: 'workflow/fixture-after.json',
     },
@@ -4801,6 +4880,11 @@ function buildTuiRealWorkflowOperatorTrajectory(summary) {
       name: 'run-verification-command',
       status: summary.workspace?.verificationExitCode === 0 ? 'PASS' : 'FAIL',
       evidence: 'commands[real-workflow-verification]',
+    },
+    {
+      name: 'run-targeted-repository-test',
+      status: summary.validations?.repositoryTargetedTest?.status === 'PASS' ? 'PASS' : 'FAIL',
+      evidence: 'commands[real-workflow-targeted-test]',
     },
     {
       name: 'observe-agent-run-verification-in-tui',
@@ -4842,66 +4926,68 @@ function targetWorkflowPath(targetWorktree, relativePath) {
 }
 
 async function writeTuiRealWorkflowFixtures(context) {
-  const fixtureDir = targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_FIXTURE_DIR);
-  await mkdir(fixtureDir, { recursive: true });
-  const readmePath = targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_FIXTURE);
-  const statusPath = targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_STATUS_FIXTURE);
+  const verifierDir = targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_VERIFIER_DIR);
+  await mkdir(verifierDir, { recursive: true });
   const verifierPath = targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_VERIFIER);
-  await writeFile(
-    readmePath,
-    [
-      '# Super Kimi real TUI workflow fixture',
-      '',
-      'A real vibe-coding run must update both acceptance files below.',
-      'status=TODO_REAL_WORKFLOW',
-      '',
-    ].join('\n'),
-    'utf8',
-  );
-  await writeJson(statusPath, {
-    status: 'TODO_REAL_WORKFLOW',
-    verified: false,
-    note: 'The agent must update this JSON file as part of the same TUI workflow.',
-  });
   await writeFile(verifierPath, buildTuiRealWorkflowVerifierSource(), 'utf8');
-  return { readmePath, statusPath, verifierPath };
+  return {
+    sourcePath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_SOURCE_FILE),
+    testPath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_TEST_FILE),
+    verifierPath,
+  };
 }
 
 function buildTuiRealWorkflowVerifierSource() {
   return [
     "import fs from 'fs';",
-    `const readme = fs.readFileSync(${JSON.stringify(TUI_REAL_WORKFLOW_FIXTURE)}, 'utf8');`,
-    `const status = JSON.parse(fs.readFileSync(${JSON.stringify(TUI_REAL_WORKFLOW_STATUS_FIXTURE)}, 'utf8'));`,
-    `if (!readme.includes(${JSON.stringify(`status=${TUI_REAL_WORKFLOW_SENTINEL}`)})) throw new Error('README status was not completed');`,
-    `if (status.status !== ${JSON.stringify(TUI_REAL_WORKFLOW_SENTINEL)}) throw new Error('status.json status was not completed');`,
-    "if (status.verified !== true) throw new Error('status.json verified must be true');",
-    `console.log(${JSON.stringify(`${TUI_REAL_WORKFLOW_SENTINEL} multi-file workflow verified`)});`,
+    `const source = fs.readFileSync(${JSON.stringify(TUI_REAL_WORKFLOW_SOURCE_FILE)}, 'utf8');`,
+    `const test = fs.readFileSync(${JSON.stringify(TUI_REAL_WORKFLOW_TEST_FILE)}, 'utf8');`,
+    `if (!source.includes(${JSON.stringify(TUI_REAL_WORKFLOW_GUIDANCE)})) throw new Error('source guidance was not completed');`,
+    `if (!test.includes(${JSON.stringify(TUI_REAL_WORKFLOW_GUIDANCE)})) throw new Error('test expectation was not completed');`,
+    `console.log(${JSON.stringify(`${TUI_REAL_WORKFLOW_SENTINEL} source and test verified`)});`,
     '',
   ].join('\n');
 }
 
+function buildTuiRealWorkflowTargetedTestArgs(context) {
+  const appRelativeTestFile = TUI_REAL_WORKFLOW_TEST_FILE.replace(/^apps\/kimi-code\//u, '');
+  return [
+    'pnpm',
+    '-C',
+    targetWorkflowPath(context.targetWorktree, 'apps/kimi-code'),
+    'exec',
+    'vitest',
+    'run',
+    '--config',
+    'vitest.config.ts',
+    appRelativeTestFile,
+  ];
+}
+
+function buildTuiRealWorkflowTargetedTestCommand(context) {
+  return ['corepack', ...buildTuiRealWorkflowTargetedTestArgs(context)]
+    .map((part) => shellQuote(part))
+    .join(' ');
+}
+
 async function readTuiRealWorkflowFileState(paths) {
-  const readmeText = await readFileIfExists(paths.readmePath);
-  const statusText = await readFileIfExists(paths.statusPath);
+  const sourceText = await readFileIfExists(paths.sourcePath);
+  const testText = await readFileIfExists(paths.testPath);
   const verifierText = await readFileIfExists(paths.verifierPath);
-  const statusJson = typeof statusText === 'string' ? tryParseJson(statusText) : undefined;
   return {
-    readme: {
-      path: paths.readmePath,
-      exists: typeof readmeText === 'string',
-      text: readmeText,
+    source: {
+      path: paths.sourcePath,
+      exists: typeof sourceText === 'string',
+      text: sourceText,
       complete:
-        typeof readmeText === 'string' &&
-        readmeText.includes(`status=${TUI_REAL_WORKFLOW_SENTINEL}`) &&
-        !readmeText.includes('status=TODO_REAL_WORKFLOW'),
+        typeof sourceText === 'string' && sourceText.includes(TUI_REAL_WORKFLOW_GUIDANCE),
     },
-    statusJson: {
-      path: paths.statusPath,
-      exists: typeof statusText === 'string',
-      text: statusText,
-      parsed: statusJson,
+    test: {
+      path: paths.testPath,
+      exists: typeof testText === 'string',
+      text: testText,
       complete:
-        statusJson?.status === TUI_REAL_WORKFLOW_SENTINEL && statusJson?.verified === true,
+        typeof testText === 'string' && testText.includes(TUI_REAL_WORKFLOW_GUIDANCE),
     },
     verifier: {
       path: paths.verifierPath,
@@ -4913,11 +4999,14 @@ async function readTuiRealWorkflowFileState(paths) {
 
 function buildTuiRealWorkflowPrompt(paths) {
   return [
-    'Please complete this real multi-file TUI workflow task.',
-    `Edit ${paths.readmePath}: replace status=TODO_REAL_WORKFLOW with status=${TUI_REAL_WORKFLOW_SENTINEL}.`,
-    `Edit ${paths.statusPath}: set status to ${TUI_REAL_WORKFLOW_SENTINEL} and verified to true.`,
+    'Do not use ultrawork automation, ultragoal, plan mode, or interview mode; this is a direct coding QA task.',
+    'Please complete this real repository source-and-test TUI workflow task.',
+    `Edit ${paths.sourcePath}: add one concise Kimi Agent Bench guidance bullet containing this exact phrase: ${TUI_REAL_WORKFLOW_GUIDANCE}.`,
+    `Edit ${paths.testPath}: add an assertion that buildUltraworkPrompt output contains this exact phrase: ${TUI_REAL_WORKFLOW_GUIDANCE}.`,
     `Do not edit ${paths.verifierPath}; it is the harness-owned verifier.`,
-    `Then run node ${TUI_REAL_WORKFLOW_VERIFIER} and stop after it passes.`,
+    `Then run node ${TUI_REAL_WORKFLOW_VERIFIER}.`,
+    `Then run ${paths.targetedTestCommand}.`,
+    'Stop after both verification commands pass.',
   ].join(' ');
 }
 
