@@ -99,6 +99,16 @@ describe('resolveSlashCommandInput', () => {
       name: 'ultrawork',
       args: 'Ship feature X',
     });
+    expect(resolve('/vibe Fix the test')).toMatchObject({
+      kind: 'builtin',
+      name: 'vibe',
+      args: 'Fix the test',
+    });
+    expect(resolve('/code Fix the test')).toMatchObject({
+      kind: 'builtin',
+      name: 'vibe',
+      args: 'Fix the test',
+    });
   });
 
   it('blocks idle-only built-ins while streaming', () => {
@@ -155,6 +165,11 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/ultrawork Ship feature X', { isStreaming: true })).toEqual({
       kind: 'blocked',
       commandName: 'ultrawork',
+      reason: 'streaming',
+    });
+    expect(resolve('/vibe Fix the test', { isStreaming: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'vibe',
       reason: 'streaming',
     });
     expect(resolve('/ultragoal Ship feature X', { isStreaming: true })).toEqual({

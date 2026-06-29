@@ -192,6 +192,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: (args) => (args.trim().toLowerCase() === 'clear' ? 'idle-only' : 'always'),
   },
   {
+    name: 'vibe',
+    aliases: ['code'],
+    description: 'Turn off plan mode and run a direct coding task',
+    priority: 100,
+    argumentHint: '<task>',
+    availability: 'idle-only',
+  },
+  {
     name: 'swarm',
     aliases: [],
     description: 'Toggle swarm mode or run one task in swarm mode',

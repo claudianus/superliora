@@ -38,6 +38,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('bench')?.name).toBe('bench');
     expect(findBuiltInSlashCommand('preflight')?.name).toBe('preflight');
     expect(findBuiltInSlashCommand('pf')?.name).toBe('preflight');
+    expect(findBuiltInSlashCommand('vibe')?.name).toBe('vibe');
+    expect(findBuiltInSlashCommand('code')?.name).toBe('vibe');
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
     expect(findBuiltInSlashCommand('usage')?.aliases).not.toContain('status');
@@ -60,6 +62,13 @@ describe('built-in slash command registry', () => {
     expect(resolveSlashCommandAvailability(swarm!, 'on')).toBe('idle-only');
     expect(resolveSlashCommandAvailability(swarm!, 'off')).toBe('idle-only');
     expect(resolveSlashCommandAvailability(swarm!, 'Ship feature X')).toBe('idle-only');
+  });
+
+  it('keeps vibe tasks idle-only', () => {
+    const vibe = findBuiltInSlashCommand('vibe');
+    expect(vibe).toBeDefined();
+    expect(resolveSlashCommandAvailability(vibe!, '')).toBe('idle-only');
+    expect(resolveSlashCommandAvailability(vibe!, 'Fix the flaky test')).toBe('idle-only');
   });
 
   it('offers swarm subcommand argument completions', () => {
@@ -182,6 +191,7 @@ describe('built-in slash command registry', () => {
         'undo',
         'usage',
         'version',
+        'vibe',
         'yolo',
       ]),
     );
