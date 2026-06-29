@@ -166,6 +166,8 @@ const NODE_PTY_REPAIR_TIMEOUT_MS = 30_000;
 const AUTONOMOUS_CANARY_TOKEN = 'AUTONOMOUS_QA_CANARY';
 const AUTONOMOUS_CANARY_FILE = 'qa-canary.txt';
 const AUTONOMOUS_COMMAND_TIMEOUT_MS = 10 * 60_000;
+const EXPECTED_KIMI_CODE_DEFAULT_MODEL = 'kimi-code/kimi-for-coding';
+const EXPECTED_KIMI_CODE_MODEL_LABEL = 'K2.7 Code';
 const AGGREGATE_COMMAND_LOGS = Object.freeze([
   'static.jsonl',
   'direct-cli.jsonl',
@@ -3558,7 +3560,10 @@ async function detectAutonomousCredentials(env, context) {
       simulated: true,
       providerCallStarted: false,
       required: context.options.useRealKimiHome
-        ? ['real KIMI_CODE_HOME /login token', 'managed Kimi default model']
+        ? [
+            'real KIMI_CODE_HOME /login token',
+            `${EXPECTED_KIMI_CODE_MODEL_LABEL} default model`,
+          ]
         : ['KIMI_MODEL_NAME', 'KIMI_MODEL_API_KEY'],
       present: {},
       optionalPresent: {},
@@ -3630,11 +3635,14 @@ async function detectRealKimiHomeCredentials(context) {
   const matchingTokenReady = credentialFiles.some(
     (file) => file.expectedForKimiLogin === true && file.status === 'valid',
   );
+  const defaultModelPresent = typeof defaultModel === 'string' && defaultModel.length > 0;
+  const kimiCodingDefaultModel = defaultModel === EXPECTED_KIMI_CODE_DEFAULT_MODEL;
   const present = {
     configToml: configExists,
     managedKimiProvider: hasManagedKimiProvider,
     managedKimiOAuth: hasOauth,
-    defaultModel: typeof defaultModel === 'string' && defaultModel.length > 0,
+    defaultModel: defaultModelPresent,
+    kimiCodingDefaultModel,
     matchingOAuthToken: matchingTokenReady,
   };
   const missing = [];
@@ -3642,6 +3650,11 @@ async function detectRealKimiHomeCredentials(context) {
   if (!present.managedKimiProvider) missing.push('managed:kimi-code provider');
   if (!present.managedKimiOAuth) missing.push('managed Kimi OAuth config');
   if (!present.defaultModel) missing.push('default_model');
+  if (present.defaultModel && !present.kimiCodingDefaultModel) {
+    missing.push(
+      `default_model ${EXPECTED_KIMI_CODE_DEFAULT_MODEL} (${EXPECTED_KIMI_CODE_MODEL_LABEL})`,
+    );
+  }
   if (!present.matchingOAuthToken) {
     missing.push(
       `credentials/${Array.from(candidateTokenNames).toSorted().join('|')}.json valid OAuth token`,
@@ -3655,7 +3668,7 @@ async function detectRealKimiHomeCredentials(context) {
       'real KIMI_CODE_HOME config.toml',
       'managed:kimi-code provider',
       'managed Kimi OAuth token',
-      'default_model selected by /login or /model',
+      `default_model ${EXPECTED_KIMI_CODE_DEFAULT_MODEL} (${EXPECTED_KIMI_CODE_MODEL_LABEL})`,
     ],
     present,
     optionalPresent: {},
@@ -3664,8 +3677,10 @@ async function detectRealKimiHomeCredentials(context) {
     configPath,
     credentialsDir,
     defaultModel,
+    expectedDefaultModel: EXPECTED_KIMI_CODE_DEFAULT_MODEL,
+    expectedDefaultModelLabel: EXPECTED_KIMI_CODE_MODEL_LABEL,
     expectedModelFamily:
-      'Kimi /login provisions the managed coding model; use /model to change the selected Kimi coding model.',
+      `Kimi /login should provision ${EXPECTED_KIMI_CODE_MODEL_LABEL}; use /model to select ${EXPECTED_KIMI_CODE_MODEL_LABEL} before autonomous QA.`,
     candidateTokenNames: Array.from(candidateTokenNames).toSorted(),
     credentialFiles,
     redaction:
@@ -3677,13 +3692,13 @@ async function detectRealKimiHomeCredentials(context) {
       status: 'BLOCKED',
       reason: `BLOCKED: real KIMI_CODE_HOME is not ready for /login autonomous canary: ${missing.join(', ')}.`,
       nextAction:
-        'Open the TUI, run /login, confirm /model selects the Kimi coding model, then rerun this phase with --use-real-kimi-home.',
+        `Open the TUI, run /login, confirm /model selects ${EXPECTED_KIMI_CODE_MODEL_LABEL}, then rerun this phase with --use-real-kimi-home.`,
     };
   }
   return {
     ...base,
     status: 'PASS',
-    reason: `Real KIMI_CODE_HOME has a managed Kimi /login token and default model ${defaultModel}.`,
+    reason: `Real KIMI_CODE_HOME has a managed Kimi /login token and ${EXPECTED_KIMI_CODE_MODEL_LABEL} default model ${defaultModel}.`,
   };
 }
 
