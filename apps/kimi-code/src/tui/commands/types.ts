@@ -2,6 +2,7 @@ import type { AutocompleteItem, SlashCommand } from '@earendil-works/pi-tui';
 import type { FlagId } from '@moonshot-ai/kimi-code-sdk';
 
 export type SlashCommandAvailability = 'always' | 'idle-only';
+export type SlashCommandVisibility = 'primary' | 'diagnostic';
 
 export interface KimiSlashCommand<Name extends string = string> extends SlashCommand {
   readonly name: Name;
@@ -9,6 +10,7 @@ export interface KimiSlashCommand<Name extends string = string> extends SlashCom
   readonly description: string;
   readonly priority?: number;
   readonly availability?: SlashCommandAvailability | ((args: string) => SlashCommandAvailability);
+  readonly visibility?: SlashCommandVisibility;
   /** When set, the command is hidden from the palette and blocked unless this flag is enabled. */
   readonly experimentalFlag?: FlagId;
   /**

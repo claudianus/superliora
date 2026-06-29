@@ -38,8 +38,10 @@ import {
   buildSkillSlashCommands,
   isExperimentalFlagEnabled,
   setExperimentalFeatures,
+  slashCommandsForHelp,
   sortSlashCommands,
   type KimiSlashCommand,
+  type SlashCommandHelpMode,
   type SkillListSession,
 } from './commands';
 import * as slashCommands from './commands/dispatch';
@@ -361,11 +363,12 @@ export class KimiTUI {
   // Autocomplete & Skill Commands
   // =========================================================================
 
-  private getSlashCommands(): readonly KimiSlashCommand[] {
+  private getSlashCommands(mode: SlashCommandHelpMode = 'primary'): readonly KimiSlashCommand[] {
     const builtins = sortSlashCommands(BUILTIN_SLASH_COMMANDS).filter((command) =>
       isExperimentalFlagEnabled(command.experimentalFlag),
     );
-    return [...builtins, ...this.skillCommands];
+    const visibleBuiltins = slashCommandsForHelp(builtins, mode);
+    return mode === 'diagnostics' ? visibleBuiltins : [...visibleBuiltins, ...this.skillCommands];
   }
 
   private setupAutocomplete(): void {
@@ -2534,11 +2537,16 @@ export class KimiTUI {
     return result;
   }
 
-  showHelpPanel(): void {
+  showHelpPanel(args = ''): void {
+    const mode = this.helpModeFromArgs(args);
     this.state.activeDialog = 'help';
     this.mountEditorReplacement(
       new HelpPanelComponent({
-        commands: this.getSlashCommands(),
+        commands: this.getSlashCommands(mode),
+        intro: mode === 'diagnostics'
+          ? 'Advanced QA commands for Super Kimi harness development.'
+          : undefined,
+        commandSectionTitle: mode === 'diagnostics' ? 'Diagnostic commands' : undefined,
         onClose: () => {
           this.hideHelpPanel();
         },
@@ -2549,6 +2557,13 @@ export class KimiTUI {
   private hideHelpPanel(): void {
     this.state.activeDialog = null;
     this.restoreEditor();
+  }
+
+  private helpModeFromArgs(args: string): SlashCommandHelpMode {
+    const normalized = args.trim().toLowerCase();
+    return normalized === 'diagnostics' || normalized === 'diagnostic' || normalized === 'internal'
+      ? 'diagnostics'
+      : 'primary';
   }
 
   private sessionPickerOptions: {

@@ -4,6 +4,9 @@ import {
   parseSlashInput,
   resolveSlashCommandAvailability,
   addDirArgumentCompletions,
+  helpArgumentCompletions,
+  memoryArgumentCompletions,
+  slashCommandsForHelp,
   sortSlashCommands,
   swarmArgumentCompletions,
   type KimiSlashCommand,
@@ -64,6 +67,16 @@ describe('built-in slash command registry', () => {
     expect(resolveSlashCommandAvailability(swarm!, 'Ship feature X')).toBe('idle-only');
   });
 
+  it('keeps harness QA commands out of primary help while preserving diagnostics help', () => {
+    const primaryNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').map((command) => command.name);
+    const diagnosticNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'diagnostics').map((command) => command.name);
+
+    expect(primaryNames).not.toContain('bench');
+    expect(primaryNames).not.toContain('preflight');
+    expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'preflight']));
+    expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['diagnostics']);
+  });
+
   it('offers swarm subcommand argument completions', () => {
     const values = (prefix: string): string[] | null => {
       const items = swarmArgumentCompletions(prefix);
@@ -99,6 +112,15 @@ describe('built-in slash command registry', () => {
     expect(homeCompletions.every((value) => value.startsWith('~/') && value.endsWith('/'))).toBe(true);
     expect(homeCompletions.some((value) => value.startsWith('~/.'))).toBe(false);
     expect(homeCompletions.some((value) => value.startsWith('~/sers/'))).toBe(false);
+  });
+
+  it('keeps memory diagnostics out of the default memory completion list', () => {
+    const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
+    const explicitHealthValues = memoryArgumentCompletions('h')?.map((item) => item.value);
+
+    expect(primaryValues).not.toContain('readiness');
+    expect(primaryValues).not.toContain('health');
+    expect(explicitHealthValues).toEqual(['health']);
   });
 
   it('defaults commands without explicit availability to idle-only', () => {

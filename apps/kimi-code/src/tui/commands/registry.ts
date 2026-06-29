@@ -5,7 +5,7 @@ import { basename, dirname, join, relative, resolve } from 'pathe';
 import type { AutocompleteItem } from '@earendil-works/pi-tui';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
-import type { KimiSlashCommand, SlashCommandAvailability } from './types';
+import type { KimiSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from './types';
 
 /** Subcommands offered when autocompleting `/goal <…>`. */
 const GOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -30,19 +30,31 @@ const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current goal with an ultragoal' },
 ];
 
+const HELP_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'diagnostics', description: 'Show internal QA and diagnostics commands' },
+];
+
 const ADD_DIR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'Show configured additional workspace directories' },
 ];
 
-const MEMORY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'stats', description: 'Show Kimi Recall memory stats' },
   { value: 'list', description: 'List recent memories' },
   { value: 'search', description: 'Search memories' },
-  { value: 'readiness', description: 'Show Super Kimi memory harness readiness' },
-  { value: 'health', description: 'Alias for readiness' },
   { value: 'remember', description: 'Write a memory' },
   { value: 'forget', description: 'Forget a memory by id' },
   { value: 'consolidate', description: 'Merge exact duplicate memories' },
+];
+
+const MEMORY_DIAGNOSTIC_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'readiness', description: 'Show Super Kimi memory harness readiness' },
+  { value: 'health', description: 'Alias for readiness' },
+];
+
+const MEMORY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  ...MEMORY_PRIMARY_ARG_COMPLETIONS,
+  ...MEMORY_DIAGNOSTIC_ARG_COMPLETIONS,
 ];
 
 /** Argument autocompletion for the `/goal` command (subcommands). */
@@ -68,6 +80,10 @@ export function ultraworkArgumentCompletions(argumentPrefix: string): Autocomple
   return completeLeadingArg(ULTRAWORK_ARG_COMPLETIONS, argumentPrefix);
 }
 
+export function helpArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(HELP_ARG_COMPLETIONS, argumentPrefix);
+}
+
 /** Argument autocompletion for the `/add-dir` command. */
 export function addDirArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   if (isPathLikeAddDirArgument(argumentPrefix)) {
@@ -77,6 +93,9 @@ export function addDirArgumentCompletions(argumentPrefix: string): AutocompleteI
 }
 
 export function memoryArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  if (argumentPrefix.trim().length === 0) {
+    return completeLeadingArg(MEMORY_PRIMARY_ARG_COMPLETIONS, argumentPrefix);
+  }
   return completeLeadingArg(MEMORY_ARG_COMPLETIONS, argumentPrefix);
 }
 
@@ -203,7 +222,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'ultraswarm',
     aliases: ['us'],
-    description: 'Summon an UltraSwarm of expert agents for complex tasks',
+    description: 'Run a complex task with specialist agents',
     priority: 100,
     argumentHint: '<task description>',
     availability: 'idle-only',
@@ -211,7 +230,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'ultrawork',
     aliases: ['ultragoal', 'uw', 'ug'],
-    description: 'Start an Ultrawork flow with ultra-plan, swarm, memory, and an ultragoal',
+    description: 'Start a guided autonomous coding workflow',
     priority: 100,
     argumentHint: '[replace] <objective>',
     completeArgs: ultraworkArgumentCompletions,
@@ -241,16 +260,18 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'bench',
     aliases: [],
-    description: 'Show local Super Kimi benchmark status',
+    description: 'Show local Super Kimi benchmark diagnostics',
     priority: 80,
+    visibility: 'diagnostic',
     argumentHint: '[evidence-path]',
     availability: 'always',
   },
   {
     name: 'preflight',
     aliases: ['pf'],
-    description: 'Show unified Super Kimi harness preflight',
+    description: 'Show Super Kimi harness preflight diagnostics',
     priority: 80,
+    visibility: 'diagnostic',
     argumentHint: '[bench-evidence-path] [--query=<recall query>]',
     availability: 'always',
   },
@@ -259,6 +280,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: ['h', '?'],
     description: 'Show available commands and shortcuts',
     priority: 80,
+    argumentHint: '[diagnostics]',
+    completeArgs: helpArgumentCompletions,
     availability: 'always',
   },
   {
@@ -300,7 +323,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Manage Kimi Recall long-term memory',
     priority: 60,
     availability: 'always',
-    argumentHint: '[stats|list|search|readiness|remember|forget|consolidate]',
+    argumentHint: '[stats|list|search|remember|forget|consolidate]',
     completeArgs: memoryArgumentCompletions,
   },
   {
@@ -343,7 +366,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'goal',
     aliases: [],
-    description: 'Start or manage an autonomous goal',
+    description: 'Work toward a defined outcome across turns',
     priority: 80,
     argumentHint: '[status|pause|resume|cancel|replace|next] | <objective>',
     completeArgs: goalArgumentCompletions,
@@ -479,4 +502,14 @@ export function sortSlashCommands(commands: readonly KimiSlashCommand[]): KimiSl
   return [...commands].toSorted(
     (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.name.localeCompare(b.name),
   );
+}
+
+export type SlashCommandHelpMode = 'primary' | 'diagnostics';
+
+export function slashCommandsForHelp(
+  commands: readonly KimiSlashCommand[],
+  mode: SlashCommandHelpMode,
+): KimiSlashCommand[] {
+  const visibility: SlashCommandVisibility = mode === 'diagnostics' ? 'diagnostic' : 'primary';
+  return commands.filter((command) => (command.visibility ?? 'primary') === visibility);
 }

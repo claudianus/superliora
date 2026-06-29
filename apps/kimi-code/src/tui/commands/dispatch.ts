@@ -141,7 +141,7 @@ export interface SlashCommandHost {
   // Dispatch
   stop(exitCode?: number): Promise<void>;
   setExitOpenUrl(url: string): void;
-  showHelpPanel(): void;
+  showHelpPanel(args?: string): void;
   createNewSession(): Promise<void>;
   showSessionPicker(): Promise<void>;
   sendNormalUserInput(text: string): void;
@@ -244,7 +244,7 @@ async function handleBuiltInSlashCommand(
       void host.stop();
       return;
     case 'help':
-      host.showHelpPanel();
+      host.showHelpPanel(args);
       return;
     case 'version':
       host.showStatus(`Kimi Code v${host.state.appState.version}`);

@@ -48,6 +48,8 @@ export interface HelpPanelOptions {
   readonly commands: readonly HelpPanelCommand[];
   readonly shortcuts?: readonly KeyboardShortcut[];
   readonly onClose: () => void;
+  readonly intro?: string;
+  readonly commandSectionTitle?: string;
   /** Terminal height — used to decide whether to show the hint tail. */
   readonly maxVisible?: number;
 }
@@ -105,19 +107,21 @@ export class HelpPanelComponent extends Container implements Focusable {
       return `/${c.name}${aliases}`;
     });
     const cmdWidth = Math.max(12, ...cmdLabels.map((l) => l.length));
+    const intro = this.opts.intro ?? 'Sure, Kimi is ready to help! Just send a message to get started.';
+    const commandSectionTitle = this.opts.commandSectionTitle ?? 'Slash commands';
     const lines: string[] = [
       accent('─'.repeat(width)),
       currentTheme.boldFg('primary', ' help ') + muted('· Esc / Enter / q to cancel · ↑↓ scroll'),
       '',
       // Greeting
-      `  ${dim('Sure, Kimi is ready to help! Just send a message to get started.')}`,
+      `  ${dim(intro)}`,
       '',
       // Section: keyboard shortcuts
       `  ${currentTheme.bold('Keyboard shortcuts')}`,
       ...shortcuts.map((s) => `    ${kbdColor(s.keys.padEnd(kbdWidth))}  ${dim(s.description)}`),
       '',
       // Section: slash commands
-      `  ${currentTheme.bold('Slash commands')}`,
+      `  ${currentTheme.bold(commandSectionTitle)}`,
       ...sortedCmds.map((cmd, i) => {
         const label = cmdLabels[i] ?? `/${cmd.name}`;
         return `    ${slashColor(label.padEnd(cmdWidth))}  ${dim(cmd.description)}`;

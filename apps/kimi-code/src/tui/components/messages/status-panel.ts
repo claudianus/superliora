@@ -86,6 +86,18 @@ function contextValues(options: StatusReportOptions): {
   };
 }
 
+function readinessNextAction(options: StatusReportOptions): string {
+  const model = (options.status?.model ?? options.model).trim();
+  if (model.length === 0) return 'Run /login or /model before starting work.';
+
+  const { ratio, maxTokens } = contextValues(options);
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.85) {
+    return 'Run /compact before long work.';
+  }
+
+  return 'Ready: describe the task and Kimi will check the workspace as needed.';
+}
+
 export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const accent = (text: string) => currentTheme.boldFg('primary', text);
   const value = (text: string) => currentTheme.fg('text', text);
@@ -130,6 +142,19 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   } else {
     lines.push(`  ${muted('No context window data available.')}`);
   }
+
+  lines.push('');
+  lines.push(accent('Readiness'));
+  addFieldRows(
+    lines,
+    [
+      { label: 'Next', value: readinessNextAction(options) },
+      { label: 'Diagnostics', value: 'Run /help diagnostics for harness QA commands.' },
+    ],
+    muted,
+    value,
+    errorStyle,
+  );
 
   const managedSection = buildManagedUsageReportLines({
     managedUsage: options.managedUsage,
