@@ -23,6 +23,11 @@
       "principle": "terminal-native tasks should be evaluated by executable command traces and artifacts"
     },
     {
+      "name": "TerminalWorld",
+      "url": "https://arxiv.org/abs/2605.22535",
+      "principle": "terminal-agent evaluations should move toward realistic tasks derived from human terminal workflows"
+    },
+    {
       "name": "SWE-bench Verified / holdout",
       "url": "https://www.swebench.com/",
       "principle": "agent benchmarks need verified tasks, held-out coverage, and programmatic pass/fail checks"

@@ -43,6 +43,8 @@ const DEFAULT_BUDGETS = Object.freeze({
 });
 const TUI_UX_SCORE_THRESHOLD = 85;
 const TUI_TARGET_DURATION_MS = 30_000;
+const PRIMARY_TUI_SUCCESS_SURFACE = 'live-tui-real-user-workflow';
+const AUXILIARY_PROMPT_BENCH_SURFACE = 'prompt-only-benchmarks-auxiliary-regression-signal';
 const ULTRAWORK_CONTRACT_PATH = 'apps/kimi-code/src/tui/commands/ultrawork-contract.ts';
 const WEB_UI_SUCCESS_BOUNDARY =
   'Do not use apps/kimi-web or browser UI paths as a success surface';
@@ -248,6 +250,7 @@ async function buildReport(options, outputDir, runId) {
       ? undefined
       : evaluateTuiUxDeltaGate(baselineSelection.summary, tuiGate.observed?.uxFriction);
   if (tuiUxDelta !== undefined) gates.push(tuiUxDelta);
+  const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta);
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
   return {
     schemaVersion: 1,
@@ -268,9 +271,12 @@ async function buildReport(options, outputDir, runId) {
     requiredTuiScenarios: REQUIRED_TUI_SCENARIOS,
     requiredTuiObservationScenarios: REQUIRED_TUI_SCENARIOS,
     requiredTuiInputScenarios: REQUIRED_TUI_INPUT_SCENARIOS,
+    primarySuccessSurface: PRIMARY_TUI_SUCCESS_SURFACE,
+    auxiliarySuccessSurfaces: [AUXILIARY_PROMPT_BENCH_SURFACE],
     tuiUxBaseline: baselineSelection?.metadata,
     tuiUxFriction: tuiGate.observed?.uxFriction,
     tuiUxDelta: tuiUxDelta?.observed,
+    tuiNextActions,
     gates,
     rubricReferences: criteria.references ?? [],
   };
@@ -518,6 +524,129 @@ function evaluateTuiUxDeltaGate(baselineSummary, currentFriction) {
       currentStatus: currentFriction?.status,
     },
   };
+}
+
+function recommendTuiNextActions(tuiGate, tuiUxDeltaGate) {
+  const uxFriction = tuiGate.observed?.uxFriction;
+  const scenarios = Array.isArray(tuiGate.observed?.scenarios) ? tuiGate.observed.scenarios : [];
+  const penalties = Array.isArray(uxFriction?.penalties) ? uxFriction.penalties : [];
+  const actions = [];
+  const addAction = (kind, reason, evidence, command) => {
+    actions.push({
+      priority: actions.length + 1,
+      kind,
+      reason,
+      evidence,
+      command,
+    });
+  };
+
+  if (tuiUxDeltaGate?.observed?.verdict === 'regressed') {
+    addAction(
+      'fix-live-tui-regression',
+      'Current live TUI friction regressed against the selected baseline; fix the failing screen or input evidence before tuning prompt-only benchmarks.',
+      {
+        baselineScore: tuiUxDeltaGate.observed.baselineScore,
+        currentScore: tuiUxDeltaGate.observed.currentScore,
+        scoreDelta: tuiUxDeltaGate.observed.scoreDelta,
+      },
+    );
+  }
+
+  for (const penalty of penalties) {
+    switch (penalty.name) {
+      case 'failed-scenarios':
+        addAction(
+          'repair-required-live-tui-scenarios',
+          'One or more required TUI scenarios did not produce passing screen and input evidence.',
+          { scenarios: scenarioNames(penalty.detail) },
+          'node scripts/qa-super-kimi-autonomous.mjs --phase tui-launch --evidence-root .omo/evidence/<live-tui-after-fix>',
+        );
+        break;
+      case 'screen-observation':
+        addAction(
+          'repair-screen-observation',
+          'The gate could not recognize real Kimi TUI content in one or more captured screens.',
+          { scenarios: scenarioNames(penalty.detail) },
+          'node scripts/qa-super-kimi-autonomous.mjs --phase tui-launch --evidence-root .omo/evidence/<screen-observation-after-fix>',
+        );
+        break;
+      case 'input-trace':
+        addAction(
+          'repair-keyboard-input-trace',
+          'A required TUI scenario is missing ordered keyboard input proof, so the run is too close to blind output checking.',
+          { scenarios: scenarioNames(penalty.detail) },
+          'node scripts/qa-super-kimi-autonomous.mjs --phase tui-launch --evidence-root .omo/evidence/<input-trace-after-fix>',
+        );
+        break;
+      case 'exit-cleanup':
+        addAction(
+          'repair-exit-cleanup',
+          'The TUI session did not prove that /exit closed the live terminal session cleanly.',
+          penalty.detail,
+          'node scripts/qa-super-kimi-autonomous.mjs --phase tui-launch --evidence-root .omo/evidence/<exit-cleanup-after-fix>',
+        );
+        break;
+      case 'duration':
+        addAction(
+          'reduce-live-tui-latency',
+          'The live TUI run exceeded the target wall-clock duration or lacked timing evidence.',
+          penalty.detail,
+        );
+        break;
+      case 'command-failures':
+      case 'command-timeouts':
+        addAction(
+          'repair-tui-harness-commands',
+          'The terminal harness command layer failed or timed out while driving the TUI.',
+          penalty.detail,
+        );
+        break;
+      default:
+        addAction(
+          'inspect-live-tui-friction-penalty',
+          `Inspect live TUI friction penalty ${penalty.name}.`,
+          penalty.detail,
+        );
+        break;
+    }
+  }
+
+  if (actions.length === 0) {
+    addAction(
+      'expand-to-real-vibe-coding-task',
+      'Current live TUI smoke interaction evidence passes; the next loop should drive one realistic coding change through the TUI and score screen state, key trace, diff, tests, and cleanup as the primary evidence.',
+      {
+        currentScore: uxFriction?.score,
+        deltaVerdict: tuiUxDeltaGate?.observed?.verdict ?? 'not-compared',
+        passingScenarios: scenarios
+          .filter((scenario) => scenario.status === 'PASS')
+          .map((scenario) => scenario.scenario),
+      },
+      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-launch --evidence-root .omo/evidence/<real-vibe-coding-before-after>',
+    );
+  }
+
+  return {
+    status: actions.some(isBlockingTuiNextAction)
+      ? 'BLOCKED_ON_LIVE_TUI_EVIDENCE'
+      : 'READY_FOR_HARDER_REAL_WORKFLOW',
+    primarySurface: PRIMARY_TUI_SUCCESS_SURFACE,
+    auxiliarySurfaces: [AUXILIARY_PROMPT_BENCH_SURFACE],
+    principle:
+      'Prompt-only benchmark runs are auxiliary regression signals; the primary gate must stay grounded in observed TUI screens, ordered user input, and realistic coding workflow evidence.',
+    actions,
+  };
+}
+
+function isBlockingTuiNextAction(action) {
+  return action.kind.startsWith('repair') ? true : action.kind.includes('regression');
+}
+
+function scenarioNames(detail) {
+  return Array.isArray(detail)
+    ? detail.map((entry) => entry?.scenario).filter((scenario) => typeof scenario === 'string')
+    : [];
 }
 
 function extractTuiUxFriction(summary) {
@@ -1040,6 +1169,13 @@ function renderMarkdown(report) {
   for (const gate of report.gates) {
     lines.push(`| ${gate.name} | ${gate.status} | ${String(gate.required)} | ${escapeMarkdown(gate.reason)} |`);
   }
+  lines.push(
+    '',
+    '## Primary Verification Surface',
+    '',
+    `- primary: ${report.primarySuccessSurface}`,
+    `- auxiliary: ${(report.auxiliarySuccessSurfaces ?? []).join(', ')}`,
+  );
   if (report.tuiUxFriction !== undefined) {
     lines.push(
       '',
@@ -1075,6 +1211,19 @@ function renderMarkdown(report) {
       `- verdict: ${report.tuiUxDelta.verdict}`,
       `- duration delta ms: ${String(report.tuiUxDelta.durationDeltaMs ?? 'unavailable')}`,
     );
+  }
+  if (report.tuiNextActions !== undefined) {
+    lines.push(
+      '',
+      '## Live TUI Next Actions',
+      '',
+      `- status: ${report.tuiNextActions.status}`,
+      `- principle: ${report.tuiNextActions.principle}`,
+    );
+    for (const action of report.tuiNextActions.actions) {
+      const command = action.command === undefined ? '' : ` Command: \`${action.command}\``;
+      lines.push(`- P${action.priority} ${action.kind}: ${action.reason}${command}`);
+    }
   }
   lines.push(
     '',
