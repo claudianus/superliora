@@ -32,6 +32,12 @@ describe('memory readiness slash command builders', () => {
           sourcePath: '/repo/.omo/evidence/llm-wiki.md',
           summary: 'evidence found',
         },
+        knowledgeMap: {
+          ready: true,
+          matchCount: 1,
+          sourcePath: '/repo/.omo/evidence/kimi-knowledge-map.json',
+          summary: 'evidence found',
+        },
         browserUse: {
           ready: true,
           matchCount: 2,
@@ -52,6 +58,7 @@ describe('memory readiness slash command builders', () => {
     expect(text).toContain('Durable memory  active 2 / total 2');
     expect(text).toContain('Recall search  1 matches for "launch recall"; top 0.91 recall launch token [REDACTED_SECRET]');
     expect(text).toContain('LLM-wiki/durable  ready; 1 match');
+    expect(text).toContain('Knowledge-map evidence  ready; 1 match');
     expect(text).toContain('Browser-use evidence  ready; 2 matches');
     expect(text).toContain('Computer-use evidence  ready; 1 match');
     expect(text).toContain('Next  Ready: run the harness with current recall and evidence.');
@@ -71,6 +78,7 @@ describe('memory readiness slash command builders', () => {
 
       expect(text).toContain('Durable memory  active 0 / total 0');
       expect(text).toContain('Recall search  skipped; pass a query to verify retrieval');
+      expect(text).toContain('Knowledge-map evidence  missing; No Kimi Knowledge Map evidence found.');
       expect(text).toContain('Browser-use evidence  missing; No browser-use evidence found.');
       expect(text).toContain('Computer-use evidence  missing; No computer-use evidence found.');
       expect(text).toContain('Next  Create a durable memory with /memory remember <subject> :: <content>.');
@@ -80,12 +88,16 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('loads browser-use, computer-use, and llm-wiki evidence from local files', () => {
+  it('loads browser-use, computer-use, knowledge-map, and llm-wiki evidence from local files', () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-evidence-'));
     try {
       const evidenceDir = join(workDir, '.omo/evidence/g006');
       mkdirSync(evidenceDir, { recursive: true });
       writeFileSync(join(evidenceDir, 'llm-wiki.md'), 'llm-wiki durable memory readiness PASS');
+      writeFileSync(
+        join(evidenceDir, 'kimi-knowledge-map.json'),
+        '{"relationship_confidence":"EXTRACTED, INFERRED, or AMBIGUOUS","status":"PASS"}',
+      );
       writeFileSync(join(evidenceDir, 'browser-use.json'), '{"tool":"browser-use","status":"PASS"}');
       writeFileSync(
         join(evidenceDir, 'computer-use-state.json'),
@@ -95,9 +107,11 @@ describe('memory readiness slash command builders', () => {
       const evidence = loadMemoryReadinessEvidence(workDir);
 
       expect(evidence.llmWiki.ready).toBe(true);
+      expect(evidence.knowledgeMap.ready).toBe(true);
       expect(evidence.browserUse.ready).toBe(true);
       expect(evidence.computerUse.ready).toBe(true);
       expect(evidence.llmWiki.sourcePath).toContain('llm-wiki.md');
+      expect(evidence.knowledgeMap.sourcePath).toContain('kimi-knowledge-map.json');
       expect(evidence.browserUse.sourcePath).toContain('browser-use.json');
       expect(evidence.computerUse.sourcePath).toContain('computer-use-state.json');
     } finally {
@@ -118,6 +132,7 @@ describe('memory readiness slash command builders', () => {
       const evidence = loadMemoryReadinessEvidence(workDir);
 
       expect(evidence.llmWiki.ready).toBe(true);
+      expect(evidence.knowledgeMap.ready).toBe(false);
       expect(evidence.browserUse.ready).toBe(false);
       expect(evidence.computerUse.ready).toBe(false);
     } finally {

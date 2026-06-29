@@ -47,6 +47,12 @@ describe('preflight slash command status surface', () => {
             sourcePath: '/repo/.omo/evidence/llm-wiki.md',
             summary: 'evidence found',
           },
+          knowledgeMap: {
+            ready: true,
+            matchCount: 1,
+            sourcePath: '/repo/.omo/evidence/kimi-knowledge-map.json',
+            summary: 'evidence found',
+          },
           browserUse: {
             ready: true,
             matchCount: 1,
@@ -95,12 +101,14 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Memory  ready; active 1 / total 1');
     expect(text).toContain('Recall  ready; 1 match for "browser-use computer-use readiness"');
     expect(text).toContain('LLM-wiki evidence  ready');
+    expect(text).toContain('Knowledge-map evidence  ready');
     expect(text).toContain('Browser-use evidence  ready');
     expect(text).toContain('Computer-use evidence  ready');
-    expect(text).toContain('Ready gates  7/7; blocked none');
+    expect(text).toContain('Ready gates  8/8; blocked none');
     expect(text).toContain('Freshness  ready; window 24h');
     expect(text).toContain('Bench age  fresh; 0m');
     expect(text).toContain('LLM-wiki age  fresh; 0m');
+    expect(text).toContain('Knowledge-map age  fresh; 0m');
     expect(text).toContain('Browser-use age  fresh; 0m');
     expect(text).toContain('Computer-use age  fresh; 0m');
     expect(text).toContain('Boundary  no secret-looking strings displayed');
@@ -196,6 +204,11 @@ describe('preflight slash command status surface', () => {
             matchCount: 0,
             summary: 'No llm-wiki or durable-memory evidence found.',
           },
+          knowledgeMap: {
+            ready: false,
+            matchCount: 0,
+            summary: 'No Kimi Knowledge Map evidence found.',
+          },
           browserUse: {
             ready: false,
             matchCount: 0,
@@ -217,12 +230,12 @@ describe('preflight slash command status surface', () => {
         completedAt: new Date(Date.now() - 10 * 1000).toISOString(),
         bench: refreshBench(),
         readinessGates: {
-          total: 4,
+          total: 5,
           passed: 1,
-          blocked: ['llmWiki', 'browserUse', 'computerUse'],
+          blocked: ['llmWiki', 'knowledgeMap', 'browserUse', 'computerUse'],
           nextAction: 'refresh_runtime_evidence',
         },
-        missingChannels: ['llmWiki', 'browserUse', 'computerUse'],
+        missingChannels: ['llmWiki', 'knowledgeMap', 'browserUse', 'computerUse'],
       },
     });
     const text = buildPreflightLines(status).join('\n');
@@ -232,9 +245,10 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Bench  blocked; status UNAVAILABLE');
     expect(text).toContain('Memory  blocked; active 0 / total 0');
     expect(text).toContain('LLM-wiki evidence  blocked');
+    expect(text).toContain('Knowledge-map evidence  blocked');
     expect(text).toContain('Browser-use evidence  blocked');
     expect(text).toContain('Computer-use evidence  blocked');
-    expect(text).toContain('Ready gates  0/7; blocked bench,memory,recall,llmWiki,browserUse,computerUse,freshness');
+    expect(text).toContain('Ready gates  0/8; blocked bench,memory,recall,llmWiki,knowledgeMap,browserUse,computerUse,freshness');
     expect(text).toContain('Freshness  blocked; window 24h');
     expect(text).toContain('Bench age  missing');
     expect(text).toContain('Boundary  review evidence before sharing');
@@ -256,10 +270,10 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Refresh command  node scripts/kimi-preflight-refresh.mjs');
     expect(text).toContain('--runtime-evidence-root .omo/evidence/preflight-readiness');
     expect(text).toContain('Refresh evidence  .omo/evidence/super-kimi-preflight-refresh');
-    expect(text).toContain('Refresh last  BLOCKED; elapsed 742ms; missing llmWiki,browserUse,computerUse');
+    expect(text).toContain('Refresh last  BLOCKED; elapsed 742ms; missing llmWiki,knowledgeMap,browserUse,computerUse');
     expect(text).toContain('Refresh age  fresh; 0m; due 23h');
     expect(text).toContain('Refresh bench  score 1.00; passRate 100%; tasks 1/1 passed; q 1; cost 2ms; tok 53; cmd 1');
-    expect(text).toContain('Refresh gates  1/4; blocked llmWiki,browserUse,computerUse; next refresh_runtime_evidence');
+    expect(text).toContain('Refresh gates  1/5; blocked llmWiki,knowledgeMap,browserUse,computerUse; next refresh_runtime_evidence');
     expect(text).toContain('Refresh last evidence  .omo/evidence/super-kimi-preflight-refresh');
     expect(text).not.toContain('Refresh verify');
     expect(text).toContain('Warning  memory: Malformed evidence ignored');
@@ -300,6 +314,12 @@ describe('preflight slash command status surface', () => {
             sourcePath: '/repo/.omo/evidence/llm-wiki.md',
             summary: 'evidence found',
           },
+          knowledgeMap: {
+            ready: true,
+            matchCount: 1,
+            sourcePath: '/repo/.omo/evidence/kimi-knowledge-map.json',
+            summary: 'evidence found',
+          },
           browserUse: {
             ready: true,
             matchCount: 1,
@@ -323,8 +343,8 @@ describe('preflight slash command status surface', () => {
         completedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
         bench: refreshBench(),
         readinessGates: {
-          total: 4,
-          passed: 4,
+          total: 5,
+          passed: 5,
           blocked: [],
           nextAction: 'ready',
         },
@@ -335,7 +355,7 @@ describe('preflight slash command status surface', () => {
 
     expect(status.ready).toBe(false);
     expect(text).toContain('Unified status  blocked');
-    expect(text).toContain('Ready gates  6/7; blocked freshness');
+    expect(text).toContain('Ready gates  7/8; blocked freshness');
     expect(text).toContain('Freshness  blocked; window 24h');
     expect(text).toContain('Bench age  stale; 2d');
     expect(text).toContain('Next  Run the Refresh commands below, recapture runtime evidence, then rerun /preflight.');
@@ -358,7 +378,7 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Refresh last  PASS; elapsed 1.5s; runtime ok');
     expect(text).toMatch(/Refresh age  stale; 2d; expired (24h|1d)/);
     expect(text).toContain('Refresh bench  score 1.00; passRate 100%; tasks 1/1 passed; q 1; cost 2ms; tok 53; cmd 1');
-    expect(text).toContain('Refresh gates  4/4; blocked none; next ready');
+    expect(text).toContain('Refresh gates  5/5; blocked none; next ready');
     expect(text).toContain('Refresh last evidence  .omo/evidence/super-kimi-preflight-refresh');
     expect(text).not.toContain('Refresh verify');
   });
@@ -393,6 +413,12 @@ describe('preflight slash command status surface', () => {
             ready: true,
             matchCount: 1,
             sourcePath: '/repo/.omo/evidence/llm-wiki.md',
+            summary: 'evidence found',
+          },
+          knowledgeMap: {
+            ready: true,
+            matchCount: 1,
+            sourcePath: '/repo/.omo/evidence/kimi-knowledge-map.json',
             summary: 'evidence found',
           },
           browserUse: {
@@ -469,25 +495,27 @@ describe('preflight slash command status surface', () => {
         status: 'BLOCKED',
         durationMs: 72,
         readinessGates: {
-          total: 4,
+          total: 5,
           passed: 1,
           blocked: [
             { id: 'llmWiki', label: 'LLM-wiki' },
+            { id: 'knowledgeMap', label: 'knowledge-map' },
             { id: 'browserUse', label: 'browser-use' },
           ],
           nextAction: 'refresh_runtime_evidence',
         },
         missingOrStaleRuntimeEvidence: [
           { channel: 'llmWiki' },
+          { channel: 'knowledgeMap' },
           { channel: 'browserUse' },
         ],
       }), 'utf8');
 
       const refreshRun = loadPreflightRefreshRun(workDir);
       expect(refreshRun?.readinessGates).toEqual({
-        total: 4,
+        total: 5,
         passed: 1,
-        blocked: ['llmWiki', 'browserUse'],
+        blocked: ['llmWiki', 'knowledgeMap', 'browserUse'],
         nextAction: 'refresh_runtime_evidence',
       });
     } finally {
@@ -610,6 +638,12 @@ describe('preflight slash command status surface', () => {
               sourcePath: '/repo/.omo/evidence/llm-wiki.json',
               summary: 'evidence found',
             },
+            knowledgeMap: {
+              ready: true,
+              matchCount: 1,
+              sourcePath: '/repo/.omo/evidence/kimi-knowledge-map.json',
+              summary: 'evidence found',
+            },
             browserUse: {
               ready: true,
               matchCount: 1,
@@ -718,6 +752,12 @@ function readyPreflightInput(
           sourcePath: '/repo/.omo/evidence/llm-wiki.md',
           summary: 'evidence found',
         },
+        knowledgeMap: {
+          ready: true,
+          matchCount: 1,
+          sourcePath: '/repo/.omo/evidence/kimi-knowledge-map.json',
+          summary: 'evidence found',
+        },
         browserUse: {
           ready: true,
           matchCount: 1,
@@ -750,6 +790,7 @@ function preflightFreshness(state: 'fresh' | 'missing' | 'stale'): PreflightFres
     windowMs: 24 * 60 * 60 * 1000,
     bench: signal,
     llmWiki: signal,
+    knowledgeMap: signal,
     browserUse: signal,
     computerUse: signal,
   };

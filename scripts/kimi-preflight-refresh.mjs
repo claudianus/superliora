@@ -19,6 +19,12 @@ const CHANNELS = [
     textPattern: /llm[-_ ]?wiki|durable memory|kimi recall|memory readiness/i,
   },
   {
+    id: 'knowledgeMap',
+    label: 'knowledge-map',
+    pathPattern: /knowledge[-_ ]?map|kimi[-_ ]?context|codegraph|graph/i,
+    textPattern: /kimi knowledge map|compact project knowledge map|relationship_confidence|path_affected_questions|EXTRACTED, INFERRED, or AMBIGUOUS/i,
+  },
+  {
     id: 'browserUse',
     label: 'browser-use',
     pathPattern: /browser[-_ ]?use|browser/i,

@@ -11,7 +11,7 @@ import {
   type MemoryReadinessSnapshot,
 } from './memory';
 
-const DEFAULT_PREFLIGHT_RECALL_QUERY = 'super kimi harness browser-use computer-use llm-wiki readiness';
+const DEFAULT_PREFLIGHT_RECALL_QUERY = 'super kimi harness knowledge-map browser-use computer-use llm-wiki readiness';
 const PREFLIGHT_FRESHNESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PREFLIGHT_REFRESH_EVIDENCE_ROOT = '.omo/evidence/super-kimi-preflight-refresh';
 const PREFLIGHT_RUNTIME_EVIDENCE_ROOT = '.omo/evidence/preflight-readiness';
@@ -33,6 +33,7 @@ export interface PreflightFreshness {
   readonly windowMs: number;
   readonly bench: PreflightFreshnessSignal;
   readonly llmWiki: PreflightFreshnessSignal;
+  readonly knowledgeMap: PreflightFreshnessSignal;
   readonly browserUse: PreflightFreshnessSignal;
   readonly computerUse: PreflightFreshnessSignal;
 }
@@ -175,6 +176,7 @@ export function buildPreflightStatus(input: {
       && isMemoryReady(input.memory)
       && isRecallReady(input.memory)
       && input.memory.evidence.llmWiki.ready
+      && input.memory.evidence.knowledgeMap.ready
       && input.memory.evidence.browserUse.ready
       && input.memory.evidence.computerUse.ready
       && freshness.ready,
@@ -194,6 +196,7 @@ export function buildPreflightFreshness(input: {
     windowMs,
     bench: evidenceFreshnessSignal(input.bench.sourcePath, nowMs, windowMs),
     llmWiki: evidenceFreshnessSignal(input.memory.evidence.llmWiki.sourcePath, nowMs, windowMs),
+    knowledgeMap: evidenceFreshnessSignal(input.memory.evidence.knowledgeMap.sourcePath, nowMs, windowMs),
     browserUse: evidenceFreshnessSignal(input.memory.evidence.browserUse.sourcePath, nowMs, windowMs),
     computerUse: evidenceFreshnessSignal(input.memory.evidence.computerUse.sourcePath, nowMs, windowMs),
   };
@@ -201,6 +204,7 @@ export function buildPreflightFreshness(input: {
     ...freshness,
     ready: freshness.bench.state === 'fresh'
       && freshness.llmWiki.state === 'fresh'
+      && freshness.knowledgeMap.state === 'fresh'
       && freshness.browserUse.state === 'fresh'
       && freshness.computerUse.state === 'fresh',
   };
@@ -215,12 +219,14 @@ export function buildPreflightLines(status: PreflightStatus): string[] {
     `Memory  ${readyWord(isMemoryReady(status.memory))}; ${memoryStatsSummary(status.memory.stats, status.memory.statsError)}`,
     `Recall  ${readyWord(isRecallReady(status.memory))}; ${recallSummary(status.memory)}`,
     `LLM-wiki evidence  ${readyWord(status.memory.evidence.llmWiki.ready)}`,
+    `Knowledge-map evidence  ${readyWord(status.memory.evidence.knowledgeMap.ready)}`,
     `Browser-use evidence  ${readyWord(status.memory.evidence.browserUse.ready)}`,
     `Computer-use evidence  ${readyWord(status.memory.evidence.computerUse.ready)}`,
     `Ready gates  ${readinessGateSummary(status)}`,
     `Freshness  ${readyWord(status.freshness.ready)}; window ${formatDuration(status.freshness.windowMs)}`,
     `Bench age  ${freshnessSummary(status.freshness.bench)}`,
     `LLM-wiki age  ${freshnessSummary(status.freshness.llmWiki)}`,
+    `Knowledge-map age  ${freshnessSummary(status.freshness.knowledgeMap)}`,
     `Browser-use age  ${freshnessSummary(status.freshness.browserUse)}`,
     `Computer-use age  ${freshnessSummary(status.freshness.computerUse)}`,
     `Boundary  ${status.bench.noSecret ? 'no secret-looking strings displayed' : 'review evidence before sharing'}`,
@@ -538,6 +544,7 @@ function nextPreflightAction(
   if (memory.searchError !== undefined) return 'Fix recall search, then rerun /preflight.';
   if ((memory.searchResults?.length ?? 0) === 0) return 'Add or refine durable memories for the preflight recall query.';
   if (!memory.evidence.llmWiki.ready) return 'Add llm-wiki or durable-memory evidence under .omo/evidence.';
+  if (!memory.evidence.knowledgeMap.ready) return 'Capture Kimi Knowledge Map evidence under .omo/evidence.';
   if (!memory.evidence.browserUse.ready) return 'Capture browser-use evidence under .omo/evidence.';
   if (!memory.evidence.computerUse.ready) return 'Capture computer-use evidence under .omo/evidence.';
   if (!freshness.ready) {
@@ -552,6 +559,7 @@ function buildPreflightRefreshPlan(
   freshness: PreflightFreshness,
 ): PreflightRefreshPlan {
   const missingRuntimeEvidence = !memory.evidence.llmWiki.ready
+    || !memory.evidence.knowledgeMap.ready
     || !memory.evidence.browserUse.ready
     || !memory.evidence.computerUse.ready;
   const needed = !isBenchReady(bench) || missingRuntimeEvidence || !freshness.ready;
@@ -571,6 +579,7 @@ function refreshReason(
   if (!isBenchReady(bench)) return 'benchmark evidence unavailable';
   if (!freshness.ready) return 'evidence stale or missing';
   if (!memory.evidence.llmWiki.ready) return 'llm-wiki evidence missing';
+  if (!memory.evidence.knowledgeMap.ready) return 'knowledge-map evidence missing';
   if (!memory.evidence.browserUse.ready) return 'browser-use evidence missing';
   if (!memory.evidence.computerUse.ready) return 'computer-use evidence missing';
   return 'not needed';
@@ -605,6 +614,7 @@ function readinessGateSummary(status: PreflightStatus): string {
     { name: 'memory', ready: isMemoryReady(status.memory) },
     { name: 'recall', ready: isRecallReady(status.memory) },
     { name: 'llmWiki', ready: status.memory.evidence.llmWiki.ready },
+    { name: 'knowledgeMap', ready: status.memory.evidence.knowledgeMap.ready },
     { name: 'browserUse', ready: status.memory.evidence.browserUse.ready },
     { name: 'computerUse', ready: status.memory.evidence.computerUse.ready },
     { name: 'freshness', ready: status.freshness.ready },

@@ -12,6 +12,7 @@ const MAX_EVIDENCE_READ_BYTES = 32_000;
 
 const EVIDENCE_PATTERNS = {
   llmWiki: /\b(?:llm[-_\s]?wiki|llms\.txt|kimi recall|durable memory|memory readiness)\b/iu,
+  knowledgeMap: /\b(?:kimi knowledge map|knowledge[-_\s]?map|compact[-_\s]?project[-_\s]?map|relationship_confidence|path_affected_questions|EXTRACTED, INFERRED, or AMBIGUOUS)\b/iu,
   browserUsePath: /\b(?:browser[-_]?use|browser_use|playwright|chromium)\b/iu,
   browserUseText: /\b(?:browser[-_\s]?use|browser automation|playwright|chromium|accessibility snapshot|browser_use)\b/iu,
   computerUsePath: /\b(?:computer[-_]?use|computer_use|screencapture|app[-_]?state)\b/iu,
@@ -28,6 +29,7 @@ export interface MemoryReadinessEvidenceSignal {
 export interface MemoryReadinessEvidence {
   readonly sourceRoot: string;
   readonly llmWiki: MemoryReadinessEvidenceSignal;
+  readonly knowledgeMap: MemoryReadinessEvidenceSignal;
   readonly browserUse: MemoryReadinessEvidenceSignal;
   readonly computerUse: MemoryReadinessEvidenceSignal;
   readonly warnings: readonly string[];
@@ -236,6 +238,7 @@ export function loadMemoryReadinessEvidence(workDir: string): MemoryReadinessEvi
     : [];
   const matches = {
     llmWiki: createEvidenceAccumulator(),
+    knowledgeMap: createEvidenceAccumulator(),
     browserUse: createEvidenceAccumulator(),
     computerUse: createEvidenceAccumulator(),
   };
@@ -245,6 +248,12 @@ export function loadMemoryReadinessEvidence(workDir: string): MemoryReadinessEvi
     if (evidenceFile.warning !== undefined) warnings.push(evidenceFile.warning);
     const haystack = `${basename(file)}\n${evidenceFile.text}`;
     updateEvidenceAccumulator(matches.llmWiki, file, haystack, EVIDENCE_PATTERNS.llmWiki);
+    updateEvidenceAccumulator(
+      matches.knowledgeMap,
+      file,
+      haystack,
+      EVIDENCE_PATTERNS.knowledgeMap,
+    );
     updateCapabilityEvidenceAccumulator(
       matches.browserUse,
       file,
@@ -264,6 +273,7 @@ export function loadMemoryReadinessEvidence(workDir: string): MemoryReadinessEvi
   return {
     sourceRoot,
     llmWiki: evidenceSignal(matches.llmWiki, 'No llm-wiki or durable-memory evidence found.'),
+    knowledgeMap: evidenceSignal(matches.knowledgeMap, 'No Kimi Knowledge Map evidence found.'),
     browserUse: evidenceSignal(matches.browserUse, 'No browser-use evidence found.'),
     computerUse: evidenceSignal(matches.computerUse, 'No computer-use evidence found.'),
     warnings,
@@ -277,6 +287,7 @@ export function buildMemoryReadinessLines(snapshot: MemoryReadinessSnapshot): st
     memoryKindsLine(snapshot.stats),
     recallSearchLine(snapshot.query, snapshot.searchResults, snapshot.searchError),
     `LLM-wiki/durable  ${formatEvidenceSignal(snapshot.evidence.llmWiki)}`,
+    `Knowledge-map evidence  ${formatEvidenceSignal(snapshot.evidence.knowledgeMap)}`,
     `Browser-use evidence  ${formatEvidenceSignal(snapshot.evidence.browserUse)}`,
     `Computer-use evidence  ${formatEvidenceSignal(snapshot.evidence.computerUse)}`,
     `Next  ${nextMemoryReadinessAction(snapshot)}`,
@@ -307,6 +318,11 @@ function emptyMemoryReadinessEvidence(
       ready: false,
       matchCount: 0,
       summary: 'No llm-wiki or durable-memory evidence found.',
+    },
+    knowledgeMap: {
+      ready: false,
+      matchCount: 0,
+      summary: 'No Kimi Knowledge Map evidence found.',
     },
     browserUse: {
       ready: false,
@@ -462,6 +478,7 @@ function nextMemoryReadinessAction(snapshot: MemoryReadinessSnapshot): string {
   if (snapshot.searchError !== undefined) return 'Fix recall search, then rerun /memory readiness <query>.';
   if ((snapshot.searchResults?.length ?? 0) === 0) return 'Add or refine durable memories for this query.';
   if (!snapshot.evidence.llmWiki.ready) return 'Add llm-wiki or durable-memory evidence under .omo/evidence.';
+  if (!snapshot.evidence.knowledgeMap.ready) return 'Capture Kimi Knowledge Map evidence under .omo/evidence.';
   if (!snapshot.evidence.browserUse.ready) return 'Capture browser-use evidence under .omo/evidence.';
   if (!snapshot.evidence.computerUse.ready) return 'Capture computer-use evidence under .omo/evidence.';
   return 'Ready: run the harness with current recall and evidence.';
