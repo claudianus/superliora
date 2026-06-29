@@ -2,7 +2,7 @@
 /* eslint-disable no-console */
 
 import { appendFile, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
-import { createWriteStream, readdirSync } from 'node:fs';
+import { createWriteStream, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -1633,11 +1633,26 @@ function buildFinalCleanupEnforcement(context, phaseEntries, cleanup) {
     trackedByHarness: portWasTracked,
   });
 
-  for (const [name, targetPath] of [
+  const disposablePathChecks = [
     ['temp-root', context.tempRoot],
-    ['temp-home', context.plannedKimiCodeHome],
     ['target-worktree', context.targetWorktree],
-  ]) {
+  ];
+  if (context.kimiCodeHomeMode === 'real-user-opt-in') {
+    const exists = pathExistsSyncLike(context.plannedKimiCodeHome);
+    checks.push({
+      name: 'real-kimi-home',
+      status: 'PASS',
+      reason:
+        'KIMI_CODE_HOME is the real user Kimi home by explicit --use-real-kimi-home opt-in, so cleanup must not remove it.',
+      path: context.plannedKimiCodeHome,
+      exists,
+      disposable: false,
+    });
+  } else {
+    disposablePathChecks.push(['temp-home', context.plannedKimiCodeHome]);
+  }
+
+  for (const [name, targetPath] of disposablePathChecks) {
     const exists = pathExistsSyncLike(targetPath);
     checks.push({
       name,
@@ -1908,11 +1923,11 @@ function buildReadinessDebtAction(gate, index) {
     return {
       priority: index + 1,
       gate: gate.name,
-      kind: 'run-real-autonomous-canary-with-isolated-model-credentials',
+      kind: 'run-real-autonomous-canary-with-kimi-login',
       reason:
-        'Replace the credential BLOCKED proof with a provider-backed autonomous canary using isolated Kimi model credentials.',
+        'Replace the credential BLOCKED proof with a provider-backed autonomous canary using the real Kimi /login session and selected coding model.',
       command:
-        'KIMI_MODEL_NAME=<model> KIMI_MODEL_API_KEY=<key> node scripts/qa-super-kimi-autonomous.mjs --phase autonomous --evidence-root .omo/evidence/<autonomous-canary-after>',
+        'node scripts/qa-super-kimi-autonomous.mjs --phase autonomous --use-real-kimi-home --evidence-root .omo/evidence/<autonomous-canary-after>',
     };
   }
   return {
@@ -2064,13 +2079,27 @@ async function evaluateAutonomousGate(context, entry) {
     Array.isArray(auth?.missing) &&
     auth.missing.includes('KIMI_MODEL_NAME') &&
     auth.missing.includes('KIMI_MODEL_API_KEY') &&
-    /providerCallStarted":false/.test(stream ?? '');
+    (stream ?? '').includes('"providerCallStarted":false');
+  const realKimiHomeMissing =
+    entry.status === 'BLOCKED' &&
+    failure?.status === 'BLOCKED' &&
+    failure?.providerCallStarted === false &&
+    auth?.status === 'BLOCKED' &&
+    auth?.authMode === 'real-kimi-code-home-login' &&
+    auth?.simulated === false &&
+    auth?.providerCallStarted === false &&
+    Array.isArray(auth?.missing) &&
+    auth.missing.length > 0 &&
+    (stream ?? '').includes('"providerCallStarted":false');
+  const allowedBlocked = exactMissing ? true : realKimiHomeMissing;
   return {
     name: 'autonomous',
     status: entry.status,
-    verdict: exactMissing ? 'ALLOWED_BLOCKED' : entry.status === 'BLOCKED' ? 'BLOCKED' : 'FAIL',
+    verdict: allowedBlocked ? 'ALLOWED_BLOCKED' : entry.status === 'BLOCKED' ? 'BLOCKED' : 'FAIL',
     reason: exactMissing
       ? 'Autonomous real-LLM canary is credential BLOCKED with exact missing isolated env-model credential evidence and providerCallStarted=false.'
+      : realKimiHomeMissing
+        ? 'Autonomous real-LLM canary is /login BLOCKED with real KIMI_CODE_HOME readiness evidence and providerCallStarted=false.'
       : `Autonomous BLOCKED/FAIL did not meet the allowed missing-credentials proof contract: ${entry.reason}`,
     failurePath: failure === undefined ? undefined : failurePath,
     authPath,
@@ -2964,6 +2993,7 @@ async function runDirectCliPhase(context) {
   let tempRootCreated = false;
   let tempRootRemoved = false;
   let targetWorktreeRemoved = false;
+  const managesKimiCodeHome = context.kimiCodeHomeMode !== 'real-user-opt-in';
 
   const summary = {
     schemaVersion: 1,
@@ -2992,8 +3022,10 @@ async function runDirectCliPhase(context) {
 
     await mkdir(context.tempRoot, { recursive: true });
     tempRootCreated = true;
-    await mkdir(context.plannedKimiCodeHome, { recursive: true, mode: 0o700 });
-    tempHomeCreated = true;
+    if (managesKimiCodeHome) {
+      await mkdir(context.plannedKimiCodeHome, { recursive: true, mode: 0o700 });
+      tempHomeCreated = true;
+    }
     await createDisposableGitWorktree(context);
     targetWorktreeCreated = true;
 
@@ -3177,11 +3209,12 @@ async function runAutonomousPhase(context) {
   let tempRootCreated = false;
   let tempRootRemoved = false;
   let targetWorktreeRemoved = false;
+  const managesKimiCodeHome = context.kimiCodeHomeMode !== 'real-user-opt-in';
 
   await mkdir(autonomousDir, { recursive: true });
   await writeFile(path.join(context.evidenceRoot, 'commands', 'autonomous.jsonl'), '', 'utf8');
 
-  const credentials = detectAutonomousCredentials(process.env, context.options.simulateMissingAuth);
+  const credentials = await detectAutonomousCredentials(process.env, context);
   summary.credentialReadiness = credentials;
   await writeJson(path.join(autonomousDir, 'auth-readiness.json'), credentials);
   await writeJson(path.join(context.evidenceRoot, 'auth-readiness.json'), credentials);
@@ -3432,9 +3465,12 @@ async function runAutonomousPhase(context) {
       created: tempHomeCreated,
       removed: false,
       retained: context.options.keepTemp && tempHomeCreated,
-      detail: tempHomeCreated
-        ? 'Autonomous KIMI_CODE_HOME was created before command execution.'
-        : 'Autonomous KIMI_CODE_HOME was not created before block/failure.',
+      external: !managesKimiCodeHome,
+      detail: !managesKimiCodeHome
+        ? 'Autonomous KIMI_CODE_HOME used the real user home by explicit opt-in and is not managed by cleanup.'
+        : tempHomeCreated
+          ? 'Autonomous KIMI_CODE_HOME was created before command execution.'
+          : 'Autonomous KIMI_CODE_HOME was not created before block/failure.',
     };
     cleanupOverrides.targetWorktree = {
       path: context.targetWorktree,
@@ -3472,8 +3508,10 @@ async function runAutonomousPhase(context) {
         await rm(context.tempRoot, { recursive: true, force: true });
         tempRootRemoved = true;
       }
-      cleanupOverrides.tempHome.removed = tempRootRemoved && tempHomeCreated;
-      cleanupOverrides.tempHome.retained = tempHomeCreated && !tempRootRemoved;
+      cleanupOverrides.tempHome.removed =
+        managesKimiCodeHome && tempRootRemoved && tempHomeCreated;
+      cleanupOverrides.tempHome.retained =
+        managesKimiCodeHome && tempHomeCreated && !tempRootRemoved;
       cleanupOverrides.targetWorktree.removed = targetWorktreeRemoved;
       cleanupOverrides.targetWorktree.retained = targetWorktreeCreated && !targetWorktreeRemoved;
       cleanupOverrides.tempRoot.removed = tempRootRemoved;
@@ -3508,7 +3546,35 @@ async function finishAutonomousPhase(context, summary, cleanupOverrides) {
   return { phaseEntry, cleanupOverrides };
 }
 
-function detectAutonomousCredentials(env, simulateMissingAuth) {
+async function detectAutonomousCredentials(env, context) {
+  const simulateMissingAuth = context.options.simulateMissingAuth;
+  if (simulateMissingAuth) {
+    return {
+      status: 'BLOCKED',
+      reason: 'BLOCKED: --simulate-missing-auth requested; provider call was not started.',
+      authMode: context.options.useRealKimiHome
+        ? 'real-kimi-code-home-login'
+        : 'isolated-env-model',
+      simulated: true,
+      providerCallStarted: false,
+      required: context.options.useRealKimiHome
+        ? ['real KIMI_CODE_HOME /login token', 'managed Kimi default model']
+        : ['KIMI_MODEL_NAME', 'KIMI_MODEL_API_KEY'],
+      present: {},
+      optionalPresent: {},
+      missing: [],
+      redaction: 'Only readiness metadata is recorded; credential values are never written.',
+    };
+  }
+
+  if (context.options.useRealKimiHome) {
+    return detectRealKimiHomeCredentials(context);
+  }
+
+  return detectEnvModelAutonomousCredentials(env);
+}
+
+function detectEnvModelAutonomousCredentials(env) {
   const required = ['KIMI_MODEL_NAME', 'KIMI_MODEL_API_KEY'];
   const presence = Object.fromEntries(required.map((name) => [name, hasNonBlankEnv(env, name)]));
   const optionalPresence = Object.fromEntries(
@@ -3520,23 +3586,11 @@ function detectAutonomousCredentials(env, simulateMissingAuth) {
     ].map((name) => [name, hasNonBlankEnv(env, name)]),
   );
   const missing = required.filter((name) => !presence[name]);
-  if (simulateMissingAuth) {
-    return {
-      status: 'BLOCKED',
-      reason: 'BLOCKED: --simulate-missing-auth requested; provider call was not started.',
-      simulated: true,
-      providerCallStarted: false,
-      required,
-      present: presence,
-      optionalPresent: optionalPresence,
-      missing,
-      redaction: 'Only variable presence is recorded; credential values are never written.',
-    };
-  }
   if (missing.length > 0) {
     return {
       status: 'BLOCKED',
       reason: `BLOCKED: missing configured env-model provider credentials: ${missing.join(', ')}.`,
+      authMode: 'isolated-env-model',
       simulated: false,
       providerCallStarted: false,
       required,
@@ -3551,6 +3605,7 @@ function detectAutonomousCredentials(env, simulateMissingAuth) {
   return {
     status: 'PASS',
     reason: 'KIMI_MODEL_NAME and KIMI_MODEL_API_KEY are present for the isolated env-model canary.',
+    authMode: 'isolated-env-model',
     simulated: false,
     providerCallStarted: false,
     required,
@@ -3559,6 +3614,150 @@ function detectAutonomousCredentials(env, simulateMissingAuth) {
     missing: [],
     redaction: 'Only variable presence is recorded; credential values are never written.',
   };
+}
+
+async function detectRealKimiHomeCredentials(context) {
+  const kimiCodeHome = context.plannedKimiCodeHome;
+  const configPath = path.join(kimiCodeHome, 'config.toml');
+  const credentialsDir = path.join(kimiCodeHome, 'credentials');
+  const configText = await readFileIfExists(configPath);
+  const configExists = configText !== undefined;
+  const defaultModel = parseTomlString(configText, 'default_model') ?? parseTomlString(configText, 'defaultModel');
+  const hasManagedKimiProvider = configText?.includes('managed:kimi-code') === true;
+  const hasOauth = configText === undefined ? false : /oauth\s*=|\[\s*providers\.[^\]]+\.oauth\s*\]/iu.test(configText);
+  const candidateTokenNames = extractKimiOAuthTokenNames(configText);
+  const credentialFiles = readCredentialReadiness(credentialsDir, candidateTokenNames);
+  const matchingTokenReady = credentialFiles.some(
+    (file) => file.expectedForKimiLogin === true && file.status === 'valid',
+  );
+  const present = {
+    configToml: configExists,
+    managedKimiProvider: hasManagedKimiProvider,
+    managedKimiOAuth: hasOauth,
+    defaultModel: typeof defaultModel === 'string' && defaultModel.length > 0,
+    matchingOAuthToken: matchingTokenReady,
+  };
+  const missing = [];
+  if (!present.configToml) missing.push('config.toml');
+  if (!present.managedKimiProvider) missing.push('managed:kimi-code provider');
+  if (!present.managedKimiOAuth) missing.push('managed Kimi OAuth config');
+  if (!present.defaultModel) missing.push('default_model');
+  if (!present.matchingOAuthToken) {
+    missing.push(
+      `credentials/${Array.from(candidateTokenNames).toSorted().join('|')}.json valid OAuth token`,
+    );
+  }
+  const base = {
+    authMode: 'real-kimi-code-home-login',
+    simulated: false,
+    providerCallStarted: false,
+    required: [
+      'real KIMI_CODE_HOME config.toml',
+      'managed:kimi-code provider',
+      'managed Kimi OAuth token',
+      'default_model selected by /login or /model',
+    ],
+    present,
+    optionalPresent: {},
+    missing,
+    kimiCodeHome,
+    configPath,
+    credentialsDir,
+    defaultModel,
+    expectedModelFamily:
+      'Kimi /login provisions the managed coding model; use /model to change the selected Kimi coding model.',
+    candidateTokenNames: Array.from(candidateTokenNames).toSorted(),
+    credentialFiles,
+    redaction:
+      'Only file names, token shape booleans, and config readiness are recorded; token values are never written.',
+  };
+  if (missing.length > 0) {
+    return {
+      ...base,
+      status: 'BLOCKED',
+      reason: `BLOCKED: real KIMI_CODE_HOME is not ready for /login autonomous canary: ${missing.join(', ')}.`,
+      nextAction:
+        'Open the TUI, run /login, confirm /model selects the Kimi coding model, then rerun this phase with --use-real-kimi-home.',
+    };
+  }
+  return {
+    ...base,
+    status: 'PASS',
+    reason: `Real KIMI_CODE_HOME has a managed Kimi /login token and default model ${defaultModel}.`,
+  };
+}
+
+function parseTomlString(text, key) {
+  if (typeof text !== 'string') return undefined;
+  const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*["']([^"']+)["']`, 'imu');
+  return text.match(pattern)?.[1];
+}
+
+function escapeRegExp(value) {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function extractKimiOAuthTokenNames(configText) {
+  const names = new Set(['kimi-code']);
+  if (typeof configText !== 'string') return names;
+  for (const match of configText.matchAll(/\bkey\s*=\s*["']([^"']+)["']/giu)) {
+    const storageName = oauthKeyToStorageName(match[1]);
+    if (storageName !== undefined) names.add(storageName);
+  }
+  return names;
+}
+
+function oauthKeyToStorageName(key) {
+  if (key === 'kimi-code' || key === 'oauth/kimi-code') return 'kimi-code';
+  const prefix = 'oauth/';
+  if (key.startsWith(prefix) && key.slice(prefix.length).length > 0) {
+    return key.slice(prefix.length);
+  }
+  if (!key.includes('/') && !key.startsWith('.') && key.length > 0) return key;
+  return undefined;
+}
+
+function readCredentialReadiness(credentialsDir, candidateTokenNames) {
+  let entries;
+  try {
+    entries = readdirSync(credentialsDir);
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.endsWith('.json'))
+    .toSorted()
+    .map((entry) => {
+      const tokenName = entry.slice(0, -'.json'.length);
+      const base = {
+        name: entry,
+        tokenName,
+        expectedForKimiLogin: candidateTokenNames.has(tokenName),
+      };
+      try {
+        const credentialPath = path.join(credentialsDir, entry);
+        const raw = readdirStatFile(credentialPath) > 0
+          ? JSON.parse(readFileSync(credentialPath, 'utf8'))
+          : undefined;
+        const hasAccessToken = typeof raw?.access_token === 'string' && raw.access_token.length > 0;
+        const hasRefreshToken = typeof raw?.refresh_token === 'string' && raw.refresh_token.length > 0;
+        return {
+          ...base,
+          status: hasAccessToken ? 'valid' : hasRefreshToken ? 'refresh-only' : 'empty',
+          hasAccessToken,
+          hasRefreshToken,
+          expiresAtType: typeof raw?.expires_at,
+        };
+      } catch {
+        return {
+          ...base,
+          status: 'unreadable',
+          hasAccessToken: false,
+          hasRefreshToken: false,
+          expiresAtType: 'unknown',
+        };
+      }
+    });
 }
 
 function hasNonBlankEnv(env, name) {
@@ -3759,14 +3958,26 @@ function validateDirectCliIsolation(context) {
   const kimiCodeHome = path.resolve(context.plannedKimiCodeHome);
   const userHome = path.resolve(os.homedir());
   const defaultKimiHome = path.join(userHome, '.kimi-code');
+  if (isPathInside(context.targetWorktree, context.sourceCheckout)) {
+    return { status: 'FAIL', reason: 'targetWorkspace must be outside the source checkout.' };
+  }
+  if (context.options.useRealKimiHome) {
+    return {
+      status: 'PASS',
+      reason:
+        'KIMI_CODE_HOME uses the default user Kimi home by explicit --use-real-kimi-home opt-in; targetWorkspace remains isolated from the source checkout.',
+      generatedHome: false,
+      sourceCwd: context.sourceCheckout,
+      targetWorkspace: context.targetWorktree,
+      kimiCodeHome,
+      homeMode: 'real-user-opt-in',
+    };
+  }
   if (kimiCodeHome === userHome) {
     return { status: 'FAIL', reason: 'KIMI_CODE_HOME resolves to the real user home.' };
   }
   if (kimiCodeHome === defaultKimiHome) {
     return { status: 'FAIL', reason: 'KIMI_CODE_HOME resolves to the default user Kimi home.' };
-  }
-  if (isPathInside(context.targetWorktree, context.sourceCheckout)) {
-    return { status: 'FAIL', reason: 'targetWorkspace must be outside the source checkout.' };
   }
   return {
     status: 'PASS',

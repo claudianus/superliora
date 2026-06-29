@@ -250,8 +250,10 @@ async function prepareHeadlessUltrawork(session: Session): Promise<HeadlessUltra
       await session.setSwarmMode(true, 'task');
       setup.swarmEnabled = true;
     }
-    await session.setPlanMode(true, true);
-    setup.planChanged = true;
+    if (!setup.planModeWasEnabled) {
+      await session.setPlanMode(true, true);
+      setup.planChanged = true;
+    }
   } catch (error) {
     await rollbackHeadlessUltrawork(session, setup);
     throw error;
