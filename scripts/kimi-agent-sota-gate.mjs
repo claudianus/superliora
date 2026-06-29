@@ -27,6 +27,8 @@ const REQUIRED_TUI_INPUT_SCENARIOS = Object.freeze(
 );
 const TUI_PROMPT_ENTRY_TEXT = 'visible qa prompt entry only';
 const TUI_VIBE_MODE_TEXT = 'Vibe mode: ON';
+const TUI_ULTRAWORK_WORKFLOW_PROMPT =
+  'Research latest agent harness best practices, design a verified Super Kimi TUI improvement plan, implement it with tests, and continue autonomously until the work is validated.';
 const TUI_SCREEN_SIGNAL_PATTERNS = Object.freeze([
   { name: 'kimi', pattern: /\bkimi\b/i },
   { name: 'moonshot', pattern: /moonshot/i },
@@ -45,7 +47,11 @@ const TUI_UX_SCORE_THRESHOLD = 85;
 const TUI_TARGET_DURATION_MS = 30_000;
 const PRIMARY_TUI_SUCCESS_SURFACE = 'live-tui-real-user-workflow';
 const AUXILIARY_PROMPT_BENCH_SURFACE = 'prompt-only-benchmarks-auxiliary-regression-signal';
-const ROOT_EVIDENCE_SUMMARY_FILES = new Set(['tui-launch.json', 'tui-real-workflow.json']);
+const ROOT_EVIDENCE_SUMMARY_FILES = new Set([
+  'tui-launch.json',
+  'tui-real-workflow.json',
+  'tui-ultrawork-workflow.json',
+]);
 const ULTRAWORK_CONTRACT_PATH = 'apps/kimi-code/src/tui/commands/ultrawork-contract.ts';
 const WEB_UI_SUCCESS_BOUNDARY =
   'Do not use apps/kimi-web or browser UI paths as a success surface';
@@ -66,6 +72,7 @@ Required inputs:
   --loop-summary <path>               bench-system-loop phase summary JSON.
   --tui-summary <path>                live TUI launch summary JSON.
   --workflow-summary <path>           live TUI real workflow summary JSON.
+  --ultrawork-summary <path>          Optional live TUI Ultrawork activation summary JSON.
 
 Options:
   --help                              Show this help.
@@ -101,6 +108,7 @@ function parseArgs(argv) {
     systemSummary: undefined,
     tuiSummary: undefined,
     workflowSummary: undefined,
+    ultraworkSummary: undefined,
   };
   const errors = [];
   const valueOptions = new Set([
@@ -110,6 +118,7 @@ function parseArgs(argv) {
     '--loop-summary',
     '--tui-summary',
     '--workflow-summary',
+    '--ultrawork-summary',
     '--max-wall-clock-ms',
     '--max-command-count',
     '--max-estimated-tokens',
@@ -166,6 +175,7 @@ function setValueOption(options, flag, value, errors) {
   if (flag === '--loop-summary') options.loopSummary = value;
   if (flag === '--tui-summary') options.tuiSummary = value;
   if (flag === '--workflow-summary') options.workflowSummary = value;
+  if (flag === '--ultrawork-summary') options.ultraworkSummary = value;
   if (flag === '--max-wall-clock-ms') options.maxWallClockMs = parsePositiveInteger(flag, value, errors);
   if (flag === '--max-command-count') options.maxCommandCount = parsePositiveInteger(flag, value, errors);
   if (flag === '--max-estimated-tokens') options.maxEstimatedTokens = parsePositiveInteger(flag, value, errors);
@@ -235,6 +245,9 @@ async function buildReport(options, outputDir, runId) {
     tuiSummary: path.resolve(options.tuiSummary),
     workflowSummary: path.resolve(options.workflowSummary),
   };
+  if (options.ultraworkSummary !== undefined) {
+    evidenceInputs.ultraworkSummary = path.resolve(options.ultraworkSummary);
+  }
   const baselineSelection = await selectBaselineSotaSummary(options, outputDir);
   const inputs = { ...evidenceInputs };
   if (baselineSelection !== undefined) inputs.baselineSotaSummary = baselineSelection.path;
@@ -245,14 +258,21 @@ async function buildReport(options, outputDir, runId) {
     evidenceInputs.workflowSummary,
     'live TUI real workflow summary',
   );
+  const ultraworkSummary =
+    evidenceInputs.ultraworkSummary === undefined
+      ? undefined
+      : await readJsonRequired(evidenceInputs.ultraworkSummary, 'live TUI Ultrawork summary');
 
   const tuiGate = await evaluateTuiGate(tuiSummary);
   const workflowGate = await evaluateWorkflowGate(workflowSummary);
+  const ultraworkGate =
+    ultraworkSummary === undefined ? undefined : await evaluateUltraworkGate(ultraworkSummary);
   const gates = [
     evaluateSystemGate(systemSummary),
     evaluateLoopGate(loopSummary),
     tuiGate,
     workflowGate,
+    ...(ultraworkGate === undefined ? [] : [ultraworkGate]),
     evaluateBudgetGate(systemSummary, budgets),
     await evaluateNoWebUiSurfaceGate(evidenceInputs),
     await evaluateSecretScanGate(inputs, criteriaPath),
@@ -263,7 +283,7 @@ async function buildReport(options, outputDir, runId) {
       ? undefined
       : evaluateTuiUxDeltaGate(baselineSelection.summary, tuiGate.observed?.uxFriction);
   if (tuiUxDelta !== undefined) gates.push(tuiUxDelta);
-  const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta, workflowGate);
+  const tuiNextActions = recommendTuiNextActions(tuiGate, tuiUxDelta, workflowGate, ultraworkGate);
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
   return {
     schemaVersion: 1,
@@ -289,6 +309,7 @@ async function buildReport(options, outputDir, runId) {
     tuiUxBaseline: baselineSelection?.metadata,
     tuiUxFriction: tuiGate.observed?.uxFriction,
     tuiWorkflowProof: workflowGate.observed,
+    tuiUltraworkProof: ultraworkGate?.observed,
     tuiUxDelta: tuiUxDelta?.observed,
     tuiNextActions,
     gates,
@@ -606,6 +627,155 @@ async function evaluateWorkflowGate(summary) {
   };
 }
 
+async function evaluateUltraworkGate(summary) {
+  const failures = [];
+  if (summary.phase !== 'tui-ultrawork-workflow') {
+    failures.push(`Ultrawork phase is ${String(summary.phase)}`);
+  }
+  if (summary.status !== 'PASS') failures.push(`Ultrawork status is ${String(summary.status)}`);
+  if (summary.kimiCodeHomeMode !== 'real-user-opt-in') {
+    failures.push(`KIMI_CODE_HOME mode is ${String(summary.kimiCodeHomeMode)}`);
+  }
+
+  const requiredValidations = [
+    'tmuxPreflight',
+    'kimiCodeHomeReady',
+    'promptSubmitted',
+    'planModeReset',
+    'ultraworkActivated',
+    'ultraPlanInterviewReached',
+    'noAutoQuestionPolicyConflict',
+    'screenEvidence',
+    'kimiModelReady',
+    'adaptiveOperatorLoop',
+    'operatorTrajectory',
+  ];
+  const validationStatuses = {};
+  for (const name of requiredValidations) {
+    const status = summary.validations?.[name]?.status;
+    validationStatuses[name] = status;
+    if (status !== 'PASS') failures.push(`${name} validation is ${String(status)}`);
+  }
+
+  const workflowWait = summary.workflow?.wait;
+  if (workflowWait?.status !== 'PASS') {
+    failures.push(`Ultrawork wait status is ${String(workflowWait?.status)}`);
+  }
+  if (!Array.isArray(workflowWait?.activationEvidence) || workflowWait.activationEvidence.length === 0) {
+    failures.push('Ultrawork activation evidence is missing from workflow wait');
+  }
+  if (!Array.isArray(workflowWait?.interviewEvidence) || workflowWait.interviewEvidence.length === 0) {
+    failures.push('Ultra Plan interview evidence is missing from workflow wait');
+  }
+  if (Array.isArray(workflowWait?.policyConflictEvidence) && workflowWait.policyConflictEvidence.length > 0) {
+    failures.push('auto-mode AskUserQuestion policy conflict evidence is present');
+  }
+  const failedTrajectorySteps = Array.isArray(summary.operatorTrajectory?.steps)
+    ? summary.operatorTrajectory.steps.filter((step) => step.status !== 'PASS')
+    : [];
+  if (!Array.isArray(summary.operatorTrajectory?.steps) || failedTrajectorySteps.length > 0) {
+    failures.push('Ultrawork operator trajectory has failing or missing steps');
+  }
+
+  const captureResults = await validateUltraworkCaptures(summary);
+  for (const capture of captureResults.filter((result) => result.status !== 'PASS')) {
+    failures.push(`Ultrawork capture ${capture.scenario} is ${capture.status}`);
+  }
+  const inputResults = validateUltraworkInputTraces(summary);
+  for (const trace of inputResults.filter((result) => result.status !== 'PASS')) {
+    failures.push(`Ultrawork input ${trace.scenario} is ${trace.status}`);
+  }
+
+  return {
+    name: 'live-tui-ultrawork-activation-proof',
+    status: failures.length === 0 ? 'PASS' : 'FAIL',
+    required: true,
+    reason:
+      failures.length === 0
+        ? 'Live TUI Ultrawork auto-activation reached Ultra Plan interview without auto/question policy deadlock.'
+        : failures.join('; '),
+    observed: {
+      phase: summary.phase,
+      status: summary.status,
+      kimiCodeHomeMode: summary.kimiCodeHomeMode,
+      validationStatuses,
+      workflowWaitStatus: workflowWait?.status,
+      activationEvidenceCount: Array.isArray(workflowWait?.activationEvidence)
+        ? workflowWait.activationEvidence.length
+        : 0,
+      interviewEvidenceCount: Array.isArray(workflowWait?.interviewEvidence)
+        ? workflowWait.interviewEvidence.length
+        : 0,
+      questionEvidenceCount: Array.isArray(workflowWait?.questionEvidence)
+        ? workflowWait.questionEvidence.length
+        : 0,
+      policyConflictEvidenceCount: Array.isArray(workflowWait?.policyConflictEvidence)
+        ? workflowWait.policyConflictEvidence.length
+        : 0,
+      adaptiveObservationCount: summary.validations?.adaptiveOperatorLoop?.observationCount,
+      trajectorySteps: Array.isArray(summary.operatorTrajectory?.steps)
+        ? summary.operatorTrajectory.steps.map((step) => ({
+            name: step.name,
+            status: step.status,
+          }))
+        : [],
+      captureResults,
+      inputResults,
+    },
+  };
+}
+
+async function validateUltraworkCaptures(summary) {
+  const captures = Array.isArray(summary.captures) ? summary.captures : [];
+  const requiredScenarios = [
+    'ultrawork-startup',
+    'ultrawork-plan-reset',
+    'ultrawork-submitted',
+    'ultrawork-after-wait',
+  ];
+  const results = [];
+  for (const scenario of requiredScenarios) {
+    const capture = captures.find((entry) => entry.scenario === scenario);
+    const file = capture?.path;
+    const artifact = typeof file === 'string' ? await fileStatus(file) : { exists: false, bytes: 0 };
+    results.push({
+      scenario,
+      status: capture?.status === 'PASS' && artifact.exists && artifact.bytes > 0 ? 'PASS' : 'FAIL',
+      path: file,
+      bytes: artifact.bytes,
+    });
+  }
+  return results;
+}
+
+function validateUltraworkInputTraces(summary) {
+  const traces = Array.isArray(summary.inputTraces) ? summary.inputTraces : [];
+  const planResetTrace = traces.find((entry) => entry.scenario === 'ultrawork-plan-reset');
+  const trace = traces.find((entry) => entry.scenario === 'ultrawork-auto-prompt');
+  return [
+    {
+      scenario: 'ultrawork-plan-reset',
+      status:
+        planResetTrace?.status === 'PASS' &&
+        Array.isArray(planResetTrace.keys) &&
+        planResetTrace.keys.includes('/plan off')
+          ? 'PASS'
+          : 'FAIL',
+      keys: planResetTrace?.keys,
+    },
+    {
+      scenario: 'ultrawork-auto-prompt',
+      status:
+        trace?.status === 'PASS' &&
+        Array.isArray(trace.keys) &&
+        trace.keys.includes(TUI_ULTRAWORK_WORKFLOW_PROMPT)
+          ? 'PASS'
+          : 'FAIL',
+      keys: trace?.keys,
+    },
+  ];
+}
+
 async function validateWorkflowCaptures(summary) {
   const captures = Array.isArray(summary.captures) ? summary.captures : [];
   const requiredScenarios = [
@@ -702,7 +872,7 @@ function evaluateTuiUxDeltaGate(baselineSummary, currentFriction) {
   };
 }
 
-function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
+function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate, ultraworkGate) {
   const uxFriction = tuiGate.observed?.uxFriction;
   const scenarios = Array.isArray(tuiGate.observed?.scenarios) ? tuiGate.observed.scenarios : [];
   const penalties = Array.isArray(uxFriction?.penalties) ? uxFriction.penalties : [];
@@ -796,19 +966,35 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
         break;
     }
   }
+  if (ultraworkGate === undefined) {
+    addAction(
+      'add-dedicated-ultrawork-workflow-gate',
+      'Direct live TUI workflow evidence passes, but SOTA gate does not yet include a dedicated Ultrawork activation and interview workflow summary.',
+      {
+        workflowGate: workflowGate.status,
+        requiredNextGate: 'ultrawork-activation-planning-workflow',
+      },
+      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-ultrawork-workflow --use-real-kimi-home --evidence-root .omo/evidence/<ultrawork-workflow-after>',
+    );
+  } else if (ultraworkGate.status !== 'PASS') {
+    addAction(
+      'repair-dedicated-ultrawork-workflow-gate',
+      'The dedicated Ultrawork activation workflow did not prove natural-language auto activation, Ultra Plan interview reachability, and no auto/question policy deadlock together.',
+      ultraworkGate.observed,
+      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-ultrawork-workflow --use-real-kimi-home --evidence-root .omo/evidence/<ultrawork-workflow-repair>',
+    );
+  }
 
   if (actions.length === 0) {
     addAction(
-      'add-dedicated-ultrawork-workflow-gate',
-      'Current direct live TUI launch and real repository source/test workflow evidence pass; the next loop must add a separate Ultrawork workflow gate for automatic activation, planning/interview behavior, and deadlock-free handoff.',
+      'advance-to-full-ultragoal-execution-gate',
+      'Current direct live TUI workflow and dedicated Ultrawork activation evidence pass; the next loop should answer the interview surface and validate full Ultragoal execution through the same screen-driven TUI gate.',
       {
         currentScore: uxFriction?.score,
         deltaVerdict: tuiUxDeltaGate?.observed?.verdict ?? 'not-compared',
         workflowGate: workflowGate.status,
-        directGateScope: 'ultrawork-disabled-real-repository-coding',
-        requiredNextGate: 'ultrawork-activation-planning-workflow',
-        knownRisk:
-          'Ultrawork plan/interview automation can deadlock when the workflow requests AskUserQuestion while autonomous TUI QA expects tool-driven progress.',
+        ultraworkGate: ultraworkGate?.status,
+        requiredNextGate: 'full-ultragoal-execution-workflow',
         agentVerificationEvidenceCount: workflowGate.observed?.agentVerificationEvidenceCount,
         editedFileCount: workflowGate.observed?.workspace?.editedFileCount,
         targetedTestExitCode: workflowGate.observed?.workspace?.targetedTestExitCode,
@@ -824,13 +1010,16 @@ function recommendTuiNextActions(tuiGate, tuiUxDeltaGate, workflowGate) {
           'real repository source/test evidence',
           'workspace diff review',
           'targeted test command',
+          'Ultrawork activation marker',
+          'Ultra Plan interview evidence',
+          'no auto/question policy conflict',
         ],
         currentTier: 'adaptive-vibecoder-operator-loop',
         passingScenarios: scenarios
           .filter((scenario) => scenario.status === 'PASS')
           .map((scenario) => scenario.scenario),
       },
-      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-real-workflow --use-real-kimi-home --evidence-root .omo/evidence/<real-vibe-coding-before-after>',
+      'node scripts/qa-super-kimi-autonomous.mjs --phase tui-ultrawork-workflow --use-real-kimi-home --evidence-root .omo/evidence/<full-ultragoal-after>',
     );
   }
 
@@ -1368,6 +1557,9 @@ function renderMarkdown(report) {
     `- bench-system-loop: ${report.inputs.loopSummary}`,
     `- live TUI: ${report.inputs.tuiSummary}`,
     `- real workflow: ${report.inputs.workflowSummary}`,
+    ...(report.inputs.ultraworkSummary === undefined
+      ? []
+      : [`- Ultrawork workflow: ${report.inputs.ultraworkSummary}`]),
     ...(report.inputs.baselineSotaSummary === undefined
       ? []
       : [`- baseline SOTA: ${report.inputs.baselineSotaSummary}`]),
@@ -1436,6 +1628,20 @@ function renderMarkdown(report) {
       `- adaptive observations: ${String(report.tuiWorkflowProof.adaptiveObservationCount ?? 'unavailable')}`,
       `- adaptive interventions: ${String(report.tuiWorkflowProof.adaptiveInterventionsAttempted ?? 'unavailable')}`,
       `- verification exit code: ${String(report.tuiWorkflowProof.workspace?.verificationExitCode ?? 'unavailable')}`,
+    );
+  }
+  if (report.tuiUltraworkProof !== undefined) {
+    lines.push(
+      '',
+      '## Live TUI Ultrawork Proof',
+      '',
+      `- status: ${report.tuiUltraworkProof.status}`,
+      `- mode: ${report.tuiUltraworkProof.kimiCodeHomeMode}`,
+      `- activation evidence: ${String(report.tuiUltraworkProof.activationEvidenceCount)}`,
+      `- interview evidence: ${String(report.tuiUltraworkProof.interviewEvidenceCount)}`,
+      `- question evidence: ${String(report.tuiUltraworkProof.questionEvidenceCount)}`,
+      `- policy conflicts: ${String(report.tuiUltraworkProof.policyConflictEvidenceCount)}`,
+      `- adaptive observations: ${String(report.tuiUltraworkProof.adaptiveObservationCount ?? 'unavailable')}`,
     );
   }
   if (report.tuiNextActions !== undefined) {

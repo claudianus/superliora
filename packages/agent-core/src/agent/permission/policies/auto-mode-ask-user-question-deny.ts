@@ -9,6 +9,7 @@ export class AutoModeAskUserQuestionDenyPermissionPolicy implements PermissionPo
   evaluate(context: PermissionPolicyContext): PermissionPolicyResult | undefined {
     if (this.agent.permission.mode !== 'auto') return;
     if (context.toolCall.name !== 'AskUserQuestion') return;
+    if (this.agent.planMode?.isUltraMode && this.agent.planMode.phase === 'interview') return;
     return {
       kind: 'deny',
       message:
