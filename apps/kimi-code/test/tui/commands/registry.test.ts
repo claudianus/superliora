@@ -109,7 +109,7 @@ describe('built-in slash command registry', () => {
     expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight']));
     const help = findBuiltInSlashCommand('help') as KimiSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);
-    expect(helpArgumentCompletions('d')?.map((item) => item.value)).toEqual(['diagnostics']);
+    expect(helpArgumentCompletions('d')).toBeNull();
     expect(help?.argumentHint).toBeUndefined();
   });
 
@@ -168,11 +168,11 @@ describe('built-in slash command registry', () => {
 
   it('keeps memory diagnostics out of the default memory completion list', () => {
     const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
-    const explicitHealthValues = memoryArgumentCompletions('h')?.map((item) => item.value);
 
     expect(primaryValues).not.toContain('readiness');
     expect(primaryValues).not.toContain('health');
-    expect(explicitHealthValues).toEqual(['health']);
+    expect(memoryArgumentCompletions('r')?.map((item) => item.value)).not.toContain('readiness');
+    expect(memoryArgumentCompletions('h')).toBeNull();
   });
 
   it('defaults commands without explicit availability to idle-only', () => {

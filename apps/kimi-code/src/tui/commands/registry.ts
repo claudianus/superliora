@@ -30,10 +30,6 @@ const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current goal with an ultragoal' },
 ];
 
-const HELP_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'advanced', description: 'Show manual workflow commands' },
-  { value: 'diagnostics', description: 'Show internal QA and diagnostics commands' },
-];
 const HELP_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'advanced', description: 'Show manual workflow commands' },
 ];
@@ -49,16 +45,6 @@ const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'remember', description: 'Write a memory' },
   { value: 'forget', description: 'Forget a memory by id' },
   { value: 'consolidate', description: 'Merge exact duplicate memories' },
-];
-
-const MEMORY_DIAGNOSTIC_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'readiness', description: 'Show Super Kimi memory harness readiness' },
-  { value: 'health', description: 'Alias for readiness' },
-];
-
-const MEMORY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  ...MEMORY_PRIMARY_ARG_COMPLETIONS,
-  ...MEMORY_DIAGNOSTIC_ARG_COMPLETIONS,
 ];
 
 /** Argument autocompletion for the `/goal` command (subcommands). */
@@ -85,10 +71,7 @@ export function ultraworkArgumentCompletions(argumentPrefix: string): Autocomple
 }
 
 export function helpArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  if (argumentPrefix.trim().length === 0) {
-    return completeLeadingArg(HELP_PRIMARY_ARG_COMPLETIONS, argumentPrefix);
-  }
-  return completeLeadingArg(HELP_ARG_COMPLETIONS, argumentPrefix);
+  return completeLeadingArg(HELP_PRIMARY_ARG_COMPLETIONS, argumentPrefix);
 }
 
 /** Argument autocompletion for the `/add-dir` command. */
@@ -100,10 +83,7 @@ export function addDirArgumentCompletions(argumentPrefix: string): AutocompleteI
 }
 
 export function memoryArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  if (argumentPrefix.trim().length === 0) {
-    return completeLeadingArg(MEMORY_PRIMARY_ARG_COMPLETIONS, argumentPrefix);
-  }
-  return completeLeadingArg(MEMORY_ARG_COMPLETIONS, argumentPrefix);
+  return completeLeadingArg(MEMORY_PRIMARY_ARG_COMPLETIONS, argumentPrefix);
 }
 
 function isPathLikeAddDirArgument(argumentPrefix: string): boolean {
