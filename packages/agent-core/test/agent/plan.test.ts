@@ -36,6 +36,37 @@ describe('manual plan entry', () => {
     expect(ctx.llmCalls).toHaveLength(0);
   });
 
+  it('enters UltraPlan with the phase machine and template active', async () => {
+    const writeText = vi.fn(async (_path: string, content: string) => content.length);
+    const ctx = testAgent({
+      kaos: createPlanKaos({ writeText }),
+    });
+
+    await ctx.agent.planMode.enter('ultra-regression', false, true, true);
+
+    expect(ctx.agent.planMode.isActive).toBe(true);
+    expect(ctx.agent.planMode.isUltraMode).toBe(true);
+    expect(ctx.agent.planMode.phase).toBe('interview');
+    expect(ctx.agent.planMode.interviewRoundCount).toBe(0);
+    expect(ctx.agent.planMode.planFilePath).toBe('/workspace/plan/ultra-regression.md');
+    expect(writeText).toHaveBeenCalledWith(
+      '/workspace/plan/ultra-regression.md',
+      expect.stringContaining('# Ultra Plan'),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      '/workspace/plan/ultra-regression.md',
+      expect.stringContaining('## Seed Spec'),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      '/workspace/plan/ultra-regression.md',
+      expect.stringContaining('## Evaluation Plan'),
+    );
+    const enterRecord = ctx.allEvents.find(
+      (event) => event.type === '[wire]' && event.event === 'plan_mode.enter',
+    );
+    expect(enterRecord?.args).toMatchObject({ ultra: true });
+  });
+
   it('derives the no-homedir plan path from cwd on enter and restore', async () => {
     const ctx = testAgent({
       kaos: createPlanKaos({

@@ -41,6 +41,50 @@ describe('UltraPlanModeEngine', () => {
     });
   });
 
+  describe('Interview ambiguity scoring', () => {
+    it('accumulates interview Q/A into ambiguity scoring and completion readiness', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Build Super Kimi premium Ultrawork regression protection');
+
+      const initial = engine.calculateAmbiguityScore();
+      expect(initial.milestone).toBe('initial');
+      expect(initial.isReadyForSeed).toBe(false);
+      expect(engine.interviewState.ambiguityScore).toEqual(initial);
+
+      engine.addInterviewRound(
+        'What is the goal and scope?',
+        'Goal: preserve the Super Kimi premium CLI workflow. Scope: TUI help, theme, UltraPlan, UltraGoal, UltraSwarm, and Verify surfaces.',
+      );
+      engine.addInterviewRound(
+        'What constraints and risks must be protected?',
+        'Constraints: must keep the Ultrawork brand visible, cannot hide advanced commands, and should avoid unrelated refactors. Risk: regression that removes terminal themes or weakens slash command access.',
+      );
+      engine.addInterviewRound(
+        'What acceptance criteria should verify success?',
+        'Criteria: /help advanced shows Ultra access paths, /theme lists bundled themes, /plan ultra starts UltraPlan, /ultrawork connects the workflow, and tests verify each requirement.',
+      );
+
+      const scored = engine.calculateAmbiguityScore();
+
+      expect(engine.interviewState.rounds).toMatchObject([
+        { roundNumber: 1, question: 'What is the goal and scope?' },
+        { roundNumber: 2, question: 'What constraints and risks must be protected?' },
+        { roundNumber: 3, question: 'What acceptance criteria should verify success?' },
+      ]);
+      expect(scored.overallScore).toBeLessThan(initial.overallScore);
+      expect(scored.milestone).toBe('ready');
+      expect(scored.isReadyForSeed).toBe(true);
+      expect(engine.interviewState.ambiguityScore).toEqual(scored);
+      expect(engine.interviewState.completionCandidateStreak).toBe(1);
+      expect(engine.canAutoComplete()).toBe(false);
+
+      engine.calculateAmbiguityScore();
+
+      expect(engine.interviewState.completionCandidateStreak).toBe(2);
+      expect(engine.canAutoComplete()).toBe(true);
+    });
+  });
+
   describe('Drift Detection', () => {
     it('should calculate drift when no seed spec exists', () => {
       const engine = new UltraPlanModeEngine(mockAgent);
@@ -80,7 +124,7 @@ describe('UltraPlanModeEngine', () => {
       engine.setSeedSpec(
         engine.generateSeedSpecFromInterview('test', [], [], 'Test', []),
       );
-      const drift = engine.calculateDrift('output', Array(20).fill('v'));
+      const drift = engine.calculateDrift('output', Array.from({ length: 20 }, () => 'v'));
       expect(drift.constraintDrift).toBe(1.0);
     });
   });

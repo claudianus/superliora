@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import type { KimiSlashCommand } from '#/tui/commands/index';
+import { BUILTIN_SLASH_COMMANDS, slashCommandsForHelp } from '#/tui/commands/registry';
 import {
   ADVANCED_HELP_INTRO,
   ADVANCED_KEYBOARD_SHORTCUTS,
@@ -84,6 +85,42 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Advanced Ultrawork controls/);
     expect(out).toMatch(/\/ultrawork \(\/uw\)/);
     expect(out).toMatch(/auto-link UltraPlan, UltraGoal, UltraSwarm, Verify/);
+  });
+
+  it('keeps default help simple while advanced help exposes Ultra access paths', () => {
+    const primaryPanel = new HelpPanelComponent({
+      commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary'),
+      maxVisible: 200,
+      onClose: () => {},
+    });
+    const primaryOut = strip(primaryPanel.render(160).join('\n'));
+
+    expect(primaryOut).toMatch(/Describe task; Ultrawork runs the full workflow, then verifies\./);
+    expect(primaryOut).toMatch(/\/theme/);
+    expect(primaryOut).not.toMatch(/\/plan/);
+    expect(primaryOut).not.toMatch(/\/swarm/);
+    expect(primaryOut).not.toMatch(/\/ultrawork/);
+    expect(primaryOut).not.toMatch(/UltraPlan, UltraGoal, UltraSwarm, Verify/);
+
+    const advancedPanel = new HelpPanelComponent({
+      commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced'),
+      intro: ADVANCED_HELP_INTRO,
+      shortcuts: ADVANCED_KEYBOARD_SHORTCUTS,
+      commandSectionTitle: 'Advanced Ultrawork controls',
+      maxVisible: 200,
+      onClose: () => {},
+    });
+    const advancedOut = strip(advancedPanel.render(160).join('\n'));
+
+    expect(advancedOut).toMatch(/Ultrawork is one workflow: UltraPlan, UltraGoal, UltraSwarm, Verify\./);
+    expect(advancedOut).toMatch(/Plain tasks start it automatically/);
+    expect(advancedOut).toMatch(/Advanced Ultrawork controls/);
+    expect(advancedOut).toMatch(/\/plan/);
+    expect(advancedOut).toMatch(/Advanced steering for UltraPlan; Ultrawork auto-enables it/);
+    expect(advancedOut).toMatch(/\/swarm/);
+    expect(advancedOut).toMatch(/Advanced steering for UltraSwarm; Ultrawork auto-arms it/);
+    expect(advancedOut).toMatch(/\/ultrawork \(\/uw\)/);
+    expect(advancedOut).toMatch(/Run Ultrawork: auto-link UltraPlan, UltraGoal, UltraSwarm, Verify/);
   });
 
   it('Escape fires onClose', () => {
