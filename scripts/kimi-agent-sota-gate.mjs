@@ -1085,10 +1085,12 @@ async function findLatestPassingEvidenceSummary(kind, evidenceRoot, outputDir) {
     limit: AUTO_BASELINE_SCAN_LIMIT,
     kind,
   });
+  let selected;
   for (const candidate of candidates) {
     const summary = await readJsonIfFile(candidate.path);
     if (!isUsableEvidenceSummary(kind, summary)) continue;
-    return {
+    const completedAtMs = evidenceSummaryCompletedAtMs(summary, candidate.modifiedAt);
+    const next = {
       source: 'auto-latest-pass',
       kind,
       path: candidate.path,
@@ -1096,9 +1098,18 @@ async function findLatestPassingEvidenceSummary(kind, evidenceRoot, outputDir) {
       phase: summary.phase,
       summaryStatus: summary.status,
       modifiedAt: candidate.modifiedAt,
+      completedAt: summary.completedAt,
+      completedAtMs,
     };
+    if (
+      selected === undefined ||
+      next.completedAtMs > selected.completedAtMs ||
+      (next.completedAtMs === selected.completedAtMs && next.modifiedAt > selected.modifiedAt)
+    ) {
+      selected = next;
+    }
   }
-  return undefined;
+  return selected;
 }
 
 async function findEvidenceSummaryFiles(rootDir, options) {
@@ -1185,8 +1196,14 @@ function isUsableUltraworkSummary(summary) {
   if (summary.workflow.wait.activationEvidence.length === 0) return false;
   if (!Array.isArray(summary.workflow?.wait?.interviewEvidence)) return false;
   if (summary.workflow.wait.interviewEvidence.length === 0) return false;
-  if (!Array.isArray(summary.workflow?.wait?.questionAnswerEvidence)) return false;
-  if (summary.workflow.wait.questionAnswerEvidence.length === 0) return false;
+  const questionBypassed = summary.validations?.questionAnswered?.optional === true;
+  if (
+    !questionBypassed &&
+    (!Array.isArray(summary.workflow?.wait?.questionAnswerEvidence) ||
+      summary.workflow.wait.questionAnswerEvidence.length === 0)
+  ) {
+    return false;
+  }
   if (!Array.isArray(summary.workflow?.wait?.postQuestionProgressEvidence)) return false;
   if (summary.workflow.wait.postQuestionProgressEvidence.length === 0) return false;
   if (!Array.isArray(summary.captures) || !Array.isArray(summary.inputTraces)) return false;
@@ -1195,6 +1212,14 @@ function isUsableUltraworkSummary(summary) {
   if (summary.workspace?.diffExitCode !== 0) return false;
   if (summary.workspace?.verificationExitCode !== 0) return false;
   return summary.workspace?.targetedTestExitCode === 0;
+}
+
+function evidenceSummaryCompletedAtMs(summary, fallback) {
+  const completedAtMs = Date.parse(String(summary?.completedAt ?? ''));
+  if (Number.isFinite(completedAtMs)) return completedAtMs;
+  const startedAtMs = Date.parse(String(summary?.startedAt ?? ''));
+  if (Number.isFinite(startedAtMs)) return startedAtMs;
+  return fallback;
 }
 
 function latestEvidenceReason(kind) {
