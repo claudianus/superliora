@@ -137,6 +137,12 @@ export class FullCompaction {
       });
       return;
     }
+    if (data.source === 'manual' && this.agent.turn.hasActiveTurn) {
+      throw new KimiError(
+        ErrorCodes.COMPACTION_UNABLE,
+        'Cannot compact while a turn is active. Wait for it to finish, then retry.',
+      );
+    }
     const compactedCount = this.strategy.computeCompactCount(this.agent.context.history, data.source);
     if (compactedCount === 0) {
       throw new KimiError(ErrorCodes.COMPACTION_UNABLE, 'No prefix that can be compacted in current history.');

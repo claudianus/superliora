@@ -26,6 +26,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1214` partial: count image/audio/video parts in context token estimates.
 - Upstream `#1214` partial: merge consecutive user-role turns for strict Anthropic/Gemini provider wires.
 - Upstream `#1214` partial: rewrite compaction instructions toward first-person handoff notes with verification caution.
+- Upstream `#1214` partial: reject manual compaction requests while a turn is actively mutating context.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -45,6 +46,7 @@ Super Kimi adaptation:
 - Pulled the independent media-token estimator fix from the compaction rework so media-heavy vibe-coding sessions no longer look free to usage/readiness and compaction budget logic.
 - Collapsed consecutive user-role wire turns at strict provider boundaries so post-compaction prompts and steer-after-tool-result histories do not 400 on alternating-role backends.
 - Adapted the upstream handoff-style compaction prompt into Super Kimi's existing Context Compaction v2 wrapper, preserving the structured memory contract while making summaries more useful after context loss.
+- Kept Super Kimi's planner/memory compaction design, but adopted the upstream active-turn guard so manual compaction cannot race a streaming turn and silently lose context mutations.
 
 ## Next Candidate Queue
 

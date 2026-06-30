@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 
+import { createControlledPromise } from '@antfu/utils';
 import {
   APIConnectionError,
   APIContextOverflowError,
@@ -281,6 +282,46 @@ describe('FullCompaction', () => {
         inputCacheCreation: 0,
       }),
     });
+    await ctx.expectResumeMatches();
+  });
+
+  it('rejects manual compaction while a turn is active', async () => {
+    const generateStarted = createControlledPromise<void>();
+    const releaseGenerate = createControlledPromise<void>();
+    const generate: GenerateFn = async (
+      _provider,
+      _system,
+      _tools,
+      _history,
+      callbacks,
+      options,
+    ) => {
+      generateStarted.resolve();
+      await releaseGenerate;
+      options?.signal?.throwIfAborted();
+      await callbacks?.onMessagePart?.({ type: 'text', text: 'Active turn completed.' });
+      return textResult('Active turn completed.');
+    };
+    const ctx = testAgent({ generate });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+    ctx.appendExchange(2, 'recent user two', 'recent assistant two', 80);
+
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Hold this turn open' }] });
+    await generateStarted;
+
+    expect(ctx.agent.turn.hasActiveTurn).toBe(true);
+    await expect(ctx.rpc.beginCompaction({})).rejects.toMatchObject({
+      code: 'compaction.unable',
+      message: 'Cannot compact while a turn is active. Wait for it to finish, then retry.',
+    });
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
+
+    releaseGenerate.resolve();
+    await ctx.untilTurnEnd();
     await ctx.expectResumeMatches();
   });
 
