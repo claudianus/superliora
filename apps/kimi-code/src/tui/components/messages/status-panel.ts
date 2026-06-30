@@ -142,6 +142,24 @@ function formatUltraworkStageStatus(options: StatusReportOptions): string {
   return `${plan} | ${goal} | ${swarm} | ${verify}`;
 }
 
+function formatUltraworkFlow(options: StatusReportOptions): FieldRow {
+  const blocked = verifyBlockedByReadiness(options);
+  if (options.goalStatus === 'complete') {
+    return { label: 'Flow', value: `${renderProgressBar(1, 4)} 4/4 verified` };
+  }
+  if (blocked) {
+    return {
+      label: 'Flow',
+      value: `${renderProgressBar(0.75, 4)} 3/4 verify blocked`,
+      severity: 'error',
+    };
+  }
+  if (options.goalStatus === 'active' || options.goalStatus === 'paused') {
+    return { label: 'Flow', value: `${renderProgressBar(0.75, 4)} 3/4 verify queued` };
+  }
+  return { label: 'Flow', value: `${renderProgressBar(1, 4)} 4/4 ready to run` };
+}
+
 function formatUltraworkStatus(options: StatusReportOptions): string {
   const blocked = verifyBlockedByReadiness(options);
   if (blocked && options.goalStatus !== 'blocked') return 'needs readiness';
@@ -210,6 +228,7 @@ function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
     { label: 'Workflow', value: WORKFLOW_GATE },
     { label: 'Engine', value: ENGINE_GATE },
     { label: 'Auto', value: AUTO_GATE },
+    formatUltraworkFlow(options),
     { label: 'Stages', value: formatUltraworkStageStatus(options) },
     { label: 'Blockers', value: formatReadinessBlockers(options) },
     { label: 'Scope', value: SCOPE_GATE },
