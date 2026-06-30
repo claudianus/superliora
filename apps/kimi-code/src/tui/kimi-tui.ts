@@ -60,7 +60,11 @@ import {
   type ApprovalPreviewBlock,
 } from './components/dialogs/approval-preview';
 import { CompactionComponent } from './components/dialogs/compaction';
-import { ADVANCED_HELP_INTRO, HelpPanelComponent } from './components/dialogs/help-panel';
+import {
+  ADVANCED_HELP_INTRO,
+  ADVANCED_KEYBOARD_SHORTCUTS,
+  HelpPanelComponent,
+} from './components/dialogs/help-panel';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
 import {
@@ -2555,6 +2559,7 @@ export class KimiTUI {
           : mode === 'advanced'
             ? 'Advanced Ultrawork controls'
             : undefined,
+        shortcuts: mode === 'advanced' ? ADVANCED_KEYBOARD_SHORTCUTS : undefined,
         onClose: () => {
           this.hideHelpPanel();
         },

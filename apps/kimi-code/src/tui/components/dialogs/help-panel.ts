@@ -30,9 +30,13 @@ export interface HelpPanelCommand {
 }
 
 /** Static list — keep in sync with the global editor bindings. */
+const ULTRAWORK_PLANNING_SHORTCUT: KeyboardShortcut = {
+  keys: 'Shift-Tab',
+  description: 'Toggle Ultrawork planning',
+};
+
 export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
-  { keys: 'Shift-Tab', description: 'Toggle Ultrawork planning' },
-  { keys: 'Ctrl-Shift-Tab', description: 'Toggle UltraPlan steering' },
+  ULTRAWORK_PLANNING_SHORTCUT,
   { keys: 'Ctrl-G', description: 'Edit in external editor ($VISUAL / $EDITOR)' },
   { keys: 'Ctrl-O', description: 'Toggle tool output expansion' },
   { keys: 'Ctrl-T', description: 'Expand / collapse the todo list (when truncated)' },
@@ -43,6 +47,11 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
   { keys: 'Esc', description: 'Close dialogs / interrupt streaming' },
   { keys: '↑ / ↓', description: 'Browse input history' },
   { keys: 'Enter', description: 'Submit' },
+];
+export const ADVANCED_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
+  ULTRAWORK_PLANNING_SHORTCUT,
+  { keys: 'Ctrl-Shift-Tab', description: 'Toggle UltraPlan steering' },
+  ...DEFAULT_KEYBOARD_SHORTCUTS.slice(1),
 ];
 const DEFAULT_HELP_INTRO =
   'Describe task; Ultrawork auto-runs UltraPlan, UltraGoal, UltraSwarm, Verify.\nSteering controls live in /help advanced.';

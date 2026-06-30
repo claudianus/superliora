@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import type { KimiSlashCommand } from '#/tui/commands/index';
-import { ADVANCED_HELP_INTRO, HelpPanelComponent } from '#/tui/components/dialogs/help-panel';
+import {
+  ADVANCED_HELP_INTRO,
+  ADVANCED_KEYBOARD_SHORTCUTS,
+  HelpPanelComponent,
+} from '#/tui/components/dialogs/help-panel';
 
 function cmd(name: string, description: string, aliases: string[] = []): KimiSlashCommand {
   return {
@@ -28,8 +32,8 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
     expect(out).toMatch(/Toggle Ultrawork planning/);
-    expect(out).toMatch(/Ctrl-Shift-Tab/);
-    expect(out).toMatch(/Toggle UltraPlan steering/);
+    expect(out).not.toMatch(/Ctrl-Shift-Tab/);
+    expect(out).not.toMatch(/Toggle UltraPlan steering/);
     expect(out).toMatch(/Ctrl-O/);
     expect(out).toMatch(/Shift-Enter \/ Ctrl-J/);
     expect(out).toMatch(/Slash commands/);
@@ -65,6 +69,7 @@ describe('HelpPanelComponent', () => {
         cmd('ultrawork', 'Force Ultrawork; plans, sets goal, swarms, verifies', ['uw']),
       ],
       intro: ADVANCED_HELP_INTRO,
+      shortcuts: ADVANCED_KEYBOARD_SHORTCUTS,
       commandSectionTitle: 'Advanced Ultrawork controls',
       onClose: () => {},
     });
@@ -72,6 +77,8 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Ultrawork auto-runs UltraPlan, UltraGoal, UltraSwarm, Verify\./);
     expect(out).toMatch(/Most work starts from a plain request/);
     expect(out).toMatch(/Steering controls are for overrides/);
+    expect(out).toMatch(/Ctrl-Shift-Tab/);
+    expect(out).toMatch(/Toggle UltraPlan steering/);
     expect(out).toMatch(/Advanced Ultrawork controls/);
     expect(out).toMatch(/\/ultrawork \(\/uw\)/);
     expect(out).toMatch(/plans, sets goal, swarms, verifies/);
