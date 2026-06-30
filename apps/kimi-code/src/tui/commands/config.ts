@@ -67,12 +67,12 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
     if (enabled) {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(
-        ultra ? 'Ultra Plan mode: ON' : 'Plan mode: ON',
+        ultra ? 'UltraPlan steering: ON' : 'Ultrawork planning: ON',
         plan?.path !== undefined ? `Plan will be created here: ${plan.path}` : undefined,
       );
       return;
     }
-    host.showNotice('Plan mode: OFF');
+    host.showNotice('Ultrawork planning: OFF');
   } catch (error) {
     const msg = formatErrorMessage(error);
     host.showError(`Failed to set plan mode: ${msg}`);
