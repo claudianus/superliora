@@ -2,7 +2,7 @@
  * Footer/status bar — multi-line status display at the bottom of the TUI.
  *
  * Layout:
- *   Line 1: [yolo] [plan-first] <model> <cwd>  <git-badge>  <shortcut hints>
+ *   Line 1: [yolo] [ultrawork-ready] <model> <cwd>  <git-badge>  <shortcut hints>
  *   Line 2: context: XX.X% (tokens/max)
  */
 
@@ -188,7 +188,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (safeUsage(state.contextUsage) >= 0.85) return 'next: /compact before long work';
   if (state.streamingPhase !== 'idle') return null;
   if (git?.dirty === true) return 'next: review changes';
-  if (state.planMode) return 'next: describe task; Ultrawork plans, verifies';
+  if (state.planMode) return 'next: describe task; Ultrawork links plan/goal/swarm';
   return 'next: describe task; Kimi verifies';
 }
 

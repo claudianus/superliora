@@ -100,7 +100,7 @@ function formatWorktreeStatus(status: GitStatus): string {
 }
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
-const WORKFLOW_GATE = 'Ultrawork routes Ultraplan -> Ultragoal -> team mode';
+const WORKFLOW_GATE = 'Ultrawork routes UltraPlan -> UltraGoal -> UltraSwarm';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
 const WRITING_GATE = 'human voice lanes; detectors advisory-only';
@@ -174,7 +174,9 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     ...gateRows,
     {
       label: 'Next',
-      value: planMode ? 'Describe the task; Kimi will plan first.' : 'Describe the task to start.',
+      value: planMode
+        ? 'Describe the task; Ultrawork will run UltraPlan, UltraGoal, and UltraSwarm as needed.'
+        : 'Describe the task to start.',
     },
   ];
 }

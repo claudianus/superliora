@@ -71,6 +71,11 @@ describe('shouldAutoActivateUltrawork', () => {
     expect(shouldAutoActivateUltrawork('Use ultrawork to ship the memory workflow')).toBe(true);
     expect(
       shouldAutoActivateUltrawork(
+        'Use UltraPlan and UltraSwarm to implement this refactor, verify it, and finish automatically',
+      ),
+    ).toBe(true);
+    expect(
+      shouldAutoActivateUltrawork(
         'Research latest best practices, design the architecture, implement it, run tests, and finish the goal automatically',
       ),
     ).toBe(true);
@@ -81,6 +86,7 @@ describe('shouldAutoActivateUltrawork', () => {
     expect(shouldAutoActivateUltrawork('what does this file do?')).toBe(false);
     expect(shouldAutoActivateUltrawork('what is ultrawork?')).toBe(false);
     expect(shouldAutoActivateUltrawork('ultrawork 뭐야?')).toBe(false);
+    expect(shouldAutoActivateUltrawork('what is ultraswarm?')).toBe(false);
     expect(shouldAutoActivateUltrawork('explain ultrawork')).toBe(false);
     expect(shouldAutoActivateUltrawork('do not use ultrawork, just answer normally')).toBe(false);
   });
@@ -92,6 +98,13 @@ describe('buildUltraworkPrompt', () => {
 
     expect(prompt).toContain('<ultrawork_flow>');
     expect(prompt).toContain('Ship feature X');
+    expect(prompt).toContain('Ultrawork orchestration');
+    expect(prompt).toContain('UltraPlan -> UltraGoal -> UltraSwarm');
+    expect(prompt).toContain('one workflow, not separate user-facing modes');
+    expect(prompt).toContain('UltraPlan: clarify ambiguous or large requests');
+    expect(prompt).toContain('UltraGoal: keep the active goal as the durable execution contract');
+    expect(prompt).toContain('UltraSwarm: auto-engage specialist agents');
+    expect(prompt).toContain('Do not ask the user to choose /ultraplan, /ultragoal, or /ultraswarm');
     expect(prompt).toContain('ultra-plan');
     expect(prompt).toContain('kanban');
     expect(prompt).toContain('Kimi Lean Context');
@@ -198,7 +211,7 @@ describe('handleUltraworkCommand', () => {
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({
-      activityTip: 'Ultrawork: autonomous plan, swarm, verify loop',
+      activityTip: 'Ultrawork: UltraPlan, UltraGoal, UltraSwarm, verify',
     });
     expect(renderedMarker(host)).toContain('Ultrawork activated');
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('Ship feature X'));

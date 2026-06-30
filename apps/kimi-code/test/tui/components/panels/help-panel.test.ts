@@ -23,7 +23,7 @@ describe('HelpPanelComponent', () => {
     });
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/help/);
-    expect(out).toMatch(/Describe the task to start; Kimi checks readiness, scope, and verification\./);
+    expect(out).toMatch(/Describe the task; Ultrawork links UltraPlan, UltraGoal, and UltraSwarm\./);
     expect(out).toMatch(/Manual controls live in \/help advanced\./);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
@@ -60,14 +60,14 @@ describe('HelpPanelComponent', () => {
 
   it('renders the advanced Ultrawork help framing when provided', () => {
     const panel = new HelpPanelComponent({
-      commands: [cmd('ultrawork', 'Start Ultrawork: plan, goal, verify', ['uw'])],
+      commands: [cmd('ultrawork', 'Start Ultrawork: UltraPlan, UltraGoal, UltraSwarm', ['uw'])],
       intro: ADVANCED_HELP_INTRO,
       commandSectionTitle: 'Advanced Ultrawork controls',
       onClose: () => {},
     });
     const out = strip(panel.render(80).join('\n'));
-    expect(out).toMatch(/Ultrawork is the guided workflow/);
-    expect(out).toMatch(/Kimi plans, sets goals, and verifies/);
+    expect(out).toMatch(/Ultrawork links UltraPlan, UltraGoal, and UltraSwarm automatically/);
+    expect(out).toMatch(/Most work starts from a plain request/);
     expect(out).toMatch(/Advanced Ultrawork controls/);
     expect(out).toMatch(/\/ultrawork \(\/uw\)/);
   });

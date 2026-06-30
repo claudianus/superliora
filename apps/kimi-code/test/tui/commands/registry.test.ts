@@ -148,7 +148,7 @@ describe('built-in slash command registry', () => {
     expect(goal?.description).not.toContain('defined outcome');
     expect(swarm?.description).toBe('Toggle specialist team mode or send one task');
     expect(swarm?.description).not.toContain('swarm mode');
-    expect(ultrawork?.description).toBe('Start Ultrawork: plan, goal, verify');
+    expect(ultrawork?.description).toBe('Start Ultrawork: UltraPlan, UltraGoal, UltraSwarm');
   });
 
   it('offers swarm subcommand argument completions', () => {

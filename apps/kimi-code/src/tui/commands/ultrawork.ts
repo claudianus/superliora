@@ -24,7 +24,7 @@ interface UltraworkSetupState {
   swarmEnabled: boolean;
 }
 
-const ULTRAWORK_ACTIVITY_TIP = 'Ultrawork: autonomous plan, swarm, verify loop';
+const ULTRAWORK_ACTIVITY_TIP = 'Ultrawork: UltraPlan, UltraGoal, UltraSwarm, verify';
 
 export {
   buildUltraworkPrompt,

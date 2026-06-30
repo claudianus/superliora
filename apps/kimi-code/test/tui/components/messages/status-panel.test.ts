@@ -74,13 +74,13 @@ describe('status panel report lines', () => {
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+Ultrawork routes Ultraplan -> Ultragoal -> team mode/);
+    expect(output).toMatch(/Workflow\s+Ultrawork routes UltraPlan -> UltraGoal -> UltraSwarm/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
     expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
-    expect(output).toMatch(/Next\s+Describe the task; Kimi will plan first\./);
+    expect(output).toMatch(/Next\s+Describe the task; Ultrawork will run UltraPlan, UltraGoal, and UltraSwarm as needed\./);
     expect(output).not.toContain('Advanced');
     expect(output).not.toContain('manual workflow commands');
     expect(output).not.toContain('Diagnostics');
@@ -89,8 +89,9 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('/preflight');
     expect(output).not.toContain('/bench');
     expect(output).toContain('Ultrawork');
-    expect(output).toContain('Ultraplan');
-    expect(output).toContain('Ultragoal');
+    expect(output).toContain('UltraPlan');
+    expect(output).toContain('UltraGoal');
+    expect(output).toContain('UltraSwarm');
     expect(output).not.toContain('/ultraswarm');
     expect(output).toContain('Plan usage');
     expect(output).toContain('8% used');
@@ -123,7 +124,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+Ultrawork routes Ultraplan -> Ultragoal -> team mode/);
+    expect(output).toMatch(/Workflow\s+Ultrawork routes UltraPlan -> UltraGoal -> UltraSwarm/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
     expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);

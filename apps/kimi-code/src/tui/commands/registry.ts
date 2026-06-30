@@ -34,7 +34,7 @@ const PLAN_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'replace', description: 'Replace the current goal with an ultragoal' },
+  { value: 'replace', description: 'Replace the current UltraGoal' },
 ];
 
 const HELP_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -235,7 +235,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     name: 'ultrawork',
     aliases: ['uw'],
     hiddenAliases: ['ultragoal', 'ug'],
-    description: 'Start Ultrawork: plan, goal, verify',
+    description: 'Start Ultrawork: UltraPlan, UltraGoal, UltraSwarm',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[replace] <objective>',
