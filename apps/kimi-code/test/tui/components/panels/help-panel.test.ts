@@ -27,7 +27,8 @@ describe('HelpPanelComponent', () => {
     });
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/help/);
-    expect(out).toMatch(/Describe task; Ultrawork auto-runs UltraPlan, UltraGoal, UltraSwarm, Verify\./);
+    expect(out).toMatch(/Describe task; Ultrawork plans, tracks the goal, gets help, and verifies\./);
+    expect(out).not.toMatch(/UltraPlan, UltraGoal, UltraSwarm/);
     expect(out).toMatch(/Steering controls live in \/help advanced\./);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
