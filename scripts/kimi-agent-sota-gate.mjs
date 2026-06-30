@@ -211,8 +211,13 @@ const REQUIRED_ULTRAWORK_USAGE_METRICS = Object.freeze([
   'cacheReadTokensApprox',
   'cacheWriteTokensApprox',
   'cacheSharePercent',
+  'contextUsagePercent',
+  'contextTokensApprox',
+  'maxContextTokensApprox',
   'remainingContextTokensApprox',
 ]);
+const MIN_ULTRAWORK_CACHE_SHARE_PERCENT = 50;
+const MAX_ULTRAWORK_CONTEXT_USAGE_PERCENT = 85;
 const SECRET_PATTERNS = Object.freeze([
   /\bsk-[A-Za-z0-9_-]{8,}/,
   /\b[A-Za-z0-9_]*API_KEY\s*[:=]\s*["']?[A-Za-z0-9_-]{12,}/,
@@ -1445,6 +1450,8 @@ async function evaluateUltraworkGate(summary) {
   if (missingUsageMetrics.length > 0) {
     failures.push(`Ultrawork usage telemetry metrics are missing: ${missingUsageMetrics.join(', ')}`);
   }
+  const usageEfficiency = evaluateUltraworkUsageEfficiency(usageMetrics, missingUsageMetrics);
+  failures.push(...usageEfficiency.failures);
 
   const workflowWait = summary.workflow?.wait;
   if (workflowWait?.status !== 'PASS') {
@@ -1562,6 +1569,7 @@ async function evaluateUltraworkGate(summary) {
       usageTelemetryStatus: summary.validations?.usageTelemetryVisible?.status,
       usageTelemetryMetrics: usageMetrics,
       usageTelemetryMissingMetrics: missingUsageMetrics,
+      usageTelemetryEfficiency: usageEfficiency.observed,
       trajectorySteps: Array.isArray(summary.operatorTrajectory?.steps)
         ? summary.operatorTrajectory.steps.map((step) => ({
             name: step.name,
@@ -1590,6 +1598,54 @@ function missingUltraworkUsageMetricNames(metrics) {
     const value = metrics?.[name];
     return typeof value !== 'number' || !Number.isFinite(value);
   });
+}
+
+function evaluateUltraworkUsageEfficiency(metrics, missingMetrics) {
+  if (missingMetrics.length > 0) {
+    return {
+      failures: [],
+      observed: {
+        status: 'SKIPPED',
+        reason: 'numeric usage telemetry is incomplete',
+        requiredCacheSharePercent: MIN_ULTRAWORK_CACHE_SHARE_PERCENT,
+        maxContextUsagePercent: MAX_ULTRAWORK_CONTEXT_USAGE_PERCENT,
+      },
+    };
+  }
+
+  const failures = [];
+  if (metrics.totalTokensApprox <= 0) {
+    failures.push(`Ultrawork total token telemetry is ${String(metrics.totalTokensApprox)}`);
+  }
+  if (metrics.cacheReadTokensApprox <= 0) {
+    failures.push('Ultrawork cache read telemetry did not prove prompt-cache reuse');
+  }
+  if (metrics.cacheSharePercent < MIN_ULTRAWORK_CACHE_SHARE_PERCENT) {
+    failures.push(
+      `Ultrawork cache share ${String(metrics.cacheSharePercent)}% is below ${String(MIN_ULTRAWORK_CACHE_SHARE_PERCENT)}%`,
+    );
+  }
+  if (metrics.contextUsagePercent > MAX_ULTRAWORK_CONTEXT_USAGE_PERCENT) {
+    failures.push(
+      `Ultrawork context usage ${String(metrics.contextUsagePercent)}% exceeds ${String(MAX_ULTRAWORK_CONTEXT_USAGE_PERCENT)}%`,
+    );
+  }
+  if (metrics.remainingContextTokensApprox <= 0) {
+    failures.push('Ultrawork remaining context telemetry did not prove usable context headroom');
+  }
+
+  return {
+    failures,
+    observed: {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      requiredCacheSharePercent: MIN_ULTRAWORK_CACHE_SHARE_PERCENT,
+      maxContextUsagePercent: MAX_ULTRAWORK_CONTEXT_USAGE_PERCENT,
+      cacheReadTokensApprox: metrics.cacheReadTokensApprox,
+      cacheSharePercent: metrics.cacheSharePercent,
+      contextUsagePercent: metrics.contextUsagePercent,
+      remainingContextTokensApprox: metrics.remainingContextTokensApprox,
+    },
+  };
 }
 
 async function validateUltraworkCaptures(summary) {
@@ -2711,6 +2767,12 @@ function renderMarkdown(report) {
         `- token totals: input ${String(metrics.inputTokensApprox ?? 'unavailable')}, output ${String(metrics.outputTokensApprox ?? 'unavailable')}, total ${String(metrics.totalTokensApprox ?? 'unavailable')}`,
         `- cache telemetry: read ${String(metrics.cacheReadTokensApprox ?? 'unavailable')}, write ${String(metrics.cacheWriteTokensApprox ?? 'unavailable')}, share ${String(metrics.cacheSharePercent ?? 'unavailable')}%`,
         `- remaining context: ${String(metrics.remainingContextTokensApprox ?? 'unavailable')} tokens`,
+      );
+    }
+    if (report.tuiUltraworkProof.usageTelemetryEfficiency !== undefined) {
+      const efficiency = report.tuiUltraworkProof.usageTelemetryEfficiency;
+      lines.push(
+        `- usage efficiency gate: ${String(efficiency.status)} (cache share ${String(efficiency.cacheSharePercent ?? 'unavailable')}%, context ${String(efficiency.contextUsagePercent ?? 'unavailable')}%)`,
       );
     }
   }
