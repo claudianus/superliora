@@ -1486,7 +1486,7 @@ async function evaluateUltraworkGate(summary) {
     required: true,
     reason:
       failures.length === 0
-        ? 'Live TUI Ultrawork auto-activation answered an interview question, completed source/test edits, observed agent-run verification, and passed targeted checks without AskUserQuestion contract errors or auto/question policy deadlock.'
+        ? ultraworkGatePassReason(questionBypassed)
         : failures.join('; '),
     observed: {
       phase: summary.phase,
@@ -1546,6 +1546,13 @@ async function evaluateUltraworkGate(summary) {
       ultraworkScorecard: summary.evaluation?.scorecard,
     },
   };
+}
+
+function ultraworkGatePassReason(questionBypassed) {
+  const questionHandling = questionBypassed
+    ? 'proceeded without a blocking interview question'
+    : 'answered an interview question';
+  return `Live TUI Ultrawork auto-activation ${questionHandling}, completed source/test edits, observed agent-run verification, and passed targeted checks without AskUserQuestion contract errors or auto/question policy deadlock.`;
 }
 
 function evaluateUltraworkUsageEfficiency(metrics, missingMetrics) {
@@ -2702,6 +2709,7 @@ function renderMarkdown(report) {
       `- interview evidence: ${String(report.tuiUltraworkProof.interviewEvidenceCount)}`,
       `- question evidence: ${String(report.tuiUltraworkProof.questionEvidenceCount)}`,
       `- question answer evidence: ${String(report.tuiUltraworkProof.questionAnswerEvidenceCount)}`,
+      `- question handling: ${ultraworkQuestionHandlingLabel(report.tuiUltraworkProof)}`,
       `- post-question progress evidence: ${String(report.tuiUltraworkProof.postQuestionProgressEvidenceCount)}`,
       `- question tool contract errors: ${String(report.tuiUltraworkProof.questionToolErrorEvidenceCount)}`,
       `- policy conflicts: ${String(report.tuiUltraworkProof.policyConflictEvidenceCount)}`,
@@ -2753,6 +2761,12 @@ function renderMarkdown(report) {
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
+}
+
+function ultraworkQuestionHandlingLabel(proof) {
+  if (proof.questionBypassed === true) return 'no blocking question; proceeded with best judgment';
+  if ((proof.questionAnswerEvidenceCount ?? 0) > 0) return 'question answered in TUI';
+  return 'not observed';
 }
 
 function escapeMarkdown(value) {
