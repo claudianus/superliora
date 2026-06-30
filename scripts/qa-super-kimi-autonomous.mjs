@@ -8455,6 +8455,9 @@ function inspectTuiCapture(scenario, output) {
       if (!matchesAny(normalized, [/kimi/i, /ask/i, /message/i, /editor/i, /auto/i])) {
         failures.push('startup capture does not show a Kimi startup/editor state');
       }
+      if (!hasLoggedOutSetupNextAction(normalized)) {
+        failures.push('startup capture does not point logged-out users at setup before task entry');
+      }
       break;
     case 'help':
       if (!matchesAny(normalized, [/\/help/i, /\bhelp\b/i, /commands?/i])) {
@@ -8473,6 +8476,9 @@ function inspectTuiCapture(scenario, output) {
       }
       if (!hasXpDodReadinessContract(normalized)) {
         failures.push('status capture does not show the XP-lite/Definition of Done readiness gates');
+      }
+      if (!hasLoggedOutSetupNextAction(normalized)) {
+        failures.push('status capture does not keep the footer setup next action visible');
       }
       break;
     case 'clear':
@@ -8686,6 +8692,13 @@ function hasXpDodReadinessContract(output) {
     /\bScreen check\b\s+open changed screen before finishing/i,
     /\bDone gate\b\s+tests\/typecheck\/lint\/build\s+\+\s+clean diff\s+\+\s+TUI/i,
   ].every((pattern) => pattern.test(output));
+}
+
+function hasLoggedOutSetupNextAction(output) {
+  return (
+    /\bmodel:?\s+not set\b/i.test(output) &&
+    /\bnext:\s*run \/login or \/provider\b/i.test(output)
+  );
 }
 
 function matchesAny(output, patterns) {
