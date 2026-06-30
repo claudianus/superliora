@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
     })),
     initializeCliTelemetry: vi.fn(),
     handleUpgrade: vi.fn(),
+    finalizeHeadlessRun: vi.fn(),
     log: {
       info: vi.fn(),
       warn: vi.fn(),
@@ -127,6 +128,10 @@ vi.mock('../../src/cli/run-prompt', () => ({
   runPrompt: mocks.runPrompt,
 }));
 
+vi.mock('../../src/cli/headless-exit', () => ({
+  finalizeHeadlessRun: mocks.finalizeHeadlessRun,
+}));
+
 class ExitCalled extends Error {
   constructor(readonly code: number) {
     super(`exit(${code})`);
@@ -181,6 +186,20 @@ async function runHandleUpgradeCommand(): Promise<number> {
   }
 }
 
+async function waitForAssertion(assertion: () => void): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  throw lastError;
+}
+
 describe('main entry command handling', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -233,6 +252,57 @@ describe('main entry command handling', () => {
     });
     expect(runPrompt).toHaveBeenCalledWith(opts, '0.0.1-alpha.2');
     expect(runShell).not.toHaveBeenCalled();
+  });
+
+  it('reports completed headless runs from the reusable handler', async () => {
+    const opts: CLIOptions = {
+      ...defaultOpts(),
+      prompt: 'explain the repo',
+    };
+    mocks.validateOptions.mockReturnValue({ options: opts, uiMode: 'print' });
+    mocks.runUpdatePreflight.mockResolvedValue('continue');
+    mocks.runPrompt.mockResolvedValue(void 0);
+
+    const outcome = await handleMainCommand(opts, '0.0.1-alpha.2');
+
+    expect(outcome).toEqual({ headlessCompleted: true });
+    expect(mocks.finalizeHeadlessRun).not.toHaveBeenCalled();
+  });
+
+  it('reports interactive runs without arming headless finalization', async () => {
+    const opts = defaultOpts();
+    mocks.validateOptions.mockReturnValue({ options: opts, uiMode: 'shell' });
+    mocks.runUpdatePreflight.mockResolvedValue('continue');
+    mocks.runShell.mockResolvedValue(void 0);
+
+    const outcome = await handleMainCommand(opts, '0.0.1-alpha.2');
+
+    expect(outcome).toEqual({ headlessCompleted: false });
+    expect(mocks.finalizeHeadlessRun).not.toHaveBeenCalled();
+  });
+
+  it('arms headless finalization at the process entrypoint after prompt mode completes', async () => {
+    const opts: CLIOptions = {
+      ...defaultOpts(),
+      prompt: 'explain the repo',
+    };
+    mocks.validateOptions.mockReturnValue({ options: opts, uiMode: 'print' });
+    mocks.runUpdatePreflight.mockResolvedValue('continue');
+    mocks.runPrompt.mockResolvedValue(void 0);
+    mocks.finalizeHeadlessRun.mockResolvedValue(void 0);
+
+    main();
+    const programArgs = mocks.createProgram.mock.calls[0] as unknown as unknown[];
+    const mainAction = programArgs[1] as (opts: CLIOptions) => void;
+    mainAction(opts);
+
+    await waitForAssertion(() => {
+      expect(mocks.finalizeHeadlessRun).toHaveBeenCalledTimes(1);
+    });
+    const forceExitArgs = mocks.finalizeHeadlessRun.mock.calls[0] as unknown as unknown[];
+    expect(forceExitArgs[0]).toBe(process);
+    expect(forceExitArgs[1]).toEqual([process.stdout, process.stderr]);
+    expect(typeof forceExitArgs[2]).toBe('function');
   });
 
   it('keeps shell mode update preflight interactive by default', async () => {

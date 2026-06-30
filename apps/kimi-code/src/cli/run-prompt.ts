@@ -19,7 +19,7 @@ import {
 } from '@moonshot-ai/kimi-code-sdk';
 import { resolve } from 'pathe';
 
-import { CLI_SHUTDOWN_TIMEOUT_MS } from '#/constant/app';
+import { CLI_SHUTDOWN_TIMEOUT_MS, PROMPT_CLEANUP_TIMEOUT_MS } from '#/constant/app';
 
 import type { CLIOptions, PromptOutputFormat } from './options';
 import {
@@ -54,6 +54,27 @@ const PROMPT_MAIN_AGENT_ID = 'main';
 const PROMPT_BLOCK_BULLET = '• ';
 const PROMPT_BLOCK_INDENT = '  ';
 const PROMPT_PROGRESS_DELAY_MS = 2_000;
+
+async function raceWithTimeout(promise: Promise<void>, timeoutMs: number): Promise<void> {
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const guarded = promise.catch((error: unknown) => {
+    if (timedOut) return;
+    throw error;
+  });
+  const timedOutSignal = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, timeoutMs);
+    timer.unref?.();
+  });
+  try {
+    await Promise.race([guarded, timedOutSignal]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 export async function runPrompt(
   opts: CLIOptions,
@@ -97,7 +118,7 @@ export async function runPrompt(
   let removeTerminationCleanup: (() => void) | undefined;
   let cleanupPromise: Promise<void> | undefined;
   const cleanupPromptRun = async (): Promise<void> => {
-    cleanupPromise ??= (async () => {
+    const pending = (cleanupPromise ??= (async () => {
       removeTerminationCleanup?.();
       setCrashPhase('shutdown');
       try {
@@ -106,8 +127,8 @@ export async function runPrompt(
         await shutdownTelemetry({ timeoutMs: CLI_SHUTDOWN_TIMEOUT_MS });
         await harness.close();
       }
-    })();
-    await cleanupPromise;
+    })());
+    await raceWithTimeout(pending, PROMPT_CLEANUP_TIMEOUT_MS);
   };
   removeTerminationCleanup = installPromptTerminationCleanup(promptProcess, cleanupPromptRun);
 

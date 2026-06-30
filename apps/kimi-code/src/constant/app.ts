@@ -13,6 +13,9 @@ export const SERVER_UI_MODE = 'server';
 
 // Give telemetry a short flush window without making CLI exit feel stuck.
 export const CLI_SHUTDOWN_TIMEOUT_MS = 3000;
+export const PROMPT_CLEANUP_TIMEOUT_MS = 8000;
+export const HEADLESS_FORCE_EXIT_GRACE_MS = 2000;
+export const HEADLESS_STDIO_DRAIN_TIMEOUT_MS = 10000;
 
 // Published npm package name; this can differ from the executable command.
 export const NPM_PACKAGE_NAME = '@moonshot-ai/kimi-code';

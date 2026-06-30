@@ -23,6 +23,7 @@ import {
 } from '@moonshot-ai/kimi-telemetry';
 
 import { createProgram } from './cli/commands';
+import { finalizeHeadlessRun } from './cli/headless-exit';
 import type { CLIOptions } from './cli/options';
 import { OptionConflictError, validateOptions } from './cli/options';
 import { runPrompt } from './cli/run-prompt';
@@ -38,7 +39,14 @@ import { cleanupStaleNativeCacheForCurrent } from './native/native-assets';
 import { installNativeModuleHook } from './native/module-hook';
 import { runNativeAssetSmokeIfRequested } from './native/smoke';
 
-export async function handleMainCommand(opts: CLIOptions, version: string): Promise<void> {
+export interface MainCommandOutcome {
+  readonly headlessCompleted: boolean;
+}
+
+export async function handleMainCommand(
+  opts: CLIOptions,
+  version: string,
+): Promise<MainCommandOutcome> {
   let validated: ReturnType<typeof validateOptions>;
   try {
     validated = validateOptions(opts);
@@ -60,10 +68,11 @@ export async function handleMainCommand(opts: CLIOptions, version: string): Prom
 
   if (validated.uiMode === 'print') {
     await runPrompt(validated.options, version);
-    return;
+    return { headlessCompleted: true };
   }
 
   await runShell(validated.options, version);
+  return { headlessCompleted: false };
 }
 
 /** `kimi migrate`: launch the migration screen only, then exit. */
@@ -139,17 +148,27 @@ export function main(): void {
   const program = createProgram(
     version,
     (opts) => {
-      void handleMainCommand(opts, version).catch(async (error: unknown) => {
-        const operation = opts.prompt !== undefined ? 'run prompt' : 'start shell';
-        await logStartupFailure(operation, error);
-        process.stderr.write(
-          formatStartupError(error, {
-            operation,
-          }),
-        );
-        process.stderr.write(`See log: ${resolveGlobalLogPath(resolveKimiHome())}\n`);
-        process.exit(1);
-      });
+      void handleMainCommand(opts, version)
+        .then(async (outcome) => {
+          if (outcome.headlessCompleted) {
+            await finalizeHeadlessRun(
+              process,
+              [process.stdout, process.stderr],
+              () => Number(process.exitCode) || 0,
+            );
+          }
+        })
+        .catch(async (error: unknown) => {
+          const operation = opts.prompt !== undefined ? 'run prompt' : 'start shell';
+          await logStartupFailure(operation, error);
+          process.stderr.write(
+            formatStartupError(error, {
+              operation,
+            }),
+          );
+          process.stderr.write(`See log: ${resolveGlobalLogPath(resolveKimiHome())}\n`);
+          process.exit(1);
+        });
     },
     () => {
       void handleMigrateCommand(version).catch(async (error: unknown) => {

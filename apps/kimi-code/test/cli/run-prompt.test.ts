@@ -2,6 +2,7 @@ import type { createKimiDeviceId as createKimiDeviceIdFn } from '@moonshot-ai/ki
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runPrompt } from '#/cli/run-prompt';
+import { PROMPT_CLEANUP_TIMEOUT_MS } from '#/constant/app';
 
 type CreateKimiDeviceId = typeof createKimiDeviceIdFn;
 
@@ -223,6 +224,83 @@ describe('runPrompt', () => {
     expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
     expect(mocks.shutdownTelemetry).toHaveBeenCalled();
     expect(mocks.harnessClose).toHaveBeenCalled();
+  });
+
+  it('completes even if harness.close never resolves', async () => {
+    vi.useFakeTimers();
+    try {
+      const stdout = writer();
+      const stderr = writer();
+      mocks.harnessClose.mockReturnValueOnce(new Promise<void>(() => {}));
+
+      let settled = false;
+      const done = runPrompt(opts(), '1.2.3-test', {
+        stdout,
+        stderr,
+        process: fakeProcess(),
+      }).then(() => {
+        settled = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(PROMPT_CLEANUP_TIMEOUT_MS + 100);
+      await done;
+
+      expect(settled).toBe(true);
+      expect(mocks.harnessClose).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('propagates cleanup failures that happen before the timeout', async () => {
+    const stdout = writer();
+    const stderr = writer();
+    mocks.harnessClose.mockRejectedValueOnce(new Error('close failed'));
+
+    await expect(
+      runPrompt(opts(), '1.2.3-test', { stdout, stderr, process: fakeProcess() }),
+    ).rejects.toThrow('close failed');
+  });
+
+  it('ignores cleanup rejections that land after the timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const stdout = writer();
+      const stderr = writer();
+      mocks.harnessClose.mockReturnValueOnce(
+        new Promise<void>((_, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error('late close')),
+            PROMPT_CLEANUP_TIMEOUT_MS + 5000,
+          );
+          timer.unref?.();
+        }),
+      );
+
+      let settled: 'resolved' | 'rejected' | undefined;
+      const done = runPrompt(opts(), '1.2.3-test', {
+        stdout,
+        stderr,
+        process: fakeProcess(),
+      }).then(
+        () => {
+          settled = 'resolved';
+        },
+        () => {
+          settled = 'rejected';
+        },
+      );
+
+      await vi.advanceTimersByTimeAsync(PROMPT_CLEANUP_TIMEOUT_MS + 100);
+      await done;
+      expect(settled).toBe('resolved');
+
+      await vi.advanceTimersByTimeAsync(5000);
+      await Promise.resolve();
+      expect(settled).toBe('resolved');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('stops prompt startup when session creation fails', async () => {
