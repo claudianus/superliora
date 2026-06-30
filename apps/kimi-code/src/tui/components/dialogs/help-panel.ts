@@ -32,7 +32,7 @@ export interface HelpPanelCommand {
 /** Static list — keep in sync with the global editor bindings. */
 const ULTRAWORK_PLANNING_SHORTCUT: KeyboardShortcut = {
   keys: 'Shift-Tab',
-  description: 'Toggle Ultrawork planning',
+  description: 'Steer Ultrawork plan',
 };
 
 export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [

@@ -43,6 +43,9 @@ describe('TUI surface leak checks', () => {
     expect(defaultUserSurfaceLeakFailures('startup', 'shift-tab to Plan mode before editing')).toContain(
       'default startup capture exposes legacy plan mode label',
     );
+    expect(defaultUserSurfaceLeakFailures('help', 'Shift-Tab Toggle Ultrawork planning')).toContain(
+      'default help capture exposes mode-like Ultrawork shortcut',
+    );
 
     expect(defaultUserSurfaceLeakFailures('help', 'Run /ultrawork to start.')).toContain(
       'default help capture exposes Ultrawork manual command',

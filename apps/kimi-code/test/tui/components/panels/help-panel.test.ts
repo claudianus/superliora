@@ -32,7 +32,8 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Steering controls live in \/help advanced\./);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
-    expect(out).toMatch(/Toggle Ultrawork planning/);
+    expect(out).toMatch(/Steer Ultrawork plan/);
+    expect(out).not.toMatch(/Toggle Ultrawork planning/);
     expect(out).not.toMatch(/Ctrl-Shift-Tab/);
     expect(out).not.toMatch(/Toggle UltraPlan steering/);
     expect(out).toMatch(/Ctrl-O/);
