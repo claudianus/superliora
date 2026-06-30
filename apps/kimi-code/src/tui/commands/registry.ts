@@ -26,6 +26,13 @@ const SWARM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'off', description: 'Turn team mode off' },
 ];
 
+const PLAN_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'on', description: 'Turn plan mode on' },
+  { value: 'off', description: 'Turn plan mode off' },
+  { value: 'ultra', description: 'Turn UltraPlan mode on' },
+  { value: 'clear', description: 'Clear plan mode' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current goal with an ultragoal' },
 ];
@@ -64,6 +71,10 @@ export function goalArgumentCompletions(argumentPrefix: string): AutocompleteIte
 /** Argument autocompletion for the `/swarm` command (subcommands). */
 export function swarmArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(SWARM_ARG_COMPLETIONS, argumentPrefix);
+}
+
+export function planArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(PLAN_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -197,6 +208,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Toggle plan mode',
     priority: 100,
+    argumentHint: '[on|off|ultra|clear]',
+    completeArgs: planArgumentCompletions,
     availability: (args) => (args.trim().toLowerCase() === 'clear' ? 'idle-only' : 'always'),
   },
   {

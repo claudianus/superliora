@@ -27,6 +27,8 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Manual controls live in \/help advanced\./);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
+    expect(out).toMatch(/Ctrl-Shift-Tab/);
+    expect(out).toMatch(/UltraPlan/);
     expect(out).toMatch(/Ctrl-O/);
     expect(out).toMatch(/Shift-Enter \/ Ctrl-J/);
     expect(out).toMatch(/Slash commands/);

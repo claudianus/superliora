@@ -6,6 +6,7 @@ import {
   addDirArgumentCompletions,
   helpArgumentCompletions,
   memoryArgumentCompletions,
+  planArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
   swarmArgumentCompletions,
@@ -59,7 +60,23 @@ describe('built-in slash command registry', () => {
     expect(plan).toBeDefined();
     expect(resolveSlashCommandAvailability(plan!, '')).toBe('always');
     expect(resolveSlashCommandAvailability(plan!, 'on')).toBe('always');
+    expect(resolveSlashCommandAvailability(plan!, 'ultra')).toBe('always');
     expect(resolveSlashCommandAvailability(plan!, 'clear')).toBe('idle-only');
+  });
+
+  it('offers plan mode argument completions including UltraPlan', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = planArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['on', 'off', 'ultra', 'clear']);
+    expect(values('u')).toEqual(['ultra']);
+    expect(planArgumentCompletions('u')).toEqual([
+      { value: 'ultra', label: 'ultra', description: 'Turn UltraPlan mode on' },
+    ]);
+    expect(values('ultra')).toBeNull();
+    expect(values('Ship feature X')).toBeNull();
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {
