@@ -53,7 +53,7 @@ export function hasXpDodReadinessContract(output) {
 }
 
 export function hasUltraworkTaskEntryCopy(output) {
-  return /\bDescribe task;\s*Ultrawork runs UltraPlan,\s*UltraGoal,\s*UltraSwarm\.?/i.test(output);
+  return /\bDescribe task;\s*Ultrawork runs the full workflow,\s*then verifies\.?/i.test(output);
 }
 
 export function hasUltraworkFooterNextAction(output) {
@@ -63,7 +63,7 @@ export function hasUltraworkFooterNextAction(output) {
 export function hasUltraworkHelpContract(output) {
   return (
     hasUltraworkTaskEntryCopy(output) &&
-    /\bVerify runs before finish;\s*advanced controls are optional\.?/i.test(output)
+    /\bAdvanced controls are optional\.?/i.test(output)
   );
 }
 

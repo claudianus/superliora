@@ -14,7 +14,7 @@ import {
 
 describe('TUI surface leak checks', () => {
   it('allows Ultrawork brand copy while still blocking manual slash commands', () => {
-    const brandCopy = 'Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.';
+    const brandCopy = 'Describe task; Ultrawork runs the full workflow, then verifies.';
 
     expect(defaultUserSurfaceLeakFailures('help', brandCopy)).toEqual([]);
     expect(defaultUserSurfaceLeakFailures('status', brandCopy)).toEqual([]);
@@ -66,8 +66,13 @@ describe('TUI surface leak checks', () => {
 
   it('recognizes the unified Ultrawork task-entry, help, and status surface contract', () => {
     expect(
-      hasUltraworkTaskEntryCopy('Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.'),
+      hasUltraworkTaskEntryCopy(
+        'Describe task; Ultrawork runs the full workflow, then verifies.',
+      ),
     ).toBe(true);
+    expect(
+      hasUltraworkTaskEntryCopy('Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.'),
+    ).toBe(false);
     expect(
       hasUltraworkFooterNextAction(
         'next: describe task; Ultrawork runs the full workflow, then verifies',
@@ -76,8 +81,8 @@ describe('TUI surface leak checks', () => {
     expect(
       hasUltraworkHelpContract(
         [
-          'Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.',
-          'Verify runs before finish; advanced controls are optional.',
+          'Describe task; Ultrawork runs the full workflow, then verifies.',
+          'Advanced controls are optional.',
         ].join('\n'),
       ),
     ).toBe(true);

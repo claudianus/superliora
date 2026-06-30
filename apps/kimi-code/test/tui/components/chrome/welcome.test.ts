@@ -74,7 +74,7 @@ describe('WelcomeComponent', () => {
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
     expect(output).toContain(
-      'Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.',
+      'Describe task; Ultrawork runs the full workflow, then verifies.',
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');

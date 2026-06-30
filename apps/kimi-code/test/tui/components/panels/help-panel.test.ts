@@ -27,10 +27,9 @@ describe('HelpPanelComponent', () => {
     });
     const out = strip(panel.render(120).join('\n'));
     expect(out).toMatch(/help/);
-    expect(out).toMatch(/Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm\./);
-    expect(out).toMatch(/Verify runs before finish; advanced controls are optional\./);
+    expect(out).toMatch(/Describe task; Ultrawork runs the full workflow, then verifies\./);
+    expect(out).toMatch(/Advanced controls are optional\./);
     expect(out).not.toMatch(/helpers/);
-    expect(out).toMatch(/advanced controls are optional\./);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
     expect(out).toMatch(/Steer Ultrawork plan/);
