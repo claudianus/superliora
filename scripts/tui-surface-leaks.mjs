@@ -5,6 +5,7 @@ const DEFAULT_USER_SURFACE_LEAK_PATTERNS = Object.freeze([
   { label: 'internal QA wording', pattern: /\binternal\s+QA\b/i },
   { label: 'harness QA wording', pattern: /\bharness\s+QA\b/i },
   { label: 'advanced-tagged primary help command', pattern: /\bhelp\s+\[advanced\]\s+—\s+Show available commands/i },
+  { label: 'legacy plan mode label', pattern: /\bPlan mode\b/i },
   { label: 'Ultrawork manual command', pattern: /(?:^|\s)\/?ultrawork(?=[\s.,;:)\]]|$)/ },
   { label: 'Ultraswarm manual command', pattern: /(?:^|\s)\/?ultraswarm(?=[\s.,;:)\]]|$)/ },
   { label: 'LLM jargon in model setup error', pattern: /\bLLM not set\b/i },

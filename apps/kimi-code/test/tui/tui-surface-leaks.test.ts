@@ -10,11 +10,15 @@ import {
 
 describe('TUI surface leak checks', () => {
   it('allows Ultrawork brand copy while still blocking manual slash commands', () => {
-    const brandCopy = 'Describe task; Ultrawork orchestrates UltraPlan, Goal, UltraSwarm, Verify.';
+    const brandCopy = 'Describe task; Ultrawork orchestrates UltraPlan, UltraGoal, UltraSwarm, Verify.';
 
     expect(defaultUserSurfaceLeakFailures('help', brandCopy)).toEqual([]);
     expect(defaultUserSurfaceLeakFailures('status', brandCopy)).toEqual([]);
     expect(defaultUserSurfaceLeakFailures('status', 'auto ultrawork-ready')).toEqual([]);
+    expect(defaultUserSurfaceLeakFailures('help', 'Turn UltraPlan mode on')).toEqual([]);
+    expect(defaultUserSurfaceLeakFailures('status', 'Plan mode    on')).toContain(
+      'default status capture exposes legacy plan mode label',
+    );
 
     expect(defaultUserSurfaceLeakFailures('help', 'Run /ultrawork to start.')).toContain(
       'default help capture exposes Ultrawork manual command',
