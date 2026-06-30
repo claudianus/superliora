@@ -21,6 +21,9 @@ export class MoonLoader extends Text {
   private colorFn?: (s: string) => string;
   private label: string;
   private displayText = '';
+  // Inline text is embedded into dense status lines such as swarm progress.
+  // Keep tips on the activity-pane row only so they do not crowd progress bars.
+  private inlineText = '';
   private tip: string = '';
   private availableWidth = 0;
   private readonly startedAt = Date.now();
@@ -77,7 +80,7 @@ export class MoonLoader extends Text {
   }
 
   renderInline(): string {
-    return this.displayText;
+    return this.inlineText;
   }
 
   private updateDisplay(): void {
@@ -85,6 +88,7 @@ export class MoonLoader extends Text {
     const coloredFrame = this.colorFn ? this.colorFn(frame) : frame;
     const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt)}`);
     const baseText = this.label ? `${coloredFrame} ${this.label}${elapsed}` : `${coloredFrame}${elapsed}`;
+    this.inlineText = baseText;
     let text = baseText;
     if (this.tip) {
       const withTip = baseText + currentTheme.fg('textDim', this.tip);

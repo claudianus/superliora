@@ -22,6 +22,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1068`: use ripgrep-backed Glob for faster file discovery.
 - Upstream `#1220`: open the undo selector when Esc is pressed twice at the idle prompt.
 - Upstream `#1204`: expose installed plugin Markdown commands as namespaced slash commands.
+- Upstream `#1187`, `#1188`, `#1189`: TUI polish fixes for undo debug timing, input redraws, and swarm progress tips.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -37,6 +38,7 @@ Super Kimi adaptation:
 - Added double-Esc undo as a TUI ergonomics shortcut and exposed it in `/help` plus keyboard reference docs.
 - Added plugin command manifest parsing, SDK activation APIs, TUI autocomplete/dispatch, replay, and undo support.
 - Preserved Super Kimi dynamic `skill:` fallback behavior while adding `/plugin-id:command` support.
+- Kept debug timing output tied to undoable turns, removed input-time clear-on-shrink full redraws, and kept working tips out of inline swarm progress rows.
 
 ## Next Candidate Queue
 
