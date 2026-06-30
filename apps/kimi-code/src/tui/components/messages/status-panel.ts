@@ -100,13 +100,13 @@ function formatWorktreeStatus(status: GitStatus): string {
 }
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
-const WORKFLOW_GATE = 'Kimi chooses planning, goal tracking, or team mode as needed.';
+const WORKFLOW_GATE = 'Ultrawork routes Ultraplan -> Ultragoal -> team mode';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
-const WRITING_GATE = 'plain output + UX/corporate voice lanes; detectors advisory-only';
+const WRITING_GATE = 'human voice lanes; detectors advisory-only';
 const WRITING_BLOCKED_GATE = 'voice-lane guidance blocked; detectors must stay advisory-only';
 const SCREEN_CHECK_GATE = 'open changed screen before finishing';
-const DONE_GATE = 'relevant tests + available typecheck/lint/build + clean diff + TUI';
+const DONE_GATE = 'tests + typecheck/lint/build + clean diff + TUI';
 
 function humanWritingBlocked(options: StatusReportOptions): boolean {
   const humanWriting = options.humanWriting;

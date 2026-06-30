@@ -74,12 +74,12 @@ describe('status panel report lines', () => {
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+Kimi chooses planning, goal tracking, or team mode as needed\./);
+    expect(output).toMatch(/Workflow\s+Ultrawork routes Ultraplan -> Ultragoal -> team mode/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
-    expect(output).toMatch(/Writing\s+plain output \+ UX\/corporate voice lanes; detectors advisory-only/);
+    expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
-    expect(output).toMatch(/Done gate\s+relevant tests \+ available typecheck\/lint\/build \+ clean diff \+ TUI/);
+    expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(/Next\s+Describe the task; Kimi will plan first\./);
     expect(output).not.toContain('Advanced');
     expect(output).not.toContain('manual workflow commands');
@@ -88,7 +88,9 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('internal QA');
     expect(output).not.toContain('/preflight');
     expect(output).not.toContain('/bench');
-    expect(output).not.toContain('/ultrawork');
+    expect(output).toContain('Ultrawork');
+    expect(output).toContain('Ultraplan');
+    expect(output).toContain('Ultragoal');
     expect(output).not.toContain('/ultraswarm');
     expect(output).toContain('Plan usage');
     expect(output).toContain('8% used');
@@ -121,13 +123,44 @@ describe('status panel report lines', () => {
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+Kimi chooses planning, goal tracking, or team mode as needed\./);
+    expect(output).toMatch(/Workflow\s+Ultrawork routes Ultraplan -> Ultragoal -> team mode/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
-    expect(output).toMatch(/Writing\s+plain output \+ UX\/corporate voice lanes; detectors advisory-only/);
+    expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
-    expect(output).toMatch(/Done gate\s+relevant tests \+ available typecheck\/lint\/build \+ clean diff \+ TUI/);
+    expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(/Next\s+Run \/login or \/provider first; use \/model after sign-in\./);
+  });
+
+  it('keeps readiness gate values compact enough for an 80 column status panel', () => {
+    const lines = buildStatusReportLines({
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null,
+      thinking: true,
+      permissionMode: 'manual',
+      planMode: true,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      availableModels: {},
+      humanWriting: {
+        ready: true,
+        advisoryOnly: true,
+        nextAction: 'ready',
+      },
+    }).map(strip);
+
+    const readinessLabels = ['Checks', 'Workflow', 'Scope', 'Coverage', 'Writing', 'Screen check', 'Done gate'];
+    for (const label of readinessLabels) {
+      const line = lines.find((candidate) => candidate.includes(label));
+      expect(line, `${label} row`).toBeDefined();
+      if (line === undefined) throw new Error(`${label} row missing`);
+      expect(line.length, `${label} row should fit narrow terminals`).toBeLessThanOrEqual(72);
+      expect(line).not.toContain('...');
+    }
   });
 
   it('surfaces context pressure as the next readiness action', () => {
