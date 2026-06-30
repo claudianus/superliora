@@ -103,8 +103,8 @@ const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
 const WORKFLOW_GATE = 'Kimi chooses planning, goal tracking, or team mode as needed.';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
-const WRITING_GATE = 'plain specific output; detector signals advisory-only';
-const WRITING_BLOCKED_GATE = 'guidance blocked; advisory-only detector use required';
+const WRITING_GATE = 'plain output + UX/corporate voice lanes; detectors advisory-only';
+const WRITING_BLOCKED_GATE = 'voice-lane guidance blocked; detectors must stay advisory-only';
 const SCREEN_CHECK_GATE = 'open changed screen before finishing';
 const DONE_GATE = 'relevant tests + available typecheck/lint/build + clean diff + TUI';
 

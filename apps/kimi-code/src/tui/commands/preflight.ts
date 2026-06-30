@@ -52,7 +52,7 @@ const HUMAN_WRITING_RUBRIC_PHRASES = [
   'source-backed details',
   'Self-audit for template openings',
   'avoid-ai-writing checks',
-  'Product UX microcopy',
+  'product UX microcopy',
   'friendly 해요체',
   'specific CTAs',
   'Institutional corporate copy',

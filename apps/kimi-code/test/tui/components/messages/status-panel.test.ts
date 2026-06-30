@@ -77,7 +77,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Workflow\s+Kimi chooses planning, goal tracking, or team mode as needed\./);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
-    expect(output).toMatch(/Writing\s+plain specific output; detector signals advisory-only/);
+    expect(output).toMatch(/Writing\s+plain output \+ UX\/corporate voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+relevant tests \+ available typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(/Next\s+Describe the task; Kimi will plan first\./);
@@ -124,7 +124,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Workflow\s+Kimi chooses planning, goal tracking, or team mode as needed\./);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
-    expect(output).toMatch(/Writing\s+plain specific output; detector signals advisory-only/);
+    expect(output).toMatch(/Writing\s+plain output \+ UX\/corporate voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+relevant tests \+ available typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(/Next\s+Run \/login or \/provider first; use \/model after sign-in\./);
@@ -205,7 +205,7 @@ describe('status panel report lines', () => {
 
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Writing guidance blocked/);
-    expect(output).toMatch(/Writing\s+guidance blocked; advisory-only detector use required/);
+    expect(output).toMatch(/Writing\s+voice-lane guidance blocked; detectors must stay advisory-only/);
     expect(output).toMatch(/Next\s+Restore writing-quality guidance before long autonomous work\./);
     expect(output).not.toContain('/preflight');
     expect(output).not.toContain('/bench');

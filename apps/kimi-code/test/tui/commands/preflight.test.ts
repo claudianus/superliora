@@ -683,7 +683,7 @@ describe('preflight slash command status surface', () => {
           'Prefer plain specific claims, concrete nouns and verbs with source-backed details.',
           'Self-audit for template openings and generic conclusions.',
           'Use avoid-ai-writing checks as advisory pattern checks.',
-          'Product UX microcopy uses friendly 해요체, active wording, positive-first recovery, and specific CTAs.',
+          'product UX microcopy uses friendly 해요체, active wording, positive-first recovery, and specific CTAs.',
           'Institutional corporate copy uses formal 합니다/습니다 endings, proof before emotion, and future-facing continuity.',
           'Treat JoongAng/Toss-inspired sources as style-analysis inputs only; do not copy source passages or claim official affiliation.',
           'Do not treat AI-writing detectors as truth or use them to accuse an author.',
