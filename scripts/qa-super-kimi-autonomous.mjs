@@ -121,8 +121,7 @@ const TUI_REAL_WORKFLOW_SOURCE_FILE = 'apps/kimi-code/src/tui/commands/ultrawork
 const TUI_REAL_WORKFLOW_TEST_FILE = 'apps/kimi-code/test/tui/commands/ultrawork.test.ts';
 const TUI_REAL_WORKFLOW_VERIFIER_DIR = '.super-kimi-real-workflow';
 const TUI_REAL_WORKFLOW_VERIFIER = path.posix.join(TUI_REAL_WORKFLOW_VERIFIER_DIR, 'check.mjs');
-const TUI_REAL_WORKFLOW_GUIDANCE =
-  'real repository source/test workflow evidence';
+const TUI_REAL_WORKFLOW_GUIDANCE = 'SUPER_KIMI_REAL_WORKFLOW_EVIDENCE';
 const TUI_REAL_WORKFLOW_EDIT_FILES = Object.freeze([
   TUI_REAL_WORKFLOW_SOURCE_FILE,
   TUI_REAL_WORKFLOW_TEST_FILE,
@@ -6799,8 +6798,8 @@ function buildTuiRealWorkflowPrompt(paths) {
   return [
     'Do not use Ultrawork automation for this direct QA harness task.',
     'Please complete this real repository source-and-test TUI workflow task.',
-    `Edit ${paths.sourcePath}: insert one new complete Kimi Agent Bench bullet string containing this exact phrase: ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not replace or split any existing string literal.`,
-    `Edit ${paths.testPath}: add one new assertion that buildUltraworkPrompt output contains this exact phrase: ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not replace existing assertions.`,
+    `Edit ${paths.sourcePath}: append exactly one new TypeScript line comment at the end of the file: // ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not edit any existing string literal.`,
+    `Edit ${paths.testPath}: add one new harmless assertion inside the existing buildUltraworkPrompt test that contains this exact token: ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not replace existing assertions.`,
     `Do not edit ${paths.verifierPath}; it is the harness-owned verifier.`,
     `Then run node ${TUI_REAL_WORKFLOW_VERIFIER}.`,
     `Then run ${paths.targetedTestCommand}.`,
@@ -6813,8 +6812,8 @@ function buildTuiUltraworkWorkflowPrompt(paths) {
     'Use Ultrawork for this bounded Super Kimi source/test verification task.',
     'Before implementation, use the Ultra Plan interview to ask exactly one focused question about validation emphasis, then continue after the selected default answer without waiting for another user message.',
     'Do not ask more than 3 total interview questions; after the third answered question, call NextPhase and proceed.',
-    `After the interview advances, edit ${paths.sourcePath}: insert one new complete Kimi Agent Bench bullet string containing this exact phrase: ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not replace or split any existing string literal.`,
-    `Also edit ${paths.testPath}: add one new assertion that buildUltraworkPrompt output contains this exact phrase: ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not replace existing assertions.`,
+    `After the interview advances, edit ${paths.sourcePath}: append exactly one new TypeScript line comment at the end of the file: // ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not edit any existing string literal.`,
+    `Also edit ${paths.testPath}: add one new harmless assertion inside the existing buildUltraworkPrompt test that contains this exact token: ${TUI_REAL_WORKFLOW_GUIDANCE}. Do not replace existing assertions.`,
     `Do not edit ${paths.verifierPath}; it is the harness-owned verifier.`,
     `Then run node ${TUI_REAL_WORKFLOW_VERIFIER}.`,
     `Then run ${paths.targetedTestCommand}.`,
