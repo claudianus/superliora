@@ -62,7 +62,7 @@ describe('built-in slash command registry', () => {
     expect(resolveSlashCommandAvailability(plan!, 'clear')).toBe('idle-only');
   });
 
-  it('keeps swarm mode changes and swarm tasks idle-only', () => {
+  it('keeps team mode changes and swarm tasks idle-only', () => {
     const swarm = findBuiltInSlashCommand('swarm');
     expect(swarm).toBeDefined();
     expect((swarm as KimiSlashCommand).experimentalFlag).toBeUndefined();
@@ -123,10 +123,13 @@ describe('built-in slash command registry', () => {
 
   it('describes long-work controls without telling users to start with command names', () => {
     const goal = findBuiltInSlashCommand('goal');
+    const swarm = findBuiltInSlashCommand('swarm');
 
     expect(goal?.description).toBe('Keep long-running work organized across turns');
     expect(goal?.description).not.toContain('/goal');
     expect(goal?.description).not.toContain('defined outcome');
+    expect(swarm?.description).toBe('Toggle team mode or send one task to the team');
+    expect(swarm?.description).not.toContain('swarm mode');
   });
 
   it('offers swarm subcommand argument completions', () => {
@@ -138,7 +141,7 @@ describe('built-in slash command registry', () => {
     expect(values('')).toEqual(['on', 'off']);
     expect(values('O')).toEqual(['on', 'off']);
     expect(swarmArgumentCompletions('of')).toEqual([
-      { value: 'off', label: 'off', description: 'Turn swarm mode off' },
+      { value: 'off', label: 'off', description: 'Turn team mode off' },
     ]);
     expect(values('on')).toBeNull();
     expect(values('off')).toBeNull();

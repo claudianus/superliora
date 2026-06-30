@@ -22,8 +22,8 @@ const GOAL_NEXT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const SWARM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'on', description: 'Turn swarm mode on' },
-  { value: 'off', description: 'Turn swarm mode off' },
+  { value: 'on', description: 'Turn team mode on' },
+  { value: 'off', description: 'Turn team mode off' },
 ];
 
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -202,7 +202,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'swarm',
     aliases: [],
-    description: 'Toggle swarm mode or run one task in swarm mode',
+    description: 'Toggle team mode or send one task to the team',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[on|off] | <task>',
