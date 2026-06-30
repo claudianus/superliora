@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   defaultUserSurfaceLeakFailures,
   hasLoggedOutSetupNextAction,
+  hasUltraworkFooterNextAction,
   hasUltraworkHelpContract,
   hasUltraworkStatusContract,
   hasUltraworkTaskEntryCopy,
@@ -68,6 +69,11 @@ describe('TUI surface leak checks', () => {
       hasUltraworkTaskEntryCopy('Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.'),
     ).toBe(true);
     expect(
+      hasUltraworkFooterNextAction(
+        'next: describe task; Ultrawork runs the full workflow, then verifies',
+      ),
+    ).toBe(true);
+    expect(
       hasUltraworkHelpContract(
         [
           'Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.',
@@ -101,7 +107,7 @@ describe('TUI surface leak checks', () => {
       'Coverage      test public behavior changes',
       'Screen check  open changed screen before finishing',
       'Done gate     tests + typecheck/lint/build + clean diff + TUI',
-      'next: describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm',
+      'next: describe task; Ultrawork runs the full workflow, then verifies',
     ].join('\n');
     const setupScreen = [
       'Model: not set',

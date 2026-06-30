@@ -56,6 +56,10 @@ export function hasUltraworkTaskEntryCopy(output) {
   return /\bDescribe task;\s*Ultrawork runs UltraPlan,\s*UltraGoal,\s*UltraSwarm\.?/i.test(output);
 }
 
+export function hasUltraworkFooterNextAction(output) {
+  return /\bnext:\s*describe task;\s*Ultrawork runs the full workflow,\s*then verifies\b/i.test(output);
+}
+
 export function hasUltraworkHelpContract(output) {
   return (
     hasUltraworkTaskEntryCopy(output) &&

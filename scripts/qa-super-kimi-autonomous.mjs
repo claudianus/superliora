@@ -14,6 +14,7 @@ import net from 'node:net';
 import {
   defaultUserSurfaceLeakFailures,
   hasLoggedOutSetupNextAction,
+  hasUltraworkFooterNextAction,
   hasUltraworkHelpContract,
   hasUltraworkStatusContract,
   hasUltraworkTaskEntryCopy,
@@ -9491,6 +9492,12 @@ async function validateTuiLaunchUltraworkUnifiedSurface(captures) {
       'startup',
       'startup screen task-entry copy',
       hasUltraworkTaskEntryCopy,
+    ),
+    validateTuiLaunchSurfaceScenario(
+      capturesByScenario,
+      'startup',
+      'startup footer next action',
+      hasUltraworkFooterNextAction,
     ),
     validateTuiLaunchSurfaceScenario(
       capturesByScenario,
