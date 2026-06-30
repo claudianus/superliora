@@ -9,7 +9,7 @@ const DEFAULT_USER_SURFACE_LEAK_PATTERNS = Object.freeze([
 ]);
 
 export function defaultUserSurfaceLeakFailures(scenario, output) {
-  if (scenario !== 'help' && scenario !== 'autocomplete') return [];
+  if (scenario !== 'help' && scenario !== 'autocomplete' && scenario !== 'status') return [];
   return DEFAULT_USER_SURFACE_LEAK_PATTERNS
     .filter((entry) => entry.pattern.test(output))
     .map((entry) => `default ${scenario} capture exposes ${entry.label}`);

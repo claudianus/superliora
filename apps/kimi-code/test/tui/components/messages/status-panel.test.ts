@@ -84,6 +84,11 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('manual workflow commands');
     expect(output).not.toContain('Diagnostics');
     expect(output).not.toContain('harness QA');
+    expect(output).not.toContain('internal QA');
+    expect(output).not.toContain('/preflight');
+    expect(output).not.toContain('/bench');
+    expect(output).not.toContain('/ultrawork');
+    expect(output).not.toContain('/ultraswarm');
     expect(output).toContain('Plan usage');
     expect(output).toContain('8% used');
     expect(output).not.toContain('Account');
