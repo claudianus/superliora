@@ -52,7 +52,7 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   '- Treat Ultrawork as one workflow, not separate user-facing modes: it automatically links and activates UltraPlan, UltraGoal, UltraSwarm, and verified finish inside one continuous run.',
   '- Workflow spine: UltraPlan -> UltraGoal -> UltraSwarm -> Verify.',
   '- Activation sequence: create or replace the UltraGoal, enable UltraPlan, arm UltraSwarm, then drive implementation and Verify without asking the user to stitch the stages together.',
-  '- Normal task text is the preferred entry point; /ultrawork is an advanced manual override for operators who want to force the full workflow.',
+  '- Normal task text is the preferred entry point; /ultrawork is an advanced steering override for operators who want to force the full workflow.',
   '- UltraPlan: clarify ambiguous or large requests, ask only blocking questions, and turn the request into a concrete verified goal.',
   '- UltraGoal: keep the active goal as the durable execution contract; update or replace it only when the clarified objective materially changes.',
   '- UltraSwarm: auto-engage specialist agents only when parallel PM, architecture, TUI, QA, security, or performance review materially improves outcome or speed.',

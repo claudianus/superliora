@@ -124,7 +124,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('automatically links and activates UltraPlan, UltraGoal, UltraSwarm');
     expect(prompt).toContain('create or replace the UltraGoal, enable UltraPlan, arm UltraSwarm');
     expect(prompt).toContain('Normal task text is the preferred entry point');
-    expect(prompt).toContain('/ultrawork is an advanced manual override');
+    expect(prompt).toContain('/ultrawork is an advanced steering override');
     expect(prompt).toContain('UltraPlan: clarify ambiguous or large requests');
     expect(prompt).toContain('UltraGoal: keep the active goal as the durable execution contract');
     expect(prompt).toContain('UltraSwarm: auto-engage specialist agents');

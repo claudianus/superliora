@@ -38,7 +38,7 @@ const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const HELP_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'advanced', description: 'Show manual workflow commands' },
+  { value: 'advanced', description: 'Show steering controls' },
 ];
 
 const ADD_DIR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [

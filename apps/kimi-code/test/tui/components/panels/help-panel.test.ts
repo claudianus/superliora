@@ -24,7 +24,7 @@ describe('HelpPanelComponent', () => {
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/help/);
     expect(out).toMatch(/Describe task; Ultrawork auto-runs UltraPlan, UltraGoal, UltraSwarm, Verify\./);
-    expect(out).toMatch(/Manual controls live in \/help advanced\./);
+    expect(out).toMatch(/Steering controls live in \/help advanced\./);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
     expect(out).toMatch(/Ctrl-Shift-Tab/);
@@ -70,6 +70,7 @@ describe('HelpPanelComponent', () => {
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/Ultrawork auto-runs UltraPlan, UltraGoal, UltraSwarm, Verify\./);
     expect(out).toMatch(/Most work starts from a plain request/);
+    expect(out).toMatch(/Steering controls are for overrides/);
     expect(out).toMatch(/Advanced Ultrawork controls/);
     expect(out).toMatch(/\/ultrawork \(\/uw\)/);
     expect(out).toMatch(/task links plan, goal, swarm, verify/);

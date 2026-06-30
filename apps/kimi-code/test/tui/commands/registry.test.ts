@@ -126,6 +126,7 @@ describe('built-in slash command registry', () => {
     expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight']));
     const help = findBuiltInSlashCommand('help') as KimiSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);
+    expect(helpArgumentCompletions('')?.[0]?.description).toBe('Show steering controls');
     expect(helpArgumentCompletions('d')).toBeNull();
     expect(help?.argumentHint).toBeUndefined();
   });

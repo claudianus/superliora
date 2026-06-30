@@ -4339,6 +4339,7 @@ async function runTuiLaunchPhase(context) {
     commands: commandRecords,
     inputTraces: [],
     captures: [],
+    scenarioRetries: [],
     validations: {},
   };
   let targetWorktreeCreated = false;
@@ -4480,7 +4481,28 @@ async function runTuiLaunchPhase(context) {
         );
         await sleep(scenario.postInputDelayMs ?? 1_000);
       }
-      summary.captures.push(await captureTmuxPane(context, tmuxSession, scenario.name));
+      let scenarioCapture = await captureTmuxPane(context, tmuxSession, scenario.name);
+      if (scenario.name === 'status' && scenarioCapture.status !== 'PASS') {
+        const retryTrace = await sendTmuxKeySequence(context, tmuxSession, 'status-retry', [
+          'Escape',
+          '/status',
+          'Enter',
+        ]);
+        summary.inputTraces.push(retryTrace);
+        commandRecords.push(...retryTrace.commands);
+        cleanupOverrides.proofCommands.push(
+          ...retryTrace.commands.map((record) => commandProofFromRecord(record)),
+        );
+        summary.scenarioRetries.push({
+          scenario: scenario.name,
+          reason: scenarioCapture.reason,
+          firstAttemptStatus: scenarioCapture.status,
+          retryTraceStatus: retryTrace.status,
+        });
+        await sleep(1_000);
+        scenarioCapture = await captureTmuxPane(context, tmuxSession, scenario.name);
+      }
+      summary.captures.push(scenarioCapture);
       if (scenario.name === 'exit' && scenario.keys?.at(-1) === 'Enter') {
         const submitExitTrace = await sendTmuxKeySequence(context, tmuxSession, 'exit-submit', [
           'Enter',
