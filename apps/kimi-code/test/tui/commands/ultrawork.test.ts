@@ -215,6 +215,9 @@ describe('handleUltraworkCommand', () => {
     });
     expect(renderedMarker(host)).toContain('Ultrawork activated');
     expect(renderedMarker(host)).toContain('UltraPlan -> UltraGoal -> UltraSwarm -> Verify');
+    expect(renderedMarker(host)).toContain(
+      'UltraPlan active | UltraGoal created | UltraSwarm armed | Verify queued',
+    );
     expect(renderedMarker(host)).toContain('Ship feature X');
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('Ship feature X'));
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));

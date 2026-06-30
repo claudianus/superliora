@@ -6,6 +6,7 @@ import { currentTheme } from '#/tui/theme/theme';
 export type UltraworkModeMarkerState = 'active' | 'ended';
 
 const ULTRAWORK_PIPELINE = 'UltraPlan -> UltraGoal -> UltraSwarm -> Verify';
+const ULTRAWORK_STAGE_STATUS = 'UltraPlan active | UltraGoal created | UltraSwarm armed | Verify queued';
 
 export class UltraworkModeMarkerComponent implements Component {
   constructor(
@@ -27,8 +28,13 @@ export class UltraworkModeMarkerComponent implements Component {
       pipelineToken,
       truncateToWidth(`  ${ULTRAWORK_PIPELINE}`, safeWidth, '…'),
     );
+    const stageStatusToken = this.state === 'ended' ? 'textDim' : 'text';
+    const stageStatusLine = currentTheme.fg(
+      stageStatusToken,
+      truncateToWidth(`  ${ULTRAWORK_STAGE_STATUS}`, safeWidth, '…'),
+    );
     const taskLine = currentTheme.fg('textDim', truncateToWidth(`  ${this.taskDescription}`, safeWidth, '…'));
-    return ['', truncateToWidth(marker + label, safeWidth, '…'), pipelineLine, taskLine];
+    return ['', truncateToWidth(marker + label, safeWidth, '…'), pipelineLine, stageStatusLine, taskLine];
   }
 }
 
