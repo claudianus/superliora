@@ -79,6 +79,11 @@ describe('shouldAutoActivateUltrawork', () => {
         '울트라플랜, 울트라 골, 울트라 스웜이 자동으로 연동되어 하나의 워크플로우로 작업을 완수하게 해줘',
       ),
     ).toBe(true);
+    expect(
+      shouldAutoActivateUltrawork(
+        '울트라플랜 울트라 스웜 울트라 골이 모두 자동으로 연동및 발동되서 하나의 워크플로우(울트라워크)를 형성하여 훌륭하게 작업을 완수하게 해줘',
+      ),
+    ).toBe(true);
     expect(shouldAutoActivateUltrawork('울트라워크로 이 기능 구현하고 검증까지 끝내줘')).toBe(true);
     expect(
       shouldAutoActivateUltrawork(

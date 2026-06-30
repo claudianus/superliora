@@ -138,17 +138,19 @@ describe('built-in slash command registry', () => {
     expect(primaryNames.slice(0, 6)).toEqual(['auto', 'model', 'plan', 'status', 'usage', 'yolo']);
   });
 
-  it('describes long-work controls without telling users to start with command names', () => {
+  it('describes long-work controls as Ultrawork steering surfaces', () => {
+    const plan = findBuiltInSlashCommand('plan');
     const goal = findBuiltInSlashCommand('goal');
     const swarm = findBuiltInSlashCommand('swarm');
     const ultrawork = findBuiltInSlashCommand('ultrawork');
 
-    expect(goal?.description).toBe('Keep long-running work organized across turns');
+    expect(plan?.description).toBe('Steer UltraPlan; Ultrawork enables it automatically');
+    expect(goal?.description).toBe('Manage the active Ultrawork goal');
     expect(goal?.description).not.toContain('/goal');
-    expect(goal?.description).not.toContain('defined outcome');
-    expect(swarm?.description).toBe('Toggle specialist team mode or send one task');
-    expect(swarm?.description).not.toContain('swarm mode');
-    expect(ultrawork?.description).toBe('Start Ultrawork: auto-orchestrate UltraPlan, UltraGoal, UltraSwarm, Verify');
+    expect(swarm?.description).toBe('Manually steer UltraSwarm; Ultrawork auto-arms it');
+    expect(swarm?.description).not.toContain('/swarm');
+    expect(ultrawork?.description).toBe('Force Ultrawork; plain task text auto-runs the workflow');
+    expect(ultrawork?.description).not.toContain('/ultrawork');
   });
 
   it('offers swarm subcommand argument completions', () => {

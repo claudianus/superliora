@@ -206,7 +206,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'plan',
     aliases: [],
-    description: 'Toggle plan mode',
+    description: 'Steer UltraPlan; Ultrawork enables it automatically',
     priority: 100,
     argumentHint: '[on|off|ultra|clear]',
     completeArgs: planArgumentCompletions,
@@ -215,7 +215,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'swarm',
     aliases: [],
-    description: 'Toggle specialist team mode or send one task',
+    description: 'Manually steer UltraSwarm; Ultrawork auto-arms it',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[on|off] | <task>',
@@ -235,7 +235,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     name: 'ultrawork',
     aliases: ['uw'],
     hiddenAliases: ['ultragoal', 'ug'],
-    description: 'Start Ultrawork: auto-orchestrate UltraPlan, UltraGoal, UltraSwarm, Verify',
+    description: 'Force Ultrawork; plain task text auto-runs the workflow',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[replace] <objective>',
@@ -375,7 +375,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'goal',
     aliases: [],
-    description: 'Keep long-running work organized across turns',
+    description: 'Manage the active Ultrawork goal',
     priority: 80,
     argumentHint: '[status|pause|resume|cancel|replace|next] | <objective>',
     completeArgs: goalArgumentCompletions,

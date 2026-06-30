@@ -60,7 +60,7 @@ describe('HelpPanelComponent', () => {
 
   it('renders the advanced Ultrawork help framing when provided', () => {
     const panel = new HelpPanelComponent({
-      commands: [cmd('ultrawork', 'Start Ultrawork: auto-orchestrate UltraPlan, UltraGoal, UltraSwarm, Verify', ['uw'])],
+      commands: [cmd('ultrawork', 'Force Ultrawork; plain task text auto-runs the workflow', ['uw'])],
       intro: ADVANCED_HELP_INTRO,
       commandSectionTitle: 'Advanced Ultrawork controls',
       onClose: () => {},
@@ -70,6 +70,7 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Most work starts from a plain request/);
     expect(out).toMatch(/Advanced Ultrawork controls/);
     expect(out).toMatch(/\/ultrawork \(\/uw\)/);
+    expect(out).toMatch(/plain task text auto-runs the workflow/);
   });
 
   it('Escape fires onClose', () => {
