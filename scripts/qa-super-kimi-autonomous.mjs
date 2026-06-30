@@ -8700,7 +8700,7 @@ function hasXpDodReadinessContract(output) {
 function hasLoggedOutSetupNextAction(output) {
   return (
     /\bmodel:?\s+not set\b/i.test(output) &&
-    /\bnext:\s*run \/login or \/provider\b/i.test(output)
+    /\bnext:\s*\/login or \/provider,\s*then \/model\b/i.test(output)
   );
 }
 

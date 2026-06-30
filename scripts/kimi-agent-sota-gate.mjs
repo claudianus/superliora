@@ -43,7 +43,7 @@ const TUI_SCREEN_SIGNAL_PATTERNS = Object.freeze([
     name: 'done-gate',
     pattern: /\bDone gate\b\s+relevant tests\s+\+\s+available typecheck\/lint\/build\s+\+\s+clean diff\s+\+\s+TUI/i,
   },
-  { name: 'logged-out-setup-next-action', pattern: /\bmodel:?\s+not set\b.*\bnext:\s*run \/login or \/provider\b/i },
+  { name: 'logged-out-setup-next-action', pattern: /\bmodel:?\s+not set\b.*\bnext:\s*\/login or \/provider,\s*then \/model\b/i },
   { name: 'status-setup-next-action', pattern: /\bState\b\s+Model needed\b.*\bNext\b\s+Run \/login or \/provider first;\s*use \/model after sign-in\./i },
 ]);
 const DEFAULT_BUDGETS = Object.freeze({
@@ -2036,7 +2036,7 @@ function hasXpDodReadinessContract(output) {
 function hasLoggedOutSetupNextAction(output) {
   return (
     /\bmodel:?\s+not set\b/i.test(output) &&
-    /\bnext:\s*run \/login or \/provider\b/i.test(output)
+    /\bnext:\s*\/login or \/provider,\s*then \/model\b/i.test(output)
   );
 }
 
