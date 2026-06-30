@@ -175,10 +175,12 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('offers readiness and health subcommands in memory completions', () => {
-    const values = memoryArgumentCompletions('h')?.map((item) => item.value);
+  it('does not offer internal readiness and health subcommands in memory completions', () => {
+    const healthValues = memoryArgumentCompletions('h')?.map((item) => item.value);
+    const readinessValues = memoryArgumentCompletions('r')?.map((item) => item.value);
 
-    expect(values).toEqual(['health']);
+    expect(healthValues).toBeUndefined();
+    expect(readinessValues).toEqual(['remember']);
   });
 
   it('redacts secret-looking text defensively', () => {
