@@ -228,7 +228,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     ...gateRows,
     {
       label: 'Next',
-      value: 'Describe the task; Ultrawork will auto-orchestrate UltraPlan, UltraGoal, UltraSwarm, and Verify.',
+      value: 'Describe task; Ultrawork links plan, goal, swarm, verify.',
     },
   ];
 }
