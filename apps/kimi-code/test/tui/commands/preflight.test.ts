@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildPreflightLines,
   buildPreflightStatus,
+  loadPreflightHumanWriting,
   loadPreflightLoopRun,
   loadPreflightRefreshRun,
   redactPreflightText,
@@ -104,7 +105,8 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Knowledge-map evidence  ready');
     expect(text).toContain('Browser-use evidence  ready');
     expect(text).toContain('Computer-use evidence  ready');
-    expect(text).toContain('Ready gates  8/8; blocked none');
+    expect(text).toContain('Ready gates  9/9; blocked none');
+    expect(text).toContain('Human writing  ready; anti-slop advisory-only');
     expect(text).toContain('Freshness  ready; window 24h');
     expect(text).toContain('Bench age  fresh; 0m');
     expect(text).toContain('LLM-wiki age  fresh; 0m');
@@ -255,7 +257,8 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Knowledge-map evidence  blocked');
     expect(text).toContain('Browser-use evidence  blocked');
     expect(text).toContain('Computer-use evidence  blocked');
-    expect(text).toContain('Ready gates  0/8; blocked bench,memory,recall,llmWiki,knowledgeMap,browserUse,computerUse,freshness');
+    expect(text).toContain('Ready gates  1/9; blocked bench,memory,recall,llmWiki,knowledgeMap,browserUse,computerUse,freshness');
+    expect(text).toContain('Human writing  ready; anti-slop advisory-only');
     expect(text).toContain('Freshness  blocked; window 24h');
     expect(text).toContain('Bench age  missing');
     expect(text).toContain('Boundary  review evidence before sharing');
@@ -535,7 +538,7 @@ describe('preflight slash command status surface', () => {
 
     expect(status.ready).toBe(false);
     expect(text).toContain('Unified status  blocked');
-    expect(text).toContain('Ready gates  7/8; blocked freshness');
+    expect(text).toContain('Ready gates  8/9; blocked freshness');
     expect(text).toContain('Freshness  blocked; window 24h');
     expect(text).toContain('Bench age  stale; 2d');
     expect(text).toContain('Next  Run the Refresh commands below, recapture runtime evidence, then rerun /preflight.');
@@ -651,6 +654,79 @@ describe('preflight slash command status surface', () => {
     expect(
       redactPreflightText('api_key=secret-value KIMI_MODEL_API_KEY sk-proj-1234567890abcdef'),
     ).toBe('api_key=[REDACTED_SECRET] [REDACTED_ENV] [REDACTED_SECRET]');
+  });
+
+  it('surfaces human-writing anti-slop readiness as advisory-only', () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-preflight-human-writing-'));
+    try {
+      writeHumanWritingFixture(workDir, {
+        contract: [
+          'Human Writing / Anti-Slop',
+          'harness-level output quality gate',
+          'plain specific claims, concrete nouns and verbs',
+          'self-audit for template openings',
+          'Do not treat AI-writing detectors as truth',
+          'deterministic unslop cleanup only as advisory pattern checks',
+          'AI-writing detectors are advisory pattern checks, not truth.',
+        ].join('\n'),
+        humanWriting: [
+          'Treat no-AI-slop writing as a harness-level output quality gate.',
+          'Prefer plain specific claims, concrete nouns and verbs.',
+          'Self-audit for template openings and generic conclusions.',
+          'Do not treat AI-writing detectors as truth.',
+          'Run a second-pass rewrite or deterministic cleanup when available.',
+        ],
+      });
+
+      const humanWriting = loadPreflightHumanWriting(workDir);
+      const status = buildPreflightStatus({
+        ...readyPreflightInput({
+          status: 'PASS',
+          evidencePath: '.omo/evidence/kimi-agent-bench/latest/loop-summary.json',
+        }),
+        humanWriting,
+      });
+      const text = buildPreflightLines(status).join('\n');
+
+      expect(status.ready).toBe(true);
+      expect(humanWriting.ready).toBe(true);
+      expect(text).toContain('Ready gates  9/9; blocked none');
+      expect(text).toContain('Human writing  ready; anti-slop advisory-only');
+      expect(text).toContain('Human writing source  apps/kimi-code/src/tui/commands/ultrawork-contract.ts; .omo/bench/sota-criteria.json');
+      expect(text).toContain('Next  Ready: run the next bounded Ultrawork loop from this preflight.');
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it('blocks human-writing readiness when the contract or rubric is missing', () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-preflight-human-writing-missing-'));
+    try {
+      writeHumanWritingFixture(workDir, {
+        contract: 'Human Writing / Anti-Slop\nplain specific claims, concrete nouns and verbs',
+        humanWriting: ['generic writing advice'],
+      });
+
+      const humanWriting = loadPreflightHumanWriting(workDir);
+      const status = buildPreflightStatus({
+        ...readyPreflightInput({
+          status: 'PASS',
+          evidencePath: '.omo/evidence/kimi-agent-bench/latest/loop-summary.json',
+        }),
+        humanWriting,
+      });
+      const text = buildPreflightLines(status).join('\n');
+
+      expect(status.ready).toBe(false);
+      expect(humanWriting.ready).toBe(false);
+      expect(text).toContain('Unified status  blocked');
+      expect(text).toContain('Ready gates  8/9; blocked humanWriting');
+      expect(text).toContain('Human writing  blocked; blocked contract,rubric,advisory-only; advisory-only required');
+      expect(text).toContain('Next  Restore human-writing contract/rubric/advisoryOnly guidance, then rerun /preflight.');
+      expect(text).toContain('Warning  human-writing: blocked contract,rubric,advisoryOnly');
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
   });
 
   it('handles malformed refresh summary as a warning instead of crashing preflight', () => {
@@ -989,6 +1065,22 @@ function preflightFreshness(state: 'fresh' | 'missing' | 'stale'): PreflightFres
     browserUse: signal,
     computerUse: signal,
   };
+}
+
+function writeHumanWritingFixture(
+  workDir: string,
+  fixture: { readonly contract: string; readonly humanWriting: readonly string[] },
+) {
+  const contractDir = join(workDir, 'apps/kimi-code/src/tui/commands');
+  const criteriaDir = join(workDir, '.omo/bench');
+  mkdirSync(contractDir, { recursive: true });
+  mkdirSync(criteriaDir, { recursive: true });
+  writeFileSync(join(contractDir, 'ultrawork-contract.ts'), fixture.contract, 'utf8');
+  writeFileSync(join(criteriaDir, 'sota-criteria.json'), JSON.stringify({
+    loopScoreRubric: {
+      humanWriting: fixture.humanWriting,
+    },
+  }), 'utf8');
 }
 
 function refreshBench() {

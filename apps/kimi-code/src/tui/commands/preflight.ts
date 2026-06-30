@@ -21,6 +21,23 @@ const PREFLIGHT_BENCH_LOOP_COMMAND = 'node scripts/kimi-agent-bench.mjs --loop -
 const PREFLIGHT_BENCH_LOOP_EVIDENCE_ROOT = '.omo/evidence/kimi-agent-bench';
 const PREFLIGHT_BENCH_LOOP_MAX_ITERATIONS = 2;
 const PREFLIGHT_BENCH_LOOP_MAX_TOTAL_MS = 600_000;
+const PREFLIGHT_ULTRAWORK_CONTRACT_PATH = 'apps/kimi-code/src/tui/commands/ultrawork-contract.ts';
+const PREFLIGHT_SOTA_CRITERIA_PATH = '.omo/bench/sota-criteria.json';
+const HUMAN_WRITING_CONTRACT_PHRASES = [
+  'Human Writing / Anti-Slop',
+  'harness-level output quality gate',
+  'plain specific claims, concrete nouns and verbs',
+  'self-audit for template openings',
+  'Do not treat AI-writing detectors as truth',
+  'deterministic unslop cleanup only as advisory pattern checks',
+] as const;
+const HUMAN_WRITING_RUBRIC_PHRASES = [
+  'harness-level output quality gate',
+  'plain specific claims',
+  'Self-audit for template openings',
+  'Do not treat AI-writing detectors as truth',
+  'second-pass rewrite or deterministic cleanup',
+] as const;
 
 type PreflightFreshnessState = 'fresh' | 'stale' | 'missing';
 
@@ -111,10 +128,22 @@ export interface PreflightLoopRun {
   readonly warning?: string;
 }
 
+export interface PreflightHumanWriting {
+  readonly ready: boolean;
+  readonly contractReady: boolean;
+  readonly rubricReady: boolean;
+  readonly advisoryOnly: boolean;
+  readonly contractPath: string;
+  readonly rubricPath: string;
+  readonly nextAction: string;
+  readonly warning?: string;
+}
+
 export interface PreflightStatus {
   readonly bench: BenchStatus;
   readonly memory: MemoryReadinessSnapshot;
   readonly freshness: PreflightFreshness;
+  readonly humanWriting: PreflightHumanWriting;
   readonly refreshPlan: PreflightRefreshPlan;
   readonly refreshRun?: PreflightRefreshRun;
   readonly loopRun?: PreflightLoopRun;
@@ -155,6 +184,7 @@ export async function loadPreflightStatus(
     },
     refreshRun: loadPreflightRefreshRun(host.state.appState.workDir),
     loopRun: loadPreflightLoopRun(host.state.appState.workDir),
+    humanWriting: loadPreflightHumanWriting(host.state.appState.workDir),
   });
 }
 
@@ -162,6 +192,7 @@ export function buildPreflightStatus(input: {
   readonly bench: BenchStatus;
   readonly memory: MemoryReadinessSnapshot;
   readonly freshness?: PreflightFreshness;
+  readonly humanWriting?: PreflightHumanWriting;
   readonly refreshRun?: PreflightRefreshRun;
   readonly loopRun?: PreflightLoopRun;
   readonly nowMs?: number;
@@ -175,10 +206,12 @@ export function buildPreflightStatus(input: {
   });
   const nextAction = nextPreflightAction(input.bench, input.memory, freshness);
   const refreshPlan = buildPreflightRefreshPlan(input.bench, input.memory, freshness);
+  const humanWriting = input.humanWriting ?? defaultPreflightHumanWriting();
   return {
     bench: input.bench,
     memory: input.memory,
     freshness,
+    humanWriting,
     refreshPlan,
     refreshRun: input.refreshRun,
     loopRun: input.loopRun,
@@ -189,8 +222,9 @@ export function buildPreflightStatus(input: {
       && input.memory.evidence.knowledgeMap.ready
       && input.memory.evidence.browserUse.ready
       && input.memory.evidence.computerUse.ready
-      && freshness.ready,
-    nextAction,
+      && freshness.ready
+      && humanWriting.ready,
+    nextAction: humanWriting.ready ? nextAction : humanWriting.nextAction,
   };
 }
 
@@ -233,6 +267,7 @@ export function buildPreflightLines(status: PreflightStatus): string[] {
     `Browser-use evidence  ${readyWord(status.memory.evidence.browserUse.ready)}`,
     `Computer-use evidence  ${readyWord(status.memory.evidence.computerUse.ready)}`,
     `Ready gates  ${readinessGateSummary(status)}`,
+    `Human writing  ${readyWord(status.humanWriting.ready)}; ${humanWritingSummary(status.humanWriting)}`,
     `Freshness  ${readyWord(status.freshness.ready)}; window ${formatDuration(status.freshness.windowMs)}`,
     `Bench age  ${freshnessSummary(status.freshness.bench)}`,
     `LLM-wiki age  ${freshnessSummary(status.freshness.llmWiki)}`,
@@ -297,9 +332,13 @@ export function buildPreflightLines(status: PreflightStatus): string[] {
   if (status.loopRun?.warning !== undefined) {
     lines.push(`Warning  loop: ${status.loopRun.warning}`);
   }
+  if (status.humanWriting.warning !== undefined) {
+    lines.push(`Warning  human-writing: ${status.humanWriting.warning}`);
+  }
 
   lines.push(`Bench source  ${status.bench.sourcePath}`);
   lines.push(`Memory source  ${status.memory.evidence.sourceRoot}`);
+  lines.push(`Human writing source  ${status.humanWriting.contractPath}; ${status.humanWriting.rubricPath}`);
   return lines.map(redactPreflightText);
 }
 
@@ -358,6 +397,42 @@ export function loadPreflightRefreshRun(workDir: string): PreflightRefreshRun | 
       warning: `unreadable refresh summary at ${summaryPath}: ${formatPreflightError(error)}`,
     };
   }
+}
+
+export function loadPreflightHumanWriting(workDir: string): PreflightHumanWriting {
+  const contractPath = join(workDir, PREFLIGHT_ULTRAWORK_CONTRACT_PATH);
+  const rubricPath = join(workDir, PREFLIGHT_SOTA_CRITERIA_PATH);
+  const contractText = readText(contractPath);
+  const rubric = readJsonRecord(rubricPath);
+  const rubricItems = asRecord(rubric?.['loopScoreRubric'])?.['humanWriting'];
+  const rubricText = Array.isArray(rubricItems) ? rubricItems.join('\n') : '';
+  const missingContract = contractText === undefined
+    ? [...HUMAN_WRITING_CONTRACT_PHRASES]
+    : missingPhrases(contractText, HUMAN_WRITING_CONTRACT_PHRASES);
+  const missingRubric = missingPhrases(rubricText, HUMAN_WRITING_RUBRIC_PHRASES);
+  const advisoryOnly = contractText !== undefined
+    && /AI-writing detectors[\s\S]*truth/i.test(contractText)
+    && /advisory pattern checks/i.test(contractText);
+  const contractReady = contractText !== undefined && missingContract.length === 0 && advisoryOnly;
+  const rubricReady = rubricText.length > 0 && missingRubric.length === 0;
+  const ready = contractReady && rubricReady;
+  const blocked = [
+    ...(contractReady ? [] : ['contract']),
+    ...(rubricReady ? [] : ['rubric']),
+    ...(advisoryOnly ? [] : ['advisoryOnly']),
+  ];
+  return {
+    ready,
+    contractReady,
+    rubricReady,
+    advisoryOnly,
+    contractPath: displayPath(workDir, contractPath),
+    rubricPath: displayPath(workDir, rubricPath),
+    nextAction: ready
+      ? 'Human-writing anti-slop contract ready; keep detector signals advisory-only.'
+      : `Restore human-writing ${blocked.join('/')} guidance, then rerun /preflight.`,
+    warning: ready ? undefined : `blocked ${blocked.join(',')}`,
+  };
 }
 
 export function loadPreflightLoopRun(workDir: string): PreflightLoopRun | undefined {
@@ -532,6 +607,14 @@ function readJsonRecord(path: string): Record<string, unknown> | undefined {
   }
 }
 
+function readText(path: string): string | undefined {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
 async function loadPreflightMemoryStats(
   host: SlashCommandHost,
 ): Promise<{ readonly stats: MemoryStats } | { readonly error: string }> {
@@ -668,10 +751,37 @@ function readinessGateSummary(status: PreflightStatus): string {
     { name: 'browserUse', ready: status.memory.evidence.browserUse.ready },
     { name: 'computerUse', ready: status.memory.evidence.computerUse.ready },
     { name: 'freshness', ready: status.freshness.ready },
+    { name: 'humanWriting', ready: status.humanWriting.ready },
   ];
   const readyCount = gates.filter((gate) => gate.ready).length;
   const blocked = gates.filter((gate) => !gate.ready).map((gate) => gate.name);
   return `${readyCount}/${gates.length}; blocked ${blocked.length === 0 ? 'none' : blocked.join(',')}`;
+}
+
+function humanWritingSummary(humanWriting: PreflightHumanWriting): string {
+  if (humanWriting.ready) return 'anti-slop advisory-only';
+  const blocked = [
+    ...(humanWriting.contractReady ? [] : ['contract']),
+    ...(humanWriting.rubricReady ? [] : ['rubric']),
+    ...(humanWriting.advisoryOnly ? [] : ['advisory-only']),
+  ];
+  return `blocked ${blocked.join(',')}; advisory-only required`;
+}
+
+function defaultPreflightHumanWriting(): PreflightHumanWriting {
+  return {
+    ready: true,
+    contractReady: true,
+    rubricReady: true,
+    advisoryOnly: true,
+    contractPath: PREFLIGHT_ULTRAWORK_CONTRACT_PATH,
+    rubricPath: PREFLIGHT_SOTA_CRITERIA_PATH,
+    nextAction: 'Human-writing anti-slop contract ready; keep detector signals advisory-only.',
+  };
+}
+
+function missingPhrases(text: string, phrases: readonly string[]): readonly string[] {
+  return phrases.filter((phrase) => !text.includes(phrase));
 }
 
 function freshnessSummary(signal: PreflightFreshnessSignal): string {
