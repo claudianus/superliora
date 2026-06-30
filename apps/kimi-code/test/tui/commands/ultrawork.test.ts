@@ -124,6 +124,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('Ultrawork orchestration');
     expect(prompt).toContain('UltraPlan -> UltraGoal -> UltraSwarm');
     expect(prompt).toContain('one workflow, not separate user-facing modes');
+    expect(prompt).toContain('Ultrawork is the product workflow; UltraPlan, UltraGoal, and UltraSwarm are internal stages');
+    expect(prompt).toContain('normalize it into the same Ultrawork run');
     expect(prompt).toContain('automatically links and activates UltraPlan, UltraGoal, UltraSwarm');
     expect(prompt).toContain('create or replace the UltraGoal, enable UltraPlan, arm UltraSwarm');
     expect(prompt).toContain('Normal task text is the preferred entry point');
@@ -249,12 +251,12 @@ describe('handleUltraworkCommand', () => {
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({
-      activityTip: 'Ultrawork links UltraPlan, UltraGoal, UltraSwarm, and Verify automatically',
+      activityTip: 'Ultrawork is one workflow: UltraPlan, UltraGoal, UltraSwarm, Verify',
     });
     expect(renderedMarker(host)).toContain('Ultrawork activated');
     expect(renderedMarker(host)).toContain('UltraPlan -> UltraGoal -> UltraSwarm -> Verify');
     expect(renderedMarker(host)).toContain(
-      'One workflow: UltraPlan, UltraGoal, UltraSwarm auto-link',
+      'One Ultrawork: UltraPlan, UltraGoal, UltraSwarm auto-activate',
     );
     expect(renderedMarker(host)).toContain(
       'Next: Swarm decision: ENGAGE|DEFER reason + value + owner',

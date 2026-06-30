@@ -6,7 +6,7 @@ import { currentTheme } from '#/tui/theme/theme';
 export type UltraworkModeMarkerState = 'active' | 'ended';
 
 const ULTRAWORK_PIPELINE = 'UltraPlan -> UltraGoal -> UltraSwarm -> Verify';
-const ULTRAWORK_STAGE_STATUS = 'One workflow: UltraPlan, UltraGoal, UltraSwarm auto-link';
+const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: UltraPlan, UltraGoal, UltraSwarm auto-activate';
 const ULTRAWORK_NEXT_ACTION = 'Next: Swarm decision: ENGAGE|DEFER reason + value + owner';
 
 export class UltraworkModeMarkerComponent implements Component {

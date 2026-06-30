@@ -50,9 +50,10 @@ const ULTRAWORK_OPT_OUT_PATTERN =
 const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   'Ultrawork orchestration:',
   '- Treat Ultrawork as one workflow, not separate user-facing modes: it automatically links and activates UltraPlan, UltraGoal, UltraSwarm, and verified finish inside one continuous run.',
+  '- Ultrawork is the product workflow; UltraPlan, UltraGoal, and UltraSwarm are internal stages that auto-link and auto-activate inside that workflow.',
   '- Workflow spine: UltraPlan -> UltraGoal -> UltraSwarm -> Verify.',
   '- Activation sequence: create or replace the UltraGoal, enable UltraPlan, arm UltraSwarm, then drive implementation and Verify without asking the user to stitch the stages together.',
-  '- Normal task text is the preferred entry point; /ultrawork is an advanced steering override for operators who want to force the full workflow.',
+  '- Normal task text is the preferred entry point; /ultrawork is an advanced steering override for operators who want to explicitly start the full workflow.',
   '- UltraPlan: clarify ambiguous or large requests, ask only blocking questions, and turn the request into a concrete verified goal.',
   '- UltraGoal: keep the active goal as the durable execution contract; update or replace it only when the clarified objective materially changes.',
   '- UltraSwarm: auto-engage specialist agents only when parallel PM, architecture, TUI, QA, security, or performance review materially improves outcome or speed.',
@@ -61,6 +62,7 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   '- Before implementation, emit one visible line in this shape: `Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>`.',
   '- For every Swarm decision, include the reason, expected specialist value or none, and verification owner so the harness can audit the orchestration choice.',
   '- Do not ask the user to choose /ultraplan, /ultragoal, or /ultraswarm; decide and orchestrate the needed stages inside Ultrawork.',
+  '- If the user names an individual Ultra stage, normalize it into the same Ultrawork run instead of exposing a separate mode choice.',
   '- When the task is already actionable, do not stall in UltraPlan; advance into UltraGoal, UltraSwarm when useful, and verification with best judgment.',
   '- Treat Korean brand mentions such as 울트라플랜, 울트라골, and 울트라 스웜 as the same internal stages, not as separate modes the user must configure.',
 ].join('\n');

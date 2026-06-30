@@ -42,6 +42,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('bench')?.name).toBe('bench');
     expect(findBuiltInSlashCommand('preflight')?.name).toBe('preflight');
     expect(findBuiltInSlashCommand('pf')?.name).toBe('preflight');
+    expect(findBuiltInSlashCommand('ultraplan')?.name).toBe('ultrawork');
+    expect(findBuiltInSlashCommand('up')?.name).toBe('ultrawork');
     expect(findBuiltInSlashCommand('ultraswarm')?.name).toBe('ultrawork');
     expect(findBuiltInSlashCommand('us')?.name).toBe('ultrawork');
     expect(findBuiltInSlashCommand('ultragoal')?.name).toBe('ultrawork');
@@ -153,15 +155,23 @@ describe('built-in slash command registry', () => {
     const swarm = findBuiltInSlashCommand('swarm');
     const ultrawork = findBuiltInSlashCommand('ultrawork');
 
-    expect(plan?.description).toBe('Steer UltraPlan; Ultrawork enables it automatically');
+    expect(plan?.description).toBe('Steer UltraPlan stage; Ultrawork enables it automatically');
     expect(goal?.description).toBe('Manage the active Ultrawork goal');
     expect(goal?.description).not.toContain('/goal');
-    expect(swarm?.description).toBe('Manually steer UltraSwarm; Ultrawork auto-arms it');
+    expect(swarm?.description).toBe('Steer UltraSwarm stage; Ultrawork auto-arms it when useful');
     expect(swarm?.description).not.toContain('/swarm');
     expect(ultrawork?.description).toBe(
-      'Force Ultrawork; runs UltraPlan, UltraGoal, UltraSwarm',
+      'Start Ultrawork; auto-links UltraPlan, UltraGoal, UltraSwarm',
     );
     expect(ultrawork?.description).not.toContain('/ultrawork');
+    expect((ultrawork as KimiSlashCommand | undefined)?.hiddenAliases).toEqual([
+      'ultraplan',
+      'up',
+      'ultragoal',
+      'ug',
+      'ultraswarm',
+      'us',
+    ]);
   });
 
   it('offers swarm subcommand argument completions', () => {

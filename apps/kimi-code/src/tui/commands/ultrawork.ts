@@ -25,7 +25,7 @@ interface UltraworkSetupState {
 }
 
 const ULTRAWORK_ACTIVITY_TIP =
-  'Ultrawork links UltraPlan, UltraGoal, UltraSwarm, and Verify automatically';
+  'Ultrawork is one workflow: UltraPlan, UltraGoal, UltraSwarm, Verify';
 
 export {
   buildUltraworkPrompt,

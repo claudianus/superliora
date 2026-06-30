@@ -34,7 +34,7 @@ const PLAN_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'replace', description: 'Replace the current UltraGoal' },
+  { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
 
 const HELP_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -206,7 +206,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'plan',
     aliases: [],
-    description: 'Steer UltraPlan; Ultrawork enables it automatically',
+    description: 'Steer UltraPlan stage; Ultrawork enables it automatically',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[on|off|ultra|clear]',
@@ -216,7 +216,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'swarm',
     aliases: [],
-    description: 'Manually steer UltraSwarm; Ultrawork auto-arms it',
+    description: 'Steer UltraSwarm stage; Ultrawork auto-arms it when useful',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[on|off] | <task>',
@@ -226,8 +226,8 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'ultrawork',
     aliases: ['uw'],
-    hiddenAliases: ['ultragoal', 'ug', 'ultraswarm', 'us'],
-    description: 'Force Ultrawork; runs UltraPlan, UltraGoal, UltraSwarm',
+    hiddenAliases: ['ultraplan', 'up', 'ultragoal', 'ug', 'ultraswarm', 'us'],
+    description: 'Start Ultrawork; auto-links UltraPlan, UltraGoal, UltraSwarm',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[replace] <objective>',

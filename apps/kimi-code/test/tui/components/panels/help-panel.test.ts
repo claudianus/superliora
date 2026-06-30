@@ -25,12 +25,12 @@ describe('HelpPanelComponent', () => {
       commands: [cmd('exit', 'Exit', ['quit', 'q'])],
       onClose: () => {},
     });
-    const out = strip(panel.render(80).join('\n'));
+    const out = strip(panel.render(120).join('\n'));
     expect(out).toMatch(/help/);
     expect(out).toMatch(/Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm\./);
-    expect(out).toMatch(/Verify runs before finish; steering controls live in \/help advanced\./);
+    expect(out).toMatch(/Verify runs before finish; advanced controls are optional\./);
     expect(out).not.toMatch(/helpers/);
-    expect(out).toMatch(/steering controls live in \/help advanced\./);
+    expect(out).toMatch(/advanced controls are optional\./);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
     expect(out).toMatch(/Steer Ultrawork plan/);
@@ -54,7 +54,7 @@ describe('HelpPanelComponent', () => {
       ],
       onClose: () => {},
     });
-    const out = strip(panel.render(80).join('\n'));
+    const out = strip(panel.render(120).join('\n'));
     const alphaIdx = out.indexOf('/alpha');
     const mcpConfigIdx = out.indexOf('/mcp-config');
     const zebraIdx = out.indexOf('/zebra');
@@ -69,22 +69,22 @@ describe('HelpPanelComponent', () => {
   it('renders the advanced Ultrawork help framing when provided', () => {
     const panel = new HelpPanelComponent({
       commands: [
-        cmd('ultrawork', 'Force Ultrawork; runs UltraPlan, UltraGoal, UltraSwarm', ['uw']),
+        cmd('ultrawork', 'Start Ultrawork; auto-links UltraPlan, UltraGoal, UltraSwarm', ['uw']),
       ],
       intro: ADVANCED_HELP_INTRO,
       shortcuts: ADVANCED_KEYBOARD_SHORTCUTS,
       commandSectionTitle: 'Advanced Ultrawork controls',
       onClose: () => {},
     });
-    const out = strip(panel.render(80).join('\n'));
-    expect(out).toMatch(/Ultrawork auto-runs UltraPlan, UltraGoal, UltraSwarm, Verify\./);
+    const out = strip(panel.render(120).join('\n'));
+    expect(out).toMatch(/Ultrawork is one workflow: UltraPlan, UltraGoal, UltraSwarm, Verify\./);
     expect(out).toMatch(/Most work starts from a plain request/);
-    expect(out).toMatch(/Steering controls are for overrides/);
+    expect(out).toMatch(/Controls below are optional steering/);
     expect(out).toMatch(/Ctrl-Shift-Tab/);
     expect(out).toMatch(/Steer UltraPlan/);
     expect(out).toMatch(/Advanced Ultrawork controls/);
     expect(out).toMatch(/\/ultrawork \(\/uw\)/);
-    expect(out).toMatch(/runs UltraPlan, UltraGoal, UltraSwarm/);
+    expect(out).toMatch(/auto-links UltraPlan, UltraGoal, UltraSwarm/);
   });
 
   it('Escape fires onClose', () => {

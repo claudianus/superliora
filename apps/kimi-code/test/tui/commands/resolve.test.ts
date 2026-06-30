@@ -84,6 +84,16 @@ describe('resolveSlashCommandInput', () => {
       name: 'ultrawork',
       args: 'Ship feature X',
     });
+    expect(resolve('/ultraplan Ship feature X')).toMatchObject({
+      kind: 'builtin',
+      name: 'ultrawork',
+      args: 'Ship feature X',
+    });
+    expect(resolve('/up Ship feature X')).toMatchObject({
+      kind: 'builtin',
+      name: 'ultrawork',
+      args: 'Ship feature X',
+    });
     expect(resolve('/ultragoal replace Ship feature X')).toMatchObject({
       kind: 'builtin',
       name: 'ultrawork',
@@ -167,6 +177,11 @@ describe('resolveSlashCommandInput', () => {
       commandName: 'ultrawork',
       reason: 'streaming',
     });
+    expect(resolve('/ultraplan Ship feature X', { isStreaming: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'ultraplan',
+      reason: 'streaming',
+    });
     expect(resolve('/ultragoal Ship feature X', { isStreaming: true })).toEqual({
       kind: 'blocked',
       commandName: 'ultragoal',
@@ -218,6 +233,11 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/ultrawork Ship feature X', { isCompacting: true })).toEqual({
       kind: 'blocked',
       commandName: 'ultrawork',
+      reason: 'compacting',
+    });
+    expect(resolve('/up Ship feature X', { isCompacting: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'up',
       reason: 'compacting',
     });
     expect(resolve('/ultragoal Ship feature X', { isCompacting: true })).toEqual({
