@@ -232,15 +232,33 @@ describe('handleUltraworkCommand', () => {
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
   });
 
-  it('does not start when ordinary plan mode is already active but ultra-plan cannot enter', async () => {
+  it('continues when plan mode is already active', async () => {
     const { host, session } = makeHost({ planMode: true });
+
+    await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+
+    expect(session.setPlanMode).not.toHaveBeenCalled();
+    expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
+    expect(session.createGoal).toHaveBeenCalledWith({
+      objective: 'Ship feature X',
+      replace: false,
+    });
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
+  });
+
+  it('continues when session state is already in plan mode but app state is stale', async () => {
+    const { host, session } = makeHost({ planMode: false });
     session.setPlanMode.mockRejectedValueOnce(new Error('Already in plan mode'));
 
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
-    expect(session.createGoal).not.toHaveBeenCalled();
-    expect(host.sendNormalUserInput).not.toHaveBeenCalled();
+    expect(host.setAppState).toHaveBeenCalledWith({ planMode: true });
+    expect(session.createGoal).toHaveBeenCalledWith({
+      objective: 'Ship feature X',
+      replace: false,
+    });
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
   });
 
   it('rolls back ultrawork setup when goal creation fails', async () => {

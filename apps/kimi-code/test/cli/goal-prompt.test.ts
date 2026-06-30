@@ -235,7 +235,6 @@ describe('runPrompt headless goal mode', () => {
       planMode: true,
       swarmMode: true,
     } as never);
-    mocks.session.setPlanMode.mockRejectedValueOnce(new Error('Already in plan mode'));
     const stdout = writer();
     const stderr = writer();
 
@@ -251,6 +250,37 @@ describe('runPrompt headless goal mode', () => {
 
     expect(mocks.session.setPlanMode).not.toHaveBeenCalled();
     expect(mocks.session.setSwarmMode).not.toHaveBeenCalled();
+    expect(mocks.session.createGoal).toHaveBeenCalledWith({
+      objective: 'Ship feature X',
+      replace: false,
+    });
+    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
+    expect(stdout.text()).toContain('"status":"complete"');
+  });
+
+  it('continues headless ultrawork when plan mode state is stale', async () => {
+    mocks.session.getStatus.mockResolvedValueOnce({
+      permission: 'auto',
+      model: 'k2',
+      planMode: false,
+      swarmMode: false,
+    } as never);
+    mocks.session.setPlanMode.mockRejectedValueOnce(new Error('Already in plan mode'));
+    const stdout = writer();
+    const stderr = writer();
+
+    await runPrompt(
+      opts({ prompt: '/ultrawork Ship feature X', outputFormat: 'stream-json' }),
+      'test',
+      {
+        stdout,
+        stderr,
+        process: { once: () => {}, off: () => {}, exit: () => undefined as never },
+      },
+    );
+
+    expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
+    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true);
     expect(mocks.session.createGoal).toHaveBeenCalledWith({
       objective: 'Ship feature X',
       replace: false,

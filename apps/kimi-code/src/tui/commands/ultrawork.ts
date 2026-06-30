@@ -163,8 +163,16 @@ async function prepareUltraworkSetup(
     host.setAppState({ swarmMode: true });
     host.state.swarmModeEntry = 'task';
   }
-  await session.setPlanMode(true, true);
-  setup.planChanged = true;
+  if (setup.planModeWasEnabled) {
+    host.setAppState({ planMode: true });
+    return;
+  }
+  try {
+    await session.setPlanMode(true, true);
+    setup.planChanged = true;
+  } catch (error) {
+    if (!formatErrorMessage(error).includes('Already in plan mode')) throw error;
+  }
   host.setAppState({ planMode: true });
 }
 

@@ -251,14 +251,22 @@ async function prepareHeadlessUltrawork(session: Session): Promise<HeadlessUltra
       setup.swarmEnabled = true;
     }
     if (!setup.planModeWasEnabled) {
-      await session.setPlanMode(true, true);
-      setup.planChanged = true;
+      try {
+        await session.setPlanMode(true, true);
+        setup.planChanged = true;
+      } catch (error) {
+        if (!isAlreadyInPlanModeError(error)) throw error;
+      }
     }
   } catch (error) {
     await rollbackHeadlessUltrawork(session, setup);
     throw error;
   }
   return setup;
+}
+
+function isAlreadyInPlanModeError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Already in plan mode');
 }
 
 async function rollbackHeadlessUltrawork(
