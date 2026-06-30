@@ -16,3 +16,26 @@ export function defaultUserSurfaceLeakFailures(scenario, output) {
     .filter((entry) => entry.pattern.test(output))
     .map((entry) => `default ${scenario} capture exposes ${entry.label}`);
 }
+
+export function hasXpDodReadinessContract(output) {
+  return [
+    /\bScope\b\s+small focused diff;\s*no broad refactor/i,
+    /\bCoverage\b\s+test public behavior changes/i,
+    /\bScreen check\b\s+open changed screen before finishing/i,
+    /\bDone gate\b\s+(?:relevant tests\s+\+\s+available typecheck\/lint\/build|tests\s+\+\s+typecheck\/lint\/build)\s+\+\s+clean diff\s+\+\s+TUI/i,
+  ].every((pattern) => pattern.test(output));
+}
+
+export function shouldRequireModelSetupAction(output) {
+  return /\bModel:?\s+not set\b/i.test(output) || /\bState\b\s+Model needed\b/i.test(output);
+}
+
+export function hasLoggedOutSetupNextAction(output) {
+  return /\bnext:\s*\/login or \/provider,\s*then \/model\b/i.test(output);
+}
+
+export function hasStatusPanelSetupNextAction(output) {
+  return /\bState\b\s+Model needed\b[\s\S]*\bNext\b\s+Run \/login or \/provider first;\s*use \/model after sign-in\./i.test(
+    output,
+  );
+}

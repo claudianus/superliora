@@ -5,7 +5,13 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import { defaultUserSurfaceLeakFailures } from './tui-surface-leaks.mjs';
+import {
+  defaultUserSurfaceLeakFailures,
+  hasLoggedOutSetupNextAction,
+  hasStatusPanelSetupNextAction,
+  hasXpDodReadinessContract,
+  shouldRequireModelSetupAction,
+} from './tui-surface-leaks.mjs';
 
 const DEFAULT_CRITERIA_PATH = '.omo/bench/sota-criteria.json';
 const DEFAULT_OUTPUT_BASE = '.omo/evidence/kimi-agent-sota-gate';
@@ -1981,7 +1987,7 @@ function inspectTuiScreenText(scenario, output) {
       if (!matchesAny(normalized, [/kimi/i, /ask/i, /message/i, /editor/i, /auto/i])) {
         failures.push('startup capture does not show a Kimi startup/editor state');
       }
-      if (!hasLoggedOutSetupNextAction(normalized)) {
+      if (shouldRequireModelSetupAction(normalized) && !hasLoggedOutSetupNextAction(normalized)) {
         failures.push('startup capture does not point logged-out users at setup before task entry');
       }
       break;
@@ -2003,10 +2009,10 @@ function inspectTuiScreenText(scenario, output) {
       if (!hasXpDodReadinessContract(normalized)) {
         failures.push('status capture does not show the XP-lite/Definition of Done readiness gates');
       }
-      if (!hasLoggedOutSetupNextAction(normalized)) {
+      if (shouldRequireModelSetupAction(normalized) && !hasLoggedOutSetupNextAction(normalized)) {
         failures.push('status capture does not keep the footer setup next action visible');
       }
-      if (!hasStatusPanelSetupNextAction(normalized)) {
+      if (shouldRequireModelSetupAction(normalized) && !hasStatusPanelSetupNextAction(normalized)) {
         failures.push('status capture does not align model-needed readiness with setup options');
       }
       break;
@@ -2096,26 +2102,6 @@ function hasKimiTuiChrome(output) {
     /\/exit/i,
     /ask kimi/i,
   ]);
-}
-
-function hasXpDodReadinessContract(output) {
-  return [
-    /\bScope\b\s+small focused diff;\s*no broad refactor/i,
-    /\bCoverage\b\s+test public behavior changes/i,
-    /\bScreen check\b\s+open changed screen before finishing/i,
-    /\bDone gate\b\s+relevant tests\s+\+\s+available typecheck\/lint\/build\s+\+\s+clean diff\s+\+\s+TUI/i,
-  ].every((pattern) => pattern.test(output));
-}
-
-function hasLoggedOutSetupNextAction(output) {
-  return (
-    /\bmodel:?\s+not set\b/i.test(output) &&
-    /\bnext:\s*\/login or \/provider,\s*then \/model\b/i.test(output)
-  );
-}
-
-function hasStatusPanelSetupNextAction(output) {
-  return /\bState\b\s+Model needed\b.*\bNext\b\s+Run \/login or \/provider first;\s*use \/model after sign-in\./i.test(output);
 }
 
 function matchesAny(output, patterns) {

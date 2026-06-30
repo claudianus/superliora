@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultUserSurfaceLeakFailures } from '../../../../scripts/tui-surface-leaks.mjs';
+import {
+  defaultUserSurfaceLeakFailures,
+  hasLoggedOutSetupNextAction,
+  hasStatusPanelSetupNextAction,
+  hasXpDodReadinessContract,
+  shouldRequireModelSetupAction,
+} from '../../../../scripts/tui-surface-leaks.mjs';
 
 describe('TUI surface leak checks', () => {
   it('allows Ultrawork brand copy while still blocking manual slash commands', () => {
@@ -16,5 +22,35 @@ describe('TUI surface leak checks', () => {
     expect(defaultUserSurfaceLeakFailures('autocomplete', '/ultraswarm')).toContain(
       'default autocomplete capture exposes Ultraswarm manual command',
     );
+  });
+
+  it('only requires setup actions when the screen is missing a model', () => {
+    const readyScreen = [
+      'Model: K2.7 Code',
+      'State         Ready',
+      'Scope         small focused diff; no broad refactor',
+      'Coverage      test public behavior changes',
+      'Screen check  open changed screen before finishing',
+      'Done gate     tests + typecheck/lint/build + clean diff + TUI',
+      'next: describe task; Ultrawork links plan/goal/swarm/verify',
+    ].join('\n');
+    const setupScreen = [
+      'Model: not set',
+      'State         Model needed',
+      'Scope         small focused diff; no broad refactor',
+      'Coverage      test public behavior changes',
+      'Screen check  open changed screen before finishing',
+      'Done gate     tests + typecheck/lint/build + clean diff + TUI',
+      'Next          Run /login or /provider first; use /model after sign-in.',
+      'next: /login or /provider, then /model',
+    ].join('\n');
+
+    expect(shouldRequireModelSetupAction(readyScreen)).toBe(false);
+    expect(hasXpDodReadinessContract(readyScreen)).toBe(true);
+
+    expect(shouldRequireModelSetupAction(setupScreen)).toBe(true);
+    expect(hasLoggedOutSetupNextAction(setupScreen)).toBe(true);
+    expect(hasStatusPanelSetupNextAction(setupScreen)).toBe(true);
+    expect(hasXpDodReadinessContract(setupScreen)).toBe(true);
   });
 });
