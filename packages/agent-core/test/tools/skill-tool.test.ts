@@ -219,6 +219,42 @@ describe('SkillTool execution', () => {
     expect(result.output).toContain('can only be triggered by the user');
   });
 
+  it('loads slash-qualified sub-skill names through their dotted registry name', async () => {
+    const methods = skillToolMethods();
+    const tool = skillTool(registry([skill('game-development.web-games')]), methods);
+
+    const result = await execute(tool, { skill: 'game-development/web-games' });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('Skill "game-development.web-games" loaded inline');
+    expect(methods.recordSkillActivation).toHaveBeenCalledWith(
+      expect.objectContaining({ skillName: 'game-development.web-games' }),
+    );
+  });
+
+  it('loads legacy slash sub-skill names through a unique last-segment skill', async () => {
+    const methods = skillToolMethods();
+    const tool = skillTool(registry([skill('web-games')]), methods);
+
+    const result = await execute(tool, { skill: 'game-development/web-games' });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('Skill "web-games" loaded inline');
+    expect(methods.recordSkillActivation).toHaveBeenCalledWith(
+      expect.objectContaining({ skillName: 'web-games' }),
+    );
+  });
+
+  it('keeps ambiguous slash sub-skill aliases as actionable misses', async () => {
+    const tool = skillTool(registry([skill('web-games'), skill('other.web-games')]));
+
+    const result = await execute(tool, { skill: 'game-development/web-games' });
+
+    expect(result).toMatchObject({ isError: true });
+    expect(result.output).toContain('Skill "game-development/web-games" not found');
+    expect(result.output).toContain('Call SearchSkill with 3-12 task keywords');
+  });
+
   it('rejects non-inline skill types in the current v1 runtime', async () => {
     const methods = skillToolMethods();
     const tool = skillTool(registry([skill('review', { type: 'fork' })]), methods);

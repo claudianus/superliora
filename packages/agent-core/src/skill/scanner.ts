@@ -12,7 +12,7 @@ import { normalizeSkillName } from './types';
 // Relative to brandHomeDir, which already IS the brand data dir (~/.kimi-code or
 // $KIMI_CODE_HOME) — no '.kimi-code' segment here, or it would nest twice.
 const USER_BRAND_DIRS = ['skills'] as const;
-const USER_GENERIC_DIRS = ['.agents/skills'] as const;
+const USER_GENERIC_DIRS = ['.kimi/skills', '.agents/skills'] as const;
 const PROJECT_BRAND_DIRS = ['.kimi-code/skills'] as const;
 const PROJECT_GENERIC_DIRS = ['.agents/skills'] as const;
 
@@ -105,7 +105,15 @@ export async function resolveSkillRoots(
       isDir,
       realpath,
     );
-    await pushFirstExisting(roots, USER_GENERIC_DIRS, userHomeDir, 'user', isDir, realpath);
+    await pushBrandGroup(
+      roots,
+      USER_GENERIC_DIRS,
+      userHomeDir,
+      'user',
+      mergeAllAvailableSkills,
+      isDir,
+      realpath,
+    );
   }
 
   if (options.extraDirs !== undefined) {
@@ -194,6 +202,19 @@ export async function discoverSkills(
       });
       if (skill !== undefined && hasSubSkillEnabled(skill)) {
         allowedSubSkillBundles.set(entry, skill.name);
+      } else if (skill !== undefined) {
+        await registerDirectChildSkillBundles({
+          parentDir: path.join(dirPath, entry),
+          root,
+          parse,
+          byName,
+          onDiscoveredSkill: options.onDiscoveredSkill,
+          warn,
+          skip,
+          readdir,
+          isFile,
+          isDir,
+        });
       }
     }
 
@@ -268,6 +289,46 @@ export async function discoverSkills(
   }
 
   return sortSkills([...byName.values()]);
+}
+
+async function registerDirectChildSkillBundles(input: {
+  readonly parentDir: string;
+  readonly root: SkillRoot;
+  readonly parse: NonNullable<DiscoverSkillsOptions['parse']>;
+  readonly byName: Map<string, SkillDefinition>;
+  readonly onDiscoveredSkill?: (skill: SkillDefinition) => void;
+  readonly warn: (message: string, cause?: unknown) => void;
+  readonly skip: (skill: SkippedSkill) => void;
+  readonly readdir: (p: string) => Promise<readonly string[]>;
+  readonly isFile: (p: string) => Promise<boolean>;
+  readonly isDir: (p: string) => Promise<boolean>;
+}): Promise<void> {
+  let entries: readonly string[];
+  try {
+    entries = [...(await input.readdir(input.parentDir))].toSorted();
+  } catch (error) {
+    input.warn(`Failed to read skill directory ${input.parentDir}`, error);
+    return;
+  }
+
+  for (const entry of entries) {
+    if (entry === 'node_modules' || entry.startsWith('.')) continue;
+    const childDir = path.join(input.parentDir, entry);
+    if (!(await input.isFile(path.join(childDir, 'SKILL.md')))) continue;
+    await parseAndRegister({
+      parse: input.parse,
+      byName: input.byName,
+      skillMdPath: path.join(childDir, 'SKILL.md'),
+      skillDirName: entry,
+      root: input.root,
+      onDiscoveredSkill: input.onDiscoveredSkill,
+      warn: input.warn,
+      skip: input.skip,
+      readdir: input.readdir,
+      isFile: input.isFile,
+      isDir: input.isDir,
+    });
+  }
 }
 
 export function extendWorkspaceWithSkillRoots<T extends WorkspaceWithAdditionalDirs>(

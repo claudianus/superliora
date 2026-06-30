@@ -29,6 +29,7 @@ describe('skill discovery', () => {
     await mkdir(path.join(repoDir, '.kimi-code', 'skills'), { recursive: true });
     await mkdir(path.join(repoDir, '.agents', 'skills'), { recursive: true });
     await mkdir(path.join(homeDir, '.kimi-code', 'skills'), { recursive: true });
+    await mkdir(path.join(homeDir, '.kimi', 'skills'), { recursive: true });
     await mkdir(path.join(homeDir, '.agents', 'skills'), { recursive: true });
     await mkdir(path.join(repoDir, 'team-skills'), { recursive: true });
     const realRepoDir = await realpath(repoDir);
@@ -42,12 +43,14 @@ describe('skill discovery', () => {
       '.kimi-code/skills',
       '.agents/skills',
       path.relative(realRepoDir, await realpath(path.join(homeDir, '.kimi-code', 'skills'))),
+      path.relative(realRepoDir, await realpath(path.join(homeDir, '.kimi', 'skills'))),
       path.relative(realRepoDir, await realpath(path.join(homeDir, '.agents', 'skills'))),
       'team-skills',
     ]);
     expect(roots.map((root) => root.source)).toEqual([
       'project',
       'project',
+      'user',
       'user',
       'user',
       'extra',
@@ -399,6 +402,39 @@ describe('discoverSkills shape and ordering', () => {
     const skills = await discoverSkills({ roots: [{ path: root, source: 'user' }] });
 
     expect(skills.map((s) => s.name)).toEqual(['outer']);
+  });
+
+  it('discovers direct child skill bundles in legacy orchestrator bundles', async () => {
+    const { repoDir } = await makeWorkspace();
+    const root = path.join(repoDir, '.kimi-code', 'skills');
+    await writeSkill(root, path.join('game-development', 'SKILL.md'), [
+      '---',
+      'name: game-development',
+      'description: Parent skill',
+      '---',
+      '',
+      'Use `game-development/web-games`.',
+    ]);
+    await writeSkill(root, path.join('game-development', 'web-games', 'SKILL.md'), [
+      '---',
+      'name: web-games',
+      'description: Web games',
+      '---',
+      '',
+      'Web game body.',
+    ]);
+    await writeSkill(root, path.join('game-development', 'references', 'inner', 'SKILL.md'), [
+      '---',
+      'name: inner',
+      'description: Nested reference',
+      '---',
+      '',
+      'Reference body should stay private.',
+    ]);
+
+    const skills = await discoverSkills({ roots: [{ path: root, source: 'user' }] });
+
+    expect(skills.map((s) => s.name)).toEqual(['game-development', 'web-games']);
   });
 
   it('discovers nested SKILL.md files when has-sub-skill is nested under metadata', async () => {

@@ -116,7 +116,9 @@ export class SkillTool implements BuiltinTool<SkillToolInput> {
     if (skills === null) {
       return missingSkillResult(args.skill);
     }
-    const skill = skills.registry.getSkill(args.skill);
+    const skill = resolveSkillAlias(args.skill, skills.registry.listInvocableSkills(), (name) =>
+      skills.registry.getSkill(name),
+    );
     if (skill === undefined) {
       return missingSkillResult(args.skill, skills.registry.listInvocableSkills());
     }
@@ -184,6 +186,40 @@ function formatSkillExamples(invocableSkills: readonly SkillDefinition[]): strin
   const examples = invocableSkills.slice(0, 5).map((skill) => JSON.stringify(skill.name));
   if (examples.length === 0) return '';
   return ` Available skills include: ${examples.join(', ')}.`;
+}
+
+function resolveSkillAlias(
+  requestedName: string,
+  invocableSkills: readonly SkillDefinition[],
+  getSkill: (name: string) => SkillDefinition | undefined,
+): SkillDefinition | undefined {
+  const direct = getSkill(requestedName);
+  if (direct !== undefined) return direct;
+
+  const slashNormalized = requestedName.replaceAll('/', '.');
+  if (slashNormalized !== requestedName) {
+    const dotted = getSkill(slashNormalized);
+    if (dotted !== undefined) return dotted;
+
+    const lastSegment = lastSlashSegment(requestedName);
+    if (lastSegment !== undefined) {
+      const byLastSegment = invocableSkills.filter(
+        (skill) => skill.name === lastSegment || skill.name.endsWith(`.${lastSegment}`),
+      );
+      if (byLastSegment.length === 1) return byLastSegment[0];
+    }
+  }
+
+  return undefined;
+}
+
+function lastSlashSegment(name: string): string | undefined {
+  const parts = name.split('/');
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const part = parts[i];
+    if (part !== undefined && part.length > 0) return part;
+  }
+  return undefined;
 }
 
 function skillOrigin(
