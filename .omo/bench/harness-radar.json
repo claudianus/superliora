@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "name": "super-kimi-harness-radar",
+  "source": {
+    "name": "best-of-Agent-Harnesses",
+    "url": "https://github.com/RyanAlberts/best-of-Agent-Harnesses",
+    "starsCapturedAt": "2026-06-28"
+  },
+  "axes": [
+    {
+      "id": "autonomy",
+      "tiers": ["step-gated", "checkpoint-gated", "bounded", "headless"],
+      "minimum": "bounded",
+      "target": "headless",
+      "principle": "Overnight Ultrawork needs bounded-or-better autonomy, with headless as the product target."
+    },
+    {
+      "id": "recovery",
+      "tiers": ["none", "retry", "resumable", "durable"],
+      "minimum": "resumable",
+      "target": "durable",
+      "principle": "Long-running agent loops need resumable recovery as the floor and durable checkpoints as the production bar."
+    },
+    {
+      "id": "adoption-surface",
+      "tiers": ["super simple", "mostly simple", "slightly complex", "complex"],
+      "principle": "Pick the lowest adoption surface that solves the job; internalize patterns before adding external harnesses."
+    }
+  ],
+  "patterns": [
+    {
+      "id": "terminal-agent-shell-vs-harness",
+      "takeaway": "The TUI is the shell; the harness loop, provider wiring, sandboxing, recovery, and extension model carry the product quality.",
+      "projects": ["opencode", "Codex", "Gemini CLI", "goose", "crush"],
+      "superKimiAdoption": "Keep user-facing Ultrawork simple while making loop/recovery/tool evidence visible in status and gates."
+    },
+    {
+      "id": "tool-discovery-context-budget",
+      "takeaway": "Use MCP tool discovery and retrieval before loading tool schemas so large tool sets do not bloat every turn.",
+      "projects": ["MCP-Zero", "ToolRAG", "ToolGen", "langgraph-bigtool", "spring-ai-tool-search-tool"],
+      "target": {
+        "defaultToolExposure": "search-then-load",
+        "tokenBudgetImpact": "measured"
+      },
+      "superKimiAdoption": "Track default exposed tools, schema-token pressure, and on-demand tool retrieval as SOTA gate inputs."
+    },
+    {
+      "id": "memory-ownership-lanes",
+      "takeaway": "Separate application-owned, harness-owned, and agent-owned memory before designing recall UX.",
+      "lanes": ["application-owned", "harness-owned", "agent-owned"],
+      "projects": ["Mem0", "claude-mem", "Letta"],
+      "superKimiAdoption": "Show memory readiness by lane instead of a single vague memory health label."
+    },
+    {
+      "id": "benchmark-eval-mix",
+      "takeaway": "Measure source edits, terminal/TUI workflows, recovery, memory recall, and tool efficiency with executable traces.",
+      "references": ["SWE-bench", "Terminal-Bench", "inspect_ai", "Agent Lightning"],
+      "superKimiAdoption": "Keep prompt-only scores auxiliary; require live TUI evidence and internal benchmark traces for SOTA claims."
+    },
+    {
+      "id": "curation-refresh-routine",
+      "takeaway": "Regenerate the radar from structured data with allowlisted diffs, freshness checks, and a concise mover report.",
+      "cadence": "weekly",
+      "superKimiAdoption": "Use a deterministic refresh script before turning external harness trends into Ultrawork product work."
+    }
+  ]
+}

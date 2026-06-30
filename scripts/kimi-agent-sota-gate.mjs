@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+import { evaluateHarnessRadarGate } from './kimi-harness-radar.mjs';
 import {
   defaultUserSurfaceLeakFailures,
   hasLoggedOutSetupNextAction,
@@ -21,6 +22,7 @@ import {
 } from './kimi-sota-evidence-contract.mjs';
 
 const DEFAULT_CRITERIA_PATH = '.omo/bench/sota-criteria.json';
+const DEFAULT_HARNESS_RADAR_PATH = '.omo/bench/harness-radar.json';
 const DEFAULT_OUTPUT_BASE = '.omo/evidence/kimi-agent-sota-gate';
 const DEFAULT_EVIDENCE_ROOT = '.omo/evidence';
 const SOTA_SUMMARY_FILENAME = 'sota-gate-summary.json';
@@ -205,6 +207,7 @@ Required inputs:
 Options:
   --help                              Show this help.
   --criteria <path>                   Rubric JSON. Default: ${DEFAULT_CRITERIA_PATH}
+  --harness-radar <path>              Internal harness radar JSON. Default: ${DEFAULT_HARNESS_RADAR_PATH}
   --output-dir <dir>                  Report directory. Default: ${DEFAULT_OUTPUT_BASE}/<run-id>
   --max-wall-clock-ms <n>             System benchmark wall-clock budget.
   --max-command-count <n>             System benchmark command-count budget.
@@ -225,6 +228,7 @@ function createRunId() {
 function parseArgs(argv) {
   const options = {
     criteria: DEFAULT_CRITERIA_PATH,
+    harnessRadar: DEFAULT_HARNESS_RADAR_PATH,
     baselineSotaSummary: undefined,
     help: false,
     loopSummary: undefined,
@@ -241,6 +245,7 @@ function parseArgs(argv) {
   const errors = [];
   const valueOptions = new Set([
     '--criteria',
+    '--harness-radar',
     '--output-dir',
     '--system-summary',
     '--loop-summary',
@@ -298,6 +303,7 @@ function splitOption(raw) {
 
 function setValueOption(options, flag, value, errors) {
   if (flag === '--criteria') options.criteria = value;
+  if (flag === '--harness-radar') options.harnessRadar = value;
   if (flag === '--output-dir') options.outputDir = value;
   if (flag === '--system-summary') options.systemSummary = value;
   if (flag === '--loop-summary') options.loopSummary = value;
@@ -356,7 +362,9 @@ async function main() {
 async function buildReport(options, outputDir, runId) {
   const startedAt = new Date().toISOString();
   const criteriaPath = path.resolve(options.criteria);
+  const harnessRadarPath = path.resolve(options.harnessRadar);
   const criteria = await readJsonRequired(criteriaPath, 'criteria');
+  const harnessRadar = await readJsonRequired(harnessRadarPath, 'harness radar');
   const budgets = {
     wallClockMs:
       options.maxWallClockMs ?? criteria.budgetDefaults?.wallClockMs ?? DEFAULT_BUDGETS.wallClockMs,
@@ -385,7 +393,7 @@ async function buildReport(options, outputDir, runId) {
   evidenceInputs.workflowSummary = workflowInput.path;
   if (ultraworkInput !== undefined) evidenceInputs.ultraworkSummary = ultraworkInput.path;
   const baselineSelection = await selectBaselineSotaSummary(options, outputDir);
-  const inputs = { ...evidenceInputs };
+  const inputs = { ...evidenceInputs, harnessRadar: harnessRadarPath };
   if (baselineSelection !== undefined) inputs.baselineSotaSummary = baselineSelection.path;
   const systemSummary = await readJsonRequired(evidenceInputs.systemSummary, 'bench-system summary');
   const loopSummary = await readJsonRequired(evidenceInputs.loopSummary, 'bench-system-loop summary');
@@ -403,9 +411,11 @@ async function buildReport(options, outputDir, runId) {
   const workflowGate = await evaluateWorkflowGate(workflowSummary);
   const ultraworkGate =
     ultraworkSummary === undefined ? undefined : await evaluateUltraworkGate(ultraworkSummary);
+  const harnessRadarGate = evaluateHarnessRadarGate(harnessRadar);
   const gates = [
     evaluateSystemGate(systemSummary),
     evaluateLoopGate(loopSummary),
+    harnessRadarGate,
     tuiGate,
     workflowGate,
     ...(ultraworkGate === undefined ? [] : [ultraworkGate]),
@@ -427,6 +437,7 @@ async function buildReport(options, outputDir, runId) {
     workflowGate,
     ultraworkGate,
     budgetGate: gates.find((gate) => gate.name === 'system-budget'),
+    harnessRadarGate,
     cleanupGate: gates.find((gate) => gate.name === 'cleanup-receipt-presence'),
     noWebGate: gates.find((gate) => gate.name === 'no-web-ui-success-surface'),
     secretGate: gates.find((gate) => gate.name === 'no-secret-like-evidence'),
@@ -441,8 +452,8 @@ async function buildReport(options, outputDir, runId) {
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
   const passReason =
     ultraworkGate === undefined
-      ? `All required SOTA gates passed against local bench, live TUI launch, real workflow artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`
-      : `All required SOTA gates passed against local bench, live TUI launch, real workflow, Ultrawork artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`;
+      ? `All required SOTA gates passed against local bench, harness radar, live TUI launch, real workflow artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`
+      : `All required SOTA gates passed against local bench, harness radar, live TUI launch, real workflow, Ultrawork artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`;
   return {
     schemaVersion: 1,
     gate: 'super-kimi-agent-sota-gate',
@@ -473,6 +484,7 @@ async function buildReport(options, outputDir, runId) {
     tuiUxFriction: tuiGate.observed?.uxFriction,
     tuiWorkflowProof: workflowGate.observed,
     tuiUltraworkProof: ultraworkGate?.observed,
+    harnessRadarProof: harnessRadarGate.observed,
     tuiUxDelta: tuiUxDelta?.observed,
     loopScorecard,
     tuiNextActions,
@@ -577,15 +589,21 @@ function buildLoopScorecard(criteria, evidence) {
     buildLoopScoreDimension(rubric, 'autonomy-auto-activation', [
       {
         name: 'bounded improvement loop',
-        units: 5,
+        units: 4,
         pass: gatePass(evidence.loopGate),
         evidence: gateEvidence(evidence.loopGate),
       },
       {
         name: 'Ultrawork auto activation workflow',
-        units: 10,
+        units: 7,
         pass: ultraworkActivationPass(evidence.ultraworkGate),
         evidence: gateEvidence(evidence.ultraworkGate),
+      },
+      {
+        name: 'autonomy/recovery radar floor',
+        units: 4,
+        pass: harnessRadarAutonomyRecoveryPass(evidence.harnessRadarGate),
+        evidence: harnessRadarEvidence(evidence.harnessRadarGate),
       },
     ]),
     buildLoopScoreDimension(rubric, 'verification-eyes-hands', [
@@ -666,7 +684,7 @@ function buildLoopScorecard(criteria, evidence) {
     buildLoopScoreDimension(rubric, 'speed-token-cache-efficiency', [
       {
         name: 'system budget gate',
-        units: 7,
+        units: 5,
         pass: gatePass(evidence.budgetGate),
         evidence: gateEvidence(evidence.budgetGate),
       },
@@ -675,6 +693,12 @@ function buildLoopScorecard(criteria, evidence) {
         units: 3,
         pass: tuiDurationAndCommandFrictionPass(evidence.tuiGate),
         evidence: evidence.tuiGate?.observed?.uxFriction,
+      },
+      {
+        name: 'tool discovery token-efficiency radar',
+        units: 2,
+        pass: harnessRadarToolDiscoveryPass(evidence.harnessRadarGate),
+        evidence: harnessRadarEvidence(evidence.harnessRadarGate),
       },
     ]),
     buildLoopScoreDimension(rubric, 'stuck-loop-stability', [
@@ -889,6 +913,33 @@ function gateEvidence(gate) {
     gate: gate?.name,
     status: gateStatus(gate),
     reason: gate?.reason,
+  };
+}
+
+function harnessRadarAutonomyRecoveryPass(gate) {
+  const observed = gate?.observed;
+  return (
+    gatePass(gate) &&
+    ['bounded', 'headless'].includes(observed?.autonomyMinimum) &&
+    observed?.autonomyTarget === 'headless' &&
+    ['resumable', 'durable'].includes(observed?.recoveryMinimum) &&
+    observed?.recoveryTarget === 'durable'
+  );
+}
+
+function harnessRadarToolDiscoveryPass(gate) {
+  return gatePass(gate) && gate?.observed?.toolDiscoveryPattern === 'tool-discovery-context-budget';
+}
+
+function harnessRadarEvidence(gate) {
+  return {
+    gate: gate?.name,
+    status: gateStatus(gate),
+    reason: gate?.reason,
+    autonomyTarget: gate?.observed?.autonomyTarget,
+    recoveryMinimum: gate?.observed?.recoveryMinimum,
+    recoveryTarget: gate?.observed?.recoveryTarget,
+    toolDiscoveryPattern: gate?.observed?.toolDiscoveryPattern,
   };
 }
 
@@ -2565,6 +2616,7 @@ function renderMarkdown(report) {
     '',
     `- bench-system: ${report.inputs.systemSummary}`,
     `- bench-system-loop: ${report.inputs.loopSummary}`,
+    `- harness radar: ${report.inputs.harnessRadar}`,
     `- live TUI: ${report.inputs.tuiSummary}`,
     `- real workflow: ${report.inputs.workflowSummary}`,
     ...(report.inputs.ultraworkSummary === undefined
@@ -2647,6 +2699,20 @@ function renderMarkdown(report) {
     for (const penalty of report.tuiUxFriction.penalties) {
       lines.push(`- penalty: ${penalty.name} -${penalty.points}`);
     }
+  }
+  if (report.harnessRadarProof !== undefined) {
+    lines.push(
+      '',
+      '## Harness Radar Proof',
+      '',
+      `- source: ${String(report.harnessRadarProof.source ?? 'unavailable')}`,
+      `- stars captured: ${String(report.harnessRadarProof.starsCapturedAt ?? 'unavailable')}`,
+      `- autonomy: ${String(report.harnessRadarProof.autonomyMinimum ?? 'unavailable')} -> ${String(report.harnessRadarProof.autonomyTarget ?? 'unavailable')}`,
+      `- recovery: ${String(report.harnessRadarProof.recoveryMinimum ?? 'unavailable')} -> ${String(report.harnessRadarProof.recoveryTarget ?? 'unavailable')}`,
+      `- tool discovery: ${String(report.harnessRadarProof.toolDiscoveryPattern ?? 'unavailable')}`,
+      `- memory lanes: ${(report.harnessRadarProof.memoryLanes ?? []).join(', ')}`,
+      `- benchmark references: ${(report.harnessRadarProof.benchmarkReferences ?? []).join(', ')}`,
+    );
   }
   const tuiScenarioGate = report.gates.find((gate) => gate.name === 'live-tui-required-scenarios');
   const tuiScenarios = Array.isArray(tuiScenarioGate?.observed?.scenarios)
