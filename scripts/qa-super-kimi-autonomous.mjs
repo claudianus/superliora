@@ -175,6 +175,7 @@ const VALUE_OPTIONS = new Set([
   '--tui-before',
   '--tui-after',
   '--baseline-file',
+  '--ultrawork-prompt-prefix',
 ]);
 const SERVER_NO_AUTH_SCENARIOS = Object.freeze([
   '05-workspace.ts',
@@ -242,6 +243,7 @@ Options:
   --tui-before <dir>                  Record the TUI before-artifact directory.
   --tui-after <dir>                   Record the TUI after-artifact directory.
   --baseline-file <path>              Record the dirty-worktree baseline path.
+  --ultrawork-prompt-prefix <text>    Prefix the live Ultrawork workflow prompt with a natural user task.
 
 Supported phases:
   ${SUPPORTED_PHASES.join('\n  ')}
@@ -275,6 +277,7 @@ function parseArgs(argv) {
     tmuxSession: undefined,
     tuiAfter: undefined,
     tuiBefore: undefined,
+    ultraworkPromptPrefix: undefined,
     useRealKimiHome: false,
   };
   const errors = [];
@@ -408,6 +411,9 @@ function setValueOption(options, flag, value) {
       break;
     case '--baseline-file':
       options.baselineFile = value;
+      break;
+    case '--ultrawork-prompt-prefix':
+      options.ultraworkPromptPrefix = value;
       break;
   }
 }
@@ -5148,7 +5154,10 @@ async function runTuiUltraworkWorkflowPhase(context) {
     verifierPath: targetWorkflowPath(context.targetWorktree, TUI_REAL_WORKFLOW_VERIFIER),
     targetedTestCommand: buildTuiRealWorkflowTargetedTestCommand(context),
   };
-  const workflowPrompt = buildTuiUltraworkWorkflowPrompt(workflowPaths);
+  const workflowPrompt = applyUltraworkPromptPrefix(
+    buildTuiUltraworkWorkflowPrompt(workflowPaths),
+    context.options.ultraworkPromptPrefix,
+  );
   const cleanupOverrides = {
     status: 'tui-ultrawork-workflow-completed',
     reason:
@@ -5188,6 +5197,7 @@ async function runTuiUltraworkWorkflowPhase(context) {
       minimumEditedFiles: TUI_REAL_WORKFLOW_EDIT_FILES.length,
     },
     prompt: workflowPrompt,
+    promptPrefix: context.options.ultraworkPromptPrefix,
     commands: commandRecords,
     inputTraces: [],
     captures: [],
@@ -7392,6 +7402,14 @@ function buildTuiUltraworkWorkflowPrompt(paths) {
     `Then run ${paths.targetedTestCommand}.`,
     'Stop after both verification commands pass and report concise evidence.',
   ].join(' ');
+}
+
+function applyUltraworkPromptPrefix(prompt, prefix) {
+  const normalizedPrefix = typeof prefix === 'string' ? prefix.trim() : '';
+  if (normalizedPrefix.length === 0) {
+    return prompt;
+  }
+  return `${normalizedPrefix}\n\n${prompt}`;
 }
 
 async function runTuiIterationPhase(context) {
@@ -11262,6 +11280,7 @@ function manifestOptions(options) {
     tmuxSession: options.tmuxSession,
     tuiAfter: options.tuiAfter,
     tuiBefore: options.tuiBefore,
+    ultraworkPromptPrefix: options.ultraworkPromptPrefix,
     useRealKimiHome: options.useRealKimiHome,
   };
 }

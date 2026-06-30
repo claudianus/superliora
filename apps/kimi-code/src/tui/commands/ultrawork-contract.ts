@@ -19,11 +19,21 @@ const EXPLICIT_ULTRAWORK_PATTERN = new RegExp(
 );
 
 const RESEARCH_PATTERN =
-  /\b(?:research|latest|paper|papers|best practice|best practices|survey|benchmark|논문|최신|조사|리서치|베스트프랙티스)\b/i;
+  /\b(?:research|latest|paper|papers|best practice|best practices|survey|benchmark)\b|(?:논문|최신|조사|리서치|베스트프랙티스)/i;
 const BUILD_PATTERN =
-  /\b(?:build|ship|implement|design|develop|refactor|integrate|구현|개발|설계|통합|작업|진행|완수|완성|만들|고도화)\b/i;
+  /\b(?:build|ship|implement|design|develop|refactor|integrate)\b|(?:구현|개발|설계|통합|작업|진행|완수|완성|만들|고도화)/i;
 const AUTONOMY_PATTERN =
-  /\b(?:end[-\s]?to[-\s]?end|autonomous|automatically|auto|finish|verify|test|plan|swarm|goal|자동|자율|연동|발동|완료|검증|테스트|계획|스웜|골)\b/i;
+  /\b(?:end[-\s]?to[-\s]?end|autonomous|automatically|auto|finish|verify|tests?|plan|swarm|goal)\b|(?:자동|자율|연동|발동|완료|검증|테스트|계획|스웜|골)/i;
+const ENGLISH_CODING_ACTION_PATTERN =
+  /\b(?:implement|build|add|update|refactor|integrate|ship|fix|debug|improve)\b/i;
+const ENGLISH_CODING_TARGET_PATTERN =
+  /\b(?:feature|bug|workflow|screen|command|panel|tui|cli|harness|test|error|ux)\b/i;
+const KOREAN_CODING_ACTION_PATTERN =
+  /(?:만들|구현|고치|수정|개선|추가|연동|검증|테스트|돌려|끝내)/i;
+const KOREAN_CODING_TARGET_PATTERN =
+  /(?:기능|버그|화면|명령어|패널|워크플로우|하네스|테스트|오류|에러|자동완성|검수)/i;
+const SIMPLE_COPY_EDIT_PATTERN =
+  /\b(?:typo|spelling|sentence|wording|copy)\b|(?:오타|맞춤법|문장|문구만|표현만)/i;
 const QUESTION_ONLY_ULTRAWORK_PATTERN =
   new RegExp(
     String.raw`^(?:what|how|why|explain|describe|tell me|뭐|무엇|설명|알려)\b.*${ULTRA_WORKFLOW_TERM_PATTERN}`,
@@ -143,6 +153,7 @@ export function shouldAutoActivateUltrawork(prompt: string): boolean {
   if (text.length === 0) return false;
   if (ULTRAWORK_OPT_OUT_PATTERN.test(text)) return false;
   if (QUESTION_ONLY_ULTRAWORK_PATTERN.test(text)) return false;
+  if (SIMPLE_COPY_EDIT_PATTERN.test(text) && !EXPLICIT_ULTRAWORK_PATTERN.test(text)) return false;
   if (EXPLICIT_ULTRAWORK_PATTERN.test(text)) {
     if (QUESTION_MARK_PATTERN.test(text) && QUESTION_WORD_PATTERN.test(text) && !BUILD_PATTERN.test(text)) {
       return false;
@@ -152,8 +163,16 @@ export function shouldAutoActivateUltrawork(prompt: string): boolean {
     }
     return true;
   }
+  if (isActionableCodingTask(text) && AUTONOMY_PATTERN.test(text)) return true;
   if (text.split(/\s+/).length < 10 && text.length < 80) return false;
   return RESEARCH_PATTERN.test(text) && BUILD_PATTERN.test(text) && AUTONOMY_PATTERN.test(text);
+}
+
+function isActionableCodingTask(text: string): boolean {
+  return (
+    (ENGLISH_CODING_ACTION_PATTERN.test(text) && ENGLISH_CODING_TARGET_PATTERN.test(text)) ||
+    (KOREAN_CODING_ACTION_PATTERN.test(text) && KOREAN_CODING_TARGET_PATTERN.test(text))
+  );
 }
 
 export function buildUltraworkPrompt(

@@ -92,8 +92,16 @@ describe('shouldAutoActivateUltrawork', () => {
     ).toBe(true);
   });
 
+  it('activates for plain actionable vibe-coding requests', () => {
+    expect(shouldAutoActivateUltrawork('Implement the settings panel and verify it works')).toBe(true);
+    expect(shouldAutoActivateUltrawork('Fix the TUI status panel bug and run tests')).toBe(true);
+    expect(shouldAutoActivateUltrawork('이 기능 만들어서 테스트까지 돌려줘')).toBe(true);
+    expect(shouldAutoActivateUltrawork('TUI 자동완성 버그 고치고 검수해줘')).toBe(true);
+  });
+
   it('does not activate for simple prompts', () => {
     expect(shouldAutoActivateUltrawork('fix this typo')).toBe(false);
+    expect(shouldAutoActivateUltrawork('rename this sentence')).toBe(false);
     expect(shouldAutoActivateUltrawork('what does this file do?')).toBe(false);
     expect(shouldAutoActivateUltrawork('what is ultrawork?')).toBe(false);
     expect(shouldAutoActivateUltrawork('ultrawork 뭐야?')).toBe(false);
