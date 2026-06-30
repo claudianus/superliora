@@ -83,7 +83,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
-    expect(output).toMatch(/Next\s+Describe the task; Ultrawork will run UltraPlan, UltraGoal, UltraSwarm, and Verify as needed\./);
+    expect(output).toMatch(/Next\s+Describe the task; Ultrawork will auto-link UltraPlan, UltraGoal, UltraSwarm, and Verify\./);
     expect(output).not.toContain('Advanced');
     expect(output).not.toContain('manual workflow commands');
     expect(output).not.toContain('Diagnostics');
@@ -166,6 +166,30 @@ describe('status panel report lines', () => {
       expect(line.length, `${label} row should fit narrow terminals`).toBeLessThanOrEqual(72);
       expect(line).not.toContain('...');
     }
+  });
+
+  it('keeps ready next action on Ultrawork even before plan mode is enabled', () => {
+    const lines = buildStatusReportLines({
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null,
+      thinking: true,
+      permissionMode: 'auto',
+      planMode: false,
+      swarmMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      availableModels: {},
+    }).map(strip);
+
+    const output = lines.join('\n');
+    expect(output).toMatch(/State\s+Ready/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm standby \| Verify ready/);
+    expect(output).toMatch(/Next\s+Describe the task; Ultrawork will auto-link UltraPlan, UltraGoal, UltraSwarm, and Verify\./);
+    expect(output).not.toContain('/ultrawork');
   });
 
   it('surfaces context pressure as the next readiness action', () => {

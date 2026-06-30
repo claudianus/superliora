@@ -221,15 +221,12 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     ];
   }
 
-  const planMode = options.status?.planMode ?? options.planMode;
   return [
     { label: 'State', value: 'Ready' },
     ...gateRows,
     {
       label: 'Next',
-      value: planMode
-        ? 'Describe the task; Ultrawork will run UltraPlan, UltraGoal, UltraSwarm, and Verify as needed.'
-        : 'Describe the task to start.',
+      value: 'Describe the task; Ultrawork will auto-link UltraPlan, UltraGoal, UltraSwarm, and Verify.',
     },
   ];
 }

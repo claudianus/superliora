@@ -6,7 +6,7 @@ import { currentTheme } from '#/tui/theme/theme';
 export type UltraworkModeMarkerState = 'active' | 'ended';
 
 const ULTRAWORK_PIPELINE = 'UltraPlan -> UltraGoal -> UltraSwarm -> Verify';
-const ULTRAWORK_STAGE_STATUS = 'UltraPlan active | UltraGoal created | UltraSwarm armed | Verify queued';
+const ULTRAWORK_STAGE_STATUS = 'Auto-linked: UltraPlan | UltraGoal | UltraSwarm | Verify';
 
 export class UltraworkModeMarkerComponent implements Component {
   constructor(

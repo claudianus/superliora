@@ -60,7 +60,7 @@ describe('HelpPanelComponent', () => {
 
   it('renders the advanced Ultrawork help framing when provided', () => {
     const panel = new HelpPanelComponent({
-      commands: [cmd('ultrawork', 'Start Ultrawork: UltraPlan, UltraGoal, UltraSwarm, Verify', ['uw'])],
+      commands: [cmd('ultrawork', 'Start Ultrawork: auto-link UltraPlan, UltraGoal, UltraSwarm, Verify', ['uw'])],
       intro: ADVANCED_HELP_INTRO,
       commandSectionTitle: 'Advanced Ultrawork controls',
       onClose: () => {},

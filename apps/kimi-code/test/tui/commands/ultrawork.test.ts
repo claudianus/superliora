@@ -108,6 +108,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('Ultrawork orchestration');
     expect(prompt).toContain('UltraPlan -> UltraGoal -> UltraSwarm');
     expect(prompt).toContain('one workflow, not separate user-facing modes');
+    expect(prompt).toContain('Normal task text is the preferred entry point');
+    expect(prompt).toContain('/ultrawork is an advanced manual override');
     expect(prompt).toContain('UltraPlan: clarify ambiguous or large requests');
     expect(prompt).toContain('UltraGoal: keep the active goal as the durable execution contract');
     expect(prompt).toContain('UltraSwarm: auto-engage specialist agents');
@@ -221,12 +223,12 @@ describe('handleUltraworkCommand', () => {
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({
-      activityTip: 'Ultrawork: UltraPlan, UltraGoal, UltraSwarm, Verify',
+      activityTip: 'Ultrawork: auto-links UltraPlan, UltraGoal, UltraSwarm, Verify',
     });
     expect(renderedMarker(host)).toContain('Ultrawork activated');
     expect(renderedMarker(host)).toContain('UltraPlan -> UltraGoal -> UltraSwarm -> Verify');
     expect(renderedMarker(host)).toContain(
-      'UltraPlan active | UltraGoal created | UltraSwarm armed | Verify queued',
+      'Auto-linked: UltraPlan | UltraGoal | UltraSwarm | Verify',
     );
     expect(renderedMarker(host)).toContain('Ship feature X');
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(expect.stringContaining('Ship feature X'));
