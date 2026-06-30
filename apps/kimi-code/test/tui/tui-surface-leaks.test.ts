@@ -10,7 +10,7 @@ import {
 
 describe('TUI surface leak checks', () => {
   it('allows Ultrawork brand copy while still blocking manual slash commands', () => {
-    const brandCopy = 'Describe task; Ultrawork auto-links plan, goal, helpers, verify.';
+    const brandCopy = 'Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.';
 
     expect(defaultUserSurfaceLeakFailures('help', brandCopy)).toEqual([]);
     expect(defaultUserSurfaceLeakFailures('status', brandCopy)).toEqual([]);
@@ -68,7 +68,7 @@ describe('TUI surface leak checks', () => {
       'Coverage      test public behavior changes',
       'Screen check  open changed screen before finishing',
       'Done gate     tests + typecheck/lint/build + clean diff + TUI',
-      'next: describe task; Ultrawork auto-links plan, goal, helpers, verify',
+      'next: describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm',
     ].join('\n');
     const setupScreen = [
       'Model: not set',

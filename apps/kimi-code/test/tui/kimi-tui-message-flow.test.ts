@@ -3535,7 +3535,7 @@ command = "vim"
       expect(output).toContain('thinking on');
       expect(output).toContain('Permissions  auto');
       expect(output).toMatch(/Ultrawork\s+needs readiness/);
-      expect(output).toMatch(/Stages\s+Planning on \| Goal ready \| Help ready \| Verify blocked/);
+      expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Swarm ready \| Verify blocked/);
       expect(output).not.toMatch(/Planning\s+Ultrawork/);
       expect(output).toContain('Context window');
       expect(output).toContain('25.0%');

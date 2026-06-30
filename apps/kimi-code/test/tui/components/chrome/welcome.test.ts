@@ -74,9 +74,10 @@ describe('WelcomeComponent', () => {
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
     expect(output).toContain(
-      'Describe task; Ultrawork auto-links plan, goal, helpers, verify.',
+      'Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.',
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
+    expect(output).not.toContain('helpers');
     expect(output).not.toContain('Kimi checks readiness and verification.');
     expect(output).not.toContain('Send /help for help information.');
   });

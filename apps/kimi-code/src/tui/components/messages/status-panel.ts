@@ -104,9 +104,9 @@ function formatWorktreeStatus(status: GitStatus): string {
 }
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
-const WORKFLOW_GATE = 'task -> auto-plan/goal/help -> verify';
+const WORKFLOW_GATE = 'task -> Ultrawork stages -> verify';
 const ENGINE_GATE = 'UltraPlan | UltraGoal | UltraSwarm | Verify';
-const AUTO_GATE = 'ask if needed | run | get help | verify';
+const AUTO_GATE = 'ask if needed | plan | goal | swarm | verify';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
 const WRITING_GATE = 'human voice lanes; detectors advisory-only';
@@ -135,11 +135,11 @@ function formatUltraworkStageStatus(options: StatusReportOptions): string {
   const planMode = options.status?.planMode ?? options.planMode;
   const blocked = verifyBlockedByReadiness(options);
   const canAutoOrchestrate = options.goalStatus === undefined && !blocked;
-  const plan = planMode ? 'Planning on' : canAutoOrchestrate ? 'Planning auto' : 'Planning off';
+  const plan = planMode ? 'Plan on' : canAutoOrchestrate ? 'Plan auto' : 'Plan off';
   const goal = `Goal ${formatGoalStatus(options.goalStatus)}`;
-  const help = `Help ${options.swarmMode === true ? 'armed' : canAutoOrchestrate ? 'auto' : 'ready'}`;
+  const swarm = `Swarm ${options.swarmMode === true ? 'armed' : canAutoOrchestrate ? 'auto' : 'ready'}`;
   const verify = `Verify ${formatVerifyStatus(options.goalStatus, planMode, blocked)}`;
-  return `${plan} | ${goal} | ${help} | ${verify}`;
+  return `${plan} | ${goal} | ${swarm} | ${verify}`;
 }
 
 function formatUltraworkStatus(options: StatusReportOptions): string {
@@ -272,7 +272,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     ...gateRows,
     {
       label: 'Next',
-      value: 'Type the task; Ultrawork auto-links plan, goal, helpers, verify.',
+      value: 'Type task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.',
     },
   ];
 }

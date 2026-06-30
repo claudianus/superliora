@@ -77,10 +77,10 @@ describe('status panel report lines', () => {
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+task -> auto-plan\/goal\/help -> verify/);
+    expect(output).toMatch(/Workflow\s+task -> Ultrawork stages -> verify/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| UltraSwarm \| Verify/);
-    expect(output).toMatch(/Auto\s+ask if needed \| run \| get help \| verify/);
-    expect(output).toMatch(/Stages\s+Planning on \| Goal active \| Help armed \| Verify queued/);
+    expect(output).toMatch(/Auto\s+ask if needed \| plan \| goal \| swarm \| verify/);
+    expect(output).toMatch(/Stages\s+Plan on \| Goal active \| Swarm armed \| Verify queued/);
     expect(output).toMatch(/Blockers\s+none detected/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
@@ -88,9 +88,10 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(
-      /Next\s+Type the task; Ultrawork auto-links plan, goal, helpers, verify\./,
+      /Next\s+Type task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm\./,
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
+    expect(output).not.toContain('helpers');
     expect(output).not.toContain('Advanced');
     expect(output).not.toContain('manual workflow commands');
     expect(output).not.toContain('Diagnostics');
@@ -134,10 +135,10 @@ describe('status panel report lines', () => {
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+task -> auto-plan\/goal\/help -> verify/);
+    expect(output).toMatch(/Workflow\s+task -> Ultrawork stages -> verify/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| UltraSwarm \| Verify/);
-    expect(output).toMatch(/Auto\s+ask if needed \| run \| get help \| verify/);
-    expect(output).toMatch(/Stages\s+Planning off \| Goal ready \| Help ready \| Verify blocked/);
+    expect(output).toMatch(/Auto\s+ask if needed \| plan \| goal \| swarm \| verify/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+model setup/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
@@ -211,12 +212,13 @@ describe('status panel report lines', () => {
 
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Ready/);
-    expect(output).toMatch(/Stages\s+Planning auto \| Goal ready \| Help auto \| Verify ready/);
+    expect(output).toMatch(/Stages\s+Plan auto \| Goal ready \| Swarm auto \| Verify ready/);
     expect(output).toMatch(/Blockers\s+none detected/);
     expect(output).toMatch(
-      /Next\s+Type the task; Ultrawork auto-links plan, goal, helpers, verify\./,
+      /Next\s+Type task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm\./,
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
+    expect(output).not.toContain('helpers');
     expect(output).not.toContain('/ultrawork');
   });
 
@@ -238,7 +240,7 @@ describe('status panel report lines', () => {
 
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Context high/);
-    expect(output).toMatch(/Stages\s+Planning off \| Goal ready \| Help ready \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+context high/);
     expect(output).toMatch(/Next\s+Run \/compact before long work\./);
   });
@@ -271,7 +273,7 @@ describe('status panel report lines', () => {
     const output = lines.join('\n');
     expect(output).toContain('Worktree     feature [±] dirty');
     expect(output).toMatch(/State\s+Worktree dirty/);
-    expect(output).toMatch(/Stages\s+Planning on \| Goal ready \| Help ready \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Swarm ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+worktree dirty/);
     expect(output).toMatch(/Next\s+Review changed files before finishing\./);
   });
@@ -299,7 +301,7 @@ describe('status panel report lines', () => {
 
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Writing guidance blocked/);
-    expect(output).toMatch(/Stages\s+Planning off \| Goal ready \| Help ready \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+writing guidance/);
     expect(output).toMatch(/Writing\s+voice-lane guidance blocked; detectors must stay advisory-only/);
     expect(output).toMatch(/Next\s+Restore writing-quality guidance before long autonomous work\./);
@@ -331,7 +333,7 @@ describe('status panel report lines', () => {
 
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Goal blocked/);
-    expect(output).toMatch(/Stages\s+Planning on \| Goal blocked \| Help ready \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan on \| Goal blocked \| Swarm ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+goal blocked/);
     expect(output).toMatch(/Next\s+Resolve or replace the blocked goal before continuing\./);
   });

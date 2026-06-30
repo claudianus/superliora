@@ -54,7 +54,7 @@ export const ADVANCED_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
   ...DEFAULT_KEYBOARD_SHORTCUTS.slice(1),
 ];
 const DEFAULT_HELP_INTRO =
-  'Describe task; Ultrawork auto-links plan, goal, helpers, verify.\nSteering controls live in /help advanced.';
+  'Describe task; Ultrawork runs UltraPlan, UltraGoal, UltraSwarm.\nVerify runs before finish; steering controls live in /help advanced.';
 export const ADVANCED_HELP_INTRO =
   'Ultrawork auto-runs UltraPlan, UltraGoal, UltraSwarm, Verify.\nMost work starts from a plain request. Steering controls are for overrides.';
 
