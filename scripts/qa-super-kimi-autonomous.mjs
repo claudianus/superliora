@@ -5445,6 +5445,7 @@ async function runTuiUltraworkWorkflowPhase(context) {
     summary.validations.postQuestionProgressObserved = validateUltraworkPostQuestionProgress(waitResult);
     summary.validations.noQuestionToolContractError = validateUltraworkQuestionToolError(waitResult);
     summary.validations.noAutoQuestionPolicyConflict = validateUltraworkPolicyConflict(waitResult);
+    summary.validations.noInvalidPhaseTransition = validateUltraworkPhaseTransitions(waitResult);
     summary.validations.workspaceChanged = passFail(
       fileState.source.complete,
       'Ultrawork contract source must contain the requested real-repository guidance.',
@@ -5763,6 +5764,7 @@ async function waitForUltraworkWorkflowOutcome(context, tmuxSession, workflowPat
   const questionToolErrorEvidence = [];
   const policyConflictEvidence = [];
   const policyConflictFingerprints = new Set();
+  const phaseTransitionErrorEvidence = [];
   const agentVerificationEvidence = [];
   const submittedQuestionPanels = new Set();
   let questionAnswerCount = 0;
@@ -5823,6 +5825,12 @@ async function waitForUltraworkWorkflowOutcome(context, tmuxSession, workflowPat
         });
       }
     }
+    if (signals.phaseTransitionError) {
+      phaseTransitionErrorEvidence.push({
+        atMs: Date.now() - startedAt,
+        reason: signals.phaseTransitionErrorReason,
+      });
+    }
     const state = classifyUltraworkWorkflowScreenState(normalized);
     const decision = decideUltraworkOperatorAction(state);
     observations.push({
@@ -5837,6 +5845,7 @@ async function waitForUltraworkWorkflowOutcome(context, tmuxSession, workflowPat
       postQuestionProgress: signals.postQuestionProgress,
       questionToolError: signals.questionToolError,
       policyConflict: signals.policyConflict,
+      phaseTransitionError: signals.phaseTransitionError,
       workspaceComplete,
       completedFiles: {
         source: fileState?.source.complete ?? false,
@@ -5860,6 +5869,7 @@ async function waitForUltraworkWorkflowOutcome(context, tmuxSession, workflowPat
         postQuestionProgressEvidence,
         questionToolErrorEvidence,
         policyConflictEvidence,
+        phaseTransitionErrorEvidence,
         agentVerificationEvidence,
         operatorLoop: buildUltraworkOperatorLoopSummary(observations, interventions),
       };
@@ -5890,6 +5900,7 @@ async function waitForUltraworkWorkflowOutcome(context, tmuxSession, workflowPat
         postQuestionProgressEvidence,
         questionToolErrorEvidence,
         policyConflictEvidence,
+        phaseTransitionErrorEvidence,
         agentVerificationEvidence,
         operatorLoop: buildUltraworkOperatorLoopSummary(observations, interventions),
       };
@@ -5983,6 +5994,7 @@ async function waitForUltraworkWorkflowOutcome(context, tmuxSession, workflowPat
     postQuestionProgressEvidence,
     questionToolErrorEvidence,
     policyConflictEvidence,
+    phaseTransitionErrorEvidence,
     agentVerificationEvidence,
     operatorLoop: buildUltraworkOperatorLoopSummary(observations, interventions),
   };
@@ -6057,6 +6069,9 @@ function inspectUltraworkWorkflowSignals(output) {
     /Invalid args for tool "AskUserQuestion"/i,
     /AskUserQuestion[^\n]*options must NOT have more than 4 items/i,
   ]);
+  const phaseTransitionError = matchesAny(output, [
+    /Invalid phase transition:\s*cannot go from/i,
+  ]);
   const policyConflictPatterns = [
     {
       fingerprint: 'ask-user-disabled-auto-permission',
@@ -6077,6 +6092,7 @@ function inspectUltraworkWorkflowSignals(output) {
     questionSubmitFingerprint,
     postQuestionProgress,
     questionToolError,
+    phaseTransitionError,
     policyConflict,
     policyFingerprint: policyConflictMatch?.fingerprint,
     activationReason: activated
@@ -6097,6 +6113,9 @@ function inspectUltraworkWorkflowSignals(output) {
     questionToolErrorReason: questionToolError
       ? 'screen shows an AskUserQuestion tool contract error'
       : 'screen does not show an AskUserQuestion tool contract error',
+    phaseTransitionErrorReason: phaseTransitionError
+      ? 'screen shows an invalid Ultra Plan phase transition'
+      : 'screen does not show an invalid Ultra Plan phase transition',
     policyReason: policyConflict
       ? 'screen shows auto-mode AskUserQuestion or interview tool-policy conflict'
       : 'screen does not show auto/question policy conflict',
@@ -6460,6 +6479,20 @@ function validateUltraworkPolicyConflict(waitResult) {
   };
 }
 
+function validateUltraworkPhaseTransitions(waitResult) {
+  const count = Array.isArray(waitResult.phaseTransitionErrorEvidence)
+    ? waitResult.phaseTransitionErrorEvidence.length
+    : 0;
+  return {
+    status: count === 0 ? 'PASS' : 'FAIL',
+    reason:
+      count === 0
+        ? 'Ultrawork advanced Ultra Plan phases without invalid transition errors.'
+        : 'Ultrawork attempted an invalid Ultra Plan phase transition.',
+    evidenceCount: count,
+  };
+}
+
 function validateUltraworkOperatorLoop(waitResult) {
   const operatorLoop = waitResult.operatorLoop;
   const status = operatorLoop?.status === 'PASS' && waitResult.status === 'PASS' ? 'PASS' : 'FAIL';
@@ -6594,6 +6627,11 @@ function buildTuiUltraworkOperatorTrajectory(summary) {
       name: 'avoid-auto-question-policy-deadlock',
       status: summary.validations?.noAutoQuestionPolicyConflict?.status === 'PASS' ? 'PASS' : 'FAIL',
       evidence: 'workflow.wait.policyConflictEvidence',
+    },
+    {
+      name: 'avoid-invalid-phase-transition',
+      status: summary.validations?.noInvalidPhaseTransition?.status === 'PASS' ? 'PASS' : 'FAIL',
+      evidence: 'workflow.wait.phaseTransitionErrorEvidence',
     },
     {
       name: 'observe-workflow-result-screen',
