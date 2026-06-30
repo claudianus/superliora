@@ -87,6 +87,81 @@
     "permission-mode",
     "exit"
   ],
+  "frontierBenchmarkTargets": {
+    "model": "Claude Sonnet 5",
+    "scope": "Aspirational external frontier targets for Super Kimi harness design and evaluation; these are not claimed local Super Kimi scores.",
+    "source": {
+      "name": "Claude Sonnet 5 announcement and System Card",
+      "announcementUrl": "https://www.anthropic.com/news/claude-sonnet-5",
+      "systemCardUrl": "https://www.anthropic.com/claude-sonnet-5-system-card",
+      "systemCardPdfUrl": "https://www-cdn.anthropic.com/d9bb04416ffe1352af84721476c1fa9994c07fde/Claude%20Sonnet%205%20System%20Card.pdf",
+      "retrievedAt": "2026-07-01",
+      "verificationStatus": "official-source-checked",
+      "notes": "User screenshot showed GDPval-AA v2 as 1618; the official System Card PDF text extracted on 2026-07-01 reports Claude Sonnet 5 GDPval-AA v2 ELO 1609, so this criteria file uses the official PDF value."
+    },
+    "targets": [
+      {
+        "id": "swe-bench-pro",
+        "domain": "Agentic coding",
+        "name": "SWE-bench Pro",
+        "metric": "pass rate",
+        "unit": "percent",
+        "target": 63.2,
+        "evaluationMode": "standard configuration with thinking blocks"
+      },
+      {
+        "id": "terminal-bench-2-1",
+        "domain": "Agentic coding",
+        "name": "Terminal-Bench 2.1",
+        "metric": "mean reward",
+        "unit": "percent",
+        "target": 80.4,
+        "evaluationMode": "averaged over 5 attempts"
+      },
+      {
+        "id": "hle-no-tools",
+        "domain": "Multidisciplinary reasoning",
+        "name": "Humanity's Last Exam",
+        "metric": "accuracy",
+        "unit": "percent",
+        "target": 43.2,
+        "setting": "no tools"
+      },
+      {
+        "id": "hle-with-tools",
+        "domain": "Multidisciplinary reasoning",
+        "name": "Humanity's Last Exam",
+        "metric": "accuracy",
+        "unit": "percent",
+        "target": 57.4,
+        "setting": "with tools"
+      },
+      {
+        "id": "osworld-verified",
+        "domain": "Computer use",
+        "name": "OSWorld-Verified",
+        "metric": "first-attempt success rate",
+        "unit": "percent",
+        "target": 81.2,
+        "evaluationMode": "pass@1 averaged over OSWorld-Verified tasks"
+      },
+      {
+        "id": "gdpval-aa-v2",
+        "domain": "Knowledge work",
+        "name": "GDPval-AA v2",
+        "metric": "ELO",
+        "unit": "score",
+        "target": 1609,
+        "systemCardTextValue": 1609,
+        "note": "Use official System Card PDF text value instead of screenshot value 1618."
+      }
+    ],
+    "adoptionPrinciples": [
+      "Map local Super Kimi metrics to the same domains before making any comparison.",
+      "Treat prompt-only local benchmark scores as auxiliary; agentic coding and computer-use claims require live TUI traces and artifacts.",
+      "Keep external frontier targets separate from local pass/fail scores to avoid fake evidence."
+    ]
+  },
   "references": [
     {
       "name": "Terminal-Bench",

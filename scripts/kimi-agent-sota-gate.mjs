@@ -5,6 +5,10 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+import {
+  evaluateFrontierTargetGate,
+  frontierTargetMarkdownLines,
+} from './kimi-frontier-targets.mjs';
 import { evaluateHarnessRadarGate } from './kimi-harness-radar.mjs';
 import {
   defaultUserSurfaceLeakFailures,
@@ -417,10 +421,12 @@ async function buildReport(options, outputDir, runId) {
   const ultraworkGate =
     ultraworkSummary === undefined ? undefined : await evaluateUltraworkGate(ultraworkSummary);
   const harnessRadarGate = evaluateHarnessRadarGate(harnessRadar);
+  const frontierTargetGate = evaluateFrontierTargetGate(criteria);
   const gates = [
     evaluateSystemGate(systemSummary),
     evaluateLoopGate(loopSummary),
     harnessRadarGate,
+    frontierTargetGate,
     tuiGate,
     workflowGate,
     ...(ultraworkGate === undefined ? [] : [ultraworkGate]),
@@ -457,8 +463,8 @@ async function buildReport(options, outputDir, runId) {
   const status = gates.every((gate) => gate.status === 'PASS' || gate.required === false) ? 'PASS' : 'FAIL';
   const passReason =
     ultraworkGate === undefined
-      ? `All required SOTA gates passed against local bench, harness radar, live TUI launch, real workflow artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`
-      : `All required SOTA gates passed against local bench, harness radar, live TUI launch, real workflow, Ultrawork artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`;
+      ? `All required SOTA gates passed against local bench, harness radar, frontier targets, live TUI launch, real workflow artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`
+      : `All required SOTA gates passed against local bench, harness radar, frontier targets, live TUI launch, real workflow, Ultrawork artifacts, and loop score ${loopScorecard.score}/${loopScorecard.maxScore}.`;
   return {
     schemaVersion: 1,
     gate: 'super-kimi-agent-sota-gate',
@@ -490,6 +496,7 @@ async function buildReport(options, outputDir, runId) {
     tuiWorkflowProof: workflowGate.observed,
     tuiUltraworkProof: ultraworkGate?.observed,
     harnessRadarProof: harnessRadarGate.observed,
+    frontierBenchmarkTargets: frontierTargetGate.observed,
     tuiUxDelta: tuiUxDelta?.observed,
     loopScorecard,
     tuiNextActions,
@@ -2831,6 +2838,14 @@ function renderMarkdown(report) {
       const command = action.command === undefined ? '' : ` Command: \`${action.command}\``;
       lines.push(`- P${action.priority} ${action.kind}: ${action.reason}${command}`);
     }
+  }
+  if (report.frontierBenchmarkTargets !== undefined) {
+    lines.push(
+      '',
+      '## Frontier Benchmark Targets',
+      '',
+      ...frontierTargetMarkdownLines(report.frontierBenchmarkTargets),
+    );
   }
   lines.push(
     '',
