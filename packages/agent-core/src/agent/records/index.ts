@@ -102,9 +102,11 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'context.clear':
       agent.context.clear();
       return;
-    case 'context.apply_compaction':
-      agent.context.applyCompaction(input);
+    case 'context.apply_compaction': {
+      const { time: _time, type: _type, ...result } = input;
+      agent.context.applyCompaction(result);
       return;
+    }
     case 'context.undo':
       agent.context.undo(input.count);
       return;

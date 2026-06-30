@@ -775,7 +775,8 @@ describe('Session MCP startup', () => {
             transport: 'stdio',
             command: process.execPath,
             args: [slowStdioFixture],
-            startupTimeoutMs: 2_000,
+            env: { KIMI_TEST_MCP_START_DELAY_MS: '5_000' },
+            startupTimeoutMs: 5_000,
           },
         },
       },
@@ -785,7 +786,7 @@ describe('Session MCP startup', () => {
     try {
       const result = await Promise.race([
         create.then(() => 'resolved' as const),
-        sleep(1_000).then(() => 'blocked' as const),
+        sleep(2_000).then(() => 'blocked' as const),
       ]);
       expect(result).toBe('resolved');
     } finally {
@@ -833,9 +834,37 @@ describe('Session MCP startup', () => {
     const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-prompt-'));
     const events: SessionRpcEvent[] = [];
     let resolveTurnEnded!: () => void;
+    let resolveTurnStarted!: () => void;
     const turnEnded = new Promise<void>((resolve) => {
       resolveTurnEnded = resolve;
     });
+    const turnStarted = new Promise<void>((resolve) => {
+      resolveTurnStarted = resolve;
+    });
+    let releaseMcp!: () => void;
+    const mcpReady = new Promise<void>((resolve) => {
+      releaseMcp = resolve;
+    });
+    const mcpServer = new McpServer({ name: 'prompt-wait', version: '0.0.1' });
+    mcpServer.registerTool(
+      'echo',
+      { description: 'Echoes text', inputSchema: { text: z.string() } },
+      ({ text }) => ({ content: [{ type: 'text', text }] }),
+    );
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+    });
+    await mcpServer.connect(transport);
+    const httpServer = createHttpServer((req, res) => {
+      void mcpReady
+        .then(() => transport.handleRequest(req, res))
+        .catch((error: unknown) => {
+          res.statusCode = 500;
+          res.end(error instanceof Error ? error.message : String(error));
+        });
+    });
+    await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+    const port = (httpServer.address() as HttpAddress).port;
     const scripted = createScriptedGenerate();
     scripted.mockNextResponse({ type: 'text', text: 'ready' });
     const session = new Session({
@@ -845,6 +874,7 @@ describe('Session MCP startup', () => {
       rpc: sessionRpc({
         events,
         onEvent: (event) => {
+          if (event.type === 'turn.started') resolveTurnStarted();
           if (event.type === 'turn.ended') resolveTurnEnded();
         },
       }),
@@ -852,10 +882,8 @@ describe('Session MCP startup', () => {
       mcpConfig: {
         servers: {
           slow: {
-            transport: 'stdio',
-            command: process.execPath,
-            args: [stdioFixture],
-            env: { KIMI_TEST_MCP_START_DELAY_MS: '250' },
+            transport: 'http',
+            url: `http://127.0.0.1:${port}/mcp`,
             startupTimeoutMs: 2_000,
           },
         },
@@ -880,12 +908,17 @@ describe('Session MCP startup', () => {
         agentId: 'main',
         input: [{ type: 'text', text: 'hello' }],
       });
-      await sleep(100);
 
-      expect(events.some((event) => event.type === 'turn.started')).toBe(true);
+      await Promise.race([
+        turnStarted,
+        sleep(1_000).then(() => {
+          throw new Error('Timed out waiting for turn.started');
+        }),
+      ]);
       expect(events.some((event) => event.type === 'turn.step.started')).toBe(false);
       expect(scripted.calls).toHaveLength(0);
 
+      releaseMcp();
       await Promise.race([
         turnEnded,
         sleep(1_000).then(() => {
@@ -898,9 +931,19 @@ describe('Session MCP startup', () => {
       expect(toolNames).toContain('mcp__slow__echo');
     } finally {
       await session.close();
+      releaseMcp();
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        });
+      });
       await rm(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 10 });
     }
-  }, 7000);
+  }, 10000);
 
   it('emits tool.list.updated(mcp.disconnected) when reconnect drops the live tools', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-reconnect-'));

@@ -435,7 +435,7 @@ describe('plan allows safe tool flow', () => {
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "yolo", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "permission": "yolo" }
-      [wire] plan_mode.enter             { "id": "test-plan", "ultra": false, "time": "<time>" }
+      [wire] plan_mode.enter             { "id": "test-plan", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": true, "swarmMode": false, "permission": "yolo" }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Inspect without mutating files" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
@@ -489,7 +489,7 @@ describe('plan mode Bash ordinary permission behavior', () => {
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "yolo", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "permission": "yolo" }
-      [wire] plan_mode.enter             { "id": "test-plan", "ultra": false, "time": "<time>" }
+      [wire] plan_mode.enter             { "id": "test-plan", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": true, "swarmMode": false, "permission": "yolo" }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Remove forbidden.txt" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }

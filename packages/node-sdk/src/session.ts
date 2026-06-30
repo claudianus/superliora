@@ -227,7 +227,7 @@ export class Session {
         'Session plan mode must be a boolean',
       );
     }
-    await this.rpc.setPlanMode({ sessionId: this.id, enabled, ultra });
+    await this.rpc.setPlanMode({ sessionId: this.id, enabled, ultra: ultra ? true : undefined });
   }
 
   async setSwarmMode(enabled: boolean, trigger: SwarmModeTrigger): Promise<void> {

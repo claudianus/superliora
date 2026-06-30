@@ -405,6 +405,7 @@ describe('SessionSubagentHost', () => {
       'Edit',
       'Glob',
       'Grep',
+      'KimiContext',
       'Read',
       'Write',
     ]);

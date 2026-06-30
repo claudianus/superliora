@@ -51,7 +51,7 @@ export class PlanMode {
       const planFilePath = this.planFilePathFor(id);
       this._planFilePath = planFilePath;
       await this.ensurePlanDirectory(planFilePath);
-      this.agent.records.logRecord({ type: 'plan_mode.enter', id, ultra });
+      this.agent.records.logRecord({ type: 'plan_mode.enter', id, ultra: ultra ? true : undefined });
       enterRecorded = true;
       if (createFile) {
         await this.writeEmptyPlanFile(planFilePath);

@@ -410,7 +410,7 @@ export abstract class SDKRpcClientBase {
     return rpc.enterPlan({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
-      ultra: input.ultra ?? false,
+      ultra: input.ultra ? true : undefined,
     });
   }
 
