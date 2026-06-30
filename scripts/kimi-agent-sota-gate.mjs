@@ -199,6 +199,7 @@ const REQUIRED_ULTRAWORK_VALIDATIONS = Object.freeze([
   'screenEvidence',
   'kimiModelReady',
   'resultScreenLinkedUltraworkStages',
+  'usageTelemetryVisible',
   'adaptiveOperatorLoop',
   'ultraworkScorecard',
   'operatorTrajectory',
@@ -1574,6 +1575,7 @@ async function validateUltraworkCaptures(summary) {
     'ultrawork-plan-reset',
     'ultrawork-submitted',
     'ultrawork-after-wait',
+    'ultrawork-usage',
   ];
   const results = [];
   for (const scenario of requiredScenarios) {
@@ -1597,6 +1599,7 @@ function validateUltraworkInputTraces(summary) {
     summary.validations.questionAnswered.optional === true;
   const planResetTrace = traces.find((entry) => entry.scenario === 'ultrawork-plan-reset');
   const trace = traces.find((entry) => entry.scenario === 'ultrawork-auto-prompt');
+  const usageTrace = traces.find((entry) => entry.scenario === 'ultrawork-usage');
   const questionSubmitTrace = traces.find(
     (entry) =>
       typeof entry.scenario === 'string' &&
@@ -1655,6 +1658,17 @@ function validateUltraworkInputTraces(summary) {
           ? 'PASS'
           : 'FAIL',
       keys: questionSubmitTrace?.keys,
+    },
+    {
+      scenario: 'ultrawork-usage',
+      status:
+        usageTrace?.status === 'PASS' &&
+        Array.isArray(usageTrace.keys) &&
+        usageTrace.keys.includes('/usage') &&
+        usageTrace.keys.includes('Enter')
+          ? 'PASS'
+          : 'FAIL',
+      keys: usageTrace?.keys,
     },
   ];
 }

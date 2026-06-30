@@ -5378,6 +5378,18 @@ async function runTuiUltraworkWorkflowPhase(context) {
       }
     }
     summary.captures.push(await captureTmuxPane(context, tmuxSession, 'ultrawork-after-wait'));
+    const usageTrace = await sendTmuxKeySequence(context, tmuxSession, 'ultrawork-usage', [
+      'Escape',
+      '/usage',
+      'Enter',
+    ]);
+    summary.inputTraces.push(usageTrace);
+    commandRecords.push(...usageTrace.commands);
+    cleanupOverrides.proofCommands.push(
+      ...usageTrace.commands.map((record) => commandProofFromRecord(record)),
+    );
+    await sleep(1_000);
+    summary.captures.push(await captureTmuxPane(context, tmuxSession, 'ultrawork-usage'));
     await writeJson(path.join(ultraworkDir, 'wait.json'), waitResult);
     await writeJson(path.join(ultraworkDir, 'fixture-after.json'), {
       files: await readTuiRealWorkflowFileState(workflowPaths),
@@ -5485,11 +5497,13 @@ async function runTuiUltraworkWorkflowPhase(context) {
     );
     summary.validations.screenEvidence = passFail(
       summary.captures.every((capture) => capture.status === 'PASS'),
-      'startup, submitted, and after-wait captures must show recognizable Ultrawork TUI evidence.',
+      'startup, submitted, after-wait, and usage captures must show recognizable Ultrawork TUI evidence.',
     );
     summary.validations.kimiModelReady = await validateTuiRealWorkflowModelEvidence(summary.captures);
     summary.validations.resultScreenLinkedUltraworkStages =
       await validateUltraworkResultScreenLinkedStages(summary.captures);
+    summary.validations.usageTelemetryVisible =
+      await validateUltraworkUsageTelemetry(summary.captures);
     summary.validations.adaptiveOperatorLoop = validateUltraworkOperatorLoop(waitResult);
     summary.workspace = {
       fixturePath: workflowPaths.sourcePath,
@@ -6415,6 +6429,61 @@ async function validateUltraworkResultScreenLinkedStages(captures) {
   };
 }
 
+async function validateUltraworkUsageTelemetry(captures) {
+  const usageCapture = captures.find((capture) => capture.scenario === 'ultrawork-usage');
+  if (usageCapture === undefined || typeof usageCapture.path !== 'string') {
+    return {
+      status: 'FAIL',
+      reason: 'Ultrawork usage telemetry screen capture is missing.',
+    };
+  }
+  const raw = await readFileIfExists(usageCapture.path);
+  if (typeof raw !== 'string') {
+    return {
+      status: 'FAIL',
+      reason: 'Ultrawork usage telemetry screen capture could not be read.',
+      path: usageCapture.path,
+    };
+  }
+  const normalized = normalizeScreenText(raw);
+  const evidence = [
+    {
+      name: 'sessionUsage',
+      status: /Session usage/i.test(normalized) ? 'PASS' : 'FAIL',
+    },
+    {
+      name: 'tokenTotals',
+      status: /\binput\b[\s\S]*\boutput\b[\s\S]*\btotal\b/i.test(normalized)
+        ? 'PASS'
+        : 'FAIL',
+    },
+    {
+      name: 'cacheReadWrite',
+      status: /\bcache\b[\s\S]*\bread\b[\s\S]*\bwrite\b/i.test(normalized)
+        ? 'PASS'
+        : 'FAIL',
+    },
+    {
+      name: 'contextWindow',
+      status: /Context window/i.test(normalized) && /\bRemaining\b/i.test(normalized)
+        ? 'PASS'
+        : 'FAIL',
+    },
+  ];
+  const passed = evidence.every((item) => item.status === 'PASS');
+  return {
+    status: passed ? 'PASS' : 'FAIL',
+    reason: passed
+      ? 'Live /usage screen shows session token totals, cache read/write telemetry, and context-window remaining tokens.'
+      : `Live /usage screen is missing telemetry evidence: ${evidence
+          .filter((item) => item.status !== 'PASS')
+          .map((item) => item.name)
+          .join(', ')}.`,
+    path: usageCapture.path,
+    evidence,
+  };
+}
+
 function validateUltraworkInterview(waitResult) {
   const count = Array.isArray(waitResult.interviewEvidence)
     ? waitResult.interviewEvidence.length
@@ -6667,11 +6736,16 @@ function buildTuiUltraworkSpeedScoreDimension(summary) {
     durationMs > 0 &&
     durationMs < TUI_ULTRAWORK_WORKFLOW_TIMEOUT_MS;
   const boundedScope = summary.workspace?.editedFileCount === TUI_REAL_WORKFLOW_EDIT_FILES.length;
-  const earned = durationBounded && boundedScope ? 5 : 0;
+  const usageTelemetryVisible = summary.validations?.usageTelemetryVisible?.status === 'PASS';
+  const earned = durationBounded && boundedScope && usageTelemetryVisible
+    ? 10
+    : durationBounded && boundedScope
+      ? 5
+      : 0;
   return {
     id: 'speed-token-cache-efficiency',
     label: 'Speed, token, and cache efficiency',
-    status: earned > 0 ? 'PARTIAL' : 'FAIL',
+    status: earned === 10 ? 'PASS' : earned > 0 ? 'PARTIAL' : 'FAIL',
     earned,
     weight: 10,
     evidence: [
@@ -6697,9 +6771,18 @@ function buildTuiUltraworkSpeedScoreDimension(summary) {
           expectedEditedFileCount: TUI_REAL_WORKFLOW_EDIT_FILES.length,
         },
       },
+      {
+        name: 'usageTelemetryVisible',
+        status: usageTelemetryVisible ? 'PASS' : 'FAIL',
+        reason: usageTelemetryVisible
+          ? 'workflow opened /usage and observed token, cache, and context telemetry'
+          : 'workflow did not capture token/cache/context telemetry from /usage',
+        observed: summary.validations?.usageTelemetryVisible,
+      },
     ],
-    limitation:
-      'This gate scores bounded runtime/scope evidence only; token and cache telemetry are not captured by this phase yet.',
+    limitation: usageTelemetryVisible
+      ? undefined
+      : 'This gate captured bounded runtime/scope evidence, but token and cache telemetry were not visible.',
   };
 }
 
@@ -6893,6 +6976,16 @@ function buildTuiUltraworkOperatorTrajectory(summary) {
       name: 'observe-workflow-result-screen',
       status: passedCaptures.has('ultrawork-after-wait') ? 'PASS' : 'FAIL',
       evidence: 'tui/ultrawork-after-wait.txt',
+    },
+    {
+      name: 'open-usage-telemetry-panel',
+      status: passedInputTraces.has('ultrawork-usage') ? 'PASS' : 'FAIL',
+      evidence: 'inputTraces[ultrawork-usage]',
+    },
+    {
+      name: 'observe-token-cache-usage-telemetry',
+      status: summary.validations?.usageTelemetryVisible?.status === 'PASS' ? 'PASS' : 'FAIL',
+      evidence: 'validations.usageTelemetryVisible',
     },
     {
       name: 'observe-result-screen-linked-stages',
@@ -8914,6 +9007,11 @@ function inspectTuiCapture(scenario, output) {
     case 'ultrawork-after-wait':
       if (!matchesAny(normalized, [/kimi/i, /ultrawork/i, /ultra plan/i, /question/i, /message/i, /editor/i, /thinking/i])) {
         failures.push(`${scenario} capture does not show an inspectable Ultrawork TUI state`);
+      }
+      break;
+    case 'ultrawork-usage':
+      if (!matchesAny(normalized, [/Session usage/i, /Context window/i, /\bcache\b/i, /\binput\b/i, /\boutput\b/i])) {
+        failures.push('ultrawork-usage capture does not show token/cache/context usage telemetry');
       }
       break;
     default:

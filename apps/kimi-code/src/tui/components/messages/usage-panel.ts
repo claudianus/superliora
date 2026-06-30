@@ -64,6 +64,11 @@ function usageInputTotal(usage: TokenUsage): number {
   );
 }
 
+function formatCacheShare(cacheRead: number, cacheWrite: number, input: number): string {
+  if (input <= 0) return '0%';
+  return `${Math.round(((cacheRead + cacheWrite) / input) * 100)}%`;
+}
+
 function buildSessionUsageSection(
   usage: SessionUsage | undefined,
   error: string | undefined,
@@ -84,6 +89,8 @@ function buildSessionUsageSection(
   let totalOutput = 0;
   for (const [model, row] of entries) {
     const input = usageInputTotal(row);
+    const cacheRead = usageNumber(row.inputCacheRead);
+    const cacheWrite = usageNumber(row.inputCacheCreation);
     const output = usageNumber(row.output);
     totalInput += input;
     totalOutput += output;
@@ -91,6 +98,11 @@ function buildSessionUsageSection(
       `  ${muted(model)}  input ${value(formatTokenCount(input))}  output ${value(
         formatTokenCount(output),
       )}  total ${value(formatTokenCount(input + output))}`,
+    );
+    lines.push(
+      `  ${muted(`${model} cache`)}  read ${value(formatTokenCount(cacheRead))}  write ${value(
+        formatTokenCount(cacheWrite),
+      )}  share ${value(formatCacheShare(cacheRead, cacheWrite, input))}`,
     );
   }
   if (entries.length > 1) {

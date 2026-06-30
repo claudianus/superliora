@@ -41,6 +41,7 @@ describe('UsagePanelComponent', () => {
 
     expect(lines).toContain('Session usage');
     expect(lines).toContain('  kimi  input 2.0k  output 250  total 2.3k');
+    expect(lines).toContain('  kimi cache  read 500  write 500  share 50%');
     expect(lines).toContain('Context window');
     expect(lines.join('\n')).toContain('25.0%');
     expect(lines.join('\n')).toMatch(/Remaining\s+7\.5k tokens/);
