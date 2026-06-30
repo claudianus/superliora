@@ -78,4 +78,15 @@ describe('prompt placeholders', () => {
       ).toBe(true);
     }
   });
+
+  it('compaction prompt asks for a first-person handoff and verification caution', () => {
+    const content = readFileSync(
+      join(SRC, 'agent/compaction/compaction-instruction.md'),
+      'utf-8',
+    );
+    expect(content).toContain('first-person handoff note');
+    expect(content).toContain('latest user request, quoted verbatim');
+    expect(content).toContain('never verified');
+    expect(content).toContain('{{ customInstruction }}');
+  });
 });

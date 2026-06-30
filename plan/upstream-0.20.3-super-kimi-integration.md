@@ -25,6 +25,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1187`, `#1188`, `#1189`: TUI polish fixes for undo debug timing, input redraws, and swarm progress tips.
 - Upstream `#1214` partial: count image/audio/video parts in context token estimates.
 - Upstream `#1214` partial: merge consecutive user-role turns for strict Anthropic/Gemini provider wires.
+- Upstream `#1214` partial: rewrite compaction instructions toward first-person handoff notes with verification caution.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -43,6 +44,7 @@ Super Kimi adaptation:
 - Kept debug timing output tied to undoable turns, removed input-time clear-on-shrink full redraws, and kept working tips out of inline swarm progress rows.
 - Pulled the independent media-token estimator fix from the compaction rework so media-heavy vibe-coding sessions no longer look free to usage/readiness and compaction budget logic.
 - Collapsed consecutive user-role wire turns at strict provider boundaries so post-compaction prompts and steer-after-tool-result histories do not 400 on alternating-role backends.
+- Adapted the upstream handoff-style compaction prompt into Super Kimi's existing Context Compaction v2 wrapper, preserving the structured memory contract while making summaries more useful after context loss.
 
 ## Next Candidate Queue
 

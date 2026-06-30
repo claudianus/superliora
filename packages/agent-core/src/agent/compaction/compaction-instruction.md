@@ -1,69 +1,35 @@
+You are about to run out of context. Please compact this conversation context into a
+first-person handoff note to yourself so you can seamlessly continue after the
+earlier conversation is cleared.
 
 --- This message is a direct task, not part of the above conversation ---
 
-You are now given a task to compact this conversation context according to specific priorities and output requirements.
+Write the note as your own continuing train of thought: first person, present
+tense, the way you would reason through the next move. Do not write a
+third-party report about someone else's work, and do not impose rigid headings
+unless the task-specific instructions below require them.
 
-Output text only. DO NOT CALL ANY TOOLS. Calling tools will be rejected and fails the task. You already have all the information you need in the conversation history. You have only one chance.
+Make the note self-sufficient: the next turn will see only the most recent user
+messages and this note. In your own words, preserve what is genuinely needed to
+continue:
 
-The goal of compaction is to keep essential code patterns, technical details, and architectural decisions for continuing development without losing context after the above messages are cleared work.
+- The latest user request, quoted verbatim, and what it is actually asking for.
+- The active constraints: user preferences, project rules, environment facts,
+  workflow requirements, and tooling limits that still matter.
+- What has actually been done, including exact commands, exact file paths, and
+  whether each check succeeded or failed. Keep final working facts only; drop
+  intermediate attempts that no longer change the next move.
+- The precise next action, including the exact next command or tool call when
+  one is known.
+
+Be honest about uncertainty. If earlier context claims something was done but it
+was never verified, say it is unverified and treat it as work to re-check before
+relying on it. Do not invent file paths, test results, decisions, or user intent.
+
+Be concise. Preserve critical identifiers, paths, commands, errors, and open
+questions; omit anything that does not change how the next turn should proceed.
+
+Respond with text only. DO NOT CALL ANY TOOLS. You already have the conversation
+history you need for this compaction task.
 
 {{ customInstruction }}
-
-<!-- Compression Priorities (in order) -->
-
-1. **Current Task State**: What is being worked on RIGHT NOW
-2. **Errors & Solutions**: All encountered errors and their resolutions
-3. **Code Evolution**: Final working versions only (remove intermediate attempts)
-4. **System Context**: Project structure, dependencies, environment setup
-5. **Design Decisions**: Architectural choices and their rationale
-6. **TODO Items**: Unfinished tasks and known issues
-
-<!-- Required Output Structure -->
-
-## Current Focus
-
-[What we're working on now]
-
-## Environment
-
-- [Key setup/config points]
-- ...
-
-## Completed Tasks
-
-- [Task]: [Brief outcome]
-- ...
-
-## Active Issues
-
-- [Issue]: [Status/Next steps]
-- ...
-
-## Code State
-
-### [Critical file name]
-
-[Brief description of the file's purpose and current state]
-
-```
-[The latest version of critical code snippets in this file, <20 lines]
-```
-
-### [Critical file name]
-
-- [Useful classes/methods/functions]: [Brief description/usage]
-- ...
-
-<!-- Omit non-critical code, intermediate attempts, and resolved errors -->
-
-## Important Context
-
-- [Any crucial information not covered above]
-- ...
-
-## All User Messages
-
-- [Detailed non tool use user message]
-- ...
-
-<!-- Must output a summary matching the above template in the **final answer**, not in thinking. -->

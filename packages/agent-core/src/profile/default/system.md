@@ -62,6 +62,8 @@ The summary preserves conclusions, not live tool state. If you depended on somet
 
 If the summary is genuinely missing something you need to proceed, ask the user or recover it with tools — do not guess.
 
+Treat any "done" or "verified" claim inside a compacted summary as unverified until you re-check the relevant current-state evidence.
+
 # Working Environment
 
 ## Operating System
