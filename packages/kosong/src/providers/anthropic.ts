@@ -37,6 +37,7 @@ import type {
   ToolUseBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.js';
 
+import { mergeConsecutiveUserMessages } from './merge-user-messages';
 import { mergeRequestHeaders, resolveAuthBackedClient } from './request-auth';
 import {
   normalizeToolCallIdsForProvider,
@@ -942,25 +943,25 @@ export class AnthropicChatProvider implements ChatProvider {
         ]
       : undefined;
 
-    // Convert messages, merging consecutive tool-result-only user messages
-    // into a single user message (Anthropic parallel-tool-use spec).
-    const messages: MessageParam[] = [];
-    const normalizedHistory = normalizeToolCallIdsForProvider(
-      history,
-      ANTHROPIC_TOOL_CALL_ID_POLICY,
+    // Convert messages, then merge consecutive user-role wire turns. Strict
+    // Anthropic-compatible backends reject adjacent user messages, while native
+    // Anthropic concatenates them anyway.
+    const messages = mergeConsecutiveUserMessages(
+      normalizeToolCallIdsForProvider(history, ANTHROPIC_TOOL_CALL_ID_POLICY).map((msg) =>
+        convertMessage(msg, this._model),
+      ),
+      {
+        isUser: (message) => message.role === 'user',
+        isToolResultOnly,
+        merge: (last, next) => ({
+          ...last,
+          content: [
+            ...(last.content as ContentBlockParam[]),
+            ...(next.content as ContentBlockParam[]),
+          ],
+        }),
+      },
     );
-    for (const msg of normalizedHistory) {
-      const converted = convertMessage(msg, this._model);
-      const last = messages.at(-1);
-      if (last !== undefined && isToolResultOnly(last) && isToolResultOnly(converted)) {
-        last.content = [
-          ...(last.content as ContentBlockParam[]),
-          ...(converted.content as ContentBlockParam[]),
-        ];
-      } else {
-        messages.push(converted);
-      }
-    }
 
     // Inject cache_control on last content block of last message (after merge,
     // so it lands on the final tool_result block in the merged user message).

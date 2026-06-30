@@ -830,14 +830,15 @@ describe('AnthropicChatProvider', () => {
       };
       const msgs = body['messages'] as MsgParam[];
 
-      // 4 messages: user prompt, assistant tool_use, merged tool_result user, final text user.
-      expect(msgs).toHaveLength(4);
-      expect(msgs[2]!.content).toHaveLength(2);
-      expect(msgs[2]!.content.every((b) => b.type === 'tool_result')).toBe(true);
-      expect(msgs[3]!.role).toBe('user');
-      expect(msgs[3]!.content).toHaveLength(1);
-      expect(msgs[3]!.content[0]!.type).toBe('text');
-      expect(msgs[3]!.content[0]!.text).toBe('Now summarize');
+      // 3 messages: user prompt, assistant tool_use, then one merged user turn
+      // containing parallel tool_results plus the follow-up text.
+      expect(msgs).toHaveLength(3);
+      expect(msgs[2]!.role).toBe('user');
+      expect(msgs[2]!.content).toHaveLength(3);
+      expect(msgs[2]!.content[0]!.type).toBe('tool_result');
+      expect(msgs[2]!.content[1]!.type).toBe('tool_result');
+      expect(msgs[2]!.content[2]!.type).toBe('text');
+      expect(msgs[2]!.content[2]!.text).toBe('Now summarize');
     });
 
     it('assistant with thinking (has encrypted -> ThinkingBlockParam)', async () => {

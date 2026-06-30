@@ -24,6 +24,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1204`: expose installed plugin Markdown commands as namespaced slash commands.
 - Upstream `#1187`, `#1188`, `#1189`: TUI polish fixes for undo debug timing, input redraws, and swarm progress tips.
 - Upstream `#1214` partial: count image/audio/video parts in context token estimates.
+- Upstream `#1214` partial: merge consecutive user-role turns for strict Anthropic/Gemini provider wires.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -41,6 +42,7 @@ Super Kimi adaptation:
 - Preserved Super Kimi dynamic `skill:` fallback behavior while adding `/plugin-id:command` support.
 - Kept debug timing output tied to undoable turns, removed input-time clear-on-shrink full redraws, and kept working tips out of inline swarm progress rows.
 - Pulled the independent media-token estimator fix from the compaction rework so media-heavy vibe-coding sessions no longer look free to usage/readiness and compaction budget logic.
+- Collapsed consecutive user-role wire turns at strict provider boundaries so post-compaction prompts and steer-after-tool-result histories do not 400 on alternating-role backends.
 
 ## Next Candidate Queue
 

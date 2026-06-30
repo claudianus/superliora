@@ -153,21 +153,15 @@ describe('GoogleGenAIChatProvider', () => {
 
       const contents = messagesToGoogleGenAIContents(messages);
 
-      expect(contents).toHaveLength(2);
+      expect(contents).toHaveLength(1);
       const first = contents[0] as unknown as {
         role: string;
         parts: Array<{ text?: string }>;
       };
       expect(first.role).toBe('user');
-      expect(first.parts).toHaveLength(1);
+      expect(first.parts).toHaveLength(2);
       expect(first.parts[0]!.text).toBe('<system>You are helpful.</system>');
-      // Original user turn is untouched.
-      const second = contents[1] as unknown as {
-        role: string;
-        parts: Array<{ text?: string }>;
-      };
-      expect(second.role).toBe('user');
-      expect(second.parts[0]!.text).toBe('Hi');
+      expect(first.parts[1]!.text).toBe('Hi');
       // No emitted content carries the unsupported "system" role.
       for (const c of contents) {
         expect((c as unknown as { role: string }).role).not.toBe('system');
