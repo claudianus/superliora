@@ -125,7 +125,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests\/typecheck\/lint\/build \+ clean diff \+ TUI/);
-    expect(output).toMatch(/Next\s+Run \/login first; use \/model after sign-in\./);
+    expect(output).toMatch(/Next\s+Run \/login or \/provider first; use \/model after sign-in\./);
   });
 
   it('surfaces context pressure as the next readiness action', () => {

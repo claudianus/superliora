@@ -41,6 +41,7 @@ const TUI_SCREEN_SIGNAL_PATTERNS = Object.freeze([
   { name: 'xp-dod-readiness', pattern: /\bScope\b.*\bCoverage\b.*\bScreen check\b.*\bDone gate\b/i },
   { name: 'done-gate', pattern: /\bDone gate\b\s+tests\/typecheck\/lint\/build\s+\+\s+clean diff\s+\+\s+TUI/i },
   { name: 'logged-out-setup-next-action', pattern: /\bmodel:?\s+not set\b.*\bnext:\s*run \/login or \/provider\b/i },
+  { name: 'status-setup-next-action', pattern: /\bState\b\s+Model needed\b.*\bNext\b\s+Run \/login or \/provider first;\s*use \/model after sign-in\./i },
 ]);
 const DEFAULT_BUDGETS = Object.freeze({
   wallClockMs: 30_000,
@@ -840,9 +841,13 @@ function statusScenarioHasReadinessSignals(tuiGate) {
   const signals = getTuiScenario(tuiGate, 'status')?.screenObservationSignals;
   return (
     Array.isArray(signals) &&
-    ['status-readiness', 'xp-dod-readiness', 'done-gate', 'logged-out-setup-next-action'].every(
-      (signal) => signals.includes(signal),
-    )
+    [
+      'status-readiness',
+      'xp-dod-readiness',
+      'done-gate',
+      'logged-out-setup-next-action',
+      'status-setup-next-action',
+    ].every((signal) => signals.includes(signal))
   );
 }
 
@@ -1924,6 +1929,9 @@ function inspectTuiScreenText(scenario, output) {
       if (!hasLoggedOutSetupNextAction(normalized)) {
         failures.push('status capture does not keep the footer setup next action visible');
       }
+      if (!hasStatusPanelSetupNextAction(normalized)) {
+        failures.push('status capture does not align model-needed readiness with setup options');
+      }
       break;
     case 'clear':
       if (!matchesAny(normalized, [/kimi/i, /message/i, /editor/i, /prompt/i])) {
@@ -2027,6 +2035,10 @@ function hasLoggedOutSetupNextAction(output) {
     /\bmodel:?\s+not set\b/i.test(output) &&
     /\bnext:\s*run \/login or \/provider\b/i.test(output)
   );
+}
+
+function hasStatusPanelSetupNextAction(output) {
+  return /\bState\b\s+Model needed\b.*\bNext\b\s+Run \/login or \/provider first;\s*use \/model after sign-in\./i.test(output);
 }
 
 function matchesAny(output, patterns) {
