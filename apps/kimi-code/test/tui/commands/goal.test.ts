@@ -49,6 +49,7 @@ const ENTER = '\r';
 const ESCAPE = '\u001B';
 const UP = '\u001B[A';
 const DOWN = '\u001B[B';
+const MODEL_SETUP_MESSAGE = 'LLM not set, run /login or /provider to connect a model';
 
 function fakeSnapshot() {
   return {
@@ -666,7 +667,7 @@ describe('handleGoalCommand', () => {
   it('resume without a configured model does not activate the goal', async () => {
     const { host: noModelHost, session: s } = makeHost({ model: '' });
     await handleGoalCommand(noModelHost, 'resume');
-    expect(noModelHost.showError).toHaveBeenCalled();
+    expect(noModelHost.showError).toHaveBeenCalledWith(MODEL_SETUP_MESSAGE);
     expect(s.resumeGoal).not.toHaveBeenCalled();
     expect(noModelHost.sendNormalUserInput).not.toHaveBeenCalled();
   });
@@ -674,7 +675,7 @@ describe('handleGoalCommand', () => {
   it('creation without a configured model shows LLM_NOT_SET_MESSAGE', async () => {
     const { host: noModelHost, session: s } = makeHost({ model: '' });
     await handleGoalCommand(noModelHost, 'Ship feature X');
-    expect(noModelHost.showError).toHaveBeenCalled();
+    expect(noModelHost.showError).toHaveBeenCalledWith(MODEL_SETUP_MESSAGE);
     expect(s.createGoal).not.toHaveBeenCalled();
   });
 

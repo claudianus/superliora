@@ -65,7 +65,7 @@ interface PromptHookEndResult {
   readonly blocked: boolean;
 }
 
-const LLM_NOT_SET_MESSAGE = 'LLM not set, send "/login" to login';
+const LLM_NOT_SET_MESSAGE = 'LLM not set, run /login or /provider to connect a model';
 
 /** Origin tag for the synthetic "continue" prompt that drives each goal turn. */
 const GOAL_CONTINUATION_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'goal_continuation' };
@@ -1100,7 +1100,8 @@ function toolOutputText(output: ExecutableToolResult['output']): string {
 }
 
 function interruptedStep(event: LoopTurnInterruptedEvent): number {
-  return event.activeStep ?? event.attemptedSteps;
+  const step = event.activeStep ?? event.attemptedSteps;
+  return Object.is(step, -0) ? 0 : step;
 }
 
 interface ApiErrorClassification {

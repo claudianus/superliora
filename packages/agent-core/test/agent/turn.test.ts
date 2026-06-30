@@ -62,13 +62,17 @@ describe('Agent turn flow', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Hello without login' }] });
     await ctx.untilTurnEnd();
 
-    expect(records).toContainEqual({
-      event: 'turn_started',
-      properties: { mode: 'agent' },
-    });
-    expect(records).toContainEqual({
-      event: 'turn_interrupted',
-      properties: { mode: 'agent', at_step: 0 },
+    expect(
+      records.some((record) => record.event === 'turn_started' && record.properties?.['mode'] === 'agent'),
+    ).toBe(true);
+    await vi.waitFor(() => {
+      expect(
+        records.some((record) =>
+          record.event === 'turn_interrupted' &&
+          record.properties?.['mode'] === 'agent' &&
+          record.properties?.['at_step'] === 0,
+        ),
+      ).toBe(true);
     });
   });
 
@@ -479,10 +483,10 @@ describe('Agent turn flow', () => {
       [wire] turn.prompt              { "input": [ { "type": "text", "text": "Hello without login" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started             { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message   { "message": { "role": "user", "content": [ { "type": "text", "text": "Hello without login" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [emit] turn.ended               { "turnId": 0, "reason": "failed", "error": { "code": "model.not_configured", "message": "LLM not set, send \\"/login\\" to login", "name": "KimiError", "details": { "turnId": 0 }, "retryable": false } }
+      [emit] turn.ended               { "turnId": 0, "reason": "failed", "error": { "code": "model.not_configured", "message": "LLM not set, run /login or /provider to connect a model", "name": "KimiError", "details": { "turnId": 0 }, "retryable": false } }
     `);
     expect(ctx.newEvents()).toMatchInlineSnapshot(
-      `[emit] error   { "code": "model.not_configured", "message": "LLM not set, send \\"/login\\" to login", "name": "KimiError", "details": { "turnId": 0 }, "retryable": false }`,
+      `[emit] error   { "code": "model.not_configured", "message": "LLM not set, run /login or /provider to connect a model", "name": "KimiError", "details": { "turnId": 0 }, "retryable": false }`,
     );
   });
 

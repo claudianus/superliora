@@ -1986,7 +1986,9 @@ command = "vim"
     driver.handleUserInput('hello');
 
     expect(session.prompt).not.toHaveBeenCalled();
-    expect(driver.state.transcriptContainer.render(120).join('\n')).toContain('LLM not set');
+    expect(driver.state.transcriptContainer.render(120).join('\n')).toContain(
+      'LLM not set, run /login or /provider to connect a model',
+    );
   });
 
   it('dispatches /init to the active session and clears busy state after completion', async () => {
