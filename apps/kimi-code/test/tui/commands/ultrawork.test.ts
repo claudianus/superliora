@@ -162,6 +162,14 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('compact project knowledge map');
     expect(prompt).toContain('EXTRACTED, INFERRED, or AMBIGUOUS');
     expect(prompt).toContain('path/affected-style questions');
+    expect(prompt).toContain('Memory / LLM Wiki observability');
+    expect(prompt).toContain('Do not silently claim Learn');
+    expect(prompt).toContain('Knowledge persistence ledger');
+    expect(prompt).toContain('kimi_recall');
+    expect(prompt).toContain('llm_wiki');
+    expect(prompt).toContain('wrote`, `skipped`, or `blocked');
+    expect(prompt).toContain('path/id/evidence');
+    expect(prompt).toContain('never hide the only proof inside chat');
     expect(prompt).toContain('UltraResearch / Kimi Free Web Research');
     expect(prompt).toContain('no-subscription web research as a primary Ultrawork capability');
     expect(prompt).toContain('built-in WebSearch and FetchURL tools');

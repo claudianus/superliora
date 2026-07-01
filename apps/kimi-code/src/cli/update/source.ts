@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 
 import { getHostPackageRoot } from '#/cli/version';
 
+import { detectSuperKimiGithubCheckout } from './git-checkout';
 import { NPM_PACKAGE_NAME, type InstallSource } from './types';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -68,6 +69,7 @@ export function classifyByPathHeuristic(packageRoot: string): InstallSource | nu
 export interface DetectInstallSourceDeps {
   readonly getPackageRoot: () => string;
   readonly getGlobalPrefix: () => Promise<string>;
+  readonly detectGithubCheckout: (packageRoot: string) => Promise<string | null>;
   readonly detectNative: () => boolean;
   readonly platform: NodeJS.Platform;
 }
@@ -141,6 +143,8 @@ export async function detectInstallSource(
     getGlobalPrefix:
       deps.getGlobalPrefix ??
       (() => execFileText(npmCommand(platform), ['prefix', '-g']).then((text) => text.trim())),
+    detectGithubCheckout:
+      deps.detectGithubCheckout ?? ((packageRoot) => detectSuperKimiGithubCheckout(packageRoot)),
     detectNative: deps.detectNative ?? detectNativeInstall,
     platform,
   };
@@ -148,6 +152,10 @@ export async function detectInstallSource(
   if (resolved.detectNative()) return 'native';
 
   const packageRoot = resolved.getPackageRoot();
+  if ((await resolved.detectGithubCheckout(packageRoot)) !== null) {
+    return 'github-checkout';
+  }
+
   const heuristic = classifyByPathHeuristic(packageRoot);
   if (heuristic !== null) return heuristic;
 

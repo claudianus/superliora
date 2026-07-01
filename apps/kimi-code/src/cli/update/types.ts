@@ -9,6 +9,7 @@ export type InstallSource =
   | 'yarn-global'
   | 'bun-global'
   | 'homebrew'
+  | 'github-checkout'
   | 'native'
   | 'unsupported';
 
@@ -54,6 +55,7 @@ export interface UpdateInstallFailure {
 
 export interface UpdateInstallSuccess {
   readonly version: string;
+  readonly source?: InstallSource;
   readonly installedAt: string;
   readonly notifiedAt: string | null;
 }

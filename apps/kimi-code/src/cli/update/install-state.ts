@@ -11,6 +11,7 @@ const InstallSourceSchema: z.ZodType<InstallSource> = z.enum([
   'yarn-global',
   'bun-global',
   'homebrew',
+  'github-checkout',
   'native',
   'unsupported',
 ]);
@@ -36,6 +37,7 @@ const UpdateInstallStateSchema: z.ZodType<UpdateInstallState> = z
     lastSuccess: z
       .object({
         version: z.string().min(1),
+        source: InstallSourceSchema.optional(),
         installedAt: z.string().min(1),
         notifiedAt: z.string().min(1).nullable(),
       })

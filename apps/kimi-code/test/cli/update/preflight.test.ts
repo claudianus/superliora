@@ -10,7 +10,7 @@ import {
   readUpdateInstallState,
   writeUpdateInstallState,
 } from '#/cli/update/install-state';
-import { runUpdatePreflight, spawnForSource } from '#/cli/update/preflight';
+import { installCommandFor, runUpdatePreflight, spawnForSource } from '#/cli/update/preflight';
 import { promptForInstallChoice } from '#/cli/update/prompt';
 import type * as PromptModule from '#/cli/update/prompt';
 import { refreshUpdateCache } from '#/cli/update/refresh';
@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   tryAcquireUpdateInstallLock: vi.fn(),
   loadTuiConfig: vi.fn(),
   detectInstallSource: vi.fn(),
+  detectSuperKimiGithubCheckout: vi.fn(),
+  refreshGitCheckoutUpdateTarget: vi.fn(),
   promptForInstallChoice: vi.fn(),
   refreshUpdateCache: vi.fn(),
   resolveUpdateDeviceId: vi.fn(),
@@ -72,6 +74,17 @@ vi.mock('../../../src/tui/config', () => ({
 vi.mock('../../../src/cli/update/source', () => ({
   detectInstallSource: mocks.detectInstallSource,
 }));
+
+vi.mock('../../../src/cli/update/git-checkout', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/cli/update/git-checkout.js')>(
+    '../../../src/cli/update/git-checkout.js',
+  );
+  return {
+    ...actual,
+    detectSuperKimiGithubCheckout: mocks.detectSuperKimiGithubCheckout,
+    refreshGitCheckoutUpdateTarget: mocks.refreshGitCheckoutUpdateTarget,
+  };
+});
 
 vi.mock('../../../src/cli/update/prompt', async () => {
   const actual = await vi.importActual<typeof PromptModule>('../../../src/cli/update/prompt.js');
@@ -231,6 +244,9 @@ describe('runUpdatePreflight', () => {
     mocks.loadTuiConfig.mockResolvedValue(tuiConfig());
     mocks.resolveUpdateDeviceId.mockReturnValue('test-device');
     mocks.appendRolloutDecisionLog.mockResolvedValue(undefined);
+    mocks.detectInstallSource.mockResolvedValue('npm-global');
+    mocks.detectSuperKimiGithubCheckout.mockResolvedValue(null);
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue(null);
     mocks.tryAcquireUpdateInstallLock.mockResolvedValue({
       filePath: '/tmp/kimi-update-install.lock',
       release: vi.fn().mockResolvedValue(undefined),
@@ -269,6 +285,7 @@ describe('runUpdatePreflight', () => {
     mocks.readUpdateInstallState.mockResolvedValue(installState());
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('npm-global');
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue(null);
     mockSpawnExit(0);
     const { options } = captureOutput();
 
@@ -502,6 +519,86 @@ describe('runUpdatePreflight', () => {
         'irm https://raw.githubusercontent.com/claudianus/super-kimi-code/main/install.ps1 | iex',
       );
       expect(promptForInstallChoice).not.toHaveBeenCalled();
+      expect(mocks.spawn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
+  });
+
+  it('github-checkout: starts a background git checkout update and bypasses CDN cache', async () => {
+    mocks.readUpdateInstallState.mockResolvedValue(installState());
+    mocks.detectSuperKimiGithubCheckout.mockResolvedValue('/repo/super-kimi-code');
+    mocks.detectInstallSource.mockResolvedValue('github-checkout');
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({ version: 'origin/main@abcdef123456' });
+    mockSpawnExit(0);
+    const { options } = captureOutput();
+
+    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+
+    expect(readUpdateCache).not.toHaveBeenCalled();
+    expect(refreshUpdateCache).not.toHaveBeenCalled();
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      'bash',
+      ['-lc', expect.stringContaining('git -C')],
+      { detached: true, stdio: 'ignore' },
+    );
+    expect(writeUpdateInstallState).toHaveBeenCalledWith(expect.objectContaining({
+      active: expect.objectContaining({
+        version: 'origin/main@abcdef123456',
+        source: 'github-checkout',
+      }),
+    }));
+
+    await flushBackgroundInstall();
+
+    expect(writeUpdateInstallState).toHaveBeenLastCalledWith(expect.objectContaining({
+      lastSuccess: expect.objectContaining({
+        version: 'origin/main@abcdef123456',
+        source: 'github-checkout',
+        notifiedAt: null,
+      }),
+    }));
+  });
+
+  it('github-checkout: prompts for foreground install when auto install is disabled', async () => {
+    disableAutoInstall();
+    mocks.detectSuperKimiGithubCheckout.mockResolvedValue('/repo/super-kimi-code');
+    mocks.detectInstallSource.mockResolvedValue('github-checkout');
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({ version: 'origin/main@abcdef123456' });
+    mocks.promptForInstallChoice.mockResolvedValue('install');
+    mockSpawnExit(0);
+    const { stdout, options } = captureOutput();
+
+    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('exit');
+
+    expect(mocks.promptForInstallChoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installCommand: expect.stringContaining('git -C'),
+        installSource: 'github-checkout',
+        target: { version: 'origin/main@abcdef123456' },
+      }),
+    );
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      'bash',
+      ['-lc', expect.stringContaining('git -C')],
+      { stdio: 'inherit' },
+    );
+    expect(stdout.join('')).toContain('Updated Super Kimi Code from GitHub');
+  });
+
+  it('github-checkout: prints the manual update command on win32', async () => {
+    mocks.detectSuperKimiGithubCheckout.mockResolvedValue('/repo/super-kimi-code');
+    mocks.detectInstallSource.mockResolvedValue('github-checkout');
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({ version: 'origin/main@abcdef123456' });
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    try {
+      const { stdout, options } = captureOutput();
+
+      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+
+      expect(stdout.join('')).toContain('Detected install source: GitHub checkout');
+      expect(stdout.join('')).toContain('git -C');
       expect(mocks.spawn).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
@@ -795,6 +892,33 @@ describe('runUpdatePreflight', () => {
     expect(detectInstallSource).not.toHaveBeenCalled();
   });
 
+  it('shows and clears a GitHub checkout success notice without semver matching', async () => {
+    mocks.readUpdateCache.mockResolvedValue(emptyUpdateCache());
+    mocks.readUpdateInstallState.mockResolvedValue(installState({
+      lastSuccess: {
+        version: 'origin/main@abcdef123456',
+        source: 'github-checkout',
+        installedAt: '2026-04-23T08:00:00.000Z',
+        notifiedAt: null,
+      },
+    }));
+    mocks.refreshUpdateCache.mockResolvedValue(emptyUpdateCache());
+    const { stdout, options } = captureOutput();
+
+    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+
+    expect(stdout.join('')).toContain('Super Kimi Code updated from GitHub (origin/main@abcdef123456)');
+    expect(stdout.join('')).not.toContain('vorigin/main');
+    expect(writeUpdateInstallState).toHaveBeenCalledWith(expect.objectContaining({
+      lastSuccess: expect.objectContaining({
+        version: 'origin/main@abcdef123456',
+        source: 'github-checkout',
+        notifiedAt: expect.any(String),
+      }),
+    }));
+    expect(detectInstallSource).not.toHaveBeenCalled();
+  });
+
   it('infers a background update success notice when the active install version is now running', async () => {
     mocks.readUpdateCache.mockResolvedValue(emptyUpdateCache());
     mocks.readUpdateInstallState.mockResolvedValue(installState({
@@ -1080,4 +1204,25 @@ describe('spawnForSource native', () => {
       expect(result.status).toBeGreaterThan(0);
     },
   );
+});
+
+describe('github-checkout update commands', () => {
+  it('uses git pull plus pnpm install/build for manual commands', () => {
+    const command = installCommandFor('github-checkout', 'origin/main@abcdef123456', 'darwin');
+
+    expect(command).toContain('git -C');
+    expect(command).toContain('pull --ff-only');
+    expect(command).toContain('corepack pnpm');
+    expect(command).toContain('--filter @moonshot-ai/kimi-code run build');
+  });
+
+  it('uses bash -lc for the auto-install script', () => {
+    const { cmd, args } = spawnForSource('github-checkout', 'origin/main@abcdef123456', 'darwin');
+
+    expect(cmd).toBe('bash');
+    expect(args[0]).toBe('-lc');
+    expect(args[1]).toContain('diff --quiet');
+    expect(args[1]).toContain('pull --ff-only');
+    expect(args[1]).toContain('--filter @moonshot-ai/kimi-code run build');
+  });
 });

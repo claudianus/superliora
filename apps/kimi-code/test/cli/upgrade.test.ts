@@ -40,6 +40,7 @@ function createDeps(overrides: {
   readonly latest?: string | null;
   readonly manifest?: UpdateCache['manifest'];
   readonly source?: InstallSource;
+  readonly gitTarget?: { readonly version: string } | null;
   readonly isInteractive?: boolean;
   readonly promptForInstallChoice?: () => Promise<InstallPromptChoiceValue>;
   readonly installUpdate?: (source: InstallSource, version: string, platform: NodeJS.Platform) => Promise<void>;
@@ -57,6 +58,7 @@ function createDeps(overrides: {
       .fn()
       .mockResolvedValue(cacheWith(overrides.latest ?? '0.5.0', overrides.manifest ?? null)),
     detectInstallSource: vi.fn().mockResolvedValue(overrides.source ?? 'npm-global'),
+    refreshGitCheckoutUpdateTarget: vi.fn().mockResolvedValue(overrides.gitTarget ?? null),
     promptForInstallChoice:
       overrides.promptForInstallChoice ?? vi.fn().mockResolvedValue('install'),
     installUpdate,
@@ -128,13 +130,14 @@ describe('handleUpgrade', () => {
     expect(stdout.join('')).toBe('');
   });
 
-  it('prints up-to-date status without detecting the install source when no newer version exists', async () => {
+  it('prints up-to-date status after checking for a GitHub checkout source', async () => {
     const { stdout, writable } = captureOutput();
     const deps = createDeps({ latest: '0.4.0' });
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
 
-    expect(deps.detectInstallSource).not.toHaveBeenCalled();
+    expect(deps.detectInstallSource).toHaveBeenCalledTimes(1);
+    expect(deps.refreshGitCheckoutUpdateTarget).not.toHaveBeenCalled();
     expect(deps.installUpdate).not.toHaveBeenCalled();
     expect(deps.track).toHaveBeenCalledWith('upgrade_command_no_update', expect.objectContaining({
       current_version: '0.4.0',
@@ -172,6 +175,63 @@ describe('handleUpgrade', () => {
     expect(stdout.join('')).toContain('To update manually, run: npm install -g @moonshot-ai/kimi-code@0.5.0');
   });
 
+  it('installs a newer GitHub checkout target without consulting the CDN cache', async () => {
+    const { stdout, stderr, writable } = captureOutput();
+    const deps = createDeps({
+      source: 'github-checkout',
+      gitTarget: { version: 'origin/main@abcdef123456' },
+    });
+
+    await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
+
+    expect(deps.refreshUpdateCache).not.toHaveBeenCalled();
+    expect(deps.refreshGitCheckoutUpdateTarget).toHaveBeenCalledTimes(1);
+    expect(deps.promptForInstallChoice).toHaveBeenCalledWith(expect.objectContaining({
+      installCommand: expect.stringContaining('git -C'),
+      installSource: 'github-checkout',
+      target: { version: 'origin/main@abcdef123456' },
+    }));
+    expect(deps.installUpdate).toHaveBeenCalledWith(
+      'github-checkout',
+      'origin/main@abcdef123456',
+      'darwin',
+    );
+    expect(stdout.join('')).toContain('Updated Super Kimi Code from GitHub');
+    expect(stderr.join('')).toBe('');
+  });
+
+  it('reports an up-to-date GitHub checkout without querying semver releases', async () => {
+    const { stdout, writable } = captureOutput();
+    const deps = createDeps({
+      source: 'github-checkout',
+      gitTarget: null,
+    });
+
+    await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
+
+    expect(deps.refreshUpdateCache).not.toHaveBeenCalled();
+    expect(deps.refreshGitCheckoutUpdateTarget).toHaveBeenCalledTimes(1);
+    expect(deps.installUpdate).not.toHaveBeenCalled();
+    expect(stdout.join('')).toContain('Super Kimi Code GitHub checkout is already up to date.');
+  });
+
+  it('prints a manual GitHub checkout update command when not interactive', async () => {
+    const { stdout, writable } = captureOutput();
+    const deps = createDeps({
+      source: 'github-checkout',
+      gitTarget: { version: 'origin/main@abcdef123456' },
+      isInteractive: false,
+    });
+
+    await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
+
+    expect(deps.refreshUpdateCache).not.toHaveBeenCalled();
+    expect(deps.promptForInstallChoice).not.toHaveBeenCalled();
+    expect(deps.installUpdate).not.toHaveBeenCalled();
+    expect(stdout.join('')).toContain('Detected install source: GitHub checkout');
+    expect(stdout.join('')).toContain('git -C');
+  });
+
   it('returns a failing exit code when the foreground install fails', async () => {
     const { stderr, writable } = captureOutput();
     const deps = createDeps({
@@ -205,7 +265,7 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(1);
 
-    expect(deps.detectInstallSource).not.toHaveBeenCalled();
+    expect(deps.detectInstallSource).toHaveBeenCalledTimes(1);
     expect(deps.installUpdate).not.toHaveBeenCalled();
     expect(deps.track).toHaveBeenCalledWith('upgrade_command_failed', expect.objectContaining({
       current_version: '0.4.0',

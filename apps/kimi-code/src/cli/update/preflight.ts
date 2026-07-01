@@ -11,6 +11,12 @@ import {
 import { loadTuiConfig } from '#/tui/config';
 
 import { readUpdateCache } from './cache';
+import {
+  detectSuperKimiGithubCheckout,
+  gitCheckoutUpdateCommand,
+  gitCheckoutUpdateScript,
+  refreshGitCheckoutUpdateTarget,
+} from './git-checkout';
 import { tryAcquireUpdateInstallLock } from './install-lock';
 import { emptyUpdateInstallState, readUpdateInstallState, writeUpdateInstallState } from './install-state';
 import {
@@ -80,6 +86,8 @@ export function installCommandFor(
       return `bun add -g ${NPM_PACKAGE_NAME}@${version}`;
     case 'homebrew':
       return 'brew upgrade kimi-code';
+    case 'github-checkout':
+      return gitCheckoutUpdateCommand();
     case 'native':
       return platform === 'win32' ? NATIVE_INSTALL_COMMAND_WIN : NATIVE_INSTALL_COMMAND_UNIX;
     case 'unsupported':
@@ -98,6 +106,8 @@ export function canAutoInstall(source: InstallSource, platform: NodeJS.Platform)
       // Homebrew upgrade may mutate other dependents and the formula can lag
       // behind the CDN release — prompt the user to run `brew upgrade` manually.
       return false;
+    case 'github-checkout':
+      return platform !== 'win32';
     case 'native':
       return platform !== 'win32';
     case 'unsupported':
@@ -126,6 +136,8 @@ export function spawnForSource(
       return { cmd: bunCommand(platform), args: ['add', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
     case 'homebrew':
       return { cmd: 'brew', args: ['upgrade', 'kimi-code'] };
+    case 'github-checkout':
+      return { cmd: 'bash', args: ['-lc', gitCheckoutUpdateScript()] };
     case 'native':
       // `curl … | bash` reports only the trailing bash's exit status, so a
       // failed download (curl can't connect → empty stdin → bash exits 0)
@@ -159,6 +171,9 @@ export function renderManualUpdateMessage(
     case 'homebrew':
       sourceDesc = 'homebrew';
       break;
+    case 'github-checkout':
+      sourceDesc = 'GitHub checkout';
+      break;
     case 'native':
       sourceDesc = 'native (windows). Auto-update is not supported on this platform.';
       break;
@@ -178,7 +193,14 @@ export function renderInstallSuccessMessage(target: UpdateTarget): string {
   return `Updated ${NPM_PACKAGE_NAME} to ${target.version}. Restart the CLI to use the new version.\n`;
 }
 
-function renderBackgroundInstallSuccessNotice(version: string): string {
+function renderGithubCheckoutInstallSuccessMessage(target: UpdateTarget): string {
+  return `Updated ${PRODUCT_NAME} from GitHub (${target.version}). Restart the CLI to use the new build.\n`;
+}
+
+function renderBackgroundInstallSuccessNotice(version: string, source?: InstallSource): string {
+  if (source === 'github-checkout') {
+    return `${PRODUCT_NAME} updated from GitHub (${version})\n`;
+  }
   const displayVersion = version.startsWith('v') ? version : `v${version}`;
   return `${PRODUCT_NAME} updated to ${displayVersion}\nChangelog: ${CHANGELOG_URL}\n`;
 }
@@ -348,10 +370,14 @@ async function showPendingBackgroundInstallNotice(
   logger: UpdateLogger,
 ): Promise<UpdateInstallState> {
   const success = state.lastSuccess;
-  if (success !== null && success.notifiedAt === null && success.version === currentVersion) {
-    stdout.write(renderBackgroundInstallSuccessNotice(success.version));
+  const shouldShowSuccessNotice = success !== null
+    && success.notifiedAt === null
+    && (success.version === currentVersion || success.source === 'github-checkout');
+  if (shouldShowSuccessNotice) {
+    stdout.write(renderBackgroundInstallSuccessNotice(success.version, success.source));
     trackUpdateEvent(track, 'update_success_notice_shown', {
       version: success.version,
+      source: success.source,
       inferred_from_active: false,
     });
     logUpdateInfo(logger, 'background update success notice shown', {
@@ -378,9 +404,10 @@ async function showPendingBackgroundInstallNotice(
   }
 
   const notifiedAt = nowIso();
-  stdout.write(renderBackgroundInstallSuccessNotice(active.version));
+  stdout.write(renderBackgroundInstallSuccessNotice(active.version, active.source));
   trackUpdateEvent(track, 'update_success_notice_shown', {
     version: active.version,
+    source: active.source,
     inferred_from_active: true,
   });
   logUpdateInfo(logger, 'background update success notice shown', {
@@ -393,6 +420,7 @@ async function showPendingBackgroundInstallNotice(
     lastFailure: null,
     lastSuccess: {
       version: active.version,
+      source: active.source,
       installedAt: notifiedAt,
       notifiedAt,
     },
@@ -560,6 +588,7 @@ async function startBackgroundInstall(
           lastFailure: null,
           lastSuccess: {
             version: target.version,
+            source,
             installedAt: nowIso(),
             notifiedAt: null,
           },
@@ -676,6 +705,53 @@ export async function runUpdatePreflight(
       );
     }
 
+    const githubCheckoutRoot =
+      isInteractive ? await detectSuperKimiGithubCheckout().catch(() => null) : null;
+    if (githubCheckoutRoot !== null) {
+      const source: InstallSource = 'github-checkout';
+      const target = await refreshGitCheckoutUpdateTarget(githubCheckoutRoot).catch(() => null);
+      if (target === null) return 'continue';
+      const rolloutTelemetry = {
+        rollout_bucket: 0,
+        rollout_delay_seconds: 0,
+        rollout_from_manifest: false,
+        rollout_bypassed: true,
+      };
+      const decision = decideUpdateAction(target, isInteractive, source, platform);
+      if (
+        await tryStartAutomaticBackgroundInstall(
+          installState,
+          currentVersion,
+          target,
+          source,
+          platform,
+          options.track,
+          logger,
+          rolloutTelemetry,
+        )
+      ) {
+        return 'continue';
+      }
+      const installCommand = installCommandFor(source, target.version, platform);
+      trackUpdatePrompted(options.track, currentVersion, target, source, decision, rolloutTelemetry);
+      if (decision === 'manual-command') {
+        stdout.write(renderManualUpdateMessage(currentVersion, target, source, installCommand));
+        return 'continue';
+      }
+      const choice = await promptInstall(currentVersion, target, source, installCommand);
+      if (choice === 'skip') return 'continue';
+      try {
+        await installUpdate(source, target.version, platform);
+        stdout.write(renderGithubCheckoutInstallSuccessMessage(target));
+        return 'exit';
+      } catch (error) {
+        stderr.write(
+          `warning: failed to update ${PRODUCT_NAME} from GitHub: ${formatErrorMessage(error)}\n`,
+        );
+        return 'continue';
+      }
+    }
+
     const cache = await readUpdateCache().catch(() => null);
     const cachedManifest = cache?.manifest ?? null;
     const cachedDecision = decidePassiveUpdateTarget(
@@ -703,10 +779,9 @@ export async function runUpdatePreflight(
     }
 
     const source: InstallSource =
-      !isInteractive
-        ? 'unsupported'
-        : await detectInstallSource().catch(() => 'unsupported' as const);
-
+      isInteractive
+        ? await detectInstallSource().catch(() => 'unsupported' as const)
+        : 'unsupported';
     const decision = decideUpdateAction(target, isInteractive, source, platform);
     if (decision === 'none') {
       refreshInBackground();

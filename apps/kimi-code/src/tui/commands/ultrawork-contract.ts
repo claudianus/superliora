@@ -83,6 +83,14 @@ const ULTRAWORK_KNOWLEDGE_MAP_GUIDANCE = [
   '- Label important relationships as EXTRACTED, INFERRED, or AMBIGUOUS, and resolve AMBIGUOUS edges with targeted reads, tests, or TUI observation before making architectural claims.',
   '- Prefer path/affected-style questions first: what files, tests, tools, and UX surfaces are connected to this change, and what minimal evidence proves those edges?',
 ].join('\n');
+const ULTRAWORK_MEMORY_WIKI_LEDGER_GUIDANCE = [
+  'Memory / LLM Wiki observability:',
+  '- Do not silently claim Learn, Kimi Recall, durable memory, Knowledge Map, or LLM Wiki work. Every Ultrawork final report must include a `Knowledge persistence ledger`.',
+  '- The ledger must include one row or bullet for `kimi_recall` and one for `llm_wiki`, each with action `wrote`, `skipped`, or `blocked`, plus the reason and path/id/evidence when available.',
+  '- If durable knowledge is worth saving and the relevant tool or writable project-local documentation path is available, persist the concise verified finding or decision; otherwise mark the target `blocked` with the concrete missing capability.',
+  '- If no durable project knowledge should be saved, mark the target `skipped` and state why, for example `transient implementation detail` or `no verified reusable finding`.',
+  '- For generated standalone projects or visible deliverables, prefer a small project-local evidence or run note when the workspace has an appropriate docs/evidence location; never hide the only proof inside chat.',
+].join('\n');
 const ULTRAWORK_WEB_RESEARCH_GUIDANCE = [
   'UltraResearch / Kimi Free Web Research:',
   '- Treat no-subscription web research as a primary Ultrawork capability for current libraries, APIs, model releases, benchmarks, security, architecture, and debugging work.',
@@ -255,6 +263,7 @@ export function buildUltraworkPrompt(
       : []),
     `- ${ULTRAWORK_LEAN_CONTEXT_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_KNOWLEDGE_MAP_GUIDANCE.replaceAll('\n', '\n  ')}`,
+    `- ${ULTRAWORK_MEMORY_WIKI_LEDGER_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_WEB_RESEARCH_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_BENCH_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_EXPERT_COVERAGE_GUIDANCE.replaceAll('\n', '\n  ')}`,

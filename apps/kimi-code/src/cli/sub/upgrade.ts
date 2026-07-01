@@ -12,6 +12,7 @@ import {
   renderInstallSuccessMessage,
   renderManualUpdateMessage,
 } from '#/cli/update/preflight';
+import { refreshGitCheckoutUpdateTarget } from '#/cli/update/git-checkout';
 import {
   promptForInstallChoice,
   type InstallPromptChoiceValue,
@@ -33,6 +34,7 @@ type UpgradeLogger = Pick<Logger, 'info' | 'warn'>;
 export interface UpgradeDeps {
   readonly refreshUpdateCache: () => Promise<UpdateCache>;
   readonly detectInstallSource: () => Promise<InstallSource>;
+  readonly refreshGitCheckoutUpdateTarget: () => Promise<{ readonly version: string } | null>;
   readonly installUpdate: (
     source: InstallSource,
     version: string,
@@ -54,6 +56,10 @@ export async function handleUpgrade(
   overrides: Partial<UpgradeDeps> = {},
 ): Promise<number> {
   const deps = createDefaultUpgradeDeps(overrides);
+  const source = await deps.detectInstallSource().catch(() => 'unsupported' as const);
+  if (source === 'github-checkout') {
+    return handleGithubCheckoutUpgrade(currentVersion, deps, source);
+  }
 
   let cache: UpdateCache;
   try {
@@ -85,7 +91,6 @@ export async function handleUpgrade(
     return 0;
   }
 
-  const source = await deps.detectInstallSource().catch(() => 'unsupported' as const);
   const installCommand = installCommandFor(source, target.version, deps.platform);
   if (!canAutoInstall(source, deps.platform) || !deps.isInteractive) {
     trackUpgradeEvent(deps.track, 'upgrade_command_manual_command', {
@@ -173,10 +178,125 @@ export async function handleUpgrade(
   }
 }
 
+async function handleGithubCheckoutUpgrade(
+  currentVersion: string,
+  deps: UpgradeDeps,
+  source: InstallSource,
+): Promise<number> {
+  let target: { readonly version: string } | null;
+  try {
+    target = await deps.refreshGitCheckoutUpdateTarget();
+  } catch (error) {
+    const reason = formatErrorMessage(error);
+    trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
+      current_version: currentVersion,
+      source,
+      stage: 'refresh',
+      reason,
+    });
+    logUpgradeWarn(deps.logger, 'manual git checkout upgrade check failed', {
+      currentVersion,
+      error,
+    });
+    deps.stderr.write(`error: failed to check the GitHub checkout for updates: ${reason}\n`);
+    return 1;
+  }
+
+  if (target === null) {
+    trackUpgradeEvent(deps.track, 'upgrade_command_no_update', {
+      current_version: currentVersion,
+      source,
+    });
+    logUpgradeInfo(deps.logger, 'manual git checkout upgrade no update', {
+      currentVersion,
+      source,
+    });
+    deps.stdout.write(`${PRODUCT_NAME} GitHub checkout is already up to date.\n`);
+    return 0;
+  }
+
+  const installCommand = installCommandFor(source, target.version, deps.platform);
+  if (!canAutoInstall(source, deps.platform) || !deps.isInteractive) {
+    trackUpgradeEvent(deps.track, 'upgrade_command_manual_command', {
+      current_version: currentVersion,
+      target_version: target.version,
+      source,
+    });
+    logUpgradeInfo(deps.logger, 'manual git checkout upgrade command shown', {
+      currentVersion,
+      targetVersion: target.version,
+      source,
+    });
+    deps.stdout.write(renderManualUpdateMessage(currentVersion, target, source, installCommand));
+    return 0;
+  }
+
+  trackUpgradeEvent(deps.track, 'upgrade_command_prompted', {
+    current_version: currentVersion,
+    target_version: target.version,
+    source,
+  });
+  const choice = await deps.promptForInstallChoice({
+    currentVersion,
+    target,
+    installCommand,
+    installSource: source,
+  });
+  if (choice === 'skip') {
+    trackUpgradeEvent(deps.track, 'upgrade_command_skipped', {
+      current_version: currentVersion,
+      target_version: target.version,
+      source,
+    });
+    return 0;
+  }
+
+  try {
+    trackUpgradeEvent(deps.track, 'upgrade_command_install_selected', {
+      current_version: currentVersion,
+      target_version: target.version,
+      source,
+    });
+    await deps.installUpdate(source, target.version, deps.platform);
+    trackUpgradeEvent(deps.track, 'upgrade_command_succeeded', {
+      current_version: currentVersion,
+      target_version: target.version,
+      source,
+    });
+    logUpgradeInfo(deps.logger, 'manual git checkout upgrade install succeeded', {
+      currentVersion,
+      targetVersion: target.version,
+      source,
+    });
+    deps.stdout.write(`Updated ${PRODUCT_NAME} from GitHub (${target.version}). Restart the CLI to use the new build.\n`);
+    return 0;
+  } catch (error) {
+    trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
+      current_version: currentVersion,
+      target_version: target.version,
+      source,
+      stage: 'install',
+      reason: formatErrorMessage(error),
+    });
+    logUpgradeWarn(deps.logger, 'manual git checkout upgrade install failed', {
+      currentVersion,
+      targetVersion: target.version,
+      source,
+      error,
+    });
+    deps.stderr.write(
+      `warning: failed to update ${PRODUCT_NAME} from GitHub: ${formatErrorMessage(error)}\n`,
+    );
+    return 1;
+  }
+}
+
 function createDefaultUpgradeDeps(overrides: Partial<UpgradeDeps>): UpgradeDeps {
   return {
     refreshUpdateCache: overrides.refreshUpdateCache ?? (() => refreshUpdateCache()),
     detectInstallSource: overrides.detectInstallSource ?? (() => detectInstallSource()),
+    refreshGitCheckoutUpdateTarget:
+      overrides.refreshGitCheckoutUpdateTarget ?? (() => refreshGitCheckoutUpdateTarget()),
     installUpdate: overrides.installUpdate ?? installUpdateForeground,
     promptForInstallChoice: overrides.promptForInstallChoice ?? promptForInstallChoice,
     platform: overrides.platform ?? process.platform,
