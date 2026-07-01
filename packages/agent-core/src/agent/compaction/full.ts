@@ -515,8 +515,10 @@ export class FullCompaction {
 
       summary = this.renderStructuredV2Summary(summary, plan);
 
-      const recent = originalHistory.slice(compactedCount);
-      const tokensAfter = estimateTokens(summary) + estimateTokensForMessages(recent);
+      const summaryTokens = estimateTokensForMessages([compactionSummaryMessage(summary)]);
+      const retained = this.agent.context.history.slice(compactedCount);
+      const retainedTokens = estimateTokensForMessages(retained);
+      const tokensAfter = summaryTokens + retainedTokens;
 
       const result: CompactionResult = {
         summary,
@@ -527,8 +529,8 @@ export class FullCompaction {
       result.algorithmVersion = plan.algorithmVersion;
       result.actions = plan.actions;
       result.rawRefs = plan.rawRefs;
-      result.summaryTokens = estimateTokens(summary);
-      result.retainedTokens = plan.retainedTokens;
+      result.summaryTokens = summaryTokens;
+      result.retainedTokens = retainedTokens;
       result.compactedTokens = plan.compactedTokens;
       result.qualityWarnings = plan.qualityWarnings;
 
@@ -762,6 +764,14 @@ function mergeTokenUsage(current: TokenUsage | null, next: TokenUsage): TokenUsa
     output: current.output + next.output,
     inputCacheRead: current.inputCacheRead + next.inputCacheRead,
     inputCacheCreation: current.inputCacheCreation + next.inputCacheCreation,
+  };
+}
+
+function compactionSummaryMessage(summary: string): Message {
+  return {
+    role: 'assistant',
+    content: [{ type: 'text', text: summary }],
+    toolCalls: [],
   };
 }
 
