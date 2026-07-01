@@ -107,11 +107,13 @@ export class ProviderManager implements ModelProvider {
     const provider = toKosongProviderConfig(
       providerConfig,
       alias.model,
+      alias.protocol,
       this.options.kimiRequestHeaders,
       alias.maxOutputSize,
       alias.reasoningKey,
       this.options.promptCacheKey,
       alias.adaptiveThinking,
+      alias.betaApi,
     );
 
     return {
@@ -219,23 +221,41 @@ function resolveModelCapabilities(
 function toKosongProviderConfig(
   provider: ProviderConfig,
   model: string,
+  modelProtocol: ModelAlias['protocol'],
   kimiRequestHeaders: Record<string, string> | undefined,
   maxOutputSize: number | undefined,
   reasoningKey: string | undefined,
   promptCacheKey: string | undefined,
   adaptiveThinking: boolean | undefined,
+  betaApi: boolean | undefined,
 ): KosongProviderConfig {
-  switch (provider.type) {
-    case 'anthropic':
+  const effectiveType = modelProtocol === 'anthropic' ? 'anthropic' : provider.type;
+  switch (effectiveType) {
+    case 'anthropic': {
+      const baseUrl = providerValue(
+        provider.baseUrl,
+        provider.env,
+        provider.type === 'kimi' ? 'KIMI_BASE_URL' : 'ANTHROPIC_BASE_URL',
+      );
       return {
         type: 'anthropic',
         model,
-        baseUrl: providerValue(provider.baseUrl, provider.env, 'ANTHROPIC_BASE_URL'),
+        baseUrl:
+          modelProtocol === 'anthropic' && baseUrl !== undefined
+            ? baseUrl.replace(/\/v1\/?$/, '')
+            : baseUrl,
         apiKey: providerApiKey(provider),
         ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
         ...(adaptiveThinking !== undefined ? { adaptiveThinking } : {}),
-        ...defaultHeadersField(provider.customHeaders),
+        ...(betaApi !== undefined ? { betaApi } : {}),
+        ...(promptCacheKey !== undefined ? { metadata: { user_id: promptCacheKey } } : {}),
+        ...defaultHeadersField(
+          provider.type === 'kimi' && modelProtocol === 'anthropic'
+            ? { ...kimiRequestHeaders, ...provider.customHeaders }
+            : provider.customHeaders,
+        ),
       };
+    }
     case 'openai':
       return {
         type: 'openai',
@@ -280,7 +300,7 @@ function toKosongProviderConfig(
       };
     }
     default: {
-      const exhaustive: never = provider.type;
+      const exhaustive: never = effectiveType;
       throw new KimiError(
         ErrorCodes.MODEL_CONFIG_INVALID,
         `Unsupported provider type: ${String(exhaustive)}`,

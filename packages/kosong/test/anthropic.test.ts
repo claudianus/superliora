@@ -2218,6 +2218,40 @@ describe('AnthropicChatProvider', () => {
       const params = createFn.mock.calls[0]![0] as Record<string, unknown>;
       expect(params['stream']).toBe(false);
     });
+
+    it('betaApi calls beta.messages.create and passes betas in the body', async () => {
+      const provider = new AnthropicChatProvider({
+        model: 'k25',
+        apiKey: 'test-key',
+        defaultMaxTokens: 1024,
+        betaApi: true,
+        betaFeatures: ['interleaved-thinking-2025-05-14'],
+        stream: false,
+      });
+      const standardCreate = vi.fn();
+      const betaCreate = vi.fn().mockResolvedValue(makeAnthropicResponse());
+      (provider as any)._client.messages.create = standardCreate as never;
+      (provider as any)._client.beta = {
+        messages: { create: betaCreate },
+      };
+
+      const result = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] }],
+      );
+      await collectParts(result);
+
+      expect(standardCreate).not.toHaveBeenCalled();
+      expect(betaCreate).toHaveBeenCalledTimes(1);
+      const params = betaCreate.mock.calls[0]?.[0] as Record<string, unknown>;
+      const options = betaCreate.mock.calls[0]?.[1] as
+        | { headers?: Record<string, string> }
+        | undefined;
+      expect(params['stream']).toBe(false);
+      expect(params['betas']).toEqual(['interleaved-thinking-2025-05-14']);
+      expect(options?.headers?.['anthropic-beta']).toBeUndefined();
+    });
   });
 
   describe('modelParameters getter', () => {

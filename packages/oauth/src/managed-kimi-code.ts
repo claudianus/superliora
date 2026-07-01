@@ -11,6 +11,12 @@ export const KIMI_CODE_PROVIDER_NAME = 'managed:kimi-code';
 export const KIMI_CODE_OAUTH_KEY = 'oauth/kimi-code';
 const KIMI_CODE_SCOPED_OAUTH_KEY_PREFIX = 'oauth/kimi-code-env-';
 
+export type ManagedKimiCodeProtocol = 'anthropic';
+
+export function parseModelProtocol(value: unknown): ManagedKimiCodeProtocol | undefined {
+  return value === 'anthropic' ? value : undefined;
+}
+
 /**
  * Server-declared thinking toggle support from `/models`:
  *  - 'only' — thinking cannot be turned off (always-thinking)
@@ -29,6 +35,7 @@ export interface ManagedKimiCodeModelInfo {
   readonly supportsToolUse?: boolean;
   readonly supportsThinkingType?: SupportsThinkingType;
   readonly displayName?: string | undefined;
+  readonly protocol?: ManagedKimiCodeProtocol | undefined;
 }
 
 export interface ManagedKimiCodeProvisionResult {
@@ -119,6 +126,9 @@ export interface ManagedKimiModelAlias {
   maxContextSize: number;
   capabilities?: string[] | undefined;
   displayName?: string | undefined;
+  protocol?: ManagedKimiCodeProtocol | undefined;
+  betaApi?: boolean | undefined;
+  adaptiveThinking?: boolean | undefined;
   readonly [key: string]: unknown;
 }
 
@@ -384,6 +394,7 @@ function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
     supportsToolUse,
     supportsThinkingType: parseSupportsThinkingType(item['supports_thinking_type']),
     displayName: normalizedDisplayName,
+    protocol: parseModelProtocol(item['protocol']),
   };
 }
 
@@ -473,6 +484,10 @@ export function applyManagedKimiCodeConfig(
   }
   for (const model of options.models) {
     const capabilities = capabilitiesForModel(model);
+    const supportsAdaptiveThinking =
+      model.protocol === 'anthropic' &&
+      (capabilities?.includes('thinking') === true ||
+        capabilities?.includes('always_thinking') === true);
     const key = managedModelKey(model.id);
     const existing = isRecord(existingModels[key]) ? existingModels[key] : {};
     existingModels[key] = {
@@ -482,6 +497,9 @@ export function applyManagedKimiCodeConfig(
       maxContextSize: model.contextLength,
       capabilities,
       ...(model.displayName !== undefined ? { displayName: model.displayName } : {}),
+      protocol: model.protocol,
+      betaApi: model.protocol === 'anthropic' ? true : undefined,
+      adaptiveThinking: supportsAdaptiveThinking ? true : undefined,
     };
   }
 

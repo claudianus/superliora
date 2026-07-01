@@ -360,6 +360,39 @@ describe('resolveRuntimeProvider maxOutputSize forwarding', () => {
 
     expect('adaptiveThinking' in resolved.provider).toBe(false);
   });
+
+  it('routes Kimi aliases with anthropic protocol through the Anthropic provider', () => {
+    const resolved = resolveRuntimeProvider({
+      config: {
+        ...BASE_CONFIG,
+        models: {
+          'kimi-code/kimi-for-coding': {
+            provider: 'managed:kimi-code',
+            model: 'kimi-for-coding',
+            maxContextSize: 1_000_000,
+            capabilities: ['thinking', 'tool_use'],
+            protocol: 'anthropic',
+            betaApi: true,
+            adaptiveThinking: true,
+          },
+        },
+      },
+      kimiRequestHeaders: TEST_KIMI_HEADERS,
+      promptCacheKey: 'session-test',
+    });
+
+    expect(resolved.providerName).toBe('managed:kimi-code');
+    expect(resolved.provider).toMatchObject({
+      type: 'anthropic',
+      model: 'kimi-for-coding',
+      baseUrl: 'https://api.example',
+      apiKey: 'test-key',
+      betaApi: true,
+      adaptiveThinking: true,
+      metadata: { user_id: 'session-test' },
+      defaultHeaders: TEST_KIMI_HEADERS,
+    });
+  });
 });
 
 describe('resolveRuntimeProvider Kimi request headers', () => {

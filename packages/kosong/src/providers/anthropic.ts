@@ -92,6 +92,11 @@ export interface AnthropicOptions {
    * encode a parseable Claude version. Leave undefined to infer from the name.
    */
   adaptiveThinking?: boolean | undefined;
+  /**
+   * Use the Anthropic beta Messages API namespace. Beta features are sent via
+   * the request `betas` field in this mode, not the `anthropic-beta` header.
+   */
+  betaApi?: boolean | undefined;
   clientFactory?: (auth: ProviderRequestAuth) => Anthropic;
 }
 
@@ -862,6 +867,7 @@ export class AnthropicChatProvider implements ChatProvider {
   private _defaultHeaders: Record<string, string | null> | undefined;
   private _clientFactory: ((auth: ProviderRequestAuth) => Anthropic) | undefined;
   private _adaptiveThinking: boolean | undefined;
+  private _betaApi: boolean;
   private _explicitMaxTokens: boolean;
 
   constructor(options: AnthropicOptions) {
@@ -869,6 +875,7 @@ export class AnthropicChatProvider implements ChatProvider {
     this._stream = options.stream ?? true;
     this._metadata = options.metadata;
     this._adaptiveThinking = options.adaptiveThinking;
+    this._betaApi = options.betaApi ?? false;
     this._apiKey =
       options.apiKey === undefined || options.apiKey.length === 0 ? undefined : options.apiKey;
     this._baseUrl = options.baseUrl;
@@ -996,7 +1003,7 @@ export class AnthropicChatProvider implements ChatProvider {
     // Build beta headers
     const betas = this._generationKwargs.betaFeatures ?? [];
     const extraHeaders: Record<string, string> = {};
-    if (betas.length > 0) {
+    if (!this._betaApi && betas.length > 0) {
       extraHeaders['anthropic-beta'] = betas.join(',');
     }
 
@@ -1028,6 +1035,10 @@ export class AnthropicChatProvider implements ChatProvider {
       createParams['metadata'] = this._metadata;
     }
 
+    if (this._betaApi && betas.length > 0) {
+      createParams['betas'] = betas;
+    }
+
     const requestOptions: Record<string, unknown> = {};
     const headers = mergeRequestHeaders(extraHeaders, options?.auth?.headers);
     if (headers !== undefined) {
@@ -1045,10 +1056,15 @@ export class AnthropicChatProvider implements ChatProvider {
       // The helper reparses accumulated input_json_delta buffers on every chunk,
       // which becomes synchronous O(n^2) work for large streamed tool arguments.
       try {
-        const stream = await client.messages.create(
-          { ...createParams, stream: true } as unknown as MessageCreateParamsStreaming,
-          finalRequestOptions,
-        );
+        const stream = this._betaApi
+          ? await client.beta.messages.create(
+              { ...createParams, stream: true } as unknown as MessageCreateParamsStreaming,
+              finalRequestOptions,
+            )
+          : await client.messages.create(
+              { ...createParams, stream: true } as unknown as MessageCreateParamsStreaming,
+              finalRequestOptions,
+            );
         return new AnthropicStreamedMessage(stream, true);
       } catch (error: unknown) {
         throw convertAnthropicError(error);
@@ -1057,10 +1073,15 @@ export class AnthropicChatProvider implements ChatProvider {
 
     // Non-streaming fallback
     try {
-      const response = await client.messages.create(
-        { ...createParams, stream: false } as unknown as MessageCreateParams,
-        finalRequestOptions,
-      );
+      const response = this._betaApi
+        ? await client.beta.messages.create(
+            { ...createParams, stream: false } as unknown as MessageCreateParams,
+            finalRequestOptions,
+          )
+        : await client.messages.create(
+            { ...createParams, stream: false } as unknown as MessageCreateParams,
+            finalRequestOptions,
+          );
       return new AnthropicStreamedMessage(response, false);
     } catch (error: unknown) {
       throw convertAnthropicError(error);

@@ -13,6 +13,7 @@ import {
   resolveKimiCodeOAuthKey,
   resolveKimiCodeOAuthRef,
   resolveKimiCodeRuntimeAuth,
+  type ManagedKimiCodeModelInfo,
   type ManagedKimiConfigShape,
 } from '../src/managed-kimi-code';
 import { OAuthUnauthorizedError } from '../src/errors';
@@ -1111,5 +1112,80 @@ describe('supports_thinking_type', () => {
     expect(result.defaultModel).toBe('custom-default');
     expect(result.defaultThinking).toBe(false);
     expect(config.defaultThinking).toBe(false);
+  });
+});
+
+function makeModelInfo(
+  id: string,
+  overrides: Partial<ManagedKimiCodeModelInfo> = {},
+): ManagedKimiCodeModelInfo {
+  return {
+    id,
+    contextLength: 200000,
+    supportsReasoning: false,
+    supportsImageIn: false,
+    supportsVideoIn: false,
+    ...overrides,
+  };
+}
+
+describe('managed Kimi Code protocol routing', () => {
+  it('reads anthropic protocol from the models response', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [{ id: 'kimi-for-coding', context_length: 262144, protocol: 'anthropic' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    ) as unknown as typeof fetch;
+
+    const models = await fetchManagedKimiCodeModels({ accessToken: 'token', fetchImpl });
+
+    expect(models[0]?.protocol).toBe('anthropic');
+  });
+
+  it('stores anthropic protocol aliases with beta API routing', () => {
+    const config: ManagedKimiConfigShape = { providers: {} };
+
+    applyManagedKimiCodeConfig(config, {
+      baseUrl: 'https://api.example.test/coding/v1',
+      models: [
+        makeModelInfo('kimi-for-coding', {
+          protocol: 'anthropic',
+          supportsReasoning: true,
+          supportsThinkingType: 'both',
+        }),
+      ],
+    });
+
+    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+      type: 'kimi',
+      baseUrl: 'https://api.example.test/coding/v1',
+    });
+    expect(config.models?.['kimi-code/kimi-for-coding']).toMatchObject({
+      provider: KIMI_CODE_PROVIDER_NAME,
+      protocol: 'anthropic',
+      betaApi: true,
+      adaptiveThinking: true,
+    });
+  });
+
+  it('drops protocol-specific fields when the server stops declaring anthropic', () => {
+    const config: ManagedKimiConfigShape = { providers: {} };
+
+    applyManagedKimiCodeConfig(config, {
+      models: [makeModelInfo('kimi-for-coding', { protocol: 'anthropic' })],
+    });
+    expect(config.models?.['kimi-code/kimi-for-coding']?.protocol).toBe('anthropic');
+
+    applyManagedKimiCodeConfig(config, {
+      models: [makeModelInfo('kimi-for-coding')],
+    });
+
+    expect(config.models?.['kimi-code/kimi-for-coding']?.protocol).toBeUndefined();
+    expect(config.models?.['kimi-code/kimi-for-coding']?.betaApi).toBeUndefined();
+    expect(config.models?.['kimi-code/kimi-for-coding']?.adaptiveThinking).toBeUndefined();
   });
 });
