@@ -15,7 +15,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
 
     // Ultra Plan Mode: phase-aware tool restrictions
     if (isUltraMode) {
-      const phaseResult = this.evaluateUltraPhase(toolName, phase);
+      const phaseResult = this.evaluateUltraPhase(context, phase);
       if (phaseResult !== undefined) return phaseResult;
     }
 
@@ -56,7 +56,11 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
     return;
   }
 
-  private evaluateUltraPhase(toolName: string, phase: string): PermissionPolicyResult | undefined {
+  private evaluateUltraPhase(
+    context: PermissionPolicyContext,
+    phase: string,
+  ): PermissionPolicyResult | undefined {
+    const toolName = context.toolCall.name;
     switch (phase) {
       case 'interview': {
         if (toolName === 'AskUserQuestion') {
@@ -100,6 +104,14 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
       case 'review': {
         const reviewAllowed = ['Read', 'Grep', 'Glob', 'NextPhase'];
         if (reviewAllowed.includes(toolName)) return;
+        if (toolName === 'Bash') {
+          if (isReadOnlyReviewBash(context)) return;
+          return {
+            kind: 'deny',
+            message:
+              'Bash is blocked in Review phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use Read, Grep, Glob, or NextPhase when ready.',
+          };
+        }
         if (toolName === 'ExitPlanMode') {
           return {
             kind: 'deny',
@@ -108,7 +120,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Review phase. Only Read, Grep, and Glob are allowed. Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Review phase. Only Read, Grep, Glob, read-only Bash workspace inspection, and NextPhase are allowed. Use NextPhase to advance when ready.`,
         };
       }
       case 'write': {
@@ -158,4 +170,30 @@ function planModeWriteDeniedMessage(planFilePath: string | null): string {
     `Plan mode is active. You may only write to the current plan file: ${planFilePath ?? '(no plan file selected yet)'}. ` +
     'Call ExitPlanMode to exit plan mode before editing other files.'
   );
+}
+
+function isReadOnlyReviewBash(context: PermissionPolicyContext): boolean {
+  const command = bashCommand(context)?.trim();
+  if (command === undefined || command.length === 0) return false;
+  if (hasShellControlSyntax(command)) return false;
+
+  return (
+    command === 'pwd' ||
+    /^ls(?:\s+.+)?$/.test(command) ||
+    /^git\s+status(?:\s+(?:--short|--porcelain|--branch|--untracked-files(?:=\S+)?|-s|-sb|-uno))*$/.test(command) ||
+    /^git\s+diff(?:\s+--(?:stat|name-only|check))*$/.test(command) ||
+    /^git\s+branch\s+--show-current$/.test(command) ||
+    /^git\s+rev-parse\s+--(?:show-toplevel|show-prefix)$/.test(command)
+  );
+}
+
+function bashCommand(context: PermissionPolicyContext): string | undefined {
+  const args = context.args;
+  if (args === null || typeof args !== 'object') return undefined;
+  const command = (args as { command?: unknown }).command;
+  return typeof command === 'string' ? command : undefined;
+}
+
+function hasShellControlSyntax(command: string): boolean {
+  return /[\n\r;&|<>`]/.test(command) || command.includes('$(');
 }

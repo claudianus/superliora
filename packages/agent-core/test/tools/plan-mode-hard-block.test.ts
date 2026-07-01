@@ -339,6 +339,34 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'NextPhase', { phase: nextPhase })).toBeUndefined();
   });
 
+  it.each([
+    'pwd',
+    'ls -la /Users/modumaru/Desktop/code/test',
+    'git status --short --branch',
+    'git diff --stat',
+    'git diff --name-only',
+    'git diff --check',
+  ])('allows read-only Bash inspection in Ultra Plan review: %s', async (command) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('review');
+
+    expect(evaluatePlanPolicy(agent, 'Bash', { command })).toBeUndefined();
+  });
+
+  it.each([
+    'node scripts/build.js',
+    'touch generated.txt',
+    'ls -la /tmp && rm -rf /tmp/generated',
+    'git diff --output=/tmp/diff.txt',
+  ])('blocks non-inspection Bash in Ultra Plan review: %s', async (command) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('review');
+
+    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
+
+    expect(deny.message ?? '').toContain('read-only workspace inspection');
+  });
+
   it('allows Ultra Plan exit phase to repair only the plan file', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('exit');

@@ -150,6 +150,8 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain("call NextPhase({ phase: 'write' })");
+    expect(text).toContain('narrow read-only Bash inspection');
+    expect(text).toContain('pwd, ls, git status, git diff --stat/name-only/check');
   });
 });
 

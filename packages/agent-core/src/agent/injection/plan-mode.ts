@@ -242,13 +242,14 @@ You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-You are in the Review Phase. Read-only tools only (Read, Grep, Glob).
-Write, Edit, and Bash are BLOCKED.
+You are in the Review Phase. Read-only tools only (Read, Grep, Glob, and narrow read-only Bash inspection).
+Write, Edit, and general Bash execution are BLOCKED.
 
 Goal: Re-read key files to verify your understanding before writing the plan.
 - Verify your design assumptions against actual code
 - Check edge cases and failure modes
 - Confirm file paths and dependencies
+- You may use Bash only for simple read-only workspace inspection: pwd, ls, git status, git diff --stat/name-only/check
 
 You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
@@ -284,14 +285,14 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
 
   const interviewState = agent?.planMode.ultraEngine.interviewState;
   const score = interviewState?.ambiguityScore;
-  body = body.replace(/{{round}}/g, String(interviewState?.rounds.length ?? 0));
-  body = body.replace(
+  body = body.replaceAll(/{{round}}/g, String(interviewState?.rounds.length ?? 0));
+  body = body.replaceAll(
     /{{ambiguityScore}}/g,
     score === undefined || score === null ? 'scoring pending' : score.overallScore.toFixed(2),
   );
-  body = body.replace(/{{milestone}}/g, score?.milestone ?? 'initial');
-  body = body.replace(/{{streak}}/g, String(interviewState?.completionCandidateStreak ?? 0));
-  body = body.replace(/{{nextMilestone}}/g, nextMilestone(score?.milestone));
+  body = body.replaceAll(/{{milestone}}/g, score?.milestone ?? 'initial');
+  body = body.replaceAll(/{{streak}}/g, String(interviewState?.completionCandidateStreak ?? 0));
+  body = body.replaceAll(/{{nextMilestone}}/g, nextMilestone(score?.milestone));
 
   return withPlanFileFooter(body, planFilePath);
 }
