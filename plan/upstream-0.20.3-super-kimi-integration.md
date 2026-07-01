@@ -50,6 +50,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1214` selective: sharpen the compaction handoff prompt so post-compact resumes preserve verified state, exact next actions, and tool-free response constraints.
 - Upstream `#1214` selective: centralize the real-user-prompt policy so memory recall ignores model-triggered internal messages while still honoring user slash commands.
 - Upstream `#1214` selective: keep compaction token accounting derived from the actual post-compaction context shape, including preserved tail messages.
+- Upstream `#1132` selective: resolve generic thinking `on` through each model's declared `default_effort` / `support_efforts` metadata.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -92,6 +93,7 @@ Super Kimi adaptation:
 - Kept Super Kimi's structured memory wrapper and compaction planner, but aligned the raw handoff instruction with upstream's latest first-person continuity contract and verification caution.
 - Kept Super Kimi's structured tail-retention strategy, but adopted upstream's explicit user-origin classification for recall and undo-adjacent behavior so model-triggered skill bodies do not become memory search queries and user plugin slash commands do.
 - Preserved Super Kimi's tail-retaining compaction instead of upstream's all-user rebuild, but now computes `summaryTokens`, `retainedTokens`, and `tokensAfter` from the actual assistant summary message plus the current retained tail so status/readiness cannot undercount context after a concurrent tail append.
+- Kept Super Kimi's existing `/thinking` and model-picker UX while making generic thinking-on requests honor model-declared effort defaults during session creation, runtime model switches, and always-thinking clamps.
 
 ## Next Candidate Queue
 

@@ -42,6 +42,23 @@ describe('resolveThinkingEffort', () => {
       expect(resolveThinkingEffort('on', undefined)).toBe('high');
     });
 
+    it('uses the model default effort when request is "on" and config has no effort', () => {
+      expect(
+        resolveThinkingEffort('on', undefined, {
+          supportEfforts: ['low', 'medium'],
+          defaultEffort: 'low',
+        }),
+      ).toBe('low');
+    });
+
+    it('uses the middle supported effort when request is "on" and the model has no default effort', () => {
+      expect(
+        resolveThinkingEffort('on', undefined, {
+          supportEfforts: ['low', 'medium', 'xhigh'],
+        }),
+      ).toBe('medium');
+    });
+
     it('returns explicit effort level when request is a level name', () => {
       expect(resolveThinkingEffort('xhigh', undefined)).toBe('xhigh');
     });

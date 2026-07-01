@@ -449,7 +449,7 @@ async function performModelSwitch(
       if (alias !== prevModel) {
         await session.setModel(alias);
       }
-      if (thinking !== prevThinking) {
+      if (thinking !== prevThinking || (alias !== prevModel && thinking)) {
         await session.setThinking(level);
       }
     }

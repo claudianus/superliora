@@ -19,6 +19,8 @@ export interface ResolvedRuntimeProvider {
   readonly modelCapabilities: ModelCapability;
   /** Declared 'always_thinking' capability — the model cannot disable thinking. */
   readonly alwaysThinking?: boolean;
+  readonly supportEfforts?: readonly string[];
+  readonly defaultEffort?: string;
   readonly maxOutputSize?: number;
 }
 
@@ -123,6 +125,8 @@ export class ProviderManager implements ModelProvider {
       alwaysThinking: (alias.capabilities ?? []).some(
         (c) => c.trim().toLowerCase() === 'always_thinking',
       ),
+      supportEfforts: alias.supportEfforts,
+      defaultEffort: alias.defaultEffort,
       maxOutputSize: alias.maxOutputSize,
     };
   }

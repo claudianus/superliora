@@ -823,4 +823,26 @@ describe('resolveThinkingLevel', () => {
 
     expect(resolveThinkingLevel(undefined, {})).toBe('high');
   });
+
+  it('uses model-declared effort defaults when thinking is enabled generically', () => {
+    const model = {
+      supportEfforts: ['low', 'medium'],
+      defaultEffort: 'low',
+    };
+
+    expect(
+      resolveThinkingLevel('on', {
+        defaultThinking: true,
+        thinking: { mode: 'auto' },
+        model,
+      }),
+    ).toBe('low');
+    expect(
+      resolveThinkingLevel(undefined, {
+        defaultThinking: true,
+        thinking: { mode: 'auto' },
+        model,
+      }),
+    ).toBe('low');
+  });
 });

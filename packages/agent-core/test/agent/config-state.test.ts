@@ -174,6 +174,14 @@ describe('ConfigState thinking clamp for always-thinking models', () => {
               maxContextSize: 128_000,
               capabilities: ['thinking', 'always_thinking', 'tool_use'],
             },
+            'kimi-code/shallow-deep': {
+              provider: 'kimi',
+              model: 'kimi-shallow-deep-coder',
+              maxContextSize: 128_000,
+              capabilities: ['thinking', 'always_thinking', 'tool_use'],
+              supportEfforts: ['low', 'medium'],
+              defaultEffort: 'low',
+            },
             'kimi-code/toggle': {
               provider: 'kimi',
               model: 'kimi-for-coding',
@@ -191,6 +199,20 @@ describe('ConfigState thinking clamp for always-thinking models', () => {
     ctx.agent.config.update({ modelAlias: 'kimi-code/deep', thinkingLevel: 'off' });
 
     expect(ctx.agent.config.thinkingLevel).toBe('high');
+  });
+
+  it('clamps always-thinking off to the model default effort', () => {
+    const ctx = alwaysThinkingAgent();
+    ctx.agent.config.update({ modelAlias: 'kimi-code/shallow-deep', thinkingLevel: 'off' });
+
+    expect(ctx.agent.config.thinkingLevel).toBe('low');
+  });
+
+  it('resolves thinking on to the model default effort', () => {
+    const ctx = alwaysThinkingAgent();
+    ctx.agent.config.update({ modelAlias: 'kimi-code/shallow-deep', thinkingLevel: 'on' });
+
+    expect(ctx.agent.config.thinkingLevel).toBe('low');
   });
 
   it('builds the provider with thinking enabled even after thinking was set off', () => {

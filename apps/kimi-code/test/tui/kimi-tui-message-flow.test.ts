@@ -3577,7 +3577,7 @@ command = "vim"
       expect(output).toContain(' Status ');
       expect(output).toContain('>_ Kimi Code');
       expect(output).toContain('Model');
-      expect(output).toContain('thinking on');
+      expect(output).toContain('thinking high');
       expect(output).toContain('Permissions  auto');
       expect(output).toMatch(/Ultrawork\s+needs readiness/);
       expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Swarm ready \| Verify blocked/);
@@ -4349,6 +4349,55 @@ command = "vim"
       expect(session.setThinking).toHaveBeenCalledWith('on');
     });
     expect(setConfig).not.toHaveBeenCalled();
+    expect(driver.state.appState.model).toBe('turbo');
+    expect(driver.state.appState.thinking).toBe(true);
+  });
+
+  it('reapplies thinking on when switching between thinking-enabled models', async () => {
+    const session = makeSession();
+    const setConfig = vi.fn(async () => ({ providers: {} }));
+    const { driver } = await makeDriver(session, {
+      getConfig: vi.fn(async () => ({
+        models: {
+          k2: {
+            provider: 'managed:kimi-code',
+            model: 'kimi-k2',
+            maxContextSize: 100,
+            displayName: 'Kimi K2',
+            capabilities: ['thinking'],
+          },
+          turbo: {
+            provider: 'managed:kimi-code',
+            model: 'kimi-turbo',
+            maxContextSize: 100,
+            displayName: 'Kimi Turbo',
+            capabilities: ['thinking'],
+            supportEfforts: ['low', 'medium'],
+            defaultEffort: 'low',
+          },
+        },
+        defaultModel: 'k2',
+        defaultThinking: true,
+      })),
+      setConfig,
+    });
+
+    driver.handleUserInput('/model turbo');
+
+    await vi.waitFor(() => {
+      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(TabbedModelSelectorComponent);
+    });
+    const picker = driver.state.editorContainer.children[0];
+    (picker as TabbedModelSelectorComponent).handleInput('\r');
+
+    await vi.waitFor(() => {
+      expect(session.setModel).toHaveBeenCalledWith('turbo');
+      expect(session.setThinking).toHaveBeenCalledWith('on');
+      expect(setConfig).toHaveBeenCalledWith({
+        defaultModel: 'turbo',
+        defaultThinking: true,
+      });
+    });
     expect(driver.state.appState.model).toBe('turbo');
     expect(driver.state.appState.thinking).toBe(true);
   });

@@ -247,7 +247,11 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     const workDir = requiredWorkDir('createSession', options.workDir);
     const config = this.reloadProviderManager();
     const id = options.id ?? createSessionId();
-    const thinkingLevel = resolveThinkingLevel(options.thinking, config);
+    const modelAlias = options.model ?? config.defaultModel;
+    const thinkingLevel = resolveThinkingLevel(options.thinking, {
+      ...config,
+      model: modelAlias === undefined ? undefined : config.models?.[modelAlias],
+    });
     const permissionMode = options.permission ?? config.defaultPermissionMode;
     const baseMcpConfig = await resolveSessionMcpConfig({
       cwd: workDir,
