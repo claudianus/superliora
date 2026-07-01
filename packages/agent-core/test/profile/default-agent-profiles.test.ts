@@ -108,6 +108,7 @@ describe('default agent profiles', () => {
       expect(prompt).toContain('High-quality work is the default');
       expect(prompt).toContain('complete, polished, practical result');
       expect(prompt).toContain('domain-appropriate and polished by default');
+      expect(prompt).toContain('first runnable surface look intentionally designed');
       expect(prompt).toContain('verify the actual rendered output');
       expect(prompt).toContain('a missing optional automation package is not proof');
       expect(prompt).toContain('Do not inflate scope just to look premium');

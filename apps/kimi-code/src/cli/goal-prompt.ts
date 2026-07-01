@@ -72,7 +72,14 @@ export function parseHeadlessGoalCreate(prompt: string): HeadlessGoalCreate | un
   const args = trimmed.replace(/^\/goal/, '').trim();
   const parsed = parseGoalCommand(args);
   if (parsed.kind !== 'create') return undefined;
-  return { objective: parsed.objective, replace: parsed.replace };
+  return {
+    objective: parsed.objective,
+    replace: parsed.replace,
+    prompt: buildUltraworkPrompt(parsed.objective, 'goal', parsed.replace, {
+      activeGoalAlreadyCreated: true,
+    }),
+    ultrawork: true,
+  };
 }
 
 export interface GoalSummary {

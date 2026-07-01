@@ -38,7 +38,15 @@ describe('goalExitCode', () => {
 describe('parseHeadlessGoalCreate', () => {
   it('parses a create command into objective + replace', () => {
     const result = parseHeadlessGoalCreate('/goal Ship feature X');
-    expect(result).toEqual({ objective: 'Ship feature X', replace: false });
+    expect(result).toEqual({
+      objective: 'Ship feature X',
+      replace: false,
+      prompt: expect.stringContaining('Ship feature X'),
+      ultrawork: true,
+    });
+    expect(result?.prompt).toContain('<ultrawork_flow>');
+    expect(result?.prompt).toContain('activation: goal');
+    expect(result?.prompt).toContain('active_goal_already_created: true');
   });
 
   it('parses ultragoal aliases into the ultrawork objective contract', () => {
@@ -201,6 +209,12 @@ describe('runPrompt headless goal mode', () => {
     expect(mocks.session.createGoal).toHaveBeenCalledWith(
       expect.objectContaining({ objective: 'Ship feature X' }),
     );
+    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
+    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
+    expect(mocks.session.prompt).toHaveBeenCalledWith(
+      expect.stringContaining('active_goal_already_created: true'),
+    );
     expect(stdout.text()).toContain('"type":"goal.summary"');
     expect(stdout.text()).toContain('"status":"complete"');
   });
@@ -358,7 +372,10 @@ describe('runPrompt headless goal mode', () => {
       process: { once: () => {}, off: () => {}, exit: () => undefined as never },
     });
     expect(mocks.session.createGoal).toHaveBeenCalled();
-    expect(mocks.session.prompt).toHaveBeenCalledWith('Ship feature X');
+    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
+    expect(mocks.session.prompt).toHaveBeenCalledWith(
+      expect.stringContaining('active_goal_already_created: true'),
+    );
   });
 
   it('validates the resumed session model before creating a headless goal', async () => {

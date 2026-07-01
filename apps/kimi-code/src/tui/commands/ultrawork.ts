@@ -192,6 +192,12 @@ async function prepareUltraworkSetup(
   setup: UltraworkSetupState,
 ): Promise<void> {
   const session = host.requireSession();
+  if (!setup.swarmModeWasEnabled) {
+    await session.setSwarmMode(true, 'task');
+    setup.swarmEnabled = true;
+    host.setAppState({ swarmMode: true });
+    host.state.swarmModeEntry = 'task';
+  }
   await forceUltraPlanMode(session);
   setup.planChanged = true;
   host.setAppState({ planMode: true, ultraworkMode: true });

@@ -2,4 +2,4 @@
 "@moonshot-ai/kimi-code": patch
 ---
 
-Avoid false blockers during UltraPlan recovery and Ultrawork real-surface verification.
+Route /goal and Ultrawork through the same UltraPlan and expert coverage workflow.

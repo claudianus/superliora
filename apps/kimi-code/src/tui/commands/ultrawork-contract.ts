@@ -1,10 +1,12 @@
-import { parseGoalCommand } from './goal';
-
-export type UltraworkActivationSource = 'manual' | 'auto' | 'headless';
+export type UltraworkActivationSource = 'manual' | 'auto' | 'headless' | 'goal';
 
 export interface UltraworkCreateRequest {
   readonly objective: string;
   readonly replace: boolean;
+}
+
+export interface UltraworkPromptOptions {
+  readonly activeGoalAlreadyCreated?: boolean;
 }
 
 export type ParsedUltraworkCommand =
@@ -37,18 +39,21 @@ const ULTRAWORK_OPT_OUT_PATTERN =
     String.raw`\b(?:do\s+not|don't|dont|without|no)\s+(?:use|activate|start|run)?\s*${ULTRA_WORKFLOW_TERM_PATTERN}\b`,
     'i',
   );
+const MAX_ULTRAWORK_OBJECTIVE_LENGTH = 4000;
+const ULTRAWORK_CONTROL_SUBCOMMANDS = new Set(['status', 'pause', 'resume', 'cancel']);
 const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   'Ultrawork orchestration:',
-  '- Treat Ultrawork as one workflow, not separate user-facing modes: it forces UltraPlan first, creates a verifiable UltraGoal only after the plan gate, then runs Research, Swarm decision, Integrate, Verify, and Learn inside one continuous run.',
+  '- Treat Ultrawork as one workflow, not separate user-facing modes: it forces UltraPlan first, then either creates a verifiable UltraGoal after the plan gate or hardens an already-created /goal seed into a verifiable UltraGoal contract, then runs Research, Swarm decision, Integrate, Verify, and Learn inside one continuous run.',
   '- Ultrawork is the product workflow; UltraPlan, UltraGoal, Research, and Swarm decision are internal stages with enforced order, not separate badges or user-facing modes.',
   '- Workflow spine: UltraPlan -> UltraGoal -> Research -> Swarm decision -> Integrate -> Verify -> Learn.',
-  '- Activation sequence: force UltraPlan first; use the interview to define one true/false-verifiable UltraGoal objective and completion criterion; create or replace UltraGoal only after the plan is approved; then research, decide Swarm ENGAGE/DEFER, integrate, verify, and learn.',
+  '- Activation sequence: force UltraPlan first; use the interview to define one true/false-verifiable UltraGoal objective and completion criterion; create or replace UltraGoal only after the plan is approved, unless the /goal driver already created it; then research, decide Swarm ENGAGE/DEFER, integrate, verify, and learn.',
   '- Shift-Tab Ultrawork mode is the normal task entry point; /ultrawork is an explicit steering override for operators who want to start the same workflow from text.',
   '- UltraPlan: clarify the request until the future UltraGoal can be judged complete or incomplete as 1 or 0. Ask blocking questions, reduce ambiguity, identify knowledge gaps, and turn the request into a concrete verified goal.',
   '- UltraPlan must produce and surface the Ouroboros plan before implementation: Seed Spec, AC Tree, Evaluation Plan, and Execution Plan must be written to the active Ultra Plan file and approved through ExitPlanMode before code edits.',
   '- Do not skip directly from one interview question into implementation. After the last blocking question, advance through Design, Review, Write, and Exit phases with NextPhase and ExitPlanMode before editing product files.',
   '- UltraResearch: when latest APIs, papers, security, benchmarks, release notes, or OSS examples can affect correctness, produce an evidence pack before implementation. Search multiple focused angles in parallel, fetch primary sources, label candidate vs verified findings, and never rely on snippets alone for implementation-affecting claims.',
   '- UltraGoal: create or replace the active goal only after UltraPlan has produced the verifiable objective. The goal objective must be concrete, bounded, and paired with acceptance criteria that can be judged true or false.',
+  '- If Ultrawork is entered through /goal and an active goal already exists, do not call CreateGoal again for the same work; treat the active goal as the provisional UltraGoal Seed, bind the approved acceptance criteria to it, and finish with UpdateGoal complete or blocked.',
   '- UltraSwarm: decide ENGAGE or DEFER after the verifiable UltraGoal exists. Engage specialist agents when parallel research, PM, architecture, TUI, QA, security, performance, integration, or verification materially improves outcome or speed.',
   '- UltraSwarm is not proof by badge. Make the Swarm decision visible, then invoke specialist agents only when the decision says ENGAGE; otherwise state why single-agent execution is lower-risk.',
   '- Integrate: appoint an integration owner to merge specialist output, resolve conflicts, and reduce duplicate or contradictory recommendations before editing.',
@@ -102,6 +107,19 @@ const ULTRAWORK_BENCH_GUIDANCE = [
   '- Adopt external CLI, MCP, skill, and harness patterns only when source-backed, rebranded into Super Kimi internals, and validated by the local gate.',
   '- Do not use apps/kimi-web or browser UI paths as a success surface for TUI/CLI benchmark work.',
 ].join('\n');
+const ULTRAWORK_EXPERT_COVERAGE_GUIDANCE = [
+  'Capability coverage / expert routing:',
+  '- Do not hard-code one domain as special. Before implementation, derive a Capability Coverage Matrix from the UltraGoal and AC Tree: each row maps an acceptance criterion or risk to the expertise needed, evidence needed, candidate expert coverage, and owner.',
+  '- Coverage lanes are generic: product/requirements, domain subject matter, architecture/implementation, UX/content/visual craft, data/security/privacy, performance/reliability, accessibility/internationalization, testing/evidence, and integration ownership. Add or remove lanes based on the actual goal.',
+  '- Use the expert catalog as a searchable capability index. Prefer UltraSwarm auto_select with a rich task description containing the coverage matrix, required acceptance criteria, risks, and evidence needs; rely on expert tags, capabilities, whenToUse, and division matching rather than brittle prompt regexes.',
+  '- Default Swarm decision to ENGAGE when the matrix has more than one material lane, subjective quality gates, external/domain correctness, high-risk changes, hard-to-observe behavior, or user-requested independent review. DEFER only when every required lane is safely owned by the main agent and single-agent execution is lower-risk.',
+  '- When ENGAGE is chosen, use required_experts only for lanes whose mandatory expert is known from the user request, prior plan, or catalog evidence; otherwise let auto_select choose and cap max_experts to the smallest set that covers the matrix.',
+  '- Require an independent review lane whenever an acceptance criterion cannot be proven by code inspection alone. The reviewer must compare actual evidence against the criterion, list concrete fixes, and withhold PASS until evidence is sufficient or the blocker is explicit.',
+  '- Visual/game work is just one instance of this generic rule: its matrix usually needs game/art direction, implementation, and visual evidence QA lanes; a finance, security, data, legal, or localization task should get different specialist lanes without changing the harness.',
+  '- For visual, interactive, or game surfaces, define the visible target before implementation: art direction, layout/composition, motion/feedback, asset strategy, and screenshot or video evidence needed for approval. Do not ship placeholders unless the user explicitly asked for a prototype.',
+  '- Iterate after each non-PASS expert or evidence review. Do not report completion from implementation alone when the matrix requires domain, visual, safety, performance, or runtime evidence.',
+  '- Final reports must include the coverage matrix decision, which lanes used specialists or were deliberately deferred, the evidence path or observation method, reviewer verdicts, and remaining risks.',
+].join('\n');
 const ULTRAWORK_XP_DOD_GUIDANCE = [
   'XP-lite / Definition of Done:',
   '- Treat this as the harness-level work contract, not optional style advice; automated readiness, QA gates, and final reports must reflect it.',
@@ -130,7 +148,8 @@ const ULTRAWORK_HUMAN_WRITING_GUIDANCE = [
 ].join('\n');
 
 export function parseUltraworkCommand(rawArgs: string): ParsedUltraworkCommand {
-  if (rawArgs.trim().length === 0) {
+  const args = rawArgs.trim();
+  if (args.length === 0) {
     return {
       kind: 'error',
       severity: 'hint',
@@ -138,31 +157,46 @@ export function parseUltraworkCommand(rawArgs: string): ParsedUltraworkCommand {
         'Provide an Ultrawork objective, e.g. `/ultrawork Ship feature X` or `/ultrawork replace Ship feature X`.',
     };
   }
-  const parsed = parseGoalCommand(rawArgs);
-  if (parsed.kind === 'create') {
+  const tokens = args.split(/\s+/);
+  const first = tokens[0];
+  if (
+    first === 'next' ||
+    (first !== undefined && ULTRAWORK_CONTROL_SUBCOMMANDS.has(first) && tokens.length === 1)
+  ) {
     return {
-      kind: 'create',
-      objective: parsed.objective,
-      replace: parsed.replace,
+      kind: 'error',
+      severity: 'hint',
+      message:
+        'Ultrawork starts guided autonomous work. Use `/goal status` for goal controls, or pass an objective after `/ultrawork`.',
     };
   }
-  if (parsed.kind === 'error') {
-    if (parsed.message === 'Provide a goal objective, e.g. `/goal Ship feature X`.') {
-      return {
-        kind: 'error',
-        severity: parsed.severity,
-        message:
-          'Provide an Ultrawork objective, e.g. `/ultrawork Ship feature X` or `/ultrawork replace Ship feature X`.',
-      };
-    }
-    return parsed;
+
+  let index = 0;
+  let replace = false;
+  if (tokens[index] === 'replace') {
+    replace = true;
+    index += 1;
   }
-  return {
-    kind: 'error',
-    severity: 'hint',
-    message:
-      'Ultrawork starts guided autonomous work. Use `/goal status` for goal controls, or pass an objective after `/ultrawork`.',
-  };
+  if (tokens[index] === '--') {
+    index += 1;
+  }
+
+  const objective = tokens.slice(index).join(' ').trim();
+  if (objective.length === 0) {
+    return {
+      kind: 'error',
+      severity: 'hint',
+      message:
+        'Provide an Ultrawork objective, e.g. `/ultrawork Ship feature X` or `/ultrawork replace Ship feature X`.',
+    };
+  }
+  if (objective.length > MAX_ULTRAWORK_OBJECTIVE_LENGTH) {
+    return {
+      kind: 'error',
+      message: `Goal objective is too long (max ${MAX_ULTRAWORK_OBJECTIVE_LENGTH} characters). Reference long details by file path.`,
+    };
+  }
+  return { kind: 'create', objective, replace };
 }
 
 export function shouldAutoActivateUltrawork(prompt: string): boolean {
@@ -190,13 +224,16 @@ export function buildUltraworkPrompt(
   objective: string,
   source: UltraworkActivationSource,
   replaceGoal = false,
+  options: UltraworkPromptOptions = {},
 ): string {
   const escapedObjective = escapeUntrustedText(objective);
+  const activeGoalAlreadyCreated = options.activeGoalAlreadyCreated === true;
   return [
     '<ultrawork_flow>',
     `activation: ${source}`,
     'brand: Ultrawork',
     `goal_replace_requested: ${replaceGoal ? 'true' : 'false'}`,
+    `active_goal_already_created: ${activeGoalAlreadyCreated ? 'true' : 'false'}`,
     'mission: run a complete Kimi harness workflow from interview to verified finish.',
     '',
     '<untrusted_objective>',
@@ -210,10 +247,17 @@ export function buildUltraworkPrompt(
     '- Keep exactly one todo in_progress while work is underway, and mark work done immediately after verification.',
     '- Use Kimi Recall or available memory only for relevant durable context, decisions, and user preferences.',
     '- Use swarm mode as the execution substrate; invoke the UltraSwarm tool only when specialist parallel work materially improves quality or speed.',
+    ...(activeGoalAlreadyCreated
+      ? [
+          '- This entry came from /goal, so the active Goal already exists. Do not call CreateGoal again for the same work; use UltraPlan to make the active goal verifiable, then finish with UpdateGoal complete or blocked.',
+          '- If UltraPlan refines the objective, write the refined UltraGoal Seed, AC Tree, Acceptance Criteria, Evaluation Plan, and Execution Plan into the plan file and continue under the existing active goal.',
+        ]
+      : []),
     `- ${ULTRAWORK_LEAN_CONTEXT_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_KNOWLEDGE_MAP_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_WEB_RESEARCH_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_BENCH_GUIDANCE.replaceAll('\n', '\n  ')}`,
+    `- ${ULTRAWORK_EXPERT_COVERAGE_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_XP_DOD_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_HUMAN_WRITING_GUIDANCE.replaceAll('\n', '\n  ')}`,
     '- Interview the user when the future UltraGoal cannot yet be judged true or false, or when a missing decision blocks correctness; otherwise record the safe assumption in the plan.',

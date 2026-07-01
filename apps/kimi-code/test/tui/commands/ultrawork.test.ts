@@ -130,8 +130,10 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('one workflow, not separate user-facing modes');
     expect(prompt).toContain('Ultrawork is the product workflow; UltraPlan, UltraGoal, Research, and Swarm decision are internal stages');
     expect(prompt).toContain('normalize it into the same Ultrawork run');
-    expect(prompt).toContain('forces UltraPlan first, creates a verifiable UltraGoal only after the plan gate');
+    expect(prompt).toContain('forces UltraPlan first');
+    expect(prompt).toContain('hardens an already-created /goal seed into a verifiable UltraGoal contract');
     expect(prompt).toContain('force UltraPlan first');
+    expect(prompt).toContain('active_goal_already_created: false');
     expect(prompt).toContain('Shift-Tab Ultrawork mode is the normal task entry point');
     expect(prompt).toContain('/ultrawork is an explicit steering override');
     expect(prompt).toContain('UltraPlan: clarify the request until the future UltraGoal can be judged complete or incomplete as 1 or 0');
@@ -139,6 +141,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('Do not skip directly from one interview question into implementation');
     expect(prompt).toContain('UltraResearch: when latest APIs, papers, security, benchmarks');
     expect(prompt).toContain('UltraGoal: create or replace the active goal only after UltraPlan has produced the verifiable objective');
+    expect(prompt).toContain('If Ultrawork is entered through /goal and an active goal already exists');
     expect(prompt).toContain('UltraSwarm: decide ENGAGE or DEFER after the verifiable UltraGoal exists');
     expect(prompt).toContain('UltraSwarm is not proof by badge');
     expect(prompt).toContain('Write a Swarm decision before implementation');
@@ -187,6 +190,15 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain(
       'Do not use apps/kimi-web or browser UI paths as a success surface',
     );
+    expect(prompt).toContain('Capability coverage / expert routing');
+    expect(prompt).toContain('Capability Coverage Matrix');
+    expect(prompt).toContain('product/requirements, domain subject matter, architecture/implementation');
+    expect(prompt).toContain('Use the expert catalog as a searchable capability index');
+    expect(prompt).toContain('tags, capabilities, whenToUse, and division matching');
+    expect(prompt).toContain('Default Swarm decision to ENGAGE when the matrix has more than one material lane');
+    expect(prompt).toContain('required_experts only for lanes whose mandatory expert is known');
+    expect(prompt).toContain('Visual/game work is just one instance of this generic rule');
+    expect(prompt).toContain('Do not ship placeholders unless the user explicitly asked for a prototype');
     expect(prompt).toContain('XP-lite / Definition of Done');
     expect(prompt).toContain('harness-level work contract, not optional style advice');
     expect(prompt).toContain('automated readiness, QA gates, and final reports');
@@ -229,6 +241,17 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('UltraGoal has been created from that plan');
     expect(prompt).toContain('UpdateGoal');
   });
+
+  it('marks /goal activations as already-created goal seeds', () => {
+    const prompt = buildUltraworkPrompt('Ship feature X', 'goal', false, {
+      activeGoalAlreadyCreated: true,
+    });
+
+    expect(prompt).toContain('activation: goal');
+    expect(prompt).toContain('active_goal_already_created: true');
+    expect(prompt).toContain('Do not call CreateGoal again for the same work');
+    expect(prompt).toContain('use UltraPlan to make the active goal verifiable');
+  });
 });
 
 describe('parseUltraworkCommand', () => {
@@ -263,15 +286,16 @@ describe('parseUltraworkCommand', () => {
 });
 
 describe('handleUltraworkCommand', () => {
-  it('forces ultra plan first and sends the workflow prompt without creating the goal upfront', async () => {
+  it('forces ultra plan and swarm mode first, then sends the workflow prompt without creating the goal upfront', async () => {
     const { host, session } = makeHost();
 
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
+    expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: true, ultraworkMode: true });
     expect(session.createGoal).not.toHaveBeenCalled();
-    expect(session.setSwarmMode).not.toHaveBeenCalled();
     expect(host.setAppState).toHaveBeenCalledWith({
       activityTip: 'Ultrawork mode: UltraPlan interview first, then verifiable UltraGoal, Swarm decision, verify',
     });
@@ -318,7 +342,7 @@ describe('handleUltraworkCommand', () => {
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
     expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
     expect(session.setPlanMode).toHaveBeenLastCalledWith(true, true);
-    expect(session.setSwarmMode).not.toHaveBeenCalled();
+    expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
       expect.stringContaining('<ultrawork_flow>'),
@@ -335,6 +359,7 @@ describe('handleUltraworkCommand', () => {
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
     expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
     expect(session.setPlanMode).toHaveBeenLastCalledWith(true, true);
+    expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: true, ultraworkMode: true });
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
@@ -350,9 +375,10 @@ describe('handleUltraworkCommand', () => {
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(host.state.appState.planMode).toBe(true);
-    expect(host.state.appState.swarmMode).toBe(false);
+    expect(host.state.appState.swarmMode).toBe(true);
     expect(host.sendNormalUserInput).toHaveBeenCalled();
   });
 

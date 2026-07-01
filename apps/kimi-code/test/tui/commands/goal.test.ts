@@ -88,6 +88,8 @@ function makeHost(
 ) {
   const session = {
     setPermission: vi.fn(async () => {}),
+    setPlanMode: vi.fn(async () => {}),
+    setSwarmMode: vi.fn(async () => {}),
     createGoal: vi.fn(async () => fakeSnapshot()),
     getGoal: vi.fn(async (): Promise<{ goal: ReturnType<typeof fakeSnapshot> | null }> => ({
       goal: null,
@@ -104,9 +106,13 @@ function makeHost(
       appState: {
         model: overrides.model ?? 'kimi-model',
         permissionMode: overrides.permissionMode ?? 'auto',
+        planMode: false,
+        ultraworkMode: false,
+        swarmMode: false,
         streamingPhase: overrides.streaming ? 'streaming' : 'idle',
         isCompacting: false,
       },
+      swarmModeEntry: undefined,
       transcriptContainer,
       ui: { requestRender: vi.fn() },
       theme: { palette: getBuiltInPalette('dark') },
@@ -142,6 +148,17 @@ function mountedPicker(host: SlashCommandHost): TestPicker {
 function latestMountedPicker(host: SlashCommandHost): TestPicker {
   const mock = host.mountEditorReplacement as ReturnType<typeof vi.fn>;
   return mock.mock.calls.at(-1)?.[0] as TestPicker;
+}
+
+function expectGoalWorkflowPrompt(host: SlashCommandHost, objective: string): void {
+  expect(host.sendNormalUserInput).toHaveBeenCalledWith(
+    expect.stringContaining('<ultrawork_flow>'),
+    { displayText: objective },
+  );
+  expect(host.sendNormalUserInput).toHaveBeenCalledWith(
+    expect.stringContaining('active_goal_already_created: true'),
+    { displayText: objective },
+  );
 }
 
 describe('parseGoalCommand', () => {
@@ -247,12 +264,18 @@ describe('handleGoalCommand', () => {
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
   });
 
-  it('/goal <objective> creates a goal and sends the objective as input', async () => {
+  it('/goal <objective> creates a goal and sends the Ultrawork contract with the objective displayed', async () => {
     await handleGoalCommand(host, 'Ship feature X');
     expect(session.createGoal).toHaveBeenCalledWith(
       expect.objectContaining({ objective: 'Ship feature X', replace: false }),
     );
-    expect(host.sendNormalUserInput).toHaveBeenCalledWith('Ship feature X');
+    expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
+    expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
+    expect(host.setAppState).toHaveBeenCalledWith(
+      expect.objectContaining({ planMode: true, ultraworkMode: true }),
+    );
+    expectGoalWorkflowPrompt(host, 'Ship feature X');
     expect(host.sendNormalUserInput).not.toHaveBeenCalledWith('/goal Ship feature X');
   });
 
@@ -264,7 +287,10 @@ describe('handleGoalCommand', () => {
 
     await handleGoalCommand(host, 'Ship feature X');
 
-    expect(calls).toEqual([{ receiver: host, text: 'Ship feature X' }]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.receiver).toBe(host);
+    expect(calls[0]?.text).toContain('<ultrawork_flow>');
+    expect(calls[0]?.text).toContain('Ship feature X');
   });
 
   it('asks before starting a goal in Manual mode', async () => {
@@ -293,7 +319,9 @@ describe('handleGoalCommand', () => {
     });
     expect(s.setPermission).toHaveBeenCalledWith('auto');
     expect(manualHost.setAppState).toHaveBeenCalledWith({ permissionMode: 'auto' });
-    expect(manualHost.sendNormalUserInput).toHaveBeenCalledWith('Ship feature X');
+    expect(s.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(s.setSwarmMode).toHaveBeenCalledWith(true, 'task');
+    expectGoalWorkflowPrompt(manualHost, 'Ship feature X');
   });
 
   it('can start a Manual-mode goal without changing permission', async () => {
@@ -311,7 +339,7 @@ describe('handleGoalCommand', () => {
       );
     });
     expect(s.setPermission).not.toHaveBeenCalled();
-    expect(manualHost.sendNormalUserInput).toHaveBeenCalledWith('Ship feature X');
+    expectGoalWorkflowPrompt(manualHost, 'Ship feature X');
   });
 
   it('can switch to YOLO when starting a Manual-mode goal', async () => {
@@ -383,7 +411,9 @@ describe('handleGoalCommand', () => {
     });
     expect(s.setPermission).toHaveBeenCalledWith('auto');
     expect(yoloHost.setAppState).toHaveBeenCalledWith({ permissionMode: 'auto' });
-    expect(yoloHost.sendNormalUserInput).toHaveBeenCalledWith('Ship feature X');
+    expect(s.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(s.setSwarmMode).toHaveBeenCalledWith(true, 'task');
+    expectGoalWorkflowPrompt(yoloHost, 'Ship feature X');
   });
 
   it('can keep YOLO when starting a YOLO-mode goal', async () => {
@@ -400,7 +430,7 @@ describe('handleGoalCommand', () => {
       );
     });
     expect(s.setPermission).not.toHaveBeenCalled();
-    expect(yoloHost.sendNormalUserInput).toHaveBeenCalledWith('Ship feature X');
+    expectGoalWorkflowPrompt(yoloHost, 'Ship feature X');
   });
 
   it('returns the command to the input box when a YOLO-mode goal start is cancelled', async () => {
@@ -472,7 +502,7 @@ describe('handleGoalCommand', () => {
     expect(host.showStatus).toHaveBeenCalledWith(
       'No active goal. Starting this goal now.',
     );
-    expect(host.sendNormalUserInput).toHaveBeenCalledWith('Ship release notes');
+    expectGoalWorkflowPrompt(host, 'Ship release notes');
   });
 
   it('/goal next queues instead of starting immediately while streaming with no current goal', async () => {
@@ -702,7 +732,7 @@ describe('dispatchInput /goal integration', () => {
         expect.objectContaining({ objective: 'Ship feature X' }),
       );
     });
-    expect(host.sendNormalUserInput).toHaveBeenCalledWith('Ship feature X');
+    expectGoalWorkflowPrompt(host, 'Ship feature X');
     expect(host.sendNormalUserInput).not.toHaveBeenCalledWith('/goal Ship feature X');
   });
 });

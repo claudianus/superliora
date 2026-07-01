@@ -26,10 +26,17 @@ import {
 } from '../goal-queue-store';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './dispatch';
+import { buildUltraworkPrompt } from './ultrawork-contract';
 
 const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
 const RESUME_GOAL_INPUT = 'Resume the active goal.';
 const START_NEXT_GOAL_NOW_MESSAGE = 'No active goal. Starting this goal now.';
+const GOAL_ULTRAWORK_ACTIVITY_TIP =
+  'Goal mode: UltraPlan interview first, then verifiable acceptance criteria, Swarm decision, verify';
+
+interface GoalInputSender {
+  sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
+}
 
 type GoalCommandHost = Pick<
   SlashCommandHost,
@@ -43,12 +50,21 @@ type GoalCommandHost = Pick<
   | 'mountEditorReplacement'
   | 'restoreEditor'
   | 'restoreInputText'
-  | 'sendNormalUserInput'
->;
+> &
+  GoalInputSender;
 
 export interface GoalStartOptions {
   readonly beforeSend?: () => boolean | Promise<boolean>;
   readonly sendInput?: (objective: string) => void;
+}
+
+interface GoalUltraworkSetupState {
+  readonly planModeWasEnabled: boolean;
+  readonly swarmModeWasEnabled: boolean;
+  readonly ultraworkModeWasEnabled: boolean;
+  readonly previousSwarmModeEntry: 'manual' | 'task' | undefined;
+  planChanged: boolean;
+  swarmEnabled: boolean;
 }
 
 export type ParsedGoalCommand =
@@ -394,12 +410,21 @@ async function startGoal(
   parsed: Extract<ParsedGoalCommand, { kind: 'create' }>,
   options: GoalStartOptions,
 ): Promise<boolean> {
+  let setup: GoalUltraworkSetupState;
+  try {
+    setup = await prepareGoalUltraworkSetup(host);
+  } catch (error) {
+    host.showError(`Failed to start goal workflow: ${formatErrorMessage(error)}`);
+    return false;
+  }
+
   try {
     await host.requireSession().createGoal({
       objective: parsed.objective,
       replace: parsed.replace,
     });
   } catch (error) {
+    await rollbackGoalUltraworkSetup(host, setup);
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_ALREADY_EXISTS) {
       host.showError(
         'A goal is already active. Use `/goal replace <objective>` to replace it, or `/goal status` to inspect it.',
@@ -417,9 +442,78 @@ async function startGoal(
   if (options.sendInput !== undefined) {
     options.sendInput(parsed.objective);
   } else {
-    host.sendNormalUserInput(parsed.objective);
+    host.sendNormalUserInput(
+      buildUltraworkPrompt(parsed.objective, 'goal', parsed.replace, {
+        activeGoalAlreadyCreated: true,
+      }),
+      { displayText: parsed.objective },
+    );
   }
   return true;
+}
+
+async function prepareGoalUltraworkSetup(
+  host: GoalCommandHost,
+): Promise<GoalUltraworkSetupState> {
+  const setup: GoalUltraworkSetupState = {
+    planModeWasEnabled: host.state.appState.planMode === true,
+    swarmModeWasEnabled: host.state.appState.swarmMode === true,
+    ultraworkModeWasEnabled: host.state.appState.ultraworkMode === true,
+    previousSwarmModeEntry: host.state.swarmModeEntry,
+    planChanged: false,
+    swarmEnabled: false,
+  };
+  try {
+    const session = host.requireSession();
+    if (!setup.swarmModeWasEnabled) {
+      await session.setSwarmMode(true, 'task');
+      setup.swarmEnabled = true;
+      host.setAppState({ swarmMode: true });
+      host.state.swarmModeEntry = 'task';
+    }
+    await forceGoalUltraPlanMode(session);
+    setup.planChanged = true;
+    host.setAppState({
+      planMode: true,
+      ultraworkMode: true,
+      activityTip: GOAL_ULTRAWORK_ACTIVITY_TIP,
+    });
+  } catch (error) {
+    await rollbackGoalUltraworkSetup(host, setup);
+    throw error;
+  }
+  return setup;
+}
+
+async function forceGoalUltraPlanMode(
+  session: ReturnType<GoalCommandHost['requireSession']>,
+): Promise<void> {
+  try {
+    await session.setPlanMode(true, true);
+  } catch (error) {
+    if (!formatErrorMessage(error).includes('Already in plan mode')) throw error;
+    await session.setPlanMode(false, false);
+    await session.setPlanMode(true, true);
+  }
+}
+
+async function rollbackGoalUltraworkSetup(
+  host: GoalCommandHost,
+  setup: GoalUltraworkSetupState,
+): Promise<void> {
+  const session = host.requireSession();
+  if (setup.planChanged) {
+    await session.setPlanMode(setup.planModeWasEnabled, false).catch(() => {});
+    host.setAppState({
+      planMode: setup.planModeWasEnabled,
+      ultraworkMode: setup.ultraworkModeWasEnabled,
+    });
+  }
+  if (setup.swarmEnabled) {
+    await session.setSwarmMode(false, 'task').catch(() => {});
+    host.setAppState({ swarmMode: setup.swarmModeWasEnabled });
+    host.state.swarmModeEntry = setup.previousSwarmModeEntry;
+  }
 }
 
 async function pauseGoal(host: SlashCommandHost): Promise<void> {

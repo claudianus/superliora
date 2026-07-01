@@ -9,5 +9,6 @@ Usage:
 - Call UltraSwarm with a clear task description
 - Optionally specify expert IDs if you know exactly who you need
 - Let the system auto-select experts when unsure
+- For Ultrawork, include the Capability Coverage Matrix in the description: acceptance criteria, risks, expertise lanes, and evidence needs. Prefer auto-select from the catalog; use explicit or required experts only when the user or prior plan has identified a mandatory specialist.
 
 The tool returns results from each expert, tagged with their name and emoji for easy identification.
