@@ -1,6 +1,6 @@
 import { readApiErrorMessage } from './api-error';
 import { isRecord } from './utils';
-import { parseSupportsThinkingType } from './managed-kimi-code';
+import { parseSupportsThinkingType, parseThinkEfforts } from './managed-kimi-code';
 import type {
   ManagedKimiCodeModelInfo,
   ManagedKimiConfigShape,
@@ -55,6 +55,7 @@ function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
   const supportsToolUse = Object.hasOwn(item, 'supports_tool_use')
     ? Boolean(item['supports_tool_use'])
     : true;
+  const thinkEfforts = parseThinkEfforts(item['think_efforts']);
   return {
     id: item['id'],
     contextLength,
@@ -63,6 +64,8 @@ function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
     supportsVideoIn: Boolean(item['supports_video_in']),
     supportsToolUse,
     supportsThinkingType: parseSupportsThinkingType(item['supports_thinking_type']),
+    supportEfforts: thinkEfforts.supportEfforts,
+    defaultEffort: thinkEfforts.defaultEffort,
     displayName: normalizedDisplayName,
   };
 }
@@ -180,6 +183,8 @@ export function applyOpenPlatformConfig(
       model: model.id,
       maxContextSize: model.contextLength,
       capabilities: capabilitiesForModel(model),
+      ...(model.supportEfforts !== undefined ? { supportEfforts: [...model.supportEfforts] } : {}),
+      ...(model.defaultEffort !== undefined ? { defaultEffort: model.defaultEffort } : {}),
       ...(model.displayName !== undefined ? { displayName: model.displayName } : {}),
     };
   }

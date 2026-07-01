@@ -34,6 +34,8 @@ export interface ManagedKimiCodeModelInfo {
   readonly supportsVideoIn: boolean;
   readonly supportsToolUse?: boolean;
   readonly supportsThinkingType?: SupportsThinkingType;
+  readonly supportEfforts?: readonly string[];
+  readonly defaultEffort?: string;
   readonly displayName?: string | undefined;
   readonly protocol?: ManagedKimiCodeProtocol | undefined;
 }
@@ -125,6 +127,8 @@ export interface ManagedKimiModelAlias {
   model: string;
   maxContextSize: number;
   capabilities?: string[] | undefined;
+  supportEfforts?: string[] | undefined;
+  defaultEffort?: string | undefined;
   displayName?: string | undefined;
   protocol?: ManagedKimiCodeProtocol | undefined;
   betaApi?: boolean | undefined;
@@ -385,6 +389,7 @@ function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
   const supportsToolUse = Object.hasOwn(item, 'supports_tool_use')
     ? Boolean(item['supports_tool_use'])
     : true;
+  const thinkEfforts = parseThinkEfforts(item['think_efforts']);
   return {
     id: item['id'],
     contextLength,
@@ -393,15 +398,43 @@ function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
     supportsVideoIn: Boolean(item['supports_video_in']),
     supportsToolUse,
     supportsThinkingType: parseSupportsThinkingType(item['supports_thinking_type']),
+    supportEfforts: thinkEfforts.supportEfforts ?? parseStringArray(item['support_efforts']),
+    defaultEffort:
+      thinkEfforts.defaultEffort ?? parseNonEmptyString(item['default_effort']),
     displayName: normalizedDisplayName,
     protocol: parseModelProtocol(item['protocol']),
   };
+}
+
+export function parseStringArray(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out = value.filter(
+    (entry): entry is string => typeof entry === 'string' && entry.length > 0,
+  );
+  return out.length > 0 ? out : undefined;
+}
+
+function parseNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 // Unknown or missing values resolve to undefined so callers fall back to the
 // legacy supports_reasoning boolean instead of guessing.
 export function parseSupportsThinkingType(value: unknown): SupportsThinkingType | undefined {
   return value === 'only' || value === 'no' || value === 'both' ? value : undefined;
+}
+
+export function parseThinkEfforts(value: unknown): {
+  supportEfforts: readonly string[] | undefined;
+  defaultEffort: string | undefined;
+} {
+  if (!isRecord(value) || value['support'] !== true) {
+    return { supportEfforts: undefined, defaultEffort: undefined };
+  }
+  return {
+    supportEfforts: parseStringArray(value['valid_efforts']),
+    defaultEffort: parseNonEmptyString(value['default_effort']),
+  };
 }
 
 export async function fetchManagedKimiCodeModels(
@@ -496,6 +529,8 @@ export function applyManagedKimiCodeConfig(
       model: model.id,
       maxContextSize: model.contextLength,
       capabilities,
+      ...(model.supportEfforts !== undefined ? { supportEfforts: [...model.supportEfforts] } : {}),
+      ...(model.defaultEffort !== undefined ? { defaultEffort: model.defaultEffort } : {}),
       ...(model.displayName !== undefined ? { displayName: model.displayName } : {}),
       protocol: model.protocol,
       betaApi: model.protocol === 'anthropic' ? true : undefined,

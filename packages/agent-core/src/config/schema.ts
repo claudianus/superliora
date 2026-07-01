@@ -43,6 +43,8 @@ export const ModelAliasSchema = z.object({
   maxContextSize: z.number().int().min(1),
   maxOutputSize: z.number().int().min(1).optional(),
   capabilities: z.array(z.string()).optional(),
+  supportEfforts: z.array(z.string().min(1)).optional(),
+  defaultEffort: z.string().min(1).optional(),
   displayName: z.string().optional(),
   reasoningKey: z.string().optional(),
   protocol: z.literal('anthropic').optional(),

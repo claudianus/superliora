@@ -167,6 +167,11 @@ describe('fetchOpenPlatformModels supports_thinking_type', () => {
                 context_length: 256000,
                 supports_reasoning: true,
                 supports_thinking_type: 'only',
+                think_efforts: {
+                  support: true,
+                  valid_efforts: ['low', 'high', 'max'],
+                  default_effort: 'high',
+                },
               },
               {
                 id: 'kimi-k2-lite',
@@ -183,6 +188,8 @@ describe('fetchOpenPlatformModels supports_thinking_type', () => {
     const models = await fetchOpenPlatformModels(platform, 'sk-test', fetchMock as unknown as typeof fetch);
 
     expect(models[0]?.supportsThinkingType).toBe('only');
+    expect(models[0]?.supportEfforts).toEqual(['low', 'high', 'max']);
+    expect(models[0]?.defaultEffort).toBe('high');
     expect(models[1]?.supportsThinkingType).toBeUndefined();
   });
 });
@@ -259,7 +266,16 @@ describe('applyOpenPlatformConfig', () => {
     };
     const platform = getOpenPlatformById('moonshot-cn')!;
     const models = [
-      { id: 'kimi-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true, displayName: 'Kimi K2' },
+      {
+        id: 'kimi-k2-0712-preview',
+        contextLength: 256000,
+        supportsReasoning: true,
+        supportsImageIn: true,
+        supportsVideoIn: true,
+        displayName: 'Kimi K2',
+        supportEfforts: ['low', 'high', 'max'],
+        defaultEffort: 'high',
+      },
       { id: 'kimi-k2-lite', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
     ];
 
@@ -287,6 +303,8 @@ describe('applyOpenPlatformConfig', () => {
       maxContextSize: 256000,
       capabilities: ['thinking', 'image_in', 'video_in', 'tool_use'],
       displayName: 'Kimi K2',
+      supportEfforts: ['low', 'high', 'max'],
+      defaultEffort: 'high',
     });
     expect(config.defaultModel).toBe('moonshot-cn/kimi-k2-0712-preview');
     expect(config.defaultThinking).toBe(true);

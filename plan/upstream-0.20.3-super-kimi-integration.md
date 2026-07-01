@@ -39,6 +39,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1196`: normalize telemetry event fields for compaction, session start, update prompts, login, server start, and ACP question answers.
 - Upstream `#1207` selective: expose broad provider model refresh through the model catalog service and publish model-catalog changed events.
 - Upstream `#1207` selective: start a server-side provider model catalog refresh scheduler with config and environment controls.
+- Upstream `#1132` selective: preserve and expose model-declared thinking effort metadata without changing Super Kimi's thinking-mode semantics.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -70,9 +71,10 @@ Super Kimi adaptation:
 - Kept the product surface TUI-first and deferred the web/server scheduler pieces from the same upstream PR, while moving the shared managed Kimi, Open Platform, and custom-registry refresh core into the OAuth package for CLI and runtime reuse.
 - Preserved Super Kimi's Context Compaction v2 records and TUI replay shape while normalizing only telemetry payload fields to snake_case, dropping custom compaction instructions from telemetry, and aligning client attribution schemas for CLI, daemon, and ACP harness diagnostics.
 - Added the server auto-refresh scheduler without taking the web UI store/status pieces: long-running Super Kimi daemons now refresh provider model catalogs on startup and on a configurable interval, while failures stay logged and non-fatal.
+- Kept Super Kimi's boolean thinking UX intact while carrying `support_efforts` and `default_effort` through managed Kimi/Open Platform refresh, config aliases, protocol model catalog responses, and TUI model selection data.
 
 ## Next Candidate Queue
 
 - `#1214` compaction strategy remainder: potential token-efficiency win, but large behavioral surface.
-- `#1132` thinking config/model effort overhaul: potentially useful for future Kimi model metadata, but broad and breaking; continue mining for small safe provider/auth pieces first.
+- `#1132` thinking config/model effort overhaul: metadata carrier pieces are integrated; defer any default-thinking semantic rewrite or effort selector UI until it can be designed around Super Kimi's UltraWork UX.
 - `#1207` remainder: optional TUI-visible model-catalog freshness/status surface, if it improves `/status` without adding web UI debt.

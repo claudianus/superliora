@@ -897,6 +897,11 @@ describe('supports_thinking_type', () => {
             supports_image_in: true,
             supports_video_in: true,
             supports_thinking_type: 'only',
+            think_efforts: {
+              support: true,
+              valid_efforts: ['low', 'high', 'max'],
+              default_effort: 'high',
+            },
             display_name: 'Kimi For Coding',
           },
           {
@@ -926,6 +931,8 @@ describe('supports_thinking_type', () => {
     });
 
     expect(models[0]?.supportsThinkingType).toBe('only');
+    expect(models[0]?.supportEfforts).toEqual(['low', 'high', 'max']);
+    expect(models[0]?.defaultEffort).toBe('high');
     expect(models[1]?.supportsThinkingType).toBe('no');
     expect(models[2]?.supportsThinkingType).toBe('both');
   });

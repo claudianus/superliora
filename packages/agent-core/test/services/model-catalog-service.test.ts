@@ -132,10 +132,12 @@ function catalogConfig(): KimiConfig {
       k2: {
         provider: 'kimi',
         model: 'kimi-k2',
-        maxContextSize: 131072,
-        displayName: 'Kimi K2',
-        capabilities: ['thinking'],
-      },
+      maxContextSize: 131072,
+      displayName: 'Kimi K2',
+      capabilities: ['thinking'],
+      supportEfforts: ['low', 'high', 'max'],
+      defaultEffort: 'high',
+    },
       turbo: {
         provider: 'kimi',
         model: 'kimi-turbo',
@@ -159,6 +161,8 @@ describe('model catalog adapters', () => {
       display_name: 'Kimi K2',
       max_context_size: 131072,
       capabilities: ['thinking'],
+      support_efforts: ['low', 'high', 'max'],
+      default_effort: 'high',
     });
   });
 

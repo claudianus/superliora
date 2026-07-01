@@ -19,6 +19,8 @@ describe('model catalog schemas', () => {
     display_name: 'Kimi K2',
     max_context_size: 131072,
     capabilities: ['thinking'],
+    support_efforts: ['low', 'high', 'max'],
+    default_effort: 'high',
   };
 
   const provider: ProviderCatalogItem = {

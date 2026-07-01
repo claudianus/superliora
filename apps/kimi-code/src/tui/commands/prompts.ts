@@ -174,6 +174,8 @@ export async function promptModelSelectionForOpenPlatform(
       model: m.id,
       maxContextSize: m.contextLength,
       capabilities: capabilitiesForModel(m),
+      supportEfforts: m.supportEfforts === undefined ? undefined : [...m.supportEfforts],
+      defaultEffort: m.defaultEffort,
       displayName: m.displayName,
     };
   }
