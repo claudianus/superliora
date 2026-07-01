@@ -975,6 +975,7 @@ command = "vim"
   it('tracks Shift-Tab Ultrawork mode switches through the editor handler', async () => {
     const { driver, session, harness } = await makeDriver();
     harness.track.mockClear();
+    driver.state.appState.planMode = true;
 
     driver.state.editor.onShiftTab?.();
 

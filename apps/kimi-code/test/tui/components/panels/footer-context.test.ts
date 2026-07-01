@@ -170,7 +170,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
     const [, line2] = footer.render(120);
 
-    expect(strip(line2 ?? '')).toContain('next: Shift-Tab for Ultrawork, or type a normal message');
+    expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Ultrawork/off, or type normally');
     expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
     expect(strip(line2 ?? '')).not.toContain('helpers');
     expect(strip(line2 ?? '')).toContain('context: 0.0%');

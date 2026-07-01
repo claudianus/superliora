@@ -16,7 +16,7 @@ import {
 
 describe('TUI surface leak checks', () => {
   it('allows Ultrawork brand copy while still blocking manual slash commands', () => {
-    const brandCopy = 'Shift-Tab enables Ultrawork mode for goal-driven work.';
+    const brandCopy = 'Shift-Tab toggles Ultrawork and off.';
 
     expect(defaultUserSurfaceLeakFailures('help', brandCopy)).toEqual([]);
     expect(defaultUserSurfaceLeakFailures('status', brandCopy)).toEqual([]);
@@ -71,7 +71,7 @@ describe('TUI surface leak checks', () => {
   it('recognizes the unified Ultrawork task-entry, help, and status surface contract', () => {
     expect(
       hasUltraworkTaskEntryCopy(
-        'Shift-Tab enables Ultrawork mode for goal-driven work.',
+        'Shift-Tab toggles Ultrawork and off.',
       ),
     ).toBe(true);
     expect(
@@ -90,7 +90,7 @@ describe('TUI surface leak checks', () => {
     expect(
       hasUltraworkHelpContract(
         [
-          'Shift-Tab enables Ultrawork mode for goal-driven work.',
+          'Shift-Tab toggles Ultrawork and off.',
           'Normal messages stay lightweight unless Ultrawork is on.',
         ].join('\n'),
       ),
@@ -101,7 +101,7 @@ describe('TUI surface leak checks', () => {
           'Ultrawork    mode on',
           'Workflow      interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
           'Engine        UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn',
-          'Auto          Shift-Tab Ultrawork mode; no regex promotion for plain tasks',
+          'Auto          Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks',
           'Autonomy      bounded now -> headless target',
           'Recovery      resumable evidence ready -> durable target',
           'Tools         search first; load tools on demand',
@@ -120,7 +120,7 @@ describe('TUI surface leak checks', () => {
           'State         Model needed',
           'Workflow      interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
           'Engine        UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn',
-          'Auto          Shift-Tab Ultrawork mode; no regex promotion for plain tasks',
+          'Auto          Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks',
           'Flow          ███░ 3/4 verify blocked',
           'Stages        Plan off | Goal ready | Swarm off | Verify blocked',
           'Next          Run /login or /provider first; use /model after sign-in.',
@@ -148,7 +148,7 @@ describe('TUI surface leak checks', () => {
       hasUltraworkAdvancedHelpContract(
         [
           'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.',
-          'Shift-Tab starts the mode; controls below are explicit steering.',
+          'Shift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.',
           'Advanced Ultrawork controls',
           '/plan Advanced steering for UltraPlan; Ultrawork auto-enables it',
           '/swarm Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal',
@@ -160,7 +160,7 @@ describe('TUI surface leak checks', () => {
       hasUltraworkAdvancedHelpContract(
         [
           'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.',
-          'Shift-Tab starts the mode; controls below are explicit steering.',
+          'Shift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.',
           'Advanced Ultrawork controls',
           '/plan Steer UltraPlan stage; Ultrawork enables it automatically',
           '/swarm Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal',
@@ -177,7 +177,7 @@ describe('TUI surface leak checks', () => {
       'Coverage      test public behavior changes',
       'Screen check  open changed screen before finishing',
       'Done gate     tests + typecheck/lint/build + clean diff + TUI',
-      'next: Shift-Tab for Ultrawork, or type a normal message',
+      'next: Shift-Tab toggles Ultrawork/off, or type normally',
     ].join('\n');
     const setupScreen = [
       'Model: not set',

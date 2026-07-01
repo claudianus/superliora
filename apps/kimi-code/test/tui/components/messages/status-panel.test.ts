@@ -89,7 +89,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
     expect(output).toMatch(/Workflow\s+interview -> goal -> research -> swarm decision -> integrate -> verify -> learn/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab Ultrawork mode; no regex promotion for plain tasks/);
+    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion for plain tasks/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
@@ -105,7 +105,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(
-      /Next\s+Press Shift-Tab for Ultrawork, or type a normal message\./,
+      /Next\s+Press Shift-Tab to toggle Ultrawork\/off, or type normally\./,
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');
@@ -154,7 +154,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
     expect(output).toMatch(/Workflow\s+interview -> goal -> research -> swarm decision -> integrate -> verify -> learn/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab Ultrawork mode; no regex promotion for plain tasks/);
+    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion for plain tasks/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
@@ -343,7 +343,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm decision pending \| Verify ready/);
     expect(output).toMatch(/Blockers\s+none detected/);
     expect(output).toMatch(
-      /Next\s+Press Shift-Tab for Ultrawork, or type a normal message\./,
+      /Next\s+Press Shift-Tab to toggle Ultrawork\/off, or type normally\./,
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');

@@ -29,7 +29,7 @@ export const WORKING_TIPS: readonly ToolbarTip[] = [
   { text: '/sessions to browse and resume earlier sessions', solo: true },
   { text: 'describe the outcome and Kimi will keep the work organized', priority: 2, solo: true },
   { text: '/goal next to queue follow-up work while the current goal keeps running', solo: true },
-  { text: 'shift-tab turns on Ultrawork for goal-driven tasks', solo: true, priority: 3 },
+  { text: 'shift-tab toggles Ultrawork and off', solo: true, priority: 3 },
   { text: '@: mention files', priority: 2 },
   { text: '! to run a shell command', priority: 2 },
 ];
@@ -44,6 +44,6 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/help: show commands' },
   { text: '/compact compresses context when it gets long', priority: 2 },
   { text: 'ctrl-o to hide or reveal tool output switching between a clean chat view and full execution details', priority: 2 },
-  { text: 'shift-tab to route the next task through Ultrawork mode', priority: 2 },
+  { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
 ];

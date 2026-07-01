@@ -191,7 +191,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   }
   if (state.streamingPhase !== 'idle') return null;
   if (git?.dirty === true) return 'next: review changes';
-  return 'next: Shift-Tab for Ultrawork, or type a normal message';
+  return 'next: Shift-Tab toggles Ultrawork/off, or type normally';
 }
 
 export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): string {

@@ -164,7 +164,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('hardens an already-created /goal seed into a verifiable UltraGoal contract');
     expect(prompt).toContain('force UltraPlan first');
     expect(prompt).toContain('active_goal_already_created: false');
-    expect(prompt).toContain('Shift-Tab Ultrawork mode is the normal task entry point');
+    expect(prompt).toContain('Shift-Tab toggles Ultrawork and off');
+    expect(prompt).toContain('General /plan remains explicit steering');
     expect(prompt).toContain('/ultrawork is an explicit steering override');
     expect(prompt).toContain('UltraPlan: clarify the request until the future UltraGoal can be judged complete or incomplete as 1 or 0');
     expect(prompt).toContain('UltraPlan must produce and surface the Ouroboros plan before implementation');

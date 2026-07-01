@@ -54,13 +54,14 @@ export function hasXpDodReadinessContract(output) {
 }
 
 export function hasUltraworkTaskEntryCopy(output) {
-  return /\bShift-Tab enables Ultrawork mode for goal-driven work\.?/i.test(output);
+  return /\bShift-Tab toggles Ultrawork and off\.?/i.test(output);
 }
 
 export function hasUltraworkFooterNextAction(output) {
   return [
     /\bnext:\s*describe task;\s*Ultrawork will interview before goal,\s*swarm,\s*and edits\b/i,
     /\bWorkflow\b\s+interview\s*->\s*goal\s*->\s*research\s*->\s*swarm decision\s*->\s*integrate\s*->\s*verify\s*->\s*learn/i,
+    /\bnext:\s*Shift-Tab toggles Ultrawork\/off,\s*or type normally\b/i,
   ].some((pattern) => pattern.test(output));
 }
 
@@ -74,8 +75,8 @@ export function hasUltraworkHelpContract(output) {
 export function hasUltraworkAdvancedHelpContract(output) {
   return [
     /\bUltrawork is one workflow:\s*UltraPlan,\s*UltraGoal,\s*Research,\s*Swarm decision,\s*Integrate,\s*Verify,\s*Learn\.?/i,
-    /\bShift-Tab starts the mode\b/i,
-    /\bcontrols below are explicit steering\.?/i,
+    /\bShift-Tab toggles Ultrawork\/off\b/i,
+    /\bexplicit steering controls below\.?/i,
     /\bAdvanced Ultrawork controls\b/i,
     /\bAdvanced steering for UltraPlan;\s*Ultrawork auto-enables it\b/i,
     /\bAdvanced steering for UltraSwarm;\s*Ultrawork decides after UltraGoal\b/i,
@@ -87,12 +88,12 @@ export function hasUltraworkStatusContract(output) {
     /\bUltrawork\b\s+(?:mode on|mode off|goal active|goal blocked|needs readiness)/i,
     /\bWorkflow\b\s+interview\s*->\s*goal\s*->\s*research\s*->\s*swarm decision\s*->\s*integrate\s*->\s*verify\s*->\s*learn/i,
     /\bEngine\b\s+UltraPlan\s*\|\s*UltraGoal\s*\|\s*Research\s*\|\s*Swarm decision\s*\|\s*Integrate\s*\|\s*Verify\s*\|\s*Learn/i,
-    /\bAuto\b\s+Shift-Tab Ultrawork mode;\s*no regex promotion for plain tasks/i,
+    /\bAuto\b\s+Shift-Tab toggles Ultrawork\/off;\s*no regex promotion for plain tasks/i,
     /\bFlow\b\s+[█░]{4}\s+(?:3|4)\/4\s+(?:verify queued|verify blocked|ready to run|verified)/i,
     /\bStages\b\s+Plan (?:on|required|off)\s*\|\s*Goal (?:ready|active|blocked|done)\s*\|\s*Swarm (?:armed|decision pending|off)\s*\|\s*Verify (?:queued|blocked|ready|done)/i,
   ].every((pattern) => pattern.test(output));
   const taskNextAction =
-    /\bNext\b\s+(?:Type task;\s*Ultrawork will interview before goal,\s*swarm,\s*and edits\.?|Press Shift-Tab for Ultrawork,\s*or type a normal message\.?)/i.test(output);
+    /\bNext\b\s+(?:Type task;\s*Ultrawork will interview before goal,\s*swarm,\s*and edits\.?|Press Shift-Tab to toggle Ultrawork\/off,\s*or type normally\.?)/i.test(output);
   const setupNextAction = shouldRequireModelSetupAction(output) && hasStatusPanelSetupNextAction(output);
   return requiredContract && (taskNextAction || setupNextAction);
 }

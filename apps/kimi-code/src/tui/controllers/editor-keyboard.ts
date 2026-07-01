@@ -18,6 +18,8 @@ import type { PendingExit, QueuedMessage } from '../types';
 import type { TUIState } from '../tui-state';
 import type { BtwPanelController } from './btw-panel';
 
+export type ShiftTabModeTarget = 'off' | 'ultrawork';
+
 export interface EditorKeyboardHost {
   state: TUIState;
   session: Session | undefined;
@@ -162,10 +164,16 @@ export class EditorKeyboardController {
         host.showError(NO_ACTIVE_SESSION_MESSAGE);
         return;
       }
-      const next = !host.state.appState.ultraworkMode;
-      host.track('shortcut_ultrawork_toggle', { enabled: next });
-      host.track('shortcut_mode_switch', { to_mode: next ? 'ultrawork' : 'agent' });
-      host.handleUltraworkModeToggle(next);
+      const next = nextShiftTabModeTarget(host.state.appState);
+      if (next === 'ultrawork') {
+        host.track('shortcut_ultrawork_toggle', { enabled: true });
+        host.track('shortcut_mode_switch', { to_mode: 'ultrawork' });
+        host.handleUltraworkModeToggle(true);
+        return;
+      }
+      host.track('shortcut_ultrawork_toggle', { enabled: false });
+      host.track('shortcut_mode_switch', { to_mode: 'agent' });
+      host.handleUltraworkModeToggle(false);
     };
 
     editor.onShiftTabUltra = () => {
@@ -410,4 +418,11 @@ export class EditorKeyboardController {
       this.host.setExternalEditorRunning(false);
     }
   }
+}
+
+export function nextShiftTabModeTarget(state: {
+  readonly ultraworkMode?: boolean;
+}): ShiftTabModeTarget {
+  if (state.ultraworkMode === true) return 'off';
+  return 'ultrawork';
 }

@@ -79,7 +79,7 @@ describe('WelcomeComponent', () => {
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
     expect(output).toContain('Welcome to Super Kimi Code!');
-    expect(output).toContain('Type normally, or press Shift-Tab for Ultrawork mode.');
+    expect(output).toContain('Type normally, or press Shift-Tab to toggle Ultrawork/off.');
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');
     expect(output).not.toContain('Kimi checks readiness and verification.');

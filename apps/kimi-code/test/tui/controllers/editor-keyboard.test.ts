@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DOUBLE_ESC_WINDOW_MS } from '#/tui/constant/kimi-tui';
 import {
   EditorKeyboardController,
+  nextShiftTabModeTarget,
   type EditorKeyboardHost,
 } from '#/tui/controllers/editor-keyboard';
 import type { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
@@ -12,12 +13,23 @@ interface Harness {
   readonly editor: Record<string, ((...args: never[]) => unknown) | undefined>;
   readonly openUndoSelector: ReturnType<typeof vi.fn>;
   readonly cancelRunningShellCommand: ReturnType<typeof vi.fn>;
+  readonly handlePlanToggle: ReturnType<typeof vi.fn>;
+  readonly handleUltraworkModeToggle: ReturnType<typeof vi.fn>;
 }
 
-function createHarness(options: { streamingPhase?: string; isCompacting?: boolean } = {}): Harness {
+function createHarness(
+  options: {
+    streamingPhase?: string;
+    isCompacting?: boolean;
+    planMode?: boolean;
+    ultraworkMode?: boolean;
+  } = {},
+): Harness {
   const editor: Record<string, ((...args: never[]) => unknown) | undefined> = {};
   const openUndoSelector = vi.fn();
   const cancelRunningShellCommand = vi.fn();
+  const handlePlanToggle = vi.fn();
+  const handleUltraworkModeToggle = vi.fn();
   const session = { cancel: vi.fn(async () => {}) };
 
   const host = {
@@ -27,11 +39,16 @@ function createHarness(options: { streamingPhase?: string; isCompacting?: boolea
       appState: {
         streamingPhase: options.streamingPhase ?? 'idle',
         isCompacting: options.isCompacting ?? false,
+        planMode: options.planMode ?? false,
+        ultraworkMode: options.ultraworkMode ?? false,
       },
       footer: { setTransientHint: vi.fn() },
       ui: { requestRender: vi.fn() },
     },
     session,
+    track: vi.fn(),
+    handlePlanToggle,
+    handleUltraworkModeToggle,
     btwPanelController: { closeOrCancel: vi.fn(() => false) },
     openUndoSelector,
     cancelRunningShellCommand,
@@ -43,7 +60,14 @@ function createHarness(options: { streamingPhase?: string; isCompacting?: boolea
   );
   controller.install();
 
-  return { host, editor, openUndoSelector, cancelRunningShellCommand };
+  return {
+    host,
+    editor,
+    openUndoSelector,
+    cancelRunningShellCommand,
+    handlePlanToggle,
+    handleUltraworkModeToggle,
+  };
 }
 
 function pressEscape(editor: Harness['editor']): void {
@@ -57,6 +81,43 @@ function pressNonEscape(editor: Harness['editor']): void {
   if (handler === undefined) throw new Error('onNonEscapeInput handler not installed');
   (handler as () => void)();
 }
+
+function pressShiftTab(editor: Harness['editor']): void {
+  const handler = editor['onShiftTab'];
+  if (handler === undefined) throw new Error('onShiftTab handler not installed');
+  (handler as () => void)();
+}
+
+describe('EditorKeyboardController Ultrawork toggle', () => {
+  it('keeps Shift-Tab focused on the primary off and Ultrawork states', () => {
+    expect(nextShiftTabModeTarget({ ultraworkMode: false })).toBe('ultrawork');
+    expect(nextShiftTabModeTarget({ ultraworkMode: true })).toBe('off');
+  });
+
+  it('turns off all planning modes after Ultrawork', () => {
+    const { editor, handlePlanToggle, handleUltraworkModeToggle } = createHarness({
+      planMode: true,
+      ultraworkMode: true,
+    });
+
+    pressShiftTab(editor);
+
+    expect(handleUltraworkModeToggle).toHaveBeenCalledWith(false);
+    expect(handlePlanToggle).not.toHaveBeenCalled();
+  });
+
+  it('enters Ultrawork directly from the off state', () => {
+    const { editor, handlePlanToggle, handleUltraworkModeToggle } = createHarness({
+      planMode: false,
+      ultraworkMode: false,
+    });
+
+    pressShiftTab(editor);
+
+    expect(handleUltraworkModeToggle).toHaveBeenCalledWith(true);
+    expect(handlePlanToggle).not.toHaveBeenCalled();
+  });
+});
 
 describe('EditorKeyboardController double-Esc undo', () => {
   beforeEach(() => {

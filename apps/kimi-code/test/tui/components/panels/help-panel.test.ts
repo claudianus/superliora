@@ -28,12 +28,12 @@ describe('HelpPanelComponent', () => {
     });
     const out = strip(panel.render(120).join('\n'));
     expect(out).toMatch(/help/);
-    expect(out).toMatch(/Shift-Tab enables Ultrawork mode for goal-driven work\./);
+    expect(out).toMatch(/Shift-Tab toggles Ultrawork and off\./);
     expect(out).toMatch(/Normal messages stay lightweight unless Ultrawork is on\./);
     expect(out).not.toMatch(/helpers/);
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(/Shift-Tab/);
-    expect(out).toMatch(/Toggle Ultrawork mode/);
+    expect(out).toMatch(/Toggle Ultrawork \/ off/);
     expect(out).not.toMatch(/Steer Ultrawork plan/);
     expect(out).not.toMatch(/Ctrl-Shift-Tab/);
     expect(out).not.toMatch(/Steer UltraPlan/);
@@ -80,8 +80,8 @@ describe('HelpPanelComponent', () => {
     });
     const out = strip(panel.render(120).join('\n'));
     expect(out).toMatch(/Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn\./);
-    expect(out).toMatch(/Shift-Tab starts the mode/);
-    expect(out).toMatch(/controls below are explicit steering/);
+    expect(out).toMatch(/Shift-Tab toggles Ultrawork\/off/);
+    expect(out).toMatch(/explicit steering controls below/);
     expect(out).toMatch(/Ctrl-Shift-Tab/);
     expect(out).toMatch(/Steer UltraPlan/);
     expect(out).toMatch(/Esc Esc/);
@@ -99,7 +99,7 @@ describe('HelpPanelComponent', () => {
     });
     const primaryOut = strip(primaryPanel.render(160).join('\n'));
 
-    expect(primaryOut).toMatch(/Shift-Tab enables Ultrawork mode for goal-driven work\./);
+    expect(primaryOut).toMatch(/Shift-Tab toggles Ultrawork and off\./);
     expect(primaryOut).toMatch(/\/theme/);
     expect(primaryOut).not.toMatch(/\/plan/);
     expect(primaryOut).not.toMatch(/\/swarm/);
@@ -117,7 +117,7 @@ describe('HelpPanelComponent', () => {
     const advancedOut = strip(advancedPanel.render(160).join('\n'));
 
     expect(advancedOut).toMatch(/Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn\./);
-    expect(advancedOut).toMatch(/Shift-Tab starts the mode/);
+    expect(advancedOut).toMatch(/Shift-Tab toggles Ultrawork\/off/);
     expect(advancedOut).toMatch(/Advanced Ultrawork controls/);
     expect(advancedOut).toMatch(/\/plan/);
     expect(advancedOut).toMatch(/Advanced steering for UltraPlan; Ultrawork auto-enables it/);

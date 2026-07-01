@@ -14,7 +14,7 @@ import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import { mascotWidth, renderKimiMascotIcon } from './kimi-mascot-icon';
 
-const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab for Ultrawork mode.';
+const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab to toggle Ultrawork/off.';
 
 export class WelcomeComponent implements Component {
   private state: AppState;
