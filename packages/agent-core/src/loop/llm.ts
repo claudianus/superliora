@@ -31,6 +31,22 @@ export interface LLMRequestLogFields {
 export interface LLMStreamTiming {
   readonly firstTokenLatencyMs: number;
   readonly streamDurationMs: number;
+  /**
+   * Portion of `firstTokenLatencyMs` spent in-process before the provider
+   * adapter dispatches the network request.
+   */
+  readonly requestBuildMs?: number;
+  /**
+   * Portion of `firstTokenLatencyMs` spent waiting on the upstream API after
+   * request dispatch.
+   */
+  readonly serverFirstTokenMs?: number;
+  /**
+   * Split of `streamDurationMs`: provider wait time vs. local per-part
+   * processing time.
+   */
+  readonly serverDecodeMs?: number;
+  readonly clientConsumeMs?: number;
 }
 
 export interface LLMChatParams {

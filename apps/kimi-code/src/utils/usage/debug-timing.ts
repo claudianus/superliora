@@ -10,6 +10,10 @@ interface DebugTokenUsage {
 export interface StepTimingInput {
   readonly llmFirstTokenLatencyMs?: number;
   readonly llmStreamDurationMs?: number;
+  readonly llmRequestBuildMs?: number;
+  readonly llmServerFirstTokenMs?: number;
+  readonly llmServerDecodeMs?: number;
+  readonly llmClientConsumeMs?: number;
   readonly usage?: DebugTokenUsage;
 }
 
@@ -26,12 +30,14 @@ export function formatStepDebugTiming(input: StepTimingInput): string | undefine
   const streamMs = input.llmStreamDurationMs;
   if (latency === undefined || streamMs === undefined) return undefined;
 
-  const parts: string[] = [`TTFT: ${formatDuration(latency)}`];
+  const parts: string[] = [`TTFT: ${formatTtft(input)}`];
   const outputTokens = input.usage?.output;
   if (outputTokens !== undefined && outputTokens > 0) {
     if (streamMs >= MIN_STREAM_MS_FOR_TPS) {
       const tps = (outputTokens / (streamMs / 1000)).toFixed(1);
-      parts.push(`TPS: ${tps} tok/s (${outputTokens} tokens in ${formatDuration(streamMs)})`);
+      parts.push(
+        `TPS: ${tps} tok/s (${outputTokens} tokens in ${formatDuration(streamMs)}${formatDecodeSplit(input)})`,
+      );
     } else {
       parts.push(
         `${outputTokens} tokens in ${formatDuration(streamMs)} (stream too short for TPS)`,
@@ -63,6 +69,21 @@ export function formatStepDebugTiming(input: StepTimingInput): string | undefine
 function usageInputTotal(usage: DebugTokenUsage | undefined): number {
   if (usage === undefined) return 0;
   return (usage.inputOther ?? 0) + (usage.inputCacheRead ?? 0) + (usage.inputCacheCreation ?? 0);
+}
+
+function formatTtft(input: StepTimingInput): string {
+  const total = formatDuration(input.llmFirstTokenLatencyMs ?? 0);
+  const build = input.llmRequestBuildMs;
+  const server = input.llmServerFirstTokenMs;
+  if (build === undefined || server === undefined) return total;
+  return `${total} (api ${formatDuration(server)} + client ${formatDuration(build)})`;
+}
+
+function formatDecodeSplit(input: StepTimingInput): string {
+  const server = input.llmServerDecodeMs;
+  const client = input.llmClientConsumeMs;
+  if (server === undefined || client === undefined) return '';
+  return `; server ${formatDuration(server)} + client ${formatDuration(client)}`;
 }
 
 function formatDuration(ms: number): string {

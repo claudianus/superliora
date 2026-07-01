@@ -21,6 +21,10 @@ export interface LoopStepEndEvent {
   readonly finishReason?: LoopStepStopReason | undefined;
   readonly llmFirstTokenLatencyMs?: number | undefined;
   readonly llmStreamDurationMs?: number | undefined;
+  readonly llmRequestBuildMs?: number | undefined;
+  readonly llmServerFirstTokenMs?: number | undefined;
+  readonly llmServerDecodeMs?: number | undefined;
+  readonly llmClientConsumeMs?: number | undefined;
   /**
    * Provider diagnostics are optional and must not drive loop control.
    * Use `finishReason` for normalized behavior.

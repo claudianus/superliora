@@ -28,6 +28,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1214` partial: rewrite compaction instructions toward first-person handoff notes with verification caution.
 - Upstream `#1214` partial: reject manual compaction requests while a turn is actively mutating context.
 - Upstream `#1214` partial: recover from generic provider `413` context-size responses when the estimated request is near the model window.
+- Upstream `#1228` selective: split streaming timing into request-build, server first-token, server decode, and client consume components for CLI/TUI diagnostics.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -49,6 +50,7 @@ Super Kimi adaptation:
 - Adapted the upstream handoff-style compaction prompt into Super Kimi's existing Context Compaction v2 wrapper, preserving the structured memory contract while making summaries more useful after context loss.
 - Kept Super Kimi's planner/memory compaction design, but adopted the upstream active-turn guard so manual compaction cannot race a streaming turn and silently lose context mutations.
 - Kept Super Kimi's existing overflow compaction strategy, but routed large plain `413` responses through the same compaction retry path while leaving small plain `413` failures untouched.
+- Preserved the existing debug timing surface while passing finer-grained stream timing through provider hooks, loop events, SDK event types, and the TUI formatter. Web/vis UI changes from the same upstream PR remain deferred.
 
 ## Next Candidate Queue
 

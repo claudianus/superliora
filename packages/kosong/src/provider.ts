@@ -119,10 +119,31 @@ export interface GenerateOptions {
    */
   onRequestStart?: () => void;
   /**
-   * Host-side instrumentation hook fired after the provider stream is fully
-   * drained, before post-processing the assembled response.
+   * Host-side instrumentation hook fired by the provider adapter immediately
+   * before it dispatches the network request to the upstream API. The window
+   * between `onRequestStart` and this hook is in-process request-building time;
+   * the window between this hook and the first streamed part is network +
+   * server time.
    */
-  onStreamEnd?: () => void;
+  onRequestSent?: () => void;
+  /**
+   * Host-side instrumentation hook fired after the provider stream is fully
+   * drained, before post-processing the assembled response. Receives decode
+   * accounting when at least one streamed part was observed.
+   */
+  onStreamEnd?: (stats?: StreamDecodeStats) => void;
+}
+
+/**
+ * Decode-phase accounting for a streamed generation. Splits the window after
+ * the first streamed part into provider wait time and local per-part processing
+ * time.
+ */
+export interface StreamDecodeStats {
+  /** Cumulative time spent awaiting the next streamed part. */
+  readonly serverDecodeMs: number;
+  /** Cumulative time spent processing streamed parts in-process. */
+  readonly clientConsumeMs: number;
 }
 
 /**

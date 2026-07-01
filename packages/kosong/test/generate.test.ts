@@ -932,4 +932,96 @@ describe('generate()', () => {
       expect(result.rawFinishReason).toBe('content_filter');
     });
   });
+
+  describe('decode accounting', () => {
+    const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+    function createDelayedStream(
+      parts: StreamedMessagePart[],
+      perPartWaitMs: number,
+    ): StreamedMessage {
+      return {
+        id: null,
+        usage: null,
+        finishReason: 'completed',
+        rawFinishReason: 'stop',
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          let first = true;
+          for (const part of parts) {
+            if (!first && perPartWaitMs > 0) await sleep(perPartWaitMs);
+            first = false;
+            yield part;
+          }
+        },
+      };
+    }
+
+    it('attributes per-part processing time to the client bucket', async () => {
+      const stream = createDelayedStream(
+        [
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' },
+          { type: 'text', text: 'c' },
+        ],
+        0,
+      );
+      const provider = createMockProvider(stream);
+      let stats: { serverDecodeMs: number; clientConsumeMs: number } | undefined;
+
+      await generate(
+        provider,
+        '',
+        [],
+        [],
+        {
+          async onMessagePart(): Promise<void> {
+            await sleep(25);
+          },
+        },
+        {
+          onStreamEnd: (streamStats) => {
+            stats = streamStats;
+          },
+        },
+      );
+
+      expect(stats).toBeDefined();
+      expect(stats!.clientConsumeMs).toBeGreaterThan(stats!.serverDecodeMs);
+      expect(stats!.clientConsumeMs).toBeGreaterThanOrEqual(50);
+    });
+
+    it('attributes time spent awaiting parts to the server bucket', async () => {
+      const stream = createDelayedStream(
+        [
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' },
+          { type: 'text', text: 'c' },
+        ],
+        25,
+      );
+      const provider = createMockProvider(stream);
+      let stats: { serverDecodeMs: number; clientConsumeMs: number } | undefined;
+
+      await generate(
+        provider,
+        '',
+        [],
+        [],
+        {
+          onMessagePart(): void {
+            // Instant client processing keeps measurable delay in the server bucket.
+          },
+        },
+        {
+          onStreamEnd: (streamStats) => {
+            stats = streamStats;
+          },
+        },
+      );
+
+      expect(stats).toBeDefined();
+      expect(stats!.serverDecodeMs).toBeGreaterThan(stats!.clientConsumeMs);
+      expect(stats!.serverDecodeMs).toBeGreaterThanOrEqual(40);
+    });
+  });
 });
