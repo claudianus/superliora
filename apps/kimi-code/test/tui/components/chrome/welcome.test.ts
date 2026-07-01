@@ -1,6 +1,6 @@
 import { visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
@@ -66,6 +66,7 @@ describe('WelcomeComponent', () => {
 
   afterEach(() => {
     chalk.level = previousChalkLevel;
+    vi.useRealTimers();
   });
 
   it('renders the banner in a single brand color by default', () => {
@@ -84,6 +85,37 @@ describe('WelcomeComponent', () => {
     expect(output).not.toContain('helpers');
     expect(output).not.toContain('Kimi checks readiness and verification.');
     expect(output).not.toContain('Send /help for help information.');
+  });
+
+  it('renders ambient particle rails by default in safe terminals', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+      SSH_TTY: process.env['SSH_TTY'],
+      SSH_CONNECTION: process.env['SSH_CONNECTION'],
+      SSH_CLIENT: process.env['SSH_CLIENT'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+
+    try {
+      const lines = new WelcomeComponent(appState).render(80);
+
+      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧]/);
+      expect(strip(lines.at(-3) ?? '')).toMatch(/[·∙✧]/);
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it('keeps every line within the requested width on narrow terminals', () => {

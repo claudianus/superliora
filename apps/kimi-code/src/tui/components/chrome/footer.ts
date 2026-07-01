@@ -11,9 +11,11 @@ import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
 import { ALL_TIPS, type ToolbarTip } from '#/tui/constant/tips';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { currentTheme } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
+import { renderShimmerPrefix } from '#/tui/utils/appearance-effects';
 import {
   createGitStatusCache,
   formatGitBadgeBase,
@@ -349,7 +351,11 @@ export class FooterComponent implements Component {
     const contextWidth = visibleWidth(contextText);
     let line2: string;
     const nextAction = footerNextAction(state, git);
-    const leftHint = this.transientHint ?? nextAction;
+    const shimmer =
+      this.transientHint === null
+        ? renderShimmerPrefix(state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES)
+        : '';
+    const leftHint = this.transientHint ?? (nextAction === null ? null : shimmer + nextAction);
     if (leftHint !== null) {
       const maxHintWidth = Math.max(0, width - contextWidth - 1);
       const shownHint =

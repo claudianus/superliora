@@ -4,6 +4,7 @@ import type { AppearancePreferences } from '#/tui/config';
 import { ESC, ST } from '#/tui/constant/terminal';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
+import { motionEffectsAllowed, resolveAmbientEffectMode } from '#/tui/utils/appearance-effects';
 
 import { AnimationScheduler } from './animation-scheduler';
 
@@ -86,13 +87,10 @@ export class AppearanceController {
 
 export function shouldAnimate(appearance: AppearancePreferences): boolean {
   if (appearance.profile === 'off') return false;
+  if (appearance.particles === 'off') return false;
   if (appearance.animationFps <= 0) return false;
-  if (process.env['TERM'] === 'dumb') return false;
-  if (process.env['CI'] !== undefined && process.env['CI'] !== '' && process.env['CI'] !== '0') {
-    return false;
-  }
-  if (isRemoteSession()) return false;
-  return appearance.profile === 'premium' || appearance.profile === 'subtle';
+  if (!motionEffectsAllowed()) return false;
+  return resolveAmbientEffectMode(appearance) !== 'off';
 }
 
 export function terminalMutationAllowed(appearance: AppearancePreferences): boolean {

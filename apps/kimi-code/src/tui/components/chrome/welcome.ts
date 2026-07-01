@@ -12,6 +12,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
+import { renderParticleRail } from '#/tui/utils/appearance-effects';
 import { mascotWidth, renderKimiMascotIcon } from './kimi-mascot-icon';
 
 const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab to toggle Ultrawork/off.';
@@ -101,7 +102,9 @@ export class WelcomeComponent implements Component {
     const lines: string[] = [
       '',
       primary('╭' + '─'.repeat(safeWidth - 2) + '╮'),
-      primary('│') + ' '.repeat(safeWidth - 2) + primary('│'),
+      primary('│') +
+        renderParticleRail(safeWidth - 2, appearance, 'welcome-top') +
+        primary('│'),
     ];
 
     for (const content of contentLines) {
@@ -111,7 +114,11 @@ export class WelcomeComponent implements Component {
       lines.push(primary('│') + pad + truncated + ' '.repeat(rightPad) + primary('│'));
     }
 
-    lines.push(primary('│') + ' '.repeat(safeWidth - 2) + primary('│'));
+    lines.push(
+      primary('│') +
+        renderParticleRail(safeWidth - 2, appearance, 'welcome-bottom') +
+        primary('│'),
+    );
     lines.push(primary('╰' + '─'.repeat(safeWidth - 2) + '╯'));
     lines.push('');
 

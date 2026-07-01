@@ -71,14 +71,20 @@ describe('AppearanceController', () => {
     currentTheme.setCanvasBackgroundEnabled(true);
   });
 
-  it('enables animation only for explicit motion profiles in safe terminals', () => {
+  it('enables animation for auto and explicit motion profiles in safe terminals', () => {
     expect(
       shouldAnimate({
         ...DEFAULT_APPEARANCE_PREFERENCES,
         profile: 'premium',
       }),
     ).toBe(true);
-    expect(shouldAnimate(DEFAULT_APPEARANCE_PREFERENCES)).toBe(false);
+    expect(shouldAnimate(DEFAULT_APPEARANCE_PREFERENCES)).toBe(true);
+    expect(
+      shouldAnimate({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+      }),
+    ).toBe(false);
 
     process.env['SSH_TTY'] = '/dev/pts/1';
     expect(
