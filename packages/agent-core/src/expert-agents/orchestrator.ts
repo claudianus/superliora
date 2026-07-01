@@ -22,7 +22,7 @@ export class UltraSwarmOrchestrator {
     // Extract potential domains by searching with keywords from the task
     const keywords = taskDescription
       .toLowerCase()
-      .replace(/[^\w\s]/g, '')
+      .replaceAll(/[^\w\s]/g, '')
       .split(/\s+/)
       .filter((w) => w.length > 3);
 
@@ -80,7 +80,7 @@ export class UltraSwarmOrchestrator {
       for (const domain of analysis.domains) {
         const domainExperts = globalExpertSearchEngine.search({
           query: taskDescription,
-          topK: 2,
+          topK: 1,
           division: domain,
         });
         for (const e of domainExperts) {
@@ -88,7 +88,9 @@ export class UltraSwarmOrchestrator {
             experts.push(e);
             seen.add(e.expert.id);
           }
+          if (experts.length >= analysis.suggestedExpertCount) break;
         }
+        if (experts.length >= analysis.suggestedExpertCount) break;
       }
 
       // If we still don't have enough, do a broad search
@@ -119,6 +121,8 @@ export class UltraSwarmOrchestrator {
         color: result.expert.color,
         prompt: this.buildExpertPrompt(result.expert, taskDescription, index),
         dependsOn: strategy === 'sequential' && index > 0 && prev !== undefined ? [prev.expert.id] : undefined,
+        coverageLane: coverageLaneForExpert(result.expert, taskDescription),
+        selectionReason: selectionReasonForExpert(result.expert),
       };
     });
 
@@ -139,3 +143,29 @@ export class UltraSwarmOrchestrator {
 }
 
 export const globalUltraSwarmOrchestrator = new UltraSwarmOrchestrator();
+
+function coverageLaneForExpert(expert: ExpertCatalogEntry, taskDescription: string): string {
+  const expertText = `${expert.division} ${expert.divisionLabel} ${expert.name} ${expert.description} ${expert.tags.join(' ')}`.toLowerCase();
+  const taskText = taskDescription.toLowerCase();
+  if (/\b(?:security|auth|privacy|payment|compliance|legal)\b/.test(expertText)) return 'security_privacy';
+  if (/\b(?:design|visual|brand|ux|ui|motion|animation)\b/.test(expertText)) return 'ux_visual_content';
+  if (/\b(?:test|qa|quality|verification|validation)\b/.test(expertText)) return 'testing_evidence';
+  if (/\b(?:performance|latency|scale|reliability|benchmark)\b/.test(expertText)) return 'performance_reliability';
+  if (/\b(?:product|project|manager|requirements|strategy)\b/.test(expertText)) return 'product_requirements';
+  if (/\b(?:academic|finance|gis|game|marketing|sales|support|specialized)\b/.test(expertText)) return 'domain_subject_matter';
+  if (/\b(?:security|auth|privacy|payment|compliance|legal)\b/.test(taskText)) return 'security_privacy';
+  if (/\b(?:design|visual|brand|ux|ui|motion|game|animation)\b/.test(taskText)) return 'ux_visual_content';
+  if (/\b(?:test|qa|quality|review|verification|validation)\b/.test(taskText)) return 'testing_evidence';
+  if (/\b(?:performance|latency|scale|reliability|benchmark)\b/.test(taskText)) return 'performance_reliability';
+  if (/\b(?:product|project|manager|requirements|strategy)\b/.test(taskText)) return 'product_requirements';
+  return 'architecture_implementation';
+}
+
+function selectionReasonForExpert(expert: ExpertCatalogEntry): string {
+  const description = expert.description.trim();
+  if (description.length > 0) return description;
+  const tags = expert.tags.slice(0, 5).join(', ');
+  return tags.length > 0
+    ? `Selected for ${expert.divisionLabel} coverage: ${tags}.`
+    : `Selected for ${expert.divisionLabel} coverage.`;
+}

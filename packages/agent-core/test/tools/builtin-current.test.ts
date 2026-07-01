@@ -986,9 +986,15 @@ describe('current builtin collaboration tools', () => {
     const queuedTasks = runQueued.mock.calls[0]?.[0] ?? [];
     expect(queuedTasks[0]?.prompt).toContain('<expert_briefing');
     expect(queuedTasks[0]?.prompt).not.toContain('<expert_persona');
+    expect(queuedTasks[0]?.prompt).toContain('Coverage lane: domain_subject_matter.');
+    expect(queuedTasks[0]?.prompt).toContain('Selection reason:');
     expect(queuedTasks[0]?.prompt).toContain('Focus lane: review.');
+    expect(queuedTasks[0]?.prompt).toContain('Review gate: compare actual evidence');
     expect(result.output).toContain('<ultra_swarm_result>');
     expect(result.output).toContain('<summary>completed: 2, failed: 0, aborted: 0</summary>');
+    expect(result.output).toContain('<coverage>Each expert row includes the assigned coverage lane');
+    expect(result.output).toContain('lane="domain_subject_matter"');
+    expect(result.output).toContain('<selection_reason>');
     expect(result.output).toContain('expert result 1');
     expect(result.output).toContain('expert result 2');
     expect(result.isError).toBeUndefined();

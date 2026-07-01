@@ -48,6 +48,8 @@ export interface ExpertAssignment {
   readonly dependsOn?: readonly string[];
   readonly emoji: string;
   readonly color: string;
+  readonly coverageLane?: string;
+  readonly selectionReason?: string;
 }
 
 export interface UltraSwarmInput {

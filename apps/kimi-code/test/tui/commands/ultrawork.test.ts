@@ -1,6 +1,11 @@
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  buildUltraworkCoverageMatrix,
   buildUltraworkPrompt,
   handleUltraworkCommand,
   parseUltraworkCommand,
@@ -24,6 +29,7 @@ function makeHost(
     permissionMode?: 'manual' | 'auto' | 'yolo';
     planMode?: boolean;
     swarmMode?: boolean;
+    workDir?: string;
   } = {},
 ) {
   const session = {
@@ -37,6 +43,7 @@ function makeHost(
     state: {
       appState: {
         model: overrides.model ?? 'kimi-model',
+        workDir: overrides.workDir ?? process.cwd(),
         permissionMode: overrides.permissionMode ?? 'auto',
         planMode: overrides.planMode ?? false,
         ultraworkMode: false,
@@ -116,6 +123,29 @@ describe('shouldAutoActivateUltrawork', () => {
     expect(shouldAutoActivateUltrawork('울트라 스웜이 뭐야?')).toBe(false);
     expect(shouldAutoActivateUltrawork('explain ultrawork')).toBe(false);
     expect(shouldAutoActivateUltrawork('do not use ultrawork, just answer normally')).toBe(false);
+  });
+});
+
+describe('buildUltraworkCoverageMatrix', () => {
+  it('derives generic specialist lanes without making visual work the only special case', () => {
+    const gameLanes = buildUltraworkCoverageMatrix(
+      '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
+    ).map((lane) => lane.id);
+
+    expect(gameLanes).toContain('product_requirements');
+    expect(gameLanes).toContain('architecture_implementation');
+    expect(gameLanes).toContain('domain_subject_matter');
+    expect(gameLanes).toContain('ux_visual_content');
+    expect(gameLanes).toContain('testing_evidence');
+    expect(gameLanes).toContain('independent_review_loop');
+
+    const securityLanes = buildUltraworkCoverageMatrix(
+      'OAuth 로그인 보안 취약점을 고치고 권한 회귀 테스트를 추가해줘',
+    ).map((lane) => lane.id);
+
+    expect(securityLanes).toContain('security_privacy');
+    expect(securityLanes).toContain('testing_evidence');
+    expect(securityLanes).not.toContain('ux_visual_content');
   });
 });
 
@@ -260,6 +290,37 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('Do not call CreateGoal again for the same work');
     expect(prompt).toContain('use UltraPlan to make the active goal verifiable');
   });
+
+  it('threads runtime evidence seed paths into the workflow contract', () => {
+    const prompt = buildUltraworkPrompt('Ship feature X', 'manual', false, {
+      evidenceSeed: {
+        root: '.super-kimi/evidence/ultrawork-runs/run-1',
+        llmWikiPath: '.super-kimi/evidence/ultrawork-runs/run-1/llm-wiki.md',
+        knowledgeMapPath: '.super-kimi/evidence/ultrawork-runs/run-1/kimi-knowledge-map.json',
+        coverageMatrixPath: '.super-kimi/evidence/ultrawork-runs/run-1/capability-coverage-matrix.json',
+        reviewLoopPath: '.super-kimi/evidence/ultrawork-runs/run-1/expert-review-loop.md',
+        learnLedgerPath: '.super-kimi/evidence/ultrawork-runs/run-1/knowledge-persistence-ledger.json',
+      },
+    });
+
+    expect(prompt).toContain('Runtime evidence seed was created before this turn');
+    expect(prompt).toContain('llm_wiki_seed: .super-kimi/evidence/ultrawork-runs/run-1/llm-wiki.md');
+    expect(prompt).toContain('knowledge_map_seed: .super-kimi/evidence/ultrawork-runs/run-1/kimi-knowledge-map.json');
+    expect(prompt).toContain('coverage_matrix_seed: .super-kimi/evidence/ultrawork-runs/run-1/capability-coverage-matrix.json');
+    expect(prompt).toContain('expert_review_loop_seed: .super-kimi/evidence/ultrawork-runs/run-1/expert-review-loop.md');
+    expect(prompt).toContain(
+      'knowledge_persistence_ledger: .super-kimi/evidence/ultrawork-runs/run-1/knowledge-persistence-ledger.json',
+    );
+  });
+
+  it('records blocked evidence persistence when the seed cannot be written', () => {
+    const prompt = buildUltraworkPrompt('Ship feature X', 'manual', false, {
+      evidenceSeedError: 'permission denied',
+    });
+
+    expect(prompt).toContain('Runtime evidence seed could not be created: permission denied');
+    expect(prompt).toContain('Mark llm_wiki and local evidence persistence blocked');
+  });
 });
 
 describe('parseUltraworkCommand', () => {
@@ -327,6 +388,59 @@ describe('handleUltraworkCommand', () => {
       expect.stringContaining('<ultrawork_flow>'),
       { displayText: expect.stringContaining('<ultrawork_flow>') },
     );
+  });
+
+  it('creates project-local LLM Wiki, knowledge-map, coverage, and review seed evidence', async () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-ultrawork-seed-'));
+    try {
+      const { host } = makeHost({ workDir });
+
+      await handleUltraworkCommand(
+        host,
+        '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
+        'manual',
+      );
+
+      const runsRoot = join(workDir, '.super-kimi/evidence/ultrawork-runs');
+      const runDirs = readdirSync(runsRoot);
+      expect(runDirs).toHaveLength(1);
+      const runRoot = join(runsRoot, runDirs[0] ?? '');
+      const llmWikiPath = join(runRoot, 'llm-wiki.md');
+      const knowledgeMapPath = join(runRoot, 'kimi-knowledge-map.json');
+      const coverageMatrixPath = join(runRoot, 'capability-coverage-matrix.json');
+      const reviewLoopPath = join(runRoot, 'expert-review-loop.md');
+      const learnLedgerPath = join(runRoot, 'knowledge-persistence-ledger.json');
+
+      for (const path of [
+        llmWikiPath,
+        knowledgeMapPath,
+        coverageMatrixPath,
+        reviewLoopPath,
+        learnLedgerPath,
+      ]) {
+        expect(existsSync(path)).toBe(true);
+      }
+
+      expect(readFileSync(llmWikiPath, 'utf8')).toContain('Durable Memory / Kimi Recall');
+      expect(readFileSync(reviewLoopPath, 'utf8')).toContain('Review required: yes');
+      const knowledgeMap = JSON.parse(readFileSync(knowledgeMapPath, 'utf8')) as Record<string, unknown>;
+      expect(knowledgeMap['kind']).toBe('kimi knowledge map');
+      const coverage = JSON.parse(readFileSync(coverageMatrixPath, 'utf8')) as {
+        lanes: Array<{ id: string }>;
+      };
+      const laneIds = coverage.lanes.map((lane) => lane.id);
+      expect(laneIds).toContain('domain_subject_matter');
+      expect(laneIds).toContain('ux_visual_content');
+      expect(laneIds).toContain('independent_review_loop');
+
+      const prompt = (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as string;
+      expect(prompt).toContain('Runtime evidence seed was created before this turn');
+      expect(prompt).toContain('.super-kimi/evidence/ultrawork-runs');
+      expect(prompt).toContain('knowledge_persistence_ledger');
+      expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Ultrawork evidence seed: '));
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
   });
 
   it('does not create a goal when ultra-plan setup fails', async () => {

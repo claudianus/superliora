@@ -11,6 +11,7 @@ import {
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
 } from '#/tui/commands/memory';
+import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork';
 
 describe('memory readiness slash command builders', () => {
   it('builds a concise redacted readiness panel from stats, recall, and evidence', () => {
@@ -114,6 +115,31 @@ describe('memory readiness slash command builders', () => {
       expect(evidence.knowledgeMap.sourcePath).toContain('kimi-knowledge-map.json');
       expect(evidence.browserUse.sourcePath).toContain('browser-use.json');
       expect(evidence.computerUse.sourcePath).toContain('computer-use-state.json');
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it('recognizes Ultrawork startup seed files as local LLM Wiki and knowledge-map evidence', () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-ultrawork-seed-'));
+    try {
+      const seed = createUltraworkEvidenceSeed(
+        workDir,
+        '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
+        'manual',
+        false,
+        new Date('2026-07-02T00:00:00.000Z'),
+      );
+
+      const evidence = loadMemoryReadinessEvidence(workDir);
+
+      expect(seed.root).toContain('.super-kimi/evidence/ultrawork-runs');
+      expect(evidence.llmWiki.ready).toBe(true);
+      expect(evidence.knowledgeMap.ready).toBe(true);
+      expect(evidence.browserUse.ready).toBe(false);
+      expect(evidence.computerUse.ready).toBe(false);
+      expect(evidence.llmWiki.sourcePath).toContain('llm-wiki.md');
+      expect(evidence.knowledgeMap.sourcePath).toContain('kimi-knowledge-map.json');
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }

@@ -88,6 +88,8 @@ interface UltraSwarmSpec {
   readonly prompt: string;
   readonly emoji: string;
   readonly color: string;
+  readonly coverageLane?: string;
+  readonly selectionReason?: string;
 }
 
 interface UltraSwarmRunResult {
@@ -201,6 +203,8 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
       prompt: this.buildExpertPrompt(assignment, args.description, args.focus),
       emoji: assignment.emoji,
       color: assignment.color,
+      coverageLane: assignment.coverageLane,
+      selectionReason: assignment.selectionReason,
     }));
 
     const tasks = specs.map((spec): QueuedSubagentTask<UltraSwarmSpec> => ({
@@ -253,8 +257,16 @@ ${assignment.prompt}
     const task = `<task>
 ${taskDescription}
 </task>`;
+    const laneLine = assignment.coverageLane === undefined ? '' : `\nCoverage lane: ${assignment.coverageLane}.`;
+    const reasonLine = assignment.selectionReason === undefined
+      ? ''
+      : `\nSelection reason: ${assignment.selectionReason}`;
     const focusLine = focus === undefined ? '' : `\nFocus lane: ${focus}.`;
-    return `${briefing}\n\n${task}${focusLine}\n\nApply your ${assignment.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills.`;
+    const reviewLine =
+      focus === 'review' || focus === 'full'
+        ? '\nReview gate: compare actual evidence against the assigned acceptance criteria. Return PASS only when evidence is sufficient; otherwise return concrete fixes and the evidence still missing.'
+        : '';
+    return `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${reviewLine}\n\nApply your ${assignment.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills.`;
   }
 }
 
@@ -318,17 +330,24 @@ function renderUltraSwarmResults(
     `<task>${escapeXml(plan.taskDescription)}</task>`,
     `<strategy>${plan.strategy}</strategy>`,
     `<summary>completed: ${String(completed)}, failed: ${String(failed)}, aborted: ${String(aborted)}</summary>`,
+    '<coverage>Each expert row includes the assigned coverage lane and selection reason for auditability.</coverage>',
   ];
 
   for (const result of results) {
     const agentId = result.agentId === undefined ? '' : ` agent_id="${result.agentId}"`;
     const state = result.state === undefined ? '' : ` state="${result.state}"`;
+    const lane = result.spec.coverageLane === undefined
+      ? ''
+      : ` lane="${escapeXml(result.spec.coverageLane)}"`;
     const body =
       result.status === 'completed'
         ? (result.result ?? '')
         : (result.error ?? 'unknown error');
+    const selectionReason = result.spec.selectionReason === undefined
+      ? ''
+      : `<selection_reason>${escapeXml(result.spec.selectionReason)}</selection_reason>\n`;
     lines.push(
-      `<expert name="${escapeXml(result.spec.expertName)}" emoji="${escapeXml(result.spec.emoji)}" color="${escapeXml(result.spec.color)}" outcome="${result.status}"${agentId}${state}>\n${body}\n</expert>`,
+      `<expert name="${escapeXml(result.spec.expertName)}" emoji="${escapeXml(result.spec.emoji)}" color="${escapeXml(result.spec.color)}" outcome="${result.status}"${agentId}${state}${lane}>\n${selectionReason}${body}\n</expert>`,
     );
   }
 
