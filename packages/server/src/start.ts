@@ -35,6 +35,7 @@ import {
   type WSGatewayOptions,
 } from '#/services/gateway';
 import { createServerServiceCollection } from '#/services/serviceCollection';
+import { IModelCatalogRefreshScheduler } from '#/services/modelCatalog/modelCatalogRefreshScheduler';
 import { ISnapshotService, loadSnapshotConfig } from '#/services/snapshot';
 import {
   createAuthTokenService,
@@ -356,6 +357,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
   }
 
   let coreProcess: ICoreProcessService;
+  let modelCatalogRefreshScheduler: IModelCatalogRefreshScheduler | undefined;
   try {
     coreProcess = ix.invokeFunction((a) => {
 
@@ -404,6 +406,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
       a.get(IOAuthService);
 
       a.get(IModelCatalogService);
+      modelCatalogRefreshScheduler = a.get(IModelCatalogRefreshScheduler);
 
       const promptService = a.get(IPromptService);
       const terminalService = a.get(ITerminalService);
@@ -541,6 +544,9 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     throw error;
   }
   pinoLogger.info('core process ready');
+  modelCatalogRefreshScheduler?.start().catch((err) => {
+    pinoLogger.warn({ err }, 'failed to start provider model catalog refresh scheduler');
+  });
 
   const restGateway = ix.invokeFunction((a) => a.get(IRestGateway));
   let address: string;

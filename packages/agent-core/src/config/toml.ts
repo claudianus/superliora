@@ -14,6 +14,7 @@ import {
   type KimiConfig,
   type LoopControl,
   type MemoryConfig,
+  type ModelCatalogConfig,
   type ModelAlias,
   type MoonshotServiceConfig,
   type OAuthRef,
@@ -315,6 +316,8 @@ export function transformTomlData(data: Record<string, unknown>): Record<string,
       result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'memory' && isPlainObject(value)) {
       result[targetKey] = transformPlainObject(value);
+    } else if (targetKey === 'modelCatalog' && isPlainObject(value)) {
+      result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'experimental' && isPlainObject(value)) {
       result[targetKey] = cloneRecord(value);
     } else if (!isPlainObject(value)) {
@@ -491,6 +494,7 @@ export function configToTomlData(config: KimiConfig): Record<string, unknown> {
   setSection(out, 'loop_control', config.loopControl, loopControlToToml);
   setSection(out, 'background', config.background, backgroundToToml);
   setSection(out, 'memory', config.memory, memoryToToml);
+  setSection(out, 'model_catalog', config.modelCatalog, modelCatalogToToml);
   setSection(out, 'experimental', config.experimental, experimentalToToml);
   setSection(out, 'permission', config.permission, permissionToToml);
   setHooks(out, config.hooks);
@@ -656,6 +660,17 @@ function backgroundToToml(
 function memoryToToml(memory: MemoryConfig, rawMemory: unknown): Record<string, unknown> {
   const out = cloneRecord(rawMemory);
   for (const [key, value] of Object.entries(memory)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function modelCatalogToToml(
+  modelCatalog: ModelCatalogConfig,
+  rawModelCatalog: unknown,
+): Record<string, unknown> {
+  const out = cloneRecord(rawModelCatalog);
+  for (const [key, value] of Object.entries(modelCatalog)) {
     setDefined(out, camelToSnake(key), value);
   }
   return out;

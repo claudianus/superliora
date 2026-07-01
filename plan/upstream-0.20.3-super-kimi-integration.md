@@ -38,6 +38,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1207` selective: share provider model refresh orchestration between the CLI/TUI path and runtime model catalog service.
 - Upstream `#1196`: normalize telemetry event fields for compaction, session start, update prompts, login, server start, and ACP question answers.
 - Upstream `#1207` selective: expose broad provider model refresh through the model catalog service and publish model-catalog changed events.
+- Upstream `#1207` selective: start a server-side provider model catalog refresh scheduler with config and environment controls.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -68,10 +69,10 @@ Super Kimi adaptation:
 - Kept the existing ripgrep-powered search tools and added telemetry only at the fallback boundary so Super Kimi can diagnose slow or missing search binaries without changing tool output.
 - Kept the product surface TUI-first and deferred the web/server scheduler pieces from the same upstream PR, while moving the shared managed Kimi, Open Platform, and custom-registry refresh core into the OAuth package for CLI and runtime reuse.
 - Preserved Super Kimi's Context Compaction v2 records and TUI replay shape while normalizing only telemetry payload fields to snake_case, dropping custom compaction instructions from telemetry, and aligning client attribution schemas for CLI, daemon, and ACP harness diagnostics.
-- Kept the server auto-refresh scheduler deferred, but added the missing runtime model-catalog service API and durable `event.model_catalog.changed` protocol event so daemon/SDK clients can observe refresh results without polling after catalog changes.
+- Added the server auto-refresh scheduler without taking the web UI store/status pieces: long-running Super Kimi daemons now refresh provider model catalogs on startup and on a configurable interval, while failures stay logged and non-fatal.
 
 ## Next Candidate Queue
 
 - `#1214` compaction strategy remainder: potential token-efficiency win, but large behavioral surface.
 - `#1132` thinking config/model effort overhaul: potentially useful for future Kimi model metadata, but broad and breaking; continue mining for small safe provider/auth pieces first.
-- `#1207` remainder: model-catalog background scheduling needs separate review before any TUI-visible status surface changes.
+- `#1207` remainder: optional TUI-visible model-catalog freshness/status surface, if it improves `/status` without adding web UI debt.

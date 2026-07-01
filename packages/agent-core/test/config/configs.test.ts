@@ -104,6 +104,10 @@ keep_alive_on_exit = false
 kill_grace_period_ms = 2000
 print_wait_ceiling_s = 3600
 
+[model_catalog]
+refresh_interval_ms = 60000
+refresh_on_start = false
+
 [[hooks]]
 event = "PreToolUse"
 matcher = "Shell"
@@ -180,6 +184,10 @@ describe('harness config TOML loader', () => {
       keepAliveOnExit: false,
       killGracePeriodMs: 2000,
       printWaitCeilingS: 3600,
+    });
+    expect(config.modelCatalog).toEqual({
+      refreshIntervalMs: 60000,
+      refreshOnStart: false,
     });
     expect(config.hooks).toEqual([
       {
