@@ -319,6 +319,49 @@ describe('applyCustomRegistryProvider', () => {
     expect(config.models?.['registry_chat-completions/gpt-5.5']).toBeDefined();
     expect(config.models?.['other/keepme']).toBeDefined();
   });
+
+  it('preserves custom fields on refreshed aliases that still exist upstream', () => {
+    const config: ManagedKimiConfigShape = {
+      providers: {},
+      models: {
+        'registry_chat-completions/gpt-5.5': {
+          provider: 'registry_chat-completions',
+          model: 'old-gpt',
+          maxContextSize: 1000,
+          displayName: 'Old display name',
+          localRouting: 'premium',
+        },
+        'registry_chat-completions/stale-model': {
+          provider: 'registry_chat-completions',
+          model: 'stale-model',
+          localRouting: 'remove-me',
+        },
+      },
+    };
+
+    applyCustomRegistryProvider(
+      config,
+      {
+        id: 'registry_chat-completions',
+        name: 'Sample Registry (chat completions)',
+        api: 'https://registry.example.test/v1',
+        type: 'openai',
+        models: {
+          'gpt-5.5': { id: 'gpt-5.5', name: 'GPT 5.5' },
+        },
+      },
+      KOKUB_SOURCE,
+    );
+
+    expect(config.models?.['registry_chat-completions/stale-model']).toBeUndefined();
+    expect(config.models?.['registry_chat-completions/gpt-5.5']).toMatchObject({
+      provider: 'registry_chat-completions',
+      model: 'gpt-5.5',
+      maxContextSize: CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT,
+      displayName: 'GPT 5.5',
+      localRouting: 'premium',
+    });
+  });
 });
 
 describe('removeCustomRegistryProvider', () => {

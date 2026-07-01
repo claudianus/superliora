@@ -390,6 +390,51 @@ describe('provisionManagedKimiCodeConfig', () => {
     expect(config.models?.['kimi-code/kimi-for-coding']?.displayName).toBe('Kimi for Coding');
   });
 
+  it('preserves custom fields on refreshed managed model aliases', async () => {
+    const config: ManagedKimiConfigShape = {
+      providers: {
+        [KIMI_CODE_PROVIDER_NAME]: {
+          type: 'kimi',
+          apiKey: '',
+        },
+      },
+      models: {
+        'kimi-code/kimi-for-coding': {
+          provider: KIMI_CODE_PROVIDER_NAME,
+          model: 'old-model-id',
+          maxContextSize: 1000,
+          displayName: 'Old display name',
+          localRouting: 'premium',
+        },
+        'kimi-code/stale': {
+          provider: KIMI_CODE_PROVIDER_NAME,
+          model: 'stale',
+          localRouting: 'remove-me',
+        },
+      },
+    };
+
+    await provisionManagedKimiCodeConfig({
+      accessToken: 'oauth-access-token',
+      fetchImpl: vi.fn(async () => makeModelsResponse()) as unknown as typeof fetch,
+      adapter: {
+        read: () => config,
+        write: vi.fn(),
+        apply: applyManagedKimiCodeConfig,
+      },
+    });
+
+    expect(config.models?.['kimi-code/stale']).toBeUndefined();
+    expect(config.models?.['kimi-code/kimi-for-coding']).toMatchObject({
+      provider: KIMI_CODE_PROVIDER_NAME,
+      model: 'kimi-for-coding',
+      maxContextSize: 262144,
+      capabilities: ['thinking', 'image_in', 'video_in', 'tool_use'],
+      displayName: 'Kimi for Coding',
+      localRouting: 'premium',
+    });
+  });
+
   it('infers default_thinking from fresh managed model capabilities', async () => {
     const config: ManagedKimiConfigShape = {
       providers: {

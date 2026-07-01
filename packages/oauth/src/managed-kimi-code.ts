@@ -461,19 +461,27 @@ export function applyManagedKimiCodeConfig(
     oauth,
   };
 
+  const upstreamKeys = new Set(options.models.map((model) => managedModelKey(model.id)));
   for (const [key, model] of Object.entries(existingModels)) {
-    if (isRecord(model) && model['provider'] === KIMI_CODE_PROVIDER_NAME) {
+    if (
+      isRecord(model) &&
+      model['provider'] === KIMI_CODE_PROVIDER_NAME &&
+      !upstreamKeys.has(key)
+    ) {
       delete existingModels[key];
     }
   }
   for (const model of options.models) {
     const capabilities = capabilitiesForModel(model);
-    existingModels[managedModelKey(model.id)] = {
+    const key = managedModelKey(model.id);
+    const existing = isRecord(existingModels[key]) ? existingModels[key] : {};
+    existingModels[key] = {
+      ...existing,
       provider: KIMI_CODE_PROVIDER_NAME,
       model: model.id,
       maxContextSize: model.contextLength,
       capabilities,
-      displayName: model.displayName,
+      ...(model.displayName !== undefined ? { displayName: model.displayName } : {}),
     };
   }
 

@@ -29,6 +29,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1214` partial: reject manual compaction requests while a turn is actively mutating context.
 - Upstream `#1214` partial: recover from generic provider `413` context-size responses when the estimated request is near the model window.
 - Upstream `#1228` selective: split streaming timing into request-build, server first-token, server decode, and client consume components for CLI/TUI diagnostics.
+- Upstream `#1132` selective: preserve custom model-alias fields when refreshing managed Kimi Code and custom-registry model catalogs.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -51,7 +52,9 @@ Super Kimi adaptation:
 - Kept Super Kimi's planner/memory compaction design, but adopted the upstream active-turn guard so manual compaction cannot race a streaming turn and silently lose context mutations.
 - Kept Super Kimi's existing overflow compaction strategy, but routed large plain `413` responses through the same compaction retry path while leaving small plain `413` failures untouched.
 - Preserved the existing debug timing surface while passing finer-grained stream timing through provider hooks, loop events, SDK event types, and the TUI formatter. Web/vis UI changes from the same upstream PR remain deferred.
+- Kept Super Kimi's existing thinking/default-thinking semantics, but adopted the low-risk catalog refresh merge behavior from the thinking overhaul so user-added alias metadata survives refresh while stale upstream models are still removed.
 
 ## Next Candidate Queue
 
 - `#1214` compaction strategy remainder: potential token-efficiency win, but large behavioral surface.
+- `#1132` thinking config/model effort overhaul: potentially useful for future Kimi model metadata, but broad and breaking; continue mining for small safe provider/auth pieces first.
