@@ -773,18 +773,6 @@ function hasConfiguredApiKeySource(provider: ProviderConfig): boolean {
   }
 }
 
-function uniqueNonEmptyStrings(values: readonly (string | undefined)[]): string[] {
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const value of values) {
-    const normalized = nonEmptyString(value);
-    if (normalized === undefined || seen.has(normalized)) continue;
-    seen.add(normalized);
-    unique.push(normalized);
-  }
-  return unique;
-}
-
 function hasVertexAIServiceEnv(provider: ProviderConfig): boolean {
   return vertexAIProject(provider) !== undefined && vertexAILocation(provider) !== undefined;
 }

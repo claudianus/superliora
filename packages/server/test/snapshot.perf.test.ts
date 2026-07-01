@@ -3,8 +3,8 @@
  * creates 50 sessions to populate the workdir index, then times the snapshot
  * endpoint on a target session across 20 iterations and prints p50/p95.
  *
- * Run with: `pnpm vitest run test/snapshot.perf.bench.ts`
- *           `KIMI_SNAPSHOT_READER=legacy pnpm vitest run test/snapshot.perf.bench.ts`
+ * Run with: `KIMI_RUN_SNAPSHOT_PERF=1 pnpm vitest run test/snapshot.perf.test.ts`
+ *           `KIMI_RUN_SNAPSHOT_PERF=1 KIMI_SNAPSHOT_READER=legacy pnpm vitest run test/snapshot.perf.test.ts`
  *
  * Goal: demonstrate that the new reader stays well under 200ms warm and
  * does not scale linearly with session count, unlike the legacy listSessions
@@ -69,7 +69,9 @@ function quantile(samples: readonly number[], q: number): number {
   return sorted[idx]!;
 }
 
-describe('SnapshotReader perf (real HTTP, 50 sessions)', () => {
+const RUN_SNAPSHOT_PERF = process.env['KIMI_RUN_SNAPSHOT_PERF'] === '1';
+
+describe.skipIf(!RUN_SNAPSHOT_PERF)('SnapshotReader perf (real HTTP, 50 sessions)', () => {
   it(`mode=${process.env['KIMI_SNAPSHOT_READER'] ?? 'auto'} p95 stays under 200ms warm`, async () => {
     server = await startServer({
       host: '127.0.0.1',

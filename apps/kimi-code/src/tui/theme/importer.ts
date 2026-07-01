@@ -80,7 +80,7 @@ async function readThemeSource(source: string): Promise<{
 async function fetchText(url: string): Promise<string> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${String(response.status)} for ${url}`);
-  return await response.text();
+  return response.text();
 }
 
 function parseThemeSource(

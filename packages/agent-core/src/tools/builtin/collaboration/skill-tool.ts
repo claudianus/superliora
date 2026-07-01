@@ -178,7 +178,7 @@ function missingSkillResult(
   }
 
   return errorResult(
-    `Skill "${skillName}" not found. Do not call Skill("SearchSkill"); SearchSkill is a separate tool. Call SearchSkill with 3-12 task keywords, then call Skill with one exact returned name.${formatSkillExamples(invocableSkills)}`,
+    `Skill "${skillName}" not found. Do not call Skill("SearchSkill"); SearchSkill is a separate tool. Call SearchSkill with 3-12 concise English task keywords, then call Skill with one exact returned name.${formatSkillExamples(invocableSkills)}`,
   );
 }
 

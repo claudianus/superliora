@@ -573,22 +573,15 @@ async function persistModelSelection(host: SlashCommandHost, alias: string, thin
 }
 
 function showThemePicker(host: SlashCommandHost): void {
-  const originalTheme = host.state.appState.theme;
-  const originalResolved = currentTheme.palette === lightColors ? 'light' : 'dark';
   host.mountEditorReplacement(
     new ThemeSelectorComponent({
-      currentValue: originalTheme,
-      onHighlight: (value) => {
-        const resolved = value === 'auto' ? originalResolved : undefined;
-        void host.previewTheme(value, resolved).catch(() => {});
-      },
+      currentValue: host.state.appState.theme,
       onSelect: (value) => {
         host.restoreEditor();
         void applyThemeChoice(host, value);
       },
       onCancel: () => {
         host.restoreEditor();
-        void host.applyTheme(originalTheme, originalResolved);
       },
     }),
   );

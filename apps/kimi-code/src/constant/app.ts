@@ -1,6 +1,6 @@
 import { ErrorCodes } from '@moonshot-ai/kimi-code-sdk';
 
-export const PRODUCT_NAME = 'Kimi Code';
+export const PRODUCT_NAME = 'Super Kimi Code';
 export const CLI_COMMAND_NAME = 'kimi';
 export const PROCESS_NAME = 'kimi-code';
 

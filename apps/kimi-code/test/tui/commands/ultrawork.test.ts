@@ -97,9 +97,12 @@ describe('shouldAutoActivateUltrawork', () => {
     expect(shouldAutoActivateUltrawork('Fix the TUI status panel bug and run tests')).toBe(true);
     expect(shouldAutoActivateUltrawork('Add a login screen')).toBe(true);
     expect(shouldAutoActivateUltrawork('Create an API endpoint for checkout')).toBe(true);
+    expect(shouldAutoActivateUltrawork('Install the latest version and make a Galaga game')).toBe(true);
     expect(shouldAutoActivateUltrawork('이 기능 만들어서 테스트까지 돌려줘')).toBe(true);
     expect(shouldAutoActivateUltrawork('TUI 자동완성 버그 고치고 검수해줘')).toBe(true);
     expect(shouldAutoActivateUltrawork('로그인 화면 만들어줘')).toBe(true);
+    expect(shouldAutoActivateUltrawork('최신버전 깔아서 갤러그 만들어줘')).toBe(true);
+    expect(shouldAutoActivateUltrawork('브라우저 게임 만들어줘')).toBe(true);
   });
 
   it('does not activate for simple prompts', () => {
@@ -131,6 +134,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('Normal task text is the preferred entry point');
     expect(prompt).toContain('/ultrawork is an advanced steering override');
     expect(prompt).toContain('UltraPlan: clarify ambiguous or large requests');
+    expect(prompt).toContain('UltraPlan must produce and surface the Ouroboros plan before implementation');
+    expect(prompt).toContain('Do not skip directly from one interview question into implementation');
     expect(prompt).toContain('UltraResearch: when latest APIs, papers, security, benchmarks');
     expect(prompt).toContain('UltraGoal: keep the active goal as the durable execution contract');
     expect(prompt).toContain('UltraSwarm: auto-engage specialist agents');
@@ -218,6 +223,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('Never ask more than 3 total interview questions');
     expect(prompt).toContain('continue the same Ultrawork turn toward implementation');
     expect(prompt).toContain('call NextPhase before any search, read, edit, shell, or skill tool');
+    expect(prompt).toContain('Product-file edits are forbidden until Ultra Plan has reached Write or Exit phase');
     expect(prompt).toContain('UpdateGoal');
   });
 });

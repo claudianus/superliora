@@ -1129,7 +1129,25 @@ describe('SessionSubagentHost', () => {
     parent.configure();
     parent.agent.permission.setMode('yolo');
 
-    const child = testAgent();
+    const child = testAgent({
+      initialConfig: {
+        providers: {
+          'test-provider': { type: 'kimi', apiKey: 'test-key' },
+        },
+        models: {
+          'mock-model': {
+            provider: 'test-provider',
+            model: 'mock-model',
+            maxContextSize: 1_000_000,
+          },
+          'stale-model-from-initial-spawn': {
+            provider: 'test-provider',
+            model: 'stale-model-from-initial-spawn',
+            maxContextSize: 1_000_000,
+          },
+        },
+      },
+    });
     child.configure({ tools: ['Read'] });
     // The child was originally spawned with a model that no longer matches the
     // parent agent's current model (as if the parent ran setModel afterwards).

@@ -14,7 +14,7 @@ export interface SearchSkillInput {
 
 export const SearchSkillInputSchema: z.ZodType<SearchSkillInput> = z.object({
   query: z.string().describe(
-    'Natural language query describing the task or domain you need help with. Examples: "React performance optimization", "debug memory leaks", "deploy to Vercel".',
+    'Concise English task or domain keywords. Translate non-English user requests into English before searching. Examples: "React performance optimization", "debug memory leaks", "deploy to Vercel".',
   ),
   top_k: z
     .number()
@@ -55,7 +55,12 @@ export class SearchSkillTool implements BuiltinTool<SearchSkillInput> {
     const results = await skills.registry.searchByQuery?.(query, args.top_k);
 
     if (results === undefined || results.length === 0) {
-      return { output: 'No matching skills found for the given query.' };
+      return {
+        output: [
+          'No matching skills found for the given query.',
+          'Most skill metadata is indexed in English; retry once with concise English task keywords.',
+        ].join('\n'),
+      };
     }
 
     const lines = [

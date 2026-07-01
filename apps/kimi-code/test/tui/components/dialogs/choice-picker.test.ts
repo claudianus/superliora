@@ -151,8 +151,8 @@ describe('ChoicePickerComponent', () => {
       });
       const out = theme.render(120).map(strip);
 
-      expect(out).toContain('  ❯ Super Kimi Neon Noir ← current');
-      expect(out).toContain('    Bundled Super Kimi preset.');
+      expect(out).toContain('  ❯ Dark · Super Kimi Neon Noir ← current');
+      expect(out).toContain('    Dark theme · Bundled Super Kimi preset.');
       expect(out).toContain('    Loaded from ~/.kimi-code/themes.');
       expect(out).toContain('    Custom: studio');
     });
@@ -160,6 +160,7 @@ describe('ChoicePickerComponent', () => {
 
   it('previews the highlighted theme and notifies focus changes', () => {
     withThemeHome(() => {
+      currentTheme.setPalette(darkColors);
       const onHighlight = vi.fn();
       const theme = new ThemeSelectorComponent({
         currentValue: 'light',
@@ -172,9 +173,63 @@ describe('ChoicePickerComponent', () => {
       expect(out).toContain('Preview · Light');
       expect(out).toContain('const skin = createTheme');
       expect(onHighlight).toHaveBeenCalledWith('light');
+      expect(currentTheme.palette).toBe(darkColors);
 
       theme.handleInput('\u001B[B');
-      expect(onHighlight).toHaveBeenLastCalledWith('super-kimi-neon-noir');
+      expect(onHighlight).toHaveBeenLastCalledWith('super-kimi-daylight');
+      expect(currentTheme.palette).toBe(darkColors);
+    });
+  });
+
+  it('hides search-only choices until the user searches', () => {
+    const picker = new ChoicePickerComponent({
+      title: 'Pick one',
+      options: [
+        { value: 'visible', label: 'Visible' },
+        { value: 'hidden', label: 'Hidden', searchOnly: true },
+      ],
+      searchable: true,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    expect(picker.render(120).map(strip).join('\n')).toContain('Visible');
+    expect(picker.render(120).map(strip).join('\n')).not.toContain('Hidden');
+
+    picker.handleInput('h');
+    expect(picker.render(120).map(strip).join('\n')).toContain('Hidden');
+  });
+
+  it('keeps the current search-only choice visible', () => {
+    const picker = new ChoicePickerComponent({
+      title: 'Pick one',
+      options: [
+        { value: 'visible', label: 'Visible' },
+        { value: 'hidden', label: 'Hidden', searchOnly: true },
+      ],
+      currentValue: 'hidden',
+      searchable: true,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    expect(picker.render(120).map(strip)).toContain('  ❯ Hidden ← current');
+  });
+
+  it('keeps external terminal themes out of the default theme list but includes them in search', () => {
+    withThemeHome(() => {
+      const theme = new ThemeSelectorComponent({
+        currentValue: 'auto',
+        onSelect: vi.fn(),
+        onCancel: vi.fn(),
+      });
+
+      expect(theme.render(120).map(strip).join('\n')).not.toContain('dracula (Alacritty)');
+
+      for (const ch of 'dracula') theme.handleInput(ch);
+      const out = theme.render(120).map(strip).join('\n');
+      expect(out).toContain('Dark · dracula (Alacritty)');
+      expect(out).toContain('Bundled external terminal theme.');
     });
   });
 

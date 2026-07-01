@@ -33,6 +33,8 @@ export interface ChoiceOption {
   /** Color token applied to the description while this option is selected, drawing
    *  attention to important details. Falls back to `textMuted` when unset or not selected. */
   readonly descriptionTone?: ColorToken;
+  /** Hide from the default list, but include in search results and when current. */
+  readonly searchOnly?: boolean;
 }
 
 export interface ChoicePickerOptions {
@@ -88,10 +90,13 @@ export class ChoicePickerComponent extends Container implements Focusable {
   constructor(opts: ChoicePickerOptions) {
     super();
     this.opts = opts;
-    const currentIdx = opts.options.findIndex((o) => o.value === opts.currentValue);
+    const currentIdx = opts.options
+      .filter((o) => choiceOptionVisible(o, '', opts.currentValue))
+      .findIndex((o) => o.value === opts.currentValue);
     this.list = new SearchableList({
       items: opts.options,
       toSearchText: (o) => `${o.label} ${o.description ?? ''}`,
+      isVisible: (o, query) => choiceOptionVisible(o, query, opts.currentValue),
       pageSize: opts.pageSize,
       initialIndex: Math.max(currentIdx, 0),
       searchable: opts.searchable === true,
@@ -221,6 +226,14 @@ export class ChoicePickerComponent extends Container implements Focusable {
     this.highlightedValue = selected.value;
     this.opts.onHighlight?.(selected.value);
   }
+}
+
+function choiceOptionVisible(
+  option: ChoiceOption,
+  query: string,
+  currentValue: string | undefined,
+): boolean {
+  return option.searchOnly !== true || query.length > 0 || option.value === currentValue;
 }
 
 function optionLabelStyle(

@@ -4,6 +4,7 @@ import { track as trackTelemetry, type TelemetryProperties } from '@moonshot-ai/
 import { refreshUpdateCache } from '#/cli/update/refresh';
 import { selectUpdateTarget } from '#/cli/update/select';
 import { detectInstallSource } from '#/cli/update/source';
+import { PRODUCT_NAME } from '#/constant/app';
 import {
   canAutoInstall,
   installCommandFor,
@@ -80,7 +81,7 @@ export async function handleUpgrade(
     logUpgradeInfo(deps.logger, 'manual upgrade no update', {
       currentVersion,
     });
-    deps.stdout.write(`Kimi Code is already up to date (${formatDisplayVersion(currentVersion)}).\n`);
+    deps.stdout.write(`${PRODUCT_NAME} is already up to date (${formatDisplayVersion(currentVersion)}).\n`);
     return 0;
   }
 

@@ -35,7 +35,7 @@ describe('default agent profiles', () => {
     expect(prompt.indexOf('User instructions given directly in the conversation')).toBeLessThan(
       prompt.indexOf('AGENTS_MD_BODY'),
     );
-    expect(prompt.indexOf('Discover skills with SearchSkill')).toBeLessThan(
+    expect(prompt.indexOf('Discover skills with SearchSkill using concise English keywords')).toBeLessThan(
       prompt.indexOf('- test-skill: does things'),
     );
   });
@@ -70,7 +70,7 @@ describe('default agent profiles', () => {
     expect(agent?.tools).toEqual(expect.arrayContaining(['Skill', 'SearchSkill']));
 
     const prompt = agent?.systemPrompt(promptContext) ?? '';
-    expect(prompt).toContain('Discover skills with SearchSkill');
+    expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
   });
 
   it('exposes KimiContext to coding profiles as the default compact code-context surface', () => {
@@ -101,6 +101,30 @@ describe('default agent profiles', () => {
     }
   });
 
+  it('renders the default quality bar for root and subagent profiles', () => {
+    for (const name of ['agent', 'coder', 'explore', 'plan']) {
+      const prompt = DEFAULT_AGENT_PROFILES[name]?.systemPrompt(promptContext) ?? '';
+      expect(prompt).toContain('# Default Quality Bar');
+      expect(prompt).toContain('High-quality work is the default');
+      expect(prompt).toContain('complete, polished, practical result');
+      expect(prompt).toContain('domain-appropriate and polished by default');
+      expect(prompt).toContain('verify the actual rendered output');
+      expect(prompt).toContain('Do not inflate scope just to look premium');
+    }
+  });
+
+  it('renders practical engineering principles for root and subagent profiles', () => {
+    for (const name of ['agent', 'coder', 'explore', 'plan']) {
+      const prompt = DEFAULT_AGENT_PROFILES[name]?.systemPrompt(promptContext) ?? '';
+      expect(prompt).toContain('# Practical Engineering Principles');
+      expect(prompt).toContain('what problem actually needs to be solved');
+      expect(prompt).toContain('Delete or simplify before optimizing');
+      expect(prompt).toContain('Automate only after the workflow is understood and stable');
+      expect(prompt).toContain('Minimize dependencies, indirection, and configuration');
+      expect(prompt).toContain('does this actually improve the outcome');
+    }
+  });
+
   it('keeps optional-tool guidance out of the shared system prompt entirely', () => {
     // Tool-coupled guidance now lives in each tool's own description, which the schema
     // layer ships ONLY when the tool is registered — that is the availability gate, for
@@ -119,10 +143,14 @@ describe('default agent profiles', () => {
       // Write/Edit/Bash are absent from read-only profiles (plan has no Bash/Write/Edit;
       // explore no Write/Edit), so naming them in the shared routing sentence would dangle —
       // that routing lives in bash.md (echo>file→Write, sed→Edit, etc.), which ships with Bash.
+      expect(prompt).not.toContain('e.g., `Write`, `Bash`');
+      expect(prompt).not.toContain('The Bash tool executes');
+      expect(prompt).not.toContain('get it from the `Bash` tool');
       expect(prompt).not.toContain('`Write` / `Edit` to change files');
       expect(prompt).not.toContain('Keep `Bash` for genuine shell work');
       expect(prompt).toContain('`Glob` to find files by name'); // universal routing stays
       expect(prompt).toContain('refuse a fixed set of well-known secret files'); // shared guard stays
+      expect(prompt).toContain('If your active profile is read-only, stay read-only');
     }
   });
 

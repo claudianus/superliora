@@ -8,6 +8,7 @@ import { extname } from 'node:path';
 import { highlight, supportsLanguage } from 'cli-highlight';
 
 import { buildSyntaxHighlightTheme } from '#/tui/theme/syntax-highlight-theme';
+import type { ColorPalette } from '#/tui/theme';
 
 const EXT_LANG_MAP: Record<string, string> = {
   ts: 'typescript',
@@ -43,14 +44,18 @@ export function langFromPath(filePath: string): string | undefined {
   return supportsLanguage(lang) ? lang : undefined;
 }
 
-export function highlightLines(code: string, lang: string | undefined): string[] {
+export function highlightLines(
+  code: string,
+  lang: string | undefined,
+  palette?: ColorPalette,
+): string[] {
   const normalizedLang = lang?.trim().toLowerCase();
   if (!normalizedLang || !supportsLanguage(normalizedLang)) return code.split('\n');
   try {
     return highlight(code, {
       language: normalizedLang,
       ignoreIllegals: true,
-      theme: buildSyntaxHighlightTheme(),
+      theme: buildSyntaxHighlightTheme(palette),
     }).split('\n');
   } catch {
     return code.split('\n');

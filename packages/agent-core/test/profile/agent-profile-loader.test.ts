@@ -212,7 +212,8 @@ describe('default agent profiles', () => {
     });
 
     expect(prompt).toContain('# Skill Runtime');
-    expect(prompt).toContain('Discover skills with SearchSkill');
+    expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
+    expect(prompt).toContain('Translate non-English user requests');
     expect(prompt).toContain('Load exactly one needed skill with the Skill tool');
     expect(prompt).not.toContain('- review:');
     expect(prompt).not.toContain('When to use: When code review is requested.');

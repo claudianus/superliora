@@ -12,6 +12,7 @@ import {
   listCustomThemesSync,
   loadCustomTheme,
   loadCustomThemeMerged,
+  loadCustomThemeMergedSync,
 } from '#/tui/theme/custom-theme-loader';
 import { darkColors, lightColors } from '#/tui/theme';
 
@@ -87,6 +88,18 @@ describe('custom theme loader', () => {
     expect(merged?.text).toBe(lightColors.text);
   });
 
+  it('loads merged palettes synchronously for theme previews', () => {
+    writeTheme('solar-preview', {
+      name: 'solar-preview',
+      base: 'light',
+      colors: { primary: '#268bd2' },
+    });
+
+    const merged = loadCustomThemeMergedSync('solar-preview');
+    expect(merged?.primary).toBe('#268bd2');
+    expect(merged?.text).toBe(lightColors.text);
+  });
+
   it('accepts v2 skin metadata and expanded color tokens', async () => {
     writeTheme('premium-v2', {
       schemaVersion: 2,
@@ -135,6 +148,7 @@ describe('custom theme loader', () => {
         name: 'super-kimi-neon-noir',
         displayName: 'Super Kimi Neon Noir',
         source: 'bundled',
+        base: 'dark',
       }),
     );
     const bundled = await loadCustomThemeMerged('super-kimi-neon-noir');
@@ -149,11 +163,32 @@ describe('custom theme loader', () => {
         name: 'alacritty-dracula',
         displayName: 'dracula (Alacritty)',
         source: 'bundled-external',
+        base: 'dark',
       }),
     );
     const bundled = await loadCustomThemeMerged('tinted-base24-catppuccin-mocha');
     expect(bundled?.background).toBe('#1E1E2E');
     expect(bundled?.syntaxKeyword).toBe('#F5C2E7');
+  });
+
+  it('groups external bundled themes by base and removes duplicate palettes', () => {
+    rmSync(join(home, 'themes'), { recursive: true, force: true });
+
+    const external = listAvailableThemeEntriesSync().filter(
+      (entry) => entry.source === 'bundled-external',
+    );
+    const firstLightIndex = external.findIndex((entry) => entry.base === 'light');
+    const lastDarkIndex = external.findLastIndex((entry) => entry.base === 'dark');
+
+    expect(firstLightIndex).toBeGreaterThan(0);
+    expect(lastDarkIndex).toBeGreaterThanOrEqual(0);
+    expect(lastDarkIndex).toBeLessThan(firstLightIndex);
+    expect(external).toContainEqual(
+      expect.objectContaining({ name: 'alacritty-github-dark-colorblind' }),
+    );
+    expect(external).not.toContainEqual(
+      expect.objectContaining({ name: 'alacritty-github-dark-default' }),
+    );
   });
 
   it('lists user themes alongside bundled themes and lets user themes win name collisions', async () => {

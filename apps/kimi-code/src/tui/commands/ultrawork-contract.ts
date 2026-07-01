@@ -27,11 +27,11 @@ const AUTONOMY_PATTERN =
 const ENGLISH_CODING_ACTION_PATTERN =
   /\b(?:implement|build|create|make|add|update|refactor|integrate|ship|fix|debug|improve)\b/i;
 const ENGLISH_CODING_TARGET_PATTERN =
-  /\b(?:feature|bug|workflow|screen|page|view|component|button|form|modal|dialog|command|panel|api|endpoint|tui|ui|cli|harness|test|error|ux)\b/i;
+  /\b(?:app|game|site|website|webapp|feature|bug|workflow|screen|page|view|component|button|form|modal|dialog|command|panel|api|endpoint|tui|ui|cli|harness|test|error|ux)\b/i;
 const KOREAN_CODING_ACTION_PATTERN =
   /(?:만들|구현|고치|수정|개선|추가|연동|검증|테스트|돌려|끝내)/i;
 const KOREAN_CODING_TARGET_PATTERN =
-  /(?:기능|버그|화면|페이지|뷰|컴포넌트|버튼|폼|모달|다이얼로그|명령어|패널|API|엔드포인트|UI|워크플로우|하네스|테스트|오류|에러|자동완성|검수)/i;
+  /(?:앱|게임|사이트|웹앱|웹사이트|프로그램|스크립트|갤러그|기능|버그|화면|페이지|뷰|컴포넌트|버튼|폼|모달|다이얼로그|명령어|패널|API|엔드포인트|UI|CLI|TUI|워크플로우|하네스|테스트|오류|에러|자동완성|검수)/i;
 const SIMPLE_COPY_EDIT_PATTERN =
   /\b(?:typo|spelling|sentence|wording|copy)\b|(?:오타|맞춤법|문장|문구만|표현만)/i;
 const QUESTION_ONLY_ULTRAWORK_PATTERN =
@@ -55,6 +55,8 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   '- Activation sequence: create or replace the UltraGoal, enable UltraPlan, run UltraResearch when current knowledge matters, arm UltraSwarm, integrate specialist work, Verify, then Learn by saving only verified durable findings.',
   '- Normal task text is the preferred entry point; /ultrawork is an advanced steering override for operators who want to explicitly start the full workflow.',
   '- UltraPlan: clarify ambiguous or large requests, ask only blocking questions, identify knowledge gaps, and turn the request into a concrete verified goal.',
+  '- UltraPlan must produce and surface the Ouroboros plan before implementation: Seed Spec, AC Tree, Evaluation Plan, and Execution Plan must be written to the active Ultra Plan file and approved through ExitPlanMode before code edits.',
+  '- Do not skip directly from one interview question into implementation. After the last blocking question, advance through Design, Review, Write, and Exit phases with NextPhase and ExitPlanMode before editing product files.',
   '- UltraResearch: when latest APIs, papers, security, benchmarks, release notes, or OSS examples can affect correctness, produce an evidence pack before implementation. Search multiple focused angles in parallel, fetch primary sources, label candidate vs verified findings, and never rely on snippets alone for implementation-affecting claims.',
   '- UltraGoal: keep the active goal as the durable execution contract; update or replace it only when the clarified objective materially changes.',
   '- UltraSwarm: auto-engage specialist agents only when parallel research, PM, architecture, TUI, QA, security, performance, integration, or verification materially improves outcome or speed.',
@@ -237,6 +239,7 @@ export function buildUltraworkPrompt(
     '- Never ask more than 3 total interview questions for one Ultrawork turn; after 3 answered questions, call NextPhase and proceed with best judgment.',
     '- After an AskUserQuestion response, continue the same Ultrawork turn toward implementation and verification; do not wait for a new user message unless another missing decision blocks correctness.',
     '- After the final needed AskUserQuestion response, call NextPhase before any search, read, edit, shell, or skill tool.',
+    '- Product-file edits are forbidden until Ultra Plan has reached Write or Exit phase, the complete plan has been saved, and ExitPlanMode has surfaced the approved plan.',
     '- Finish by verifying the real surface, reporting concise evidence, and calling UpdateGoal complete or blocked.',
     '</ultrawork_flow>',
   ].join('\n');

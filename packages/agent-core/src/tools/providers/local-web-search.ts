@@ -728,7 +728,7 @@ function canonicalUrl(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
     parsed.hash = '';
-    for (const key of [...parsed.searchParams.keys()]) {
+    for (const key of parsed.searchParams.keys()) {
       if (key.startsWith('utm_') || key === 'ref' || key === 'source') {
         parsed.searchParams.delete(key);
       }

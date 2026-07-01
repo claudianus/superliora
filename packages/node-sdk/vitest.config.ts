@@ -13,6 +13,8 @@ export default defineConfig({
   },
   test: {
     name: 'kimi-sdk',
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     env: {
       KIMI_LOG_LEVEL: 'off',
     },

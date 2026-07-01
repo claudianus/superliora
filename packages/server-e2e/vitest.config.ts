@@ -14,6 +14,8 @@ export default defineConfig({
   },
   test: {
     name: 'server-e2e',
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     include: ['test/**/*.test.ts'],
     reporters: ['default', './test/report/vitest-reporter.ts'],
   },

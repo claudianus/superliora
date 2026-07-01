@@ -52,6 +52,20 @@ describe('TodoPanelComponent', () => {
     expect(joined.indexOf('Next')).toBeLessThan(joined.indexOf('Open PR'));
   });
 
+  it('renders a three-column board on wide terminals', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'Investigate parser', status: 'done' },
+      { title: 'Add tests', status: 'in_progress' },
+      { title: 'Open PR', status: 'pending' },
+    ]);
+
+    const lines = panel.render(100).map(strip);
+
+    expect(lines.some((line) => /Doing \(1\)\s+│\s+Next \(1\)\s+│\s+Done \(1\)/.test(line))).toBe(true);
+    expect(lines.some((line) => /● Add tests\s+│\s+○ Open PR\s+│\s+✓ Investigate parser/.test(line))).toBe(true);
+  });
+
   it('setTodos replaces the list (not appends)', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([{ title: 'old', status: 'pending' }]);

@@ -72,7 +72,7 @@ describe('status panel report lines', () => {
     }).map(strip);
 
     const output = lines.join('\n');
-    expect(output).toContain('>_ Kimi Code (v1.2.3)');
+    expect(output).toContain('>_ Super Kimi Code (v1.2.3)');
     expect(output).toContain('Model        Kimi K2 (thinking high)');
     expect(output).toContain('Directory    /tmp/project');
     expect(output).toContain('Worktree     main [+12 -3 ↑1] clean');

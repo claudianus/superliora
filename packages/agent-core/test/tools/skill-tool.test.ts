@@ -158,6 +158,7 @@ describe('SearchSkillTool execution', () => {
     expect(tool.description).toContain(
       'Do not call `Skill` with `search`, `search-skill`, or `SearchSkill`',
     );
+    expect(tool.description).toContain('concise English task keywords');
     expect(SearchSkillInputSchema.safeParse({ query: 'tui approval dialogs' }).success).toBe(
       true,
     );
@@ -193,6 +194,16 @@ describe('SearchSkillTool execution', () => {
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('Query must not be empty');
   });
+
+  it('points empty results back to English keywords', async () => {
+    const tool = searchSkillTool(registry([skill('write-tui')]));
+
+    const result = await executeSearch(tool, { query: '터미널 UI 승인 대화상자' });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('No matching skills found');
+    expect(result.output).toContain('retry once with concise English task keywords');
+  });
 });
 
 describe('SkillTool execution', () => {
@@ -205,7 +216,7 @@ describe('SkillTool execution', () => {
     expect(result.output).toContain('not found');
     expect(result.output).toContain('Do not call Skill("SearchSkill")');
     expect(result.output).toContain('SearchSkill is a separate tool');
-    expect(result.output).toContain('Call SearchSkill with 3-12 task keywords');
+    expect(result.output).toContain('Call SearchSkill with 3-12 concise English task keywords');
     expect(result.output).toContain('"gen-changesets"');
     expect(result.output).toContain('"write-tui"');
   });
@@ -252,7 +263,7 @@ describe('SkillTool execution', () => {
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('Skill "game-development/web-games" not found');
-    expect(result.output).toContain('Call SearchSkill with 3-12 task keywords');
+    expect(result.output).toContain('Call SearchSkill with 3-12 concise English task keywords');
   });
 
   it('rejects non-inline skill types in the current v1 runtime', async () => {

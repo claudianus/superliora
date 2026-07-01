@@ -3140,10 +3140,6 @@ function providerApiKeyCount(provider: KimiConfig['providers'][string]): number 
   return providerApiKeySlots(provider).length;
 }
 
-function providerApiKeys(provider: KimiConfig['providers'][string]): string[] {
-  return providerApiKeySlots(provider).map((slot) => slot.apiKey);
-}
-
 function providerApiKeySlots(provider: KimiConfig['providers'][string]): ProviderApiKeySlot[] {
   const slots: ProviderApiKeySlot[] = [];
   const primary = nonEmptyString(provider.apiKey);

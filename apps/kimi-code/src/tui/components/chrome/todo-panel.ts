@@ -10,7 +10,7 @@
  */
 
 import type { Component } from '@earendil-works/pi-tui';
-import { truncateToWidth } from '@earendil-works/pi-tui';
+import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
 import { currentTheme } from '#/tui/theme/theme';
@@ -24,6 +24,10 @@ export interface TodoItem {
 }
 
 const MAX_VISIBLE = 5;
+const BOARD_MIN_WIDTH = 72;
+const BOARD_COLUMN_MIN_WIDTH = 16;
+const BOARD_INDENT = '  ';
+const BOARD_SEPARATOR = ' │ ';
 
 export interface VisibleTodos {
   readonly rows: readonly TodoItem[];
@@ -156,7 +160,7 @@ export class TodoPanelComponent implements Component {
     ];
 
     if (this.expanded) {
-      lines.push(...renderLanes(this.todos, c));
+      lines.push(...renderTodos(this.todos, c, width));
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
           chalk.hex(c.textDim)(`  all ${String(this.todos.length)} items · ctrl+t to collapse`),
@@ -164,7 +168,7 @@ export class TodoPanelComponent implements Component {
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-      lines.push(...renderLanes(rows, c));
+      lines.push(...renderTodos(rows, c, width));
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
         const suffix = distribution.length > 0 ? ` (${distribution})` : '';
@@ -176,6 +180,49 @@ export class TodoPanelComponent implements Component {
 
     return lines.map((line) => truncateToWidth(line, width));
   }
+}
+
+function renderTodos(todos: readonly TodoItem[], colors: ColorPalette, width: number): string[] {
+  return width >= BOARD_MIN_WIDTH ? renderBoard(todos, colors, width) : renderLanes(todos, colors);
+}
+
+function renderBoard(todos: readonly TodoItem[], colors: ColorPalette, width: number): string[] {
+  const availableWidth = Math.max(1, width - visibleWidth(BOARD_INDENT));
+  const columnWidth = Math.floor(
+    (availableWidth - visibleWidth(BOARD_SEPARATOR) * (TODO_LANES.length - 1)) /
+      TODO_LANES.length,
+  );
+  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) return renderLanes(todos, colors);
+
+  const lanes = TODO_LANES.map((lane) => ({
+    ...lane,
+    todos: todos.filter((todo) => todo.status === lane.status),
+  }));
+  const maxRows = Math.max(1, ...lanes.map((lane) => lane.todos.length));
+  const separator = chalk.hex(colors.border)(BOARD_SEPARATOR);
+  const lines = [
+    BOARD_INDENT + lanes
+      .map((lane) => padCell(renderLaneHeader(lane.label, lane.todos.length, lane.status, colors), columnWidth))
+      .join(separator),
+    BOARD_INDENT + lanes
+      .map(() => chalk.hex(colors.border)('─'.repeat(columnWidth)))
+      .join(separator),
+  ];
+
+  for (let row = 0; row < maxRows; row++) {
+    lines.push(
+      BOARD_INDENT + lanes
+        .map((lane) => {
+          const todo = lane.todos[row];
+          return padCell(
+            todo === undefined ? chalk.hex(colors.textMuted)('No cards') : renderCell(todo, colors),
+            columnWidth,
+          );
+        })
+        .join(separator),
+    );
+  }
+  return lines;
 }
 
 function renderLanes(todos: readonly TodoItem[], colors: ColorPalette): string[] {
@@ -191,10 +238,36 @@ function renderLanes(todos: readonly TodoItem[], colors: ColorPalette): string[]
   return lines;
 }
 
+function renderLaneHeader(
+  label: string,
+  count: number,
+  status: TodoStatus,
+  colors: ColorPalette,
+): string {
+  const text = `${label} (${String(count)})`;
+  switch (status) {
+    case 'in_progress':
+      return chalk.hex(colors.primary).bold(text);
+    case 'done':
+      return chalk.hex(colors.success).bold(text);
+    case 'pending':
+      return chalk.hex(colors.textStrong).bold(text);
+  }
+}
+
 function renderRow(todo: TodoItem, colors: ColorPalette): string {
+  return `  ${renderCell(todo, colors)}`;
+}
+
+function renderCell(todo: TodoItem, colors: ColorPalette): string {
   const marker = statusMarker(todo.status, colors);
   const titleStyled = styleTitle(todo.title, todo.status, colors);
-  return `  ${marker} ${titleStyled}`;
+  return `${marker} ${titleStyled}`;
+}
+
+function padCell(content: string, width: number): string {
+  const truncated = truncateToWidth(content, width, '…');
+  return truncated + ' '.repeat(Math.max(0, width - visibleWidth(truncated)));
 }
 
 function statusMarker(status: TodoStatus, colors: ColorPalette): string {

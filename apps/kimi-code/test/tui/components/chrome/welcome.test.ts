@@ -78,6 +78,7 @@ describe('WelcomeComponent', () => {
   it('leads logged-in users to describe the task first', () => {
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
+    expect(output).toContain('Welcome to Super Kimi Code!');
     expect(output).toContain(
       'Describe task; Ultrawork runs the full workflow, then verifies.',
     );

@@ -2494,15 +2494,6 @@ export class KimiTUI {
     this.state.ui.requestRender(true);
   }
 
-  async previewTheme(themeName: ThemeName, resolved?: ResolvedTheme): Promise<void> {
-    const palette = await getColorPalette(themeName === 'auto' ? (resolved ?? 'dark') : themeName);
-    currentTheme.setPalette(palette);
-    this.appearanceController.apply();
-    this.updateEditorBorderHighlight();
-    this.state.transcriptContainer.invalidate();
-    this.state.ui.requestRender(true);
-  }
-
   refreshTerminalThemeTracking(): void {
     this.stopTerminalThemeTracking();
     if (!isBuiltInTheme(this.state.appState.theme) || this.state.appState.theme !== 'auto') return;

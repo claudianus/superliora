@@ -289,7 +289,7 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
   it('returns 40113 with details.model_id when default_model alias does not resolve', async () => {
     seedConfig(
       [
-        'default_model = "missing-alias"',
+        'default_model = "x"',
         '',
         '[providers.x]',
         'type = "kimi"',
@@ -304,6 +304,21 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
     );
     const r = await bootDaemon();
     const sid = await createSession(r);
+    seedConfig(
+      [
+        'default_model = "missing-alias"',
+        '',
+        '[providers.x]',
+        'type = "kimi"',
+        'api_key = "sk-test"',
+        '',
+        '[models.x]',
+        'provider = "x"',
+        'model = "x"',
+        'max_context_size = 1000',
+        '',
+      ].join('\n'),
+    );
     const res = await appOf(r).inject({
       method: 'POST',
       url: `/api/v1/sessions/${sid}/prompts`,

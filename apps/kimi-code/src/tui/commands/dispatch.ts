@@ -2,6 +2,7 @@ import type { Component, Focusable } from '@earendil-works/pi-tui';
 import type { DeviceAuthorization } from '@moonshot-ai/kimi-code-oauth';
 import type { KimiHarness, Session } from '@moonshot-ai/kimi-code-sdk';
 
+import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorToken, ThemeName } from '#/tui/theme';
 
 import { LLM_NOT_SET_MESSAGE } from '../constant/kimi-tui';
@@ -137,7 +138,6 @@ export interface SlashCommandHost {
 
   // Theme
   applyTheme(theme: ThemeName, resolved?: ResolvedTheme): Promise<void>;
-  previewTheme(theme: ThemeName, resolved?: ResolvedTheme): Promise<void>;
   refreshTerminalThemeTracking(): void;
 
   // Dispatch
@@ -261,7 +261,7 @@ async function handleBuiltInSlashCommand(
       host.showHelpPanel(args);
       return;
     case 'version':
-      host.showStatus(`Kimi Code v${host.state.appState.version}`);
+      host.showStatus(`${PRODUCT_NAME} v${host.state.appState.version}`);
       return;
     case 'new':
       await host.createNewSession();

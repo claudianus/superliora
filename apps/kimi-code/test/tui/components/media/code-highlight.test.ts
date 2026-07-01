@@ -45,4 +45,21 @@ describe('code-highlight', () => {
 
     expect(highlighted).toContain('\u001B[38;2;18;52;86m');
   });
+
+  it('can highlight with an explicit palette without changing the active theme', () => {
+    chalk.level = 3;
+    currentTheme.setPalette(darkColors);
+
+    const highlighted = highlightLines(
+      'const value = "kimi";',
+      'typescript',
+      {
+        ...darkColors,
+        syntaxKeyword: '#654321',
+      },
+    ).join('\n');
+
+    expect(highlighted).toContain('\u001B[38;2;101;67;33m');
+    expect(currentTheme.palette).toBe(darkColors);
+  });
 });

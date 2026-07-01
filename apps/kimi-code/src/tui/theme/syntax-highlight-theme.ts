@@ -2,21 +2,23 @@ import chalk from 'chalk';
 import type { Theme } from 'cli-highlight';
 
 import { currentTheme } from './theme';
+import type { ColorPalette } from './colors';
+import type { ColorToken } from './theme';
 
-const syntax = (token: Parameters<typeof currentTheme.color>[0]) => (text: string): string =>
-  chalk.hex(currentTheme.color(token))(text);
+const syntax = (palette: ColorPalette, token: ColorToken) => (text: string): string =>
+  chalk.hex(palette[token])(text);
 
-export function buildSyntaxHighlightTheme(): Theme {
-  const text = syntax('syntaxText');
-  const keyword = syntax('syntaxKeyword');
-  const fn = syntax('syntaxFunction');
-  const type = syntax('syntaxType');
-  const string = syntax('syntaxString');
-  const number = syntax('syntaxNumber');
-  const comment = syntax('syntaxComment');
-  const operator = syntax('syntaxOperator');
-  const tag = syntax('syntaxTag');
-  const meta = syntax('syntaxMeta');
+export function buildSyntaxHighlightTheme(palette: ColorPalette = currentTheme.palette): Theme {
+  const text = syntax(palette, 'syntaxText');
+  const keyword = syntax(palette, 'syntaxKeyword');
+  const fn = syntax(palette, 'syntaxFunction');
+  const type = syntax(palette, 'syntaxType');
+  const string = syntax(palette, 'syntaxString');
+  const number = syntax(palette, 'syntaxNumber');
+  const comment = syntax(palette, 'syntaxComment');
+  const operator = syntax(palette, 'syntaxOperator');
+  const tag = syntax(palette, 'syntaxTag');
+  const meta = syntax(palette, 'syntaxMeta');
   return {
     default: text,
     keyword,
@@ -49,7 +51,7 @@ export function buildSyntaxHighlightTheme(): Theme {
     emphasis: (s) => chalk.italic(s),
     strong: (s) => chalk.bold(s),
     formula: text,
-    link: syntax('primary'),
+    link: syntax(palette, 'primary'),
     quote: comment,
     'selector-tag': tag,
     'selector-id': type,
@@ -58,7 +60,7 @@ export function buildSyntaxHighlightTheme(): Theme {
     'selector-pseudo': operator,
     'template-tag': tag,
     'template-variable': text,
-    addition: syntax('success'),
-    deletion: syntax('error'),
+    addition: syntax(palette, 'success'),
+    deletion: syntax(palette, 'error'),
   };
 }

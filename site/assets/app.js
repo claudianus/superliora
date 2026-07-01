@@ -15,14 +15,18 @@ const observer = new IntersectionObserver(
 for (const el of reveals) observer.observe(el);
 
 for (const trigger of document.querySelectorAll('[data-copy]')) {
-  trigger.addEventListener('click', async () => {
-    const value = trigger.getAttribute('data-copy');
-    if (!value || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(value);
-    const old = trigger.textContent;
-    trigger.textContent = trigger.getAttribute('data-copied') || 'Copied';
-    window.setTimeout(() => {
-      trigger.textContent = old;
-    }, 1400);
+  trigger.addEventListener('click', () => {
+    void copyTriggerValue(trigger);
   });
+}
+
+async function copyTriggerValue(trigger) {
+  const value = trigger.getAttribute('data-copy');
+  if (!value || !navigator.clipboard) return;
+  await navigator.clipboard.writeText(value);
+  const old = trigger.textContent;
+  trigger.textContent = trigger.getAttribute('data-copied') || 'Copied';
+  window.setTimeout(() => {
+    trigger.textContent = old;
+  }, 1400);
 }

@@ -293,10 +293,6 @@ function rewriteProviderApiKeySlots(
   };
 }
 
-function providerApiKeys(provider: ProviderConfig): string[] {
-  return providerApiKeySlots(provider).map((slot) => slot.apiKey);
-}
-
 function providerApiKeySlots(provider: ProviderConfig): ProviderApiKeySlot[] {
   const slots: ProviderApiKeySlot[] = [];
   const primary = nonEmptyString(provider.apiKey);
@@ -330,15 +326,6 @@ function uniqueApiKeySlots(slots: readonly ProviderApiKeySlot[]): ProviderApiKey
     unique.push({ apiKey, baseUrl, label: nonEmptyString(slot.label) });
   }
   return unique;
-}
-
-function uniqueStrings(values: readonly string[]): string[] {
-  const keys: string[] = [];
-  for (const value of values) {
-    const normalized = nonEmptyString(value);
-    if (normalized !== undefined && !keys.includes(normalized)) keys.push(normalized);
-  }
-  return keys;
 }
 
 function nonEmptyString(value: string | undefined): string | undefined {

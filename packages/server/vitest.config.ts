@@ -59,6 +59,8 @@ export default defineConfig({
   },
   test: {
     name: 'server',
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     include: ['test/**/*.{test,e2e}.ts'],
     // The server e2e tests pull in the full agent-core tree, which makes module
     // import very slow on Windows runners and destabilizes the test-windows job

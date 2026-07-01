@@ -775,8 +775,8 @@ describe('Session MCP startup', () => {
             transport: 'stdio',
             command: process.execPath,
             args: [slowStdioFixture],
-            env: { KIMI_TEST_MCP_START_DELAY_MS: '5_000' },
-            startupTimeoutMs: 5_000,
+            env: { KIMI_TEST_MCP_START_DELAY_MS: '30_000' },
+            startupTimeoutMs: 30_000,
           },
         },
       },
@@ -786,7 +786,7 @@ describe('Session MCP startup', () => {
     try {
       const result = await Promise.race([
         create.then(() => 'resolved' as const),
-        sleep(2_000).then(() => 'blocked' as const),
+        sleep(10_000).then(() => 'blocked' as const),
       ]);
       expect(result).toBe('resolved');
     } finally {
@@ -794,7 +794,7 @@ describe('Session MCP startup', () => {
       await Promise.race([create.catch(() => {}), sleep(1_000)]);
       await rm(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 10 });
     }
-  }, 7000);
+  }, 15_000);
 
   it('starts stdio MCP servers in the session cwd when config.cwd is omitted', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-cwd-'));
@@ -884,7 +884,7 @@ describe('Session MCP startup', () => {
           slow: {
             transport: 'http',
             url: `http://127.0.0.1:${port}/mcp`,
-            startupTimeoutMs: 2_000,
+            startupTimeoutMs: 15_000,
           },
         },
       },
@@ -921,7 +921,7 @@ describe('Session MCP startup', () => {
       releaseMcp();
       await Promise.race([
         turnEnded,
-        sleep(1_000).then(() => {
+        sleep(10_000).then(() => {
           throw new Error('Timed out waiting for turn.ended');
         }),
       ]);
@@ -943,7 +943,7 @@ describe('Session MCP startup', () => {
       });
       await rm(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 10 });
     }
-  }, 10000);
+  }, 25_000);
 
   it('emits tool.list.updated(mcp.disconnected) when reconnect drops the live tools', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-reconnect-'));

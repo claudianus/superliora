@@ -7,6 +7,7 @@ import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
+import { PRODUCT_NAME } from '#/constant/app';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
@@ -33,7 +34,7 @@ export class WelcomeComponent implements Component {
     const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
 
     if (safeWidth < 24 || layout === 'tiny') {
-      const title = chalk.bold.hex(currentTheme.palette.primary)('Welcome to Kimi Code!');
+      const title = chalk.bold.hex(currentTheme.palette.primary)(`Welcome to ${PRODUCT_NAME}!`);
       const prompt = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)('Run /login or /provider to get started.')
         : chalk.hex(currentTheme.palette.textDim)(LOGGED_IN_PROMPT);
@@ -55,7 +56,7 @@ export class WelcomeComponent implements Component {
     const textWidth = Math.max(4, innerWidth - logoWidth - (logoWidth > 0 ? gap.length : 0));
 
     const rightRow0 = truncateToWidth(
-      chalk.bold.hex(currentTheme.palette.primary)('Welcome to Kimi Code!'),
+      chalk.bold.hex(currentTheme.palette.primary)(`Welcome to ${PRODUCT_NAME}!`),
       textWidth,
       '…',
     );

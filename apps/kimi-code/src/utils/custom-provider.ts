@@ -72,7 +72,7 @@ export function applyCustomEndpointProvider(
     [providerId]: provider,
   };
   config.models = {
-    ...(config.models ?? {}),
+    ...config.models,
     [modelAlias]: model,
   };
   if (input.setDefault === true) {
