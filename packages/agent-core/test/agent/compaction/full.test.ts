@@ -165,6 +165,7 @@ describe('FullCompaction', () => {
       blockRatio: 0.85,
       reservedContextSize: 50_000,
       maxCompactionPerTurn: 3,
+      maxOverflowCompactionAttempts: 3,
       maxRecentMessages: 3,
       maxRecentUserMessages: Infinity,
       maxRecentSizeRatio: 0.2,
@@ -1789,6 +1790,44 @@ describe('FullCompaction', () => {
     await ctx.expectResumeMatches();
   });
 
+  it('stops repeated provider-overflow compactions when compacted context still overflows', async () => {
+    let callCount = 0;
+    const generate: GenerateFn = async (_provider, _system, _tools, history) => {
+      callCount += 1;
+      if (messageText(history.at(-1)).includes('first-person handoff note')) {
+        return textResult(`Still too large summary ${String(callCount)}.`);
+      }
+      throw new APIContextOverflowError(
+        400,
+        'Context length exceeded',
+        `req-overflow-${String(callCount)}`,
+      );
+    };
+    const ctx = testAgent({ generate });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Retry until overflow guard' }] });
+    const events = await ctx.untilTurnEnd();
+
+    expect(countEvents(events, 'compaction.started')).toBe(3);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: 'turn.ended',
+        args: expect.objectContaining({
+          reason: 'failed',
+          error: expect.objectContaining({
+            code: 'context.overflow',
+            message: 'Compaction failed to bring the context under the model window after 3 attempts.',
+          }),
+        }),
+      }),
+    );
+  });
+
   it('recovers from plain 413 when the estimated request is near the model window', async () => {
     let callCount = 0;
     const generate: GenerateFn = async (_provider, _system, _tools, _history, callbacks) => {
@@ -2415,6 +2454,7 @@ const alwaysCompactOnce: CompactionStrategy = {
   reduceCompactOnOverflow: (messages: readonly Message[]) => messages.length,
   checkAfterStep: true,
   maxCompactionPerTurn: 1,
+  maxOverflowCompactionAttempts: 3,
 };
 
 function missingToolCall(): ToolCall {
@@ -2432,6 +2472,7 @@ function testCompactionStrategy(maxSize: number = 1_000): DefaultCompactionStrat
     blockRatio: 0.85,
     reservedContextSize: 0,
     maxCompactionPerTurn: 3,
+    maxOverflowCompactionAttempts: 3,
     maxRecentMessages: 10,
     maxRecentUserMessages: Infinity,
     maxRecentSizeRatio: 0.2,
@@ -2448,6 +2489,7 @@ function overflowOnlyCompactionStrategy(maxSize: number = 14): DefaultCompaction
     blockRatio: Infinity,
     reservedContextSize: 0,
     maxCompactionPerTurn: 3,
+    maxOverflowCompactionAttempts: 3,
     maxRecentMessages: 3,
     maxRecentUserMessages: Infinity,
     maxRecentSizeRatio: 0.2,

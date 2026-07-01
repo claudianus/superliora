@@ -43,6 +43,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1207` selective: surface model catalog readiness in `/status` without adding a separate internal QA command.
 - Upstream `#1132` selective: add a TUI `/thinking` command for session-only thinking effort control.
 - Upstream `#1228` selective: write per-step model timing fields into structured diagnostic logs.
+- Upstream `#1214` selective: stop repeated provider-overflow compaction loops when compacted context still overflows.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -78,6 +79,7 @@ Super Kimi adaptation:
 - Kept the model-catalog status surface TUI-first by adding a compact `/status` readiness row for visible model aliases, configured providers, and the active provider.
 - Preserved the existing model picker/default-thinking behavior while exposing the already-supported runtime effort levels through `/thinking off|on|low|medium|high|xhigh|max`, with model-declared effort validation and clearer `/status` effort labels.
 - Preserved the existing live TUI timing events while adding the upstream structured `llm response` log payload for first-token, request-build, server decode, client consume, and output-token diagnostics.
+- Kept Super Kimi's Context Compaction v2 shape, planner, and memory blocks while adding the upstream provider-overflow loop guard so failed overflow recovery stops after three compact-retry cycles instead of spinning indefinitely.
 
 ## Next Candidate Queue
 

@@ -7,6 +7,7 @@ export interface CompactionConfig {
   blockRatio: number;
   reservedContextSize: number;
   maxCompactionPerTurn: number;
+  maxOverflowCompactionAttempts: number;
   maxRecentMessages: number;
   maxRecentUserMessages: number;
   maxRecentSizeRatio: number;
@@ -25,6 +26,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   blockRatio: 0.85,
   reservedContextSize: 50_000,
   maxCompactionPerTurn: Infinity,
+  maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 4,
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.2,
@@ -42,6 +44,7 @@ export interface CompactionStrategy {
   reduceCompactOnOverflow(messages: readonly Message[]): number;
   readonly checkAfterStep: boolean;
   readonly maxCompactionPerTurn: number;
+  readonly maxOverflowCompactionAttempts: number;
   readonly parallelBlockThreshold?: number;
   readonly parallelBlockTarget?: number;
 }
@@ -198,6 +201,10 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   get maxCompactionPerTurn(): number {
     return this.config.maxCompactionPerTurn;
   }
+
+  get maxOverflowCompactionAttempts(): number {
+    return this.config.maxOverflowCompactionAttempts;
+  }
 }
 
 export class PipelineStrategy implements CompactionStrategy {
@@ -239,6 +246,10 @@ export class PipelineStrategy implements CompactionStrategy {
   get maxCompactionPerTurn(): number {
     return this.trigger.maxCompactionPerTurn;
   }
+
+  get maxOverflowCompactionAttempts(): number {
+    return this.trigger.maxOverflowCompactionAttempts;
+  }
 }
 
 export class ToolCollapseStrategy implements CompactionStrategy {
@@ -250,6 +261,7 @@ export class ToolCollapseStrategy implements CompactionStrategy {
   shouldBlock(): boolean { return false; }
   checkAfterStep = false;
   maxCompactionPerTurn = Infinity;
+  maxOverflowCompactionAttempts = 3;
 
   computeCompactCount(messages: readonly Message[], _source: CompactionSource): number {
     let toolGroupsSeen = 0;
@@ -283,6 +295,7 @@ export class SlidingWindowStrategy implements CompactionStrategy {
   shouldBlock(): boolean { return false; }
   checkAfterStep = false;
   maxCompactionPerTurn = Infinity;
+  maxOverflowCompactionAttempts = 3;
 
   computeCompactCount(messages: readonly Message[], _source: CompactionSource): number {
     let groupsKept = 0;

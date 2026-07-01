@@ -87,6 +87,7 @@ export class FullCompaction {
     blockedByTurn: boolean;
   } | null = null;
   protected readonly strategy: CompactionStrategy;
+  private consecutiveOverflowCompactions = 0;
   protected extractedFacts: ExtractedFact[] = [];
   protected anchor: AnchorDocument | null = null;
   protected readonly planner = new CompactionPlanner();
@@ -216,9 +217,19 @@ export class FullCompaction {
 
   resetForTurn(): void {
     this.compactionCountInTurn = 0;
+    this.consecutiveOverflowCompactions = 0;
   }
 
   async handleOverflowError(signal: AbortSignal, error: unknown) {
+    this.consecutiveOverflowCompactions += 1;
+    const maxAttempts = this.strategy.maxOverflowCompactionAttempts;
+    if (this.consecutiveOverflowCompactions > maxAttempts) {
+      throw new KimiError(
+        ErrorCodes.CONTEXT_OVERFLOW,
+        `Compaction failed to bring the context under the model window after ${String(maxAttempts)} attempts.`,
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
     const didStartCompaction = this.beginAutoCompaction();
     if (!didStartCompaction && !this.compacting) throw error;
     // Always block on overflow errors
@@ -233,6 +244,7 @@ export class FullCompaction {
   }
 
   async afterStep(): Promise<void> {
+    this.consecutiveOverflowCompactions = 0;
     if (this.strategy.checkAfterStep) {
       this.checkAutoCompaction(false);
     }
