@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   CoreRPC,
+  Event as ProtocolEvent,
   GetKimiConfigPayload,
   KimiConfig,
   KimiConfigPatch,
@@ -19,6 +20,7 @@ import {
   toProtocolProvider,
 } from '../../src/services';
 import type { ServicesAuthFacade } from '../../src/services/auth/managedAuth';
+import type { IEventService } from '../../src/services/event/event';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -101,6 +103,20 @@ function authFacade(accessToken = 'token-test'): ServicesAuthFacade {
   };
 }
 
+function makeEventService(): { svc: IEventService; published: ProtocolEvent[] } {
+  const published: ProtocolEvent[] = [];
+  return {
+    published,
+    svc: {
+      _serviceBrand: undefined,
+      onDidPublish: () => ({ dispose: () => undefined }),
+      publish: (event) => {
+        published.push(event);
+      },
+    },
+  };
+}
+
 function catalogConfig(): KimiConfig {
   return {
     providers: {
@@ -174,7 +190,7 @@ describe('ModelCatalogService', () => {
   it('lists models and providers from live config', async () => {
     const configRef = { current: catalogConfig() };
     const { core, getCalls } = makeCore(configRef);
-    const svc = new ModelCatalogService(makeEnv(), core);
+    const svc = new ModelCatalogService(makeEnv(), core, makeEventService().svc);
 
     expect(await svc.listModels()).toHaveLength(3);
     expect(await svc.listProviders()).toHaveLength(2);
@@ -184,7 +200,7 @@ describe('ModelCatalogService', () => {
   it('gets one provider or throws ProviderNotFoundError', async () => {
     const configRef = { current: catalogConfig() };
     const { core } = makeCore(configRef);
-    const svc = new ModelCatalogService(makeEnv(), core);
+    const svc = new ModelCatalogService(makeEnv(), core, makeEventService().svc);
 
     await expect(svc.getProvider('kimi')).resolves.toMatchObject({ id: 'kimi' });
     await expect(svc.getProvider('missing')).rejects.toBeInstanceOf(
@@ -195,7 +211,7 @@ describe('ModelCatalogService', () => {
   it('sets defaultModel through core config patch', async () => {
     const configRef = { current: catalogConfig() };
     const { core, setCalls } = makeCore(configRef);
-    const svc = new ModelCatalogService(makeEnv(), core);
+    const svc = new ModelCatalogService(makeEnv(), core, makeEventService().svc);
 
     await expect(svc.setDefaultModel('turbo')).resolves.toEqual({
       default_model: 'turbo',
@@ -212,7 +228,7 @@ describe('ModelCatalogService', () => {
   it('rejects unknown model ids', async () => {
     const configRef = { current: catalogConfig() };
     const { core } = makeCore(configRef);
-    const svc = new ModelCatalogService(makeEnv(), core);
+    const svc = new ModelCatalogService(makeEnv(), core, makeEventService().svc);
 
     await expect(svc.setDefaultModel('missing')).rejects.toBeInstanceOf(
       ModelNotFoundError,
@@ -274,5 +290,115 @@ describe('ModelCatalogService', () => {
         },
       },
     });
+  });
+
+  it('publishes event.model_catalog.changed when a broad refresh changes the catalog', async () => {
+    const configRef: { current: KimiConfig } = {
+      current: {
+        providers: {
+          [KIMI_CODE_PROVIDER_NAME]: {
+            type: 'kimi',
+            apiKey: '',
+            baseUrl: 'https://api.example.test/coding/v1',
+            oauth: { storage: 'file', key: 'oauth/kimi-code' },
+          },
+        },
+        defaultModel: 'kimi-code/kimi-for-coding',
+        models: {
+          'kimi-code/kimi-for-coding': {
+            provider: KIMI_CODE_PROVIDER_NAME,
+            model: 'kimi-for-coding',
+            maxContextSize: 131_072,
+            capabilities: ['thinking'],
+          },
+        },
+      },
+    };
+    const { core } = makeCore(configRef);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: 'kimi-for-coding',
+                  context_length: 262_144,
+                  supports_reasoning: true,
+                },
+              ],
+            }),
+          ),
+      ),
+    );
+    const { svc: eventService, published } = makeEventService();
+    const svc = ModelCatalogService._createForTest(makeEnv(), core, authFacade(), eventService);
+
+    const result = await svc.refreshProviderModels();
+
+    expect(result.changed).toEqual([
+      { provider_id: KIMI_CODE_PROVIDER_NAME, provider_name: 'Kimi Code', added: 0, removed: 0 },
+    ]);
+    expect(published).toEqual([
+      {
+        type: 'event.model_catalog.changed',
+        agentId: 'main',
+        sessionId: '__global__',
+        changed: result.changed,
+        unchanged: result.unchanged,
+        failed: [],
+      },
+    ]);
+  });
+
+  it('does not publish an event when the provider refresh is a no-op', async () => {
+    const configRef: { current: KimiConfig } = {
+      current: {
+        providers: {
+          [KIMI_CODE_PROVIDER_NAME]: {
+            type: 'kimi',
+            apiKey: '',
+            baseUrl: 'https://api.example.test/coding/v1',
+            oauth: { storage: 'file', key: 'oauth/kimi-code' },
+          },
+        },
+        models: {
+          'kimi-code/kimi-for-coding': {
+            provider: KIMI_CODE_PROVIDER_NAME,
+            model: 'kimi-for-coding',
+            maxContextSize: 262_144,
+            capabilities: ['thinking', 'tool_use'],
+          },
+        },
+      },
+    };
+    const { core } = makeCore(configRef);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: 'kimi-for-coding',
+                  context_length: 262_144,
+                  supports_reasoning: true,
+                },
+              ],
+            }),
+          ),
+      ),
+    );
+    const { svc: eventService, published } = makeEventService();
+    const svc = ModelCatalogService._createForTest(makeEnv(), core, authFacade(), eventService);
+
+    await expect(svc.refreshProviderModels()).resolves.toMatchObject({
+      changed: [],
+      unchanged: [KIMI_CODE_PROVIDER_NAME],
+      failed: [],
+    });
+    expect(published).toEqual([]);
   });
 });

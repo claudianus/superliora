@@ -34,3 +34,8 @@ export const refreshOAuthProviderModelsResponseSchema = z.object({
 export type RefreshOAuthProviderModelsResponse = z.infer<
   typeof refreshOAuthProviderModelsResponseSchema
 >;
+
+export const refreshProviderModelsResponseSchema = refreshOAuthProviderModelsResponseSchema;
+export type RefreshProviderModelsResponse = z.infer<
+  typeof refreshProviderModelsResponseSchema
+>;

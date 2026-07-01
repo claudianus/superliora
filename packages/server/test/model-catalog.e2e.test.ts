@@ -264,6 +264,11 @@ describe('model/provider catalog routes', () => {
         unchanged: [],
         failed: [],
       }),
+      refreshProviderModels: async () => ({
+        changed: [],
+        unchanged: [],
+        failed: [],
+      }),
     };
     const r = await bootDaemon([[IModelCatalogService, stub]]);
 

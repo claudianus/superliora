@@ -4,6 +4,7 @@ import type {
   ModelCatalogItem,
   ProviderCatalogItem,
   RefreshOAuthProviderModelsResponse,
+  RefreshProviderModelsResponse,
   SetDefaultModelResponse,
 } from '@moonshot-ai/protocol';
 import {
@@ -16,13 +17,21 @@ import {
 import { createManagedAuthFacade, type ServicesAuthFacade } from '../auth/managedAuth';
 import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { IEnvironmentService } from '../environment/environment';
+import { IEventService, type IEventService as EventService } from '../event/event';
 import {
   IModelCatalogService,
   ModelNotFoundError,
   ProviderNotFoundError,
   toProtocolModel,
   toProtocolProvider,
+  type RefreshProviderModelsOptions,
 } from './modelCatalog';
+
+const noopEventService: EventService = {
+  _serviceBrand: undefined,
+  onDidPublish: () => ({ dispose: () => undefined }),
+  publish: () => undefined,
+};
 
 export class ModelCatalogService
   extends Disposable
@@ -30,10 +39,12 @@ export class ModelCatalogService
   readonly _serviceBrand: undefined;
 
   private _authFacade: ServicesAuthFacade;
+  private _refreshChain: Promise<unknown> = Promise.resolve();
 
   constructor(
     @IEnvironmentService env: IEnvironmentService,
     @ICoreProcessService private readonly core: ICoreProcessService,
+    @IEventService private readonly eventService: EventService,
   ) {
     super();
     this._authFacade = createManagedAuthFacade(env);
@@ -43,8 +54,9 @@ export class ModelCatalogService
     env: IEnvironmentService,
     core: ICoreProcessService,
     authFacade: ServicesAuthFacade,
+    eventService: EventService = noopEventService,
   ): ModelCatalogService {
-    const service = new ModelCatalogService(env, core);
+    const service = new ModelCatalogService(env, core, eventService);
     service._authFacade = authFacade;
     return service;
   }
@@ -90,9 +102,49 @@ export class ModelCatalogService
   }
 
   async refreshOAuthProviderModels(): Promise<RefreshOAuthProviderModelsResponse> {
-    return mapRefreshResult(
-      await refreshProviderModels(this._buildRefreshHost(), { scope: 'oauth' }),
+    return this.refreshProviderModels({ scope: 'oauth' });
+  }
+
+  refreshProviderModels(
+    options: RefreshProviderModelsOptions = {},
+  ): Promise<RefreshProviderModelsResponse> {
+    const run = this._refreshChain.then(() => this._doRefreshProviderModels(options));
+    this._refreshChain = run.then(
+      () => undefined,
+      () => undefined,
     );
+    return run;
+  }
+
+  private async _doRefreshProviderModels(
+    options: RefreshProviderModelsOptions,
+  ): Promise<RefreshProviderModelsResponse> {
+    if (options.providerId !== undefined) {
+      const config = await this._readConfig();
+      if (config.providers?.[options.providerId] === undefined) {
+        throw new ProviderNotFoundError(options.providerId);
+      }
+    }
+
+    const response = mapRefreshResult(
+      await refreshProviderModels(this._buildRefreshHost(), {
+        scope: options.scope,
+        providerId: options.providerId,
+      }),
+    );
+
+    if (response.changed.length > 0) {
+      this.eventService.publish({
+        type: 'event.model_catalog.changed',
+        agentId: 'main',
+        sessionId: '__global__',
+        changed: response.changed,
+        unchanged: response.unchanged,
+        failed: response.failed,
+      });
+    }
+
+    return response;
   }
 
   private _buildRefreshHost(): RefreshProviderHost {
@@ -150,7 +202,7 @@ export class ModelCatalogService
   }
 }
 
-function mapRefreshResult(result: RefreshResult): RefreshOAuthProviderModelsResponse {
+function mapRefreshResult(result: RefreshResult): RefreshProviderModelsResponse {
   return {
     changed: result.changed.map((change) => ({
       provider_id: change.providerId,
