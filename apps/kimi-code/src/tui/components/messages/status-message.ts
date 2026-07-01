@@ -30,12 +30,14 @@ export class StatusMessageComponent extends Container {
 
   // Indent every line, not just the first. The `content` may be multi-line
   // (e.g. `!` shell output); prefixing the whole string once would only indent
-  // the first line and leave the rest at column 0.
+  // the first line and leave the rest at column 0. Strip carriage returns first
+  // so CRLF provider error pages cannot overwrite the visible line in the TUI.
   private renderText(): string {
-    const colored = this.color === undefined
-      ? currentTheme.fg('textDim', this.content)
-      : currentTheme.fg(this.color, this.content);
-    return colored.split('\n').map((line) => `  ${line}`).join('\n');
+    const colored =
+      this.color === undefined
+        ? currentTheme.fg('textDim', this.content)
+        : currentTheme.fg(this.color, this.content);
+    return colored.replaceAll('\r', '').split('\n').map((line) => `  ${line}`).join('\n');
   }
 }
 

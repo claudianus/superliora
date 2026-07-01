@@ -2,7 +2,10 @@ import { visibleWidth } from '@earendil-works/pi-tui';
 import { describe, expect, it } from 'vitest';
 
 import { CronMessageComponent } from '#/tui/components/messages/cron-message';
-import { NoticeMessageComponent } from '#/tui/components/messages/status-message';
+import {
+  NoticeMessageComponent,
+  StatusMessageComponent,
+} from '#/tui/components/messages/status-message';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -37,5 +40,19 @@ describe('CronMessageComponent', () => {
         expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
     }
+  });
+});
+
+describe('StatusMessageComponent', () => {
+  it('strips carriage returns so CRLF provider errors stay visible', () => {
+    const component = new StatusMessageComponent('Error: boom\r\nmore\r', 'error');
+    const text = component
+      .render(120)
+      .map((line) => strip(line))
+      .join('\n');
+
+    expect(text).toContain('Error: boom');
+    expect(text).toContain('more');
+    expect(text).not.toContain('\r');
   });
 });

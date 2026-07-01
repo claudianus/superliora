@@ -84,7 +84,7 @@ export function toKimiErrorPayload(error: unknown): KimiErrorPayload {
           : ErrorCodes.PROVIDER_API_ERROR;
     return {
       code,
-      message: error.message,
+      message: sanitizeStatusErrorMessage(error.message),
       name: error.name,
       details: {
         statusCode: error.statusCode,
@@ -139,6 +139,18 @@ export function toKimiErrorPayload(error: unknown): KimiErrorPayload {
     message: String(error),
     retryable: KIMI_ERROR_INFO[ErrorCodes.INTERNAL].retryable,
   };
+}
+
+/**
+ * Provider status errors can carry an HTML error page instead of structured
+ * JSON. Surface the page title when possible and strip carriage returns so
+ * terminal renderers do not show the status line as blank.
+ */
+function sanitizeStatusErrorMessage(message: string): string {
+  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(message);
+  const title = titleMatch?.[1]?.trim();
+  const normalized = title !== undefined && title.length > 0 ? title : message;
+  return normalized.replaceAll('\r', '');
 }
 
 /**
