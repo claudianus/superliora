@@ -160,6 +160,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     contextTokens: appState.contextTokens,
     maxContextTokens: appState.maxContextTokens,
     availableModels: appState.availableModels,
+    availableProviders: appState.availableProviders,
     status: runtimeStatus.status,
     statusError: runtimeStatus.error,
     gitStatus: createGitStatusCache(appState.workDir).getStatus(),

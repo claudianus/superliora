@@ -30,6 +30,16 @@ describe('status panel report lines', () => {
           displayName: 'Kimi K2',
         },
       },
+      availableProviders: {
+        'managed:kimi-code': {
+          type: 'kimi',
+          defaultModel: 'k2',
+          oauth: {
+            storage: 'file',
+            key: 'managed-kimi-code',
+          },
+        },
+      },
       status: {
         model: 'k2',
         thinkingLevel: 'high',
@@ -84,6 +94,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+built-in WebSearch \+ FetchURL; MCP optional/);
+    expect(output).toMatch(/Catalog\s+1 models \/ 1 providers; active managed:kimi-code/);
     expect(output).toMatch(/Memory\s+prefs \| session recall \| long-run notes/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify queued/);
     expect(output).toMatch(/Stages\s+Plan on \| Goal active \| Swarm armed \| Verify queued/);
@@ -194,6 +205,7 @@ describe('status panel report lines', () => {
       'Recovery',
       'Tools',
       'Research',
+      'Catalog',
       'Memory',
       'Flow',
       'Stages',

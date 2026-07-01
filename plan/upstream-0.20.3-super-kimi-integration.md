@@ -40,6 +40,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1207` selective: expose broad provider model refresh through the model catalog service and publish model-catalog changed events.
 - Upstream `#1207` selective: start a server-side provider model catalog refresh scheduler with config and environment controls.
 - Upstream `#1132` selective: preserve and expose model-declared thinking effort metadata without changing Super Kimi's thinking-mode semantics.
+- Upstream `#1207` selective: surface model catalog readiness in `/status` without adding a separate internal QA command.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -72,9 +73,10 @@ Super Kimi adaptation:
 - Preserved Super Kimi's Context Compaction v2 records and TUI replay shape while normalizing only telemetry payload fields to snake_case, dropping custom compaction instructions from telemetry, and aligning client attribution schemas for CLI, daemon, and ACP harness diagnostics.
 - Added the server auto-refresh scheduler without taking the web UI store/status pieces: long-running Super Kimi daemons now refresh provider model catalogs on startup and on a configurable interval, while failures stay logged and non-fatal.
 - Kept Super Kimi's boolean thinking UX intact while carrying `support_efforts` and `default_effort` through managed Kimi/Open Platform refresh, config aliases, protocol model catalog responses, and TUI model selection data.
+- Kept the model-catalog status surface TUI-first by adding a compact `/status` readiness row for visible model aliases, configured providers, and the active provider.
 
 ## Next Candidate Queue
 
 - `#1214` compaction strategy remainder: potential token-efficiency win, but large behavioral surface.
 - `#1132` thinking config/model effort overhaul: metadata carrier pieces are integrated; defer any default-thinking semantic rewrite or effort selector UI until it can be designed around Super Kimi's UltraWork UX.
-- `#1207` remainder: optional TUI-visible model-catalog freshness/status surface, if it improves `/status` without adding web UI debt.
+- `#1207` remainder: optional richer freshness timestamps if the server API grows real last-refresh metadata; do not invent freshness claims from config-only state.

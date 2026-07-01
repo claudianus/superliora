@@ -5,7 +5,12 @@
  * separate from the TUI orchestration layer.
  */
 
-import type { ModelAlias, PermissionMode, SessionStatus } from '@moonshot-ai/kimi-code-sdk';
+import type {
+  ModelAlias,
+  PermissionMode,
+  ProviderConfig,
+  SessionStatus,
+} from '@moonshot-ai/kimi-code-sdk';
 
 import { PRODUCT_NAME } from '#/constant/app';
 import { currentTheme } from '#/tui/theme';
@@ -54,6 +59,7 @@ export interface StatusReportOptions {
   readonly contextTokens: number;
   readonly maxContextTokens: number;
   readonly availableModels: Record<string, ModelAlias>;
+  readonly availableProviders?: Record<string, ProviderConfig>;
   readonly status?: SessionStatus;
   readonly statusError?: string;
   readonly managedUsage?: ManagedUsageReport;
@@ -235,6 +241,28 @@ function formatRecoveryGate(options: StatusReportOptions): string {
     : 'resumable evidence needed -> durable target';
 }
 
+function formatModelCatalogGate(options: StatusReportOptions): string {
+  const modelCount = Object.keys(options.availableModels).length;
+  const providerCount = Object.keys(options.availableProviders ?? {}).length;
+  const model = (options.status?.model ?? options.model).trim();
+  const activeProvider = model.length > 0 ? options.availableModels[model]?.provider : undefined;
+
+  if (modelCount === 0 && providerCount === 0) return 'no catalog loaded';
+  if (activeProvider === undefined) {
+    return `${String(modelCount)} models / ${String(providerCount)} providers; choose model`;
+  }
+  return (
+    `${String(modelCount)} models / ${String(providerCount)} providers; ` +
+    `active ${compactCatalogValue(activeProvider)}`
+  );
+}
+
+function compactCatalogValue(value: string): string {
+  const maxLength = 28;
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, 12)}...${value.slice(value.length - 13)}`;
+}
+
 function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
   const writingBlocked = humanWritingBlocked(options);
   const writingRow: FieldRow = writingBlocked
@@ -249,6 +277,7 @@ function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
     { label: 'Recovery', value: formatRecoveryGate(options) },
     { label: 'Tools', value: TOOLS_GATE },
     { label: 'Research', value: RESEARCH_GATE },
+    { label: 'Catalog', value: formatModelCatalogGate(options) },
     { label: 'Memory', value: MEMORY_GATE },
     formatUltraworkFlow(options),
     { label: 'Stages', value: formatUltraworkStageStatus(options) },
