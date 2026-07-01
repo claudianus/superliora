@@ -66,6 +66,7 @@ import {
 } from './anchor';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
+const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
 const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 30_000;
 const DEFAULT_PARALLEL_BLOCK_TARGET = 15_000;
 const OVERFLOW_STATUS_RECOVERY_RATIO = 0.5;
@@ -354,12 +355,19 @@ export class FullCompaction {
       await this.triggerPreCompactHook(data, tokensBefore, signal);
 
       const model = this.agent.config.model;
+      const capability = this.agent.config.modelCapabilities;
+      const maxContextTokens = capability.max_context_tokens;
+      const defaultCompactionCap =
+        maxContextTokens > 0
+          ? Math.min(maxContextTokens, DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS)
+          : undefined;
       const provider = applyCompletionBudget({
         provider: this.agent.config.provider,
         budget: resolveCompletionBudget({
+          maxOutputSize: this.agent.config.maxOutputSize ?? defaultCompactionCap,
           reservedContextSize: this.agent.kimiConfig?.loopControl?.reservedContextSize,
         }),
-        capability: this.agent.config.modelCapabilities,
+        capability,
       });
 
       let summary: string;

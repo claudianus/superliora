@@ -32,6 +32,7 @@ Do not wholesale-merge upstream. Super Kimi carries Ultrawork, bundled themes, w
 - Upstream `#1132` selective: preserve custom model-alias fields when refreshing managed Kimi Code, Open Platform, and custom-registry model catalogs.
 - Upstream `#1191`: render provider HTML status pages as readable terminal error messages.
 - Upstream `#1209`: route malformed tool-call JSON through schema validation for clearer retry guidance.
+- Upstream `#1129`, `#1156`: use model `maxOutputSize` and a 128k default cap for compaction output budgets.
 
 Super Kimi adaptation:
 - Preserved dynamic `skill:` slash command lookup.
@@ -57,6 +58,7 @@ Super Kimi adaptation:
 - Kept Super Kimi's existing thinking/default-thinking semantics, but adopted the low-risk catalog refresh merge behavior from the thinking overhaul so user-added alias metadata survives managed Kimi Code, Open Platform, and custom-registry refreshes while stale upstream models are still removed.
 - Extracted HTML error-page titles from provider status errors and stripped carriage returns before status rendering so nginx-style failures show an actionable message instead of a blank terminal line.
 - Kept the tool-call transcript invariant intact while making malformed JSON arguments fall back to `{}` and produce the same schema-driven invalid-args feedback as other bad tool inputs.
+- Preserved Super Kimi's compaction strategy while capping compaction completion budgets with alias `maxOutputSize` first, then a safe 128k default for known large-context models, leaving unknown-context and explicit env opt-out behavior intact.
 
 ## Next Candidate Queue
 
