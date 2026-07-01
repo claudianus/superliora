@@ -39,6 +39,7 @@ function makeHost(additionalDirs: readonly string[] = []) {
     state,
     session,
     skillCommandMap: new Map<string, string>(),
+    pluginCommandMap: new Map<string, string>(),
     setAppState: vi.fn((patch: Record<string, unknown>) => Object.assign(state.appState, patch)),
     refreshSlashCommandAutocomplete: vi.fn(),
     appendTranscriptEntry: vi.fn(),
