@@ -14,12 +14,21 @@ const builtins = new Set([
 const optionalRuntimeRequires = new Set([
   'ajv-formats/dist/formats',
   'ajv/dist/runtime/validation_error',
+  '@playwright/test',
   'bufferutil',
   'canvas',
+  'chromium-bidi/lib/cjs/bidiMapper/BidiMapper',
+  'chromium-bidi/lib/cjs/cdp/CdpConnection',
   'chokidar',
   'cpu-features',
+  'electron',
+  'electron/index.js',
   'fast-json-stringify/lib/serializer',
   'fast-json-stringify/lib/validator',
+  'fsevents',
+  'mmdb-lib',
+  'playwright',
+  'socks-proxy-agent',
   'utf-8-validate',
 ]);
 const optionalRelativeRuntimeRequires = new Set(['./crypto/build/Release/sshcrypto.node']);
