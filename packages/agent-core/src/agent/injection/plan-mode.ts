@@ -195,12 +195,13 @@ function exitReminder(): string {
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
-You are in the Research Phase. Your allowed tools are read-only evidence tools: WebSearch, FetchURL, KimiContext, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, narrow read-only Bash inspection, and NextPhase.
+You are in the Research Phase. Your allowed tools are read-only evidence tools: WebSearch, FetchURL, KimiContext, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, narrow read-only Bash inspection, and NextPhase.
 AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, and ExitPlanMode are BLOCKED.
 
 Goal: gather current, source-backed context before the UltraPlan interview creates question options or asks the user to choose.
 - Search current docs, release notes, papers, security advisories, benchmark pages, or OSS examples when they can affect correctness.
 - Use KimiContext, Grep, Glob, and Read for local code facts before asking path or architecture questions.
+- Use SearchExpert when Ultrawork may need specialist lanes; capture candidate expert IDs before writing the Swarm decision.
 - Fetch primary sources before relying on snippets. Label findings as verified, candidate, stale/offline, or irrelevant.
 - Distill a compact evidence pack: facts learned, source URLs or file paths, remaining unknowns, and which unknowns truly require user input.
 - Do not ask the user anything in this phase; the point is to avoid pretrained-only options.
@@ -243,12 +244,13 @@ Do not call EnterPlanMode while already in Ultra Plan. EnterPlanMode starts plan
 Your turn MUST end with AskUserQuestion or NextPhase.`,
 
   design: `## Design Phase
-You are in the Design Phase. Read-only tools only (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill).
+You are in the Design Phase. Read-only tools only (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert).
 Write and Edit are BLOCKED.
 
 Goal: Explore the codebase and converge on the best approach.
 - Use Read, Grep, Glob to understand relevant code
 - Use SearchSkill and Skill when task-specific skill instructions would improve the design
+- Use SearchExpert to map coverage lanes to concrete UltraSwarm expert candidates before deciding ENGAGE/DEFER
 - Consider trade-offs but aim for a single recommendation
 - Identify key files, architectural decisions, and risks
 - You may use Bash only when needed for exploration
@@ -257,15 +259,16 @@ You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-You are in the Review Phase. Read-only tools only (Read, Grep, Glob, WebSearch, FetchURL, and narrow read-only Bash inspection).
+You are in the Review Phase. Read-only tools only (Read, ReadMediaFile, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TaskList, TaskOutput, and read-only Bash inspection).
 Write, Edit, and general Bash execution are BLOCKED.
 
 Goal: Re-read key files to verify your understanding before writing the plan.
 - Verify your design assumptions against actual code
 - Search and fetch current sources again when an external API, library, paper, security issue, or best-practice claim remains uncertain
+- SearchExpert again if the capability coverage matrix has material lanes but no concrete expert candidates
 - Check edge cases and failure modes
 - Confirm file paths and dependencies
-- You may use Bash only for simple read-only workspace inspection: pwd, ls, git status, git diff --stat/name-only/check
+- You may use Bash only for read-only inspection: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, and read-only git commands
 
 You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
@@ -282,14 +285,16 @@ Goal: Write the complete plan to the plan file with these sections:
 5. Execution Plan — step-by-step implementation plan
 
 You MUST fill out the Seed Spec template completely.
-You MUST include one auditable Swarm decision line or section before implementation: ENGAGE or DEFER, reason, specialist value or none, and verification owner.
+You MUST include one auditable line in this exact shape before implementation: Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>.
+Prefer ENGAGE whenever the AC Tree or coverage matrix has more than one material expertise lane, subjective UX/visual quality, external/domain correctness, security/privacy/compliance, performance/reliability, accessibility/i18n, hard-to-observe runtime behavior, or any independent review need.
+DEFER is allowed only for a deterministic single-owner task. If you choose DEFER, include a Swarm DEFER waiver field that explicitly explains why no specialist subagent is needed despite the default-to-ENGAGE rule.
 You can call ExitPlanMode ONLY after the plan file contains a complete Seed Spec.
 
 Use Write or Edit to modify the plan file. If it does not exist, create it first.`,
 
   exit: `## Exit Phase
 The plan is complete. Call ExitPlanMode to request user approval.
-Make sure the plan file contains a complete Seed Spec and Swarm Decision before exiting.
+Make sure the plan file contains a complete Seed Spec, exact Swarm decision audit line, and any required Swarm DEFER waiver before exiting.
 If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file with Write/Edit, and call ExitPlanMode again.`,
 };
 

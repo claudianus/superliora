@@ -232,6 +232,63 @@ describe('Agent turn flow', () => {
     });
   });
 
+  it('synthesizes a visible preamble before silent tool calls', async () => {
+    const ctx = testAgent({ kaos: createCommandKaos('ok') });
+    ctx.configure({ tools: ['Bash'] });
+    await ctx.rpc.setPermission({ mode: 'yolo' });
+    ctx.newEvents();
+
+    ctx.mockNextResponse(bashCall());
+    ctx.mockNextResponse({ type: 'text', text: 'done' });
+
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run a command silently' }] });
+    await ctx.untilTurnEnd();
+
+    const assistantIndex = eventIndex(ctx, '[rpc]', 'assistant.delta');
+    const contentIndex = eventIndex(ctx, '[wire]', 'context.append_loop_event', (args) =>
+      isLoopEvent(args, 'content.part'),
+    );
+    const toolCallIndex = eventIndex(ctx, '[wire]', 'context.append_loop_event', (args) =>
+      isLoopEvent(args, 'tool.call'),
+    );
+
+    expect(ctx.allEvents[assistantIndex]?.args).toEqual({
+      turnId: 0,
+      delta: 'Running: printf should-not-run.',
+    });
+    expect(loopEventAt(ctx, contentIndex)).toMatchObject({
+      type: 'content.part',
+      part: { type: 'text', text: 'Running: printf should-not-run.' },
+    });
+    expect(assistantIndex).toBeLessThan(contentIndex);
+    expect(contentIndex).toBeLessThan(toolCallIndex);
+  });
+
+  it('does not synthesize a preamble when the model already emitted assistant text', async () => {
+    const ctx = testAgent({ kaos: createCommandKaos('ok') });
+    ctx.configure({ tools: ['Bash'] });
+    await ctx.rpc.setPermission({ mode: 'yolo' });
+    ctx.newEvents();
+
+    ctx.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    ctx.mockNextResponse({ type: 'text', text: 'done' });
+
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run a command with preamble' }] });
+    await ctx.untilTurnEnd();
+
+    const assistantDeltas = ctx.allEvents
+      .filter((entry) => entry.type === '[rpc]' && entry.event === 'assistant.delta')
+      .map((entry) => entry.args);
+    expect(assistantDeltas).not.toContainEqual({
+      turnId: 0,
+      delta: 'Running: printf should-not-run.',
+    });
+    expect(assistantDeltas).toContainEqual({
+      turnId: 0,
+      delta: 'I will run Bash.',
+    });
+  });
+
   it('emits a failed turn and error when generation fails', async () => {
     const ctx = testAgent();
     ctx.configure();
@@ -1754,8 +1811,34 @@ function eventIndex(
   ctx: Pick<ReturnType<typeof testAgent>, 'allEvents'>,
   type: string,
   event: string,
+  matchArgs?: (args: unknown) => boolean,
 ): number {
-  return ctx.allEvents.findIndex((entry) => entry.type === type && entry.event === event);
+  return ctx.allEvents.findIndex(
+    (entry) =>
+      entry.type === type &&
+      entry.event === event &&
+      (matchArgs === undefined || matchArgs(entry.args)),
+  );
+}
+
+function loopEventAt(
+  ctx: Pick<ReturnType<typeof testAgent>, 'allEvents'>,
+  index: number,
+): Record<string, unknown> | undefined {
+  const args = ctx.allEvents[index]?.args;
+  if (!isRecord(args)) return undefined;
+  const event = args['event'];
+  return isRecord(event) ? event : undefined;
+}
+
+function isLoopEvent(args: unknown, type: string): boolean {
+  if (!isRecord(args)) return false;
+  const event = args['event'];
+  return isRecord(event) && event['type'] === type;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function bashCall(): ToolCall {

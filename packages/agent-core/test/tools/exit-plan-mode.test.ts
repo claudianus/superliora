@@ -220,10 +220,12 @@ describe('ExitPlanModeTool', () => {
         '- Verification passes',
         '',
         '## Swarm Decision',
+        'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
         '- **Decision:** DEFER',
         '- **Reason:** Bounded deterministic edit.',
         '- **Specialist value:** none',
         '- **Verification owner:** main agent',
+        '- **Swarm DEFER waiver:** Single-owner source/test edit with no external, subjective, security, performance, or independent-review lane.',
         '',
         '## Evaluation Plan',
         '- Mechanical and focused unit checks.',
@@ -290,6 +292,157 @@ describe('ExitPlanModeTool', () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
+  it('blocks Ultra Plan exit when the Swarm decision lacks the audit line', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## Seed Spec',
+        '- **Verifiable UltraGoal:** True when checks pass; false otherwise.',
+        '- **Completion Criterion:** Both checks pass.',
+        '- **Actors:** CLI user and agent.',
+        '- **Inputs:** Source and test.',
+        '- **Outputs:** Source and test changes.',
+        '- **Constraints:** Minimal change.',
+        '- **Non-goals:** No unrelated edits.',
+        '- **Acceptance Criteria:** Assertions pass.',
+        '- **Verification Plan:** Run checks.',
+        '- **Failure Modes:** Missing token.',
+        '- **Runtime Context:** Local repo.',
+        '',
+        '## AC Tree',
+        '- Done',
+        '',
+        '## Swarm Decision',
+        '- **Decision:** DEFER',
+        '- **Reason:** Bounded deterministic edit.',
+        '- **Specialist value:** none',
+        '- **Verification owner:** main agent',
+        '- **Swarm DEFER waiver:** Single-owner deterministic edit.',
+        '',
+        '## Evaluation Plan',
+        '- Run checks.',
+        '',
+        '## Execution Plan',
+        '1. Edit source.',
+      ].join('\n'),
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_missing_audit_line',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('Swarm decision audit line');
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('blocks Ultra Plan DEFER without a waiver', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## Seed Spec',
+        '- **Verifiable UltraGoal:** True when checks pass; false otherwise.',
+        '- **Completion Criterion:** Both checks pass.',
+        '- **Actors:** CLI user and agent.',
+        '- **Inputs:** Source and test.',
+        '- **Outputs:** Source and test changes.',
+        '- **Constraints:** Minimal change.',
+        '- **Non-goals:** No unrelated edits.',
+        '- **Acceptance Criteria:** Assertions pass.',
+        '- **Verification Plan:** Run checks.',
+        '- **Failure Modes:** Missing token.',
+        '- **Runtime Context:** Local repo.',
+        '',
+        '## AC Tree',
+        '- Done',
+        '',
+        '## Swarm Decision',
+        'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
+        '- **Decision:** DEFER',
+        '- **Reason:** Bounded deterministic edit.',
+        '- **Specialist value:** none',
+        '- **Verification owner:** main agent',
+        '',
+        '## Evaluation Plan',
+        '- Run checks.',
+        '',
+        '## Execution Plan',
+        '1. Edit source.',
+      ].join('\n'),
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_missing_defer_waiver',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('Swarm DEFER waiver');
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('blocks Ultra Plan DEFER with a placeholder waiver', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## Seed Spec',
+        '- **Verifiable UltraGoal:** True when checks pass; false otherwise.',
+        '- **Completion Criterion:** Both checks pass.',
+        '- **Actors:** CLI user and agent.',
+        '- **Inputs:** Source and test.',
+        '- **Outputs:** Source and test changes.',
+        '- **Constraints:** Minimal change.',
+        '- **Non-goals:** No unrelated edits.',
+        '- **Acceptance Criteria:** Assertions pass.',
+        '- **Verification Plan:** Run checks.',
+        '- **Failure Modes:** Missing token.',
+        '- **Runtime Context:** Local repo.',
+        '',
+        '## AC Tree',
+        '- Done',
+        '',
+        '## Swarm Decision',
+        'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
+        '- **Decision:** DEFER',
+        '- **Reason:** Bounded deterministic edit.',
+        '- **Specialist value:** none',
+        '- **Verification owner:** main agent',
+        '- **Swarm DEFER waiver:** none',
+        '',
+        '## Evaluation Plan',
+        '- Run checks.',
+        '',
+        '## Execution Plan',
+        '1. Edit source.',
+      ].join('\n'),
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_placeholder_defer_waiver',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('Swarm DEFER waiver');
+    expect(emit).not.toHaveBeenCalled();
+  });
+
   it('accepts Ultra Plan required fields written as markdown headings with body text', async () => {
     const { agent, emit } = makeAgent({
       ultra: true,
@@ -349,6 +502,7 @@ describe('ExitPlanModeTool', () => {
         '',
         '## Swarm Decision',
         'Swarm decision: DEFER. Bounded deterministic edit. value: none; owner: main agent.',
+        'Swarm DEFER waiver: Single-owner source/test edit with no specialist lane.',
       ].join('\n'),
     });
 

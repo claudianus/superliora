@@ -74,15 +74,16 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           'FetchURL',
           'SearchSkill',
           'Skill',
+          'SearchExpert',
           'NextPhase',
         ];
         if (researchAllowed.includes(toolName)) return;
         if (toolName === 'Bash') {
-          if (isReadOnlyReviewBash(context)) return;
+          if (isNarrowReadOnlyBash(context)) return;
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use WebSearch, FetchURL, KimiContext, Read, Grep, Glob, or NextPhase.',
+              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use WebSearch, FetchURL, KimiContext, Read, Grep, Glob, SearchExpert, or NextPhase.',
           };
         }
         if (toolName === 'AskUserQuestion') {
@@ -138,6 +139,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           'Bash',
           'SearchSkill',
           'Skill',
+          'SearchExpert',
           'NextPhase',
         ];
         if (designAllowed.includes(toolName)) return;
@@ -149,18 +151,32 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Design phase. Only read-only tools are allowed (Read, Grep, Glob, WebSearch, FetchURL, Bash, SearchSkill, Skill). Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Design phase. Only read-only tools are allowed (Read, Grep, Glob, WebSearch, FetchURL, Bash, SearchSkill, Skill, SearchExpert). Use NextPhase to advance when ready.`,
         };
       }
       case 'review': {
-        const reviewAllowed = ['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'NextPhase'];
+        const reviewAllowed = [
+          'Read',
+          'ReadMediaFile',
+          'Grep',
+          'Glob',
+          'KimiContext',
+          'WebSearch',
+          'FetchURL',
+          'SearchSkill',
+          'Skill',
+          'SearchExpert',
+          'TaskList',
+          'TaskOutput',
+          'NextPhase',
+        ];
         if (reviewAllowed.includes(toolName)) return;
         if (toolName === 'Bash') {
           if (isReadOnlyReviewBash(context)) return;
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Review phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use Read, Grep, Glob, WebSearch, FetchURL, or NextPhase when ready.',
+              'Bash is blocked in Review phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, or NextPhase when ready.',
           };
         }
         if (toolName === 'ExitPlanMode') {
@@ -171,7 +187,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Review phase. Only Read, Grep, Glob, WebSearch, FetchURL, read-only Bash workspace inspection, and NextPhase are allowed. Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Review phase. Only read-only review tools, read-only Bash inspection, and NextPhase are allowed. Use NextPhase to advance when ready.`,
         };
       }
       case 'write': {
@@ -232,13 +248,12 @@ function readsOnlyPlanFile(
 }
 
 function planModeWriteDeniedMessage(planFilePath: string | null): string {
-  return (
-    `Plan mode is active. You may only write to the current plan file: ${planFilePath ?? '(no plan file selected yet)'}. ` +
-    'Call ExitPlanMode to exit plan mode before editing other files.'
-  );
+  return `Plan mode is active. You may only write to the current plan file: ${
+    planFilePath ?? '(no plan file selected yet)'
+  }. Call ExitPlanMode to exit plan mode before editing other files.`;
 }
 
-function isReadOnlyReviewBash(context: PermissionPolicyContext): boolean {
+function isNarrowReadOnlyBash(context: PermissionPolicyContext): boolean {
   const command = bashCommand(context)?.trim();
   if (command === undefined || command.length === 0) return false;
   if (hasShellControlSyntax(command)) return false;
@@ -253,6 +268,19 @@ function isReadOnlyReviewBash(context: PermissionPolicyContext): boolean {
   );
 }
 
+function isReadOnlyReviewBash(context: PermissionPolicyContext): boolean {
+  const command = bashCommand(context)?.trim();
+  if (command === undefined || command.length === 0) return false;
+  if (isBackgroundBash(context)) return false;
+  if (hasShellControlSyntax(command)) return false;
+
+  const words = shellWords(command);
+  if (words === undefined || words.length === 0) return false;
+  if (hasSensitivePath(words)) return false;
+
+  return isReadOnlyReviewCommand(words);
+}
+
 function bashCommand(context: PermissionPolicyContext): string | undefined {
   const args = context.args;
   if (args === null || typeof args !== 'object') return undefined;
@@ -260,6 +288,230 @@ function bashCommand(context: PermissionPolicyContext): string | undefined {
   return typeof command === 'string' ? command : undefined;
 }
 
+function isBackgroundBash(context: PermissionPolicyContext): boolean {
+  const args = context.args;
+  return (
+    args !== null &&
+    typeof args === 'object' &&
+    (args as { run_in_background?: unknown }).run_in_background === true
+  );
+}
+
 function hasShellControlSyntax(command: string): boolean {
   return /[\n\r;&|<>`]/.test(command) || command.includes('$(');
+}
+
+function shellWords(command: string): string[] | undefined {
+  const words: string[] = [];
+  let word = '';
+  let hasWord = false;
+  let quote: '"' | "'" | undefined;
+  let escaped = false;
+
+  for (const char of command) {
+    if (escaped) {
+      word += char;
+      hasWord = true;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\' && quote !== "'") {
+      escaped = true;
+      hasWord = true;
+      continue;
+    }
+
+    if (quote !== undefined) {
+      if (char === quote) {
+        quote = undefined;
+      } else {
+        word += char;
+      }
+      hasWord = true;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      hasWord = true;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (hasWord) {
+        words.push(word);
+        word = '';
+        hasWord = false;
+      }
+      continue;
+    }
+
+    word += char;
+    hasWord = true;
+  }
+
+  if (escaped || quote !== undefined) return undefined;
+  if (hasWord) words.push(word);
+  return words;
+}
+
+function hasSensitivePath(words: readonly string[]): boolean {
+  return words.some(
+    (word) =>
+      /(^|\/)\.env(?:[./-]|$)/i.test(word) ||
+      /(^|\/)\.ssh(?:\/|$)/i.test(word) ||
+      /(^|\/)\.aws\/credentials$/i.test(word) ||
+      /(^|\/)\.gnupg(?:\/|$)/i.test(word) ||
+      /(^|\/)id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?$/i.test(word) ||
+      /\.(?:pem|p12|pfx)$/i.test(word),
+  );
+}
+
+function isReadOnlyReviewCommand(words: readonly string[]): boolean {
+  const command = words[0];
+  if (command === undefined) return false;
+
+  switch (command) {
+    case 'pwd':
+      return (
+        words.length === 1 ||
+        words.every((word, index) => index === 0 || word === '-L' || word === '-P')
+      );
+    case 'ls':
+    case 'cat':
+    case 'head':
+    case 'tail':
+    case 'wc':
+    case 'file':
+    case 'stat':
+    case 'du':
+    case 'nl':
+    case 'rg':
+    case 'grep':
+    case 'jq':
+      return true;
+    case 'tree':
+      return !hasTreeWriteOption(words);
+    case 'which':
+      return true;
+    case 'command':
+      return words[1] === '-v' && words.length >= 3;
+    case 'find':
+      return isReadOnlyFind(words);
+    case 'sed':
+      return isReadOnlySed(words);
+    case 'git':
+      return isReadOnlyGit(words);
+    default:
+      return false;
+  }
+}
+
+function hasTreeWriteOption(words: readonly string[]): boolean {
+  return words.some(
+    (word, index) => index > 0 && (word.startsWith('-o') || word.startsWith('--output')),
+  );
+}
+
+function isReadOnlyFind(words: readonly string[]): boolean {
+  const dangerousActions = new Set([
+    '-delete',
+    '-exec',
+    '-execdir',
+    '-ok',
+    '-okdir',
+    '-fls',
+    '-fprint',
+    '-fprint0',
+    '-fprintf',
+  ]);
+  return words.slice(1).every((word) => !dangerousActions.has(word));
+}
+
+function isReadOnlySed(words: readonly string[]): boolean {
+  const scripts: string[] = [];
+  let hasExplicitScript = false;
+  let index = 1;
+  for (; index < words.length; index += 1) {
+    const word = words[index]!;
+    if (word === '-i' || word.startsWith('-i') || word === '--in-place' || word.startsWith('--in-place=')) {
+      return false;
+    }
+    if (word === '-n' || word === '--quiet' || word === '--silent' || word === '-E' || word === '-r') {
+      continue;
+    }
+    if (word === '-e') {
+      const script = words[index + 1];
+      if (script === undefined) return false;
+      scripts.push(script);
+      hasExplicitScript = true;
+      index += 1;
+      continue;
+    }
+    if (word.startsWith('-')) return false;
+    if (hasExplicitScript) break;
+    scripts.push(word);
+    index += 1;
+    break;
+  }
+
+  if (scripts.length === 0) return false;
+  if (!scripts.every(isSedPrintScript)) return false;
+  return index < words.length;
+}
+
+function isSedPrintScript(script: string): boolean {
+  return (
+    /^(?:\d+|\$)(?:,(?:\d+|\$))?p$/.test(script) ||
+    /^\/[^/]+\/(?:,\/[^/]+\/)?p$/.test(script)
+  );
+}
+
+function isReadOnlyGit(words: readonly string[]): boolean {
+  const subcommandIndex = gitSubcommandIndex(words);
+  if (subcommandIndex === undefined) return false;
+  const subcommand = words[subcommandIndex];
+  if (subcommand === undefined) return false;
+
+  const readOnlySubcommands = new Set([
+    'status',
+    'diff',
+    'branch',
+    'rev-parse',
+    'log',
+    'show',
+    'ls-files',
+    'grep',
+    'blame',
+    'describe',
+    'merge-base',
+    'cat-file',
+  ]);
+  if (!readOnlySubcommands.has(subcommand)) return false;
+
+  return !words.some(
+    (word, index) =>
+      index > subcommandIndex &&
+      (word === '--output' ||
+        word.startsWith('--output=') ||
+        word === '--ext-diff' ||
+        word === '--textconv' ||
+        word === '-O' ||
+        word === '--open-files-in-pager'),
+  );
+}
+
+function gitSubcommandIndex(words: readonly string[]): number | undefined {
+  for (let index = 1; index < words.length; index += 1) {
+    const word = words[index]!;
+    if (word === '--no-pager') continue;
+    if (word === '-C') {
+      index += 1;
+      if (index >= words.length) return undefined;
+      continue;
+    }
+    return index;
+  }
+  return undefined;
 }

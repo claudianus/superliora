@@ -29,6 +29,10 @@ import {
   AskUserQuestionTool,
 } from '../../src/tools/builtin/collaboration/ask-user';
 import {
+  SearchExpertInputSchema,
+  SearchExpertTool,
+} from '../../src/tools/builtin/collaboration/search-expert';
+import {
   SearchSkillInputSchema,
   SearchSkillTool,
 } from '../../src/tools/builtin/collaboration/search-skill';
@@ -1077,6 +1081,25 @@ describe('current builtin collaboration tools', () => {
     expect(result.isError).toBeUndefined();
     expect(result.output).toContain('<skill-search-results query="tui approval">');
     expect(result.output).toContain('name="write-tui"');
+  });
+
+  it('SearchExpert exposes parameters and returns matching expert candidates', async () => {
+    const tool = new SearchExpertTool();
+
+    expect(SearchExpertInputSchema.safeParse({ query: 'brand guardian design review' }).success).toBe(
+      true,
+    );
+    expect(tool.parameters).toMatchObject({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+    });
+
+    const result = await executeTool(tool, context({ query: 'brand guardian design review' }));
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('<expert-search-results query="brand guardian design review">');
+    expect(result.output).toContain('<expert-candidate');
+    expect(result.output).toContain('id="design-brand-guardian"');
+    expect(result.output).toContain('UltraSwarm');
   });
 });
 

@@ -228,6 +228,7 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'WebSearch', { query: 'current API release notes' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'KimiContext', { query: 'ultrawork' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'SearchExpert', { query: 'architecture review' })).toBeUndefined();
 
     const questionDeny = expectDeny(
       evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'Which option?' }),
@@ -375,6 +376,21 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com/docs' })).toBeUndefined();
   });
 
+  it.each([
+    ['ReadMediaFile', { path: '/workspace/screenshot.png' }],
+    ['KimiContext', { query: 'plan mode guard' }],
+    ['SearchSkill', { query: 'tui review workflow' }],
+    ['Skill', { skill: 'write-tui' }],
+    ['SearchExpert', { query: 'testing evidence review' }],
+    ['TaskList', {}],
+    ['TaskOutput', { task_id: 'task_123' }],
+  ] as const)('allows %s as read-only Ultra Plan review context', async (toolName, args) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('review');
+
+    expect(evaluatePlanPolicy(agent, toolName, args)).toBeUndefined();
+  });
+
   it('points blocked interview tools toward NextPhase when no question is needed', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
@@ -409,7 +425,8 @@ describe('Plan mode permission policy', () => {
   it.each([
     ['SearchSkill', { query: 'tui design best practices' }],
     ['Skill', { skill: 'write-tui' }],
-  ] as const)('allows %s in Ultra Plan design as read-only skill discovery', async (toolName, args) => {
+    ['SearchExpert', { query: 'frontend ux accessibility review' }],
+  ] as const)('allows %s in Ultra Plan design as read-only discovery', async (toolName, args) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('design');
 
@@ -419,10 +436,26 @@ describe('Plan mode permission policy', () => {
   it.each([
     'pwd',
     'ls -la /Users/modumaru/Desktop/code/test',
+    'cat /tmp/dcbest.html',
+    'head -40 packages/agent-core/src/agent/permission/policies/plan-mode-guard-deny.ts',
+    'tail -n 80 packages/agent-core/src/agent/permission/policies/plan-mode-guard-deny.ts',
+    'wc -l packages/agent-core/src/agent/permission/policies/plan-mode-guard-deny.ts',
+    'file package.json',
+    'stat package.json',
+    'find packages/agent-core -maxdepth 2 -type f -name *.ts',
+    'rg -n "Review phase" packages/agent-core',
+    'grep -R "Review phase" packages/agent-core/src/agent',
+    "sed -n '1360,1400p' /tmp/dcbest.html",
+    "sed -n -e '1,10p' package.json",
+    'nl -ba packages/agent-core/src/agent/permission/policies/plan-mode-guard-deny.ts',
+    "jq '.scripts' package.json",
     'git status --short --branch',
+    'git -C /workspace status --short',
     'git diff --stat',
     'git diff --name-only',
     'git diff --check',
+    'git log --oneline -5',
+    'git show --stat HEAD',
   ])('allows read-only Bash inspection in Ultra Plan review: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('review');
@@ -431,17 +464,39 @@ describe('Plan mode permission policy', () => {
   });
 
   it.each([
+    'cat package.json',
+    "sed -n '1,10p' package.json",
+    'rg -n "Review phase" packages/agent-core',
+  ])(
+    'keeps Research phase Bash inspection narrow: %s',
+    async (command) => {
+      const { agent, planMode } = await activePlanAgent({ ultra: true });
+      planMode.setPhase('research');
+
+      const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
+
+      expect(deny.message ?? '').toContain('simple read-only workspace inspection');
+    },
+  );
+
+  it.each([
     'node scripts/build.js',
     'touch generated.txt',
     'ls -la /tmp && rm -rf /tmp/generated',
+    'cat ~/.ssh/id_rsa',
+    "sed -i 's/a/b/' package.json",
+    'find . -delete',
+    'find . -exec rm {} +',
+    'tree -o tree.txt',
     'git diff --output=/tmp/diff.txt',
+    'git show --output=/tmp/show.txt HEAD',
   ])('blocks non-inspection Bash in Ultra Plan review: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('review');
 
     const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
 
-    expect(deny.message ?? '').toContain('read-only workspace inspection');
+    expect(deny.message ?? '').toContain('read-only inspection command');
   });
 
   it('allows Ultra Plan exit phase to repair only the plan file', async () => {

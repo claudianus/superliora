@@ -23,6 +23,7 @@ tools:
   - TodoList
   - Skill
   - SearchSkill
+  - SearchExpert
   - WebSearch
   - BrowserObserve
   - BrowserScreenshot

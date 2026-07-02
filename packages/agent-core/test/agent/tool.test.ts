@@ -257,17 +257,18 @@ describe('Agent tools', () => {
     expect(managedBash!.description).toContain('run_in_background=true');
   });
 
-  it('exposes swarm tools when a subagent host is available', () => {
+  it('exposes swarm and expert discovery tools when a subagent host is available', () => {
     const subagentHost = {} as unknown as SessionSubagentHost;
 
     const ctx = testAgent({
       subagentHost,
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
     });
-    ctx.configure({ tools: ['AgentSwarm', 'UltraSwarm'] });
+    ctx.configure({ tools: ['AgentSwarm', 'UltraSwarm', 'SearchExpert'] });
 
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'AgentSwarm')).toBe(true);
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraSwarm')).toBe(true);
+    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'SearchExpert')).toBe(true);
   });
 
   it('routes registered user tools through tool.call request/response', async () => {

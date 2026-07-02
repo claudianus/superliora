@@ -247,10 +247,14 @@ function missingUltraPlanSections(plan: string): string[] {
   for (const requirement of fieldRequirements) {
     if (!hasFieldContent(plan, requirement.aliases)) missing.push(requirement.label);
   }
+  if (!hasSwarmDecisionLine(plan)) missing.push('Swarm decision audit line');
   if (!hasSwarmDecisionField(plan, 'Decision')) missing.push('Decision');
   if (!hasSwarmDecisionField(plan, 'Reason')) missing.push('Reason');
   if (!hasSwarmDecisionField(plan, 'Specialist value')) missing.push('Specialist value');
   if (!hasSwarmDecisionField(plan, 'Verification owner')) missing.push('Verification owner');
+  if (swarmDecision(plan) === 'DEFER' && !hasSwarmDeferWaiver(plan)) {
+    missing.push('Swarm DEFER waiver');
+  }
   return missing;
 }
 
@@ -260,6 +264,12 @@ interface FieldRequirement {
 }
 
 const ALL_ULTRA_PLAN_FIELD_LABELS = [
+  'Seed Spec',
+  'AC Tree',
+  'Ontology',
+  'Swarm Decision',
+  'Evaluation Plan',
+  'Execution Plan',
   'Verifiable UltraGoal',
   'Completion Criterion',
   'Actors',
@@ -275,6 +285,9 @@ const ALL_ULTRA_PLAN_FIELD_LABELS = [
   'Reason',
   'Specialist value',
   'Verification owner',
+  'Swarm DEFER waiver',
+  'Swarm defer waiver',
+  'DEFER waiver',
 ];
 
 function hasHeading(plan: string, heading: string): boolean {
@@ -303,6 +316,77 @@ function hasFieldContent(plan: string, labels: readonly string[]): boolean {
 
 function hasSwarmDecisionLine(plan: string): boolean {
   return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\b/i.test(plan);
+}
+
+function swarmDecision(plan: string): 'ENGAGE' | 'DEFER' | undefined {
+  const lineMatch = /\bswarm decision\s*:\s*(ENGAGE|DEFER)\b/i.exec(plan);
+  if (lineMatch?.[1] !== undefined) return lineMatch[1].toUpperCase() as 'ENGAGE' | 'DEFER';
+  const fieldMatch =
+    /^\s*(?:[-*+•]|\d+[.)])?\s*(?:\*\*)?Decision(?:\*\*)?\s*:\s*(ENGAGE|DEFER)\b/im.exec(plan);
+  if (fieldMatch?.[1] !== undefined) return fieldMatch[1].toUpperCase() as 'ENGAGE' | 'DEFER';
+  return undefined;
+}
+
+function hasSwarmDeferWaiver(plan: string): boolean {
+  return (
+    hasMeaningfulFieldContent(plan, ['Swarm DEFER waiver', 'Swarm defer waiver', 'DEFER waiver']) ||
+    hasMeaningfulHeadingContent(plan, ['Swarm DEFER Waiver', 'Swarm defer waiver', 'DEFER waiver'])
+  );
+}
+
+function hasMeaningfulFieldContent(plan: string, labels: readonly string[]): boolean {
+  const lines = plan.split(/\r?\n/);
+  const labelPattern = fieldLabelPattern(labels);
+  const anyFieldPattern = fieldLabelPattern(ALL_ULTRA_PLAN_FIELD_LABELS);
+  const anyHeadingPattern = headingLabelPattern(ALL_ULTRA_PLAN_FIELD_LABELS);
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? '';
+    const match = labelPattern.exec(line);
+    if (match === null) continue;
+    const inline = (match.groups?.['value'] ?? '').trim();
+    if (isMeaningfulWaiverText(inline)) return true;
+    const following = followingFieldContent(lines, index, anyFieldPattern, anyHeadingPattern);
+    if (isMeaningfulWaiverText(following)) return true;
+  }
+  return false;
+}
+
+function hasMeaningfulHeadingContent(plan: string, headings: readonly string[]): boolean {
+  const lines = plan.split(/\r?\n/);
+  const headingPattern = headingLabelPattern(headings);
+  const anyFieldPattern = fieldLabelPattern(ALL_ULTRA_PLAN_FIELD_LABELS);
+  const anyHeadingPattern = headingLabelPattern(ALL_ULTRA_PLAN_FIELD_LABELS);
+  for (let index = 0; index < lines.length; index++) {
+    if (!headingPattern.test(lines[index] ?? '')) continue;
+    const following = followingFieldContent(lines, index, anyFieldPattern, anyHeadingPattern);
+    if (isMeaningfulWaiverText(following)) return true;
+  }
+  return false;
+}
+
+function followingFieldContent(
+  lines: readonly string[],
+  startIndex: number,
+  anyFieldPattern: RegExp,
+  anyHeadingPattern: RegExp,
+): string | undefined {
+  for (let next = startIndex + 1; next < lines.length; next++) {
+    const line = lines[next] ?? '';
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    if (anyFieldPattern.test(line) || anyHeadingPattern.test(line)) break;
+    return trimmed;
+  }
+  return undefined;
+}
+
+function isMeaningfulWaiverText(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 12) return false;
+  return !/^(?:none|n\/a|na|not applicable|not needed|no|없음|불필요|해당 없음)[.。!！\s]*$/i.test(
+    trimmed,
+  );
 }
 
 function hasSwarmDecisionField(plan: string, label: string): boolean {

@@ -13,6 +13,8 @@
  * should be reviewed together.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type { ContentPart } from '@moonshot-ai/kosong';
 
 import type { Logger } from '#/logging/types';
@@ -45,6 +47,7 @@ import type {
 const GRACE_TIMEOUT_MS = 2_000;
 const TOOL_OUTPUT_EMPTY = 'Tool output is empty.';
 const TOOL_OUTPUT_NON_TEXT = 'Tool returned non-text content.';
+const MAX_SYNTHETIC_TOOL_PREAMBLE_LENGTH = 180;
 
 const validators = new WeakMap<ExecutableTool, ToolArgsValidator>();
 
@@ -71,10 +74,16 @@ export interface ToolCallStepContext {
   readonly turnId: string;
   readonly currentStep: number;
   readonly stepUuid: string;
+  readonly toolPreamble: ToolPreambleState;
 }
 
 interface ToolCallBatchContext extends ToolCallStepContext {
   readonly toolCalls: readonly ToolCall[];
+}
+
+interface ToolPreambleState {
+  hasAssistantText: boolean;
+  emittedSyntheticPreamble: boolean;
 }
 
 type PreflightedToolCall = RunnableToolCall | RejectedToolCall;
@@ -702,6 +711,7 @@ async function dispatchToolCall(
   displayFields?: ToolCallDisplayFields | undefined,
 ): Promise<void> {
   const { toolCall, toolName } = call;
+  await dispatchSyntheticToolPreamble(step, call, displayFields);
   await step.dispatchEvent({
     type: 'tool.call',
     uuid: toolCall.id,
@@ -714,4 +724,46 @@ async function dispatchToolCall(
     description: displayFields?.description,
     display: displayFields?.display,
   });
+}
+
+async function dispatchSyntheticToolPreamble(
+  step: ToolCallStepContext,
+  call: PreflightedToolCall,
+  displayFields: ToolCallDisplayFields | undefined,
+): Promise<void> {
+  if (step.toolPreamble.hasAssistantText || step.toolPreamble.emittedSyntheticPreamble) return;
+
+  const text = syntheticToolPreambleText(call.toolName, displayFields);
+  step.toolPreamble.hasAssistantText = true;
+  step.toolPreamble.emittedSyntheticPreamble = true;
+
+  step.dispatchEvent({ type: 'text.delta', delta: text });
+  await step.dispatchEvent({
+    type: 'content.part',
+    uuid: randomUUID(),
+    turnId: step.turnId,
+    step: step.currentStep,
+    stepUuid: step.stepUuid,
+    part: { type: 'text', text },
+  });
+}
+
+function syntheticToolPreambleText(
+  toolName: string,
+  displayFields: ToolCallDisplayFields | undefined,
+): string {
+  const description = displayFields?.description?.trim().replaceAll(/\s+/g, ' ');
+  const raw =
+    description !== undefined && description.length > 0 ? description : `I will use ${toolName}`;
+  const truncated = truncateSyntheticToolPreamble(raw);
+  return sentence(truncated);
+}
+
+function truncateSyntheticToolPreamble(text: string): string {
+  if (text.length <= MAX_SYNTHETIC_TOOL_PREAMBLE_LENGTH) return text;
+  return `${text.slice(0, MAX_SYNTHETIC_TOOL_PREAMBLE_LENGTH - 3).trimEnd()}...`;
+}
+
+function sentence(text: string): string {
+  return /[.!?]$/.test(text) ? text : `${text}.`;
 }

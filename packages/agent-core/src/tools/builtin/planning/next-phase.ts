@@ -105,8 +105,8 @@ You can only advance forward, never backward.`;
   private phaseInstructions(phase: string): string {
     const instructions: Record<string, string> = {
       interview: "Interview Phase: Use AskUserQuestion to clarify only the blocking choices that remain after the research prelude. When ambiguity <= 0.2, clarity floors pass, the UltraGoal is true/false verifiable, required Seed gaps are closed, and the seed-ready streak reaches 2, call NextPhase({ phase: 'design' }).",
-      design: "Design Phase: Use read-only tools (Read, Grep, Glob, WebSearch, FetchURL, Bash, SearchSkill, Skill) to explore the codebase and converge on the best approach. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip directly to write.",
-      review: "Review Phase: Use Read, Grep, Glob, WebSearch, and FetchURL to re-read key files and re-check any current external claims before writing the plan. When verification is complete, call NextPhase({ phase: 'write' }).",
+      design: "Design Phase: Use read-only tools (Read, Grep, Glob, WebSearch, FetchURL, Bash, SearchSkill, Skill, SearchExpert) to explore the codebase and map coverage lanes to concrete expert candidates. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip directly to write.",
+      review: "Review Phase: Use read-only tools (Read, ReadMediaFile, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TaskList, TaskOutput, Bash read-only inspection) to re-read key files, re-check current external claims, and verify expert coverage before writing the plan. When verification is complete, call NextPhase({ phase: 'write' }).",
       write: 'Write Phase: Write the complete plan to the plan file. Only the plan file can be edited. Include Seed Spec, AC Tree, Evaluation Plan, and Execution Plan.',
       exit: 'Exit Phase: The plan is complete. Call ExitPlanMode to request user approval.',
     };

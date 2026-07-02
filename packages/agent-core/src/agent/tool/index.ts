@@ -520,6 +520,7 @@ export class ToolManager {
               log: this.agent.log,
             },
           ),
+        this.agent.subagentHost && new b.SearchExpertTool(),
         this.agent.subagentHost &&
           new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode),
         this.agent.subagentHost &&

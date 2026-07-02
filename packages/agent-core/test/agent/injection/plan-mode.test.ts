@@ -175,8 +175,8 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('WebSearch');
     expect(text).toContain('FetchURL');
     expect(text).toContain('Search and fetch current sources again');
-    expect(text).toContain('narrow read-only Bash inspection');
-    expect(text).toContain('pwd, ls, git status, git diff --stat/name-only/check');
+    expect(text).toContain('read-only Bash inspection');
+    expect(text).toContain('cat, sed -n, head/tail');
   });
 
   it('tells Ultra Plan exit how to repair missing plan sections', async () => {
