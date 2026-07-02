@@ -729,6 +729,7 @@ describe('Permission policy chain', () => {
       'auto-mode-ask-user-question-deny',
       'plan-mode-guard-deny',
       'user-configured-deny',
+      'gui-use-safety',
       'auto-mode-approve',
       'session-approval-history',
       'user-configured-ask',

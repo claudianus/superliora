@@ -420,6 +420,8 @@ describe('CLI options parsing', () => {
       expect(commandNames).toEqual([
         'export',
         'provider',
+        'browser-use',
+        'computer-use',
         'acp',
         'server',
         'login',

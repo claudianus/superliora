@@ -1,11 +1,23 @@
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CuaComputerRuntime } from '../src/computer/cua-computer';
 
 const tempDirs: string[] = [];
+const require = createRequire(import.meta.url);
+const mcpServerIndexUrl = pathToFileURL(
+  require.resolve('@modelcontextprotocol/sdk/server/index.js'),
+).href;
+const mcpServerStdioUrl = pathToFileURL(
+  require.resolve('@modelcontextprotocol/sdk/server/stdio.js'),
+).href;
+const mcpTypesUrl = pathToFileURL(
+  require.resolve('@modelcontextprotocol/sdk/types.js'),
+).href;
 
 afterEach(async () => {
   for (const dir of tempDirs.splice(0)) {
@@ -116,9 +128,9 @@ if (arg !== 'mcp') {
   process.exit(1);
 }
 
-const { Server } = await import('@modelcontextprotocol/sdk/server/index.js');
-const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
-const { CallToolRequestSchema, ListToolsRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+const { Server } = await import(${JSON.stringify(mcpServerIndexUrl)});
+const { StdioServerTransport } = await import(${JSON.stringify(mcpServerStdioUrl)});
+const { CallToolRequestSchema, ListToolsRequestSchema } = await import(${JSON.stringify(mcpTypesUrl)});
 
 const tools = [
   'health_report',
@@ -172,5 +184,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   return { content: [{ type: 'text', text: 'unknown tool' }], isError: true };
 });
 await server.connect(new StdioServerTransport());
+process.stdin.resume();
+await new Promise((resolve) => process.stdin.on('close', resolve));
 `;
 }
