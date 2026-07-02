@@ -4,6 +4,7 @@ Writing the prompt:
 - The subagent starts with zero context — it has not seen this conversation. Brief it like a colleague who just walked into the room: state the goal, list what you already know, hand over the specifics.
 - Lookups (read this file, run that test): put the exact path or command in the prompt. The subagent should not have to search for things you already know.
 - Investigations (figure out X, find why Y): give the question, not prescribed steps — fixed steps become dead weight when the premise is wrong.
+- Current research: unless the user forbids web access, tell the subagent to use WebSearch and FetchURL freely when current papers, best practices, library choices, APIs, security notes, or open-source implementations could affect the answer.
 - Do not delegate understanding. If the task hinges on a file path or line number, find it yourself first and write it into the prompt.
 
 Usage notes:

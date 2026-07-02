@@ -399,7 +399,13 @@ export class Agent {
         return this.config.modelAlias ?? '';
       },
       enterPlan: async (payload) => {
-        await this.planMode.enter(undefined, false, true, payload.ultra ?? false);
+        await this.planMode.enter(
+          undefined,
+          false,
+          true,
+          payload.ultra ?? false,
+          payload.initialContext ?? '',
+        );
       },
       cancelPlan: (payload) => {
         this.planMode.cancel(payload.id);

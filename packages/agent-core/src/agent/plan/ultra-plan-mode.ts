@@ -79,7 +79,7 @@ export type InterviewPerspective =
   | 'breadth-keeper'
   | 'seed-closer';
 
-export type UltraPlanPhase = 'interview' | 'design' | 'review' | 'write' | 'exit';
+export type UltraPlanPhase = 'research' | 'interview' | 'design' | 'review' | 'write' | 'exit';
 
 export type AmbiguityMilestone = 'initial' | 'progress' | 'refined' | 'ready';
 
@@ -102,6 +102,7 @@ export interface AmbiguityScoreResult {
   readonly breakdown: readonly AmbiguityScoreBreakdown[];
   readonly isReadyForSeed: boolean;
   readonly milestone: AmbiguityMilestone;
+  readonly floorFailures: readonly string[];
 }
 
 export interface InterviewState {
@@ -109,6 +110,7 @@ export interface InterviewState {
   readonly initialContext: string;
   readonly ambiguityScore: AmbiguityScoreResult | null;
   readonly completionCandidateStreak: number;
+  readonly lastReadyEvidenceHash?: string;
 }
 
 export const ULTRA_PLAN_REQUIRED_SECTIONS = [
@@ -126,11 +128,20 @@ export const ULTRA_PLAN_REQUIRED_SECTIONS = [
 
 export type UltraPlanRequiredSection = typeof ULTRA_PLAN_REQUIRED_SECTIONS[number];
 
+const AMBIGUITY_THRESHOLD = 0.2;
+const COMPLETION_STREAK_REQUIRED = 2;
+const GOAL_CLARITY_FLOOR = 0.75;
+const CONSTRAINT_CLARITY_FLOOR = 0.65;
+const SUCCESS_CRITERIA_CLARITY_FLOOR = 0.70;
+
 export interface UltraPlanReadiness {
   readonly ready: boolean;
+  readonly stableReady: boolean;
   readonly openGaps: readonly UltraPlanRequiredSection[];
   readonly ambiguityScore: AmbiguityScoreResult;
   readonly verifiableGoal: boolean;
+  readonly completionCandidateStreak: number;
+  readonly floorFailures: readonly string[];
 }
 
 export type StagnationPatternType =
@@ -508,6 +519,7 @@ export class UltraPlanModeEngine {
     initialContext: '',
     ambiguityScore: null,
     completionCandidateStreak: 0,
+    lastReadyEvidenceHash: undefined,
   };
 
   get interviewState(): InterviewState {
@@ -540,6 +552,7 @@ export class UltraPlanModeEngine {
       initialContext,
       ambiguityScore: null,
       completionCandidateStreak: 0,
+      lastReadyEvidenceHash: undefined,
     };
   }
 
@@ -574,87 +587,115 @@ export class UltraPlanModeEngine {
 
   /**
    * Calculate ambiguity score from interview state.
-   * This is a heuristic based on the content of Q&A, not an LLM call.
-   * In a full implementation, this would call an LLM to evaluate clarity.
+   * This mirrors the Ouroboros gate shape locally: weighted clarity dimensions,
+   * required section gaps, per-dimension floors, and a two-signal closure streak.
    */
   calculateAmbiguityScore(): AmbiguityScoreResult {
     const rounds = this._interviewState.rounds;
     const totalRounds = rounds.length;
 
-    // Heuristic: more rounds = more clarity (diminishing returns)
-    // After 3 rounds: base clarity 0.3, each additional round adds ~0.1 up to 0.9
-    const roundBasedClarity = Math.min(0.3 + totalRounds * 0.12, 0.9);
+    const sectionResolution = new Map(
+      ULTRA_PLAN_REQUIRED_SECTIONS.map((section) => [
+        section,
+        this.sectionResolution(section),
+      ]),
+    );
+    const resolved = (section: UltraPlanRequiredSection): boolean =>
+      sectionResolution.get(section)?.resolved === true;
 
-    // Heuristic: longer responses = more detail = more clarity
-    const corpusText = this.interviewCorpusText();
-    const avgResponseLength = totalRounds > 0
-      ? rounds.reduce((sum, r) => sum + r.userResponse.length, 0) / totalRounds
-      : corpusText.length;
-    const lengthClarity = Math.min(avgResponseLength / 200, 1.0);
+    const evidenceText = this.interviewEvidenceText();
+    const normalizedEvidence = evidenceText.toLowerCase();
+    const detailClarity = Math.min(this.tokenCount(evidenceText) / 120, 1.0);
+    const answerRoundClarity = Math.min(totalRounds / 3, 1.0);
 
-    // Heuristic: presence of key terms indicates clarity
-    const allText = corpusText.toLowerCase();
-    const hasGoal = /goal|objective|purpose|aim|task|목표|작업/.test(allText);
-    const hasConstraints = /constraint|limit|restriction|must|should|cannot/.test(allText);
-    const hasCriteria = /criteria|requirement|accept|verify|test|check/.test(allText);
-    const hasScope = /scope|in scope|out of scope|non-goal/.test(allText);
-    const hasRisk = /risk|edge case|failure|error|exception/.test(allText);
+    const goalSectionClarity = this.averageBooleanClarity([
+      resolved('goal'),
+      resolved('actors'),
+      resolved('inputs'),
+      resolved('outputs'),
+    ]);
+    const constraintSectionClarity = this.averageBooleanClarity([
+      resolved('constraints'),
+      resolved('non_goals'),
+      resolved('failure_modes'),
+      resolved('runtime_context'),
+    ]);
+    const criteriaSectionClarity = this.averageBooleanClarity([
+      resolved('acceptance_criteria'),
+      resolved('verification_plan'),
+      this.hasVerifiableGoal(),
+    ]);
 
-    const keywordScore = (Number(hasGoal) + Number(hasConstraints) + Number(hasCriteria) + Number(hasScope) + Number(hasRisk)) / 5;
+    const specificityClarity = (
+      Number(/\b(?:file|path|test|run|command|screen|api|component|module|repo|workspace)\b|(?:파일|경로|테스트|실행|화면|컴포넌트|모듈|레포|작업\s?공간)/i.test(normalizedEvidence)) +
+      Number(/\b(?:must|must not|cannot|only|except|exclude|non-goal|out of scope)\b|(?:반드시|금지|제외|범위\s?밖|하지\s?않)/i.test(normalizedEvidence)) +
+      Number(/\b(?:pass|fail|verify|check|acceptance|complete|incomplete|true|false)\b|(?:통과|실패|검증|확인|완료|미완료|참|거짓)/i.test(normalizedEvidence))
+    ) / 3;
 
-    // Goal clarity (40%): rounds + keywords
-    const goalClarity = (roundBasedClarity * 0.6 + keywordScore * 0.4);
+    const goalClarity = this.clampClarity(
+      goalSectionClarity * 0.7 + detailClarity * 0.2 + answerRoundClarity * 0.1,
+    );
+    const constraintClarity = this.clampClarity(
+      constraintSectionClarity * 0.75 + specificityClarity * 0.15 + detailClarity * 0.1,
+    );
+    const criteriaClarity = this.clampClarity(
+      criteriaSectionClarity * 0.75 + specificityClarity * 0.15 + detailClarity * 0.1,
+    );
 
-    // Constraint clarity (30%): response detail + constraint keywords
-    const constraintClarity = (lengthClarity * 0.5 + (hasConstraints ? 0.5 : 0.2));
-
-    // Success criteria clarity (30%): criteria keywords + verification mentions
-    const criteriaClarity = (keywordScore * 0.6 + (hasCriteria ? 0.4 : 0.1));
-
-    const overall = 1.0 - (
+    const rawOverall = 1.0 - (
       goalClarity * 0.4 +
       constraintClarity * 0.3 +
       criteriaClarity * 0.3
     );
 
-    const openGaps = this.openSeedGaps();
+    const openGaps = ULTRA_PLAN_REQUIRED_SECTIONS.filter((section) => !resolved(section));
     const gapPressure = openGaps.length / ULTRA_PLAN_REQUIRED_SECTIONS.length;
     const verifiableGoal = this.hasVerifiableGoal();
-    const seedClosureBonus = openGaps.length === 0 && verifiableGoal ? 0.2 : 0;
-    const boundedOverall = Math.max(0, Math.min(1, overall - seedClosureBonus));
-    const gatedOverall = Math.max(boundedOverall, gapPressure, verifiableGoal ? 0 : 0.45);
+    const floorFailures = this.floorFailures(goalClarity, constraintClarity, criteriaClarity);
+    const floorPressure = floorFailures.length > 0 ? AMBIGUITY_THRESHOLD + 0.01 : 0;
+    const gatedOverall = this.clampClarity(
+      Math.max(rawOverall, gapPressure, verifiableGoal ? 0 : 0.45, floorPressure),
+    );
 
     const milestone: AmbiguityMilestone =
-      gatedOverall <= 0.2 ? 'ready' :
+      gatedOverall <= AMBIGUITY_THRESHOLD ? 'ready' :
       gatedOverall <= 0.3 ? 'refined' :
       gatedOverall <= 0.4 ? 'progress' : 'initial';
 
-    const isReady = gatedOverall <= 0.2 && openGaps.length === 0 && verifiableGoal;
+    const isReady = (
+      gatedOverall <= AMBIGUITY_THRESHOLD &&
+      openGaps.length === 0 &&
+      verifiableGoal &&
+      floorFailures.length === 0
+    );
+    const evidenceHash = this._hash(this.interviewEvidenceText());
 
-    // Track completion streak
-    if (isReady) {
+    if (isReady && this._interviewState.lastReadyEvidenceHash !== evidenceHash) {
       this._interviewState = {
         ...this._interviewState,
         completionCandidateStreak: this._interviewState.completionCandidateStreak + 1,
+        lastReadyEvidenceHash: evidenceHash,
       };
     } else {
       this._interviewState = {
         ...this._interviewState,
-        completionCandidateStreak: 0,
+        completionCandidateStreak: isReady ? this._interviewState.completionCandidateStreak : 0,
+        lastReadyEvidenceHash: isReady ? this._interviewState.lastReadyEvidenceHash : undefined,
       };
     }
 
     const result: AmbiguityScoreResult = {
       overallScore: gatedOverall,
       breakdown: [
-        { name: 'goal_clarity', clarityScore: goalClarity, weight: 0.4, justification: `Based on ${totalRounds} interview rounds and keyword coverage` },
-        { name: 'constraint_clarity', clarityScore: constraintClarity, weight: 0.3, justification: `Response detail and constraint keywords present` },
-        { name: 'success_criteria_clarity', clarityScore: criteriaClarity, weight: 0.3, justification: `Criteria keywords and verification mentions` },
+        { name: 'goal_clarity', clarityScore: goalClarity, weight: 0.4, justification: `Resolved goal sections: ${this.resolvedSectionNames(sectionResolution, ['goal', 'actors', 'inputs', 'outputs'])}` },
+        { name: 'constraint_clarity', clarityScore: constraintClarity, weight: 0.3, justification: `Resolved constraint sections: ${this.resolvedSectionNames(sectionResolution, ['constraints', 'non_goals', 'failure_modes', 'runtime_context'])}` },
+        { name: 'success_criteria_clarity', clarityScore: criteriaClarity, weight: 0.3, justification: `Resolved success sections: ${this.resolvedSectionNames(sectionResolution, ['acceptance_criteria', 'verification_plan'])}; verifiable_goal=${verifiableGoal ? 'true' : 'false'}` },
         { name: 'seed_ledger_gaps', clarityScore: 1 - gapPressure, weight: 1, justification: `Open required sections: ${openGaps.length === 0 ? 'none' : openGaps.join(', ')}` },
         { name: 'verifiable_goal', clarityScore: verifiableGoal ? 1 : 0, weight: 1, justification: 'UltraGoal must be judgeable as complete or incomplete.' },
       ],
       isReadyForSeed: isReady,
       milestone,
+      floorFailures,
     };
 
     this._interviewState = {
@@ -671,7 +712,7 @@ export class UltraPlanModeEngine {
   canAutoComplete(): boolean {
     return (
       this._interviewState.ambiguityScore?.isReadyForSeed === true &&
-      this._interviewState.completionCandidateStreak >= 2
+      this._interviewState.completionCandidateStreak >= COMPLETION_STREAK_REQUIRED
     );
   }
 
@@ -679,28 +720,34 @@ export class UltraPlanModeEngine {
     const ambiguityScore = this.calculateAmbiguityScore();
     const openGaps = this.openSeedGaps();
     const verifiableGoal = this.hasVerifiableGoal();
+    const stableReady = ambiguityScore.isReadyForSeed && this.canAutoComplete();
     return {
       ready: ambiguityScore.isReadyForSeed && openGaps.length === 0 && verifiableGoal,
+      stableReady,
       openGaps,
       ambiguityScore,
       verifiableGoal,
+      completionCandidateStreak: this._interviewState.completionCandidateStreak,
+      floorFailures: ambiguityScore.floorFailures,
     };
   }
 
   openSeedGaps(): readonly UltraPlanRequiredSection[] {
-    const text = this.interviewCorpus();
-    return ULTRA_PLAN_REQUIRED_SECTIONS.filter((section) => !this.sectionResolved(section, text));
+    return ULTRA_PLAN_REQUIRED_SECTIONS.filter((section) => !this.sectionResolved(section));
   }
 
   readinessBlockerMessage(): string {
     const readiness = this.interviewReadiness();
     const gaps = readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ');
+    const floorFailures = readiness.floorFailures.length === 0 ? 'none' : readiness.floorFailures.join('; ');
     return [
       'UltraPlan interview is not ready for Design.',
       `ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)}`,
       `verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'}`,
+      `completion_streak=${readiness.completionCandidateStreak}/${COMPLETION_STREAK_REQUIRED}`,
+      `dimension_floor_failures=${floorFailures}`,
       `open_gaps=${gaps}`,
-      'Continue AskUserQuestion until the UltraGoal objective can be judged true/false and every required Seed section is resolved.',
+      'Continue AskUserQuestion until two distinct seed-ready answers make the UltraGoal true/false-verifiable, meet every clarity floor, and resolve every required Seed section.',
     ].join('\n');
   }
 
@@ -709,7 +756,7 @@ export class UltraPlanModeEngine {
    * Extracts Goal, Constraints, AC, and Ontology from Q&A.
    */
   autoGenerateSeedSpecFromInterview(ontologyName: string): SeedSpec {
-    const allText = this.interviewCorpusText();
+    const allText = this.interviewEvidenceText();
 
     // Extract goal from first round or initial context
     const goal = this._extractGoal(allText) || this._interviewState.initialContext;
@@ -737,16 +784,16 @@ export class UltraPlanModeEngine {
     return match?.[1]?.trim() ?? '';
   }
 
-  private interviewCorpusText(): string {
+  private interviewEvidenceText(): string {
     return [
       this._interviewState.initialContext,
       ...this.recentUserPromptTexts(),
-      ...this._interviewState.rounds.map((r) => `${r.question}\n${r.userResponse}`),
+      ...this._interviewState.rounds.map((r) => r.userResponse),
     ].join('\n');
   }
 
-  private interviewCorpus(): string {
-    return this.interviewCorpusText().toLowerCase();
+  private interviewEvidenceCorpus(): string {
+    return this.interviewEvidenceText().toLowerCase();
   }
 
   private recentUserPromptTexts(): string[] {
@@ -757,27 +804,107 @@ export class UltraPlanModeEngine {
       .filter((text) => text.length > 0);
   }
 
-  private sectionResolved(section: UltraPlanRequiredSection, text: string): boolean {
-    const patterns: Record<UltraPlanRequiredSection, RegExp> = {
-      goal: /\b(goal|objective|ultragoal|purpose|aim|task|목표|작업|완료\s?기준)\b/i,
-      actors: /\b(actor|user|owner|agent|stakeholder|you|사용자|행위자|담당|주체)\b/i,
-      inputs: /\b(input|source|given|file|prompt|path|입력|소스|파일|프롬프트)\b/i,
-      outputs: /\b(outputs?|deliverables?|results?|artifacts?|report|edit|add|출력|산출물|결과)\b/i,
-      constraints: /\b(constraints?|limits?|must|must not|cannot|exactly|do not|제약|금지|반드시|하지\s?말)\b/i,
-      non_goals: /\b(non-goals?|non_goals?|out of scope|not doing|do not|no other changes|제외|범위\s?밖|하지\s?않)\b/i,
-      acceptance_criteria: /\b(acceptance|criteria|requirement|pass|fail|완료\s?조건|수락|검증\s?기준)\b/i,
-      verification_plan: /\b(verify|verification|test|check|run|검증|테스트|확인)\b/i,
-      failure_modes: /\b(failure|risk|edge case|error|rollback|must not|do not|실패|위험|예외|오류)\b/i,
-      runtime_context: /\b(runtime|environment|cwd|repo|repository|workspace|worktree|platform|환경|런타임|레포|작업\s?환경)\b/i,
+  private averageBooleanClarity(values: readonly boolean[]): number {
+    if (values.length === 0) return 0;
+    return values.filter(Boolean).length / values.length;
+  }
+
+  private tokenCount(text: string): number {
+    return text.split(/[\s,.;:()[\]{}"'`]+/).filter((token) => token.length > 0).length;
+  }
+
+  private clampClarity(value: number): number {
+    return Math.max(0, Math.min(1, value));
+  }
+
+  private floorFailures(
+    goalClarity: number,
+    constraintClarity: number,
+    criteriaClarity: number,
+  ): readonly string[] {
+    const failures: string[] = [];
+    if (goalClarity < GOAL_CLARITY_FLOOR) {
+      failures.push(`Goal Clarity ${goalClarity.toFixed(2)} < ${GOAL_CLARITY_FLOOR.toFixed(2)}`);
+    }
+    if (constraintClarity < CONSTRAINT_CLARITY_FLOOR) {
+      failures.push(`Constraint Clarity ${constraintClarity.toFixed(2)} < ${CONSTRAINT_CLARITY_FLOOR.toFixed(2)}`);
+    }
+    if (criteriaClarity < SUCCESS_CRITERIA_CLARITY_FLOOR) {
+      failures.push(`Success Criteria Clarity ${criteriaClarity.toFixed(2)} < ${SUCCESS_CRITERIA_CLARITY_FLOOR.toFixed(2)}`);
+    }
+    return failures;
+  }
+
+  private resolvedSectionNames(
+    resolution: ReadonlyMap<UltraPlanRequiredSection, { readonly resolved: boolean }>,
+    sections: readonly UltraPlanRequiredSection[],
+  ): string {
+    const resolved = sections.filter((section) => resolution.get(section)?.resolved === true);
+    return resolved.length === 0 ? 'none' : resolved.join(', ');
+  }
+
+  private sectionResolved(section: UltraPlanRequiredSection): boolean {
+    return this.sectionResolution(section).resolved;
+  }
+
+  private sectionResolution(section: UltraPlanRequiredSection): {
+    readonly resolved: boolean;
+    readonly evidence: string;
+  } {
+    const text = this.interviewEvidenceText();
+    const labelEvidence = this.labeledSectionEvidence(section, text);
+    if (labelEvidence !== null) {
+      return { resolved: true, evidence: labelEvidence };
+    }
+
+    const fallbackPatterns: Record<UltraPlanRequiredSection, RegExp> = {
+      goal: /\b(?:build|create|make|implement|fix|improve|ship|deliver|objective|goal|task)\b|(?:만들|구현|수정|개선|배포|완성|목표|작업)/i,
+      actors: /\b(?:actor|user|owner|agent|stakeholder|developer|operator|customer|player)\b|(?:사용자|행위자|담당|주체|소유자|개발자|플레이어)/i,
+      inputs: /\b(?:input|source|given|file|prompt|path|repo|repository|asset|api|test)\b|(?:입력|소스|파일|프롬프트|경로|레포|자산|테스트)/i,
+      outputs: /\b(?:outputs?|deliverables?|results?|artifacts?|report|edit|patch|screen|feature|game|app)\b|(?:출력|산출물|결과|수정|패치|화면|기능|게임|앱)/i,
+      constraints: /\b(?:constraint|limit|must|must not|cannot|only|exactly|required|forbid)\b|(?:제약|금지|반드시|하지\s?말|불가|오직|필수)/i,
+      non_goals: /\b(?:non-goal|non_goals|out of scope|not doing|do not|no unrelated|exclude|skip)\b|(?:제외|범위\s?밖|하지\s?않|무관한|스킵)/i,
+      acceptance_criteria: /\b(?:acceptance|criteria|requirement|pass|fail|completion criterion|done when|works when)\b|(?:완료\s?조건|수락|검증\s?기준|통과|실패|완료될\s?때)/i,
+      verification_plan: /\b(?:verify|verification|test|check|run|inspect|assert|screenshot)\b|(?:검증|테스트|확인|실행|점검|스크린샷)/i,
+      failure_modes: /\b(?:failure|risk|edge case|error|exception|rollback|regression|break)\b|(?:실패|위험|예외|오류|회귀|깨짐|롤백)/i,
+      runtime_context: /\b(?:runtime|environment|cwd|repo|repository|workspace|worktree|platform|browser|node|typescript)\b|(?:환경|런타임|레포|작업\s?공간|워크트리|브라우저|노드|타입스크립트)/i,
     };
-    return patterns[section].test(text);
+    const match = fallbackPatterns[section].exec(text);
+    return {
+      resolved: match !== null,
+      evidence: match?.[0] ?? '',
+    };
+  }
+
+  private labeledSectionEvidence(section: UltraPlanRequiredSection, text: string): string | null {
+    const labelAlternatives: Record<UltraPlanRequiredSection, readonly string[]> = {
+      goal: ['goal', 'objective', 'ultragoal', 'verifiable ultragoal', 'purpose', 'task', '목표', '작업'],
+      actors: ['actors?', 'users?', 'owners?', 'stakeholders?', '행위자', '사용자', '담당', '주체'],
+      inputs: ['inputs?', 'sources?', 'given', 'files?', 'paths?', '입력', '소스', '파일', '경로'],
+      outputs: ['outputs?', 'deliverables?', 'results?', 'artifacts?', '산출물', '출력', '결과'],
+      constraints: ['constraints?', 'limits?', 'requirements?', '제약', '제한', '필수 조건'],
+      non_goals: ['non[-_ ]?goals?', 'out of scope', 'excluded?', '제외', '범위 밖', '비목표'],
+      acceptance_criteria: ['acceptance criteria', 'criteria', 'requirements?', 'completion criteria?', '완료 조건', '수락 기준', '검증 기준'],
+      verification_plan: ['verification plan', 'verification', 'tests?', 'checks?', '검증 계획', '검증', '테스트'],
+      failure_modes: ['failure modes?', 'risks?', 'edge cases?', 'errors?', '실패 모드', '실패', '위험', '예외'],
+      runtime_context: ['runtime context', 'runtime', 'environment', 'workspace', 'repo', 'repository', '런타임', '환경', '레포', '작업 환경'],
+    };
+    const labels = labelAlternatives[section].join('|');
+    const regex = new RegExp(
+      `(?:^|[\\n;])\\s*(?:[-*]\\s*)?(?:${labels})\\s*[:：-]\\s*([^\\n;]+)`,
+      'iu',
+    );
+    const match = regex.exec(text);
+    const evidence = match?.[1]?.trim();
+    if (evidence === undefined || evidence.length === 0) return null;
+    return evidence;
   }
 
   private hasVerifiableGoal(): boolean {
-    const text = this.interviewCorpus();
-    const hasGoal = this.sectionResolved('goal', text);
+    const text = this.interviewEvidenceCorpus();
+    const hasGoal = this.sectionResolved('goal');
     const hasBinaryLanguage = /\b(true|false|pass|fail|complete|incomplete|done|not done|1|0)\b|(?:참|거짓|통과|실패|완료|미완료|된다|안된다)/i.test(text);
-    return hasGoal && this.sectionResolved('acceptance_criteria', text) && this.sectionResolved('verification_plan', text) && hasBinaryLanguage;
+    return hasGoal && this.sectionResolved('acceptance_criteria') && this.sectionResolved('verification_plan') && hasBinaryLanguage;
   }
 
   private _extractConstraints(text: string): string[] {

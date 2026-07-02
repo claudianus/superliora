@@ -4,7 +4,11 @@ import type { AppearancePreferences } from '#/tui/config';
 import { ESC, ST } from '#/tui/constant/terminal';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { motionEffectsAllowed, resolveAmbientEffectMode } from '#/tui/utils/appearance-effects';
+import {
+  motionEffectsAllowed,
+  resolveAmbientEffectMode,
+  setActiveAppearancePreferences,
+} from '#/tui/utils/appearance-effects';
 
 import { AnimationScheduler } from './animation-scheduler';
 
@@ -33,6 +37,7 @@ export class AppearanceController {
   }
 
   apply(appearance: AppearancePreferences = this.getAppearance()): void {
+    setActiveAppearancePreferences(appearance);
     currentTheme.setCanvasBackgroundEnabled(appearance.canvasBackground);
     this.scheduler.update({
       fps: appearance.animationFps,

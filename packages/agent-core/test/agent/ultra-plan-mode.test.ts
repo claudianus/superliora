@@ -97,6 +97,10 @@ describe('UltraPlanModeEngine', () => {
       expect(engine.interviewState.completionCandidateStreak).toBe(1);
       expect(engine.canAutoComplete()).toBe(false);
 
+      engine.addInterviewRound(
+        'Confirm the Seed is complete without changing scope.',
+        'Confirmed: the Seed is complete. Completion Criterion remains true when tests pass and the workflow is visibly complete, false otherwise. No extra scope is added.',
+      );
       engine.calculateAmbiguityScore();
 
       expect(engine.interviewState.completionCandidateStreak).toBe(2);
@@ -123,6 +127,23 @@ describe('UltraPlanModeEngine', () => {
       expect(engine.readinessBlockerMessage()).toContain('open_gaps=');
     });
 
+    it('does not close seed gaps from section labels in the question text alone', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Make a game');
+
+      engine.addInterviewRound(
+        'Please answer Goal, Actors, Inputs, Outputs, Constraints, Non-goals, Acceptance Criteria, Verification Plan, Failure Modes, and Runtime Context.',
+        'yes',
+      );
+
+      const readiness = engine.interviewReadiness();
+
+      expect(readiness.ready).toBe(false);
+      expect(readiness.openGaps).toContain('actors');
+      expect(readiness.openGaps).toContain('acceptance_criteria');
+      expect(readiness.ambiguityScore.overallScore).toBeGreaterThan(0.2);
+    });
+
     it('uses the current user prompt as interview context for already-bounded tasks', () => {
       const engine = new UltraPlanModeEngine(mockAgentWithUserPrompt([
         'Use Ultrawork for this bounded source/test verification task.',
@@ -146,6 +167,8 @@ describe('UltraPlanModeEngine', () => {
       expect(readiness.openGaps).toEqual([]);
       expect(readiness.verifiableGoal).toBe(true);
       expect(readiness.ambiguityScore.overallScore).toBeLessThanOrEqual(0.2);
+      expect(readiness.stableReady).toBe(false);
+      expect(readiness.completionCandidateStreak).toBe(1);
     });
   });
 

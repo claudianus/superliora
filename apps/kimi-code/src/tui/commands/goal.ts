@@ -32,7 +32,7 @@ const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
 const RESUME_GOAL_INPUT = 'Resume the active goal.';
 const START_NEXT_GOAL_NOW_MESSAGE = 'No active goal. Starting this goal now.';
 const GOAL_ULTRAWORK_ACTIVITY_TIP =
-  'Goal mode: UltraPlan interview first, then verifiable acceptance criteria, Swarm decision, verify';
+  'Goal mode: research first, then UltraPlan interview, verifiable acceptance criteria, Swarm decision, verify';
 
 interface GoalInputSender {
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
@@ -412,7 +412,7 @@ async function startGoal(
 ): Promise<boolean> {
   let setup: GoalUltraworkSetupState;
   try {
-    setup = await prepareGoalUltraworkSetup(host);
+    setup = await prepareGoalUltraworkSetup(host, parsed.objective);
   } catch (error) {
     host.showError(`Failed to start goal workflow: ${formatErrorMessage(error)}`);
     return false;
@@ -454,6 +454,7 @@ async function startGoal(
 
 async function prepareGoalUltraworkSetup(
   host: GoalCommandHost,
+  initialContext = '',
 ): Promise<GoalUltraworkSetupState> {
   const setup: GoalUltraworkSetupState = {
     planModeWasEnabled: host.state.appState.planMode === true,
@@ -471,7 +472,7 @@ async function prepareGoalUltraworkSetup(
       host.setAppState({ swarmMode: true });
       host.state.swarmModeEntry = 'task';
     }
-    await forceGoalUltraPlanMode(session);
+    await forceGoalUltraPlanMode(session, initialContext);
     setup.planChanged = true;
     host.setAppState({
       planMode: true,
@@ -487,13 +488,14 @@ async function prepareGoalUltraworkSetup(
 
 async function forceGoalUltraPlanMode(
   session: ReturnType<GoalCommandHost['requireSession']>,
+  initialContext = '',
 ): Promise<void> {
   try {
-    await session.setPlanMode(true, true);
+    await session.setPlanMode(true, true, initialContext);
   } catch (error) {
     if (!formatErrorMessage(error).includes('Already in plan mode')) throw error;
     await session.setPlanMode(false, false);
-    await session.setPlanMode(true, true);
+    await session.setPlanMode(true, true, initialContext);
   }
 }
 

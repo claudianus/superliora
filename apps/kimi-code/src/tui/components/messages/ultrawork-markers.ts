@@ -5,11 +5,11 @@ import { currentTheme } from '#/tui/theme/theme';
 
 export type UltraworkModeMarkerState = 'active' | 'ended';
 
-const ULTRAWORK_PIPELINE = 'UltraPlan -> UltraGoal -> Research -> Swarm decision -> Integrate -> Verify -> Learn';
-const ULTRAWORK_COMPACT_PIPELINE = 'UltraPlan>UltraGoal>Research>Swarm?>Integrate>Verify>Learn';
-const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: interview, set verifiable goal, decide team, verify';
+const ULTRAWORK_PIPELINE = 'Research -> UltraPlan -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn';
+const ULTRAWORK_COMPACT_PIPELINE = 'Research>UltraPlan>UltraGoal>Swarm?>Integrate>Verify>Learn';
+const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: source-backed questions, verifiable goal, decide team, verify';
 const ULTRAWORK_RESEARCH_STATUS = 'Research: local fallback + provider/MCP accelerators; verified sources only';
-const ULTRAWORK_NEXT_ACTION = 'Next: UltraPlan interview must close before UltraGoal or Swarm';
+const ULTRAWORK_NEXT_ACTION = 'Next: research evidence pack before UltraPlan questions';
 
 export class UltraworkModeMarkerComponent implements Component {
   constructor(

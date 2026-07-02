@@ -31,7 +31,7 @@ interface UltraworkSetupState {
 }
 
 const ULTRAWORK_ACTIVITY_TIP =
-  'Ultrawork mode: UltraPlan interview first, then verifiable UltraGoal, Swarm decision, verify';
+  'Ultrawork mode: research first, then UltraPlan interview, verifiable UltraGoal, Swarm decision, verify';
 
 export {
   buildUltraworkPrompt,
@@ -163,7 +163,7 @@ async function startUltrawork(
     swarmEnabled: false,
   };
   try {
-    await prepareUltraworkSetup(host, setup);
+    await prepareUltraworkSetup(host, setup, request.objective);
   } catch (error) {
     await rollbackUltraworkSetup(host, setup);
     host.showError(`Failed to start ultrawork: ${formatErrorMessage(error)}`);
@@ -553,6 +553,7 @@ async function setPermissionForUltrawork(
 async function prepareUltraworkSetup(
   host: SlashCommandHost,
   setup: UltraworkSetupState,
+  initialContext = '',
 ): Promise<void> {
   const session = host.requireSession();
   if (!setup.swarmModeWasEnabled) {
@@ -561,18 +562,21 @@ async function prepareUltraworkSetup(
     host.setAppState({ swarmMode: true });
     host.state.swarmModeEntry = 'task';
   }
-  await forceUltraPlanMode(session);
+  await forceUltraPlanMode(session, initialContext);
   setup.planChanged = true;
   host.setAppState({ planMode: true, ultraworkMode: true });
 }
 
-async function forceUltraPlanMode(session: ReturnType<SlashCommandHost['requireSession']>): Promise<void> {
+async function forceUltraPlanMode(
+  session: ReturnType<SlashCommandHost['requireSession']>,
+  initialContext = '',
+): Promise<void> {
   try {
-    await session.setPlanMode(true, true);
+    await session.setPlanMode(true, true, initialContext);
   } catch (error) {
     if (!formatErrorMessage(error).includes('Already in plan mode')) throw error;
     await session.setPlanMode(false, false);
-    await session.setPlanMode(true, true);
+    await session.setPlanMode(true, true, initialContext);
   }
 }
 

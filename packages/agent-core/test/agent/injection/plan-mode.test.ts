@@ -101,6 +101,25 @@ describe('PlanModeInjector content', () => {
     expect(history(agent)).toHaveLength(0);
   });
 
+  it('routes Ultra Plan research before the interview creates question options', async () => {
+    const agent = planAgent({
+      isActive: true,
+      isUltraMode: true,
+      phase: 'research',
+      planFilePath: '/tmp/ultra-plan.md',
+    });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+
+    const text = lastReminder(agent);
+    expect(text).toContain('Research Phase');
+    expect(text).toContain('gather current, source-backed context before the UltraPlan interview creates question options');
+    expect(text).toContain('AskUserQuestion');
+    expect(text).toContain('BLOCKED');
+    expect(text).toContain("call NextPhase({ phase: 'interview' })");
+  });
+
   it('keeps Ultra Plan interview gated on seed gaps even when the task is actionable', async () => {
     const agent = planAgent({
       isActive: true,
@@ -114,7 +133,8 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail');
-    expect(text).toContain('NextPhase to Design is blocked until ambiguity <= 0.2, no required gaps remain, and the UltraGoal is verifiable');
+    expect(text).toContain('NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass');
+    expect(text).toContain('two distinct seed-ready evidence snapshots have been observed');
     expect(text).toContain('Ask 1-3 focused questions per AskUserQuestion call');
     expect(text).toContain('Your turn MUST end with AskUserQuestion or NextPhase');
     expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');
@@ -135,6 +155,8 @@ describe('PlanModeInjector content', () => {
     const text = lastReminder(agent);
     expect(text).toContain("call NextPhase({ phase: 'review' })");
     expect(text).toContain('Do not skip directly to write');
+    expect(text).toContain('SearchSkill');
+    expect(text).toContain('Skill');
   });
 
   it('routes Ultra Plan review to write after verification', async () => {
@@ -150,6 +172,9 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain("call NextPhase({ phase: 'write' })");
+    expect(text).toContain('WebSearch');
+    expect(text).toContain('FetchURL');
+    expect(text).toContain('Search and fetch current sources again');
     expect(text).toContain('narrow read-only Bash inspection');
     expect(text).toContain('pwd, ls, git status, git diff --stat/name-only/check');
   });

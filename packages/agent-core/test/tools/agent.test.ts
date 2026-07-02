@@ -170,6 +170,8 @@ describe('AgentTool', () => {
     expect(tool.description.toLowerCase()).toContain('when not to');
     // Moved here from system.md: the context-hygiene reason to delegate.
     expect(tool.description.toLowerCase()).toContain('out of your own context');
+    expect(tool.description).toContain('WebSearch and FetchURL freely');
+    expect(tool.description).toContain('open-source implementations');
   });
 
   it('normalizes the default subagent type into tool args', () => {

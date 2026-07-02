@@ -8,6 +8,7 @@ import {
   AgentSwarmProgressComponent,
   agentSwarmDescriptionFromArgs,
   agentSwarmGridHeightForTerminalRows,
+  swarmProgressTitleForToolName,
 } from '../components/messages/agent-swarm-progress';
 import { MAIN_AGENT_ID } from '../constant/kimi-tui';
 import type {
@@ -181,8 +182,9 @@ export class SubAgentEventHandler {
   handleAgentSwarmToolCallStarted(
     toolCallId: string,
     args: Record<string, unknown>,
+    toolName = 'AgentSwarm',
   ): void {
-    const progress = this.ensureAgentSwarmProgress(toolCallId, args);
+    const progress = this.ensureAgentSwarmProgress(toolCallId, args, { toolName });
     progress.markInputComplete();
     this.requestRender();
   }
@@ -191,8 +193,9 @@ export class SubAgentEventHandler {
     toolCallId: string,
     args: Record<string, unknown>,
     options: { readonly streamingArguments?: string | undefined },
+    toolName = 'AgentSwarm',
   ): void {
-    this.ensureAgentSwarmProgress(toolCallId, args, options);
+    this.ensureAgentSwarmProgress(toolCallId, args, { ...options, toolName });
     this.requestRender();
   }
 
@@ -519,7 +522,10 @@ export class SubAgentEventHandler {
   private ensureAgentSwarmProgress(
     toolCallId: string,
     args: Record<string, unknown>,
-    options: { readonly streamingArguments?: string | undefined } = {},
+    options: {
+      readonly streamingArguments?: string | undefined;
+      readonly toolName?: string | undefined;
+    } = {},
   ): AgentSwarmProgressComponent {
     const existing = this.agentSwarmProgress.get(toolCallId);
     if (existing !== undefined) {
@@ -529,6 +535,7 @@ export class SubAgentEventHandler {
 
     const progress = new AgentSwarmProgressComponent({
       description: agentSwarmDescriptionFromArgs(args),
+      title: swarmProgressTitleForToolName(options.toolName ?? 'AgentSwarm'),
       availableGridHeight: () => this.agentSwarmGridHeight(),
       requestRender: () => {
         this.requestRender();

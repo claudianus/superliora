@@ -1,6 +1,10 @@
-import type { AppearancePreferences } from '#/tui/config';
+import {
+  DEFAULT_APPEARANCE_PREFERENCES,
+  type AppearancePreferences,
+} from '#/tui/config';
 import type { ColorToken } from '#/tui/theme';
 import { currentTheme } from '#/tui/theme';
+import { gradientText } from '#/tui/theme/gradient-text';
 
 export type AmbientEffectMode = 'off' | 'subtle' | 'premium';
 
@@ -13,6 +17,18 @@ const PARTICLE_TOKENS: readonly ColorToken[] = [
   'gradientEnd',
 ];
 const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
+const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
+const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
+
+let activeAppearance: AppearancePreferences = DEFAULT_APPEARANCE_PREFERENCES;
+
+export function setActiveAppearancePreferences(appearance: AppearancePreferences): void {
+  activeAppearance = appearance;
+}
+
+export function getActiveAppearancePreferences(): AppearancePreferences {
+  return activeAppearance;
+}
 
 export function resolveAmbientEffectMode(appearance: AppearancePreferences): AmbientEffectMode {
   if (appearance.profile === 'off' || appearance.particles === 'off') return 'off';
@@ -78,7 +94,101 @@ export function renderParticleRail(
   return cells.join('');
 }
 
-export function renderShimmerPrefix(appearance: AppearancePreferences): string {
+export function renderParticleDivider(
+  width: number,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const safeWidth = Math.max(0, Math.trunc(width));
+  if (safeWidth === 0) return '';
+  const mode = resolveAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return currentTheme.fg('primary', '─'.repeat(safeWidth));
+  }
+  const baseChar =
+    mode === 'premium'
+      ? PREMIUM_DIVIDER_FRAMES[
+          positiveModulo(
+            Math.floor(Date.now() / 260) + hashSeed(seed),
+            PREMIUM_DIVIDER_FRAMES.length,
+          )
+        ]!
+      : '─';
+  const baseToken: ColorToken = mode === 'premium' ? 'glow' : 'primary';
+  const cells = Array.from({ length: safeWidth }, () => currentTheme.fg(baseToken, baseChar));
+  if (safeWidth < 8) return cells.join('');
+
+  const premium = mode === 'premium';
+  const tick = Math.floor(Date.now() / (premium ? 160 : 420));
+  const density = premium
+    ? Math.max(2, Math.min(14, Math.floor(safeWidth / 8)))
+    : Math.max(1, Math.min(4, Math.floor(safeWidth / 24)));
+  const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
+  const base = hashSeed(seed);
+  for (let i = 0; i < density; i++) {
+    const origin = base + i * 29;
+    const x = positiveModulo(origin + tick * (1 + (i % 2)), safeWidth);
+    const char = chars[positiveModulo(origin + tick + i, chars.length)]!;
+    const token = PARTICLE_TOKENS[positiveModulo(origin + i * 3 + tick, PARTICLE_TOKENS.length)]!;
+    cells[x] = currentTheme.fg(token, char);
+  }
+
+  return cells.join('');
+}
+
+export function renderAnimatedGradientText(
+  text: string,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const mode = resolveAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') return currentTheme.boldFg('primary', text);
+  if (mode !== 'premium') return currentTheme.boldFg('primary', text);
+  const phase = positiveModulo(
+    Math.floor(Date.now() / 140) + hashSeed(seed),
+    Math.max(1, Array.from(text).length),
+  );
+  return gradientText(
+    text,
+    currentTheme.color('gradientStart'),
+    currentTheme.color('gradientEnd'),
+    1.15,
+    phase,
+  );
+}
+
+export function renderPulseText(
+  text: string,
+  seed: string,
+  fallbackToken: ColorToken = 'primary',
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const mode = resolveAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode !== 'premium') {
+    return currentTheme.boldFg(fallbackToken, text);
+  }
+  const token = PULSE_TOKENS[
+    positiveModulo(Math.floor(Date.now() / 220) + hashSeed(seed), PULSE_TOKENS.length)
+  ]!;
+  return currentTheme.boldFg(token, text);
+}
+
+export function renderPulseGlyph(
+  glyphs: readonly string[],
+  seed: string,
+  fallback: string,
+  fallbackToken: ColorToken,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const mode = resolveAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode !== 'premium' || glyphs.length === 0) {
+    return currentTheme.fg(fallbackToken, fallback);
+  }
+  const index = positiveModulo(Math.floor(Date.now() / 180) + hashSeed(seed), glyphs.length);
+  return currentTheme.boldFg(PULSE_TOKENS[index % PULSE_TOKENS.length]!, glyphs[index]!);
+}
+
+export function renderShimmerPrefix(appearance: AppearancePreferences = activeAppearance): string {
   if (!shouldRenderAmbientEffects(appearance)) return '';
   const mode = resolveAmbientEffectMode(appearance);
   const interval = mode === 'premium' ? 180 : 520;

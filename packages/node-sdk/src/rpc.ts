@@ -103,6 +103,7 @@ export interface SetSessionPermissionRpcInput extends SessionIdRpcInput {
 export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
   readonly ultra?: boolean;
+  readonly initialContext?: string;
 }
 
 export type SetSessionSwarmModeRpcInput =
@@ -419,6 +420,7 @@ export abstract class SDKRpcClientBase {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       ultra: input.ultra ? true : undefined,
+      initialContext: input.initialContext,
     });
   }
 

@@ -211,7 +211,9 @@ async function runHeadlessGoal(
   stderr: PromptOutput,
 ): Promise<void> {
   requireConfiguredModel(model);
-  const setup = goal.ultrawork ? await prepareHeadlessUltrawork(session) : undefined;
+  const setup = goal.ultrawork
+    ? await prepareHeadlessUltrawork(session, goal.objective)
+    : undefined;
   let goalCreated = false;
   let completedSnapshot: GoalSnapshot | null = null;
   const unsubscribeGoalEvents = session.onEvent((event) => {
@@ -262,7 +264,10 @@ interface HeadlessUltraworkSetup {
   swarmEnabled: boolean;
 }
 
-async function prepareHeadlessUltrawork(session: Session): Promise<HeadlessUltraworkSetup> {
+async function prepareHeadlessUltrawork(
+  session: Session,
+  initialContext = '',
+): Promise<HeadlessUltraworkSetup> {
   const status = await session.getStatus();
   const setup: HeadlessUltraworkSetup = {
     planModeWasEnabled: status.planMode,
@@ -277,7 +282,7 @@ async function prepareHeadlessUltrawork(session: Session): Promise<HeadlessUltra
     }
     if (!setup.planModeWasEnabled) {
       try {
-        await session.setPlanMode(true, true);
+        await session.setPlanMode(true, true, initialContext);
         setup.planChanged = true;
       } catch (error) {
         if (!isAlreadyInPlanModeError(error)) throw error;

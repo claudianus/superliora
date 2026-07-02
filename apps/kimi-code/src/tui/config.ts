@@ -103,11 +103,11 @@ export const DEFAULT_UPGRADE_PREFERENCES: UpgradePreferences = {
 };
 
 export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
-  profile: 'auto',
-  density: 'auto',
-  particles: 'auto',
-  mascot: 'auto',
-  animationFps: 12,
+  profile: 'premium',
+  density: 'spacious',
+  particles: 'premium',
+  mascot: 'premium',
+  animationFps: 30,
   canvasBackground: true,
   terminalBackground: 'off',
   terminalPalette: false,

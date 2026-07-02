@@ -55,6 +55,7 @@ export type EmptyPayload = {};
 
 export interface EnterPlanPayload {
   readonly ultra?: boolean;
+  readonly initialContext?: string;
 }
 export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
 

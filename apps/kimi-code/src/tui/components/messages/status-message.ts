@@ -2,6 +2,13 @@ import { Container, Spacer, Text } from '@earendil-works/pi-tui';
 
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderAnimatedGradientText,
+  renderShimmerPrefix,
+  resolveAmbientEffectMode,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export class StatusMessageComponent extends Container {
   private textComponent: Text;
@@ -33,10 +40,16 @@ export class StatusMessageComponent extends Container {
   // the first line and leave the rest at column 0. Strip carriage returns first
   // so CRLF provider error pages cannot overwrite the visible line in the TUI.
   private renderText(): string {
+    const appearance = getActiveAppearancePreferences();
+    const shimmer =
+      premiumEffectsActive() && (this.color === 'success' || this.color === 'warning')
+        ? renderShimmerPrefix(appearance)
+        : '';
+    const content = shimmer + this.content;
     const colored =
       this.color === undefined
-        ? currentTheme.fg('textDim', this.content)
-        : currentTheme.fg(this.color, this.content);
+        ? currentTheme.fg('textDim', content)
+        : currentTheme.fg(this.color, content);
     return colored.replaceAll('\r', '').split('\n').map((line) => `  ${line}`).join('\n');
   }
 }
@@ -52,7 +65,7 @@ export class NoticeMessageComponent extends Container {
     this.title = title;
     this.detail = detail;
     this.addChild(new Spacer(1));
-    this.titleText = new Text(`  ${currentTheme.fg('textStrong', title)}`, 0, 0);
+    this.titleText = new Text(`  ${renderNoticeTitle(title)}`, 0, 0);
     this.addChild(this.titleText);
     if (detail !== undefined && detail.length > 0) {
       this.detailText = new Text(`  ${currentTheme.fg('textDim', detail)}`, 0, 0);
@@ -61,10 +74,23 @@ export class NoticeMessageComponent extends Container {
   }
 
   override invalidate(): void {
-    this.titleText.setText(`  ${currentTheme.fg('textStrong', this.title)}`);
+    this.titleText.setText(`  ${renderNoticeTitle(this.title)}`);
     if (this.detailText !== undefined && this.detail !== undefined) {
       this.detailText.setText(`  ${currentTheme.fg('textDim', this.detail)}`);
     }
     super.invalidate();
   }
+}
+
+function renderNoticeTitle(title: string): string {
+  return premiumEffectsActive()
+    ? renderAnimatedGradientText(title, `notice:${title}`)
+    : currentTheme.fg('textStrong', title);
+}
+
+function premiumEffectsActive(): boolean {
+  const appearance = getActiveAppearancePreferences();
+  return (
+    shouldRenderAmbientEffects(appearance) && resolveAmbientEffectMode(appearance) === 'premium'
+  );
 }

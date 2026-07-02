@@ -39,9 +39,14 @@ describe('TUI config', () => {
     expect(text).toContain('[upgrade]');
     expect(text).toContain('auto_install = true');
     expect(text).toContain('[appearance]');
-    expect(text).toContain('profile = "auto"');
+    expect(text).toContain('profile = "premium"');
+    expect(text).toContain('density = "spacious"');
+    expect(text).toContain('particles = "premium"');
+    expect(text).toContain('mascot = "premium"');
+    expect(text).toContain('animation_fps = 30');
     expect(text).toContain('canvas_background = true');
     expect(text).toContain('terminal_background = "off"');
+    expect(text).toContain('terminal_palette = false');
     expect(text).toContain('[notifications]');
     expect(text).toContain('enabled = true');
     expect(text).toContain('notification_condition = "unfocused"');

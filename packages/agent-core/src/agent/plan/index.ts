@@ -17,7 +17,7 @@ export class PlanMode {
   protected _planId: null | string = null;
   protected _planFilePath: PlanFilePath = null;
   protected _isUltraMode = false;
-  protected _phase: UltraPlanPhase = 'interview';
+  protected _phase: UltraPlanPhase = 'research';
   protected _interviewRoundCount = 0;
   readonly ultraEngine: UltraPlanModeEngine;
 
@@ -34,6 +34,7 @@ export class PlanMode {
     createFile = false,
     emitStatus = true,
     ultra = false,
+    initialContext = '',
   ): Promise<void> {
     if (this._isActive) {
       throw new Error('Already in plan mode');
@@ -43,7 +44,7 @@ export class PlanMode {
     this._planId = id;
     this._planFilePath = null;
     this._isUltraMode = ultra;
-    this._phase = 'interview';
+    this._phase = ultra ? 'research' : 'interview';
     this._interviewRoundCount = 0;
 
     let enterRecorded = false;
@@ -57,7 +58,7 @@ export class PlanMode {
         await this.writeEmptyPlanFile(planFilePath);
       }
       if (ultra) {
-        this.ultraEngine.startInterview('');
+        this.ultraEngine.startInterview(initialContext);
         await this.writeUltraPlanTemplate(planFilePath);
       }
     } catch (error) {
@@ -68,7 +69,7 @@ export class PlanMode {
         this._planId = null;
         this._planFilePath = null;
         this._isUltraMode = false;
-        this._phase = 'interview';
+        this._phase = 'research';
         this._interviewRoundCount = 0;
       }
       throw error;
@@ -87,6 +88,7 @@ export class PlanMode {
     this._planId = id;
     this._planFilePath = this.planFilePathFor(id);
     this._isUltraMode = ultra ?? false;
+    this._phase = this._isUltraMode ? 'research' : 'interview';
   }
 
   cancel(id?: string): void {
@@ -99,7 +101,7 @@ export class PlanMode {
     this._planId = null;
     this._planFilePath = null;
     this._isUltraMode = false;
-    this._phase = 'interview';
+    this._phase = 'research';
     this._interviewRoundCount = 0;
     this.agent.emitStatusUpdated();
   }
@@ -119,7 +121,7 @@ export class PlanMode {
     this._planId = null;
     this._planFilePath = null;
     this._isUltraMode = false;
-    this._phase = 'interview';
+    this._phase = 'research';
     this._interviewRoundCount = 0;
     this.agent.emitStatusUpdated();
   }
@@ -158,6 +160,7 @@ export class PlanMode {
   ): void {
     if (!this._isActive || !this._isUltraMode || this._phase !== 'interview') return;
     this.ultraEngine.recordInterviewAnswers(questions, answers);
+    this.ultraEngine.calculateAmbiguityScore();
     this._interviewRoundCount = this.ultraEngine.interviewState.rounds.length;
   }
 

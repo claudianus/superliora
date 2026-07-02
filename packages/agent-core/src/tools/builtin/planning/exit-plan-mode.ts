@@ -134,7 +134,7 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       if (phase !== 'write' && phase !== 'exit') {
         return {
           isError: true,
-          output: `ExitPlanMode is blocked in ${phase} phase. Complete the current phase and use NextPhase to advance through the workflow: interview -> design -> review -> write -> exit.`,
+          output: `ExitPlanMode is blocked in ${phase} phase. Complete the current phase and use NextPhase to advance through the workflow: research -> interview -> design -> review -> write -> exit.`,
         };
       }
 

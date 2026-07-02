@@ -12,7 +12,10 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
-import { renderParticleRail } from '#/tui/utils/appearance-effects';
+import {
+  renderAnimatedGradientText,
+  renderParticleRail,
+} from '#/tui/utils/appearance-effects';
 import { mascotWidth, renderKimiMascotIcon } from './kimi-mascot-icon';
 
 const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab to toggle Ultrawork/off.';
@@ -33,9 +36,10 @@ export class WelcomeComponent implements Component {
     const activeModel = this.state.availableModels[this.state.model];
     const layout = resolveResponsiveLayout({ width: safeWidth });
     const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+    const titleText = `Welcome to ${PRODUCT_NAME}!`;
 
     if (safeWidth < 24 || layout === 'tiny') {
-      const title = chalk.bold.hex(currentTheme.palette.primary)(`Welcome to ${PRODUCT_NAME}!`);
+      const title = renderAnimatedGradientText(titleText, 'welcome:title', appearance);
       const prompt = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)('Run /login or /provider to get started.')
         : chalk.hex(currentTheme.palette.textDim)(LOGGED_IN_PROMPT);
@@ -57,7 +61,7 @@ export class WelcomeComponent implements Component {
     const textWidth = Math.max(4, innerWidth - logoWidth - (logoWidth > 0 ? gap.length : 0));
 
     const rightRow0 = truncateToWidth(
-      chalk.bold.hex(currentTheme.palette.primary)(`Welcome to ${PRODUCT_NAME}!`),
+      renderAnimatedGradientText(titleText, 'welcome:title', appearance),
       textWidth,
       '…',
     );

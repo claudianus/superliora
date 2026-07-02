@@ -15,7 +15,11 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { currentTheme } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
-import { renderShimmerPrefix } from '#/tui/utils/appearance-effects';
+import {
+  renderAnimatedGradientText,
+  renderPulseText,
+  renderShimmerPrefix,
+} from '#/tui/utils/appearance-effects';
 import {
   createGitStatusCache,
   formatGitBadgeBase,
@@ -273,15 +277,21 @@ export class FooterComponent implements Component {
   render(width: number): string[] {
     const colors = currentTheme.palette;
     const state = this.state;
+    const appearance = state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
 
     // ── Line 1: mode badges + model + [N task(s) running] + [N agent(s) running] + cwd + git + hints ──
     const left: string[] = [];
     const modes: string[] = [];
     if (state.permissionMode === 'auto') modes.push(chalk.hex(colors.warning).bold('auto'));
     if (state.permissionMode === 'yolo') modes.push(chalk.hex(colors.warning).bold('yolo'));
-    if (state.ultraworkMode) modes.push(chalk.hex(colors.primary).bold('ultrawork'));
-    else if (state.planMode) modes.push(chalk.hex(colors.primary).bold('plan'));
-    if (state.swarmMode) modes.push(chalk.hex(colors.accent).bold('swarm-armed'));
+    if (state.ultraworkMode) {
+      modes.push(renderAnimatedGradientText('ultrawork', 'footer:ultrawork', appearance));
+    } else if (state.planMode) {
+      modes.push(renderPulseText('plan', 'footer:plan', 'primary', appearance));
+    }
+    if (state.swarmMode) {
+      modes.push(renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance));
+    }
     if (modes.length > 0) left.push(modes.join(' '));
 
     const goalBadge = formatGoalBadge(state.goal, colors, this.goalWallClockMs(state.goal));
@@ -291,7 +301,11 @@ export class FooterComponent implements Component {
     if (model) {
       const thinkingLabel = state.thinking ? ' thinking' : '';
       const modelLabel = `${model}${thinkingLabel}`;
-      left.push(chalk.hex(colors.text)(modelLabel));
+      left.push(
+        state.streamingPhase === 'idle' && !state.thinking
+          ? chalk.hex(colors.text)(modelLabel)
+          : renderPulseText(modelLabel, 'footer:model', 'text', appearance),
+      );
     }
 
     // Background-task badges sit immediately before cwd. `bash-*` tasks
@@ -300,13 +314,23 @@ export class FooterComponent implements Component {
     if (this.backgroundBashTaskCount > 0) {
       const noun = this.backgroundBashTaskCount === 1 ? 'task' : 'tasks';
       left.push(
-        chalk.hex(colors.primary)(`[${String(this.backgroundBashTaskCount)} ${noun} running]`),
+        renderPulseText(
+          `[${String(this.backgroundBashTaskCount)} ${noun} running]`,
+          'footer:bash-tasks',
+          'primary',
+          appearance,
+        ),
       );
     }
     if (this.backgroundAgentCount > 0) {
       const noun = this.backgroundAgentCount === 1 ? 'agent' : 'agents';
       left.push(
-        chalk.hex(colors.primary)(`[${String(this.backgroundAgentCount)} ${noun} running]`),
+        renderPulseText(
+          `[${String(this.backgroundAgentCount)} ${noun} running]`,
+          'footer:agent-tasks',
+          'primary',
+          appearance,
+        ),
       );
     }
 
@@ -353,7 +377,7 @@ export class FooterComponent implements Component {
     const nextAction = footerNextAction(state, git);
     const shimmer =
       this.transientHint === null
-        ? renderShimmerPrefix(state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES)
+        ? renderShimmerPrefix(appearance)
         : '';
     const leftHint = this.transientHint ?? (nextAction === null ? null : shimmer + nextAction);
     if (leftHint !== null) {

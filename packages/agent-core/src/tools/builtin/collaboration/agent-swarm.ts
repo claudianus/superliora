@@ -11,6 +11,7 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import AGENT_SWARM_DESCRIPTION from './agent-swarm.md?raw';
+import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 
 const DEFAULT_SUBAGENT_TYPE = 'coder';
 const PROMPT_TEMPLATE_PLACEHOLDER = '{{item}}';
@@ -200,7 +201,7 @@ function createAgentSwarmSpecs(
       index: specs.length + 1,
       agentId: entry.agentId,
       item: getResumeItem(entry.agentId),
-      prompt: entry.prompt,
+      prompt: appendSwarmResearchAutonomy(entry.prompt),
     });
   }
   if (items.length > 0) {
@@ -218,7 +219,7 @@ function createAgentSwarmSpecs(
         kind: 'spawn',
         index: specs.length + 1,
         item,
-        prompt,
+        prompt: appendSwarmResearchAutonomy(prompt),
       });
     });
   }

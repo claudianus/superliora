@@ -215,16 +215,16 @@ describe('handleAppearanceCommand', () => {
     await withTempHome(async () => {
       const host = makeThemeHost();
 
-      await handleAppearanceCommand(host, 'profile premium');
+      await handleAppearanceCommand(host, 'profile subtle');
 
-      expect(host.state.appState.appearance.profile).toBe('premium');
-      expect((await loadTuiConfig()).appearance?.profile).toBe('premium');
+      expect(host.state.appState.appearance.profile).toBe('subtle');
+      expect((await loadTuiConfig()).appearance?.profile).toBe('subtle');
       expect(host.track).toHaveBeenCalledWith('appearance_changed', {
         key: 'profile',
-        value: 'premium',
+        value: 'subtle',
       });
       expect(host.showStatus).toHaveBeenCalledWith(
-        'Appearance profile set to premium.',
+        'Appearance profile set to subtle.',
         'success',
       );
     });

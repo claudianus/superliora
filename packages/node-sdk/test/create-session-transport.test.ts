@@ -7,7 +7,7 @@ import type { Kaos } from '@moonshot-ai/kaos';
 import { createKimiHarness, KimiHarness } from '#/index';
 import type { KimiError } from '#/index';
 import type { ResumeSessionInput, ResumedSessionSummary } from '#/types';
-import { SDKRpcClientBase } from '#/rpc';
+import { SDKRpcClientBase, type SetSessionPlanModeRpcInput } from '#/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { waitForAgentWireEvent } from './session-runtime-helpers';
@@ -82,10 +82,10 @@ class StubRpc extends SDKRpcClientBase {
     };
   }
 
-  override async setPlanMode() {
+  override async setPlanMode(input: SetSessionPlanModeRpcInput) {
     this.setPlanModeCalls += 1;
-    if (this.planMode) throw new Error('Already in plan mode');
-    this.planMode = true;
+    if (input.enabled && this.planMode) throw new Error('Already in plan mode');
+    this.planMode = input.enabled;
   }
 
   override async resumeSessionWithKaos(input: ResumeSessionInput, kaos: Kaos, persistenceKaos?: Kaos): Promise<ResumedSessionSummary> {
@@ -736,6 +736,30 @@ effort = "medium"
 
     expect(session.id).toBe('ses_plan_already_enabled');
     expect(rpc.setPlanModeCalls).toBe(0);
+  });
+
+  it('turns off config-created plan mode when createSession receives planMode false', async () => {
+    const records: TelemetryRecord[] = [];
+    const rpc = new StubRpc();
+    rpc.planMode = true;
+    const harness = new KimiHarness(rpc, {
+      homeDir: '/tmp/home',
+      configPath: '/tmp/config.toml',
+      auth: { status: async () => ({ providers: [] }) } as never,
+      telemetry: recordingTelemetry(records),
+      ensureConfigFile: async () => undefined,
+      onClose: () => undefined,
+    });
+
+    const session = await harness.createSession({
+      id: 'ses_plan_disabled',
+      workDir: '/tmp/work',
+      planMode: false,
+    });
+
+    expect(session.id).toBe('ses_plan_disabled');
+    expect(rpc.setPlanModeCalls).toBe(1);
+    expect(rpc.planMode).toBe(false);
   });
 });
 

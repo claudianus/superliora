@@ -15,6 +15,11 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 import { createEditorTheme } from '#/tui/theme/pi-tui-theme';
+import {
+  getActiveAppearancePreferences,
+  resolveAmbientEffectMode,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 import { printableChar } from '#/tui/utils/printable-key';
 
@@ -163,6 +168,7 @@ export class CustomEditor extends Editor {
   private consumingPaste = false;
   private consumeBuffer = '';
   private argumentHints: ReadonlyMap<string, string> = new Map();
+  private lastInteractionAtMs = 0;
 
   setArgumentHints(hints: ReadonlyMap<string, string>): void {
     this.argumentHints = hints;
@@ -265,11 +271,16 @@ export class CustomEditor extends Editor {
       }
     }
     const firstContent = lines[firstContentIdx];
+    const pulseInput = this.shouldPulseInput();
     if (firstContent !== undefined) {
       const withPrompt = injectPromptSymbol(
         firstContent,
         isBash ? '!' : '>',
-        isBash ? (s) => this.borderColor(s) : undefined,
+        isBash
+          ? (s) => this.borderColor(s)
+          : pulseInput
+            ? (s) => currentTheme.boldFg('glow', s)
+            : undefined,
       );
       if (withPrompt !== undefined) {
         lines[firstContentIdx] = withPrompt;
@@ -279,7 +290,11 @@ export class CustomEditor extends Editor {
     // overwrite it (e.g. plan-mode / slash-context highlight via
     // `editor.borderColor = chalk.hex(primary)`), so we route corners and
     // side bars through the same hook to stay in sync.
-    return wrapWithSideBorders(lines, (s) => this.borderColor(s), {
+    const borderPaint = (s: string): string =>
+      pulseInput && !isBash && !this.borderHighlighted
+        ? currentTheme.fg('glow', s)
+        : this.borderColor(s);
+    return wrapWithSideBorders(lines, borderPaint, {
       connectedAbove: this.connectedAbove && !this.borderHighlighted,
       label: isBash ? ` ${currentTheme.boldFg('shellMode', '! shell mode')} ` : undefined,
     });
@@ -308,6 +323,7 @@ export class CustomEditor extends Editor {
       return;
     }
     if (!matchesKey(normalized, Key.escape)) {
+      this.lastInteractionAtMs = Date.now();
       this.onNonEscapeInput?.();
     }
 
@@ -532,6 +548,14 @@ export class CustomEditor extends Editor {
     ) {
       trigger();
     }
+  }
+
+  private shouldPulseInput(): boolean {
+    if (Date.now() - this.lastInteractionAtMs > 420) return false;
+    const appearance = getActiveAppearancePreferences();
+    return (
+      shouldRenderAmbientEffects(appearance) && resolveAmbientEffectMode(appearance) === 'premium'
+    );
   }
 }
 

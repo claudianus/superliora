@@ -15,6 +15,10 @@ import chalk from 'chalk';
 
 import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
+import {
+  renderAnimatedGradientText,
+  renderPulseGlyph,
+} from '#/tui/utils/appearance-effects';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
 
@@ -156,7 +160,7 @@ export class TodoPanelComponent implements Component {
     const c = currentTheme.palette;
     const lines: string[] = [
       chalk.hex(c.border)('─'.repeat(width)),
-      chalk.hex(c.primary).bold('  Todo Board'),
+      renderAnimatedGradientText('  Todo Board', 'todo:title'),
     ];
 
     if (this.expanded) {
@@ -273,7 +277,7 @@ function padCell(content: string, width: number): string {
 function statusMarker(status: TodoStatus, colors: ColorPalette): string {
   switch (status) {
     case 'in_progress':
-      return chalk.hex(colors.primary).bold('●');
+      return renderPulseGlyph(['●', '◆', '✦', '◆'], 'todo:in-progress', '●', 'primary');
     case 'done':
       return chalk.hex(colors.success)('✓');
     case 'pending':

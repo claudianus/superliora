@@ -7,6 +7,7 @@ import { CompactionComponent } from '../components/dialogs/compaction';
 import { ReadGroupComponent } from '../components/messages/read-group';
 import { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call';
+import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
 import { STREAMING_UI_FLUSH_MS } from '../constant/streaming';
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
@@ -315,7 +316,7 @@ export class StreamingUIController {
       existingComponent.updateToolCall(toolCall);
     } else if (existing === undefined) {
       this.finalizeLiveTextBuffers('tool');
-      if (toolCall.name !== 'Agent' && toolCall.name !== 'AgentSwarm') {
+      if (toolCall.name !== 'Agent' && !isSwarmProgressToolName(toolCall.name)) {
         this.onToolCallStart(toolCall);
       }
     }
@@ -767,7 +768,7 @@ export class StreamingUIController {
     const existingComponent = this._pendingToolComponents.get(id);
     if (existingComponent !== undefined) {
       existingComponent.updateToolCall(toolCall);
-    } else if (toolCall.name !== 'Agent' && toolCall.name !== 'AgentSwarm') {
+    } else if (toolCall.name !== 'Agent' && !isSwarmProgressToolName(toolCall.name)) {
       this.onToolCallStart(toolCall);
     }
   }

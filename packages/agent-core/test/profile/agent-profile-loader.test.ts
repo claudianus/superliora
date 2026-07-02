@@ -176,6 +176,8 @@ describe('default agent profiles', () => {
         'AgentSwarm',
         'UltraSwarm',
         'Skill',
+        'WebSearch',
+        'FetchURL',
         'TaskList',
         'TaskOutput',
         'TaskStop',
@@ -185,7 +187,13 @@ describe('default agent profiles', () => {
       ]),
     );
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash']),
+      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'WebSearch', 'FetchURL']),
+    );
+    expect(DEFAULT_AGENT_PROFILES['explore']?.tools).toEqual(
+      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL']),
+    );
+    expect(DEFAULT_AGENT_PROFILES['plan']?.tools).toEqual(
+      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL']),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Write');
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Bash');
@@ -255,9 +263,23 @@ describe('default agent profiles', () => {
 
     expect(first).toContain('You are Kimi Code CLI');
     expect(first).toContain('Skill Runtime');
+    expect(first).toContain('Current Research Discipline');
+    expect(first).toContain('actively use WebSearch and FetchURL throughout the work');
     expect(first).toContain('/workspace/one');
     expect(second).toContain('/workspace/two');
     expect(second).not.toContain('/workspace/one');
+  });
+
+  it('renders subagent research autonomy into bundled subagent prompts', () => {
+    const coder = DEFAULT_AGENT_PROFILES['coder']?.systemPrompt(promptContext);
+    const explore = DEFAULT_AGENT_PROFILES['explore']?.systemPrompt(promptContext);
+    const plan = DEFAULT_AGENT_PROFILES['plan']?.systemPrompt(promptContext);
+
+    for (const prompt of [coder, explore, plan]) {
+      expect(prompt).toContain('You have WebSearch and FetchURL');
+      expect(prompt).toContain('Unless the parent explicitly forbids internet use');
+      expect(prompt).toContain('open-source implementations');
+    }
   });
 });
 

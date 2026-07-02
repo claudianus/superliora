@@ -57,6 +57,7 @@ import {
   serializeToolResultOutput,
   stringValue,
 } from '../utils/event-payload';
+import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
 import {
   readGoalQueue,
   removeGoalQueueItem,
@@ -531,8 +532,12 @@ export class SessionEventHandler {
       turnId,
     };
     streamingUI.registerToolCall(toolCall);
-    if (event.name === 'AgentSwarm') {
-      this.subAgentEventHandler.handleAgentSwarmToolCallStarted(event.toolCallId, toolCall.args);
+    if (isSwarmProgressToolName(event.name)) {
+      this.subAgentEventHandler.handleAgentSwarmToolCallStarted(
+        event.toolCallId,
+        toolCall.args,
+        event.name,
+      );
     }
     this.host.patchLivePane({
       mode: 'tool',
@@ -548,11 +553,15 @@ export class SessionEventHandler {
     const preview = streamingUI.getStreamingToolCallPreview(event.toolCallId);
     if (
       preview !== undefined &&
-      (preview.name === 'AgentSwarm' || this.subAgentEventHandler.hasAgentSwarmProgress(event.toolCallId))
+      (isSwarmProgressToolName(preview.name) ||
+        this.subAgentEventHandler.hasAgentSwarmProgress(event.toolCallId))
     ) {
-      this.subAgentEventHandler.handleAgentSwarmToolCallDelta(event.toolCallId, preview.args, {
-        streamingArguments: preview.argumentsText,
-      });
+      this.subAgentEventHandler.handleAgentSwarmToolCallDelta(
+        event.toolCallId,
+        preview.args,
+        { streamingArguments: preview.argumentsText },
+        preview.name,
+      );
     }
 
     this.host.patchLivePane({

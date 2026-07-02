@@ -24,10 +24,14 @@ import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import type { TokenUsage } from '@moonshot-ai/kimi-code-sdk';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
+import { renderAnimatedGradientText, renderPulseText } from '#/tui/utils/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
 
-import { agentSwarmResultSummaryFromOutput } from './agent-swarm-progress';
+import {
+  agentSwarmResultSummaryFromOutput,
+  isSwarmProgressToolName,
+} from './agent-swarm-progress';
 import { PlanBoxComponent } from './plan-box';
 import { ShellExecutionComponent } from './shell-execution';
 import { countNonEmptyLines, pickChip } from './tool-renderers/chip';
@@ -1395,7 +1399,7 @@ export class ToolCallComponent extends Container {
     } else {
       // Solid bullet for in-flight tools — the previous marker ↔ blank
       // toggle caused visible flicker on every re-render.
-      bullet = currentTheme.fg('text', STATUS_BULLET);
+      bullet = renderPulseText(STATUS_BULLET, `tool:${toolCall.id}:bullet`, 'text');
     }
 
     if (toolCall.name === 'ExitPlanMode') {
@@ -1446,11 +1450,20 @@ export class ToolCallComponent extends Container {
     const decoded = decodeMcpToolName(toolCall.name);
     const verbStyled = isTruncated
       ? currentTheme.fg('error', verb)
-      : verb;
+      : isFinished
+        ? verb
+        : renderPulseText(verb, `tool:${toolCall.id}:verb`, 'text');
+    const toolNameLabel =
+      decoded === null
+        ? toolCall.name
+        : decoded.toolName;
+    const toolNameStyled = isFinished
+      ? currentTheme.boldFg('primary', toolNameLabel)
+      : renderAnimatedGradientText(toolNameLabel, `tool:${toolCall.id}:label`);
     const toolLabel =
-      decoded !== null
-        ? `${currentTheme.boldFg('primary', decoded.toolName)}${currentTheme.dim(` · MCP/${decoded.serverName}`)}`
-        : currentTheme.boldFg('primary', toolCall.name);
+      decoded === null
+        ? toolNameStyled
+        : `${toolNameStyled}${currentTheme.dim(` · MCP/${decoded.serverName}`)}`;
     const argStr = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
     let chipStr = '';
     if (isFinished && result) chipStr = this.buildHeaderChip(result);
@@ -2039,7 +2052,7 @@ export class ToolCallComponent extends Container {
     const { result } = this;
     if (result === undefined) return;
 
-    if (this.toolCall.name === 'AgentSwarm') {
+    if (isSwarmProgressToolName(this.toolCall.name)) {
       this.buildAgentSwarmResultSummary(result);
       return;
     }

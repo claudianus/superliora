@@ -102,7 +102,7 @@ function fullReminder(planFilePath: PlanFilePath): string {
   const body = `Plan mode is active. You MUST NOT make any edits (with the exception of the current plan file) or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received. TaskStop, CronCreate, and CronDelete are also blocked in plan mode — call ExitPlanMode first if you need them.
 
 Workflow:
-  1. Understand — explore the codebase with Glob, Grep, Read.
+  1. Understand — explore the codebase with Glob, Grep, Read, and use WebSearch/FetchURL when current external evidence can affect the plan.
   2. Design — converge on the best approach; consider trade-offs but aim for a single recommendation.
   3. Review — re-read key files to verify understanding.
   4. Write Plan — modify the plan file with Write or Edit. Use Write if the plan file does not exist yet.
@@ -155,7 +155,7 @@ function inlineFullReminder(): string {
   return `Plan mode is active. You MUST NOT make any edits or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received.
 
 Workflow:
-  1. Understand — explore the codebase with Glob, Grep, Read.
+  1. Understand — explore the codebase with Glob, Grep, Read, and use WebSearch/FetchURL when current external evidence can affect the plan.
   2. Design — converge on the best approach; consider trade-offs but aim for a single recommendation.
   3. Review — re-read key files to verify understanding.
   4. Wait for the host to provide a plan file path, write the plan there, then call ExitPlanMode.
@@ -194,6 +194,19 @@ function exitReminder(): string {
 // ── Ultra Plan Mode phase-aware reminders ──────────────────────────────────
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
+  research: `## Research Phase
+You are in the Research Phase. Your allowed tools are read-only evidence tools: WebSearch, FetchURL, KimiContext, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, narrow read-only Bash inspection, and NextPhase.
+AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, and ExitPlanMode are BLOCKED.
+
+Goal: gather current, source-backed context before the UltraPlan interview creates question options or asks the user to choose.
+- Search current docs, release notes, papers, security advisories, benchmark pages, or OSS examples when they can affect correctness.
+- Use KimiContext, Grep, Glob, and Read for local code facts before asking path or architecture questions.
+- Fetch primary sources before relying on snippets. Label findings as verified, candidate, stale/offline, or irrelevant.
+- Distill a compact evidence pack: facts learned, source URLs or file paths, remaining unknowns, and which unknowns truly require user input.
+- Do not ask the user anything in this phase; the point is to avoid pretrained-only options.
+
+Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
+
   interview: `## Interview Phase
 You are in the Interview Phase. Your ONLY allowed tools are AskUserQuestion and NextPhase.
 Write, Edit, Bash, TaskStop, CronCreate, CronDelete, and ExitPlanMode are BLOCKED.
@@ -213,7 +226,8 @@ Each round rotates through 5 perspectives:
   The system evaluates clarity and required Seed sections:
   - UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
   - Required sections: goal, actors, inputs, outputs, constraints, non-goals, acceptance criteria, verification plan, failure modes, runtime context.
-  - NextPhase to Design is blocked until ambiguity <= 0.2, no required gaps remain, and the UltraGoal is verifiable.
+  - Required gaps close only from the user's initial context and answers, not from labels you put in your question text.
+  - NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, the UltraGoal is verifiable, and two distinct seed-ready evidence snapshots have been observed.
 
 Current interview round: {{round}}
 Current perspective: {{perspective}}
@@ -223,17 +237,18 @@ Completion streak: {{streak}}
 
 Next milestone target: {{nextMilestone}}
 
-Ask 1-3 focused questions per AskUserQuestion call when a missing decision blocks a true/false-verifiable UltraGoal or a required Seed section.
+Ask 1-3 focused questions per AskUserQuestion call when a missing decision blocks a true/false-verifiable UltraGoal or a required Seed section. Use a final closure question only after the first seed-ready score, so the second answer can confirm the Seed without changing scope.
 Do not advance just because the task feels actionable. If AskUserQuestion is unavailable or rejected by policy, surface the unresolved gap instead of pretending the interview is complete.
 Do not call EnterPlanMode while already in Ultra Plan. EnterPlanMode starts planning; NextPhase advances phases. Do not pass a phase argument to EnterPlanMode.
 Your turn MUST end with AskUserQuestion or NextPhase.`,
 
   design: `## Design Phase
-You are in the Design Phase. Read-only tools only (Read, Grep, Glob, WebSearch, FetchURL).
+You are in the Design Phase. Read-only tools only (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill).
 Write and Edit are BLOCKED.
 
 Goal: Explore the codebase and converge on the best approach.
 - Use Read, Grep, Glob to understand relevant code
+- Use SearchSkill and Skill when task-specific skill instructions would improve the design
 - Consider trade-offs but aim for a single recommendation
 - Identify key files, architectural decisions, and risks
 - You may use Bash only when needed for exploration
@@ -242,11 +257,12 @@ You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-You are in the Review Phase. Read-only tools only (Read, Grep, Glob, and narrow read-only Bash inspection).
+You are in the Review Phase. Read-only tools only (Read, Grep, Glob, WebSearch, FetchURL, and narrow read-only Bash inspection).
 Write, Edit, and general Bash execution are BLOCKED.
 
 Goal: Re-read key files to verify your understanding before writing the plan.
 - Verify your design assumptions against actual code
+- Search and fetch current sources again when an external API, library, paper, security issue, or best-practice claim remains uncertain
 - Check edge cases and failure modes
 - Confirm file paths and dependencies
 - You may use Bash only for simple read-only workspace inspection: pwd, ls, git status, git diff --stat/name-only/check
@@ -285,14 +301,14 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
 
   const interviewState = agent?.planMode.ultraEngine.interviewState;
   const score = interviewState?.ambiguityScore;
-  body = body.replaceAll(/{{round}}/g, String(interviewState?.rounds.length ?? 0));
+  body = body.replaceAll('{{round}}', String(interviewState?.rounds.length ?? 0));
   body = body.replaceAll(
-    /{{ambiguityScore}}/g,
+    '{{ambiguityScore}}',
     score === undefined || score === null ? 'scoring pending' : score.overallScore.toFixed(2),
   );
-  body = body.replaceAll(/{{milestone}}/g, score?.milestone ?? 'initial');
-  body = body.replaceAll(/{{streak}}/g, String(interviewState?.completionCandidateStreak ?? 0));
-  body = body.replaceAll(/{{nextMilestone}}/g, nextMilestone(score?.milestone));
+  body = body.replaceAll('{{milestone}}', score?.milestone ?? 'initial');
+  body = body.replaceAll('{{streak}}', String(interviewState?.completionCandidateStreak ?? 0));
+  body = body.replaceAll('{{nextMilestone}}', nextMilestone(score?.milestone));
 
   return withPlanFileFooter(body, planFilePath);
 }

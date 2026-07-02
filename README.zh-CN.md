@@ -17,9 +17,9 @@ Super Kimi Code 是面向长周期软件任务的独立 AI 编码 Agent。它将
 | --- | --- |
 | UltraPlan | 通过访谈澄清需求、约束、风险和缺失事实，直到未来目标可以按 true/false 判断。 |
 | UltraResearch | 检查 API、论文、发布说明和安全议题，并保留证据。 |
-| UltraGoal | 在 UltraPlan 固定具体目标、完成标准和验证计划之后启动。 |
+| UltraGoal | 在有 research 支撑的 UltraPlan 固定具体目标、完成标准和验证计划之后启动。 |
 | UltraSwarm | 只有在可见的 ENGAGE/DEFER Swarm decision 之后才投入 specialist subagent。 |
-| UltraWork | 将目标型工作按 UltraPlan、UltraGoal、research、Swarm decision、integration、verification、learning 的顺序路由。 |
+| UltraWork | 将目标型工作按 research、UltraPlan、UltraGoal、Swarm decision、integration、verification、learning 的顺序路由。 |
 | Provider routing | 注册 API key 与 OAuth account，并按 quota、cooldown、latency 和 route health 选择 fallback 候选。 |
 | Kimi Recall | 保存项目事实、决策、流程、后续任务和 governance rule。 |
 | LLM Wiki | 将代码库知识、证据和验证结果整理成可复用的项目文档。 |

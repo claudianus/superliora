@@ -80,7 +80,7 @@ export class AuthFlowController {
         : host.options.startup.yolo
           ? 'yolo'
           : undefined,
-      planMode: host.state.appState.planMode ? true : undefined,
+      planMode: host.state.appState.planMode,
     };
     if (host.state.appState.additionalDirs.length > 0) {
       options.additionalDirs = [...host.state.appState.additionalDirs];

@@ -17,9 +17,9 @@ The product is built for project work where context quality, provider availabili
 | --- | --- |
 | UltraPlan | Interviews requirements, constraints, risks, and missing facts until the future goal is true/false verifiable. |
 | UltraResearch | Checks APIs, papers, release notes, and security issues, then keeps the evidence available. |
-| UltraGoal | Starts after UltraPlan pins a concrete objective, completion criterion, and verification plan. |
+| UltraGoal | Starts after research-backed UltraPlan pins a concrete objective, completion criterion, and verification plan. |
 | UltraSwarm | Engages specialist subagents only after a visible ENGAGE/DEFER Swarm decision. |
-| UltraWork | Routes goal-driven work through UltraPlan, UltraGoal, research, Swarm decision, integration, verification, and learning. |
+| UltraWork | Routes goal-driven work through research, UltraPlan, UltraGoal, Swarm decision, integration, verification, and learning. |
 | Provider routing | Registers API keys and OAuth accounts, then selects fallback candidates by quota, cooldown, latency, and route health. |
 | Kimi Recall | Preserves project facts, decisions, procedures, follow-up work, and governance rules. |
 | LLM Wiki | Turns codebase knowledge, evidence, and verification results into reusable project documentation. |

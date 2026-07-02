@@ -581,7 +581,7 @@ describe('KimiTUI startup', () => {
       workDir: '/tmp/proj-a',
       model: 'kimi-code/k2.5',
       permission: undefined,
-      planMode: undefined,
+      planMode: false,
     });
   });
 
@@ -1235,7 +1235,7 @@ describe('KimiTUI startup', () => {
       model: 'k2',
       thinking: 'off',
       permission: undefined,
-      planMode: undefined,
+      planMode: false,
     });
     expect(driver.state.appState).toMatchObject({
       permissionMode: 'auto',

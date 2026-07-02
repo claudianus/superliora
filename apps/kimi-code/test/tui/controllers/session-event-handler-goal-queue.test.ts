@@ -39,6 +39,8 @@ function fakeGoalSnapshot(objective: string, status: 'active' | 'blocked' | 'pau
 
 function makeHost(options: { createGoalRejects?: boolean } = {}) {
   const session = {
+    setSwarmMode: vi.fn(async () => undefined),
+    setPlanMode: vi.fn(async () => undefined),
     createGoal: vi.fn(async () => {
       if (options.createGoalRejects === true) throw new Error('create failed');
       return fakeGoalSnapshot('Ship queued goal', 'active');

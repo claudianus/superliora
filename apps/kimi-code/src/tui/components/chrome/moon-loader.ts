@@ -9,6 +9,7 @@ import {
 } from '#/tui/constant/rendering';
 import { currentTheme } from '#/tui/theme';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
+import { renderPulseText } from '#/tui/utils/appearance-effects';
 
 export type SpinnerStyle = 'moon' | 'braille';
 
@@ -87,7 +88,11 @@ export class MoonLoader extends Text {
     const frame = this.frames[this.currentFrame]!;
     const coloredFrame = this.colorFn ? this.colorFn(frame) : frame;
     const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt)}`);
-    const baseText = this.label ? `${coloredFrame} ${this.label}${elapsed}` : `${coloredFrame}${elapsed}`;
+    const label = this.label.length > 0
+      ? renderPulseText(this.label, `loader:${this.label}`, 'text')
+      : '';
+    const baseText =
+      label.length > 0 ? `${coloredFrame} ${label}${elapsed}` : `${coloredFrame}${elapsed}`;
     this.inlineText = baseText;
     let text = baseText;
     if (this.tip) {

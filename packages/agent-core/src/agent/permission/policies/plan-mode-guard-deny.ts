@@ -63,6 +63,46 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
   ): PermissionPolicyResult | undefined {
     const toolName = context.toolCall.name;
     switch (phase) {
+      case 'research': {
+        const researchAllowed = [
+          'Read',
+          'ReadMediaFile',
+          'Grep',
+          'Glob',
+          'KimiContext',
+          'WebSearch',
+          'FetchURL',
+          'SearchSkill',
+          'Skill',
+          'NextPhase',
+        ];
+        if (researchAllowed.includes(toolName)) return;
+        if (toolName === 'Bash') {
+          if (isReadOnlyReviewBash(context)) return;
+          return {
+            kind: 'deny',
+            message:
+              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use WebSearch, FetchURL, KimiContext, Read, Grep, Glob, or NextPhase.',
+          };
+        }
+        if (toolName === 'AskUserQuestion') {
+          return {
+            kind: 'deny',
+            message:
+              'AskUserQuestion is blocked in Research phase. Gather current evidence first, then call NextPhase({ phase: "interview" }) before asking the user.',
+          };
+        }
+        if (toolName === 'ExitPlanMode') {
+          return {
+            kind: 'deny',
+            message: 'ExitPlanMode is blocked in Research phase. Build a source-backed evidence pack, then use NextPhase to advance to Interview.',
+          };
+        }
+        return {
+          kind: 'deny',
+          message: `${toolName} is blocked in Research phase. Only read-only research tools and NextPhase are allowed before UltraPlan interview.`,
+        };
+      }
       case 'interview': {
         if (toolName === 'AskUserQuestion') {
           this.agent.planMode.incrementInterviewRound();
@@ -89,7 +129,17 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
       }
       case 'design': {
         // Read-only exploration
-        const designAllowed = ['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'Bash', 'NextPhase'];
+        const designAllowed = [
+          'Read',
+          'Grep',
+          'Glob',
+          'WebSearch',
+          'FetchURL',
+          'Bash',
+          'SearchSkill',
+          'Skill',
+          'NextPhase',
+        ];
         if (designAllowed.includes(toolName)) return;
         if (toolName === 'ExitPlanMode') {
           return {
@@ -99,18 +149,18 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Design phase. Only read-only tools are allowed (Read, Grep, Glob, WebSearch, FetchURL, Bash). Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Design phase. Only read-only tools are allowed (Read, Grep, Glob, WebSearch, FetchURL, Bash, SearchSkill, Skill). Use NextPhase to advance when ready.`,
         };
       }
       case 'review': {
-        const reviewAllowed = ['Read', 'Grep', 'Glob', 'NextPhase'];
+        const reviewAllowed = ['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'NextPhase'];
         if (reviewAllowed.includes(toolName)) return;
         if (toolName === 'Bash') {
           if (isReadOnlyReviewBash(context)) return;
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Review phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use Read, Grep, Glob, or NextPhase when ready.',
+              'Bash is blocked in Review phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use Read, Grep, Glob, WebSearch, FetchURL, or NextPhase when ready.',
           };
         }
         if (toolName === 'ExitPlanMode') {
@@ -121,7 +171,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Review phase. Only Read, Grep, Glob, read-only Bash workspace inspection, and NextPhase are allowed. Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Review phase. Only Read, Grep, Glob, WebSearch, FetchURL, read-only Bash workspace inspection, and NextPhase are allowed. Use NextPhase to advance when ready.`,
         };
       }
       case 'write': {

@@ -1,10 +1,20 @@
-import type { ProcessTerminal } from '@earendil-works/pi-tui';
+import { visibleWidth, type ProcessTerminal } from '@earendil-works/pi-tui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { AppearanceController, shouldAnimate, terminalMutationAllowed } from '#/tui/controllers/appearance';
 import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderParticleDivider,
+} from '#/tui/utils/appearance-effects';
+
+const ANSI_SGR = /\u001B\[[0-9;]*m/g;
+
+function strip(text: string): string {
+  return text.replaceAll(ANSI_SGR, '');
+}
 
 const ENV_KEYS = [
   'TERM',
@@ -137,6 +147,40 @@ describe('AppearanceController', () => {
 
     expect(writes.at(-1)).toContain('\u001B]111');
     expect(writes.at(-1)).toContain('\u001B]104');
+  });
+
+  it('publishes active appearance for shared chrome components', () => {
+    const terminal = { write: vi.fn() } as unknown as ProcessTerminal;
+    const controller = new AppearanceController({
+      terminal,
+      requestRender: vi.fn(),
+      getAppearance: () => ({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      }),
+    });
+
+    try {
+      expect(getActiveAppearancePreferences().profile).toBe('premium');
+      expect(getActiveAppearancePreferences().particles).toBe('premium');
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('renders premium particle dividers at a stable visible width', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+
+    const line = renderParticleDivider(40, 'test-divider', {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+
+    expect(visibleWidth(line)).toBe(40);
+    expect(strip(line)).toMatch(/[✦✧✺∙•]/);
   });
 });
 

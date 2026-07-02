@@ -2,7 +2,7 @@
  * NextPhaseTool — Ultra Plan Mode phase transition tool.
  *
  * The LLM calls this tool to advance to the next phase in the ultra plan
- * workflow: interview → design → review → write → exit.
+ * workflow: research → interview → design → review → write → exit.
  */
 
 import type { Agent } from '#/agent';
@@ -13,7 +13,7 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 
 export const NextPhaseInputSchema = z.object({
-  phase: z.enum(['design', 'review', 'write', 'exit']).describe(
+  phase: z.enum(['interview', 'design', 'review', 'write', 'exit']).describe(
     'The target phase to advance to. Must be the next logical phase in the workflow.',
   ),
 }).strict();
@@ -25,7 +25,8 @@ export class NextPhaseTool implements BuiltinTool<NextPhaseInput> {
   readonly description = `Advance to the next phase in Ultra Plan Mode workflow.
 
 Usage: call this tool when you have completed the current phase.
-- From interview: call NextPhase({ phase: 'design' }) only after UltraPlan says the future UltraGoal is true/false verifiable and all required Seed gaps are closed
+- From research: call NextPhase({ phase: 'interview' }) after you have a compact evidence pack for the questions you may ask
+- From interview: call NextPhase({ phase: 'design' }) only after UltraPlan reports ambiguity <= 0.2, all clarity floors pass, the future UltraGoal is true/false verifiable, all required Seed gaps are closed, and two distinct seed-ready evidence snapshots have been observed
 - From design: call NextPhase({ phase: 'review' })
 - From review: call NextPhase({ phase: 'write' })
 - From write: call NextPhase({ phase: 'exit' })
@@ -64,6 +65,7 @@ You can only advance forward, never backward.`;
 
     // Validate phase transition
     const validTransitions: Record<string, string[]> = {
+      research: ['interview'],
       interview: ['design'],
       design: ['review'],
       review: ['write'],
@@ -80,7 +82,7 @@ You can only advance forward, never backward.`;
 
     if (currentPhase === 'interview' && targetPhase === 'design') {
       const readiness = this.agent.planMode.ultraEngine.interviewReadiness();
-      if (!readiness.ready) {
+      if (!readiness.ready || !readiness.stableReady) {
         return {
           isError: true,
           output: this.agent.planMode.ultraEngine.readinessBlockerMessage(),
@@ -102,8 +104,9 @@ You can only advance forward, never backward.`;
 
   private phaseInstructions(phase: string): string {
     const instructions: Record<string, string> = {
-      design: "Design Phase: Use read-only tools (Read, Grep, Glob, WebSearch, FetchURL, Bash) to explore the codebase and converge on the best approach. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip directly to write.",
-      review: "Review Phase: Use Read, Grep, Glob to re-read key files and verify your understanding before writing the plan. When verification is complete, call NextPhase({ phase: 'write' }).",
+      interview: "Interview Phase: Use AskUserQuestion to clarify only the blocking choices that remain after the research prelude. When ambiguity <= 0.2, clarity floors pass, the UltraGoal is true/false verifiable, required Seed gaps are closed, and the seed-ready streak reaches 2, call NextPhase({ phase: 'design' }).",
+      design: "Design Phase: Use read-only tools (Read, Grep, Glob, WebSearch, FetchURL, Bash, SearchSkill, Skill) to explore the codebase and converge on the best approach. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip directly to write.",
+      review: "Review Phase: Use Read, Grep, Glob, WebSearch, and FetchURL to re-read key files and re-check any current external claims before writing the plan. When verification is complete, call NextPhase({ phase: 'write' }).",
       write: 'Write Phase: Write the complete plan to the plan file. Only the plan file can be edited. Include Seed Spec, AC Tree, Evaluation Plan, and Execution Plan.',
       exit: 'Exit Phase: The plan is complete. Call ExitPlanMode to request user approval.',
     };

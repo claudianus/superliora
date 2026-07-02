@@ -220,7 +220,7 @@ export class Session {
     await this.rpc.setPermission({ sessionId: this.id, mode });
   }
 
-  async setPlanMode(enabled: boolean, ultra = false): Promise<void> {
+  async setPlanMode(enabled: boolean, ultra = false, initialContext?: string): Promise<void> {
     this.ensureOpen();
     if (typeof enabled !== 'boolean') {
       throw new KimiError(
@@ -228,7 +228,12 @@ export class Session {
         'Session plan mode must be a boolean',
       );
     }
-    await this.rpc.setPlanMode({ sessionId: this.id, enabled, ultra: ultra ? true : undefined });
+    await this.rpc.setPlanMode({
+      sessionId: this.id,
+      enabled,
+      ultra: ultra ? true : undefined,
+      initialContext,
+    });
   }
 
   async setSwarmMode(enabled: boolean, trigger: SwarmModeTrigger): Promise<void> {

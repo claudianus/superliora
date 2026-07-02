@@ -27,7 +27,7 @@ Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirm
 | `Shift-Tab` | Toggle Ultrawork mode |
 | `!` | Enter shell mode (in an empty input box) |
 
-Press `Shift-Tab` to enable or disable Ultrawork mode. When enabled, the next normal prompt is routed through UltraPlan interview first, then a verifiable UltraGoal, research, Swarm decision, integration, verification, and learning. Plain prompts do not enter this workflow unless Ultrawork mode is on or the prompt explicitly asks for UltraWork.
+Press `Shift-Tab` to enable or disable Ultrawork mode. When enabled, the next normal prompt is routed through a read-only research prelude first, then UltraPlan interview, a verifiable UltraGoal, Swarm decision, integration, verification, and learning. Plain prompts do not enter this workflow unless Ultrawork mode is on or the prompt explicitly asks for UltraWork.
 
 Type `!` in an empty input box to enter shell mode and run terminal commands directly; while a command is running, press `Ctrl+B` to move it to a background task. See [Interaction and input](../guides/interaction.md#shell-mode).
 

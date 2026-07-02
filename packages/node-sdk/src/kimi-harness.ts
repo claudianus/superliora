@@ -117,10 +117,10 @@ export class KimiHarness {
       },
     });
     this.activeSessions.set(session.id, session);
-    if (planMode === true) {
+    if (planMode !== undefined) {
       const status = await session.getStatus();
-      if (!status.planMode) {
-        await session.setPlanMode(true);
+      if (status.planMode !== planMode) {
+        await session.setPlanMode(planMode);
       }
     }
     this.trackSessionStarted(summary.id, false, sessionStartedProperties);

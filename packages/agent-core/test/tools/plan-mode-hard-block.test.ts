@@ -221,8 +221,40 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'Grep', { pattern: 'TODO', path: '/workspace' })).toBeUndefined();
   });
 
+  it('starts Ultra Plan in research phase before user questions are allowed', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+
+    expect(planMode.phase).toBe('research');
+    expect(evaluatePlanPolicy(agent, 'WebSearch', { query: 'current API release notes' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'KimiContext', { query: 'ultrawork' })).toBeUndefined();
+
+    const questionDeny = expectDeny(
+      evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'Which option?' }),
+    );
+    expect(questionDeny.message ?? '').toContain('blocked in Research phase');
+    expect(questionDeny.message ?? '').toContain('NextPhase({ phase: "interview" })');
+  });
+
+  it('advances Ultra Plan from research to interview after evidence collection', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+
+    const result = await executeTool(new NextPhaseTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_next_phase_interview',
+      args: { phase: 'interview' },
+      signal,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('Advanced from research phase to interview phase');
+    expect(result.output).toContain('Use AskUserQuestion');
+    expect(planMode.phase).toBe('interview');
+  });
+
   it('keeps ultra interview in interview after repeated question rounds when seed gaps remain', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
 
     expect(
       evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'What matters most?' }),
@@ -245,6 +277,7 @@ describe('Plan mode permission policy', () => {
 
   it('blocks actionable ultra plans from advancing until the seed ledger is ready', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
 
     const result = await executeTool(new NextPhaseTool(agent), {
       turnId: '0',
@@ -262,6 +295,7 @@ describe('Plan mode permission policy', () => {
 
   it('lets ultra interview advance once the seed ledger and verifiable goal are closed', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
     planMode.ultraEngine.addInterviewRound(
       'Close the UltraPlan seed ledger.',
       [
@@ -277,6 +311,11 @@ describe('Plan mode permission policy', () => {
         'Runtime Context: local TypeScript monorepo CLI workspace.',
         'Completion Criterion: true when the checks pass and the mode follows the gated order, false otherwise.',
       ].join('\n'),
+    );
+    planMode.ultraEngine.calculateAmbiguityScore();
+    planMode.ultraEngine.addInterviewRound(
+      'Confirm the seed-ready contract.',
+      'Confirmed: the required Seed sections, verification plan, failure modes, runtime context, and true/false completion criterion are complete without adding scope.',
     );
 
     const result = await executeTool(new NextPhaseTool(agent), {
@@ -310,8 +349,35 @@ describe('Plan mode permission policy', () => {
     expect(planMode.phase).toBe('write');
   });
 
+  it('mentions web verification when entering Ultra Plan review', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('design');
+
+    const result = await executeTool(new NextPhaseTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_next_phase_review',
+      args: { phase: 'review' },
+      signal,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('Advanced from design phase to review phase');
+    expect(result.output).toContain('WebSearch');
+    expect(result.output).toContain('FetchURL');
+    expect(planMode.phase).toBe('review');
+  });
+
+  it('allows current web verification during Ultra Plan review', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('review');
+
+    expect(evaluatePlanPolicy(agent, 'WebSearch', { query: 'current library best practices' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com/docs' })).toBeUndefined();
+  });
+
   it('points blocked interview tools toward NextPhase when no question is needed', async () => {
-    const { agent } = await activePlanAgent({ ultra: true });
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
 
     const deny = expectDeny(evaluatePlanPolicy(agent, 'ExitPlanMode', {}));
 
@@ -320,7 +386,8 @@ describe('Plan mode permission policy', () => {
   });
 
   it('explains that EnterPlanMode is not a phase transition tool in ultra interview', async () => {
-    const { agent } = await activePlanAgent({ ultra: true });
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
 
     const deny = expectDeny(evaluatePlanPolicy(agent, 'EnterPlanMode', {}));
 
@@ -337,6 +404,16 @@ describe('Plan mode permission policy', () => {
     planMode.setPhase(phase);
 
     expect(evaluatePlanPolicy(agent, 'NextPhase', { phase: nextPhase })).toBeUndefined();
+  });
+
+  it.each([
+    ['SearchSkill', { query: 'tui design best practices' }],
+    ['Skill', { skill: 'write-tui' }],
+  ] as const)('allows %s in Ultra Plan design as read-only skill discovery', async (toolName, args) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('design');
+
+    expect(evaluatePlanPolicy(agent, toolName, args)).toBeUndefined();
   });
 
   it.each([

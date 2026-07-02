@@ -209,7 +209,7 @@ describe('runPrompt headless goal mode', () => {
     expect(mocks.session.createGoal).toHaveBeenCalledWith(
       expect.objectContaining({ objective: 'Ship feature X' }),
     );
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
     expect(mocks.session.prompt).toHaveBeenCalledWith(
@@ -236,7 +236,7 @@ describe('runPrompt headless goal mode', () => {
       objective: 'Ship feature X',
       replace: true,
     });
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
     expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('Ship feature X'));
@@ -294,7 +294,7 @@ describe('runPrompt headless goal mode', () => {
     );
 
     expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(mocks.session.createGoal).toHaveBeenCalledWith({
       objective: 'Ship feature X',
       replace: false,

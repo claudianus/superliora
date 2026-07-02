@@ -6261,10 +6261,14 @@ function inspectUltraworkWorkflowSignals(output) {
     /Invalid phase transition:\s*cannot go from/i,
   ]);
   const linkedStagesVisible = matchesAny(output, [
+    /Research\s*->\s*UltraPlan\s*->\s*UltraGoal\s*->\s*Swarm decision\s*->\s*Integrate\s*->\s*Verify\s*->\s*Learn/i,
     /UltraPlan\s*->\s*UltraGoal\s*->\s*Research\s*->\s*Swarm decision\s*->\s*Integrate\s*->\s*Verify\s*->\s*Learn/i,
+    /One Ultrawork:\s*source-backed questions,\s*verifiable goal,\s*decide team,\s*verify/i,
     /One Ultrawork:\s*interview,\s*set verifiable goal,\s*decide team,\s*verify/i,
+    /Workflow\s+research\s*->\s*interview\s*->\s*goal\s*->\s*swarm decision\s*->\s*integrate\s*->\s*verify\s*->\s*learn/i,
     /Workflow\s+interview\s*->\s*goal\s*->\s*research\s*->\s*swarm decision\s*->\s*integrate\s*->\s*verify\s*->\s*learn/i,
     /Engine\s+UltraPlan\s*\|\s*UltraGoal\s*\|\s*Research\s*\|\s*Swarm decision\s*\|\s*Integrate\s*\|\s*Verify\s*\|\s*Learn/i,
+    /Next:\s*research evidence pack before UltraPlan questions/i,
     /Next:\s*UltraPlan interview must close before UltraGoal or Swarm/i,
   ]);
   const swarmDecisionVisible = matchesAny(output, [

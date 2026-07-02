@@ -6,7 +6,13 @@ interface RgbColor {
   readonly blue: number;
 }
 
-export function gradientText(text: string, fromHex: string, toHex: string, accentBias = 1): string {
+export function gradientText(
+  text: string,
+  fromHex: string,
+  toHex: string,
+  accentBias = 1,
+  offset = 0,
+): string {
   const chars = Array.from(text);
   const from = parseHexColor(fromHex);
   const to = parseHexColor(toHex);
@@ -14,8 +20,10 @@ export function gradientText(text: string, fromHex: string, toHex: string, accen
     return chalk.hex(fromHex).bold(text);
   }
   const safeAccentBias = Number.isFinite(accentBias) ? Math.max(0, accentBias) : 1;
+  const safeOffset = Number.isFinite(offset) ? Math.trunc(offset) : 0;
   return chars.map((char, index) => {
-    const ratio = Math.min(1, (index / (chars.length - 1)) * safeAccentBias);
+    const shiftedIndex = positiveModulo(index + safeOffset, chars.length);
+    const ratio = Math.min(1, (shiftedIndex / (chars.length - 1)) * safeAccentBias);
     return chalk.hex(interpolateHexColor(from, to, ratio)).bold(char);
   }).join('');
 }
@@ -36,4 +44,8 @@ function interpolateHexColor(from: RgbColor, to: RgbColor, ratio: number): strin
       .toString(16)
       .padStart(2, '0');
   return `#${mix(from.red, to.red)}${mix(from.green, to.green)}${mix(from.blue, to.blue)}`;
+}
+
+function positiveModulo(value: number, modulo: number): number {
+  return ((value % modulo) + modulo) % modulo;
 }

@@ -8,4 +8,6 @@ Each of these is enforced — a violation is rejected before any subagent starts
 
 Use enough subagents to keep the work focused and parallel. AgentSwarm supports up to 128 subagents, and launches are queued automatically, so it is safe to split large tasks into many clear, independent items.
 
+Each swarm subagent may use WebSearch and FetchURL as much as needed unless the user forbids internet use. Prefer assigning explicit research lanes when useful: latest papers, framework best practices, verified libraries, security advisories, package health, and maintained open-source repository source examples. Ask subagents to return source URLs for findings that affect implementation or recommendations.
+
 If `AgentSwarm` is called, that call must be the only tool call in the response.

@@ -13,6 +13,7 @@ import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
 import type { ExpertAssignment, ExpertSwarmPlan } from '../../../expert-agents/types';
+import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 
 const MAX_ULTRA_SWARM_SUBAGENTS = 128;
 
@@ -266,7 +267,9 @@ ${taskDescription}
       focus === 'review' || focus === 'full'
         ? '\nReview gate: compare actual evidence against the assigned acceptance criteria. Return PASS only when evidence is sufficient; otherwise return concrete fixes and the evidence still missing.'
         : '';
-    return `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${reviewLine}\n\nApply your ${assignment.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills.`;
+    return appendSwarmResearchAutonomy(
+      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${reviewLine}\n\nApply your ${assignment.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills.`,
+    );
   }
 }
 

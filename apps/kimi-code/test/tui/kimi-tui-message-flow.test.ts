@@ -980,7 +980,7 @@ command = "vim"
     driver.state.editor.onShiftTab?.();
 
     await vi.waitFor(() => {
-      expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
+      expect(session.setPlanMode).toHaveBeenCalledWith(true, true, '');
       expect(driver.state.appState.ultraworkMode).toBe(true);
     });
     expect(harness.track).toHaveBeenCalledWith('shortcut_ultrawork_toggle', { enabled: true });
@@ -3467,6 +3467,84 @@ command = "vim"
     expect(totalStatusLine).not.toContain('Failed.');
     expect(transcript).toContain('✓ Imports are stable.');
     expect(transcript).toContain('✗ Agent timed out after 30s.');
+  });
+
+  it('renders UltraSwarm with the dedicated swarm progress panel', async () => {
+    const { driver } = await makeDriver();
+    const sendQueued = vi.fn();
+
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'tool.call.started',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        turnId: 1,
+        toolCallId: 'call_ultra_swarm',
+        name: 'UltraSwarm',
+        args: {
+          description: 'Review Galaga game quality',
+          experts: ['gameplay-engineer', 'visual-qa'],
+          auto_select: false,
+        },
+      } as Event,
+      sendQueued,
+    );
+
+    let transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('UltraSwarm');
+    expect(transcript).toContain('Review Galaga game quality');
+    expect(transcript).toContain('001 Queued');
+    expect(transcript).not.toContain('UltraSwarm: Review Galaga game quality');
+
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'subagent.spawned',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        parentToolCallId: 'call_ultra_swarm',
+        subagentId: 'agent-gameplay',
+        subagentName: 'gameplay-engineer',
+        description: 'Review Galaga game quality #1',
+        swarmIndex: 1,
+        runInBackground: false,
+      } as Event,
+      sendQueued,
+    );
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'subagent.started',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        subagentId: 'agent-gameplay',
+      } as Event,
+      sendQueued,
+    );
+
+    transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Working...');
+    expect(transcript).toContain('gameplay-engineer');
+
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'tool.result',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        turnId: 1,
+        toolCallId: 'call_ultra_swarm',
+        output: [
+          '<ultra_swarm_result>',
+          '<summary>completed: 1, failed: 0, aborted: 0</summary>',
+          '<expert name="Gameplay Engineer" outcome="completed">play loop passes</expert>',
+          '</ultra_swarm_result>',
+        ].join('\n'),
+        isError: false,
+      } as Event,
+      sendQueued,
+    );
+
+    transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('✓ play loop passes');
+    expect(transcript).not.toContain('<ultra_swarm_result>');
   });
 
   it('renders AgentSwarm progress while tool args are still streaming', async () => {

@@ -170,6 +170,7 @@ export interface AgentSwarmGridLayout {
 
 export interface AgentSwarmProgressOptions {
   readonly description: string;
+  readonly title?: string | undefined;
   readonly requestRender?: () => void;
   readonly availableGridHeight?: () => number | undefined;
 }
@@ -188,6 +189,7 @@ export class AgentSwarmProgressComponent implements Component {
   private members: AgentSwarmMember[];
   private readonly progressEstimator = new AgentSwarmProgressEstimator();
   private description: string;
+  private readonly title: string;
   private readonly requestRender: (() => void) | undefined;
   private readonly availableGridHeight: (() => number | undefined) | undefined;
   private inputComplete = false;
@@ -201,6 +203,7 @@ export class AgentSwarmProgressComponent implements Component {
 
   constructor(options: AgentSwarmProgressOptions) {
     this.description = options.description;
+    this.title = options.title ?? 'Agent Swarm';
     this.requestRender = options.requestRender;
     this.availableGridHeight = options.availableGridHeight;
     this.members = [];
@@ -246,17 +249,22 @@ export class AgentSwarmProgressComponent implements Component {
     if (description.length > 0 || this.description.length === 0) {
       this.description = description;
     }
-    const fullRows = [...agentSwarmResumeItemsFromArgs(args), ...agentSwarmItemsFromArgs(args)];
+    const fullRows = [
+      ...agentSwarmResumeItemsFromArgs(args),
+      ...agentSwarmItemsFromArgs(args),
+      ...ultraSwarmExpertItemsFromArgs(args),
+    ];
     const partialRows = streamingArguments === undefined
       ? []
       : [
           ...agentSwarmPartialResumeItemsFromArguments(streamingArguments),
           ...agentSwarmPartialItemsFromArguments(streamingArguments),
+          ...ultraSwarmPartialExpertItemsFromArguments(streamingArguments),
         ];
     if (
       fullRows.length > 0 ||
       partialRows.length > 0 ||
-      (streamingArguments !== undefined && agentSwarmWorkItemsStartedFromArguments(streamingArguments))
+      (streamingArguments !== undefined && swarmWorkItemsStartedFromArguments(streamingArguments))
     ) {
       this.itemsStarted = true;
     }
@@ -476,7 +484,7 @@ export class AgentSwarmProgressComponent implements Component {
   private renderHeader(width: number, _summary: AgentSwarmSummary | undefined): string {
     if (width <= 3) return chalk.hex(this.colors.primary)('─'.repeat(width));
 
-    const title = gradientText('Agent Swarm', this.colors.primary, this.colors.accent, AGENT_SWARM_TITLE_ACCENT_BIAS);
+    const title = gradientText(this.title, this.colors.primary, this.colors.accent, AGENT_SWARM_TITLE_ACCENT_BIAS);
     const description =
       this.description.length > 0
         ? chalk.hex(this.colors.primary)(' ─ ') + chalk.hex(this.colors.text)(this.description)
@@ -835,12 +843,26 @@ function agentSwarmResumeItemsFromArgs(args: Record<string, unknown>): string[] 
   return Object.keys(resumeAgentIds).map(() => RESUMED_ITEM_LABEL);
 }
 
+function ultraSwarmExpertItemsFromArgs(args: Record<string, unknown>): string[] {
+  const experts = args['experts'];
+  const requiredExperts = args['required_experts'];
+  return [
+    ...(Array.isArray(experts) ? experts.map(String) : []),
+    ...(Array.isArray(requiredExperts) ? requiredExperts.map(String) : []),
+  ];
+}
+
 export function agentSwarmPartialItemsCountFromArguments(argumentsText: string): number {
   return agentSwarmPartialItemsFromArguments(argumentsText).length;
 }
 
-function agentSwarmWorkItemsStartedFromArguments(argumentsText: string): boolean {
-  return /"items"\s*:/.test(argumentsText) || /"resume_agent_ids"\s*:/.test(argumentsText);
+function swarmWorkItemsStartedFromArguments(argumentsText: string): boolean {
+  return (
+    /"items"\s*:/.test(argumentsText) ||
+    /"resume_agent_ids"\s*:/.test(argumentsText) ||
+    /"experts"\s*:/.test(argumentsText) ||
+    /"required_experts"\s*:/.test(argumentsText)
+  );
 }
 
 export function agentSwarmPartialItemsFromArguments(argumentsText: string): string[] {
@@ -870,6 +892,33 @@ function agentSwarmPartialResumeItemsFromArguments(argumentsText: string): strin
     { length: countPartialJsonObjectEntries(argumentsText, match.index + match[0].length) },
     () => RESUMED_ITEM_LABEL,
   );
+}
+
+function ultraSwarmPartialExpertItemsFromArguments(argumentsText: string): string[] {
+  return [
+    ...partialStringArrayFromArguments(argumentsText, 'experts'),
+    ...partialStringArrayFromArguments(argumentsText, 'required_experts'),
+  ];
+}
+
+function partialStringArrayFromArguments(argumentsText: string, field: string): string[] {
+  const match = new RegExp(`"${field}"\\s*:\\s*\\[`).exec(argumentsText);
+  if (match === null) return [];
+  const items: string[] = [];
+  for (let i = match.index + match[0].length; i < argumentsText.length; i += 1) {
+    const ch = argumentsText[i];
+    if (ch === ']') return items;
+    if (ch !== '"') continue;
+
+    const parsed = parsePartialJsonString(argumentsText, i + 1);
+    items.push(parsed.value);
+    if (parsed.closed) {
+      i = parsed.nextIndex;
+      continue;
+    }
+    return items;
+  }
+  return items;
 }
 
 export function agentSwarmDescriptionFromArgs(args: Record<string, unknown>): string {
@@ -909,6 +958,8 @@ export function agentSwarmResultSummaryFromOutput(output: string): AgentSwarmRes
 function parseAgentSwarmResultStatuses(output: string): AgentSwarmResultStatus[] {
   const xmlStatuses = parseAgentSwarmXmlResultStatuses(output);
   if (xmlStatuses.length > 0) return xmlStatuses;
+  const ultraXmlStatuses = parseUltraSwarmXmlResultStatuses(output);
+  if (ultraXmlStatuses.length > 0) return ultraXmlStatuses;
   return parseAgentSwarmLegacyResultStatuses(output);
 }
 
@@ -954,6 +1005,48 @@ function parseAgentSwarmXmlResultStatuses(output: string): AgentSwarmResultStatu
       failureText: outcome === 'failed' ? body : undefined,
     };
   });
+}
+
+function parseUltraSwarmXmlResultStatuses(output: string): AgentSwarmResultStatus[] {
+  const result: AgentSwarmResultStatus[] = [];
+  const tagPattern = /<expert\b([^>]*)>/g;
+  let match: RegExpExecArray | null;
+  let index = 0;
+  while ((match = tagPattern.exec(output)) !== null) {
+    const attrs = match[1] ?? '';
+    const closeIndex = output.indexOf('</expert>', tagPattern.lastIndex);
+    if (closeIndex < 0) break;
+    const body = output.slice(tagPattern.lastIndex, closeIndex);
+    index += 1;
+    const outcome = xmlAttribute(attrs, 'outcome');
+    if (
+      outcome === 'completed' ||
+      outcome === 'failed' ||
+      outcome === 'aborted' ||
+      outcome === 'cancelled'
+    ) {
+      result.push({
+        index,
+        status: outcome === 'aborted' || outcome === 'cancelled' ? 'cancelled' : outcome,
+        completedText: outcome === 'completed' ? stripUltraSwarmMetadata(body) : undefined,
+        failureText: outcome === 'failed' ? stripUltraSwarmMetadata(body) : undefined,
+      });
+    }
+    tagPattern.lastIndex = closeIndex + '</expert>'.length;
+  }
+  return result;
+}
+
+function stripUltraSwarmMetadata(body: string): string {
+  return body.replaceAll(/<selection_reason>[\s\S]*?<\/selection_reason>\n?/g, '').trim();
+}
+
+export function isSwarmProgressToolName(toolName: string): boolean {
+  return toolName === 'AgentSwarm' || toolName === 'UltraSwarm';
+}
+
+export function swarmProgressTitleForToolName(toolName: string): string {
+  return toolName === 'UltraSwarm' ? 'UltraSwarm' : 'Agent Swarm';
 }
 
 function xmlAttribute(attrs: string, name: string): string | undefined {

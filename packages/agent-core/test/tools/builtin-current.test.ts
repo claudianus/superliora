@@ -51,6 +51,7 @@ import {
   UltraSwarmTool,
   UltraSwarmToolInputSchema,
 } from '../../src/tools/builtin/collaboration/ultra-swarm';
+import { appendSwarmResearchAutonomy } from '../../src/tools/builtin/collaboration/swarm-research-autonomy';
 
 vi.mock('../../src/tools/support/rg-locator', () => ({
   ensureRgPath: vi.fn(async () => ({ path: '/mock/rg', source: 'system-path' })),
@@ -359,7 +360,7 @@ describe('current builtin collaboration tools', () => {
             data: { kind: 'spawn', index: 2, item: 'src/b.ts', prompt: 'Review src/b.ts' },
             profileName: 'explore',
             parentToolCallId: 'call_swarm',
-            prompt: 'Review src/b.ts',
+            prompt: appendSwarmResearchAutonomy('Review src/b.ts'),
             description: 'Review files #2 (explore)',
             runInBackground: false,
           },
@@ -409,10 +410,15 @@ describe('current builtin collaboration tools', () => {
       [
         {
           kind: 'spawn',
-          data: { kind: 'spawn', index: 1, item: 'src/a.ts', prompt: 'Review src/a.ts' },
+          data: {
+            kind: 'spawn',
+            index: 1,
+            item: 'src/a.ts',
+            prompt: appendSwarmResearchAutonomy('Review src/a.ts'),
+          },
           profileName: 'explore',
           parentToolCallId: 'call_swarm',
-          prompt: 'Review src/a.ts',
+          prompt: appendSwarmResearchAutonomy('Review src/a.ts'),
           description: 'Review files #1 (explore)',
           swarmIndex: 1,
           swarmItem: 'src/a.ts',
@@ -422,10 +428,15 @@ describe('current builtin collaboration tools', () => {
         },
         {
           kind: 'spawn',
-          data: { kind: 'spawn', index: 2, item: 'src/b.ts', prompt: 'Review src/b.ts' },
+          data: {
+            kind: 'spawn',
+            index: 2,
+            item: 'src/b.ts',
+            prompt: appendSwarmResearchAutonomy('Review src/b.ts'),
+          },
           profileName: 'explore',
           parentToolCallId: 'call_swarm',
-          prompt: 'Review src/b.ts',
+          prompt: appendSwarmResearchAutonomy('Review src/b.ts'),
           description: 'Review files #2 (explore)',
           swarmIndex: 2,
           swarmItem: 'src/b.ts',
@@ -465,6 +476,8 @@ describe('current builtin collaboration tools', () => {
     expect(description).toContain('at least 2');
     expect(description).toContain('{{item}}');
     expect(description.toLowerCase()).toContain('distinct');
+    expect(description).toContain('WebSearch and FetchURL as much as needed');
+    expect(description).toContain('source URLs');
   });
 
   it('AgentSwarm rejects more than 128 subagents at execution time', async () => {
@@ -590,11 +603,11 @@ describe('current builtin collaboration tools', () => {
             index: 1,
             agentId: 'agent-old-1',
             item: 'src/old-a.ts',
-            prompt: 'Continue previous review A',
+            prompt: appendSwarmResearchAutonomy('Continue previous review A'),
           },
           profileName: 'subagent',
           parentToolCallId: 'call_swarm',
-          prompt: 'Continue previous review A',
+          prompt: appendSwarmResearchAutonomy('Continue previous review A'),
           description: 'Finish review #1 (resume)',
           swarmIndex: 1,
           swarmItem: 'src/old-a.ts',
@@ -610,11 +623,11 @@ describe('current builtin collaboration tools', () => {
             index: 2,
             agentId: 'agent-old-2',
             item: 'src/old-b.ts',
-            prompt: 'Continue previous review B',
+            prompt: appendSwarmResearchAutonomy('Continue previous review B'),
           },
           profileName: 'subagent',
           parentToolCallId: 'call_swarm',
-          prompt: 'Continue previous review B',
+          prompt: appendSwarmResearchAutonomy('Continue previous review B'),
           description: 'Finish review #2 (resume)',
           swarmIndex: 2,
           swarmItem: 'src/old-b.ts',
@@ -629,11 +642,11 @@ describe('current builtin collaboration tools', () => {
             kind: 'spawn',
             index: 3,
             item: 'src/new.ts',
-            prompt: 'Review src/new.ts',
+            prompt: appendSwarmResearchAutonomy('Review src/new.ts'),
           },
           profileName: 'explore',
           parentToolCallId: 'call_swarm',
-          prompt: 'Review src/new.ts',
+          prompt: appendSwarmResearchAutonomy('Review src/new.ts'),
           description: 'Finish review #3 (explore)',
           swarmIndex: 3,
           swarmItem: 'src/new.ts',
@@ -695,11 +708,11 @@ describe('current builtin collaboration tools', () => {
           index: 1,
           agentId: 'agent-old-1',
           item: 'src/old-a.ts',
-          prompt: 'Continue previous review A',
+          prompt: appendSwarmResearchAutonomy('Continue previous review A'),
         },
         profileName: 'subagent',
         parentToolCallId: 'call_swarm',
-        prompt: 'Continue previous review A',
+        prompt: appendSwarmResearchAutonomy('Continue previous review A'),
         description: 'Resume review #1 (resume)',
         swarmIndex: 1,
         swarmItem: 'src/old-a.ts',
@@ -990,6 +1003,8 @@ describe('current builtin collaboration tools', () => {
     expect(queuedTasks[0]?.prompt).toContain('Selection reason:');
     expect(queuedTasks[0]?.prompt).toContain('Focus lane: review.');
     expect(queuedTasks[0]?.prompt).toContain('Review gate: compare actual evidence');
+    expect(queuedTasks[0]?.prompt).toContain('<swarm_research_autonomy>');
+    expect(queuedTasks[0]?.prompt).toContain('WebSearch and FetchURL as often as needed');
     expect(result.output).toContain('<ultra_swarm_result>');
     expect(result.output).toContain('<summary>completed: 2, failed: 0, aborted: 0</summary>');
     expect(result.output).toContain('<coverage>Each expert row includes the assigned coverage lane');

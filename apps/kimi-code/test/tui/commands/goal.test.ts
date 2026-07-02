@@ -269,7 +269,7 @@ describe('handleGoalCommand', () => {
     expect(session.createGoal).toHaveBeenCalledWith(
       expect.objectContaining({ objective: 'Ship feature X', replace: false }),
     );
-    expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
     expect(host.setAppState).toHaveBeenCalledWith(
@@ -319,7 +319,7 @@ describe('handleGoalCommand', () => {
     });
     expect(s.setPermission).toHaveBeenCalledWith('auto');
     expect(manualHost.setAppState).toHaveBeenCalledWith({ permissionMode: 'auto' });
-    expect(s.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(s.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(s.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expectGoalWorkflowPrompt(manualHost, 'Ship feature X');
   });
@@ -411,7 +411,7 @@ describe('handleGoalCommand', () => {
     });
     expect(s.setPermission).toHaveBeenCalledWith('auto');
     expect(yoloHost.setAppState).toHaveBeenCalledWith({ permissionMode: 'auto' });
-    expect(s.setPlanMode).toHaveBeenCalledWith(true, true);
+    expect(s.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(s.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expectGoalWorkflowPrompt(yoloHost, 'Ship feature X');
   });

@@ -4,7 +4,7 @@ import { DynamicInjector } from './injector';
 const AUTO_MODE_ENTER_REMINDER = [
   'Auto permission mode is active. Tool approvals will be handled automatically while this mode remains enabled.',
   '  - Continue normally without pausing for approval prompts.',
-  '  - Outside Ultra Plan interview, avoid AskUserQuestion unless a missing decision blocks correctness. Inside Ultra Plan interview, keep using AskUserQuestion until the verifiable UltraGoal and required Seed gaps are closed; NextPhase will enforce that gate.',
+  '  - Ultra Plan starts with a read-only Research phase; do not ask the user there. Outside Ultra Plan interview, avoid AskUserQuestion unless a missing decision blocks correctness. Inside Ultra Plan interview, ask only after research has narrowed the real blockers; NextPhase will enforce the gate.',
 ].join('\n');
 
 const AUTO_MODE_EXIT_REMINDER = [

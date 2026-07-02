@@ -18,6 +18,14 @@ import {
 } from '@earendil-works/pi-tui';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme, type ColorToken } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderAnimatedGradientText,
+  renderParticleDivider,
+  renderShimmerPrefix,
+  resolveAmbientEffectMode,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
@@ -139,6 +147,9 @@ export class ChoicePickerComponent extends Container implements Focusable {
     const searchable = this.opts.searchable === true;
     const view = this.list.view();
     const options = view.items;
+    const appearance = getActiveAppearancePreferences();
+    const premium =
+      shouldRenderAmbientEffects(appearance) && resolveAmbientEffectMode(appearance) === 'premium';
 
     // Header mirrors the model dialog (see model-selector.ts): border, title
     // with a "(type to search)" suffix until you type, the hint, a blank, then
@@ -149,11 +160,20 @@ export class ChoicePickerComponent extends Container implements Focusable {
     const hint = this.opts.hint ?? navParts.join(' · ');
 
     const titleSuffix =
-      searchable && view.query.length === 0 ? currentTheme.fg('textMuted', '  (type to search)') : '';
+      searchable && view.query.length === 0
+        ? currentTheme.fg('textMuted', '  (type to search)')
+        : '';
     const hintLines = hint.split(/\r?\n/);
+    const title = premium
+      ? renderAnimatedGradientText(
+          ` ${this.opts.title}`,
+          `choice:title:${this.opts.title}`,
+          appearance,
+        )
+      : currentTheme.boldFg('primary', ` ${this.opts.title}`);
     const lines: string[] = [
-      currentTheme.fg('primary', '─'.repeat(width)),
-      currentTheme.boldFg('primary', ` ${this.opts.title}`) + titleSuffix,
+      renderParticleDivider(width, `choice:top:${this.opts.title}`, appearance),
+      title + titleSuffix,
     ];
     for (const hintLine of hintLines) {
       lines.push(
@@ -185,8 +205,11 @@ export class ChoicePickerComponent extends Container implements Focusable {
       const isCurrent = opt.value === this.opts.currentValue;
       const pointer = isSelected ? SELECT_POINTER : ' ';
       const labelStyle = optionLabelStyle(opt, isSelected);
-      let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
-      line += labelStyle(opt.label);
+      const pulse = premium && isSelected ? renderShimmerPrefix(appearance) : '';
+      let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pulse}${pointer} `);
+      line += premium && isSelected && opt.tone !== 'danger'
+        ? renderAnimatedGradientText(opt.label, `choice:row:${opt.value}`, appearance)
+        : labelStyle(opt.label);
       if (isCurrent) {
         line += ' ' + currentTheme.fg('success', CURRENT_MARK);
       }
@@ -194,7 +217,11 @@ export class ChoicePickerComponent extends Container implements Focusable {
       if (opt.description !== undefined && opt.description.length > 0) {
         const descriptionWidth = Math.max(1, width - 4);
         const descriptionColor =
-          isSelected && opt.descriptionTone !== undefined ? opt.descriptionTone : 'textMuted';
+          isSelected && opt.descriptionTone !== undefined
+            ? opt.descriptionTone
+            : premium && isSelected
+              ? 'accent'
+              : 'textMuted';
         for (const descLine of wrapDescription(opt.description, descriptionWidth)) {
           lines.push(currentTheme.fg(descriptionColor, `    ${descLine}`));
         }
@@ -216,7 +243,7 @@ export class ChoicePickerComponent extends Container implements Focusable {
         lines.push(previewLine);
       }
     }
-    lines.push(currentTheme.fg('primary', '─'.repeat(width)));
+    lines.push(renderParticleDivider(width, `choice:bottom:${this.opts.title}`, appearance));
     return lines.map((line) => truncateToWidth(line, width));
   }
 
