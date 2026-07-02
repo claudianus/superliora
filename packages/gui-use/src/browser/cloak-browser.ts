@@ -130,10 +130,9 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
           };
         }
         try {
-          result = await state.page.evaluate((expression) => {
-            // eslint-disable-next-line no-new-func
-            return Function(`"use strict"; return (${expression});`)();
-          }, input.expression);
+          result = await state.page.evaluate(
+            `(() => { "use strict"; return (${input.expression}); })()`,
+          );
         } catch (error) {
           return {
             ok: false,

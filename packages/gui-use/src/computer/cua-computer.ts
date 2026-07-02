@@ -12,7 +12,6 @@ import type {
   ComputerAction,
   ComputerActionResult,
   ComputerCaptureInput,
-  ComputerCaptureMode,
   ComputerCaptureResult,
   ComputerElement,
   ComputerStatus,
