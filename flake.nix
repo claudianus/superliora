@@ -183,6 +183,10 @@
                     "await runVerifyStep({ requireGatekeeper: false });" \
                     "// runVerifyStep skipped in nix sandbox (sigtool lacks -dv)"
               ''}
+              substituteInPlace apps/kimi-code/scripts/build-vis-asset.mjs \
+                --replace-fail \
+                  "corepack pnpm --filter @moonshot-ai/vis-web exec vite build" \
+                  "pnpm --filter @moonshot-ai/vis-web exec vite build"
               pnpm --filter=@moonshot-ai/kimi-code run build:native:sea
               runHook postBuild
             '';
