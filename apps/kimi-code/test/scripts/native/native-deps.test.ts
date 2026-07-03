@@ -82,9 +82,9 @@ describe('nativeDeps registry shape', () => {
     expect(target?.parent).toBe('clipboard-host');
   });
 
-  it('has koffi (collect=js-and-native-file, parent=pi-tui)', () => {
+  it('has koffi (collect=js-and-native-file, parent=null)', () => {
     const koffi = nativeDeps.find((d) => d.id === 'koffi');
     expect(koffi?.collect).toBe('js-and-native-file');
-    expect(koffi?.parent).toBe('pi-tui');
+    expect(koffi?.parent).toBeNull();
   });
 });

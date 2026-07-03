@@ -58,7 +58,6 @@ export {
   handleRendererCommand,
   rendererArgumentCompletions,
   type RendererDiagnosticsOverlayCommand,
-  type RendererDiagnosticsRuntimeBackend,
   type RendererTraceCommand,
 } from './renderer';
 export { handleGoalCommand, parseGoalCommand } from './goal';

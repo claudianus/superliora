@@ -1,4 +1,4 @@
-import type { TUI } from '#/tui/renderer';
+import type { RendererRootUI } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
@@ -13,11 +13,11 @@ function strip(text: string): string {
     .replaceAll(new RegExp(`${ESC}\\]8;;[^${BEL}]*${BEL}`, 'g'), '');
 }
 
-function stubTui(): TUI {
+function stubTui(): RendererRootUI {
   return {
     terminal: { rows: 40 },
     requestRender: vi.fn(),
-  } as unknown as TUI;
+  } as unknown as RendererRootUI;
 }
 
 function renderText(component: AgentGroupComponent, width = 120): string {
@@ -28,7 +28,7 @@ function createAgent(
   id: string,
   description: string,
   agentName: string,
-  ui: TUI,
+  ui: RendererRootUI,
 ): ToolCallComponent {
   const component = new ToolCallComponent(
     {

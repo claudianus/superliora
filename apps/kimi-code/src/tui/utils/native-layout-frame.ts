@@ -19,6 +19,7 @@ import {
   type NativeTerminalInput,
   type NativeTerminalOutput,
   type NativeTerminalRendererOptions,
+  type NativeTerminalRendererRender,
   type RendererCell,
   type RendererCellStyle,
   type RendererCompositionCache,
@@ -99,10 +100,14 @@ export interface TUIStateNativeDiagnosticsOverlayOptions {
   readonly includeIssues?: boolean;
 }
 
-export interface TUIStateNativeRendererOptions
-  extends Omit<NativeTerminalRendererOptions, 'render'> {
+export interface TUIStateNativeRenderCallbackOptions {
   readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
+  readonly fill?: RendererCell;
 }
+
+export interface TUIStateNativeRendererOptions
+  extends Omit<NativeTerminalRendererOptions, 'render'>,
+    TUIStateNativeRenderCallbackOptions {}
 
 export type TUIStateVisibleNativeRendererOptions = Omit<
   TUIStateNativeRendererOptions,
@@ -150,34 +155,40 @@ export function renderTUIStateNativeFrame(
   return { ...result, renderer, width, height, cursor: frame.cursor };
 }
 
+export function createTUIStateNativeRenderCallback(
+  state: TUIState,
+  options: TUIStateNativeRenderCallbackOptions,
+): NativeTerminalRendererRender {
+  return ({ frame, runtime, size, quality }) => {
+    if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
+    advanceAppearanceAnimationClock(frame.timestamp);
+    setAppearanceRenderQuality(quality.level);
+    const nativeFrame = buildTUIStateNativeFrame(state, size.columns, size.rows, {
+      diagnosticsOverlay: options.diagnosticsOverlay,
+      diagnostics: runtime.diagnostics,
+    });
+    const result = runtime.renderLayoutFrame(nativeFrame.regions, {
+      fill: options.fill,
+      force: frame.causes.includes('start') || frame.causes.includes('resize'),
+      cursor: nativeFrame.cursor,
+    });
+    return result;
+  };
+}
+
 export function createTUIStateNativeRenderer(
   state: TUIState,
   options: TUIStateNativeRendererOptions,
 ): NativeTerminalRenderer {
-  let lastDiagnostics: RendererDiagnosticsSnapshot | undefined;
   let nativeRenderer: NativeTerminalRenderer;
   nativeRenderer = new NativeTerminalRenderer({
     ...options,
     autoBeginFrame: false,
     autoFrameHold: options.autoFrameHold ?? (() => !state.transcriptViewport.followOutput),
     outputPolicy: options.outputPolicy ?? 'balanced',
-    render: ({ frame, runtime, size, quality }) => {
-      if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
-      advanceAppearanceAnimationClock(frame.timestamp);
-      setAppearanceRenderQuality(quality.level);
-      const nativeFrame = buildTUIStateNativeFrame(state, size.columns, size.rows, {
-        diagnosticsOverlay: options.diagnosticsOverlay,
-        diagnostics: lastDiagnostics,
-      });
-      return runtime.renderLayoutFrame(nativeFrame.regions, {
-        fill: options.fill,
-        force: frame.causes.includes('start') || frame.causes.includes('resize'),
-        cursor: nativeFrame.cursor,
-      });
-    },
+    render: createTUIStateNativeRenderCallback(state, options),
     onFrame: (result, stats) => {
       setAppearanceRenderHealth(stats.health);
-      lastDiagnostics = nativeRenderer.diagnostics;
       options.onFrame?.(result, stats);
     },
   });

@@ -1,10 +1,7 @@
-import type {
-  ExperimentalFeatureState,
-  ExperimentalFlagMap,
-} from '@moonshot-ai/kimi-code-sdk';
+import type { ExperimentalFlagMap } from '@moonshot-ai/kimi-code-sdk';
 
 export function experimentalFeatureMap(
-  features: readonly Pick<ExperimentalFeatureState, 'id' | 'enabled'>[],
+  features: ReadonlyArray<{ id: string; enabled: boolean }>,
 ): ExperimentalFlagMap {
   return Object.fromEntries(features.map((feature) => [feature.id, feature.enabled]));
 }

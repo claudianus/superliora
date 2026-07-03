@@ -860,24 +860,33 @@ describe('Simple permission policy direct behavior', () => {
     ).toBeUndefined();
   });
 
-  it('denies non-UltraSwarm tools while an ENGAGE gate is active', () => {
+  it('allows CreateGoal and GetGoal through an active ENGAGE gate', () => {
     const agent = {
       ultraSwarmEngageGate: { isActive: true },
     } as unknown as Agent;
     const policy = new UltraSwarmEngageGateDenyPermissionPolicy(agent);
 
     expect(
-      policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' })),
-    ).toMatchObject({
-      kind: 'deny',
-      message: expect.stringContaining('UltraSwarm ENGAGE is binding'),
-    });
+      policy.evaluate(hookContext({ id: 'call_create_goal', toolName: 'CreateGoal' })),
+    ).toBeUndefined();
+    expect(
+      policy.evaluate(hookContext({ id: 'call_get_goal', toolName: 'GetGoal' })),
+    ).toBeUndefined();
     expect(
       policy.evaluate(hookContext({ id: 'call_ultra', toolName: 'UltraSwarm' })),
     ).toBeUndefined();
     expect(
       policy.evaluate(hookContext({ id: 'call_plan', toolName: 'EnterPlanMode' })),
     ).toBeUndefined();
+
+    const denied = policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' }));
+    expect(denied).toMatchObject({
+      kind: 'deny',
+      message: expect.stringContaining('UltraSwarm ENGAGE is binding'),
+    });
+    expect(denied).toMatchObject({
+      message: expect.stringContaining('CreateGoal'),
+    });
   });
 
   it('denies AgentSwarm mixed with other tool calls in the same response', () => {

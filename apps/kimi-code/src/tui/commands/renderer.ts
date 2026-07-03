@@ -13,12 +13,10 @@ export type RendererDiagnosticsOverlayCommand = 'on' | 'off' | 'toggle' | 'statu
 export type RendererTraceCommand =
   | { readonly action: 'status' | 'reset' }
   | { readonly action: 'export'; readonly path?: string };
-export type RendererDiagnosticsRuntimeBackend = 'native' | 'mirror' | 'pi-tui';
 
 export interface RendererDiagnosticsStatusInput {
   readonly hudEnabled: boolean;
   readonly nativeRendererEnabled: boolean;
-  readonly backend: RendererDiagnosticsRuntimeBackend;
   readonly diagnostics?: RendererDiagnosticsSnapshot;
 }
 
@@ -29,7 +27,6 @@ export interface RendererDiagnosticsStatusReport {
 
 export interface RendererTraceStatusInput {
   readonly nativeRendererEnabled: boolean;
-  readonly backend: RendererDiagnosticsRuntimeBackend;
   readonly trace?: RendererTraceSnapshot;
 }
 
@@ -91,12 +88,9 @@ export function handleRendererCommand(host: SlashCommandHost, args: string): voi
 export function formatRendererDiagnosticsStatusReport(
   input: RendererDiagnosticsStatusInput,
 ): RendererDiagnosticsStatusReport {
-  const lines = [
-    `Native renderer diagnostics HUD: ${input.hudEnabled ? 'ON' : 'OFF'}.`,
-    `Renderer backend: ${input.backend}.`,
-  ];
+  const lines = [`Native renderer diagnostics HUD: ${input.hudEnabled ? 'ON' : 'OFF'}.`];
   if (!input.nativeRendererEnabled) {
-    lines.push('Enable the native_renderer experiment to collect live renderer metrics.');
+    lines.push('Native renderer is not active.');
     return { message: lines.join('\n'), color: 'warning' };
   }
   if (input.diagnostics === undefined) {
@@ -114,12 +108,9 @@ export function formatRendererDiagnosticsStatusReport(
 export function formatRendererTraceStatusReport(
   input: RendererTraceStatusInput,
 ): RendererDiagnosticsStatusReport {
-  const lines = [
-    'Native renderer trace: ON.',
-    `Renderer backend: ${input.backend}.`,
-  ];
+  const lines = ['Native renderer trace: ON.'];
   if (!input.nativeRendererEnabled) {
-    lines.push('Enable the native_renderer experiment to collect live renderer trace events.');
+    lines.push('Native renderer is not active.');
     return { message: lines.join('\n'), color: 'warning' };
   }
   if (input.trace === undefined) {

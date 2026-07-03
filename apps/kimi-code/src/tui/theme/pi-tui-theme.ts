@@ -8,7 +8,7 @@
  * instances reads the *current* palette via the singleton.
  */
 
-import type { MarkdownTheme, EditorTheme } from '#/tui/renderer';
+import type { MarkdownTheme } from '#/tui/renderer';
 import chalk from 'chalk';
 import { highlight, supportsLanguage } from 'cli-highlight';
 
@@ -65,15 +65,3 @@ export function createMarkdownTheme(options?: { transient?: boolean }): Markdown
   };
 }
 
-export function createEditorTheme(): EditorTheme {
-  return {
-    borderColor: (s) => chalk.hex(currentTheme.color('border'))(s),
-    selectList: {
-      selectedPrefix: (s) => chalk.hex(currentTheme.color('primary'))(s),
-      selectedText: (s) => chalk.hex(currentTheme.color('primary'))(s),
-      description: (s) => chalk.hex(currentTheme.color('textMuted'))(s),
-      scrollInfo: (s) => chalk.hex(currentTheme.color('textMuted'))(s),
-      noMatch: (s) => chalk.hex(currentTheme.color('textMuted'))(s),
-    },
-  };
-}

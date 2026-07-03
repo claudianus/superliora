@@ -3,7 +3,10 @@ import {
   ANSI_SHOW_CURSOR,
   type RendererTerminalOutputOptions,
 } from './terminal-output';
-import type { RendererInlineImageProtocol } from './terminal-graphics';
+import {
+  encodeRendererClearInlineImages,
+  type RendererInlineImageProtocol,
+} from './terminal-graphics';
 import {
   mergeNativeTerminalFeatureOptions,
   type NativeTerminalFeatureOptions,
@@ -103,6 +106,8 @@ export class NativeTerminalSession {
       });
     }
     if (this.options.clearOnStart === true) output.write(ANSI_CLEAR_SCREEN);
+    const inlineImageClear = encodeRendererClearInlineImages(this.options.imageProtocol ?? 'none');
+    if (inlineImageClear.length > 0) output.write(inlineImageClear);
     if (this.options.hideCursor === true) {
       output.write(ANSI_HIDE_CURSOR);
       this.cleanup.push(() => {

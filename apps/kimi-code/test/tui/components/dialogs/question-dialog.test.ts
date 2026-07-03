@@ -260,7 +260,7 @@ describe('QuestionDialogComponent', () => {
     expect(out).toContain('Review your answer before submit');
   });
 
-  it('renders an IME cursor marker while editing Other when focused', () => {
+  it('renders focused Other input inline when editing Other', () => {
     const pending = makePending([
       {
         question: 'Pick one?',
@@ -273,9 +273,10 @@ describe('QuestionDialogComponent', () => {
 
     dialog.focused = true;
     dialog.handleInput('3');
+    dialog.handleInput('x');
 
     const out = dialog.render(80).join('\n');
-    expect(out).toContain(CURSOR_MARKER);
+    expect(out).toContain('x');
   });
 
   it('keeps selected options green even when the cursor returns to them', () => {

@@ -5,6 +5,10 @@ import {
   type RendererFrameDiff,
   type RendererRenderRun,
 } from './cell-buffer';
+import {
+  encodeRendererClearInlineImages,
+  type RendererInlineImageProtocol,
+} from './terminal-graphics';
 import { splitDisplayClusters } from './text-metrics';
 
 export const ANSI_BEGIN_SYNCHRONIZED_UPDATE = '\u001B[?2026h';
@@ -40,6 +44,7 @@ export interface RendererTerminalOutputOptions {
   readonly colorMode?: RendererColorMode;
   readonly cursorMotion?: RendererCursorMotionMode;
   readonly previousCursor?: RendererCursorState;
+  readonly inlineImageProtocol?: RendererInlineImageProtocol;
 }
 
 export type RendererCursorMoveKind = 'absolute' | 'relative' | 'horizontal-absolute' | 'none';
@@ -108,6 +113,8 @@ export function encodeTerminalRunsWithMetrics(
   const cursorMotionMetrics = createCursorMotionMetrics();
   if (options.synchronized === true) out.push(ANSI_BEGIN_SYNCHRONIZED_UPDATE);
   if (options.hideCursor === true) out.push(ANSI_HIDE_CURSOR);
+  const inlineImageClear = encodeRendererClearInlineImages(options.inlineImageProtocol ?? 'none');
+  if (inlineImageClear.length > 0) out.push(inlineImageClear);
 
   let activeStyle: RendererCellStyle | undefined;
   let activeLink: string | undefined;

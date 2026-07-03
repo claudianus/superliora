@@ -1,4 +1,4 @@
-import { visibleWidth, type TUI } from '#/tui/renderer';
+import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,11 +17,11 @@ function strip(text: string): string {
     .replaceAll(new RegExp(`${ESC}\\]8;;[^${BEL}]*${BEL}`, 'g'), '');
 }
 
-function stubTui(rows: number): TUI {
+function stubTui(rows: number): RendererRootUI {
   return {
     terminal: { rows },
     requestRender: () => {},
-  } as unknown as TUI;
+  } as unknown as RendererRootUI;
 }
 
 describe('ToolCallComponent', () => {

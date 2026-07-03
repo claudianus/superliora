@@ -1,9 +1,10 @@
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 import {
   detectNativeTerminalImageProtocol,
   encodeRendererClearInlineImages,
+  KimiNativeRootUI,
   type Component,
   type Focusable,
   Spacer,
@@ -46,7 +47,6 @@ import {
   thinkingArgumentCompletionsForModel,
   type KimiSlashCommand,
   type RendererDiagnosticsOverlayCommand,
-  type RendererDiagnosticsRuntimeBackend,
   type RendererTraceCommand,
   type SlashCommandHelpMode,
   type SkillListSession,
@@ -77,7 +77,7 @@ import {
   FileMentionProvider,
   type SlashAutocompleteCommand,
 } from './components/editor/file-mention-provider';
-import { createTUIEditor } from './components/editor/editor-factory';
+
 import { AssistantMessageComponent } from './components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from './components/messages/background-agent-status';
 import { CronMessageComponent } from './components/messages/cron-message';
@@ -130,11 +130,7 @@ import {
   createTUIStateNativeInputRouter,
   type TUIStateNativeInputRouter,
 } from './utils/native-input-router';
-import { createTUIStateVisibleNativeRenderer } from './utils/native-layout-frame';
-import {
-  createTUIStateNativeRenderMirror,
-  type TUIStateNativeRenderMirror,
-} from './utils/native-renderer-mirror';
+import { createTUIStateNativeRenderCallback } from './utils/native-layout-frame';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -316,7 +312,6 @@ export class KimiTUI {
   private nativeInputRouter: TUIStateNativeInputRouter | undefined;
   private nativeInputModalDispose: (() => void) | undefined;
   private nativeInputModalSequence = 0;
-  private nativeRendererMirror: TUIStateNativeRenderMirror | undefined;
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
@@ -621,7 +616,6 @@ export class KimiTUI {
   private async initMainTui(): Promise<boolean> {
     const shouldReplayHistory = await this.init();
 
-    this.activateNativeEditorBackendIfEnabled();
     // Mount only after init() succeeds; see mountFooter().
     this.mountFooter();
     this.renderWelcome();
@@ -631,73 +625,37 @@ export class KimiTUI {
     this.state.editorContainer.clear();
     this.state.editorContainer.addChild(this.state.editor);
     this.state.ui.setFocus(this.state.editor);
-    this.startNativeRendererIfEnabled();
+    this.ensureNativeInputRouter();
+    this.attachNativeRendererCallback();
     return shouldReplayHistory;
   }
 
-  private activateNativeEditorBackendIfEnabled(): void {
-    if (!isExperimentalFlagEnabled('native_renderer')) return;
-    if (this.options.editorBackend === 'native') return;
-
-    const previous = this.state.editor;
-    const next = createTUIEditor(this.state.ui, { backend: 'native' });
-    next.inputMode = previous.inputMode;
-    next.connectedAbove = previous.connectedAbove;
-    next.borderHighlighted = previous.borderHighlighted;
-    next.borderColor = previous.borderColor;
-    next.focused = previous.focused;
-    next.setText(previous.getText());
-    next.setCursorPosition(previous.getCursor());
-
-    const mountedIndex = this.state.editorContainer.children.indexOf(previous);
-    if (mountedIndex !== -1) {
-      this.state.editorContainer.children[mountedIndex] = next;
+  private attachNativeRendererCallback(): void {
+    if (!(this.state.ui instanceof KimiNativeRootUI)) return;
+    if (this.nativeInputRouter !== undefined) {
+      this.state.ui.setInputRouter(this.nativeInputRouter.router);
     }
-
-    this.state.editor = next;
-    this.options.editorBackend = 'native';
-    this.state.nativeEditorTextInput.reset();
-    this.editorKeyboard.install();
-    this.updateEditorBorderHighlight();
+    const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
+    this.state.ui.setRenderCallback(
+      createTUIStateNativeRenderCallback(this.state, { diagnosticsOverlay }),
+    );
   }
 
   private startEventLoop(): void {
     this.state.renderer.start();
     this.eventLoopStarted = true;
-    this.startNativeRendererIfEnabled();
+    this.ensureNativeInputRouter();
+    this.attachNativeRendererCallback();
     this.startClipboardImageHintController();
     this.terminalFocusTrackingDispose = installTerminalFocusTracking(this.state);
     this.refreshTerminalThemeTracking();
-  }
-
-  private startNativeRendererIfEnabled(): void {
-    if (!isExperimentalFlagEnabled('native_renderer')) return;
-    this.ensureNativeInputRouter();
-    const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
-    if (this.state.renderer.nativeRuntime === undefined) {
-      this.state.renderer.attachNativeRuntime(
-        createTUIStateVisibleNativeRenderer(this.state, {
-          inputRouter: this.nativeInputRouter?.router,
-          diagnosticsOverlay,
-        }),
-      );
-    }
-    if (this.state.renderer.backend === 'native') return;
-    if (!this.eventLoopStarted) return;
-    if (this.nativeRendererMirror !== undefined) return;
-    this.nativeRendererMirror = createTUIStateNativeRenderMirror(this.state, {
-      inputRouter: this.nativeInputRouter?.router,
-      diagnosticsOverlay,
-    });
-    this.nativeRendererMirror.start();
   }
 
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void {
     if (command === 'status') {
       const report = formatRendererDiagnosticsStatusReport({
         hudEnabled: this.nativeRendererDiagnosticsHudEnabled,
-        nativeRendererEnabled: isExperimentalFlagEnabled('native_renderer'),
-        backend: this.nativeRendererDiagnosticsBackend(),
+        nativeRendererEnabled: true,
         diagnostics: this.nativeRendererDiagnosticsSnapshot(),
       });
       this.showStatus(report.message, report.color);
@@ -705,13 +663,6 @@ export class KimiTUI {
     }
     if (command === 'reset') {
       this.track('native_renderer_diagnostics_reset');
-      if (!isExperimentalFlagEnabled('native_renderer')) {
-        this.showStatus(
-          'Native renderer diagnostics reset skipped. Enable the native_renderer experiment to collect live renderer metrics.',
-          'warning',
-        );
-        return;
-      }
       if (!this.resetNativeRendererDiagnostics()) {
         this.showStatus(
           'Native renderer diagnostics reset skipped: native renderer is not active.',
@@ -729,21 +680,16 @@ export class KimiTUI {
     this.nativeRendererDiagnosticsHudEnabled = enabled;
     this.track('native_renderer_diagnostics_hud', { enabled, command });
 
-    const message = `Native renderer diagnostics HUD: ${enabled ? 'ON' : 'OFF'}.`;
-    if (!isExperimentalFlagEnabled('native_renderer')) {
-      this.showStatus(`${message} Enable the native_renderer experiment to display it.`, 'warning');
-      return;
-    }
     this.state.renderer.requestRender(true);
-    this.showStatus(message);
+    this.showStatus(`Native renderer diagnostics HUD: ${enabled ? 'ON' : 'OFF'}.`);
   }
 
   private nativeRendererDiagnosticsSnapshot() {
-    return this.state.renderer.nativeRuntime?.diagnostics ?? this.nativeRendererMirror?.diagnostics;
+    return this.state.renderer.nativeRuntime?.diagnostics;
   }
 
   private resetNativeRendererDiagnostics(): boolean {
-    const renderer = this.state.renderer.nativeRuntime ?? this.nativeRendererMirror?.renderer;
+    const renderer = this.state.renderer.nativeRuntime;
     if (renderer === undefined) return false;
     renderer.resetStats();
     this.state.renderer.requestRender(true);
@@ -753,19 +699,10 @@ export class KimiTUI {
   setNativeRendererTrace(command: RendererTraceCommand): void {
     if (command.action === 'status') {
       const report = formatRendererTraceStatusReport({
-        nativeRendererEnabled: isExperimentalFlagEnabled('native_renderer'),
-        backend: this.nativeRendererDiagnosticsBackend(),
+        nativeRendererEnabled: true,
         trace: this.nativeRendererTraceSnapshot(),
       });
       this.showStatus(report.message, report.color);
-      return;
-    }
-
-    if (!isExperimentalFlagEnabled('native_renderer')) {
-      this.showStatus(
-        'Native renderer trace command skipped. Enable the native_renderer experiment to collect trace events.',
-        'warning',
-      );
       return;
     }
 
@@ -805,9 +742,15 @@ export class KimiTUI {
   private exportNativeRendererTrace(path: string | undefined): string | undefined {
     const renderer = this.nativeRendererTraceRuntime();
     if (renderer === undefined) return undefined;
+    const workDir = this.state.appState.workDir;
     const outputPath = path === undefined
-      ? join(this.state.appState.workDir, `renderer-trace-${String(Date.now())}.json`)
-      : resolve(this.state.appState.workDir, path);
+      ? join(workDir, `renderer-trace-${String(Date.now())}.json`)
+      : resolve(workDir, path);
+    const rel = relative(workDir, outputPath);
+    if (rel === '' || rel.startsWith('..') || rel.includes(`..${sep}`)) {
+      this.showStatus('Trace export path must be inside the workspace.', 'error');
+      return undefined;
+    }
     writeFileSync(
       outputPath,
       `${JSON.stringify(renderer.exportTrace({ processName: 'Super Kimi Code TUI' }), null, 2)}\n`,
@@ -816,13 +759,7 @@ export class KimiTUI {
   }
 
   private nativeRendererTraceRuntime() {
-    return this.state.renderer.nativeRuntime ?? this.nativeRendererMirror?.renderer;
-  }
-
-  private nativeRendererDiagnosticsBackend(): RendererDiagnosticsRuntimeBackend {
-    if (this.state.renderer.nativeRuntime !== undefined) return 'native';
-    if (this.nativeRendererMirror !== undefined) return 'mirror';
-    return 'pi-tui';
+    return this.state.renderer.nativeRuntime;
   }
 
   private ensureNativeInputRouter(): void {
@@ -832,8 +769,6 @@ export class KimiTUI {
   }
 
   private stopNativeRendererAdapters(): void {
-    this.nativeRendererMirror?.stop();
-    this.nativeRendererMirror = undefined;
     this.nativeInputModalDispose?.();
     this.nativeInputModalDispose = undefined;
     this.nativeInputRouter?.dispose();
@@ -1044,7 +979,7 @@ export class KimiTUI {
     await this.harness.close();
     this.sessionEventHandler.stopAllMcpServerStatusSpinners();
     await this.state.renderer.drainInput();
-    this.state.renderer.stop();
+    this.state.ui.stop();
     if (this.onExit) {
       await this.onExit(exitCode);
     }

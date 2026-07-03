@@ -79,7 +79,6 @@
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-tui": "^0.74.0",
     "@harness-kit/tui-renderer": "workspace:^",
     "@moonshot-ai/acp-adapter": "workspace:^",
     "@moonshot-ai/gui-use": "workspace:^",

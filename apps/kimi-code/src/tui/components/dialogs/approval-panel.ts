@@ -6,7 +6,6 @@
 
 import {
   Container,
-  Input,
   matchesKey,
   Key,
   type Focusable,
@@ -15,6 +14,7 @@ import {
   wrapTextWithAnsi,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { Input } from './input';
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import type {

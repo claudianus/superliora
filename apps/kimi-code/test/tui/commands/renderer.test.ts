@@ -99,39 +99,25 @@ describe('handleRendererCommand', () => {
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
   });
 
-  it('leaves the renderer command as normal input while the native renderer flag is disabled', () => {
-    const host = makeHost();
-
-    dispatchInput(host, '/renderer trace status');
-
-    expect(host.sendNormalUserInput).toHaveBeenCalledWith('/renderer trace status');
-    expect(host.setNativeRendererDiagnosticsOverlay).not.toHaveBeenCalled();
-    expect(host.setNativeRendererTrace).not.toHaveBeenCalled();
-  });
-
   it('formats status when the native renderer is not enabled', () => {
     const report = formatRendererDiagnosticsStatusReport({
       hudEnabled: false,
       nativeRendererEnabled: false,
-      backend: 'pi-tui',
     });
 
     expect(report.color).toBe('warning');
     expect(report.message).toContain('Native renderer diagnostics HUD: OFF.');
-    expect(report.message).toContain('Renderer backend: pi-tui.');
-    expect(report.message).toContain('Enable the native_renderer experiment');
+    expect(report.message).toContain('Native renderer is not active.');
   });
 
   it('formats status when the native renderer has not produced a frame yet', () => {
     const report = formatRendererDiagnosticsStatusReport({
       hudEnabled: true,
       nativeRendererEnabled: true,
-      backend: 'native',
     });
 
     expect(report.color).toBe('warning');
     expect(report.message).toContain('Native renderer diagnostics HUD: ON.');
-    expect(report.message).toContain('Renderer backend: native.');
     expect(report.message).toContain('No native renderer frame has been recorded yet.');
   });
 
@@ -139,7 +125,6 @@ describe('handleRendererCommand', () => {
     const report = formatRendererDiagnosticsStatusReport({
       hudEnabled: true,
       nativeRendererEnabled: true,
-      backend: 'native',
       diagnostics: degradedDiagnostics(),
     });
 
@@ -155,13 +140,11 @@ describe('handleRendererCommand', () => {
   it('formats trace status with bounded buffer state', () => {
     const report = formatRendererTraceStatusReport({
       nativeRendererEnabled: true,
-      backend: 'native',
       trace: rendererTraceSnapshot(),
     });
 
     expect(report.color).toBe('warning');
     expect(report.message).toContain('Native renderer trace: ON.');
-    expect(report.message).toContain('Renderer backend: native.');
     expect(report.message).toContain('2/4 events buffered; 5 total; 3 dropped.');
     expect(report.message).toContain('1 frame events recorded.');
     expect(report.message).toContain('Trace window: 12ms.');

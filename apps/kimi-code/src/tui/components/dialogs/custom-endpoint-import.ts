@@ -5,7 +5,6 @@
 
 import {
   Container,
-  Input,
   Key,
   matchesKey,
   renderRendererFrameRows,
@@ -15,6 +14,7 @@ import {
 
 import { DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE } from '#/utils/custom-provider';
 import { currentTheme } from '#/tui/theme';
+import { Input } from './input';
 
 export interface CustomEndpointImportValue {
   readonly providerId: string;

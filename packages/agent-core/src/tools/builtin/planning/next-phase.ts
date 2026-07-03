@@ -26,7 +26,7 @@ export class NextPhaseTool implements BuiltinTool<NextPhaseInput> {
 
 Usage: call this tool when you have completed the current phase.
 - From research: call NextPhase({ phase: 'interview' }) after you have a compact evidence pack for the questions you may ask
-- From interview: call NextPhase({ phase: 'design' }) only after UltraPlan reports ambiguity <= 0.2, all clarity floors pass, the future UltraGoal is true/false verifiable, all required Seed gaps are closed, and two distinct seed-ready evidence snapshots have been observed
+- From interview: call NextPhase({ phase: 'design' }) only after UltraPlan reports ambiguity <= 0.2, all clarity floors pass, the future UltraGoal is true/false verifiable, and all required Seed gaps are closed
 - From design: call NextPhase({ phase: 'review' })
 - From review: call NextPhase({ phase: 'write' })
 - From write: call NextPhase({ phase: 'exit' })
@@ -82,7 +82,7 @@ You can only advance forward, never backward.`;
 
     if (currentPhase === 'interview' && targetPhase === 'design') {
       const readiness = this.agent.planMode.ultraEngine.interviewReadiness();
-      if (!readiness.ready || !readiness.stableReady) {
+      if (!readiness.ready) {
         return {
           isError: true,
           output: this.agent.planMode.ultraEngine.readinessBlockerMessage(),
@@ -104,7 +104,7 @@ You can only advance forward, never backward.`;
 
   private phaseInstructions(phase: string): string {
     const instructions: Record<string, string> = {
-      interview: "Interview Phase: Use AskUserQuestion to clarify only the blocking choices that remain after the research prelude. When ambiguity <= 0.2, clarity floors pass, the UltraGoal is true/false verifiable, required Seed gaps are closed, and the seed-ready streak reaches 2, call NextPhase({ phase: 'design' }).",
+      interview: "Interview Phase: Use AskUserQuestion to clarify only the blocking choices that remain after the research prelude. When ambiguity <= 0.2, clarity floors pass, the UltraGoal is true/false verifiable, and required Seed gaps are closed, call NextPhase({ phase: 'design' }).",
       design: "Design Phase: Use read-only tools (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, Bash read-only inspection) plus TodoList progress tracking to explore the codebase and map coverage lanes to concrete expert candidates. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip directly to write.",
       review: "Review Phase: Use read-only tools (Read, ReadMediaFile, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TaskList, TaskOutput, Bash read-only inspection) plus TodoList progress tracking to re-read key files, re-check current external claims, and verify expert coverage before writing the plan. When verification is complete, call NextPhase({ phase: 'write' }).",
       write: 'Write Phase: Write the complete plan to the plan file. Only the current plan file can be read or edited; TodoList progress tracking and NextPhase/ExitPlanMode remain available. Include Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan.',

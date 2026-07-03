@@ -255,6 +255,30 @@ describe('UltraPlanModeEngine', () => {
       expect(drift.goalDrift).toBeLessThanOrEqual(1);
     });
 
+    it('should keep goal drift low when a detailed plan reflects the seed terms', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.setSeedSpec(
+        engine.generateSeedSpecFromInterview(
+          'build a fast api',
+          ['use TypeScript', 'add unit tests'],
+          ['endpoint latency under 100ms', 'passing test suite'],
+          'API',
+          [{ name: 'endpoints', type: 'array', description: 'API endpoints', required: true }],
+        ),
+      );
+      const detailedPlan = `
+# Execution Plan
+
+## Overview
+We will build a fast api service using TypeScript. The implementation must add unit tests
+for every endpoint and keep endpoint latency under 100ms. The passing test suite will be
+verified in CI. Additional details about deployment, monitoring, and documentation are
+included here only to make the plan longer and must not inflate the drift score.
+      `.trim();
+      const drift = engine.calculateDrift(detailedPlan, []);
+      expect(drift.goalDrift).toBeLessThanOrEqual(0.3);
+    });
+
     it('should calculate constraint drift', () => {
       const engine = new UltraPlanModeEngine(mockAgent);
       engine.setSeedSpec(

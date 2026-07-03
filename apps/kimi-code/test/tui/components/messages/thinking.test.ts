@@ -1,4 +1,4 @@
-import { visibleWidth, type TUI } from '#/tui/renderer';
+import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
@@ -51,7 +51,7 @@ describe('ThinkingComponent', () => {
     const requestRender = vi.fn();
     const component = new ThinkingComponent('step', true, 'live', {
       requestRender,
-    } as unknown as TUI);
+    } as unknown as RendererRootUI);
 
     expect(strip(component.render(80).join('\n'))).toContain('⠋ thinking...');
 
@@ -96,7 +96,7 @@ describe('ThinkingComponent', () => {
     vi.setSystemTime(new Date('2026-06-29T00:00:00Z'));
     const component = new ThinkingComponent('step', true, 'live', {
       requestRender: vi.fn(),
-    } as unknown as TUI);
+    } as unknown as RendererRootUI);
 
     expect(strip(component.render(80).join('\n'))).toContain('thinking... 0s');
 

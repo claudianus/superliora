@@ -7,7 +7,6 @@
 
 import {
   Container,
-  Input,
   matchesKey,
   Key,
   decodeKittyPrintable,
@@ -19,6 +18,7 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import { Input } from './input';
 import type {
   PendingQuestion,
   QuestionPanelResponse,

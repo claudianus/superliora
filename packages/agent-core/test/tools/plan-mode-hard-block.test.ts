@@ -339,6 +339,80 @@ describe('Plan mode permission policy', () => {
     expect(planMode.ultraEngine.seedSpec?.goal).toContain('implement guarded Ultrawork mode');
   });
 
+  it('lets ultra interview advance after a single seed-ready answer when ready=true', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+    planMode.ultraEngine.addInterviewRound(
+      'Close the UltraPlan seed ledger.',
+      [
+        'Goal: implement guarded Ultrawork mode with a verifiable UltraGoal.',
+        'Actors: CLI user, agent, verification owner.',
+        'Inputs: user prompt, TUI state, session status, and focused tests.',
+        'Outputs: updated TUI mode, prompt contract, and passing tests.',
+        'Constraints: no regex promotion for plain tasks, no product edits before plan approval, no unrelated refactors.',
+        'Non-goals: do not rewrite the full app or change provider auth.',
+        'Acceptance Criteria: Shift-Tab mode routes tasks through UltraPlan; plain prompts stay normal; tests pass.',
+        'Verification Plan: run focused TUI and agent-core tests.',
+        'Failure Modes: stale badges, premature goal creation, skipped Swarm decision, and blocked existing goals.',
+        'Runtime Context: local TypeScript monorepo CLI workspace.',
+        'Completion Criterion: true when the checks pass and the mode follows the gated order, false otherwise.',
+      ].join('\n'),
+    );
+    planMode.ultraEngine.calculateAmbiguityScore();
+
+    const readiness = planMode.ultraEngine.interviewReadiness();
+    expect(readiness.ready).toBe(true);
+    expect(readiness.stableReady).toBe(false);
+
+    const result = await executeTool(new NextPhaseTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_next_phase_single_ready',
+      args: { phase: 'design' },
+      signal,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('Advanced from interview phase to design phase');
+    expect(planMode.phase).toBe('design');
+  });
+
+  it('lets Korean natural-language interview answers advance to design', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+    planMode.ultraEngine.addInterviewRound(
+      '목표와 범위를 알려주세요.',
+      [
+        '울트라워크 워크플로우에서 Goal이 안 먹고 권한이 막히는 문제를 해결하고 싶습니다.',
+        '사용자와 에이전트, 검증자가 함께합니다.',
+        'packages/agent-core의 코드와 테스트 파일을 입력으로 삼습니다.',
+        '수정된 소스 파일과 통과하는 테스트 결과를 산출합니다.',
+        '제약은 최소한의 수정만 하고 범위를 벗어나지 않는 것입니다.',
+        '비목표는 browser-use와 computer-use 수정은 이번에 하지 않습니다.',
+        '완료 조건은 테스트가 통과하고 typecheck와 lint가 통과하는 것입니다.',
+        '검증 계획은 관련 테스트를 실행하고 확인하는 것입니다.',
+        '실패 위험은 권한이 과도하게 완화되거나 테스트가 깨지는 경우입니다.',
+        '런타임 환경은 TypeScript monorepo 로컬 워크스페이스입니다.',
+        '완료 기준은 테스트와 lint가 모두 통과하면 참, 아니면 거짓입니다.',
+      ].join('\n'),
+    );
+    planMode.ultraEngine.calculateAmbiguityScore();
+    planMode.ultraEngine.addInterviewRound(
+      'Seed가 완성되었나요?',
+      '확인합니다. 범위를 추가하지 않고, 테스트와 lint 통과를 완료 조건으로 진행합니다.',
+    );
+
+    const result = await executeTool(new NextPhaseTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_next_phase_korean',
+      args: { phase: 'design' },
+      signal,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('Advanced from interview phase to design phase');
+    expect(planMode.phase).toBe('design');
+  });
+
   it('tells Ultra Plan review to advance to write after verification', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('review');

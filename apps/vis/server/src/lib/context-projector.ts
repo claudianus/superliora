@@ -422,6 +422,8 @@ export function projectContext(
       case 'tools.update_store':
       case 'subagent.lifecycle':
       case 'ultrawork.event':
+      case 'ultra_swarm_engage_gate.set':
+      case 'ultra_swarm_engage_gate.clear':
         break;
       default: {
         const _exhaustive: never = rec;

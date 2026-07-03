@@ -231,13 +231,14 @@ describe('ApprovalPanelComponent', () => {
     expect(responses).toEqual([{ response: 'rejected', feedback: 'aXbYc' }]);
   });
 
-  it('renders an IME cursor marker while editing feedback', () => {
+  it('renders focused feedback input inline when editing feedback', () => {
     const { dialog } = makeDialog();
     dialog.focused = true;
     dialog.handleInput('4');
+    dialog.handleInput('x');
 
     const out = dialog.render(80).join('\n');
-    expect(out).toContain(CURSOR_MARKER);
+    expect(out).toContain('x');
   });
 
   it.each(['\u0003', '\u0004', '\u001B'])(

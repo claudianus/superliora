@@ -422,8 +422,8 @@ describe('KimiTUI message flow', () => {
     const { driver, harness } = await makeDriver();
     harness.track.mockClear();
 
-    driver.state.editor.handleInput('\u001B[106;5u');
-    driver.state.editor.handleInput('\u001F');
+    driver.state.editor.onInsertNewline?.();
+    driver.state.editor.onUndo?.();
     delete process.env['VISUAL'];
     delete process.env['EDITOR'];
     driver.state.editor.onOpenExternalEditor?.();

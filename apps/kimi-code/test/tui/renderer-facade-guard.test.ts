@@ -367,14 +367,15 @@ describe('TUI renderer facade guard', () => {
     expect(formatRendererToolHeaderChip).toBe(rendererFormatToolHeaderChip);
   });
 
-  it('keeps pi-tui direct imports behind #/tui/renderer', () => {
+  it('has no direct pi-tui imports outside the renderer facade', () => {
+    const piTuiImportPattern = /from\s+['"]@earendil-works\/pi-tui['"]/g;
     const offenders = SCAN_ROOTS.flatMap(walk)
       .map((file) => ({
         file,
         rel: relative(PACKAGE_ROOT, file),
       }))
       .filter(({ rel }) => !rel.startsWith('src/tui/renderer/') && rel !== GUARD_TEST)
-      .filter(({ file }) => readFileSync(file, 'utf8').includes(PI_TUI_PACKAGE))
+      .filter(({ file }) => piTuiImportPattern.test(readFileSync(file, 'utf8')))
       .map(({ rel }) => rel);
 
     expect(

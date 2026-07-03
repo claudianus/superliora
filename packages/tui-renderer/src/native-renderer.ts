@@ -756,6 +756,7 @@ export class NativeTerminalRenderer {
       originY: this.options.originY,
       eraseLine: this.options.eraseLine,
       colorMode: this.options.colorMode,
+      inlineImageProtocol: this.options.imageProtocol,
       outputPolicy: this.options.outputPolicy,
       now: () => this.loop.now(),
     };

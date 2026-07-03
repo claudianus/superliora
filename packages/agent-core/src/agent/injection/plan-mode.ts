@@ -228,17 +228,16 @@ Each round rotates through 5 perspectives:
   - UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
   - Required sections: goal, actors, inputs, outputs, constraints, non-goals, acceptance criteria, verification plan, failure modes, runtime context.
   - Required gaps close only from the user's initial context and answers, not from labels you put in your question text.
-  - NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, the UltraGoal is verifiable, and two distinct seed-ready evidence snapshots have been observed.
+  - NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, and the UltraGoal is verifiable.
 
 Current interview round: {{round}}
 Current perspective: {{perspective}}
 Current ambiguity score: {{ambiguityScore}}
 Current milestone: {{milestone}}
-Completion streak: {{streak}}
 
 Next milestone target: {{nextMilestone}}
 
-Ask 1-3 focused questions per AskUserQuestion call when a missing decision blocks a true/false-verifiable UltraGoal or a required Seed section. Use a final closure question only after the first seed-ready score, so the second answer can confirm the Seed without changing scope.
+Ask 1-3 focused questions per AskUserQuestion call when a missing decision blocks a true/false-verifiable UltraGoal or a required Seed section.
 Do not advance just because the task feels actionable. If AskUserQuestion is unavailable or rejected by policy, surface the unresolved gap instead of pretending the interview is complete.
 Do not call EnterPlanMode while already in Ultra Plan. EnterPlanMode starts planning; NextPhase advances phases. Do not pass a phase argument to EnterPlanMode.
 Your turn MUST end with AskUserQuestion or NextPhase.`,
@@ -315,7 +314,6 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
     score === undefined || score === null ? 'scoring pending' : score.overallScore.toFixed(2),
   );
   body = body.replaceAll('{{milestone}}', score?.milestone ?? 'initial');
-  body = body.replaceAll('{{streak}}', String(interviewState?.completionCandidateStreak ?? 0));
   body = body.replaceAll('{{nextMilestone}}', nextMilestone(score?.milestone));
 
   return withPlanFileFooter(body, planFilePath);

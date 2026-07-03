@@ -1,6 +1,5 @@
 import {
   Container,
-  Input,
   Key,
   matchesKey,
   renderRendererFrameRows,
@@ -10,6 +9,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import type { PluginInfo, PluginMcpServerInfo, PluginSummary } from '@moonshot-ai/kimi-code-sdk';
+import { Input } from './input';
 import chalk from 'chalk';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';

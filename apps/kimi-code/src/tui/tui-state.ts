@@ -101,7 +101,7 @@ export function createTUIState(options: KimiTUIOptions): TUIState {
         },
       }).transcriptRows,
   );
-  const editor = createTUIEditor(ui, { backend: options.editorBackend });
+  const editor = createTUIEditor(ui);
   const nativeEditorTextInput = new NativeEditorTextInputController();
   const footer = new FooterComponent(
     { ...initialAppState },

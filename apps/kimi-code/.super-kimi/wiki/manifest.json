@@ -2,9 +2,499 @@
   "kind": "llm-wiki-manifest",
   "schemaVersion": 1,
   "workspaceRoot": ".",
-  "updatedAt": "2026-07-03T01:32:43.909Z",
-  "latestRunId": "2026-07-03T013243909Z-ship-feature-y-403b758b",
+  "updatedAt": "2026-07-03T12:59:15.476Z",
+  "latestRunId": "2026-07-03T125915476Z-ship-feature-y-a239edf4",
   "runs": [
+    {
+      "runId": "2026-07-03T125915476Z-ship-feature-y-a239edf4",
+      "createdAt": "2026-07-03T12:59:15.476Z",
+      "objective": "Ship feature Y",
+      "source": "manual",
+      "replaceGoal": true,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125915476Z-ship-feature-y-a239edf4.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915476Z-ship-feature-y-a239edf4",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915476Z-ship-feature-y-a239edf4/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915476Z-ship-feature-y-a239edf4/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915476Z-ship-feature-y-a239edf4/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915476Z-ship-feature-y-a239edf4/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915476Z-ship-feature-y-a239edf4/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125915474Z-ship-feature-x-0344656b",
+      "createdAt": "2026-07-03T12:59:15.474Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125915474Z-ship-feature-x-0344656b.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915474Z-ship-feature-x-0344656b",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915474Z-ship-feature-x-0344656b/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915474Z-ship-feature-x-0344656b/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915474Z-ship-feature-x-0344656b/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915474Z-ship-feature-x-0344656b/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915474Z-ship-feature-x-0344656b/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125915472Z-ship-feature-x-1610c975",
+      "createdAt": "2026-07-03T12:59:15.472Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125915472Z-ship-feature-x-1610c975.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915472Z-ship-feature-x-1610c975",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915472Z-ship-feature-x-1610c975/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915472Z-ship-feature-x-1610c975/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915472Z-ship-feature-x-1610c975/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915472Z-ship-feature-x-1610c975/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915472Z-ship-feature-x-1610c975/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125915470Z-ship-feature-x-862d59d2",
+      "createdAt": "2026-07-03T12:59:15.470Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125915470Z-ship-feature-x-862d59d2.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915470Z-ship-feature-x-862d59d2",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915470Z-ship-feature-x-862d59d2/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915470Z-ship-feature-x-862d59d2/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915470Z-ship-feature-x-862d59d2/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915470Z-ship-feature-x-862d59d2/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915470Z-ship-feature-x-862d59d2/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125915457Z-ship-feature-x-678e8191",
+      "createdAt": "2026-07-03T12:59:15.457Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125915457Z-ship-feature-x-678e8191.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915457Z-ship-feature-x-678e8191",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915457Z-ship-feature-x-678e8191/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915457Z-ship-feature-x-678e8191/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915457Z-ship-feature-x-678e8191/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915457Z-ship-feature-x-678e8191/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915457Z-ship-feature-x-678e8191/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125736198Z-ship-feature-y-ec1c7421",
+      "createdAt": "2026-07-03T12:57:36.198Z",
+      "objective": "Ship feature Y",
+      "source": "manual",
+      "replaceGoal": true,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125736196Z-ship-feature-x-193c2cbe",
+      "createdAt": "2026-07-03T12:57:36.196Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125736192Z-ship-feature-x-97596491",
+      "createdAt": "2026-07-03T12:57:36.192Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125736192Z-ship-feature-x-97596491.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736192Z-ship-feature-x-97596491",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736192Z-ship-feature-x-97596491/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736192Z-ship-feature-x-97596491/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736192Z-ship-feature-x-97596491/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736192Z-ship-feature-x-97596491/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736192Z-ship-feature-x-97596491/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125736188Z-ship-feature-x-9861d5c4",
+      "createdAt": "2026-07-03T12:57:36.188Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T125736175Z-ship-feature-x-38e8fc87",
+      "createdAt": "2026-07-03T12:57:36.175Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124825620Z-ship-feature-y-ce68d996",
+      "createdAt": "2026-07-03T12:48:25.620Z",
+      "objective": "Ship feature Y",
+      "source": "manual",
+      "replaceGoal": true,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124825620Z-ship-feature-y-ce68d996.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825620Z-ship-feature-y-ce68d996",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825620Z-ship-feature-y-ce68d996/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825620Z-ship-feature-y-ce68d996/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825620Z-ship-feature-y-ce68d996/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825620Z-ship-feature-y-ce68d996/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825620Z-ship-feature-y-ce68d996/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124825618Z-ship-feature-x-8bd99168",
+      "createdAt": "2026-07-03T12:48:25.618Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124825618Z-ship-feature-x-8bd99168.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825618Z-ship-feature-x-8bd99168",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825618Z-ship-feature-x-8bd99168/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825618Z-ship-feature-x-8bd99168/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825618Z-ship-feature-x-8bd99168/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825618Z-ship-feature-x-8bd99168/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825618Z-ship-feature-x-8bd99168/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124825616Z-ship-feature-x-b4d60789",
+      "createdAt": "2026-07-03T12:48:25.616Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124825616Z-ship-feature-x-b4d60789.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825616Z-ship-feature-x-b4d60789",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825616Z-ship-feature-x-b4d60789/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825616Z-ship-feature-x-b4d60789/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825616Z-ship-feature-x-b4d60789/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825616Z-ship-feature-x-b4d60789/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825616Z-ship-feature-x-b4d60789/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124825613Z-ship-feature-x-7a51c7fa",
+      "createdAt": "2026-07-03T12:48:25.613Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124825601Z-ship-feature-x-88f9e8c7",
+      "createdAt": "2026-07-03T12:48:25.601Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124801438Z-ship-feature-y-8d3feb70",
+      "createdAt": "2026-07-03T12:48:01.438Z",
+      "objective": "Ship feature Y",
+      "source": "manual",
+      "replaceGoal": true,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124801435Z-ship-feature-x-229f07e4",
+      "createdAt": "2026-07-03T12:48:01.435Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124801435Z-ship-feature-x-229f07e4.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801435Z-ship-feature-x-229f07e4",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801435Z-ship-feature-x-229f07e4/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801435Z-ship-feature-x-229f07e4/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801435Z-ship-feature-x-229f07e4/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801435Z-ship-feature-x-229f07e4/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801435Z-ship-feature-x-229f07e4/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124801434Z-ship-feature-x-8fc1768a",
+      "createdAt": "2026-07-03T12:48:01.434Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124801432Z-ship-feature-x-64dcef9e",
+      "createdAt": "2026-07-03T12:48:01.432Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T124801420Z-ship-feature-x-c95594e5",
+      "createdAt": "2026-07-03T12:48:01.420Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T124801420Z-ship-feature-x-c95594e5.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801420Z-ship-feature-x-c95594e5",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801420Z-ship-feature-x-c95594e5/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801420Z-ship-feature-x-c95594e5/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801420Z-ship-feature-x-c95594e5/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801420Z-ship-feature-x-c95594e5/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801420Z-ship-feature-x-c95594e5/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102652515Z-ship-feature-y-68d1f4b6",
+      "createdAt": "2026-07-03T10:26:52.515Z",
+      "objective": "Ship feature Y",
+      "source": "manual",
+      "replaceGoal": true,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102652513Z-ship-feature-x-e138ec80",
+      "createdAt": "2026-07-03T10:26:52.513Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102652513Z-ship-feature-x-e138ec80.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652513Z-ship-feature-x-e138ec80",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652513Z-ship-feature-x-e138ec80/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652513Z-ship-feature-x-e138ec80/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652513Z-ship-feature-x-e138ec80/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652513Z-ship-feature-x-e138ec80/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652513Z-ship-feature-x-e138ec80/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102652512Z-ship-feature-x-b99c06b0",
+      "createdAt": "2026-07-03T10:26:52.512Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102652511Z-ship-feature-x-685b06ce",
+      "createdAt": "2026-07-03T10:26:52.511Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102652511Z-ship-feature-x-685b06ce.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652511Z-ship-feature-x-685b06ce",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652511Z-ship-feature-x-685b06ce/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652511Z-ship-feature-x-685b06ce/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652511Z-ship-feature-x-685b06ce/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652511Z-ship-feature-x-685b06ce/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652511Z-ship-feature-x-685b06ce/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102652500Z-ship-feature-x-c36aece0",
+      "createdAt": "2026-07-03T10:26:52.500Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102652500Z-ship-feature-x-c36aece0.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652500Z-ship-feature-x-c36aece0",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652500Z-ship-feature-x-c36aece0/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652500Z-ship-feature-x-c36aece0/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652500Z-ship-feature-x-c36aece0/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652500Z-ship-feature-x-c36aece0/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652500Z-ship-feature-x-c36aece0/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102124419Z-ship-feature-y-0dcbb986",
+      "createdAt": "2026-07-03T10:21:24.419Z",
+      "objective": "Ship feature Y",
+      "source": "manual",
+      "replaceGoal": true,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102124417Z-ship-feature-x-d584d443",
+      "createdAt": "2026-07-03T10:21:24.417Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102124417Z-ship-feature-x-d584d443.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124417Z-ship-feature-x-d584d443",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124417Z-ship-feature-x-d584d443/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124417Z-ship-feature-x-d584d443/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124417Z-ship-feature-x-d584d443/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124417Z-ship-feature-x-d584d443/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124417Z-ship-feature-x-d584d443/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102124412Z-ship-feature-x-c5b5da26",
+      "createdAt": "2026-07-03T10:21:24.412Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102124409Z-ship-feature-x-ebbac8e0",
+      "createdAt": "2026-07-03T10:21:24.409Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102124395Z-ship-feature-x-16298800",
+      "createdAt": "2026-07-03T10:21:24.395Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102124395Z-ship-feature-x-16298800.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124395Z-ship-feature-x-16298800",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124395Z-ship-feature-x-16298800/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124395Z-ship-feature-x-16298800/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124395Z-ship-feature-x-16298800/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124395Z-ship-feature-x-16298800/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124395Z-ship-feature-x-16298800/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102051059Z-ship-feature-y-18fcc435",
+      "createdAt": "2026-07-03T10:20:51.059Z",
+      "objective": "Ship feature Y",
+      "source": "manual",
+      "replaceGoal": true,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102051059Z-ship-feature-y-18fcc435.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051059Z-ship-feature-y-18fcc435",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051059Z-ship-feature-y-18fcc435/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051059Z-ship-feature-y-18fcc435/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051059Z-ship-feature-y-18fcc435/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051059Z-ship-feature-y-18fcc435/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051059Z-ship-feature-y-18fcc435/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102051057Z-ship-feature-x-0c980de5",
+      "createdAt": "2026-07-03T10:20:51.057Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102051057Z-ship-feature-x-0c980de5.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051057Z-ship-feature-x-0c980de5",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051057Z-ship-feature-x-0c980de5/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051057Z-ship-feature-x-0c980de5/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051057Z-ship-feature-x-0c980de5/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051057Z-ship-feature-x-0c980de5/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051057Z-ship-feature-x-0c980de5/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102051056Z-ship-feature-x-cd60f324",
+      "createdAt": "2026-07-03T10:20:51.056Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102051056Z-ship-feature-x-cd60f324.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051056Z-ship-feature-x-cd60f324",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051056Z-ship-feature-x-cd60f324/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051056Z-ship-feature-x-cd60f324/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051056Z-ship-feature-x-cd60f324/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051056Z-ship-feature-x-cd60f324/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051056Z-ship-feature-x-cd60f324/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102051053Z-ship-feature-x-4eb32651",
+      "createdAt": "2026-07-03T10:20:51.053Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102051053Z-ship-feature-x-4eb32651.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051053Z-ship-feature-x-4eb32651",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051053Z-ship-feature-x-4eb32651/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051053Z-ship-feature-x-4eb32651/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051053Z-ship-feature-x-4eb32651/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051053Z-ship-feature-x-4eb32651/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051053Z-ship-feature-x-4eb32651/knowledge-persistence-ledger.json"
+    },
+    {
+      "runId": "2026-07-03T102051038Z-ship-feature-x-e66401d9",
+      "createdAt": "2026-07-03T10:20:51.038Z",
+      "objective": "Ship feature X",
+      "source": "manual",
+      "replaceGoal": false,
+      "path": ".super-kimi/wiki/runs/2026-07-03T102051038Z-ship-feature-x-e66401d9.md",
+      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051038Z-ship-feature-x-e66401d9",
+      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051038Z-ship-feature-x-e66401d9/llm-wiki.md",
+      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051038Z-ship-feature-x-e66401d9/kimi-knowledge-map.json",
+      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051038Z-ship-feature-x-e66401d9/capability-coverage-matrix.json",
+      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051038Z-ship-feature-x-e66401d9/expert-review-loop.md",
+      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051038Z-ship-feature-x-e66401d9/knowledge-persistence-ledger.json"
+    },
     {
       "runId": "2026-07-03T013243909Z-ship-feature-y-403b758b",
       "createdAt": "2026-07-03T01:32:43.909Z",
@@ -214,286 +704,6 @@
       "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T013003971Z-ship-feature-x-30c9dfde/capability-coverage-matrix.json",
       "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T013003971Z-ship-feature-x-30c9dfde/expert-review-loop.md",
       "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-03T013003971Z-ship-feature-x-30c9dfde/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130811482Z-ship-feature-y-d64cff33",
-      "createdAt": "2026-07-02T13:08:11.482Z",
-      "objective": "Ship feature Y",
-      "source": "manual",
-      "replaceGoal": true,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130811482Z-ship-feature-y-d64cff33.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811482Z-ship-feature-y-d64cff33",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811482Z-ship-feature-y-d64cff33/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811482Z-ship-feature-y-d64cff33/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811482Z-ship-feature-y-d64cff33/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811482Z-ship-feature-y-d64cff33/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811482Z-ship-feature-y-d64cff33/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130811480Z-ship-feature-x-8304c2fa",
-      "createdAt": "2026-07-02T13:08:11.480Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130811480Z-ship-feature-x-8304c2fa.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811480Z-ship-feature-x-8304c2fa",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811480Z-ship-feature-x-8304c2fa/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811480Z-ship-feature-x-8304c2fa/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811480Z-ship-feature-x-8304c2fa/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811480Z-ship-feature-x-8304c2fa/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811480Z-ship-feature-x-8304c2fa/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130811477Z-ship-feature-x-679b2759",
-      "createdAt": "2026-07-02T13:08:11.477Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130811477Z-ship-feature-x-679b2759.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811477Z-ship-feature-x-679b2759",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811477Z-ship-feature-x-679b2759/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811477Z-ship-feature-x-679b2759/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811477Z-ship-feature-x-679b2759/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811477Z-ship-feature-x-679b2759/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811477Z-ship-feature-x-679b2759/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130811475Z-ship-feature-x-902f8e3a",
-      "createdAt": "2026-07-02T13:08:11.475Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130811462Z-ship-feature-x-53526865",
-      "createdAt": "2026-07-02T13:08:11.462Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130811462Z-ship-feature-x-53526865.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811462Z-ship-feature-x-53526865",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811462Z-ship-feature-x-53526865/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811462Z-ship-feature-x-53526865/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811462Z-ship-feature-x-53526865/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811462Z-ship-feature-x-53526865/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811462Z-ship-feature-x-53526865/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130632934Z-ship-feature-y-046df683",
-      "createdAt": "2026-07-02T13:06:32.934Z",
-      "objective": "Ship feature Y",
-      "source": "manual",
-      "replaceGoal": true,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130632934Z-ship-feature-y-046df683.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632934Z-ship-feature-y-046df683",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632934Z-ship-feature-y-046df683/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632934Z-ship-feature-y-046df683/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632934Z-ship-feature-y-046df683/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632934Z-ship-feature-y-046df683/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632934Z-ship-feature-y-046df683/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130632933Z-ship-feature-x-f1397cdf",
-      "createdAt": "2026-07-02T13:06:32.933Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130632933Z-ship-feature-x-f1397cdf.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632933Z-ship-feature-x-f1397cdf",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632933Z-ship-feature-x-f1397cdf/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632933Z-ship-feature-x-f1397cdf/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632933Z-ship-feature-x-f1397cdf/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632933Z-ship-feature-x-f1397cdf/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632933Z-ship-feature-x-f1397cdf/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130632932Z-ship-feature-x-19983d1b",
-      "createdAt": "2026-07-02T13:06:32.932Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130632932Z-ship-feature-x-19983d1b.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632932Z-ship-feature-x-19983d1b",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632932Z-ship-feature-x-19983d1b/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632932Z-ship-feature-x-19983d1b/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632932Z-ship-feature-x-19983d1b/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632932Z-ship-feature-x-19983d1b/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632932Z-ship-feature-x-19983d1b/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130632930Z-ship-feature-x-570f9f1c",
-      "createdAt": "2026-07-02T13:06:32.930Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130632930Z-ship-feature-x-570f9f1c.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632930Z-ship-feature-x-570f9f1c",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632930Z-ship-feature-x-570f9f1c/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632930Z-ship-feature-x-570f9f1c/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632930Z-ship-feature-x-570f9f1c/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632930Z-ship-feature-x-570f9f1c/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632930Z-ship-feature-x-570f9f1c/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130632922Z-ship-feature-x-bcfde407",
-      "createdAt": "2026-07-02T13:06:32.922Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130632922Z-ship-feature-x-bcfde407.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632922Z-ship-feature-x-bcfde407",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632922Z-ship-feature-x-bcfde407/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632922Z-ship-feature-x-bcfde407/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632922Z-ship-feature-x-bcfde407/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632922Z-ship-feature-x-bcfde407/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130632922Z-ship-feature-x-bcfde407/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130609377Z-ship-feature-y-09ecfe8b",
-      "createdAt": "2026-07-02T13:06:09.377Z",
-      "objective": "Ship feature Y",
-      "source": "manual",
-      "replaceGoal": true,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130609377Z-ship-feature-y-09ecfe8b.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609377Z-ship-feature-y-09ecfe8b",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609377Z-ship-feature-y-09ecfe8b/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609377Z-ship-feature-y-09ecfe8b/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609377Z-ship-feature-y-09ecfe8b/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609377Z-ship-feature-y-09ecfe8b/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609377Z-ship-feature-y-09ecfe8b/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130609376Z-ship-feature-x-b5e0973f",
-      "createdAt": "2026-07-02T13:06:09.376Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130609376Z-ship-feature-x-b5e0973f.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609376Z-ship-feature-x-b5e0973f",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609376Z-ship-feature-x-b5e0973f/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609376Z-ship-feature-x-b5e0973f/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609376Z-ship-feature-x-b5e0973f/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609376Z-ship-feature-x-b5e0973f/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609376Z-ship-feature-x-b5e0973f/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130609375Z-ship-feature-x-91b235ba",
-      "createdAt": "2026-07-02T13:06:09.375Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130609375Z-ship-feature-x-91b235ba.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609375Z-ship-feature-x-91b235ba",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609375Z-ship-feature-x-91b235ba/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609375Z-ship-feature-x-91b235ba/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609375Z-ship-feature-x-91b235ba/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609375Z-ship-feature-x-91b235ba/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609375Z-ship-feature-x-91b235ba/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130609374Z-ship-feature-x-13b0c813",
-      "createdAt": "2026-07-02T13:06:09.374Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130609374Z-ship-feature-x-13b0c813.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609374Z-ship-feature-x-13b0c813",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609374Z-ship-feature-x-13b0c813/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609374Z-ship-feature-x-13b0c813/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609374Z-ship-feature-x-13b0c813/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609374Z-ship-feature-x-13b0c813/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609374Z-ship-feature-x-13b0c813/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130609364Z-ship-feature-x-ca8e852d",
-      "createdAt": "2026-07-02T13:06:09.364Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130609364Z-ship-feature-x-ca8e852d.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609364Z-ship-feature-x-ca8e852d",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609364Z-ship-feature-x-ca8e852d/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609364Z-ship-feature-x-ca8e852d/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609364Z-ship-feature-x-ca8e852d/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609364Z-ship-feature-x-ca8e852d/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130609364Z-ship-feature-x-ca8e852d/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130459492Z-ship-feature-y-e72ae180",
-      "createdAt": "2026-07-02T13:04:59.492Z",
-      "objective": "Ship feature Y",
-      "source": "manual",
-      "replaceGoal": true,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130459492Z-ship-feature-y-e72ae180.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459492Z-ship-feature-y-e72ae180",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459492Z-ship-feature-y-e72ae180/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459492Z-ship-feature-y-e72ae180/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459492Z-ship-feature-y-e72ae180/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459492Z-ship-feature-y-e72ae180/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459492Z-ship-feature-y-e72ae180/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130459490Z-ship-feature-x-f8ae7aaf",
-      "createdAt": "2026-07-02T13:04:59.490Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130459490Z-ship-feature-x-f8ae7aaf.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459490Z-ship-feature-x-f8ae7aaf",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459490Z-ship-feature-x-f8ae7aaf/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459490Z-ship-feature-x-f8ae7aaf/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459490Z-ship-feature-x-f8ae7aaf/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459490Z-ship-feature-x-f8ae7aaf/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459490Z-ship-feature-x-f8ae7aaf/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130459488Z-ship-feature-x-9e65db2c",
-      "createdAt": "2026-07-02T13:04:59.488Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130459488Z-ship-feature-x-9e65db2c.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459488Z-ship-feature-x-9e65db2c",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459488Z-ship-feature-x-9e65db2c/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459488Z-ship-feature-x-9e65db2c/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459488Z-ship-feature-x-9e65db2c/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459488Z-ship-feature-x-9e65db2c/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459488Z-ship-feature-x-9e65db2c/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130459485Z-ship-feature-x-25ef90d6",
-      "createdAt": "2026-07-02T13:04:59.485Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130459485Z-ship-feature-x-25ef90d6.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459485Z-ship-feature-x-25ef90d6",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459485Z-ship-feature-x-25ef90d6/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459485Z-ship-feature-x-25ef90d6/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459485Z-ship-feature-x-25ef90d6/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459485Z-ship-feature-x-25ef90d6/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459485Z-ship-feature-x-25ef90d6/knowledge-persistence-ledger.json"
-    },
-    {
-      "runId": "2026-07-02T130459435Z-ship-feature-x-7498c359",
-      "createdAt": "2026-07-02T13:04:59.435Z",
-      "objective": "Ship feature X",
-      "source": "manual",
-      "replaceGoal": false,
-      "path": ".super-kimi/wiki/runs/2026-07-02T130459435Z-ship-feature-x-7498c359.md",
-      "evidenceRoot": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459435Z-ship-feature-x-7498c359",
-      "llmWikiPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459435Z-ship-feature-x-7498c359/llm-wiki.md",
-      "knowledgeMapPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459435Z-ship-feature-x-7498c359/kimi-knowledge-map.json",
-      "coverageMatrixPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459435Z-ship-feature-x-7498c359/capability-coverage-matrix.json",
-      "reviewLoopPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459435Z-ship-feature-x-7498c359/expert-review-loop.md",
-      "learnLedgerPath": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130459435Z-ship-feature-x-7498c359/knowledge-persistence-ledger.json"
     }
   ],
   "topics": [],
@@ -637,6 +847,146 @@
     {
       "type": "local_evidence",
       "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T013243909Z-ship-feature-y-403b758b"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051038Z-ship-feature-x-e66401d9"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051053Z-ship-feature-x-4eb32651"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051056Z-ship-feature-x-cd60f324"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051057Z-ship-feature-x-0c980de5"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102051059Z-ship-feature-y-18fcc435"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124395Z-ship-feature-x-16298800"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124409Z-ship-feature-x-ebbac8e0"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124412Z-ship-feature-x-c5b5da26"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124417Z-ship-feature-x-d584d443"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102124419Z-ship-feature-y-0dcbb986"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652500Z-ship-feature-x-c36aece0"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652511Z-ship-feature-x-685b06ce"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652512Z-ship-feature-x-b99c06b0"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652513Z-ship-feature-x-e138ec80"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T102652515Z-ship-feature-y-68d1f4b6"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801420Z-ship-feature-x-c95594e5"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801432Z-ship-feature-x-64dcef9e"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801434Z-ship-feature-x-8fc1768a"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801435Z-ship-feature-x-229f07e4"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124801438Z-ship-feature-y-8d3feb70"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825601Z-ship-feature-x-88f9e8c7"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825613Z-ship-feature-x-7a51c7fa"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825616Z-ship-feature-x-b4d60789"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825618Z-ship-feature-x-8bd99168"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T124825620Z-ship-feature-y-ce68d996"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736175Z-ship-feature-x-38e8fc87"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736188Z-ship-feature-x-9861d5c4"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736192Z-ship-feature-x-97596491"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736196Z-ship-feature-x-193c2cbe"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125736198Z-ship-feature-y-ec1c7421"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915457Z-ship-feature-x-678e8191"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915470Z-ship-feature-x-862d59d2"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915472Z-ship-feature-x-1610c975"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915474Z-ship-feature-x-0344656b"
+    },
+    {
+      "type": "local_evidence",
+      "path": ".super-kimi/evidence/ultrawork-runs/2026-07-03T125915476Z-ship-feature-y-a239edf4"
     }
   ]
 }

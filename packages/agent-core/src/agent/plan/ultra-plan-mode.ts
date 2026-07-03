@@ -294,13 +294,30 @@ export class UltraPlanModeEngine {
 
   private _calculateGoalDrift(currentOutput: string): number {
     if (!this._seedSpec) return 0;
-    const goalWords = this._tokenize(this._seedSpec.goal);
+    const seedTerms = this._seedSpecKeyTerms();
     const outputWords = this._tokenize(currentOutput);
-    if (!goalWords.size || !outputWords.size) return 1.0;
-    const intersection = new Set([...goalWords].filter((x) => outputWords.has(x)));
-    const union = new Set([...goalWords, ...outputWords]);
-    const similarity = intersection.size / union.size;
+    if (seedTerms.size === 0 || outputWords.size === 0) {
+      return seedTerms.size > 0 ? 1.0 : 0;
+    }
+    const intersection = new Set([...seedTerms].filter((x) => outputWords.has(x)));
+    const similarity = intersection.size / seedTerms.size;
     return 1.0 - similarity;
+  }
+
+  private _seedSpecKeyTerms(): Set<string> {
+    if (!this._seedSpec) return new Set();
+    const terms = this._tokenize(this._seedSpec.goal);
+    for (const constraint of this._seedSpec.constraints) {
+      for (const term of this._tokenize(constraint)) {
+        terms.add(term);
+      }
+    }
+    for (const criterion of this._seedSpec.acceptanceCriteria) {
+      for (const term of this._tokenize(criterion.description)) {
+        terms.add(term);
+      }
+    }
+    return terms;
   }
 
   private _calculateOntologyDrift(currentOutput: string): number {
@@ -771,10 +788,9 @@ export class UltraPlanModeEngine {
       'UltraPlan interview is not ready for Design.',
       `ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)}`,
       `verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'}`,
-      `completion_streak=${readiness.completionCandidateStreak}/${COMPLETION_STREAK_REQUIRED}`,
       `dimension_floor_failures=${floorFailures}`,
       `open_gaps=${gaps}`,
-      'Continue AskUserQuestion until two distinct seed-ready answers make the UltraGoal true/false-verifiable, meet every clarity floor, and resolve every required Seed section.',
+      'Continue AskUserQuestion until the UltraGoal is true/false-verifiable, every clarity floor is met, and every required Seed section is resolved.',
     ].join('\n');
   }
 
@@ -885,16 +901,16 @@ export class UltraPlanModeEngine {
     }
 
     const fallbackPatterns: Record<UltraPlanRequiredSection, RegExp> = {
-      goal: /\b(?:build|create|make|implement|fix|improve|ship|deliver|objective|goal|task)\b|(?:만들|구현|수정|개선|배포|완성|목표|작업)/i,
-      actors: /\b(?:actor|user|owner|agent|stakeholder|developer|operator|customer|player)\b|(?:사용자|행위자|담당|주체|소유자|개발자|플레이어)/i,
-      inputs: /\b(?:input|source|given|file|prompt|path|repo|repository|asset|api|test)\b|(?:입력|소스|파일|프롬프트|경로|레포|자산|테스트)/i,
-      outputs: /\b(?:outputs?|deliverables?|results?|artifacts?|report|edit|patch|screen|feature|game|app)\b|(?:출력|산출물|결과|수정|패치|화면|기능|게임|앱)/i,
-      constraints: /\b(?:constraint|limit|must|must not|cannot|only|exactly|required|forbid)\b|(?:제약|금지|반드시|하지\s?말|불가|오직|필수)/i,
-      non_goals: /\b(?:non-goal|non_goals|out of scope|not doing|do not|no unrelated|exclude|skip)\b|(?:제외|범위\s?밖|하지\s?않|무관한|스킵)/i,
-      acceptance_criteria: /\b(?:acceptance|criteria|requirement|pass|fail|completion criterion|done when|works when)\b|(?:완료\s?조건|수락|검증\s?기준|통과|실패|완료될\s?때)/i,
-      verification_plan: /\b(?:verify|verification|test|check|run|inspect|assert|screenshot)\b|(?:검증|테스트|확인|실행|점검|스크린샷)/i,
-      failure_modes: /\b(?:failure|risk|edge case|error|exception|rollback|regression|break)\b|(?:실패|위험|예외|오류|회귀|깨짐|롤백)/i,
-      runtime_context: /\b(?:runtime|environment|cwd|repo|repository|workspace|worktree|platform|browser|node|typescript)\b|(?:환경|런타임|레포|작업\s?공간|워크트리|브라우저|노드|타입스크립트)/i,
+      goal: /\b(?:build|create|make|implement|fix|improve|ship|deliver|objective|goal|task)\b|(?:만들|구현|수정|개선|배포|완성|목표|작업|하고자|하려|해결|처리)/i,
+      actors: /\b(?:actor|user|owner|agent|stakeholder|developer|operator|customer|player)\b|(?:사용자|행위자|담당|주체|소유자|개발자|플레이어|에이전트|검증자|운영자|모델)/i,
+      inputs: /\b(?:input|source|given|file|prompt|path|repo|repository|asset|api|test)\b|(?:입력|소스|파일|프롬프트|경로|레포|자산|테스트|코드|저장소|리포지토리|데이터)/i,
+      outputs: /\b(?:outputs?|deliverables?|results?|artifacts?|report|edit|patch|screen|feature|game|app)\b|(?:출력|산출물|결과|수정|패치|화면|기능|게임|앱|코드|파일|변경|배포)/i,
+      constraints: /\b(?:constraint|limit|must|must not|cannot|only|exactly|required|forbid)\b|(?:제약|제한|조건|반드시|하지\s?말|불가|오직|필수|허용|범위|최소|최대)/i,
+      non_goals: /\b(?:non-goal|non_goals|out of scope|not doing|do not|no unrelated|exclude|skip)\b|(?:제외|범위\s?밖|비목표|무관|별도|미포함|스킵|하지\s?않|안\s?함)/i,
+      acceptance_criteria: /\b(?:acceptance|criteria|requirement|pass|fail|completion criterion|done when|works when)\b|(?:완료\s?조건|수락|검증\s?기준|통과|실패|완료될\s?때|기준|조건|성공)/i,
+      verification_plan: /\b(?:verify|verification|test|check|run|inspect|assert|screenshot)\b|(?:검증|테스트|확인|실행|점검|스크린샷|검사|체크)/i,
+      failure_modes: /\b(?:failure|risk|edge case|error|exception|rollback|regression|break)\b|(?:실패|위험|예외|오류|회귀|깨짐|롤백|문제|장애|리스크|버그)/i,
+      runtime_context: /\b(?:runtime|environment|cwd|repo|repository|workspace|worktree|platform|browser|node|typescript)\b|(?:환경|런타임|레포|작업\s?공간|워크트리|브라우저|노드|타입스크립트|저장소|워크스페이스|monorepo|로컬)/i,
     };
     const match = fallbackPatterns[section].exec(text);
     return {
@@ -930,7 +946,10 @@ export class UltraPlanModeEngine {
   private hasVerifiableGoal(): boolean {
     const text = this.interviewEvidenceCorpus();
     const hasGoal = this.sectionResolved('goal');
-    const hasBinaryLanguage = /\b(true|false|pass|fail|complete|incomplete|done|not done|1|0)\b|(?:참|거짓|통과|실패|완료|미완료|된다|안된다)/i.test(text);
+    const hasBinaryLanguage =
+      /\b(true|false|pass|fail|complete|incomplete|done|not done|1|0|ok|yes|no)\b|(?:참|거짓|통과|실패|완료|미완료|된다|안된다|맞다|틀리다|가능|불가|예|아니오|성공|승인|거부|허용)/i.test(
+        text,
+      );
     return hasGoal && this.sectionResolved('acceptance_criteria') && this.sectionResolved('verification_plan') && hasBinaryLanguage;
   }
 

@@ -18,17 +18,14 @@ import {
   type AutocompleteItem,
   type AutocompleteProvider,
   type Component,
-  createPiTUIRenderer,
   diagnoseNativeRendererStats,
   NativeFrameStats,
   type NativeInputEvent,
   type NativeRenderLoopScheduler,
   type NativeRenderTimer,
   type NativeTerminalInput,
-  type NativeTerminalRenderer,
   type NativeTerminalRendererFrameMetrics,
-  type ProcessTerminal,
-  type TUI,
+  type RendererTerminalHost,
 } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
 import {
@@ -37,6 +34,7 @@ import {
   createTUIStateVisibleNativeRenderer,
   renderTUIStateNativeFrame,
 } from '#/tui/utils/native-layout-frame';
+import { renderNativeLayoutFrame } from '#/tui/renderer';
 import {
   createNativeEditorTextInput,
   handleNativeEditorKeyInput,
@@ -44,7 +42,6 @@ import {
   nativeEditorAtomicRangesForText,
 } from '#/tui/utils/native-editor-text-input';
 import { createTUIStateNativeInputRouter } from '#/tui/utils/native-input-router';
-import { createTUIStateNativeRenderMirror } from '#/tui/utils/native-renderer-mirror';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationNow,
@@ -173,7 +170,6 @@ describe('createTUIState', () => {
         auto: false,
         plan: false,
       },
-      editorBackend: 'native',
     });
 
     expect(state.editor).toBeInstanceOf(NativeTUIEditor);
@@ -190,7 +186,6 @@ describe('createTUIState', () => {
         auto: false,
         plan: false,
       },
-      editorBackend: 'native',
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 24 });
@@ -206,107 +201,6 @@ describe('createTUIState', () => {
     expect(state.editor.isShowingAutocomplete()).toBe(true);
     expect(rowText(frame.renderer.frame, 4)).toBe('╰──────────────────────╯');
     expect(rowText(frame.renderer.frame, 5).trim()).toBe('→ help  Show help');
-  });
-
-  it('wraps backend lifecycle behind a renderer bundle', async () => {
-    const terminal = {
-      drainInput: vi.fn(async () => {}),
-    } as unknown as ProcessTerminal;
-    const requestRender = vi.fn();
-    const ui = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      requestRender,
-    } as unknown as TUI;
-
-    const renderer = createPiTUIRenderer({ terminal, ui });
-
-    expect(renderer.backend).toBe('pi-tui');
-    expect(renderer.terminal).toBe(terminal);
-    expect(renderer.ui).toBe(ui);
-
-    renderer.start();
-    renderer.requestRender(true);
-    await renderer.drainInput();
-    renderer.stop();
-
-    expect(ui.start).toHaveBeenCalledTimes(1);
-    expect(requestRender).toHaveBeenCalledWith(true);
-    expect(terminal.drainInput).toHaveBeenCalledTimes(1);
-    expect(ui.stop).toHaveBeenCalledTimes(1);
-  });
-
-  it('holds pi-tui automatic frames while preserving explicit manual renders', () => {
-    const terminal = {
-      drainInput: vi.fn(async () => {}),
-    } as unknown as ProcessTerminal;
-    const requestRender = vi.fn();
-    const ui = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      requestRender,
-    } as unknown as TUI;
-    let holdAutoFrames = true;
-    const renderer = createPiTUIRenderer({ terminal, ui });
-    renderer.setAutoFrameHold(() => holdAutoFrames);
-
-    renderer.start();
-    renderer.requestRender(false);
-    ui.requestRender(false);
-
-    expect(renderer.autoFramesHeld).toBe(true);
-    expect(renderer.hasHeldAutoFrame).toBe(true);
-    expect(requestRender).not.toHaveBeenCalled();
-
-    renderer.requestRender(true);
-
-    expect(requestRender).toHaveBeenCalledWith(true);
-    expect(renderer.hasHeldAutoFrame).toBe(true);
-
-    holdAutoFrames = false;
-    renderer.requestRender(false);
-
-    expect(renderer.autoFramesHeld).toBe(false);
-    expect(renderer.hasHeldAutoFrame).toBe(false);
-    expect(requestRender.mock.calls).toEqual([[true], [false]]);
-  });
-
-  it('wires transcript viewport follow mode into the renderer bundle frame hold', () => {
-    const terminal = new FakeNativeTerminal(80, 24);
-    const requestRender = vi.fn();
-    const ui = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      requestRender,
-    } as unknown as TUI;
-    const renderer = createPiTUIRenderer({ terminal: terminal as unknown as ProcessTerminal, ui });
-    const state = createTUIState({
-      renderer,
-      initialAppState: fakeInitialAppState(),
-      startup: {
-        continueLast: false,
-        yolo: false,
-        auto: false,
-        plan: false,
-      },
-    });
-
-    state.transcriptViewport.sync(100, 10);
-    state.transcriptViewport.scroll('line-up');
-    renderer.requestRender(false);
-
-    expect(state.transcriptViewport.followOutput).toBe(false);
-    expect(renderer.autoFramesHeld).toBe(true);
-    expect(renderer.hasHeldAutoFrame).toBe(true);
-    expect(requestRender).not.toHaveBeenCalled();
-
-    state.transcriptViewport.scroll('bottom');
-    renderer.requestRender(false);
-
-    expect(state.transcriptViewport.followOutput).toBe(true);
-    expect(renderer.autoFramesHeld).toBe(false);
-    expect(renderer.hasHeldAutoFrame).toBe(false);
-    expect(requestRender).toHaveBeenCalledWith(false);
   });
 
   it('renders footer history badge from the transcript viewport state', () => {
@@ -330,39 +224,7 @@ describe('createTUIState', () => {
     expect(stripAnsi(state.footer.render(140)[0] ?? '')).not.toContain('[history');
   });
 
-  it('can switch the renderer bundle to an attached native runtime', () => {
-    const terminal = {
-      drainInput: vi.fn(async () => {}),
-    } as unknown as ProcessTerminal;
-    const ui = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      requestRender: vi.fn(),
-    } as unknown as TUI;
-    const nativeRuntime = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      requestRender: vi.fn(),
-    } as unknown as NativeTerminalRenderer;
-    const renderer = createPiTUIRenderer({ terminal, ui });
-
-    ui.requestRender(false);
-    renderer.attachNativeRuntime(nativeRuntime);
-    renderer.start();
-    renderer.requestRender(true);
-    ui.requestRender(false);
-    renderer.stop();
-
-    expect(renderer.backend).toBe('native');
-    expect(ui.start).not.toHaveBeenCalled();
-    expect(ui.stop).not.toHaveBeenCalled();
-    expect(nativeRuntime.start).toHaveBeenCalledTimes(1);
-    expect(nativeRuntime.requestRender).toHaveBeenCalledWith('manual');
-    expect(nativeRuntime.requestRender).toHaveBeenCalledWith('request');
-    expect(nativeRuntime.stop).toHaveBeenCalledTimes(1);
-  });
-
-  it('can render current TUI containers through the native layout adapter', () => {
+  it('can render current renderer containers through the native layout adapter', () => {
     const opts: KimiTUIOptions = {
       initialAppState: fakeInitialAppState(),
       startup: {
@@ -397,7 +259,7 @@ describe('createTUIState', () => {
     expect(second.output).toBe('');
   });
 
-  it('projects focused pi-tui cursor markers into native cursor state', () => {
+  it('projects focused cursor markers into native cursor state', () => {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
       startup: {
@@ -437,14 +299,12 @@ describe('createTUIState', () => {
     const first = renderTUIStateNativeFrame(state);
 
     expect(first.regions.map((region) => region.id)).toEqual(['transcript', 'editor']);
-    expect(rowText(first.renderer.frame, 2)).toBe('╭────────────╮');
-    expect(rowText(first.renderer.frame, 3)).toBe('│ > hello    │');
-    expect(rowText(first.renderer.frame, 4)).toBe('│            │');
+    expect(rowText(first.renderer.frame, 3)).toBe('╭────────────╮');
+    expect(rowText(first.renderer.frame, 4)).toBe('│ > hello    │');
     expect(rowText(first.renderer.frame, 5)).toBe('╰────────────╯');
-    expect(first.renderer.frame.getCell(12, 3).char).toBe(' ');
     expect(first.renderer.frame.getCell(12, 4).char).toBe(' ');
-    expect(first.cursor).toMatchObject({ x: 9, y: 3, visible: true, shape: 'bar' });
-    expect(first.renderer.frame.getCell(0, 2).style?.fg).toBe(state.theme.palette.border);
+    expect(first.cursor).toMatchObject({ x: 9, y: 4, visible: true, shape: 'bar' });
+    expect(first.renderer.frame.getCell(0, 3).style?.fg).toBe(state.theme.palette.border);
   });
 
   it('attaches adaptive renderer VFX to highlighted native editor regions', () => {
@@ -549,7 +409,7 @@ describe('createTUIState', () => {
     expect(state.footerContainer.children).toHaveLength(0);
   });
 
-  it('can drive current TUI containers through the live native renderer runtime', () => {
+  it('can drive current renderer containers through the live native renderer runtime', () => {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
       startup: {
@@ -610,13 +470,7 @@ describe('createTUIState', () => {
 
   it('enables synchronized-output probing for the visible native renderer', async () => {
     const terminal = new FakeNativeTerminal(8, 4);
-    const ui = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      requestRender: vi.fn(),
-    } as unknown as TUI;
     const state = createTUIState({
-      renderer: createPiTUIRenderer({ terminal: terminal as unknown as ProcessTerminal, ui }),
       initialAppState: fakeInitialAppState(),
       startup: {
         continueLast: false,
@@ -625,6 +479,7 @@ describe('createTUIState', () => {
         plan: false,
       },
     });
+    state.terminal = terminal as unknown as RendererTerminalHost;
     const scheduler = new FakeRenderLoopScheduler();
     const renderer = createTUIStateVisibleNativeRenderer(state, {
       scheduler,
@@ -945,103 +800,6 @@ describe('createTUIState', () => {
     renderer.stop();
   });
 
-  it('can mirror existing app render requests into the native runtime', () => {
-    const state = createTUIState({
-      initialAppState: fakeInitialAppState(),
-      startup: {
-        continueLast: false,
-        yolo: false,
-        auto: false,
-        plan: false,
-      },
-    });
-    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 3 });
-    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 6 });
-    state.transcriptContainer.addChild(fixedLines(['a', 'b', 'c']));
-    const requestRender = vi.fn();
-    state.renderer.requestRender = requestRender;
-    const scheduler = new FakeRenderLoopScheduler();
-    const output = new FakeNativeOutput(6, 3);
-    const mirror = createTUIStateNativeRenderMirror(state, {
-      features: 'inline-app',
-      output,
-      scheduler,
-    });
-
-    mirror.start();
-    scheduler.advance(0);
-    expect(mirror.renderer.lastFrame?.present?.outputPolicy).toMatchObject({
-      mode: 'full',
-      reason: 'full-frame',
-      eraseLine: true,
-      synchronized: true,
-    });
-    state.renderer.requestRender(true);
-    scheduler.advance(17);
-
-    expect(requestRender).toHaveBeenCalledWith(true);
-    expect(output.writes.slice(0, 6)).toEqual([
-      ANSI_HIDE_CURSOR,
-      ANSI_ENABLE_BRACKETED_PASTE,
-      ANSI_ENABLE_FOCUS_EVENTS,
-      ANSI_ENABLE_MOUSE_TRACKING,
-      ANSI_ENABLE_SGR_MOUSE_MODE,
-      ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
-    ]);
-    expect(mirror.renderer.lastFrame?.frame.causes).toEqual(['manual']);
-    expect(mirror.stats.health).toBe('healthy');
-    expect(mirror.diagnostics).toMatchObject({
-      severity: 'watch',
-      health: 'healthy',
-    });
-    expect(mirror.diagnostics).toEqual(mirror.renderer.diagnostics);
-    expect(rowText(mirror.renderer.frameRenderer.frame, 0).trim()).toBe('a');
-    mirror.stop();
-    state.renderer.requestRender(false);
-
-    expect(requestRender).toHaveBeenLastCalledWith(false);
-    expect(mirror.renderer.loop.isStarted).toBe(false);
-  });
-
-  it('can play renderer timelines through the native mirror runtime', () => {
-    const state = createTUIState({
-      initialAppState: fakeInitialAppState(),
-      startup: {
-        continueLast: false,
-        yolo: false,
-        auto: false,
-        plan: false,
-      },
-    });
-    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 3 });
-    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 6 });
-    const scheduler = new FakeRenderLoopScheduler();
-    const output = new FakeNativeOutput(6, 3);
-    const samples: string[] = [];
-    const mirror = createTUIStateNativeRenderMirror(state, {
-      features: 'inline-app',
-      output,
-      scheduler,
-      targetFps: 20,
-    });
-
-    mirror.start();
-    const playback = mirror.playTimeline({
-      durationMs: 100,
-      onSample: (sample, frame) => {
-        samples.push(`${String(frame.frame)}:${sample.progress.toFixed(1)}:${String(sample.done)}`);
-      },
-    });
-
-    scheduler.advance(0);
-    scheduler.advance(50);
-    scheduler.advance(50);
-
-    expect(samples).toEqual(['0:0.0:false', '1:0.5:false', '2:1.0:true']);
-    expect(playback.isRunning).toBe(false);
-    mirror.stop();
-  });
-
   it('drives appearance animation quality from native renderer frame budget', () => {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
@@ -1084,45 +842,6 @@ describe('createTUIState', () => {
     renderer.stop();
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');
-  });
-
-  it('can bridge native input events into legacy app input strings', () => {
-    const state = createTUIState({
-      initialAppState: fakeInitialAppState(),
-      startup: {
-        continueLast: false,
-        yolo: false,
-        auto: false,
-        plan: false,
-      },
-    });
-    const input = new FakeNativeInput();
-    const output = new FakeNativeOutput(6, 3);
-    const scheduler = new FakeRenderLoopScheduler();
-    const eventTypes: string[] = [];
-    const legacyInputs: string[] = [];
-    const mirror = createTUIStateNativeRenderMirror(state, {
-      features: 'inline-app',
-      input,
-      output,
-      scheduler,
-      keyboardProtocol: 'kitty',
-      bracketedPaste: true,
-      focusEvents: true,
-      onInputEvent: (event) => eventTypes.push(event.type === 'key' ? event.key : event.type),
-      onLegacyInput: (data) => legacyInputs.push(data),
-    });
-
-    mirror.start();
-    input.emit('data', 'x');
-    input.emit('data', '\u001B[1;5A');
-    input.emit('data', '\u001B[200~paste\u001B[201~');
-    mirror.stop();
-    input.emit('data', 'y');
-
-    expect(input.rawModeCalls).toEqual([true, false]);
-    expect(eventTypes).toEqual(['character', 'up', 'paste']);
-    expect(legacyInputs).toEqual(['x', '\u001B[1;5A', '\u001B[200~paste\u001B[201~']);
   });
 
   it('can map native input routing onto the current editor target', () => {
@@ -1241,7 +960,7 @@ describe('createTUIState', () => {
     expect(requestRender).toHaveBeenCalledTimes(1);
     expect(renderTUIStateNativeFrame(state).cursor).toMatchObject({
       x: 6,
-      y: 3,
+      y: 4,
       visible: true,
       shape: 'bar',
     });
@@ -1320,7 +1039,7 @@ describe('createTUIState', () => {
     expect(requestRender).toHaveBeenCalledTimes(1);
     expect(renderTUIStateNativeFrame(state).cursor).toMatchObject({
       x: 8,
-      y: 3,
+      y: 4,
       visible: true,
       shape: 'bar',
     });
@@ -1363,8 +1082,8 @@ describe('createTUIState', () => {
     ).toEqual({ start: 4, end: 5 });
 
     const frame = renderTUIStateNativeFrame(state);
-    expect(frame.cursor).toMatchObject({ x: 8, y: 3, visible: true, shape: 'bar' });
-    expect(frame.renderer.frame.getCell(8, 3).style?.bg).toBe(
+    expect(frame.cursor).toMatchObject({ x: 8, y: 4, visible: true, shape: 'bar' });
+    expect(frame.renderer.frame.getCell(8, 4).style?.bg).toBe(
       state.theme.palette.selectionBg,
     );
   });
@@ -1830,47 +1549,6 @@ describe('createTUIState', () => {
     expect(scrollActions).toEqual(['line-up']);
   });
 
-  it('can route mirror input through the native editor input router', () => {
-    const state = createTUIState({
-      initialAppState: fakeInitialAppState(),
-      startup: {
-        continueLast: false,
-        yolo: false,
-        auto: false,
-        plan: false,
-      },
-    });
-    const input = new FakeNativeInput();
-    const output = new FakeNativeOutput(6, 3);
-    const scheduler = new FakeRenderLoopScheduler();
-    const legacyInputs: string[] = [];
-    const scrollActions: string[] = [];
-    const nativeInput = createTUIStateNativeInputRouter(state, {
-      handleLegacyInput: (data) => legacyInputs.push(data),
-      scrollTranscriptViewport: (action) => {
-        scrollActions.push(action);
-        return true;
-      },
-    });
-    const mirror = createTUIStateNativeRenderMirror(state, {
-      features: 'inline-app',
-      input,
-      inputRouter: nativeInput.router,
-      output,
-      scheduler,
-    });
-
-    mirror.start();
-    input.emit('data', 'x');
-    input.emit('data', '\u001B[5~');
-    input.emit('data', '\u001B[<65;1;1M');
-    mirror.stop();
-    nativeInput.dispose();
-
-    expect(state.editor.getText()).toBe('x');
-    expect(legacyInputs).toEqual(['\u001B[5~']);
-    expect(scrollActions).toEqual(['line-down']);
-  });
 });
 
 function fixedLines(lines: readonly string[]): Component {

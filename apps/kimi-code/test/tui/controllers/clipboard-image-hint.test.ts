@@ -1,4 +1,4 @@
-import type { TUI } from '#/tui/renderer';
+import type { RendererRootUI } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -13,7 +13,7 @@ vi.mock('#/utils/clipboard/clipboard-has-image', () => ({
   clipboardHasImage: vi.fn(async () => false),
 }));
 
-type FakeTUI = TUI & { emitInput(data: string): void };
+type FakeTUI = RendererRootUI & { emitInput(data: string): void };
 
 interface FakeFooter {
   hint: string | null;
@@ -621,7 +621,7 @@ describe('ClipboardImageHintController', () => {
 
     // Register a second listener that consumes focus events, like installTerminalFocusTracking.
     const consumedEvents: string[] = [];
-    ui.addInputListener((data) => {
+    ui.addInputListener((data: string) => {
       if (data === TERMINAL_FOCUS_IN || data === TERMINAL_FOCUS_OUT) {
         consumedEvents.push(data);
         return { consume: true };

@@ -479,15 +479,24 @@ Acceptance:
 
 ### Phase 5: Remove the compatibility backend
 
-Once the native backend passes the same test matrix, remove the `pi-tui`
-compatibility backend and delete the dependency.
+Removed the `pi-tui` compatibility backend and deleted the dependency.
 
 Acceptance:
 
 - `@earendil-works/pi-tui` is absent from `package.json`.
+- `scripts/native/native-deps.mjs` no longer lists `pi-tui` as the parent for
+  `koffi`.
+- `src/tui/renderer/` now re-exports only `@harness-kit/tui-renderer` and the
+  small app-local native adapters; no pi-tui symbols remain in the facade.
+- `KimiTUI` always attaches the native renderer backend and no longer gates it
+  on the `native_renderer` experimental flag.
+- `NativeTUIEditor` satisfies the `TUIEditor` contract, and the native dialog
+  `Input` replaces the legacy pi-tui `Input` for feedback/other text entry.
 - Renderer docs and tests describe only product-owned behavior.
 - The app still supports current terminal image, Markdown, key, and focus
-  behavior or has explicit replacement decisions.
+  behavior through the native renderer equivalents.
+
+Status: implemented.
 
 ## First implementation slice
 

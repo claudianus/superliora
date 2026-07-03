@@ -1601,8 +1601,6 @@ describe('KimiTUI startup', () => {
 
     await driver.initMainTui();
 
-    expect(driver.state.renderer.backend).toBe('native');
-    expect(driver.state.renderer.nativeRuntime).toBeDefined();
     expect(driver.state.editor).toBeInstanceOf(NativeTUIEditor);
     expect(driver.state.editorContainer.children).toContain(driver.state.editor);
     expect(driver.state.editor.onSubmit).toBeTypeOf('function');

@@ -1,4 +1,4 @@
-import { visibleWidth, type ProcessTerminal } from '#/tui/renderer';
+import { visibleWidth, type RendererTerminalHost } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
@@ -164,7 +164,7 @@ describe('AppearanceController', () => {
       write: (chunk: string) => {
         writes.push(chunk);
       },
-    } as ProcessTerminal;
+    } as RendererTerminalHost;
 
     const controller = new AppearanceController({
       terminal,
@@ -197,7 +197,7 @@ describe('AppearanceController', () => {
       particles: 'premium' as const,
       animationFps: 30,
     };
-    const terminal = { write: vi.fn() } as unknown as ProcessTerminal;
+    const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
 
     expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(160);
     expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(420);
@@ -220,7 +220,7 @@ describe('AppearanceController', () => {
   });
 
   it('publishes active appearance for shared chrome components', () => {
-    const terminal = { write: vi.fn() } as unknown as ProcessTerminal;
+    const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
     const controller = new AppearanceController({
       terminal,
       requestRender: vi.fn(),

@@ -15,7 +15,6 @@ export * from './dialogs/question-dialog';
 export * from './dialogs/session-picker';
 export * from './dialogs/settings-selector';
 export * from './dialogs/theme-selector';
-export * from './editor/custom-editor';
 export * from './editor/file-mention-provider';
 export * from './media/code-highlight';
 export * from './media/diff-preview';

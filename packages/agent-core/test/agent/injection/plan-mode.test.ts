@@ -134,7 +134,7 @@ describe('PlanModeInjector content', () => {
     const text = lastReminder(agent);
     expect(text).toContain('UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail');
     expect(text).toContain('NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass');
-    expect(text).toContain('two distinct seed-ready evidence snapshots have been observed');
+    expect(text).toContain('no required gaps remain, and the UltraGoal is verifiable');
     expect(text).toContain('Ask 1-3 focused questions per AskUserQuestion call');
     expect(text).toContain('Your turn MUST end with AskUserQuestion or NextPhase');
     expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');

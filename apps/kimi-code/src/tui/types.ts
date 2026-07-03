@@ -231,10 +231,7 @@ export interface KimiTUIOptions {
   initialAppState: AppState;
   startup: TUIStartupOptions;
   renderer?: TerminalRenderer;
-  editorBackend?: TUIEditorBackend;
 }
-
-export type TUIEditorBackend = 'legacy' | 'native';
 
 export interface PendingExit {
   readonly kind: 'ctrl-c' | 'ctrl-d';

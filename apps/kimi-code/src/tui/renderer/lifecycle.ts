@@ -1,22 +1,20 @@
-import { ProcessTerminal, TUI } from '@earendil-works/pi-tui';
 import type {
   NativeRenderCause,
+  NativeTerminalInput,
+  NativeTerminalOutput,
   NativeTerminalRenderer,
   RendererRootUI,
   RendererTerminalHost,
 } from '@harness-kit/tui-renderer';
 
-export type TerminalRendererBackend = 'pi-tui' | 'native';
+import { KimiNativeRootUI } from './native-root-ui';
 
 export interface TerminalRenderer {
-  readonly backend: TerminalRendererBackend;
   readonly terminal: RendererTerminalHost;
   readonly ui: RendererRootUI;
-  readonly nativeRuntime?: NativeTerminalRenderer;
+  readonly nativeRuntime: NativeTerminalRenderer;
   readonly autoFramesHeld: boolean;
   readonly hasHeldAutoFrame: boolean;
-  attachNativeRuntime(runtime: NativeTerminalRenderer): void;
-  detachNativeRuntime(): void;
   setAutoFrameHold(hold: (() => boolean) | undefined): void;
   releaseHeldAutoFrames(): void;
   start(): void;
@@ -26,129 +24,59 @@ export interface TerminalRenderer {
 }
 
 export function createTerminalRenderer(): TerminalRenderer {
-  const terminal = new ProcessTerminal();
-  const ui = new TUI(terminal);
-  return createPiTUIRenderer({ terminal, ui });
+  const ui = new KimiNativeRootUI({
+    input: process.stdin as NativeTerminalInput,
+    output: process.stdout as NativeTerminalOutput,
+  });
+  return createNativeTerminalRenderer({ ui });
 }
 
-export function createPiTUIRenderer(options: {
-  readonly terminal: ProcessTerminal;
-  readonly ui: TUI;
+export function createNativeTerminalRenderer(options: {
+  readonly ui: KimiNativeRootUI;
 }): TerminalRenderer {
-  const { terminal, ui } = options;
-  const originalRequestRender = ui.requestRender.bind(ui);
-  let nativeRuntime: NativeTerminalRenderer | undefined;
-  let started = false;
+  const { ui } = options;
+  const { terminal, renderer: nativeRuntime } = ui;
   let autoFrameHold: (() => boolean) | undefined;
-  let heldPiTUIAutoFrame = false;
-  let releasingHeldPiTUIAutoFrame = false;
   const nativeRenderCause = (force: boolean | undefined): NativeRenderCause =>
     force === true ? 'manual' : 'request';
   const shouldHoldAutoFrames = () => autoFrameHold?.() === true;
+
   const renderer: TerminalRenderer = {
-    get backend() {
-      return nativeRuntime === undefined ? 'pi-tui' : 'native';
-    },
     terminal,
     ui,
-    get nativeRuntime() {
-      return nativeRuntime;
-    },
+    nativeRuntime,
     get autoFramesHeld() {
-      return nativeRuntime?.areAutoFramesHeld ?? shouldHoldAutoFrames();
+      return nativeRuntime.areAutoFramesHeld;
     },
     get hasHeldAutoFrame() {
-      return heldPiTUIAutoFrame || nativeRuntime?.areAutoFramesHeld === true;
-    },
-    attachNativeRuntime: (runtime) => {
-      if (nativeRuntime === runtime) return;
-      const previousRuntime = nativeRuntime;
-      nativeRuntime = runtime;
-      syncNativeRuntimeAutoFrameHold();
-      if (!started) return;
-      if (previousRuntime === undefined) {
-        ui.stop();
-      } else {
-        previousRuntime.stop();
-      }
-      runtime.start();
-      runtime.requestRender('manual');
-    },
-    detachNativeRuntime: () => {
-      if (nativeRuntime === undefined) return;
-      const previousRuntime = nativeRuntime;
-      nativeRuntime = undefined;
-      if (!started) return;
-      previousRuntime.stop();
-      ui.start();
-      originalRequestRender(true);
+      return nativeRuntime.areAutoFramesHeld;
     },
     setAutoFrameHold: (hold) => {
       autoFrameHold = hold;
-      syncNativeRuntimeAutoFrameHold();
+      if (hold === undefined) {
+        nativeRuntime.clearAutoFrameHoldOverride();
+      } else {
+        nativeRuntime.setAutoFrameHold(hold());
+      }
       if (!shouldHoldAutoFrames()) renderer.releaseHeldAutoFrames();
     },
     releaseHeldAutoFrames: () => {
-      nativeRuntime?.releaseHeldAutoFrames?.();
-      if (!heldPiTUIAutoFrame) return;
-      heldPiTUIAutoFrame = false;
-      releasingHeldPiTUIAutoFrame = true;
-      try {
-        renderer.requestRender(false);
-      } finally {
-        releasingHeldPiTUIAutoFrame = false;
-      }
+      nativeRuntime.releaseHeldAutoFrames();
     },
     start: () => {
-      if (started) return;
-      started = true;
-      if (nativeRuntime !== undefined) {
-        nativeRuntime.start();
-      } else {
-        ui.start();
-      }
+      nativeRuntime.start();
     },
-   stop: () => {
-     if (nativeRuntime !== undefined) {
-       nativeRuntime.stop();
-     } else {
-       ui.stop();
-     }
-      started = false;
-   },
+    stop: () => {
+      nativeRuntime.stop();
+    },
     requestRender: (force?: boolean) => {
-      if (nativeRuntime !== undefined) {
-        syncNativeRuntimeAutoFrameHold();
-        nativeRuntime.requestRender(nativeRenderCause(force));
-        return;
+      if (autoFrameHold !== undefined) {
+        nativeRuntime.setAutoFrameHold(autoFrameHold());
       }
-      if (force === true) {
-        if (!shouldHoldAutoFrames()) heldPiTUIAutoFrame = false;
-        originalRequestRender(force);
-        return;
-      }
-      if (!releasingHeldPiTUIAutoFrame && shouldHoldAutoFrames()) {
-        heldPiTUIAutoFrame = true;
-        return;
-      }
-      heldPiTUIAutoFrame = false;
-      originalRequestRender(force);
+      nativeRuntime.requestRender(nativeRenderCause(force));
     },
-    drainInput: () => terminal.drainInput(),
-  };
-
-  ui.requestRender = (force?: boolean) => {
-    renderer.requestRender(force);
+    drainInput: () => terminal.drainInput?.() ?? Promise.resolve(),
   };
 
   return renderer;
-
-  function syncNativeRuntimeAutoFrameHold(): void {
-    if (nativeRuntime === undefined) return;
-    if (autoFrameHold === undefined) {
-      nativeRuntime.clearAutoFrameHoldOverride?.();
-      return;
-    }
-    nativeRuntime.setAutoFrameHold?.(autoFrameHold());
-  }
 }

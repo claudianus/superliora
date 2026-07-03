@@ -340,10 +340,9 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'renderer',
     aliases: ['render'],
-    description: 'Inspect and control the experimental native renderer',
+    description: 'Inspect and control the native renderer',
     priority: 80,
     visibility: 'diagnostic',
-    experimentalFlag: 'native_renderer',
     argumentHint: 'diagnostics [on|off|toggle|status] | trace [status|reset|export]',
     completeArgs: rendererArgumentCompletions,
     availability: 'always',

@@ -13,7 +13,6 @@
 
 import {
   Container,
-  Input,
   Key,
   matchesKey,
   renderRendererFrameRows,
@@ -21,6 +20,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { Input } from './input';
 
 export type FeedbackInputDialogResult =
   | { readonly kind: 'ok'; readonly value: string }

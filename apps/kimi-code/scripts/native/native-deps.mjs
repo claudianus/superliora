@@ -69,18 +69,10 @@ export const nativeDeps = Object.freeze([
     parent: 'clipboard-host',
   },
   {
-    id: 'pi-tui',
-    name: () => '@earendil-works/pi-tui',
-    // pi-tui is bundled into main.cjs at build time — we don't collect it as
-    // a native dep, only register it so koffi can declare it as parent.
-    collect: 'virtual',
-    parent: null,
-  },
-  {
     id: 'koffi',
     name: () => 'koffi',
     collect: 'js-and-native-file',
-    parent: 'pi-tui',
+    parent: null,
     nativeFileRelatives: (target) => [`build/koffi/${koffiTripletByTarget[target]}/koffi.node`],
   },
 ]);

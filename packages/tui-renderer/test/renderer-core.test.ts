@@ -3808,6 +3808,38 @@ describe('NativeFrameRenderer', () => {
     expect(result.output.endsWith(ANSI_END_SYNCHRONIZED_UPDATE)).toBe(true);
     expect(writes.at(-1)).toBe(result.output);
   });
+
+  it('prepends a kitty inline-image clear sequence when inlineImageProtocol is kitty', () => {
+    const renderer = new NativeFrameRenderer({
+      width: 4,
+      height: 1,
+      output: { write: () => {} },
+      inlineImageProtocol: 'kitty',
+      synchronized: false,
+    });
+
+    renderer.beginFrame({ clear: false });
+    renderer.writeText(0, 0, 'hi');
+    const result = renderer.present();
+
+    expect(result.output).toBe(`${encodeRendererClearInlineImages('kitty')}\u001B[1;1Hhi  `);
+  });
+
+  it('does not prepend an inline-image clear sequence when inlineImageProtocol is none', () => {
+    const renderer = new NativeFrameRenderer({
+      width: 4,
+      height: 1,
+      output: { write: () => {} },
+      inlineImageProtocol: 'none',
+      synchronized: false,
+    });
+
+    renderer.beginFrame({ clear: false });
+    renderer.writeText(0, 0, 'hi');
+    const result = renderer.present();
+
+    expect(result.output).toBe('\u001B[1;1Hhi  ');
+  });
 });
 
 describe('renderNativeLayoutFrame', () => {
@@ -4435,6 +4467,38 @@ describe('NativeTerminalSession', () => {
     ]);
     expect(input.rawModeCalls).toEqual([true, false]);
     expect(input.paused).toBe(1);
+  });
+
+  it('clears inline images on start when imageProtocol is kitty', () => {
+    const input = new FakeInput();
+    const output = new FakeOutput();
+    const session = new NativeTerminalSession({
+      input,
+      output,
+      screenMode: 'alternate',
+      imageProtocol: 'kitty',
+    });
+
+    session.start();
+
+    const clearIndex = output.writes.indexOf(encodeRendererClearInlineImages('kitty'));
+    expect(clearIndex).toBeGreaterThan(-1);
+    expect(clearIndex).toBeGreaterThan(output.writes.indexOf(ANSI_ENTER_ALTERNATE_SCREEN));
+  });
+
+  it('does not clear inline images on start when imageProtocol is none', () => {
+    const input = new FakeInput();
+    const output = new FakeOutput();
+    const session = new NativeTerminalSession({
+      input,
+      output,
+      screenMode: 'alternate',
+      imageProtocol: 'none',
+    });
+
+    session.start();
+
+    expect(output.writes).not.toContain(encodeRendererClearInlineImages('kitty'));
   });
 
   it('can start terminal features from a fullscreen app profile', () => {

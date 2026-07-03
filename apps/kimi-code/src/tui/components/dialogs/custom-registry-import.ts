@@ -11,7 +11,6 @@
 
 import {
   Container,
-  Input,
   Key,
   matchesKey,
   renderRendererFrameRows,
@@ -20,6 +19,7 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import { Input } from './input';
 
 export interface CustomRegistryImportValue {
   readonly url: string;

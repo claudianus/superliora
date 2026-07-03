@@ -1,4 +1,4 @@
-import type { TUI } from '#/tui/renderer';
+import type { RendererRootUI } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MoonLoader } from '#/tui/components/chrome/moon-loader';
@@ -14,7 +14,7 @@ function createLoader(
   colorFn?: ConstructorParameters<typeof MoonLoader>[2],
   label?: ConstructorParameters<typeof MoonLoader>[3],
 ): MoonLoader {
-  const loader = new MoonLoader({ requestRender: vi.fn() } as unknown as TUI, style, colorFn, label);
+  const loader = new MoonLoader({ requestRender: vi.fn() } as unknown as RendererRootUI, style, colorFn, label);
   loaders.push(loader);
   return loader;
 }

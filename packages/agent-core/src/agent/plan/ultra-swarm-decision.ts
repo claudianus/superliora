@@ -13,7 +13,7 @@ export function ultraSwarmEngageNextAction(plan: string): string | undefined {
   if (ultraSwarmDecision(plan) !== 'ENGAGE') return undefined;
   return [
     'UltraSwarm ENGAGE is binding.',
-    'Next action: call UltraSwarm as the only tool call before product-file edits or single-agent implementation.',
+    'Next action: create the verifiable UltraGoal with CreateGoal if it does not already exist, then call UltraSwarm as the only tool call before product-file edits or single-agent implementation.',
     'Pass the Capability Coverage Matrix, acceptance criteria, risks, required evidence, verification owner, and relevant UltraworkGraph work_node_ids.',
     'If specialists are no longer needed, revise the Swarm decision to DEFER with a waiver before implementation.',
   ].join(' ');
