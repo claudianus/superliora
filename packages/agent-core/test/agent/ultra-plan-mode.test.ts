@@ -58,6 +58,30 @@ describe('UltraPlanModeEngine', () => {
       engine.setSeedSpec(seed);
       expect(engine.seedSpec).toBe(seed);
     });
+
+    it('reopens interview for seed refinement after drift blocks exit', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Build a verifiable CLI fix');
+      const seed = engine.generateSeedSpecFromInterview('Build a verifiable CLI fix', [], [], 'CLI', []);
+      engine.setSeedSpec(seed);
+
+      engine.addInterviewRound(
+        'Confirm the seed.',
+        'Goal: build a verifiable CLI fix. Actors: user and agent. Inputs: repo files. Outputs: source edits. Constraints: no unrelated changes. Non-goals: no broad refactor. Acceptance Criteria: tests pass. Verification Plan: run tests. Failure Modes: regression. Runtime Context: TypeScript repo. Completion Criterion: true when tests pass, false otherwise.',
+      );
+      engine.calculateAmbiguityScore();
+
+      engine.reopenInterviewForSeedRefinement({
+        goalDrift: 0.9,
+        constraintDrift: 0,
+        ontologyDrift: 0.6,
+      });
+
+      expect(engine.seedSpec).toBeNull();
+      expect(engine.interviewState.ambiguityScore).toBeNull();
+      expect(engine.interviewState.completionCandidateStreak).toBe(0);
+      expect(engine.interviewState.lastReadyEvidenceHash).toBeUndefined();
+    });
   });
 
   describe('Interview ambiguity scoring', () => {
@@ -142,6 +166,40 @@ describe('UltraPlanModeEngine', () => {
       expect(readiness.openGaps).toContain('actors');
       expect(readiness.openGaps).toContain('acceptance_criteria');
       expect(readiness.ambiguityScore.overallScore).toBeGreaterThan(0.2);
+    });
+
+    it('increments completion streak on a new ready round even when evidence hash collides', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Build Super Kimi premium Ultrawork regression protection');
+
+      engine.addInterviewRound(
+        'What is the goal and scope?',
+        'Goal: preserve the Super Kimi premium CLI workflow with a verifiable UltraGoal. Actors: CLI user, TUI agent, verification owner. Scope: TUI help, theme, UltraPlan, UltraGoal, Research, Swarm decision, and Verify surfaces.',
+      );
+      engine.addInterviewRound(
+        'What constraints and risks must be protected?',
+        'Inputs: current repository files, TUI prompt, tests, and user request. Outputs: patched TUI flow, updated tests, and verification evidence. Constraints: must keep the Ultrawork brand visible, cannot hide advanced commands, and should avoid unrelated refactors. Non-goals: do not redesign unrelated provider setup or rewrite the whole TUI. Failure modes: regression that removes terminal themes, weakens slash command access, or claims Swarm without a decision.',
+      );
+      engine.addInterviewRound(
+        'What acceptance criteria should verify success?',
+        'Acceptance Criteria: /help advanced shows Ultra access paths, /theme lists bundled themes, /plan ultra starts UltraPlan, /ultrawork connects the workflow, and tests verify each requirement. Verification Plan: run unit tests and inspect rendered TUI copy. Runtime Context: TypeScript monorepo in a local CLI workspace. Completion Criterion: true when tests pass and the workflow is visibly complete, false otherwise.',
+      );
+      engine.calculateAmbiguityScore();
+      expect(engine.interviewState.completionCandidateStreak).toBe(1);
+      expect(engine.canAutoComplete()).toBe(false);
+
+      // Simulate a hash collision: all evidence hashes look identical, so the old
+      // evidence-hash-only check would never count the second ready round.
+      (engine as any)._hash = () => 'collision';
+
+      engine.addInterviewRound(
+        'Confirm the Seed is complete without changing scope.',
+        'Confirmed: the Seed is complete. Completion Criterion remains true when tests pass and the workflow is visibly complete, false otherwise. No extra scope is added.',
+      );
+      engine.calculateAmbiguityScore();
+
+      expect(engine.interviewState.completionCandidateStreak).toBe(2);
+      expect(engine.canAutoComplete()).toBe(true);
     });
 
     it('uses the current user prompt as interview context for already-bounded tasks', () => {

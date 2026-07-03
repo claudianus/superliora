@@ -64,12 +64,14 @@ export interface DriftMetrics {
   readonly ontologyDrift: number;
 }
 
+export const ULTRA_PLAN_DRIFT_THRESHOLD = 0.3;
+
 export function combinedDrift(metrics: DriftMetrics): number {
   return metrics.goalDrift * 0.5 + metrics.constraintDrift * 0.3 + metrics.ontologyDrift * 0.2;
 }
 
 export function isDriftAcceptable(metrics: DriftMetrics): boolean {
-  return combinedDrift(metrics) <= 0.3;
+  return combinedDrift(metrics) <= ULTRA_PLAN_DRIFT_THRESHOLD;
 }
 
 export type InterviewPerspective =
@@ -111,6 +113,7 @@ export interface InterviewState {
   readonly ambiguityScore: AmbiguityScoreResult | null;
   readonly completionCandidateStreak: number;
   readonly lastReadyEvidenceHash?: string;
+  readonly lastReadyRoundCount?: number;
 }
 
 export const ULTRA_PLAN_REQUIRED_SECTIONS = [
@@ -209,6 +212,18 @@ export class UltraPlanModeEngine {
 
   setSeedSpec(seed: SeedSpec): void {
     this._seedSpec = seed;
+  }
+
+  reopenInterviewForSeedRefinement(metrics: DriftMetrics): void {
+    this._seedSpec = null;
+    this._driftMetrics = metrics;
+    this._interviewState = {
+      ...this._interviewState,
+      ambiguityScore: null,
+      completionCandidateStreak: 0,
+      lastReadyEvidenceHash: undefined,
+      lastReadyRoundCount: -1,
+    };
   }
 
   get seedSpec(): SeedSpec | null {
@@ -404,11 +419,14 @@ export class UltraPlanModeEngine {
   }
 
   private _hash(text: string): string {
-    let h = 0;
+    let h1 = 5381;
+    let h2 = 0;
     for (let i = 0; i < text.length; i++) {
-      h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+      const c = text.charCodeAt(i);
+      h1 = ((h1 << 5) + h1 + c) | 0;
+      h2 = (h2 * 33 + c) | 0;
     }
-    return String(h);
+    return `${h1.toString(36)}:${h2.toString(36)}`;
   }
 
   generateLateralThinking(
@@ -520,6 +538,7 @@ export class UltraPlanModeEngine {
     ambiguityScore: null,
     completionCandidateStreak: 0,
     lastReadyEvidenceHash: undefined,
+    lastReadyRoundCount: -1,
   };
 
   get interviewState(): InterviewState {
@@ -670,17 +689,25 @@ export class UltraPlanModeEngine {
     );
     const evidenceHash = this._hash(this.interviewEvidenceText());
 
-    if (isReady && this._interviewState.lastReadyEvidenceHash !== evidenceHash) {
+    const lastReadyRoundCount = this._interviewState.lastReadyRoundCount ?? -1;
+    const hasNewRoundSinceLastReady =
+      this._interviewState.rounds.length > lastReadyRoundCount;
+    const evidenceChanged =
+      this._interviewState.lastReadyEvidenceHash !== evidenceHash;
+
+    if (isReady && (evidenceChanged || hasNewRoundSinceLastReady)) {
       this._interviewState = {
         ...this._interviewState,
         completionCandidateStreak: this._interviewState.completionCandidateStreak + 1,
         lastReadyEvidenceHash: evidenceHash,
+        lastReadyRoundCount: this._interviewState.rounds.length,
       };
     } else {
       this._interviewState = {
         ...this._interviewState,
         completionCandidateStreak: isReady ? this._interviewState.completionCandidateStreak : 0,
         lastReadyEvidenceHash: isReady ? this._interviewState.lastReadyEvidenceHash : undefined,
+        lastReadyRoundCount: isReady ? this._interviewState.lastReadyRoundCount : -1,
       };
     }
 
