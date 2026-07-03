@@ -1,4 +1,8 @@
 import type { Agent } from '../..';
+import {
+  ultraSwarmDecision,
+  ultraSwarmEngageNextAction,
+} from '../../plan/ultra-swarm-decision';
 import type { ApprovalResponse, PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 
 interface ExitPlanModeOption {
@@ -48,9 +52,17 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
 
     const selected = selectedExitPlanModeOption(display.options, result.selectedLabel);
 
+    const isUltra = this.agent.planMode.isUltraMode === true;
+    const nextAction = isUltra ? ultraSwarmEngageNextAction(display.plan) : undefined;
     const failed = this.exitPlanMode();
     if (failed !== undefined) {
       return { kind: 'result' as const, syntheticResult: failed };
+    }
+    if (isUltra && ultraSwarmDecision(display.plan) === 'ENGAGE') {
+      this.agent.ultraSwarmEngageGate?.engage({
+        planPath: display.path,
+        reason: swarmDecisionSummary(display.plan),
+      });
     }
 
     if (result.selectedLabel !== undefined && result.selectedLabel.length > 0) {
@@ -68,11 +80,13 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
         : `Selected approach: ${selected.label}\nExecute ONLY the selected approach. Do not execute any unselected alternatives.\n\n`;
     const savedTo = display.path !== undefined ? `Plan saved to: ${display.path}\n\n` : '';
     const formattedPlan = `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${display.plan}`;
+    const requiredNextAction =
+      nextAction === undefined ? '' : `\n\n---\n## Required Next Action\n${nextAction}`;
     return {
       kind: 'result' as const,
       syntheticResult: {
         isError: false,
-        output: `Exited plan mode. ${optionPrefix}${formattedPlan}`,
+        output: `Exited plan mode. ${optionPrefix}${formattedPlan}${requiredNextAction}`,
       },
     };
   }
@@ -161,6 +175,12 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
 
     this.agent.telemetry.track('plan_resolved', { outcome: 'rejected' });
   }
+}
+
+function swarmDecisionSummary(plan: string): string | undefined {
+  const line = plan.split(/\r?\n/).find((entry) => /\bswarm decision\s*:/i.test(entry));
+  const trimmed = line?.trim();
+  return trimmed !== undefined && trimmed.length > 0 ? trimmed : undefined;
 }
 
 function selectedExitPlanModeOption(

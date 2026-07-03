@@ -5,7 +5,9 @@ import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { CloakBrowserRuntime } from '../src/browser/cloak-browser';
 import { CuaComputerRuntime } from '../src/computer/cua-computer';
+import type { SetupCommandResult } from '../src/install';
 
 const tempDirs: string[] = [];
 const require = createRequire(import.meta.url);
@@ -91,6 +93,53 @@ describe('CuaComputerRuntime', () => {
     }
   });
 });
+
+describe('CloakBrowserRuntime', () => {
+  it('auto-installs the browser-use runtime when status finds it missing', async () => {
+    const info = vi
+      .fn()
+      .mockResolvedValueOnce(setupResult({ ok: false, code: 1, stderr: 'missing\n' }))
+      .mockResolvedValueOnce(setupResult({ stdout: 'cloakbrowser 0.4.5\n' }));
+    const install = vi.fn().mockResolvedValue(setupResult({ stdout: 'installed\n' }));
+    const runtime = new CloakBrowserRuntime({ info, install });
+
+    const status = await runtime.status({ installIfMissing: true });
+
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(info).toHaveBeenCalledTimes(2);
+    expect(status).toMatchObject({
+      installed: true,
+      ready: true,
+      version: 'cloakbrowser 0.4.5',
+    });
+  });
+
+  it('respects disabled browser-use auto-install', async () => {
+    const info = vi.fn().mockResolvedValue(setupResult({ ok: false, code: 1, stderr: 'missing\n' }));
+    const install = vi.fn();
+    const runtime = new CloakBrowserRuntime({ autoInstall: false, info, install });
+
+    const status = await runtime.status({ installIfMissing: true });
+
+    expect(install).not.toHaveBeenCalled();
+    expect(status).toMatchObject({
+      installed: false,
+      ready: false,
+      error: 'missing',
+    });
+  });
+});
+
+function setupResult(overrides: Partial<SetupCommandResult> = {}): SetupCommandResult {
+  return {
+    ok: true,
+    code: 0,
+    stdout: '',
+    stderr: '',
+    command: ['cmd'],
+    ...overrides,
+  };
+}
 
 async function createFakeCuaDriver(): Promise<string> {
   const dir = await mkdtemp(join(process.cwd(), '.tmp-cua-driver-'));

@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 import { describe, expect, it } from 'vitest';
 
 import { CronMessageComponent } from '#/tui/components/messages/cron-message';

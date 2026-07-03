@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { injectPromptSymbol } from '#/tui/components/editor/custom-editor';
+import { injectRendererEditorPromptSymbol as injectPromptSymbol } from '#/tui/renderer';
 
 describe('injectPromptSymbol', () => {
   it('places a "> " prompt at columns 2-3 (col 0 = border, col 1 = single-space gap)', () => {

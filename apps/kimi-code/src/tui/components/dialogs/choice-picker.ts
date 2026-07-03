@@ -15,7 +15,7 @@ import {
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme, type ColorToken } from '#/tui/theme';
 import {

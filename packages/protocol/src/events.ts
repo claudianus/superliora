@@ -435,6 +435,7 @@ export interface UltraworkResearchFindingVerifiedEvent {
 export interface UltraworkTeamStaffedEvent {
   readonly type: 'ultrawork.team.staffed';
   readonly runId: string;
+  readonly toolCallId?: string;
   readonly team: TeamPlan;
 }
 
@@ -1193,6 +1194,7 @@ export const ultraworkResearchFindingVerifiedEventSchema = z.object({
 export const ultraworkTeamStaffedEventSchema = z.object({
   type: z.literal('ultrawork.team.staffed'),
   runId: z.string().min(1),
+  toolCallId: z.string().min(1).optional(),
   team: teamPlanSchema,
 }) satisfies z.ZodType<UltraworkTeamStaffedEvent>;
 

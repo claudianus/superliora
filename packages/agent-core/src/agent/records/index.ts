@@ -1,4 +1,5 @@
 import type { Agent } from '..';
+import type { AgentEvent } from '../../rpc/events';
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
   isNewerWireVersion,
@@ -78,6 +79,12 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'plan_mode.exit':
       agent.planMode.exit(input.id);
       return;
+    case 'ultra_swarm_engage_gate.set':
+      agent.ultraSwarmEngageGate.restoreEngage(input);
+      return;
+    case 'ultra_swarm_engage_gate.clear':
+      agent.ultraSwarmEngageGate.restoreClear();
+      return;
     case 'swarm_mode.enter':
       agent.swarmMode.restoreEnter(input.trigger);
       return;
@@ -130,6 +137,10 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       return;
     case 'goal.clear':
       agent.goal.restoreClear(input);
+      return;
+    case 'subagent.lifecycle':
+    case 'ultrawork.event':
+      agent.replayBuilder.push({ type: 'agent_event', event: input.event as AgentEvent });
       return;
   }
 }
@@ -242,5 +253,14 @@ export class AgentRecords {
 
   async flush(): Promise<void> {
     await this.persistence?.flush();
+  }
+
+  async readAll(): Promise<readonly AgentRecord[]> {
+    if (!this.persistence) return [];
+    const records: AgentRecord[] = [];
+    for await (const record of this.persistence.read()) {
+      records.push(record);
+    }
+    return records;
   }
 }

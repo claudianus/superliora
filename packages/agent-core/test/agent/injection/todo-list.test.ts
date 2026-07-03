@@ -121,6 +121,7 @@ describe('TodoListReminderInjector', () => {
 
     const text = lastReminderText(history);
     expect(text).toContain('The TodoList tool has not been updated recently');
+    expect(text).toContain('Treat the board as live Kanban');
     expect(text).toContain('NEVER mention this reminder to the user');
     expect(text).toContain('Current todo list:');
     expect(text).toContain('1. [in_progress] Read current TodoList implementation');
@@ -129,29 +130,29 @@ describe('TodoListReminderInjector', () => {
 
   it('does not inject before the assistant-turn threshold', async () => {
     const todos: TodoItem[] = [{ title: 'Read code', status: 'in_progress' }];
-    const history = [todoListWrite(todos), ...Array.from({ length: 9 }, () => assistantMessage())];
+    const history = [todoListWrite(todos), ...Array.from({ length: 3 }, () => assistantMessage())];
     const agent = todoAgent({ history, todos, todoListActive: true });
     const injector = new TodoListReminderInjector(agent);
 
     await injector.inject();
 
-    expect(history).toHaveLength(10);
+    expect(history).toHaveLength(4);
   });
 
   it('does not inject another reminder before the reminder spacing threshold', async () => {
     const todos: TodoItem[] = [{ title: 'Read code', status: 'in_progress' }];
     const history = [
       todoListWrite(todos),
-      ...Array.from({ length: 10 }, () => assistantMessage()),
+      ...Array.from({ length: 4 }, () => assistantMessage()),
       priorTodoReminder(),
-      ...Array.from({ length: 9 }, () => assistantMessage()),
+      ...Array.from({ length: 5 }, () => assistantMessage()),
     ];
     const agent = todoAgent({ history, todos, todoListActive: true });
     const injector = new TodoListReminderInjector(agent);
 
     await injector.inject();
 
-    expect(history).toHaveLength(21);
+    expect(history).toHaveLength(11);
   });
 
   it('does not treat TodoList query mode as a write', async () => {

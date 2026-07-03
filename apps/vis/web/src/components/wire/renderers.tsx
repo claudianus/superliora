@@ -553,6 +553,40 @@ export const WIRE_RENDERERS: RendererMap = {
     headline: () => ({ main: <Dim>swarm mode exited</Dim> }),
   },
 
+  'subagent.lifecycle': {
+    tone: 'subagent',
+    label: 'subagent',
+    headline: (r) => ({
+      main: (
+        <span className="flex items-center gap-2 min-w-0">
+          <Pill tone="subagent" variant="soft">
+            {r.event.type}
+          </Pill>
+          {typeof r.event['subagentId'] === 'string' ? (
+            <Mono>{r.event['subagentId']}</Mono>
+          ) : null}
+        </span>
+      ),
+    }),
+    detail: (r) => <JsonViewer value={r.event} defaultOpenDepth={2} />,
+  },
+
+  'ultrawork.event': {
+    tone: 'lifecycle',
+    label: 'ultrawork',
+    headline: (r) => ({
+      main: (
+        <span className="flex items-center gap-2 min-w-0">
+          <Pill tone="lifecycle" variant="soft">
+            {r.event.type}
+          </Pill>
+          {typeof r.event['runId'] === 'string' ? <Mono>{r.event['runId']}</Mono> : null}
+        </span>
+      ),
+    }),
+    detail: (r) => <JsonViewer value={r.event} defaultOpenDepth={2} />,
+  },
+
   'goal.create': {
     tone: 'lifecycle',
     label: 'goal+',

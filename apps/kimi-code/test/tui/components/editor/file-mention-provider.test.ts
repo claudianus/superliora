@@ -462,7 +462,7 @@ describe('FileMentionProvider', () => {
     expect(values.some((value) => value.startsWith('@current/'))).toBe(false);
   });
 
-  it('delegates path suggestions to pi-tui for regular path completion', async () => {
+  it('delegates path suggestions to the renderer provider for regular path completion', async () => {
     mkdirSync(join(workDir, 'src'));
     writeFileSync(join(workDir, 'README.md'), 'readme');
     const provider = new FileMentionProvider([], workDir, NO_FD);
@@ -473,7 +473,7 @@ describe('FileMentionProvider', () => {
     expect(result!.items.map((item) => item.value)).toEqual(['src/', 'README.md']);
   });
 
-  it('applyCompletion delegates file and directory insertion to pi-tui', () => {
+  it('applyCompletion delegates file and directory insertion to the renderer provider', () => {
     const provider = new FileMentionProvider([], workDir, NO_FD);
 
     const file = provider.applyCompletion(

@@ -15,7 +15,7 @@ import {
   TodoListTool,
   type TodoItem,
 } from '../../src/tools/builtin/state/todo-list';
-import type { ToolStore } from '../../src/tools/store';
+import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
 import { executeTool } from './fixtures/execute-tool';
 
 const signal = new AbortController().signal;
@@ -27,8 +27,10 @@ function makeStore(initial: readonly TodoItem[] = []): {
   let todos = [...initial];
   return {
     store: {
-      get: (key) => (key === TODO_STORE_KEY ? todos : undefined),
-      set: (key, value) => {
+      get<K extends ToolStoreKey>(key: K): ToolStoreData[K] | undefined {
+        return key === TODO_STORE_KEY ? (todos as unknown as ToolStoreData[K]) : undefined;
+      },
+      set<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
         if (key === TODO_STORE_KEY) {
           todos = [...(value as readonly TodoItem[])];
         }
@@ -132,14 +134,56 @@ describe('TodoListTool', () => {
     expect(result.output).toContain('Todo list updated');
     expect(result.output).toContain('[pending] first');
     expect(result.output).toContain('[in_progress] second');
-    expect(result.output).toContain(
-      'Ensure that you continue to use the todo list to track progress.',
-    );
+    expect(result.output).toContain('Changes: 2 added.');
+    expect(result.output).toContain('Keep this as a live Kanban board');
     expect(result.output).toContain('exactly one task in_progress');
     expect(getTodos()).toEqual([
       { title: 'first', status: 'pending' },
       { title: 'second', status: 'in_progress' },
     ]);
+  });
+
+  it('summarizes live Kanban changes on replacement writes', async () => {
+    const { tool } = makeTool([
+      { title: 'Read code', status: 'in_progress' },
+      { title: 'Patch parser', status: 'pending' },
+      { title: 'Remove stale branch', status: 'pending' },
+    ]);
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'call_1',
+      args: {
+        todos: [
+          { title: 'Read code', status: 'done' },
+          { title: 'Patch parser', status: 'in_progress' },
+          { title: 'Add regression test', status: 'pending' },
+        ],
+      },
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: false });
+    expect(result.output).toContain('Changes: 1 added, 1 completed, 1 moved, 1 removed.');
+  });
+
+  it('warns when replacement writes exceed the in-progress WIP limit', async () => {
+    const { tool } = makeTool();
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'call_1',
+      args: {
+        todos: [
+          { title: 'Patch parser', status: 'in_progress' },
+          { title: 'Run tests', status: 'in_progress' },
+        ],
+      },
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: false });
+    expect(result.output).toContain('Kanban hygiene: more than one card is in_progress');
   });
 
   it('renders a done todo with a marker matching the status enum value', async () => {

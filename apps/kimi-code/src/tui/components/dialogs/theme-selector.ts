@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 
 import { highlightLines } from '#/tui/components/media/code-highlight';
 import {

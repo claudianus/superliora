@@ -9,13 +9,52 @@ import { budgetToolResultForModel } from '../../src/agent/turn/tool-result-budge
 import { HookEngine } from '../../src/session/hooks';
 import type { SessionSubagentHost } from '../../src/session/subagent-host';
 import { FLAG_DEFINITIONS, FlagResolver } from '../../src/flags';
+import type { AgentMemoryRuntime } from '../../src/memory';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, testAgent } from './harness/agent';
 import { executeTool } from '../tools/fixtures/execute-tool';
 
 const signal = new AbortController().signal;
 
+function installMemory(
+  agent: ReturnType<typeof testAgent>['agent'],
+  enabled: boolean,
+): AgentMemoryRuntime {
+  const memory: AgentMemoryRuntime = {
+    isEnabled: () => enabled,
+    search: vi.fn().mockResolvedValue([]),
+    list: vi.fn().mockResolvedValue([]),
+    get: vi.fn().mockResolvedValue(undefined),
+    remember: vi.fn(),
+    update: vi.fn(),
+    forget: vi.fn().mockResolvedValue(false),
+    getInjection: vi.fn().mockResolvedValue(undefined),
+    recordTurn: vi.fn().mockResolvedValue([]),
+  };
+  (agent as unknown as { memory: AgentMemoryRuntime }).memory = memory;
+  agent.tools.refreshBuiltinTools();
+  return memory;
+}
+
 describe('Agent tools', () => {
+  it('exposes Memory when Kimi Recall is enabled', () => {
+    const ctx = testAgent();
+    ctx.configure();
+    installMemory(ctx.agent, true);
+    ctx.agent.tools.setActiveTools(['Memory']);
+
+    expect(ctx.agent.tools.loopTools.map((tool) => tool.name)).toContain('Memory');
+  });
+
+  it('hides Memory when Kimi Recall is disabled', () => {
+    const ctx = testAgent();
+    ctx.configure();
+    installMemory(ctx.agent, false);
+    ctx.agent.tools.setActiveTools(['Memory']);
+
+    expect(ctx.agent.tools.loopTools.map((tool) => tool.name)).not.toContain('Memory');
+  });
+
   it('blocks tools through PreToolUse before permission and emits PostToolUseFailure', async () => {
     const execWithEnv = vi.fn().mockRejectedValue(new Error('Bash should not execute'));
     const triggered: Array<[string, string, number]> = [];
@@ -269,6 +308,15 @@ describe('Agent tools', () => {
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'AgentSwarm')).toBe(true);
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraSwarm')).toBe(true);
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'SearchExpert')).toBe(true);
+  });
+
+  it('exposes UltraworkGraph as a standard builtin tool', () => {
+    const ctx = testAgent({
+      experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
+    });
+    ctx.configure({ tools: ['UltraworkGraph'] });
+
+    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(true);
   });
 
   it('routes registered user tools through tool.call request/response', async () => {

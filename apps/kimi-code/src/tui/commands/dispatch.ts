@@ -1,4 +1,4 @@
-import type { Component, Focusable } from '@earendil-works/pi-tui';
+import type { Component, Focusable } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@moonshot-ai/kimi-code-oauth';
 import type { KimiHarness, Session } from '@moonshot-ai/kimi-code-sdk';
 
@@ -45,6 +45,11 @@ import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
 import { handlePreflightCommand } from './preflight';
 import { handleProviderCommand } from './provider';
+import {
+  handleRendererCommand,
+  type RendererDiagnosticsOverlayCommand,
+  type RendererTraceCommand,
+} from './renderer';
 import type { BuiltinSlashCommandName } from './registry';
 import { handleReloadCommand, handleReloadTuiCommand } from './reload';
 import { resolveSlashCommandInput, slashBusyMessage } from './resolve';
@@ -148,6 +153,8 @@ export interface SlashCommandHost {
   stop(exitCode?: number): Promise<void>;
   setExitOpenUrl(url: string): void;
   showHelpPanel(args?: string): void;
+  setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
+  setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
   showSessionPicker(): Promise<void>;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
@@ -339,6 +346,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'preflight':
       await handlePreflightCommand(host, args);
+      return;
+    case 'renderer':
+      handleRendererCommand(host, args);
       return;
     case 'title':
       await handleTitleCommand(host, args);

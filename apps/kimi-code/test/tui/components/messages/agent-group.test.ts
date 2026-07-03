@@ -1,4 +1,4 @@
-import type { TUI } from '@earendil-works/pi-tui';
+import type { TUI } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';

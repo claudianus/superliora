@@ -1,4 +1,4 @@
-import { Container, Text } from '@earendil-works/pi-tui';
+import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 
@@ -42,7 +42,9 @@ export class ShellRunComponent extends Container {
     super();
     this.textComponent = new Text(this.renderText(), 0, 0);
     this.addChild(this.textComponent);
-    this.timer = setInterval(() => this.tick(), TIMER_INTERVAL_MS);
+    this.timer = setInterval(() => {
+      this.tick();
+    }, TIMER_INTERVAL_MS);
   }
 
   append(text: string): void {
@@ -120,9 +122,13 @@ export class ShellRunComponent extends Container {
         body = `  ${dim('Running…')}`;
       } else {
         const lines = trimmed.split('\n');
-        const tail = lines.slice(-RUNNING_TAIL_LINES);
-        extra = Math.max(0, lines.length - RUNNING_TAIL_LINES);
-        body = tail.map((line) => `  ${dim(line)}`).join('\n');
+        const preview = projectRendererLineWindow({
+          lines,
+          maxLines: RUNNING_TAIL_LINES,
+          tail: true,
+        });
+        extra = preview.hiddenLineCount;
+        body = preview.lines.map((line) => `  ${dim(line)}`).join('\n');
       }
       const timing = `  ${dim(`${extra > 0 ? `+${extra} lines ` : ''}(${elapsed}s)`)}`;
       const hint = `  ${dim('(ctrl+b to run in background)')}`;

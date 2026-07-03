@@ -1,5 +1,5 @@
-import { resetCapabilitiesCache, setCapabilities, visibleWidth } from '@earendil-works/pi-tui';
-import { afterEach, describe, expect, it } from 'vitest';
+import { visibleWidth } from '#/tui/renderer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
@@ -10,11 +10,11 @@ function stripAnsi(text: string): string {
 
 describe('UserMessageComponent', () => {
   afterEach(() => {
-    resetCapabilitiesCache();
+    vi.unstubAllEnvs();
   });
 
   it('renders video placeholders as plain text, not inline image escapes', () => {
-    setCapabilities({ images: null, trueColor: true, hyperlinks: true });
+    stubTerminalImageProtocol('none');
 
     const component = new UserMessageComponent(
       'please inspect [video #1 sample.mov]',
@@ -29,7 +29,7 @@ describe('UserMessageComponent', () => {
   });
 
   it('keeps user lines within very narrow widths', () => {
-    setCapabilities({ images: null, trueColor: true, hyperlinks: true });
+    stubTerminalImageProtocol('none');
 
     const component = new UserMessageComponent('please inspect the attached output', []);
 
@@ -40,8 +40,21 @@ describe('UserMessageComponent', () => {
     }
   });
 
+  it('reuses rendered line arrays at the same width until invalidated', () => {
+    stubTerminalImageProtocol('none');
+
+    const component = new UserMessageComponent('hello', []);
+    const first = component.render(80);
+    const second = component.render(80);
+
+    expect(second).toBe(first);
+
+    component.invalidate();
+    expect(component.render(80)).not.toBe(first);
+  });
+
   it('does not truncate inline image escape sequences', () => {
-    setCapabilities({ images: 'kitty', trueColor: true, hyperlinks: true });
+    stubTerminalImageProtocol('kitty');
 
     // Minimal 2000x1302 PNG bytes so the inline Kitty sequence is long enough
     // to exceed a typical terminal width if treated as visible text.
@@ -91,7 +104,7 @@ describe('UserMessageComponent', () => {
   });
 
   it('omits the sparkles bullet when an empty bullet is provided', () => {
-    setCapabilities({ images: null, trueColor: true, hyperlinks: true });
+    stubTerminalImageProtocol('none');
 
     const withBullet = stripAnsi(new UserMessageComponent('hello', []).render(80).join('\n'));
     expect(withBullet).toContain('✨');
@@ -105,3 +118,14 @@ describe('UserMessageComponent', () => {
     expect(contentLine?.startsWith('$ ls')).toBe(true);
   });
 });
+
+function stubTerminalImageProtocol(protocol: 'kitty' | 'none'): void {
+  vi.stubEnv('TERM', protocol === 'kitty' ? 'xterm-kitty' : 'xterm-256color');
+  vi.stubEnv('TERM_PROGRAM', '');
+  vi.stubEnv('KITTY_WINDOW_ID', protocol === 'kitty' ? '1' : '');
+  vi.stubEnv('WEZTERM_PANE', '');
+  vi.stubEnv('GHOSTTY_RESOURCES_DIR', '');
+  vi.stubEnv('TMUX', '');
+  vi.stubEnv('ZELLIJ', '');
+  vi.stubEnv('CI', '');
+}

@@ -74,6 +74,9 @@ export type {
   ResearchEvidencePack,
   ReloadSummary,
   ResumedAgentState,
+  SessionTrace,
+  SessionTraceCompleteness,
+  SessionTraceEvent,
   ServicesConfig,
   ShellEnvironment,
   SkillSearchResult,
@@ -83,9 +86,12 @@ export type {
   ToolInfo,
   UltraResearchRun,
   UltraworkRun,
+  UltraworkTraceEvent,
   VerificationResult,
+  VerificationArtifact,
   WorkGraph,
   WorkGraphNode,
+  SubagentLifecycleTraceEvent,
 } from '@moonshot-ai/agent-core';
 
 export type { KimiHostIdentity, OAuthRefreshOutcome };

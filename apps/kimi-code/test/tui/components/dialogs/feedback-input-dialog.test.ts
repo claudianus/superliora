@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { beforeAll, describe, expect, it } from 'vitest';
 

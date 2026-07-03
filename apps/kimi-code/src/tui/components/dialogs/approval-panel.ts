@@ -1,5 +1,5 @@
 /**
- * ApprovalPanel — pi-tui version of the approval request UI.
+ * ApprovalPanel — approval request UI.
  *
  * Container-based component with keyboard navigation.
  */
@@ -9,12 +9,11 @@ import {
   Input,
   matchesKey,
   Key,
-  decodeKittyPrintable,
   type Focusable,
-  truncateToWidth,
+  renderRendererPanelChromeRows,
   visibleWidth,
   wrapTextWithAnsi,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
@@ -26,6 +25,7 @@ import type {
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
+import { printableChar } from '#/tui/utils/printable-key';
 
 export interface ApprovalPanelResponse {
   readonly response: 'approved' | 'approved_for_session' | 'rejected' | 'cancelled';
@@ -316,7 +316,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
       return;
     }
 
-    const printable = decodeKittyPrintable(data) ?? data;
+    const printable = printableChar(data);
     const numericIndex = Number(printable) - 1;
     if (Number.isInteger(numericIndex) && numericIndex >= 0 && numericIndex < this.choiceCount()) {
       this.selectAndSubmit(numericIndex);
@@ -334,14 +334,10 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     const selectColorBold = (text: string) => currentTheme.boldFg('accent', text);
     const dim = (text: string) => currentTheme.fg('textDim', text);
     const strong = (text: string) => currentTheme.fg('textStrong', text);
-    const horizontalBar = borderColor('─'.repeat(width));
     const indent = (s: string): string => `  ${s}`;
 
     const title = headerFor(data.tool_name);
-    const lines: string[] = [
-      horizontalBar,
-      indent(`${borderColorBold('▶')} ${borderColorBold(title)}`),
-    ];
+    const body: string[] = [];
 
     const dedupedBlocks = data.display.filter(
       (block) => !isDuplicateBriefBlock(block, data.description),
@@ -352,7 +348,6 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     );
 
     if (visibleBlocks.length > 0) {
-      lines.push('');
       for (const block of visibleBlocks) {
         const blockLines = renderDisplayBlock(
           block,
@@ -360,17 +355,16 @@ export class ApprovalPanelComponent extends Container implements Focusable {
           Math.max(1, width - 2),
         );
         for (const line of blockLines) {
-          lines.push(indent(line));
+          body.push(indent(line));
         }
       }
     } else if (data.description) {
-      lines.push('');
       for (const descLine of data.description.split('\n')) {
-        lines.push(indent(dim(descLine)));
+        body.push(indent(dim(descLine)));
       }
     }
 
-    lines.push('');
+    if (body.length > 0) body.push('');
     for (let idx = 0; idx < data.choices.length; idx++) {
       const option = data.choices[idx];
       if (option === undefined) continue;
@@ -379,11 +373,11 @@ export class ApprovalPanelComponent extends Container implements Focusable {
 
       const labelWithNum = `${String(num)}. ${option.label}`;
       if (this.feedbackMode && option.requires_feedback === true && isSelected) {
-        lines.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum)));
+        body.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum)));
       } else if (isSelected) {
-        lines.push(indent(`${selectColorBold('▶')} ${selectColorBold(labelWithNum)}`));
+        body.push(indent(`${selectColorBold('▶')} ${selectColorBold(labelWithNum)}`));
       } else {
-        lines.push(indent(strong(`  ${labelWithNum}`)));
+        body.push(indent(strong(`  ${labelWithNum}`)));
       }
 
       // Optional helper text under the label, aligned past the pointer/number.
@@ -394,17 +388,17 @@ export class ApprovalPanelComponent extends Container implements Focusable {
         !(this.feedbackMode && option.requires_feedback === true && isSelected)
       ) {
         for (const descLine of wrapTextWithAnsi(option.description, Math.max(20, width - 7))) {
-          lines.push(indent(`     ${dim(descLine)}`));
+          body.push(indent(`     ${dim(descLine)}`));
         }
       }
     }
 
-    lines.push('');
+    body.push('');
     if (this.feedbackMode) {
-      lines.push(indent(dim('Type feedback · ↵ submit.')));
+      body.push(indent(dim('Type feedback · ↵ submit.')));
     } else {
       const expandHint = hasPreviewable ? ' · ctrl+e preview' : '';
-      lines.push(
+      body.push(
         indent(
           dim(
             `↑/↓ select · ${buildNumericHint(data.choices.length)} choose · ↵ confirm${expandHint}`,
@@ -412,9 +406,15 @@ export class ApprovalPanelComponent extends Container implements Focusable {
         ),
       );
     }
-    lines.push(horizontalBar);
 
-    return lines.map((line) => truncateToWidth(line, width));
+    return renderRendererPanelChromeRows({
+      width,
+      title: `  ▶ ${title}`,
+      body,
+      footerTopGap: false,
+      dividerStyle: borderColor,
+      titleStyle: borderColorBold,
+    });
   }
 
   private findPreviewableBlock(): DiffDisplayBlock | FileContentDisplayBlock | undefined {

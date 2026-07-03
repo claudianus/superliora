@@ -1,4 +1,5 @@
 import { ErrorCodes, KimiError } from '#/errors';
+import type { AgentRecord } from '#/agent';
 import type { SessionWarning } from '@moonshot-ai/protocol';
 import type {
   ActivateSkillPayload,
@@ -42,12 +43,17 @@ import type {
 import type { PromisableMethods } from '#/utils/types';
 
 import type { Session, SessionMeta } from '.';
+import { buildSessionTrace } from './trace';
 import {
   promptMetadataTextFromPayload,
   promptMetadataTextFromPluginCommand,
   promptMetadataTextFromSkill,
   titleFromPromptMetadataText,
 } from './prompt-metadata';
+import {
+  resolveResponseLanguagePreference,
+  responseLanguagePreferenceFromUnknown,
+} from './response-language';
 
 type AgentScopedPayload<T> = T & { agentId: string };
 
@@ -121,11 +127,15 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   async prompt({ agentId, ...payload }: AgentScopedPayload<PromptPayload>) {
     if (agentId === 'main') {
       await this.updatePromptMetadata(promptMetadataTextFromPayload(payload));
+      await this.updateResponseLanguagePreference(payload.input);
     }
     return (await this.getAgent(agentId)).prompt(payload);
   }
 
   async steer({ agentId, ...payload }: AgentScopedPayload<SteerPayload>) {
+    if (agentId === 'main') {
+      await this.updateResponseLanguagePreference(payload.input);
+    }
     return (await this.getAgent(agentId)).steer(payload);
   }
 
@@ -269,6 +279,23 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).getContext(payload);
   }
 
+  async getSessionTrace({ agentId }: AgentScopedPayload<EmptyPayload>) {
+    const agent = await this.session.ensureAgentResumed(agentId);
+    const context = agent.context.data();
+    let records: readonly AgentRecord[] = [];
+    try {
+      records = [...(await agent.records.readAll())];
+    } catch {
+      records = [];
+    }
+    return buildSessionTrace({
+      sessionId: this.session.options.id ?? '',
+      agentId,
+      context,
+      records,
+    });
+  }
+
   async getConfig({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).getConfig(payload);
   }
@@ -342,6 +369,35 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
       },
     });
   }
+
+  private async updateResponseLanguagePreference(input: PromptPayload['input']): Promise<void> {
+    const current = responseLanguagePreferenceFromUnknown(
+      this.session.metadata.custom['responseLanguage'],
+    );
+    const next = resolveResponseLanguagePreference(current, input);
+    if (next === current || responseLanguagePreferencesEqual(next, current)) return;
+
+    this.session.metadata = {
+      ...this.session.metadata,
+      updatedAt: new Date().toISOString(),
+      custom: {
+        ...this.session.metadata.custom,
+        responseLanguage: next,
+      },
+    };
+    await this.session.writeMetadata();
+  }
+}
+
+function responseLanguagePreferencesEqual(
+  a: ReturnType<typeof responseLanguagePreferenceFromUnknown>,
+  b: ReturnType<typeof responseLanguagePreferenceFromUnknown>,
+): boolean {
+  return (
+    a?.code === b?.code &&
+    a?.source === b?.source &&
+    a?.locked === b?.locked
+  );
 }
 
 function isUntitled(title: unknown): boolean {

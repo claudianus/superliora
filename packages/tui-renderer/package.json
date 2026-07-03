@@ -1,0 +1,49 @@
+{
+  "name": "@harness-kit/tui-renderer",
+  "version": "0.1.0",
+  "description": "Reusable native terminal renderer core for high-performance TUI applications",
+  "license": "MIT",
+  "author": "Harness Kit",
+  "homepage": "https://github.com/harness-kit/tui-renderer#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harness-kit/tui-renderer.git"
+  },
+  "keywords": [
+    "terminal",
+    "tui",
+    "renderer",
+    "ansi",
+    "double-buffer",
+    "damage-diff",
+    "animation",
+    "terminal-ui"
+  ],
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=24.15.0"
+  }
+}

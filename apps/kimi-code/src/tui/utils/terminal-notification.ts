@@ -1,4 +1,6 @@
-import type { Terminal } from '@earendil-works/pi-tui';
+import { spawn, type SpawnOptions } from 'node:child_process';
+
+import type { Terminal } from '#/tui/renderer';
 
 import { BEL, ESC, MAX_TERMINAL_NOTIFICATION_MESSAGE_LENGTH, ST } from '#/tui/constant/terminal';
 import type { TUIState } from '#/tui/tui-state';
@@ -18,20 +20,66 @@ export interface BuildOptions {
   readonly insideTmux: boolean;
 }
 
+export interface UserAttentionOptions {
+  readonly platform?: NodeJS.Platform;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly spawn?: NativeNotificationSpawner;
+}
+
+export interface NativeNotificationCommand {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env?: Record<string, string>;
+}
+
+export type NativeNotificationSpawner = (
+  command: string,
+  args: readonly string[],
+  options: SpawnOptions,
+) => NativeNotificationChild;
+
+export interface NativeNotificationChild {
+  on(event: 'error', listener: (error: Error) => void): unknown;
+  unref(): void;
+}
+
 export function notifyTerminalOnce(
   state: TUIState,
   key: string,
   notification: TerminalNotification,
 ): void {
-  const { enabled, condition } = state.appState.notifications;
-  if (!enabled) return;
-  if (state.terminalState.notificationKeys.has(key)) return;
-  state.terminalState.notificationKeys.add(key);
-  if (condition === 'unfocused' && state.terminalState.focused) return;
+  if (!claimNotificationKey(state, key)) return;
   emitTerminalNotification(state.terminal, notification, {
     supportsOsc9: state.terminalState.supportsOsc9,
     insideTmux: state.terminalState.insideTmux,
   });
+}
+
+export function notifyUserAttentionOnce(
+  state: TUIState,
+  key: string,
+  notification: TerminalNotification,
+  options: UserAttentionOptions = {},
+): void {
+  if (!claimNotificationKey(state, key)) return;
+  const platform = options.platform ?? process.platform;
+  if (emitNativeNotification(notification, { ...options, platform })) {
+    if (platform !== 'darwin') state.terminal.write(BEL);
+    return;
+  }
+  emitTerminalNotification(state.terminal, notification, {
+    supportsOsc9: state.terminalState.supportsOsc9,
+    insideTmux: state.terminalState.insideTmux,
+  });
+}
+
+function claimNotificationKey(state: TUIState, key: string): boolean {
+  const { enabled, condition } = state.appState.notifications;
+  if (!enabled) return false;
+  if (state.terminalState.notificationKeys.has(key)) return false;
+  state.terminalState.notificationKeys.add(key);
+  if (condition === 'unfocused' && state.terminalState.focused) return false;
+  return true;
 }
 
 export function emitTerminalNotification(
@@ -54,6 +102,64 @@ export function formatNotification(notification: TerminalNotification): string {
   const message =
     title.length > 0 && body.length > 0 ? `${title}: ${body}` : title.length > 0 ? title : body;
   return message.slice(0, MAX_TERMINAL_NOTIFICATION_MESSAGE_LENGTH);
+}
+
+export function emitNativeNotification(
+  notification: TerminalNotification,
+  options: UserAttentionOptions = {},
+): boolean {
+  const env = options.env ?? process.env;
+  const command = buildNativeNotificationCommand(notification, options.platform ?? process.platform);
+  if (command === undefined) return false;
+
+  const child = (options.spawn ?? spawn)(command.command, command.args, {
+    detached: true,
+    env: command.env === undefined ? env : { ...env, ...command.env },
+    stdio: 'ignore',
+  });
+  child.on('error', () => undefined);
+  child.unref();
+  return true;
+}
+
+export function buildNativeNotificationCommand(
+  notification: TerminalNotification,
+  platform: NodeJS.Platform,
+): NativeNotificationCommand | undefined {
+  const title = sanitizeNotificationText(notification.title).slice(
+    0,
+    MAX_TERMINAL_NOTIFICATION_MESSAGE_LENGTH,
+  );
+  const body = sanitizeNotificationText(notification.body ?? '').slice(
+    0,
+    MAX_TERMINAL_NOTIFICATION_MESSAGE_LENGTH,
+  );
+  if (title.length === 0 && body.length === 0) return undefined;
+
+  if (platform === 'darwin') {
+    return {
+      command: 'osascript',
+      args: [
+        '-e',
+        'display notification (system attribute "KIMI_CODE_NOTIFICATION_BODY") with title (system attribute "KIMI_CODE_NOTIFICATION_TITLE") sound name "Glass"',
+        '-e',
+        'delay 0.1',
+      ],
+      env: {
+        KIMI_CODE_NOTIFICATION_TITLE: title.length > 0 ? title : 'Kimi Code',
+        KIMI_CODE_NOTIFICATION_BODY: body.length > 0 ? body : title,
+      },
+    };
+  }
+
+  if (platform === 'linux') {
+    return {
+      command: 'notify-send',
+      args: ['-a', 'Kimi Code', title.length > 0 ? title : 'Kimi Code', body],
+    };
+  }
+
+  return undefined;
 }
 
 /**

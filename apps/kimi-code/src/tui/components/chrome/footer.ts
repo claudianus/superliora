@@ -6,8 +6,12 @@
  *   Line 2: context: XX.X% (tokens/max)
  */
 
-import type { Component } from '@earendil-works/pi-tui';
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
+import type { Component, RendererViewportSnapshot } from '#/tui/renderer';
+import {
+  projectRendererViewportHistoryStatus,
+  truncateToWidth,
+  visibleWidth,
+} from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { ALL_TIPS, type ToolbarTip } from '#/tui/constant/tips';
@@ -40,6 +44,10 @@ const SOTA_GOAL_OBJECTIVE_PATTERN = /\b(?:ultrawork|sota|harness|tui)\b|super\s+
 // the final arbiter (a pair that doesn't fit falls back to its first tip).
 const TIP_ROTATE_INTERVAL_MS = 10_000;
 const TIP_SEPARATOR = ' | ';
+type FooterTranscriptViewportSnapshot = Pick<
+  RendererViewportSnapshot,
+  'followOutput' | 'offsetFromBottom'
+>;
 
 /**
  * Expand tips into a rotation sequence using smooth weighted round-robin
@@ -187,6 +195,15 @@ function formatContextStatus(usage: number, tokens?: number, maxTokens?: number)
   return `context: ${pct}`;
 }
 
+function formatTranscriptViewportBadge(
+  viewport: FooterTranscriptViewportSnapshot | undefined,
+  colors: ColorPalette,
+): string | null {
+  const status = projectRendererViewportHistoryStatus(viewport);
+  if (status === undefined) return null;
+  return chalk.hex(colors.warning).bold(`[${status.label}]`);
+}
+
 function footerNextAction(state: AppState, git: GitStatus | null): string | null {
   if (state.isCompacting) return 'compacting context';
   if (state.isReplaying) return 'replaying session';
@@ -213,6 +230,7 @@ export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): s
 export class FooterComponent implements Component {
   private state: AppState;
   private readonly onRefresh: () => void;
+  private readonly getTranscriptViewport: (() => FooterTranscriptViewportSnapshot) | undefined;
   private gitCache: GitStatusCache;
   private gitCacheWorkDir: string;
   private transientHint: string | null = null;
@@ -229,9 +247,14 @@ export class FooterComponent implements Component {
   private backgroundBashTaskCount = 0;
   private backgroundAgentCount = 0;
 
-  constructor(state: AppState, onRefresh: () => void = () => {}) {
+  constructor(
+    state: AppState,
+    onRefresh: () => void = () => {},
+    getTranscriptViewport?: () => FooterTranscriptViewportSnapshot,
+  ) {
     this.state = state;
     this.onRefresh = onRefresh;
+    this.getTranscriptViewport = getTranscriptViewport;
     this.gitCacheWorkDir = state.workDir;
     this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onRefresh });
     this.syncGoalClock(state.goal);
@@ -293,6 +316,12 @@ export class FooterComponent implements Component {
       modes.push(renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance));
     }
     if (modes.length > 0) left.push(modes.join(' '));
+
+    const transcriptViewportBadge = formatTranscriptViewportBadge(
+      this.getTranscriptViewport?.(),
+      colors,
+    );
+    if (transcriptViewportBadge !== null) left.push(transcriptViewportBadge);
 
     const goalBadge = formatGoalBadge(state.goal, colors, this.goalWallClockMs(state.goal));
     if (goalBadge !== null) left.push(goalBadge);

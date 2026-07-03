@@ -15,7 +15,9 @@ tools:
   - KimiContext
   - Write
   - Edit
+  - Memory
   - WebSearch
+  - BrowserStatus
   - BrowserObserve
   - BrowserScreenshot
   - BrowserAct

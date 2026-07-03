@@ -785,6 +785,10 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).getContext(payload);
   }
 
+  getSessionTrace({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).getSessionTrace(payload);
+  }
+
   getConfig({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getConfig(payload);
   }
@@ -1216,6 +1220,7 @@ async function createRuntimeConfig(input: {
       input.config.browserUse?.enabled === false
         ? undefined
         : new CloakBrowserRuntime({
+            autoInstall: input.config.browserUse?.autoInstall,
             autoUpdate: input.config.browserUse?.autoUpdate,
             cacheDir: input.config.browserUse?.cacheDir,
             binaryPath: input.config.browserUse?.binaryPath,

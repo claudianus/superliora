@@ -12,6 +12,7 @@ import { UltraworkModeMarkerComponent } from '../components/messages/ultrawork-m
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/kimi-tui';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './dispatch';
+import { writeProjectLlmWikiSeed } from './llm-wiki';
 import {
   buildUltraworkPrompt,
   parseUltraworkCommand,
@@ -357,6 +358,15 @@ export function createUltraworkEvidenceSeed(
     reviewLoopPath: join(root, 'expert-review-loop.md'),
     learnLedgerPath: join(root, 'knowledge-persistence-ledger.json'),
   };
+  const wikiArtifacts = writeProjectLlmWikiSeed(workDir, {
+    runId,
+    createdAt,
+    objective: safeObjective,
+    source,
+    replaceGoal,
+    coverageMatrix,
+    evidenceFiles: { root, ...files },
+  });
 
   writeFileSync(
     join(workDir, files.llmWikiPath),
@@ -366,7 +376,7 @@ export function createUltraworkEvidenceSeed(
       source,
       replaceGoal,
       coverageMatrix,
-      files,
+      files: { ...files, ...wikiArtifacts },
     }),
     'utf8',
   );
@@ -437,15 +447,16 @@ export function createUltraworkEvidenceSeed(
         {
           target: 'llm_wiki',
           action: 'wrote',
-          reason: 'Created project-local LLM Wiki seed before implementation.',
-          path: files.llmWikiPath,
+          reason: 'Created project-local LLM Wiki v2 index and run page before implementation.',
+          path: wikiArtifacts.wikiRunPath,
+          evidence: files.llmWikiPath,
         },
       ],
     }, null, 2)}\n`,
     'utf8',
   );
 
-  return { root, ...files };
+  return { root, ...wikiArtifacts, ...files };
 }
 
 function renderLlmWikiSeed(input: {
@@ -457,9 +468,9 @@ function renderLlmWikiSeed(input: {
   readonly files: Omit<UltraworkEvidenceSeed, 'root'>;
 }): string {
   const lanes = input.coverageMatrix
-    .map((lane) => `- ${lane.id}: ${lane.reason} Owner: ${lane.owner}.`)
+    .map((lane) => `- ${lane.id}: ${lane.reason} Owner: ${lane.owner}. Evidence: ${lane.evidenceNeeded.join(', ')}.`)
     .join('\n');
-  return `# LLM Wiki - Ultrawork Seed
+  return `# LLM Wiki - Ultrawork Run Seed
 
 Created: ${input.createdAt}
 Source: ${input.source}
@@ -469,21 +480,44 @@ Replace goal requested: ${String(input.replaceGoal)}
 
 ${input.objective}
 
-## Durable Memory / Kimi Recall
+## Current Understanding
 
-This llm-wiki seed is project-local durable memory evidence for the Ultrawork run. Kimi Recall should only store verified reusable findings, decisions, or user preferences during Learn.
+This is the run-local LLM Wiki seed. The canonical project-local index is ${input.files.wikiIndexPath}. Startup content is intentionally marked as seed material; during Learn, replace placeholders with verified findings, durable decisions, and source-backed project knowledge.
+
+## Durable Decisions
+
+- Kimi Recall remains global searchable memory for concise durable facts, decisions, and user preferences.
+- The project-local LLM Wiki lives under ${input.files.wikiRootPath} for human review and future retrieval.
+- Code, tests, runtime evidence, and cited sources remain the source of truth.
+
+## Evidence Links
+
+- LLM Wiki root: ${input.files.wikiRootPath}
+- LLM Wiki index: ${input.files.wikiIndexPath}
+- LLM Wiki manifest: ${input.files.wikiManifestPath}
+- LLM Wiki run page: ${input.files.wikiRunPath}
+- Kimi Knowledge Map: ${input.files.knowledgeMapPath}
+- Capability Coverage Matrix: ${input.files.coverageMatrixPath}
+- Expert Review Loop: ${input.files.reviewLoopPath}
+- Knowledge persistence ledger: ${input.files.learnLedgerPath}
+
+## Verification
+
+- pending: add focused checks, runtime observations, source URLs, or reviewer verdicts before completion.
+
+## Open Questions
+
+- pending: move unverified claims here until backed by evidence.
 
 ## Capability Coverage Matrix
 
 ${lanes}
 
-## Evidence Files
+## Next Retrieval Hints
 
-- LLM Wiki: ${input.files.llmWikiPath}
-- Kimi Knowledge Map: ${input.files.knowledgeMapPath}
-- Capability Coverage Matrix: ${input.files.coverageMatrixPath}
-- Expert Review Loop: ${input.files.reviewLoopPath}
-- Knowledge persistence ledger: ${input.files.learnLedgerPath}
+- Start with ${input.files.wikiIndexPath}, then inspect ${input.files.wikiRunPath}.
+- Use KimiContext for compact source maps before broad reads.
+- Write Kimi Recall only when a verified reusable finding should survive across sessions.
 `;
 }
 

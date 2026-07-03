@@ -3,7 +3,7 @@ import type {
   AutocompleteProvider,
   AutocompleteSuggestions,
   TUI,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CustomEditor } from '#/tui/components/editor/custom-editor';
@@ -111,6 +111,41 @@ describe('CustomEditor onNonEscapeInput', () => {
     editor.handleInput('\u0003');
 
     expect(onNonEscapeInput).toHaveBeenCalledOnce();
+  });
+});
+
+describe('CustomEditor transcript viewport shortcuts', () => {
+  it('routes PageUp/PageDown/Home/End to transcript callbacks when the prompt is empty', () => {
+    const editor = makeEditor();
+    const pageUp = vi.fn(() => true);
+    const pageDown = vi.fn(() => true);
+    const top = vi.fn(() => true);
+    const bottom = vi.fn(() => true);
+    editor.onTranscriptPageUp = pageUp;
+    editor.onTranscriptPageDown = pageDown;
+    editor.onTranscriptTop = top;
+    editor.onTranscriptBottom = bottom;
+
+    editor.handleInput('\u001B[5~');
+    editor.handleInput('\u001B[6~');
+    editor.handleInput('\u001B[H');
+    editor.handleInput('\u001B[F');
+
+    expect(pageUp).toHaveBeenCalledOnce();
+    expect(pageDown).toHaveBeenCalledOnce();
+    expect(top).toHaveBeenCalledOnce();
+    expect(bottom).toHaveBeenCalledOnce();
+  });
+
+  it('keeps PageUp in the editor when the prompt has text', () => {
+    const editor = makeEditor();
+    const pageUp = vi.fn(() => true);
+    editor.onTranscriptPageUp = pageUp;
+    editor.setText('draft');
+
+    editor.handleInput('\u001B[5~');
+
+    expect(pageUp).not.toHaveBeenCalled();
   });
 });
 

@@ -20,7 +20,7 @@ import {
   matchesKey,
   truncateToWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import { renderTabStrip } from '#/tui/utils/tab-strip';

@@ -11,6 +11,11 @@ import type { UserToolRegistration } from '../tool';
 import type { UsageRecordScope } from '../usage';
 import type { SwarmModeTrigger } from '../swarm';
 
+export interface SerializableAgentEvent {
+  readonly type: string;
+  readonly [key: string]: unknown;
+}
+
 // Agent records are the ordered event log used to rebuild agent state on resume.
 // Use records, not state.json, when correctness depends on the order in which
 // state transitions happened. Each persisted record type must have explicit
@@ -51,6 +56,13 @@ export interface AgentRecordEvents {
   };
   'plan_mode.exit': {
     id?: string;
+  };
+  'ultra_swarm_engage_gate.set': {
+    planPath?: string;
+    reason?: string;
+  };
+  'ultra_swarm_engage_gate.clear': {
+    reason?: string;
   };
 
   'swarm_mode.enter': {
@@ -99,6 +111,13 @@ export interface AgentRecordEvents {
     actor?: GoalActor;
   };
   'goal.clear': {};
+
+  'subagent.lifecycle': {
+    event: SerializableAgentEvent;
+  };
+  'ultrawork.event': {
+    event: SerializableAgentEvent;
+  };
 }
 
 export type AgentRecord = {

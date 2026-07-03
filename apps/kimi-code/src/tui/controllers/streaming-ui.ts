@@ -11,7 +11,7 @@ import { isSwarmProgressToolName } from '../components/messages/agent-swarm-prog
 import { STREAMING_UI_FLUSH_MS } from '../constant/streaming';
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
-import { notifyTerminalOnce } from '../utils/terminal-notification';
+import { notifyUserAttentionOnce } from '../utils/terminal-notification';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { TodoItem } from '../components/chrome/todo-panel';
 import type {
@@ -570,7 +570,7 @@ export class StreamingUIController {
 
     this.host.setAppState({ streamingPhase: 'idle' });
     this.host.resetLivePane();
-    notifyTerminalOnce(state, `turn-complete:${completedTurnKey}`, {
+    notifyUserAttentionOnce(state, `turn-complete:${completedTurnKey}`, {
       title: 'Kimi Code task complete',
       body: state.appState.sessionTitle ?? undefined,
     });

@@ -8,6 +8,7 @@
 import { Readable, type Writable } from 'node:stream';
 
 import type { Kaos, KaosProcess } from '@moonshot-ai/kaos';
+import type { WorkGraph } from '@moonshot-ai/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -56,6 +57,9 @@ import {
   UltraSwarmToolInputSchema,
 } from '../../src/tools/builtin/collaboration/ultra-swarm';
 import { appendSwarmResearchAutonomy } from '../../src/tools/builtin/collaboration/swarm-research-autonomy';
+import { TODO_STORE_KEY } from '../../src/tools/builtin/state/todo-list';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
+import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
 
 vi.mock('../../src/tools/support/rg-locator', () => ({
   ensureRgPath: vi.fn(async () => ({ path: '/mock/rg', source: 'system-path' })),
@@ -65,6 +69,35 @@ vi.mock('../../src/tools/support/rg-locator', () => ({
 
 const signal = new AbortController().signal;
 const workspace: WorkspaceConfig = { workspaceDir: '/workspace', additionalDirs: [] };
+
+function mockToolStore(initial: Partial<ToolStoreData> = {}): {
+  readonly store: ToolStore;
+  readonly data: Partial<ToolStoreData>;
+} {
+  const data: Partial<ToolStoreData> = { ...initial };
+  return {
+    data,
+    store: {
+      get<K extends ToolStoreKey>(key: K): ToolStoreData[K] | undefined {
+        return data[key];
+      },
+      set<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
+        data[key] = value;
+      },
+    },
+  };
+}
+
+function mockUltraSwarmAgent(
+  flags = new FlagResolver({}, FLAG_DEFINITIONS),
+): Agent {
+  return {
+    emitEvent: vi.fn(),
+    ultraSwarmEngageGate: { clear: vi.fn() },
+    experimentalFlags: flags,
+  } as unknown as Agent;
+}
+
 const regularFileStat = {
   stMode: 0o100_644,
   stIno: 1,
@@ -942,10 +975,14 @@ describe('current builtin collaboration tools', () => {
       runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
     });
     const swarmMode = mockSwarmMode();
-    const tool = new UltraSwarmTool(host, swarmMode);
+    const { store } = mockToolStore();
+    const agent = mockUltraSwarmAgent();
+    const tool = new UltraSwarmTool(host, swarmMode, store, agent);
     const input = {
       description: 'Review the product launch plan',
+      run_id: 'uw_1',
       experts: ['academic-anthropologist', 'design-brand-guardian'],
+      required_experts: ['academic-anthropologist'],
       auto_select: false,
       subagent_type: 'explore',
       run_in_background: true,
@@ -1006,22 +1043,234 @@ describe('current builtin collaboration tools', () => {
     expect(queuedTasks[0]?.prompt).toContain('Coverage lane: domain_subject_matter.');
     expect(queuedTasks[0]?.prompt).toContain('Selection reason:');
     expect(queuedTasks[0]?.prompt).toContain('Focus lane: review.');
-    expect(queuedTasks[0]?.prompt).toContain('Review gate: compare actual evidence');
+    expect(queuedTasks[0]?.prompt).toContain('VERDICT: PASS');
     expect(queuedTasks[0]?.prompt).toContain('<swarm_research_autonomy>');
     expect(queuedTasks[0]?.prompt).toContain('WebSearch and FetchURL as often as needed');
-    expect(result.output).toContain('<ultra_swarm_result>');
+    expect(result.output).toContain('<ultra_swarm_result run_id="uw_1">');
     expect(result.output).toContain('<summary>completed: 2, failed: 0, aborted: 0</summary>');
     expect(result.output).toContain('<coverage>Each expert row includes the assigned coverage lane');
-    expect(result.output).toContain('lane="domain_subject_matter"');
+    expect(result.output).toContain('coverage_lane="domain_subject_matter"');
+    expect(result.output).toContain('verdict="PASS"');
+    expect(result.output).toContain('required_for_completion="true"');
     expect(result.output).toContain('<selection_reason>');
     expect(result.output).toContain('expert result 1');
     expect(result.output).toContain('expert result 2');
     expect(result.isError).toBeUndefined();
+    expect(agent.emitEvent).toHaveBeenCalledWith({
+      type: 'ultrawork.team.staffed',
+      runId: 'uw_1',
+      toolCallId: 'call_ultra_swarm',
+      team: expect.objectContaining({
+        intensity: 'premium',
+        experts: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'academic-anthropologist',
+            coverageLane: 'domain_subject_matter',
+            focus: 'review',
+            emoji: expect.any(String),
+          }),
+        ]),
+      }),
+    });
+    expect(agent.ultraSwarmEngageGate.clear).toHaveBeenCalledWith('ultra-swarm-completed');
+  });
+
+  it('UltraSwarm runs phased batches and passes bounded handoffs forward', async () => {
+    const runQueued = vi.fn(
+      async <T>(
+        tasks: readonly QueuedSubagentTask<T>[],
+      ): Promise<Array<QueuedSubagentRunResult<T>>> =>
+        tasks.map((task) => ({
+          task,
+          agentId: `agent-${String((task.data as { phase?: string }).phase ?? 'phase')}`,
+          status: 'completed' as const,
+          result: `${(task.data as { phase?: string }).phase ?? 'phase'} handoff evidence_ids: ev_${String(runQueued.mock.calls.length)}`,
+        })),
+    );
+    const host = mockSubagentHost({
+      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
+    });
+    const { store } = mockToolStore();
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, mockUltraSwarmAgent());
+
+    const result = await executeTool(
+      tool,
+      context({
+        description: 'Implement a feature with product, architecture, and QA review',
+        run_id: 'uw_phased',
+        experts: ['product-manager', 'engineering-software-architect', 'testing-evidence-collector'],
+        auto_select: false,
+        max_experts: 3,
+        focus: 'full',
+      }),
+    );
+
+    expect(runQueued).toHaveBeenCalledTimes(3);
+    expect(runQueued.mock.calls[0]?.[0]).toHaveLength(1);
+    expect(runQueued.mock.calls[1]?.[0]?.[0]?.prompt).toContain('<previous_phase_handoff>');
+    expect(runQueued.mock.calls[1]?.[0]?.[0]?.prompt).toContain('plan handoff');
+    expect(runQueued.mock.calls[2]?.[0]?.[0]?.prompt).toContain('implement handoff');
+    expect(result.output).toContain('phase="plan"');
+    expect(result.output).toContain('phase="implement"');
+    expect(result.output).toContain('phase="review"');
+    expect(result.output).toContain('<integration_handoff>');
+  });
+
+  it('UltraSwarm blocks dependent phases when a required planning expert blocks', async () => {
+    const runQueued = vi.fn(
+      async <T>(
+        tasks: readonly QueuedSubagentTask<T>[],
+      ): Promise<Array<QueuedSubagentRunResult<T>>> =>
+        tasks.map((task) => ({
+          task,
+          agentId: 'agent-product',
+          status: 'completed' as const,
+          result: 'VERDICT: BLOCKED\nRequirements are not testable yet.',
+        })),
+    );
+    const host = mockSubagentHost({
+      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
+    });
+    const { store } = mockToolStore();
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, mockUltraSwarmAgent());
+
+    const result = await executeTool(
+      tool,
+      context({
+        description: 'Implement a risky feature',
+        run_id: 'uw_blocked',
+        experts: ['product-manager', 'engineering-software-architect', 'testing-evidence-collector'],
+        required_experts: ['product-manager'],
+        auto_select: false,
+        max_experts: 3,
+        focus: 'full',
+      }),
+    );
+
+    expect(runQueued).toHaveBeenCalledTimes(1);
+    expect(result.output).toContain('verdict="BLOCKED"');
+    expect(result.output).toContain('outcome="aborted"');
+    expect(result.output).toContain('Skipped because required plan expert product-manager returned BLOCKED.');
+  });
+
+  it('UltraSwarm keeps the ENGAGE gate when execution fails before returning results', async () => {
+    const runQueued = vi.fn(async () => {
+      throw new Error('provider unavailable');
+    });
+    const host = mockSubagentHost({
+      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
+    });
+    const { store } = mockToolStore();
+    const agent = mockUltraSwarmAgent();
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, agent);
+
+    const result = await executeTool(
+      tool,
+      context({
+        description: 'Review a feature',
+        run_id: 'uw_failed',
+        experts: ['product-manager'],
+        auto_select: false,
+        max_experts: 1,
+      }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('provider unavailable');
+    expect(agent.ultraSwarmEngageGate.clear).not.toHaveBeenCalled();
+  });
+
+  it('UltraSwarm binds work_node_ids to WorkGraph contracts and updates node evidence', async () => {
+    const graph: WorkGraph = {
+      id: 'wg_1',
+      runId: 'uw_1',
+      rootGoal: 'Ship the harness',
+      nodes: [
+        {
+          id: 'ac_1',
+          title: 'Implement graph harness',
+          kind: 'implementation',
+          stage: 'swarm',
+          status: 'queued',
+          acceptanceCriterionId: 'AC-1',
+          laneId: 'implementation',
+          requiredEvidence: ['unit test'],
+        },
+      ],
+    };
+    const { store, data } = mockToolStore({ [ULTRAWORK_GRAPH_STORE_KEY]: graph });
+    const emitEvent = vi.fn();
+    const agent = {
+      emitEvent,
+      experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
+    } as unknown as Agent;
+    const runQueued = vi.fn(
+      async <T>(
+        tasks: readonly QueuedSubagentTask<T>[],
+      ): Promise<Array<QueuedSubagentRunResult<T>>> =>
+        tasks.map((task) => ({
+          task,
+          agentId: 'agent-expert-1',
+          status: 'completed' as const,
+          result: 'VERDICT: PASS\nevidence_ids: ev_1, ev_2',
+        })),
+    );
+    const host = mockSubagentHost({
+      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
+    });
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, agent);
+
+    const result = await executeTool(
+      tool,
+      context({
+        description: 'Implement the graph harness',
+        run_id: 'uw_1',
+        work_node_ids: ['ac_1'],
+        experts: ['academic-anthropologist'],
+        auto_select: false,
+        max_experts: 1,
+        focus: 'implement',
+      }),
+    );
+
+    const queuedTasks = runQueued.mock.calls[0]?.[0] ?? [];
+    expect(queuedTasks[0]).toMatchObject({
+      swarmItem: 'ac_1',
+      profileName: 'academic-anthropologist',
+    });
+    expect(queuedTasks[0]?.prompt).toContain('<work_node_contracts>');
+    expect(queuedTasks[0]?.prompt).toContain('acceptance_criterion_id="AC-1"');
+    expect(result.output).toContain('work_node_ids="ac_1"');
+    expect(result.output).toContain('evidence_ids="ev_1,ev_2"');
+
+    const updated = data[ULTRAWORK_GRAPH_STORE_KEY] as WorkGraph;
+    expect(updated.nodes[0]).toMatchObject({
+      id: 'ac_1',
+      status: 'done',
+      ownerExpertId: 'academic-anthropologist',
+      ownerAgentId: 'agent-expert-1',
+      evidenceIds: ['ev_1', 'ev_2'],
+      verificationStatus: 'passed',
+    });
+    expect(data[TODO_STORE_KEY]).toEqual([
+      { title: '[ac_1] Implement graph harness', status: 'done' },
+    ]);
+    expect(emitEvent).toHaveBeenCalledWith({
+      type: 'ultrawork.task.assigned',
+      runId: 'uw_1',
+      task: expect.objectContaining({ id: 'ac_1', status: 'running' }),
+    });
+    expect(emitEvent).toHaveBeenCalledWith({
+      type: 'ultrawork.task.assigned',
+      runId: 'uw_1',
+      task: expect.objectContaining({ id: 'ac_1', status: 'done' }),
+    });
   });
 
   it('UltraSwarm rejects explicit expert requests above max_experts', async () => {
     const host = mockSubagentHost({});
-    const tool = new UltraSwarmTool(host, mockSwarmMode());
+    const { store } = mockToolStore();
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, mockUltraSwarmAgent());
 
     const result = await executeTool(tool, context({
       description: 'Run a focused review',

@@ -34,6 +34,7 @@
   "type": "module",
   "imports": {
     "#/tui/theme": "./src/tui/theme/index.ts",
+    "#/tui/renderer": "./src/tui/renderer/index.ts",
     "#/cli/sub/server": "./src/cli/sub/server/index.ts",
     "#/cli/sub/server/*": "./src/cli/sub/server/*.ts",
     "#/*": [
@@ -79,6 +80,7 @@
   },
   "devDependencies": {
     "@earendil-works/pi-tui": "^0.74.0",
+    "@harness-kit/tui-renderer": "workspace:^",
     "@moonshot-ai/acp-adapter": "workspace:^",
     "@moonshot-ai/gui-use": "workspace:^",
     "@moonshot-ai/kimi-code-oauth": "workspace:^",

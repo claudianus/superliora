@@ -1,5 +1,5 @@
 /**
- * Pi-tui theme adapters — MarkdownTheme and EditorTheme backed by the
+ * Renderer theme adapters — MarkdownTheme and EditorTheme backed by the
  * global `currentTheme` singleton.
  *
  * All colour lookups route through `currentTheme.color(token)` so that
@@ -8,14 +8,14 @@
  * instances reads the *current* palette via the singleton.
  */
 
-import type { MarkdownTheme, EditorTheme } from '@earendil-works/pi-tui';
+import type { MarkdownTheme, EditorTheme } from '#/tui/renderer';
 import chalk from 'chalk';
 import { highlight, supportsLanguage } from 'cli-highlight';
 
 import { buildSyntaxHighlightTheme } from './syntax-highlight-theme';
 import { currentTheme } from './theme';
 
-// pi-tui's renderer emits literal "### " / "#### " / ... markers for h3-h6
+// The Markdown renderer emits literal "### " / "#### " / ... markers for h3-h6
 // headings (h1/h2 are rendered without the `#` prefix). The prefix arrives
 // here already wrapped in bold SGR codes, so we strip it — after any leading
 // ANSI sequences — before re-styling. Without this, h3+ renders as raw

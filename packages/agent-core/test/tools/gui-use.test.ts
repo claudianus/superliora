@@ -6,6 +6,8 @@ import {
   BrowserActTool,
   BrowserObserveInputSchema,
   BrowserObserveTool,
+  BrowserStatusInputSchema,
+  BrowserStatusTool,
   ComputerActInputSchema,
   ComputerActTool,
   ComputerCaptureInputSchema,
@@ -21,6 +23,12 @@ function context<Input>(args: Input, toolCallId = 'call_1') {
 
 function fakeBrowserRuntime(overrides: Partial<BrowserUseRuntime> = {}): BrowserUseRuntime {
   return {
+    status: vi.fn().mockResolvedValue({
+      platform: 'darwin',
+      installed: true,
+      ready: true,
+      version: 'cloakbrowser 0.4.5',
+    }),
     observe: vi.fn().mockResolvedValue({
       ok: true,
       url: 'https://example.test/',
@@ -53,6 +61,25 @@ function fakeComputerRuntime(overrides: Partial<ComputerUseRuntime> = {}): Compu
 }
 
 describe('browser-use builtin tools', () => {
+  it('checks and prepares the bundled browser runtime before manual installs', async () => {
+    const status = vi.fn().mockResolvedValue({
+      platform: 'darwin',
+      installed: true,
+      ready: true,
+      version: 'cloakbrowser 0.4.5',
+    });
+    const runtime = fakeBrowserRuntime({ status });
+    const tool = new BrowserStatusTool(runtime);
+
+    expect(BrowserStatusInputSchema.safeParse({ install_if_missing: true }).success).toBe(true);
+
+    const result = await executeTool(tool, context({ install_if_missing: true }));
+
+    expect(status).toHaveBeenCalledWith({ installIfMissing: true }, signal);
+    expect(result.output).toContain('cloakbrowser 0.4.5');
+    expect(result.isError).toBeFalsy();
+  });
+
   it('maps observe schema to the browser runtime and returns refs', async () => {
     const runtime = fakeBrowserRuntime();
     const tool = new BrowserObserveTool(runtime);

@@ -19,12 +19,17 @@
 import {
   Container,
   Key,
+  fitRendererLineToWidth,
+  formatRendererScrollPosition,
   matchesKey,
-  type Terminal,
-  truncateToWidth,
-  visibleWidth,
+  renderRendererFooterRow,
+  renderRendererScrollableFrameRows,
+  type RendererScrollableFrameRowsProjection,
+  RendererScrollableLineViewport,
+  type RendererTerminalHost,
+  type RendererViewportScrollAction,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLines } from '#/tui/components/media/diff-preview';
@@ -41,38 +46,28 @@ export interface ApprovalPreviewViewerProps {
   readonly onClose: () => void;
 }
 
-function padToWidth(line: string, width: number): string {
-  const w = visibleWidth(line);
-  if (w === width) return line;
-  if (w > width) return truncateToWidth(line, width, ELLIPSIS);
-  return line + ' '.repeat(width - w);
-}
-
-function fitExactly(line: string, width: number): string {
-  let s = line;
-  if (visibleWidth(s) > width) s = truncateToWidth(s, width, ELLIPSIS);
-  return padToWidth(s, width);
-}
-
 export class ApprovalPreviewViewer extends Container implements Focusable {
   focused = false;
 
   private readonly props: ApprovalPreviewViewerProps;
-  private readonly terminal: Terminal;
+  private readonly terminal: RendererTerminalHost;
   /** Pre-rendered body lines (ANSI-styled, no border / no gutter). */
   private bodyLines: string[];
   /** Title shown in the header (path + diff stats / "Write" label). */
   private headerTitle: string;
-  /** Index of the topmost visible line. */
-  private scrollTop = 0;
+  private readonly viewport: RendererScrollableLineViewport;
 
-  constructor(props: ApprovalPreviewViewerProps, terminal: Terminal) {
+  constructor(props: ApprovalPreviewViewerProps, terminal: RendererTerminalHost) {
     super();
     this.props = props;
     this.terminal = terminal;
     const built = buildBody(props.block);
     this.bodyLines = built.lines;
     this.headerTitle = built.title;
+    this.viewport = new RendererScrollableLineViewport({
+      contentRows: this.bodyLines.length,
+      viewportRows: this.viewableRows(),
+    });
   }
 
   handleInput(data: string): void {
@@ -89,48 +84,44 @@ export class ApprovalPreviewViewer extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.up) || k === 'k') {
-      this.scrollBy(-1);
+      this.scrollViewport('line-up');
       return;
     }
     if (matchesKey(data, Key.down) || k === 'j') {
-      this.scrollBy(1);
+      this.scrollViewport('line-down');
       return;
     }
-    if (matchesKey(data, Key.pageUp) || k === ' ' || data === '\x02') {
-      this.scrollBy(-Math.max(1, visible - 1));
+    if (matchesKey(data, Key.pageUp) || k === ' ' || data === '\u0002') {
+      this.scrollViewport('page-up', Math.max(1, visible - 1));
       return;
     }
-    if (matchesKey(data, Key.pageDown) || data === '\x06') {
-      this.scrollBy(Math.max(1, visible - 1));
+    if (matchesKey(data, Key.pageDown) || data === '\u0006') {
+      this.scrollViewport('page-down', Math.max(1, visible - 1));
       return;
     }
     if (matchesKey(data, Key.home) || k === 'g') {
-      this.scrollTo(0);
+      this.scrollViewport('home');
       return;
     }
     if (matchesKey(data, Key.end) || k === 'G') {
-      this.scrollTo(this.maxScroll());
+      this.scrollViewport('end');
       return;
     }
-  }
-
-  private scrollBy(delta: number): void {
-    this.scrollTo(this.scrollTop + delta);
   }
 
   override invalidate(): void {
     const built = buildBody(this.props.block);
     this.bodyLines = built.lines;
     this.headerTitle = built.title;
+    this.viewport.update({
+      contentRows: this.bodyLines.length,
+      viewportRows: this.viewableRows(),
+    });
   }
 
-  private scrollTo(target: number): void {
-    this.scrollTop = Math.max(0, Math.min(target, this.maxScroll()));
+  private scrollViewport(action: RendererViewportScrollAction, amount?: number): void {
+    this.viewport.scroll(action, amount);
     super.invalidate();
-  }
-
-  private maxScroll(): number {
-    return Math.max(0, this.bodyLines.length - this.viewableRows());
   }
 
   /** Body rows = terminal rows − header(1) − top border(1) − bottom border(1) − footer(1). */
@@ -144,51 +135,39 @@ export class ApprovalPreviewViewer extends Container implements Focusable {
 
     const header = this.renderHeader(width);
     const body = this.renderBody(width, bodyHeight);
-    const footer = this.renderFooter(width, bodyHeight);
+    const footer = this.renderFooter(width, body);
 
-    return [header, ...body, footer];
+    return [header, ...body.rows, footer];
   }
 
   private renderHeader(width: number): string {
     const title = currentTheme.boldFg('primary', ' Preview ');
-    return fitExactly(title + this.headerTitle, width);
+    return fitRendererLineToWidth(title + this.headerTitle, width, ELLIPSIS);
   }
 
-  private renderBody(width: number, bodyHeight: number): string[] {
-    const innerWidth = Math.max(1, width - 4);
-
-    const max = this.maxScroll();
-    if (this.scrollTop > max) this.scrollTop = max;
-    if (this.scrollTop < 0) this.scrollTop = 0;
-
-    const viewRows = bodyHeight - 2;
-    const top = currentTheme.fg('primary', '┌' + '─'.repeat(Math.max(0, width - 2)) + '┐');
-    const bottom = currentTheme.fg('primary', '└' + '─'.repeat(Math.max(0, width - 2)) + '┘');
-
-    const out: string[] = [top];
-    for (let i = 0; i < viewRows; i++) {
-      const lineIndex = this.scrollTop + i;
-      const raw = this.bodyLines[lineIndex] ?? '';
-      out.push(currentTheme.fg('primary', '│ ') + fitExactly(raw, innerWidth) + currentTheme.fg('primary', ' │'));
-    }
-    out.push(bottom);
-    return out;
+  private renderBody(width: number, bodyHeight: number): RendererScrollableFrameRowsProjection {
+    return renderRendererScrollableFrameRows({
+      viewport: this.viewport,
+      body: this.bodyLines,
+      fill: '',
+      width,
+      height: bodyHeight,
+      paddingX: 1,
+      borderStyle: (text) => currentTheme.fg('primary', text),
+      ellipsis: ELLIPSIS,
+    });
   }
 
-  private renderFooter(width: number, bodyHeight: number): string {
+  private renderFooter(
+    width: number,
+    window: RendererScrollableFrameRowsProjection,
+  ): string {
     const key = (text: string): string => currentTheme.boldFg('primary', text);
     const dim = (text: string): string => currentTheme.fg('textMuted', text);
 
-    const total = this.bodyLines.length;
-    const viewRows = Math.max(1, bodyHeight - 2);
-    const maxScroll = Math.max(0, total - viewRows);
-    const percent = maxScroll === 0 ? 100 : Math.round((this.scrollTop / maxScroll) * 100);
-    const lineFrom = total === 0 ? 0 : this.scrollTop + 1;
-    const lineTo = Math.min(total, this.scrollTop + viewRows);
-
     const position = currentTheme.fg(
       'textMuted',
-      ` ${String(lineFrom)}-${String(lineTo)} / ${String(total)} (${String(percent)}%) `,
+      formatRendererScrollPosition(window),
     );
     const keys =
       `${key('↑↓')} ${dim('line')}  ` +
@@ -196,12 +175,12 @@ export class ApprovalPreviewViewer extends Container implements Focusable {
       `${key('g/G')} ${dim('top/bot')}  ` +
       `${key('Q/Esc/Ctrl+E')} ${dim('cancel')}`;
     const left = ` ${keys}`;
-    const leftW = visibleWidth(left);
-    const rightW = visibleWidth(position);
-    if (leftW + 2 + rightW <= width) {
-      return left + ' '.repeat(width - leftW - rightW) + position;
-    }
-    return fitExactly(left, width);
+    return renderRendererFooterRow({
+      width,
+      left,
+      right: position,
+      ellipsis: ELLIPSIS,
+    });
   }
 }
 

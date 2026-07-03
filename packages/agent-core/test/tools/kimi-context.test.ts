@@ -92,6 +92,11 @@ describe('KimiContextTool', () => {
     expect(output).toContain('path_affected_questions: files -> symbols -> tests -> tools -> UX surfaces');
     expect(output).toContain('apps/kimi-code/src/tui/commands/ultrawork-contract.ts');
     expect(output).toContain('buildUltraworkPrompt');
+    expect(output).toContain('relationships:');
+    expect(output).toContain('import ./goal [EXTRACTED]');
+    expect(output).toContain('export buildUltraworkPrompt [EXTRACTED]');
+    expect(output).toContain('test_hints:');
+    expect(output).toContain('INFERRED apps/kimi-code/src/tui/commands/ultrawork-contract.test.ts');
     expect(output).toContain('Kimi Lean Context keeps code exploration compact');
     expect(output).toContain('estimated_saved_percent:');
     expect(output).not.toContain('objective.replaceAll');

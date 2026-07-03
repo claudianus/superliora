@@ -1,4 +1,4 @@
-import { Container, Spacer, Text } from '@earendil-works/pi-tui';
+import { Container, Spacer, Text } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import type { PluginCommandTrigger } from '#/tui/types';

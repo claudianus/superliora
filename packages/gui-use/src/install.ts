@@ -91,7 +91,7 @@ function runPnpmCloak(
   options: SetupCommandOptions,
 ): Promise<SetupCommandResult> {
   const workspaceRoot = findWorkspaceRoot(options.cwd ?? process.cwd());
-  if (workspaceRoot !== undefined) {
+  if (workspaceRoot !== undefined && isGuiUseWorkspace(workspaceRoot)) {
     return runCommand('corepack', [
       'pnpm',
       '--filter',
@@ -107,6 +107,10 @@ function runPnpmCloak(
     `cloakbrowser@${CLOAKBROWSER_NPM_VERSION}`,
     ...args,
   ], options);
+}
+
+function isGuiUseWorkspace(workspaceRoot: string): boolean {
+  return existsSync(resolve(workspaceRoot, 'packages/gui-use/package.json'));
 }
 
 function npxCommand(): string {

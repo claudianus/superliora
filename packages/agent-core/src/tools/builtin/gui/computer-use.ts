@@ -70,6 +70,8 @@ export type ComputerActInput = z.infer<typeof ComputerActInputSchema>;
 
 const CAPTURE_DESCRIPTION = [
   'Capture a desktop window through cua-driver.',
+  'Use ComputerStatus for runtime setup; do not install Playwright, Chromium, Chrome,',
+  'or desktop automation stacks manually.',
   'mode=som returns a screenshot plus numbered interactable elements; prefer element indexes over raw coordinates.',
   'mode=vision returns only pixels; mode=ax returns accessibility text without an image.',
 ].join(' ');
@@ -77,10 +79,15 @@ const CAPTURE_DESCRIPTION = [
 const ACT_DESCRIPTION = [
   'Execute desktop actions through cua-driver against the active captured window.',
   'Call ComputerCapture first, then prefer click_element/set_value using SOM indexes.',
+  'If setup fails, call ComputerStatus instead of installing Playwright, Chrome, or another GUI driver manually.',
   'This can interact with real desktop apps and should be treated as side-effectful.',
 ].join(' ');
 
-const STATUS_DESCRIPTION = 'Report cua-driver installation and health status.';
+const STATUS_DESCRIPTION = [
+  'Report cua-driver computer-use installation and health status.',
+  'Use this before any manual Playwright, Chrome, or GUI driver installation attempt.',
+  'By default the runtime auto-installs cua-driver when it is missing.',
+].join(' ');
 
 export class ComputerCaptureTool implements BuiltinTool<ComputerCaptureInput> {
   readonly name = 'ComputerCapture' as const;

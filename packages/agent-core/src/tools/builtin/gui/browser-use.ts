@@ -74,15 +74,31 @@ export const BrowserConsoleInputSchema = z.object({
 
 export type BrowserConsoleInput = z.infer<typeof BrowserConsoleInputSchema>;
 
+export const BrowserStatusInputSchema = z.object({
+  install_if_missing: z.boolean().optional().describe(
+    'Install or repair the CloakBrowser runtime cache when it is missing. Defaults to true.',
+  ),
+});
+
+export type BrowserStatusInput = z.infer<typeof BrowserStatusInputSchema>;
+
+const STATUS_DESCRIPTION = [
+  'Report CloakBrowser browser-use installation and health status.',
+  'Use this before any attempt to install Playwright, Chromium, Chrome, or another browser manually.',
+  'By default it prepares the bundled browser-use runtime if it is missing.',
+].join(' ');
+
 const OBSERVE_DESCRIPTION = [
   'Observe the current browser page using an agent-readable snapshot.',
   'The result contains untrusted page text and interactive element refs such as @e1.',
+  'Use BrowserStatus for runtime setup; do not install Playwright or Chrome manually.',
   'Use BrowserAct with click_ref/type_text refs for interaction; use BrowserScreenshot when visual layout matters.',
 ].join(' ');
 
 const ACT_DESCRIPTION = [
   'Execute browser actions in order.',
   'Prefer click_ref and type_text with refs from BrowserObserve over raw coordinates.',
+  'If browser launch/setup fails, call BrowserStatus instead of installing Playwright or Chrome manually.',
   'Set capture_after=true to verify the resulting page in the same tool call.',
 ].join(' ');
 
@@ -95,6 +111,40 @@ const CONSOLE_DESCRIPTION = [
   'Read browser console messages, or evaluate a restricted JavaScript expression.',
   'Expressions that access cookies, storage, network APIs, or form values are blocked by default.',
 ].join(' ');
+
+export class BrowserStatusTool implements BuiltinTool<BrowserStatusInput> {
+  readonly name = 'BrowserStatus' as const;
+  readonly description = STATUS_DESCRIPTION;
+  readonly parameters = toInputJsonSchema(BrowserStatusInputSchema);
+
+  constructor(private readonly runtime: BrowserUseRuntime) {}
+
+  resolveExecution(args: BrowserStatusInput): ToolExecution {
+    return {
+      accesses: ToolAccesses.none(),
+      display: { kind: 'generic', summary: 'Check browser-use status' },
+      description: 'Checking browser-use status',
+      approvalRule: literalRulePattern(
+        this.name,
+        args.install_if_missing === false ? 'check' : 'prepare',
+      ),
+      execute: async (ctx) => {
+        try {
+          const status = await this.runtime.status({
+            installIfMissing: args.install_if_missing !== false,
+          }, ctx.signal);
+          const builder = new ToolResultBuilder();
+          builder.write(JSON.stringify(status, undefined, 2));
+          return status.installed && status.ready !== false
+            ? builder.ok()
+            : builder.error(status.error ?? 'CloakBrowser browser-use runtime is not ready.');
+        } catch (error) {
+          return { isError: true, output: describeError(error) };
+        }
+      },
+    };
+  }
+}
 
 export class BrowserObserveTool implements BuiltinTool<BrowserObserveInput> {
   readonly name = 'BrowserObserve' as const;

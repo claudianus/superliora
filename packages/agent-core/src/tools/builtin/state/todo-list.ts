@@ -26,7 +26,7 @@ import DESCRIPTION from './todo-list.md?raw';
 export const TODO_LIST_TOOL_NAME = 'TodoList' as const;
 export const TODO_STORE_KEY = 'todo';
 const TODO_LIST_WRITE_REMINDER =
-  'Ensure that you continue to use the todo list to track progress. Mark tasks done immediately after finishing them, and keep exactly one task in_progress when work is underway.';
+  'Keep this as a live Kanban board: add newly discovered work, split vague cards, delete obsolete pending cards, reorder the next executable work, mark done immediately after verification, and keep exactly one task in_progress unless real parallel work is happening.';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
 
@@ -114,12 +114,14 @@ export class TodoListTool implements BuiltinTool<TodoListInput> {
         }
 
         // Write mode — replace the full list and return the new state.
+        const previous = this.getTodos();
         this.setTodos(args.todos);
         const stored = this.getTodos();
+        const changes = renderTodoListChangeSummary(previous, stored);
         const output =
           stored.length === 0
             ? 'Todo list cleared.'
-            : `Todo list updated.\n${renderTodoList(stored)}\n\n${TODO_LIST_WRITE_REMINDER}`;
+            : `Todo list updated.\n${renderTodoList(stored)}${changes}\n\n${TODO_LIST_WRITE_REMINDER}`;
         return { isError: false, output };
       },
     };
@@ -136,4 +138,84 @@ export class TodoListTool implements BuiltinTool<TodoListInput> {
       todos.map((todo) => ({ title: todo.title, status: todo.status })),
     );
   }
+}
+
+function renderTodoListChangeSummary(
+  previous: readonly TodoItem[],
+  next: readonly TodoItem[],
+): string {
+  const summary = todoListChangeSummary(previous, next);
+  const parts: string[] = [];
+  if (summary.added > 0) parts.push(`${summary.added} added`);
+  if (summary.completed > 0) parts.push(`${summary.completed} completed`);
+  if (summary.moved > 0) parts.push(`${summary.moved} moved`);
+  if (summary.reopened > 0) parts.push(`${summary.reopened} reopened`);
+  if (summary.removed > 0) parts.push(`${summary.removed} removed`);
+  if (summary.reordered) parts.push('reordered');
+  const hygiene = todoListHygieneNote(next);
+  if (parts.length === 0 && hygiene.length === 0) return '';
+
+  const lines: string[] = [];
+  if (parts.length > 0) lines.push(`Changes: ${parts.join(', ')}.`);
+  if (hygiene.length > 0) lines.push(`Kanban hygiene: ${hygiene}`);
+  return `\n${lines.join('\n')}`;
+}
+
+function todoListChangeSummary(
+  previous: readonly TodoItem[],
+  next: readonly TodoItem[],
+): {
+  readonly added: number;
+  readonly completed: number;
+  readonly moved: number;
+  readonly reopened: number;
+  readonly removed: number;
+  readonly reordered: boolean;
+} {
+  const previousByTitle = todoMap(previous);
+  const nextByTitle = todoMap(next);
+  let added = 0;
+  let completed = 0;
+  let moved = 0;
+  let reopened = 0;
+  let removed = 0;
+
+  for (const todo of next) {
+    const before = previousByTitle.get(todo.title);
+    if (before === undefined) {
+      added += 1;
+      continue;
+    }
+    if (before.status === todo.status) continue;
+    if (todo.status === 'done') completed += 1;
+    else if (before.status === 'done') reopened += 1;
+    else moved += 1;
+  }
+
+  for (const todo of previous) {
+    if (!nextByTitle.has(todo.title)) removed += 1;
+  }
+
+  const reordered =
+    added === 0 &&
+    removed === 0 &&
+    previous.length === next.length &&
+    previous.some((todo, index) => next[index]?.title !== todo.title);
+
+  return { added, completed, moved, reopened, removed, reordered };
+}
+
+function todoMap(todos: readonly TodoItem[]): Map<string, TodoItem> {
+  return new Map(todos.map((todo) => [todo.title, todo]));
+}
+
+function todoListHygieneNote(todos: readonly TodoItem[]): string {
+  const inProgress = todos.filter((todo) => todo.status === 'in_progress').length;
+  if (inProgress > 1) {
+    return 'more than one card is in_progress; collapse WIP unless real parallel work is active.';
+  }
+  if (todos.length > 9) {
+    return 'the board is getting large; prune obsolete cards or group low-value pending work.';
+  }
+  return '';
 }

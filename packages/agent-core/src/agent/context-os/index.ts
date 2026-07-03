@@ -6,7 +6,11 @@ import type {
   CompactionResultAction,
   CompactionResultRawRef,
 } from '../compaction';
-import { parseStructuredCompactionMemory } from '../compaction/memory';
+import {
+  isPromptControlCompactionMemoryItem,
+  isUsefulCompactionMemoryItem,
+  parseStructuredCompactionMemory,
+} from '../compaction/memory';
 import { escapeXml, escapeXmlAttr } from '../../utils/xml-escape';
 
 const MAX_CONTEXT_OS_PAGES = 16;
@@ -291,6 +295,11 @@ export class ContextOSManager {
       dropped_page_count: injection.droppedPageCount,
       compacted_page_count: injection.pages.filter((page) => page.profileName !== 'full').length,
       top_score: selected[0]?.score ?? 0,
+      top_recall_eval_score: selected[0]?.page.contextPack.contextOS.qualitySignals?.recallEvalScore,
+      top_structured_item_count:
+        selected[0]?.page.contextPack.contextOS.retrievalSignalCounts?.structuredItemCount,
+      top_retrieval_query_count:
+        selected[0]?.page.contextPack.contextOS.retrievalSignalCounts?.retrievalQueryCount,
       injection_chars: injection.text.length,
       revision: this._revision,
       rehydration_raw_ref_count: injection.pages.reduce((sum, page) => sum + page.rawRefCount, 0),
@@ -499,7 +508,7 @@ function auditContextOSInjection(
   if (pages.length > 0 && !text.includes('trust="recalled_data"')) {
     warnings.push('missing_recalled_data_trust_marker');
   }
-  if (isPromptControlInstruction(text)) {
+  if (isPromptControlCompactionMemoryItem(text)) {
     warnings.push('prompt_control_text_present');
   }
   return { warnings };
@@ -515,26 +524,39 @@ function scorePage(
   const fileHints = selectionFileHints(page);
   const queryTerms = [...tokenize(query)];
   const haystackTerms = tokenize(pageSearchText(page));
+  const structuredTerms = tokenize(structuredSignalText(page));
   const overlap = queryTerms.filter((term) => haystackTerms.has(term)).length;
-  const fileMentioned = fileHints.some((file) => query.includes(file));
-  const recency = totalPages <= 1 ? 1 : (index + 1) / totalPages;
+  const structuredOverlap = queryTerms.filter((term) => structuredTerms.has(term)).length;
+  const queryLower = query.toLowerCase();
+  const fileMentioned = fileHints.some((file) => fileMentionedByQuery(file, queryLower));
+  const distanceFromNewest = Math.max(0, totalPages - index - 1);
+  const recency = totalPages <= 1 ? 1 : 0.5 ** (distanceFromNewest / 4);
+  const qualityScore = contextOS.qualitySignals?.recallEvalScore ?? 0.75;
 
-  let score = recency * 0.1 + contextOS.continuity.score * 0.1;
+  let score = recency * 0.12 + contextOS.continuity.score * 0.08 + qualityScore * 0.08;
   const reasons: string[] = [];
 
   if (overlap > 0) {
-    score += Math.min(0.35, overlap * 0.08);
+    score += Math.min(0.25, overlap * 0.06);
     reasons.push('query_overlap');
   }
+  if (structuredOverlap > 0) {
+    score += Math.min(0.25, structuredOverlap * 0.09);
+    reasons.push('structured_memory_match');
+  }
   if (fileMentioned) {
-    score += 0.35;
+    score += 0.4;
     reasons.push('file_hint_match');
   }
   if (contextOS.continuity.status !== 'ready') {
-    score += 0.1;
+    score += 0.05;
     reasons.push(contextOS.continuity.status);
   }
-  if (!reasons.includes('query_overlap') && !reasons.includes('file_hint_match')) {
+  if (
+    !reasons.includes('query_overlap') &&
+    !reasons.includes('structured_memory_match') &&
+    !reasons.includes('file_hint_match')
+  ) {
     score = 0;
   } else {
     reasons.unshift('recent_context_page');
@@ -549,18 +571,7 @@ function scorePage(
 
 function pageSearchText(page: ContextOSPage): string {
   const contextOS = page.contextPack.contextOS;
-  const focusMemory = parseStructuredCompactionMemory(compactedNarrativeText(page.summary));
-  const focusText = [
-    focusMemory.currentGoal,
-    ...focusMemory.lastKnownState,
-    ...focusMemory.decisions,
-    ...focusMemory.failedAttempts,
-    ...focusMemory.openQuestions,
-    ...focusMemory.nextActions,
-    ...selectionFileHints(page),
-  ]
-    .filter((item): item is string => item !== undefined && item.length > 0)
-    .join(' ');
+  const focusText = structuredSignalText(page);
   return [
     focusText.length > 0
       ? focusText
@@ -569,6 +580,31 @@ function pageSearchText(page: ContextOSPage): string {
     page.contextPack.evidence.actionTypes.join(' '),
     page.contextPack.evidence.rawRefKinds.join(' '),
   ].join(' ');
+}
+
+function structuredSignalText(page: ContextOSPage): string {
+  const focusedMemory = parseStructuredCompactionMemory(compactedNarrativeText(page.summary));
+  const focusedText = structuredMemorySearchText(focusedMemory, selectionFileHints(page));
+  if (focusedText.length > 0) return focusedText;
+  return structuredMemorySearchText(parseStructuredCompactionMemory(page.summary), selectionFileHints(page));
+}
+
+function structuredMemorySearchText(
+  memory: ReturnType<typeof parseStructuredCompactionMemory>,
+  fileHints: readonly string[],
+): string {
+  return [
+    memory.currentGoal,
+    ...memory.lastKnownState,
+    ...memory.decisions,
+    ...memory.filesTouched,
+    ...memory.failedAttempts,
+    ...memory.openQuestions,
+    ...memory.nextActions,
+    ...fileHints,
+  ]
+    .filter((item): item is string => item !== undefined && item.length > 0)
+    .join(' ');
 }
 
 function suppressSupersededSelections(
@@ -787,7 +823,7 @@ function sanitizeItems(
 }
 
 function sanitizeRecalledText(item: string, maxChars: number): SanitizedRecalledText {
-  if (isPromptControlInstruction(item)) {
+  if (isPromptControlCompactionMemoryItem(item)) {
     return {
       text: REDACTED_RECALLED_INSTRUCTION,
       poisoningWarningCount: 1,
@@ -799,19 +835,8 @@ function sanitizeRecalledText(item: string, maxChars: number): SanitizedRecalled
   };
 }
 
-function isPromptControlInstruction(item: string): boolean {
-  return /(?:ignore|disregard|override|forget|bypass).{0,40}(?:system|developer|previous|prior|above|safety|policy|instructions?)|(?:reveal|print|exfiltrate|leak).{0,40}(?:secret|token|credential|api[_ -]?key|password)|(?:treat|consider).{0,40}(?:this|the following).{0,40}(?:system|developer).{0,40}(?:message|instruction)/i.test(
-    item,
-  );
-}
-
 function isUsefulMemoryItem(item: string): boolean {
-  const lower = item.toLowerCase();
-  if (item.length === 0) return false;
-  if (lower === 'none captured during compaction.') return false;
-  if (lower === 'none' || lower === 'n/a') return false;
-  if (/^#{1,6}\s+/.test(item)) return false;
-  return true;
+  return isUsefulCompactionMemoryItem(item);
 }
 
 function trimForContext(item: string, maxChars: number): string {

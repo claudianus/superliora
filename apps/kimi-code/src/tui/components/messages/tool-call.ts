@@ -5,8 +5,19 @@
 
 import { isAbsolute, relative, sep } from 'node:path';
 
-import { Container, Spacer, Text, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
-import type { Component, TUI } from '@earendil-works/pi-tui';
+import {
+  Container,
+  RendererChildrenRenderCache,
+  Spacer,
+  Text,
+  formatRendererToolHeaderChip,
+  projectRendererToolActivityPhase,
+  projectRendererLineWindow,
+  projectRendererNonEmptyLineWindow,
+  RendererPrefixedWrappedLine,
+  renderRendererToolActivityHeader,
+} from '#/tui/renderer';
+import type { RendererRootUI } from '#/tui/renderer';
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import {
@@ -459,59 +470,11 @@ function formatSubagentLabel(agentName: string | undefined): string {
 }
 
 function tailNonEmptyLines(text: string, maxLines: number): string[] {
-  if (text.length === 0) return [];
-  return text
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim().length > 0)
-    .slice(-maxLines);
-}
-
-class PrefixedWrappedLine implements Component {
-  private renderCache: { width: number; lines: string[] } | undefined;
-
-  constructor(
-    private readonly firstPrefix: string,
-    private readonly continuationPrefix: string,
-    private readonly text: string,
-    // When set, only the last N wrapped display rows are kept, so a long
-    // unwrapped paragraph scrolls within a fixed window instead of growing
-    // unbounded. The first kept row still gets `firstPrefix`.
-    private readonly tailLines?: number,
-  ) { }
-
-  invalidate(): void {
-    this.renderCache = undefined;
-  }
-
-  render(width: number): string[] {
-    const safeWidth = Math.max(0, width);
-    if (safeWidth <= 0) return [''];
-
-    if (isRenderCacheEnabled() && this.renderCache?.width === safeWidth) {
-      return this.renderCache.lines;
-    }
-
-    const prefixWidth = Math.max(
-      visibleWidth(this.firstPrefix),
-      visibleWidth(this.continuationPrefix),
-    );
-    const contentWidth = Math.max(1, safeWidth - prefixWidth);
-    const wrapped = new Text(this.text, 0, 0).render(contentWidth);
-    const lines =
-      this.tailLines !== undefined && wrapped.length > this.tailLines
-        ? wrapped.slice(wrapped.length - this.tailLines)
-        : wrapped;
-    const rendered = lines
-      .map((line, index) =>
-        index === 0 ? `${this.firstPrefix}${line}` : `${this.continuationPrefix}${line}`,
-      )
-      .map((line) => truncateToWidth(line, safeWidth, '…'));
-    if (isRenderCacheEnabled()) {
-      this.renderCache = { width: safeWidth, lines: rendered };
-    }
-    return rendered;
-  }
+  return [...projectRendererNonEmptyLineWindow({
+    text,
+    maxLines,
+    tail: true,
+  }).lines];
 }
 
 export class ToolCallComponent extends Container {
@@ -519,7 +482,7 @@ export class ToolCallComponent extends Container {
   private toolCall: ToolCallBlockData;
   private readonly markdownTheme = createMarkdownTheme();
   private result: ToolResultBlockData | undefined;
-  private ui: TUI | undefined;
+  private ui: RendererRootUI | undefined;
   private planPath: string | undefined;
   /**
    * Fallback plan body used when the LLM uses plan-file mode and
@@ -614,7 +577,7 @@ export class ToolCallComponent extends Container {
   constructor(
     toolCall: ToolCallBlockData,
     result: ToolResultBlockData | undefined,
-    ui?: TUI,
+    ui?: RendererRootUI,
     private readonly workspaceDir?: string,
   ) {
     super();
@@ -637,49 +600,18 @@ export class ToolCallComponent extends Container {
     this.startDetachHintTimer();
   }
 
-  private renderCache:
-    | { width: number; lines: string[]; childRefs: Component[]; childLines: string[][] }
-    | undefined;
+  private readonly renderCache = new RendererChildrenRenderCache();
 
   override render(width: number): string[] {
-    const cache = this.renderCache;
-    const cacheValid =
-      isRenderCacheEnabled() &&
-      cache !== undefined &&
-      cache.width === width &&
-      cache.childRefs.length === this.children.length;
-
-    const childRefs: Component[] = [];
-    const childLines: string[][] = [];
-    let allReused = cacheValid;
-
-    let i = 0;
-    for (const child of this.children) {
-      const lines = child.render(width);
-      childRefs.push(child);
-      childLines.push(lines);
-      if (cacheValid && (cache.childRefs[i] !== child || cache.childLines[i] !== lines)) {
-        allReused = false;
-      }
-      i++;
-    }
-
-    if (allReused) {
-      return cache!.lines;
-    }
-
-    const out: string[] = [];
-    for (const lines of childLines) {
-      for (const line of lines) out.push(line);
-    }
-    if (isRenderCacheEnabled()) {
-      this.renderCache = { width, lines: out, childRefs, childLines };
-    }
-    return out;
+    return this.renderCache.render({
+      width,
+      children: this.children,
+      isCacheEnabled: isRenderCacheEnabled,
+    });
   }
 
   override invalidate(): void {
-    this.renderCache = undefined;
+    this.renderCache.clear();
     this.headerText.setText(this.buildHeader());
     this.rebuildBody();
     super.invalidate();
@@ -1390,11 +1322,16 @@ export class ToolCallComponent extends Container {
     const isFinished = result !== undefined;
     const isError = result?.is_error ?? false;
     const isTruncated = toolCall.truncated === true && !isFinished;
+    const phase = projectRendererToolActivityPhase({
+      finished: isFinished,
+      error: isError,
+      truncated: isTruncated,
+    });
 
     let bullet: string;
-    if (isFinished) {
+    if (phase === 'succeeded' || phase === 'failed') {
       bullet = isError ? currentTheme.fg('error', '✗ ') : currentTheme.fg('success', STATUS_BULLET);
-    } else if (isTruncated) {
+    } else if (phase === 'truncated') {
       bullet = currentTheme.fg('error', '✗ ');
     } else {
       // Solid bullet for in-flight tools — the previous marker ↔ blank
@@ -1430,7 +1367,10 @@ export class ToolCallComponent extends Container {
           ? 'Starting background question'
           : 'Waiting for your input';
       const tone = isError ? 'error' : 'primary';
-      return `${bullet}${currentTheme.boldFg(tone, label)}`;
+      return renderRendererToolActivityHeader({
+        marker: bullet,
+        label: currentTheme.boldFg(tone, label),
+      });
     }
 
     const goalHeader = buildGoalToolHeader({
@@ -1445,7 +1385,11 @@ export class ToolCallComponent extends Container {
       return this.buildSingleSubagentHeader();
     }
 
-    const verb = isFinished ? 'Used' : isTruncated ? 'Truncated' : 'Using';
+    const verb = phase === 'succeeded' || phase === 'failed'
+      ? 'Used'
+      : phase === 'truncated'
+        ? 'Truncated'
+        : 'Using';
     const keyArg = extractKeyArgument(toolCall.name, toolCall.args, this.workspaceDir);
     const decoded = decodeMcpToolName(toolCall.name);
     const verbStyled = isTruncated
@@ -1467,7 +1411,13 @@ export class ToolCallComponent extends Container {
     const argStr = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
     let chipStr = '';
     if (isFinished && result) chipStr = this.buildHeaderChip(result);
-    return `${bullet}${verbStyled} ${toolLabel}${argStr}${chipStr}`;
+    return renderRendererToolActivityHeader({
+      marker: bullet,
+      action: verbStyled,
+      label: toolLabel,
+      detail: argStr,
+      chip: chipStr,
+    });
   }
 
   private buildHeaderChip(result: ToolResultBlockData): string {
@@ -1475,8 +1425,9 @@ export class ToolCallComponent extends Container {
     if (provider === undefined) return '';
     const text = provider(this.toolCall, result);
     if (text.length === 0) return '';
-    if (result.is_error) return currentTheme.fg('error', ` · ${text}`);
-    return currentTheme.dim(` · ${text}`);
+    const chip = formatRendererToolHeaderChip({ text });
+    if (result.is_error) return currentTheme.fg('error', chip);
+    return currentTheme.dim(chip);
   }
 
   private rebuildContent(): void {
@@ -1509,7 +1460,7 @@ export class ToolCallComponent extends Container {
    * sequence so terminals that support it (iTerm2, Ghostty, kitty, modern
    * Terminal.app, VS Code) make the URL Cmd-clickable and expose
    * "Copy Link" via the context menu — even when pi-tui soft-wraps the
-   * URL across multiple rows (pi-tui's wrapTextWithAnsi re-opens the
+   * URL across multiple rows (renderer wrapTextWithAnsi re-opens the
    * active OSC 8 link on each continuation line). Each embedded URL is
    * styled individually so surrounding prose keeps its default dim tone.
    */
@@ -1593,7 +1544,16 @@ export class ToolCallComponent extends Container {
       const keyArg = extractKeyArgument(sub.name, sub.args, this.workspaceDir);
       const nameCol = currentTheme.fg('primary', sub.name);
       const argCol = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
-      this.addChild(new Text(`    ${mark} Used ${nameCol}${argCol}`, 0, 0));
+      this.addChild(new Text(
+        renderRendererToolActivityHeader({
+          marker: `    ${mark} `,
+          action: 'Used',
+          label: nameCol,
+          detail: argCol,
+        }),
+        0,
+        0,
+      ));
     }
 
     for (const [id, call] of this.ongoingSubCalls) {
@@ -1601,11 +1561,24 @@ export class ToolCallComponent extends Container {
       const nameCol = currentTheme.fg('primary', call.name);
       const argCol = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
       void id;
-      this.addChild(new Text(`    ${currentTheme.dim('…')} Using ${nameCol}${argCol}`, 0, 0));
+      this.addChild(new Text(
+        renderRendererToolActivityHeader({
+          marker: `    ${currentTheme.dim('…')} `,
+          action: 'Using',
+          label: nameCol,
+          detail: argCol,
+        }),
+        0,
+        0,
+      ));
     }
 
     if (this.subagentText.length > 0) {
-      const tailLines = this.subagentText.split('\n').slice(-3);
+      const tailLines = projectRendererLineWindow({
+        lines: this.subagentText.split('\n'),
+        maxLines: 3,
+        tail: true,
+      }).lines;
       for (const line of tailLines) {
         this.addChild(new Text(`    ${currentTheme.dim(line)}`, 0, 0));
       }
@@ -1613,7 +1586,10 @@ export class ToolCallComponent extends Container {
 
     // Result summary from subagent.completed.
     if (this.subagentPhase === 'done' && this.subagentResultSummary !== undefined) {
-      const summaryLines = this.subagentResultSummary.split('\n').slice(0, 2);
+      const summaryLines = projectRendererLineWindow({
+        lines: this.subagentResultSummary.split('\n'),
+        maxLines: 2,
+      }).lines;
       for (const line of summaryLines) {
         this.addChild(new Text(`    ${currentTheme.dim('└')} ${line}`, 0, 0));
       }
@@ -1780,7 +1756,7 @@ export class ToolCallComponent extends Container {
             ? currentTheme.fg('success', '•')
             : currentTheme.fg('text', '•');
       const verb = activity.phase === 'ongoing' ? 'Using' : 'Used';
-      this.addChild(new Text(`  ${mark} ${this.formatSubToolActivity(verb, activity)}`, 0, 0));
+      this.addChild(new Text(this.formatSubToolActivityRow(`  ${mark} `, verb, activity), 0, 0));
       this.addSubToolOutputPreview(activity);
     }
 
@@ -1788,11 +1764,11 @@ export class ToolCallComponent extends Container {
       const errorLine = tailNonEmptyLines(this.subagentError, 1).at(-1);
       if (errorLine !== undefined) {
         this.addChild(
-          new PrefixedWrappedLine(
-            `  ${currentTheme.fg('error', '└')} `,
-            '    ',
-            currentTheme.fg('error', errorLine),
-          ),
+          new RendererPrefixedWrappedLine({
+            firstPrefix: `  ${currentTheme.fg('error', '└')} `,
+            continuationPrefix: '    ',
+            text: currentTheme.fg('error', errorLine),
+          }),
         );
       }
       return;
@@ -1806,21 +1782,21 @@ export class ToolCallComponent extends Container {
       // Scroll thinking within a fixed two-row window (width-aware), matching
       // the main agent's live thinking instead of growing without bound.
       this.addChild(
-        new PrefixedWrappedLine(
-          `  ${currentTheme.dim('◌')} `,
-          '    ',
-          currentTheme.dim(this.subagentThinkingText.trimEnd()),
-          THINKING_PREVIEW_LINES,
-        ),
+        new RendererPrefixedWrappedLine({
+          firstPrefix: `  ${currentTheme.dim('◌')} `,
+          continuationPrefix: '    ',
+          text: currentTheme.dim(this.subagentThinkingText.trimEnd()),
+          tailLines: THINKING_PREVIEW_LINES,
+        }),
       );
     }
     if (outputLine !== undefined) {
       this.addChild(
-        new PrefixedWrappedLine(
-          `  ${currentTheme.fg('text', '└')} `,
-          '    ',
-          currentTheme.fg('text', outputLine),
-        ),
+        new RendererPrefixedWrappedLine({
+          firstPrefix: `  ${currentTheme.fg('text', '└')} `,
+          continuationPrefix: '    ',
+          text: currentTheme.fg('text', outputLine),
+        }),
       );
     }
   }
@@ -1847,16 +1823,25 @@ export class ToolCallComponent extends Container {
   }
 
   private getRecentSubToolActivities(): SubToolActivity[] {
-    return [...this.subToolActivities.values()]
-      .toSorted((a, b) => a.orderSeq - b.orderSeq)
-      .slice(-MAX_SINGLE_SUBAGENT_TOOL_ROWS);
+    const activities = [...this.subToolActivities.values()]
+      .toSorted((a, b) => a.orderSeq - b.orderSeq);
+    return [...projectRendererLineWindow({
+      lines: activities,
+      maxLines: MAX_SINGLE_SUBAGENT_TOOL_ROWS,
+      tail: true,
+    }).lines];
   }
 
-  private formatSubToolActivity(verb: string, activity: SubToolActivity): string {
+  private formatSubToolActivityRow(marker: string, verb: string, activity: SubToolActivity): string {
     const keyArg = extractKeyArgument(activity.name, activity.args, this.workspaceDir);
     const nameCol = currentTheme.fg('primary', activity.name);
     const argCol = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
-    return `${verb} ${nameCol}${argCol}`;
+    return renderRendererToolActivityHeader({
+      marker,
+      action: verb,
+      label: nameCol,
+      detail: argCol,
+    });
   }
 
   private buildCallPreview(): void {
@@ -1891,10 +1876,14 @@ export class ToolCallComponent extends Container {
       // and the snap back to the collapsed cap triggers pi-tui's full-redraw
       // path which wipes the terminal scrollback (pre-TUI history).
       const writeShouldCap = !this.expanded;
-      const shown = writeShouldCap ? allLines.slice(0, COMMAND_PREVIEW_LINES) : allLines;
-      const remaining = allLines.length - shown.length;
+      const preview = projectRendererLineWindow({
+        lines: allLines,
+        maxLines: writeShouldCap ? COMMAND_PREVIEW_LINES : undefined,
+      });
+      const shown = preview.lines;
+      const remaining = preview.hiddenLineCount;
       for (const [i, line] of shown.entries()) {
-        const lineNum = currentTheme.dim(String(i + 1).padStart(4) + '  ');
+        const lineNum = currentTheme.dim(String(preview.startIndex + i + 1).padStart(4) + '  ');
         this.addChild(new Text(lineNum + line, 2, 0));
       }
       if (writeShouldCap && remaining > 0) {
@@ -1959,16 +1948,14 @@ export class ToolCallComponent extends Container {
         '';
       const lang = langFromPath(filePath);
       const allLines = highlightLines(content, lang);
-      const maxLines = COMMAND_PREVIEW_LINES;
-      const scrollLines =
-        allLines.length > maxLines
-          ? allLines.slice(allLines.length - maxLines)
-          : allLines;
+      const preview = projectRendererLineWindow({
+        lines: allLines,
+        maxLines: COMMAND_PREVIEW_LINES,
+        tail: true,
+      });
+      const scrollLines = preview.lines;
       for (const [i, line] of scrollLines.entries()) {
-        const originalLineNumber =
-          allLines.length > maxLines
-            ? allLines.length - maxLines + i
-            : i;
+        const originalLineNumber = preview.startIndex + i;
         const lineNum = currentTheme.dim(String(originalLineNumber + 1).padStart(4) + '  ');
         this.addChild(new Text(lineNum + line, 2, 0));
       }

@@ -176,6 +176,7 @@ describe('default agent profiles', () => {
         'AgentSwarm',
         'UltraSwarm',
         'Skill',
+        'Memory',
         'WebSearch',
         'FetchURL',
         'TaskList',
@@ -187,7 +188,7 @@ describe('default agent profiles', () => {
       ]),
     );
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'WebSearch', 'FetchURL']),
+      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Memory', 'WebSearch', 'FetchURL']),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).toEqual(
       expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL']),

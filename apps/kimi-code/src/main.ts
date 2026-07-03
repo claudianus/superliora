@@ -39,6 +39,18 @@ import { cleanupStaleNativeCacheForCurrent } from './native/native-assets';
 import { installNativeModuleHook } from './native/module-hook';
 import { runNativeAssetSmokeIfRequested } from './native/smoke';
 
+// Suppress Node.js's experimental SQLite warning on startup while keeping
+// other warnings visible.
+process.on('warning', (warning) => {
+  if (
+    warning.name === 'ExperimentalWarning' &&
+    warning.message.includes('SQLite')
+  ) {
+    return;
+  }
+  console.warn(warning);
+});
+
 export interface MainCommandOutcome {
   readonly headlessCompleted: boolean;
 }

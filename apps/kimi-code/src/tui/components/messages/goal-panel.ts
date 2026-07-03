@@ -14,12 +14,11 @@
  */
 
 import {
+  projectRendererWrappedTextPreview,
   Text,
-  truncateToWidth,
   visibleWidth,
-  wrapTextWithAnsi,
   type Component,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import type { GoalSnapshot, GoalStatus } from '@moonshot-ai/kimi-code-sdk';
 
 import { MESSAGE_INDENT } from '#/tui/constant/rendering';
@@ -211,12 +210,11 @@ function statusToken(status: GoalStatus): ColorToken {
 
 /** Word-wrap to `width`, capped at `maxLines` (last line gets an ellipsis when clipped). */
 function wrap(text: string, width: number, maxLines: number): string[] {
-  const safeWidth = Math.max(1, width);
-  const lines = wrapTextWithAnsi(text.replaceAll(/\s+/g, ' ').trim(), safeWidth);
-  if (lines.length === 0) return [''];
-  if (lines.length <= maxLines) return lines;
-  const clipped = lines.slice(0, maxLines);
-  const lastLine = clipped[maxLines - 1] ?? '';
-  clipped[maxLines - 1] = truncateToWidth(`${lastLine}…`, safeWidth, '…');
-  return clipped;
+  return [...projectRendererWrappedTextPreview({
+    text,
+    width,
+    maxLines,
+    normalizeWhitespace: true,
+    truncateMark: '…',
+  }).lines];
 }

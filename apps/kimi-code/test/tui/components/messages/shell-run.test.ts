@@ -39,6 +39,17 @@ describe('ShellRunComponent hardening', () => {
     expect(rendered).not.toContain('should be ignored');
   });
 
+  it('shows the renderer-projected running output tail', () => {
+    const c = create();
+    c.append(['row1', 'row2', 'row3', 'row4', 'row5', 'row6', 'row7'].join('\n'));
+    const rendered = stripTheme(c.render(100).join('\n'));
+    expect(rendered).not.toContain('row1');
+    expect(rendered).not.toContain('row2');
+    expect(rendered).toContain('row3');
+    expect(rendered).toContain('row7');
+    expect(rendered).toContain('+2 lines');
+  });
+
   it('finishBackgrounded renders the background hint', () => {
     const c = create();
     c.finishBackgrounded();

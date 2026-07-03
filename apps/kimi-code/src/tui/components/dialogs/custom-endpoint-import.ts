@@ -8,10 +8,10 @@ import {
   Input,
   Key,
   matchesKey,
+  renderRendererFrameRows,
   truncateToWidth,
-  visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import { DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE } from '#/utils/custom-provider';
 import { currentTheme } from '#/tui/theme';
@@ -121,7 +121,6 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
     const innerWidth = Math.max(1, safeWidth - 4);
-    const pad = '  ';
     const border = (s: string): string => currentTheme.fg('primary', s);
 
     const contentLines: string[] = [
@@ -145,19 +144,20 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
       return ['', ...contentLines.map((line) => truncateToWidth(line, safeWidth, '…'))];
     }
 
-    const lines: string[] = [
+    return [
       '',
-      border('╭' + '─'.repeat(safeWidth - 2) + '╮'),
-      border('│') + ' '.repeat(safeWidth - 2) + border('│'),
+      ...renderRendererFrameRows({
+        content: ['', ...contentLines, ''],
+        width: safeWidth,
+        height: contentLines.length + 4,
+        borderKind: 'rounded',
+        paddingLeft: 2,
+        paddingRight: 0,
+        borderStyle: border,
+        ellipsis: '…',
+      }),
+      '',
     ];
-    for (const content of contentLines) {
-      const rightPad = Math.max(0, innerWidth - visibleWidth(content));
-      lines.push(border('│') + pad + content + ' '.repeat(rightPad) + border('│'));
-    }
-    lines.push(border('│') + ' '.repeat(safeWidth - 2) + border('│'));
-    lines.push(border('╰' + '─'.repeat(safeWidth - 2) + '╯'));
-    lines.push('');
-    return lines.map((line) => truncateToWidth(line, safeWidth, '…'));
   }
 
   private renderField(
@@ -186,16 +186,27 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     const apiKey = this.keyInput.getValue().trim();
     const contextRaw = this.contextInput.getValue().trim();
 
-    if (providerId.length === 0) return this.reject('Provider id is required.', 'provider');
-    if (/\s/.test(providerId)) {
-      return this.reject('Provider id cannot contain whitespace.', 'provider');
+    if (providerId.length === 0) {
+      this.reject('Provider id is required.', 'provider');
+      return;
     }
-    if (baseUrl.length === 0) return this.reject('Base URL is required.', 'url');
-    if (modelId.length === 0) return this.reject('Model id is required.', 'model');
+    if (/\s/.test(providerId)) {
+      this.reject('Provider id cannot contain whitespace.', 'provider');
+      return;
+    }
+    if (baseUrl.length === 0) {
+      this.reject('Base URL is required.', 'url');
+      return;
+    }
+    if (modelId.length === 0) {
+      this.reject('Model id is required.', 'model');
+      return;
+    }
 
     const maxContextSize = Number(contextRaw);
     if (!Number.isInteger(maxContextSize) || maxContextSize <= 0) {
-      return this.reject('Context tokens must be a positive integer.', 'context');
+      this.reject('Context tokens must be a positive integer.', 'context');
+      return;
     }
 
     this.done = true;

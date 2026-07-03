@@ -1,14 +1,16 @@
 import type {
   BackgroundTaskInfo,
   Event,
+  TeamPlan,
 } from '@moonshot-ai/kimi-code-sdk';
-import type { Component } from '@earendil-works/pi-tui';
+import type { Component } from '#/tui/renderer';
 
 import {
   AgentSwarmProgressComponent,
   agentSwarmDescriptionFromArgs,
   agentSwarmGridHeightForTerminalRows,
   swarmProgressTitleForToolName,
+  type UltraSwarmMemberMetadata,
 } from '../components/messages/agent-swarm-progress';
 import { MAIN_AGENT_ID } from '../constant/kimi-tui';
 import type {
@@ -55,6 +57,7 @@ function renderedRowsAfterChild(
 export class SubAgentEventHandler {
   readonly subagentInfo: Map<string, SubagentInfo> = new Map();
   private readonly agentSwarmProgress: Map<string, AgentSwarmProgressComponent> = new Map();
+  private readonly ultraSwarmTeamsByToolCallId: Map<string, TeamPlan> = new Map();
   backgroundAgentMetadata: Map<string, BackgroundAgentMetadata> = new Map();
 
   constructor(
@@ -64,6 +67,7 @@ export class SubAgentEventHandler {
 
   resetRuntimeState(): void {
     this.subagentInfo.clear();
+    this.ultraSwarmTeamsByToolCallId.clear();
     this.backgroundAgentMetadata.clear();
     this.clearAgentSwarmProgress();
   }
@@ -225,6 +229,14 @@ export class SubAgentEventHandler {
     }
     this.host.updateActivityPane();
     this.requestRender();
+  }
+
+  handleUltraworkTeamStaffed(event: Extract<Event, { type: 'ultrawork.team.staffed' }>): void {
+    if (event.toolCallId === undefined) return;
+    this.ultraSwarmTeamsByToolCallId.set(event.toolCallId, event.team);
+    this.updateAgentSwarmProgress(event.toolCallId, (progress) => {
+      progress.applyUltraSwarmTeam(ultraSwarmMembersFromTeam(event.team));
+    });
   }
 
   markActiveAgentSwarmsCancelled(): void {
@@ -542,6 +554,10 @@ export class SubAgentEventHandler {
       },
     });
     progress.updateArgs(args, options);
+    const team = this.ultraSwarmTeamsByToolCallId.get(toolCallId);
+    if (team !== undefined) {
+      progress.applyUltraSwarmTeam(ultraSwarmMembersFromTeam(team));
+    }
     this.agentSwarmProgress.set(toolCallId, progress);
     this.host.streamingUI.finalizeLiveTextBuffers('tool');
     this.host.state.transcriptContainer.addChild(progress);
@@ -636,6 +652,20 @@ function isSubagentLifecycleEvent(event: Event): event is SubagentLifecycleEvent
     event.type === 'subagent.completed' ||
     event.type === 'subagent.failed'
   );
+}
+
+function ultraSwarmMembersFromTeam(team: TeamPlan): UltraSwarmMemberMetadata[] {
+  return team.experts.map((expert) => ({
+    expertId: expert.id,
+    name: expert.name,
+    division: expert.division,
+    emoji: expert.emoji,
+    coverageLane: expert.coverageLane ?? expert.role,
+    selectionReason: expert.selectionReason,
+    focus: expert.focus,
+    dependsOn: expert.dependsOn,
+    taskIds: expert.taskIds,
+  }));
 }
 
 function isUserCancelledSubagentError(error: string): boolean {

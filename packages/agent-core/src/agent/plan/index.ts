@@ -3,7 +3,12 @@ import { dirname, join } from 'pathe';
 
 import type { Agent } from '..';
 import { generateHeroSlug } from '../../utils/hero-slug';
-import { UltraPlanModeEngine, type UltraPlanData, type UltraPlanPhase } from './ultra-plan-mode';
+import {
+  UltraPlanModeEngine,
+  type DriftMetrics,
+  type UltraPlanData,
+  type UltraPlanPhase,
+} from './ultra-plan-mode';
 
 export type PlanData = null | {
   id: string;
@@ -148,6 +153,13 @@ export class PlanMode {
 
   setPhase(phase: UltraPlanPhase): void {
     this._phase = phase;
+  }
+
+  reopenUltraInterviewForDrift(metrics: DriftMetrics): void {
+    if (!this._isActive || !this._isUltraMode) return;
+    this._phase = 'interview';
+    this.ultraEngine.reopenInterviewForSeedRefinement(metrics);
+    this.agent.emitStatusUpdated();
   }
 
   incrementInterviewRound(): void {

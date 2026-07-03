@@ -9,15 +9,21 @@
  * is issued.
  */
 
-import type { Component } from '@earendil-works/pi-tui';
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
+import {
+  renderRendererDividerRow,
+  truncateToWidth,
+  visibleWidth,
+  type Component,
+} from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
+  appearanceAnimationNow,
   renderAnimatedGradientText,
   renderPulseGlyph,
+  renderShimmerPrefix,
 } from '#/tui/utils/appearance-effects';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
@@ -32,11 +38,25 @@ const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
 const BOARD_SEPARATOR = ' │ ';
+const CHANGE_FLASH_MS = 12_000;
+const EMPTY_HIGHLIGHTS: ReadonlyMap<string, TodoChangeKind> = new Map();
 
 export interface VisibleTodos {
   readonly rows: readonly TodoItem[];
   readonly hidden: number;
   readonly hiddenCounts: Record<TodoStatus, number>;
+}
+
+type TodoChangeKind = 'added' | 'moved' | 'completed' | 'reopened';
+
+interface TodoPanelChangeSummary {
+  readonly added: number;
+  readonly completed: number;
+  readonly moved: number;
+  readonly reopened: number;
+  readonly removed: number;
+  readonly reordered: boolean;
+  readonly changedAtMs: number;
 }
 
 /**
@@ -122,9 +142,15 @@ export function selectVisibleTodos(todos: readonly TodoItem[]): VisibleTodos {
 export class TodoPanelComponent implements Component {
   private todos: readonly TodoItem[] = [];
   private expanded = false;
+  private recentChanges = new Map<string, TodoChangeKind>();
+  private changeSummary: TodoPanelChangeSummary | undefined;
 
   setTodos(todos: readonly TodoItem[]): void {
-    this.todos = todos.map((t) => ({ title: t.title, status: t.status }));
+    const next = todos.map((t) => ({ title: t.title, status: t.status }));
+    const diff = diffTodos(this.todos, next);
+    this.todos = next;
+    this.recentChanges = diff.highlights;
+    this.changeSummary = diff.summary;
   }
 
   getTodos(): readonly TodoItem[] {
@@ -134,6 +160,8 @@ export class TodoPanelComponent implements Component {
   clear(): void {
     this.todos = [];
     this.expanded = false;
+    this.recentChanges = new Map();
+    this.changeSummary = undefined;
   }
 
   isEmpty(): boolean {
@@ -159,12 +187,16 @@ export class TodoPanelComponent implements Component {
     if (this.todos.length === 0) return [];
     const c = currentTheme.palette;
     const lines: string[] = [
-      chalk.hex(c.border)('─'.repeat(width)),
+      renderRendererDividerRow({
+        width,
+        style: (text) => chalk.hex(c.border)(text),
+      }),
       renderAnimatedGradientText('  Todo Board', 'todo:title'),
+      renderBoardMeta(this.todos, c, this.currentChangeSummary()),
     ];
 
     if (this.expanded) {
-      lines.push(...renderTodos(this.todos, c, width));
+      lines.push(...renderTodos(this.todos, c, width, this.currentHighlights()));
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
           chalk.hex(c.textDim)(`  all ${String(this.todos.length)} items · ctrl+t to collapse`),
@@ -172,7 +204,7 @@ export class TodoPanelComponent implements Component {
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-      lines.push(...renderTodos(rows, c, width));
+      lines.push(...renderTodos(rows, c, width, this.currentHighlights()));
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
         const suffix = distribution.length > 0 ? ` (${distribution})` : '';
@@ -184,19 +216,41 @@ export class TodoPanelComponent implements Component {
 
     return lines.map((line) => truncateToWidth(line, width));
   }
+
+  private currentChangeSummary(): TodoPanelChangeSummary | undefined {
+    if (this.changeSummary === undefined) return undefined;
+    const ageMs = appearanceAnimationNow() - this.changeSummary.changedAtMs;
+    return ageMs <= CHANGE_FLASH_MS ? this.changeSummary : undefined;
+  }
+
+  private currentHighlights(): ReadonlyMap<string, TodoChangeKind> {
+    return this.currentChangeSummary() === undefined ? EMPTY_HIGHLIGHTS : this.recentChanges;
+  }
 }
 
-function renderTodos(todos: readonly TodoItem[], colors: ColorPalette, width: number): string[] {
-  return width >= BOARD_MIN_WIDTH ? renderBoard(todos, colors, width) : renderLanes(todos, colors);
+function renderTodos(
+  todos: readonly TodoItem[],
+  colors: ColorPalette,
+  width: number,
+  highlights: ReadonlyMap<string, TodoChangeKind>,
+): string[] {
+  return width >= BOARD_MIN_WIDTH
+    ? renderBoard(todos, colors, width, highlights)
+    : renderLanes(todos, colors, highlights);
 }
 
-function renderBoard(todos: readonly TodoItem[], colors: ColorPalette, width: number): string[] {
+function renderBoard(
+  todos: readonly TodoItem[],
+  colors: ColorPalette,
+  width: number,
+  highlights: ReadonlyMap<string, TodoChangeKind>,
+): string[] {
   const availableWidth = Math.max(1, width - visibleWidth(BOARD_INDENT));
   const columnWidth = Math.floor(
     (availableWidth - visibleWidth(BOARD_SEPARATOR) * (TODO_LANES.length - 1)) /
       TODO_LANES.length,
   );
-  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) return renderLanes(todos, colors);
+  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) return renderLanes(todos, colors, highlights);
 
   const lanes = TODO_LANES.map((lane) => ({
     ...lane,
@@ -204,12 +258,16 @@ function renderBoard(todos: readonly TodoItem[], colors: ColorPalette, width: nu
   }));
   const maxRows = Math.max(1, ...lanes.map((lane) => lane.todos.length));
   const separator = chalk.hex(colors.border)(BOARD_SEPARATOR);
+  const columnRule = renderRendererDividerRow({
+    width: columnWidth,
+    style: (text) => chalk.hex(colors.border)(text),
+  });
   const lines = [
     BOARD_INDENT + lanes
       .map((lane) => padCell(renderLaneHeader(lane.label, lane.todos.length, lane.status, colors), columnWidth))
       .join(separator),
     BOARD_INDENT + lanes
-      .map(() => chalk.hex(colors.border)('─'.repeat(columnWidth)))
+      .map(() => columnRule)
       .join(separator),
   ];
 
@@ -219,7 +277,9 @@ function renderBoard(todos: readonly TodoItem[], colors: ColorPalette, width: nu
         .map((lane) => {
           const todo = lane.todos[row];
           return padCell(
-            todo === undefined ? chalk.hex(colors.textMuted)('No cards') : renderCell(todo, colors),
+            todo === undefined
+              ? chalk.hex(colors.textMuted)('No cards')
+              : renderCell(todo, colors, highlights.get(todo.title)),
             columnWidth,
           );
         })
@@ -229,17 +289,44 @@ function renderBoard(todos: readonly TodoItem[], colors: ColorPalette, width: nu
   return lines;
 }
 
-function renderLanes(todos: readonly TodoItem[], colors: ColorPalette): string[] {
+function renderLanes(
+  todos: readonly TodoItem[],
+  colors: ColorPalette,
+  highlights: ReadonlyMap<string, TodoChangeKind>,
+): string[] {
   const lines: string[] = [];
   for (const lane of TODO_LANES) {
     const laneTodos = todos.filter((todo) => todo.status === lane.status);
     if (laneTodos.length === 0) continue;
     lines.push(chalk.hex(colors.textDim)(`  ${lane.label}`));
     for (const todo of laneTodos) {
-      lines.push(renderRow(todo, colors));
+      lines.push(renderRow(todo, colors, highlights.get(todo.title)));
     }
   }
   return lines;
+}
+
+function renderBoardMeta(
+  todos: readonly TodoItem[],
+  colors: ColorPalette,
+  summary: TodoPanelChangeSummary | undefined,
+): string {
+  const counts = countTodos(todos);
+  const wipText = `wip ${String(counts.in_progress)}/1`;
+  const wip =
+    counts.in_progress > 1
+      ? chalk.hex(colors.warning).bold(wipText)
+      : chalk.hex(colors.textDim)(wipText);
+  const parts = [
+    wip,
+    chalk.hex(colors.textDim)(`next ${String(counts.pending)}`),
+    chalk.hex(colors.textDim)(`done ${String(counts.done)}`),
+  ];
+  const flow = summary === undefined ? undefined : formatChangeSummary(summary);
+  if (flow !== undefined) {
+    parts.unshift(chalk.hex(colors.primary)(`${renderShimmerPrefix()}flow ${flow}`));
+  }
+  return `  ${parts.join(chalk.hex(colors.textMuted)(' · '))}`;
 }
 
 function renderLaneHeader(
@@ -259,14 +346,23 @@ function renderLaneHeader(
   }
 }
 
-function renderRow(todo: TodoItem, colors: ColorPalette): string {
-  return `  ${renderCell(todo, colors)}`;
+function renderRow(
+  todo: TodoItem,
+  colors: ColorPalette,
+  change: TodoChangeKind | undefined,
+): string {
+  return `  ${renderCell(todo, colors, change)}`;
 }
 
-function renderCell(todo: TodoItem, colors: ColorPalette): string {
+function renderCell(
+  todo: TodoItem,
+  colors: ColorPalette,
+  change: TodoChangeKind | undefined,
+): string {
+  const badge = changeBadge(change, colors);
   const marker = statusMarker(todo.status, colors);
   const titleStyled = styleTitle(todo.title, todo.status, colors);
-  return `${marker} ${titleStyled}`;
+  return `${badge}${marker} ${titleStyled}`;
 }
 
 function padCell(content: string, width: number): string {
@@ -294,6 +390,100 @@ function styleTitle(title: string, status: TodoStatus, colors: ColorPalette): st
     case 'pending':
       return chalk.hex(colors.text)(title);
   }
+}
+
+function changeBadge(change: TodoChangeKind | undefined, colors: ColorPalette): string {
+  if (change === undefined) return '';
+  switch (change) {
+    case 'added':
+      return `${renderPulseGlyph(['＋', '+'], 'todo:added', '+', 'accent')} `;
+    case 'completed':
+      return `${chalk.hex(colors.success)('↘')} `;
+    case 'moved':
+      return `${chalk.hex(colors.primary)('↷')} `;
+    case 'reopened':
+      return `${chalk.hex(colors.warning)('↟')} `;
+  }
+}
+
+function countTodos(todos: readonly TodoItem[]): Record<TodoStatus, number> {
+  const counts: Record<TodoStatus, number> = { done: 0, in_progress: 0, pending: 0 };
+  for (const todo of todos) counts[todo.status] += 1;
+  return counts;
+}
+
+function diffTodos(
+  previous: readonly TodoItem[],
+  next: readonly TodoItem[],
+): {
+  readonly highlights: Map<string, TodoChangeKind>;
+  readonly summary: TodoPanelChangeSummary | undefined;
+} {
+  const previousByTitle = new Map(previous.map((todo) => [todo.title, todo]));
+  const nextByTitle = new Map(next.map((todo) => [todo.title, todo]));
+  const highlights = new Map<string, TodoChangeKind>();
+  let added = 0;
+  let completed = 0;
+  let moved = 0;
+  let reopened = 0;
+  let removed = 0;
+
+  for (const todo of next) {
+    const before = previousByTitle.get(todo.title);
+    if (before === undefined) {
+      added += 1;
+      highlights.set(todo.title, 'added');
+      continue;
+    }
+    if (before.status === todo.status) continue;
+    if (todo.status === 'done') {
+      completed += 1;
+      highlights.set(todo.title, 'completed');
+    } else if (before.status === 'done') {
+      reopened += 1;
+      highlights.set(todo.title, 'reopened');
+    } else {
+      moved += 1;
+      highlights.set(todo.title, 'moved');
+    }
+  }
+
+  for (const todo of previous) {
+    if (!nextByTitle.has(todo.title)) removed += 1;
+  }
+
+  const reordered =
+    added === 0 &&
+    removed === 0 &&
+    previous.length === next.length &&
+    previous.some((todo, index) => next[index]?.title !== todo.title);
+
+  const changed = added + completed + moved + reopened + removed > 0 || reordered;
+  return {
+    highlights,
+    summary: changed
+      ? {
+          added,
+          completed,
+          moved,
+          reopened,
+          removed,
+          reordered,
+          changedAtMs: appearanceAnimationNow(),
+        }
+      : undefined,
+  };
+}
+
+function formatChangeSummary(summary: TodoPanelChangeSummary): string | undefined {
+  const parts: string[] = [];
+  if (summary.added > 0) parts.push(`+${String(summary.added)}`);
+  if (summary.completed > 0) parts.push(`${String(summary.completed)} done`);
+  if (summary.moved > 0) parts.push(`${String(summary.moved)} moved`);
+  if (summary.reopened > 0) parts.push(`${String(summary.reopened)} reopened`);
+  if (summary.removed > 0) parts.push(`${String(summary.removed)} pruned`);
+  if (summary.reordered) parts.push('reordered');
+  return parts.length === 0 ? undefined : parts.join(' · ');
 }
 
 const STATUS_LABELS: readonly { status: TodoStatus; label: string }[] = [

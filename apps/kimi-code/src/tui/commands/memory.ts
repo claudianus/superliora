@@ -4,6 +4,11 @@ import { basename, join } from 'node:path';
 import type { MemoryRecord, MemorySearchResult, MemoryStats } from '@moonshot-ai/kimi-code-sdk';
 
 import type { SlashCommandHost } from './dispatch';
+import {
+  buildLlmWikiStatusLines,
+  LLM_WIKI_ROOT,
+  loadLlmWikiStatus,
+} from './llm-wiki';
 
 const DEFAULT_MEMORY_EVIDENCE_ROOT = '.super-kimi/evidence';
 const MAX_EVIDENCE_DEPTH = 5;
@@ -65,6 +70,9 @@ export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: strin
     case 'health':
       await showMemoryReadiness(host, tail);
       return;
+    case 'wiki':
+      showLlmWikiStatus(host);
+      return;
     case 'remember':
     case 'write':
       await rememberMemory(host, tail);
@@ -77,7 +85,7 @@ export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: strin
       await consolidateMemories(host);
       return;
     default:
-      host.showError('Usage: /memory [stats|list|search|readiness|health|remember|forget|consolidate]');
+      host.showError('Usage: /memory [stats|list|search|wiki|readiness|health|remember|forget|consolidate]');
   }
 }
 
@@ -125,6 +133,15 @@ async function showMemoryReadiness(host: SlashCommandHost, query: string): Promi
   );
   host.state.transcriptContainer.addChild(panel);
   host.state.ui.requestRender();
+}
+
+function showLlmWikiStatus(host: SlashCommandHost): void {
+  host.showNotice(
+    'LLM Wiki',
+    buildLlmWikiStatusLines(loadLlmWikiStatus(host.state.appState.workDir))
+      .map(redactMemoryReadinessText)
+      .join('\n'),
+  );
 }
 
 async function loadMemoryStats(
@@ -229,15 +246,17 @@ function renderMemory(memory: MemoryRecord): string {
 }
 
 export function loadMemoryReadinessEvidence(workDir: string): MemoryReadinessEvidence {
-  const sourceRoot = join(workDir, DEFAULT_MEMORY_EVIDENCE_ROOT);
-  if (!existsSync(sourceRoot)) {
-    return emptyMemoryReadinessEvidence(sourceRoot, [`No local evidence found at ${sourceRoot}`]);
+  const evidenceRoot = join(workDir, DEFAULT_MEMORY_EVIDENCE_ROOT);
+  const wikiRoot = join(workDir, LLM_WIKI_ROOT);
+  const sourceRoot = `${evidenceRoot}; ${wikiRoot}`;
+  const roots = [evidenceRoot, wikiRoot].filter((root) => existsSync(root));
+  if (roots.length === 0) {
+    return emptyMemoryReadinessEvidence(sourceRoot, [
+      `No local evidence found at ${evidenceRoot} or ${wikiRoot}`,
+    ]);
   }
 
-  const files = collectEvidenceFiles(sourceRoot);
-  const warnings = files.truncated
-    ? [`Evidence scan stopped after ${MAX_EVIDENCE_FILES} files under ${sourceRoot}`]
-    : [];
+  const warnings: string[] = [];
   const matches = {
     llmWiki: createEvidenceAccumulator(),
     knowledgeMap: createEvidenceAccumulator(),
@@ -245,31 +264,44 @@ export function loadMemoryReadinessEvidence(workDir: string): MemoryReadinessEvi
     computerUse: createEvidenceAccumulator(),
   };
 
-  for (const file of files.paths) {
-    const evidenceFile = readEvidenceFile(file);
-    if (evidenceFile.warning !== undefined) warnings.push(evidenceFile.warning);
-    const haystack = `${basename(file)}\n${evidenceFile.text}`;
-    updateEvidenceAccumulator(matches.llmWiki, file, haystack, EVIDENCE_PATTERNS.llmWiki);
-    updateEvidenceAccumulator(
-      matches.knowledgeMap,
-      file,
-      haystack,
-      EVIDENCE_PATTERNS.knowledgeMap,
-    );
-    updateCapabilityEvidenceAccumulator(
-      matches.browserUse,
-      file,
-      evidenceFile.text,
-      EVIDENCE_PATTERNS.browserUsePath,
-      EVIDENCE_PATTERNS.browserUseText,
-    );
-    updateCapabilityEvidenceAccumulator(
-      matches.computerUse,
-      file,
-      evidenceFile.text,
-      EVIDENCE_PATTERNS.computerUsePath,
-      EVIDENCE_PATTERNS.computerUseText,
-    );
+  for (const root of roots) {
+    const files = collectEvidenceFiles(root);
+    if (files.truncated) warnings.push(`Evidence scan stopped after ${MAX_EVIDENCE_FILES} files under ${root}`);
+    for (const file of files.paths) {
+      const evidenceFile = readEvidenceFile(file);
+      if (evidenceFile.warning !== undefined) warnings.push(evidenceFile.warning);
+      if (isUnderRoot(file, wikiRoot)) continue;
+      const haystack = `${basename(file)}\n${evidenceFile.text}`;
+      updateEvidenceAccumulator(matches.llmWiki, file, haystack, EVIDENCE_PATTERNS.llmWiki);
+      updateEvidenceAccumulator(
+        matches.knowledgeMap,
+        file,
+        haystack,
+        EVIDENCE_PATTERNS.knowledgeMap,
+      );
+      updateCapabilityEvidenceAccumulator(
+        matches.browserUse,
+        file,
+        evidenceFile.text,
+        EVIDENCE_PATTERNS.browserUsePath,
+        EVIDENCE_PATTERNS.browserUseText,
+      );
+      updateCapabilityEvidenceAccumulator(
+        matches.computerUse,
+        file,
+        evidenceFile.text,
+        EVIDENCE_PATTERNS.computerUsePath,
+        EVIDENCE_PATTERNS.computerUseText,
+      );
+    }
+  }
+
+  const wikiStatus = loadLlmWikiStatus(workDir);
+  if (wikiStatus.indexExists && wikiStatus.manifestValid) {
+    matches.llmWiki.matchCount += 1;
+    matches.llmWiki.sourcePath ??= wikiStatus.indexPath;
+  } else if (wikiStatus.exists) {
+    warnings.push(...wikiStatus.warnings);
   }
 
   return {
@@ -430,7 +462,12 @@ function updateEvidenceAccumulator(
 ): void {
   if (!pattern.test(haystack)) return;
   accumulator.matchCount += 1;
-  accumulator.sourcePath ??= path;
+  if (
+    accumulator.sourcePath === undefined
+    || evidenceSourcePriority(path) < evidenceSourcePriority(accumulator.sourcePath)
+  ) {
+    accumulator.sourcePath = path;
+  }
 }
 
 function updateCapabilityEvidenceAccumulator(
@@ -503,7 +540,7 @@ function nextMemoryReadinessAction(snapshot: MemoryReadinessSnapshot): string {
   if (snapshot.query.length === 0) return 'Run /memory readiness <query> to verify recall retrieval.';
   if (snapshot.searchError !== undefined) return 'Fix recall search, then rerun /memory readiness <query>.';
   if ((snapshot.searchResults?.length ?? 0) === 0) return 'Add or refine durable memories for this query.';
-  if (!snapshot.evidence.llmWiki.ready) return 'Add llm-wiki or durable-memory evidence under .super-kimi/evidence.';
+  if (!snapshot.evidence.llmWiki.ready) return 'Start Ultrawork to create project-local LLM Wiki evidence under .super-kimi/wiki.';
   if (!snapshot.evidence.knowledgeMap.ready) return 'Capture Kimi Knowledge Map evidence under .super-kimi/evidence.';
   if (!snapshot.evidence.browserUse.ready) return 'Capture browser-use evidence under .super-kimi/evidence.';
   if (!snapshot.evidence.computerUse.ready) return 'Capture computer-use evidence under .super-kimi/evidence.';
@@ -521,6 +558,12 @@ function isJsonEvidenceFile(path: string): boolean {
 function isValidJsonEvidence(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length === 0) return false;
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    // Fall through to JSONL validation below.
+  }
   if (trimmed.includes('\n')) {
     return trimmed.split(/\r?\n/u).every((line) => {
       const value = line.trim();
@@ -533,14 +576,27 @@ function isValidJsonEvidence(text: string): boolean {
       }
     });
   }
-  try {
-    JSON.parse(trimmed);
-    return true;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 function hasEvidenceProof(text: string): boolean {
   return /\b(?:PASS|passed|status|screenshot|transcript|action log|observation|validator|cleanup)\b/iu.test(text);
+}
+
+function isUnderRoot(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
+}
+
+function evidenceSourcePriority(path: string): number {
+  const name = basename(path).toLowerCase();
+  if (
+    name.includes('llm-wiki')
+    || name.includes('llms.txt')
+    || name.includes('kimi-knowledge-map')
+    || name.includes('browser-use')
+    || name.includes('computer-use')
+  ) {
+    return 0;
+  }
+  return 1;
 }

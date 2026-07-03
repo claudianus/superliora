@@ -3,10 +3,11 @@ import {
   Container,
   Key,
   matchesKey,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '#/constant/app';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
@@ -196,19 +197,14 @@ export class ModelSelectorComponent extends Container implements Focusable {
     if (this.opts.onSessionOnlySelect !== undefined) hintParts.push('Alt+S session-only');
     hintParts.push('Esc cancel');
 
-    const lines: string[] = [
-      currentTheme.fg('primary', '─'.repeat(width)),
-      currentTheme.boldFg('primary', ' Select a model') + titleSuffix,
-      currentTheme.fg('textMuted', ' ' + hintParts.join(' · ')),
-      '',
-    ];
+    const body: string[] = [];
 
     if (searchable && view.query.length > 0) {
-      lines.push(currentTheme.fg('primary', ' Search: ') + currentTheme.fg('text', view.query));
+      body.push(currentTheme.fg('primary', ' Search: ') + currentTheme.fg('text', view.query));
     }
 
     if (view.items.length === 0) {
-      lines.push(currentTheme.fg('textMuted', '   No matches'));
+      body.push(currentTheme.fg('textMuted', '   No matches'));
     } else {
       // Column width for model names so the provider column lines up. Capped so
       // the provider + "← current" marker still fit on normal terminal widths.
@@ -234,35 +230,45 @@ export class ModelSelectorComponent extends Container implements Focusable {
         if (isCurrent) {
           line += ' ' + currentTheme.fg('success', CURRENT_MARK);
         }
-        lines.push(line);
+        body.push(line);
       }
     }
 
+    const footer: string[] = [];
     // Scroll / match indicator.
     if (view.query.length > 0) {
-      lines.push('');
-      lines.push(
+      footer.push(
         currentTheme.fg('textMuted', ` ${String(view.items.length)} / ${String(totalCount)}`),
       );
     } else {
       const below = view.items.length - view.page.end;
       if (below > 0) {
-        lines.push('');
-        lines.push(currentTheme.fg('textMuted', ` ▼ ${String(below)} more`));
+        footer.push(currentTheme.fg('textMuted', ` ▼ ${String(below)} more`));
       }
     }
 
-    lines.push('');
     const selected = this.selectedChoice();
     if (selected !== undefined) {
+      if (footer.length > 0) footer.push('');
       const availability = thinkingAvailability(selected.model);
       const thinkingHeader = availability === 'toggle' ? ' Thinking  (←→ to switch)' : ' Thinking';
-      lines.push(currentTheme.fg('textMuted', thinkingHeader));
-      lines.push(this.renderThinkingControl(selected));
+      footer.push(currentTheme.fg('textMuted', thinkingHeader));
+      footer.push(this.renderThinkingControl(selected));
+      footer.push('');
+    } else {
+      footer.push('');
     }
-    lines.push('');
-    lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-    return lines.map((line) => truncateToWidth(line, width));
+    return renderRendererPanelChromeRows({
+      width,
+      title: ' Select a model',
+      titleSuffix,
+      hint: ' ' + hintParts.join(' · '),
+      body,
+      footer,
+      dividerStyle: (text) => currentTheme.fg('primary', text),
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: (text) => currentTheme.fg('textMuted', text),
+    });
   }
 
   private selectedChoice(): ModelChoice | undefined {

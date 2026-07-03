@@ -7,7 +7,15 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { Markdown, truncateToWidth, visibleWidth, type Component, type MarkdownTheme } from '@earendil-works/pi-tui';
+import {
+  Markdown,
+  fitRendererFrameTitle,
+  renderRendererFrameRows,
+  truncateToWidth,
+  visibleWidth,
+  type Component,
+  type MarkdownTheme,
+} from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
@@ -37,7 +45,7 @@ export class PlanBoxComponent implements Component {
     private readonly planPath?: string,
     opts?: PlanBoxOptions,
   ) {
-    // Build the Markdown instance once — pi-tui's Markdown caches its own
+    // Build the Markdown instance once — renderer Markdown caches its own
     // parse + wrap output keyed on (text, width), so reusing the same
     // instance means repeated render() calls from the parent Container
     // hit the cache instead of re-parsing on every frame.
@@ -62,31 +70,25 @@ export class PlanBoxComponent implements Component {
       return this.cachedLines;
     }
 
-    // Box layout: "  ┌──...──┐"
-    //             "  │ <content> │"
-    //             "  └──...──┘"
-    // width = LEFT_MARGIN + 1 + horzLen + 1 ⇒ horzLen = width - 4
-    // content width = horzLen - 2 * SIDE_PADDING = width - 6
     const horzLen = Math.max(2, safeWidth - LEFT_MARGIN - 2);
     const contentWidth = Math.max(1, horzLen - 2 * SIDE_PADDING);
 
     const paint = (s: string): string => chalk.hex(this.borderHex)(s);
     const indent = ' '.repeat(LEFT_MARGIN);
-
     const title = this.buildTitle(horzLen);
-    const trailingDashLen = Math.max(0, horzLen - visibleWidth(title));
-    const top =
-      indent + paint('┌') + paint(title) + paint('─'.repeat(trailingDashLen)) + paint('┐');
-    const bottom = indent + paint('└' + '─'.repeat(horzLen) + '┘');
-
     const rawLines = this.markdown.render(contentWidth);
-
-    const lines: string[] = [top];
-    for (const raw of rawLines) {
-      const pad = Math.max(0, contentWidth - visibleWidth(raw));
-      lines.push(indent + paint('│') + ' ' + raw + ' '.repeat(pad) + ' ' + paint('│'));
-    }
-    lines.push(bottom);
+    const frame = renderRendererFrameRows({
+      title,
+      titlePlacement: 'flush',
+      content: rawLines,
+      width: safeWidth - LEFT_MARGIN,
+      height: rawLines.length + 2,
+      paddingX: SIDE_PADDING,
+      borderStyle: paint,
+      titleStyle: paint,
+      ellipsis: '…',
+    });
+    const lines = frame.map((line) => indent + line);
 
     const fitted = lines.map((line) => truncateToWidth(line, safeWidth, '…'));
     this.cachedWidth = width;
@@ -99,7 +101,7 @@ export class PlanBoxComponent implements Component {
     const statusSuffix = this.buildStatusSuffix();
     const fallbackWithStatus = ` plan${statusSuffix} `;
     const budget = Math.max(0, horzLen - 1);
-    const fallbackTitle = truncateToWidth(
+    const fallbackTitle = fitRendererFrameTitle(
       visibleWidth(fallbackWithStatus) <= budget ? fallbackWithStatus : fallback,
       budget,
       '…',

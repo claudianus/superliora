@@ -30,5 +30,6 @@ export * from './planning/next-phase';
 export * from './shell/bash';
 export * from './state/memory';
 export * from './state/todo-list';
+export * from './state/ultrawork-graph';
 export * from './web/fetch-url';
 export * from './web/web-search';

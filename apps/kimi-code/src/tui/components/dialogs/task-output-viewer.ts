@@ -12,12 +12,17 @@
 import {
   Container,
   Key,
+  fitRendererLineToWidth,
+  formatRendererScrollPosition,
   matchesKey,
-  type Terminal,
-  truncateToWidth,
-  visibleWidth,
+  renderRendererFooterRow,
+  renderRendererScrollableFrameRows,
+  type RendererScrollableFrameRowsProjection,
+  RendererScrollableLineViewport,
+  type RendererTerminalHost,
+  type RendererViewportScrollAction,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@moonshot-ai/kimi-code-sdk';
 
 import { currentTheme } from '#/tui/theme';
@@ -55,34 +60,24 @@ function statusColor(status: BackgroundTaskStatus): 'success' | 'textMuted' | 'e
   }
 }
 
-function padToWidth(line: string, width: number): string {
-  const w = visibleWidth(line);
-  if (w === width) return line;
-  if (w > width) return truncateToWidth(line, width, ELLIPSIS);
-  return line + ' '.repeat(width - w);
-}
-
-function fitExactly(line: string, width: number): string {
-  let s = line;
-  if (visibleWidth(s) > width) s = truncateToWidth(s, width, ELLIPSIS);
-  return padToWidth(s, width);
-}
-
 export class TaskOutputViewer extends Container implements Focusable {
   focused = false;
 
   private props: TaskOutputViewerProps;
-  private readonly terminal: Terminal;
+  private readonly terminal: RendererTerminalHost;
   /** Output split on '\n'. Replaced on `setProps` when `output` changes. */
   private lines: string[];
-  /** Index of the topmost visible line. */
-  private scrollTop = 0;
+  private readonly viewport: RendererScrollableLineViewport;
 
-  constructor(props: TaskOutputViewerProps, terminal: Terminal) {
+  constructor(props: TaskOutputViewerProps, terminal: RendererTerminalHost) {
     super();
     this.props = props;
     this.terminal = terminal;
     this.lines = this.splitOutput(props.output);
+    this.viewport = new RendererScrollableLineViewport({
+      contentRows: this.lines.length,
+      viewportRows: this.viewableRows(),
+    });
   }
 
   /**
@@ -93,12 +88,13 @@ export class TaskOutputViewer extends Container implements Focusable {
    */
   setProps(next: TaskOutputViewerProps): void {
     const previousOutput = this.props.output;
-    const wasAtBottom = this.scrollTop >= this.maxScroll();
     this.props = next;
     if (next.output !== previousOutput) {
       this.lines = this.splitOutput(next.output);
-      if (wasAtBottom) this.scrollTop = this.maxScroll();
-      else this.scrollTop = Math.min(this.scrollTop, this.maxScroll());
+      this.viewport.update({
+        contentRows: this.lines.length,
+        viewportRows: this.viewableRows(),
+      });
     }
     this.invalidate();
   }
@@ -118,11 +114,11 @@ export class TaskOutputViewer extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.up) || k === 'k') {
-      this.scrollBy(-1);
+      this.scrollViewport('line-up');
       return;
     }
     if (matchesKey(data, Key.down) || k === 'j') {
-      this.scrollBy(1);
+      this.scrollViewport('line-down');
       return;
     }
     if (
@@ -131,7 +127,7 @@ export class TaskOutputViewer extends Container implements Focusable {
       k === ' ' ||
       data === '\u0002' /* C-b */
     ) {
-      this.scrollBy(-Math.max(1, visible - 1));
+      this.scrollViewport('page-up', Math.max(1, visible - 1));
       return;
     }
     if (
@@ -139,30 +135,22 @@ export class TaskOutputViewer extends Container implements Focusable {
       matchesKey(data, Key.ctrl('d')) ||
       data === '\u0006' /* C-f */
     ) {
-      this.scrollBy(Math.max(1, visible - 1));
+      this.scrollViewport('page-down', Math.max(1, visible - 1));
       return;
     }
     if (matchesKey(data, Key.home) || k === 'g') {
-      this.scrollTo(0);
+      this.scrollViewport('home');
       return;
     }
     if (matchesKey(data, Key.end) || k === 'G') {
-      this.scrollTo(this.maxScroll());
+      this.scrollViewport('end');
       return;
     }
   }
 
-  private scrollBy(delta: number): void {
-    this.scrollTo(this.scrollTop + delta);
-  }
-
-  private scrollTo(target: number): void {
-    this.scrollTop = Math.max(0, Math.min(target, this.maxScroll()));
+  private scrollViewport(action: RendererViewportScrollAction, amount?: number): void {
+    this.viewport.scroll(action, amount);
     this.invalidate();
-  }
-
-  private maxScroll(): number {
-    return Math.max(0, this.lines.length - this.viewableRows());
   }
 
   /**
@@ -181,10 +169,10 @@ export class TaskOutputViewer extends Container implements Focusable {
 
     const header = this.renderHeader(width);
     const body = this.renderBody(width, bodyHeight);
-    const footer = this.renderFooter(width, bodyHeight);
+    const footer = this.renderFooter(width, body);
 
     const out: string[] = [header];
-    for (const line of body) out.push(line);
+    for (const line of body.rows) out.push(line);
     out.push(footer);
     return out;
   }
@@ -204,48 +192,33 @@ export class TaskOutputViewer extends Container implements Focusable {
       }
     }
     const composed = title + id + (segments.length > 0 ? '  ' + segments.join('  ') : '');
-    return fitExactly(composed, width);
+    return fitRendererLineToWidth(composed, width, ELLIPSIS);
   }
 
-  private renderBody(width: number, bodyHeight: number): string[] {
-    // Reserve 1 col for left/right border each, 1 col for left padding.
-    const innerWidth = Math.max(1, width - 4);
-
-    // Re-clamp scroll in case the terminal got resized smaller.
-    const max = this.maxScroll();
-    if (this.scrollTop > max) this.scrollTop = max;
-    if (this.scrollTop < 0) this.scrollTop = 0;
-
-    const viewRows = bodyHeight - 2; // inside top + bottom border
-    const top = currentTheme.fg('primary', '┌' + '─'.repeat(Math.max(0, width - 2)) + '┐');
-    const bottom = currentTheme.fg('primary', '└' + '─'.repeat(Math.max(0, width - 2)) + '┘');
-
-    const out: string[] = [top];
-    for (let i = 0; i < viewRows; i++) {
-      const lineIndex = this.scrollTop + i;
-      const raw = this.lines[lineIndex] ?? '';
-      const inner = fitExactly(currentTheme.fg('text', raw), innerWidth);
-      out.push(currentTheme.fg('primary', '│ ') + inner + currentTheme.fg('primary', ' │'));
-    }
-    out.push(bottom);
-    return out;
+  private renderBody(width: number, bodyHeight: number): RendererScrollableFrameRowsProjection {
+    return renderRendererScrollableFrameRows({
+      viewport: this.viewport,
+      body: this.lines,
+      fill: '',
+      width,
+      height: bodyHeight,
+      paddingX: 1,
+      formatLine: ({ line }) => currentTheme.fg('text', line),
+      borderStyle: (text) => currentTheme.fg('primary', text),
+      ellipsis: ELLIPSIS,
+    });
   }
 
-  private renderFooter(width: number, bodyHeight: number): string {
+  private renderFooter(
+    width: number,
+    window: RendererScrollableFrameRowsProjection,
+  ): string {
     const key = (text: string): string => currentTheme.boldFg('primary', text);
     const dim = (text: string): string => currentTheme.fg('textMuted', text);
 
-    const total = this.lines.length;
-    const viewRows = Math.max(1, bodyHeight - 2);
-    const maxScroll = Math.max(0, total - viewRows);
-    const percent =
-      maxScroll === 0 ? 100 : Math.round((this.scrollTop / maxScroll) * 100);
-    const lineFrom = this.scrollTop + 1;
-    const lineTo = Math.min(total, this.scrollTop + viewRows);
-
     const position = currentTheme.fg(
       'textMuted',
-      ` ${String(lineFrom)}-${String(lineTo)} / ${String(total)} (${String(percent)}%) `,
+      formatRendererScrollPosition(window),
     );
     const keys =
       `${key('↑↓')} ${dim('line')}  ` +
@@ -253,11 +226,11 @@ export class TaskOutputViewer extends Container implements Focusable {
       `${key('g/G')} ${dim('top/bot')}  ` +
       `${key('Q/Esc')} ${dim('cancel')}`;
     const left = ` ${keys}`;
-    const leftW = visibleWidth(left);
-    const rightW = visibleWidth(position);
-    if (leftW + 2 + rightW <= width) {
-      return left + ' '.repeat(width - leftW - rightW) + position;
-    }
-    return fitExactly(left, width);
+    return renderRendererFooterRow({
+      width,
+      left,
+      right: position,
+      ellipsis: ELLIPSIS,
+    });
   }
 }

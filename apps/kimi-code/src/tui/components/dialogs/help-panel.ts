@@ -12,11 +12,11 @@ import {
   Container,
   matchesKey,
   Key,
-  decodeKittyPrintable,
   type Focusable,
-  truncateToWidth,
-} from '@earendil-works/pi-tui';
+  renderRendererScrollablePanelChromeRows,
+} from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { printableChar } from '#/tui/utils/printable-key';
 
 export interface KeyboardShortcut {
   readonly keys: string;
@@ -80,7 +80,7 @@ export class HelpPanelComponent extends Container implements Focusable {
   }
 
   handleInput(data: string): void {
-    const printable = decodeKittyPrintable(data) ?? data;
+    const printable = printableChar(data);
     if (
       matchesKey(data, Key.escape) ||
       matchesKey(data, Key.enter) ||
@@ -127,10 +127,7 @@ export class HelpPanelComponent extends Container implements Focusable {
     const cmdWidth = Math.max(12, ...cmdLabels.map((l) => l.length));
     const introLines = (this.opts.intro ?? DEFAULT_HELP_INTRO).split('\n');
     const commandSectionTitle = this.opts.commandSectionTitle ?? 'Slash commands';
-    const lines: string[] = [
-      accent('─'.repeat(width)),
-      currentTheme.boldFg('primary', ' help ') + muted('· Esc / Enter / q to cancel · ↑↓ scroll'),
-      '',
+    const body: string[] = [
       // Greeting
       ...introLines.map((line) => `  ${dim(line)}`),
       '',
@@ -145,24 +142,28 @@ export class HelpPanelComponent extends Container implements Focusable {
         return `    ${slashColor(label.padEnd(cmdWidth))}  ${dim(cmd.description)}`;
       }),
       '',
-      accent('─'.repeat(width)),
     ];
 
-    // Apply scroll windowing — keep the borders visible.
-    const content = lines.slice(1, lines.length - 1);
     const maxVisible = Math.max(5, this.opts.maxVisible ?? 24);
-    if (content.length > maxVisible) {
-      this.scrollTop = Math.max(0, Math.min(this.scrollTop, content.length - maxVisible));
-      const slice = content.slice(this.scrollTop, this.scrollTop + maxVisible);
-      const scrollInfo = muted(
-        ` showing ${String(this.scrollTop + 1)}-${String(this.scrollTop + slice.length)} of ${String(content.length)}`,
-      );
-      return [lines[0] ?? '', ...slice, scrollInfo, lines.at(-1) ?? ''].map((line) =>
-        truncateToWidth(line, width),
-      );
-    }
-    this.scrollTop = 0;
-    return lines.map((line) => truncateToWidth(line, width));
+    const projection = renderRendererScrollablePanelChromeRows({
+      width,
+      title: ' help ',
+      hint: ' Esc / Enter / Q cancel · ↑↓ scroll',
+      body,
+      viewportRows: maxVisible,
+      scrollTop: this.scrollTop,
+      footerTopGap: false,
+      dividerStyle: accent,
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: muted,
+      scrollFooter: (window) =>
+        window.hasOverflow
+          ? ` showing ${String(window.lineFrom)}-${String(window.lineTo)} of ${String(window.contentRows)}`
+          : undefined,
+      scrollFooterStyle: muted,
+    });
+    this.scrollTop = projection.scrollTop;
+    return [...projection.rows];
   }
 }
 

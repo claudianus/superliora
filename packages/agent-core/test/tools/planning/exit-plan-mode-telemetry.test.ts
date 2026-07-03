@@ -22,6 +22,7 @@ const options = [
 function makeAgent(input: {
   readonly mode: PermissionMode;
   readonly approval?: ApprovalResponse;
+  readonly ultra?: boolean;
 }): {
   readonly agent: Agent;
   readonly telemetryTrack: ReturnType<typeof vi.fn>;
@@ -39,6 +40,9 @@ function makeAgent(input: {
       },
       get planFilePath() {
         return '/tmp/kimi-plan.md';
+      },
+      get isUltraMode() {
+        return input.ultra ?? false;
       },
       data: vi.fn(async () => ({
         content: '# Plan',
@@ -66,12 +70,12 @@ function makeAgent(input: {
   return { agent, telemetryTrack, exitPlanMode };
 }
 
-async function execute(agent: Agent, args: ExitPlanModeInput = {}) {
+async function execute(agent: Agent, args: ExitPlanModeInput = {}, displayPlan = '# Plan') {
   const mode = agent.permission.mode;
   const manager = new PermissionManager(agent);
   Object.assign(agent, { permission: manager });
   manager.mode = mode;
-  const permissionResult = await manager.beforeToolCall(permissionContext(args));
+  const permissionResult = await manager.beforeToolCall(permissionContext(args, displayPlan));
   if (permissionResult?.syntheticResult !== undefined) {
     return permissionResult.syntheticResult;
   }
@@ -84,10 +88,10 @@ async function execute(agent: Agent, args: ExitPlanModeInput = {}) {
   });
 }
 
-function permissionContext(args: ExitPlanModeInput): PermissionPolicyContext {
+function permissionContext(args: ExitPlanModeInput, displayPlan: string): PermissionPolicyContext {
   const display: PermissionPolicyContext['execution']['display'] = {
     kind: 'plan_review',
-    plan: '# Plan',
+    plan: displayPlan,
     path: '/tmp/kimi-plan.md',
   };
   if (args.options !== undefined && args.options.length >= 2) {
@@ -130,9 +134,13 @@ describe('ExitPlanMode telemetry', () => {
 
     expect(result.isError).toBe(false);
     expect(exitPlanMode).toHaveBeenCalledTimes(1);
-    expect(telemetryTrack).toHaveBeenCalledWith('plan_submitted', { has_options: false });
+    expect(telemetryTrack).toHaveBeenCalledWith('plan_submitted', {
+      has_options: false,
+      ultra: false,
+    });
     expect(telemetryTrack).toHaveBeenCalledWith('plan_resolved', {
       outcome: 'auto_approved',
+      ultra: false,
     });
   });
 
@@ -151,6 +159,30 @@ describe('ExitPlanMode telemetry', () => {
       outcome: 'approved',
       chosen_option: 'Approach B',
     });
+  });
+
+  it('keeps UltraSwarm ENGAGE binding in manual plan approval output', async () => {
+    const { agent, exitPlanMode } = makeAgent({
+      mode: 'manual',
+      ultra: true,
+      approval: { decision: 'approved' },
+    });
+
+    const result = await execute(
+      agent,
+      {},
+      [
+        '# Plan',
+        '',
+        '## Swarm Decision',
+        'Swarm decision: ENGAGE - specialist review is required.; value: QA and architecture review; owner: verification owner.',
+      ].join('\n'),
+    );
+
+    expect(result.isError).toBe(false);
+    expect(exitPlanMode).toHaveBeenCalledTimes(1);
+    expect(result.output).toContain('UltraSwarm ENGAGE is binding');
+    expect(result.output).toContain('call UltraSwarm as the only tool call');
   });
 
   it('handles revision requests with feedback through permission approval telemetry', async () => {
@@ -256,7 +288,10 @@ describe('ExitPlanMode telemetry', () => {
     expect(result.isError).toBe(true);
     expect(result.output).toContain('Failed to exit plan mode');
     expect(exitPlanMode).toHaveBeenCalledTimes(1);
-    expect(telemetryTrack).toHaveBeenCalledWith('plan_submitted', { has_options: false });
+    expect(telemetryTrack).toHaveBeenCalledWith('plan_submitted', {
+      has_options: false,
+      ultra: false,
+    });
     expect(telemetryTrack).not.toHaveBeenCalledWith('plan_resolved', {
       outcome: 'auto_approved',
     });

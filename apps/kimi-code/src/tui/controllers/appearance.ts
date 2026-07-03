@@ -1,10 +1,12 @@
-import type { ProcessTerminal } from '@earendil-works/pi-tui';
+import type { RendererTerminalHost } from '#/tui/renderer';
 
 import type { AppearancePreferences } from '#/tui/config';
 import { ESC, ST } from '#/tui/constant/terminal';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
+  advanceAppearanceAnimationClock,
+  appearanceAnimationFrameIntervalMs,
   motionEffectsAllowed,
   resolveAmbientEffectMode,
   setActiveAppearancePreferences,
@@ -13,13 +15,14 @@ import {
 import { AnimationScheduler } from './animation-scheduler';
 
 export interface AppearanceControllerOptions {
-  readonly terminal: ProcessTerminal;
+  readonly terminal: RendererTerminalHost;
   readonly requestRender: () => void;
   readonly getAppearance: () => AppearancePreferences;
+  readonly shouldRenderAnimation?: () => boolean;
 }
 
 export class AppearanceController {
-  private readonly terminal: ProcessTerminal;
+  private readonly terminal: RendererTerminalHost;
   private readonly getAppearance: () => AppearancePreferences;
   private readonly scheduler: AnimationScheduler;
   private terminalMutated = false;
@@ -32,6 +35,11 @@ export class AppearanceController {
       fps: appearance.animationFps,
       enabled: shouldAnimate(appearance),
       requestRender: options.requestRender,
+      shouldRender: options.shouldRenderAnimation,
+      beforeRender: () => {
+        advanceAppearanceAnimationClock();
+      },
+      resolveIntervalMs: () => appearanceAnimationFrameIntervalMs(this.getAppearance()),
     });
     this.apply(appearance);
   }
@@ -107,7 +115,7 @@ export function terminalMutationAllowed(appearance: AppearancePreferences): bool
   }
   if (isRemoteSession()) return false;
   if (process.env['TMUX'] !== undefined && process.env['TMUX'] !== '') return false;
-  return process.stdout.isTTY === true;
+  return process.stdout.isTTY;
 }
 
 function isRemoteSession(): boolean {

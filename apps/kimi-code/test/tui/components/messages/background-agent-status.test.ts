@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 import { describe, expect, it } from 'vitest';
 
 import { BackgroundAgentStatusComponent } from '#/tui/components/messages/background-agent-status';

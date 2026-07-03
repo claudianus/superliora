@@ -18,6 +18,7 @@ import { PlanModeToolApprovePermissionPolicy } from './plan-mode-tool-approve';
 import { PreToolCallHookPermissionPolicy } from './pre-tool-call-hook';
 import { SessionApprovalHistoryPermissionPolicy } from './session-approval-history';
 import { SwarmModeAgentSwarmApprovePermissionPolicy } from './swarm-mode-agent-swarm-approve';
+import { UltraSwarmEngageGateDenyPermissionPolicy } from './ultra-swarm-engage-gate-deny';
 import {
   UserConfiguredAllowPermissionPolicy,
   UserConfiguredAskPermissionPolicy,
@@ -32,6 +33,8 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new PreToolCallHookPermissionPolicy(agent),
     // AgentSwarm is batch-exclusive and must run alone, regardless of permission mode.
     new AgentSwarmExclusiveDenyPermissionPolicy(),
+    // Approved Ultra Plan ENGAGE decisions require the next execution step to be UltraSwarm.
+    new UltraSwarmEngageGateDenyPermissionPolicy(agent),
     // auto mode + AskUserQuestion → deny.
     new AutoModeAskUserQuestionDenyPermissionPolicy(agent),
     // plan mode: Write/Edit outside the plan file, or TaskStop → deny.

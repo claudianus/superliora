@@ -1,0 +1,20 @@
+{
+  "kind": "knowledge persistence ledger",
+  "schema": 1,
+  "createdAt": "2026-07-02T13:08:11.475Z",
+  "objective": "Ship feature X",
+  "entries": [
+    {
+      "target": "kimi_recall",
+      "action": "skipped",
+      "reason": "Startup seed is not yet a verified reusable finding; write during Learn if durable knowledge is produced."
+    },
+    {
+      "target": "llm_wiki",
+      "action": "wrote",
+      "reason": "Created project-local LLM Wiki v2 index and run page before implementation.",
+      "path": ".super-kimi/wiki/runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a.md",
+      "evidence": ".super-kimi/evidence/ultrawork-runs/2026-07-02T130811475Z-ship-feature-x-902f8e3a/llm-wiki.md"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionPickerComponent } from '#/tui/components/dialogs/session-picker';

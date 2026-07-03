@@ -15,8 +15,8 @@
  * - Ungrouping is not implemented. Once formed, a group stays grouped.
  */
 
-import type { TUI } from '@earendil-works/pi-tui';
-import { Container, Spacer, Text } from '@earendil-works/pi-tui';
+import type { RendererRootUI } from '#/tui/renderer';
+import { Container, Spacer, Text } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
@@ -50,7 +50,7 @@ export class AgentGroupComponent extends Container {
   private lastFlushPhases = new Map<string, ToolCallSubagentSnapshot['phase']>();
   private _invalidating = false;
 
-  constructor(private readonly ui: TUI | undefined) {
+  constructor(private readonly ui: RendererRootUI | undefined) {
     super();
     this.addChild(new Spacer(1));
     this.headerText = new Text('', 0, 0);

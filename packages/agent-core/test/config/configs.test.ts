@@ -111,6 +111,7 @@ refresh_on_start = false
 [browser_use]
 enabled = true
 provider = "cloakbrowser"
+auto_install = true
 auto_update = true
 cache_dir = "/tmp/kimi-cloak"
 binary_path = "/opt/cloakbrowser"
@@ -228,6 +229,7 @@ describe('harness config TOML loader', () => {
     expect(config.browserUse).toEqual({
       enabled: true,
       provider: 'cloakbrowser',
+      autoInstall: true,
       autoUpdate: true,
       cacheDir: '/tmp/kimi-cloak',
       binaryPath: '/opt/cloakbrowser',

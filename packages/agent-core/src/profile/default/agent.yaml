@@ -21,10 +21,12 @@ tools:
   - CronDelete
   - ReadMediaFile
   - TodoList
+  - Memory
   - Skill
   - SearchSkill
   - SearchExpert
   - WebSearch
+  - BrowserStatus
   - BrowserObserve
   - BrowserScreenshot
   - BrowserAct

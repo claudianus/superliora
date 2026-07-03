@@ -1,5 +1,5 @@
-import type { Component } from '@earendil-works/pi-tui';
-import { Spacer, Text, visibleWidth } from '@earendil-works/pi-tui';
+import type { Component } from '#/tui/renderer';
+import { Spacer, Text, visibleWidth } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';

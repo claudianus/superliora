@@ -140,6 +140,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
       agentId: 'main',
       sessionId: 's1',
       runId: 'uw_1',
+      toolCallId: 'call_ultra_swarm',
       team: {
         id: 'team_1',
         runId: 'uw_1',
@@ -152,6 +153,9 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
             role: 'security',
             focus: 'review',
             status: 'queued',
+            division: 'security',
+            coverageLane: 'security_privacy',
+            selectionReason: 'Covers auth and data handling risk.',
           },
         ],
       },
@@ -190,6 +194,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledTimes(1);
     expect(renderedTheatre(host)).toContain('LocalResearchStack');
     expect(renderedTheatre(host)).toContain('1/24 experts');
+    expect(renderedTheatre(host)).toContain('Security Reviewer:security_privacy/queued');
     expect(renderedTheatre(host)).toContain('verify passed');
     expect(renderedTheatre(host)).toContain('learn 1');
   });

@@ -420,6 +420,8 @@ export function projectContext(
       case 'tools.unregister_user_tool':
       case 'tools.set_active_tools':
       case 'tools.update_store':
+      case 'subagent.lifecycle':
+      case 'ultrawork.event':
         break;
       default: {
         const _exhaustive: never = rec;

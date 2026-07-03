@@ -427,9 +427,8 @@ export class ContextMemory {
       case 'content.part': {
         const openStep = this.openSteps.get(event.stepUuid);
         if (openStep === undefined) {
-          throw new Error(
-            `Received content_part for unknown step_uuid '${event.stepUuid}' (no open step_begin)`,
-          );
+          this.dropLoopEventWithUnknownStep(event);
+          return;
         }
         openStep.content.push(event.part);
         return;
@@ -437,9 +436,8 @@ export class ContextMemory {
       case 'tool.call': {
         const openStep = this.openSteps.get(event.stepUuid);
         if (openStep === undefined) {
-          throw new Error(
-            `Received tool_call for unknown step_uuid '${event.stepUuid}' (no open step_begin)`,
-          );
+          this.dropLoopEventWithUnknownStep(event);
+          return;
         }
         openStep.toolCalls.push({
           type: 'function',
@@ -466,6 +464,23 @@ export class ContextMemory {
         return;
       }
     }
+  }
+
+  private dropLoopEventWithUnknownStep(
+    event: Extract<LoopRecordedEvent, { type: 'content.part' | 'tool.call' }>,
+  ): void {
+    this.agent.log.warn('dropped loop event for unknown context step', {
+      eventType: event.type,
+      stepUuid: event.stepUuid,
+      turnId: event.turnId,
+      step: event.step,
+      openStepCount: this.openSteps.size,
+    });
+    this.agent.telemetry.track('context_unknown_step_event_dropped', {
+      event_type: event.type,
+      step: event.step,
+      open_step_count: this.openSteps.size,
+    });
   }
 
   appendMessage(message: ContextMessage): void {

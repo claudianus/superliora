@@ -1,11 +1,12 @@
 import {
   Key,
   matchesKey,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Component,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
@@ -57,38 +58,39 @@ export class StartPermissionPromptComponent<TChoice extends StartPermissionChoic
   }
 
   render(width: number): string[] {
-    const rule = currentTheme.fg('primary', '─'.repeat(width));
-    const lines = [
-      rule,
-      currentTheme.boldFg('primary', ` ${this.opts.title}`),
-      currentTheme.fg('textMuted', ' ↑↓ navigate · Enter select · Esc cancel'),
-      '',
-    ];
-
+    const body: string[] = [];
     const textWidth = Math.max(20, width - 2);
     for (const paragraph of this.opts.noticeLines) {
       for (const line of wrapPlain(paragraph, textWidth)) {
-        lines.push(` ${styleModeNames(line, 'textMuted')}`);
+        body.push(` ${styleModeNames(line, 'textMuted')}`);
       }
-      lines.push('');
+      body.push('');
     }
 
     for (let i = 0; i < this.opts.options.length; i += 1) {
       const option = this.opts.options[i]!;
       const selected = i === this.selectedIndex;
       const pointer = selected ? SELECT_POINTER : ' ';
-      lines.push(
+      body.push(
         currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `) +
           styleLabel(option.label, selected),
       );
       for (const line of wrapPlain(option.description, Math.max(20, width - 4))) {
-        lines.push(`    ${styleModeNames(line, 'textMuted')}`);
+        body.push(`    ${styleModeNames(line, 'textMuted')}`);
       }
-      lines.push('');
+      body.push('');
     }
 
-    lines.push(rule);
-    return lines.map((line) => truncateToWidth(line, width));
+    return renderRendererPanelChromeRows({
+      width,
+      title: ` ${this.opts.title}`,
+      hint: ' ↑↓ navigate · Enter select · Esc cancel',
+      body,
+      footerTopGap: false,
+      dividerStyle: (text) => currentTheme.fg('primary', text),
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: (text) => currentTheme.fg('textMuted', text),
+    });
   }
 }
 

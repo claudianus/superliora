@@ -7,7 +7,17 @@
  */
 
 import type { Agent } from '#/agent';
+import {
+  ultraSwarmDecision,
+  ultraSwarmEngageNextAction,
+} from '#/agent/plan/ultra-swarm-decision';
 import type { PlanData } from '#/agent/plan';
+import {
+  combinedDrift,
+  isDriftAcceptable,
+  ULTRA_PLAN_DRIFT_THRESHOLD,
+  type DriftMetrics,
+} from '#/agent/plan/ultra-plan-mode';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
@@ -75,6 +85,10 @@ export interface ExitPlanModePlanSource {
 
 type ResolvePlanResult =
   | { readonly ok: true; readonly plan: string; readonly path?: string | undefined }
+  | { readonly ok: false; readonly error: ExecutableToolResult };
+
+type UltraPlanDriftResult =
+  | { readonly ok: true; readonly metrics: DriftMetrics }
   | { readonly ok: false; readonly error: ExecutableToolResult };
 
 // ── Implementation ───────────────────────────────────────────────────
@@ -153,19 +167,51 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     const resolvedPlan = await this.resolvePlan();
     if (!resolvedPlan.ok) return resolvedPlan.error;
 
+    const ultraDrift = isUltra ? this.validateUltraPlanDrift(resolvedPlan.plan) : undefined;
+    if (ultraDrift?.ok === false) return ultraDrift.error;
+
     this.agent.telemetry.track('plan_submitted', {
       has_options: args.options !== undefined && args.options.length >= 2,
       ultra: isUltra,
     });
 
+    const engageUltraSwarm = isUltra && ultraSwarmDecision(resolvedPlan.plan) === 'ENGAGE';
     const failed = this.exitPlanMode();
     if (failed !== undefined) return failed;
+    if (engageUltraSwarm) {
+      this.agent.ultraSwarmEngageGate?.engage({
+        planPath: resolvedPlan.path,
+        reason: swarmDecisionSummary(resolvedPlan.plan),
+      });
+    }
 
     this.agent.telemetry.track('plan_resolved', { outcome: 'auto_approved', ultra: isUltra });
 
     return {
       isError: false,
-      output: formatPlanForOutput(resolvedPlan.plan, resolvedPlan.path, isUltra, this.agent),
+      output: formatPlanForOutput(resolvedPlan.plan, resolvedPlan.path, ultraDrift?.metrics),
+    };
+  }
+
+  private validateUltraPlanDrift(plan: string): UltraPlanDriftResult {
+    const metrics = this.agent.planMode.ultraEngine.calculateDrift(plan, []);
+    if (isDriftAcceptable(metrics)) {
+      return { ok: true, metrics };
+    }
+
+    this.agent.planMode.reopenUltraInterviewForDrift(metrics);
+
+    return {
+      ok: false,
+      error: {
+        isError: true,
+        output: [
+          'ExitPlanMode blocked: Ultra Plan drift exceeds the accepted threshold.',
+          formatUltraPlanMetrics(metrics),
+          'Ultra Plan interview has been reopened because the generated Seed Spec is not specific enough to anchor the plan.',
+          'Do not keep rewriting the plan from Exit phase. Ask 1-3 focused AskUserQuestion questions to close the seed gap, then advance through NextPhase -> Design -> Review -> Write -> Exit with the regenerated Seed Spec.',
+        ].join('\n\n'),
+      },
     };
   }
 
@@ -221,6 +267,7 @@ function missingUltraPlanSections(plan: string): string[] {
   const requiredHeadings = [
     'Seed Spec',
     'AC Tree',
+    'WorkGraph',
     'Evaluation Plan',
     'Execution Plan',
   ];
@@ -252,9 +299,10 @@ function missingUltraPlanSections(plan: string): string[] {
   if (!hasSwarmDecisionField(plan, 'Reason')) missing.push('Reason');
   if (!hasSwarmDecisionField(plan, 'Specialist value')) missing.push('Specialist value');
   if (!hasSwarmDecisionField(plan, 'Verification owner')) missing.push('Verification owner');
-  if (swarmDecision(plan) === 'DEFER' && !hasSwarmDeferWaiver(plan)) {
+  if (ultraSwarmDecision(plan) === 'DEFER' && !hasSwarmDeferWaiver(plan)) {
     missing.push('Swarm DEFER waiver');
   }
+  missing.push(...missingWorkGraphRequirements(plan));
   return missing;
 }
 
@@ -266,6 +314,15 @@ interface FieldRequirement {
 const ALL_ULTRA_PLAN_FIELD_LABELS = [
   'Seed Spec',
   'AC Tree',
+  'WorkGraph',
+  'WorkGraph Nodes',
+  'Node ID',
+  'AC ID',
+  'Stage',
+  'Owner',
+  'Lane',
+  'Dependencies',
+  'Required Evidence',
   'Ontology',
   'Swarm Decision',
   'Evaluation Plan',
@@ -289,6 +346,48 @@ const ALL_ULTRA_PLAN_FIELD_LABELS = [
   'Swarm defer waiver',
   'DEFER waiver',
 ];
+
+function missingWorkGraphRequirements(plan: string): string[] {
+  if (!hasHeading(plan, 'WorkGraph')) return [];
+  const section = headingSection(plan, 'WorkGraph');
+  const requirements: readonly { readonly label: string; readonly pattern: RegExp }[] = [
+    { label: 'WorkGraph node id', pattern: /\b(?:node\s*id|node|id)\b/i },
+    {
+      label: 'WorkGraph AC id',
+      pattern: /\b(?:ac(?:\s*id)?|acceptance\s+criterion(?:\s+id)?|acceptanceCriterionId)\b/i,
+    },
+    { label: 'WorkGraph stage', pattern: /\bstage\b/i },
+    { label: 'WorkGraph owner/lane', pattern: /\b(?:owner|lane|owner\s*\/\s*lane)\b/i },
+    { label: 'WorkGraph dependencies', pattern: /\b(?:dependencies|dependency|dependsOn|depends\s+on)\b/i },
+    {
+      label: 'WorkGraph required evidence',
+      pattern: /\b(?:required\s+evidence|requiredEvidence|required_evidence|evidence\s+required)\b/i,
+    },
+  ];
+  return requirements
+    .filter((requirement) => !requirement.pattern.test(section))
+    .map((requirement) => requirement.label);
+}
+
+function headingSection(plan: string, heading: string): string {
+  const lines = plan.split(/\r?\n/);
+  const headingPattern = new RegExp(`^\\s*#{2,}\\s+${escapeRegExp(heading)}\\b`, 'i');
+  let start = -1;
+  for (let index = 0; index < lines.length; index++) {
+    if (headingPattern.test(lines[index] ?? '')) {
+      start = index + 1;
+      break;
+    }
+  }
+  if (start === -1) return '';
+  const section: string[] = [];
+  for (let index = start; index < lines.length; index++) {
+    const line = lines[index] ?? '';
+    if (/^\s*#{2,}\s+\S/.test(line)) break;
+    section.push(line);
+  }
+  return section.join('\n');
+}
 
 function hasHeading(plan: string, heading: string): boolean {
   return new RegExp(`^\\s*#{2,}\\s+${escapeRegExp(heading)}\\b`, 'im').test(plan);
@@ -316,15 +415,6 @@ function hasFieldContent(plan: string, labels: readonly string[]): boolean {
 
 function hasSwarmDecisionLine(plan: string): boolean {
   return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\b/i.test(plan);
-}
-
-function swarmDecision(plan: string): 'ENGAGE' | 'DEFER' | undefined {
-  const lineMatch = /\bswarm decision\s*:\s*(ENGAGE|DEFER)\b/i.exec(plan);
-  if (lineMatch?.[1] !== undefined) return lineMatch[1].toUpperCase() as 'ENGAGE' | 'DEFER';
-  const fieldMatch =
-    /^\s*(?:[-*+•]|\d+[.)])?\s*(?:\*\*)?Decision(?:\*\*)?\s*:\s*(ENGAGE|DEFER)\b/im.exec(plan);
-  if (fieldMatch?.[1] !== undefined) return fieldMatch[1].toUpperCase() as 'ENGAGE' | 'DEFER';
-  return undefined;
 }
 
 function hasSwarmDeferWaiver(plan: string): boolean {
@@ -456,20 +546,38 @@ function normalizeOptionLabel(label: string): string {
   return label.trim().toLowerCase();
 }
 
-function formatPlanForOutput(plan: string, path: string | undefined, isUltra: boolean, agent: Agent): string {
+function formatPlanForOutput(
+  plan: string,
+  path: string | undefined,
+  ultraDrift: DriftMetrics | undefined,
+): string {
   const savedTo = path !== undefined ? `Plan saved to: ${path}\n\n` : '';
   let output = `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${plan}`;
 
-  if (isUltra) {
-    const drift = agent.planMode.ultraEngine.calculateDrift(plan, []);
-    const combined = (drift.goalDrift * 0.5 + drift.constraintDrift * 0.3 + drift.ontologyDrift * 0.2).toFixed(3);
-    output += `\n\n---\n## Ultra Plan Metrics\n`;
-    output += `- Goal Drift: ${drift.goalDrift.toFixed(3)}\n`;
-    output += `- Constraint Drift: ${drift.constraintDrift.toFixed(3)}\n`;
-    output += `- Ontology Drift: ${drift.ontologyDrift.toFixed(3)}\n`;
-    output += `- Combined Drift: ${combined} (threshold: 0.3)\n`;
-    output += `- Status: ${Number(combined) <= 0.3 ? 'ACCEPTABLE' : 'WARNING — plan may deviate from seed spec'}\n`;
+  if (ultraDrift !== undefined) {
+    const nextAction = ultraSwarmEngageNextAction(plan);
+    if (nextAction !== undefined) {
+      output += `\n\n---\n## Required Next Action\n${nextAction}`;
+    }
+    output += `\n\n---\n${formatUltraPlanMetrics(ultraDrift)}`;
   }
 
+  return output;
+}
+
+function swarmDecisionSummary(plan: string): string | undefined {
+  const line = plan.split(/\r?\n/).find((entry) => /\bswarm decision\s*:/i.test(entry));
+  const trimmed = line?.trim();
+  return trimmed !== undefined && trimmed.length > 0 ? trimmed : undefined;
+}
+
+function formatUltraPlanMetrics(metrics: DriftMetrics): string {
+  const combined = combinedDrift(metrics);
+  let output = '## Ultra Plan Metrics\n';
+  output += `- Goal Drift: ${metrics.goalDrift.toFixed(3)}\n`;
+  output += `- Constraint Drift: ${metrics.constraintDrift.toFixed(3)}\n`;
+  output += `- Ontology Drift: ${metrics.ontologyDrift.toFixed(3)}\n`;
+  output += `- Combined Drift: ${combined.toFixed(3)} (threshold: ${ULTRA_PLAN_DRIFT_THRESHOLD})\n`;
+  output += `- Status: ${isDriftAcceptable(metrics) ? 'ACCEPTABLE' : 'BLOCKED — plan may deviate from seed spec'}\n`;
   return output;
 }

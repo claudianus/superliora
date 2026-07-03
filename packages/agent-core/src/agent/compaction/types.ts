@@ -10,6 +10,7 @@ export interface CompactionResult {
   retainedTokens?: number;
   compactedTokens?: number;
   qualityWarnings?: readonly string[];
+  qualityWarningCategories?: readonly string[];
   parallelBlockCount?: number;
   mergeInputTokens?: number;
   repairAttempted?: boolean;
@@ -61,11 +62,40 @@ export interface CompactionContextOS {
   readonly retrievalQueries: readonly string[];
   readonly fileHints: readonly string[];
   readonly rehydrationRawRefKinds: readonly string[];
+  readonly qualitySignals?: CompactionQualitySignals;
+  readonly retrievalSignalCounts?: CompactionRetrievalSignalCounts;
   readonly continuity: {
     readonly status: CompactionContinuityStatus;
     readonly score: number;
     readonly reasons: readonly string[];
   };
+}
+
+export type CompactionQualityWarningCategory =
+  | 'missing_next_actions'
+  | 'missing_file_hints'
+  | 'missing_failed_attempts'
+  | 'placeholder_only_memory'
+  | 'prompt_control_recalled'
+  | 'token_growth';
+
+export interface CompactionQualitySignals {
+  readonly recallEvalScore: number;
+  readonly criticalFactCount: number;
+  readonly placeholderItemCount: number;
+  readonly tokensSavedRatio: number;
+  readonly fileHintRecallScore: number;
+  readonly nextActionPreservationScore: number;
+  readonly failedAttemptRecallScore: number;
+  readonly promptInjectionResistanceScore: number;
+  readonly failureSignature?: string;
+}
+
+export interface CompactionRetrievalSignalCounts {
+  readonly retrievalQueryCount: number;
+  readonly fileHintCount: number;
+  readonly structuredItemCount: number;
+  readonly rawRefKindCount: number;
 }
 
 export interface CompactionResultAction {

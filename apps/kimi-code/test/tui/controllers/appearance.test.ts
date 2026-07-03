@@ -1,4 +1,4 @@
-import { visibleWidth, type ProcessTerminal } from '@earendil-works/pi-tui';
+import { visibleWidth, type ProcessTerminal } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
@@ -6,8 +6,16 @@ import { AppearanceController, shouldAnimate, terminalMutationAllowed } from '#/
 import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { currentTheme } from '#/tui/theme';
 import {
+  advanceAppearanceAnimationClock,
+  appearanceAnimationFrameIntervalMs,
+  getAppearanceRenderHealth,
+  getAppearanceRenderQuality,
   getActiveAppearancePreferences,
   renderParticleDivider,
+  renderPulseGlyph,
+  renderShimmerPrefix,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
@@ -57,6 +65,31 @@ describe('AnimationScheduler', () => {
     vi.advanceTimersByTime(100);
     expect(requestRender).toHaveBeenCalledTimes(2);
   });
+
+  it('skips ticks when rendering is gated off', () => {
+    vi.useFakeTimers();
+    let canRender = false;
+    const beforeRender = vi.fn();
+    const requestRender = vi.fn();
+    const scheduler = new AnimationScheduler({
+      fps: 10,
+      enabled: true,
+      shouldRender: () => canRender,
+      beforeRender,
+      requestRender,
+    });
+
+    vi.advanceTimersByTime(100);
+    expect(beforeRender).not.toHaveBeenCalled();
+    expect(requestRender).not.toHaveBeenCalled();
+
+    canRender = true;
+    vi.advanceTimersByTime(100);
+    expect(beforeRender).toHaveBeenCalledTimes(1);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    scheduler.dispose();
+  });
 });
 
 describe('AppearanceController', () => {
@@ -69,16 +102,22 @@ describe('AppearanceController', () => {
     process.env['TERM'] = 'xterm-256color';
     setStdoutTty(true);
     currentTheme.setCanvasBackgroundEnabled(true);
+    advanceAppearanceAnimationClock();
+    setAppearanceRenderQuality('full');
+    setAppearanceRenderHealth('healthy');
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     process.env = { ...originalEnv };
+    setAppearanceRenderHealth('healthy');
     if (stdoutDescriptor === undefined) {
       delete (process.stdout as { isTTY?: boolean }).isTTY;
     } else {
       Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
     }
     currentTheme.setCanvasBackgroundEnabled(true);
+    setAppearanceRenderQuality('full');
   });
 
   it('enables animation for auto and explicit motion profiles in safe terminals', () => {
@@ -149,6 +188,37 @@ describe('AppearanceController', () => {
     expect(writes.at(-1)).toContain('\u001B]104');
   });
 
+  it('paces animation ticks from effect cadence and renderer health', () => {
+    vi.useFakeTimers();
+    const requestRender = vi.fn();
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+      animationFps: 30,
+    };
+    const terminal = { write: vi.fn() } as unknown as ProcessTerminal;
+
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(160);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(420);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(1000);
+
+    setAppearanceRenderHealth('watch');
+    const controller = new AppearanceController({
+      terminal,
+      requestRender,
+      getAppearance: () => appearance,
+      shouldRenderAnimation: () => true,
+    });
+
+    vi.advanceTimersByTime(419);
+    expect(requestRender).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    controller.dispose();
+  });
+
   it('publishes active appearance for shared chrome components', () => {
     const terminal = { write: vi.fn() } as unknown as ProcessTerminal;
     const controller = new AppearanceController({
@@ -167,6 +237,62 @@ describe('AppearanceController', () => {
     } finally {
       controller.dispose();
     }
+  });
+
+  it('keeps ambient effects stable until the animation clock advances', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:10Z'));
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+
+    advanceAppearanceAnimationClock(0);
+    const first = renderPulseGlyph(['A', 'B'], 'clock-test', 'A', 'primary', appearance);
+
+    vi.advanceTimersByTime(10_000);
+    const unchanged = renderPulseGlyph(['A', 'B'], 'clock-test', 'A', 'primary', appearance);
+
+    advanceAppearanceAnimationClock(180);
+    const changed = renderPulseGlyph(['A', 'B'], 'clock-test', 'A', 'primary', appearance);
+
+    expect(strip(unchanged)).toBe(strip(first));
+    expect(strip(changed)).not.toBe(strip(first));
+  });
+
+  it('degrades premium ambient effects with renderer quality', () => {
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+
+    setAppearanceRenderQuality('balanced');
+    expect(getAppearanceRenderQuality()).toBe('balanced');
+    expect(strip(renderPulseGlyph(['A', 'B'], 'quality-test', 'A', 'primary', appearance))).toBe('A');
+    expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
+
+    setAppearanceRenderQuality('minimal');
+    expect(strip(renderShimmerPrefix(appearance))).toBe('');
+    expect(strip(renderParticleDivider(8, 'quality-divider', appearance))).toBe('────────');
+  });
+
+  it('degrades premium ambient effects with renderer frame health', () => {
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+
+    setAppearanceRenderHealth('watch');
+    expect(getAppearanceRenderHealth()).toBe('watch');
+    expect(strip(renderPulseGlyph(['A', 'B'], 'health-test', 'A', 'primary', appearance))).toBe('A');
+    expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
+
+    setAppearanceRenderHealth('degraded');
+    expect(strip(renderShimmerPrefix(appearance))).toBe('');
+    expect(strip(renderParticleDivider(8, 'health-divider', appearance))).toBe('────────');
   });
 
   it('renders premium particle dividers at a stable visible width', () => {

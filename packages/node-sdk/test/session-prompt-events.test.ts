@@ -223,6 +223,77 @@ describe('Session.prompt events', () => {
     }
   });
 
+  it('locks detected response language and injects a fresh reminder', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const harness = createKimiHarness({
+      identity: TEST_IDENTITY,
+      homeDir,
+    });
+
+    try {
+      await configureFakeProvider(harness);
+      const session = await harness.createSession({ id: 'ses_response_language', workDir });
+
+      let done = waitForEvent(session, (event) => event.type === 'turn.ended');
+      await session.prompt('이 작업을 분석하고 다음 단계를 정리해줘.');
+      await done;
+
+      const statePath = join(session.summary!.sessionDir, 'state.json');
+      const firstState = JSON.parse(await readFile(statePath, 'utf-8')) as {
+        custom?: Record<string, unknown>;
+      };
+      expect(firstState.custom?.['responseLanguage']).toMatchObject({
+        code: 'ko',
+        label: 'Korean',
+        source: 'detected',
+        locked: true,
+        updatedAt: expect.any(String),
+      });
+      expect(JSON.stringify(fakeProviderState.calls[0]?.history)).toContain(
+        '<response_language>',
+      );
+      expect(JSON.stringify(fakeProviderState.calls[0]?.history)).toContain('Korean (ko)');
+
+      done = waitForEvent(session, (event) => event.type === 'turn.ended');
+      await session.prompt('continue with implementation details');
+      await done;
+
+      const secondState = JSON.parse(await readFile(statePath, 'utf-8')) as {
+        custom?: Record<string, unknown>;
+      };
+      expect(secondState.custom?.['responseLanguage']).toMatchObject({
+        code: 'ko',
+        source: 'detected',
+      });
+      expect(JSON.stringify(fakeProviderState.calls[1]?.history)).toContain('Korean (ko)');
+
+      const fork = await harness.forkSession({
+        id: session.id,
+        forkId: 'ses_response_language_fork',
+        title: 'Response Language Fork',
+      });
+      const forkState = JSON.parse(
+        await readFile(join(fork.summary!.sessionDir, 'state.json'), 'utf-8'),
+      ) as {
+        custom?: Record<string, unknown>;
+      };
+      expect(forkState.custom?.['responseLanguage']).toMatchObject({
+        code: 'ko',
+        source: 'detected',
+      });
+
+      await session.close();
+      const resumed = await harness.resumeSession({ id: 'ses_response_language' });
+      done = waitForEvent(resumed, (event) => event.type === 'turn.ended');
+      await resumed.prompt('continue after resume');
+      await done;
+      expect(JSON.stringify(fakeProviderState.calls[2]?.history)).toContain('Korean (ko)');
+    } finally {
+      await harness.close();
+    }
+  });
+
   it('supports onEvent unsubscribe without touching runtime wire directly', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();

@@ -176,6 +176,20 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(line2 ?? '')).toContain('context: 0.0%');
   });
 
+  it('shows a compact history badge while transcript follow output is paused', () => {
+    let followOutput = false;
+    const footer = new FooterComponent(
+      baseState(),
+      undefined,
+      () => ({ followOutput, offsetFromBottom: 42 }),
+    );
+
+    expect(strip(footer.render(120)[0] ?? '')).toContain('[history +42 rows]');
+
+    followOutput = true;
+    expect(strip(footer.render(120)[0] ?? '')).not.toContain('[history');
+  });
+
   it('points logged-out users at setup before describing a task', () => {
     const footer = new FooterComponent(baseState({ model: '' }));
 

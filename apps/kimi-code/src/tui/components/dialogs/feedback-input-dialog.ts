@@ -16,10 +16,10 @@ import {
   Input,
   Key,
   matchesKey,
+  renderRendererFrameRows,
   truncateToWidth,
-  visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 
 export type FeedbackInputDialogResult =
@@ -74,7 +74,6 @@ export class FeedbackInputDialogComponent extends Container implements Focusable
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
     const innerWidth = Math.max(1, safeWidth - 4);
-    const pad = '  ';
 
     const border = (s: string): string => currentTheme.fg('primary', s);
     const titleStyled = currentTheme.boldFg('textStrong', TITLE);
@@ -101,23 +100,20 @@ export class FeedbackInputDialogComponent extends Container implements Focusable
       return ['', ...contentLines.map((line) => truncateToWidth(line, safeWidth, '…'))];
     }
 
-    const lines: string[] = [
+    return [
       '',
-      border('╭' + '─'.repeat(safeWidth - 2) + '╮'),
-      border('│') + ' '.repeat(safeWidth - 2) + border('│'),
+      ...renderRendererFrameRows({
+        content: ['', ...contentLines, ''],
+        width: safeWidth,
+        height: contentLines.length + 4,
+        borderKind: 'rounded',
+        paddingLeft: 2,
+        paddingRight: 0,
+        borderStyle: border,
+        ellipsis: '…',
+      }),
+      '',
     ];
-
-    for (const content of contentLines) {
-      const vis = visibleWidth(content);
-      const rightPad = Math.max(0, innerWidth - vis);
-      lines.push(border('│') + pad + content + ' '.repeat(rightPad) + border('│'));
-    }
-
-    lines.push(border('│') + ' '.repeat(safeWidth - 2) + border('│'));
-    lines.push(border('╰' + '─'.repeat(safeWidth - 2) + '╯'));
-    lines.push('');
-
-    return lines.map((line) => truncateToWidth(line, safeWidth, '…'));
   }
 
   private submit(value: string): void {

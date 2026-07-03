@@ -52,6 +52,15 @@ export {
 } from './preflight';
 export { handlePluginsCommand } from './plugins';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
+export {
+  formatRendererDiagnosticsStatusReport,
+  formatRendererTraceStatusReport,
+  handleRendererCommand,
+  rendererArgumentCompletions,
+  type RendererDiagnosticsOverlayCommand,
+  type RendererDiagnosticsRuntimeBackend,
+  type RendererTraceCommand,
+} from './renderer';
 export { handleGoalCommand, parseGoalCommand } from './goal';
 export { goalArgumentCompletions } from './registry';
 export { handleForkCommand, handleInitCommand, handleTitleCommand } from './session';

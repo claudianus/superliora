@@ -31,6 +31,7 @@ reports/
 .ouroboros_eval_artifact.md
 /kimi-code/
 .super-kimi/evidence/
+.super-kimi/wiki/
 .super-kimi/boulder.json
 .super-kimi/drafts/
 .super-kimi/notepads/

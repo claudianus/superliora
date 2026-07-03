@@ -21,7 +21,7 @@ export async function handleReloadCommand(host: SlashCommandHost): Promise<void>
   }
 
   const config = await host.harness.getConfig({ reload: true });
-  setExperimentalFeatures(await host.harness.getExperimentalFeatures());
+  setExperimentalFeatures(await host.harness.getExperimentalFeatures(), true);
   host.refreshSlashCommandAutocomplete();
   applyRuntimeConfig(host, config);
   await applyReloadedTuiConfig(host, tuiConfig);

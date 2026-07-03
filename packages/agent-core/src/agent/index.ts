@@ -43,6 +43,7 @@ import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
 import { PlanMode } from './plan';
+import { UltraSwarmEngageGate } from './plan/ultra-swarm-engage-gate';
 import {
   AgentRecords,
   BlobStore,
@@ -50,6 +51,7 @@ import {
   type AgentRecord,
   type AgentRecordPersistence,
   type AgentRecordsReplayOptions,
+  type SerializableAgentEvent,
 } from './records';
 import { ReplayBuilder, type ReplayBuilderOptions } from './replay';
 import { SkillManager } from './skill';
@@ -68,6 +70,7 @@ import { LlmRequestLogger, splitGenerateOptions } from './llm-request-logger';
 import { resolveCompletionBudget } from '../utils/completion-budget';
 import type { Kaos } from '@moonshot-ai/kaos';
 import type { ToolServices } from '../tools/support/services';
+import type { ResponseLanguagePreference } from '../session/response-language';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { SwarmModeTrigger } from './swarm';
@@ -101,6 +104,7 @@ export interface AgentOptions {
   readonly replay?: ReplayBuilderOptions;
   readonly additionalDirs?: readonly string[];
   readonly memory?: AgentMemoryRuntime;
+  readonly responseLanguagePreference?: (() => ResponseLanguagePreference | undefined) | undefined;
 }
 
 export class Agent {
@@ -126,6 +130,8 @@ export class Agent {
   readonly telemetry: TelemetryClient;
   readonly experimentalFlags: ExperimentalFlagResolver;
   readonly memory?: AgentMemoryRuntime;
+  private readonly responseLanguagePreference:
+    (() => ResponseLanguagePreference | undefined) | undefined;
 
   readonly llmRequestLogger: LlmRequestLogger;
   readonly blobStore: BlobStore | undefined;
@@ -139,6 +145,7 @@ export class Agent {
   readonly injection: InjectionManager;
   readonly permission: PermissionManager;
   readonly planMode: PlanMode;
+  readonly ultraSwarmEngageGate: UltraSwarmEngageGate;
   readonly swarmMode: SwarmMode;
   readonly usage: UsageRecorder;
   readonly skills: SkillManager | null;
@@ -169,6 +176,7 @@ export class Agent {
     this.telemetry = options.telemetry ?? noopTelemetryClient;
     this.experimentalFlags = options.experimentalFlags ?? new FlagResolver();
     this.memory = options.memory;
+    this.responseLanguagePreference = options.responseLanguagePreference;
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
 
     this.llmRequestLogger = new LlmRequestLogger(this.log);
@@ -196,6 +204,7 @@ export class Agent {
     this.injection = new InjectionManager(this);
     this.permission = new PermissionManager(this, options.permission);
     this.planMode = new PlanMode(this);
+    this.ultraSwarmEngageGate = new UltraSwarmEngageGate(this);
     this.swarmMode = new SwarmMode(this);
     this.usage = new UsageRecorder(this);
     this.skills = options.skills ? new SkillManager(this, options.skills) : null;
@@ -216,6 +225,10 @@ export class Agent {
 
   getAdditionalDirs(): readonly string[] {
     return this.additionalDirs;
+  }
+
+  getResponseLanguagePreference(): ResponseLanguagePreference | undefined {
+    return this.responseLanguagePreference?.();
   }
 
   setAdditionalDirs(additionalDirs: readonly string[]): void {
@@ -505,6 +518,13 @@ export class Agent {
 
   emitEvent(event: AgentEvent): void {
     if (this.records.restoring) return;
+    const recordType = durableTraceRecordType(event.type);
+    if (recordType !== undefined) {
+      this.records.logRecord({
+        type: recordType,
+        event: event as SerializableAgentEvent,
+      });
+    }
     void this.rpc?.emitEvent?.(event);
   }
 
@@ -568,4 +588,12 @@ export class Agent {
       ),
     });
   }
+}
+
+function durableTraceRecordType(
+  eventType: AgentEvent['type'],
+): 'subagent.lifecycle' | 'ultrawork.event' | undefined {
+  if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
+  if (eventType.startsWith('ultrawork.')) return 'ultrawork.event';
+  return undefined;
 }

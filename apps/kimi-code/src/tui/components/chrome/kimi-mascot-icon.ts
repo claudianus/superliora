@@ -1,9 +1,10 @@
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 
 import type { AppearancePreferences } from '#/tui/config';
 import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import { gradientText } from '#/tui/theme/gradient-text';
+import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
 
 export type KimiMascotVariant = 'off' | 'tiny' | 'compact' | 'standard' | 'premium';
 
@@ -74,7 +75,7 @@ export function renderKimiMascotIcon(options: KimiMascotOptions): string[] {
       return paintRows(asciiFallback() ? ASCII_STANDARD_MASCOT : STANDARD_MASCOT, 'primary');
     case 'premium': {
       const frame = PREMIUM_MASCOT_FRAMES[
-        Math.floor(Date.now() / 900) % PREMIUM_MASCOT_FRAMES.length
+        Math.floor(appearanceAnimationNow() / 900) % PREMIUM_MASCOT_FRAMES.length
       ]!;
       return frame.map((line) =>
         gradientText(

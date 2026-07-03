@@ -1,4 +1,4 @@
-import { visibleWidth, type TUI } from '@earendil-works/pi-tui';
+import { visibleWidth, type TUI } from '#/tui/renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
@@ -78,6 +78,17 @@ describe('ThinkingComponent', () => {
     expect(out).not.toContain('line2');
     expect(out).not.toContain('line3');
     expect(out).not.toContain('line4');
+  });
+
+  it('reuses rendered line arrays at the same width until display state changes', () => {
+    const component = new ThinkingComponent(longThinking, true, 'finalized');
+    const first = component.render(80);
+    const second = component.render(80);
+
+    expect(second).toBe(first);
+
+    component.setExpanded(true);
+    expect(component.render(80)).not.toBe(first);
   });
 
   it('shows elapsed time while live and keeps it after finalization', () => {

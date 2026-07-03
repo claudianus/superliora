@@ -15,6 +15,7 @@ interface Harness {
   readonly cancelRunningShellCommand: ReturnType<typeof vi.fn>;
   readonly handlePlanToggle: ReturnType<typeof vi.fn>;
   readonly handleUltraworkModeToggle: ReturnType<typeof vi.fn>;
+  readonly scrollTranscriptViewport: ReturnType<typeof vi.fn>;
 }
 
 function createHarness(
@@ -30,6 +31,7 @@ function createHarness(
   const cancelRunningShellCommand = vi.fn();
   const handlePlanToggle = vi.fn();
   const handleUltraworkModeToggle = vi.fn();
+  const scrollTranscriptViewport = vi.fn(() => true);
   const session = { cancel: vi.fn(async () => {}) };
 
   const host = {
@@ -49,6 +51,7 @@ function createHarness(
     track: vi.fn(),
     handlePlanToggle,
     handleUltraworkModeToggle,
+    scrollTranscriptViewport,
     btwPanelController: { closeOrCancel: vi.fn(() => false) },
     openUndoSelector,
     cancelRunningShellCommand,
@@ -67,6 +70,7 @@ function createHarness(
     cancelRunningShellCommand,
     handlePlanToggle,
     handleUltraworkModeToggle,
+    scrollTranscriptViewport,
   };
 }
 
@@ -85,6 +89,12 @@ function pressNonEscape(editor: Harness['editor']): void {
 function pressShiftTab(editor: Harness['editor']): void {
   const handler = editor['onShiftTab'];
   if (handler === undefined) throw new Error('onShiftTab handler not installed');
+  (handler as () => void)();
+}
+
+function pressTranscriptPageUp(editor: Harness['editor']): void {
+  const handler = editor['onTranscriptPageUp'];
+  if (handler === undefined) throw new Error('onTranscriptPageUp handler not installed');
   (handler as () => void)();
 }
 
@@ -116,6 +126,16 @@ describe('EditorKeyboardController Ultrawork toggle', () => {
 
     expect(handleUltraworkModeToggle).toHaveBeenCalledWith(true);
     expect(handlePlanToggle).not.toHaveBeenCalled();
+  });
+});
+
+describe('EditorKeyboardController transcript viewport shortcuts', () => {
+  it('routes editor PageUp to the transcript viewport', () => {
+    const { editor, scrollTranscriptViewport } = createHarness();
+
+    pressTranscriptPageUp(editor);
+
+    expect(scrollTranscriptViewport).toHaveBeenCalledWith('page-up');
   });
 });
 

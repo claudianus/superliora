@@ -1,4 +1,4 @@
-import { truncateToWidth, type Component } from '@earendil-works/pi-tui';
+import { truncateToWidth, type Component } from '#/tui/renderer';
 
 import type {
   CouncilDecision,
@@ -138,7 +138,12 @@ export class UltraworkTheatreComponent implements Component {
   private teamSummary(): string {
     if (this.team === undefined) return 'staffing pending';
     const councilCount = this.team.councilExpertIds?.length ?? 0;
-    return `${String(this.team.experts.length)}/${String(this.team.maxExperts)} experts | ${this.team.intensity} | council ${String(councilCount)}`;
+    const lanes = this.team.experts
+      .slice(0, 4)
+      .map((expert) => `${expert.name}:${expert.coverageLane ?? expert.role}/${expert.status}`)
+      .join(', ');
+    const suffix = lanes.length === 0 ? '' : ` | ${lanes}`;
+    return `${String(this.team.experts.length)}/${String(this.team.maxExperts)} experts | ${this.team.intensity} | council ${String(councilCount)}${suffix}`;
   }
 
   private researchSummary(): string {

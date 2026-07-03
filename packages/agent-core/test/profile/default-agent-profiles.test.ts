@@ -80,6 +80,13 @@ describe('default agent profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('KimiContext');
   });
 
+  it('exposes Kimi Recall only to writable coding profiles', () => {
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('Memory');
+    expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('Memory');
+    expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Memory');
+    expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Memory');
+  });
+
   it('fails loudly when an embedded system prompt source is missing', () => {
     expect(() =>
       loadAgentProfilesFromSources(['profile/default/agent.yaml'], {

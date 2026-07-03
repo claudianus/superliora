@@ -75,6 +75,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           'SearchSkill',
           'Skill',
           'SearchExpert',
+          'TodoList',
           'NextPhase',
         ];
         if (researchAllowed.includes(toolName)) return;
@@ -83,7 +84,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, git status, git diff --stat/name-only/check). Use WebSearch, FetchURL, KimiContext, Read, Grep, Glob, SearchExpert, or NextPhase.',
+              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, tool lookup with which/command -v, git status, git diff --stat/name-only/check) or a chain of those commands joined with &&. Use WebSearch, FetchURL, KimiContext, Read, Grep, Glob, SearchExpert, TodoList, or NextPhase.',
           };
         }
         if (toolName === 'AskUserQuestion') {
@@ -101,7 +102,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Research phase. Only read-only research tools and NextPhase are allowed before UltraPlan interview.`,
+          message: `${toolName} is blocked in Research phase. Only read-only research tools, TodoList, and NextPhase are allowed before UltraPlan interview.`,
         };
       }
       case 'interview': {
@@ -129,20 +130,27 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         };
       }
       case 'design': {
-        // Read-only exploration
         const designAllowed = [
           'Read',
           'Grep',
           'Glob',
           'WebSearch',
           'FetchURL',
-          'Bash',
           'SearchSkill',
           'Skill',
           'SearchExpert',
+          'TodoList',
           'NextPhase',
         ];
         if (designAllowed.includes(toolName)) return;
+        if (toolName === 'Bash') {
+          if (isReadOnlyReviewBash(context)) return;
+          return {
+            kind: 'deny',
+            message:
+              'Bash is blocked in Design phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, or NextPhase.',
+          };
+        }
         if (toolName === 'ExitPlanMode') {
           return {
             kind: 'deny',
@@ -151,7 +159,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Design phase. Only read-only tools are allowed (Read, Grep, Glob, WebSearch, FetchURL, Bash, SearchSkill, Skill, SearchExpert). Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Design phase. Only read-only tools, read-only Bash inspection, and TodoList progress tracking are allowed (Read, Grep, Glob, WebSearch, FetchURL, Bash inspection, SearchSkill, Skill, SearchExpert, TodoList). Use NextPhase to advance when ready.`,
         };
       }
       case 'review': {
@@ -166,6 +174,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           'SearchSkill',
           'Skill',
           'SearchExpert',
+          'TodoList',
           'TaskList',
           'TaskOutput',
           'NextPhase',
@@ -176,7 +185,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Review phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, or NextPhase when ready.',
+              'Bash is blocked in Review phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, or NextPhase when ready.',
           };
         }
         if (toolName === 'ExitPlanMode') {
@@ -187,12 +196,16 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Review phase. Only read-only review tools, read-only Bash inspection, and NextPhase are allowed. Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Review phase. Only read-only review tools, read-only Bash inspection, TodoList progress tracking, and NextPhase are allowed. Use NextPhase to advance when ready.`,
         };
       }
       case 'write': {
-        // Write/Edit allowed only for plan file (handled by normal plan mode guard above)
-        // But also block Bash, TaskStop, Cron in write phase
+        const planFilePath = this.agent.planMode.planFilePath;
+        if (toolName === 'Write' || toolName === 'Edit') return;
+        if (toolName === 'Read' && planFilePath !== null && readsOnlyPlanFile(context, planFilePath)) return;
+        if (toolName === 'TodoList') return;
+        if (toolName === 'NextPhase' || toolName === 'ExitPlanMode') return;
+
         if (toolName === 'Bash') {
           return {
             kind: 'deny',
@@ -205,7 +218,11 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
             message: `${toolName} is blocked in Write phase. Focus on writing the plan file.`,
           };
         }
-        return;
+        return {
+          kind: 'deny',
+          message:
+            `${toolName} is blocked in Write phase. Only the current plan file may be read or edited, TodoList may be updated for progress tracking, and NextPhase/ExitPlanMode may be used when the plan is complete.`,
+        };
       }
       case 'exit': {
         // ExitPlanMode may report a missing required section. Allow plan-file
@@ -256,16 +273,117 @@ function planModeWriteDeniedMessage(planFilePath: string | null): string {
 function isNarrowReadOnlyBash(context: PermissionPolicyContext): boolean {
   const command = bashCommand(context)?.trim();
   if (command === undefined || command.length === 0) return false;
-  if (hasShellControlSyntax(command)) return false;
+  if (isBackgroundBash(context)) return false;
 
+  const commands = splitReadOnlyAndList(command);
+  if (commands === undefined) return false;
+  return commands.every(isNarrowReadOnlyResearchCommand);
+}
+
+function splitReadOnlyAndList(command: string): string[] | undefined {
+  if (/[\n\r;|<>`]/.test(command) || command.includes('$(')) return undefined;
+  if (command.replaceAll('&&', '').includes('&')) return undefined;
+
+  const commands = command.split('&&').map((part) => part.trim());
+  if (commands.length === 0 || commands.some((part) => part.length === 0)) return undefined;
+  return commands;
+}
+
+function isNarrowReadOnlyResearchCommand(command: string): boolean {
+  const words = shellWords(command);
+  if (words === undefined || words.length === 0) return false;
+  if (hasSensitivePath(words)) return false;
+
+  return classifyResearchBashCommand(words) !== undefined;
+}
+
+type ResearchBashProfile =
+  | 'workspace-inspection'
+  | 'tool-lookup'
+  | 'git-inspection';
+
+function classifyResearchBashCommand(
+  words: readonly string[],
+): ResearchBashProfile | undefined {
+  if (isWorkspaceInspectionCommand(words)) return 'workspace-inspection';
+  if (isToolLookupCommand(words)) return 'tool-lookup';
+  if (isResearchGitInspectionCommand(words)) return 'git-inspection';
+  return undefined;
+}
+
+function isWorkspaceInspectionCommand(words: readonly string[]): boolean {
+  const command = words[0];
+  if (command === 'pwd') {
+    return (
+      words.length === 1 ||
+      words.every((word, index) => index === 0 || word === '-L' || word === '-P')
+    );
+  }
+
+  if (command === 'ls') {
+    return words.slice(1).every(isLsInspectionArg);
+  }
+
+  return false;
+}
+
+function isLsInspectionArg(word: string): boolean {
+  if (word.startsWith('-')) return /^-{1,2}[A-Za-z0-9,._=:-]+$/.test(word);
+  return true;
+}
+
+function isToolLookupCommand(words: readonly string[]): boolean {
+  if (words.length < 2) return false;
+  if (words[0] === 'which') {
+    return words.slice(1).every((word) => word === '-a' || word === '--all' || isExecutableName(word));
+  }
+
+  if (words[0] === 'command') {
+    return words[1] === '-v' && words.length >= 3 && words.slice(2).every(isExecutableName);
+  }
+
+  return false;
+}
+
+function isResearchGitInspectionCommand(words: readonly string[]): boolean {
+  const subcommandIndex = gitSubcommandIndex(words);
+  if (subcommandIndex === undefined) return false;
+  const subcommand = words[subcommandIndex];
+  if (subcommand === undefined) return false;
+
+  const args = words.slice(subcommandIndex + 1);
+  switch (subcommand) {
+    case 'status':
+      return args.every(isResearchGitStatusArg);
+    case 'diff':
+      return args.every(isResearchGitDiffArg);
+    case 'branch':
+      return args.length === 1 && args[0] === '--show-current';
+    case 'rev-parse':
+      return args.length === 1 && (args[0] === '--show-toplevel' || args[0] === '--show-prefix');
+    default:
+      return false;
+  }
+}
+
+function isResearchGitStatusArg(word: string): boolean {
   return (
-    command === 'pwd' ||
-    /^ls(?:\s+.+)?$/.test(command) ||
-    /^git\s+status(?:\s+(?:--short|--porcelain|--branch|--untracked-files(?:=\S+)?|-s|-sb|-uno))*$/.test(command) ||
-    /^git\s+diff(?:\s+--(?:stat|name-only|check))*$/.test(command) ||
-    /^git\s+branch\s+--show-current$/.test(command) ||
-    /^git\s+rev-parse\s+--(?:show-toplevel|show-prefix)$/.test(command)
+    word === '--short' ||
+    word === '--porcelain' ||
+    word === '--branch' ||
+    word === '-s' ||
+    word === '-sb' ||
+    word === '-uno' ||
+    /^--untracked-files(?:=\S+)?$/.test(word)
   );
+}
+
+function isResearchGitDiffArg(word: string): boolean {
+  return word === '--stat' || word === '--name-only' || word === '--check';
+}
+
+function isExecutableName(word: string): boolean {
+  return !word.startsWith('-') && /^[A-Za-z0-9._+:-]+$/.test(word);
 }
 
 function isReadOnlyReviewBash(context: PermissionPolicyContext): boolean {

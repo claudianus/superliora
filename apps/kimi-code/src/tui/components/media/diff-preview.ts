@@ -7,6 +7,7 @@
 
 import chalk from 'chalk';
 
+import { projectRendererLineWindow } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 
 export type DiffLineKind = 'context' | 'add' | 'delete';
@@ -128,18 +129,18 @@ export function renderDiffLines(
   header += path;
   output.push(header);
 
-  const shown =
-    maxLines !== undefined && maxLines >= 0 && changedLines.length > maxLines
-      ? changedLines.slice(0, maxLines)
-      : changedLines;
+  const preview = projectRendererLineWindow({
+    lines: changedLines,
+    maxLines: maxLines !== undefined && maxLines >= 0 ? maxLines : undefined,
+  });
 
-  for (const line of shown) {
+  for (const line of preview.lines) {
     const marker = line.kind === 'add' ? '+' : '-';
     const color = line.kind === 'add' ? s.add : s.del;
     output.push(s.gutter(String(line.lineNum).padStart(4) + ' ') + color(marker + ' ' + line.code));
   }
 
-  const hidden = changedLines.length - shown.length;
+  const hidden = preview.hiddenLineCount;
   if (hidden > 0) {
     output.push(
       s.meta(
@@ -161,6 +162,11 @@ export interface ClusteredDiffOptions {
 interface Cluster {
   readonly start: number;
   readonly end: number;
+}
+
+interface DiffBodyRow {
+  readonly text: string;
+  readonly line?: DiffLine;
 }
 
 function buildClusters(
@@ -224,8 +230,8 @@ function formatDiffRow(line: DiffLine, s: DiffStyles): string {
 /**
  * Render a diff with surrounding context, eliding unchanged middle
  * regions between change clusters with a `… N unchanged lines …`
- * separator. When `maxLines` is set, the body is capped at a cluster
- * boundary and a `ctrl+o to expand` footer is appended.
+ * separator. When `maxLines` is set, the renderer projection selects
+ * the body window and a `ctrl+o to expand` footer is appended.
  *
  * Used by Edit's call preview where we want to show *what changed*
  * with enough context to read the change, but not the whole file.
@@ -254,46 +260,33 @@ export function renderDiffLinesClustered(
 
   if (clusters.length === 0) return output;
 
-  const cap = maxLines !== undefined && maxLines >= 0 ? maxLines : Number.POSITIVE_INFINITY;
-  let body = 0;
+  const bodyRows: DiffBodyRow[] = [];
   let prevEnd = -1;
-  let truncated = false;
-  let shownChanges = 0;
 
-  outer: for (const cluster of clusters) {
-    if (body >= cap) {
-      truncated = true;
-      break;
-    }
+  for (const cluster of clusters) {
     if (prevEnd >= 0) {
       const gap = cluster.start - prevEnd - 1;
       if (gap > 0) {
-        if (body + 1 > cap) {
-          truncated = true;
-          break;
-        }
-        output.push(s.meta(`     … ${String(gap)} unchanged line${gap > 1 ? 's' : ''} …`));
-        body++;
+        bodyRows.push({
+          text: s.meta(`     … ${String(gap)} unchanged line${gap > 1 ? 's' : ''} …`),
+        });
       }
     }
-    // Emit cluster rows one at a time; allow mid-cluster truncation so
-    // a single huge cluster (e.g. the whole file replaced inline) still
-    // shows the leading lines instead of degenerating to "N changes
-    // hidden" with no body at all.
     for (let i = cluster.start; i <= cluster.end; i++) {
-      if (body >= cap) {
-        truncated = true;
-        break outer;
-      }
       const line = diffLines[i]!;
-      output.push(formatDiffRow(line, s));
-      body++;
-      if (line.kind !== 'context') shownChanges++;
-      prevEnd = i;
+      bodyRows.push({ text: formatDiffRow(line, s), line });
     }
+    prevEnd = cluster.end;
   }
 
-  if (truncated) {
+  const preview = projectRendererLineWindow({
+    lines: bodyRows,
+    maxLines: maxLines !== undefined && maxLines >= 0 ? maxLines : undefined,
+  });
+  output.push(...preview.lines.map((row) => row.text));
+
+  if (preview.hiddenLineCount > 0) {
+    const shownChanges = preview.lines.filter((row) => row.line?.kind !== 'context').length;
     const hidden = changedCount - shownChanges;
     if (hidden > 0) {
       const hint = opts.expandKeyHint ?? 'ctrl+o';

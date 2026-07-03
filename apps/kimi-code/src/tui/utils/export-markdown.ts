@@ -1,8 +1,20 @@
-import type { ContentPart, ContextMessage, PromptOrigin, ToolCall } from '@moonshot-ai/kimi-code-sdk';
+import type {
+  ContentPart,
+  ContextMessage,
+  PromptOrigin,
+  SessionTrace,
+  SessionTraceEvent,
+  ToolCall,
+} from '@moonshot-ai/kimi-code-sdk';
 
 const HINT_KEYS = ['path', 'file_path', 'command', 'query', 'url', 'name', 'pattern'] as const;
 
 const MAX_HINT_WIDTH = 60;
+const SECRET_KEY_RE = /(api[_-]?key|authorization|bearer|credential|password|secret|token)/i;
+const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
+  /\bsk-[A-Za-z0-9_-]{12,}\b/g,
+  /\bBearer\s+[A-Za-z0-9._-]{12,}\b/gi,
+];
 
 export function extractToolCallHint(argsJson: string): string {
   let parsed: unknown;
@@ -39,10 +51,10 @@ function shorten(text: string, width: number): string {
 export function formatContentPartMd(part: ContentPart): string {
   switch (part.type) {
     case 'text':
-      return part.text;
+      return redactExportText(part.text);
     case 'think':
       if (!part.think.trim()) return '';
-      return `<details><summary>Thinking</summary>\n\n${part.think}\n\n</details>`;
+      return `<details><summary>Thinking</summary>\n\n${redactExportText(part.think)}\n\n</details>`;
     case 'image_url':
       return '[image]';
     case 'audio_url':
@@ -64,9 +76,9 @@ export function formatToolCallMd(tc: ToolCall): string {
 
   let argsFormatted: string;
   try {
-    argsFormatted = JSON.stringify(JSON.parse(argsRaw), null, 2);
+    argsFormatted = JSON.stringify(redactJsonValue(JSON.parse(argsRaw)), null, 2);
   } catch {
-    argsFormatted = argsRaw;
+    argsFormatted = redactExportText(argsRaw);
   }
 
   return `${title}\n<!-- call_id: ${tc.id} -->\n\`\`\`json\n${argsFormatted}\n\`\`\``;
@@ -129,7 +141,11 @@ export function groupIntoTurns(history: readonly ContextMessage[]): ContextMessa
 }
 
 function formatTurnMd(messages: readonly ContextMessage[], turnNumber: number): string {
-  const lines: string[] = [`## Turn ${String(turnNumber)}`, ''];
+  const hasUserMessage = messages.some((msg) => msg.role === 'user' && !isInternalMessage(msg));
+  const title = hasUserMessage
+    ? `## Turn ${String(turnNumber)}`
+    : `## Assistant Continuation ${String(turnNumber)}`;
+  const lines: string[] = [title, ''];
 
   const toolCallInfo = new Map<string, { name: string; hint: string }>();
   let assistantHeaderWritten = false;
@@ -184,6 +200,7 @@ function formatTurnMd(messages: readonly ContextMessage[], turnNumber: number): 
 function buildOverview(
   history: readonly ContextMessage[],
   turns: readonly ContextMessage[][],
+  trace: SessionTrace | undefined,
 ): string {
   let topic = '';
   for (const msg of history) {
@@ -191,7 +208,7 @@ function buildOverview(
       const textParts = msg.content
         .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
         .map((p) => p.text);
-      topic = shorten(textParts.join(' '), 80);
+      topic = shorten(redactExportText(textParts.join(' ')), 80);
       break;
     }
   }
@@ -200,12 +217,21 @@ function buildOverview(
     (sum, msg) => sum + msg.toolCalls.length,
     0,
   );
+  const realTurnCount = turns.filter((turn) =>
+    turn.some((msg) => msg.role === 'user' && !isInternalMessage(msg)),
+  ).length;
+  const continuationCount = turns.length - realTurnCount;
+  const traceLine =
+    trace === undefined
+      ? '- **Trace**: context-only export fallback'
+      : `- **Trace**: ${trace.completeness.source} | ${String(trace.completeness.traceEventCount)} events | ${String(trace.completeness.subagentLifecycleCount)} subagent lifecycle | ${String(trace.completeness.ultraworkEventCount)} ultrawork`;
 
   return [
     '## Overview',
     '',
     topic ? `- **Topic**: ${topic}` : '- **Topic**: (empty)',
-    `- **Conversation**: ${String(turns.length)} turns | ${String(toolCallCount)} tool calls`,
+    `- **Conversation**: ${String(realTurnCount)} user turns | ${String(continuationCount)} assistant continuations | ${String(toolCallCount)} tool calls`,
+    traceLine,
     '',
     '---',
   ].join('\n');
@@ -217,10 +243,11 @@ export interface BuildExportMarkdownInput {
   readonly history: readonly ContextMessage[];
   readonly tokenCount: number;
   readonly now: Date;
+  readonly trace?: SessionTrace | undefined;
 }
 
 export function buildExportMarkdown(input: BuildExportMarkdownInput): string {
-  const { sessionId, workDir, history, tokenCount, now } = input;
+  const { sessionId, workDir, history, tokenCount, now, trace } = input;
 
   const lines: string[] = [
     '---',
@@ -236,7 +263,11 @@ export function buildExportMarkdown(input: BuildExportMarkdownInput): string {
   ];
 
   const turns = groupIntoTurns(history);
-  lines.push(buildOverview(history, turns));
+  lines.push(buildOverview(history, turns, trace));
+  lines.push('');
+  if (trace !== undefined) {
+    lines.push(formatTraceMd(trace));
+  }
   lines.push('');
 
   for (let i = 0; i < turns.length; i++) {
@@ -244,4 +275,112 @@ export function buildExportMarkdown(input: BuildExportMarkdownInput): string {
   }
 
   return lines.join('\n');
+}
+
+function formatTraceMd(trace: SessionTrace): string {
+  const lines: string[] = [
+    '## Session Trace',
+    '',
+    '### Trace Completeness',
+    '',
+    `- **Source**: ${trace.completeness.source}`,
+    `- **Records**: ${String(trace.completeness.recordCount)} records -> ${String(trace.completeness.traceEventCount)} trace events`,
+    `- **Messages**: ${String(trace.completeness.messageCount)} total | ${String(trace.completeness.filteredInternalMessageCount)} internal filtered from conversation view`,
+    `- **Tools**: ${String(trace.completeness.toolCallCount)} calls | ${String(trace.completeness.toolResultCount)} results`,
+    `- **Subagents**: ${String(trace.completeness.subagentLifecycleCount)} lifecycle events`,
+    `- **Ultrawork**: ${String(trace.completeness.ultraworkEventCount)} events`,
+    `- **Redactions**: ${String(trace.completeness.redactedCount)}`,
+  ];
+
+  if (trace.completeness.warnings.length > 0) {
+    lines.push(`- **Warnings**: ${trace.completeness.warnings.map(redactExportText).join('; ')}`);
+  }
+
+  const ultraworkEvents = trace.events.filter((event) => event.type.startsWith('ultrawork.'));
+  const subagentEvents = trace.events.filter((event) => event.type.startsWith('subagent.'));
+  lines.push('', '### Run Timeline', '');
+  if (trace.events.length === 0) {
+    lines.push('- (no trace events)');
+  } else {
+    for (const event of trace.events) {
+      lines.push(formatTraceEventMd(event));
+    }
+  }
+
+  lines.push('', '### Ultrawork Events', '');
+  if (ultraworkEvents.length === 0) {
+    lines.push('- (none recorded)');
+  } else {
+    for (const event of ultraworkEvents) {
+      lines.push(formatTraceEventOneLine(event));
+    }
+  }
+
+  lines.push('', '### Subagent Lifecycle', '');
+  if (subagentEvents.length === 0) {
+    lines.push('- (none recorded)');
+  } else {
+    for (const event of subagentEvents) {
+      lines.push(formatTraceEventOneLine(event));
+    }
+  }
+
+  lines.push('', '### Verification Artifacts', '');
+  if (trace.verificationArtifacts.length === 0) {
+    lines.push('- (none recorded)');
+  } else {
+    for (const artifact of trace.verificationArtifacts) {
+      const status = artifact.status === undefined ? 'unknown' : artifact.status;
+      const suffix = artifact.path === undefined ? '' : ` (${artifact.path})`;
+      lines.push(`- ${artifact.id}: ${artifact.title} [${status}]${suffix}`);
+    }
+  }
+
+  lines.push('', '---');
+  return lines.join('\n');
+}
+
+function formatTraceEventMd(event: SessionTraceEvent): string {
+  const oneLine = formatTraceEventOneLine(event);
+  if (event.data === undefined) return oneLine;
+  return [
+    oneLine,
+    '<details><summary>event data</summary>',
+    '',
+    '```json',
+    redactExportText(JSON.stringify(event.data, null, 2)),
+    '```',
+    '',
+    '</details>',
+  ].join('\n');
+}
+
+function formatTraceEventOneLine(event: SessionTraceEvent): string {
+  const time = event.time === undefined ? 'no-time' : new Date(event.time).toISOString();
+  const summary = event.summary === undefined ? '' : ` — ${redactExportText(event.summary)}`;
+  return `- ${time} | ${event.type} | ${event.title}${summary}`;
+}
+
+function redactJsonValue(value: unknown, key?: string): unknown {
+  if (key !== undefined && SECRET_KEY_RE.test(key) && value !== undefined && value !== null) {
+    return '[redacted]';
+  }
+  if (typeof value === 'string') return redactExportText(value);
+  if (Array.isArray(value)) return value.map((item) => redactJsonValue(item));
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [entryKey, entryValue] of Object.entries(value)) {
+      out[entryKey] = redactJsonValue(entryValue, entryKey);
+    }
+    return out;
+  }
+  return value;
+}
+
+function redactExportText(text: string): string {
+  let out = text;
+  for (const pattern of SECRET_VALUE_PATTERNS) {
+    out = out.replace(pattern, '[redacted]');
+  }
+  return out;
 }

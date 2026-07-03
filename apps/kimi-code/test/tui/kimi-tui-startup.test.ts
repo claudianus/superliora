@@ -12,6 +12,7 @@ import { handleLoginCommand, handleLogoutCommand } from '#/tui/commands/auth';
 import { promptPlatformSelection, promptLogoutProviderSelection } from '#/tui/commands/prompts';
 import { BannerComponent } from '#/tui/components/chrome/banner';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
+import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import { KimiTUI, type KimiTUIStartupInput, type TUIState } from '#/tui/kimi-tui';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 import { quoteShellArg } from '#/utils/shell-quote';
@@ -1585,6 +1586,29 @@ describe('KimiTUI startup', () => {
     await driver.initMainTui();
 
     expect(uiContainsFooter(driver)).toBe(true);
+  });
+
+  it('attaches the visible native renderer when the native renderer flag is enabled', async () => {
+    const session = makeSession({ id: 'ses-target' });
+    const harness = makeHarness(session, {
+      getExperimentalFeatures: vi.fn(async () => [{ id: 'native_renderer', enabled: true }]),
+      listSessions: vi.fn(async () => [{ id: 'ses-target', workDir: '/tmp/proj-a' }]),
+    });
+    const driver = makeDriver(
+      harness,
+      makeStartupInput({ session: 'ses-target' }),
+    ) as unknown as MigrateExitDriver;
+
+    await driver.initMainTui();
+
+    expect(driver.state.renderer.backend).toBe('native');
+    expect(driver.state.renderer.nativeRuntime).toBeDefined();
+    expect(driver.state.editor).toBeInstanceOf(NativeTUIEditor);
+    expect(driver.state.editorContainer.children).toContain(driver.state.editor);
+    expect(driver.state.editor.onSubmit).toBeTypeOf('function');
+    expect(driver.state.editor.onCtrlC).toBeTypeOf('function');
+    driver.state.editor.handleInput('x');
+    expect(driver.state.editor.getText()).toBe('x');
   });
 
   it('renders the banner below the welcome message after it loads', async () => {

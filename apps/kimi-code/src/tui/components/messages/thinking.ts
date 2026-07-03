@@ -5,7 +5,14 @@
  * Supports expand/collapse via Ctrl+O (shared with tool output).
  */
 
-import { Text, truncateToWidth, type Component, type TUI } from '@earendil-works/pi-tui';
+import {
+  RendererWidthRenderCache,
+  Text,
+  projectRendererLineWindow,
+  truncateToWidth,
+  type Component,
+  type RendererRootUI,
+} from '#/tui/renderer';
 
 import {
   BRAILLE_SPINNER_FRAMES,
@@ -25,24 +32,24 @@ export class ThinkingComponent implements Component {
   private showMarker: boolean;
   private mode: ThinkingRenderMode;
   private expanded = false;
-  private readonly ui: TUI | undefined;
+  private readonly ui: RendererRootUI | undefined;
   private spinnerFrame = 0;
   private spinnerInterval: ReturnType<typeof setInterval> | undefined;
   private readonly startedAt: number | undefined;
   private finishedAt: number | undefined;
-  // Hold a single Text instance so pi-tui's (text, width) → lines cache
+  // Hold a single Text instance so the renderer's (text, width) -> lines cache
   // actually survives across renders. Re-constructing per render destroys
   // the cache and forces full re-wrap on every frame, which dominates CPU
   // once the transcript accumulates many finalized thinking blocks.
   private readonly textComponent: Text;
 
-  private renderCache: { width: number; lines: string[] } | undefined;
+  private readonly renderCache = new RendererWidthRenderCache();
 
   constructor(
     text: string,
     showMarker: boolean = true,
     mode: ThinkingRenderMode = 'finalized',
-    ui?: TUI,
+    ui?: RendererRootUI,
   ) {
     this.text = text;
     this.showMarker = showMarker;
@@ -56,7 +63,7 @@ export class ThinkingComponent implements Component {
   }
 
   private markRenderDirty(): void {
-    this.renderCache = undefined;
+    this.renderCache.clear();
   }
 
   invalidate(): void {
@@ -95,62 +102,56 @@ export class ThinkingComponent implements Component {
   }
 
   render(width: number): string[] {
-    if (
-      isRenderCacheEnabled() &&
-      this.renderCache !== undefined &&
-      this.renderCache.width === width
-    ) {
-      return this.renderCache.lines;
-    }
+    return this.renderCache.render({
+      width,
+      isCacheEnabled: isRenderCacheEnabled,
+      render: () => {
+        const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);
+        const contentLines = this.text.length > 0 ? this.textComponent.render(contentWidth) : [''];
 
-    const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);
-    const contentLines = this.text.length > 0 ? this.textComponent.render(contentWidth) : [''];
+        if (this.mode === 'live') {
+          const visibleLines = this.expanded
+            ? projectRendererLineWindow({
+              lines: contentLines,
+              maxLines: THINKING_PREVIEW_LINES,
+              tail: true,
+            }).lines
+            : [];
+          const spinner = currentTheme.fg(
+            'textDim',
+            `${BRAILLE_SPINNER_FRAMES[this.spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
+          );
+          const elapsed = this.renderElapsedSuffix();
+          return [
+            '',
+            spinner + currentTheme.fg('textDim', `thinking...${elapsed}`),
+            ...visibleLines.map((line) => MESSAGE_INDENT + line),
+          ];
+        }
 
-    let rendered: string[];
-    if (this.mode === 'live') {
-      const visibleLines = this.expanded
-        ? contentLines.length > THINKING_PREVIEW_LINES
-          ? contentLines.slice(contentLines.length - THINKING_PREVIEW_LINES)
-          : contentLines
-        : [];
-      const spinner = currentTheme.fg(
-        'textDim',
-        `${BRAILLE_SPINNER_FRAMES[this.spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
-      );
-      const elapsed = this.renderElapsedSuffix();
-      rendered = [
-        '',
-        spinner + currentTheme.fg('textDim', `thinking...${elapsed}`),
-        ...visibleLines.map((line) => MESSAGE_INDENT + line),
-      ];
-    } else {
-      const lines: string[] = [''];
-      for (let i = 0; i < contentLines.length; i++) {
-        const p = i === 0 && this.showMarker ? currentTheme.fg('textDim', STATUS_BULLET) : MESSAGE_INDENT;
-        lines.push(p + contentLines[i]);
-      }
+        const lines: string[] = [''];
+        for (let i = 0; i < contentLines.length; i++) {
+          const p = i === 0 && this.showMarker ? currentTheme.fg('textDim', STATUS_BULLET) : MESSAGE_INDENT;
+          lines.push(p + contentLines[i]);
+        }
 
-      if (this.expanded) {
-        rendered = lines;
-      } else {
+        if (this.expanded) {
+          return lines;
+        }
+
         const marker = this.showMarker ? currentTheme.fg('textDim', STATUS_BULLET) : MESSAGE_INDENT;
         const elapsed = this.renderElapsedSuffix();
         const summary = `${marker}${currentTheme.fg('textDim', `thinking complete${elapsed}`)}`;
         const hint = `... (${String(contentLines.length)} lines hidden, ctrl+o to expand)`;
         const indentWidth = Math.min(MESSAGE_INDENT.length, Math.max(0, width));
         const hintWidth = Math.max(0, width - indentWidth);
-        rendered = [
+        return [
           '',
           summary,
           ' '.repeat(indentWidth) + currentTheme.dim(truncateToWidth(hint, hintWidth, '…')),
         ];
-      }
-    }
-
-    if (isRenderCacheEnabled()) {
-      this.renderCache = { width, lines: rendered };
-    }
-    return rendered;
+      },
+    });
   }
 
   private startSpinner(): void {

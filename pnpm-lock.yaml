@@ -75,6 +75,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: ^0.74.0
         version: 0.74.0
+      '@harness-kit/tui-renderer':
+        specifier: workspace:^
+        version: link:../../packages/tui-renderer
       '@moonshot-ai/acp-adapter':
         specifier: workspace:^
         version: link:../../packages/acp-adapter
@@ -553,6 +556,8 @@ importers:
         version: 8.18.1
 
   packages/telemetry: {}
+
+  packages/tui-renderer: {}
 
 packages:
 

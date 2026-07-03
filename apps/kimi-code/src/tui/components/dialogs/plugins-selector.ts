@@ -3,10 +3,12 @@ import {
   Input,
   Key,
   matchesKey,
+  renderRendererFrameRows,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import type { PluginInfo, PluginMcpServerInfo, PluginSummary } from '@moonshot-ai/kimi-code-sdk';
 import chalk from 'chalk';
 
@@ -106,31 +108,34 @@ export class PluginMcpSelectorComponent extends Container implements Focusable {
     const colors = currentTheme.palette;
     const serverItems = this.items.filter((item) => item.kind === 'plugin');
     const actionItems = this.items.filter((item) => item.kind === 'action');
-    const lines: string[] = [
-      chalk.hex(colors.primary)('─'.repeat(width)),
-      chalk.hex(colors.primary).bold(` MCP servers · ${info.displayName}`),
-      mutedHintLine(' ↑↓ navigate · Enter/Space enable/disable · Esc cancel', colors),
-      '',
+    const body: string[] = [
       sectionLabel(`MCP servers (${info.enabledMcpServerCount}/${info.mcpServerCount} enabled)`, colors),
     ];
 
     if (serverItems.length === 0) {
-      lines.push(chalk.hex(colors.textMuted)('  No MCP servers declared.'));
+      body.push(chalk.hex(colors.textMuted)('  No MCP servers declared.'));
     } else {
       for (let i = 0; i < serverItems.length; i++) {
-        lines.push(...this.renderItem(serverItems[i]!, i, width));
+        body.push(...this.renderItem(serverItems[i]!, i, width));
       }
     }
 
-    lines.push('');
-    lines.push(sectionLabel('Actions', colors));
+    body.push('');
+    body.push(sectionLabel('Actions', colors));
     for (let i = 0; i < actionItems.length; i++) {
-      lines.push(...this.renderItem(actionItems[i]!, serverItems.length + i, width));
+      body.push(...this.renderItem(actionItems[i]!, serverItems.length + i, width));
     }
 
-    lines.push('');
-    lines.push(chalk.hex(colors.primary)('─'.repeat(width)));
-    return lines.map((line) => truncateToWidth(line, width, ELLIPSIS));
+    return renderRendererPanelChromeRows({
+      width,
+      title: ` MCP servers · ${info.displayName}`,
+      hint: ' ↑↓ navigate · Enter/Space enable/disable · Esc cancel',
+      body,
+      dividerStyle: (text) => chalk.hex(colors.primary)(text),
+      titleStyle: (text) => chalk.hex(colors.primary).bold(text),
+      hintStyle: (text) => mutedHintLine(text, colors),
+      ellipsis: ELLIPSIS,
+    });
   }
 
   private renderItem(item: PluginsOverviewItem, index: number, width: number): string[] {
@@ -283,12 +288,16 @@ function renderUrlInputBox(
   const boxWidth = Math.max(24, width - 2);
   const innerWidth = Math.max(10, boxWidth - 4);
   const inputLine = input.render(innerWidth)[0] ?? '';
-  const rightPad = Math.max(0, innerWidth - visibleWidth(inputLine));
-  return [
-    ' ' + border('╭' + '─'.repeat(boxWidth - 2) + '╮'),
-    ' ' + border('│') + '  ' + inputLine + ' '.repeat(rightPad) + border('│'),
-    ' ' + border('╰' + '─'.repeat(boxWidth - 2) + '╯'),
-  ];
+  return renderRendererFrameRows({
+    content: [inputLine],
+    width: boxWidth,
+    height: 3,
+    borderKind: 'rounded',
+    paddingLeft: 2,
+    paddingRight: 0,
+    borderStyle: border,
+    ellipsis: ELLIPSIS,
+  }).map((line) => ` ${line}`);
 }
 
 // ===========================================================================
@@ -537,11 +546,7 @@ export class PluginsPanelComponent extends Container implements Focusable {
         : tab === 'custom'
           ? ' Tab switch · Enter install · Esc cancel'
           : ' Tab switch · ↑↓ navigate · Enter open/install · Esc cancel';
-    const lines: string[] = [
-      chalk.hex(colors.primary)('─'.repeat(width)),
-      chalk.hex(colors.primary).bold(' Plugins'),
-      mutedHintLine(hint, colors),
-      '',
+    const body = [
       renderTabStrip({
         labels: PLUGINS_PANEL_TABS.map((t) => t.label),
         activeIndex: this.activeTabIndex,
@@ -551,13 +556,22 @@ export class PluginsPanelComponent extends Container implements Focusable {
       '',
     ];
 
-    if (tab === 'installed') this.renderInstalled(lines, width);
-    else if (tab === 'official') this.renderOfficial(lines, width);
-    else if (tab === 'third-party') this.renderThirdParty(lines, width);
-    else this.renderCustom(lines, width);
+    if (tab === 'installed') this.renderInstalled(body, width);
+    else if (tab === 'official') this.renderOfficial(body, width);
+    else if (tab === 'third-party') this.renderThirdParty(body, width);
+    else this.renderCustom(body, width);
 
-    lines.push(chalk.hex(colors.primary)('─'.repeat(width)));
-    return lines.map((line) => truncateToWidth(line, width, ELLIPSIS));
+    return renderRendererPanelChromeRows({
+      width,
+      title: ' Plugins',
+      hint,
+      body,
+      footerTopGap: false,
+      dividerStyle: (text) => chalk.hex(colors.primary)(text),
+      titleStyle: (text) => chalk.hex(colors.primary).bold(text),
+      hintStyle: (text) => mutedHintLine(text, colors),
+      ellipsis: ELLIPSIS,
+    });
   }
 
   private renderInstalled(lines: string[], width: number): void {
@@ -682,15 +696,14 @@ export class PluginsPanelComponent extends Container implements Focusable {
 
   private renderInstalling(width: number): string[] {
     const colors = currentTheme.palette;
-    const lines = [
-      chalk.hex(colors.primary)('─'.repeat(width)),
-      chalk.hex(colors.primary).bold(' Plugins'),
-      '',
-      chalk.hex(colors.textMuted)(`  Installing ${this.installing} from marketplace…`),
-      '',
-      chalk.hex(colors.primary)('─'.repeat(width)),
-    ];
-    return lines.map((line) => truncateToWidth(line, width, ELLIPSIS));
+    return renderRendererPanelChromeRows({
+      width,
+      title: ' Plugins',
+      body: [chalk.hex(colors.textMuted)(`  Installing ${this.installing} from marketplace…`)],
+      dividerStyle: (text) => chalk.hex(colors.primary)(text),
+      titleStyle: (text) => chalk.hex(colors.primary).bold(text),
+      ellipsis: ELLIPSIS,
+    });
   }
 }
 

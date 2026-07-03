@@ -9,8 +9,8 @@ import {
 import { DynamicInjector } from './injector';
 
 const TODO_LIST_REMINDER_VARIANT = 'todo_list_reminder';
-const TODO_LIST_REMINDER_TURNS_SINCE_WRITE = 10;
-const TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS = 10;
+const TODO_LIST_REMINDER_TURNS_SINCE_WRITE = 4;
+const TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS = 6;
 
 interface TodoListReminderTurnCounts {
   readonly turnsSinceLastWrite: number;
@@ -106,7 +106,7 @@ function isTodoListReminder(message: ContextMessage): boolean {
 
 function renderTodoListReminder(todos: readonly TodoItem[]): string {
   let message =
-    'The TodoList tool has not been updated recently. If you are working on tasks that benefit from progress tracking, consider using TodoList to update task status. Also consider clearing or rewriting the todo list if it has become stale and no longer matches the current work. Only use it if relevant. This is a gentle reminder; ignore it if not applicable. Make sure that you NEVER mention this reminder to the user.';
+    'The TodoList tool has not been updated recently. Treat the board as live Kanban, not a stale outline: add newly discovered work, split vague cards, delete obsolete pending cards, reorder the next executable work, and mark completed cards done immediately after verification. Keep exactly one task in_progress unless real parallel work is active. If the board still matches reality, do nothing. Make sure that you NEVER mention this reminder to the user.';
 
   const items = renderTodoItems(todos);
   if (items.length > 0) {

@@ -689,6 +689,78 @@ describe('Agent context', () => {
     await ctx.expectResumeMatches();
   });
 
+  it('drops late step events after compaction clears their open step', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    const stepUuid = 'compacted-open-step';
+
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'old prompt' }]);
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: { type: 'step.begin', uuid: stepUuid, turnId: '0', step: 1 },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'content.part',
+        uuid: 'before-compaction-part',
+        turnId: '0',
+        step: 1,
+        stepUuid,
+        part: { type: 'text', text: 'partial answer before compaction' },
+      },
+    });
+
+    ctx.agent.context.applyCompaction({
+      summary: 'summary after auto compaction',
+      compactedCount: 2,
+      tokensBefore: 100,
+      tokensAfter: 20,
+    });
+
+    expect(() => {
+      ctx.dispatch({
+        type: 'context.append_loop_event',
+        event: {
+          type: 'content.part',
+          uuid: 'late-part',
+          turnId: '0',
+          step: 1,
+          stepUuid,
+          part: { type: 'text', text: 'late stale content' },
+        },
+      });
+      ctx.dispatch({
+        type: 'context.append_loop_event',
+        event: {
+          type: 'tool.call',
+          uuid: 'late-tool',
+          turnId: '0',
+          step: 1,
+          stepUuid,
+          toolCallId: 'call_late',
+          name: 'Lookup',
+          args: {},
+        },
+      });
+    }).not.toThrow();
+
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'fresh prompt' }]);
+
+    expect(ctx.agent.context.history).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        origin: { kind: 'compaction_summary' },
+        content: [{ type: 'text', text: 'summary after auto compaction' }],
+      }),
+      expect.objectContaining({
+        role: 'user',
+        content: [{ type: 'text', text: 'fresh prompt' }],
+      }),
+    ]);
+    await ctx.expectResumeMatches();
+  });
+
   it('clears context before the next LLM request', async () => {
     const ctx = testAgent();
     ctx.configure();

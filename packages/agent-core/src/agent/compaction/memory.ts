@@ -84,6 +84,34 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
   };
 }
 
+export function isPlaceholderCompactionMemoryItem(item: string): boolean {
+  const lower = item.replaceAll(/\s+/g, ' ').trim().toLowerCase();
+  return (
+    lower.length === 0 ||
+    lower === 'none' ||
+    lower === 'n/a' ||
+    lower === 'none captured during compaction.' ||
+    lower === 'not captured during compaction.' ||
+    lower === 'no captured item.'
+  );
+}
+
+export function isUsefulCompactionMemoryItem(item: string): boolean {
+  const normalized = item.replaceAll(/\s+/g, ' ').trim();
+  if (isPlaceholderCompactionMemoryItem(normalized)) return false;
+  if (/^#{1,6}\s+/.test(normalized)) return false;
+  if (/^\*\*(?:file|decision|error|state|config|dependency|api)\*\*:\s*$/i.test(normalized)) {
+    return false;
+  }
+  return true;
+}
+
+export function isPromptControlCompactionMemoryItem(item: string): boolean {
+  return /(?:ignore|disregard|override|forget|bypass).{0,40}(?:system|developer|previous|prior|above|safety|policy|instructions?)|(?:reveal|print|exfiltrate|leak).{0,40}(?:secret|token|credential|api[_ -]?key|password)|(?:treat|consider).{0,40}(?:this|the following).{0,40}(?:system|developer).{0,40}(?:message|instruction)/i.test(
+    item,
+  );
+}
+
 export function extractFactsFromSummary(summary: string): readonly ExtractedFact[] {
   const facts: ExtractedFact[] = [];
   const lines = summary.split('\n');

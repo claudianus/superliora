@@ -1,4 +1,4 @@
-import { visibleWidth, type SelectItem, type SelectListTheme } from '@earendil-works/pi-tui';
+import { visibleWidth, type SelectItem, type SelectListTheme } from '#/tui/renderer';
 import { describe, expect, it } from 'vitest';
 
 import { WrappingSelectList } from '#/tui/components/editor/wrapping-select-list';

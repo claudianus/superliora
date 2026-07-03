@@ -23,6 +23,7 @@ import { AutoModeAskUserQuestionDenyPermissionPolicy } from '../../src/agent/per
 import { FallbackAskPermissionPolicy } from '../../src/agent/permission/policies/fallback-ask';
 import { createPermissionDecisionPolicies } from '../../src/agent/permission/policies';
 import { SwarmModeAgentSwarmApprovePermissionPolicy } from '../../src/agent/permission/policies/swarm-mode-agent-swarm-approve';
+import { UltraSwarmEngageGateDenyPermissionPolicy } from '../../src/agent/permission/policies/ultra-swarm-engage-gate-deny';
 import { YoloModeApprovePermissionPolicy } from '../../src/agent/permission/policies/yolo-mode-approve';
 import { ToolAccesses } from '../../src/loop';
 import type { ToolInputDisplay } from '../../src/tools/display';
@@ -726,6 +727,7 @@ describe('Permission policy chain', () => {
     expect(createPermissionDecisionPolicies({} as Agent).map((policy) => policy.name)).toEqual([
       'pre-tool-call-hook',
       'agent-swarm-exclusive-deny',
+      'ultra-swarm-engage-gate-deny',
       'auto-mode-ask-user-question-deny',
       'plan-mode-guard-deny',
       'user-configured-deny',
@@ -855,6 +857,26 @@ describe('Simple permission policy direct behavior', () => {
     ).toEqual({ kind: 'approve' });
     expect(
       policy.evaluate(hookContext({ id: 'call_agent_active', toolName: 'Agent' })),
+    ).toBeUndefined();
+  });
+
+  it('denies non-UltraSwarm tools while an ENGAGE gate is active', () => {
+    const agent = {
+      ultraSwarmEngageGate: { isActive: true },
+    } as unknown as Agent;
+    const policy = new UltraSwarmEngageGateDenyPermissionPolicy(agent);
+
+    expect(
+      policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' })),
+    ).toMatchObject({
+      kind: 'deny',
+      message: expect.stringContaining('UltraSwarm ENGAGE is binding'),
+    });
+    expect(
+      policy.evaluate(hookContext({ id: 'call_ultra', toolName: 'UltraSwarm' })),
+    ).toBeUndefined();
+    expect(
+      policy.evaluate(hookContext({ id: 'call_plan', toolName: 'EnterPlanMode' })),
     ).toBeUndefined();
   });
 

@@ -33,6 +33,7 @@ import type {
   ResumedSessionSummary,
   SessionPlan,
   SessionStatus,
+  SessionTrace,
   SessionSummary,
   SessionUsage,
   SkillSearchResult,
@@ -283,6 +284,11 @@ export class Session {
   async getContext(): Promise<AgentContextData> {
     this.ensureOpen();
     return this.rpc.getContext({ sessionId: this.id });
+  }
+
+  async getSessionTrace(): Promise<SessionTrace> {
+    this.ensureOpen();
+    return this.rpc.getSessionTrace({ sessionId: this.id });
   }
 
   async getUsage(): Promise<SessionUsage> {

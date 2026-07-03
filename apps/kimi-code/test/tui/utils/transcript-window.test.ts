@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { measureRendererRegions, Text } from '#/tui/renderer';
+import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import type { TranscriptEntry } from '#/tui/types';
+import {
+  createTranscriptViewportState,
+  scrollTranscriptViewport,
+  syncTranscriptViewport,
+  transcriptViewportStart,
+} from '#/tui/utils/transcript-viewport';
 import { groupTurns, readEnvInt, turnsToTrim } from '#/tui/utils/transcript-window';
 
 let seq = 0;
@@ -15,6 +23,10 @@ function tool(turnId: string): TranscriptEntry {
 }
 function msg(turnId: string | undefined): TranscriptEntry {
   return makeEntry(turnId, 'assistant');
+}
+
+function stripAnsi(value: string): string {
+  return value.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
 describe('groupTurns', () => {
@@ -112,5 +124,187 @@ describe('readEnvInt', () => {
   it('falls back on empty/whitespace', () => {
     process.env[KEY] = '  ';
     expect(readEnvInt(KEY, 7)).toBe(7);
+  });
+});
+
+describe('transcript viewport', () => {
+  it('follows output by default', () => {
+    const viewport = createTranscriptViewportState();
+    syncTranscriptViewport(viewport, 100, 20);
+
+    expect(viewport.followOutput).toBe(true);
+    expect(viewport.offsetFromBottom).toBe(0);
+    expect(transcriptViewportStart(viewport)).toBe(80);
+  });
+
+  it('keeps the same rows visible when output grows while scrolled up', () => {
+    const viewport = createTranscriptViewportState();
+    syncTranscriptViewport(viewport, 100, 20);
+
+    expect(scrollTranscriptViewport(viewport, 'page-up')).toBe(true);
+    expect(viewport.followOutput).toBe(false);
+    expect(viewport.offsetFromBottom).toBe(19);
+    expect(transcriptViewportStart(viewport)).toBe(61);
+
+    syncTranscriptViewport(viewport, 110, 20);
+
+    expect(viewport.followOutput).toBe(false);
+    expect(viewport.offsetFromBottom).toBe(29);
+    expect(transcriptViewportStart(viewport)).toBe(61);
+  });
+
+  it('keeps manual scrollback mode when output starts shorter than the viewport', () => {
+    const viewport = createTranscriptViewportState();
+    syncTranscriptViewport(viewport, 3, 5);
+
+    expect(viewport.followOutput).toBe(true);
+    expect(scrollTranscriptViewport(viewport, 'line-up')).toBe(true);
+    expect(viewport.followOutput).toBe(false);
+    expect(viewport.offsetFromBottom).toBe(0);
+    expect(transcriptViewportStart(viewport)).toBe(0);
+
+    syncTranscriptViewport(viewport, 10, 5);
+
+    expect(viewport.followOutput).toBe(false);
+    expect(viewport.offsetFromBottom).toBe(5);
+    expect(transcriptViewportStart(viewport)).toBe(0);
+  });
+
+  it('supports line-sized scroll steps for wheel input', () => {
+    const viewport = createTranscriptViewportState();
+    syncTranscriptViewport(viewport, 100, 20);
+
+    expect(scrollTranscriptViewport(viewport, 'line-up')).toBe(true);
+    expect(viewport.followOutput).toBe(false);
+    expect(viewport.offsetFromBottom).toBe(3);
+    expect(transcriptViewportStart(viewport)).toBe(77);
+
+    expect(scrollTranscriptViewport(viewport, 'line-down')).toBe(true);
+    expect(viewport.followOutput).toBe(true);
+    expect(viewport.offsetFromBottom).toBe(0);
+  });
+
+  it('keeps the same top row visible when region height changes while scrolled up', () => {
+    const viewport = createTranscriptViewportState();
+    syncTranscriptViewport(viewport, 100, 20);
+    scrollTranscriptViewport(viewport, 'page-up');
+
+    syncTranscriptViewport(viewport, 100, 10);
+
+    expect(viewport.followOutput).toBe(false);
+    expect(viewport.offsetFromBottom).toBe(29);
+    expect(transcriptViewportStart(viewport)).toBe(61);
+
+    syncTranscriptViewport(viewport, 100, 30);
+
+    expect(viewport.followOutput).toBe(false);
+    expect(viewport.offsetFromBottom).toBe(9);
+    expect(transcriptViewportStart(viewport)).toBe(61);
+  });
+
+  it('returns to follow mode at the bottom', () => {
+    const viewport = createTranscriptViewportState();
+    syncTranscriptViewport(viewport, 100, 20);
+    scrollTranscriptViewport(viewport, 'top');
+
+    expect(viewport.followOutput).toBe(false);
+    expect(scrollTranscriptViewport(viewport, 'bottom')).toBe(true);
+    expect(viewport.followOutput).toBe(true);
+    expect(viewport.offsetFromBottom).toBe(0);
+  });
+});
+
+describe('renderer region layout', () => {
+  it('assigns transcript to the terminal rows left after fixed regions', () => {
+    const layout = measureRendererRegions({
+      terminalRows: 30,
+      heights: {
+        activity: 2,
+        todo: 3,
+        queue: 1,
+        editor: 4,
+        footer: 2,
+      },
+    });
+
+    expect(layout.reservedRows).toBe(12);
+    expect(layout.transcriptRows).toBe(18);
+    expect(layout.regions.map((region) => [region.id, region.rows])).toEqual([
+      ['transcript', 18],
+      ['activity', 2],
+      ['todo', 3],
+      ['queue', 1],
+      ['editor', 4],
+      ['footer', 2],
+    ]);
+    expect(layout.regions.map((region) => [region.id, region.y])).toEqual([
+      ['transcript', 0],
+      ['activity', 18],
+      ['todo', 20],
+      ['queue', 23],
+      ['editor', 24],
+      ['footer', 28],
+    ]);
+  });
+
+  it('keeps a minimum transcript region when fixed regions fill the terminal', () => {
+    const layout = measureRendererRegions({
+      terminalRows: 10,
+      heights: { editor: 8, footer: 3 },
+      minTranscriptRows: 2,
+    });
+
+    expect(layout.reservedRows).toBe(11);
+    expect(layout.transcriptRows).toBe(2);
+  });
+
+  it('treats unknown terminal height as unbounded transcript height', () => {
+    const layout = measureRendererRegions({
+      terminalRows: 0,
+      heights: { editor: 3, footer: 2 },
+    });
+
+    expect(layout.transcriptRows).toBe(Number.POSITIVE_INFINITY);
+    expect(layout.reservedRows).toBe(0);
+  });
+});
+
+describe('TranscriptViewportComponent', () => {
+  it('renders the bottom of the transcript within the measured visible rows', () => {
+    const viewport = createTranscriptViewportState();
+    const component = new TranscriptViewportComponent(0, 0, viewport, () => 3);
+    component.addChild(new Text(['one', 'two', 'three', 'four', 'five'].join('\n'), 0, 0));
+
+    expect(component.render(80).map((line) => line.trimEnd())).toEqual([
+      'three',
+      'four',
+      'five',
+    ]);
+  });
+
+  it('renders a right-gutter scrollbar when transcript content overflows', () => {
+    const viewport = createTranscriptViewportState();
+    const component = new TranscriptViewportComponent(0, 1, viewport, () => 3);
+    component.addChild(new Text(['one', 'two', 'three', 'four', 'five'].join('\n'), 0, 0));
+
+    expect(component.render(8).map(stripAnsi)).toEqual([
+      'three  │',
+      'four   █',
+      'five   █',
+    ]);
+  });
+
+  it('passes render width to the visible row callback', () => {
+    const viewport = createTranscriptViewportState();
+    let measuredWidth = 0;
+    const component = new TranscriptViewportComponent(0, 0, viewport, (width) => {
+      measuredWidth = width;
+      return 1;
+    });
+    component.addChild(new Text('one\ntwo', 0, 0));
+
+    component.render(42);
+
+    expect(measuredWidth).toBe(42);
   });
 });

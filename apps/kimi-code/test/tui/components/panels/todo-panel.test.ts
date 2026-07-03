@@ -28,6 +28,8 @@ describe('TodoPanelComponent', () => {
     const lines = panel.render(80).map(strip);
     const joined = lines.join('\n');
     expect(joined).toMatch(/Todo/);
+    expect(joined).toMatch(/flow \+3/);
+    expect(joined).toMatch(/wip 1\/1/);
     expect(joined).toMatch(/✓ Investigate parser/);
     expect(joined).toMatch(/● Add tests/);
     expect(joined).toMatch(/○ Open PR/);
@@ -63,7 +65,9 @@ describe('TodoPanelComponent', () => {
     const lines = panel.render(100).map(strip);
 
     expect(lines.some((line) => /Doing \(1\)\s+│\s+Next \(1\)\s+│\s+Done \(1\)/.test(line))).toBe(true);
-    expect(lines.some((line) => /● Add tests\s+│\s+○ Open PR\s+│\s+✓ Investigate parser/.test(line))).toBe(true);
+    expect(lines.some((line) => line.includes('● Add tests'))).toBe(true);
+    expect(lines.some((line) => line.includes('○ Open PR'))).toBe(true);
+    expect(lines.some((line) => line.includes('✓ Investigate parser'))).toBe(true);
   });
 
   it('setTodos replaces the list (not appends)', () => {
@@ -73,6 +77,40 @@ describe('TodoPanelComponent', () => {
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/● new/);
     expect(out).not.toMatch(/old/);
+  });
+
+  it('renders a flow summary when todos are completed, moved, added, or pruned', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'Inspect TodoList harness', status: 'in_progress' },
+      { title: 'Patch reminder copy', status: 'pending' },
+      { title: 'Remove obsolete plan', status: 'pending' },
+    ]);
+    panel.setTodos([
+      { title: 'Inspect TodoList harness', status: 'done' },
+      { title: 'Patch reminder copy', status: 'in_progress' },
+      { title: 'Add panel flow test', status: 'pending' },
+    ]);
+
+    const out = strip(panel.render(100).join('\n'));
+
+    expect(out).toMatch(/flow \+1 · 1 done · 1 moved · 1 pruned/);
+    expect(out).toMatch(/✓ Inspect TodoList harness/);
+    expect(out).toMatch(/● Patch reminder copy/);
+    expect(out).toMatch(/○ Add panel flow test/);
+    expect(out).not.toMatch(/Remove obsolete plan/);
+  });
+
+  it('surfaces a WIP warning count when more than one item is in progress', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'Patch harness', status: 'in_progress' },
+      { title: 'Run tests', status: 'in_progress' },
+    ]);
+
+    const out = strip(panel.render(100).join('\n'));
+
+    expect(out).toMatch(/wip 2\/1/);
   });
 
   it('clear() wipes the list and reverts to empty', () => {

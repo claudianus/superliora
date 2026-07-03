@@ -1,4 +1,4 @@
-import { Text } from '@earendil-works/pi-tui';
+import { Text } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';

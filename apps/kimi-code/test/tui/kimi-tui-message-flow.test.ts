@@ -3,11 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import {
-  deleteAllKittyImages,
-  resetCapabilitiesCache,
-  setCapabilities,
-} from '@earendil-works/pi-tui';
+import { encodeKittyDeleteImages } from '#/tui/renderer';
 import type { ApprovalRequest, ApprovalResponse, Event } from '@moonshot-ai/kimi-code-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -356,6 +352,14 @@ const originalKimiCodeHome = process.env['KIMI_CODE_HOME'];
 const originalPluginMarketplaceUrl = process.env['KIMI_CODE_PLUGIN_MARKETPLACE_URL'];
 const originalVisual = process.env['VISUAL'];
 const originalEditor = process.env['EDITOR'];
+const originalTerm = process.env['TERM'];
+const originalTermProgram = process.env['TERM_PROGRAM'];
+const originalKittyWindowId = process.env['KITTY_WINDOW_ID'];
+const originalWeztermPane = process.env['WEZTERM_PANE'];
+const originalGhosttyResourcesDir = process.env['GHOSTTY_RESOURCES_DIR'];
+const originalTmux = process.env['TMUX'];
+const originalZellij = process.env['ZELLIJ'];
+const originalCi = process.env['CI'];
 
 async function makeTempHome(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'kimi-code-tui-'));
@@ -372,7 +376,6 @@ async function makeExportedSessionZip(content = 'session zip'): Promise<string> 
 }
 
 afterEach(async () => {
-  resetCapabilitiesCache();
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true });
   }
@@ -396,7 +399,23 @@ afterEach(async () => {
   } else {
     process.env['EDITOR'] = originalEditor;
   }
+  restoreEnv('TERM', originalTerm);
+  restoreEnv('TERM_PROGRAM', originalTermProgram);
+  restoreEnv('KITTY_WINDOW_ID', originalKittyWindowId);
+  restoreEnv('WEZTERM_PANE', originalWeztermPane);
+  restoreEnv('GHOSTTY_RESOURCES_DIR', originalGhosttyResourcesDir);
+  restoreEnv('TMUX', originalTmux);
+  restoreEnv('ZELLIJ', originalZellij);
+  restoreEnv('CI', originalCi);
 });
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}
 
 describe('KimiTUI message flow', () => {
   it('tracks editor shortcut and paste hooks', async () => {
@@ -3498,6 +3517,47 @@ command = "vim"
 
     driver.sessionEventHandler.handleEvent(
       {
+        type: 'ultrawork.team.staffed',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        runId: 'uw_1',
+        toolCallId: 'call_ultra_swarm',
+        team: {
+          id: 'team_1',
+          runId: 'uw_1',
+          intensity: 'premium',
+          maxExperts: 24,
+          experts: [
+            {
+              id: 'gameplay-engineer',
+              name: 'Gameplay Engineer',
+              role: 'gameplay',
+              focus: 'implement',
+              status: 'queued',
+              division: 'game',
+              coverageLane: 'architecture_implementation',
+            },
+            {
+              id: 'visual-qa',
+              name: 'Visual QA',
+              role: 'qa',
+              focus: 'review',
+              status: 'queued',
+              division: 'testing',
+              coverageLane: 'testing_evidence',
+            },
+          ],
+        },
+      } as Event,
+      sendQueued,
+    );
+
+    transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Gameplay Engineer architecture_implementation/implem');
+    expect(transcript).toContain('Visual QA testing_evidence/review');
+
+    driver.sessionEventHandler.handleEvent(
+      {
         type: 'subagent.spawned',
         agentId: 'main',
         sessionId: 'ses-1',
@@ -3522,7 +3582,7 @@ command = "vim"
 
     transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain('Working...');
-    expect(transcript).toContain('gameplay-engineer');
+    expect(transcript).toContain('Gameplay Engineer');
 
     driver.sessionEventHandler.handleEvent(
       {
@@ -3724,6 +3784,7 @@ command = "vim"
     const previousStatusCalls = getStatus.mock.calls.length;
 
     driver.handleUserInput('/status');
+    setTerminalRows(driver, 80);
 
     await vi.waitFor(() => {
       expect(getStatus).toHaveBeenCalledTimes(previousStatusCalls + 1);
@@ -4724,7 +4785,12 @@ command = "vim"
   });
 
   it('deletes Kitty inline images when /new clears the transcript', async () => {
-    setCapabilities({ images: 'kitty', trueColor: true, hyperlinks: true });
+    process.env['TERM'] = 'xterm-kitty';
+    process.env['KITTY_WINDOW_ID'] = '1';
+    process.env['TERM_PROGRAM'] = '';
+    delete process.env['TMUX'];
+    delete process.env['ZELLIJ'];
+    delete process.env['CI'];
     const { driver, harness } = await makeDriver(makeSession({ id: 'ses-1' }));
     const nextSession = makeSession({ id: 'ses-2' });
     harness.createSession.mockResolvedValueOnce(nextSession);
@@ -4736,7 +4802,7 @@ command = "vim"
       expect(harness.createSession).toHaveBeenCalledTimes(2);
       expect(driver.getCurrentSessionId()).toBe('ses-2');
     });
-    expect(write).toHaveBeenCalledWith(deleteAllKittyImages());
+    expect(write).toHaveBeenCalledWith(encodeKittyDeleteImages());
   });
 
   it('updates terminal title through pi-tui without changing process title', async () => {

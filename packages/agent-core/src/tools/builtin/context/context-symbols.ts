@@ -1,4 +1,11 @@
-import type { ContextFile, MatchEntry, RankedFile, SymbolEntry } from './context-types';
+import type {
+  ContextFile,
+  MatchEntry,
+  RankedFile,
+  RelationshipEntry,
+  SymbolEntry,
+  TestHintEntry,
+} from './context-types';
 
 const DEFAULT_MAX_FILES = 8;
 const DEFAULT_MAX_SYMBOLS = 12;
@@ -28,6 +35,8 @@ export function rankContextFiles(
         file,
         symbols,
         matches,
+        relationships: extractRelationships(file.content),
+        testHints: buildTestHints(file.displayPath),
         score: scoreFile(file, symbols, matches, query, normalizedQuery),
       };
     })
@@ -112,6 +121,92 @@ function findMatches(content: string, query: string): MatchEntry[] {
     if (matches.length >= MAX_MATCHES_PER_FILE) break;
   }
   return matches;
+}
+
+function extractRelationships(content: string): RelationshipEntry[] {
+  const relationships: RelationshipEntry[] = [];
+  const lines = content.split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    const relationship = extractRelationship(line, index + 1);
+    if (relationship !== undefined) relationships.push(relationship);
+    if (relationships.length >= 12) break;
+  }
+  return relationships;
+}
+
+function extractRelationship(line: string, lineNumber: number): RelationshipEntry | undefined {
+  const trimmed = line.trim();
+  const importMatch =
+    /^(?:import\s+(?:type\s+)?[\s\S]*?\s+from\s+|import\s*\(|(?:const|let|var)\s+[\w${}\s,]+\s*=\s*require\()["']([^"']+)["']/.exec(trimmed);
+  if (importMatch !== null) {
+    return {
+      line: lineNumber,
+      kind: 'import',
+      target: importMatch[1] ?? '(unknown)',
+      confidence: 'EXTRACTED',
+      text: truncate(trimmed, MAX_SNIPPET_LENGTH),
+    };
+  }
+  const reExportMatch = /^export\s+(?:type\s+)?(?:\*|\{[^}]+\})\s+from\s+["']([^"']+)["']/.exec(trimmed);
+  if (reExportMatch !== null) {
+    return {
+      line: lineNumber,
+      kind: 'export',
+      target: reExportMatch[1] ?? '(unknown)',
+      confidence: 'EXTRACTED',
+      text: truncate(trimmed, MAX_SNIPPET_LENGTH),
+    };
+  }
+  const exportDeclMatch =
+    /^export\s+(?:async\s+)?(?:function|class|interface|type|const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(trimmed);
+  if (exportDeclMatch !== null) {
+    return {
+      line: lineNumber,
+      kind: 'export',
+      target: exportDeclMatch[1] ?? '(unknown)',
+      confidence: 'EXTRACTED',
+      text: truncate(trimmed, MAX_SNIPPET_LENGTH),
+    };
+  }
+  const namedExportMatch = /^export\s+\{([^}]+)\}/.exec(trimmed);
+  if (namedExportMatch !== null) {
+    return {
+      line: lineNumber,
+      kind: 'export',
+      target: truncate(namedExportMatch[1]?.trim() ?? '(unknown)', 80),
+      confidence: 'EXTRACTED',
+      text: truncate(trimmed, MAX_SNIPPET_LENGTH),
+    };
+  }
+  return undefined;
+}
+
+function buildTestHints(displayPath: string): TestHintEntry[] {
+  if (/\.(?:test|spec)\.[tj]sx?$/iu.test(displayPath) || /(?:^|\/)__tests__\//u.test(displayPath)) {
+    return [{ confidence: 'EXTRACTED', path: displayPath, reason: 'current file is already a test file' }];
+  }
+  const extensionMatch = /\.(?:[cm]?[tj]sx?|vue|svelte)$/iu.exec(displayPath);
+  if (extensionMatch === null) return [];
+  const extension = extensionMatch[0];
+  const base = displayPath.slice(0, -extension.length);
+  const fileName = base.split('/').at(-1) ?? base;
+  return [
+    {
+      confidence: 'INFERRED',
+      path: `${base}.test${extension}`,
+      reason: 'same-directory focused test candidate',
+    },
+    {
+      confidence: 'INFERRED',
+      path: `test/${base.replace(/^(?:packages|apps)\/[^/]+\//u, '')}.test${extension}`,
+      reason: 'workspace test tree candidate',
+    },
+    {
+      confidence: 'INFERRED',
+      path: `test/**/${fileName}.test${extension}`,
+      reason: 'nearest existing test with matching module name',
+    },
+  ];
 }
 
 function normalizeToken(text: string): string {

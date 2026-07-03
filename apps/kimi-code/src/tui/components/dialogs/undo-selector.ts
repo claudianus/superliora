@@ -2,10 +2,11 @@ import {
   Container,
   Key,
   matchesKey,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
@@ -68,15 +69,10 @@ export class UndoSelectorComponent extends Container implements Focusable {
     const view = this.list.view();
     const hintParts = ['↑↓ navigate', 'Enter select', 'Esc cancel'];
 
-    const lines: string[] = [
-      currentTheme.fg('primary', '─'.repeat(width)),
-      currentTheme.boldFg('primary', ' Select messages to undo'),
-      currentTheme.fg('textMuted', ' ' + hintParts.join(' · ')),
-      '',
-    ];
+    const body: string[] = [];
 
     if (view.items.length === 0) {
-      lines.push(currentTheme.fg('textMuted', '   No messages'));
+      body.push(currentTheme.fg('textMuted', '   No messages'));
     } else {
       const visibleCount = Math.min(MAX_VISIBLE_CHOICES, view.items.length);
       const maxStart = view.items.length - visibleCount;
@@ -89,15 +85,21 @@ export class UndoSelectorComponent extends Container implements Focusable {
       for (let i = start; i < end; i++) {
         const choice = view.items[i];
         if (choice === undefined) continue;
-        lines.push(
+        body.push(
           this.renderChoiceLine(choice, i === view.selectedIndex, i > view.selectedIndex, width),
         );
       }
     }
 
-    lines.push('');
-    lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-    return lines.map((line) => truncateToWidth(line, width));
+    return renderRendererPanelChromeRows({
+      width,
+      title: ' Select messages to undo',
+      hint: ' ' + hintParts.join(' · '),
+      body,
+      dividerStyle: (text) => currentTheme.fg('primary', text),
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: (text) => currentTheme.fg('textMuted', text),
+    });
   }
 
   private renderChoiceLine(

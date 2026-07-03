@@ -1,4 +1,4 @@
-import { Container, Spacer } from '@earendil-works/pi-tui';
+import { Container, Spacer } from '#/tui/renderer';
 
 import type { MoonLoader } from '#/tui/components/chrome/moon-loader';
 

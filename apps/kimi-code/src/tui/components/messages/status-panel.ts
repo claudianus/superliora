@@ -15,11 +15,11 @@ import type {
 } from '@moonshot-ai/kimi-code-sdk';
 
 import { PRODUCT_NAME } from '#/constant/app';
+import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   formatTokenCount,
   ratioSeverity,
-  renderProgressBar,
   safeUsageRatio,
 } from '#/utils/usage/usage-format';
 import { formatGitBadgeBase, type GitStatus } from '#/utils/git/git-status';
@@ -165,18 +165,29 @@ function formatUltraworkFlow(options: StatusReportOptions): FieldRow {
   const planMode = options.status?.planMode ?? options.planMode;
   const blocked = verifyBlockedByReadiness(options);
   const verify = formatVerifyStatus(options.goalStatus, planMode, blocked);
-  if (verify === 'passed') return { label: 'Flow', value: `${renderProgressBar(1, 4)} 4/4 verified` };
+  if (verify === 'passed') {
+    return {
+      label: 'Flow',
+      value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 verified`,
+    };
+  }
   if (verify === 'blocked') {
     return {
       label: 'Flow',
-      value: `${renderProgressBar(0.75, 4)} 3/4 verify blocked`,
+      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify blocked`,
       severity: 'error',
     };
   }
   if (verify === 'queued') {
-    return { label: 'Flow', value: `${renderProgressBar(0.75, 4)} 3/4 verify queued` };
+    return {
+      label: 'Flow',
+      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify queued`,
+    };
   }
-  return { label: 'Flow', value: `${renderProgressBar(1, 4)} 4/4 ready to run` };
+  return {
+    label: 'Flow',
+    value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 ready to run`,
+  };
 }
 
 function formatUltraworkStatus(options: StatusReportOptions): string {
@@ -502,8 +513,13 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   lines.push(accent('Context window'));
   if (maxTokens > 0) {
     const safeRatio = safeUsageRatio(ratio);
-    const bar = renderProgressBar(safeRatio, 20);
-    const barColoured = currentTheme.fg(severityToken(ratioSeverity(safeRatio)), bar);
+    const barColor = severityToken(ratioSeverity(safeRatio));
+    const barColoured = renderRendererRatioProgressBar({
+      ratio: safeRatio,
+      width: 20,
+      filledStyle: (text) => currentTheme.fg(barColor, text),
+      emptyStyle: (text) => currentTheme.fg(barColor, text),
+    });
     lines.push(
       `  ${barColoured}  ${value(`${(safeRatio * 100).toFixed(1)}%`.padStart(6, ' '))}  ` +
         muted(`(${formatTokenCount(tokens)} / ${formatTokenCount(maxTokens)})`),

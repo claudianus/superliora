@@ -12,7 +12,7 @@ import type {
 import type { PlanData } from '#/agent/plan';
 import type { ToolInfo } from '#/agent/tool';
 import type { SessionSummary } from '#/rpc/core-api';
-import type { UsageStatus } from '#/rpc/events';
+import type { AgentEvent, UsageStatus } from '#/rpc/events';
 import type { SessionMeta } from '#/session';
 
 export type AgentReplayRecordPayload =
@@ -26,7 +26,8 @@ export type AgentReplayRecordPayload =
   | { type: 'plan_updated'; enabled: boolean }
   | { type: 'config_updated'; config: AgentConfigUpdateData }
   | { type: 'permission_updated'; mode: PermissionMode }
-  | { type: 'approval_result'; record: PermissionApprovalResultRecord };
+  | { type: 'approval_result'; record: PermissionApprovalResultRecord }
+  | { type: 'agent_event'; event: AgentEvent };
 
 export type AgentReplayRecord = { readonly time: number } & AgentReplayRecordPayload;
 

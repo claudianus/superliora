@@ -84,6 +84,10 @@ describe('Event public types', () => {
       | 'mcp_search'
     >();
     expectTypeOf<EventByType<'ultrawork.team.staffed'>['team']['maxExperts']>().toEqualTypeOf<number>();
+    expectTypeOf<EventByType<'ultrawork.team.staffed'>['toolCallId']>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      EventByType<'ultrawork.team.staffed'>['team']['experts'][number]['coverageLane']
+    >().toEqualTypeOf<string | undefined>();
     expectTypeOf<EventByType<'ultrawork.knowledge.promoted'>['promotion']['target']>().toEqualTypeOf<
       'kimi_recall' | 'llm_wiki'
     >();

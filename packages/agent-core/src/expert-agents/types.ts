@@ -46,6 +46,8 @@ export interface ExpertAssignment {
   readonly expertName: string;
   readonly prompt: string;
   readonly dependsOn?: readonly string[];
+  readonly division?: string;
+  readonly divisionLabel?: string;
   readonly emoji: string;
   readonly color: string;
   readonly coverageLane?: string;

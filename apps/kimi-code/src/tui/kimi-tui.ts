@@ -2,12 +2,12 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  deleteAllKittyImages,
+  detectNativeTerminalImageProtocol,
+  encodeRendererClearInlineImages,
   type Component,
   type Focusable,
-  getCapabilities,
   Spacer,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import type { DeviceAuthorization } from '@moonshot-ai/kimi-code-oauth';
 import type {
   ApprovalRequest,
@@ -37,19 +37,23 @@ import {
   BUILTIN_SLASH_COMMANDS,
   buildPluginSlashCommands,
   buildSkillSlashCommands,
+  formatRendererDiagnosticsStatusReport,
+  formatRendererTraceStatusReport,
   isExperimentalFlagEnabled,
   setExperimentalFeatures,
   slashCommandsForHelp,
   sortSlashCommands,
   thinkingArgumentCompletionsForModel,
   type KimiSlashCommand,
+  type RendererDiagnosticsOverlayCommand,
+  type RendererDiagnosticsRuntimeBackend,
+  type RendererTraceCommand,
   type SlashCommandHelpMode,
   type SkillListSession,
 } from './commands';
 import * as slashCommands from './commands/dispatch';
 import { BannerComponent } from './components/chrome/banner';
 import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
-import { GutterContainer } from './components/chrome/gutter-container';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
 import { WelcomeComponent } from './components/chrome/welcome';
 import { pickRandomWorkingTip } from './components/chrome/working-tips';
@@ -73,6 +77,7 @@ import {
   FileMentionProvider,
   type SlashAutocompleteCommand,
 } from './components/editor/file-mention-provider';
+import { createTUIEditor } from './components/editor/editor-factory';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from './components/messages/background-agent-status';
 import { CronMessageComponent } from './components/messages/cron-message';
@@ -101,7 +106,6 @@ import {
   NO_ACTIVE_SESSION_MESSAGE,
   PRODUCT_NAME,
 } from './constant/kimi-tui';
-import { CHROME_GUTTER } from './constant/rendering';
 import { MAX_TERMINAL_TITLE_LENGTH } from './constant/terminal';
 import { AuthFlowController } from './controllers/auth-flow';
 import { AppearanceController } from './controllers/appearance';
@@ -123,6 +127,15 @@ import { currentTheme, getColorPalette, getBuiltInPalette, isBuiltInTheme } from
 import type { ColorToken, ResolvedTheme, ThemeName } from './theme';
 import { createTUIState, type TUIState } from './tui-state';
 import {
+  createTUIStateNativeInputRouter,
+  type TUIStateNativeInputRouter,
+} from './utils/native-input-router';
+import { createTUIStateVisibleNativeRenderer } from './utils/native-layout-frame';
+import {
+  createTUIStateNativeRenderMirror,
+  type TUIStateNativeRenderMirror,
+} from './utils/native-renderer-mirror';
+import {
   INITIAL_LIVE_PANE,
   type AppState,
   type KimiTUIOptions,
@@ -143,7 +156,7 @@ import { hasPatchChanges } from './utils/object-patch';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
-import { notifyTerminalOnce } from './utils/terminal-notification';
+import { notifyUserAttentionOnce } from './utils/terminal-notification';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
@@ -156,6 +169,10 @@ import {
   groupTurns,
   turnsToTrim,
 } from './utils/transcript-window';
+import {
+  scrollTranscriptViewport as applyTranscriptViewportScroll,
+  type TranscriptScrollAction,
+} from './utils/transcript-viewport';
 import { formatBashOutputForDisplay } from './utils/shell-output';
 import { nextTranscriptId } from './utils/transcript-id';
 
@@ -272,6 +289,7 @@ export class KimiTUI {
   private clipboardImageHintController: ClipboardImageHintController | undefined;
   private signalCleanupHandlers: Array<() => void> = [];
   private isShuttingDown = false;
+  private eventLoopStarted = false;
   private readonly migrationPlan: MigrationPlan | null;
   private readonly migrateOnly: boolean;
   private startupNotice: string | undefined;
@@ -295,6 +313,11 @@ export class KimiTUI {
   readonly sessionReplay: SessionReplayRenderer;
   readonly tasksBrowserController: TasksBrowserController;
   readonly editorKeyboard: EditorKeyboardController;
+  private nativeInputRouter: TUIStateNativeInputRouter | undefined;
+  private nativeInputModalDispose: (() => void) | undefined;
+  private nativeInputModalSequence = 0;
+  private nativeRendererMirror: TUIStateNativeRenderMirror | undefined;
+  private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -364,8 +387,9 @@ export class KimiTUI {
       terminal: this.state.terminal,
       getAppearance: () => this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
       requestRender: () => {
-        this.state.ui.requestRender();
+        this.state.renderer.requestRender();
       },
+      shouldRenderAnimation: () => this.shouldRenderAmbientAnimationFrame(),
     });
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
@@ -509,14 +533,14 @@ export class KimiTUI {
     // Outer try rolls back signal listeners on startup failure.
     try {
       if (this.migrationPlan !== null) {
-        // Migration needs the event loop running first (pi-tui component).
+        // Migration needs the event loop running first because it is renderer-backed.
         this.startEventLoop();
         try {
           const migrationResult = await this.runMigrationScreen(this.migrationPlan);
           if (this.migrateOnly) {
             const failed = migrationResult.decision === 'now' && migrationResult.migrated === false;
             this.disposeTerminalTracking();
-            this.state.ui.stop();
+            this.state.renderer.stop();
             await this.onExit?.(failed ? 1 : 0);
             return;
           }
@@ -525,7 +549,7 @@ export class KimiTUI {
           await this.finishStartup(shouldReplayHistory);
         } catch (error) {
           this.disposeTerminalTracking();
-          this.state.ui.stop();
+          this.state.renderer.stop();
           throw error;
         }
         return;
@@ -538,7 +562,7 @@ export class KimiTUI {
         await this.finishStartup(shouldReplayHistory);
       } catch (error) {
         this.disposeTerminalTracking();
-        this.state.ui.stop();
+        this.state.renderer.stop();
         throw error;
       }
     } catch (error) {
@@ -597,6 +621,7 @@ export class KimiTUI {
   private async initMainTui(): Promise<boolean> {
     const shouldReplayHistory = await this.init();
 
+    this.activateNativeEditorBackendIfEnabled();
     // Mount only after init() succeeds; see mountFooter().
     this.mountFooter();
     this.renderWelcome();
@@ -606,14 +631,213 @@ export class KimiTUI {
     this.state.editorContainer.clear();
     this.state.editorContainer.addChild(this.state.editor);
     this.state.ui.setFocus(this.state.editor);
+    this.startNativeRendererIfEnabled();
     return shouldReplayHistory;
   }
 
+  private activateNativeEditorBackendIfEnabled(): void {
+    if (!isExperimentalFlagEnabled('native_renderer')) return;
+    if (this.options.editorBackend === 'native') return;
+
+    const previous = this.state.editor;
+    const next = createTUIEditor(this.state.ui, { backend: 'native' });
+    next.inputMode = previous.inputMode;
+    next.connectedAbove = previous.connectedAbove;
+    next.borderHighlighted = previous.borderHighlighted;
+    next.borderColor = previous.borderColor;
+    next.focused = previous.focused;
+    next.setText(previous.getText());
+    next.setCursorPosition(previous.getCursor());
+
+    const mountedIndex = this.state.editorContainer.children.indexOf(previous);
+    if (mountedIndex !== -1) {
+      this.state.editorContainer.children[mountedIndex] = next;
+    }
+
+    this.state.editor = next;
+    this.options.editorBackend = 'native';
+    this.state.nativeEditorTextInput.reset();
+    this.editorKeyboard.install();
+    this.updateEditorBorderHighlight();
+  }
+
   private startEventLoop(): void {
-    this.state.ui.start();
+    this.state.renderer.start();
+    this.eventLoopStarted = true;
+    this.startNativeRendererIfEnabled();
     this.startClipboardImageHintController();
     this.terminalFocusTrackingDispose = installTerminalFocusTracking(this.state);
     this.refreshTerminalThemeTracking();
+  }
+
+  private startNativeRendererIfEnabled(): void {
+    if (!isExperimentalFlagEnabled('native_renderer')) return;
+    this.ensureNativeInputRouter();
+    const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
+    if (this.state.renderer.nativeRuntime === undefined) {
+      this.state.renderer.attachNativeRuntime(
+        createTUIStateVisibleNativeRenderer(this.state, {
+          inputRouter: this.nativeInputRouter?.router,
+          diagnosticsOverlay,
+        }),
+      );
+    }
+    if (this.state.renderer.backend === 'native') return;
+    if (!this.eventLoopStarted) return;
+    if (this.nativeRendererMirror !== undefined) return;
+    this.nativeRendererMirror = createTUIStateNativeRenderMirror(this.state, {
+      inputRouter: this.nativeInputRouter?.router,
+      diagnosticsOverlay,
+    });
+    this.nativeRendererMirror.start();
+  }
+
+  setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void {
+    if (command === 'status') {
+      const report = formatRendererDiagnosticsStatusReport({
+        hudEnabled: this.nativeRendererDiagnosticsHudEnabled,
+        nativeRendererEnabled: isExperimentalFlagEnabled('native_renderer'),
+        backend: this.nativeRendererDiagnosticsBackend(),
+        diagnostics: this.nativeRendererDiagnosticsSnapshot(),
+      });
+      this.showStatus(report.message, report.color);
+      return;
+    }
+    if (command === 'reset') {
+      this.track('native_renderer_diagnostics_reset');
+      if (!isExperimentalFlagEnabled('native_renderer')) {
+        this.showStatus(
+          'Native renderer diagnostics reset skipped. Enable the native_renderer experiment to collect live renderer metrics.',
+          'warning',
+        );
+        return;
+      }
+      if (!this.resetNativeRendererDiagnostics()) {
+        this.showStatus(
+          'Native renderer diagnostics reset skipped: native renderer is not active.',
+          'warning',
+        );
+        return;
+      }
+      this.showStatus('Native renderer diagnostics reset.');
+      return;
+    }
+
+    const enabled = command === 'toggle'
+      ? !this.nativeRendererDiagnosticsHudEnabled
+      : command === 'on';
+    this.nativeRendererDiagnosticsHudEnabled = enabled;
+    this.track('native_renderer_diagnostics_hud', { enabled, command });
+
+    const message = `Native renderer diagnostics HUD: ${enabled ? 'ON' : 'OFF'}.`;
+    if (!isExperimentalFlagEnabled('native_renderer')) {
+      this.showStatus(`${message} Enable the native_renderer experiment to display it.`, 'warning');
+      return;
+    }
+    this.state.renderer.requestRender(true);
+    this.showStatus(message);
+  }
+
+  private nativeRendererDiagnosticsSnapshot() {
+    return this.state.renderer.nativeRuntime?.diagnostics ?? this.nativeRendererMirror?.diagnostics;
+  }
+
+  private resetNativeRendererDiagnostics(): boolean {
+    const renderer = this.state.renderer.nativeRuntime ?? this.nativeRendererMirror?.renderer;
+    if (renderer === undefined) return false;
+    renderer.resetStats();
+    this.state.renderer.requestRender(true);
+    return true;
+  }
+
+  setNativeRendererTrace(command: RendererTraceCommand): void {
+    if (command.action === 'status') {
+      const report = formatRendererTraceStatusReport({
+        nativeRendererEnabled: isExperimentalFlagEnabled('native_renderer'),
+        backend: this.nativeRendererDiagnosticsBackend(),
+        trace: this.nativeRendererTraceSnapshot(),
+      });
+      this.showStatus(report.message, report.color);
+      return;
+    }
+
+    if (!isExperimentalFlagEnabled('native_renderer')) {
+      this.showStatus(
+        'Native renderer trace command skipped. Enable the native_renderer experiment to collect trace events.',
+        'warning',
+      );
+      return;
+    }
+
+    if (command.action === 'reset') {
+      this.track('native_renderer_trace_reset');
+      if (!this.resetNativeRendererTrace()) {
+        this.showStatus('Native renderer trace reset skipped: native renderer is not active.', 'warning');
+        return;
+      }
+      this.showStatus('Native renderer trace reset.');
+      return;
+    }
+
+    if (command.action === 'export') {
+      const outputPath = this.exportNativeRendererTrace(command.path);
+      if (outputPath === undefined) {
+        this.showStatus('Native renderer trace export skipped: native renderer is not active.', 'warning');
+        return;
+      }
+      this.track('native_renderer_trace_export');
+      this.showStatus(`Native renderer trace exported: ${outputPath}`);
+    }
+  }
+
+  private nativeRendererTraceSnapshot() {
+    return this.nativeRendererTraceRuntime()?.traceSnapshot;
+  }
+
+  private resetNativeRendererTrace(): boolean {
+    const renderer = this.nativeRendererTraceRuntime();
+    if (renderer === undefined) return false;
+    renderer.resetTrace();
+    this.state.renderer.requestRender(true);
+    return true;
+  }
+
+  private exportNativeRendererTrace(path: string | undefined): string | undefined {
+    const renderer = this.nativeRendererTraceRuntime();
+    if (renderer === undefined) return undefined;
+    const outputPath = path === undefined
+      ? join(this.state.appState.workDir, `renderer-trace-${String(Date.now())}.json`)
+      : resolve(this.state.appState.workDir, path);
+    writeFileSync(
+      outputPath,
+      `${JSON.stringify(renderer.exportTrace({ processName: 'Super Kimi Code TUI' }), null, 2)}\n`,
+    );
+    return outputPath;
+  }
+
+  private nativeRendererTraceRuntime() {
+    return this.state.renderer.nativeRuntime ?? this.nativeRendererMirror?.renderer;
+  }
+
+  private nativeRendererDiagnosticsBackend(): RendererDiagnosticsRuntimeBackend {
+    if (this.state.renderer.nativeRuntime !== undefined) return 'native';
+    if (this.nativeRendererMirror !== undefined) return 'mirror';
+    return 'pi-tui';
+  }
+
+  private ensureNativeInputRouter(): void {
+    this.nativeInputRouter ??= createTUIStateNativeInputRouter(this.state, {
+      scrollTranscriptViewport: (action) => this.scrollTranscriptViewport(action),
+    });
+  }
+
+  private stopNativeRendererAdapters(): void {
+    this.nativeRendererMirror?.stop();
+    this.nativeRendererMirror = undefined;
+    this.nativeInputModalDispose?.();
+    this.nativeInputModalDispose = undefined;
+    this.nativeInputRouter?.dispose();
+    this.nativeInputRouter = undefined;
   }
 
   private startClipboardImageHintController(): void {
@@ -622,7 +846,7 @@ export class KimiTUI {
       footer: this.state.footer,
       getModelSupportsImage: () => this.supportsCurrentModelCapability('image_in'),
       requestRender: () => {
-        this.state.ui.requestRender();
+        this.state.renderer.requestRender();
       },
     });
     this.clipboardImageHintController.start();
@@ -707,7 +931,7 @@ export class KimiTUI {
   }
 
   private async init(): Promise<boolean> {
-    setExperimentalFeatures(await this.harness.getExperimentalFeatures());
+    setExperimentalFeatures(await this.harness.getExperimentalFeatures(), true);
     await this.authFlow.refreshAvailableModels();
     void this.refreshProviderModelsInBackground();
 
@@ -743,7 +967,7 @@ export class KimiTUI {
             throw new Error(`Session "${startup.sessionFlag}" not found.`);
           }
           if (resolve(target.workDir) !== resolve(workDir)) {
-            this.state.ui.stop();
+            this.state.renderer.stop();
             process.stderr.write(
               `${currentTheme.fg(
                 'warning',
@@ -819,8 +1043,8 @@ export class KimiTUI {
     await this.closeSession('shutting down');
     await this.harness.close();
     this.sessionEventHandler.stopAllMcpServerStatusSpinners();
-    await this.state.terminal.drainInput();
-    this.state.ui.stop();
+    await this.state.renderer.drainInput();
+    this.state.renderer.stop();
     if (this.onExit) {
       await this.onExit(exitCode);
     }
@@ -888,6 +1112,8 @@ export class KimiTUI {
   }
 
   private disposeTerminalTracking(): void {
+    this.stopNativeRendererAdapters();
+    this.eventLoopStarted = false;
     this.stopTerminalThemeTracking();
     this.clipboardImageHintController?.stop();
     this.clipboardImageHintController = undefined;
@@ -907,15 +1133,29 @@ export class KimiTUI {
     // Footer is mounted later (mountFooter), not here.
   }
 
+  private shouldRenderAmbientAnimationFrame(): boolean {
+    if (!this.state.transcriptViewport.followOutput) return false;
+    const rows = this.state.terminal.rows;
+    if (!Number.isFinite(rows) || rows <= 0) return false;
+    return this.state.transcriptContainer.children.length <= 1;
+  }
+
+  scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
+    const changed = applyTranscriptViewportScroll(this.state.transcriptViewport, action);
+    if (changed) this.state.renderer.requestRender(true);
+    return changed;
+  }
+
   // Footer is the only chrome with content before a session is ready, so
   // mounting it at construction lets a stray pre-start render leak it to the
-  // terminal — e.g. above the error when resuming a missing session. Mount it
-  // only once init() succeeds. FooterComponent isn't a Container, so wrap it to
-  // pick up the same outer gutter as the panels above.
+  // terminal — e.g. above the error when resuming a missing session. Mount the
+  // prepared footer container only once init() succeeds.
   private mountFooter(): void {
-    const footerWrap = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
-    footerWrap.addChild(this.state.footer);
-    this.state.ui.addChild(footerWrap);
+    if (!this.state.footerContainer.children.includes(this.state.footer)) {
+      this.state.footerContainer.addChild(this.state.footer);
+    }
+    if (this.state.ui.children.includes(this.state.footerContainer)) return;
+    this.state.ui.addChild(this.state.footerContainer);
   }
 
   // =========================================================================
@@ -1581,7 +1821,7 @@ export class KimiTUI {
   updateTerminalTitle(): void {
     const trimmed = this.state.appState.sessionTitle?.trim() ?? '';
     const label = trimmed.length > 0 ? trimmed.slice(0, MAX_TERMINAL_TITLE_LENGTH) : PRODUCT_NAME;
-    this.state.terminal.setTitle(label);
+    this.state.terminal.setTitle?.(label);
   }
 
   resetSessionRuntime(): void {
@@ -1903,8 +2143,10 @@ export class KimiTUI {
   }
 
   private clearTerminalInlineImages(): void {
-    if (getCapabilities().images !== 'kitty') return;
-    this.state.terminal.write(deleteAllKittyImages());
+    const sequence = encodeRendererClearInlineImages(
+      detectNativeTerminalImageProtocol(process.env),
+    );
+    if (sequence.length > 0) this.state.terminal.write(sequence);
   }
 
   private clearTranscriptAndRedraw(): void {
@@ -2482,7 +2724,7 @@ export class KimiTUI {
     const isBash = this.state.appState.inputMode === 'bash';
     const highlighted =
       this.state.appState.planMode ||
-      this.state.appState.ultraworkMode ||
+      (this.state.appState.ultraworkMode ?? false) ||
       isBash ||
       trimmed.startsWith('/');
     this.state.editor.borderHighlighted = highlighted;
@@ -2557,7 +2799,7 @@ export class KimiTUI {
   private syncTerminalProgress(active: boolean): void {
     if (!this.state.terminalState.supportsProgress) return;
     if (this.state.terminalState.progressActive === active) return;
-    this.state.terminal.setProgress(active);
+    this.state.terminal.setProgress?.(active);
     this.state.terminalState.progressActive = active;
   }
 
@@ -2598,6 +2840,7 @@ export class KimiTUI {
     this.state.editorContainer.clear();
     this.state.editorContainer.addChild(panel);
     this.state.ui.setFocus(panel);
+    this.mountNativeInputModal(panel);
     this.state.ui.requestRender();
   }
 
@@ -2605,7 +2848,24 @@ export class KimiTUI {
     this.state.editorContainer.clear();
     this.state.editorContainer.addChild(this.state.editor);
     this.state.ui.setFocus(this.state.editor);
+    this.nativeInputModalDispose?.();
+    this.nativeInputModalDispose = undefined;
+    this.nativeInputRouter?.focusEditor();
     this.state.ui.requestRender();
+  }
+
+  private mountNativeInputModal(panel: Component & Focusable): void {
+    const inputRouter = this.nativeInputRouter;
+    if (inputRouter === undefined || panel.handleInput === undefined) return;
+    this.nativeInputModalDispose?.();
+    const id = `editor-replacement:${String(++this.nativeInputModalSequence)}`;
+    const handleInput = panel.handleInput.bind(panel);
+    this.nativeInputModalDispose = inputRouter.pushLegacyModalTarget({
+      id,
+      handleInput: (data) => {
+        handleInput(data);
+      },
+    });
   }
 
   restoreInputText(text: string): void {
@@ -2828,7 +3088,7 @@ export class KimiTUI {
 
   private showApprovalPanel(payload: ApprovalPanelData): void {
     this.patchLivePane({ pendingApproval: { data: payload } });
-    notifyTerminalOnce(this.state, `approval:${payload.id}`, {
+    notifyUserAttentionOnce(this.state, `approval:${payload.id}`, {
       title: 'Super Kimi Code approval required',
       body: payload.tool_name,
     });
@@ -2895,7 +3155,7 @@ export class KimiTUI {
 
   private showQuestionDialog(payload: QuestionPanelData): void {
     this.patchLivePane({ pendingQuestion: { data: payload } });
-    notifyTerminalOnce(this.state, `question:${payload.id}`, {
+    notifyUserAttentionOnce(this.state, `question:${payload.id}`, {
       title: 'Super Kimi Code needs your answer',
       body: payload.questions[0]?.question,
     });
@@ -2916,4 +3176,14 @@ export class KimiTUI {
     this.patchLivePane({ pendingQuestion: null });
     this.restoreEditor();
   }
+}
+
+function nativeRendererDiagnosticsOverlayEnabled(): boolean {
+  return truthyEnv(process.env['KIMI_CODE_NATIVE_RENDERER_DIAGNOSTICS']);
+}
+
+function truthyEnv(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
 }

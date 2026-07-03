@@ -40,6 +40,7 @@ import type {
   CompactionContextMemoryTier,
   CompactionContextOS,
   CompactionContextPack,
+  CompactionQualitySignals,
   CompactionResult,
   CompactionResultAction,
   CompactionResultRawRef,
@@ -64,10 +65,13 @@ import {
 import {
   extractFactsFromSummary,
   formatFactsAsMemoryBlock,
+  isPromptControlCompactionMemoryItem,
+  isUsefulCompactionMemoryItem,
   mergeFactSets,
   parseStructuredCompactionMemory,
   type ExtractedFact,
 } from './memory';
+import type { MemoryCreateInput, MemoryKind, MemoryScope } from '../../memory';
 import {
   type AnchorDocument,
   createAnchorDocument,
@@ -565,16 +569,20 @@ export class FullCompaction {
       }
 
       summary = this.renderStructuredV2Summary(summary, plan);
-      const renderedQuality = validateRenderedCompactionSummary(summary, plan);
-      quality = mergeCompactionQualityResults(quality, renderedQuality);
-      if (renderedQuality.critical.length > 0) {
-        throw new CompactionQualityError(renderedQuality.critical);
-      }
-
       const summaryTokens = estimateTokensForMessages([compactionSummaryMessage(summary)]);
       const retained = this.agent.context.history.slice(compactedCount);
       const retainedTokens = estimateTokensForMessages(retained);
       const tokensAfter = summaryTokens + retainedTokens;
+      const renderedQuality = validateRenderedCompactionSummary(
+        summary,
+        plan,
+        messagesToCompact,
+        tokensAfter,
+      );
+      quality = mergeCompactionQualityResults(quality, renderedQuality);
+      if (renderedQuality.critical.length > 0) {
+        throw new CompactionQualityError(renderedQuality.critical);
+      }
 
       const resultWithoutContextPack: CompactionResultWithQualityWarnings = {
         summary,
@@ -588,10 +596,14 @@ export class FullCompaction {
         retainedTokens,
         compactedTokens: plan.compactedTokens,
         qualityWarnings: mergeStringLists(plan.qualityWarnings, quality.warnings),
+        qualityWarningCategories:
+          quality.warningCategories.length > 0 ? quality.warningCategories : undefined,
         parallelBlockCount: parallelBlockCount > 0 ? parallelBlockCount : undefined,
         mergeInputTokens,
         repairAttempted: repairAttempted ? true : undefined,
       };
+      const shouldIncludeQualitySignals =
+        quality.warningCategories.length > 0 || quality.signals?.failureSignature !== undefined;
       const result: CompletedCompactionResult = {
         ...resultWithoutContextPack,
         contextPack: this.buildContextPack(
@@ -599,8 +611,12 @@ export class FullCompaction {
           resultWithoutContextPack,
           retained.length,
           provider,
+          shouldIncludeQualitySignals ? quality.signals : undefined,
         ),
       };
+      const recallMemorySavedCount = await this.persistCompactionRecall(result);
+      const qualitySignals = quality.signals;
+      const qualityWarningCategories = result.qualityWarningCategories ?? [];
 
       const durationMs = Date.now() - startedAt;
       this.agent.telemetry.track('compaction_finished', {
@@ -612,6 +628,7 @@ export class FullCompaction {
         retry_count: retryCount.value,
         parallel_block_count: parallelBlockCount,
         quality_warning_count: result.qualityWarnings.length,
+        quality_warning_categories: qualityWarningCategories.join(','),
         repair_attempted: repairAttempted,
         merge_input_tokens: mergeInputTokens ?? 0,
         provider_context_management: formatContextManagementCapability(provider),
@@ -624,6 +641,12 @@ export class FullCompaction {
         context_os_tier_count: result.contextPack.contextOS.memoryTiers.length,
         context_os_rehydration_kind_count:
           result.contextPack.contextOS.rehydrationRawRefKinds.length,
+        recall_eval_score: qualitySignals?.recallEvalScore,
+        critical_fact_count: qualitySignals?.criticalFactCount,
+        placeholder_item_count: qualitySignals?.placeholderItemCount,
+        tokens_saved_ratio: qualitySignals?.tokensSavedRatio,
+        failure_signature: qualitySignals?.failureSignature,
+        recall_memory_saved_count: recallMemorySavedCount,
         round,
         thinking_level: this.agent.config.thinkingLevel,
         ...usageTelemetryProperties(usage),
@@ -640,6 +663,7 @@ export class FullCompaction {
         retry_count: retryCount.value,
         parallel_block_count: parallelBlockCount,
         quality_warning_count: result.qualityWarnings.length,
+        quality_warning_category_count: qualityWarningCategories.length,
         repair_attempted: repairAttempted,
         merge_input_tokens: mergeInputTokens ?? 0,
         provider_context_management: formatContextManagementCapability(provider),
@@ -652,10 +676,17 @@ export class FullCompaction {
         context_os_tier_count: result.contextPack.contextOS.memoryTiers.length,
         context_os_rehydration_kind_count:
           result.contextPack.contextOS.rehydrationRawRefKinds.length,
+        recall_eval_score: qualitySignals?.recallEvalScore,
+        critical_fact_count: qualitySignals?.criticalFactCount,
+        placeholder_item_count: qualitySignals?.placeholderItemCount,
+        tokens_saved_ratio: qualitySignals?.tokensSavedRatio,
+        failure_signature: qualitySignals?.failureSignature,
+        recall_memory_saved_count: recallMemorySavedCount,
         round,
         thinking_level: this.agent.config.thinkingLevel,
         action_types: result.actions?.map((action) => action.type).join(',') ?? '',
         quality_warnings: result.qualityWarnings?.join(',') ?? '',
+        quality_warning_categories: qualityWarningCategories.join(','),
         ...usageTelemetryProperties(usage),
       });
       this.agent.context.applyCompaction(result);
@@ -937,6 +968,7 @@ export class FullCompaction {
     result: CompactionResult,
     retainedMessageCount: number,
     provider: ChatProvider,
+    qualitySignals?: CompactionQualitySignals,
   ): CompactionContextPack {
     const rawRefs = result.rawRefs ?? [];
     const actions = result.actions ?? [];
@@ -969,11 +1001,14 @@ export class FullCompaction {
         repairAttempted: result.repairAttempted === true,
         providerContextManagement: formatContextManagementCapability(provider),
       },
-      contextOS: this.buildContextOS(result),
+      contextOS: this.buildContextOS(result, qualitySignals),
     };
   }
 
-  private buildContextOS(result: CompactionResult): CompactionContextOS {
+  private buildContextOS(
+    result: CompactionResult,
+    qualitySignals?: CompactionQualitySignals,
+  ): CompactionContextOS {
     const memory = parseStructuredCompactionMemory(result.summary);
     const rawRefs = result.rawRefs ?? [];
     const rawRefKinds = uniqueSorted(rawRefs.map((ref) => ref.kind));
@@ -1003,8 +1038,49 @@ export class FullCompaction {
         rawRefKinds,
         continuity.status,
       ),
+      qualitySignals,
+      retrievalSignalCounts:
+        qualitySignals === undefined
+          ? undefined
+          : {
+              retrievalQueryCount: retrievalQueries.length,
+              fileHintCount: fileHints.length,
+              structuredItemCount: countStructuredMemoryItems(memory),
+              rawRefKindCount: rawRefKinds.length,
+            },
       continuity,
     };
+  }
+
+  private async persistCompactionRecall(result: CompletedCompactionResult): Promise<number> {
+    const memory = this.agent.memory;
+    if (memory === undefined || !memory.isEnabled()) return 0;
+    const inputs = createCompactionRecallMemories(result);
+    if (inputs.length === 0) return 0;
+
+    let saved = 0;
+    for (const input of inputs) {
+      try {
+        await memory.remember(input);
+        saved += 1;
+      } catch (error) {
+        this.agent.log.warn('kimi recall compaction memory save failed', error);
+        this.agent.telemetry.track('kimi_recall_compaction_memory_save_failed', {
+          memory_kind: input.kind,
+          memory_scope: input.scope,
+          subject: input.subject,
+        });
+      }
+    }
+    if (saved > 0) {
+      this.agent.telemetry.track('kimi_recall_compaction_memory_saved', {
+        saved_count: saved,
+        requested_count: inputs.length,
+        recall_eval_score: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
+        critical_fact_count: result.contextPack.contextOS.qualitySignals?.criticalFactCount,
+      });
+    }
+    return saved;
   }
 
   private postProcessSummary(summary: string): string {
@@ -1144,6 +1220,117 @@ function formatContextManagementCapability(provider: ChatProvider): string {
   return names.length === 0 ? 'none' : names.join(',');
 }
 
+function createCompactionRecallMemories(result: CompletedCompactionResult): readonly MemoryCreateInput[] {
+  const memory = parseStructuredCompactionMemory(result.summary);
+  const currentGoal = usefulRecallItems([memory.currentGoal]).at(0);
+  const decisions = usefulRecallItems(memory.decisions);
+  const filesTouched = usefulRecallItems(memory.filesTouched);
+  const failedAttempts = usefulRecallItems(memory.failedAttempts);
+  const nextActions = usefulRecallItems(memory.nextActions);
+  const records: MemoryCreateInput[] = [];
+
+  const workspaceSections = formatRecallSections([
+    ['Current goal', currentGoal === undefined ? [] : [currentGoal]],
+    ['Decisions', decisions],
+    ['Files touched', filesTouched],
+    ['Failed attempts', failedAttempts],
+  ]);
+  if (workspaceSections.length > 0) {
+    records.push({
+      kind: 'semantic' satisfies MemoryKind,
+      scope: 'workspace' satisfies MemoryScope,
+      subject: recallSubject('Compaction working memory', currentGoal ?? decisions[0] ?? filesTouched[0]),
+      content: workspaceSections,
+      tags: recallTags(['compaction', 'context-os', 'workspace'], [
+        decisions.length > 0 ? 'decision' : undefined,
+        filesTouched.length > 0 ? 'file' : undefined,
+        failedAttempts.length > 0 ? 'failure' : undefined,
+      ]),
+      confidence: 0.82,
+      importance: result.contextPack.contextOS.qualitySignals?.criticalFactCount
+        ? 0.82
+        : 0.68,
+      source: { kind: 'auto', excerpt: 'compaction structured working memory' },
+      metadata: {
+        source: 'compaction',
+        algorithmVersion: result.algorithmVersion,
+        recallEvalScore: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
+        contextOSStatus: result.contextPack.contextOS.continuity.status,
+      },
+    });
+  }
+
+  const prospectiveSections = formatRecallSections([
+    ['Current goal', currentGoal === undefined ? [] : [currentGoal]],
+    ['Next actions', nextActions],
+  ]);
+  if (nextActions.length > 0 && prospectiveSections.length > 0) {
+    records.push({
+      kind: 'prospective' satisfies MemoryKind,
+      scope: 'session' satisfies MemoryScope,
+      subject: recallSubject('Compaction next actions', currentGoal ?? nextActions[0]),
+      content: prospectiveSections,
+      tags: recallTags(['compaction', 'next-actions', 'session'], []),
+      confidence: 0.86,
+      importance: 0.84,
+      source: { kind: 'auto', excerpt: 'compaction next actions' },
+      metadata: {
+        source: 'compaction',
+        algorithmVersion: result.algorithmVersion,
+        recallEvalScore: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
+        contextOSStatus: result.contextPack.contextOS.continuity.status,
+      },
+    });
+  }
+
+  return records;
+}
+
+function usefulRecallItems(items: readonly (string | undefined)[]): readonly string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    if (item === undefined) continue;
+    const normalized = item.replaceAll(/\s+/g, ' ').trim();
+    if (!isUsefulCompactionMemoryItem(normalized)) continue;
+    if (isPromptControlCompactionMemoryItem(normalized)) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(normalized);
+  }
+  return result.slice(0, 8);
+}
+
+function formatRecallSections(
+  sections: readonly [title: string, items: readonly string[]][],
+): string {
+  const lines: string[] = [];
+  for (const [title, items] of sections) {
+    if (items.length === 0) continue;
+    lines.push(`## ${title}`);
+    for (const item of items.slice(0, 8)) {
+      lines.push(`- ${item}`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n').trim();
+}
+
+function recallSubject(prefix: string, detail: string | undefined): string {
+  if (detail === undefined) return prefix;
+  const compact = detail.replaceAll(/[`*_#]/g, '').replaceAll(/\s+/g, ' ').trim();
+  if (compact.length === 0) return prefix;
+  return `${prefix}: ${compact.slice(0, 80)}`;
+}
+
+function recallTags(
+  base: readonly string[],
+  optional: readonly (string | undefined)[],
+): readonly string[] {
+  return [...new Set([...base, ...optional.filter((tag): tag is string => tag !== undefined)])];
+}
+
 function formatStringList(items: readonly string[]): string {
   if (items.length === 0) return '- None captured during compaction.';
   return items.slice(0, 12).map((item) => `- ${item}`).join('\n');
@@ -1261,6 +1448,23 @@ function inferMemoryTiers(
     tiers.add('procedural');
   }
   return Array.from(tiers);
+}
+
+function countStructuredMemoryItems(
+  memory: ReturnType<typeof parseStructuredCompactionMemory>,
+): number {
+  return [
+    memory.currentGoal,
+    ...memory.lastKnownState,
+    ...memory.decisions,
+    ...memory.filesTouched,
+    ...memory.failedAttempts,
+    ...memory.openQuestions,
+    ...memory.nextActions,
+    ...memory.rawRefs,
+  ]
+    .filter((item): item is string => item !== undefined)
+    .filter(isUsefulCompactionMemoryItem).length;
 }
 
 function evaluateContinuity(

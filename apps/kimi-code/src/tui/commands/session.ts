@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import type { Session } from '@moonshot-ai/kimi-code-sdk';
+import type { Session, SessionTrace } from '@moonshot-ai/kimi-code-sdk';
 
 import { detectInstallSource } from '#/cli/update/source';
 import { detectShellEnvironment } from '#/utils/process/shell-env';
@@ -96,7 +96,13 @@ export async function handleExportMdCommand(host: SlashCommandHost, args: string
 
   host.showStatus('Exporting session as Markdown…');
   try {
-    const context = await session.getContext();
+    let trace: SessionTrace | undefined;
+    try {
+      trace = await session.getSessionTrace();
+    } catch {
+      trace = undefined;
+    }
+    const context = trace?.context ?? await session.getContext();
     if (context.history.length === 0) {
       host.showError('No messages to export.');
       return;
@@ -118,6 +124,7 @@ export async function handleExportMdCommand(host: SlashCommandHost, args: string
       history: context.history,
       tokenCount: context.tokenCount,
       now,
+      trace,
     });
 
     await mkdir(dirname(outputPath), { recursive: true });

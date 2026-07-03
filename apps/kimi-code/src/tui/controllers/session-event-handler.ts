@@ -1,4 +1,4 @@
-import type { Component, Focusable } from '@earendil-works/pi-tui';
+import type { Component, Focusable } from '#/tui/renderer';
 import type {
   AgentStatusUpdatedEvent,
   AssistantDeltaEvent,
@@ -296,6 +296,9 @@ export class SessionEventHandler {
   }
 
   private handleUltraworkEvent(event: UltraworkTheatreEvent): void {
+    if (event.type === 'ultrawork.team.staffed') {
+      this.subAgentEventHandler.handleUltraworkTeamStaffed(event);
+    }
     const runId = ultraworkTheatreRunId(event);
     const existing = this.ultraworkTheatres.get(runId);
     if (existing === undefined) {

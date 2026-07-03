@@ -11,7 +11,7 @@
  * - Every bare-literal printable-character comparison (letters, digits,
  *   space, punctuation) must go through this function first.
  * - Functional keys (arrows, Enter, Tab, Esc, ...) continue to use
- *   `matchesKey(data, Key.*)`; pi-tui's `matchesKey` already handles Kitty.
+ *   `matchesKey(data, Key.*)`; the renderer-owned matcher already handles Kitty.
  * - Control characters (codepoint < 32, e.g. ctrl-b, ctrl-f) may still
  *   compare against the raw `data` — `decodeKittyPrintable` rejects them.
  *
@@ -20,7 +20,7 @@
  * `tui/components/**` and rejects bare-literal comparisons.
  */
 
-import { decodeKittyPrintable } from '@earendil-works/pi-tui';
+import { decodeKittyPrintable } from '#/tui/renderer';
 
 export function printableChar(data: string): string {
   return decodeKittyPrintable(data) ?? data;

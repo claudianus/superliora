@@ -41,10 +41,11 @@ import {
   Container,
   Key,
   matchesKey,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import { DEFAULT_OAUTH_PROVIDER_NAME } from '#/constant/app';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
@@ -388,39 +389,30 @@ export class ProviderManagerComponent extends Container implements Focusable {
   }
 
   override render(width: number): string[] {
-    const lines: string[] = [];
-
-    // Header shape mirrors the model dialog (see model-selector.ts): a single
-    // top border, the title, the keymap hint, then a blank line. No inner
-    // border under the title.
-    const border = currentTheme.fg('primary', '─'.repeat(width));
-    lines.push(border);
-    lines.push(currentTheme.boldFg('primary', ' Providers'));
-    lines.push(currentTheme.fg('textMuted', ' ' + HEADER_HINT));
-    lines.push('');
+    const body: string[] = [];
 
     const rows = this.rows;
     if (rows.length === 0) {
-      lines.push(currentTheme.fg('textMuted', '  No providers configured.'));
+      body.push(currentTheme.fg('textMuted', '  No providers configured.'));
     } else {
       const view = this.page();
       for (let i = view.start; i < view.end; i++) {
         const row = rows[i];
         if (row === undefined) continue;
         for (const line of renderRow(row, { isSelected: i === this.selectedIndex, width })) {
-          lines.push(line);
+          body.push(line);
         }
       }
     }
 
-    lines.push('');
+    body.push('');
 
     if (this.confirm !== undefined) {
-      lines.push(this.renderConfirmLine(width));
+      body.push(this.renderConfirmLine(width));
     } else {
       const view = this.page();
       if (view.pageCount > 1) {
-        lines.push(
+        body.push(
           currentTheme.fg(
             'textMuted',
             ` Page ${String(view.page + 1)}/${String(view.pageCount)}`,
@@ -429,8 +421,19 @@ export class ProviderManagerComponent extends Container implements Focusable {
       }
     }
 
-    lines.push(border);
-    return lines.map((line) => truncateToWidth(line, width));
+    // Header shape mirrors the model dialog (see model-selector.ts): a single
+    // top border, the title, the keymap hint, then a blank line. No inner
+    // border under the title.
+    return renderRendererPanelChromeRows({
+      width,
+      title: ' Providers',
+      hint: ' ' + HEADER_HINT,
+      body,
+      footerTopGap: false,
+      dividerStyle: (text) => currentTheme.fg('primary', text),
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: (text) => currentTheme.fg('textMuted', text),
+    });
   }
 
   private renderConfirmLine(width: number): string {

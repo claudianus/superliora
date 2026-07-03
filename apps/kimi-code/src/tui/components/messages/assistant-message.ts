@@ -1,11 +1,18 @@
 /**
- * Renders an assistant message using pi-tui Markdown.
+ * Renders an assistant message using renderer-owned Markdown.
  *
  * Displays a white bullet prefix with markdown content indented
  * to align after the bullet.
  */
 
-import { Container, Markdown, truncateToWidth, visibleWidth, type Component } from '@earendil-works/pi-tui';
+import {
+  Container,
+  Markdown,
+  RendererWidthRenderCache,
+  measureRendererTranscriptContentWidth,
+  renderRendererTranscriptLineBlock,
+  type Component,
+} from '#/tui/renderer';
 
 import { MESSAGE_INDENT } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
@@ -25,7 +32,7 @@ export class AssistantMessageComponent implements Component {
   private lastTransient = false;
   private showBullet: boolean;
 
-  private renderCache: { width: number; lines: string[] } | undefined;
+  private readonly renderCache = new RendererWidthRenderCache();
 
   constructor(showBullet: boolean = true) {
     this.showBullet = showBullet;
@@ -33,7 +40,7 @@ export class AssistantMessageComponent implements Component {
   }
 
   private markRenderDirty(): void {
-    this.renderCache = undefined;
+    this.renderCache.clear();
   }
 
   setShowBullet(show: boolean): void {
@@ -96,28 +103,23 @@ export class AssistantMessageComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
-    if (
-      isRenderCacheEnabled() &&
-      this.renderCache !== undefined &&
-      this.renderCache.width === safeWidth
-    ) {
-      return this.renderCache.lines;
-    }
+    return this.renderCache.render({
+      width: safeWidth,
+      isCacheEnabled: isRenderCacheEnabled,
+      render: () => {
+        const prefix = this.showBullet ? currentTheme.fg('text', STATUS_BULLET) : MESSAGE_INDENT;
+        const contentWidth = measureRendererTranscriptContentWidth({ width: safeWidth, prefix });
+        const contentLines = this.contentContainer.render(contentWidth);
 
-    const prefix = this.showBullet ? STATUS_BULLET : MESSAGE_INDENT;
-    const contentWidth = Math.max(1, safeWidth - visibleWidth(prefix));
-    const contentLines = this.contentContainer.render(contentWidth);
-
-    const lines: string[] = [''];
-    for (let i = 0; i < contentLines.length; i++) {
-      const p =
-        i === 0 && this.showBullet ? currentTheme.fg('text', STATUS_BULLET) : MESSAGE_INDENT;
-      lines.push(p + contentLines[i]);
-    }
-    const rendered = lines.map((line) => truncateToWidth(line, safeWidth, '…'));
-    if (isRenderCacheEnabled()) {
-      this.renderCache = { width: safeWidth, lines: rendered };
-    }
-    return rendered;
+        return renderRendererTranscriptLineBlock({
+          width: safeWidth,
+          prefix,
+          continuationPrefix: MESSAGE_INDENT,
+          lines: contentLines,
+          leadingBlank: true,
+          truncateMark: '…',
+        });
+      },
+    });
   }
 }

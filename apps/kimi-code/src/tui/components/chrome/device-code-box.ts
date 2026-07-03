@@ -6,8 +6,8 @@
  * active palette so theme switches take effect on the next render.
  */
 
-import type { Component } from '@earendil-works/pi-tui';
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
+import type { Component } from '#/tui/renderer';
+import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 
@@ -33,7 +33,6 @@ export class DeviceCodeBoxComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
     const innerWidth = Math.max(1, safeWidth - 4);
-    const pad = '  ';
 
     const titleLine = truncateToWidth(currentTheme.boldFg('textStrong', title), innerWidth, '…');
     const promptLine = truncateToWidth(
@@ -57,23 +56,19 @@ export class DeviceCodeBoxComponent implements Component {
       return ['', ...contentLines.map((line) => truncateToWidth(line, safeWidth, '…'))];
     }
 
-    const lines: string[] = [
+    return [
       '',
-      border('╭' + '─'.repeat(safeWidth - 2) + '╮'),
-      border('│') + ' '.repeat(safeWidth - 2) + border('│'),
+      ...renderRendererFrameRows({
+        content: ['', ...contentLines, ''],
+        width: safeWidth,
+        height: contentLines.length + 4,
+        borderKind: 'rounded',
+        paddingLeft: 2,
+        paddingRight: 0,
+        borderStyle: border,
+        ellipsis: '…',
+      }),
+      '',
     ];
-
-    for (const content of contentLines) {
-      const truncated = content;
-      const vis = visibleWidth(truncated);
-      const rightPad = Math.max(0, innerWidth - vis);
-      lines.push(border('│') + pad + truncated + ' '.repeat(rightPad) + border('│'));
-    }
-
-    lines.push(border('│') + ' '.repeat(safeWidth - 2) + border('│'));
-    lines.push(border('╰' + '─'.repeat(safeWidth - 2) + '╯'));
-    lines.push('');
-
-    return lines.map((line) => truncateToWidth(line, safeWidth, '…'));
   }
 }

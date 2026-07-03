@@ -2,7 +2,15 @@
  * Renders a user message in the transcript.
  */
 
-import { Spacer, Text, truncateToWidth, visibleWidth, type Component } from '@earendil-works/pi-tui';
+import {
+  RendererWidthRenderCache,
+  Spacer,
+  Text,
+  measureRendererTranscriptContentWidth,
+  renderRendererTranscriptLineBlock,
+  visibleWidth,
+  type Component,
+} from '#/tui/renderer';
 
 import { ImageThumbnail } from '#/tui/components/media/image-thumbnail';
 import { USER_MESSAGE_BULLET } from '#/tui/constant/symbols';
@@ -16,7 +24,7 @@ export class UserMessageComponent implements Component {
   private spacerComponent: Spacer;
   private imageThumbnails: ImageThumbnail[];
 
-  private renderCache: { width: number; lines: string[] } | undefined;
+  private readonly renderCache = new RendererWidthRenderCache();
 
   constructor(text: string, images?: ImageAttachment[], bullet?: string) {
     this.text = text;
@@ -26,7 +34,7 @@ export class UserMessageComponent implements Component {
   }
 
   private markRenderDirty(): void {
-    this.renderCache = undefined;
+    this.renderCache.clear();
   }
 
   invalidate(): void {
@@ -40,59 +48,60 @@ export class UserMessageComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
-    if (
-      isRenderCacheEnabled() &&
-      this.renderCache !== undefined &&
-      this.renderCache.width === safeWidth
-    ) {
-      return this.renderCache.lines;
-    }
+    return this.renderCache.render({
+      width: safeWidth,
+      isCacheEnabled: isRenderCacheEnabled,
+      render: () => {
+        const marker = this.bullet ?? USER_MESSAGE_BULLET;
+        const bullet = marker.length > 0 ? currentTheme.boldFg('roleUser', marker) : '';
+        const bulletWidth = visibleWidth(bullet);
+        const contentWidth = measureRendererTranscriptContentWidth({
+          width: safeWidth,
+          prefix: bullet,
+        });
+        const continuationPrefix = ' '.repeat(bulletWidth);
 
-    const marker = this.bullet ?? USER_MESSAGE_BULLET;
-    const bullet = marker.length > 0 ? currentTheme.boldFg('roleUser', marker) : '';
-    const bulletWidth = visibleWidth(bullet);
-    const contentWidth = Math.max(1, safeWidth - bulletWidth);
+        const lines: string[] = [];
 
-    const lines: string[] = [];
+        // Spacer
+        for (const line of this.spacerComponent.render(safeWidth)) {
+          lines.push(line);
+        }
 
-    // Spacer
-    for (const line of this.spacerComponent.render(safeWidth)) {
-      lines.push(line);
-    }
+        // Text is re-dyed from the current theme; invalidate() (theme change)
+        // clears the render cache so the new colours are picked up.
+        const coloredText = currentTheme.boldFg('roleUser', this.text);
+        const textLines = new Text(coloredText, 0, 0).render(contentWidth);
+        lines.push(...renderRendererTranscriptLineBlock({
+          width: safeWidth,
+          prefix: bullet,
+          continuationPrefix,
+          lines: textLines,
+          truncateMark: '…',
+        }));
 
-    // Text is re-dyed from the current theme; invalidate() (theme change) clears
-    // the render cache so the new colours are picked up on the next render.
-    const coloredText = currentTheme.boldFg('roleUser', this.text);
-    const textLines = new Text(coloredText, 0, 0).render(contentWidth);
-    for (let i = 0; i < textLines.length; i++) {
-      const prefix = i === 0 ? bullet : ' '.repeat(bulletWidth);
-      lines.push(prefix + textLines[i]);
-    }
-
-    // Images — indented to align with text after the bullet
-    for (const thumbnail of this.imageThumbnails) {
-      const imageLines = thumbnail.render(contentWidth);
-      for (const line of imageLines) {
-        lines.push(' '.repeat(bulletWidth) + line);
-      }
-    }
-
-    const rendered = lines.map((line) => {
-      // Inline image sequences (Kitty / iTerm2) carry their own placement
-      // information and have zero visible width, but pi-tui's truncateToWidth
-      // treats the embedded base64 payload as visible text and would chop the
-      // escape sequence in half, leaving garbage like "0m...". Skip truncation
-      // for those lines; the image itself already respects maxWidthCells.
-      if (isImageLine(line)) return line;
-      return truncateToWidth(line, safeWidth, '…');
+        // Images — indented to align with text after the bullet
+        for (const thumbnail of this.imageThumbnails) {
+          const imageLines = thumbnail.render(contentWidth);
+          lines.push(...renderRendererTranscriptLineBlock({
+            width: safeWidth,
+            prefix: continuationPrefix,
+            continuationPrefix,
+            lines: imageLines,
+            truncateMark: '…',
+            preserveLine: isImageLine,
+          }));
+        }
+        return lines;
+      },
     });
-    if (isRenderCacheEnabled()) {
-      this.renderCache = { width: safeWidth, lines: rendered };
-    }
-    return rendered;
   }
 }
 
 function isImageLine(line: string): boolean {
-  return line.includes('\u001B_G') || line.includes('\u001B]1337;File=');
+  return (
+    line.includes('\u001B_G') ||
+    line.includes('\u001B]1337;File=') ||
+    line.includes('\u001B]1337;MultipartFile=')
+  );
 }

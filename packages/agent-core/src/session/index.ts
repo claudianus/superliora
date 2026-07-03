@@ -54,6 +54,7 @@ import type { ToolServices } from '../tools/support/services';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
 import { abortError } from '../utils/abort';
 import type { SessionMemoryRuntime } from '../memory';
+import { responseLanguagePreferenceFromUnknown } from './response-language';
 
 export interface SessionOptions {
   readonly kaos: Kaos;
@@ -759,6 +760,10 @@ export class Session {
         agentType: type,
         workDir: cwd,
       }),
+      responseLanguagePreference:
+        type === 'main'
+          ? () => responseLanguagePreferenceFromUnknown(this.metadata.custom['responseLanguage'])
+          : undefined,
     });
   }
 

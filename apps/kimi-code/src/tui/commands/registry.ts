@@ -2,9 +2,10 @@ import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'pathe';
 
-import type { AutocompleteItem } from '@earendil-works/pi-tui';
+import type { AutocompleteItem } from '#/tui/renderer';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
+import { rendererArgumentCompletions } from './renderer';
 import type { KimiSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from './types';
 
 /** Subcommands offered when autocompleting `/goal <…>`. */
@@ -65,6 +66,7 @@ const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'stats', description: 'Show Kimi Recall memory stats' },
   { value: 'list', description: 'List recent memories' },
   { value: 'search', description: 'Search memories' },
+  { value: 'wiki', description: 'Show project-local LLM Wiki status' },
   { value: 'remember', description: 'Write a memory' },
   { value: 'forget', description: 'Forget a memory by id' },
   { value: 'consolidate', description: 'Merge exact duplicate memories' },
@@ -336,6 +338,17 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'renderer',
+    aliases: ['render'],
+    description: 'Inspect and control the experimental native renderer',
+    priority: 80,
+    visibility: 'diagnostic',
+    experimentalFlag: 'native_renderer',
+    argumentHint: 'diagnostics [on|off|toggle|status] | trace [status|reset|export]',
+    completeArgs: rendererArgumentCompletions,
+    availability: 'always',
+  },
+  {
     name: 'help',
     aliases: ['h', '?'],
     description: 'Show available commands and shortcuts',
@@ -382,7 +395,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Manage Kimi Recall long-term memory',
     priority: 60,
     availability: 'always',
-    argumentHint: '[stats|list|search|remember|forget|consolidate]',
+    argumentHint: '[stats|list|search|wiki|remember|forget|consolidate]',
     completeArgs: memoryArgumentCompletions,
   },
   {

@@ -17,9 +17,25 @@ export interface MatchEntry {
   readonly text: string;
 }
 
+export interface RelationshipEntry {
+  readonly line: number;
+  readonly kind: 'import' | 'export';
+  readonly target: string;
+  readonly confidence: 'EXTRACTED';
+  readonly text: string;
+}
+
+export interface TestHintEntry {
+  readonly confidence: 'EXTRACTED' | 'INFERRED';
+  readonly path: string;
+  readonly reason: string;
+}
+
 export interface RankedFile {
   readonly file: ContextFile;
   readonly score: number;
   readonly symbols: readonly SymbolEntry[];
   readonly matches: readonly MatchEntry[];
+  readonly relationships: readonly RelationshipEntry[];
+  readonly testHints: readonly TestHintEntry[];
 }

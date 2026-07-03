@@ -7,6 +7,7 @@ import {
   helpArgumentCompletions,
   memoryArgumentCompletions,
   planArgumentCompletions,
+  rendererArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
   swarmArgumentCompletions,
@@ -44,6 +45,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('bench')?.name).toBe('bench');
     expect(findBuiltInSlashCommand('preflight')?.name).toBe('preflight');
     expect(findBuiltInSlashCommand('pf')?.name).toBe('preflight');
+    expect(findBuiltInSlashCommand('renderer')?.name).toBe('renderer');
+    expect(findBuiltInSlashCommand('render')?.name).toBe('renderer');
     expect(findBuiltInSlashCommand('ultraplan')?.name).toBe('ultrawork');
     expect(findBuiltInSlashCommand('up')?.name).toBe('ultrawork');
     expect(findBuiltInSlashCommand('ultraresearch')?.name).toBe('ultrawork');
@@ -109,6 +112,7 @@ describe('built-in slash command registry', () => {
 
     expect(primaryNames).not.toContain('bench');
     expect(primaryNames).not.toContain('preflight');
+    expect(primaryNames).not.toContain('renderer');
     expect(primaryNames).not.toContain('plan');
     expect(primaryNames).not.toContain('ultrawork');
     expect(primaryNames).not.toContain('ultraswarm');
@@ -139,12 +143,39 @@ describe('built-in slash command registry', () => {
       (command) => command.name === 'ultrawork',
     );
     expect(ultrawork?.aliases).toEqual(['uw']);
-    expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight']));
+    expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight', 'renderer']));
     const help = findBuiltInSlashCommand('help') as KimiSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);
     expect(helpArgumentCompletions('')?.[0]?.description).toBe('Show steering controls');
     expect(helpArgumentCompletions('d')).toBeNull();
     expect(help?.argumentHint).toBeUndefined();
+  });
+
+  it('offers native renderer diagnostics and trace completions', () => {
+    expect(rendererArgumentCompletions('')?.map((item) => item.value)).toEqual([
+      'diagnostics',
+      'trace',
+    ]);
+    expect(rendererArgumentCompletions('diagnostics ')?.map((item) => item.value)).toEqual([
+      'diagnostics on',
+      'diagnostics off',
+      'diagnostics toggle',
+      'diagnostics status',
+      'diagnostics reset',
+    ]);
+    expect(rendererArgumentCompletions('diagnostics o')?.map((item) => item.value)).toEqual([
+      'diagnostics on',
+      'diagnostics off',
+    ]);
+    expect(rendererArgumentCompletions('diagnostics status')).toBeNull();
+    expect(rendererArgumentCompletions('trace ')?.map((item) => item.value)).toEqual([
+      'trace status',
+      'trace reset',
+      'trace export',
+    ]);
+    expect(rendererArgumentCompletions('trace e')?.map((item) => item.value)).toEqual([
+      'trace export',
+    ]);
   });
 
   it('puts core vibe-coding controls first in primary help order', () => {
@@ -269,6 +300,7 @@ describe('built-in slash command registry', () => {
   it('keeps memory diagnostics out of the default memory completion list', () => {
     const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
 
+    expect(primaryValues).toContain('wiki');
     expect(primaryValues).not.toContain('readiness');
     expect(primaryValues).not.toContain('health');
     expect(memoryArgumentCompletions('r')?.map((item) => item.value)).not.toContain('readiness');

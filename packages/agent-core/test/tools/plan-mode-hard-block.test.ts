@@ -229,6 +229,11 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'KimiContext', { query: 'ultrawork' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'SearchExpert', { query: 'architecture review' })).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'TodoList', {
+        todos: [{ title: 'Collect research evidence', status: 'in_progress' }],
+      }),
+    ).toBeUndefined();
 
     const questionDeny = expectDeny(
       evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'Which option?' }),
@@ -329,6 +334,7 @@ describe('Plan mode permission policy', () => {
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from interview phase to design phase');
     expect(result.output).toContain("call NextPhase({ phase: 'review' })");
+    expect(result.output).toContain('TodoList progress tracking');
     expect(planMode.phase).toBe('design');
     expect(planMode.ultraEngine.seedSpec?.goal).toContain('implement guarded Ultrawork mode');
   });
@@ -347,6 +353,7 @@ describe('Plan mode permission policy', () => {
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from review phase to write phase');
     expect(result.output).toContain('Write Phase');
+    expect(result.output).toContain('Only the current plan file can be read or edited');
     expect(planMode.phase).toBe('write');
   });
 
@@ -365,6 +372,7 @@ describe('Plan mode permission policy', () => {
     expect(result.output).toContain('Advanced from design phase to review phase');
     expect(result.output).toContain('WebSearch');
     expect(result.output).toContain('FetchURL');
+    expect(result.output).toContain('TodoList progress tracking');
     expect(planMode.phase).toBe('review');
   });
 
@@ -382,6 +390,7 @@ describe('Plan mode permission policy', () => {
     ['SearchSkill', { query: 'tui review workflow' }],
     ['Skill', { skill: 'write-tui' }],
     ['SearchExpert', { query: 'testing evidence review' }],
+    ['TodoList', { todos: [{ title: 'Verify design assumptions', status: 'in_progress' }] }],
     ['TaskList', {}],
     ['TaskOutput', { task_id: 'task_123' }],
   ] as const)('allows %s as read-only Ultra Plan review context', async (toolName, args) => {
@@ -422,6 +431,46 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'NextPhase', { phase: nextPhase })).toBeUndefined();
   });
 
+  it('keeps Ultra Plan write focused on the plan file while allowing progress tracking', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('write');
+    const planPath = planMode.planFilePath;
+    if (planPath === null) throw new Error('expected plan path');
+
+    expect(evaluatePlanPolicy(agent, 'Read', { path: planPath })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'Write', { path: planPath, content: '# Plan' })).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'Edit', {
+        path: planPath,
+        old_string: '# Plan',
+        new_string: '# Plan\n\n## Seed Spec',
+      }),
+    ).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'TodoList', {
+        todos: [{ title: 'Write Seed Spec', status: 'in_progress' }],
+      }),
+    ).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'NextPhase', { phase: 'exit' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'ExitPlanMode', {})).toBeUndefined();
+  });
+
+  it.each([
+    ['Read', { path: '/workspace/src/main.ts' }],
+    ['WebSearch', { query: 'new planning evidence' }],
+    ['FetchURL', { url: 'https://example.com/docs' }],
+    ['Agent', { prompt: 'review the plan', description: 'review plan' }],
+    ['BrowserObserve', {}],
+    ['TaskOutput', { task_id: 'task_123' }],
+  ] as const)('blocks %s in Ultra Plan write phase', async (toolName, args) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('write');
+
+    const deny = expectDeny(evaluatePlanPolicy(agent, toolName, args));
+
+    expect(deny.message ?? '').toContain('Write phase');
+  });
+
   it.each([
     ['SearchSkill', { query: 'tui design best practices' }],
     ['Skill', { skill: 'write-tui' }],
@@ -431,6 +480,47 @@ describe('Plan mode permission policy', () => {
     planMode.setPhase('design');
 
     expect(evaluatePlanPolicy(agent, toolName, args)).toBeUndefined();
+  });
+
+  it('allows TodoList in Ultra Plan design as live progress tracking', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('design');
+
+    expect(
+      evaluatePlanPolicy(agent, 'TodoList', {
+        todos: [{ title: 'Compare design options', status: 'in_progress' }],
+      }),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    'pwd',
+    'cat package.json',
+    "sed -n '1,10p' package.json",
+    'rg -n "Design phase" packages/agent-core',
+    'git status --short',
+    'git diff --stat',
+  ])('allows read-only Bash inspection in Ultra Plan design: %s', async (command) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('design');
+
+    expect(evaluatePlanPolicy(agent, 'Bash', { command })).toBeUndefined();
+  });
+
+  it.each([
+    'node scripts/build.js',
+    'touch generated.txt',
+    "sed -i 's/a/b/' package.json",
+    'find . -delete',
+    'cat ~/.ssh/id_rsa',
+    'git show --output=/tmp/show.txt HEAD',
+  ])('blocks non-inspection Bash in Ultra Plan design: %s', async (command) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('design');
+
+    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
+
+    expect(deny.message ?? '').toContain('read-only inspection command');
   });
 
   it.each([
@@ -464,20 +554,60 @@ describe('Plan mode permission policy', () => {
   });
 
   it.each([
+    'pwd',
+    'ls -la /Users/modumaru/Desktop/code/test',
+    'ls -la /Users/modumaru/Desktop/code/test && pwd',
+    'pwd && ls -la packages/agent-core && git status --short',
+    'which node && which npm && which python3 && which git',
+    'which -a node npm pnpm',
+    'command -v node && command -v pnpm',
+    'git -C /workspace status --short',
+    'git branch --show-current',
+    'git rev-parse --show-toplevel',
+    'git status --short && git diff --name-only',
+    'git diff --stat --name-only --check',
+  ])('allows narrow Research phase Bash inspection: %s', async (command) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('research');
+
+    expect(evaluatePlanPolicy(agent, 'Bash', { command })).toBeUndefined();
+  });
+
+  it.each([
     'cat package.json',
     "sed -n '1,10p' package.json",
     'rg -n "Review phase" packages/agent-core',
-  ])(
-    'keeps Research phase Bash inspection narrow: %s',
-    async (command) => {
-      const { agent, planMode } = await activePlanAgent({ ultra: true });
-      planMode.setPhase('research');
+  ])('keeps Research phase Bash inspection narrow: %s', async (command) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('research');
 
-      const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
+    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
 
-      expect(deny.message ?? '').toContain('simple read-only workspace inspection');
-    },
-  );
+    expect(deny.message ?? '').toContain('simple read-only workspace inspection');
+  });
+
+  it.each([
+    'ls -la /tmp && rm -rf /tmp/generated',
+    'ls -la /tmp; pwd',
+    'pwd | cat',
+    'pwd & ls',
+    'pwd &&',
+    '&& pwd',
+    'pwd && cat package.json',
+    'pwd && git show --stat HEAD',
+    'ls ~/.ssh',
+    'which ~/.ssh/id_rsa',
+    'command -v ../scripts/dev',
+    'git diff --output=/tmp/diff.txt',
+    'git log --oneline -5',
+  ])('blocks unsafe or too-broad Research phase Bash inspection: %s', async (command) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('research');
+
+    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
+
+    expect(deny.message ?? '').toContain('simple read-only workspace inspection');
+  });
 
   it.each([
     'node scripts/build.js',

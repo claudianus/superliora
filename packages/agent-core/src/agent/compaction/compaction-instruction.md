@@ -14,6 +14,9 @@ Preserve only what changes the next move:
 - Quote the latest user request and state what it asks for.
 - Condense active constraints: user preferences, project rules, environment
   facts, workflow requirements, and tooling limits.
+- Preserve the preferred response language if it appears in the compacted
+  context. Include it as `preferred_response_language` and, when practical,
+  write the narrative portions of the handoff in that language.
 - Record verified work at high fidelity: exact commands run, exact files
   touched, and whether each check succeeded or failed. Keep final working facts;
   drop resolved detours.

@@ -13,6 +13,20 @@ import { executeTool } from './fixtures/execute-tool';
 
 const signal = new AbortController().signal;
 
+interface DriftFixture {
+  readonly goalDrift: number;
+  readonly constraintDrift: number;
+  readonly ontologyDrift: number;
+}
+
+function workGraphSection(): string[] {
+  return [
+    '## WorkGraph',
+    '| Node ID | AC ID | Stage | Owner/Lane | Dependencies | Required Evidence |',
+    '| ac_1 | AC-1 | swarm | main/implementation | none | focused test evidence |',
+  ];
+}
+
 function makeAgent(
   input: {
     readonly active?: boolean | undefined;
@@ -21,14 +35,19 @@ function makeAgent(
     readonly planFilePath?: string | null | undefined;
     readonly ultra?: boolean | undefined;
     readonly phase?: string | undefined;
+    readonly drift?: DriftFixture | undefined;
     readonly emit?: ((event: unknown) => void) | undefined;
   } = {},
 ): { agent: Agent; requestApproval: ReturnType<typeof vi.fn>; emit: ReturnType<typeof vi.fn> } {
   let active = input.active ?? true;
+  let phase = input.phase ?? 'exit';
   const requestApproval = vi.fn(async () => ({ decision: 'approved' }));
   const emit = vi.fn((event: unknown) => {
     input.emit?.(event);
     if ((event as { type?: string }).type === 'plan_mode.exit') active = false;
+  });
+  const reopenUltraInterviewForDrift = vi.fn(() => {
+    phase = 'interview';
   });
   const agent = {
     planMode: {
@@ -42,14 +61,15 @@ function makeAgent(
         return input.ultra ?? false;
       },
       get phase() {
-        return input.phase ?? 'exit';
+        return phase;
       },
+      reopenUltraInterviewForDrift,
       ultraEngine: {
-        calculateDrift: vi.fn(() => ({
+        calculateDrift: vi.fn(() => input.drift ?? {
           goalDrift: 0,
           constraintDrift: 0,
           ontologyDrift: 0,
-        })),
+        }),
       },
       data: vi.fn(async () => {
         if (input.plan === null) return null;
@@ -219,6 +239,8 @@ describe('ExitPlanModeTool', () => {
         '- Test coverage',
         '- Verification passes',
         '',
+        ...workGraphSection(),
+        '',
         '## Swarm Decision',
         'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
         '- **Decision:** DEFER',
@@ -246,6 +268,134 @@ describe('ExitPlanModeTool', () => {
 
     expect(result.isError).toBe(false);
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
+    expect(result.output).not.toContain('UltraSwarm ENGAGE is binding');
+  });
+
+  it('keeps Ultra Plan active when drift exceeds the accepted threshold', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      drift: {
+        goalDrift: 0.964,
+        constraintDrift: 0,
+        ontologyDrift: 0.7,
+      },
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## Seed Spec',
+        '- **Verifiable UltraGoal:** True when checks pass; false otherwise.',
+        '- **Completion Criterion:** Both checks pass.',
+        '- **Actors:** CLI user, agent, and verification owner.',
+        '- **Inputs:** Source, tests, and user prompt.',
+        '- **Outputs:** Source edits, tests, and verification evidence.',
+        '- **Constraints:** Minimal change and no unrelated files.',
+        '- **Non-goals:** No broad refactor.',
+        '- **Acceptance Criteria:** Behavior works and checks pass.',
+        '- **Verification Plan:** Run focused checks.',
+        '- **Failure Modes:** Wrong scope or failing checks.',
+        '- **Runtime Context:** Local TypeScript monorepo.',
+        '',
+        '## AC Tree',
+        '- Done',
+        '',
+        ...workGraphSection(),
+        '',
+        '## Swarm Decision',
+        'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
+        '- **Decision:** DEFER',
+        '- **Reason:** Bounded deterministic edit.',
+        '- **Specialist value:** none',
+        '- **Verification owner:** main agent',
+        '- **Swarm DEFER waiver:** Single-owner deterministic edit with focused checks and no specialist-only risk.',
+        '',
+        '## Evaluation Plan',
+        '- Run focused checks.',
+        '',
+        '## Execution Plan',
+        '1. Edit source.',
+        '2. Run checks.',
+      ].join('\n'),
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_high_drift',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('ExitPlanMode blocked');
+    expect(result.output).toContain('Combined Drift: 0.622 (threshold: 0.3)');
+    expect(result.output).toContain('Status: BLOCKED');
+    expect(result.output).toContain('Ultra Plan interview has been reopened');
+    expect(result.output).toContain('Ask 1-3 focused AskUserQuestion questions');
+    expect(agent.planMode.phase).toBe('interview');
+    expect(agent.planMode.reopenUltraInterviewForDrift).toHaveBeenCalledWith({
+      goalDrift: 0.964,
+      constraintDrift: 0,
+      ontologyDrift: 0.7,
+    });
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('tells approved Ultra Plan ENGAGE decisions to call UltraSwarm next', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## Seed Spec',
+        '- **Verifiable UltraGoal:** True when the requested behavior is implemented and verified; false otherwise.',
+        '- **Completion Criterion:** Implementation, expert review, and focused checks pass.',
+        '- **Actors:** CLI user, implementation agent, specialist reviewers, verification owner.',
+        '- **Inputs:** Source files, tests, coverage matrix, and runtime evidence.',
+        '- **Outputs:** Source changes, tests, specialist verdicts, and verification evidence.',
+        '- **Constraints:** No unrelated refactors; specialists must report concrete evidence.',
+        '- **Non-goals:** No full-suite rewrite.',
+        '- **Acceptance Criteria:** Behavior works, tests pass, specialist review returns PASS or explicit blocker.',
+        '- **Verification Plan:** Run focused checks and review specialist evidence.',
+        '- **Failure Modes:** Skipped specialist review, missing evidence, or unverified implementation.',
+        '- **Runtime Context:** Local TypeScript monorepo.',
+        '',
+        '## AC Tree',
+        '- Behavior implemented',
+        '- Specialist review complete',
+        '- Verification passes',
+        '',
+        ...workGraphSection(),
+        '',
+        '## Swarm Decision',
+        'Swarm decision: ENGAGE - Architecture and QA review materially reduce risk.; value: architecture and QA specialist review; owner: verification owner.',
+        '- **Decision:** ENGAGE',
+        '- **Reason:** Architecture and QA review materially reduce risk.',
+        '- **Specialist value:** architecture and QA specialist review',
+        '- **Verification owner:** verification owner',
+        '',
+        '## Evaluation Plan',
+        '- Mechanical checks plus specialist verdicts.',
+        '',
+        '## Execution Plan',
+        '1. Call UltraSwarm with the WorkGraph node.',
+        '2. Integrate specialist output.',
+        '3. Run checks.',
+      ].join('\n'),
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_engage',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
+    expect(result.output).toContain('UltraSwarm ENGAGE is binding');
+    expect(result.output).toContain('call UltraSwarm as the only tool call');
+    expect(result.output).toContain('work_node_ids');
   });
 
   it('blocks Ultra Plan exit when the Swarm decision lacks specialist value and owner', async () => {
@@ -271,6 +421,8 @@ describe('ExitPlanModeTool', () => {
         '## AC Tree',
         '- Done',
         '',
+        ...workGraphSection(),
+        '',
         '## Evaluation Plan',
         '- Run checks.',
         '',
@@ -289,6 +441,57 @@ describe('ExitPlanModeTool', () => {
     expect(result.isError).toBe(true);
     expect(result.output).toContain('Specialist value');
     expect(result.output).toContain('Verification owner');
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('blocks Ultra Plan exit when the WorkGraph section is missing', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## Seed Spec',
+        '- **Verifiable UltraGoal:** True when checks pass; false otherwise.',
+        '- **Completion Criterion:** Both checks pass.',
+        '- **Actors:** CLI user and agent.',
+        '- **Inputs:** Source and test.',
+        '- **Outputs:** Source and test changes.',
+        '- **Constraints:** Minimal change.',
+        '- **Non-goals:** No unrelated edits.',
+        '- **Acceptance Criteria:** Assertions pass.',
+        '- **Verification Plan:** Run checks.',
+        '- **Failure Modes:** Missing token.',
+        '- **Runtime Context:** Local repo.',
+        '',
+        '## AC Tree',
+        '- Done',
+        '',
+        '## Swarm Decision',
+        'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
+        '- **Decision:** DEFER',
+        '- **Reason:** Bounded deterministic edit.',
+        '- **Specialist value:** none',
+        '- **Verification owner:** main agent',
+        '- **Swarm DEFER waiver:** Single-owner deterministic edit.',
+        '',
+        '## Evaluation Plan',
+        '- Run checks.',
+        '',
+        '## Execution Plan',
+        '1. Edit source.',
+      ].join('\n'),
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_missing_work_graph',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('WorkGraph');
     expect(emit).not.toHaveBeenCalled();
   });
 
@@ -314,6 +517,8 @@ describe('ExitPlanModeTool', () => {
         '',
         '## AC Tree',
         '- Done',
+        '',
+        ...workGraphSection(),
         '',
         '## Swarm Decision',
         '- **Decision:** DEFER',
@@ -365,6 +570,8 @@ describe('ExitPlanModeTool', () => {
         '## AC Tree',
         '- Done',
         '',
+        ...workGraphSection(),
+        '',
         '## Swarm Decision',
         'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
         '- **Decision:** DEFER',
@@ -414,6 +621,8 @@ describe('ExitPlanModeTool', () => {
         '',
         '## AC Tree',
         '- Done',
+        '',
+        ...workGraphSection(),
         '',
         '## Swarm Decision',
         'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
@@ -493,6 +702,8 @@ describe('ExitPlanModeTool', () => {
         '- Source edit',
         '- Test edit',
         '- Verification',
+        '',
+        ...workGraphSection(),
         '',
         '## Evaluation Plan',
         '- Mechanical checks.',

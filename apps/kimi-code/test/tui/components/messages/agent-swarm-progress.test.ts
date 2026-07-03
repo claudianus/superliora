@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import {
@@ -26,6 +26,7 @@ function createComponent(
 ): AgentSwarmProgressComponent {
   return new AgentSwarmProgressComponent({
     description: options.description ?? DEFAULT_DESCRIPTION,
+    title: options.title,
     requestRender: options.requestRender,
     availableGridHeight: options.availableGridHeight,
   });
@@ -229,6 +230,34 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).not.toContain('001 [');
     expect(output).not.toContain('002 [');
     expect(output).not.toContain('agents=2');
+  });
+
+  it('renders UltraSwarm expert metadata and verdict evidence summaries', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        division: 'security',
+        coverageLane: 'security_privacy',
+        focus: 'review',
+      },
+    ]);
+    component.markInputComplete();
+
+    let output = renderText(component);
+    expect(output).toContain('UltraSwarm');
+    expect(output).toContain('AppSec Engineer security_privacy/review');
+
+    component.applyResult([
+      '<ultra_swarm_result run_id="uw_1">',
+      '<expert expert_id="security-appsec-engineer" name="AppSec Engineer" division="security" phase="review" focus="review" outcome="completed" verdict="PASS" evidence_ids="ev_1,ev_2">VERDICT: PASS</expert>',
+      '</ultra_swarm_result>',
+    ].join('\n'));
+
+    output = renderText(component);
+    expect(output).toContain('AppSec Engineer: PASS evidence ev_1,ev_2');
   });
 
   it('fits three queued columns with the narrower gap and minimum cell width', () => {

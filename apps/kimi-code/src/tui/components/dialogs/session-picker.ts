@@ -6,10 +6,11 @@ import {
   Container,
   matchesKey,
   Key,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import { formatSessionLabel } from '#/migration/index';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
@@ -205,7 +206,6 @@ export class SessionPickerComponent extends Container implements Focusable {
   // the clamp in `render()` is what guarantees the renderer's invariant and
   // prevents the "Rendered line exceeds terminal width" crash (issue #240).
   private renderLines(width: number): string[] {
-    const lines: string[] = [currentTheme.fg('primary', '─'.repeat(width))];
     const title = this.scope === 'all' ? 'All sessions' : 'Sessions';
     const scopeHint =
       this.onToggleScope === undefined
@@ -215,28 +215,24 @@ export class SessionPickerComponent extends Container implements Focusable {
           : 'Ctrl+A all';
 
     if (this.loading) {
-      lines.push(currentTheme.boldFg('primary', truncateToWidth(title, width, ELLIPSIS)));
-      lines.push(
-        currentTheme.fg('textMuted', truncateToWidth('Loading sessions...', width, ELLIPSIS)),
-      );
-      lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-      return lines;
+      return this.renderChromeRows(width, {
+        title,
+        hint: 'Loading sessions...',
+        bodyTopGap: false,
+        footerTopGap: false,
+      });
     }
 
     if (this.sessions.length === 0) {
       const hintParts = [scopeHint, 'Esc cancel'].filter(
         (item): item is string => item !== undefined,
       );
-      lines.push(currentTheme.boldFg('primary', truncateToWidth(title, width, ELLIPSIS)));
-      lines.push(
-        currentTheme.fg('textMuted', truncateToWidth(hintParts.join(' · '), width, ELLIPSIS)),
-      );
-      lines.push('');
-      lines.push(
-        currentTheme.fg('textMuted', truncateToWidth('No sessions found.', width, ELLIPSIS)),
-      );
-      lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-      return lines;
+      return this.renderChromeRows(width, {
+        title,
+        hint: hintParts.join(' · '),
+        body: [currentTheme.fg('textMuted', 'No sessions found.')],
+        footerTopGap: false,
+      });
     }
 
     const view = this.list.view();
@@ -250,19 +246,22 @@ export class SessionPickerComponent extends Container implements Focusable {
       'Esc cancel',
     ].filter((item): item is string => item !== undefined);
 
-    lines.push(currentTheme.boldFg('primary', title) + titleSuffix);
-    lines.push(currentTheme.fg('textMuted', hintParts.join(' · ')));
-    lines.push('');
+    const body: string[] = [];
 
     if (view.query.length > 0) {
-      lines.push(currentTheme.fg('primary', 'Search: ') + currentTheme.fg('text', view.query));
+      body.push(currentTheme.fg('primary', 'Search: ') + currentTheme.fg('text', view.query));
     }
 
     const loadedSessions = this.loadedSessions(view.items);
     if (loadedSessions.length === 0) {
-      lines.push(currentTheme.fg('textMuted', truncateToWidth('No matches', width, ELLIPSIS)));
-      lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-      return lines;
+      body.push(currentTheme.fg('textMuted', 'No matches'));
+      return this.renderChromeRows(width, {
+        title,
+        titleSuffix,
+        hint: hintParts.join(' · '),
+        body,
+        footerTopGap: false,
+      });
     }
     const selectedIndex = view.selectedIndex;
     const visibleStart = Math.max(
@@ -282,13 +281,13 @@ export class SessionPickerComponent extends Container implements Focusable {
       const isSelected = index === selectedIndex;
       const isCurrent = session.id === this.currentSessionId;
       const card = this.renderSessionCard(width, session, isSelected, isCurrent);
-      lines.push(...card);
-      if (vi < visibleSessions.length - 1) lines.push('');
+      body.push(...card);
+      if (vi < visibleSessions.length - 1) body.push('');
     }
 
+    const footerRows: string[] = [];
     const filteredCount = view.items.length;
     if (loadedSessions.length > visibleSessions.length || view.query.length > 0) {
-      lines.push('');
       const totalSuffix =
         view.query.length > 0
           ? `${String(loadedSessions.length)} loaded / ${String(filteredCount)} matches`
@@ -296,11 +295,45 @@ export class SessionPickerComponent extends Container implements Focusable {
             ? `${String(loadedSessions.length)} sessions`
             : `${String(loadedSessions.length)} loaded / ${String(this.sessions.length)} sessions`;
       const footer = `Showing ${String(visibleStart + 1)}-${String(visibleStart + visibleSessions.length)} of ${totalSuffix}`;
-      lines.push(currentTheme.fg('textMuted', truncateToWidth(footer, width, ELLIPSIS)));
+      footerRows.push(currentTheme.fg('textMuted', footer));
     }
 
-    lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-    return lines;
+    return this.renderChromeRows(width, {
+      title,
+      titleSuffix,
+      hint: hintParts.join(' · '),
+      body,
+      footer: footerRows,
+      footerTopGap: footerRows.length > 0,
+    });
+  }
+
+  private renderChromeRows(
+    width: number,
+    options: {
+      readonly title: string;
+      readonly titleSuffix?: string;
+      readonly hint?: string;
+      readonly body?: readonly string[];
+      readonly footer?: readonly string[];
+      readonly bodyTopGap?: boolean;
+      readonly footerTopGap?: boolean;
+    },
+  ): string[] {
+    return renderRendererPanelChromeRows({
+      width,
+      title: options.title,
+      titleSuffix: options.titleSuffix,
+      hint: options.hint,
+      body: options.body,
+      footer: options.footer,
+      bodyTopGap: options.bodyTopGap,
+      footerTopGap: options.footerTopGap,
+      dividerStyle: (text) => currentTheme.fg('primary', text),
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: (text) => currentTheme.fg('textMuted', text),
+      ellipsis: ELLIPSIS,
+    });
   }
 
   private renderSessionCard(

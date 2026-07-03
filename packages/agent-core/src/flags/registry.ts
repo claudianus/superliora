@@ -20,6 +20,14 @@ export const FLAG_DEFINITIONS = [
     default: true,
     surface: 'core',
   },
+  {
+    id: 'native_renderer',
+    title: 'Native TUI renderer',
+    description: 'Run the product-owned native TUI renderer as the interactive backend.',
+    env: 'KIMI_CODE_EXPERIMENTAL_NATIVE_RENDERER',
+    default: false,
+    surface: 'tui',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

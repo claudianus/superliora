@@ -1,10 +1,12 @@
-import type { Component, MarkdownTheme } from '@earendil-works/pi-tui';
+import type { Component, MarkdownTheme } from '#/tui/renderer';
 import {
   Markdown,
+  RendererStableScrollableLineViewport,
   Text,
-  truncateToWidth,
-  visibleWidth,
-} from '@earendil-works/pi-tui';
+  fitRendererFrameTitle,
+  projectRendererLineWindow,
+  renderRendererStableScrollableFrameRows,
+} from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { THINKING_PREVIEW_LINES } from '../../constant/rendering';
@@ -22,11 +24,6 @@ interface BtwTurn {
   phase: BtwPanelPhase;
 }
 
-interface BtwBodyRender {
-  readonly lines: string[];
-  readonly truncated: boolean;
-}
-
 export interface BtwPanelOptions {
   readonly markdownTheme: MarkdownTheme;
   readonly canUseScrollKeys: () => boolean;
@@ -37,18 +34,14 @@ export interface BtwPanelOptions {
 export class BtwPanelComponent implements Component {
   private readonly turns: BtwTurn[] = [];
   private readonly transientNotices: string[] = [];
-  private minBodyLines = 0;
-  private followTail = true;
-  private scrollTop = 0;
-  private maxScrollTop = 0;
+  private readonly bodyViewport = new RendererStableScrollableLineViewport();
 
   constructor(private readonly options: BtwPanelOptions) {}
 
   submit(prompt: string): void {
     const normalized = prompt.trim();
     if (normalized.length === 0 || this.isRunning()) return;
-    this.followTail = true;
-    this.scrollTop = 0;
+    this.bodyViewport.toBottom();
     this.transientNotices.length = 0;
     this.turns.push({
       prompt: normalized,
@@ -61,7 +54,7 @@ export class BtwPanelComponent implements Component {
 
   addTransientNotice(message: string): void {
     this.transientNotices.push(message);
-    this.followTail = true;
+    this.bodyViewport.toBottom();
   }
 
   appendAnswer(delta: string): void {
@@ -110,14 +103,25 @@ export class BtwPanelComponent implements Component {
     const safeWidth = Math.max(4, width);
     const contentWidth = Math.max(1, safeWidth - 4);
     const body = this.renderBody(contentWidth);
-    const lines = [this.renderTopBorder(safeWidth, body.truncated)];
-    for (const line of body.lines) {
-      lines.push(this.renderBodyLine(line, safeWidth));
-    }
-    return lines;
+    const paint = (s: string): string => chalk.hex(currentTheme.palette.border)(s);
+    return [...renderRendererStableScrollableFrameRows({
+      viewport: this.bodyViewport,
+      body,
+      maxViewportRows: this.collapsedBodyLimit(),
+      fill: '',
+      title: ({ hasOverflow, titleWidth }) =>
+        this.renderTitle(titleWidth, hasOverflow),
+      titlePlacement: 'flush',
+      borderKind: 'rounded',
+      bottomBorder: false,
+      width: safeWidth,
+      paddingX: 1,
+      borderStyle: paint,
+      ellipsis: '…',
+    }).rows];
   }
 
-  private renderTopBorder(width: number, truncated: boolean): string {
+  private renderTitle(width: number, truncated: boolean): string {
     const paint = (s: string): string => chalk.hex(currentTheme.palette.border)(s);
     const hint = truncated && this.options.canUseScrollKeys()
       ? 'Esc close · ↑↓ scroll '
@@ -126,14 +130,10 @@ export class BtwPanelComponent implements Component {
       chalk.hex(currentTheme.palette.accent).bold(' BTW ') +
       paint('─ ') +
       chalk.hex(currentTheme.palette.textMuted)(hint);
-    const innerWidth = Math.max(1, width - 2);
-    const clippedTitle =
-      visibleWidth(title) > innerWidth ? truncateToWidth(title, innerWidth, '') : title;
-    const dashCount = Math.max(0, innerWidth - visibleWidth(clippedTitle));
-    return paint('╭') + clippedTitle + paint('─'.repeat(dashCount)) + paint('╮');
+    return fitRendererFrameTitle(title, width, '');
   }
 
-  private renderBody(width: number): BtwBodyRender {
+  private renderBody(width: number): string[] {
     const lines: string[] = [];
     for (const [index, turn] of this.turns.entries()) {
       if (index > 0) lines.push('');
@@ -143,7 +143,7 @@ export class BtwPanelComponent implements Component {
       lines.push(chalk.hex(currentTheme.palette.textDim)('Ready for a side question...'));
     }
     lines.push(...this.renderTransientNotices(width));
-    return this.fitBodyLines(lines);
+    return lines;
   }
 
   private renderTransientNotices(width: number): string[] {
@@ -152,34 +152,6 @@ export class BtwPanelComponent implements Component {
       lines.push(...new Text(chalk.hex(currentTheme.palette.textDim)(notice), 0, 0).render(width));
     }
     return lines;
-  }
-
-  private fitBodyLines(lines: string[]): BtwBodyRender {
-    const bodyLimit = this.collapsedBodyLimit();
-    const targetUncapped = Math.max(this.minBodyLines, lines.length);
-    const target =
-      bodyLimit === undefined ? targetUncapped : Math.min(bodyLimit, targetUncapped);
-    this.minBodyLines = Math.max(this.minBodyLines, target);
-
-    if (lines.length > target) {
-      this.maxScrollTop = lines.length - target;
-      if (this.followTail) {
-        this.scrollTop = this.maxScrollTop;
-      } else {
-        this.scrollTop = Math.min(this.scrollTop, this.maxScrollTop);
-      }
-      const start = this.scrollTop;
-      return { lines: lines.slice(start, start + target), truncated: true };
-    }
-
-    this.followTail = true;
-    this.scrollTop = 0;
-    this.maxScrollTop = 0;
-    const padded = [...lines];
-    while (padded.length < target) {
-      padded.push('');
-    }
-    return { lines: padded, truncated: false };
   }
 
   private collapsedBodyLimit(): number | undefined {
@@ -200,10 +172,11 @@ export class BtwPanelComponent implements Component {
       const thinkingLines = new Text(chalk.hex(currentTheme.palette.textDim)(thinking), 0, 0).render(
         width,
       );
-      const visibleThinking =
-        thinkingLines.length > THINKING_PREVIEW_LINES
-          ? thinkingLines.slice(thinkingLines.length - THINKING_PREVIEW_LINES)
-          : thinkingLines;
+      const visibleThinking = projectRendererLineWindow({
+        lines: thinkingLines,
+        maxLines: THINKING_PREVIEW_LINES,
+        tail: true,
+      }).lines;
       lines.push(...visibleThinking);
     } else if (turn.error === undefined) {
       lines.push(chalk.hex(currentTheme.palette.textDim)('Waiting for answer...'));
@@ -213,15 +186,6 @@ export class BtwPanelComponent implements Component {
       lines.push(...new Text(error, 0, 0).render(width));
     }
     return lines;
-  }
-
-  private renderBodyLine(line: string, width: number): string {
-    const paint = (s: string): string => chalk.hex(currentTheme.palette.border)(s);
-    const contentWidth = Math.max(1, width - 4);
-    const clipped =
-      visibleWidth(line) > contentWidth ? truncateToWidth(line, contentWidth, '…') : line;
-    const padding = Math.max(0, contentWidth - visibleWidth(clipped));
-    return paint('│') + ' ' + clipped + ' '.repeat(padding) + ' ' + paint('│');
   }
 
   private currentTurn(): BtwTurn | undefined {
@@ -237,14 +201,12 @@ export class BtwPanelComponent implements Component {
   }
 
   scroll(direction: 'up' | 'down'): boolean {
-    if (this.maxScrollTop <= 0) return false;
-    const current = this.followTail ? this.maxScrollTop : this.scrollTop;
-    const next =
-      direction === 'up'
-        ? Math.max(0, current - 1)
-        : Math.min(this.maxScrollTop, current + 1);
-    this.scrollTop = next;
-    this.followTail = next === this.maxScrollTop;
-    return true;
+    const before = this.bodyViewport.snapshot();
+    if (before.maxScrollTop <= 0) return false;
+    const after = this.bodyViewport.scroll(
+      direction === 'up' ? 'line-up' : 'line-down',
+    );
+    return after.scrollTop !== before.scrollTop ||
+      after.followTail !== before.followTail;
   }
 }

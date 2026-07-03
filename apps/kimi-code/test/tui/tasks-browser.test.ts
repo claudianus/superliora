@@ -1,4 +1,4 @@
-import type { Terminal } from '@earendil-works/pi-tui';
+import type { Terminal } from '#/tui/renderer';
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@moonshot-ai/kimi-code-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -188,6 +188,46 @@ describe('TasksBrowserApp — full-screen rendering', () => {
     );
     expect(out).toContain('ready in 432ms');
     expect(out).toContain('listening on :3000');
+  });
+
+  it('tails long preview output through the renderer projection and shows overflow', () => {
+    const tailOutput = Array.from(
+      { length: 40 },
+      (_, i) => `preview-line-${String(i + 1).padStart(3, '0')}`,
+    ).join('\n');
+    const out = strip(
+      makeApp({
+        tasks: [task({ taskId: 'bash-aaaaaaaa' })],
+        selectedTaskId: 'bash-aaaaaaaa',
+        tailOutput,
+      }, 24)
+        .render(120)
+        .join('\n'),
+    );
+    expect(out).toContain('preview-line-040');
+    expect(out).not.toContain('preview-line-001');
+    expect(out).toContain('█');
+  });
+
+  it('scrolls the task list window to keep the selected task visible', () => {
+    const tasks = Array.from({ length: 40 }, (_, i) =>
+      task({
+        taskId: `bash-${String(i + 1).padStart(8, '0')}`,
+        status: 'running',
+        startedAt: i,
+      }),
+    );
+    const out = strip(
+      makeApp({
+        tasks,
+        selectedTaskId: 'bash-00000040',
+      }, 16)
+        .render(120)
+        .join('\n'),
+    );
+    expect(out).toContain('bash-00000040');
+    expect(out).not.toContain('bash-00000001');
+    expect(out).toContain('█');
   });
 
   it('shows a loading state when tail is loading', () => {

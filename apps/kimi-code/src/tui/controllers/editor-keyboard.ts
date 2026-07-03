@@ -15,6 +15,7 @@ import {
 import { formatErrorMessage } from '../utils/event-payload';
 import type { ImageAttachmentStore } from '../utils/image-attachment-store';
 import type { PendingExit, QueuedMessage } from '../types';
+import type { TranscriptScrollAction } from '../utils/transcript-viewport';
 import type { TUIState } from '../tui-state';
 import type { BtwPanelController } from './btw-panel';
 
@@ -45,6 +46,7 @@ export interface EditorKeyboardHost {
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   clearQueuedMessages(): void;
   setExternalEditorRunning(running: boolean): void;
+  scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
 }
 
 export class EditorKeyboardController {
@@ -291,6 +293,10 @@ export class EditorKeyboardController {
     };
 
     editor.onDownArrowEmpty = () => host.btwPanelController.scroll('down');
+    editor.onTranscriptPageUp = () => host.scrollTranscriptViewport('page-up');
+    editor.onTranscriptPageDown = () => host.scrollTranscriptViewport('page-down');
+    editor.onTranscriptTop = () => host.scrollTranscriptViewport('top');
+    editor.onTranscriptBottom = () => host.scrollTranscriptViewport('bottom');
 
     editor.onPasteImage = async () => this.handleClipboardImagePaste();
   }
@@ -396,7 +402,7 @@ export class EditorKeyboardController {
     }
     this.host.setExternalEditorRunning(true);
     const seed = state.editor.getExpandedText?.() ?? state.editor.getText();
-    state.ui.stop();
+    state.renderer.stop();
     await new Promise<void>((resolve) => {
       setImmediate(resolve);
     });
@@ -412,9 +418,9 @@ export class EditorKeyboardController {
       if (typeof process.stdin.pause === 'function') {
         process.stdin.pause();
       }
-      state.ui.start();
+      state.renderer.start();
       state.ui.setFocus(state.editor);
-      state.ui.requestRender(true);
+      state.renderer.requestRender(true);
       this.host.setExternalEditorRunning(false);
     }
   }

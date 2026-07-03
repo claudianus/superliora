@@ -1,4 +1,16 @@
-import { truncateToWidth, visibleWidth, type Component } from '@earendil-works/pi-tui';
+import {
+  RENDERER_BRAILLE_PROGRESS_EMPTY,
+  RENDERER_BRAILLE_PROGRESS_LEVELS,
+  RENDERER_BRAILLE_PROGRESS_SEPARATOR,
+  renderRendererDividerRow,
+  renderRendererLabeledDividerRow,
+  renderRendererSegmentedProgressBar,
+  renderRendererSteppedProgressBar,
+  truncateToWidth,
+  visibleWidth,
+  type Component,
+  type RendererSteppedProgressBarCellProjection,
+} from '#/tui/renderer';
 import chalk from 'chalk';
 
 import {
@@ -15,9 +27,6 @@ const CELL_GAP = '  ';
 const FRAME_INTERVAL_MS = 80;
 const TEXT_BRAILLE_BAR_MIN_WIDTH = 6;
 const BRAILLE_BAR_MAX_WIDTH = 8;
-const BRAILLE_EMPTY = '⣀';
-const BRAILLE_RIGHT_COLUMN_FULL = '⢸';
-const BRAILLE_LEVELS = ['⣀', '⣄', '⣤', '⣦', '⣶', '⣷', '⣿'] as const;
 const PHASE_LABEL_WIDTH = 'Completed'.length;
 const MIN_LABEL_WIDTH = PHASE_LABEL_WIDTH;
 const MAX_LATEST_MODEL_CHARS = 2_000;
@@ -106,6 +115,18 @@ const CANCELLED_CLEAR_KEYS = [
   'suspendedReason',
 ] as const satisfies readonly ClearableMemberKey[];
 
+export interface UltraSwarmMemberMetadata {
+  readonly expertId: string;
+  readonly name: string;
+  readonly division?: string;
+  readonly emoji?: string;
+  readonly coverageLane?: string;
+  readonly selectionReason?: string;
+  readonly focus?: string;
+  readonly dependsOn?: readonly string[];
+  readonly taskIds?: readonly string[];
+}
+
 interface AgentSwarmMember {
   readonly id: string;
   agentId?: string;
@@ -113,6 +134,9 @@ interface AgentSwarmMember {
   ticks: number;
   itemText: string;
   latestModelText: string;
+  ultraSwarm?: UltraSwarmMemberMetadata;
+  verdict?: string;
+  evidenceIds?: readonly string[];
   completedText?: string;
   failureText?: string;
   cancelledLabelText?: string;
@@ -134,6 +158,9 @@ interface AgentSwarmSnapshot {
 interface AgentSwarmResultStatus {
   readonly index: number;
   readonly status: 'completed' | 'failed' | 'cancelled';
+  readonly verdict?: string;
+  readonly evidenceIds?: readonly string[];
+  readonly ultraSwarm?: UltraSwarmMemberMetadata;
   readonly completedText?: string;
   readonly failureText?: string;
 }
@@ -284,6 +311,18 @@ export class AgentSwarmProgressComponent implements Component {
     this.updateItemTexts(fullRows, partialRows);
   }
 
+  applyUltraSwarmTeam(members: readonly UltraSwarmMemberMetadata[]): void {
+    this.ensureMemberCount(members.length);
+    for (let index = 0; index < members.length; index += 1) {
+      const member = this.members[index];
+      const metadata = members[index];
+      if (member === undefined || metadata === undefined) continue;
+      member.ultraSwarm = metadata;
+      member.itemText = ultraSwarmMemberLabel(metadata);
+    }
+    this.itemsStarted = members.length > 0;
+  }
+
   markInputComplete(): void {
     if (!this.inputComplete) {
       this.inputComplete = true;
@@ -414,10 +453,19 @@ export class AgentSwarmProgressComponent implements Component {
       const member = this.members[entry.index - 1];
       if (member === undefined) continue;
       if (entry.status === 'completed') {
+        member.verdict = entry.verdict;
+        member.evidenceIds = entry.evidenceIds;
+        member.ultraSwarm = entry.ultraSwarm ?? member.ultraSwarm;
         this.completeMember(member, nowMs, entry.completedText);
       } else if (entry.status === 'failed') {
+        member.verdict = entry.verdict;
+        member.evidenceIds = entry.evidenceIds;
+        member.ultraSwarm = entry.ultraSwarm ?? member.ultraSwarm;
         this.failMember(member, nowMs, entry.failureText);
       } else {
+        member.verdict = entry.verdict;
+        member.evidenceIds = entry.evidenceIds;
+        member.ultraSwarm = entry.ultraSwarm ?? member.ultraSwarm;
         this.cancelMember(member, nowMs);
       }
     }
@@ -482,19 +530,25 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   private renderHeader(width: number, _summary: AgentSwarmSummary | undefined): string {
-    if (width <= 3) return chalk.hex(this.colors.primary)('─'.repeat(width));
+    const dividerStyle = (text: string): string => chalk.hex(this.colors.primary)(text);
+    if (width <= 3) {
+      return renderRendererDividerRow({
+        width,
+        style: dividerStyle,
+      });
+    }
 
     const title = gradientText(this.title, this.colors.primary, this.colors.accent, AGENT_SWARM_TITLE_ACCENT_BIAS);
     const description =
       this.description.length > 0
-        ? chalk.hex(this.colors.primary)(' ─ ') + chalk.hex(this.colors.text)(this.description)
+        ? chalk.hex(this.colors.primary)(` ${renderRendererDividerRow({ width: 1 })} `) +
+          chalk.hex(this.colors.text)(this.description)
         : '';
-    const prefixText = '─ ';
-    const labelWidth = Math.max(1, width - visibleWidth(prefixText) - 1);
-    const label = truncateToWidth(title + description, labelWidth);
-    const suffixWidth = Math.max(0, width - visibleWidth(prefixText) - visibleWidth(label));
-    const suffix = suffixWidth === 0 ? '' : ` ${'─'.repeat(Math.max(0, suffixWidth - 1))}`;
-    return chalk.hex(this.colors.primary)(prefixText) + label + chalk.hex(this.colors.primary)(suffix);
+    return renderRendererLabeledDividerRow({
+      width,
+      label: title + description,
+      dividerStyle,
+    });
   }
 
   private renderStatusLine(width: number): string {
@@ -620,7 +674,7 @@ export class AgentSwarmProgressComponent implements Component {
     const estimate = this.progressEstimator.estimate({
       memberKey: member.id,
       phase: snapshot.phase,
-      capacityTicks: layout.barCells * BRAILLE_LEVELS.length,
+      capacityTicks: layout.barCells * RENDERER_BRAILLE_PROGRESS_LEVELS.length,
       nowMs,
     });
     const id = chalk.hex(this.colors.primary)(member.id);
@@ -648,7 +702,7 @@ export class AgentSwarmProgressComponent implements Component {
     const estimate = this.progressEstimator.estimate({
       memberKey: member.id,
       phase: estimatePhase,
-      capacityTicks: barCells * BRAILLE_LEVELS.length,
+      capacityTicks: barCells * RENDERER_BRAILLE_PROGRESS_LEVELS.length,
       nowMs,
     });
     const id = chalk.hex(this.colors.primary)(member.id);
@@ -1028,6 +1082,19 @@ function parseUltraSwarmXmlResultStatuses(output: string): AgentSwarmResultStatu
       result.push({
         index,
         status: outcome === 'aborted' || outcome === 'cancelled' ? 'cancelled' : outcome,
+        verdict: xmlAttribute(attrs, 'verdict'),
+        evidenceIds: commaSeparatedXmlAttribute(attrs, 'evidence_ids'),
+        ultraSwarm: {
+          expertId: xmlAttribute(attrs, 'expert_id') ?? xmlAttribute(attrs, 'name') ?? `expert-${String(index)}`,
+          name: xmlAttribute(attrs, 'name') ?? `Expert ${String(index)}`,
+          division: xmlAttribute(attrs, 'division'),
+          emoji: xmlAttribute(attrs, 'emoji'),
+          coverageLane: xmlAttribute(attrs, 'coverage_lane'),
+          selectionReason: selectionReasonFromUltraSwarmBody(body),
+          focus: xmlAttribute(attrs, 'focus'),
+          dependsOn: commaSeparatedXmlAttribute(attrs, 'depends_on'),
+          taskIds: commaSeparatedXmlAttribute(attrs, 'work_node_ids'),
+        },
         completedText: outcome === 'completed' ? stripUltraSwarmMetadata(body) : undefined,
         failureText: outcome === 'failed' ? stripUltraSwarmMetadata(body) : undefined,
       });
@@ -1039,6 +1106,18 @@ function parseUltraSwarmXmlResultStatuses(output: string): AgentSwarmResultStatu
 
 function stripUltraSwarmMetadata(body: string): string {
   return body.replaceAll(/<selection_reason>[\s\S]*?<\/selection_reason>\n?/g, '').trim();
+}
+
+function selectionReasonFromUltraSwarmBody(body: string): string | undefined {
+  const match = /<selection_reason>([\s\S]*?)<\/selection_reason>/.exec(body);
+  return match?.[1]?.trim();
+}
+
+function commaSeparatedXmlAttribute(attrs: string, name: string): readonly string[] | undefined {
+  const value = xmlAttribute(attrs, name);
+  if (value === undefined || value.trim().length === 0) return undefined;
+  const items = value.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+  return items.length === 0 ? undefined : items;
 }
 
 export function isSwarmProgressToolName(toolName: string): boolean {
@@ -1326,16 +1405,15 @@ function renderStatusPipBar(
 ): string {
   const safeWidth = Math.max(1, width);
   const counts = statusBarCounts(members);
-  if (counts.length === 0) {
-    return chalk.hex(colors.textMuted)(STATUS_BAR_CHAR.repeat(safeWidth));
-  }
-
-  const segmentWidths = allocateSegmentWidths(counts.map((entry) => entry.count), safeWidth);
-  return counts.map((entry, index) => {
-    const segmentWidth = segmentWidths[index] ?? 0;
-    if (segmentWidth <= 0) return '';
-    return chalk.hex(statusBarColor(entry.phase, colors))(STATUS_BAR_CHAR.repeat(segmentWidth));
-  }).join('');
+  return renderRendererSegmentedProgressBar({
+    width: safeWidth,
+    char: STATUS_BAR_CHAR,
+    emptyStyle: (text) => chalk.hex(colors.textMuted)(text),
+    segments: counts.map((entry) => ({
+      value: entry.count,
+      style: (text) => chalk.hex(statusBarColor(entry.phase, colors))(text),
+    })),
+  });
 }
 
 function renderStatusLabel(label: string, color: string): string {
@@ -1443,25 +1521,6 @@ function totalStatusLabelColor(
   return totalStatusColor(status, colors);
 }
 
-function allocateSegmentWidths(counts: readonly number[], width: number): number[] {
-  const total = counts.reduce((sum, count) => sum + count, 0);
-  if (total <= 0 || width <= 0) return counts.map(() => 0);
-
-  const exact = counts.map((count) => count * width / total);
-  const widths = exact.map(Math.floor);
-  let remaining = width - widths.reduce((sum, value) => sum + value, 0);
-  const order = exact
-    .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
-    .toSorted((a, b) => b.fraction - a.fraction || a.index - b.index);
-
-  for (const entry of order) {
-    if (remaining <= 0) break;
-    widths[entry.index] = (widths[entry.index] ?? 0) + 1;
-    remaining -= 1;
-  }
-  return widths;
-}
-
 function renderCellLabel(
   member: AgentSwarmMember,
   snapshot: AgentSwarmSnapshot,
@@ -1476,7 +1535,11 @@ function renderCellLabel(
     return truncateWithColor(`${FAILURE_MARK}${member.failureText}`, width, colors.error);
   }
   if (snapshot.phase === 'completed') {
-    return renderCompletedCellLabel(member.completedText ?? latestLine, width, colors);
+    return renderCompletedCellLabel(
+      completedCellText(member, member.completedText ?? latestLine),
+      width,
+      colors,
+    );
   }
   if (snapshot.phase === 'cancelled') {
     return renderCancelledCellLabel(member, width, colors);
@@ -1489,6 +1552,22 @@ function runningCellLabelText(member: AgentSwarmMember): string {
   const itemText = collapseWhitespace(member.itemText);
   const text = latestLine.length > 0 ? latestLine : itemText;
   return text.length > 0 ? text : PHASE_LABELS.running;
+}
+
+function ultraSwarmMemberLabel(metadata: UltraSwarmMemberMetadata): string {
+  const name = metadata.emoji === undefined ? metadata.name : `${metadata.emoji} ${metadata.name}`;
+  const lane = metadata.coverageLane ?? metadata.division;
+  const focus = metadata.focus === undefined ? '' : `/${metadata.focus}`;
+  return lane === undefined ? `${name}${focus}` : `${name} ${lane}${focus}`;
+}
+
+function completedCellText(member: AgentSwarmMember, fallback: string): string {
+  if (member.verdict === undefined) return fallback;
+  const evidence = member.evidenceIds === undefined || member.evidenceIds.length === 0
+    ? ''
+    : ` evidence ${member.evidenceIds.join(',')}`;
+  const expert = member.ultraSwarm?.name === undefined ? '' : `${member.ultraSwarm.name}: `;
+  return `${expert}${member.verdict}${evidence}`;
 }
 
 function renderCancelledCellLabel(
@@ -1551,7 +1630,9 @@ function renderQueuedCell(
   const id = chalk.hex(colors.primary)(member.id);
   const prefix = `${id} `;
   const labelWidth = Math.max(1, width - visibleWidth(prefix));
-  return prefix + truncateWithColor(QUEUED_LABEL, labelWidth, colors.textDim);
+  const itemText = collapseWhitespace(member.itemText);
+  const label = member.ultraSwarm !== undefined && itemText.length > 0 ? itemText : QUEUED_LABEL;
+  return prefix + truncateWithColor(label, labelWidth, colors.textDim);
 }
 
 function renderCancelledUnstartedCell(
@@ -1712,7 +1793,7 @@ function padAnsi(text: string, width: number): string {
 }
 
 function completedDisplayTicks(ticks: number, width: number, phaseElapsedMs: number): number {
-  const fullBarTicks = width * BRAILLE_LEVELS.length;
+  const fullBarTicks = width * RENDERER_BRAILLE_PROGRESS_LEVELS.length;
   if (ticks >= fullBarTicks) return fullBarTicks;
   const fillProgress = Math.max(0, Math.min(1, phaseElapsedMs / COMPLETE_FILL_MS));
   return Math.min(fullBarTicks, Math.ceil(ticks + (fullBarTicks - ticks) * fillProgress));
@@ -1725,7 +1806,7 @@ function failedBrailleBar(
   colors: ColorPalette,
 ): string {
   const redCellCount = Math.ceil(
-    completedDisplayTicks(ticks, width, phaseElapsedMs) / BRAILLE_LEVELS.length,
+    completedDisplayTicks(ticks, width, phaseElapsedMs) / RENDERER_BRAILLE_PROGRESS_LEVELS.length,
   );
   const placeholderColor = darkenRedHexColor(colors.error);
   return accumulatedBrailleBar(
@@ -1775,46 +1856,22 @@ function accumulatedBrailleBar(
   colors: ColorPalette,
   emptyColorForCell?: (cellIndex: number) => string,
 ): string {
-  const dotsPerCell = BRAILLE_LEVELS.length;
-  const cycleSize = width * dotsPerCell;
-  const safeTicks = Math.max(0, Math.ceil(ticks));
-  const completedCycles = Math.floor(safeTicks / cycleSize);
-  const cycleTicks = safeTicks % cycleSize;
-  const activeCells = cycleTicks === 0 ? 0 : Math.ceil(cycleTicks / dotsPerCell);
-  const separatorIndex = completedCycles > 0 && activeCells > 0 && activeCells < width
-    ? activeCells
-    : -1;
+  return renderRendererSteppedProgressBar({
+    width,
+    ticks,
+    levels: RENDERER_BRAILLE_PROGRESS_LEVELS,
+    emptyChar: RENDERER_BRAILLE_PROGRESS_EMPTY,
+    separatorChar: RENDERER_BRAILLE_PROGRESS_SEPARATOR,
+    styleForCell: (cell) => rendererBrailleCellStyle(cell, filledColor, colors, emptyColorForCell),
+  });
+}
 
-  let out = '';
-  let pending = '';
-  let pendingColor: string | undefined;
-  const flush = (): void => {
-    if (pending.length === 0 || pendingColor === undefined) return;
-    out += chalk.hex(pendingColor)(pending);
-    pending = '';
-  };
-  const append = (char: string, color: string): void => {
-    if (pendingColor !== color) {
-      flush();
-      pendingColor = color;
-    }
-    pending += char;
-  };
-
-  for (let i = 0; i < width; i += 1) {
-    if (i === separatorIndex) {
-      append(BRAILLE_RIGHT_COLUMN_FULL, filledColor);
-      continue;
-    }
-
-    const cellStart = i * dotsPerCell;
-    const countThisCycle = Math.max(0, Math.min(dotsPerCell, cycleTicks - cellStart));
-    const count = countThisCycle > 0 ? countThisCycle : completedCycles > 0 ? dotsPerCell : 0;
-    append(
-      count === 0 ? BRAILLE_EMPTY : BRAILLE_LEVELS[count - 1]!,
-      count === 0 ? emptyColorForCell?.(i) ?? colors.textDim : filledColor,
-    );
-  }
-  flush();
-  return out;
+function rendererBrailleCellStyle(
+  cell: RendererSteppedProgressBarCellProjection,
+  filledColor: string,
+  colors: ColorPalette,
+  emptyColorForCell: ((cellIndex: number) => string) | undefined,
+): (text: string) => string {
+  if (cell.filled) return (text) => chalk.hex(filledColor)(text);
+  return (text) => chalk.hex(emptyColorForCell?.(cell.index) ?? colors.textDim)(text);
 }

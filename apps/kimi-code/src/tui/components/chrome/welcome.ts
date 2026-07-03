@@ -3,8 +3,8 @@
  * Renders a round-bordered box with the logo, session, model, and version.
  */
 
-import type { Component } from '@earendil-works/pi-tui';
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
+import type { Component } from '#/tui/renderer';
+import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { PRODUCT_NAME } from '#/constant/app';
@@ -52,7 +52,6 @@ export class WelcomeComponent implements Component {
     }
 
     const innerWidth = Math.max(1, safeWidth - 4);
-    const pad = '  ';
 
     // Mascot + side-by-side text.
     const logo = renderKimiMascotIcon({ layout, appearance });
@@ -103,29 +102,21 @@ export class WelcomeComponent implements Component {
 
     const contentLines: string[] = [...renderedHeaderLines, '', ...infoLines];
 
-    const lines: string[] = [
+    return [
       '',
-      primary('╭' + '─'.repeat(safeWidth - 2) + '╮'),
-      primary('│') +
-        renderParticleRail(safeWidth - 2, appearance, 'welcome-top') +
-        primary('│'),
+      ...renderRendererFrameRows({
+        content: [
+          renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
+          ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
+          renderParticleRail(safeWidth - 2, appearance, 'welcome-bottom'),
+        ],
+        width: safeWidth,
+        height: contentLines.length + 4,
+        borderKind: 'rounded',
+        borderStyle: primary,
+        ellipsis: '…',
+      }),
+      '',
     ];
-
-    for (const content of contentLines) {
-      const truncated = truncateToWidth(content, innerWidth, '…');
-      const vis = visibleWidth(truncated);
-      const rightPad = Math.max(0, innerWidth - vis);
-      lines.push(primary('│') + pad + truncated + ' '.repeat(rightPad) + primary('│'));
-    }
-
-    lines.push(
-      primary('│') +
-        renderParticleRail(safeWidth - 2, appearance, 'welcome-bottom') +
-        primary('│'),
-    );
-    lines.push(primary('╰' + '─'.repeat(safeWidth - 2) + '╯'));
-    lines.push('');
-
-    return lines.map((line) => truncateToWidth(line, safeWidth, '…'));
   }
 }

@@ -13,8 +13,8 @@
  * reads the same "work in progress" signal across the UI.
  */
 
-import { Container, Text, Spacer } from '@earendil-works/pi-tui';
-import type { TUI } from '@earendil-works/pi-tui';
+import { Container, Text, Spacer } from '#/tui/renderer';
+import type { RendererRootUI } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
@@ -22,7 +22,7 @@ import { currentTheme } from '#/tui/theme';
 const BLINK_INTERVAL = 500;
 
 export class CompactionComponent extends Container {
-  private readonly ui: TUI | undefined;
+  private readonly ui: RendererRootUI | undefined;
   private readonly headerText: Text;
   private readonly instruction: string | undefined;
   private readonly tip: string | undefined;
@@ -33,7 +33,7 @@ export class CompactionComponent extends Container {
   private tokensBefore: number | undefined;
   private tokensAfter: number | undefined;
 
-  constructor(ui?: TUI, instruction?: string | undefined, tip?: string) {
+  constructor(ui?: RendererRootUI, instruction?: string | undefined, tip?: string) {
     super();
     this.ui = ui;
     this.instruction = instruction;

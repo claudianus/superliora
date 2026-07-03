@@ -8,7 +8,7 @@ import {
   type AutocompleteProvider,
   type AutocompleteSuggestions,
   type SlashCommand,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 
 import type { SlashCommandVisibility } from '#/tui/commands';
 
@@ -33,13 +33,13 @@ interface FsMentionCandidate {
 }
 
 /**
- * Kimi wrapper around pi-tui's combined autocomplete provider.
+ * Kimi wrapper around the renderer-owned combined autocomplete provider.
  *
- * File / folder mention behavior uses pi-tui's fd-backed provider when fd is
+ * File / folder mention behavior uses the renderer's fd-backed provider when fd is
  * available and only the current working directory is involved. While managed fd
  * is downloading, when it is unavailable, or when the session has additional
  * roots, a small filesystem fallback keeps `@` file and folder completion usable
- * across every root. Ordinary path completion is still handled by pi-tui's
+ * across every root. Ordinary path completion is still handled by the renderer's
  * readdir-backed path completer. This wrapper also keeps Kimi-specific
  * slash-command guards.
  */
@@ -500,7 +500,7 @@ function shouldSuppressSlashArgumentCompletion(
 /**
  * All tokens must fuzzy-match `text`; returns the summed score, or null when
  * any token misses. An empty token list matches everything with score 0.
- * Mirrors pi-tui fuzzyFilter's token semantics — keep in sync if it changes.
+ * Mirrors renderer fuzzyFilter's token semantics — keep in sync if it changes.
  */
 function scoreTokens(tokens: readonly string[], text: string): number | null {
   let score = 0;

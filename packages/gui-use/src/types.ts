@@ -46,6 +46,19 @@ export interface BrowserConsoleInput {
   readonly expression?: string | undefined;
 }
 
+export interface BrowserStatusInput {
+  readonly installIfMissing?: boolean | undefined;
+}
+
+export interface BrowserStatus {
+  readonly platform: NodeJS.Platform;
+  readonly installed: boolean;
+  readonly ready?: boolean | undefined;
+  readonly version?: string | undefined;
+  readonly command?: readonly string[] | undefined;
+  readonly error?: string | undefined;
+}
+
 export type BrowserAction =
   | { readonly type: 'navigate'; readonly url: string }
   | { readonly type: 'click_ref'; readonly ref: string }
@@ -88,6 +101,7 @@ export interface BrowserConsoleMessage {
 }
 
 export interface BrowserUseRuntime {
+  status(input?: BrowserStatusInput, signal?: AbortSignal): Promise<BrowserStatus>;
   observe(input?: BrowserObserveInput, signal?: AbortSignal): Promise<BrowserObservation>;
   screenshot(input?: BrowserScreenshotInput, signal?: AbortSignal): Promise<RuntimeImage>;
   act(input: BrowserActInput, signal?: AbortSignal): Promise<BrowserActResult>;

@@ -3,11 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { MemoryRecord, MemoryStats } from '@moonshot-ai/kimi-code-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { memoryArgumentCompletions } from '#/tui/commands/registry';
+import type { SlashCommandHost } from '#/tui/commands/dispatch';
 import {
   buildMemoryReadinessLines,
+  handleMemoryCommand,
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
 } from '#/tui/commands/memory';
@@ -145,6 +147,60 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
+  it('recognizes project-local LLM Wiki v2 index and manifest even without run evidence', () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-wiki-v2-'));
+    try {
+      const seed = createUltraworkEvidenceSeed(
+        workDir,
+        'Improve LLM Wiki quality without leaking secrets token=secret-value',
+        'manual',
+        false,
+        new Date('2026-07-02T00:00:00.000Z'),
+      );
+      rmSync(join(workDir, '.super-kimi/evidence'), { recursive: true, force: true });
+
+      const evidence = loadMemoryReadinessEvidence(workDir);
+
+      expect(seed.wikiIndexPath).toBe('.super-kimi/wiki/index.md');
+      expect(evidence.llmWiki.ready).toBe(true);
+      expect(evidence.llmWiki.sourcePath).toContain('.super-kimi/wiki/index.md');
+      expect(evidence.knowledgeMap.ready).toBe(false);
+      expect(evidence.warnings.join('\n')).not.toContain('Malformed');
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it('shows project-local LLM Wiki status through /memory wiki', async () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-wiki-command-'));
+    try {
+      createUltraworkEvidenceSeed(
+        workDir,
+        'Document the harness wiki layer',
+        'manual',
+        false,
+        new Date('2026-07-02T00:00:00.000Z'),
+      );
+      const host = {
+        state: { appState: { workDir } },
+        showNotice: vi.fn(),
+      } as unknown as SlashCommandHost;
+
+      await handleMemoryCommand(host, 'wiki');
+
+      expect(host.showNotice).toHaveBeenCalledWith(
+        'LLM Wiki',
+        expect.stringContaining('State  ready'),
+      );
+      expect(host.showNotice).toHaveBeenCalledWith(
+        'LLM Wiki',
+        expect.stringContaining('.super-kimi/wiki/index.md'),
+      );
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not treat research notes as browser or computer-use runtime evidence', () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-research-'));
     try {
@@ -202,9 +258,11 @@ describe('memory readiness slash command builders', () => {
   });
 
   it('does not offer internal readiness and health subcommands in memory completions', () => {
+    const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
     const healthValues = memoryArgumentCompletions('h')?.map((item) => item.value);
     const readinessValues = memoryArgumentCompletions('r')?.map((item) => item.value);
 
+    expect(primaryValues).toContain('wiki');
     expect(healthValues).toBeUndefined();
     expect(readinessValues).toEqual(['remember']);
   });

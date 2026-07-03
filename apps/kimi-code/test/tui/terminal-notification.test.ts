@@ -2,11 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { TUIState } from '#/tui/kimi-tui';
 import {
+  buildNativeNotificationCommand,
   buildTerminalNotificationSequences,
+  emitNativeNotification,
   emitTerminalNotification,
   formatNotification,
   isInsideTmux,
   notifyTerminalOnce,
+  notifyUserAttentionOnce,
   supportsOsc9Notification,
   supportsTerminalProgress,
 } from '#/tui/utils/terminal-notification';
@@ -189,6 +192,123 @@ describe('terminal notification helpers', () => {
     expect(wrapped.startsWith('Ptmux;')).toBe(true);
     expect(wrapped.endsWith('\\')).toBe(true);
     expect(wrapped).toContain(']9;A: B');
+  });
+
+  it('builds a macOS notification command with title, body, and sound', () => {
+    const command = buildNativeNotificationCommand(
+      { title: 'Approval', body: 'Run tests?' },
+      'darwin',
+    );
+
+    expect(command).toEqual({
+      command: 'osascript',
+      args: [
+        '-e',
+        'display notification (system attribute "KIMI_CODE_NOTIFICATION_BODY") with title (system attribute "KIMI_CODE_NOTIFICATION_TITLE") sound name "Glass"',
+        '-e',
+        'delay 0.1',
+      ],
+      env: {
+        KIMI_CODE_NOTIFICATION_TITLE: 'Approval',
+        KIMI_CODE_NOTIFICATION_BODY: 'Run tests?',
+      },
+    });
+  });
+
+  it('builds a Linux notify-send command', () => {
+    expect(
+      buildNativeNotificationCommand({ title: 'Question', body: 'Pick one' }, 'linux'),
+    ).toEqual({
+      command: 'notify-send',
+      args: ['-a', 'Kimi Code', 'Question', 'Pick one'],
+    });
+  });
+
+  it('skips native notification commands for empty messages and unsupported platforms', () => {
+    expect(buildNativeNotificationCommand({ title: '', body: '' }, 'darwin')).toBeUndefined();
+    expect(buildNativeNotificationCommand({ title: 'Done' }, 'win32')).toBeUndefined();
+  });
+
+  it('spawns native notifications without keeping the process alive', () => {
+    const child = {
+      on: vi.fn(() => child),
+      unref: vi.fn(),
+    };
+    const spawn = vi.fn(() => child);
+
+    expect(
+      emitNativeNotification(
+        { title: 'Done', body: 'Ready' },
+        { platform: 'darwin', env: { PATH: '/bin' }, spawn },
+      ),
+    ).toBe(true);
+
+    expect(spawn).toHaveBeenCalledWith('osascript', expect.any(Array), {
+      detached: true,
+      env: {
+        PATH: '/bin',
+        KIMI_CODE_NOTIFICATION_TITLE: 'Done',
+        KIMI_CODE_NOTIFICATION_BODY: 'Ready',
+      },
+      stdio: 'ignore',
+    });
+    expect(child.on).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(child.unref).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses native macOS attention notifications instead of terminal OSC/BEL', () => {
+    const state = makeNotificationState({ focused: false, supportsOsc9: true });
+    const child = {
+      on: vi.fn(() => child),
+      unref: vi.fn(),
+    };
+    const spawn = vi.fn(() => child);
+
+    notifyUserAttentionOnce(
+      state,
+      'approval:req-1',
+      { title: 'Approval required', body: 'Bash' },
+      { platform: 'darwin', env: {}, spawn },
+    );
+
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(state.terminal.write).not.toHaveBeenCalled();
+  });
+
+  it('falls back to terminal notifications when no native command is available', () => {
+    const state = makeNotificationState({ focused: false, supportsOsc9: true });
+
+    notifyUserAttentionOnce(
+      state,
+      'approval:req-1',
+      { title: 'Approval required' },
+      { platform: 'freebsd' },
+    );
+
+    expect(state.terminal.write).toHaveBeenCalledWith(']9;Approval required');
+  });
+
+  it('adds a terminal bell alongside Linux native notifications', () => {
+    const state = makeNotificationState({ focused: false, supportsOsc9: true });
+    const child = {
+      on: vi.fn(() => child),
+      unref: vi.fn(),
+    };
+    const spawn = vi.fn(() => child);
+
+    notifyUserAttentionOnce(
+      state,
+      'question:req-1',
+      { title: 'Question', body: 'Pick one' },
+      { platform: 'linux', env: {}, spawn },
+    );
+
+    expect(spawn).toHaveBeenCalledWith('notify-send', ['-a', 'Kimi Code', 'Question', 'Pick one'], {
+      detached: true,
+      env: {},
+      stdio: 'ignore',
+    });
+    expect(state.terminal.write).toHaveBeenCalledWith('');
   });
 });
 

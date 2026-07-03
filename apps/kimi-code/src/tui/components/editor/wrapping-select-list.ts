@@ -6,7 +6,8 @@ import {
   type SelectItem,
   type SelectListLayoutOptions,
   type SelectListTheme,
-} from '@earendil-works/pi-tui';
+  type RendererSelectableListViewport,
+} from '#/tui/renderer';
 
 // Mirror pi-tui's private select-list layout constants
 // (dist/components/select-list.js); keep in sync when bumping pi-tui.
@@ -32,10 +33,10 @@ function truncatePlainToWidth(text: string, maxWidth: number): string {
 
 interface SelectListInternals {
   readonly filteredItems: SelectItem[];
-  readonly selectedIndex: number;
   readonly maxVisible: number;
   readonly theme: SelectListTheme;
   readonly layout: SelectListLayoutOptions;
+  readonly viewport: RendererSelectableListViewport;
 }
 
 /**
@@ -44,13 +45,14 @@ interface SelectListInternals {
  * anything past the second line is ellipsized.
  *
  * Only `render` is replaced — selection, filtering, and key handling stay in
- * pi-tui. pi-tui keeps the row state private, so the renderer reads it
- * through a cast, the same idiom CustomEditor uses for autocomplete
- * internals.
+ * the renderer SelectList. The base list keeps row state private, so this
+ * renderer reads it through a cast, the same idiom CustomEditor uses for
+ * autocomplete internals.
  */
 export class WrappingSelectList extends SelectList {
   override render(width: number): string[] {
-    const { filteredItems, selectedIndex, maxVisible, theme } = this.internals();
+    const { filteredItems, viewport, maxVisible, theme } = this.internals();
+    const selectedIndex = viewport.snapshot().selectedIndex;
     if (filteredItems.length === 0) {
       return [theme.noMatch('  No matching commands')];
     }

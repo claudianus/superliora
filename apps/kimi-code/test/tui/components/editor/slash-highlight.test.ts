@@ -1,14 +1,12 @@
-import chalk from 'chalk';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-import { highlightFirstSlashToken } from '#/tui/components/editor/custom-editor';
+import { highlightRendererEditorSlashToken } from '#/tui/renderer';
 
-beforeAll(() => {
-  // Vitest runs without a TTY so chalk auto-detects colour support as
-  // 0 (no colours). Force full colour so the highlighter actually
-  // emits the SGR escapes we're asserting on.
-  chalk.level = 3;
-});
+const paint = (text: string): string => `\u001B[1m${text}\u001B[0m`;
+
+function highlightFirstSlashToken(line: string): string | undefined {
+  return highlightRendererEditorSlashToken(line, paint);
+}
 
 function strip(s: string): string {
   return s.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -20,7 +18,7 @@ function expectHighlighted(out: string, token: string): void {
 
 describe('highlightFirstSlashToken', () => {
   it('colours /cmd when line starts with a slash', () => {
-    const out = highlightFirstSlashToken('  /help rest of input', 'primary');
+    const out = highlightFirstSlashToken('  /help rest of input');
     expect(out).toBeDefined();
     // Visible text unchanged
     expect(strip(out!)).toBe('  /help rest of input');
@@ -29,7 +27,7 @@ describe('highlightFirstSlashToken', () => {
   });
 
   it('colours next in /goal next', () => {
-    const out = highlightFirstSlashToken('/goal next Ship feature X', 'primary');
+    const out = highlightFirstSlashToken('/goal next Ship feature X');
     expect(out).toBeDefined();
     expect(strip(out!)).toBe('/goal next Ship feature X');
     expectHighlighted(out!, '/goal');
@@ -38,7 +36,7 @@ describe('highlightFirstSlashToken', () => {
   });
 
   it('colours manage in /goal next manage', () => {
-    const out = highlightFirstSlashToken('/goal next manage', 'primary');
+    const out = highlightFirstSlashToken('/goal next manage');
     expect(out).toBeDefined();
     expect(strip(out!)).toBe('/goal next manage');
     expectHighlighted(out!, '/goal');
@@ -47,19 +45,19 @@ describe('highlightFirstSlashToken', () => {
   });
 
   it('returns undefined when the line has no slash', () => {
-    expect(highlightFirstSlashToken('hello world', 'primary')).toBeUndefined();
+    expect(highlightFirstSlashToken('hello world')).toBeUndefined();
   });
 
   it('returns undefined when slash is not at the leading position', () => {
-    expect(highlightFirstSlashToken('  hello /not-cmd', 'primary')).toBeUndefined();
+    expect(highlightFirstSlashToken('  hello /not-cmd')).toBeUndefined();
   });
 
   it('returns undefined for path-like slash tokens', () => {
-    expect(highlightFirstSlashToken('/user/desktop/ foo', 'primary')).toBeUndefined();
+    expect(highlightFirstSlashToken('/user/desktop/ foo')).toBeUndefined();
   });
 
   it('handles /token at end of line (no trailing whitespace)', () => {
-    const out = highlightFirstSlashToken('/exit', 'primary');
+    const out = highlightFirstSlashToken('/exit');
     expect(out).toBeDefined();
     expect(strip(out!)).toBe('/exit');
   });
@@ -68,7 +66,7 @@ describe('highlightFirstSlashToken', () => {
     // Simulate pi-tui Editor inserting an inverse-video cursor marker
     // somewhere after the slash token.
     const line = '/help x\u001B[7m \u001B[0m';
-    const out = highlightFirstSlashToken(line, 'primary');
+    const out = highlightFirstSlashToken(line);
     expect(out).toBeDefined();
     // Stripped visible content unchanged
     expect(strip(out!)).toBe(strip(line));
@@ -77,7 +75,7 @@ describe('highlightFirstSlashToken', () => {
   });
 
   it('only paints the first token, not other slashes further along', () => {
-    const out = highlightFirstSlashToken('/a /b', 'primary');
+    const out = highlightFirstSlashToken('/a /b');
     expect(out).toBeDefined();
     // Count the SGR opens — should be exactly one for /a.
     const opens = (out!.match(/\u001B\[[0-9;]+m/g) ?? []).length;

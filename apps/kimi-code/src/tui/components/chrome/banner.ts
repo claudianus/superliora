@@ -1,5 +1,5 @@
-import type { Component } from '@earendil-works/pi-tui';
-import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui';
+import type { Component } from '#/tui/renderer';
+import { visibleWidth, wrapTextWithAnsi } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import type { BannerState } from '#/tui/types';

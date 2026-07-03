@@ -1,4 +1,4 @@
-import type { AutocompleteItem } from '@earendil-works/pi-tui';
+import type { AutocompleteItem } from '#/tui/renderer';
 
 /**
  * A completable token (subcommand or flag) for a slash command's argument

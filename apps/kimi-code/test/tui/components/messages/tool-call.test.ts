@@ -1,4 +1,4 @@
-import { visibleWidth, type TUI } from '@earendil-works/pi-tui';
+import { visibleWidth, type TUI } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -818,6 +818,25 @@ describe('ToolCallComponent', () => {
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Used Read');
     expect(out).toContain('· 3 lines');
+  });
+
+  it('keeps failed completed tools in the completed header grammar', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_read_error',
+        name: 'Read',
+        args: { path: 'foo.ts' },
+      },
+      {
+        tool_call_id: 'call_read_error',
+        output: 'permission denied',
+        is_error: true,
+      },
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Used Read');
+    expect(out).not.toContain('Using Read');
   });
 
   it('truncates a long file path from the head so the filename stays visible', () => {

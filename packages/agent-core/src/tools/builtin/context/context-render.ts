@@ -42,6 +42,8 @@ function buildPacketBody(
     body.push(`file: ${item.file.displayPath}`);
     body.push(`lines: ${item.file.lineCount}`);
     appendSymbols(body, item, mode);
+    appendRelationships(body, item);
+    appendTestHints(body, item);
     appendMatches(body, item, mode);
     body.push('expand: use Read with this file and the listed line numbers for exact source.');
   }
@@ -77,6 +79,30 @@ function appendMatches(
   }
   for (const match of item.matches) {
     body.push(`- L${match.line} ${match.text}`);
+  }
+}
+
+function appendRelationships(body: string[], item: RankedFile): void {
+  body.push('relationships:');
+  if (item.relationships.length === 0) {
+    body.push('- (none detected)');
+    return;
+  }
+  for (const relationship of item.relationships.slice(0, 8)) {
+    body.push(
+      `- L${relationship.line} ${relationship.kind} ${relationship.target} [${relationship.confidence}]: ${relationship.text}`,
+    );
+  }
+}
+
+function appendTestHints(body: string[], item: RankedFile): void {
+  body.push('test_hints:');
+  if (item.testHints.length === 0) {
+    body.push('- (none inferred)');
+    return;
+  }
+  for (const hint of item.testHints.slice(0, 3)) {
+    body.push(`- ${hint.confidence} ${hint.path}: ${hint.reason}`);
   }
 }
 

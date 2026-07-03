@@ -1,4 +1,4 @@
-import { visibleWidth, type Component } from '@earendil-works/pi-tui';
+import { visibleWidth, type Component } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

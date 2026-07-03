@@ -1,5 +1,10 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
+import {
+  infoCloakBrowser,
+  installCloakBrowser,
+  type SetupCommandResult,
+} from '../install';
 import type {
   BrowserActInput,
   BrowserActResult,
@@ -12,6 +17,8 @@ import type {
   BrowserObserveInput,
   BrowserRef,
   BrowserScreenshotInput,
+  BrowserStatus,
+  BrowserStatusInput,
   BrowserUseRuntime,
   RuntimeImage,
 } from '../types';
@@ -20,6 +27,7 @@ export interface CloakBrowserRuntimeOptions {
   readonly headless?: boolean | undefined;
   readonly humanize?: boolean | undefined;
   readonly viewport?: { readonly width: number; readonly height: number } | undefined;
+  readonly autoInstall?: boolean | undefined;
   readonly autoUpdate?: boolean | undefined;
   readonly cacheDir?: string | undefined;
   readonly binaryPath?: string | undefined;
@@ -27,6 +35,8 @@ export interface CloakBrowserRuntimeOptions {
   readonly licenseKeyEnv?: string | undefined;
   readonly allowUnsafeEval?: boolean | undefined;
   readonly inactiveCleanupMs?: number | undefined;
+  readonly install?: (() => Promise<SetupCommandResult>) | undefined;
+  readonly info?: (() => Promise<SetupCommandResult>) | undefined;
 }
 
 interface PageState {
@@ -44,8 +54,41 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
   private context: BrowserContext | undefined;
   private state: PageState | undefined;
   private cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+  private installAttempt: Promise<SetupCommandResult> | undefined;
 
   constructor(private readonly options: CloakBrowserRuntimeOptions = {}) {}
+
+  async status(
+    input: BrowserStatusInput = {},
+    signal?: AbortSignal,
+  ): Promise<BrowserStatus> {
+    throwIfAborted(signal);
+    const before = await this.infoCloakBrowser();
+    if (before.ok) return statusFromSetupResult(before, true);
+
+    if (input.installIfMissing === false || !this.shouldAutoInstall()) {
+      return statusFromSetupResult(before, false);
+    }
+
+    const installed = await this.installCloakBrowser(signal);
+    if (!installed.ok) {
+      return {
+        platform: process.platform,
+        installed: false,
+        ready: false,
+        command: installed.command,
+        error: `CloakBrowser auto-install failed: ${setupResultDetail(installed)}`,
+      };
+    }
+
+    throwIfAborted(signal);
+    const after = await this.infoCloakBrowser();
+    if (after.ok) return statusFromSetupResult(after, true);
+    return {
+      ...statusFromSetupResult(after, false),
+      error: `CloakBrowser install completed but the runtime is still unavailable: ${setupResultDetail(after)}`,
+    };
+  }
 
   async observe(input: BrowserObserveInput = {}, signal?: AbortSignal): Promise<BrowserObservation> {
     try {
@@ -165,13 +208,7 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
     throwIfAborted(signal);
     if (this.state !== undefined) return this.state;
 
-    const { launch } = await import('cloakbrowser');
-    await withCloakEnv(this.options, async () => {
-      this.browser = await launch({
-        headless: this.options.headless ?? true,
-        humanize: this.options.humanize ?? true,
-      } as never) as Browser;
-    });
+    await this.launchBrowser(signal);
 
     if (this.browser === undefined) {
       throw new Error('CloakBrowser launch did not return a browser.');
@@ -192,6 +229,65 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
     });
     this.state = { page, consoleMessages, refs: new Map() };
     return this.state;
+  }
+
+  private async launchBrowser(signal?: AbortSignal): Promise<void> {
+    const { launch } = await import('cloakbrowser');
+    try {
+      await this.launchWith(launch);
+      return;
+    } catch (firstError) {
+      if (!this.shouldAutoInstall()) {
+        throw new Error(actionableLaunchError(firstError));
+      }
+
+      const installed = await this.installCloakBrowser(signal);
+      if (!installed.ok) {
+        throw new Error(
+          `${actionableLaunchError(firstError)}\n` +
+          `CloakBrowser auto-install failed: ${setupResultDetail(installed)}`,
+        );
+      }
+
+      throwIfAborted(signal);
+      try {
+        await this.launchWith(launch);
+      } catch (secondError) {
+        throw new Error(
+          `CloakBrowser launch failed after auto-install: ${describeError(secondError)}. ` +
+          `Initial launch error: ${describeError(firstError)}. ` +
+          'Use BrowserStatus or `kimi browser-use doctor` for diagnostics.',
+        );
+      }
+    }
+  }
+
+  private async launchWith(launch: typeof import('cloakbrowser')['launch']): Promise<void> {
+    await withCloakEnv(this.options, async () => {
+      this.browser = await launch({
+        headless: this.options.headless ?? true,
+        humanize: this.options.humanize ?? true,
+      } as never) as Browser;
+    });
+  }
+
+  private async infoCloakBrowser(): Promise<SetupCommandResult> {
+    return (this.options.info ?? (() => infoCloakBrowser({ quiet: true })))();
+  }
+
+  private async installCloakBrowser(signal?: AbortSignal): Promise<SetupCommandResult> {
+    throwIfAborted(signal);
+    this.installAttempt ??= (this.options.install ?? (() => installCloakBrowser({ quiet: true })))();
+    const result = await this.installAttempt;
+    if (!result.ok) this.installAttempt = undefined;
+    return result;
+  }
+
+  private shouldAutoInstall(): boolean {
+    if (this.options.autoInstall === false) return false;
+    if (this.options.binaryPath !== undefined) return false;
+    if (process.env['CLOAKBROWSER_BINARY_PATH'] !== undefined) return false;
+    return true;
   }
 
   private scheduleCleanup(): void {
@@ -388,6 +484,35 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function actionableLaunchError(error: unknown): string {
+  return `${describeError(error)}. Use BrowserStatus or \`kimi browser-use doctor\` before installing Playwright or Chrome manually.`;
+}
+
+function statusFromSetupResult(result: SetupCommandResult, ok: boolean): BrowserStatus {
+  return {
+    platform: process.platform,
+    installed: ok,
+    ready: ok,
+    version: firstNonEmpty(result.stdout, result.stderr) || undefined,
+    command: result.command,
+    error: ok ? undefined : setupResultDetail(result),
+  };
+}
+
+function setupResultDetail(result: SetupCommandResult): string {
+  return firstNonEmpty(
+    result.error,
+    result.stderr,
+    result.stdout,
+    result.code === null ? undefined : `exit code ${String(result.code)}`,
+    'unknown error',
+  );
+}
+
+function firstNonEmpty(...values: readonly (string | undefined)[]): string {
+  return values.map((value) => value?.trim() ?? '').find((value) => value.length > 0) ?? '';
 }
 
 interface SnapshotData {

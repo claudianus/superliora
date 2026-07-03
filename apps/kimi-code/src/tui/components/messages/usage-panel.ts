@@ -4,14 +4,19 @@
  * the pattern stays consistent across command-triggered panels.
  */
 
-import type { Component } from '@earendil-works/pi-tui';
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
+import type { Component } from '#/tui/renderer';
+import {
+  fitRendererFrameTitle,
+  renderRendererFrameRows,
+  renderRendererRatioProgressBar,
+  truncateToWidth,
+  visibleWidth,
+} from '#/tui/renderer';
 import type { SessionUsage, TokenUsage } from '@moonshot-ai/kimi-code-sdk';
 
 import {
   formatTokenCount,
   ratioSeverity,
-  renderProgressBar,
   safeUsageRatio,
 } from '#/utils/usage/usage-format';
 import { currentTheme } from '#/tui/theme';
@@ -200,9 +205,14 @@ function buildManagedUsageSection(
   const out: string[] = [accent('Plan usage')];
   for (const row of rows) {
     const ratioUsed = usedRatio(row);
-    const bar = renderProgressBar(ratioUsed, 20);
     const pct = `${Math.round(ratioUsed * 100)}% used`;
-    const barColoured = currentTheme.fg(severityColor(ratioSeverity(ratioUsed)), bar);
+    const barColor = severityColor(ratioSeverity(ratioUsed));
+    const barColoured = renderRendererRatioProgressBar({
+      ratio: ratioUsed,
+      width: 20,
+      filledStyle: (text) => currentTheme.fg(barColor, text),
+      emptyStyle: (text) => currentTheme.fg(barColor, text),
+    });
     const label = row.label.padEnd(labelWidth, ' ');
     const resetStr = row.resetHint ? `  ${muted(row.resetHint)}` : '';
     out.push(`  ${muted(label)}  ${barColoured}  ${value(pct.padEnd(pctWidth, ' '))}${resetStr}`);
@@ -247,11 +257,15 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
 
   const cacheEfficiency = cacheEfficiencyValues(options.sessionUsage);
   const cacheRatio = safeUsageRatio(cacheEfficiency.ratio);
-  const cacheBar = renderProgressBar(cacheRatio, 20);
   const cachePct = `${Math.round(cacheRatio * 100)}% cached input`;
   const cacheColor: ColorToken =
     cacheRatio >= CACHE_READY_RATIO ? 'success' : cacheRatio > 0 ? 'warning' : 'error';
-  const cacheBarColoured = currentTheme.fg(cacheColor, cacheBar);
+  const cacheBarColoured = renderRendererRatioProgressBar({
+    ratio: cacheRatio,
+    width: 20,
+    filledStyle: (text) => currentTheme.fg(cacheColor, text),
+    emptyStyle: (text) => currentTheme.fg(cacheColor, text),
+  });
   lines.push('');
   lines.push(accent('Cache efficiency'));
   lines.push(`  ${cacheBarColoured}  ${value(cachePct)}`);
@@ -265,9 +279,14 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
 
   if (options.maxContextTokens > 0) {
     const ratio = safeUsageRatio(options.contextUsage);
-    const bar = renderProgressBar(ratio, 20);
     const pct = `${(ratio * 100).toFixed(1)}%`;
-    const barColoured = currentTheme.fg(severityColor(ratioSeverity(ratio)), bar);
+    const barColor = severityColor(ratioSeverity(ratio));
+    const barColoured = renderRendererRatioProgressBar({
+      ratio,
+      width: 20,
+      filledStyle: (text) => currentTheme.fg(barColor, text),
+      emptyStyle: (text) => currentTheme.fg(barColor, text),
+    });
     const remaining = Math.max(0, options.maxContextTokens - options.contextTokens);
     const next =
       ratio >= CONTEXT_COMPACT_RATIO
@@ -339,20 +358,19 @@ export class UsagePanelComponent implements Component {
       Math.min(availableInterior, Math.max(longestLine, visibleWidth(this.title))),
     );
     const horzLen = contentWidth + 2 * SIDE_PADDING;
-    const title = truncateToWidth(this.title, horzLen, '…');
-
-    const trailingDashLen = Math.max(0, horzLen - visibleWidth(title));
-    const top =
-      indent + paint('╭') + paint(title) + paint('─'.repeat(trailingDashLen)) + paint('╮');
-    const bottom = indent + paint('╰' + '─'.repeat(horzLen) + '╯');
-
-    const out: string[] = [top];
-    for (const line of this.lines) {
-      const clipped = visibleWidth(line) > contentWidth ? truncateToWidth(line, contentWidth) : line;
-      const pad = Math.max(0, contentWidth - visibleWidth(clipped));
-      out.push(indent + paint('│') + ' ' + clipped + ' '.repeat(pad) + ' ' + paint('│'));
-    }
-    out.push(bottom);
-    return out.map((line) => truncateToWidth(line, safeWidth, '…'));
+    const title = fitRendererFrameTitle(this.title, horzLen, '…');
+    const frame = renderRendererFrameRows({
+      title,
+      titlePlacement: 'flush',
+      borderKind: 'rounded',
+      content: this.lines,
+      width: horzLen + 2,
+      height: this.lines.length + 2,
+      paddingX: SIDE_PADDING,
+      borderStyle: paint,
+      titleStyle: paint,
+      ellipsis: '…',
+    });
+    return frame.map((line) => truncateToWidth(indent + line, safeWidth, '…'));
   }
 }

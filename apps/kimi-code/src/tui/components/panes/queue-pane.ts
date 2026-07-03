@@ -1,4 +1,9 @@
-import { Container, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
+import {
+  Container,
+  renderRendererDividerRow,
+  truncateToWidth,
+  visibleWidth,
+} from '#/tui/renderer';
 
 import { SELECT_POINTER } from '../../constant/symbols';
 import type { QueuedMessage } from '../../types';
@@ -39,7 +44,12 @@ export class QueuePaneComponent extends Container {
     const accent = (text: string) => currentTheme.fg('accent', text);
     const shell = (text: string) => currentTheme.fg('shellMode', text);
     const dim = (text: string) => currentTheme.fg('textDim', text);
-    const lines: string[] = [currentTheme.fg('border', '─'.repeat(width))];
+    const lines: string[] = [
+      renderRendererDividerRow({
+        width,
+        style: (text) => currentTheme.fg('border', text),
+      }),
+    ];
 
     for (const item of this.messages) {
       const displayText = item.displayText ?? item.text;

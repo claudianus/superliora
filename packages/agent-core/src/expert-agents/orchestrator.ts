@@ -7,6 +7,11 @@ export interface TaskAnalysis {
   readonly suggestedExpertCount: number;
 }
 
+export interface UltraSwarmPlanOptions {
+  readonly intensity?: 'balanced' | 'premium' | 'max';
+  readonly maxExperts?: number;
+}
+
 export class UltraSwarmOrchestrator {
   addExpert(expert: ExpertCatalogEntry): void {
     globalExpertSearchEngine.addExpert(expert);
@@ -50,7 +55,7 @@ export class UltraSwarmOrchestrator {
     const domains = Array.from(domainSet);
     const complexity =
       domains.length > 3 ? 'complex' : domains.length > 1 ? 'medium' : 'simple';
-    const suggestedExpertCount = complexity === 'complex' ? 5 : complexity === 'medium' ? 3 : 1;
+    const suggestedExpertCount = complexity === 'complex' ? 8 : complexity === 'medium' ? 5 : 3;
 
     return { domains, complexity, suggestedExpertCount };
   }
@@ -58,6 +63,7 @@ export class UltraSwarmOrchestrator {
   async buildSwarmPlan(
     taskDescription: string,
     expertIds?: readonly string[],
+    options: UltraSwarmPlanOptions = {},
   ): Promise<ExpertSwarmPlan> {
     await globalExpertSearchEngine.initialize();
 
@@ -74,8 +80,24 @@ export class UltraSwarmOrchestrator {
     } else {
       // Auto-select experts based on task analysis
       const analysis = await this.analyzeTask(taskDescription);
+      const targetExpertCount = targetExpertCountForAnalysis(analysis, options);
       experts = [];
       const seen = new Set<string>();
+
+      for (const lane of requiredCoverageLanes(taskDescription, options.intensity)) {
+        const laneExperts = globalExpertSearchEngine.search({
+          query: `${taskDescription} ${coverageLaneQuery(lane)}`,
+          topK: 8,
+          filter: (expert) => coverageLaneForExpert(expert, taskDescription) === lane,
+        });
+        for (const e of laneExperts) {
+          if (seen.has(e.expert.id)) continue;
+          experts.push(e);
+          seen.add(e.expert.id);
+          break;
+        }
+        if (experts.length >= targetExpertCount) break;
+      }
 
       for (const domain of analysis.domains) {
         const domainExperts = globalExpertSearchEngine.search({
@@ -88,23 +110,23 @@ export class UltraSwarmOrchestrator {
             experts.push(e);
             seen.add(e.expert.id);
           }
-          if (experts.length >= analysis.suggestedExpertCount) break;
+          if (experts.length >= targetExpertCount) break;
         }
-        if (experts.length >= analysis.suggestedExpertCount) break;
+        if (experts.length >= targetExpertCount) break;
       }
 
       // If we still don't have enough, do a broad search
-      if (experts.length < analysis.suggestedExpertCount) {
+      if (experts.length < targetExpertCount) {
         const broad = globalExpertSearchEngine.search({
           query: taskDescription,
-          topK: analysis.suggestedExpertCount + 3,
+          topK: targetExpertCount + 8,
         });
         for (const e of broad) {
           if (!seen.has(e.expert.id)) {
             experts.push(e);
             seen.add(e.expert.id);
           }
-          if (experts.length >= analysis.suggestedExpertCount) break;
+          if (experts.length >= targetExpertCount) break;
         }
       }
     }
@@ -117,6 +139,8 @@ export class UltraSwarmOrchestrator {
       return {
         expertId: result.expert.id,
         expertName: result.expert.name,
+        division: result.expert.division,
+        divisionLabel: result.expert.divisionLabel,
         emoji: result.expert.emoji,
         color: result.expert.color,
         prompt: this.buildExpertPrompt(result.expert, taskDescription, index),
@@ -144,13 +168,69 @@ export class UltraSwarmOrchestrator {
 
 export const globalUltraSwarmOrchestrator = new UltraSwarmOrchestrator();
 
+function targetExpertCountForAnalysis(
+  analysis: TaskAnalysis,
+  options: UltraSwarmPlanOptions,
+): number {
+  const maxExperts = options.maxExperts ?? Number.POSITIVE_INFINITY;
+  const intensity = options.intensity ?? 'balanced';
+  if (intensity === 'max') {
+    return Math.max(analysis.suggestedExpertCount, Math.min(maxExperts, 12));
+  }
+  if (intensity === 'premium') {
+    return Math.min(maxExperts, Math.max(analysis.suggestedExpertCount, 6));
+  }
+  return Math.min(maxExperts, Math.max(analysis.suggestedExpertCount, 3));
+}
+
+function requiredCoverageLanes(
+  taskDescription: string,
+  intensity: UltraSwarmPlanOptions['intensity'],
+): readonly string[] {
+  const taskText = taskDescription.toLowerCase();
+  const lanes = [
+    'product_requirements',
+    'architecture_implementation',
+    'testing_evidence',
+  ];
+  if (intensity === 'premium' || intensity === 'max') {
+    lanes.push('performance_reliability');
+  }
+  if (intensity === 'premium' || intensity === 'max' || /\b(?:ui|ux|visual|tui|frontend|design|game)\b/.test(taskText)) {
+    lanes.push('ux_visual_content');
+  }
+  if (intensity === 'max' || /\b(?:security|auth|privacy|payment|permission|credential|secret)\b/.test(taskText)) {
+    lanes.push('security_privacy');
+  }
+  if (intensity === 'max' || /\b(?:research|paper|latest|web|docs|source)\b/.test(taskText)) {
+    lanes.push('domain_subject_matter');
+  }
+  return lanes;
+}
+
+function coverageLaneQuery(lane: string): string {
+  const queries: Record<string, string> = {
+    product_requirements: 'product manager requirements scope acceptance criteria',
+    architecture_implementation: 'software architect implementation engineer code design',
+    testing_evidence: 'qa testing verification evidence reviewer',
+    performance_reliability: 'performance reliability scale latency benchmark',
+    ux_visual_content: 'ux ui visual design frontend tui interface',
+    security_privacy: 'security privacy auth permissions risk review',
+    domain_subject_matter: 'research domain expert latest evidence documentation',
+  };
+  return queries[lane] ?? lane;
+}
+
 function coverageLaneForExpert(expert: ExpertCatalogEntry, taskDescription: string): string {
   const expertText = `${expert.division} ${expert.divisionLabel} ${expert.name} ${expert.description} ${expert.tags.join(' ')}`.toLowerCase();
   const taskText = taskDescription.toLowerCase();
+  const division = expert.division.toLowerCase();
   if (/\b(?:security|auth|privacy|payment|compliance|legal)\b/.test(expertText)) return 'security_privacy';
-  if (/\b(?:design|visual|brand|ux|ui|motion|animation)\b/.test(expertText)) return 'ux_visual_content';
-  if (/\b(?:test|qa|quality|verification|validation)\b/.test(expertText)) return 'testing_evidence';
+  if (division === 'testing' || /\b(?:test|testing|qa|quality|verification|validation|evidence)\b/.test(expertText)) return 'testing_evidence';
   if (/\b(?:performance|latency|scale|reliability|benchmark)\b/.test(expertText)) return 'performance_reliability';
+  if (division === 'product' || /\b(?:product|project|manager|requirements|strategy)\b/.test(expertText)) return 'product_requirements';
+  if (division === 'engineering' || /\b(?:engineer|engineering|architect|software|developer|implementation|code)\b/.test(expertText)) return 'architecture_implementation';
+  if (/\b(?:design|visual|brand|ux|ui|motion|animation)\b/.test(expertText)) return 'ux_visual_content';
   if (/\b(?:product|project|manager|requirements|strategy)\b/.test(expertText)) return 'product_requirements';
   if (/\b(?:academic|finance|gis|game|marketing|sales|support|specialized)\b/.test(expertText)) return 'domain_subject_matter';
   if (/\b(?:security|auth|privacy|payment|compliance|legal)\b/.test(taskText)) return 'security_privacy';

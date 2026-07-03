@@ -1,12 +1,14 @@
 import {
   Container,
+  CURSOR_MARKER,
   Key,
   matchesKey,
-  CURSOR_MARKER,
+  renderRendererFrameRows,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
@@ -117,32 +119,35 @@ export class GoalQueueManagerComponent extends Container implements Focusable {
     const hint = this.movingGoalId === undefined
       ? '↑↓ navigate · Space select · E edit · D delete · Esc cancel'
       : '↑↓ reorder · Space done · E edit · D delete · Esc cancel';
-    const lines: string[] = [
-      currentTheme.fg('primary', '─'.repeat(width)),
-      currentTheme.boldFg('primary', ' Upcoming goals'),
-      currentTheme.fg('textMuted', ` ${hint}`),
-      '',
-    ];
+    const body: string[] = [];
+    const footer: string[] = [];
 
     if (this.goals.length === 0) {
-      lines.push(currentTheme.fg('textMuted', '  No upcoming goals.'));
+      body.push(currentTheme.fg('textMuted', '  No upcoming goals.'));
     } else {
       for (let i = view.page.start; i < view.page.end; i++) {
         const goal = view.items[i];
         if (goal === undefined) continue;
-        lines.push(this.renderGoal(goal, i, i === view.selectedIndex, width));
+        body.push(this.renderGoal(goal, i, i === view.selectedIndex, width));
       }
 
       const below = view.items.length - view.page.end;
       if (below > 0) {
-        lines.push('');
-        lines.push(currentTheme.fg('textMuted', ` ▼ ${String(below)} more`));
+        footer.push(currentTheme.fg('textMuted', ` ▼ ${String(below)} more`));
+        footer.push('');
       }
     }
 
-    lines.push('');
-    lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-    return lines.map((line) => truncateToWidth(line, width, ELLIPSIS));
+    return renderRendererPanelChromeRows({
+      width,
+      title: ' Upcoming goals',
+      hint: ` ${hint}`,
+      body,
+      dividerStyle: (text) => currentTheme.fg('primary', text),
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: (text) => currentTheme.fg('textMuted', text),
+      ellipsis: ELLIPSIS,
+    });
   }
 
   private renderGoal(goal: UpcomingGoal, index: number, selected: boolean, width: number): string {
@@ -244,7 +249,6 @@ export class GoalQueueEditDialogComponent extends Container implements Focusable
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
     const innerWidth = Math.max(1, safeWidth - 4);
-    const pad = '  ';
     const border = (s: string): string => currentTheme.fg('primary', s);
     const title = truncateToWidth(
       currentTheme.boldFg('textStrong', 'Edit upcoming goal'),
@@ -270,22 +274,20 @@ export class GoalQueueEditDialogComponent extends Container implements Focusable
       return ['', ...contentLines.map((line) => truncateToWidth(line, safeWidth, ELLIPSIS))];
     }
 
-    const lines = [
+    return [
       '',
-      border('╭' + '─'.repeat(safeWidth - 2) + '╮'),
-      border('│') + ' '.repeat(safeWidth - 2) + border('│'),
+      ...renderRendererFrameRows({
+        content: ['', ...contentLines, ''],
+        width: safeWidth,
+        height: contentLines.length + 4,
+        borderKind: 'rounded',
+        paddingLeft: 2,
+        paddingRight: 0,
+        borderStyle: border,
+        ellipsis: ELLIPSIS,
+      }),
+      '',
     ];
-
-    for (const content of contentLines) {
-      const rightPad = Math.max(0, innerWidth - visibleWidth(content));
-      lines.push(border('│') + pad + content + ' '.repeat(rightPad) + border('│'));
-    }
-
-    lines.push(border('│') + ' '.repeat(safeWidth - 2) + border('│'));
-    lines.push(border('╰' + '─'.repeat(safeWidth - 2) + '╯'));
-    lines.push('');
-
-    return lines.map((line) => truncateToWidth(line, safeWidth, ELLIPSIS));
   }
 
   private submit(value: string): void {

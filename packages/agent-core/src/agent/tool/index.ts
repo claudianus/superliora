@@ -499,7 +499,8 @@ export class ToolManager {
         goalToolsEnabled && new b.UpdateGoalTool(this.agent),
         this.agent.rpc?.requestQuestion && new b.AskUserQuestionTool(this.agent),
         new b.TodoListTool(this.toolStore),
-        this.agent.memory && new b.MemoryTool(this.agent.memory),
+        new b.UltraworkGraphTool(this.toolStore, this.agent),
+        this.agent.memory?.isEnabled() === true && new b.MemoryTool(this.agent.memory),
         new b.TaskListTool(background),
         new b.TaskOutputTool(background),
         new b.TaskStopTool(background),
@@ -524,7 +525,13 @@ export class ToolManager {
         this.agent.subagentHost &&
           new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode),
         this.agent.subagentHost &&
-          new b.UltraSwarmTool(this.agent.subagentHost, this.agent.swarmMode),
+          new b.UltraSwarmTool(
+            this.agent.subagentHost,
+            this.agent.swarmMode,
+            this.toolStore,
+            this.agent,
+          ),
+        toolServices?.browserUse && new b.BrowserStatusTool(toolServices.browserUse),
         toolServices?.browserUse && new b.BrowserObserveTool(toolServices.browserUse),
         toolServices?.browserUse && new b.BrowserScreenshotTool(toolServices.browserUse),
         toolServices?.browserUse && new b.BrowserActTool(toolServices.browserUse),

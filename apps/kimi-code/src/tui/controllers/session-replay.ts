@@ -1,6 +1,7 @@
 import type {
   AgentReplayRecord,
   ContextMessage,
+  Event,
   GoalChange,
   PermissionMode,
   PromptOrigin,
@@ -10,6 +11,11 @@ import type {
 } from '@moonshot-ai/kimi-code-sdk';
 
 import { ToolCallComponent } from '../components/messages/tool-call';
+import {
+  isUltraworkTheatreEvent,
+  UltraworkTheatreComponent,
+  ultraworkTheatreRunId,
+} from '../components/messages/ultrawork-theatre';
 import { currentTheme } from '../theme';
 import type { TodoItem } from '../components/chrome/todo-panel';
 import type {
@@ -50,6 +56,7 @@ import type { TUIState } from '../tui-state';
 
 type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
 type CompactionReplayRecord = Extract<AgentReplayRecord, { type: 'compaction' }>;
+type AgentEventReplayRecord = Extract<AgentReplayRecord, { type: 'agent_event' }>;
 type GoalReplayLifecycleChange = GoalChange & { readonly kind: 'lifecycle' };
 
 export interface SessionReplayHost {
@@ -226,9 +233,33 @@ export class SessionReplayRenderer {
         this.flushAssistant(context);
         this.renderApprovalResult(context, record.record);
         return;
+      case 'agent_event':
+        this.flushAssistant(context);
+        this.renderAgentEvent(record.event);
+        return;
       case 'config_updated':
         return;
     }
+  }
+
+  private renderAgentEvent(event: AgentEventReplayRecord['event']): void {
+    const replayEvent = {
+      ...event,
+      sessionId: this.host.state.appState.sessionId,
+      agentId: 'main',
+    } as Event;
+    if (!isUltraworkTheatreEvent(replayEvent)) return;
+
+    const runId = ultraworkTheatreRunId(replayEvent);
+    const existing = this.host.sessionEventHandler.ultraworkTheatres.get(runId);
+    if (existing === undefined) {
+      const theatre = new UltraworkTheatreComponent(replayEvent);
+      this.host.sessionEventHandler.ultraworkTheatres.set(runId, theatre);
+      this.host.state.transcriptContainer.addChild(theatre);
+    } else {
+      existing.applyEvent(replayEvent);
+    }
+    this.host.state.ui.requestRender();
   }
 
   private renderMessage(context: ReplayRenderContext, message: ContextMessage): void {

@@ -240,6 +240,7 @@ export type ServicesConfig = z.infer<typeof ServicesConfigSchema>;
 export const BrowserUseConfigSchema = z.object({
   enabled: z.boolean().optional(),
   provider: z.enum(['cloakbrowser']).optional(),
+  autoInstall: z.boolean().optional(),
   autoUpdate: z.boolean().optional(),
   cacheDir: z.string().min(1).optional(),
   binaryPath: z.string().min(1).optional(),

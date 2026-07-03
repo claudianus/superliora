@@ -8,7 +8,7 @@
  * visible, framed by `<`/`>` markers.
  */
 
-import { visibleWidth } from '@earendil-works/pi-tui';
+import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import type { ColorPalette } from '#/tui/theme/colors';

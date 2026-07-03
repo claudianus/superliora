@@ -2,11 +2,23 @@ import {
   DEFAULT_APPEARANCE_PREFERENCES,
   type AppearancePreferences,
 } from '#/tui/config';
+import {
+  rendererAnimationFrameIntervalMs,
+  rendererEffectFrameIntervalMs,
+  hashRendererEffectSeed,
+  rendererPositiveModulo,
+  renderRendererDividerRow,
+  resolveRendererSeededIndex,
+  resolveRendererEffectLevel,
+  type NativeFrameStatsHealth,
+  type RendererEffectLevel,
+  type RendererQualityLevel,
+} from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
 import { currentTheme } from '#/tui/theme';
 import { gradientText } from '#/tui/theme/gradient-text';
 
-export type AmbientEffectMode = 'off' | 'subtle' | 'premium';
+export type AmbientEffectMode = RendererEffectLevel;
 
 const SUBTLE_PARTICLES = ['·', '∙', '✧'] as const;
 const PREMIUM_PARTICLES = ['✦', '✧', '✺', '∙', '•'] as const;
@@ -21,6 +33,9 @@ const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
 
 let activeAppearance: AppearancePreferences = DEFAULT_APPEARANCE_PREFERENCES;
+let animationClockMs = Date.now();
+let appearanceRenderQuality: RendererQualityLevel = 'full';
+let appearanceRenderHealth: NativeFrameStatsHealth = 'healthy';
 
 export function setActiveAppearancePreferences(appearance: AppearancePreferences): void {
   activeAppearance = appearance;
@@ -28,6 +43,30 @@ export function setActiveAppearancePreferences(appearance: AppearancePreferences
 
 export function getActiveAppearancePreferences(): AppearancePreferences {
   return activeAppearance;
+}
+
+export function advanceAppearanceAnimationClock(nowMs: number = Date.now()): void {
+  animationClockMs = nowMs;
+}
+
+export function appearanceAnimationNow(): number {
+  return animationClockMs;
+}
+
+export function setAppearanceRenderQuality(quality: RendererQualityLevel): void {
+  appearanceRenderQuality = quality;
+}
+
+export function getAppearanceRenderQuality(): RendererQualityLevel {
+  return appearanceRenderQuality;
+}
+
+export function setAppearanceRenderHealth(health: NativeFrameStatsHealth): void {
+  appearanceRenderHealth = health;
+}
+
+export function getAppearanceRenderHealth(): NativeFrameStatsHealth {
+  return appearanceRenderHealth;
 }
 
 export function resolveAmbientEffectMode(appearance: AppearancePreferences): AmbientEffectMode {
@@ -43,6 +82,34 @@ export function resolveAmbientEffectMode(appearance: AppearancePreferences): Amb
   return 'subtle';
 }
 
+export function resolveQualityAdjustedAmbientEffectMode(
+  appearance: AppearancePreferences,
+  quality: RendererQualityLevel = appearanceRenderQuality,
+  health: NativeFrameStatsHealth = appearanceRenderHealth,
+): AmbientEffectMode {
+  return resolveRendererEffectLevel({
+    requested: resolveAmbientEffectMode(appearance),
+    quality,
+    health,
+  });
+}
+
+export function appearanceAnimationFrameIntervalMs(
+  appearance: AppearancePreferences,
+  quality: RendererQualityLevel = appearanceRenderQuality,
+  health: NativeFrameStatsHealth = appearanceRenderHealth,
+): number {
+  return rendererAnimationFrameIntervalMs({
+    fps: appearance.animationFps,
+    requested: resolveAmbientEffectMode(appearance),
+    quality,
+    health,
+    maxFps: 30,
+    defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
+    offMs: 1000,
+  });
+}
+
 export function motionEffectsAllowed(): boolean {
   if (process.env['TERM'] === 'dumb') return false;
   if (process.env['NO_COLOR'] !== undefined && process.env['NO_COLOR'] !== '') return false;
@@ -53,7 +120,7 @@ export function motionEffectsAllowed(): boolean {
 }
 
 export function shouldRenderAmbientEffects(appearance: AppearancePreferences): boolean {
-  return motionEffectsAllowed() && resolveAmbientEffectMode(appearance) !== 'off';
+  return motionEffectsAllowed() && resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
 }
 
 export function renderParticleRail(
@@ -65,28 +132,28 @@ export function renderParticleRail(
   if (safeWidth === 0) return '';
   if (!shouldRenderAmbientEffects(appearance)) return ' '.repeat(safeWidth);
 
-  const mode = resolveAmbientEffectMode(appearance);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const premium = mode === 'premium';
-  const tickMs = premium ? 160 : 420;
-  const tick = Math.floor(Date.now() / tickMs);
+  const tickMs = rendererEffectFrameIntervalMs(mode);
+  const tick = Math.floor(appearanceAnimationNow() / tickMs);
   const density = premium
     ? Math.max(3, Math.min(18, Math.floor(safeWidth / 7)))
     : Math.max(1, Math.min(6, Math.floor(safeWidth / 18)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const cells = Array.from({ length: safeWidth }, () => ' ');
-  const base = hashSeed(seed);
+  const base = hashRendererEffectSeed(seed);
 
   for (let i = 0; i < density; i++) {
     const direction = i % 2 === 0 ? 1 : -1;
     const speed = 1 + (i % 3);
     const origin = base + i * 17 + (i % 5) * 11;
-    const x = positiveModulo(origin + direction * tick * speed, safeWidth);
-    const char = chars[positiveModulo(origin + tick + i, chars.length)]!;
-    const token = PARTICLE_TOKENS[positiveModulo(origin + tick + i * 3, PARTICLE_TOKENS.length)]!;
+    const x = rendererPositiveModulo(origin + direction * tick * speed, safeWidth);
+    const char = chars[rendererPositiveModulo(origin + tick + i, chars.length)]!;
+    const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + tick + i * 3, PARTICLE_TOKENS.length)]!;
     cells[x] = currentTheme.fg(token, char);
 
     if (premium && safeWidth > 24) {
-      const trail = positiveModulo(x - direction, safeWidth);
+      const trail = rendererPositiveModulo(x - direction, safeWidth);
       if (cells[trail] === ' ') cells[trail] = currentTheme.dimFg('particle', '·');
     }
   }
@@ -101,15 +168,18 @@ export function renderParticleDivider(
 ): string {
   const safeWidth = Math.max(0, Math.trunc(width));
   if (safeWidth === 0) return '';
-  const mode = resolveAmbientEffectMode(appearance);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (!motionEffectsAllowed() || mode === 'off') {
-    return currentTheme.fg('primary', '─'.repeat(safeWidth));
+    return renderRendererDividerRow({
+      width: safeWidth,
+      style: (text) => currentTheme.fg('primary', text),
+    });
   }
   const baseChar =
     mode === 'premium'
       ? PREMIUM_DIVIDER_FRAMES[
-          positiveModulo(
-            Math.floor(Date.now() / 260) + hashSeed(seed),
+          rendererPositiveModulo(
+            Math.floor(appearanceAnimationNow() / 260) + hashRendererEffectSeed(seed),
             PREMIUM_DIVIDER_FRAMES.length,
           )
         ]!
@@ -119,17 +189,17 @@ export function renderParticleDivider(
   if (safeWidth < 8) return cells.join('');
 
   const premium = mode === 'premium';
-  const tick = Math.floor(Date.now() / (premium ? 160 : 420));
+  const tick = Math.floor(appearanceAnimationNow() / rendererEffectFrameIntervalMs(mode));
   const density = premium
     ? Math.max(2, Math.min(14, Math.floor(safeWidth / 8)))
     : Math.max(1, Math.min(4, Math.floor(safeWidth / 24)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
-  const base = hashSeed(seed);
+  const base = hashRendererEffectSeed(seed);
   for (let i = 0; i < density; i++) {
     const origin = base + i * 29;
-    const x = positiveModulo(origin + tick * (1 + (i % 2)), safeWidth);
-    const char = chars[positiveModulo(origin + tick + i, chars.length)]!;
-    const token = PARTICLE_TOKENS[positiveModulo(origin + i * 3 + tick, PARTICLE_TOKENS.length)]!;
+    const x = rendererPositiveModulo(origin + tick * (1 + (i % 2)), safeWidth);
+    const char = chars[rendererPositiveModulo(origin + tick + i, chars.length)]!;
+    const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + i * 3 + tick, PARTICLE_TOKENS.length)]!;
     cells[x] = currentTheme.fg(token, char);
   }
 
@@ -141,13 +211,15 @@ export function renderAnimatedGradientText(
   seed: string,
   appearance: AppearancePreferences = activeAppearance,
 ): string {
-  const mode = resolveAmbientEffectMode(appearance);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (!motionEffectsAllowed() || mode === 'off') return currentTheme.boldFg('primary', text);
   if (mode !== 'premium') return currentTheme.boldFg('primary', text);
-  const phase = positiveModulo(
-    Math.floor(Date.now() / 140) + hashSeed(seed),
-    Math.max(1, Array.from(text).length),
-  );
+  const phase = resolveRendererSeededIndex({
+    seed,
+    nowMs: appearanceAnimationNow(),
+    intervalMs: 140,
+    length: Array.from(text).length,
+  }) ?? 0;
   return gradientText(
     text,
     currentTheme.color('gradientStart'),
@@ -163,13 +235,16 @@ export function renderPulseText(
   fallbackToken: ColorToken = 'primary',
   appearance: AppearancePreferences = activeAppearance,
 ): string {
-  const mode = resolveAmbientEffectMode(appearance);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (!motionEffectsAllowed() || mode !== 'premium') {
     return currentTheme.boldFg(fallbackToken, text);
   }
-  const token = PULSE_TOKENS[
-    positiveModulo(Math.floor(Date.now() / 220) + hashSeed(seed), PULSE_TOKENS.length)
-  ]!;
+  const token = PULSE_TOKENS[resolveRendererSeededIndex({
+    seed,
+    nowMs: appearanceAnimationNow(),
+    intervalMs: 220,
+    length: PULSE_TOKENS.length,
+  }) ?? 0]!;
   return currentTheme.boldFg(token, text);
 }
 
@@ -180,19 +255,31 @@ export function renderPulseGlyph(
   fallbackToken: ColorToken,
   appearance: AppearancePreferences = activeAppearance,
 ): string {
-  const mode = resolveAmbientEffectMode(appearance);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (!motionEffectsAllowed() || mode !== 'premium' || glyphs.length === 0) {
     return currentTheme.fg(fallbackToken, fallback);
   }
-  const index = positiveModulo(Math.floor(Date.now() / 180) + hashSeed(seed), glyphs.length);
+  const index = resolveRendererSeededIndex({
+    seed,
+    nowMs: appearanceAnimationNow(),
+    intervalMs: 180,
+    length: glyphs.length,
+  }) ?? 0;
   return currentTheme.boldFg(PULSE_TOKENS[index % PULSE_TOKENS.length]!, glyphs[index]!);
 }
 
 export function renderShimmerPrefix(appearance: AppearancePreferences = activeAppearance): string {
   if (!shouldRenderAmbientEffects(appearance)) return '';
-  const mode = resolveAmbientEffectMode(appearance);
-  const interval = mode === 'premium' ? 180 : 520;
-  const index = positiveModulo(Math.floor(Date.now() / interval), SHIMMER_FRAMES.length);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  const interval = rendererEffectFrameIntervalMs(mode, {
+    premiumMs: 180,
+    subtleMs: 520,
+  });
+  const index = resolveRendererSeededIndex({
+    nowMs: appearanceAnimationNow(),
+    intervalMs: interval,
+    length: SHIMMER_FRAMES.length,
+  }) ?? 0;
   return `${SHIMMER_FRAMES[index]!} `;
 }
 
@@ -202,19 +289,4 @@ function isRemoteSession(): boolean {
     (process.env['SSH_CONNECTION'] ?? '').length > 0 ||
     (process.env['SSH_CLIENT'] ?? '').length > 0
   );
-}
-
-function hashSeed(seed: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    const codePoint = seed.codePointAt(i) ?? 0;
-    hash ^= codePoint;
-    hash = Math.imul(hash, 16777619);
-    if (codePoint > 0xffff) i++;
-  }
-  return Math.abs(Math.trunc(hash));
-}
-
-function positiveModulo(value: number, modulo: number): number {
-  return ((value % modulo) + modulo) % modulo;
 }

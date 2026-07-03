@@ -12,7 +12,7 @@
  * metadata.
  */
 
-import { Container, Text, Spacer } from '@earendil-works/pi-tui';
+import { Container, Text, Spacer } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import type { SkillActivationTrigger } from '#/tui/types';

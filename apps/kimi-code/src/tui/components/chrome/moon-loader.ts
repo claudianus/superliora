@@ -1,5 +1,5 @@
-import { Text, visibleWidth } from '@earendil-works/pi-tui';
-import type { TUI } from '@earendil-works/pi-tui';
+import { Text, visibleWidth } from '#/tui/renderer';
+import type { RendererRootUI } from '#/tui/renderer';
 
 import {
   BRAILLE_SPINNER_FRAMES,
@@ -16,7 +16,7 @@ export type SpinnerStyle = 'moon' | 'braille';
 export class MoonLoader extends Text {
   private currentFrame = 0;
   private intervalId: ReturnType<typeof setInterval> | null = null;
-  private ui: TUI;
+  private ui: RendererRootUI;
   private frames: string[];
   private interval: number;
   private colorFn?: (s: string) => string;
@@ -30,7 +30,7 @@ export class MoonLoader extends Text {
   private readonly startedAt = Date.now();
 
   constructor(
-    ui: TUI,
+    ui: RendererRootUI,
     style: SpinnerStyle = 'moon',
     colorFn?: (s: string) => string,
     label: string = '',

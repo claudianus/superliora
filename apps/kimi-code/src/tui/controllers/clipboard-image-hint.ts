@@ -1,4 +1,4 @@
-import type { TUI } from '@earendil-works/pi-tui';
+import type { RendererRootUI } from '#/tui/renderer';
 
 import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
 
@@ -7,7 +7,7 @@ import { TERMINAL_FOCUS_IN, TERMINAL_FOCUS_OUT } from '../utils/terminal-focus';
 import type { FooterComponent } from '../components/chrome/footer';
 
 export interface ClipboardImageHintHost {
-  readonly ui: TUI;
+  readonly ui: RendererRootUI;
   readonly footer: FooterComponent;
   getModelSupportsImage(): boolean;
   requestRender(): void;

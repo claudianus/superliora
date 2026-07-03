@@ -12,6 +12,7 @@ import {
 } from '../events';
 import type { Event } from '../events';
 import type { ToolInputDisplay } from '../display';
+import { workGraphNodeSchema, workGraphSchema } from '../ultrawork';
 
 type _AssertEventNonNever = Event extends never ? never : true;
 const _assertEvent: _AssertEventNonNever = true;
@@ -199,6 +200,7 @@ describe('events / display re-exports', () => {
       agentId: 'main',
       sessionId: 'sess_1',
       runId: 'uw_1',
+      toolCallId: 'call_ultra_swarm',
       team: {
         id: 'team_1',
         runId: 'uw_1',
@@ -211,12 +213,25 @@ describe('events / display re-exports', () => {
             role: 'architecture',
             focus: 'review',
             status: 'queued',
+            division: 'engineering',
+            emoji: 'A',
+            color: '#0EA5E9',
+            coverageLane: 'architecture_implementation',
+            selectionReason: 'Owns the architecture review lane.',
+            dependsOn: ['product-manager'],
+            agentId: 'agent_architect',
           },
         ],
       },
     });
 
     expect(staffed.type).toBe('ultrawork.team.staffed');
+    expect(staffed.toolCallId).toBe('call_ultra_swarm');
+    expect(staffed.team.experts[0]).toMatchObject({
+      coverageLane: 'architecture_implementation',
+      dependsOn: ['product-manager'],
+      agentId: 'agent_architect',
+    });
 
     const verified = eventSchema.parse({
       type: 'ultrawork.verification.completed',
@@ -251,6 +266,56 @@ describe('events / display re-exports', () => {
     });
 
     expect(promoted.type).toBe('ultrawork.knowledge.promoted');
+  });
+
+  it('keeps minimal WorkGraph nodes valid while round-tripping harness metadata', () => {
+    expect(
+      workGraphNodeSchema.parse({
+        id: 'ac_1',
+        title: 'Implement the parser',
+        stage: 'swarm',
+        status: 'queued',
+      }),
+    ).toEqual({
+      id: 'ac_1',
+      title: 'Implement the parser',
+      stage: 'swarm',
+      status: 'queued',
+    });
+
+    const graph = workGraphSchema.parse({
+      id: 'wg_1',
+      runId: 'uw_1',
+      rootGoal: 'Ship the Ouroboros harness',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T00:00:01.000Z',
+      nodes: [
+        {
+          id: 'ac_1',
+          title: 'Implement the parser',
+          kind: 'implementation',
+          stage: 'swarm',
+          parentId: 'root',
+          acceptanceCriterionId: 'AC-1',
+          laneId: 'implementation',
+          ownerExpertId: 'backend-engineer',
+          ownerAgentId: 'agent_1',
+          status: 'done',
+          dependsOn: ['research_1'],
+          evidenceIds: ['evidence_1'],
+          requiredEvidence: ['unit test'],
+          verificationStatus: 'passed',
+          verificationSummary: 'unit test passed',
+        },
+      ],
+    });
+
+    expect(graph.nodes[0]).toMatchObject({
+      kind: 'implementation',
+      acceptanceCriterionId: 'AC-1',
+      evidenceIds: ['evidence_1'],
+      verificationStatus: 'passed',
+    });
   });
 
   it('preserves detached on background task events', () => {

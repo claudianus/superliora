@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentPart, ToolCall } from '@moonshot-ai/kimi-code-sdk';
-import type { ContextMessage, PromptOrigin } from '@moonshot-ai/kimi-code-sdk';
+import type { ContextMessage, PromptOrigin, SessionTrace } from '@moonshot-ai/kimi-code-sdk';
 
 import {
   buildExportMarkdown,
@@ -371,7 +371,7 @@ describe('buildExportMarkdown', () => {
       tokenCount: 500,
       now,
     });
-    expect(md).toContain('3 turns');
+    expect(md).toContain('3 user turns');
     expect(md).toContain('## Turn 1');
     expect(md).toContain('## Turn 2');
     expect(md).toContain('## Turn 3');
@@ -394,5 +394,108 @@ describe('buildExportMarkdown', () => {
       now,
     });
     expect(md).toContain('2 tool calls');
+  });
+
+  it('labels assistant-only continuations separately from user turns', () => {
+    const msgs: ContextMessage[] = [assistantMsg('goal continuation result')];
+    const md = buildExportMarkdown({
+      sessionId: 'ses_test',
+      workDir: '/tmp',
+      history: msgs,
+      tokenCount: 0,
+      now,
+    });
+    expect(md).toContain('0 user turns | 1 assistant continuations');
+    expect(md).toContain('## Assistant Continuation 1');
+    expect(md).not.toContain('## Turn 1');
+  });
+
+  it('renders trace lifecycle, ultrawork events, artifacts, and redaction counts', () => {
+    const msgs: ContextMessage[] = [
+      userMsg('build a game', { kind: 'user' }),
+      assistantMsg('working'),
+    ];
+    const trace: SessionTrace = {
+      sessionId: 'ses_test',
+      agentId: 'main',
+      generatedAt: now.toISOString(),
+      context: { history: msgs, tokenCount: 10 },
+      completeness: {
+        source: 'records',
+        recordCount: 4,
+        traceEventCount: 2,
+        messageCount: 2,
+        filteredInternalMessageCount: 1,
+        toolCallCount: 1,
+        toolResultCount: 1,
+        subagentLifecycleCount: 1,
+        ultraworkEventCount: 1,
+        redactedCount: 1,
+        warnings: [],
+      },
+      events: [
+        {
+          id: '1',
+          index: 0,
+          type: 'subagent.spawned',
+          title: 'Subagent spawned',
+          summary: 'visual reviewer',
+          data: { subagentId: 'agent_1', coverageLane: 'visual_qa' },
+        },
+        {
+          id: '2',
+          index: 1,
+          type: 'ultrawork.stage.changed',
+          title: 'Ultrawork stage changed',
+          summary: 'verify',
+          data: { runId: 'uw_1', to: 'verify' },
+        },
+      ],
+      verificationArtifacts: [
+        {
+          id: 'verify_1',
+          kind: 'ultrawork.verification',
+          title: 'Ultrawork verification',
+          status: 'pass',
+        },
+      ],
+    };
+
+    const md = buildExportMarkdown({
+      sessionId: 'ses_test',
+      workDir: '/tmp',
+      history: msgs,
+      tokenCount: 10,
+      now,
+      trace,
+    });
+
+    expect(md).toContain('## Session Trace');
+    expect(md).toContain('records | 2 events | 1 subagent lifecycle | 1 ultrawork');
+    expect(md).toContain('subagent.spawned');
+    expect(md).toContain('ultrawork.stage.changed');
+    expect(md).toContain('verify_1: Ultrawork verification [pass]');
+    expect(md).toContain('Redactions');
+  });
+
+  it('redacts secrets in exported text and tool arguments', () => {
+    const tc = makeToolCall('c1', 'SecretTool', {
+      command: 'use token',
+      api_key: 'sk-12345678901234567890',
+    });
+    const msgs: ContextMessage[] = [
+      userMsg('token is sk-abcdefghijklmnopqrstuvwxyz', { kind: 'user' }),
+      assistantMsg('calling', [tc]),
+    ];
+    const md = buildExportMarkdown({
+      sessionId: 'ses_test',
+      workDir: '/tmp',
+      history: msgs,
+      tokenCount: 0,
+      now,
+    });
+    expect(md).toContain('[redacted]');
+    expect(md).not.toContain('sk-12345678901234567890');
+    expect(md).not.toContain('sk-abcdefghijklmnopqrstuvwxyz');
   });
 });

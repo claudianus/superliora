@@ -100,6 +100,13 @@ export interface TeamExpertAssignment {
   readonly focus: 'plan' | 'research' | 'implement' | 'review' | 'full';
   readonly status: 'queued' | 'running' | 'blocked' | 'done' | 'failed';
   readonly taskIds?: readonly string[];
+  readonly division?: string;
+  readonly emoji?: string;
+  readonly color?: string;
+  readonly coverageLane?: string;
+  readonly selectionReason?: string;
+  readonly dependsOn?: readonly string[];
+  readonly agentId?: string;
 }
 
 export interface TeamPlan {
@@ -116,15 +123,27 @@ export interface TeamPlan {
 export interface WorkGraphNode {
   readonly id: string;
   readonly title: string;
+  readonly kind?: 'acceptance_criterion' | 'research' | 'implementation' | 'review' | 'verification' | 'integration' | 'learn' | 'other';
   readonly stage: UltraworkStage;
+  readonly parentId?: string;
+  readonly acceptanceCriterionId?: string;
+  readonly laneId?: string;
   readonly ownerExpertId?: string;
+  readonly ownerAgentId?: string;
   readonly status: 'queued' | 'running' | 'blocked' | 'done' | 'failed';
   readonly dependsOn?: readonly string[];
+  readonly evidenceIds?: readonly string[];
+  readonly requiredEvidence?: readonly string[];
+  readonly verificationStatus?: 'pending' | 'passed' | 'failed' | 'blocked';
+  readonly verificationSummary?: string;
 }
 
 export interface WorkGraph {
   readonly id: string;
   readonly runId: string;
+  readonly rootGoal?: string;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
   readonly nodes: readonly WorkGraphNode[];
 }
 
@@ -277,6 +296,13 @@ export const teamExpertAssignmentSchema = z.object({
   focus: z.enum(['plan', 'research', 'implement', 'review', 'full']),
   status: z.enum(['queued', 'running', 'blocked', 'done', 'failed']),
   taskIds: z.array(z.string().min(1)).optional(),
+  division: z.string().min(1).optional(),
+  emoji: z.string().min(1).optional(),
+  color: z.string().min(1).optional(),
+  coverageLane: z.string().min(1).optional(),
+  selectionReason: z.string().min(1).optional(),
+  dependsOn: z.array(z.string().min(1)).optional(),
+  agentId: z.string().min(1).optional(),
 }) satisfies z.ZodType<TeamExpertAssignment>;
 
 export const teamPlanSchema = z.object({
@@ -293,15 +319,27 @@ export const teamPlanSchema = z.object({
 export const workGraphNodeSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
+  kind: z.enum(['acceptance_criterion', 'research', 'implementation', 'review', 'verification', 'integration', 'learn', 'other']).optional(),
   stage: ultraworkStageSchema,
+  parentId: z.string().min(1).optional(),
+  acceptanceCriterionId: z.string().min(1).optional(),
+  laneId: z.string().min(1).optional(),
   ownerExpertId: z.string().min(1).optional(),
+  ownerAgentId: z.string().min(1).optional(),
   status: z.enum(['queued', 'running', 'blocked', 'done', 'failed']),
   dependsOn: z.array(z.string().min(1)).optional(),
+  evidenceIds: z.array(z.string().min(1)).optional(),
+  requiredEvidence: z.array(z.string().min(1)).optional(),
+  verificationStatus: z.enum(['pending', 'passed', 'failed', 'blocked']).optional(),
+  verificationSummary: z.string().optional(),
 }) satisfies z.ZodType<WorkGraphNode>;
 
 export const workGraphSchema = z.object({
   id: z.string().min(1),
   runId: z.string().min(1),
+  rootGoal: z.string().optional(),
+  createdAt: isoDateTimeSchema.optional(),
+  updatedAt: isoDateTimeSchema.optional(),
   nodes: z.array(workGraphNodeSchema),
 }) satisfies z.ZodType<WorkGraph>;
 

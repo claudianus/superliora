@@ -1,18 +1,18 @@
 import type { BackgroundTaskInfo, Session } from '@moonshot-ai/kimi-code-sdk';
-import type { Component, ProcessTerminal, TUI } from '@earendil-works/pi-tui';
+import type { Component, RendererRootUI, RendererTerminalHost } from '#/tui/renderer';
 
 import { TaskOutputViewer } from '../components/dialogs/task-output-viewer';
 import { TasksBrowserApp, type TasksFilter } from '../components/dialogs/tasks-browser';
 import type { Theme } from '#/tui/theme';
-import type { CustomEditor } from '../components/editor/custom-editor';
+import type { TUIEditor } from '../components/editor/editor-contract';
 
 export interface TasksBrowserHost {
   readonly state: {
     readonly tasksBrowser: TasksBrowserState | undefined;
     readonly theme: Theme;
-    readonly terminal: ProcessTerminal;
-    readonly ui: TUI;
-    readonly editor: CustomEditor;
+    readonly terminal: RendererTerminalHost;
+    readonly ui: RendererRootUI;
+    readonly editor: TUIEditor;
   };
   readonly backgroundTasks: ReadonlyMap<string, BackgroundTaskInfo>;
   readonly session: Session | undefined;

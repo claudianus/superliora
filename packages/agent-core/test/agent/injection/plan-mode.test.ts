@@ -157,6 +157,8 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('Do not skip directly to write');
     expect(text).toContain('SearchSkill');
     expect(text).toContain('Skill');
+    expect(text).toContain('TodoList progress tracking');
+    expect(text).toContain('Use TodoList to keep the live design work board current');
   });
 
   it('routes Ultra Plan review to write after verification', async () => {
@@ -177,6 +179,26 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('Search and fetch current sources again');
     expect(text).toContain('read-only Bash inspection');
     expect(text).toContain('cat, sed -n, head/tail');
+    expect(text).toContain('TodoList progress tracking');
+    expect(text).toContain('Use TodoList to keep verification gaps and completed checks current');
+  });
+
+  it('keeps Ultra Plan write instructions scoped to the plan file', async () => {
+    const agent = planAgent({
+      isActive: true,
+      isUltraMode: true,
+      phase: 'write',
+      planFilePath: '/tmp/ultra-plan.md',
+    });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+
+    const text = lastReminder(agent);
+    expect(text).toContain('You may ONLY write to the current plan file');
+    expect(text).toContain('read only the current plan file');
+    expect(text).toContain('update TodoList for progress tracking');
+    expect(text).toContain('NextPhase or ExitPlanMode');
   });
 
   it('tells Ultra Plan exit how to repair missing plan sections', async () => {

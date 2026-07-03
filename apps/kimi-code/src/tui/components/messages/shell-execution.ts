@@ -1,5 +1,5 @@
-import type { Component } from '@earendil-works/pi-tui';
-import { Container, Text } from '@earendil-works/pi-tui';
+import type { Component } from '#/tui/renderer';
+import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
@@ -45,8 +45,10 @@ export class ShellExecutionComponent extends Container {
 
   private addCommandPreview(command: string, previewLines: number | undefined): void {
     if (command.length === 0) return;
-    const allLines = command.split('\n');
-    const lines = previewLines === undefined ? allLines : allLines.slice(0, previewLines);
+    const lines = projectRendererLineWindow({
+      lines: command.split('\n'),
+      maxLines: previewLines,
+    }).lines;
     for (const [i, line] of lines.entries()) {
       const prefix = i === 0 ? '$ ' : '  ';
       this.addChild(new Text(currentTheme.dim(prefix + line), 2, 0));

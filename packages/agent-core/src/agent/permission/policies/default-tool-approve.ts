@@ -12,6 +12,7 @@ const DEFAULT_APPROVE_TOOLS = new Set([
   'CronList',
   'WebSearch',
   'FetchURL',
+  'BrowserStatus',
   'BrowserObserve',
   'BrowserScreenshot',
   'ComputerCapture',

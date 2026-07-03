@@ -1,4 +1,4 @@
-import { Markdown, visibleWidth } from '@earendil-works/pi-tui';
+import { Markdown, visibleWidth } from '#/tui/renderer';
 import * as cliHighlight from 'cli-highlight';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -95,6 +95,19 @@ describe('AssistantMessageComponent', () => {
     const second = (component as any).contentContainer.children[0];
 
     expect(second).toBe(first);
+  });
+
+  it('reuses rendered line arrays at the same width until content changes', () => {
+    const component = new AssistantMessageComponent();
+
+    component.updateContent('hello');
+    const first = component.render(80);
+    const second = component.render(80);
+
+    expect(second).toBe(first);
+
+    component.updateContent('hello world');
+    expect(component.render(80)).not.toBe(first);
   });
 
   it('rebuilds the Markdown child when transient changes so final render can highlight code', () => {

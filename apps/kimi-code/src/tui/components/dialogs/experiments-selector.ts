@@ -2,10 +2,11 @@ import {
   Container,
   Key,
   matchesKey,
+  renderRendererPanelChromeRows,
   truncateToWidth,
   visibleWidth,
   type Focusable,
-} from '@earendil-works/pi-tui';
+} from '#/tui/renderer';
 import type { ExperimentalFeatureState } from '@moonshot-ai/kimi-code-sdk';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
@@ -72,46 +73,51 @@ export class ExperimentsSelectorComponent extends Container implements Focusable
     hintParts.push('Space toggle', 'Enter apply', 'Esc cancel');
     if (view.query.length > 0) hintParts.push('Backspace clear');
 
-    const lines: string[] = [
-      currentTheme.fg('primary', '─'.repeat(width)),
-      currentTheme.boldFg('primary', ' Experimental features') + titleSuffix,
-      currentTheme.fg('textMuted', ` ${hintParts.join(' · ')}`),
-      '',
-    ];
+    const body: string[] = [];
 
     if (view.query.length > 0) {
-      lines.push(currentTheme.fg('primary', ` Search: `) + currentTheme.fg('text', view.query));
+      body.push(currentTheme.fg('primary', ` Search: `) + currentTheme.fg('text', view.query));
     }
 
     if (view.items.length === 0) {
-      lines.push(currentTheme.fg('textMuted', '   No matches'));
+      body.push(currentTheme.fg('textMuted', '   No matches'));
     }
 
     for (let i = view.page.start; i < view.page.end; i++) {
       const feature = view.items[i]!;
       const selected = i === view.selectedIndex;
-      lines.push(...this.renderFeature(feature, selected, width));
+      body.push(...this.renderFeature(feature, selected, width));
     }
 
-    lines.push('');
+    const footer: string[] = [];
     if (view.query.length > 0) {
-      lines.push(
+      footer.push(
         currentTheme.fg(
           'textMuted',
           ` ${String(view.items.length)} / ${String(this.opts.features.length)}`,
         ),
       );
     } else if (view.page.end < view.items.length) {
-      lines.push(
+      footer.push(
         currentTheme.fg(
           'textMuted',
           ` ▼ ${String(view.items.length - view.page.end)} more`,
         ),
       );
     }
-    lines.push(this.renderApplyButton());
-    lines.push(currentTheme.fg('primary', '─'.repeat(width)));
-    return lines.map((line) => truncateToWidth(line, width, ELLIPSIS));
+    footer.push(this.renderApplyButton());
+    return renderRendererPanelChromeRows({
+      width,
+      title: ' Experimental features',
+      titleSuffix,
+      hint: ` ${hintParts.join(' · ')}`,
+      body,
+      footer,
+      dividerStyle: (text) => currentTheme.fg('primary', text),
+      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      hintStyle: (text) => currentTheme.fg('textMuted', text),
+      ellipsis: ELLIPSIS,
+    });
   }
 
   private toggleDraft(feature: ExperimentalFeatureState): void {

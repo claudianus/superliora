@@ -12,16 +12,6 @@ export function formatTokenCount(n: number): string {
   return String(Math.round(n));
 }
 
-/**
- * Build a `[███░░░░░░░]` style bar. Returns a plain-ASCII string with
- * `filled`/`empty` glyphs — colouring is the caller's responsibility.
- */
-export function renderProgressBar(ratio: number, width = 20, filled = '█', empty = '░'): string {
-  const clamped = safeUsageRatio(ratio);
-  const filledCount = Math.round(clamped * width);
-  return filled.repeat(filledCount) + empty.repeat(Math.max(0, width - filledCount));
-}
-
 export function safeUsageRatio(ratio: number): number {
   return Number.isFinite(ratio) ? Math.max(0, Math.min(ratio, 1)) : 0;
 }

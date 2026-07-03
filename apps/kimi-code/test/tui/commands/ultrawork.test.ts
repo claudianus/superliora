@@ -182,6 +182,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('UltraSwarm subagents may use WebSearch and FetchURL as much as their scope needs');
     expect(prompt).toContain('latest papers, framework guidance, verified libraries, security advisories');
     expect(prompt).toContain('UltraSwarm is not proof by badge');
+    expect(prompt).toContain('ENGAGE is an execution commitment, not a status label');
+    expect(prompt).toContain('call UltraSwarm as the only tool call before product-file edits');
     expect(prompt).toContain('Write a Swarm decision before implementation');
     expect(prompt).toContain('Swarm decision: ENGAGE|DEFER');
     expect(prompt).toContain('ENGAGE when parallel PM, architecture, TUI, QA, security, performance');
@@ -285,7 +287,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('deterministic unslop cleanup only as advisory pattern checks');
     expect(prompt).toContain('second-pass rewrite or deterministic cleanup');
     expect(prompt).toContain('reread the result for changed meaning');
-    expect(prompt).toContain('use only read-only research tools and NextPhase');
+    expect(prompt).toContain('use read-only research tools plus TodoList for progress tracking and NextPhase');
     expect(prompt).toContain('use only AskUserQuestion or NextPhase');
     expect(prompt).toContain('If AskUserQuestion is unavailable or rejected by policy');
     expect(prompt).toContain('Base discrete options on research evidence when possible');
@@ -295,6 +297,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('call NextPhase({ phase: "interview" }) before asking questions');
     expect(prompt).toContain('call NextPhase({ phase: "design" }) before design exploration or plan writing');
     expect(prompt).toContain('UltraGoal has been created from that plan');
+    expect(prompt).toContain('call UltraSwarm as the first post-plan execution tool');
     expect(prompt).toContain('UpdateGoal');
   });
 
@@ -313,6 +316,10 @@ describe('buildUltraworkPrompt', () => {
     const prompt = buildUltraworkPrompt('Ship feature X', 'manual', false, {
       evidenceSeed: {
         root: '.super-kimi/evidence/ultrawork-runs/run-1',
+        wikiRootPath: '.super-kimi/wiki',
+        wikiIndexPath: '.super-kimi/wiki/index.md',
+        wikiManifestPath: '.super-kimi/wiki/manifest.json',
+        wikiRunPath: '.super-kimi/wiki/runs/run-1.md',
         llmWikiPath: '.super-kimi/evidence/ultrawork-runs/run-1/llm-wiki.md',
         knowledgeMapPath: '.super-kimi/evidence/ultrawork-runs/run-1/kimi-knowledge-map.json',
         coverageMatrixPath: '.super-kimi/evidence/ultrawork-runs/run-1/capability-coverage-matrix.json',
@@ -322,6 +329,10 @@ describe('buildUltraworkPrompt', () => {
     });
 
     expect(prompt).toContain('Runtime evidence seed was created before this turn');
+    expect(prompt).toContain('llm_wiki_root: .super-kimi/wiki');
+    expect(prompt).toContain('llm_wiki_index: .super-kimi/wiki/index.md');
+    expect(prompt).toContain('llm_wiki_manifest: .super-kimi/wiki/manifest.json');
+    expect(prompt).toContain('llm_wiki_run: .super-kimi/wiki/runs/run-1.md');
     expect(prompt).toContain('llm_wiki_seed: .super-kimi/evidence/ultrawork-runs/run-1/llm-wiki.md');
     expect(prompt).toContain('knowledge_map_seed: .super-kimi/evidence/ultrawork-runs/run-1/kimi-knowledge-map.json');
     expect(prompt).toContain('coverage_matrix_seed: .super-kimi/evidence/ultrawork-runs/run-1/capability-coverage-matrix.json');
@@ -423,6 +434,9 @@ describe('handleUltraworkCommand', () => {
       const runDirs = readdirSync(runsRoot);
       expect(runDirs).toHaveLength(1);
       const runRoot = join(runsRoot, runDirs[0] ?? '');
+      const wikiIndexPath = join(workDir, '.super-kimi/wiki/index.md');
+      const wikiManifestPath = join(workDir, '.super-kimi/wiki/manifest.json');
+      const wikiRunPath = join(workDir, '.super-kimi/wiki/runs', `${runDirs[0] ?? ''}.md`);
       const llmWikiPath = join(runRoot, 'llm-wiki.md');
       const knowledgeMapPath = join(runRoot, 'kimi-knowledge-map.json');
       const coverageMatrixPath = join(runRoot, 'capability-coverage-matrix.json');
@@ -430,6 +444,9 @@ describe('handleUltraworkCommand', () => {
       const learnLedgerPath = join(runRoot, 'knowledge-persistence-ledger.json');
 
       for (const path of [
+        wikiIndexPath,
+        wikiManifestPath,
+        wikiRunPath,
         llmWikiPath,
         knowledgeMapPath,
         coverageMatrixPath,
@@ -439,7 +456,19 @@ describe('handleUltraworkCommand', () => {
         expect(existsSync(path)).toBe(true);
       }
 
-      expect(readFileSync(llmWikiPath, 'utf8')).toContain('Durable Memory / Kimi Recall');
+      expect(readFileSync(llmWikiPath, 'utf8')).toContain('Current Understanding');
+      expect(readFileSync(llmWikiPath, 'utf8')).toContain('.super-kimi/wiki/index.md');
+      expect(readFileSync(wikiIndexPath, 'utf8')).toContain('This project-local wiki stores human-reviewable');
+      expect(readFileSync(wikiRunPath, 'utf8')).toContain('Next Retrieval Hints');
+      const manifest = JSON.parse(readFileSync(wikiManifestPath, 'utf8')) as {
+        kind: string;
+        latestRunId: string;
+        runs: Array<{ path: string; llmWikiPath: string }>;
+      };
+      expect(manifest.kind).toBe('llm-wiki-manifest');
+      expect(manifest.latestRunId).toBe(runDirs[0]);
+      expect(manifest.runs[0]?.path).toBe(`.super-kimi/wiki/runs/${runDirs[0]}.md`);
+      expect(manifest.runs[0]?.llmWikiPath).toContain('llm-wiki.md');
       expect(readFileSync(reviewLoopPath, 'utf8')).toContain('Review required: yes');
       const knowledgeMap = JSON.parse(readFileSync(knowledgeMapPath, 'utf8')) as Record<string, unknown>;
       expect(knowledgeMap['kind']).toBe('kimi knowledge map');
@@ -454,6 +483,7 @@ describe('handleUltraworkCommand', () => {
       const prompt = (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as string;
       expect(prompt).toContain('Runtime evidence seed was created before this turn');
       expect(prompt).toContain('.super-kimi/evidence/ultrawork-runs');
+      expect(prompt).toContain('.super-kimi/wiki/index.md');
       expect(prompt).toContain('knowledge_persistence_ledger');
       expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Ultrawork evidence seed: '));
     } finally {

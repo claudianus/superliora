@@ -1,4 +1,4 @@
-import type { TUI } from '@earendil-works/pi-tui';
+import type { TUI } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {

@@ -13,6 +13,7 @@ import {
   type QuestionResult,
   type RPCMethods,
   type SDKAPI,
+  type SessionTrace,
   type ToolCallRequest,
   type ToolCallResponse,
   type SwarmModeTrigger,
@@ -498,6 +499,14 @@ export abstract class SDKRpcClientBase {
   async getContext(input: SessionIdRpcInput): Promise<AgentContextData> {
     const rpc = await this.getRpc();
     return rpc.getContext({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+    });
+  }
+
+  async getSessionTrace(input: SessionIdRpcInput): Promise<SessionTrace> {
+    const rpc = await this.getRpc();
+    return rpc.getSessionTrace({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
     });
