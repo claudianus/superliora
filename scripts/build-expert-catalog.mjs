@@ -4,7 +4,12 @@
  * and generates a TypeScript catalog module.
  */
 import { writeFile, mkdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const requireFromAgentCore = createRequire(join(repoRoot, 'packages/agent-core/package.json'));
 
 const REPO = 'msitarzewski/agency-agents';
 const BRANCH = 'main';
@@ -118,7 +123,7 @@ async function buildCatalog() {
 
   // Generate embeddings for all experts
   console.log("Generating embeddings...");
-  const { pipeline } = await import("/Users/modumaru/Documents/super-kimi-code/packages/agent-core/node_modules/@huggingface/transformers");
+  const { pipeline } = await import(requireFromAgentCore.resolve('@huggingface/transformers'));
   const extractor = await pipeline("feature-extraction", "ibm-granite/granite-embedding-97m-multilingual-r2", { dtype: "fp32" });
 
   for (const expert of experts) {

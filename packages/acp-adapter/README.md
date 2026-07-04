@@ -1,16 +1,16 @@
 # @superliora/acp-adapter
 
-Agent Client Protocol adapter for kimi-code. Exposes the kimi-code agent over the [Agent Client Protocol](https://agentclientprotocol.com/) so that ACP-compatible clients (editors, IDEs, custom front-ends) can drive a kimi-code session over stdio.
+Agent Client Protocol adapter for SuperLiora. Exposes the Liora agent over the [Agent Client Protocol](https://agentclientprotocol.com/) so that ACP-compatible clients (editors, IDEs, custom front-ends) can drive a Liora session over stdio.
 
-Part of the [SuperLiora](https://github.com/MoonshotAI/kimi-code) monorepo.
+Part of the [SuperLiora](https://github.com/claudianus/superliora) monorepo.
 
 ## Minimum usage
 
 ```ts
-import { createKimiHarness } from '@superliora/sdk';
+import { createLioraHarness } from '@superliora/sdk';
 import { runAcpServer } from '@superliora/acp-adapter';
 
-const harness = await createKimiHarness();
+const harness = await createLioraHarness();
 await runAcpServer(harness);
 ```
 
