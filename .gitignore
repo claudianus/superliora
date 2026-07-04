@@ -30,7 +30,7 @@ reports/
 .ouroboros/
 .ouroboros_eval_artifact.md
 /kimi-code/
-plan/
+/plan/
 # Workspace-local data dirs (`.superliora/` canonical, `.super-kimi/` legacy).
 # The `**/` prefix also matches nested package/app directories (e.g. `apps/liora/.superliora/`).
 **/.superliora/evidence/
