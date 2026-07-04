@@ -295,7 +295,9 @@ function extractPathPrefix(text: string, forceExtract: boolean): string | null {
   const pathPrefix = lastDelimiterIndex === -1 ? text : text.slice(lastDelimiterIndex + 1);
   if (forceExtract) return pathPrefix;
   if (pathPrefix.includes('/') || pathPrefix.startsWith('.') || pathPrefix.startsWith('~/')) return pathPrefix;
-  if (pathPrefix === '' && text.endsWith(' ')) return pathPrefix;
+  // Returning an empty string here used to make the autocomplete list flash and
+  // corrupt the TUI when a space was typed after a folder-like prefix. Falling
+  // through to `null` keeps the list closed cleanly.
   return null;
 }
 

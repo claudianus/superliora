@@ -89,8 +89,11 @@ export function resolveQualityAdjustedAmbientEffectMode(
 ): AmbientEffectMode {
   return resolveRendererEffectLevel({
     requested: resolveAmbientEffectMode(appearance),
-    quality,
-    health,
+    // When the renderer drops to minimal quality during bursts of input, keep
+    // ambient effects alive at the balanced level so they do not appear to freeze
+    // while the user is typing.
+    quality: quality === 'minimal' ? 'balanced' : quality,
+    health: health === 'degraded' ? 'watch' : health,
   });
 }
 
@@ -102,8 +105,10 @@ export function appearanceAnimationFrameIntervalMs(
   return rendererAnimationFrameIntervalMs({
     fps: appearance.animationFps,
     requested: resolveAmbientEffectMode(appearance),
-    quality,
-    health,
+    // Same quality/health floor as resolveQualityAdjustedAmbientEffectMode so
+    // the animation cadence stays consistent even when the renderer throttles.
+    quality: quality === 'minimal' ? 'balanced' : quality,
+    health: health === 'degraded' ? 'watch' : health,
     maxFps: 30,
     defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
     offMs: 1000,

@@ -201,7 +201,7 @@ describe('AppearanceController', () => {
 
     expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(160);
     expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(420);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(1000);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(420);
 
     setAppearanceRenderHealth('watch');
     const controller = new AppearanceController({
@@ -261,7 +261,7 @@ describe('AppearanceController', () => {
     expect(strip(changed)).not.toBe(strip(first));
   });
 
-  it('degrades premium ambient effects with renderer quality', () => {
+  it('falls back to subtle ambient effects at minimal renderer quality', () => {
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
@@ -274,11 +274,11 @@ describe('AppearanceController', () => {
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
 
     setAppearanceRenderQuality('minimal');
-    expect(strip(renderShimmerPrefix(appearance))).toBe('');
-    expect(strip(renderParticleDivider(8, 'quality-divider', appearance))).toBe('────────');
+    expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
+    expect(strip(renderParticleDivider(8, 'quality-divider', appearance))).toMatch(/[✦✧∙·]/);
   });
 
-  it('degrades premium ambient effects with renderer frame health', () => {
+  it('falls back to subtle ambient effects at degraded renderer frame health', () => {
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
@@ -291,8 +291,8 @@ describe('AppearanceController', () => {
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
 
     setAppearanceRenderHealth('degraded');
-    expect(strip(renderShimmerPrefix(appearance))).toBe('');
-    expect(strip(renderParticleDivider(8, 'health-divider', appearance))).toBe('────────');
+    expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
+    expect(strip(renderParticleDivider(8, 'health-divider', appearance))).toMatch(/[✦✧∙·]/);
   });
 
   it('renders premium particle dividers at a stable visible width', () => {

@@ -3485,7 +3485,7 @@ describe('renderer frame output policy', () => {
     });
   });
 
-  it('keeps cursor-only frames outside auto synchronized output policies', () => {
+  it('includes cursor-only frames in auto synchronized output policies', () => {
     expect(resolveRendererFrameOutputPolicy({
       diff: frameDiff({ changedCells: 0 }),
       cursor: { x: 2, y: 0, visible: true },
@@ -3493,7 +3493,7 @@ describe('renderer frame output policy', () => {
       policy: 'premium',
     })).toMatchObject({
       mode: 'cursor-only',
-      synchronized: false,
+      synchronized: true,
       largeFrame: false,
       reason: 'cursor-only',
     });
@@ -3800,10 +3800,12 @@ describe('NativeFrameRenderer', () => {
     expect(small.output.startsWith(ANSI_BEGIN_SYNCHRONIZED_UPDATE)).toBe(false);
     expect(cursorOnly.outputPolicy).toMatchObject({
       mode: 'cursor-only',
-      synchronized: false,
+      synchronized: true,
       reason: 'cursor-only',
     });
-    expect(cursorOnly.output).toBe('\u001B[1;3H\u001B[?25h');
+    expect(cursorOnly.output).toBe(
+      `${ANSI_BEGIN_SYNCHRONIZED_UPDATE}\u001B[1;3H\u001B[?25h${ANSI_END_SYNCHRONIZED_UPDATE}`,
+    );
   });
 
   it('synchronizes sparse native frame updates when output run count is high', () => {

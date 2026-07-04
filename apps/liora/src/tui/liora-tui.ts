@@ -1051,7 +1051,7 @@ export class LioraTUI {
 
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
     const changed = applyTranscriptViewportScroll(this.state.transcriptViewport, action);
-    if (changed) this.state.renderer.requestRender(true);
+    if (changed) this.state.renderer.requestRender('transcript-scroll');
     return changed;
   }
 

@@ -4,7 +4,8 @@ export type NativeRenderCause =
   | 'animation'
   | 'resize'
   | 'manual'
-  | 'quality';
+  | 'quality'
+  | 'transcript-scroll';
 
 export interface NativeRenderFrame {
   readonly timestamp: number;

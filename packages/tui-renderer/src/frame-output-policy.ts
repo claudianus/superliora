@@ -214,9 +214,8 @@ function resolveSynchronizedOutput(
     case 'never':
       return { synchronized: false, reason: 'disabled' };
     case 'auto':
-      if (mode === 'cursor-only') return { synchronized: false, reason: 'cursor-only' };
-      return largeFrame
-        ? { synchronized: true, reason: largeFrameReason(context.diff, mode, policy) }
+      return largeFrame || mode === 'cursor-only'
+        ? { synchronized: true, reason: mode === 'cursor-only' ? 'cursor-only' : largeFrameReason(context.diff, mode, policy) }
         : { synchronized: false, reason: 'below-threshold' };
   }
 }
