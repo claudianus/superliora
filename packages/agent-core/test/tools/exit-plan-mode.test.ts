@@ -65,6 +65,7 @@ function makeAgent(
       },
       reopenUltraInterviewForDrift,
       ultraEngine: {
+        seedSpec: null,
         calculateDrift: vi.fn(() => input.drift ?? {
           goalDrift: 0,
           constraintDrift: 0,

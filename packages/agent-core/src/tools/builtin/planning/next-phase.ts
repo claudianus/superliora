@@ -45,7 +45,7 @@ You can only advance forward, never backward.`;
     };
   }
 
-  private execution(args: NextPhaseInput): ExecutableToolResult {
+  private async execution(args: NextPhaseInput): Promise<ExecutableToolResult> {
     if (!this.agent.planMode.isActive) {
       return {
         isError: true,
@@ -81,15 +81,15 @@ You can only advance forward, never backward.`;
     }
 
     if (currentPhase === 'interview' && targetPhase === 'design') {
-      const readiness = this.agent.planMode.ultraEngine.interviewReadiness();
+      const readiness = await this.agent.planMode.ultraEngine.interviewReadiness();
       if (!readiness.ready) {
         return {
           isError: true,
-          output: this.agent.planMode.ultraEngine.readinessBlockerMessage(),
+          output: await this.agent.planMode.ultraEngine.readinessBlockerMessage(),
         };
       }
       if (this.agent.planMode.ultraEngine.seedSpec === null) {
-        const seed = this.agent.planMode.ultraEngine.autoGenerateSeedSpecFromInterview('UltraGoal');
+        const seed = await this.agent.planMode.ultraEngine.autoGenerateSeedSpecFromInterview('UltraGoal');
         this.agent.planMode.ultraEngine.setSeedSpec(seed);
       }
     }

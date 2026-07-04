@@ -19,6 +19,49 @@ const signal = new AbortController().signal;
 async function activePlanAgent(
   options: { ultra?: boolean } = {},
 ): Promise<{ agent: Agent; planMode: PlanMode }> {
+  const fixedSeedSpec = {
+    goal: 'implement guarded Ultrawork mode with a verifiable UltraGoal.',
+    taskType: 'code',
+    constraints: [],
+    acceptanceCriteria: [],
+    ontology: { name: 'UltraGoal', description: 'UltraPlan ontology', fields: [] },
+    evaluationPrinciples: [],
+    exitConditions: [],
+    ambiguityScore: 0.1,
+  };
+  const ambiguityReady = {
+    goal_clarity_score: 1.0,
+    goal_clarity_justification: 'Goal is clear.',
+    constraint_clarity_score: 1.0,
+    constraint_clarity_justification: 'Constraints are clear.',
+    success_criteria_clarity_score: 1.0,
+    success_criteria_clarity_justification: 'Success criteria are clear.',
+    present_sections: [
+      'goal',
+      'actors',
+      'inputs',
+      'outputs',
+      'constraints',
+      'non_goals',
+      'acceptance_criteria',
+      'verification_plan',
+      'failure_modes',
+      'runtime_context',
+    ],
+    verifiable_goal: true,
+    specificity_score: 1.0,
+  };
+  const ambiguityBlocked = {
+    goal_clarity_score: 0.3,
+    goal_clarity_justification: 'No clear goal.',
+    constraint_clarity_score: 0.3,
+    constraint_clarity_justification: 'No clear constraints.',
+    success_criteria_clarity_score: 0.3,
+    success_criteria_clarity_justification: 'No clear success criteria.',
+    present_sections: [],
+    verifiable_goal: false,
+    specificity_score: 0.3,
+  };
   const agent = {
     homedir: '/tmp/kimi-plan-test',
     emitStatusUpdated: vi.fn(),
@@ -28,6 +71,61 @@ async function activePlanAgent(
     kaos: {
       mkdir: vi.fn().mockResolvedValue(undefined),
       writeText: vi.fn().mockResolvedValue(undefined),
+    },
+    config: { provider: { modelName: 'mock' } },
+    generate: async (
+      _provider: unknown,
+      systemPrompt: string,
+      _tools: unknown,
+      messages: unknown,
+    ) => {
+      const isAmbiguityPrompt =
+        typeof systemPrompt === 'string' &&
+        (systemPrompt.includes('requirements analyst') || systemPrompt.includes('clarity'));
+      if (isAmbiguityPrompt) {
+        const userText = Array.isArray(messages)
+          ? messages
+              .map((m: any) =>
+                Array.isArray(m?.content)
+                  ? m.content.map((c: any) => c?.text ?? '').join('')
+                  : String(m?.content ?? ''),
+              )
+              .join('')
+          : '';
+        const readyMarkers = [
+          'Goal',
+          'Actors',
+          'Inputs',
+          'Outputs',
+          'Constraints',
+          'Non-goals',
+          'Acceptance Criteria',
+          'Verification Plan',
+          'Failure Modes',
+          'Runtime Context',
+        ];
+        const koreanMarkers = ['목표', '사용자', '입력', '산출', '제약', '비목표', '완료', '검증', '실패', '런타임'];
+        const looksReady =
+          readyMarkers.some((label) => userText.includes(label)) ||
+          koreanMarkers.some((label) => userText.includes(label));
+        return {
+          message: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(looksReady ? ambiguityReady : ambiguityBlocked),
+              },
+            ],
+          },
+          usage: {},
+          finishReason: 'stop',
+        };
+      }
+      return {
+        message: { content: [{ type: 'text', text: JSON.stringify(fixedSeedSpec) }] },
+        usage: {},
+        finishReason: 'stop',
+      };
     },
   } as unknown as Agent;
   const planMode = new PlanMode(agent);
@@ -318,7 +416,7 @@ describe('Plan mode permission policy', () => {
         'Completion Criterion: true when the checks pass and the mode follows the gated order, false otherwise.',
       ].join('\n'),
     );
-    planMode.ultraEngine.calculateAmbiguityScore();
+    await planMode.ultraEngine.calculateAmbiguityScore();
     planMode.ultraEngine.addInterviewRound(
       'Confirm the seed-ready contract.',
       'Confirmed: the required Seed sections, verification plan, failure modes, runtime context, and true/false completion criterion are complete without adding scope.',
@@ -358,9 +456,9 @@ describe('Plan mode permission policy', () => {
         'Completion Criterion: true when the checks pass and the mode follows the gated order, false otherwise.',
       ].join('\n'),
     );
-    planMode.ultraEngine.calculateAmbiguityScore();
+    await planMode.ultraEngine.calculateAmbiguityScore();
 
-    const readiness = planMode.ultraEngine.interviewReadiness();
+    const readiness = await planMode.ultraEngine.interviewReadiness();
     expect(readiness.ready).toBe(true);
     expect(readiness.stableReady).toBe(false);
 
@@ -395,7 +493,7 @@ describe('Plan mode permission policy', () => {
         '완료 기준은 테스트와 lint가 모두 통과하면 참, 아니면 거짓입니다.',
       ].join('\n'),
     );
-    planMode.ultraEngine.calculateAmbiguityScore();
+    await planMode.ultraEngine.calculateAmbiguityScore();
     planMode.ultraEngine.addInterviewRound(
       'Seed가 완성되었나요?',
       '확인합니다. 범위를 추가하지 않고, 테스트와 lint 통과를 완료 조건으로 진행합니다.',

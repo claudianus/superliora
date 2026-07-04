@@ -166,13 +166,13 @@ export class PlanMode {
     this._interviewRoundCount += 1;
   }
 
-  recordUltraInterviewAnswers(
+  async recordUltraInterviewAnswers(
     questions: ReadonlyArray<{ readonly question: string; readonly header?: string }>,
     answers: Record<string, string | true>,
-  ): void {
+  ): Promise<void> {
     if (!this._isActive || !this._isUltraMode || this._phase !== 'interview') return;
     this.ultraEngine.recordInterviewAnswers(questions, answers);
-    this.ultraEngine.calculateAmbiguityScore();
+    await this.ultraEngine.calculateAmbiguityScore();
     this._interviewRoundCount = this.ultraEngine.interviewState.rounds.length;
   }
 
@@ -195,7 +195,7 @@ export class PlanMode {
     const planData = await this.data();
     return {
       seedSpec: this.ultraEngine.seedSpec,
-      driftMetrics: this.ultraEngine.calculateDrift(planData?.content ?? '', []),
+      driftMetrics: await this.ultraEngine.calculateDrift(planData?.content ?? '', []),
       stagnationPatterns: [],
       lateralThinking: this.ultraEngine.generateLateralThinking('researcher', '', ''),
       evaluationPlan: this.ultraEngine.evaluationPlan,

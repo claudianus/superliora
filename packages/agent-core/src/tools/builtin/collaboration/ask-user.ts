@@ -175,7 +175,7 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
         this.agent.telemetry.track('question_dismissed');
         return dismissedQuestionResult();
       }
-      this.recordUltraInterviewAnswers(args.questions, normalized.answers);
+      await this.recordUltraInterviewAnswers(args.questions, normalized.answers);
 
       const properties: Record<string, TelemetryPropertyValue> = {
         answered: Object.keys(normalized.answers).length,
@@ -249,14 +249,14 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
     };
   }
 
-  private recordUltraInterviewAnswers(
+  private async recordUltraInterviewAnswers(
     questions: NormalizedAskUserQuestionInput['questions'],
     answers: QuestionAnswers,
-  ): void {
+  ): Promise<void> {
     const planMode = (this.agent as Partial<Pick<Agent, 'planMode'>>).planMode;
     if (planMode?.isUltraMode !== true || planMode.phase !== 'interview') return;
     try {
-      planMode.recordUltraInterviewAnswers(questions, answers);
+      await planMode.recordUltraInterviewAnswers(questions, answers);
     } catch {
       // Recording interview context must not turn a valid user answer into a dismissal.
     }
