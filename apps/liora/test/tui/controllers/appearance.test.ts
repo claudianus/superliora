@@ -2,7 +2,7 @@ import { visibleWidth, type RendererTerminalHost } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { AppearanceController, shouldAnimate, terminalMutationAllowed } from '#/tui/controllers/appearance';
+import { AppearanceController, shouldAnimate, shouldRenderAmbientAnimationFrame, terminalMutationAllowed } from '#/tui/controllers/appearance';
 import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { currentTheme } from '#/tui/theme';
 import {
@@ -142,6 +142,14 @@ describe('AppearanceController', () => {
         profile: 'premium',
       }),
     ).toBe(false);
+  });
+
+  it('keeps ambient animation gating independent of transcript message count', () => {
+    expect(shouldRenderAmbientAnimationFrame(true, 24)).toBe(true);
+    expect(shouldRenderAmbientAnimationFrame(true, 1)).toBe(true);
+    expect(shouldRenderAmbientAnimationFrame(false, 24)).toBe(false);
+    expect(shouldRenderAmbientAnimationFrame(true, 0)).toBe(false);
+    expect(shouldRenderAmbientAnimationFrame(true, Number.NaN)).toBe(false);
   });
 
   it('blocks terminal palette mutation in unsafe environments', () => {

@@ -6,6 +6,7 @@ import {
   NativeTerminalRenderer,
   type NativeTerminalRendererOptions,
 } from './native-renderer';
+import type { NativeRenderCause } from './render-loop';
 import type {
   NativeTerminalInput,
   NativeTerminalOutput,
@@ -101,8 +102,14 @@ export class NativeRootUI<TComponent extends Component = Component>
     this.renderer.stop();
   }
 
-  requestRender(force?: boolean): void {
-    this.renderer.requestRender(force === true ? 'manual' : 'request');
+  requestRender(cause?: boolean | NativeRenderCause): void {
+    if (cause === true) {
+      this.renderer.requestRender('manual');
+    } else if (cause === false || cause === undefined) {
+      this.renderer.requestRender('request');
+    } else {
+      this.renderer.requestRender(cause);
+    }
   }
 
   addChild(component: TComponent): void {

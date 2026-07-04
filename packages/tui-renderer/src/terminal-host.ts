@@ -1,4 +1,5 @@
 import type { Component } from './text-component';
+import type { NativeRenderCause } from './render-loop';
 
 export type RendererInputListenerResult =
   | {
@@ -23,7 +24,7 @@ export interface RendererRootUI<TComponent extends Component = Component> {
   readonly children: TComponent[];
   start(): void;
   stop(): void;
-  requestRender(force?: boolean): void;
+  requestRender(force?: boolean | NativeRenderCause): void;
   addChild(component: TComponent): void;
   clear(): void;
   setFocus(component: TComponent): void;

@@ -106,6 +106,15 @@ export function shouldAnimate(appearance: AppearancePreferences): boolean {
   return resolveAmbientEffectMode(appearance) !== 'off';
 }
 
+export function shouldRenderAmbientAnimationFrame(
+  followOutput: boolean,
+  terminalRows: number,
+): boolean {
+  if (!followOutput) return false;
+  if (!Number.isFinite(terminalRows) || terminalRows <= 0) return false;
+  return true;
+}
+
 export function terminalMutationAllowed(appearance: AppearancePreferences): boolean {
   if (appearance.terminalBackground === 'off' && !appearance.terminalPalette) return false;
   if (process.env['TERM'] === 'dumb') return false;

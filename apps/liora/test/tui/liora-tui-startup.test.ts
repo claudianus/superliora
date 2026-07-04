@@ -22,6 +22,10 @@ import {
   QUERY_TERMINAL_THEME,
   TERMINAL_THEME_LIGHT,
 } from '#/tui/utils/terminal-theme';
+import {
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 vi.mock('#/tui/commands/prompts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('#/tui/commands/prompts')>();
@@ -1706,6 +1710,60 @@ describe('LioraTUI startup', () => {
     });
     expect(harness.resumeSession).toHaveBeenCalledWith({ id: 'ses-target' });
     expect(driver.state.appState.sessionId).toBe('ses-target');
+  });
+
+  it('keeps the ambient animation ticker running after transcript messages and Ultrawork mode toggle', async () => {
+    vi.useFakeTimers();
+    const originalEnv = { ...process.env };
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
+    for (const key of ['TERM', 'CI', 'NO_COLOR', 'SSH_TTY', 'SSH_CONNECTION', 'SSH_CLIENT', 'TMUX'] as const) {
+      delete process.env[key];
+    }
+    process.env['TERM'] = 'xterm-256color';
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    setAppearanceRenderQuality('full');
+    setAppearanceRenderHealth('healthy');
+
+    let driver: StartupDriver | undefined;
+    try {
+      const session = makeSession();
+      const harness = makeHarness(session);
+      driver = makeDriver(harness, makeStartupInput());
+      const requestRender = vi.spyOn(driver.state.renderer, 'requestRender').mockImplementation(() => {});
+
+      await driver.init();
+
+      // Fill the transcript with enough entries that the old message-count gate
+      // would have stopped the ambient animation ticker.
+      const tui = driver as unknown as LioraTUI;
+      for (let i = 0; i < 10; i++) {
+        tui.appendTranscriptEntry({
+          id: `msg-${i}`,
+          kind: 'user',
+          renderMode: 'markdown',
+          content: `message ${i}`,
+        });
+      }
+
+      vi.advanceTimersByTime(1_000);
+      expect(requestRender).toHaveBeenCalled();
+
+      const callsBeforeToggle = requestRender.mock.calls.length;
+      tui.handleUltraworkModeToggle(true);
+      vi.advanceTimersByTime(1_000);
+      expect(requestRender.mock.calls.length).toBeGreaterThan(callsBeforeToggle);
+    } finally {
+      vi.useRealTimers();
+      process.env = originalEnv;
+      if (stdoutDescriptor === undefined) {
+        delete (process.stdout as { isTTY?: boolean }).isTTY;
+      } else {
+        Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
+      }
+      setAppearanceRenderQuality('full');
+      setAppearanceRenderHealth('healthy');
+      await driver?.stop?.();
+    }
   });
 });
 

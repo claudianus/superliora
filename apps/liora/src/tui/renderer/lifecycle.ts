@@ -19,7 +19,7 @@ export interface TerminalRenderer {
   releaseHeldAutoFrames(): void;
   start(): void;
   stop(): void;
-  requestRender(force?: boolean): void;
+  requestRender(force?: boolean | NativeRenderCause): void;
   drainInput(): Promise<void>;
 }
 
@@ -37,8 +37,11 @@ export function createNativeTerminalRenderer(options: {
   const { ui } = options;
   const { terminal, renderer: nativeRuntime } = ui;
   let autoFrameHold: (() => boolean) | undefined;
-  const nativeRenderCause = (force: boolean | undefined): NativeRenderCause =>
-    force === true ? 'manual' : 'request';
+  const nativeRenderCause = (force: boolean | NativeRenderCause | undefined): NativeRenderCause => {
+    if (force === true) return 'manual';
+    if (force === false || force === undefined) return 'request';
+    return force;
+  };
   const shouldHoldAutoFrames = () => autoFrameHold?.() === true;
 
   const renderer: TerminalRenderer = {
@@ -69,7 +72,7 @@ export function createNativeTerminalRenderer(options: {
     stop: () => {
       nativeRuntime.stop();
     },
-    requestRender: (force?: boolean) => {
+    requestRender: (force?: boolean | NativeRenderCause) => {
       if (autoFrameHold !== undefined) {
         nativeRuntime.setAutoFrameHold(autoFrameHold());
       }

@@ -106,7 +106,7 @@ import {
 } from './constant/liora-tui';
 import { MAX_TERMINAL_TITLE_LENGTH } from './constant/terminal';
 import { AuthFlowController } from './controllers/auth-flow';
-import { AppearanceController } from './controllers/appearance';
+import { AppearanceController, shouldRenderAmbientAnimationFrame } from './controllers/appearance';
 import { BtwPanelController } from './controllers/btw-panel';
 import { ClipboardImageHintController } from './controllers/clipboard-image-hint';
 import { EditorKeyboardController } from './controllers/editor-keyboard';
@@ -1043,10 +1043,10 @@ export class LioraTUI {
   }
 
   private shouldRenderAmbientAnimationFrame(): boolean {
-    if (!this.state.transcriptViewport.followOutput) return false;
-    const rows = this.state.terminal.rows;
-    if (!Number.isFinite(rows) || rows <= 0) return false;
-    return this.state.transcriptContainer.children.length <= 1;
+    return shouldRenderAmbientAnimationFrame(
+      this.state.transcriptViewport.followOutput,
+      this.state.terminal.rows,
+    );
   }
 
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
