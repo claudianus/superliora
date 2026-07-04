@@ -26,7 +26,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
-import type { Workspace } from '@moonshot-ai/protocol';
+import type { Workspace } from '@superliora/protocol';
 
 let tmpDir: string;
 let lockPath: string;
@@ -34,9 +34,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-workspaces-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-workspaces-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-workspaces-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-workspaces-home-'));
 });
 
 afterEach(async () => {

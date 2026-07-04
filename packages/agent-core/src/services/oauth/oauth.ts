@@ -40,7 +40,7 @@
  *
  *                   meanwhile, the background facade.login() polls...
  *
- *           ┌─ resolves with KimiAuthLoginResult  →  flow status = 'authenticated'
+ *           ┌─ resolves with LioraAuthLoginResult  →  flow status = 'authenticated'
  *           │                                        +  config.toml provisioned
  *           │                                        +  token saved to credentials
  *           │
@@ -68,7 +68,7 @@ import type {
   OAuthFlowStart,
   OAuthLoginCancelResponse,
   OAuthLogoutResponse,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 export interface IOAuthService {
   readonly _serviceBrand: undefined;

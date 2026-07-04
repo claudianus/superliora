@@ -1,4 +1,4 @@
-# @moonshot-ai/kimi-code-oauth
+# @superliora/oauth
 
 ## 0.2.2
 

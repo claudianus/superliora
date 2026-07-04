@@ -2,7 +2,7 @@
  * `ConnectionRegistry` — implementation of `IConnectionRegistry`.
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { Disposable } from '@superliora/agent-core';
 
 import type { WsConnection } from '#/ws/connection';
 import { IConnectionRegistry } from './connectionRegistry';

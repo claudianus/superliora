@@ -1,21 +1,21 @@
 {
-  "name": "@moonshot-ai/kimi-telemetry",
+  "name": "@superliora/telemetry",
   "version": "0.1.1",
   "private": true,
-  "description": "Shared telemetry infrastructure for Kimi Code",
+  "description": "Shared telemetry infrastructure for SuperLiora",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/telemetry#readme",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://github.com/claudianus/superliora/tree/main/packages/telemetry#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/claudianus/superliora.git",
     "directory": "packages/telemetry"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/claudianus/superliora/issues"
   },
   "keywords": [
-    "kimi",
+    "superliora",
     "telemetry",
     "analytics",
     "events",

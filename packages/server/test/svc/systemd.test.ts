@@ -65,15 +65,15 @@ let prevHome: string | undefined;
 
 beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), 'kimi-systemd-test-'));
-  prevHome = process.env['KIMI_CODE_HOME'];
-  process.env['KIMI_CODE_HOME'] = workDir;
+  prevHome = process.env['SUPERLIORA_HOME'];
+  process.env['SUPERLIORA_HOME'] = workDir;
 });
 
 afterEach(() => {
   if (prevHome === undefined) {
-    delete process.env['KIMI_CODE_HOME'];
+    delete process.env['SUPERLIORA_HOME'];
   } else {
-    process.env['KIMI_CODE_HOME'] = prevHome;
+    process.env['SUPERLIORA_HOME'] = prevHome;
   }
   rmSync(workDir, { recursive: true, force: true });
 });
@@ -86,8 +86,8 @@ describe('buildSystemdUnit', () => {
     expect(unit).toContain('[Unit]');
     expect(unit).toContain('[Service]');
     expect(unit).toContain('[Install]');
-    expect(unit).toContain('Description=Kimi Code local server');
-    expect(unit).toContain('ExecStart=/usr/local/bin/kimi server run --port 58627');
+    expect(unit).toContain('Description=SuperLiora local server');
+    expect(unit).toContain('ExecStart=/usr/local/bin/liora server run --port 58627');
     expect(unit).toContain('Restart=always');
     expect(unit).toContain('WantedBy=default.target');
   });
@@ -149,7 +149,7 @@ describe.skipIf(process.platform === 'win32')('systemd manager — install', () 
     expect(result.unitPath).toBe(unitPath);
     expect(existsSync(unitPath)).toBe(true);
     const text = readFileSync(unitPath, 'utf8');
-    expect(text).toContain('ExecStart=/usr/local/bin/kimi server run --port 58627 --log-level info --host 127.0.0.1');
+    expect(text).toContain('ExecStart=/usr/local/bin/liora server run --port 58627 --log-level info --host 127.0.0.1');
     expect(text).toContain('--host 127.0.0.1');
 
     expect(calls.length).toBe(3);
@@ -185,7 +185,7 @@ describe.skipIf(process.platform === 'win32')('systemd manager — install', () 
     const result = await mgr.install({ host: '0.0.0.0', port: 9999, logLevel: 'debug', force: true });
     expect(result.status).toBe('replaced');
     const text = readFileSync(unitPath, 'utf8');
-    expect(text).toContain('ExecStart=/usr/local/bin/kimi server run --port 9999 --log-level debug');
+    expect(text).toContain('ExecStart=/usr/local/bin/liora server run --port 9999 --log-level debug');
     expect(text).not.toContain('0.0.0.0');
   });
 

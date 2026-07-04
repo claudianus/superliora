@@ -1,7 +1,7 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Socket } from 'node:net';
 
-import { Disposable, ILogService } from '@moonshot-ai/agent-core';
+import { Disposable, ILogService } from '@superliora/agent-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { isAllowedHost } from '#/middleware/hostnames';

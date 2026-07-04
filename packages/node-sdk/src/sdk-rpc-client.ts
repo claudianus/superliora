@@ -2,26 +2,26 @@ import {
   createRPC,
   ensureConfigFile,
   getRootLogger,
-  KimiCore,
+  LioraCore,
   noopTelemetryClient,
   resolveConfigPath,
-  resolveKimiHome,
+  resolveLioraHome,
   resolveLoggingConfig,
   type CoreAPI,
   type OAuthTokenProviderResolver,
   type RPCMethods,
   type SDKAPI,
   type TelemetryClient,
-} from '@moonshot-ai/agent-core';
-import type { Kaos } from '@moonshot-ai/kaos';
-import { assertKimiHostIdentity, createKimiDefaultHeaders } from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/agent-core';
+import type { Kaos } from '@superliora/kaos';
+import { assertKimiHostIdentity, createKimiDefaultHeaders } from '@superliora/oauth';
 
-import { KimiAuthFacade } from '#/auth';
-import { KimiHarness } from '#/kimi-harness';
+import { LioraAuthFacade } from '#/auth';
+import { LioraHarness } from '#/liora-harness';
 import { ClientAPI, SDKRpcClientBase } from '#/rpc';
 import type {
   CreateSessionOptions,
-  KimiHarnessOptions,
+  LioraHarnessOptions,
   KimiHostIdentity,
   OAuthRefreshOutcome,
   ResumeSessionInput,
@@ -44,8 +44,8 @@ export class SDKRpcClient extends SDKRpcClientBase {
   readonly configPath: string;
   readonly identity: KimiHostIdentity | undefined;
   readonly telemetry: TelemetryClient;
-  readonly auth: KimiAuthFacade;
-  readonly core: KimiCore;
+  readonly auth: LioraAuthFacade;
+  readonly core: LioraCore;
 
   private readonly ready: Promise<RPCMethods<CoreAPI>>;
 
@@ -53,13 +53,13 @@ export class SDKRpcClient extends SDKRpcClientBase {
     super();
     this.identity =
       options.identity === undefined ? undefined : assertKimiHostIdentity(options.identity);
-    this.homeDir = resolveKimiHome(options.homeDir);
+    this.homeDir = resolveLioraHome(options.homeDir);
     this.configPath = resolveConfigPath({
       homeDir: this.homeDir,
       configPath: options.configPath,
     });
     this.telemetry = options.telemetry ?? noopTelemetryClient;
-    this.auth = new KimiAuthFacade({
+    this.auth = new LioraAuthFacade({
       homeDir: this.homeDir,
       configPath: this.configPath,
       identity: this.identity,
@@ -69,7 +69,7 @@ export class SDKRpcClient extends SDKRpcClientBase {
     void getRootLogger().configure(resolveLoggingConfig({ homeDir: this.homeDir }));
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    this.core = new KimiCore(coreRpc, {
+    this.core = new LioraCore(coreRpc, {
       homeDir: options.homeDir,
       configPath: this.configPath,
       kimiRequestHeaders: this.createKimiRequestHeaders(),
@@ -128,9 +128,9 @@ export class SDKRpcClient extends SDKRpcClientBase {
   }
 }
 
-export function createKimiHarness(options: KimiHarnessOptions): KimiHarness {
+export function createLioraHarness(options: LioraHarnessOptions): LioraHarness {
   const rpc = new SDKRpcClient(options);
-  return new KimiHarness(rpc, {
+  return new LioraHarness(rpc, {
     identity: rpc.identity,
     uiMode: options.uiMode,
     homeDir: rpc.homeDir,

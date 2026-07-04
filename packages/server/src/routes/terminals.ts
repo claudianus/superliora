@@ -4,8 +4,8 @@ import {
   createTerminalRequestSchema,
   getTerminalResponseSchema,
   listTerminalsResponseSchema,
-} from '@moonshot-ai/protocol';
-import { FsPathEscapesError, ITerminalService, SessionNotFoundError, TerminalNotFoundError, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { FsPathEscapesError, ITerminalService, SessionNotFoundError, TerminalNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 

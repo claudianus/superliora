@@ -11,11 +11,11 @@
  *   - Negative: bare {tid} POST (no :cancel) → 40001 unsupported action
  *
  * **Bootstrap strategy**: spawn the server and inject a fake background task
- * directly into the in-process KimiCore via the bridge. Agent-core's
+ * directly into the in-process LioraCore via the bridge. Agent-core's
  * `getBackground` / `stopBackground` operate against the same registrar.
  *
  * Because directly seeding a `BackgroundTask` requires constructing a real
- * KimiCore session and inserting into the agent-core background-task manager
+ * LioraCore session and inserting into the agent-core background-task manager
  * (out-of-band of the REST surface), we cover the positive list/get/cancel
  * paths via empty state + the negative tests. The 40904 already-finished
  * path is covered by the services unit tests; the server-side mapping is
@@ -34,10 +34,10 @@ import {
   ITaskService,
   TaskAlreadyFinishedError,
   TaskNotFoundError,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 import {
   listTasksResponseSchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 import { IRestGateway, startServer, type ServerStartOptions, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -48,9 +48,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-tasks-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-tasks-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-tasks-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-tasks-home-'));
 });
 
 afterEach(async () => {

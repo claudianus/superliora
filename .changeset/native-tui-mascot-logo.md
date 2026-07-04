@@ -1,5 +1,5 @@
 ---
-"@moonshot-ai/kimi-code": patch
+"@superliora/liora": patch
 ---
 
 Redesign the welcome screen mascot ASCII art.

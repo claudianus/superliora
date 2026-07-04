@@ -1,4 +1,4 @@
-import { createDecorator, type TelemetryClient } from '@moonshot-ai/agent-core';
+import { createDecorator, type TelemetryClient } from '@superliora/agent-core';
 
 import type { HostCheckOptions } from '#/middleware/hostnames';
 import type { IAuthTokenService } from '#/services/auth/authTokenService';

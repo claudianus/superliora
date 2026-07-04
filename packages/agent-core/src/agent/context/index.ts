@@ -1,7 +1,7 @@
-import { createToolMessage, type ContentPart, type Message } from '@moonshot-ai/kosong';
+import { createToolMessage, type ContentPart, type Message } from '@superliora/kosong';
 
 import type { Agent } from '..';
-import { ErrorCodes, KimiError } from '../../errors';
+import { ErrorCodes, LioraError } from '../../errors';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
 import { estimateTokensForMessages } from '../../utils/tokens';
 import { escapeXml } from '../../utils/xml-escape';
@@ -198,7 +198,7 @@ export class ContextMemory {
       !this.agent.records.restoring &&
       (stoppedAtBoundary || removedUserCount < count)
     ) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.REQUEST_INVALID,
         formatUndoUnavailableMessage(count, removedUserCount, stoppedAtBoundary),
         {

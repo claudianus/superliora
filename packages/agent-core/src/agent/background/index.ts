@@ -13,7 +13,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { createControlledPromise, type ControlledPromise } from '@antfu/utils';
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '../..';
 import { errorMessage } from '../../loop/errors';

@@ -1,6 +1,6 @@
 import {
   ErrorCodes,
-  KimiError,
+  LioraError,
   isKimiError,
   toKimiErrorPayload,
 } from '#/errors';
@@ -15,7 +15,7 @@ import {
   APIContextOverflowError,
   APIStatusError,
   createUserMessage,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 
 import type { Agent } from '..';
 import { isAbortError } from '../../loop/errors';
@@ -182,14 +182,14 @@ export class FullCompaction {
       return;
     }
     if (data.source === 'manual' && this.agent.turn.hasActiveTurn) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.COMPACTION_UNABLE,
         'Cannot compact while a turn is active. Wait for it to finish, then retry.',
       );
     }
     const compactedCount = this.strategy.computeCompactCount(this.agent.context.history, data.source);
     if (compactedCount === 0) {
-      throw new KimiError(ErrorCodes.COMPACTION_UNABLE, 'No prefix that can be compacted in current history.');
+      throw new LioraError(ErrorCodes.COMPACTION_UNABLE, 'No prefix that can be compacted in current history.');
     }
     this.agent.records.logRecord({
       type: 'full_compaction.begin',
@@ -291,7 +291,7 @@ export class FullCompaction {
     this.consecutiveOverflowCompactions += 1;
     const maxAttempts = this.strategy.maxOverflowCompactionAttempts;
     if (this.consecutiveOverflowCompactions > maxAttempts) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONTEXT_OVERFLOW,
         `Compaction failed to bring the context under the model window after ${String(maxAttempts)} attempts.`,
         { cause: error instanceof Error ? error : undefined },
@@ -335,7 +335,7 @@ export class FullCompaction {
     const maxCompactions = this.strategy.maxCompactionPerTurn;
     if (this.compactionCountInTurn >= maxCompactions) {
       if (throwOnLimit) {
-        throw new KimiError(ErrorCodes.CONTEXT_OVERFLOW, `Compaction limit exceeded (${String(maxCompactions)})`, {
+        throw new LioraError(ErrorCodes.CONTEXT_OVERFLOW, `Compaction limit exceeded (${String(maxCompactions)})`, {
           details: { maxCompactions },
         });
       }
@@ -704,7 +704,7 @@ export class FullCompaction {
         error_type: error instanceof Error ? error.name : 'Unknown',
       });
       if (isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED) throw error;
-      throw new KimiError(ErrorCodes.COMPACTION_FAILED, String(error), { cause: error });
+      throw new LioraError(ErrorCodes.COMPACTION_FAILED, String(error), { cause: error });
     }
   }
 
@@ -1064,8 +1064,8 @@ export class FullCompaction {
         await memory.remember(input);
         saved += 1;
       } catch (error) {
-        this.agent.log.warn('kimi recall compaction memory save failed', error);
-        this.agent.telemetry.track('kimi_recall_compaction_memory_save_failed', {
+        this.agent.log.warn('liora recall compaction memory save failed', error);
+        this.agent.telemetry.track('liora_recall_compaction_memory_save_failed', {
           memory_kind: input.kind,
           memory_scope: input.scope,
           subject: input.subject,
@@ -1073,7 +1073,7 @@ export class FullCompaction {
       }
     }
     if (saved > 0) {
-      this.agent.telemetry.track('kimi_recall_compaction_memory_saved', {
+      this.agent.telemetry.track('liora_recall_compaction_memory_saved', {
         saved_count: saved,
         requested_count: inputs.length,
         recall_eval_score: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
@@ -1128,7 +1128,7 @@ export class FullCompaction {
     const rawRefItems = mergeStringLists(structuredMemory.rawRefs, plan.rawRefs.map(formatRawRef));
 
     return [
-      '# Super Kimi Context Compaction v2 Memory',
+      '# SuperLiora Context Compaction v2 Memory',
       '',
       '## Resume Preflight',
       `- current_goal: ${currentGoal}`,

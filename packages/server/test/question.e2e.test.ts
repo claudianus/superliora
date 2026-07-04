@@ -22,7 +22,7 @@ import {
   IQuestionService,
   type QuestionRequest,
   type QuestionResult,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -47,9 +47,9 @@ function rmSyncRobust(path: string): void {
 }
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-questions-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-questions-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-questions-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-questions-home-'));
 });
 
 afterEach(async () => {

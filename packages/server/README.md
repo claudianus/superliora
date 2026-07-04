@@ -1,10 +1,10 @@
-# @moonshot-ai/server
+# @superliora/server
 
-Local REST + WebSocket server that exposes the Kimi Code SDK over a stable wire
+Local REST + WebSocket server that exposes the SuperLiora SDK over a stable wire
 protocol. It hosts `agent-core` sessions and serves them under a single
 `/api/v1` prefix. This package is **private** — it is not published on its own;
-it ships inside the `kimi` CLI (`apps/kimi-code`) and is launched via
-`kimi server run`.
+it ships inside the `kimi` CLI (`apps/liora`) and is launched via
+`liora server run`.
 
 ## What it does
 
@@ -21,14 +21,14 @@ pnpm dev:server
 pnpm dev:server:restart
 
 # Checks
-pnpm --filter @moonshot-ai/server typecheck   # tsc --noEmit
-pnpm --filter @moonshot-ai/server test        # vitest run
-pnpm --filter @moonshot-ai/server build       # tsdown
+pnpm --filter @superliora/server typecheck   # tsc --noEmit
+pnpm --filter @superliora/server test        # vitest run
+pnpm --filter @superliora/server build       # tsdown
 ```
 
 The public entry point is `startServer(opts)` in `src/start.ts`, which returns a
-`RunningServer`. In production the CLI command `kimi server run`
-(`apps/kimi-code/src/cli/sub/server/run.ts`) imports and calls it. This package
+`RunningServer`. In production the CLI command `liora server run`
+(`apps/liora/src/cli/sub/server/run.ts`) imports and calls it. This package
 has no `dev` script of its own — always start it from the repo root or via the
 CLI.
 
@@ -38,15 +38,15 @@ By default the server listens on `127.0.0.1:58627`; e2e clients target it with
 ## Architecture
 
 ```
-apps/kimi-code (CLI/TUI)
+apps/liora (CLI/TUI)
         │
         │  REST + WebSocket, /api/v1
         ┌──────────▼───────────┐
-        │  @moonshot-ai/server │
+        │  @superliora/server │
         │  Fastify REST        │
         │  ws gateway          │
-        │  DI container        │  ← @moonshot-ai/agent-core
-        │  agent-core sessions │  ← @moonshot-ai/agent-core
+        │  DI container        │  ← @superliora/agent-core
+        │  agent-core sessions │  ← @superliora/agent-core
         └──────────────────────┘
 ```
 
@@ -57,11 +57,11 @@ apps/kimi-code (CLI/TUI)
   `server_hello` / `ack` / `event` / `resync_required` frames, replay and
   fan-out.
 - **DI** (`src/services/serviceCollection.ts`): seeds the container from
-  `@moonshot-ai/agent-core` (`getSingletonServiceDescriptors()`) and layers in
+  `@superliora/agent-core` (`getSingletonServiceDescriptors()`) and layers in
   server-owned gateways plus `IApprovalService` / `IQuestionService`
   implementations.
 - **OS service managers** (`src/svc/`): launchd / systemd / schtasks backends
-  for `kimi server install/start`.
+  for `liora server install/start`.
 
 ## Wire protocol notes
 
@@ -75,12 +75,12 @@ apps/kimi-code (CLI/TUI)
 
 ## Related packages
 
-- `@moonshot-ai/agent-core` — the agent engine the server hosts, including the
+- `@superliora/agent-core` — the agent engine the server hosts, including the
   in-process DI service layer it wires together.
-- `@moonshot-ai/protocol` — wire types and the AsyncAPI document.
-- `@moonshot-ai/node-sdk` — typed in-process facade for user code
-  (`KimiHarness`, `Session`); prefer it over hand-rolling REST/WS calls.
-- `@moonshot-ai/server-e2e` — wire-level e2e client and scenarios against a
+- `@superliora/protocol` — wire types and the AsyncAPI document.
+- `@superliora/node-sdk` — typed in-process facade for user code
+  (`LioraHarness`, `Session`); prefer it over hand-rolling REST/WS calls.
+- `@superliora/server-e2e` — wire-level e2e client and scenarios against a
   running server.
 
 ## Development

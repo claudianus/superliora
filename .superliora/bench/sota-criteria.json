@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "name": "superliora-agent-sota-gate-wave-1",
+  "budgetDefaults": {
+    "wallClockMs": 30000,
+    "commandCount": 10,
+    "estimatedTokens": 800
+  },
+  "loopScoreRubric": {
+    "threshold": 90,
+    "principle": "XP-lite and Definition of Done are harness-level design gates: every Ultrawork loop should prove a small focused change, relevant verification, live TUI observation, and clean next action before claiming progress.",
+    "dimensions": [
+      {
+        "id": "vibe-coder-ux",
+        "label": "Vibe coder UX improvement",
+        "maxPoints": 20
+      },
+      {
+        "id": "autonomy-auto-activation",
+        "label": "Autonomy and auto activation quality",
+        "maxPoints": 15
+      },
+      {
+        "id": "verification-eyes-hands",
+        "label": "Verification and eyes-hands practicality",
+        "maxPoints": 15
+      },
+      {
+        "id": "tui-state-expression",
+        "label": "TUI state expression",
+        "maxPoints": 15
+      },
+      {
+        "id": "coding-success-bug-prevention",
+        "label": "Coding success and bug prevention",
+        "maxPoints": 15
+      },
+      {
+        "id": "speed-token-cache-efficiency",
+        "label": "Speed, token, and cache efficiency",
+        "maxPoints": 10
+      },
+      {
+        "id": "stuck-loop-stability",
+        "label": "Stuck prevention and loop stability",
+        "maxPoints": 10
+      }
+    ],
+    "definitionOfDone": [
+      "Relevant tests pass.",
+      "Typecheck passes if available.",
+      "Lint passes if available.",
+      "No unrelated files changed.",
+      "No broad refactor mixed into the task.",
+      "Public behavior is covered by tests unless the change is purely cosmetic or documentation-only.",
+      "User-facing TUI/CLI surface changes are directly opened and observed before finishing."
+    ],
+    "xpLite": [
+      "Inspect relevant files, tests, and project conventions first.",
+      "Keep changes small and focused.",
+      "Write or update tests before implementation when practical for bugs and core logic.",
+      "Implement the minimum code needed.",
+      "Run the most relevant tests, typecheck, lint, and build commands available.",
+      "Fix verification failures or report blockers clearly.",
+      "Finish with changed files, behavior changed, tests run, and remaining risks."
+    ],
+    "humanWriting": [
+      "Treat no-AI-slop writing as a harness-level output quality gate for final answers, docs, PR text, changelogs, TUI copy, and benchmark reports.",
+      "Classify Korean prose into a surface-specific voice lane before rewriting: product UX microcopy uses friendly 해요체, active wording, positive-first recovery, specific CTAs, and exception-aware legal, policy, privacy, and destructive-action wording.",
+      "Institutional corporate copy uses formal 합니다/습니다 endings, proof before emotion, concrete domain to wider public meaning, future-facing continuity, and public-interest credibility.",
+      "Treat JoongAng/Toss-inspired sources as style-analysis inputs only; do not copy source passages, claim official affiliation, or hide trademark/legal/publication risk.",
+      "Prefer plain specific claims, concrete nouns and verbs, source-backed details, and the user's context over generic hype or polished vagueness.",
+      "Self-audit for template openings, hollow intensifiers, forced rule-of-three phrasing, overused formatting, vague attribution, filler transitions, generic conclusions, and chatbot artifacts.",
+      "Use avoid-ai-writing checks as advisory pattern checks before rewriting toward the user's context and concrete evidence.",
+      "Do not treat AI-writing detectors as truth or use detector signals to accuse an author; use detector signals, avoid-ai-writing checks, and deterministic unslop cleanup only as advisory pattern checks.",
+      "When generated prose matters, run a second-pass rewrite or deterministic cleanup when available, preserve meaning and voice, then reread the result for changed meaning before shipping."
+    ]
+  },
+  "requiredTuiScenarios": [
+    "startup",
+    "help",
+    "status",
+    "clear",
+    "autocomplete",
+    "prompt-entry",
+    "escape-cancel",
+    "permission-mode",
+    "exit"
+  ],
+  "freeWebResearchHarness": {
+    "priority": "primary-ultrawork-capability",
+    "principle": "Default Ultrawork research must work without a paid search subscription or extra-cost search API while still preferring source-backed current evidence.",
+    "requirements": [
+      "WebSearch is available through a local no-subscription provider when a managed search service is not configured.",
+      "Use FetchURL to fetch primary sources before relying on snippets.",
+      "Use precise 3-12 keyword queries for current libraries, APIs, model releases, benchmarks, security, architecture, and debugging work.",
+      "Prioritize official docs, release notes, GitHub issues and PRs, papers, benchmark pages, and dated primary sources.",
+      "Persist durable findings into Kimi Knowledge Map, memory, benchmark radar, or SOTA criteria instead of keeping one-off link dumps.",
+      "Keep the primary research path internal: built-in WebSearch and FetchURL own search, fetch, extraction, source evidence, and readiness while absorbing Scrapling-class ideas such as CSS selector targeting, main-content extraction, screenshots, session reuse, dynamic public-page rendering hooks, and adaptive element relocation behind internal providers.",
+      "Expose web research readiness through the TUI status surface so users see built-in WebSearch/FetchURL capability without configuring MCP first.",
+      "Use browser automation for public rendered pages, DOM observation, screenshots, downloads, and PDF extraction when plain fetch is insufficient."
+    ],
+    "safetyBoundaries": [
+      "Authorized/public access is the boundary: public pages, user-provided authenticated sessions, and explicitly authorized test targets are allowed; do not defeat CAPTCHA, paywall, login, permission, rate-limit, robots, or other access-control systems.",
+      "Do not treat browser UI or apps/vis as a success surface for TUI/CLI harness work.",
+      "If a source blocks access, find an alternate public source or ask the user for legitimate access."
+    ]
+  },
+  "frontierBenchmarkTargets": {
+    "model": "Claude Sonnet 5",
+    "scope": "Aspirational external frontier targets for SuperLiora harness design and evaluation; these are not claimed local SuperLiora scores.",
+    "source": {
+      "name": "Claude Sonnet 5 announcement and System Card",
+      "announcementUrl": "https://www.anthropic.com/news/claude-sonnet-5",
+      "systemCardUrl": "https://www.anthropic.com/claude-sonnet-5-system-card",
+      "systemCardPdfUrl": "https://www-cdn.anthropic.com/d9bb04416ffe1352af84721476c1fa9994c07fde/Claude%20Sonnet%205%20System%20Card.pdf",
+      "retrievedAt": "2026-07-01",
+      "verificationStatus": "official-source-checked",
+      "notes": "User screenshot showed GDPval-AA v2 as 1618; the official System Card PDF text extracted on 2026-07-01 reports Claude Sonnet 5 GDPval-AA v2 ELO 1609, so this criteria file uses the official PDF value."
+    },
+    "targets": [
+      {
+        "id": "swe-bench-pro",
+        "domain": "Agentic coding",
+        "name": "SWE-bench Pro",
+        "metric": "pass rate",
+        "unit": "percent",
+        "target": 63.2,
+        "evaluationMode": "standard configuration with thinking blocks"
+      },
+      {
+        "id": "terminal-bench-2-1",
+        "domain": "Agentic coding",
+        "name": "Terminal-Bench 2.1",
+        "metric": "mean reward",
+        "unit": "percent",
+        "target": 80.4,
+        "evaluationMode": "averaged over 5 attempts"
+      },
+      {
+        "id": "hle-no-tools",
+        "domain": "Multidisciplinary reasoning",
+        "name": "Humanity's Last Exam",
+        "metric": "accuracy",
+        "unit": "percent",
+        "target": 43.2,
+        "setting": "no tools"
+      },
+      {
+        "id": "hle-with-tools",
+        "domain": "Multidisciplinary reasoning",
+        "name": "Humanity's Last Exam",
+        "metric": "accuracy",
+        "unit": "percent",
+        "target": 57.4,
+        "setting": "with tools"
+      },
+      {
+        "id": "osworld-verified",
+        "domain": "Computer use",
+        "name": "OSWorld-Verified",
+        "metric": "first-attempt success rate",
+        "unit": "percent",
+        "target": 81.2,
+        "evaluationMode": "pass@1 averaged over OSWorld-Verified tasks"
+      },
+      {
+        "id": "gdpval-aa-v2",
+        "domain": "Knowledge work",
+        "name": "GDPval-AA v2",
+        "metric": "ELO",
+        "unit": "score",
+        "target": 1609,
+        "systemCardTextValue": 1609,
+        "note": "Use official System Card PDF text value instead of screenshot value 1618."
+      }
+    ],
+    "adoptionPrinciples": [
+      "Map local SuperLiora metrics to the same domains before making any comparison.",
+      "Treat prompt-only local benchmark scores as auxiliary; agentic coding and computer-use claims require live TUI traces and artifacts.",
+      "Keep external frontier targets separate from local pass/fail scores to avoid fake evidence."
+    ]
+  },
+  "references": [
+    {
+      "name": "Terminal-Bench",
+      "url": "https://www.tbench.ai/",
+      "principle": "terminal-native tasks should be evaluated by executable command traces and artifacts"
+    },
+    {
+      "name": "TerminalWorld",
+      "url": "https://arxiv.org/abs/2605.22535",
+      "principle": "terminal-agent evaluations should move toward realistic tasks derived from human terminal workflows"
+    },
+    {
+      "name": "SWE-bench Verified / holdout",
+      "url": "https://www.swebench.com/",
+      "principle": "agent benchmarks need verified tasks, held-out coverage, and programmatic pass/fail checks"
+    },
+    {
+      "name": "OSWorld",
+      "url": "https://os-world.github.io/",
+      "principle": "live UI agents require inspectable environment evidence instead of claimed interaction"
+    },
+    {
+      "name": "tau-bench",
+      "url": "https://github.com/sierra-research/tau-bench",
+      "principle": "tool-using agents should be judged on disciplined tool calls and task outcomes"
+    },
+    {
+      "name": "VeRO",
+      "url": "https://arxiv.org/abs/2602.22480",
+      "principle": "agent harnesses need versioned snapshots, structured traces, and budget-controlled evaluation"
+    },
+    {
+      "name": "Meta-Harness",
+      "url": "https://yoonholee.com/meta-harness/",
+      "principle": "benchmark harnesses should preserve traces, budgets, and holdout-style controls while optimizing only against verifiable evidence"
+    }
+  ]
+}

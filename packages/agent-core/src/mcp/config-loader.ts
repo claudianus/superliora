@@ -1,9 +1,9 @@
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, normalize, resolve } from 'pathe';
 
-import { resolveKimiHome } from '#/config/path';
+import { resolveLioraHome } from '#/config/path';
 import { McpServerConfigSchema, type McpServerConfig } from '#/config/schema';
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors';
 import { z } from 'zod';
 
 const McpJsonFileSchema = z.object({
@@ -25,9 +25,9 @@ export async function resolveMcpJsonPaths(input: ResolveMcpJsonPathsInput): Prom
   const projectRoot = await findProjectRoot(input.cwd);
 
   return {
-    user: join(resolveKimiHome(input.homeDir), 'mcp.json'),
+    user: join(resolveLioraHome(input.homeDir), 'mcp.json'),
     projectRoot: join(projectRoot, '.mcp.json'),
-    project: join(input.cwd, '.kimi-code', 'mcp.json'),
+    project: join(input.cwd, '.superliora', 'mcp.json'),
   };
 }
 
@@ -37,9 +37,9 @@ export interface LoadMcpServersInput {
 }
 
 /**
- * Load MCP server declarations from the user-global `~/.kimi-code/mcp.json`,
+ * Load MCP server declarations from the user-global `~/.superliora/mcp.json`,
  * the project-root `<project root>/.mcp.json`, and the project-local
- * `<cwd>/.kimi-code/mcp.json`. Entries in later files override earlier files
+ * `<cwd>/.superliora/mcp.json`. Entries in later files override earlier files
  * with the same key, so a repo can specialise or replace a shared definition,
  * and Kimi-specific project config wins over the Claude-compatible root file.
  *
@@ -94,7 +94,7 @@ async function readMcpJson(
     text = await readFile(filePath, 'utf-8');
   } catch (error: unknown) {
     if (isFileNotFound(error)) return {};
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Failed to read ${filePath}: ${describeError(error)}`, {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, `Failed to read ${filePath}: ${describeError(error)}`, {
       cause: error,
     });
   }
@@ -105,7 +105,7 @@ async function readMcpJson(
   try {
     data = JSON.parse(text);
   } catch (error: unknown) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid JSON in ${filePath}: ${describeError(error)}`, {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid JSON in ${filePath}: ${describeError(error)}`, {
       cause: error,
     });
   }
@@ -113,7 +113,7 @@ async function readMcpJson(
   try {
     return normalizeMcpServers(McpJsonFileSchema.parse(data).mcpServers, options);
   } catch (error: unknown) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid MCP server config in ${filePath}: ${describeError(error)}`, {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid MCP server config in ${filePath}: ${describeError(error)}`, {
       cause: error,
     });
   }

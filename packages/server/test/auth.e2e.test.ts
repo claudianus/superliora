@@ -13,7 +13,7 @@
  *                                    out of scope here).
  *
  * **Bootstrap**: each test seeds `<bridgeHome>/config.toml` BEFORE calling
- * `startServer` so KimiCore loads it on construction. The `homeDir` we pass
+ * `startServer` so LioraCore loads it on construction. The `homeDir` we pass
  * via `coreProcessOptions.homeDir` is also what `AuthSummaryServiceImpl` uses to
  * locate the credential dir — keeping the file paths in lockstep with prod.
  *
@@ -29,7 +29,7 @@ import { join } from 'node:path';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { authSummarySchema, type AuthSummary } from '@moonshot-ai/protocol';
+import { authSummarySchema, type AuthSummary } from '@superliora/protocol';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -40,9 +40,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-auth-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-auth-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-auth-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-auth-home-'));
 });
 
 afterEach(async () => {
@@ -109,7 +109,7 @@ function envelopeOf<T>(body: unknown): {
 
 /**
  * Seed `<bridgeHome>/config.toml` BEFORE server boot. Path layout matches
- * `resolveConfigPath({homeDir})` exactly so KimiCore + AuthSummaryService
+ * `resolveConfigPath({homeDir})` exactly so LioraCore + AuthSummaryService
  * load the same file.
  */
 function seedConfig(toml: string): void {

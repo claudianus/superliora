@@ -1,17 +1,17 @@
 {
-  "name": "@moonshot-ai/server",
+  "name": "@superliora/server",
   "version": "0.2.2",
   "private": true,
-  "description": "Local REST + WebSocket server exposing kimi-code SDK over a stable wire protocol.",
+  "description": "Local REST + WebSocket server exposing the SuperLiora SDK over a stable wire protocol.",
   "license": "MIT",
-  "author": "Moonshot AI",
+  "author": "SuperLiora Contributors",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/claudianus/superliora.git",
     "directory": "packages/server"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/claudianus/superliora/issues"
   },
   "type": "module",
   "imports": {
@@ -40,8 +40,8 @@
   "dependencies": {
     "@fastify/multipart": "^10.0.0",
     "@fastify/swagger": "^9.7.0",
-    "@moonshot-ai/agent-core": "workspace:^",
-    "@moonshot-ai/protocol": "workspace:^",
+    "@superliora/agent-core": "workspace:^",
+    "@superliora/protocol": "workspace:^",
     "bcryptjs": "^2.4.3",
     "fastify": "^5.1.0",
     "pino": "^9.5.0",

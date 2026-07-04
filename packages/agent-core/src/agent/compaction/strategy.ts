@@ -1,4 +1,4 @@
-import type { Message } from '@moonshot-ai/kosong';
+import type { Message } from '@superliora/kosong';
 import { estimateTokensForMessage } from '../../utils/tokens';
 import type { CompactionSource } from './types';
 

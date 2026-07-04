@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "system.bench-toolchain-runtime.v1",
+  "title": "Verify benchmark source commands use the repository toolchain",
+  "suite": "system",
+  "kind": "harness-qa",
+  "risk": "low",
+  "tags": ["bench", "toolchain", "node", "pnpm", "reproducibility"],
+  "prompt": "Verify that source commands launched by the benchmark runner use the repository-required Node.js and corepack pnpm versions.",
+  "budgets": {
+    "maxWallMs": 30000,
+    "maxCommands": 1,
+    "maxPromptChars": 300
+  },
+  "checks": [
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "-e",
+        "const { spawnSync } = require('node:child_process'); const nodeVersion = process.versions.node; const compare = (left, right) => { const a = left.split('.').map(Number); const b = right.split('.').map(Number); for (let i = 0; i < 3; i += 1) { if ((a[i] ?? 0) > (b[i] ?? 0)) return 1; if ((a[i] ?? 0) < (b[i] ?? 0)) return -1; } return 0; }; if (compare(nodeVersion, '24.15.0') < 0) throw new Error(`node ${nodeVersion} < 24.15.0`); const pnpm = spawnSync('corepack', ['pnpm', '-v'], { encoding: 'utf8' }); if (pnpm.status !== 0) throw new Error(`corepack pnpm failed: ${pnpm.stderr || pnpm.error?.message || pnpm.status}`); if (pnpm.stdout.trim() !== '10.33.0') throw new Error(`corepack pnpm ${pnpm.stdout.trim()} !== 10.33.0`); console.log(JSON.stringify({ nodeVersion, pnpmVersion: pnpm.stdout.trim(), nodePath: process.execPath }));"
+      ],
+      "timeoutMs": 30000,
+      "weight": 1
+    }
+  ]
+}

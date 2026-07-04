@@ -32,10 +32,10 @@ import {
   type StreamDecodeStats,
   type StreamedMessagePart,
   type TokenUsage,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 
 import type { ModelRoutingStrategy } from '../../config';
-import { ErrorCodes, KimiError, isKimiError } from '../../errors';
+import { ErrorCodes, LioraError, isKimiError } from '../../errors';
 import type { Logger } from '../../logging/types';
 import type {
   LLM,
@@ -209,7 +209,7 @@ export class KosongLLM implements LLM {
         retryAfterMs: unavailable.retryAfterMs,
         retryAt: unavailable.retryAt,
       });
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.PROVIDER_RATE_LIMIT,
         `All provider route candidates for "${route.key}" are cooling down or locally rate-limited. Try again in ${Math.ceil(
           unavailable.retryAfterMs / 1000,

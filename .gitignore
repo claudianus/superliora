@@ -14,7 +14,7 @@ coverage/
 .kimi-stash-dir
 plugins/cdn/
 .worktrees/
-.kimi-code/local.toml
+.superliora/local.toml
 .kimi-sandbox/
 
 Dockerfile
@@ -31,9 +31,19 @@ reports/
 .ouroboros_eval_artifact.md
 /kimi-code/
 plan/
-# `.super-kimi/` sub-paths below use a `**/` prefix so they are also ignored
-# when a tool creates them under a nested package/app directory (e.g.
-# `apps/kimi-code/.super-kimi/`) instead of the repo root.
+# Workspace-local data dirs (`.superliora/` canonical, `.super-kimi/` legacy).
+# The `**/` prefix also matches nested package/app directories (e.g. `apps/liora/.superliora/`).
+**/.superliora/evidence/
+**/.superliora/wiki/
+**/.superliora/boulder.json
+**/.superliora/drafts/
+**/.superliora/notepads/
+**/.superliora/plans/
+**/.superliora/research/
+**/.superliora/runbooks/
+**/.superliora/scripts/
+**/.superliora/start-work/
+**/.superliora/ulw-loop/
 **/.super-kimi/evidence/
 **/.super-kimi/wiki/
 **/.super-kimi/boulder.json

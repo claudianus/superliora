@@ -1,10 +1,10 @@
 {
-  description = "Kimi Code CLI";
+  description = "SuperLiora CLI";
 
   inputs = {
     # Pinned to the 25.11 release channel because nixpkgs-unstable currently
     # ships nodejs_24 = 24.14.1, which trips the >= 24.15.0 floor that the
-    # native SEA build enforces (see apps/kimi-code/scripts/native/build.mjs).
+    # native SEA build enforces (see apps/liora/scripts/native/build.mjs).
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
 
@@ -42,7 +42,7 @@
           node
         else
           throw ''
-            Kimi Code requires Node.js >= ${minNodeVersion},
+            SuperLiora requires Node.js >= ${minNodeVersion},
             but nixpkgs only offers ${node.version}.
             Pin a newer nixpkgs revision or update minNodeVersion in flake.nix.
           '';
@@ -68,7 +68,6 @@
         ./packages/server
         ./packages/server-e2e
         ./packages/kaos
-        ./packages/kimi-migration-legacy
         ./packages/kosong
         ./packages/migration-legacy
         ./packages/node-sdk
@@ -76,31 +75,30 @@
         ./packages/protocol
         ./packages/telemetry
         ./packages/tui-renderer
-        ./apps/kimi-code
+        ./apps/liora
         ./apps/vis
         ./apps/vis/server
         ./apps/vis/web
       ];
 
       workspaceNames = [
-        "@moonshot-ai/acp-adapter"
-        "@moonshot-ai/agent-core"
-        "@moonshot-ai/gui-use"
-        "@moonshot-ai/server"
-        "@moonshot-ai/server-e2e"
-        "@moonshot-ai/kaos"
-        "@moonshot-ai/kosong"
-        "@moonshot-ai/migration-legacy"
-        "@moonshot-ai/kimi-code-sdk"
-        "@moonshot-ai/kimi-code-oauth"
-        "@moonshot-ai/protocol"
-        "@moonshot-ai/kimi-telemetry"
+        "@superliora/acp-adapter"
+        "@superliora/agent-core"
+        "@superliora/gui-use"
+        "@superliora/server"
+        "@superliora/server-e2e"
+        "@superliora/kaos"
+        "@superliora/kosong"
+        "@superliora/migration-legacy"
+        "@superliora/sdk"
+        "@superliora/oauth"
+        "@superliora/protocol"
+        "@superliora/telemetry"
         "@harness-kit/tui-renderer"
-        "@moonshot-ai/kimi-code"
-        "@moonshot-ai/vis"
-        "@moonshot-ai/vis-server"
-        "@moonshot-ai/vis-web"
-        "kimi-migration-legacy"
+        "@superliora/liora"
+        "@superliora/vis"
+        "@superliora/vis-server"
+        "@superliora/vis-web"
       ];
     in
     {
@@ -109,7 +107,7 @@
         let
           nodejs = nodejsFor pkgs;
           pnpm = pnpmFor pkgs;
-          appPackageJson = builtins.fromJSON (builtins.readFile ./apps/kimi-code/package.json);
+          appPackageJson = builtins.fromJSON (builtins.readFile ./apps/liora/package.json);
           nativeTarget =
             if pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isAarch64 then
               "linux-arm64"
@@ -120,10 +118,10 @@
             else if pkgs.stdenv.hostPlatform.isDarwin then
               "darwin-x64"
             else
-              throw "Unsupported Kimi Code native target for ${pkgs.stdenv.hostPlatform.system}";
+              throw "Unsupported SuperLiora native target for ${pkgs.stdenv.hostPlatform.system}";
 
-          kimi-code = pkgs.stdenv.mkDerivation (finalAttrs: {
-            pname = "kimi-code";
+          liora = pkgs.stdenv.mkDerivation (finalAttrs: {
+            pname = "liora";
             version = appPackageJson.version;
 
             src = lib.fileset.toSource {
@@ -176,22 +174,22 @@
 
             buildPhase = ''
               runHook preBuild
-              export KIMI_CODE_BUILD_TARGET=${nativeTarget}
+              export SUPERLIORA_BUILD_TARGET=${nativeTarget}
               ${lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
                 # pkgs.darwin.sigtool's codesign supports `--sign -` (ad-hoc)
                 # but not the inspection mode (`-dv`) that 05-verify.mjs runs
                 # afterwards. Disable the verify step for the Nix build; the
                 # release CI keeps it via the unmodified script.
-                substituteInPlace apps/kimi-code/scripts/native/build.mjs \
+                substituteInPlace apps/liora/scripts/native/build.mjs \
                   --replace-fail \
                     "await runVerifyStep({ requireGatekeeper: false });" \
                     "// runVerifyStep skipped in nix sandbox (sigtool lacks -dv)"
               ''}
-              substituteInPlace apps/kimi-code/scripts/build-vis-asset.mjs \
+              substituteInPlace apps/liora/scripts/build-vis-asset.mjs \
                 --replace-fail \
-                  "corepack pnpm --filter @moonshot-ai/vis-web exec vite build" \
-                  "pnpm --filter @moonshot-ai/vis-web exec vite build"
-              pnpm --filter=@moonshot-ai/kimi-code run build:native:sea
+                  "corepack pnpm --filter @superliora/vis-web exec vite build" \
+                  "pnpm --filter @superliora/vis-web exec vite build"
+              pnpm --filter=@superliora/liora run build:native:sea
               runHook postBuild
             '';
 
@@ -199,37 +197,37 @@
               runHook preInstall
 
               install -Dm755 \
-                "apps/kimi-code/dist-native/bin/${nativeTarget}/kimi" \
-                "$out/bin/kimi"
+                "apps/liora/dist-native/bin/${nativeTarget}/liora" \
+                "$out/bin/liora"
 
               runHook postInstall
             '';
 
             postInstall = ''
-              wrapProgram $out/bin/kimi --prefix PATH : ${lib.makeBinPath [ pkgs.ripgrep pkgs.fd ]}
+              wrapProgram $out/bin/liora --prefix PATH : ${lib.makeBinPath [ pkgs.ripgrep pkgs.fd ]}
             '';
 
             meta = {
-              description = "Super Kimi Code CLI";
-              homepage = "https://github.com/claudianus/super-kimi-code";
+              description = "SuperLiora CLI";
+              homepage = "https://github.com/claudianus/superliora";
               license = lib.licenses.mit;
-              mainProgram = "kimi";
+              mainProgram = "liora";
               platforms = systems;
             };
           });
         in
         {
-          inherit kimi-code;
-          default = kimi-code;
+          inherit liora;
+          default = liora;
         }
       );
 
       apps = forAllSystems (pkgs: {
-        kimi-code = {
+        liora = {
           type = "app";
-          program = "${self.packages.${pkgs.system}.kimi-code}/bin/kimi";
+          program = "${self.packages.${pkgs.system}.liora}/bin/liora";
         };
-        default = self.apps.${pkgs.system}.kimi-code;
+        default = self.apps.${pkgs.system}.liora;
       });
 
       devShells = forAllSystems (pkgs: {

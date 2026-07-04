@@ -32,8 +32,8 @@ import {
   ErrorCode,
   listPendingApprovalsQuerySchema,
   listPendingApprovalsResponseSchema,
-} from '@moonshot-ai/protocol';
-import { IApprovalService, approvalToAgentCoreResponse, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { IApprovalService, approvalToAgentCoreResponse, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 

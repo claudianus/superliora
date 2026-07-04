@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { IModelCatalogService, type IModelCatalogService as ModelCatalogServiceShape } from '@moonshot-ai/agent-core';
+import { IModelCatalogService, type IModelCatalogService as ModelCatalogServiceShape } from '@superliora/agent-core';
 
 import { IRestGateway, startServer, type RunningServer, type ServerStartOptions } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -16,9 +16,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-model-catalog-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-model-catalog-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-model-catalog-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-model-catalog-home-'));
 });
 
 afterEach(async () => {
@@ -256,7 +256,7 @@ describe('model/provider catalog routes', () => {
         changed: [
           {
             provider_id: 'managed:kimi-code',
-            provider_name: 'Kimi Code',
+            provider_name: 'SuperLiora',
             added: 1,
             removed: 0,
           },
@@ -285,7 +285,7 @@ describe('model/provider catalog routes', () => {
       changed: [
         {
           provider_id: 'managed:kimi-code',
-          provider_name: 'Kimi Code',
+          provider_name: 'SuperLiora',
           added: 1,
           removed: 0,
         },

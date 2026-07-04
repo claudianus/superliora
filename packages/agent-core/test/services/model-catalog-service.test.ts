@@ -4,11 +4,11 @@ import type {
   CoreRPC,
   Event as ProtocolEvent,
   GetKimiConfigPayload,
-  KimiConfig,
-  KimiConfigPatch,
+  LioraConfig,
+  LioraConfigPatch,
   SetKimiConfigPayload,
 } from '../../src';
-import { KIMI_CODE_PROVIDER_NAME } from '@moonshot-ai/kimi-code-oauth';
+import { SUPERLIORA_PROVIDER_NAME } from '@superliora/oauth';
 
 import {
   type ICoreProcessService,
@@ -35,14 +35,14 @@ function makeEnv(): IEnvironmentService {
   };
 }
 
-function makeCore(configRef: { current: KimiConfig }): {
+function makeCore(configRef: { current: LioraConfig }): {
   core: ICoreProcessService;
   getCalls: GetKimiConfigPayload[];
-  setCalls: KimiConfigPatch[];
+  setCalls: LioraConfigPatch[];
   removeCalls: string[];
 } {
   const getCalls: GetKimiConfigPayload[] = [];
-  const setCalls: KimiConfigPatch[] = [];
+  const setCalls: LioraConfigPatch[] = [];
   const removeCalls: string[] = [];
   const rpc: Partial<CoreRPC> = {
     getKimiConfig: vi.fn(async (payload: GetKimiConfigPayload) => {
@@ -51,12 +51,12 @@ function makeCore(configRef: { current: KimiConfig }): {
     }),
     setKimiConfig: vi.fn(async (payload: SetKimiConfigPayload) => {
       setCalls.push(payload);
-      const next: KimiConfig = { ...configRef.current };
+      const next: LioraConfig = { ...configRef.current };
       if (payload.providers !== undefined) {
-        next.providers = payload.providers as KimiConfig['providers'];
+        next.providers = payload.providers as LioraConfig['providers'];
       }
       if (payload.models !== undefined) {
-        next.models = payload.models as KimiConfig['models'];
+        next.models = payload.models as LioraConfig['models'];
       }
       if (payload.defaultModel !== undefined) next.defaultModel = payload.defaultModel;
       if (payload.defaultThinking !== undefined) next.defaultThinking = payload.defaultThinking;
@@ -69,7 +69,7 @@ function makeCore(configRef: { current: KimiConfig }): {
       delete providers[providerId];
       const models = Object.fromEntries(
         Object.entries(configRef.current.models ?? {}).filter(([, model]) => model.provider !== providerId),
-      ) as KimiConfig['models'];
+      ) as LioraConfig['models'];
       configRef.current = {
         ...configRef.current,
         providers,
@@ -117,7 +117,7 @@ function makeEventService(): { svc: IEventService; published: ProtocolEvent[] } 
   };
 }
 
-function catalogConfig(): KimiConfig {
+function catalogConfig(): LioraConfig {
   return {
     providers: {
       kimi: {
@@ -240,10 +240,10 @@ describe('ModelCatalogService', () => {
   });
 
   it('refreshes managed OAuth models and preserves always-thinking defaults', async () => {
-    const configRef: { current: KimiConfig } = {
+    const configRef: { current: LioraConfig } = {
       current: {
         providers: {
-          [KIMI_CODE_PROVIDER_NAME]: {
+          [SUPERLIORA_PROVIDER_NAME]: {
             type: 'kimi',
             apiKey: '',
             baseUrl: 'https://api.example.test/coding/v1',
@@ -254,7 +254,7 @@ describe('ModelCatalogService', () => {
         defaultThinking: false,
         models: {
           'kimi-code/kimi-for-coding': {
-            provider: KIMI_CODE_PROVIDER_NAME,
+            provider: SUPERLIORA_PROVIDER_NAME,
             model: 'kimi-for-coding',
             maxContextSize: 131_072,
             capabilities: ['thinking'],
@@ -279,11 +279,11 @@ describe('ModelCatalogService', () => {
     const svc = ModelCatalogService._createForTest(makeEnv(), core, authFacade());
 
     await expect(svc.refreshOAuthProviderModels()).resolves.toMatchObject({
-      changed: [{ provider_id: KIMI_CODE_PROVIDER_NAME, added: 0, removed: 0 }],
+      changed: [{ provider_id: SUPERLIORA_PROVIDER_NAME, added: 0, removed: 0 }],
       failed: [],
     });
 
-    expect(removeCalls).toEqual([KIMI_CODE_PROVIDER_NAME]);
+    expect(removeCalls).toEqual([SUPERLIORA_PROVIDER_NAME]);
     expect(setCalls.at(-1)).toMatchObject({
       defaultModel: 'kimi-code/kimi-for-coding',
       defaultThinking: true,
@@ -297,10 +297,10 @@ describe('ModelCatalogService', () => {
   });
 
   it('publishes event.model_catalog.changed when a broad refresh changes the catalog', async () => {
-    const configRef: { current: KimiConfig } = {
+    const configRef: { current: LioraConfig } = {
       current: {
         providers: {
-          [KIMI_CODE_PROVIDER_NAME]: {
+          [SUPERLIORA_PROVIDER_NAME]: {
             type: 'kimi',
             apiKey: '',
             baseUrl: 'https://api.example.test/coding/v1',
@@ -310,7 +310,7 @@ describe('ModelCatalogService', () => {
         defaultModel: 'kimi-code/kimi-for-coding',
         models: {
           'kimi-code/kimi-for-coding': {
-            provider: KIMI_CODE_PROVIDER_NAME,
+            provider: SUPERLIORA_PROVIDER_NAME,
             model: 'kimi-for-coding',
             maxContextSize: 131_072,
             capabilities: ['thinking'],
@@ -342,7 +342,7 @@ describe('ModelCatalogService', () => {
     const result = await svc.refreshProviderModels();
 
     expect(result.changed).toEqual([
-      { provider_id: KIMI_CODE_PROVIDER_NAME, provider_name: 'Kimi Code', added: 0, removed: 0 },
+      { provider_id: SUPERLIORA_PROVIDER_NAME, provider_name: 'SuperLiora', added: 0, removed: 0 },
     ]);
     expect(published).toEqual([
       {
@@ -357,10 +357,10 @@ describe('ModelCatalogService', () => {
   });
 
   it('does not publish an event when the provider refresh is a no-op', async () => {
-    const configRef: { current: KimiConfig } = {
+    const configRef: { current: LioraConfig } = {
       current: {
         providers: {
-          [KIMI_CODE_PROVIDER_NAME]: {
+          [SUPERLIORA_PROVIDER_NAME]: {
             type: 'kimi',
             apiKey: '',
             baseUrl: 'https://api.example.test/coding/v1',
@@ -369,7 +369,7 @@ describe('ModelCatalogService', () => {
         },
         models: {
           'kimi-code/kimi-for-coding': {
-            provider: KIMI_CODE_PROVIDER_NAME,
+            provider: SUPERLIORA_PROVIDER_NAME,
             model: 'kimi-for-coding',
             maxContextSize: 262_144,
             capabilities: ['thinking', 'tool_use'],
@@ -400,7 +400,7 @@ describe('ModelCatalogService', () => {
 
     await expect(svc.refreshProviderModels()).resolves.toMatchObject({
       changed: [],
-      unchanged: [KIMI_CODE_PROVIDER_NAME],
+      unchanged: [SUPERLIORA_PROVIDER_NAME],
       failed: [],
     });
     expect(published).toEqual([]);

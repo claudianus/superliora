@@ -7,8 +7,8 @@ import {
 import {
   applyManagedKimiCodeConfig,
   fetchManagedKimiCodeModels,
-  KIMI_CODE_PLATFORM_ID,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_PLATFORM_ID,
+  SUPERLIORA_PROVIDER_NAME,
   resolveKimiCodeRuntimeAuth,
   type ManagedKimiConfigShape,
   type ManagedKimiModelAlias,
@@ -25,7 +25,7 @@ import {
 /**
  * Host capabilities the refresh orchestrator needs. Intentionally typed against
  * {@link ManagedKimiConfigShape} (the oauth package's own minimal config shape)
- * rather than the SDK's full `KimiConfig`, so this module has no dependency on
+ * rather than the SDK's full `LioraConfig`, so this module has no dependency on
  * `agent-core` / the SDK and can be reused by both the CLI and the daemon.
  */
 export interface RefreshProviderHost {
@@ -329,7 +329,7 @@ function pickDefaultModel(
  * Refresh remote model metadata for the configured providers and persist any
  * changes through the host. Handles three provider kinds, in order:
  *
- *  1. Managed Kimi Code (OAuth) — `GET /models` against the runtime endpoint.
+ *  1. Managed SuperLiora (OAuth) — `GET /models` against the runtime endpoint.
  *  2. Open platforms (moonshot-cn, moonshot-ai, …) — platform catalog fetch.
  *  3. Custom registries (models.dev-style, keyed by `provider.source`).
  *
@@ -351,10 +351,10 @@ export async function refreshProviderModels(
   let config = await host.getConfig();
 
   // ---------------------------------------------------------------------------
-  // 1. Managed Kimi Code (OAuth)
+  // 1. Managed SuperLiora (OAuth)
   // ---------------------------------------------------------------------------
-  const managedProvider = readProvider(config, KIMI_CODE_PROVIDER_NAME);
-  const managedWanted = targetId === undefined || targetId === KIMI_CODE_PROVIDER_NAME;
+  const managedProvider = readProvider(config, SUPERLIORA_PROVIDER_NAME);
+  const managedWanted = targetId === undefined || targetId === SUPERLIORA_PROVIDER_NAME;
   if (
     managedWanted &&
     managedProvider !== undefined &&
@@ -366,7 +366,7 @@ export async function refreshProviderModels(
         configuredBaseUrl: managedProvider.baseUrl,
         configuredOAuthRef: managedProvider.oauth,
       });
-      const accessToken = await host.resolveOAuthToken(KIMI_CODE_PROVIDER_NAME, auth.oauthRef);
+      const accessToken = await host.resolveOAuthToken(SUPERLIORA_PROVIDER_NAME, auth.oauthRef);
       const models = await fetchManagedKimiCodeModels({
         accessToken,
         baseUrl: auth.baseUrl,
@@ -383,25 +383,25 @@ export async function refreshProviderModels(
         const refreshedAliasKeys = providerRefreshAliasKeys(
           config,
           next,
-          KIMI_CODE_PROVIDER_NAME,
-          `${KIMI_CODE_PLATFORM_ID}/`,
+          SUPERLIORA_PROVIDER_NAME,
+          `${SUPERLIORA_PLATFORM_ID}/`,
         );
         restoreProviderAliases(
           next,
-          preserveUserProviderAliases(config, KIMI_CODE_PROVIDER_NAME, refreshedAliasKeys),
+          preserveUserProviderAliases(config, SUPERLIORA_PROVIDER_NAME, refreshedAliasKeys),
         );
         restoreDefaultSelection(next, config.defaultModel, config.defaultThinking);
         clampDanglingDefault(next);
         clearDefaultThinkingWhenDefaultRemoved(next, config.defaultModel);
 
-        if (providerModelsEqual(config, next, KIMI_CODE_PROVIDER_NAME, refreshedAliasKeys)) {
-          unchanged.push(KIMI_CODE_PROVIDER_NAME);
+        if (providerModelsEqual(config, next, SUPERLIORA_PROVIDER_NAME, refreshedAliasKeys)) {
+          unchanged.push(SUPERLIORA_PROVIDER_NAME);
         } else {
           const { added, removed } = computeChanges(
             collectModelIdsForAliases(config, refreshedAliasKeys),
             collectModelIdsForAliases(next, refreshedAliasKeys),
           );
-          await host.removeProvider(KIMI_CODE_PROVIDER_NAME);
+          await host.removeProvider(SUPERLIORA_PROVIDER_NAME);
           config = await host.setConfig({
             providers: next.providers,
             models: next.models,
@@ -409,8 +409,8 @@ export async function refreshProviderModels(
             defaultThinking: next.defaultThinking,
           });
           changed.push({
-            providerId: KIMI_CODE_PROVIDER_NAME,
-            providerName: 'Kimi Code',
+            providerId: SUPERLIORA_PROVIDER_NAME,
+            providerName: 'SuperLiora',
             added,
             removed,
           });
@@ -418,13 +418,13 @@ export async function refreshProviderModels(
       }
     } catch (error) {
       failed.push({
-        provider: KIMI_CODE_PROVIDER_NAME,
+        provider: SUPERLIORA_PROVIDER_NAME,
         reason: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
-  if (scope === 'oauth' || targetId === KIMI_CODE_PROVIDER_NAME) {
+  if (scope === 'oauth' || targetId === SUPERLIORA_PROVIDER_NAME) {
     return { changed, unchanged, failed };
   }
 
@@ -510,7 +510,7 @@ export async function refreshProviderModels(
     }
   >();
   for (const providerId of Object.keys(config.providers)) {
-    if (providerId === KIMI_CODE_PROVIDER_NAME) continue;
+    if (providerId === SUPERLIORA_PROVIDER_NAME) continue;
     if (isOpenPlatformId(providerId)) continue;
     const provider = readProvider(config, providerId);
     if (provider === undefined) continue;

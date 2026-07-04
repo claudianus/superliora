@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ISessionService, FsSearchService, ILogService } from '@moonshot-ai/agent-core';
+import { ISessionService, FsSearchService, ILogService } from '@superliora/agent-core';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -24,9 +24,9 @@ let workspace: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-fs-search-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-fs-search-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-fs-search-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-fs-search-home-'));
   workspace = join(tmpDir, 'workspace');
   mkdirSync(workspace, { recursive: true });
 });
@@ -452,13 +452,13 @@ describe('FsSearchService direct: rg fallback + grep timeout (W11.1)', () => {
     class StubTimeout extends FsSearchService {
       protected override async grepWithNode(
         _cwd: string,
-        _req: import('@moonshot-ai/protocol').FsGrepRequest,
+        _req: import('@superliora/protocol').FsGrepRequest,
         _signal: AbortSignal,
         startedAt: number,
-      ): Promise<import('@moonshot-ai/protocol').FsGrepResponse> {
+      ): Promise<import('@superliora/protocol').FsGrepResponse> {
 
         throw new (
-          await import('@moonshot-ai/agent-core')
+          await import('@superliora/agent-core')
         ).FsGrepTimeoutError(Date.now() - startedAt);
       }
       public override probeRg(): Promise<string | null> {

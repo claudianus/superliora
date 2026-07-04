@@ -1,4 +1,4 @@
-import type { WorkGraph } from '@moonshot-ai/protocol';
+import type { WorkGraph } from '@superliora/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';

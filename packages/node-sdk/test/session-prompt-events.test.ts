@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { KIMI_CODE_PLATFORM } from '@moonshot-ai/kimi-code-oauth';
-import type * as KosongModule from '@moonshot-ai/kosong';
+import { SUPERLIORA_PLATFORM } from '@superliora/oauth';
+import type * as KosongModule from '@superliora/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createKimiHarness, type Event, type KimiHarness } from '#/index';
+import { createLioraHarness, type Event, type LioraHarness } from '#/index';
 
 import { TEST_IDENTITY } from './test-identity';
 
@@ -21,7 +21,7 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'hello from fake provider',
 }));
 
-vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
+vi.mock('@superliora/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,
@@ -97,7 +97,7 @@ describe('Session.prompt events', () => {
   it('persists sanitized prompt metadata without marking the title custom', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({
+    const harness = createLioraHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -173,7 +173,7 @@ describe('Session.prompt events', () => {
   it('emits mapped turn events through Session.onEvent', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({
+    const harness = createLioraHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -208,12 +208,12 @@ describe('Session.prompt events', () => {
           reason: 'completed',
         }),
       );
-      expect(fakeProviderState.calls[0]?.systemPrompt).toContain('You are Kimi Code CLI');
+      expect(fakeProviderState.calls[0]?.systemPrompt).toContain('You are SuperLiora CLI');
       expect(fakeProviderState.calls[0]?.systemPrompt).toContain('Skill Runtime');
       expect(fakeProviderState.providerConfigs[0]).toMatchObject({
         type: 'kimi',
         defaultHeaders: expect.objectContaining({
-          'X-Msh-Platform': KIMI_CODE_PLATFORM,
+          'X-Msh-Platform': SUPERLIORA_PLATFORM,
           'User-Agent': 'kimi-code-cli/0.0.0-test',
         }),
       });
@@ -226,7 +226,7 @@ describe('Session.prompt events', () => {
   it('locks detected response language and injects a fresh reminder', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({
+    const harness = createLioraHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -297,7 +297,7 @@ describe('Session.prompt events', () => {
   it('supports onEvent unsubscribe without touching runtime wire directly', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({
+    const harness = createLioraHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -324,7 +324,7 @@ describe('Session.prompt events', () => {
   it('runs init through generateAgentsMd RPC as a subagent system trigger without prompt metadata updates', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({
+    const harness = createLioraHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -383,7 +383,7 @@ describe('Session.prompt events', () => {
   it('starts btw through RPC as a forked subagent without prompt metadata updates', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({
+    const harness = createLioraHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -465,7 +465,7 @@ describe('Session.prompt events', () => {
   it('rejects empty prompt input', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({
+    const harness = createLioraHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -473,7 +473,7 @@ describe('Session.prompt events', () => {
     try {
       const session = await harness.createSession({ id: 'ses_empty_prompt', workDir });
       await expect(session.prompt('   ')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'LioraError',
         code: 'request.prompt_input_empty',
       });
     } finally {
@@ -482,7 +482,7 @@ describe('Session.prompt events', () => {
   });
 });
 
-async function configureFakeProvider(harness: KimiHarness): Promise<void> {
+async function configureFakeProvider(harness: LioraHarness): Promise<void> {
   await harness.setConfig({
     providers: {
       local: {

@@ -18,10 +18,10 @@ import {
   type SessionUpdate,
   type UndoSessionRequest,
   type UndoSessionResponse,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 export interface SessionListQuery extends CursorQuery {
-  status?: import('@moonshot-ai/protocol').SessionStatus;
+  status?: import('@superliora/protocol').SessionStatus;
   workDir?: string;
   includeArchive?: boolean;
 }

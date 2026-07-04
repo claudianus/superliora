@@ -55,36 +55,36 @@ importers:
         specifier: 4.1.4
         version: 4.1.4(@types/node@22.19.17)(@vitest/coverage-v8@4.1.4)(jsdom@25.0.1)(vite@8.0.8(@types/node@22.19.17)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
 
-  apps/kimi-code:
+  apps/liora:
     devDependencies:
       '@harness-kit/tui-renderer':
         specifier: workspace:^
         version: link:../../packages/tui-renderer
-      '@moonshot-ai/acp-adapter':
+      '@superliora/acp-adapter':
         specifier: workspace:^
         version: link:../../packages/acp-adapter
-      '@moonshot-ai/gui-use':
+      '@superliora/gui-use':
         specifier: workspace:^
         version: link:../../packages/gui-use
-      '@moonshot-ai/kimi-code-oauth':
-        specifier: workspace:^
-        version: link:../../packages/oauth
-      '@moonshot-ai/kimi-code-sdk':
-        specifier: workspace:^
-        version: link:../../packages/node-sdk
-      '@moonshot-ai/kimi-telemetry':
-        specifier: workspace:^
-        version: link:../../packages/telemetry
-      '@moonshot-ai/migration-legacy':
+      '@superliora/migration-legacy':
         specifier: workspace:^
         version: link:../../packages/migration-legacy
-      '@moonshot-ai/server':
+      '@superliora/oauth':
+        specifier: workspace:^
+        version: link:../../packages/oauth
+      '@superliora/sdk':
+        specifier: workspace:^
+        version: link:../../packages/node-sdk
+      '@superliora/server':
         specifier: workspace:^
         version: link:../../packages/server
-      '@moonshot-ai/vis-server':
+      '@superliora/telemetry':
+        specifier: workspace:^
+        version: link:../../packages/telemetry
+      '@superliora/vis-server':
         specifier: workspace:^
         version: link:../vis/server
-      '@moonshot-ai/vis-web':
+      '@superliora/vis-web':
         specifier: workspace:*
         version: link:../vis/web
       '@types/semver':
@@ -145,10 +145,10 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.14(hono@4.12.14)
-      '@moonshot-ai/agent-core':
+      '@superliora/agent-core':
         specifier: workspace:^
         version: link:../../../packages/agent-core
-      '@moonshot-ai/kosong':
+      '@superliora/kosong':
         specifier: workspace:^
         version: link:../../../packages/kosong
       hono:
@@ -210,13 +210,13 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^0.23.0
         version: 0.23.0(zod@4.3.6)
-      '@moonshot-ai/agent-core':
+      '@superliora/agent-core':
         specifier: workspace:^
         version: link:../agent-core
-      '@moonshot-ai/kaos':
+      '@superliora/kaos':
         specifier: workspace:^
         version: link:../kaos
-      '@moonshot-ai/kimi-code-sdk':
+      '@superliora/sdk':
         specifier: workspace:^
         version: link:../node-sdk
 
@@ -228,24 +228,24 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
-      '@moonshot-ai/gui-use':
-        specifier: workspace:^
-        version: link:../gui-use
-      '@moonshot-ai/kaos':
-        specifier: workspace:^
-        version: link:../kaos
-      '@moonshot-ai/kimi-code-oauth':
-        specifier: workspace:^
-        version: link:../oauth
-      '@moonshot-ai/kosong':
-        specifier: workspace:^
-        version: link:../kosong
-      '@moonshot-ai/protocol':
-        specifier: workspace:^
-        version: link:../protocol
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
+      '@superliora/gui-use':
+        specifier: workspace:^
+        version: link:../gui-use
+      '@superliora/kaos':
+        specifier: workspace:^
+        version: link:../kaos
+      '@superliora/kosong':
+        specifier: workspace:^
+        version: link:../kosong
+      '@superliora/oauth':
+        specifier: workspace:^
+        version: link:../oauth
+      '@superliora/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       ajv:
         specifier: ^8.18.0
         version: 8.18.0
@@ -379,8 +379,6 @@ importers:
         specifier: ^1.15.5
         version: 1.15.5
 
-  packages/kimi-migration-legacy: {}
-
   packages/kosong:
     dependencies:
       '@anthropic-ai/sdk':
@@ -408,7 +406,7 @@ importers:
 
   packages/migration-legacy:
     dependencies:
-      '@moonshot-ai/agent-core':
+      '@superliora/agent-core':
         specifier: workspace:^
         version: link:../agent-core
       smol-toml:
@@ -418,7 +416,7 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@moonshot-ai/kaos':
+      '@superliora/kaos':
         specifier: workspace:^
         version: link:../kaos
 
@@ -437,18 +435,18 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@moonshot-ai/agent-core':
+      '@superliora/agent-core':
         specifier: workspace:^
         version: link:../agent-core
-      '@moonshot-ai/kaos':
+      '@superliora/kaos':
         specifier: workspace:^
         version: link:../kaos
-      '@moonshot-ai/kimi-code-oauth':
-        specifier: workspace:^
-        version: link:../oauth
-      '@moonshot-ai/kosong':
+      '@superliora/kosong':
         specifier: workspace:^
         version: link:../kosong
+      '@superliora/oauth':
+        specifier: workspace:^
+        version: link:../oauth
       '@types/yazl':
         specifier: ^2.4.6
         version: 2.4.6
@@ -480,10 +478,10 @@ importers:
       '@fastify/swagger':
         specifier: ^9.7.0
         version: 9.7.0
-      '@moonshot-ai/agent-core':
+      '@superliora/agent-core':
         specifier: workspace:^
         version: link:../agent-core
-      '@moonshot-ai/protocol':
+      '@superliora/protocol':
         specifier: workspace:^
         version: link:../protocol
       bcryptjs:
@@ -520,7 +518,7 @@ importers:
 
   packages/server-e2e:
     dependencies:
-      '@moonshot-ai/protocol':
+      '@superliora/protocol':
         specifier: workspace:^
         version: link:../protocol
       ulid:

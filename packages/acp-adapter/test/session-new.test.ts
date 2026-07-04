@@ -14,7 +14,7 @@ import {
   type WriteTextFileRequest,
   type WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import type { KimiHarness, Session } from '@moonshot-ai/kimi-code-sdk';
+import type { LioraHarness, Session } from '@superliora/sdk';
 
 import { AcpServer } from '../src/server';
 import { AUTHED_STATUS, makeModelsMap } from './_helpers/harness-stubs';
@@ -50,7 +50,7 @@ interface CapturedCall {
 }
 
 function makeHarness(sessionId: string, captured: CapturedCall[]): {
-  harness: KimiHarness;
+  harness: LioraHarness;
   fakeSession: Session;
 } {
   const fakeSession = {
@@ -74,7 +74,7 @@ function makeHarness(sessionId: string, captured: CapturedCall[]): {
         { id: 'kimi-plain', name: 'Kimi Plain', thinkingSupported: false },
       ]),
     }),
-  } as unknown as KimiHarness;
+  } as unknown as LioraHarness;
   return { harness, fakeSession };
 }
 
@@ -125,7 +125,7 @@ describe('AcpServer session/new', () => {
       },
       // Phase 14: server.newSession reads these to assemble configOptions.
       getConfig: async () => ({ providers: {}, models: {} }),
-    } as unknown as KimiHarness;
+    } as unknown as LioraHarness;
 
     const { agentStream, clientStream } = makeInMemoryStreamPair();
     new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);

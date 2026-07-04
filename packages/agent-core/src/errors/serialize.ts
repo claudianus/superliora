@@ -4,10 +4,10 @@ import {
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 
-import { KimiError } from './classes';
-import { ErrorCodes, KIMI_ERROR_INFO, type KimiErrorCode } from './codes';
+import { LioraError } from './classes';
+import { ErrorCodes, KIMI_ERROR_INFO, type LioraErrorCode } from './codes';
 
 /**
  * Wire-safe payload of a Kimi error.
@@ -19,30 +19,30 @@ import { ErrorCodes, KIMI_ERROR_INFO, type KimiErrorCode } from './codes';
  * `details` is JSON-serialized. `cause` is intentionally absent -- it is
  * local-only diagnostic state and must not cross the boundary.
  */
-export interface KimiErrorPayload {
-  readonly code: KimiErrorCode;
+export interface LioraErrorPayload {
+  readonly code: LioraErrorCode;
   readonly message: string;
   readonly name?: string;
   readonly details?: Record<string, unknown>;
   readonly retryable: boolean;
 }
 
-/** Type guard for KimiError. */
-export function isKimiError(error: unknown): error is KimiError {
-  return error instanceof KimiError;
+/** Type guard for LioraError. */
+export function isKimiError(error: unknown): error is LioraError {
+  return error instanceof LioraError;
 }
 
 /**
- * Build a KimiErrorPayload directly from a code + message (no Error instance
+ * Build a LioraErrorPayload directly from a code + message (no Error instance
  * needed). Use this for synthetic error events that are signaled, not thrown
  * -- e.g. "turn busy" or "compaction failed". `retryable` is filled from
  * KIMI_ERROR_INFO so callers cannot drift out of sync with the registry.
  */
 export function makeErrorPayload(
-  code: KimiErrorCode,
+  code: LioraErrorCode,
   message: string,
   options?: { readonly details?: Record<string, unknown>; readonly name?: string },
-): KimiErrorPayload {
+): LioraErrorPayload {
   return {
     code,
     message,
@@ -53,10 +53,10 @@ export function makeErrorPayload(
 }
 
 /**
- * Normalize any value into a KimiErrorPayload.
+ * Normalize any value into a LioraErrorPayload.
  *
  * Recognized errors:
- * - `KimiError`: passthrough.
+ * - `LioraError`: passthrough.
  * - `APIStatusError`: 429 -> rate_limit, 401 -> auth_error, otherwise -> api_error.
  * - `APIConnectionError` / `APITimeoutError`: connection_error.
  * - `ChatProviderError`: api_error.
@@ -64,7 +64,7 @@ export function makeErrorPayload(
  * Anything else collapses to `internal`. We never echo `cause` or stack on
  * the wire.
  */
-export function toKimiErrorPayload(error: unknown): KimiErrorPayload {
+export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
   if (isKimiError(error)) {
     return {
       code: error.code,
@@ -76,7 +76,7 @@ export function toKimiErrorPayload(error: unknown): KimiErrorPayload {
   }
 
   if (error instanceof APIStatusError) {
-    const code: KimiErrorCode =
+    const code: LioraErrorCode =
       error.statusCode === 429
         ? ErrorCodes.PROVIDER_RATE_LIMIT
         : error.statusCode === 401
@@ -154,12 +154,12 @@ function sanitizeStatusErrorMessage(message: string): string {
 }
 
 /**
- * Rehydrate a KimiErrorPayload into a KimiError. Used by SDK boundary code
+ * Rehydrate a LioraErrorPayload into a LioraError. Used by SDK boundary code
  * receiving errors over RPC to re-surface them with a real class so
  * in-process consumers can still use `instanceof`.
  */
-export function fromKimiErrorPayload(payload: KimiErrorPayload): KimiError {
-  return new KimiError(payload.code, payload.message, {
+export function fromKimiErrorPayload(payload: LioraErrorPayload): LioraError {
+  return new LioraError(payload.code, payload.message, {
     details: payload.details,
   });
 }

@@ -1,6 +1,6 @@
 # 自定义主题
 
-Kimi Code CLI 可以使用内置配色，也可以使用自定义 JSON 主题文件。自定义文件放在主题目录下，会和内置选项一起出现在 `/theme` 里。
+SuperLiora CLI 可以使用内置配色，也可以使用自定义 JSON 主题文件。自定义文件放在主题目录下，会和内置选项一起出现在 `/theme` 里。
 
 ## 内置颜色 token
 
@@ -51,7 +51,7 @@ Kimi Code CLI 可以使用内置配色，也可以使用自定义 JSON 主题文
 
 ## 使用 custom-theme skill
 
-你不需要手写 JSON。运行内置 `/custom-theme [附加文本]` skill 命令进入自定义主题流程；这个 skill 可以帮你选颜色，把文件写到 `~/.kimi-code/themes/`，校验十六进制色值，并告诉你如何应用。
+你不需要手写 JSON。运行内置 `/custom-theme [附加文本]` skill 命令进入自定义主题流程；这个 skill 可以帮你选颜色，把文件写到 `~/.superliora/themes/`，校验十六进制色值，并告诉你如何应用。
 
 调用示例：
 
@@ -65,8 +65,8 @@ Kimi Code CLI 可以使用内置配色，也可以使用自定义 JSON 主题文
 
 在主题目录下新建一个 `.json` 文件即可。主题目录是：
 
-- `~/.kimi-code/themes/`
-- 如果设置了 `KIMI_CODE_HOME` 环境变量，则是 `$KIMI_CODE_HOME/themes/`
+- `~/.superliora/themes/`
+- 如果设置了 `SUPERLIORA_HOME` 环境变量，则是 `$SUPERLIORA_HOME/themes/`
 
 目录不存在就自己建一个。**文件名就是主题名**：`ember.json` 会在 `/theme` 里显示为 `Custom: ember`。
 
@@ -105,11 +105,11 @@ Kimi Code CLI 可以使用内置配色，也可以使用自定义 JSON 主题文
 
 两种方式：
 
-1. **`/theme` 命令**（推荐）：打开主题选择器，里面包含 Super Kimi 预设、内置外部终端主题和自定义主题。移动焦点会立即预览当前高亮主题，包括 demo 面板和代码高亮色。自定义主题会以 `Custom: <文件名>` 出现。选择器**每次打开都会重新扫描主题目录**，所以你新加的主题文件**无需重启**就能看到。
+1. **`/theme` 命令**（推荐）：打开主题选择器，里面包含 SuperLiora 预设、内置外部终端主题和自定义主题。移动焦点会立即预览当前高亮主题，包括 demo 面板和代码高亮色。自定义主题会以 `Custom: <文件名>` 出现。选择器**每次打开都会重新扫描主题目录**，所以你新加的主题文件**无需重启**就能看到。
 2. **`tui.toml`**：把 `theme` 设成你的主题名：
 
    ```toml
-   # ~/.kimi-code/tui.toml
+   # ~/.superliora/tui.toml
    theme = "ember"
    ```
 

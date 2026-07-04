@@ -87,7 +87,7 @@ describe('UltraPlanModeEngine', () => {
   describe('Interview ambiguity scoring', () => {
     it('accumulates interview Q/A into ambiguity scoring and completion readiness', () => {
       const engine = new UltraPlanModeEngine(mockAgent);
-      engine.startInterview('Build Super Kimi premium Ultrawork regression protection');
+      engine.startInterview('Build SuperLiora premium Ultrawork regression protection');
 
       const initial = engine.calculateAmbiguityScore();
       expect(initial.milestone).toBe('initial');
@@ -96,7 +96,7 @@ describe('UltraPlanModeEngine', () => {
 
       engine.addInterviewRound(
         'What is the goal and scope?',
-        'Goal: preserve the Super Kimi premium CLI workflow with a verifiable UltraGoal. Actors: CLI user, TUI agent, verification owner. Scope: TUI help, theme, UltraPlan, UltraGoal, Research, Swarm decision, and Verify surfaces.',
+        'Goal: preserve the SuperLiora premium CLI workflow with a verifiable UltraGoal. Actors: CLI user, TUI agent, verification owner. Scope: TUI help, theme, UltraPlan, UltraGoal, Research, Swarm decision, and Verify surfaces.',
       );
       engine.addInterviewRound(
         'What constraints and risks must be protected?',
@@ -170,11 +170,11 @@ describe('UltraPlanModeEngine', () => {
 
     it('increments completion streak on a new ready round even when evidence hash collides', () => {
       const engine = new UltraPlanModeEngine(mockAgent);
-      engine.startInterview('Build Super Kimi premium Ultrawork regression protection');
+      engine.startInterview('Build SuperLiora premium Ultrawork regression protection');
 
       engine.addInterviewRound(
         'What is the goal and scope?',
-        'Goal: preserve the Super Kimi premium CLI workflow with a verifiable UltraGoal. Actors: CLI user, TUI agent, verification owner. Scope: TUI help, theme, UltraPlan, UltraGoal, Research, Swarm decision, and Verify surfaces.',
+        'Goal: preserve the SuperLiora premium CLI workflow with a verifiable UltraGoal. Actors: CLI user, TUI agent, verification owner. Scope: TUI help, theme, UltraPlan, UltraGoal, Research, Swarm decision, and Verify surfaces.',
       );
       engine.addInterviewRound(
         'What constraints and risks must be protected?',
@@ -206,7 +206,7 @@ describe('UltraPlanModeEngine', () => {
       const engine = new UltraPlanModeEngine(mockAgentWithUserPrompt([
         'Use Ultrawork for this bounded source/test verification task.',
         'You are the implementation agent and verification owner.',
-        'Task: edit apps/kimi-code/src/tui/commands/ultrawork-contract.ts and apps/kimi-code/test/tui/commands/ultrawork.test.ts.',
+        'Task: edit apps/liora/src/tui/commands/ultrawork-contract.ts and apps/liora/test/tui/commands/ultrawork.test.ts.',
         'Inputs: the named source file, test file, and prompt.',
         'Outputs: add SUPER_KIMI_REAL_WORKFLOW_EVIDENCE and report concise evidence.',
         'Constraints: do not edit the harness verifier and make no other changes.',

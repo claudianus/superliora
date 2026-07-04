@@ -11,17 +11,17 @@
  */
 import assert from 'node:assert/strict';
 
-import { DaemonClient, recordReportEvent, type AnyFrame } from '../src/index';
+import { DaemonClient, recordReportEvent, resolveServerUrl, type AnyFrame } from '../src/index';
 
-const KIMI_SERVER_URL = process.env['KIMI_SERVER_URL'] ?? 'http://127.0.0.1:58627';
+const SERVER_URL = resolveServerUrl();
 const TERMINAL_SHELL = process.env['KIMI_SERVER_E2E_TERMINAL_SHELL'] ?? '/bin/sh';
 const OUTPUT_TIMEOUT_MS = 20_000;
 const EXIT_TIMEOUT_MS = 5_000;
 const CANARY = `KIMI_SERVER_E2E_TERMINAL_${process.pid}_${Date.now()}`;
 
 async function main() {
-  log('server', { base_url: KIMI_SERVER_URL, shell: TERMINAL_SHELL });
-  const client = new DaemonClient({ baseUrl: KIMI_SERVER_URL });
+  log('server', { base_url: SERVER_URL, shell: TERMINAL_SHELL });
+  const client = new DaemonClient({ baseUrl: SERVER_URL });
 
   let sid: string | undefined;
   let terminalId: string | undefined;

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createKimiConfigRpc, createKimiHarness, KimiError } from '#/index';
+import { createLioraConfigRpc, createLioraHarness, LioraError } from '#/index';
 
 import {
   parseConfigString,
@@ -94,13 +94,13 @@ claim_stale_after_ms = 15000
 describe('SDK config TOML', () => {
   it('resolves config paths through the config RPC wrapper', async () => {
     const dir = await makeTempDir();
-    const rpc = createKimiConfigRpc();
+    const rpc = createLioraConfigRpc();
 
     await expect(rpc.resolveConfigPath({ homeDir: dir })).resolves.toBe(toPosix(join(dir, 'config.toml')));
   });
 
   it('returns structured validation issues through the config RPC wrapper', async () => {
-    const rpc = createKimiConfigRpc();
+    const rpc = createLioraConfigRpc();
 
     await expect(
       rpc.validateConfigToml({
@@ -264,13 +264,13 @@ maxRunningTasks = 2
   });
 });
 
-describe('KimiHarness config API', () => {
+describe('LioraHarness config API', () => {
   it('loads default config when missing and deep-merges setConfig patches from disk', async () => {
     const homeDir = await makeTempDir();
     const configPath = join(homeDir, 'config.toml');
     await writeFile(configPath, COMPLETE_TOML, 'utf-8');
 
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await harness.setConfig({
       providers: {
@@ -307,7 +307,7 @@ describe('KimiHarness config API', () => {
     await writeFile(configPath, COMPLETE_TOML, 'utf-8');
     const before = await readFile(configPath, 'utf-8');
 
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     const setInvalidConfig = harness.setConfig({
       providers: {
@@ -317,24 +317,24 @@ describe('KimiHarness config API', () => {
       },
     } as never);
 
-    await expect(setInvalidConfig).rejects.toBeInstanceOf(KimiError);
+    await expect(setInvalidConfig).rejects.toBeInstanceOf(LioraError);
     await expect(setInvalidConfig).rejects.toMatchObject({
       code: 'config.invalid',
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<LioraError>);
 
     await expect(readFile(configPath, 'utf-8')).resolves.toBe(before);
   });
 
   it('uses default config when the config file is absent', async () => {
     const homeDir = await makeTempDir();
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.getConfig()).resolves.toEqual({ providers: {} });
   });
 
   it('returns experimental feature metadata through the harness', async () => {
-    vi.stubEnv('KIMI_CODE_EXPERIMENTAL_FLAG', '0');
-    vi.stubEnv('KIMI_CODE_EXPERIMENTAL_MICRO_COMPACTION', '');
+    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_FLAG', '0');
+    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION', '');
     const homeDir = await makeTempDir();
     await writeFile(
       join(homeDir, 'config.toml'),
@@ -344,7 +344,7 @@ micro_compaction = false
 `,
       'utf-8',
     );
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     const features = await harness.getExperimentalFeatures();
     const microCompaction = features.find((feature) => feature.id === 'micro_compaction');
@@ -355,7 +355,7 @@ micro_compaction = false
       enabled: false,
       source: 'config',
       configValue: false,
-      env: 'KIMI_CODE_EXPERIMENTAL_MICRO_COMPACTION',
+      env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
     });
     expect(features).toEqual([
       expect.objectContaining({ id: 'micro_compaction', enabled: false }),
@@ -365,12 +365,12 @@ micro_compaction = false
   it('can create the default config scaffold without selecting a model', async () => {
     const homeDir = await makeTempDir();
     const configPath = join(homeDir, 'config.toml');
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await harness.ensureConfigFile();
 
     const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('Runtime settings for Kimi Code.');
+    expect(text).toContain('Runtime settings for SuperLiora.');
     expect(text).not.toMatch(/^default_thinking =/m);
     expect(text).not.toMatch(/^default_model =/m);
 
@@ -385,7 +385,7 @@ micro_compaction = false
     const workDir = join(homeDir, 'work');
     const configPath = join(homeDir, 'config.toml');
     await writeFile(configPath, COMPLETE_TOML, 'utf-8');
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
     const session = await harness.createSession({
       id: 'session-sdk-reload',
       workDir,
@@ -407,7 +407,7 @@ micro_compaction = false
     const workDir = join(homeDir, 'work');
     const configPath = join(homeDir, 'config.toml');
     await writeFile(configPath, COMPLETE_TOML, 'utf-8');
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
     const session = await harness.createSession({
       id: 'session-sdk-reload-forward',
       workDir,

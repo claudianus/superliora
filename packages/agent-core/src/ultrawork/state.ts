@@ -7,7 +7,7 @@ import type {
   UltraworkStage,
   VerificationResult,
   WorkGraph,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 export const ULTRAWORK_STAGE_ORDER: readonly UltraworkStage[] = [
   'intake',

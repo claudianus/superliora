@@ -2,7 +2,7 @@
  * ACP `AgentSideConnection` wrapper.
  *
  * Phase 3 implements `initialize`, `session/new`, and `session/cancel`
- * against {@link KimiHarness}. `prompt` is wired in step 3.4. `initialize`
+ * against {@link LioraHarness}. `prompt` is wired in step 3.4. `initialize`
  * advertises the terminal-auth method (see {@link TERMINAL_AUTH_METHOD}).
  */
 
@@ -44,9 +44,9 @@ import {
   type SetSessionModelResponse,
   type Stream,
 } from '@agentclientprotocol/sdk';
-import type { KimiHarness, Session, SessionSummary } from '@moonshot-ai/kimi-code-sdk';
-import { log } from '@moonshot-ai/kimi-code-sdk';
-import { LocalKaos, type Kaos } from '@moonshot-ai/kaos';
+import type { LioraHarness, Session, SessionSummary } from '@superliora/sdk';
+import { log } from '@superliora/sdk';
+import { LocalKaos, type Kaos } from '@superliora/kaos';
 
 import { TERMINAL_AUTH_METHOD, buildTerminalAuthMethod } from './auth-methods';
 import { redirectConsoleToStderr } from './log-guard';
@@ -105,19 +105,19 @@ function toResolvedSlashCommands(
 }
 
 /**
- * Inline auth gate — moved out of `KimiAuthFacade.hasUsableToken()` so
+ * Inline auth gate — moved out of `LioraAuthFacade.hasUsableToken()` so
  * the SDK doesn't have to carry an ACP-specific convenience method.
  * Mirrors the original semantics exactly: any provider with `hasToken`
  * set counts as authed.
  */
-async function harnessIsAuthed(harness: KimiHarness): Promise<boolean> {
+async function harnessIsAuthed(harness: LioraHarness): Promise<boolean> {
   const status = await harness.auth.status();
   return status.providers.some((entry) => entry.hasToken === true);
 }
 
 /**
  * Agent-side ACP handler. Routes `initialize` + `session/new` + `session/cancel`
- * into {@link KimiHarness}; refuses methods that are not yet wired with a
+ * into {@link LioraHarness}; refuses methods that are not yet wired with a
  * JSON-RPC "method not found" error so clients see a structured failure
  * rather than a silent hang.
  *
@@ -146,15 +146,15 @@ export class AcpServer implements Agent {
   private innerKaos: Kaos | undefined = undefined;
 
   constructor(
-    private readonly harness: KimiHarness,
+    private readonly harness: LioraHarness,
     private readonly conn?: AgentSideConnection | undefined,
     opts?: {
       agentInfo?: Implementation;
       /**
-       * Env vars to advertise in `authMethods[0].env` so the `kimi login`
+       * Env vars to advertise in `authMethods[0].env` so the `liora login`
        * subprocess the client spawns (via `terminal-auth`) lands its
        * token under the same data root the ACP server uses. Intended for
-       * sandboxed test setups (e.g. `{ KIMI_CODE_HOME: '/tmp/...' }`);
+       * sandboxed test setups (e.g. `{ SUPERLIORA_HOME: '/tmp/...' }`);
        * leave undefined in production so the advertised env stays empty.
        */
       terminalAuthEnv?: Readonly<Record<string, string>>;
@@ -181,7 +181,7 @@ export class AcpServer implements Agent {
        * them to {@link Session.activateSkill} instead of forwarding the
        * raw slash text — matching the TUI's slash-command behavior so
        * skill activations don't fall back to model-driven Bash
-       * exploration of `~/.kimi-code/skills/`.
+       * exploration of `~/.superliora/skills/`.
        */
       slashCommands?: SlashCommandsResolver;
     },
@@ -309,7 +309,7 @@ export class AcpServer implements Agent {
     // Phase 14 (PLAN D11) advertises both the model and mode pickers as
     // a unified `configOptions: SessionConfigOption[]` surface. The
     // dedicated Phase 12 `modes:` field is gone — see
-    // `docs/{zh,en}/reference/kimi-acp.md` and the changeset for the
+    // `docs/{zh,en}/reference/liora-acp.md` and the changeset for the
     // pre-release breaking note. `currentModeId` always starts at
     // `default` (PLAN D9); `currentModelId` is resolved from the harness
     // config (`defaultModel` if set, else the first listed alias) so
@@ -555,7 +555,7 @@ export class AcpServer implements Agent {
    * Re-check whether the on-disk token is usable; does NOT trigger an
    * actual OAuth flow. The stdio JSON-RPC channel has no TTY to render
    * the device-code prompt — clients are expected to spawn
-   * `kimi login` themselves via the terminal-auth method advertised in
+   * `liora login` themselves via the terminal-auth method advertised in
    * `initialize.authMethods` (`args:['login']`, see {@link TERMINAL_AUTH_METHOD})
    * and then re-invoke `authenticate('login')` to confirm the token
    * landed on disk. Mirrors kimi-cli `acp/server.py:374-398` semantics
@@ -710,7 +710,7 @@ export class AcpServer implements Agent {
 
   /**
    * Handle ACP `session/list`. Forwards to
-   * {@link KimiHarness.listSessions} (optionally filtered by `cwd` —
+   * {@link LioraHarness.listSessions} (optionally filtered by `cwd` —
    * the SDK calls it `workDir`) and projects each
    * {@link SessionSummary} into an ACP {@link SessionInfo}.
    *
@@ -777,7 +777,7 @@ export class AcpServer implements Agent {
    *
    * Tolerant to partial-stub harnesses (`getConfig` missing or
    * throwing) — adapter-level unit tests routinely construct minimal
-   * `KimiHarness` shapes that only stub `auth.status` + `createSession`.
+   * `LioraHarness` shapes that only stub `auth.status` + `createSession`.
    * Production callers always supply a real harness with both methods;
    * the swallow-and-fallback path exists purely for test ergonomics.
    *
@@ -929,7 +929,7 @@ export class AcpServer implements Agent {
  * in-memory pair instead of process stdio.
  */
 export async function runAcpServerWithStream(
-  harness: KimiHarness,
+  harness: LioraHarness,
   stream: Stream,
   opts?: {
     agentInfo?: Implementation;
@@ -949,7 +949,7 @@ export async function runAcpServerWithStream(
  * is bridged through `Readable.toWeb` / `Writable.toWeb`.
  *
  * Phase 11.1 wires SIGINT / SIGTERM to a single-shot cleanup that calls
- * {@link KimiHarness.close} so an editor terminating the agent process
+ * {@link LioraHarness.close} so an editor terminating the agent process
  * (Zed closing the panel, JetBrains stopping the run config, the user
  * pressing Ctrl-C) drains in-flight sessions before the OS reaps the
  * process. The handlers are installed via `.once(...)` and explicitly
@@ -963,7 +963,7 @@ export async function runAcpServerWithStream(
  * handlers (which vitest itself relies on).
  */
 export async function runAcpServer(
-  harness: KimiHarness,
+  harness: LioraHarness,
   opts?: {
     input?: NodeJS.ReadableStream;
     output?: NodeJS.WritableStream;
@@ -975,7 +975,7 @@ export async function runAcpServer(
      */
     agentInfo?: Implementation;
     /**
-     * Env vars to forward to the `kimi login` subprocess clients spawn
+     * Env vars to forward to the `liora login` subprocess clients spawn
      * via `terminal-auth`. See {@link AcpServer} ctor for the use case.
      */
     terminalAuthEnv?: Readonly<Record<string, string>>;

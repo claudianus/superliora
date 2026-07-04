@@ -8,7 +8,7 @@
  * connection.
  */
 
-import type { IInstantiationService } from '@moonshot-ai/agent-core';
+import type { IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 import { okEnvelope } from '../envelope';

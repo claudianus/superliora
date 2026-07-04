@@ -10,7 +10,7 @@
  *   - The assistant message also surfaced the canary.
  *
  * Usage:
- *   KIMI_SERVER_URL=http://127.0.0.1:58627 npx tsx scenarios/02-tool-call-with-approval.ts
+ *   SERVER_URL=http://127.0.0.1:58627 npx tsx scenarios/02-tool-call-with-approval.ts
  *
  * Exit codes:
  *   0  — pass
@@ -18,13 +18,13 @@
  */
 import assert from 'node:assert/strict';
 
-import { DaemonClient } from '../src/index';
+import { DaemonClient, resolveServerUrl } from '../src/index';
 
-const KIMI_SERVER_URL = process.env['KIMI_SERVER_URL'] ?? 'http://127.0.0.1:58627';
+const SERVER_URL = resolveServerUrl();
 const CANARY = `HELLO_FROM_AUDIT_${process.pid}`;
 
 async function main() {
-  const client = new DaemonClient({ baseUrl: KIMI_SERVER_URL });
+  const client = new DaemonClient({ baseUrl: SERVER_URL });
 
   let sid: string | undefined;
   let approvalCount = 0;

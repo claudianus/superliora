@@ -15,7 +15,7 @@ import { renderMemoryInjection } from './render';
 import { redactMemoryText, shouldSkipMemoryText } from './redact';
 import type {
   AgentMemoryRuntime,
-  KimiRecallConfig,
+  LioraRecallConfig,
   MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
@@ -90,9 +90,9 @@ interface ExplicitMemoryCandidate {
   readonly utility: number;
 }
 
-export interface KimiRecallStoreOptions {
+export interface LioraRecallStoreOptions {
   readonly homeDir: string;
-  readonly config?: (() => KimiRecallConfig | undefined) | undefined;
+  readonly config?: (() => LioraRecallConfig | undefined) | undefined;
   readonly now?: (() => number) | undefined;
 }
 
@@ -116,14 +116,14 @@ const MEMORY_KINDS: readonly MemoryKind[] = [
 const MEMORY_SCOPES: readonly MemoryScope[] = ['user', 'workspace', 'session'];
 const MEMORY_STATUSES: readonly MemoryStatus[] = ['active', 'archived', 'superseded', 'deleted'];
 
-export class KimiRecallStore {
+export class LioraRecallStore {
   private readonly db: SqliteDatabase;
   private readonly recordsDir: string;
   private readonly now: () => number;
-  private readonly config: (() => KimiRecallConfig | undefined) | undefined;
+  private readonly config: (() => LioraRecallConfig | undefined) | undefined;
   private ftsEnabled = false;
 
-  constructor(options: KimiRecallStoreOptions) {
+  constructor(options: LioraRecallStoreOptions) {
     this.now = options.now ?? Date.now;
     this.config = options.config;
     const dbPath = options.config?.()?.storePath ?? join(options.homeDir, STORE_RELATIVE_PATH);
@@ -139,12 +139,12 @@ export class KimiRecallStore {
   }
 
   runtimeForSession(context: MemoryRuntimeSessionContext): SessionMemoryRuntime {
-    return new KimiRecallSessionRuntime(this, context);
+    return new LioraRecallSessionRuntime(this, context);
   }
 
   async remember(input: MemoryCreateInput): Promise<MemoryRecord> {
     if (!this.isEnabled()) {
-      throw new Error('Kimi Recall is disabled by config.');
+      throw new Error('Liora Recall is disabled by config.');
     }
     const subject = normalizeRequired(input.subject, 'Memory subject cannot be empty.');
     const redacted = redactMemoryText(normalizeRequired(input.content, 'Memory content cannot be empty.'));
@@ -694,14 +694,14 @@ export class KimiRecallStore {
   }
 }
 
-class KimiRecallSessionRuntime implements SessionMemoryRuntime {
+class LioraRecallSessionRuntime implements SessionMemoryRuntime {
   constructor(
-    private readonly store: KimiRecallStore,
+    private readonly store: LioraRecallStore,
     private readonly context: MemoryRuntimeSessionContext,
   ) {}
 
   forAgent(context: MemoryRuntimeAgentContext): AgentMemoryRuntime {
-    return new KimiRecallAgentRuntime(this.store, {
+    return new LioraRecallAgentRuntime(this.store, {
       ...context,
       sessionId: this.context.sessionId,
       workDir: context.workDir || this.context.workDir,
@@ -709,9 +709,9 @@ class KimiRecallSessionRuntime implements SessionMemoryRuntime {
   }
 }
 
-class KimiRecallAgentRuntime implements AgentMemoryRuntime {
+class LioraRecallAgentRuntime implements AgentMemoryRuntime {
   constructor(
-    private readonly store: KimiRecallStore,
+    private readonly store: LioraRecallStore,
     private readonly context: MemoryRuntimeAgentContext,
   ) {}
 
@@ -964,7 +964,7 @@ function extractMemoryCandidates(
   text: string,
   context: MemoryRuntimeAgentContext,
   input: MemoryTurnCaptureInput,
-  config: KimiRecallConfig | undefined,
+  config: LioraRecallConfig | undefined,
 ): readonly MemoryCreateInput[] {
   const captures: MemoryCreateInput[] = [];
   for (const explicit of explicitMemorySentences(text)) {
@@ -1123,7 +1123,7 @@ function truncate(text: string, max: number): string {
   return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
 }
 
-function contentPartsToText(parts: readonly import('@moonshot-ai/kosong').ContentPart[]): string {
+function contentPartsToText(parts: readonly import('@superliora/kosong').ContentPart[]): string {
   return parts
     .map((part) => (part.type === 'text' ? part.text : ''))
     .filter((text) => text.length > 0)

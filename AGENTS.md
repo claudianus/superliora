@@ -14,7 +14,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 
 ## Project Map
 
-- `apps/kimi-code`: the CLI / TUI application. It consumes core capabilities through `@moonshot-ai/kimi-code-sdk` and must not depend directly on `@moonshot-ai/agent-core`. When writing or modifying its terminal UI, use the `write-tui` skill (`.agents/skills/write-tui/SKILL.md`).
+- `apps/liora`: the CLI / TUI application. It consumes core capabilities through `@superliora/sdk` and must not depend directly on `@superliora/agent-core`. When writing or modifying its terminal UI, use the `write-tui` skill (`.agents/skills/write-tui/SKILL.md`).
 - `apps/vis`, `apps/vis/server`, `apps/vis/web`: visual debugging tools for sessions and replays.
 - `packages/agent-core`: the unified agent engine, including Agent, Session, profile, skills, tools, plan, permission, background, records, the in-process DI service layer (`src/services/`), and other core capabilities.
 - `packages/node-sdk`: the public TypeScript SDK and harness.
@@ -22,12 +22,12 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 - `packages/kaos`: the execution environment and file/process abstractions.
 - `packages/oauth`: Kimi OAuth and managed auth utilities.
 - `packages/telemetry`: shared client-side telemetry infrastructure.
-- `packages/protocol`: shared REST + WS protocol schemas (envelope, error codes, pagination, ws-control) consumed by `packages/server` and `apps/kimi-code`.
-- `packages/tui-renderer` (`@harness-kit/tui-renderer`): the reusable native terminal renderer core (cell buffer, diffing, layout, input) used by `apps/kimi-code`'s TUI.
-- `packages/acp-adapter`: Agent Client Protocol adapter for `kimi-code`.
+- `packages/protocol`: shared REST + WS protocol schemas (envelope, error codes, pagination, ws-control) consumed by `packages/server` and `apps/liora`.
+- `packages/tui-renderer` (`@harness-kit/tui-renderer`): the reusable native terminal renderer core (cell buffer, diffing, layout, input) used by `apps/liora`'s TUI.
+- `packages/acp-adapter`: Agent Client Protocol adapter for SuperLiora.
 - `packages/gui-use`: browser-use and computer-use runtimes.
-- `packages/server`: the Kimi Code server. Hosts `agent-core` sessions and exposes them over REST + WebSocket (`/api/v1`); bootstrapped from `src/start.ts` and consumed by `apps/kimi-code`. See `packages/server/AGENTS.md`.
-- `packages/server-e2e`: live e2e tests and scenarios against a running server (`KIMI_SERVER_URL`, default `http://127.0.0.1:58627`). See `packages/server-e2e/AGENTS.md`.
+- `packages/server`: the SuperLiora server. Hosts `agent-core` sessions and exposes them over REST + WebSocket (`/api/v1`); bootstrapped from `src/start.ts` and consumed by `apps/liora`. See `packages/server/AGENTS.md`.
+- `packages/server-e2e`: live e2e tests and scenarios against a running server (default `http://127.0.0.1:58627`; override with `SUPERLIORA_SERVER_URL`, legacy alias `KIMI_SERVER_URL`). See `packages/server-e2e/AGENTS.md`.
 
 ## Environment Requirements
 
@@ -42,7 +42,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
   - `pnpm-workspace.yaml` uses globs (`packages/*`, `apps/*`), so most packages land there automatically; `flake.nix` is fully manual and is where omissions happen.
   - Missing a path in `flake.nix`'s `workspacePaths` will silently drop files from the Nix build's `src` fileset.
   - Missing a name in `flake.nix`'s `workspaceNames` will break `pnpmConfigHook` because dependencies for that workspace will not be fetched.
-- The automated "Check flake.nix workspace sync" (`scripts/check-nix-workspace.mjs`) only validates the transitive dependency **closure of `@moonshot-ai/kimi-code`**. A leaf package outside that closure (e.g. an e2e package nobody imports) slips through even when it is missing from `flake.nix`. A green check is therefore NOT proof that `flake.nix` is fully in sync — keep it updated by hand on every add/remove, do not rely on the check to catch omissions.
+- The automated "Check flake.nix workspace sync" (`scripts/check-nix-workspace.mjs`) only validates the transitive dependency **closure of `@superliora/liora`**. A leaf package outside that closure (e.g. an e2e package nobody imports) slips through even when it is missing from `flake.nix`. A green check is therefore NOT proof that `flake.nix` is fully in sync — keep it updated by hand on every add/remove, do not rely on the check to catch omissions.
 
 ## General Coding Rules
 
@@ -61,7 +61,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 
 ## Experimental Features
 
-- Gate a not-yet-public feature behind an experimental flag. Add the flag to the registry at `packages/agent-core/src/flags/registry.ts`, then check it with `flags.enabled('my-feature')`. Flags are env-driven and default off: `KIMI_CODE_EXPERIMENTAL_<NAME>` toggles one, `KIMI_CODE_EXPERIMENTAL_FLAG` enables all. Release by flipping the entry's `default` to `true`.
+- Gate a not-yet-public feature behind an experimental flag. Add the flag to the registry at `packages/agent-core/src/flags/registry.ts`, then check it with `flags.enabled('my-feature')`. Flags are env-driven and default off: `SUPERLIORA_EXPERIMENTAL_<NAME>` toggles one, `SUPERLIORA_EXPERIMENTAL_FLAG` enables all. Release by flipping the entry's `default` to `true`.
 
 ## Where to Update Instructions
 

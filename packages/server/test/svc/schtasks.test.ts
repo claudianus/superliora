@@ -66,15 +66,15 @@ let prevHome: string | undefined;
 
 beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), 'kimi-schtasks-test-'));
-  prevHome = process.env['KIMI_CODE_HOME'];
-  process.env['KIMI_CODE_HOME'] = workDir;
+  prevHome = process.env['SUPERLIORA_HOME'];
+  process.env['SUPERLIORA_HOME'] = workDir;
 });
 
 afterEach(() => {
   if (prevHome === undefined) {
-    delete process.env['KIMI_CODE_HOME'];
+    delete process.env['SUPERLIORA_HOME'];
   } else {
-    process.env['KIMI_CODE_HOME'] = prevHome;
+    process.env['SUPERLIORA_HOME'] = prevHome;
   }
   rmSync(workDir, { recursive: true, force: true });
 });
@@ -126,19 +126,19 @@ describe('parseSchtasksQuery', () => {
   it('parses CSV header + first row into a record', () => {
     const csv = [
       '"HostName","TaskName","Status","Last Result","Run As User"',
-      '"WORKSTATION","\\KimiServer","Running","0","alice"',
+      '"WORKSTATION","\\LioraServer","Running","0","alice"',
     ].join('\r\n');
     const row = parseSchtasksQuery(csv);
     expect(row).toBeDefined();
     expect(row?.['Status']).toBe('Running');
-    expect(row?.['TaskName']).toBe('\\KimiServer');
+    expect(row?.['TaskName']).toBe('\\LioraServer');
     expect(row?.['Run As User']).toBe('alice');
   });
 
   it('handles escaped quotes inside CSV cells', () => {
     const csv = [
       '"TaskName","Description"',
-      '"\\KimiServer","with ""quotes"" inside"',
+      '"\\LioraServer","with ""quotes"" inside"',
     ].join('\n');
     const row = parseSchtasksQuery(csv);
     expect(row?.['Description']).toBe('with "quotes" inside');
@@ -166,7 +166,7 @@ describe('schtasks manager — install', () => {
     expect(result.status).toBe('installed');
     expect(result.taskName).toBe(KIMI_SERVER_TASK_NAME);
     expect(writtenXmls.length).toBe(1);
-    expect(writtenXmls[0]).toContain(`<Description>Kimi Code local server`);
+    expect(writtenXmls[0]).toContain(`<Description>SuperLiora local server`);
     expect(writtenXmls[0]).toContain('--host 127.0.0.1');
     expect(writtenXmls[0]).toContain('--port 58627');
 
@@ -303,7 +303,7 @@ describe('schtasks manager — status', () => {
   it('reports running=true when /Query returns Status=Running', async () => {
     const csv = [
       '"HostName","TaskName","Status","Last Result"',
-      '"WORKSTATION","\\KimiServer","Running","0"',
+      '"WORKSTATION","\\LioraServer","Running","0"',
     ].join('\r\n');
     const { deps } = makeDeps([{ stdout: csv, stderr: '', code: 0 }], workDir, true);
     writeInstallPlan({

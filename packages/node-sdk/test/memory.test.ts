@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createKimiHarness } from '#/index';
+import { createLioraHarness } from '#/index';
 
 import { TEST_IDENTITY } from './test-identity';
 
@@ -16,11 +16,11 @@ afterEach(async () => {
   }
 });
 
-describe('KimiHarness memory', () => {
-  it('exposes durable Kimi Recall through harness and session helpers', async () => {
+describe('LioraHarness memory', () => {
+  it('exposes durable Liora Recall through harness and session helpers', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createKimiHarness({ identity: TEST_IDENTITY, homeDir });
+    const harness = createLioraHarness({ identity: TEST_IDENTITY, homeDir });
 
     try {
       const global = await harness.memory.remember({
@@ -40,7 +40,7 @@ describe('KimiHarness memory', () => {
         kind: 'semantic',
         scope: 'workspace',
         subject: 'project codename',
-        content: 'This workspace is testing Kimi Recall.',
+        content: 'This workspace is testing Liora Recall.',
         tags: ['manual'],
       });
       const sessionResults = await session.recall('testing recall workspace', { limit: 5 });

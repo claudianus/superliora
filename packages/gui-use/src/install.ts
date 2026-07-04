@@ -95,7 +95,7 @@ function runPnpmCloak(
     return runCommand('corepack', [
       'pnpm',
       '--filter',
-      '@moonshot-ai/gui-use',
+      '@superliora/gui-use',
       'exec',
       'cloakbrowser',
       ...args,

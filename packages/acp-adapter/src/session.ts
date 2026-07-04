@@ -16,15 +16,15 @@ import {
   type BackgroundTaskInfo,
   type ContextMessage,
   type Event,
-  type KimiErrorPayload,
-  type KimiHarness,
+  type LioraErrorPayload,
+  type LioraHarness,
   type McpServerInfo,
   type QuestionAnswers,
   type QuestionRequest,
   type Session,
   type SessionStatus,
   type SessionUsage,
-} from '@moonshot-ai/kimi-code-sdk';
+} from '@superliora/sdk';
 
 import {
   approvalRequestToPermissionOptions,
@@ -141,7 +141,7 @@ export class AcpSession {
    * route them to {@link Session.activateSkill} instead of forwarding
    * the raw slash text to {@link Session.prompt} — which is what made
    * Zed fall back to model-driven Bash exploration of
-   * `~/.kimi-code/skills/` and incurred permission prompts. Defaults
+   * `~/.superliora/skills/` and incurred permission prompts. Defaults
    * to an empty map so adapter-level unit tests (which never call
    * `setSkillCommandMap`) behave as a no-op passthrough.
    */
@@ -194,7 +194,7 @@ export class AcpSession {
      * introduces this so the model + mode picker funnel can refresh
      * the full SessionConfigOption[] snapshot on every change.
      */
-    private readonly harness?: KimiHarness,
+    private readonly harness?: LioraHarness,
     /**
      * Initial value of the adapter-side thinking-toggle state, supplied
      * by the server when creating / loading the session. Phase 15
@@ -1348,7 +1348,7 @@ export class AcpSession {
 }
 
 /**
- * Map a Kimi SDK error (raw `Error`, `KimiError`, or `KimiErrorPayload`)
+ * Map a Kimi SDK error (raw `Error`, `LioraError`, or `LioraErrorPayload`)
  * into the ACP {@link RequestError} shape used by the JSON-RPC layer.
  *
  * Auth-coded inputs (`auth.login_required`, `provider.auth_error`)
@@ -1476,7 +1476,7 @@ function formatContextUsage(contextUsage: number): string {
  *
  * The parsing/resolution itself is delegated to `./slash` —
  * deliberately duplicated from the TUI's
- * `apps/kimi-code/src/tui/commands/parse.ts` and `resolve.ts` to
+ * `apps/liora/src/tui/commands/parse.ts` and `resolve.ts` to
  * avoid an app→package import inversion. See `./slash`'s top-of-file
  * comment for the sync target.
  */
@@ -1506,7 +1506,7 @@ function mapPromptError(err: unknown, sessionId: string): RequestError {
 }
 
 /**
- * Inspect a {@link KimiErrorPayload} (as carried on `turn.ended`
+ * Inspect a {@link LioraErrorPayload} (as carried on `turn.ended`
  * failed events) and return a `RequestError.authRequired()` if its
  * `code` is one of the auth-required codes; otherwise `undefined`.
  *
@@ -1514,7 +1514,7 @@ function mapPromptError(err: unknown, sessionId: string): RequestError {
  * `turn.ended` event hands us a serialized payload (no class identity
  * to branch on) — we only need the `code` discriminator here.
  */
-function authRequiredFromPayload(payload: KimiErrorPayload | undefined): RequestError | undefined {
+function authRequiredFromPayload(payload: LioraErrorPayload | undefined): RequestError | undefined {
   if (!payload) return undefined;
   if (isAuthErrorCode(payload.code)) {
     return RequestError.authRequired();
@@ -1527,7 +1527,7 @@ function authRequiredFromPayload(payload: KimiErrorPayload | undefined): Request
  * "the client must re-authenticate before retrying". Currently:
  *  - `auth.login_required` — Kimi Platform / OAuth login flow needed.
  *  - `provider.auth_error` — the downstream provider rejected the
- *    request with a 401 (the node SDK lifts these into `KimiError`
+ *    request with a 401 (the node SDK lifts these into `LioraError`
  *    at `kimi-code-model-provider.ts:99-103`).
  */
 function isAuthErrorCode(code: unknown): boolean {
@@ -1537,7 +1537,7 @@ function isAuthErrorCode(code: unknown): boolean {
 /**
  * Best-effort detection of "auth required" for the `session.prompt(...)`
  * rejection path. The thrown value MAY be:
- *  - A `KimiError` instance with a recognized `code` field.
+ *  - A `LioraError` instance with a recognized `code` field.
  *  - A plain object that happens to expose a `code` (covers RPC-layer
  *    deserialized payloads that lost class identity).
  *  - Anything else — returns `undefined`.

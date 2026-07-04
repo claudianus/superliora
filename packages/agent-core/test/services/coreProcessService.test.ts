@@ -196,7 +196,7 @@ describe('CoreProcessService direct construction', () => {
     }
   });
 
-  it('rpc round-trip through createRPC reaches KimiCore (getCoreInfo smoke)', async () => {
+  it('rpc round-trip through createRPC reaches LioraCore (getCoreInfo smoke)', async () => {
     const { eventService, approvalService, questionService, logService } = makePeers();
     const core = new CoreProcessService(
       {},

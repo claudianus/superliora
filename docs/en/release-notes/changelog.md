@@ -4,7 +4,7 @@ outline: 2
 
 # Changelog
 
-This page documents the changes in each Kimi Code CLI release.
+This page documents the changes in each SuperLiora CLI release.
 
 ## 0.20.1 (2026-06-26)
 
@@ -12,12 +12,12 @@ This page documents the changes in each Kimi Code CLI release.
 
 - Plugins now support declaring lifecycle hooks in `kimi.plugin.json` to run scripts at specific stages. See [Hooks in Plugins](../customization/plugins.md#hooks-in-plugins).
 - `/feedback` now supports attaching diagnostic logs and codebase context.
-- Add the `kimi update` command, equivalent to `kimi upgrade`, for upgrading to the latest version.
-- `kimi web` adds the `--allowed-host <host>` option to add a specified Host to the DNS-rebinding allowlist; 403 errors now explain how to allow it via `--allowed-host` or `KIMI_CODE_ALLOWED_HOSTS`, e.g. `kimi web --allowed-host example.com`.
+- Add the `kimi update` command, equivalent to `liora upgrade`, for upgrading to the latest version.
+- `kimi web` adds the `--allowed-host <host>` option to add a specified Host to the DNS-rebinding allowlist; 403 errors now explain how to allow it via `--allowed-host` or `SUPERLIORA_ALLOWED_HOSTS`, e.g. `kimi web --allowed-host example.com`.
 
 ### Bug Fixes
 
-- Fix kimi server failing to start on Windows after the first run.
+- Fix liora server failing to start on Windows after the first run.
 - Fix the Web UI opened by the `/web` command not signing in automatically; the terminal now prints the access token.
 - Cap chat-completions providers' `max_tokens` to the remaining context window, avoiding context overflow and invalid parameter errors.
 
@@ -129,8 +129,8 @@ This page documents the changes in each Kimi Code CLI release.
 
 - Added the ability to add extra workspace directories:
   - Use the `/add-dir <path>` command to add extra working directories to the current session, or remember them for the project.
-  - Use `kimi --add-dir <path>` to add them on startup.
-  - Project-level local config is now managed in `.kimi-code/local.toml`; we recommend adding it to your `.gitignore`.
+  - Use `liora --add-dir <path>` to add them on startup.
+  - Project-level local config is now managed in `.superliora/local.toml`; we recommend adding it to your `.gitignore`.
 - Allow long-running foreground commands and subagents to be moved into background tasks with `Ctrl+B`, and inspect them via the `/tasks` panel.
 
 ### Bug Fixes
@@ -192,7 +192,7 @@ This page documents the changes in each Kimi Code CLI release.
 
 ### Features
 
-- Add Kimi Code Web mode, which you can start with `kimi web` or `/web` in the CLI, and continue sessions in a browser chat interface.
+- Add SuperLiora Web mode, which you can start with `kimi web` or `/web` in the CLI, and continue sessions in a browser chat interface.
 
 ### Bug Fixes
 
@@ -207,7 +207,7 @@ This page documents the changes in each Kimi Code CLI release.
 
 ### Features
 
-- Add a built-in `kimi vis` command that launches the session visualizer in your browser, pointed at your local sessions. Supports `--port`/`--host`, `--no-open`, and `kimi vis <sessionId>` deep-links.
+- Add a built-in `liora vis` command that launches the session visualizer in your browser, pointed at your local sessions. Supports `--port`/`--host`, `--no-open`, and `liora vis <sessionId>` deep-links.
 
 ### Bug Fixes
 
@@ -319,7 +319,7 @@ This page documents the changes in each Kimi Code CLI release.
 ### Bug Fixes
 
 - Prevent forking sessions during active turns and consolidate wire protocol definitions into a shared internal package.
-- Fix Kimi Datasource to use the matching OAuth credentials and service endpoint for the active Kimi Code environment.
+- Fix Kimi Datasource to use the matching OAuth credentials and service endpoint for the active SuperLiora environment.
 - Fix goal marker text overflowing terminal width.
 
 ### Polish
@@ -334,7 +334,7 @@ This page documents the changes in each Kimi Code CLI release.
 
 ### Features
 
-- Add custom color themes. Define your own palette as a JSON file in `~/.kimi-code/themes/`, or generate one with the built-in `/custom-theme` skill command.
+- Add custom color themes. Define your own palette as a JSON file in `~/.superliora/themes/`, or generate one with the built-in `/custom-theme` skill command.
 - Add `/import-from-cc-codex` to import selected Claude Code and Codex instructions, Skills, and MCP settings.
 - Show available plugin updates in the marketplace.
 
@@ -383,18 +383,18 @@ This page documents the changes in each Kimi Code CLI release.
 - Show full plan cards directly and remove the Plan card keyboard shortcut.
 - Wrap long single-line shell commands in approval prompts so the full command remains visible.
 - Rework file reference completion in the TUI.
-- Load Kimi-specific user Skills and global agent instructions from `KIMI_CODE_HOME` when it is set.
+- Load Kimi-specific user Skills and global agent instructions from `SUPERLIORA_HOME` when it is set.
 
 ## 0.11.0 (2026-06-05)
 
 ### Features
 
-- Add experimental sub-skill discovery gated by the `KIMI_CODE_EXPERIMENTAL_SUB_SKILL` environment variable. Ships the `sub-skill` builtin bundle (`sub-skill.review`, `sub-skill.consolidate`) for inventorying and consolidating skills into hierarchical groups.
+- Add experimental sub-skill discovery gated by the `SUPERLIORA_EXPERIMENTAL_SUB_SKILL` environment variable. Ships the `sub-skill` builtin bundle (`sub-skill.review`, `sub-skill.consolidate`) for inventorying and consolidating skills into hierarchical groups.
 - Add the following environment variables:
 
   - `KIMI_MODEL_TEMPERATURE`, `KIMI_MODEL_TOP_P` — sampling parameters applied globally to any `kimi` provider (not tied to `KIMI_MODEL_NAME`).
   - `KIMI_MODEL_THINKING_KEEP` — Moonshot preserved-thinking passthrough (`thinking.keep`), injected only while Thinking is on.
-  - `KIMI_CODE_NO_AUTO_UPDATE` (legacy alias `KIMI_CLI_NO_AUTO_UPDATE`) — fully disables the update preflight (no check, background install, or prompt).
+  - `SUPERLIORA_NO_AUTO_UPDATE` (legacy alias `KIMI_CLI_NO_AUTO_UPDATE`) — fully disables the update preflight (no check, background install, or prompt).
 - Show built-in skills as direct slash commands and group them ahead of external skill commands.
 
 ### Bug Fixes
@@ -431,7 +431,7 @@ This page documents the changes in each Kimi Code CLI release.
 - Add the built-in `update-config` skill — you can now have Kimi edit its own config files.
 - Add persistent experimental feature toggles and a TUI panel that applies confirmed changes by reloading the current session.
 - Add `/reload` to reload the current session and apply updated config files, plus `/reload-tui` to reload only TUI preferences.
-- Add a doctor command for validating Kimi Code configuration files.
+- Add a doctor command for validating SuperLiora configuration files.
 
 ### Bug Fixes
 
@@ -461,7 +461,7 @@ This page documents the changes in each Kimi Code CLI release.
 
 ### Features
 
-- Add the `kimi acp` subcommand: kimi-code now speaks [Agent Client Protocol 0.23](https://agentclientprotocol.com/) over stdio so IDEs (Zed, JetBrains AI Chat, custom clients) can drive sessions directly — coverage matrix, Zed configuration and breaking pre-release notes are in [kimi acp Subcommand Page](https://moonshotai.github.io/kimi-code/en/reference/kimi-acp.html).
+- Add the `liora acp` subcommand: kimi-code now speaks [Agent Client Protocol 0.23](https://agentclientprotocol.com/) over stdio so IDEs (Zed, JetBrains AI Chat, custom clients) can drive sessions directly — coverage matrix, Zed configuration and breaking pre-release notes are in [liora acp Subcommand Page](https://moonshotai.github.io/kimi-code/en/reference/kimi-acp.html).
 - Add `/btw` for side-channel conversations without steering the active main turn, and allow `/btw` to open the side-channel panel before entering a question.
 
 ### Bug Fixes
@@ -485,7 +485,7 @@ This page documents the changes in each Kimi Code CLI release.
 
 ### Features
 
-- Add experimental goal mode for longer tasks that need more than one turn. Turn it on with `KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND=1` before you start Kimi.
+- Add experimental goal mode for longer tasks that need more than one turn. Turn it on with `SUPERLIORA_EXPERIMENTAL_GOAL_COMMAND=1` before you start Kimi.
 
   Use `/goal <objective>` in the TUI when you want Kimi to keep working on one task across turns. For example:
 
@@ -494,11 +494,11 @@ This page documents the changes in each Kimi Code CLI release.
   ```
 
   Kimi shows the goal in the TUI and keeps progress visible while it works. Use `/goal status`, `/goal pause`, `/goal resume`, `/goal cancel`, and `/goal replace <objective>` to manage the goal. This feature is still experimental. Try it and tell us what would make it more useful.
-- Add `kimi provider` CLI subcommand with `add`, `remove`, `list`, and `catalog list` / `catalog add` actions, so providers from a custom registry (api.json) or the public models.dev catalog can be imported and managed without launching the TUI.
+- Add `liora provider` CLI subcommand with `add`, `remove`, `list`, and `catalog list` / `catalog add` actions, so providers from a custom registry (api.json) or the public models.dev catalog can be imported and managed without launching the TUI.
 - Add background structured questions so agents can continue while waiting for user answers.
 - Add background automatic upgrades, which can be disabled in tui.toml.
 - Add `/undo` slash command to withdraw the last prompt from conversation history, and keep replay records in sync when a prompt is undone.
-- Add a `kimi upgrade` command for manually checking and upgrade Kimi Code CLI.
+- Add a `liora upgrade` command for manually checking and upgrade SuperLiora CLI.
 - Add approval lifecycle hook events for observing pending and completed permission prompts.
 - Allow subagents to use custom tools registered on their parent agent.
 - Allow glob searches to target explicit absolute paths outside the workspace.
@@ -549,7 +549,7 @@ This page documents the changes in each Kimi Code CLI release.
 
 ### Features
 
-- Add a `KIMI_MODEL_*` environment-variable channel that lets you run Kimi Code against a specific model (provider type, base URL, API key, context size, capabilities, and thinking settings) without editing `config.toml`.
+- Add a `KIMI_MODEL_*` environment-variable channel that lets you run SuperLiora against a specific model (provider type, base URL, API key, context size, capabilities, and thinking settings) without editing `config.toml`.
 - Install plugins directly from GitHub repository URLs, and surface each install's origin and trust level (kimi-official, curated, third-party) in the plugin manager.
 
 ### Bug Fixes
@@ -641,7 +641,7 @@ This page documents the changes in each Kimi Code CLI release.
 
 ### Other
 
-- Enhance `kimi export` to include more diagnostic information in the manifest.
+- Enhance `liora export` to include more diagnostic information in the manifest.
 
 ## 0.3.0 (2026-05-26)
 
@@ -679,7 +679,7 @@ This page documents the changes in each Kimi Code CLI release.
 - The `/connect` provider and model pickers now support type-to-search filtering, and long lists are paginated. The `/model` picker is also paginated when many models are configured.
 - Add `Ctrl-J` as an additional shortcut for inserting new lines in the TUI prompt.
 - Add wire record migration handling during session replay.
-- Migrate user skills from `~/.kimi/skills/` to `~/.kimi-code/skills/` during the first-launch migration; existing target skills are kept.
+- Migrate user skills from `~/.kimi/skills/` to `~/.superliora/skills/` during the first-launch migration; existing target skills are kept.
 - Emit session resume hint as a structured meta message in stream-json output format.
 
 ### Bug Fixes

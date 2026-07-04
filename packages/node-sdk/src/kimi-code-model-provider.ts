@@ -1,26 +1,26 @@
 import {
   ErrorCodes,
-  KimiError,
-  resolveKimiHome,
+  LioraError,
+  resolveLioraHome,
   type Logger,
   type ModelProvider,
   type ResolvedRuntimeProvider,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 import {
   createKimiDefaultHeaders,
-  KIMI_CODE_FLOW_CONFIG,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_FLOW_CONFIG,
+  SUPERLIORA_PROVIDER_NAME,
   KimiOAuthToolkit,
   kimiCodeBaseUrl,
   resolveKimiCodeOAuthRef,
   type KimiHostIdentity,
   type ManagedKimiOAuthRef,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 import type {
   ProviderConfig as KosongProviderConfig,
   ProviderRequestAuth,
-} from '@moonshot-ai/kosong';
-import { APIStatusError, UNKNOWN_CAPABILITY } from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
+import { APIStatusError, UNKNOWN_CAPABILITY } from '@superliora/kosong';
 
 import { mapOAuthTokenError } from '#/oauth-error';
 
@@ -47,14 +47,14 @@ export class KimiForCodingProvider implements ModelProvider {
     this.baseUrl = options.baseUrl ?? kimiCodeBaseUrl();
     this.promptCacheKey = options.promptCacheKey;
     this.defaultHeaders = options.defaultHeaders;
-    this.homeDir = resolveKimiHome(options.homeDir);
+    this.homeDir = resolveLioraHome(options.homeDir);
     this.identity = {
       userAgentProduct: options.userAgentProduct,
       version: options.version,
       userAgentSuffix: options.userAgentSuffix,
     };
     this.oauthRef = resolveKimiCodeOAuthRef({
-      oauthHost: KIMI_CODE_FLOW_CONFIG.oauthHost,
+      oauthHost: SUPERLIORA_FLOW_CONFIG.oauthHost,
       baseUrl: this.baseUrl,
     });
     this.toolkit = new KimiOAuthToolkit({
@@ -69,7 +69,7 @@ export class KimiForCodingProvider implements ModelProvider {
 
   resolveProviderConfig(model: string): ResolvedRuntimeProvider {
     if (model !== this.model) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Model "${model}" is not supported by KimiForCodingProvider.`,
       );
@@ -109,7 +109,7 @@ export class KimiForCodingProvider implements ModelProvider {
           const is401 = error instanceof APIStatusError && error.statusCode === 401;
           if (!is401) throw error;
           if (refreshed) {
-            throw new KimiError(
+            throw new LioraError(
               ErrorCodes.AUTH_LOGIN_REQUIRED,
               'OAuth token was rejected after refresh. Run /login to re-authenticate.',
               { cause: error },
@@ -123,17 +123,17 @@ export class KimiForCodingProvider implements ModelProvider {
 
   private async buildAuth(force: boolean): Promise<ProviderRequestAuth> {
     try {
-      const apiKey = await this.toolkit.ensureFresh(KIMI_CODE_PROVIDER_NAME, {
+      const apiKey = await this.toolkit.ensureFresh(SUPERLIORA_PROVIDER_NAME, {
         force,
         oauthRef: this.oauthRef,
       });
       return { apiKey };
     } catch (error) {
-      // Classify OAuth token failures into the public KimiError protocol so the
+      // Classify OAuth token failures into the public LioraError protocol so the
       // turn surfaces `auth.login_required` / `provider.connection_error`
       // instead of collapsing everything to `internal`. Unrecognized errors are
       // rethrown raw (see mapOAuthTokenError).
-      throw mapOAuthTokenError(error, KIMI_CODE_PROVIDER_NAME) ?? error;
+      throw mapOAuthTokenError(error, SUPERLIORA_PROVIDER_NAME) ?? error;
     }
   }
 }

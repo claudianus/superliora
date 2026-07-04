@@ -15,7 +15,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 import type { Logger } from '#/logging/types';
 import {

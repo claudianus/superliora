@@ -23,13 +23,13 @@ import {
   type ProviderCatalogItem,
   type Session,
   type SessionStatusResponse,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
-import { DaemonClient, EnvelopeError } from '../src/index.js';
+import { DaemonClient, EnvelopeError, resolveServerUrl } from '../src/index.js';
 import { fetchWithReport } from '../src/report.js';
 import { createCaseLogger, errorForLog } from './log.js';
 
-const BASE_URL = process.env['KIMI_SERVER_URL'] ?? 'http://127.0.0.1:58627';
+const BASE_URL = resolveServerUrl();
 const PROMPT_TIMEOUT_MS = 120_000;
 
 async function daemonReachable(): Promise<boolean> {

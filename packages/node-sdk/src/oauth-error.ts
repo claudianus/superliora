@@ -1,12 +1,12 @@
-import { ErrorCodes, KimiError } from '@moonshot-ai/agent-core';
+import { ErrorCodes, LioraError } from '@superliora/agent-core';
 import {
   OAuthConnectionError,
   OAuthUnauthorizedError,
   RetryableRefreshError,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 
 /**
- * Classify an OAuth token-fetch failure into the public {@link KimiError}
+ * Classify an OAuth token-fetch failure into the public {@link LioraError}
  * protocol so callers (turn serialization, SDK clients, ACP) can react on
  * `code` rather than on class identity.
  *
@@ -22,16 +22,16 @@ import {
  * lock failure as `auth.login_required` would send the user down the wrong
  * remediation path.
  */
-export function mapOAuthTokenError(error: unknown, providerName: string): KimiError | undefined {
+export function mapOAuthTokenError(error: unknown, providerName: string): LioraError | undefined {
   if (error instanceof OAuthUnauthorizedError) {
-    return new KimiError(
+    return new LioraError(
       ErrorCodes.AUTH_LOGIN_REQUIRED,
       `OAuth provider "${providerName}" requires login before it can be used.`,
       { cause: error },
     );
   }
   if (error instanceof OAuthConnectionError || error instanceof RetryableRefreshError) {
-    return new KimiError(
+    return new LioraError(
       ErrorCodes.PROVIDER_CONNECTION_ERROR,
       `OAuth provider "${providerName}" failed to fetch an access token: ${error.message}`,
       { cause: error },

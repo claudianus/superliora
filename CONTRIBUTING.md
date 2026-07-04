@@ -1,10 +1,10 @@
-# Contributing to Super Kimi Code
+# Contributing to SuperLiora
 
 Thanks for taking the time to contribute! This project moves quickly, and thoughtful contributions from the community are what keep it sharp. The guide below walks you through how we work so your PR has the best chance of landing smoothly.
 
 ## Before You Start
 
-Super Kimi Code already has opinions on CLI/TUI behavior, agent workflows, and public APIs. If your change shifts that direction, open an issue first so we can align before you invest time in a PR.
+SuperLiora already has opinions on CLI/TUI behavior, agent workflows, and public APIs. If your change shifts that direction, open an issue first so we can align before you invest time in a PR.
 
 We hold AI-assisted contributions to the same standard as hand-written ones. **You should understand what you submit** — what changed, how it behaves at the edges, and why it fits this codebase. If you cannot explain that, the PR is not ready for review.
 
@@ -27,9 +27,9 @@ We only merge PRs aligned with the roadmap. Drive-by refactors without context a
 
 This is a pnpm monorepo. The most relevant entry points are:
 
-- `apps/kimi-code` — CLI / TUI
+- `apps/liora` — CLI / TUI
 - `apps/vis` — session replay & debugging visualizer
-- `packages/node-sdk` — public TypeScript SDK (`@moonshot-ai/kimi-code-sdk`)
+- `packages/node-sdk` — public TypeScript SDK (`@superliora/sdk`)
 - `packages/agent-core`, `kosong`, `kaos`, `oauth`, `telemetry` — internal engine packages
 - `site/` — the public landing page (deployed to GitHub Pages)
 - `docs/` — unpublished bilingual (`en`/`zh`) reference pages; not the deployed site (see `docs/AGENTS.md`)
@@ -41,8 +41,8 @@ For the full project map, see [AGENTS.md](AGENTS.md).
 Prerequisites: Node.js >= 24.15.0, pnpm 10.33.0, Git.
 
 ```sh
-git clone https://github.com/claudianus/super-kimi-code.git
-cd super-kimi-code
+git clone https://github.com/claudianus/superliora.git
+cd superliora
 pnpm install
 ```
 

@@ -5,8 +5,8 @@ import {
   applyManagedKimiCodeConfig,
   clearManagedKimiCodeConfig,
   fetchManagedKimiCodeModels,
-  KIMI_CODE_OAUTH_KEY,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_OAUTH_KEY,
+  SUPERLIORA_PROVIDER_NAME,
   ManagedKimiCodeModelsAuthError,
   provisionManagedKimiCodeConfig,
   resolveKimiCodeLoginAuth,
@@ -51,7 +51,7 @@ describe('provisionManagedKimiCodeConfig', () => {
         oauthHost: 'https://auth.kimi.com/',
         baseUrl: 'https://api.kimi.com/coding/v1/',
       }),
-    ).toBe(KIMI_CODE_OAUTH_KEY);
+    ).toBe(SUPERLIORA_OAUTH_KEY);
   });
 
   it('scopes credential keys for non-default OAuth hosts and API base URLs', () => {
@@ -60,7 +60,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       baseUrl: 'https://api.dev.example.test/coding/v1',
     });
 
-    expect(devKey).not.toBe(KIMI_CODE_OAUTH_KEY);
+    expect(devKey).not.toBe(SUPERLIORA_OAUTH_KEY);
     expect(devKey).toMatch(/^oauth\/kimi-code-env-[a-f0-9]{16}$/);
     expect(
       resolveKimiCodeOAuthKey({
@@ -78,7 +78,7 @@ describe('provisionManagedKimiCodeConfig', () => {
         oauthHost: 'https://auth.kimi.com/',
         baseUrl: 'https://api.kimi.com/coding/v1/',
       }),
-    ).toEqual({ storage: 'file', key: KIMI_CODE_OAUTH_KEY, oauthHost: undefined });
+    ).toEqual({ storage: 'file', key: SUPERLIORA_OAUTH_KEY, oauthHost: undefined });
 
     const defaultAuthCustomApiRef = resolveKimiCodeOAuthRef({
       baseUrl: 'https://api.example.test/coding/v1',
@@ -120,8 +120,8 @@ describe('provisionManagedKimiCodeConfig', () => {
       configuredBaseUrl,
       configuredOAuthRef,
       env: {
-        KIMI_CODE_BASE_URL: envBaseUrl,
-        KIMI_CODE_OAUTH_HOST: envOauthHost,
+        SUPERLIORA_BASE_URL: envBaseUrl,
+        SUPERLIORA_OAUTH_HOST: envOauthHost,
       },
     });
 
@@ -199,7 +199,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       },
       models: {
         'kimi-code/stale': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'stale',
         },
         'custom-default': {
@@ -223,7 +223,7 @@ describe('provisionManagedKimiCodeConfig', () => {
     });
 
     expect(result).toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       defaultModel: 'kimi-code/kimi-for-coding',
       defaultThinking: true,
       configPath: '/tmp/config.toml',
@@ -251,14 +251,14 @@ describe('provisionManagedKimiCodeConfig', () => {
     });
     expect(config.models?.['custom-default']?.provider).toBe('custom');
     expect(config.models?.['kimi-code/stale']).toBeUndefined();
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       type: 'kimi',
       baseUrl: 'https://api.kimi.com/coding/v1',
       apiKey: '',
       oauth: { storage: 'file', key: 'oauth/kimi-code' },
     });
     expect(config.models?.['kimi-code/kimi-for-coding']).toMatchObject({
-      provider: KIMI_CODE_PROVIDER_NAME,
+      provider: SUPERLIORA_PROVIDER_NAME,
       model: 'kimi-for-coding',
       maxContextSize: 262144,
       capabilities: ['thinking', 'image_in', 'video_in', 'tool_use'],
@@ -295,7 +295,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       },
     });
 
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       baseUrl: 'https://api.dev.example.test/coding/v1',
       oauth: {
         storage: 'file',
@@ -333,7 +333,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       },
     });
 
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       baseUrl,
       oauth: {
         storage: 'file',
@@ -351,7 +351,7 @@ describe('provisionManagedKimiCodeConfig', () => {
           apiKey: 'sk-existing',
           baseUrl: 'https://example.test/v1',
         },
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
         },
@@ -365,7 +365,7 @@ describe('provisionManagedKimiCodeConfig', () => {
           maxContextSize: 1000,
         },
         'kimi-code/stale': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'stale',
           maxContextSize: 1000,
         },
@@ -394,21 +394,21 @@ describe('provisionManagedKimiCodeConfig', () => {
   it('preserves custom fields on refreshed managed model aliases', async () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
         },
       },
       models: {
         'kimi-code/kimi-for-coding': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'old-model-id',
           maxContextSize: 1000,
           displayName: 'Old display name',
           localRouting: 'premium',
         },
         'kimi-code/stale': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'stale',
           localRouting: 'remove-me',
         },
@@ -427,7 +427,7 @@ describe('provisionManagedKimiCodeConfig', () => {
 
     expect(config.models?.['kimi-code/stale']).toBeUndefined();
     expect(config.models?.['kimi-code/kimi-for-coding']).toMatchObject({
-      provider: KIMI_CODE_PROVIDER_NAME,
+      provider: SUPERLIORA_PROVIDER_NAME,
       model: 'kimi-for-coding',
       maxContextSize: 262144,
       capabilities: ['thinking', 'image_in', 'video_in', 'tool_use'],
@@ -439,7 +439,7 @@ describe('provisionManagedKimiCodeConfig', () => {
   it('infers default_thinking from fresh managed model capabilities', async () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
         },
@@ -447,7 +447,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       defaultModel: 'kimi-code/kimi-for-coding',
       models: {
         'kimi-code/kimi-for-coding': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'kimi-for-coding',
           maxContextSize: 1000,
           capabilities: [],
@@ -613,7 +613,7 @@ describe('provisionManagedKimiCodeConfig', () => {
   it('falls back to the first fetched model when the preserved default was removed', async () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
         },
@@ -622,7 +622,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       defaultThinking: false,
       models: {
         'kimi-code/stale': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'stale',
           maxContextSize: 1000,
         },
@@ -649,7 +649,7 @@ describe('provisionManagedKimiCodeConfig', () => {
   it('removes managed provider, models, services, and default model on logout', () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
         },
@@ -662,7 +662,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       defaultThinking: true,
       models: {
         'kimi-code/kimi-for-coding': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'kimi-for-coding',
           maxContextSize: 262144,
         },
@@ -680,12 +680,12 @@ describe('provisionManagedKimiCodeConfig', () => {
       raw: {
         default_model: 'kimi-code/kimi-for-coding',
         providers: {
-          [KIMI_CODE_PROVIDER_NAME]: { type: 'kimi' },
+          [SUPERLIORA_PROVIDER_NAME]: { type: 'kimi' },
           custom: { type: 'kimi' },
         },
         models: {
           'kimi-code/kimi-for-coding': {
-            provider: KIMI_CODE_PROVIDER_NAME,
+            provider: SUPERLIORA_PROVIDER_NAME,
             model: 'kimi-for-coding',
           },
           'custom-default': {
@@ -703,7 +703,7 @@ describe('provisionManagedKimiCodeConfig', () => {
     applyManagedKimiCodeLogoutConfig(config);
 
     expect(config.defaultModel).toBeUndefined();
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toBeUndefined();
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toBeUndefined();
     expect(config.providers['custom']).toBeDefined();
     expect(config.models?.['kimi-code/kimi-for-coding']).toBeUndefined();
     expect(config.models?.['custom-default']).toBeDefined();
@@ -796,7 +796,7 @@ describe('provisionManagedKimiCodeConfig', () => {
     });
 
     await expect(promise).rejects.toThrow(
-      "Kimi Code models endpoint https://api.dev.example.test/coding/v1 rejected OAuth credentials: We're unable to verify your membership benefits at this time. Please ensure your membership is active.",
+      "SuperLiora models endpoint https://api.dev.example.test/coding/v1 rejected OAuth credentials: We're unable to verify your membership benefits at this time. Please ensure your membership is active.",
     );
     await expect(
       fetchManagedKimiCodeModels({
@@ -825,7 +825,7 @@ describe('provisionManagedKimiCodeConfig', () => {
   it('clears managed provider, models, default model, and services on logout', () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
           oauth: { storage: 'file', key: 'oauth/kimi-code' },
@@ -838,7 +838,7 @@ describe('provisionManagedKimiCodeConfig', () => {
       defaultModel: 'kimi-code/kimi-for-coding',
       models: {
         'kimi-code/kimi-for-coding': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'kimi-for-coding',
           maxContextSize: 262144,
         },
@@ -866,13 +866,13 @@ describe('provisionManagedKimiCodeConfig', () => {
     const result = clearManagedKimiCodeConfig(config);
 
     expect(result).toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       removedProvider: true,
       removedModels: ['kimi-code/kimi-for-coding'],
       defaultModelCleared: true,
       removedServices: ['moonshotSearch', 'moonshotFetch'],
     });
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toBeUndefined();
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toBeUndefined();
     expect(config.providers['custom']).toMatchObject({ apiKey: 'sk-existing' });
     expect(config.defaultModel).toBeUndefined();
     expect(config.models?.['kimi-code/kimi-for-coding']).toBeUndefined();
@@ -1017,7 +1017,7 @@ describe('supports_thinking_type', () => {
   it('forces default thinking on when preserving a thinking-only managed default', async () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
         },
@@ -1026,7 +1026,7 @@ describe('supports_thinking_type', () => {
       defaultThinking: false,
       models: {
         'kimi-code/kimi-for-coding': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'kimi-for-coding',
           maxContextSize: 262144,
           capabilities: ['thinking'],
@@ -1053,7 +1053,7 @@ describe('supports_thinking_type', () => {
   it('forces default thinking off when preserving a no-thinking managed default', async () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           apiKey: '',
         },
@@ -1062,7 +1062,7 @@ describe('supports_thinking_type', () => {
       defaultThinking: true,
       models: {
         'kimi-code/kimi-plain': {
-          provider: KIMI_CODE_PROVIDER_NAME,
+          provider: SUPERLIORA_PROVIDER_NAME,
           model: 'kimi-plain',
           maxContextSize: 128000,
           capabilities: ['thinking'],
@@ -1136,7 +1136,7 @@ function makeModelInfo(
   };
 }
 
-describe('managed Kimi Code protocol routing', () => {
+describe('managed SuperLiora protocol routing', () => {
   it('reads anthropic protocol from the models response', async () => {
     const fetchImpl = vi.fn(
       async () =>
@@ -1167,12 +1167,12 @@ describe('managed Kimi Code protocol routing', () => {
       ],
     });
 
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       type: 'kimi',
       baseUrl: 'https://api.example.test/coding/v1',
     });
     expect(config.models?.['kimi-code/kimi-for-coding']).toMatchObject({
-      provider: KIMI_CODE_PROVIDER_NAME,
+      provider: SUPERLIORA_PROVIDER_NAME,
       protocol: 'anthropic',
       betaApi: true,
       adaptiveThinking: true,
@@ -1182,7 +1182,7 @@ describe('managed Kimi Code protocol routing', () => {
   it('preserves existing OAuth account refs when provisioning a new login key', () => {
     const config: ManagedKimiConfigShape = {
       providers: {
-        [KIMI_CODE_PROVIDER_NAME]: {
+        [SUPERLIORA_PROVIDER_NAME]: {
           type: 'kimi',
           baseUrl: 'https://api.kimi.com/coding/v1',
           apiKey: '',
@@ -1200,7 +1200,7 @@ describe('managed Kimi Code protocol routing', () => {
       oauthKey: 'oauth/new-account',
     });
 
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       oauth: { storage: 'file', key: 'oauth/new-account' },
       oauths: [
         { storage: 'file', key: 'oauth/primary-account' },

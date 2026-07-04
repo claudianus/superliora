@@ -7,8 +7,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InstantiationService, ServiceCollection, EventService, FsWatcherService, IApprovalService, IEventService, ILogService, IQuestionService, type ApprovalResponse, type QuestionResult, type FsWatcherServiceOptions, type IEnvironmentService, type ILogService as ILoggerT, type ISessionService } from '@moonshot-ai/agent-core';
-import type { Event } from '@moonshot-ai/protocol';
+import { InstantiationService, ServiceCollection, EventService, FsWatcherService, IApprovalService, IEventService, ILogService, IQuestionService, type ApprovalResponse, type QuestionResult, type FsWatcherServiceOptions, type IEnvironmentService, type ILogService as ILoggerT, type ISessionService } from '@superliora/agent-core';
+import type { Event } from '@superliora/protocol';
 
 import { ApprovalService } from '#/services/approval/approvalService';
 import { QuestionService } from '#/services/question/questionService';
@@ -142,7 +142,7 @@ const tmpHomeDirs: string[] = [];
 
 /** Throwaway `IEnvironmentService` whose homeDir is a fresh temp dir. */
 function tmpEnv(): IEnvironmentService {
-  const dir = mkdtempSync(join(tmpdir(), 'kimi-server-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'liora-server-test-'));
   tmpHomeDirs.push(dir);
   return { _serviceBrand: undefined, homeDir: dir, configPath: join(dir, 'config.toml') };
 }

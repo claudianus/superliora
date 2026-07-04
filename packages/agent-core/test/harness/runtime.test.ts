@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, normalize } from 'pathe';
 
-import type { Kaos } from '@moonshot-ai/kaos';
+import type { Kaos } from '@superliora/kaos';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -10,8 +10,8 @@ import {
   MASTER_ENV,
   createRPC,
   ErrorCodes,
-  KimiCore,
-  KimiError,
+  LioraCore,
+  LioraError,
   type ApprovalResponse,
   type CoreAPI,
   type SDKAPI,
@@ -38,15 +38,15 @@ function clearExperimentalEnv(): void {
   }
 }
 
-function experimentalFeatureEnabled(core: KimiCore, id: string): boolean | undefined {
+function experimentalFeatureEnabled(core: LioraCore, id: string): boolean | undefined {
   return core.getExperimentalFeatures().find((feature) => feature.id === id)?.enabled;
 }
 
-function setCoreKaos(core: KimiCore, kaos: Promise<Kaos>): void {
+function setCoreKaos(core: LioraCore, kaos: Promise<Kaos>): void {
   (core as unknown as { kaos?: Promise<Kaos> }).kaos = kaos;
 }
 
-function setCoreKaosFailure(core: KimiCore, error: Error): void {
+function setCoreKaosFailure(core: LioraCore, error: Error): void {
   (core as unknown as { getKaos: () => Promise<Kaos> }).getKaos = async () => {
     throw error;
   };
@@ -82,7 +82,7 @@ function createLocalTomlFailingKaos(base: Kaos): Kaos {
   });
 }
 
-describe('KimiCore runtime config', () => {
+describe('LioraCore runtime config', () => {
   let tmp: string;
 
   afterEach(async () => {
@@ -106,7 +106,7 @@ describe('KimiCore runtime config', () => {
     }
     vi.stubEnv(requiredFlagEnv('micro_compaction'), '1');
 
-    void new KimiCore(async () => ({}) as never, { homeDir });
+    void new LioraCore(async () => ({}) as never, { homeDir });
     await getRootLogger().flushGlobal();
 
     const text = await readFile(resolveGlobalLogPath(homeDir), 'utf-8');
@@ -137,8 +137,8 @@ micro_compaction = false
     );
     clearExperimentalEnv();
 
-    const first = new KimiCore(async () => ({}) as never, { homeDir: firstHome });
-    const second = new KimiCore(async () => ({}) as never, { homeDir: secondHome });
+    const first = new LioraCore(async () => ({}) as never, { homeDir: firstHome });
+    const second = new LioraCore(async () => ({}) as never, { homeDir: secondHome });
 
     expect(experimentalFeatureEnabled(first, 'micro_compaction')).toBe(true);
     expect(experimentalFeatureEnabled(second, 'micro_compaction')).toBe(false);
@@ -157,7 +157,7 @@ micro_compaction = false
     );
     clearExperimentalEnv();
 
-    const core = new KimiCore(async () => ({}) as never, { homeDir });
+    const core = new LioraCore(async () => ({}) as never, { homeDir });
     expect(experimentalFeatureEnabled(core, 'micro_compaction')).toBe(false);
 
     await core.setKimiConfig({
@@ -185,7 +185,7 @@ micro_compaction = false
     clearExperimentalEnv();
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -222,7 +222,7 @@ micro_compaction = false
 
   // Regression for https://github.com/MoonshotAI/kimi-code/issues/988: during
   // ACP `session/new` the tool kaos is the reverse-RPC bridge and the client
-  // does not know the session yet, so reading `.kimi-code/local.toml` through
+  // does not know the session yet, so reading `.superliora/local.toml` through
   // it rejects. The workspace local config is a local system file and must be
   // read through the persistence (local) kaos instead.
   it('reads workspace local.toml through persistenceKaos during createSession', async () => {
@@ -232,16 +232,16 @@ micro_compaction = false
     const sharedDir = join(tmp, 'shared');
     await mkdir(homeDir, { recursive: true });
     await mkdir(join(workDir, '.git'), { recursive: true });
-    await mkdir(join(workDir, '.kimi-code'), { recursive: true });
+    await mkdir(join(workDir, '.superliora'), { recursive: true });
     await mkdir(sharedDir, { recursive: true });
     await writeFile(
-      join(workDir, '.kimi-code', 'local.toml'),
+      join(workDir, '.superliora', 'local.toml'),
       `[workspace]\nadditional_dir = ["../shared"]\n`,
     );
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -287,7 +287,7 @@ custom_headers = { "X-Test" = "1" }
     vi.stubGlobal('fetch', fetchImpl);
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, {
+    const core = new LioraCore(coreRpc, {
       homeDir,
       kimiRequestHeaders: {
         'User-Agent': 'kimi-code-cli/0.0.0-test',
@@ -305,7 +305,7 @@ custom_headers = { "X-Test" = "1" }
     const created = await rpc.createSession({ id: 'ses_runtime_service_oauth', workDir });
     const session = core.sessions.get(created.id);
 
-    expect(resolveOAuthTokenProvider).toHaveBeenCalledWith('managed:kimi-code', {
+    expect(resolveOAuthTokenProvider).toHaveBeenCalledWith('managed:kimi-api', {
       storage: 'file',
       key: 'oauth/custom-kimi-code',
     });
@@ -345,7 +345,7 @@ max_context_size = 100000
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -368,15 +368,15 @@ max_context_size = 100000
     await mkdir(homeDir, { recursive: true });
     await mkdir(workDir, { recursive: true });
     await mkdir(extraDir, { recursive: true });
-    await mkdir(join(workDir, '.kimi-code'), { recursive: true });
+    await mkdir(join(workDir, '.superliora'), { recursive: true });
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
     await writeFile(
-      join(workDir, '.kimi-code', 'local.toml'),
+      join(workDir, '.superliora', 'local.toml'),
       `[workspace]\nadditional_dir = ["extra"]\n`,
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -407,15 +407,15 @@ max_context_size = 100000
     await mkdir(homeDir, { recursive: true });
     await mkdir(workDir, { recursive: true });
     await mkdir(extraDir, { recursive: true });
-    await mkdir(join(workDir, '.kimi-code'), { recursive: true });
+    await mkdir(join(workDir, '.superliora'), { recursive: true });
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
     await writeFile(
-      join(workDir, '.kimi-code', 'local.toml'),
+      join(workDir, '.superliora', 'local.toml'),
       `[workspace]\nadditional_dir = ["extra"]\n`,
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -442,15 +442,15 @@ max_context_size = 100000
     await mkdir(homeDir, { recursive: true });
     await mkdir(workDir, { recursive: true });
     await mkdir(extraDir, { recursive: true });
-    await mkdir(join(workDir, '.kimi-code'), { recursive: true });
+    await mkdir(join(workDir, '.superliora'), { recursive: true });
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
     await writeFile(
-      join(workDir, '.kimi-code', 'local.toml'),
+      join(workDir, '.superliora', 'local.toml'),
       `[workspace]\nadditional_dir = ["extra"]\n`,
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -484,15 +484,15 @@ max_context_size = 100000
     await mkdir(workDir, { recursive: true });
     await mkdir(localDir, { recursive: true });
     await mkdir(callerDir, { recursive: true });
-    await mkdir(join(workDir, '.kimi-code'), { recursive: true });
+    await mkdir(join(workDir, '.superliora'), { recursive: true });
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
     await writeFile(
-      join(workDir, '.kimi-code', 'local.toml'),
+      join(workDir, '.superliora', 'local.toml'),
       `[workspace]\nadditional_dir = ["local"]\n`,
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -527,15 +527,15 @@ max_context_size = 100000
     await mkdir(homeDir, { recursive: true });
     await mkdir(workDir, { recursive: true });
     await mkdir(sharedDir, { recursive: true });
-    await mkdir(join(workDir, '.kimi-code'), { recursive: true });
+    await mkdir(join(workDir, '.superliora'), { recursive: true });
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
     await writeFile(
-      join(workDir, '.kimi-code', 'local.toml'),
+      join(workDir, '.superliora', 'local.toml'),
       `[workspace]\nadditional_dir = ["shared"]\n`,
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -564,15 +564,15 @@ max_context_size = 100000
     await mkdir(workDir, { recursive: true });
     await mkdir(localDir, { recursive: true });
     await mkdir(callerDir, { recursive: true });
-    await mkdir(join(workDir, '.kimi-code'), { recursive: true });
+    await mkdir(join(workDir, '.superliora'), { recursive: true });
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
     await writeFile(
-      join(workDir, '.kimi-code', 'local.toml'),
+      join(workDir, '.superliora', 'local.toml'),
       `[workspace]\nadditional_dir = ["shared"]\n`,
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    void new KimiCore(coreRpc, { homeDir });
+    void new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -603,7 +603,7 @@ max_context_size = 100000
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -633,7 +633,7 @@ max_context_size = 100000
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -663,7 +663,7 @@ max_context_size = 100000
           content: [
             {
               type: 'text',
-              text: `<local-command-stdout>\nAdded workspace directory:\n  extra\n  Saved to:\n  ${join(workDir, '.kimi-code', 'local.toml')}\n</local-command-stdout>`,
+              text: `<local-command-stdout>\nAdded workspace directory:\n  extra\n  Saved to:\n  ${join(workDir, '.superliora', 'local.toml')}\n</local-command-stdout>`,
             },
           ],
           origin: { kind: 'injection', variant: 'local-command-stdout' },
@@ -686,7 +686,7 @@ max_context_size = 100000
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -705,14 +705,14 @@ max_context_size = 100000
       path: 'extra',
       persist: true,
     });
-    const localToml = await readFile(join(workDir, '.kimi-code', 'local.toml'), 'utf-8');
+    const localToml = await readFile(join(workDir, '.superliora', 'local.toml'), 'utf-8');
     const session = core.sessions.get(created.id);
     const mainAgent = session?.getReadyAgent('main');
 
     expect(result).toMatchObject({
       additionalDirs: [extraDir],
       projectRoot: workDir,
-      configPath: join(workDir, '.kimi-code', 'local.toml'),
+      configPath: join(workDir, '.superliora', 'local.toml'),
       persisted: true,
     });
     expect(localToml).toContain('additional_dir = [');
@@ -731,7 +731,7 @@ max_context_size = 100000
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -756,7 +756,7 @@ max_context_size = 100000
     expect(result).toMatchObject({
       additionalDirs: [extraDir],
       projectRoot: workDir,
-      configPath: join(workDir, '.kimi-code', 'local.toml'),
+      configPath: join(workDir, '.superliora', 'local.toml'),
       persisted: false,
     });
     expect(core.sessions.get(created.id)?.getAdditionalDirs()).toEqual([extraDir]);
@@ -775,7 +775,7 @@ max_context_size = 100000
         }),
       }),
     );
-    await expect(readFile(join(workDir, '.kimi-code', 'local.toml'), 'utf-8')).rejects.toThrow();
+    await expect(readFile(join(workDir, '.superliora', 'local.toml'), 'utf-8')).rejects.toThrow();
   });
 
   it('rejects createSession when shell runtime initialization fails', async () => {
@@ -787,7 +787,7 @@ max_context_size = 100000
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -796,7 +796,7 @@ max_context_size = 100000
     });
     setCoreKaosFailure(
       core,
-      new KimiError(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND, 'Git Bash missing'),
+      new LioraError(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND, 'Git Bash missing'),
     );
 
     await expect(
@@ -818,7 +818,7 @@ max_context_size = 100000
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -834,7 +834,7 @@ max_context_size = 100000
     await rpc.closeSession({ sessionId: created.id });
     setCoreKaosFailure(
       core,
-      new KimiError(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND, 'Git Bash missing'),
+      new LioraError(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND, 'Git Bash missing'),
     );
 
     await expect(rpc.resumeSession({ sessionId: created.id })).rejects.toMatchObject({
@@ -853,7 +853,7 @@ max_context_size = 100000
     await writeFile(configPath, baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -895,7 +895,7 @@ base_url = "https://search.example.test/v1"
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -929,7 +929,7 @@ base_url = "https://search.example.test/v1"
     await writeSessionStartPlugin(pluginRoot, 'OLD BODY');
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -987,7 +987,7 @@ base_url = "https://search.example.test/v1"
     await writeSessionStartPlugin(pluginRoot, 'BODY');
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -1035,7 +1035,7 @@ base_url = "https://search.example.test/v1"
     await writeSessionStartPlugin(pluginRoot, 'BODY');
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -1070,7 +1070,7 @@ base_url = "https://search.example.test/v1"
     );
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -1102,7 +1102,7 @@ base_url = "https://search.example.test/v1"
     await writeFile(join(homeDir, 'config.toml'), baseModelConfig());
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, { homeDir });
+    const core = new LioraCore(coreRpc, { homeDir });
     const rpc = await sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
@@ -1156,7 +1156,7 @@ function managedSkillPath(homeDir: string): string {
   return join(homeDir, 'plugins', 'managed', 'demo', 'skills', 'greeter', 'SKILL.md');
 }
 
-function pluginSessionStartReminders(core: KimiCore, sessionId: string): string[] {
+function pluginSessionStartReminders(core: LioraCore, sessionId: string): string[] {
   const agent = core.sessions.get(sessionId)?.getReadyAgent('main');
   if (agent === undefined) return [];
   return remindersFromHistory(agent.context.history);

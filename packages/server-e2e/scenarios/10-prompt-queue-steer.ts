@@ -17,7 +17,7 @@
  * turn while queued prompts are submitted.
  *
  * Usage:
- *   KIMI_SERVER_URL=http://127.0.0.1:58627 npx tsx scenarios/10-prompt-queue-steer.ts
+ *   SERVER_URL=http://127.0.0.1:58627 npx tsx scenarios/10-prompt-queue-steer.ts
  *
  * Exit codes:
  *   0  — pass
@@ -25,10 +25,10 @@
  */
 import assert from 'node:assert/strict';
 
-import { DaemonClient, type AnyFrame } from '../src/index';
+import { DaemonClient, resolveServerUrl, type AnyFrame } from '../src/index';
 import { fetchWithReport } from '../src/report';
 
-const KIMI_SERVER_URL = process.env['KIMI_SERVER_URL'] ?? 'http://127.0.0.1:58627';
+const SERVER_URL = resolveServerUrl();
 const API_PREFIX = '/api/v1';
 const PROMPT_TIMEOUT_MS = 60_000;
 
@@ -49,7 +49,7 @@ interface PromptSteeredPayload {
 }
 
 async function main() {
-  const client = new DaemonClient({ baseUrl: KIMI_SERVER_URL });
+  const client = new DaemonClient({ baseUrl: SERVER_URL });
 
   let sid: string | undefined;
   const promptIdsForCleanup: string[] = [];
@@ -189,7 +189,7 @@ async function injectActivePrompt(
   sid: string,
   body: { prompt_id: string },
 ): Promise<{ prompt_id: string }> {
-  const url = `${KIMI_SERVER_URL}${API_PREFIX}/debug/prompts/${encodeURIComponent(sid)}/active`;
+  const url = `${SERVER_URL}${API_PREFIX}/debug/prompts/${encodeURIComponent(sid)}/active`;
   const res = await fetchWithReport(url, {
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json' },

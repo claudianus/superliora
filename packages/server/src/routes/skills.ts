@@ -37,8 +37,8 @@ import {
   listSkillsResponseSchema,
   searchSkillsRequestSchema,
   searchSkillsResponseSchema,
-} from '@moonshot-ai/protocol';
-import { ISkillService, SessionNotFoundError, SkillNotActivatableError, SkillNotFoundError, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { ISkillService, SessionNotFoundError, SkillNotActivatableError, SkillNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 

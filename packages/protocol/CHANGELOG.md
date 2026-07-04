@@ -1,4 +1,4 @@
-# @moonshot-ai/protocol
+# @superliora/protocol
 
 ## 0.3.0
 

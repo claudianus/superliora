@@ -3,19 +3,19 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { resolveKimiHome } from '@moonshot-ai/agent-core';
+import { resolveLioraHome } from '@superliora/agent-core';
 
 
-export const KIMI_SERVER_LABEL = 'ai.moonshot.kimi-server';
+export const KIMI_SERVER_LABEL = 'com.superliora.liora-server';
 
 
 export const KIMI_SERVER_PLIST_FILENAME = `${KIMI_SERVER_LABEL}.plist`;
 
 
-export const KIMI_SERVER_SYSTEMD_UNIT = 'kimi-server.service';
+export const KIMI_SERVER_SYSTEMD_UNIT = 'liora-server.service';
 
 
-export const KIMI_SERVER_TASK_NAME = 'KimiServer';
+export const KIMI_SERVER_TASK_NAME = 'LioraServer';
 
 
 export function launchAgentPlistPath(): string {
@@ -29,12 +29,12 @@ export function systemdUnitPath(): string {
 
 
 export function supervisorLogPath(): string {
-  return join(resolveKimiHome(), 'server', 'server.log');
+  return join(resolveLioraHome(), 'server', 'server.log');
 }
 
 
 export function installPlanPath(): string {
-  return join(resolveKimiHome(), 'server', 'install.json');
+  return join(resolveLioraHome(), 'server', 'install.json');
 }
 
 

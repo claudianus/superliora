@@ -1,0 +1,108 @@
+{
+  "name": "@superliora/liora",
+  "version": "0.20.1",
+  "description": "AI coding agent for sustained software work",
+  "license": "MIT",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://github.com/claudianus/superliora/tree/main/apps/liora#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/claudianus/superliora.git",
+    "directory": "apps/liora"
+  },
+  "bugs": {
+    "url": "https://github.com/claudianus/superliora/issues"
+  },
+  "keywords": [
+    "superliora",
+    "liora",
+    "cli",
+    "agent",
+    "coding-agent",
+    "ai",
+    "tui"
+  ],
+  "bin": {
+    "liora": "dist/main.mjs"
+  },
+  "files": [
+    "dist",
+    "scripts/postinstall.mjs",
+    "scripts/postinstall",
+    "README.md"
+  ],
+  "type": "module",
+  "imports": {
+    "#/tui/theme": "./src/tui/theme/index.ts",
+    "#/tui/renderer": "./src/tui/renderer/index.ts",
+    "#/cli/sub/server": "./src/cli/sub/server/index.ts",
+    "#/cli/sub/server/*": "./src/cli/sub/server/*.ts",
+    "#/*": [
+      "./src/*.ts",
+      "./src/*/index.ts",
+      "./src/*.d.ts"
+    ]
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prebuild": "node scripts/build-vis-asset.mjs",
+    "catalog:update": "node scripts/update-catalog.mjs --out dist/built-in-catalog.json",
+    "smoke": "node scripts/smoke.mjs",
+    "build:native:js": "node scripts/native/01-bundle.mjs",
+    "build:native:sea": "node scripts/native/build.mjs --profile=local",
+    "build:native:release": "node scripts/native/build.mjs --profile=release",
+    "package:native": "node scripts/native/package.mjs",
+    "produce:native:manifest": "node scripts/native/produce-manifest.mjs",
+    "release:native:resolve": "node scripts/native/resolve-release.mjs",
+    "test:native:smoke": "node scripts/native/smoke.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:cli-only": "node scripts/dev-cli-only.mjs",
+    "dev:server": "tsx --tsconfig ./tsconfig.dev.json --import ../../build/register-raw-text-loader.mjs ./src/main.ts server run --foreground",
+    "dev:server:restart": "node scripts/dev-server-restart.mjs",
+    "dev:plugin-marketplace": "node scripts/dev-plugin-marketplace-server.mjs",
+    "build:plugin-marketplace": "node scripts/build-plugin-marketplace-cdn.mjs",
+    "dev:prod": "node dist/main.mjs",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "corepack pnpm -w run build:packages && vitest run",
+    "e2e": "corepack pnpm -w run build:packages && KIMI_E2E=1 vitest run test/e2e",
+    "e2e:real": "corepack pnpm -w run build:packages && KIMI_E2E_REAL=1 vitest run test/e2e/real-llm-smoke.e2e.test.ts",
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "optionalDependencies": {
+    "@mariozechner/clipboard": "^0.3.9",
+    "koffi": "^2.16.0",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@harness-kit/tui-renderer": "workspace:^",
+    "@superliora/acp-adapter": "workspace:^",
+    "@superliora/gui-use": "workspace:^",
+    "@superliora/oauth": "workspace:^",
+    "@superliora/sdk": "workspace:^",
+    "@superliora/telemetry": "workspace:^",
+    "@superliora/migration-legacy": "workspace:^",
+    "@superliora/server": "workspace:^",
+    "@superliora/vis-server": "workspace:^",
+    "@superliora/vis-web": "workspace:*",
+    "@types/semver": "^7.7.0",
+    "@types/yazl": "^2.4.6",
+    "chalk": "^5.4.1",
+    "cli-highlight": "^2.1.11",
+    "commander": "^13.1.0",
+    "pathe": "^2.0.3",
+    "postject": "1.0.0-alpha.6",
+    "semver": "^7.7.4",
+    "smol-toml": "^1.6.1",
+    "tsx": "^4.21.0",
+    "yazl": "^3.3.1",
+    "zod": "^4.3.6"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

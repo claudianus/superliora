@@ -1,12 +1,12 @@
 # Agent 与子 Agent
 
-Kimi Code CLI 中的每次会话都由一个**主 Agent** 驱动。主 Agent 理解用户意图、规划步骤、调用工具，并在需要时向外派发**子 Agent** 处理更聚焦的子任务——例如探索一个陌生代码库、并行审阅多处实现、或在不触碰主上下文的情况下规划一次大型重构。
+SuperLiora CLI 中的每次会话都由一个**主 Agent** 驱动。主 Agent 理解用户意图、规划步骤、调用工具，并在需要时向外派发**子 Agent** 处理更聚焦的子任务——例如探索一个陌生代码库、并行审阅多处实现、或在不触碰主上下文的情况下规划一次大型重构。
 
 子 Agent 接受主 Agent 给出的任务描述，在自己的独立上下文里工作，最后把结论返回。它不会与用户直接对话，中间的思考和工具调用记录也不会混入主 Agent 的历史。
 
 ## 内置子 Agent
 
-Kimi Code CLI 内置三种子 Agent，开箱即用，分别面向不同任务形态：
+SuperLiora CLI 内置三种子 Agent，开箱即用，分别面向不同任务形态：
 
 - **`coder`**：默认子 Agent，通用软件工程助手，可以读写文件、执行命令、搜索代码并落地具体改动。
 - **`explore`**：代码库探索专用，只做只读操作，不修改任何文件。适合在不改动文件的前提下快速搜索、阅读和总结仓库。
@@ -39,7 +39,7 @@ Kimi Code CLI 内置三种子 Agent，开箱即用，分别面向不同任务形
 
 ## 指令文件
 
-全局 Kimi 专属指令可放在 `$KIMI_CODE_HOME/AGENTS.md`（默认：`~/.kimi-code/AGENTS.md`）。当你用 `KIMI_CODE_HOME` 移动数据根时，这份全局指令文件也会一起移动。跨工具通用指令仍可放在真实 OS home 下的 `~/.agents/AGENTS.md`，项目级指令仍放在项目目录中，例如 `.kimi-code/AGENTS.md` 或 `AGENTS.md`。
+全局 Kimi 专属指令可放在 `$SUPERLIORA_HOME/AGENTS.md`（默认：`~/.superliora/AGENTS.md`）。当你用 `SUPERLIORA_HOME` 移动数据根时，这份全局指令文件也会一起移动。跨工具通用指令仍可放在真实 OS home 下的 `~/.agents/AGENTS.md`，项目级指令仍放在项目目录中，例如 `.superliora/AGENTS.md` 或 `AGENTS.md`。
 
 ## 会话目录中的存储位置
 

@@ -4,7 +4,7 @@ import {
   getMemoryResponseSchema,
   listMemoriesResponseSchema,
   searchMemoriesResponseSchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { boot, closeAll } from './helpers/serverHarness';
@@ -29,7 +29,7 @@ async function jsonOf(response: Response): Promise<unknown> {
   return (await response.json()) as unknown;
 }
 
-describe('Kimi Recall memory REST API', () => {
+describe('Liora Recall memory REST API', () => {
   afterEach(async () => {
     await closeAll();
   });

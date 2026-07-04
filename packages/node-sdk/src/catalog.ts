@@ -1,4 +1,4 @@
-import type { KimiConfig, ModelAlias } from '@moonshot-ai/agent-core';
+import type { LioraConfig, ModelAlias } from '@superliora/agent-core';
 import {
   catalogBaseUrl,
   catalogProviderModels,
@@ -8,7 +8,7 @@ import {
   type CatalogProviderEntry,
   type ModelCapability,
   type ProviderType,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 
 export { catalogBaseUrl, catalogProviderModels, inferWireType };
 export type { Catalog, CatalogModel, CatalogProviderEntry };
@@ -75,7 +75,7 @@ export interface ApplyCatalogProviderOptions {
 
 /**
  * Parses an optional pruned models.dev catalog string — typically the
- * `__KIMI_CODE_BUILT_IN_CATALOG__` constant injected by tsdown at build
+ * `__SUPERLIORA_BUILT_IN_CATALOG__` constant injected by tsdown at build
  * time. Returns `undefined` when the argument is missing or invalid.
  */
 export function loadBuiltInCatalog(text?: string): Catalog | undefined {
@@ -100,7 +100,7 @@ export function loadBuiltInCatalog(text?: string): Catalog | undefined {
  * after the merge.
  */
 export function applyCatalogProvider(
-  config: KimiConfig,
+  config: LioraConfig,
   options: ApplyCatalogProviderOptions,
 ): { defaultModel: string } {
   config.providers[options.providerId] = {

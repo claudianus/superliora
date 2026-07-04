@@ -3,8 +3,8 @@
  */
 
 import { Disposable, InstantiationType, registerSingleton } from '../../di';
-import { ErrorCodes, KimiError } from '../../errors';
-import type { SkillDescriptor, SkillSearchHit } from '@moonshot-ai/protocol';
+import { ErrorCodes, LioraError } from '../../errors';
+import type { SkillDescriptor, SkillSearchHit } from '@superliora/protocol';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { SessionNotFoundError } from '../session/session';
@@ -52,7 +52,7 @@ export class SkillService extends Disposable implements ISkillService {
         args,
       });
     } catch (error) {
-      if (error instanceof KimiError) {
+      if (error instanceof LioraError) {
         if (error.code === ErrorCodes.SKILL_NOT_FOUND || error.code === ErrorCodes.SKILL_NAME_EMPTY) {
           throw new SkillNotFoundError(skillName, error.message);
         }

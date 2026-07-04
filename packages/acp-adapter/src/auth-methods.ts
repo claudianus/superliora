@@ -19,8 +19,8 @@ import type { AuthMethod } from '@agentclientprotocol/sdk';
  * Build the `terminal-auth` method advertised to ACP clients.
  *
  * Optional inputs:
- *  - `env`: extra env vars forwarded to the spawned `kimi login`
- *    subprocess (e.g. `{ KIMI_CODE_HOME: '/tmp/sandbox' }` for tests).
+ *  - `env`: extra env vars forwarded to the spawned `liora login`
+ *    subprocess (e.g. `{ SUPERLIORA_HOME: '/tmp/sandbox' }` for tests).
  *  - `legacyCommand`: absolute path of the agent binary, used to
  *    populate `_meta['terminal-auth'].command` so legacy clients can
  *    spawn `<binary> login` (top-level subcommand). When omitted, the
@@ -40,7 +40,7 @@ export function buildTerminalAuthMethod(
     description: 'Open the device-code login flow in a terminal.',
     // Appended to the agent's configured args by spec-compliant clients
     // (e.g. `args:['acp']` + `args:['--login']` → `acp --login`). The
-    // `--login` flag on `kimi acp` pivots into the login flow before
+    // `--login` flag on `liora acp` pivots into the login flow before
     // touching stdio.
     args: ['--login'],
     env: { ...env },
@@ -54,7 +54,7 @@ export function buildTerminalAuthMethod(
         // combined with the agent server's configured command (per Zed's
         // `meta_terminal_auth_task` in `agent_servers/src/acp.rs`).
         command: opts.legacyCommand,
-        // `<command> login` runs the top-level `kimi login` subcommand,
+        // `<command> login` runs the top-level `liora login` subcommand,
         // skipping the `acp` subprocess entirely. Same behaviour the
         // `kimi-cli` Python reference advertises.
         args: ['login'],

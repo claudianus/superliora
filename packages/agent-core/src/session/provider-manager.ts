@@ -1,15 +1,15 @@
 import { createHash } from 'node:crypto';
 import type { Logger } from '#/logging/types';
-import type { ProviderConfig as KosongProviderConfig, ModelCapability, ProviderRequestAuth } from '@moonshot-ai/kosong';
-import { APIStatusError, getModelCapability, UNKNOWN_CAPABILITY } from '@moonshot-ai/kosong';
+import type { ProviderConfig as KosongProviderConfig, ModelCapability, ProviderRequestAuth } from '@superliora/kosong';
+import { APIStatusError, getModelCapability, UNKNOWN_CAPABILITY } from '@superliora/kosong';
 import type {
-  KimiConfig,
+  LioraConfig,
   ModelAlias,
   ModelRoutingStrategy,
   OAuthRef,
   ProviderConfig,
 } from '../config';
-import { ErrorCodes, isKimiError, KimiError } from '../errors';
+import { ErrorCodes, isKimiError, LioraError } from '../errors';
 
 export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean }): Promise<string>;
@@ -46,7 +46,7 @@ export interface ResolvedRuntimeProviderRoute {
 }
 
 interface ProviderManagerOptions {
-  readonly config: KimiConfig | (() => KimiConfig);
+  readonly config: LioraConfig | (() => LioraConfig);
   readonly kimiRequestHeaders?: Record<string, string>;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
   readonly promptCacheKey?: string;
@@ -93,7 +93,7 @@ export class SingleModelProvider implements ModelProvider {
 
   resolveProviderConfig(model: string): ResolvedRuntimeProvider {
     if (model !== this.providerConfig.model) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Model "${model}" is not supported by SingleModelProvider.`,
       );
@@ -110,7 +110,7 @@ export class SingleModelProvider implements ModelProvider {
 export class ProviderManager implements ModelProvider {
   constructor(private readonly options: ProviderManagerOptions) {}
 
-  private get config(): KimiConfig {
+  private get config(): LioraConfig {
     const { config } = this.options;
     return typeof config === 'function' ? config() : config;
   }
@@ -122,7 +122,7 @@ export class ProviderManager implements ModelProvider {
   resolveProviderRoute(model: string): ResolvedRuntimeProviderRoute | undefined {
     const alias = this.config.models?.[model];
     if (alias === undefined) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Model "${model}" is not configured in config.toml. Add a [models."${model}"] entry with max_context_size.`,
       );
@@ -189,7 +189,7 @@ export class ProviderManager implements ModelProvider {
   private resolveModelAlias(model: string): ResolvedRuntimeProvider {
     const alias = this.config.models?.[model];
     if (alias === undefined) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Model "${model}" is not configured in config.toml. Add a [models."${model}"] entry with max_context_size.`,
       );
@@ -197,7 +197,7 @@ export class ProviderManager implements ModelProvider {
 
     const providerName = alias.provider ?? this.config.defaultProvider;
     if (providerName === undefined) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Model "${model}" must define a provider in config.toml.`,
       );
@@ -205,14 +205,14 @@ export class ProviderManager implements ModelProvider {
 
     const providerConfig = this.config.providers[providerName];
     if (providerConfig === undefined) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Provider "${providerName}" for model "${model}" is not configured.`,
       );
     }
 
     if (!Number.isInteger(alias.maxContextSize) || alias.maxContextSize <= 0) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Model "${model}" must define a positive max_context_size in config.toml.`,
       );
@@ -263,14 +263,14 @@ export class ProviderManager implements ModelProvider {
       oauthKeyFingerprint: fingerprintOAuthRef(oauthRef),
       oauthHost: oauthRef.oauthHost,
     });
-    const loginRequired = (cause?: unknown): KimiError =>
-      new KimiError(
+    const loginRequired = (cause?: unknown): LioraError =>
+      new LioraError(
         ErrorCodes.AUTH_LOGIN_REQUIRED,
         `OAuth provider "${providerName}" requires login before it can be used.`,
         { cause, details: authDetails() },
       );
-    const enrichLoginRequired = (error: KimiError): KimiError =>
-      new KimiError(ErrorCodes.AUTH_LOGIN_REQUIRED, error.message, {
+    const enrichLoginRequired = (error: LioraError): LioraError =>
+      new LioraError(ErrorCodes.AUTH_LOGIN_REQUIRED, error.message, {
         cause: error,
         details: { ...authDetails(), ...error.details },
       });
@@ -315,7 +315,7 @@ export class ProviderManager implements ModelProvider {
         } catch (error) {
           if (!(error instanceof APIStatusError) || error.statusCode !== 401) throw error;
           if (refreshed) {
-            throw new KimiError(
+            throw new LioraError(
               ErrorCodes.AUTH_LOGIN_REQUIRED,
               'OAuth provider credentials were rejected. Send /login to login.',
               {
@@ -524,7 +524,7 @@ function toKosongProviderConfig(
     }
     default: {
       const exhaustive: never = effectiveType;
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.MODEL_CONFIG_INVALID,
         `Unsupported provider type: ${String(exhaustive)}`,
       );
@@ -587,7 +587,7 @@ function providerApiKeyCredentials(provider: ProviderConfig): ApiKeyCredential[]
       ]);
     default: {
       const exhaustive: never = provider.type;
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.MODEL_CONFIG_INVALID,
         `Unsupported provider type: ${String(exhaustive)}`,
       );
@@ -765,7 +765,7 @@ function hasConfiguredApiKeySource(provider: ProviderConfig): boolean {
       );
     default: {
       const exhaustive: never = provider.type;
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.MODEL_CONFIG_INVALID,
         `Unsupported provider type: ${String(exhaustive)}`,
       );
@@ -812,7 +812,7 @@ function providerConfiguredValue(value: string | undefined, label: string): stri
   if (envKey === undefined) return trimmed;
   const resolved = nonEmptyString(process.env[envKey]);
   if (resolved !== undefined) return resolved;
-  throw new KimiError(
+  throw new LioraError(
     ErrorCodes.CONFIG_INVALID,
     `${label} references environment variable "${envKey}", but it is not set.`,
   );

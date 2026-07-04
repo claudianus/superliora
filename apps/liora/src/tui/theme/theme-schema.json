@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/moonshot-ai/kimi-code/blob/main/apps/liora/src/tui/theme/theme-schema.json",
+  "title": "SuperLiora Custom Theme",
+  "description": "Schema for SuperLiora TUI custom theme definitions",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL to this JSON Schema"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "description": "Optional schema version; version 2 supports appearance metadata"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Machine-readable theme identifier (kebab-case recommended)"
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable theme name shown in UI"
+    },
+    "base": {
+      "type": "string",
+      "enum": ["dark", "light"],
+      "description": "Built-in palette that unspecified tokens fall back to (default: dark)"
+    },
+    "colors": {
+      "type": "object",
+      "description": "Color overrides. Omitted tokens fall back to the dark theme defaults.",
+      "properties": {
+        "primary": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Primary brand color" },
+        "accent": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Accent / highlight color" },
+        "text": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Default text color" },
+        "textStrong": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Bold / emphasized text" },
+        "textDim": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Secondary / muted text" },
+        "textMuted": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Most faded text; for counters, scroll info" },
+        "background": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Root TUI canvas background" },
+        "surface": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Default panel/dialog surface" },
+        "surfaceRaised": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Raised surface for focused or premium chrome" },
+        "surfaceSunken": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Sunken surface for inactive panes" },
+        "border": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Border color" },
+        "borderFocus": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Focused border color" },
+        "selectionBg": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Selection background" },
+        "selectionText": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Selection text" },
+        "cursor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Cursor color for opt-in terminal palette mutation" },
+        "success": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Success state color" },
+        "warning": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Warning state color" },
+        "error": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Error state color" },
+        "diffAdded": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff added lines" },
+        "diffRemoved": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff removed lines" },
+        "diffAddedStrong": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff added lines (strong)" },
+        "diffRemovedStrong": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff removed lines (strong)" },
+        "diffGutter": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff gutter color" },
+        "diffMeta": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff meta color" },
+        "roleUser": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "User message accent" },
+        "shellMode": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Shell mode (`!`) prompt, editor border, and the echoed `$ command` line" },
+        "glow": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Glow / halo accent" },
+        "particle": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Particle accent" },
+        "gradientStart": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Premium gradient start" },
+        "gradientEnd": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Premium gradient end" },
+        "syntaxText": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax default / identifiers" },
+        "syntaxKeyword": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax keywords, constants, and built-ins" },
+        "syntaxFunction": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax function and method names" },
+        "syntaxType": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax class/type names and attributes" },
+        "syntaxString": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax string literals" },
+        "syntaxNumber": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax numeric and boolean literals" },
+        "syntaxComment": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax comments and doc tags" },
+        "syntaxOperator": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax operators, punctuation, and symbols" },
+        "syntaxTag": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax tags, selectors, and markup names" },
+        "syntaxMeta": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax metadata, decorators, and preprocessor lines" }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^#[0-9a-fA-F]{6}$",
+        "description": "Any valid ColorPalette token"
+      }
+    },
+    "ansi": {
+      "type": "object",
+      "description": "Imported terminal ANSI palette metadata"
+    },
+    "effects": {
+      "type": "object",
+      "description": "Optional skin effect metadata"
+    },
+    "layout": {
+      "type": "object",
+      "description": "Optional responsive layout metadata"
+    },
+    "source": {
+      "type": "object",
+      "description": "Optional source metadata for imported themes"
+    }
+  },
+  "additionalProperties": false
+}

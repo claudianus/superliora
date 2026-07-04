@@ -21,7 +21,7 @@ describe('default agent profiles', () => {
   it('loads the bundled default system prompt from embedded sources', () => {
     const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext);
 
-    expect(prompt).toContain('You are Kimi Code CLI');
+    expect(prompt).toContain('You are SuperLiora CLI');
     expect(prompt).toContain('Skill Runtime');
     expect(prompt).toContain('/workspace');
   });
@@ -74,13 +74,13 @@ describe('default agent profiles', () => {
     expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
   });
 
-  it('exposes KimiContext to coding profiles as the default compact code-context surface', () => {
-    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('KimiContext');
-    expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('KimiContext');
-    expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('KimiContext');
+  it('exposes LioraContext to coding profiles as the default compact code-context surface', () => {
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('LioraContext');
+    expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('LioraContext');
+    expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('LioraContext');
   });
 
-  it('exposes Kimi Recall only to writable coding profiles', () => {
+  it('exposes Liora Recall only to writable coding profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Memory');

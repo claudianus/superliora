@@ -80,9 +80,9 @@ export const ErrorCodes = {
   INTERNAL: 'internal',
 } as const;
 
-export type KimiErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
+export type LioraErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
-export interface KimiErrorInfo {
+export interface LioraErrorInfo {
   readonly title: string;
   readonly retryable: boolean;
   /**
@@ -407,7 +407,7 @@ export const KIMI_ERROR_INFO = {
     title: 'Plugin state failed to load',
     retryable: true,
     public: true,
-    action: 'Fix the installed.json file under $KIMI_CODE_HOME/plugins/ and run /plugins reload.',
+    action: 'Fix the installed.json file under $SUPERLIORA_HOME/plugins/ and run /plugins reload.',
   },
 
   'request.invalid': {
@@ -448,4 +448,4 @@ export const KIMI_ERROR_INFO = {
     public: true,
     action: 'Inspect logs or report the issue with diagnostics.',
   },
-} as const satisfies Record<KimiErrorCode, KimiErrorInfo>;
+} as const satisfies Record<LioraErrorCode, LioraErrorInfo>;

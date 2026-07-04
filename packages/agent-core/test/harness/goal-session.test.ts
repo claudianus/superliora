@@ -2,13 +2,13 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 
-import { APIConnectionError, APIStatusError, type ProviderConfig } from '@moonshot-ai/kosong';
+import { APIConnectionError, APIStatusError, type ProviderConfig } from '@superliora/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProviderManager } from '../../src/session/provider-manager';
 import type { AgentOptions } from '../../src/agent';
-import type { KimiConfig } from '../../src/config';
-import { ErrorCodes, KimiError } from '../../src/errors';
+import type { LioraConfig } from '../../src/config';
+import { ErrorCodes, LioraError } from '../../src/errors';
 import type { HookDef } from '../../src/session/hooks';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SDKSessionRPC } from '../../src/rpc';
@@ -80,7 +80,7 @@ async function setupSession(
   tools: readonly string[],
   generate?: NonNullable<AgentOptions['generate']>,
   hooks?: readonly HookDef[],
-  config?: KimiConfig,
+  config?: LioraConfig,
 ) {
   const scripted = createScriptedGenerate();
   const session = track(
@@ -460,7 +460,7 @@ describe('goal session end-to-end', () => {
     const sessionDir = await makeTempDir();
     const events: Array<Record<string, unknown>> = [];
     const { session, agent } = await setupSession(sessionDir, events, ['GetGoal'], async () => {
-      throw new KimiError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Model not set');
+      throw new LioraError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Model not set');
     });
     const api = new SessionAPIImpl(session);
     await api.createGoal({ agentId: 'main', objective: 'work' });

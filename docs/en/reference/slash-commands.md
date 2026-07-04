@@ -1,6 +1,6 @@
 # Slash Commands
 
-Slash commands are built-in control commands provided by Kimi Code CLI in the interactive TUI, covering account configuration, session management, mode switching, information queries, and more. Type `/` in the input box to trigger command completion — the candidate list filters in real time as you continue typing; command aliases are also matched.
+Slash commands are built-in control commands provided by SuperLiora CLI in the interactive TUI, covering account configuration, session management, mode switching, information queries, and more. Type `/` in the input box to trigger command completion — the candidate list filters in real time as you continue typing; command aliases are also matched.
 
 After typing the full command name, press `Enter` to execute. If the `/`-prefixed input does not match any built-in or Skill command, it is sent to the Agent as a regular message.
 
@@ -12,7 +12,7 @@ Some commands are only available in the idle state. Executing these commands whi
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/login` | — | Select an account or platform and log in: Kimi Code uses OAuth device-code flow; Kimi Platform uses API key login | No |
+| `/login` | — | Select an account or platform and log in: SuperLiora uses OAuth device-code flow; Kimi Platform uses API key login | No |
 | `/logout` | — | Clear credentials for the currently selected account | No |
 | `/provider` | — | Open the interactive provider manager to view, add, and remove configured providers. See [Platforms & Models — `/provider` and provider management](../configuration/providers.md#provider-与供应商管理) | Yes |
 | `/model` | — | Switch the LLM model used in the current session | Yes |
@@ -37,8 +37,8 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/reload-tui` | — | Reload only the `tui.toml` UI preferences (theme, editor, notifications, etc.) without rebuilding the session | Yes |
 | `/init` | — | Analyze the current codebase and generate `AGENTS.md` | No |
 | `/export-md [<path>]` | `/export` | Export the current session as a Markdown file | No |
-| `/export-debug-zip` | — | Export the current session as a debug ZIP archive (same behavior as [`kimi export`](./kimi-command.md#kimi-export)) | No |
-| `/add-dir [<path>]` | — | Add an extra workspace directory to the current session. Run without a path (or with `list`) to list configured directories. When adding, choose whether to remember the directory for the project in `.kimi-code/local.toml` | No |
+| `/export-debug-zip` | — | Export the current session as a debug ZIP archive (same behavior as [`liora export`](./liora-command.md#kimi-export)) | No |
+| `/add-dir [<path>]` | — | Add an extra workspace directory to the current session. Run without a path (or with `list`) to list configured directories. When adding, choose whether to remember the directory for the project in `.superliora/local.toml` | No |
 
 ## Modes & Run Control
 
@@ -49,7 +49,7 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/plan [on\|off]` | — | Toggle Plan mode. Without arguments, flips the current state; explicitly passing `on`/`off` forces the setting. Simply toggling does not create an empty plan file | Yes |
 | `/plan clear` | — | Clear the current plan | No |
 | `/swarm on\|off` | — | Turn swarm mode on or off without sending a prompt. | Yes |
-| `/swarm <task>` | — | Turn swarm mode on, then send `<task>` as a normal prompt. If the turn completes normally, swarm mode turns off automatically. In `manual` permission mode, Kimi Code asks whether to switch to `auto` or `yolo` before starting. | No |
+| `/swarm <task>` | — | Turn swarm mode on, then send `<task>` as a normal prompt. If the turn completes normally, swarm mode turns off automatically. In `manual` permission mode, SuperLiora asks whether to switch to `auto` or `yolo` before starting. | No |
 | `/goal [...]` | — | Start or manage an autonomous goal | See below |
 
 ::: warning
@@ -58,7 +58,7 @@ Some commands are only available in the idle state. Executing these commands whi
 
 ## Autonomous Goal
 
-`/goal` starts or manages goal mode: a persistent objective that Kimi Code works toward across automatically continuing turns. For usage guidance and examples, see [Goals](../guides/goals.md).
+`/goal` starts or manages goal mode: a persistent objective that SuperLiora works toward across automatically continuing turns. For usage guidance and examples, see [Goals](../guides/goals.md).
 
 ```sh
 /goal Update the checkout docs, run docs build, and stop if still blocked after 20 turns
@@ -89,10 +89,10 @@ If an upcoming goal needs to start with `manage`, put `--` after `next`:
 In non-interactive prompt mode, only the create forms start goal mode:
 
 ```sh
-kimi -p "/goal Fix the failing checkout test"
+liora -p "/goal Fix the failing checkout test"
 ```
 
-Prompt mode exits with code `0` when the goal completes, `3` when it blocks, and `6` when it pauses. Other `/goal` subcommands, including `next`, are TUI controls and are not handled by `kimi -p`.
+Prompt mode exits with code `0` when the goal completes, `3` when it blocks, and `6` when it pauses. Other `/goal` subcommands, including `next`, are TUI controls and are not handled by `liora -p`.
 
 ## Information & Status
 
@@ -104,25 +104,25 @@ Prompt mode exits with code `0` when the goal completes, `3` when it blocks, and
 | `/status` | — | Show the current session runtime state: version, model, working directory, permission mode, etc. | Yes |
 | `/mcp` | — | List MCP servers and their connection status in the current session | Yes |
 | `/plugins` | — | Open the interactive plugin manager | Yes |
-| `/version` | — | Display the Kimi Code CLI version number | Yes |
+| `/version` | — | Display the SuperLiora CLI version number | Yes |
 | `/feedback` | — | Submit feedback with optional diagnostic logs and codebase context | Yes |
 
 ## Exit
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/exit` | `/quit`, `/q` | Exit Kimi Code CLI | No |
+| `/exit` | `/quit`, `/q` | Exit SuperLiora CLI | No |
 
 ## Built-in skill commands
 
-Kimi Code CLI ships with a set of built-in Skills that appear directly as `/<name>` slash commands. Unlike external Skills, they do not require the `skill:` prefix and are available out of the box.
+SuperLiora CLI ships with a set of built-in Skills that appear directly as `/<name>` slash commands. Unlike external Skills, they do not require the `skill:` prefix and are available out of the box.
 
 | Command | Description |
 | --- | --- |
 | `/mcp-config` | Configure MCP servers and handle MCP OAuth login. See [MCP](../customization/mcp.md) |
 | `/custom-theme [<text>]` | Create or edit a custom TUI color theme. See [Themes](../customization/themes.md) |
 | `/update-config` | Inspect or edit `config.toml` (model, provider, permission, hooks) and `tui.toml` (theme, editor, notifications, auto-update) |
-| `/import-from-cc-codex` | Import Claude Code and Codex instructions, skills, and MCP settings into Kimi Code |
+| `/import-from-cc-codex` | Import Claude Code and Codex instructions, skills, and MCP settings into SuperLiora |
 | `/sub-skill` | Discover and reorganize the local skill inventory into hierarchical sub-skill bundles. Includes `/sub-skill.review` (read-only proposal) and `/sub-skill.consolidate` (apply the reorganization) |
 
 All built-in Skill commands are only available in the idle state.
@@ -147,7 +147,7 @@ For example, a child Skill named `review` inside a parent Skill named `code-styl
 
 For convenience, external Skill commands also support a shorthand form that omits the `skill:` prefix — `/<name>` — as long as the name is not taken by a system slash command. That is, `/code-style` falls back to matching `/skill:code-style`.
 
-Built-in Skills shipped with Kimi Code CLI appear directly as `/<name>` in the slash command panel. For example, `/mcp-config` helps configure MCP servers and handle MCP OAuth login, and `/custom-theme [extra text]` invokes the custom-theme workflow to create or edit a TUI theme.
+Built-in Skills shipped with SuperLiora CLI appear directly as `/<name>` in the slash command panel. For example, `/mcp-config` helps configure MCP servers and handle MCP OAuth login, and `/custom-theme [extra text]` invokes the custom-theme workflow to create or edit a TUI theme.
 
 ::: info
 All Skill commands are only available in the idle state. `flow`-type Skills are also exposed via `/skill:<name>` — there is no separate `/flow:` namespace.

@@ -5,9 +5,9 @@ import {
   fsBrowseQuerySchema,
   fsBrowseResponseSchema,
   fsHomeResponseSchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
-import { IWorkspaceFsService, WorkspaceFsNotAbsoluteError, WorkspaceFsNotFoundError, WorkspaceFsPermissionError, type IInstantiationService } from '@moonshot-ai/agent-core';
+import { IWorkspaceFsService, WorkspaceFsNotAbsoluteError, WorkspaceFsNotFoundError, WorkspaceFsPermissionError, type IInstantiationService } from '@superliora/agent-core';
 
 import { errEnvelope, okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';

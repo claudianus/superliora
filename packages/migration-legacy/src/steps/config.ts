@@ -2,12 +2,12 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import {
   HookDefSchema,
-  KimiConfigSchema,
+  LioraConfigSchema,
   ModelAliasSchema,
   ProviderConfigSchema,
   transformTomlData,
-} from '@moonshot-ai/agent-core';
-import { FLAG_DEFINITIONS } from '@moonshot-ai/agent-core/flags/registry';
+} from '@superliora/agent-core';
+import { FLAG_DEFINITIONS } from '@superliora/agent-core/flags/registry';
 import { atomicWrite } from '../atomic-write.js';
 import { DEFAULT_CONFIG_FILE_TEXT, isTuiStubOrMissing } from '../stub-detect.js';
 import {
@@ -33,7 +33,7 @@ const REGISTERED_EXPERIMENTAL_FLAGS: ReadonlySet<string> = new Set(
   FLAG_DEFINITIONS.map((definition) => definition.id),
 );
 
-// kimi-code's tui.toml `theme` enum (mirrors apps/kimi-code TuiThemeSchema).
+// kimi-code's tui.toml `theme` enum (mirrors apps/liora TuiThemeSchema).
 // A legacy theme outside this set would fail loadTuiConfig()'s whole-file
 // validation, taking the migrated editor command down with it — so drop it.
 const TUI_THEMES: ReadonlySet<string> = new Set(['dark', 'light', 'auto']);
@@ -43,11 +43,11 @@ function camelToSnake(s: string): string {
 }
 
 // The config.toml top-level keys kimi-code understands, derived from the live
-// KimiConfigSchema so the set tracks kimi-code automatically. `raw` is internal
+// LioraConfigSchema so the set tracks kimi-code automatically. `raw` is internal
 // — never migrate it. `providers` / `models` / `hooks` are filtered per-entry,
 // not via this set.
 const SUPPORTED_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set(
-  Object.keys(KimiConfigSchema.shape)
+  Object.keys(LioraConfigSchema.shape)
     .filter((k) => k !== 'raw' && k !== 'providers' && k !== 'models' && k !== 'hooks')
     .map(camelToSnake),
 );
@@ -393,7 +393,7 @@ export async function migrateConfigStep(input: ConfigStepInput): Promise<ConfigS
   //     Providers/models are already validated per-entry above, so schema
   //     failures here can only come from plain top-level keys.
   for (;;) {
-    const result = KimiConfigSchema.safeParse(transformTomlData(migratedTop));
+    const result = LioraConfigSchema.safeParse(transformTomlData(migratedTop));
     if (result.success) break;
     const badKeys = new Set<string>();
     for (const issue of result.error.issues) {

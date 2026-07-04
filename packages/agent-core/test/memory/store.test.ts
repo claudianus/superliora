@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KimiRecallStore, type AgentMemoryRuntime } from '../../src/memory';
+import { LioraRecallStore, type AgentMemoryRuntime } from '../../src/memory';
 
 const roots: string[] = [];
 
@@ -16,7 +16,7 @@ afterEach(() => {
   }
 });
 
-describe('KimiRecallStore', () => {
+describe('LioraRecallStore', () => {
   it('persists memories across session runtimes and ranks relevant results', async () => {
     const { store, runtime } = makeRuntime('s1', '/repo');
     const saved = await runtime.remember({
@@ -106,20 +106,20 @@ describe('KimiRecallStore', () => {
     expect(results[0]?.reasons).toContain('frequently-used');
   });
 
-  it('renders retrieved memories as untrusted Kimi Recall context', async () => {
+  it('renders retrieved memories as untrusted Liora Recall context', async () => {
     const { runtime } = makeRuntime('s1', '/repo');
     await runtime.remember({
       kind: 'semantic',
       subject: 'project codename',
-      content: 'The current long-term memory project is called Kimi Recall.',
+      content: 'The current long-term memory project is called Liora Recall.',
       importance: 0.85,
     });
 
-    const injection = await runtime.getInjection('Kimi Recall project');
+    const injection = await runtime.getInjection('Liora Recall project');
 
-    expect(injection).toContain('<kimi_recall_memories>');
+    expect(injection).toContain('<liora_recall_memories>');
     expect(injection).toContain('<untrusted_memory>');
-    expect(injection).toContain('Kimi Recall');
+    expect(injection).toContain('Liora Recall');
   });
 
   it('writes readable markdown records for saved memories', async () => {
@@ -128,7 +128,7 @@ describe('KimiRecallStore', () => {
     await runtime.remember({
       kind: 'semantic',
       subject: 'audit trail',
-      content: 'The user wants Kimi Recall memories to be inspectable as Markdown.',
+      content: 'The user wants Liora Recall memories to be inspectable as Markdown.',
       tags: ['audit'],
       importance: 0.8,
     });
@@ -151,7 +151,7 @@ describe('KimiRecallStore', () => {
 
     rmSync(join(root, 'memory', 'kimi-recall.sqlite'), { force: true });
 
-    const restoredStore = new KimiRecallStore({ homeDir: root });
+    const restoredStore = new LioraRecallStore({ homeDir: root });
     const restoredRuntime = runtimeFrom(restoredStore, 's2', '/repo');
     const results = await restoredRuntime.search({ query: 'Markdown-backed recall recovery', limit: 3 });
 
@@ -171,7 +171,7 @@ describe('KimiRecallStore', () => {
     await runtime.forget(saved.id);
     rmSync(join(root, 'memory', 'kimi-recall.sqlite'), { force: true });
 
-    const restoredStore = new KimiRecallStore({ homeDir: root });
+    const restoredStore = new LioraRecallStore({ homeDir: root });
     const restoredRuntime = runtimeFrom(restoredStore, 's2', '/repo');
     const activeResults = await restoredRuntime.search({ query: 'remain deleted Markdown restore', limit: 5 });
     const deletedResults = await restoredRuntime.search({
@@ -195,7 +195,7 @@ describe('KimiRecallStore', () => {
     });
 
     await runtime.search({ query: 'SQLite access metadata', limit: 5 });
-    const reopened = new KimiRecallStore({ homeDir: root });
+    const reopened = new LioraRecallStore({ homeDir: root });
     const reopenedMemory = await runtimeFrom(reopened, 's2', '/repo').get(saved.id);
 
     expect(reopenedMemory?.accessCount).toBe(1);
@@ -275,7 +275,7 @@ describe('KimiRecallStore', () => {
     });
 
     rmSync(join(root, 'memory', 'kimi-recall.sqlite'), { force: true });
-    const restored = new KimiRecallStore({ homeDir: root });
+    const restored = new LioraRecallStore({ homeDir: root });
     const restoredRuntime = runtimeFrom(restored, 's2', '/repo');
 
     expect(await restoredRuntime.get('forged-memory')).toBeUndefined();
@@ -286,15 +286,15 @@ describe('KimiRecallStore', () => {
 function makeRuntime(
   sessionId: string,
   workDir: string,
-): { readonly root: string; readonly store: KimiRecallStore; readonly runtime: AgentMemoryRuntime } {
+): { readonly root: string; readonly store: LioraRecallStore; readonly runtime: AgentMemoryRuntime } {
   const root = mkdtempSync(join(tmpdir(), 'kimi-recall-test-'));
   roots.push(root);
-  const store = new KimiRecallStore({ homeDir: root });
+  const store = new LioraRecallStore({ homeDir: root });
   const runtime = runtimeFrom(store, sessionId, workDir);
   return { root, store, runtime };
 }
 
-function runtimeFrom(store: KimiRecallStore, sessionId: string, workDir: string): AgentMemoryRuntime {
+function runtimeFrom(store: LioraRecallStore, sessionId: string, workDir: string): AgentMemoryRuntime {
   return store.runtimeForSession({ sessionId, workDir }).forAgent({
     sessionId,
     agentId: 'main',

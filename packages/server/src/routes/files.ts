@@ -10,10 +10,10 @@ import {
   deleteFileResponseSchema,
   getFileParamSchema,
   uploadFileResponseSchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 import { z } from 'zod';
 
-import { DEFAULT_MAX_UPLOAD_BYTES, FileNotFoundError, FileTooLargeError, IFileStore, type IInstantiationService } from '@moonshot-ai/agent-core';
+import { DEFAULT_MAX_UPLOAD_BYTES, FileNotFoundError, FileTooLargeError, IFileStore, type IInstantiationService } from '@superliora/agent-core';
 
 import { errEnvelope, okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';

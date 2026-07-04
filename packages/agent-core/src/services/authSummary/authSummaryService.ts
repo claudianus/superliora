@@ -3,8 +3,9 @@
  */
 
 import { Disposable, InstantiationType, registerSingleton } from '../../di';
-import type { KimiConfig } from '../../config';
-import type { AuthSummary } from '@moonshot-ai/protocol';
+import type { LioraConfig } from '../../config';
+import type { AuthSummary } from '@superliora/protocol';
+import { SUPERLIORA_PROVIDER_NAME } from '@superliora/oauth';
 import { createManagedAuthFacade, type ServicesAuthFacade } from '../auth/managedAuth';
 import { IEnvironmentService } from '../environment/environment';
 import { ICoreProcessService } from '../coreProcess/coreProcess';
@@ -15,8 +16,8 @@ import {
   AuthModelNotResolvedError,
 } from './authSummary';
 
-/** Wire name of the OAuth-managed provider (`@moonshot-ai/kimi-code-oauth`'s `KIMI_CODE_PROVIDER_NAME`). */
-const MANAGED_PROVIDER_NAME = 'managed:kimi-code';
+/** Wire name of the OAuth-managed provider (`@superliora/oauth`'s `SUPERLIORA_PROVIDER_NAME`). */
+const MANAGED_PROVIDER_NAME = SUPERLIORA_PROVIDER_NAME;
 
 export class AuthSummaryService
   extends Disposable
@@ -109,12 +110,12 @@ export class AuthSummaryService
 
   /* ----------------------------- internals ---------------------------- */
 
-  private async _readConfig(): Promise<KimiConfig> {
-    // `reload: true` forces KimiCore to re-read `config.toml` from disk
+  private async _readConfig(): Promise<LioraConfig> {
+    // `reload: true` forces LioraCore to re-read `config.toml` from disk
     // before returning. Critical for the auth probe path: writes from
     // `OAuthService` (toolkit's provisioning) and `IProviderService`
     // future RW endpoints land on disk via `writeConfigFile`, but
-    // KimiCore's `this.config` only refreshes when something explicitly
+    // LioraCore's `this.config` only refreshes when something explicitly
     // asks for `reload`. Without this flag, `GET /v1/auth` would stay
     // `ready:false` for the entire daemon lifetime after first login.
     return this.core.rpc.getKimiConfig({ reload: true });

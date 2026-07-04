@@ -29,11 +29,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket as WsWebSocket } from 'ws';
 
-import { DaemonClient, WsClient, type AnyFrame } from '../src/index.js';
+import { DaemonClient, resolveServerUrl, WsClient, type AnyFrame } from '../src/index.js';
 import { fetchWithReport } from '../src/report.js';
 import { createCaseLogger } from './log.js';
 
-const BASE_URL = process.env['KIMI_SERVER_URL'] ?? 'http://127.0.0.1:58627';
+const BASE_URL = resolveServerUrl();
 const API_PREFIX = '/api/v1';
 const HANDSHAKE_TIMEOUT_MS = 5_000;
 const PROMPT_TIMEOUT_MS = 120_000;

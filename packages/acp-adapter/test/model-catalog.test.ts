@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ModelAlias } from '@moonshot-ai/kimi-code-sdk';
+import type { ModelAlias } from '@superliora/sdk';
 
 import { deriveAlwaysThinking, deriveThinkingSupported } from '../src/model-catalog';
 

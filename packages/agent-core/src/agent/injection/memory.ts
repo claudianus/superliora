@@ -3,7 +3,7 @@ import { isRealUserPromptOrigin, type ContextMessage } from '../context/types';
 import { DynamicInjector } from './injector';
 
 export class MemoryInjector extends DynamicInjector {
-  protected override readonly injectionVariant = 'kimi_recall';
+  protected override readonly injectionVariant = 'liora_recall';
   private lastAttemptedUserMessageAt: number | null = null;
 
   override onContextClear(): void {

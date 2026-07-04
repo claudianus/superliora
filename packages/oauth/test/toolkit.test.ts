@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyManagedKimiCodeConfig,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_PROVIDER_NAME,
   KimiOAuthToolkit,
   resolveKimiCodeOAuthKey,
   resolveKimiTokenStorageName,
@@ -80,7 +80,7 @@ describe('resolveKimiTokenStorageName', () => {
   it('maps config oauth keys to the file storage token name', () => {
     expect(
       resolveKimiTokenStorageName({
-        providerName: KIMI_CODE_PROVIDER_NAME,
+        providerName: SUPERLIORA_PROVIDER_NAME,
         oauthKey: 'oauth/kimi-code',
       }),
     ).toBe('kimi-code');
@@ -122,7 +122,7 @@ describe('KimiOAuthToolkit', () => {
     });
 
     await expect(toolkit.status()).resolves.toEqual({
-      providers: [{ providerName: KIMI_CODE_PROVIDER_NAME, hasToken: true }],
+      providers: [{ providerName: SUPERLIORA_PROVIDER_NAME, hasToken: true }],
     });
     await expect(toolkit.tokenProvider().getAccessToken()).resolves.toBe('access-1');
   });
@@ -139,7 +139,7 @@ describe('KimiOAuthToolkit', () => {
 
     await expect(
       toolkit
-        .tokenProvider(KIMI_CODE_PROVIDER_NAME, { key: 'oauth/custom-kimi-code' })
+        .tokenProvider(SUPERLIORA_PROVIDER_NAME, { key: 'oauth/custom-kimi-code' })
         .getAccessToken(),
     ).resolves.toBe('custom-access');
   });
@@ -185,7 +185,7 @@ describe('KimiOAuthToolkit', () => {
 
     await expect(
       toolkit
-        .tokenProvider(KIMI_CODE_PROVIDER_NAME, { key: oauthKey, oauthHost })
+        .tokenProvider(SUPERLIORA_PROVIDER_NAME, { key: oauthKey, oauthHost })
         .getAccessToken(),
     ).resolves.toBe('rotated-dev-access');
   });
@@ -225,7 +225,7 @@ describe('KimiOAuthToolkit', () => {
 
     await expect(
       toolkit
-        .tokenProvider(KIMI_CODE_PROVIDER_NAME, {
+        .tokenProvider(SUPERLIORA_PROVIDER_NAME, {
           key: 'oauth/custom-kimi-code',
           oauthHost: 'https://auth.one.test/',
         })
@@ -233,7 +233,7 @@ describe('KimiOAuthToolkit', () => {
     ).resolves.toBe('rotated-1');
     await expect(
       toolkit
-        .tokenProvider(KIMI_CODE_PROVIDER_NAME, {
+        .tokenProvider(SUPERLIORA_PROVIDER_NAME, {
           key: 'oauth/custom-kimi-code',
           oauthHost: 'https://auth.two.test',
         })
@@ -273,7 +273,7 @@ describe('KimiOAuthToolkit', () => {
     });
 
     await expect(
-      toolkit.getCachedAccessToken(KIMI_CODE_PROVIDER_NAME, { key: 'oauth/custom-kimi-code' }),
+      toolkit.getCachedAccessToken(SUPERLIORA_PROVIDER_NAME, { key: 'oauth/custom-kimi-code' }),
     ).resolves.toBe('custom-cached-access');
   });
 
@@ -303,7 +303,7 @@ describe('KimiOAuthToolkit', () => {
         read: () => config,
         write,
         apply: (target, input) => {
-          target.providers[KIMI_CODE_PROVIDER_NAME] = {
+          target.providers[SUPERLIORA_PROVIDER_NAME] = {
             type: 'kimi',
             apiKey: '',
           };
@@ -317,7 +317,7 @@ describe('KimiOAuthToolkit', () => {
 
     storage.tokens.set('kimi-code', token('access-1'));
     await expect(toolkit.login()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
       provision: {
         defaultModel: 'kimi-code/kimi-for-coding',
@@ -381,7 +381,7 @@ describe('KimiOAuthToolkit', () => {
           read: () => config,
           write,
           apply: (target, input) => {
-            target.providers[KIMI_CODE_PROVIDER_NAME] = {
+            target.providers[SUPERLIORA_PROVIDER_NAME] = {
               type: 'kimi',
               apiKey: '',
             };
@@ -394,7 +394,7 @@ describe('KimiOAuthToolkit', () => {
       });
 
       await expect(toolkit.login(undefined, { onDeviceCode })).resolves.toMatchObject({
-        providerName: KIMI_CODE_PROVIDER_NAME,
+        providerName: SUPERLIORA_PROVIDER_NAME,
         ok: true,
         provision: {
           defaultModel: 'kimi-code/kimi-for-coding',
@@ -477,13 +477,13 @@ describe('KimiOAuthToolkit', () => {
     });
 
     await expect(toolkit.login(undefined, { baseUrl: devBaseUrl })).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
     });
     expect(oauthFetch).toHaveBeenCalledTimes(2);
     expect(storage.tokens.get('kimi-code')?.accessToken).toBe('prod-access');
     expect(storage.tokens.get(devStorageName)?.accessToken).toBe('dev-access');
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]?.oauth).toEqual({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]?.oauth).toEqual({
       storage: 'file',
       key: devOauthKey,
       oauthHost: devOauthHost,
@@ -554,7 +554,7 @@ describe('KimiOAuthToolkit', () => {
     });
 
     await expect(toolkit.login(undefined, { onDeviceCode })).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
     });
     expect(onDeviceCode).toHaveBeenCalledTimes(1);
@@ -564,7 +564,7 @@ describe('KimiOAuthToolkit', () => {
   it('removes managed config on logout when an adapter supports cleanup', async () => {
     const storage = new MemoryTokenStorage();
     storage.tokens.set('kimi-code', token('access-1'));
-    const config = { providers: { [KIMI_CODE_PROVIDER_NAME]: { type: 'kimi' } } };
+    const config = { providers: { [SUPERLIORA_PROVIDER_NAME]: { type: 'kimi' } } };
     const write = vi.fn();
     const remove = vi.fn();
     const toolkit = new KimiOAuthToolkit({
@@ -581,7 +581,7 @@ describe('KimiOAuthToolkit', () => {
     });
 
     await expect(toolkit.logout()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
     });
     expect(remove).toHaveBeenCalledWith(config);

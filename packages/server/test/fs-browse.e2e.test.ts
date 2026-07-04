@@ -24,7 +24,7 @@ import type {
   FsBrowseResponse,
   FsHomeResponse,
   Workspace,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 let tmpDir: string;
 let lockPath: string;
@@ -32,9 +32,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-fsbrowse-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-fsbrowse-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-fsbrowse-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-fsbrowse-home-'));
 });
 
 afterEach(async () => {

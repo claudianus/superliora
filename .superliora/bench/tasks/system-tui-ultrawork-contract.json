@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "system.tui-ultrawork-contract.v1",
+  "title": "Run TUI Ultrawork command contract tests",
+  "suite": "system",
+  "kind": "tui-contract",
+  "risk": "medium",
+  "tags": ["tui", "ultrawork", "contract-test"],
+  "prompt": "Run the real SuperLiora TUI Ultrawork command contract tests and verify that the prompt contract keeps the internal benchmark loop and web-free boundary active.",
+  "budgets": {
+    "maxWallMs": 180000,
+    "maxCommands": 2,
+    "maxPromptChars": 900
+  },
+  "checks": [
+    {
+      "type": "source_command",
+      "command": "corepack",
+      "args": [
+        "pnpm",
+        "--filter",
+        "@superliora/liora",
+        "exec",
+        "vitest",
+        "run",
+        "test/tui/commands/ultrawork.test.ts"
+      ],
+      "timeoutMs": 180000,
+      "weight": 2
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "-e",
+        "const fs=require('node:fs'); const contract=fs.readFileSync('apps/liora/src/tui/commands/ultrawork-contract.ts','utf8'); for (const text of ['SuperLiora Free Web Research','no-subscription web research as a primary Ultrawork capability','built-in WebSearch and FetchURL tools','local no-subscription provider','fetch primary sources before relying on snippets','primary research path internal','Absorb Scrapling-class ideas','CSS selector targeting, main-content extraction, screenshots, session reuse','rendered DOM observation, screenshots, downloads, PDF extraction','user-provided authenticated sessions, and explicitly authorized test targets','do not defeat CAPTCHA, paywall, login','without a paid search subscription or extra-cost search API','SuperLiora Agent Bench','node scripts/liora-agent-sota-gate.mjs','--phase sota-gate','C001','C002','C003','pass rate','Do not use apps/vis or browser UI paths as a success surface','Human Writing / Anti-Slop','surface-specific voice lane','product UX microcopy uses friendly 해요체','institutional corporate copy uses formal 합니다/습니다','style-analysis inputs only','do not copy source passages','avoid-ai-writing style checks','never use detector signals to accuse an author','reread the result for changed meaning']) { if (!contract.includes(text)) throw new Error(`missing ${text}`); }"
+      ],
+      "timeoutMs": 30000,
+      "weight": 1
+    }
+  ]
+}

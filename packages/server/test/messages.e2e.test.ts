@@ -2,7 +2,7 @@
  * Messages history end-to-end tests (W7.1 / Chain 3 / P1.3).
  *
  * **Bootstrap strategy**: spawn the real server (port 0, tmp lock + bridge
- * home) and exercise the 2 endpoints via `app.inject(...)`. KimiCore is fully
+ * home) and exercise the 2 endpoints via `app.inject(...)`. LioraCore is fully
  * constructed via the W3 bridge pattern — fresh tmpdir per test, no `~/.kimi`
  * interference.
  *
@@ -48,9 +48,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-messages-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-messages-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-messages-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-messages-home-'));
 });
 
 afterEach(async () => {

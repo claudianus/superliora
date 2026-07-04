@@ -15,7 +15,7 @@
  *
  * **Bootstrap strategy**: same as tools.e2e — spawn the real server with a
  * sandboxed HOME. Project skills are seeded under
- * `<cwd>/.kimi-code/skills/<name>/SKILL.md` BEFORE the session is created,
+ * `<cwd>/.superliora/skills/<name>/SKILL.md` BEFORE the session is created,
  * because the registry scans skill roots at session construction.
  *
  * **Activation success**: `TurnFlow.prompt` enqueues asynchronously, so the
@@ -33,7 +33,7 @@ import {
   activateSkillResultSchema,
   listSkillsResponseSchema,
   searchSkillsResponseSchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
@@ -46,9 +46,9 @@ let workspaceDir: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-skills-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-skills-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-skills-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-skills-home-'));
   workspaceDir = join(tmpDir, 'workspace');
   mkdirSync(workspaceDir, { recursive: true });
 });
@@ -130,9 +130,9 @@ async function createSession(r: RunningServer): Promise<string> {
   return env.data.id;
 }
 
-/** Seed a project skill bundle at `<cwd>/.kimi-code/skills/<name>/SKILL.md`. */
+/** Seed a project skill bundle at `<cwd>/.superliora/skills/<name>/SKILL.md`. */
 function seedProjectSkill(name: string, frontmatterType?: string): void {
-  const dir = join(workspaceDir, '.kimi-code', 'skills', name);
+  const dir = join(workspaceDir, '.superliora', 'skills', name);
   mkdirSync(dir, { recursive: true });
   const typeLine = frontmatterType === undefined ? '' : `type: ${frontmatterType}\n`;
   writeFileSync(

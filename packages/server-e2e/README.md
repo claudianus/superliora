@@ -1,4 +1,4 @@
-# @moonshot-ai/server-e2e
+# @superliora/server-e2e
 
 Wire-level test client for the kimi-code server (HTTP + WS). This package is
 **private** — it ships scenario scripts that double as smoke tests and a small
@@ -18,12 +18,12 @@ typed `DaemonClient` you can reuse in vitest e2e files.
   `packages/server/test/ws-*.e2e.test.ts` (in-process `startServer` boots are
   faster and assert on the server's internal services directly).
 - You want a typed in-process facade over the server for user-facing code —
-  use `@moonshot-ai/node-sdk` instead (`KimiHarness`, `Session`).
+  use `@superliora/node-sdk` instead (`LioraHarness`, `Session`).
 
 ## Quick start
 
 ```ts
-import { DaemonClient } from '@moonshot-ai/server-e2e';
+import { DaemonClient } from '@superliora/server-e2e';
 
 const client = new DaemonClient(); // http://127.0.0.1:58627 by default
 
@@ -47,10 +47,10 @@ await client.archiveSession(session.id);
 ## Scripts
 
 ```sh
-pnpm --filter @moonshot-ai/server-e2e typecheck
-pnpm --filter @moonshot-ai/server-e2e test            # vitest self-tests
-pnpm --filter @moonshot-ai/server-e2e test:scenarios  # run every scenarios/*.ts
-pnpm --filter @moonshot-ai/server-e2e docker:e2e      # run server + scenarios in docker
+pnpm --filter @superliora/server-e2e typecheck
+pnpm --filter @superliora/server-e2e test            # vitest self-tests
+pnpm --filter @superliora/server-e2e test:scenarios  # run every scenarios/*.ts
+pnpm --filter @superliora/server-e2e docker:e2e      # run server + scenarios in docker
 ```
 
 Both `test` and `test:scenarios` require a running server (set `KIMI_SERVER_URL`
@@ -65,22 +65,22 @@ timeline of case logs, HTTP request / response envelopes, WebSocket frames, and
 test results. JSON payloads are kept in collapsed detail blocks so the terminal
 can stay concise while the full wire trace remains available.
 
-`docker:e2e` builds `kimi-server:dev` from the root `Dockerfile`, layers
+`docker:e2e` builds `liora-server:dev` from the root `Dockerfile`, layers
 `packages/server-e2e/Dockerfile` on top, then runs a one-shot Docker container.
 The container starts the server on container-local `127.0.0.1:58627` and runs
 `pnpm test:scenarios` in the same container. The launcher intentionally does
 not pass `-p` / `--publish`, so it does not expose a server port on the host and
 can coexist with the `docker-compose.yml` server that publishes host port 58627.
 Reports are written under
-`~/.kimi-code-server-dev/server-e2e-reports/docker/<run-id>/latest/index.html`;
+`~/.superliora-server-dev/server-e2e-reports/docker/<run-id>/latest/index.html`;
 the server log is written beside them as `server.log`.
 
 The Docker workflow uses an isolated KIMI home at
-`~/.kimi-code-server-dev/docker-e2e/<run-id>/kimi-code-home` to avoid sharing
+`~/.superliora-server-dev/docker-e2e/<run-id>/kimi-code-home` to avoid sharing
 server locks with Compose. `<run-id>` is deterministic by default:
 `<repo-basename>-<cksum-of-repo-path>`, so different worktrees do not collide.
 On first run it seeds `config.toml` and `credentials/` from
-`~/.kimi-code-server-dev/kimi-home/kimi-code-home` when those files exist.
+`~/.superliora-server-dev/kimi-home/kimi-code-home` when those files exist.
 Override the namespace with `KIMI_SERVER_E2E_RUN_ID`, or override paths with
 `KIMI_SERVER_E2E_STATE_ROOT`, `KIMI_SERVER_E2E_KIMI_HOME_HOST`,
 `KIMI_SERVER_E2E_SEED_KIMI_HOME_HOST`, or `KIMI_SERVER_E2E_REPORT_DIR_HOST`.

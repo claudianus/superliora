@@ -12,7 +12,7 @@ tools:
   - ReadMediaFile
   - Glob
   - Grep
-  - KimiContext
+  - LioraContext
   - Write
   - Edit
   - Memory

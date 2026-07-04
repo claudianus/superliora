@@ -1,18 +1,18 @@
 {
-  "name": "@moonshot-ai/kosong",
+  "name": "@superliora/kosong",
   "version": "0.5.0",
   "private": true,
   "description": "The LLM abstraction layer for modern AI agent applications",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/kosong#readme",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://github.com/claudianus/superliora/tree/main/packages/kosong#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/claudianus/superliora.git",
     "directory": "packages/kosong"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/claudianus/superliora/issues"
   },
   "keywords": [
     "llm",

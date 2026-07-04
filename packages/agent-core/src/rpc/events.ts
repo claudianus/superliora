@@ -1,4 +1,4 @@
-export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@moonshot-ai/protocol';
+export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@superliora/protocol';
 
 export type {
   AgentEvent,
@@ -73,6 +73,6 @@ export type {
   WorkGraphNode,
   UsageStatus,
   WarningEvent,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
-export type { KimiErrorPayload } from '../errors';
+export type { LioraErrorPayload } from '../errors';

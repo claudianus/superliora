@@ -29,8 +29,8 @@ import {
   getTaskResponseSchema,
   listTasksQuerySchema,
   listTasksResponseSchema,
-} from '@moonshot-ai/protocol';
-import { ITaskService, SessionNotFoundError, TaskAlreadyFinishedError, TaskNotFoundError, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { ITaskService, SessionNotFoundError, TaskAlreadyFinishedError, TaskNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 

@@ -21,17 +21,18 @@ import { readApiErrorMessage } from './api-error';
 import { isRecord } from './utils';
 
 const MANAGED_PREFIX = 'managed:';
-const KIMI_CODE_PLATFORM_ID = 'kimi-code';
-export const DEFAULT_KIMI_CODE_BASE_URL = 'https://api.kimi.com/coding/v1';
+/** Wire platform ids accepted after the `managed:` prefix. */
+const MANAGED_KIMI_PLATFORM_IDS = new Set(['kimi-code', 'kimi-api']);
+export const DEFAULT_SUPERLIORA_BASE_URL = 'https://api.kimi.com/coding/v1';
 
 export function isManagedKimiCode(providerKey?: string | null): boolean {
   if (!providerKey) return false;
   if (!providerKey.startsWith(MANAGED_PREFIX)) return false;
-  return providerKey.slice(MANAGED_PREFIX.length) === KIMI_CODE_PLATFORM_ID;
+  return MANAGED_KIMI_PLATFORM_IDS.has(providerKey.slice(MANAGED_PREFIX.length));
 }
 
 export function kimiCodeBaseUrl(): string {
-  return process.env['KIMI_CODE_BASE_URL'] ?? DEFAULT_KIMI_CODE_BASE_URL;
+  return process.env['SUPERLIORA_BASE_URL'] ?? DEFAULT_SUPERLIORA_BASE_URL;
 }
 
 export function kimiCodeUsageUrl(): string {

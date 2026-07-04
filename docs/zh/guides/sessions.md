@@ -1,13 +1,13 @@
 # 会话与上下文
 
-Kimi Code CLI 把每次对话持久化为一个「会话」，保留消息历史和元数据，可以随时关闭终端后再回来继续。本页介绍如何恢复会话、管理上下文，以及导出和派生会话。
+SuperLiora CLI 把每次对话持久化为一个「会话」，保留消息历史和元数据，可以随时关闭终端后再回来继续。本页介绍如何恢复会话、管理上下文，以及导出和派生会话。
 
 ## 会话存储
 
-所有会话保存在 `$KIMI_CODE_HOME/sessions/` 下（默认 `~/.kimi-code/sessions/`），按工作目录分组存放：
+所有会话保存在 `$SUPERLIORA_HOME/sessions/` 下（默认 `~/.superliora/sessions/`），按工作目录分组存放：
 
 ```text
-~/.kimi-code/
+~/.superliora/
 ├── config.toml
 ├── session_index.jsonl
 └── sessions/
@@ -65,7 +65,7 @@ kimi --session
 
 ## 上下文压缩
 
-对话变长时，Kimi Code CLI 会在上下文接近窗口上限时自动压缩历史消息，释放 token 空间。也可以随时手动触发：
+对话变长时，SuperLiora CLI 会在上下文接近窗口上限时自动压缩历史消息，释放 token 空间。也可以随时手动触发：
 
 ```
 /compact
@@ -89,23 +89,23 @@ kimi --session
 
 ## 导出会话
 
-用 `kimi export` 把会话打包为 ZIP，适合分享、归档或提交问题反馈：
+用 `liora export` 把会话打包为 ZIP，适合分享、归档或提交问题反馈：
 
 ```sh
-kimi export <sessionId>
+liora export <sessionId>
 ```
 
 不传 `sessionId` 时导出当前目录最近的会话（有交互式确认，加 `-y` 跳过）。用 `-o` 指定输出路径：
 
 ```sh
-kimi export <sessionId> -o ~/Desktop/my-session.zip
+liora export <sessionId> -o ~/Desktop/my-session.zip
 ```
 
-导出包含会话目录下的所有文件，包括诊断日志。全局诊断日志（`~/.kimi-code/logs/kimi-code.log`）默认也会打包；如不需要，加 `--no-include-global-log` 排除。
+导出包含会话目录下的所有文件，包括诊断日志。全局诊断日志（`~/.superliora/logs/liora.log`）默认也会打包；如不需要，加 `--no-include-global-log` 排除。
 
 也可以在 TUI 内导出，无需离开交互界面：
 
-- **`/export-debug-zip`**：产生与 `kimi export` 相同的调试 ZIP。
+- **`/export-debug-zip`**：产生与 `liora export` 相同的调试 ZIP。
 - **`/export-md`**（别名 `/export`）：导出为人类可读的 Markdown 对话记录，适合分享或存档。可选接收路径参数；不带参数时写入工作目录下的 `kimi-export-<short-id>-<timestamp>.md`。
 
 ::: tip 提示
@@ -115,4 +115,4 @@ kimi export <sessionId> -o ~/Desktop/my-session.zip
 ## 下一步
 
 - [数据路径](../configuration/data-locations.md) — 会话文件的完整目录结构说明
-- [kimi 命令](../reference/kimi-command.md) — `--continue`、`--session`、`export` 等命令的完整参数参考
+- [kimi 命令](../reference/liora-command.md) — `--continue`、`--session`、`export` 等命令的完整参数参考

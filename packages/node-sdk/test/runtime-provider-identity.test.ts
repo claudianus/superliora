@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { KimiConfig } from '@moonshot-ai/agent-core';
-import { createKimiDefaultHeaders, KIMI_CODE_PLATFORM } from '@moonshot-ai/kimi-code-oauth';
+import type { LioraConfig } from '@superliora/agent-core';
+import { createKimiDefaultHeaders, SUPERLIORA_PLATFORM } from '@superliora/oauth';
 
 import { ProviderManager } from '../../agent-core/src/session/provider-manager';
 import { SDKRpcClient } from '#/index';
@@ -14,7 +14,7 @@ import { TEST_IDENTITY } from './test-identity';
 const tempDirs: string[] = [];
 
 function resolveRuntimeProvider(options: {
-  readonly config: KimiConfig;
+  readonly config: LioraConfig;
   readonly model?: string;
   readonly kimiRequestHeaders?: Record<string, string>;
 }) {
@@ -92,7 +92,7 @@ describe('runtime provider identity headers', () => {
       type: 'kimi',
       defaultHeaders: expect.objectContaining({
         'User-Agent': 'kimi-code-cli/0.0.0-test',
-        'X-Msh-Platform': KIMI_CODE_PLATFORM,
+        'X-Msh-Platform': SUPERLIORA_PLATFORM,
         'X-Msh-Version': '0.0.0-test',
         'X-Msh-Device-Name': expect.any(String),
         'X-Msh-Device-Model': expect.any(String),
@@ -105,7 +105,7 @@ describe('runtime provider identity headers', () => {
   it('lets Kimi provider customHeaders override default identity headers', async () => {
     const homeDir = await makeTempDir();
     const kimiRequestHeaders = createKimiDefaultHeaders({ homeDir, ...TEST_IDENTITY });
-    const config: KimiConfig = {
+    const config: LioraConfig = {
       providers: {
         kimi: {
           type: 'kimi',
@@ -137,7 +137,7 @@ describe('runtime provider identity headers', () => {
       defaultHeaders: expect.objectContaining({
         'User-Agent': 'Custom/1',
         'X-Msh-Version': 'override-version',
-        'X-Msh-Platform': KIMI_CODE_PLATFORM,
+        'X-Msh-Platform': SUPERLIORA_PLATFORM,
       }),
     });
   });
@@ -145,7 +145,7 @@ describe('runtime provider identity headers', () => {
   it('does not add Kimi identity headers to non-Kimi providers', async () => {
     const homeDir = await makeTempDir();
     const kimiRequestHeaders = createKimiDefaultHeaders({ homeDir, ...TEST_IDENTITY });
-    const config: KimiConfig = {
+    const config: LioraConfig = {
       providers: {
         openai: {
           type: 'openai',

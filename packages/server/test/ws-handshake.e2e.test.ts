@@ -19,7 +19,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { TelemetryClient, TelemetryProperties } from '@moonshot-ai/agent-core';
+import type { TelemetryClient, TelemetryProperties } from '@superliora/agent-core';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
@@ -66,9 +66,9 @@ let bridgeHome: string;
 const running: RunningServer[] = [];
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-ws-handshake-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-ws-handshake-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-ws-handshake-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-ws-handshake-home-'));
 });
 
 afterEach(async () => {

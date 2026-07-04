@@ -6,8 +6,8 @@
  * `snapshotService.ts` for the rationale and cache invariants.
  */
 
-import { createDecorator } from '@moonshot-ai/agent-core';
-import type { SessionSnapshotResponse } from '@moonshot-ai/protocol';
+import { createDecorator } from '@superliora/agent-core';
+import type { SessionSnapshotResponse } from '@superliora/protocol';
 
 export interface ISnapshotService {
   readonly _serviceBrand: undefined;

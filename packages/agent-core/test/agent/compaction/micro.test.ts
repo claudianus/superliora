@@ -1,4 +1,4 @@
-import type { ContentPart, Message } from '@moonshot-ai/kosong';
+import type { ContentPart, Message } from '@superliora/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent';
@@ -771,7 +771,7 @@ describe('MicroCompaction', () => {
 
     expect(ctx.agent.context.messages).toHaveLength(1);
     expect(ctx.agent.context.messages[0]?.role).toBe('assistant');
-    expect(textOf(ctx.agent.context.messages[0], { raw: true })).toContain('# Super Kimi Context Compaction v2 Memory');
+    expect(textOf(ctx.agent.context.messages[0], { raw: true })).toContain('# SuperLiora Context Compaction v2 Memory');
     expect(textOf(ctx.agent.context.messages[0], { raw: true })).toContain('Summary.');
   });
 

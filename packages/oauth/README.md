@@ -1,8 +1,8 @@
-# @moonshot-ai/kimi-code-oauth
+# @superliora/oauth
 
-OAuth toolkit for Kimi Code managed authentication.
+OAuth toolkit for SuperLiora managed authentication.
 
-Part of the [Kimi Code](https://github.com/MoonshotAI/kimi-code) monorepo.
+Part of the [SuperLiora](https://github.com/MoonshotAI/kimi-code) monorepo.
 
 See the main repository for documentation, issues, and contribution guidelines.
 

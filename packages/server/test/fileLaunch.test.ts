@@ -7,7 +7,7 @@ import {
 
 describe('file launch commands', () => {
   it('uses configured editors and preserves line targets for VS Code style editors', () => {
-    expect(openFileCommandFor('/repo/src/App.vue', 12, { KIMI_CODE_EDITOR: 'code -g' }, 'darwin')).toEqual({
+    expect(openFileCommandFor('/repo/src/App.vue', 12, { SUPERLIORA_EDITOR: 'code -g' }, 'darwin')).toEqual({
       command: "code -g '/repo/src/App.vue:12'",
       args: [],
       shell: true,

@@ -1,6 +1,6 @@
-import type { ContentPart, Message, TextPart } from '@moonshot-ai/kosong';
+import type { ContentPart, Message, TextPart } from '@superliora/kosong';
 
-import { ErrorCodes, KimiError } from '../../errors';
+import { ErrorCodes, LioraError } from '../../errors';
 import type { ContextMessage } from './types';
 
 export interface ProjectOptions {
@@ -207,7 +207,7 @@ function prepareMessageForProjection(
 
   const next = content === undefined ? message : { ...message, content };
   if (next.role === 'tool' && next.content.length === 0) {
-    throw new KimiError(
+    throw new LioraError(
       ErrorCodes.REQUEST_INVALID,
       'Tool result message content cannot be empty after removing empty text blocks.',
       {

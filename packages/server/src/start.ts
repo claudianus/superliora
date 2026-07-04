@@ -1,5 +1,5 @@
-import { InstantiationService, resolveConfigPath, resolveKimiHome, setUnexpectedErrorHandler, IApprovalService, IAuthSummaryService, IEnvironmentService, IEventService, ICoreProcessService, IModelCatalogService, IMcpService, IMessageService, IOAuthService, IFileStore, IFsGitService, IFsSearchService, IFsService, IFsWatcher, ILogService, IPromptService, IQuestionService, ISessionService, ISkillService, ITaskService, ITerminalService, IToolService, IWorkspaceFsService, IWorkspaceRegistry, FsPathEscapesError, FsWatchLimitError, FsWatcherService, SessionNotFoundError, createConnectionLookup, resolveSafePath, type ServiceIdentifier, type CoreProcessServiceOptions } from '@moonshot-ai/agent-core';
-import { ErrorCode, createAsyncApiDocument } from '@moonshot-ai/protocol';
+import { InstantiationService, resolveConfigPath, resolveLioraHome, setUnexpectedErrorHandler, IApprovalService, IAuthSummaryService, IEnvironmentService, IEventService, ICoreProcessService, IModelCatalogService, IMcpService, IMessageService, IOAuthService, IFileStore, IFsGitService, IFsSearchService, IFsService, IFsWatcher, ILogService, IPromptService, IQuestionService, ISessionService, ISkillService, ITaskService, ITerminalService, IToolService, IWorkspaceFsService, IWorkspaceRegistry, FsPathEscapesError, FsWatchLimitError, FsWatcherService, SessionNotFoundError, createConnectionLookup, resolveSafePath, type ServiceIdentifier, type CoreProcessServiceOptions } from '@superliora/agent-core';
+import { ErrorCode, createAsyncApiDocument } from '@superliora/protocol';
 import Fastify from 'fastify';
 import { promises as fspPromises } from 'node:fs';
 import {
@@ -95,7 +95,7 @@ export interface ServerStartOptions {
 
   /**
    * Extra `Host` header values to allow, in addition to the default allowlist
-   * and `KIMI_CODE_ALLOWED_HOSTS`. A leading dot matches a domain suffix.
+   * and `SUPERLIORA_ALLOWED_HOSTS`. A leading dot matches a domain suffix.
    */
   allowedHosts?: readonly string[];
 
@@ -123,7 +123,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     port: opts.port,
     host: opts.host,
     lockPath: opts.lockPath,
-    // Record the host build identity so `kimi server status` can detect a
+    // Record the host build identity so `liora server status` can detect a
     // build-mismatched server.
     hostVersion: opts.coreProcessOptions?.identity?.version,
     entry: process.argv[1],
@@ -162,9 +162,9 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     await app.register(swagger, {
       openapi: {
         info: {
-          title: 'Kimi Code Server API',
+          title: 'SuperLiora Server API',
           description:
-            'REST API for the Kimi Code local server. All JSON responses are wrapped in a uniform envelope `{ code, msg, data, request_id }`.',
+            'REST API for the SuperLiora local server. All JSON responses are wrapped in a uniform envelope `{ code, msg, data, request_id }`.',
           version: serverVersion,
         },
         tags: [
@@ -198,7 +198,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
 
   const envService: IEnvironmentService = {
     _serviceBrand: undefined,
-    homeDir: resolveKimiHome(opts.coreProcessOptions?.homeDir),
+    homeDir: resolveLioraHome(opts.coreProcessOptions?.homeDir),
     configPath: resolveConfigPath({
       homeDir: opts.coreProcessOptions?.homeDir,
       configPath: opts.coreProcessOptions?.configPath,
@@ -211,7 +211,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
   // optional bcrypt password hash — both awaited here, then supplied to the
   // collection via `serviceOverrides` so tests can inject a fixed-token impl
   // that wins (last-wins) over this default. The store re-reads the file when
-  // its mtime changes, so `kimi server rotate-token` takes effect without a
+  // its mtime changes, so `liora server rotate-token` takes effect without a
   // restart; the file is intentionally kept on shutdown (dispose is a no-op).
   const tokenStore = await createTokenStore(envService.homeDir);
   const passwordHash = await resolvePasswordHash(process.env);
@@ -222,7 +222,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
   // explicitly acknowledged that TLS is terminated elsewhere (`insecureNoTls`).
   // Auth is bearer-token based: the persistent token is printed in the startup
   // banner and reused across restarts, so a password is no longer mandatory for
-  // a non-loopback bind — `KIMI_CODE_PASSWORD` remains an optional additional
+  // a non-loopback bind — `SUPERLIORA_PASSWORD` remains an optional additional
   // credential. Failing here (before the container is built and before we
   // listen) keeps a public/LAN bind from ever serving plain HTTP by accident.
   // On refusal we release the lock so the operator can retry cleanly.
@@ -247,7 +247,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     if (passwordHash === undefined) {
       pinoLogger.warn(
         { host: opts.host, bindClass },
-        'binding non-loopback host with token-only auth (no KIMI_CODE_PASSWORD) — the bearer token printed in the startup banner is the only credential protecting this server',
+        'binding non-loopback host with token-only auth (no SUPERLIORA_PASSWORD) — the bearer token printed in the startup banner is the only credential protecting this server',
       );
     }
     pinoLogger.warn(
@@ -573,7 +573,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     throw error;
   }
   // If we retried onto a different port, advertise the real one in the lock so
-  // `kimi server status` / `kill` / `ps` can find this daemon.
+  // `liora server status` / `kill` / `ps` can find this daemon.
   if (boundPort !== opts.port) {
     lockHandle.updatePort(boundPort);
   }
@@ -669,10 +669,10 @@ export interface ListenWithPortRetryOptions {
  * third-party process.
  *
  * Why this is the right layer: {@link startServer} acquires the single-instance
- * lock *before* listening, so by the time we reach `listen` a live kimi server
+ * lock *before* listening, so by the time we reach `listen` a live liora server
  * would already have thrown `ServerLockedError`. Any `EADDRINUSE` here is
  * therefore a third-party listener, and bumping the port is the desired policy
- * ("if the port is taken by something other than kimi server itself, +1").
+ * ("if the port is taken by something other than liora server itself, +1").
  *
  * Port `0` (OS-assigned ephemeral) is never retried: the kernel already picks a
  * free port, so `EADDRINUSE` cannot arise from a specific-port conflict.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Integrate 275+ expert personas from the agency-agents repository into the existing Kimi Code skill system using embedding-based search to avoid token/context window explosion, and build an UltraSwarm orchestrator that automatically assembles expert teams.
+Integrate 275+ expert personas from the agency-agents repository into the existing SuperLiora skill system using embedding-based search to avoid token/context window explosion, and build an UltraSwarm orchestrator that automatically assembles expert teams.
 
 ## Key Design Decisions
 
@@ -95,9 +95,9 @@ export type SkillType = 'prompt' | 'inline' | 'flow' | 'reference' | 'expert';
 - `packages/agent-core/src/expert-agents/search.ts`
 - `packages/agent-core/src/expert-agents/tool.ts` (UltraSwarm builtin tool)
 - `scripts/build-expert-agents.mjs`
-- `apps/kimi-code/src/tui/commands/ultraswarm.ts`
-- `apps/kimi-code/src/tui/components/dialogs/ultraswarm-start-permission-prompt.ts`
-- `apps/kimi-code/src/tui/components/messages/ultraswarm-markers.ts`
+- `apps/liora/src/tui/commands/ultraswarm.ts`
+- `apps/liora/src/tui/components/dialogs/ultraswarm-start-permission-prompt.ts`
+- `apps/liora/src/tui/components/messages/ultraswarm-markers.ts`
 
 ### Modified Files
 - `packages/agent-core/src/skill/types.ts` (add `expert` type)
@@ -107,9 +107,9 @@ export type SkillType = 'prompt' | 'inline' | 'flow' | 'reference' | 'expert';
 - `packages/agent-core/src/tools/builtin/collaboration/agent-swarm.ts` (extend or reference)
 - `packages/agent-core/src/agent/tool/index.ts` (register UltraSwarm tool)
 - `packages/agent-core/src/index.ts` (export new modules)
-- `apps/kimi-code/src/tui/commands/index.ts` (register /ultraswarm)
-- `apps/kimi-code/src/tui/commands/dispatch.ts` (add /ultraswarm dispatch)
-- `apps/kimi-code/src/tui/components/index.ts` (export new components)
+- `apps/liora/src/tui/commands/index.ts` (register /ultraswarm)
+- `apps/liora/src/tui/commands/dispatch.ts` (add /ultraswarm dispatch)
+- `apps/liora/src/tui/components/index.ts` (export new components)
 - `pnpm-workspace.yaml` (if new packages needed)
 - `flake.nix` (sync workspace paths)
 
@@ -121,7 +121,7 @@ export type SkillType = 'prompt' | 'inline' | 'flow' | 'reference' | 'expert';
 
 ## Rollout Plan
 1. Phase 1 (build-time conversion) is implemented first and can be merged independently.
-2. Phase 2 (embedding search) is merged next, gated behind an experimental flag `KIMI_CODE_EXPERIMENTAL_ULTRASWARM`.
+2. Phase 2 (embedding search) is merged next, gated behind an experimental flag `SUPERLIORA_EXPERIMENTAL_ULTRASWARM`.
 3. Phase 3 (orchestrator) follows, with the flag still on.
 4. Phases 4 & 5 (TUI/CLI branding) are done in parallel with Phase 3.
 5. Once E2E tests pass and dogfooding shows good results, the flag is flipped to default on.

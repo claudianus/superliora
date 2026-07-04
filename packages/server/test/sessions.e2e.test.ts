@@ -2,7 +2,7 @@
  * Sessions CRUD end-to-end tests (W6.2 / Chain 2 / P1.2).
  *
  * **Bootstrap strategy**: spawn the real server (port 0, tmp lock + bridge
- * home) and exercise the 5 endpoints via `app.inject(...)`. KimiCore is fully
+ * home) and exercise the 5 endpoints via `app.inject(...)`. LioraCore is fully
  * constructed via the W3 bridge pattern; the HOME dir is a fresh tmpdir so
  * no `~/.kimi` interference. This is non-hermetic in the sense that plugin
  * discovery runs (the bridge's pluginsReady captures errors silently per
@@ -30,8 +30,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { pino } from 'pino';
-import { ErrorCode, sessionSchema, sessionStatusResponseSchema, undoSessionResponseSchema } from '@moonshot-ai/protocol';
-import type { TelemetryClient, TelemetryProperties } from '@moonshot-ai/agent-core';
+import { ErrorCode, sessionSchema, sessionStatusResponseSchema, undoSessionResponseSchema } from '@superliora/protocol';
+import type { TelemetryClient, TelemetryProperties } from '@superliora/agent-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
@@ -50,9 +50,9 @@ interface TelemetryRecord {
 }
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-sessions-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-sessions-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-sessions-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-sessions-home-'));
 });
 
 afterEach(async () => {

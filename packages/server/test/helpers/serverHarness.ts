@@ -18,7 +18,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ServiceIdentifier } from '@moonshot-ai/agent-core';
+import type { ServiceIdentifier } from '@superliora/agent-core';
 import { pino } from 'pino';
 import { WebSocket } from 'ws';
 
@@ -145,8 +145,8 @@ export async function boot(opts: BootOptions = {}): Promise<ServerHarness> {
     ...(opts.serviceOverrides ?? []),
   ];
 
-  const tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-harness-'));
-  const homeDir = mkdtempSync(join(tmpdir(), 'kimi-server-harness-home-'));
+  const tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-harness-'));
+  const homeDir = mkdtempSync(join(tmpdir(), 'liora-server-harness-home-'));
   const lockPath = join(tmpDir, 'lock');
 
   const server = await startServer({

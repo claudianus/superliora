@@ -1,20 +1,20 @@
 ---
 name: import-from-cc-codex
-description: Import Claude Code and Codex instructions, skills, and MCP settings into Kimi Code.
+description: Import Claude Code and Codex instructions, skills, and MCP settings into SuperLiora.
 disable-model-invocation: true
 ---
 
 # Import from Claude Code and Codex
 
 The user invoked `/import-from-cc-codex` (or `/skill:import-from-cc-codex`).
-Help them migrate selected local Claude Code and Codex assets into Kimi Code.
+Help them migrate selected local Claude Code and Codex assets into SuperLiora.
 This skill is intentionally conservative: it imports only instructions, skills,
 and MCP server declarations from `.claude` / `.codex` surfaces, with a user
 preview before any write.
 
 ## Non-negotiable rules
 
-- Do **not** migrate `.agents` content. Kimi Code already supports `.agents`
+- Do **not** migrate `.agents` content. SuperLiora already supports `.agents`
   skills and AGENTS files by default.
 - Do **not** migrate Claude custom commands (`.claude/commands/**`). They are
   out of scope for this importer.
@@ -23,14 +23,14 @@ preview before any write.
 - Do **not** run or install anything from the source directories.
 - Do **not** write anything until the user has chosen what to migrate, reviewed
   the final preview, and explicitly confirmed applying it.
-- Only write under Kimi Code targets:
-  - User-global: `$KIMI_CODE_HOME` if set, otherwise `~/.kimi-code`.
-  - Project instructions/skills: `<project root>/.kimi-code`, where the project
+- Only write under SuperLiora targets:
+  - User-global: `$SUPERLIORA_HOME` if set, otherwise `~/.superliora`.
+  - Project instructions/skills: `<project root>/.superliora`, where the project
     root is the nearest parent directory containing `.git`; if no `.git` exists,
     use the current working directory.
-  - Project-local MCP: `<cwd>/.kimi-code/mcp.json`, because Kimi reads the
+  - Project-local MCP: `<cwd>/.superliora/mcp.json`, because Kimi reads the
     current working directory's Kimi-specific MCP file, not every project-root
-    `.kimi-code/mcp.json` from subdirectories.
+    `.superliora/mcp.json` from subdirectories.
 - Preserve existing Kimi files. Never overwrite existing skills or replace an
   existing AGENTS.md / mcp.json wholesale.
 
@@ -54,7 +54,7 @@ If the user dismisses or refuses the question, stop.
 ### 2. Scan only the chosen categories
 
 Resolve paths explicitly; `~` is the real OS home, and Kimi home follows
-`$KIMI_CODE_HOME` before `~/.kimi-code`.
+`$SUPERLIORA_HOME` before `~/.superliora`.
 
 User-level sources:
 
@@ -103,12 +103,12 @@ source and target paths.
 
 Map user-level instruction sources to:
 
-- `$KIMI_CODE_HOME/AGENTS.md`, or `~/.kimi-code/AGENTS.md` if the env var is not
+- `$SUPERLIORA_HOME/AGENTS.md`, or `~/.superliora/AGENTS.md` if the env var is not
   set.
 
 Map project-level instruction sources to:
 
-- `<project root>/.kimi-code/AGENTS.md`
+- `<project root>/.superliora/AGENTS.md`
 
 Append imported instruction content as marked blocks. Do not duplicate a block
 that already exists in the target file.
@@ -132,11 +132,11 @@ and cannot be read as UTF-8 text, stop before writing and report the blocker.
 
 Map user-level skill sources to:
 
-- `$KIMI_CODE_HOME/skills/`, or `~/.kimi-code/skills/` if the env var is not set.
+- `$SUPERLIORA_HOME/skills/`, or `~/.superliora/skills/` if the env var is not set.
 
 Map project-level skill sources to:
 
-- `<project root>/.kimi-code/skills/`
+- `<project root>/.superliora/skills/`
 
 Recognize these skill shapes under `.claude/skills/` or `.codex/skills/`:
 
@@ -222,9 +222,9 @@ Codex MCP:
 
 For each MCP candidate, choose the target scope in the preview:
 
-- User-level source -> user-global MCP target (`$KIMI_CODE_HOME/mcp.json` or
-  `~/.kimi-code/mcp.json`).
-- Project-level source -> project-local Kimi MCP target (`<cwd>/.kimi-code/mcp.json`). If `<cwd>` is not the project root, call this out in the preview so the user understands when Kimi will load it.
+- User-level source -> user-global MCP target (`$SUPERLIORA_HOME/mcp.json` or
+  `~/.superliora/mcp.json`).
+- Project-level source -> project-local Kimi MCP target (`<cwd>/.superliora/mcp.json`). If `<cwd>` is not the project root, call this out in the preview so the user understands when Kimi will load it.
 
 Warn that stdio MCP entries spawn commands at session start, and the user should
 only import MCP servers they trust. Warn if an MCP entry contains apparent
@@ -271,7 +271,7 @@ When the user confirms:
 - Do not write MCP entries. Show the prepared `/mcp-config` follow-up command
   and mark MCP import as pending user action.
 - Report exactly what changed and what was skipped.
-- Tell the user to start a new session (for example `/new`) or restart Kimi Code
+- Tell the user to start a new session (for example `/new`) or restart SuperLiora
   for newly imported skills, instructions, and MCP servers to be picked up.
 
 ## Output style

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import type { Kaos } from '@moonshot-ai/kaos';
+import type { Kaos } from '@superliora/kaos';
 import {
   APIConnectionError,
   APIEmptyResponseError,
@@ -12,13 +12,13 @@ import {
   type ChatProvider,
   type ModelCapability,
   type ToolCall,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HookEngine } from '../../src/session/hooks';
 import { abortError } from '../../src/utils/abort';
 import type { AgentOptions } from '../../src/agent';
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, LioraError } from '../../src/errors';
 import type { Logger, LogPayload } from '../../src/logging';
 import type {
   QueuedSubagentRunResult,
@@ -540,10 +540,10 @@ describe('Agent turn flow', () => {
       [wire] turn.prompt              { "input": [ { "type": "text", "text": "Hello without login" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started             { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message   { "message": { "role": "user", "content": [ { "type": "text", "text": "Hello without login" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [emit] turn.ended               { "turnId": 0, "reason": "failed", "error": { "code": "model.not_configured", "message": "LLM not set, run /login or /provider to connect a model", "name": "KimiError", "details": { "turnId": 0 }, "retryable": false } }
+      [emit] turn.ended               { "turnId": 0, "reason": "failed", "error": { "code": "model.not_configured", "message": "LLM not set, run /login or /provider to connect a model", "name": "LioraError", "details": { "turnId": 0 }, "retryable": false } }
     `);
     expect(ctx.newEvents()).toMatchInlineSnapshot(
-      `[emit] error   { "code": "model.not_configured", "message": "LLM not set, run /login or /provider to connect a model", "name": "KimiError", "details": { "turnId": 0 }, "retryable": false }`,
+      `[emit] error   { "code": "model.not_configured", "message": "LLM not set, run /login or /provider to connect a model", "name": "LioraError", "details": { "turnId": 0 }, "retryable": false }`,
     );
   });
 
@@ -1174,7 +1174,7 @@ describe('Agent turn flow', () => {
     const tokenCalls: Array<boolean | undefined> = [];
     const oauthOptions = oauthAgentOptions(async (options) => {
       tokenCalls.push(options?.force);
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.PROVIDER_CONNECTION_ERROR,
         'OAuth provider "managed:kimi-code" failed to fetch an access token: fetch failed',
       );
@@ -1210,7 +1210,7 @@ describe('Agent turn flow', () => {
     const tokenCalls: Array<boolean | undefined> = [];
     const oauthOptions = oauthAgentOptions(async (options) => {
       tokenCalls.push(options?.force);
-      throw new KimiError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in');
+      throw new LioraError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in');
     });
     const generate = vi.fn<GenerateFn>();
     const ctx = testAgent({ ...oauthOptions, generate });

@@ -1,4 +1,4 @@
-# @moonshot-ai/server
+# @superliora/server
 
 ## 0.2.2
 
@@ -9,7 +9,7 @@
 - [#1128](https://github.com/MoonshotAI/kimi-code/pull/1128) [`0886bff`](https://github.com/MoonshotAI/kimi-code/commit/0886bff2bcd3aed954990c948201d84787c0f3f3) - Add a --allowed-host flag to kimi server run that lets extra Host header values pass the DNS-rebinding check, and include allow guidance in the 403 error message. Pass --allowed-host <host> to allow an extra host.
 
 - Updated dependencies [[`76c643b`](https://github.com/MoonshotAI/kimi-code/commit/76c643bcb6da447c8c47728b4f58512a7a11cfa6)]:
-  - @moonshot-ai/agent-core@0.14.1
+  - @superliora/agent-core@0.14.1
 
 ## 0.2.1
 
@@ -28,4 +28,4 @@
 ### Patch Changes
 
 - Updated dependencies [[`c0eeca2`](https://github.com/MoonshotAI/kimi-code/commit/c0eeca24692edd736eecd3c2541d7566bac9f80f), [`2730079`](https://github.com/MoonshotAI/kimi-code/commit/27300797f2149900219b05dda49dce65e71fa85a)]:
-  - @moonshot-ai/agent-core@0.14.0
+  - @superliora/agent-core@0.14.0

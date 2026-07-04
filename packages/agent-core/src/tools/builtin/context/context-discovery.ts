@@ -1,4 +1,4 @@
-import type { Kaos } from '@moonshot-ai/kaos';
+import type { Kaos } from '@superliora/kaos';
 import * as pathe from 'pathe';
 
 import { isSensitiveFile } from '../../policies/sensitive';
@@ -30,6 +30,7 @@ const CODE_EXTENSIONS = new Set([
 const EXPLICIT_TEXT_EXTENSIONS = new Set(['.md', '.json', '.yaml', '.yml']);
 const EXCLUDED_SEGMENTS = new Set([
   '.git',
+  '.superliora',
   '.super-kimi',
   '.changeset',
   'node_modules',

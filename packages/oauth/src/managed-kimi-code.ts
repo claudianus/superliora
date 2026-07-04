@@ -1,15 +1,18 @@
 import { createHash } from 'node:crypto';
 
 import { readApiErrorMessage } from './api-error';
-import { DEFAULT_KIMI_CODE_OAUTH_HOST } from './constants';
+import { DEFAULT_SUPERLIORA_OAUTH_HOST } from './constants';
 import { OAuthUnauthorizedError } from './errors';
-import { DEFAULT_KIMI_CODE_BASE_URL, kimiCodeBaseUrl } from './managed-usage';
+import { DEFAULT_SUPERLIORA_BASE_URL, kimiCodeBaseUrl } from './managed-usage';
 import { isRecord } from './utils';
 
-export const KIMI_CODE_PLATFORM_ID = 'kimi-code';
-export const KIMI_CODE_PROVIDER_NAME = 'managed:kimi-code';
-export const KIMI_CODE_OAUTH_KEY = 'oauth/kimi-code';
-const KIMI_CODE_SCOPED_OAUTH_KEY_PREFIX = 'oauth/kimi-code-env-';
+/** Wire platform id sent to Kimi API hosts; do not rename without upstream coordination. */
+export const SUPERLIORA_PLATFORM_ID = 'kimi-code';
+/** Canonical managed Kimi API provider key in user config. */
+export const MANAGED_KIMI_API_PROVIDER = 'managed:kimi-api';
+export const SUPERLIORA_PROVIDER_NAME = MANAGED_KIMI_API_PROVIDER;
+export const SUPERLIORA_OAUTH_KEY = 'oauth/kimi-code';
+const SUPERLIORA_SCOPED_OAUTH_KEY_PREFIX = 'oauth/kimi-code-env-';
 
 export type ManagedKimiCodeProtocol = 'anthropic';
 
@@ -41,7 +44,7 @@ export interface ManagedKimiCodeModelInfo {
 }
 
 export interface ManagedKimiCodeProvisionResult {
-  readonly providerName: typeof KIMI_CODE_PROVIDER_NAME;
+  readonly providerName: typeof SUPERLIORA_PROVIDER_NAME;
   readonly defaultModel: string;
   readonly defaultThinking: boolean;
   readonly models: readonly ManagedKimiCodeModelInfo[];
@@ -60,7 +63,7 @@ export interface ManagedKimiCodeApplyResult {
 }
 
 export interface ManagedKimiCodeCleanupResult {
-  readonly providerName: typeof KIMI_CODE_PROVIDER_NAME;
+  readonly providerName: typeof SUPERLIORA_PROVIDER_NAME;
   readonly removedProvider: boolean;
   readonly removedModels: readonly string[];
   readonly defaultModelCleared: boolean;
@@ -91,8 +94,8 @@ export interface ManagedKimiLoginAuth {
 }
 
 export interface ManagedKimiEnv {
-  readonly KIMI_CODE_BASE_URL?: string | undefined;
-  readonly KIMI_CODE_OAUTH_HOST?: string | undefined;
+  readonly SUPERLIORA_BASE_URL?: string | undefined;
+  readonly SUPERLIORA_OAUTH_HOST?: string | undefined;
   readonly KIMI_OAUTH_HOST?: string | undefined;
 }
 
@@ -106,7 +109,7 @@ export class ManagedKimiCodeModelsAuthError extends OAuthUnauthorizedError {
     readonly message: string;
   }) {
     super(
-      `Kimi Code models endpoint ${options.baseUrl} rejected OAuth credentials: ${options.message}`,
+      `SuperLiora models endpoint ${options.baseUrl} rejected OAuth credentials: ${options.message}`,
     );
     this.name = 'ManagedKimiCodeModelsAuthError';
     this.status = options.status;
@@ -186,7 +189,7 @@ export interface ProvisionManagedKimiCodeConfigOptions<TConfig> {
 }
 
 function managedModelKey(modelId: string): string {
-  return `${KIMI_CODE_PLATFORM_ID}/${modelId}`;
+  return `${SUPERLIORA_PLATFORM_ID}/${modelId}`;
 }
 
 interface SelectedDefaultModel {
@@ -235,10 +238,10 @@ function persistedOAuthHost(options: {
   readonly oauthHost?: string | undefined;
 }): string | undefined {
   const oauthHost = options.oauthHost;
-  const normalized = normalizeEndpoint(oauthHost ?? DEFAULT_KIMI_CODE_OAUTH_HOST);
+  const normalized = normalizeEndpoint(oauthHost ?? DEFAULT_SUPERLIORA_OAUTH_HOST);
   if (
-    options.key === KIMI_CODE_OAUTH_KEY &&
-    normalized === normalizeEndpoint(DEFAULT_KIMI_CODE_OAUTH_HOST)
+    options.key === SUPERLIORA_OAUTH_KEY &&
+    normalized === normalizeEndpoint(DEFAULT_SUPERLIORA_OAUTH_HOST)
   ) {
     return undefined;
   }
@@ -310,31 +313,31 @@ function sameManagedOAuthRef(left: ManagedKimiOAuthRef, right: ManagedKimiOAuthR
 }
 
 export function kimiCodeEnvBaseUrl(env: ManagedKimiEnv = process.env): string | undefined {
-  return env.KIMI_CODE_BASE_URL;
+  return env.SUPERLIORA_BASE_URL;
 }
 
 export function kimiCodeEnvOAuthHost(env: ManagedKimiEnv = process.env): string | undefined {
-  return env.KIMI_CODE_OAUTH_HOST ?? env.KIMI_OAUTH_HOST;
+  return env.SUPERLIORA_OAUTH_HOST ?? env.KIMI_OAUTH_HOST;
 }
 
 export function resolveKimiCodeOAuthKey(options: {
   readonly oauthHost?: string | undefined;
   readonly baseUrl?: string | undefined;
 }): string {
-  const oauthHost = normalizeEndpoint(options.oauthHost ?? DEFAULT_KIMI_CODE_OAUTH_HOST);
+  const oauthHost = normalizeEndpoint(options.oauthHost ?? DEFAULT_SUPERLIORA_OAUTH_HOST);
   const baseUrl = defaultBaseUrl(options.baseUrl);
-  const defaultOauthHost = normalizeEndpoint(DEFAULT_KIMI_CODE_OAUTH_HOST);
-  const defaultApiBaseUrl = normalizeEndpoint(DEFAULT_KIMI_CODE_BASE_URL);
+  const defaultOauthHost = normalizeEndpoint(DEFAULT_SUPERLIORA_OAUTH_HOST);
+  const defaultApiBaseUrl = normalizeEndpoint(DEFAULT_SUPERLIORA_BASE_URL);
 
   if (oauthHost === defaultOauthHost && baseUrl === defaultApiBaseUrl) {
-    return KIMI_CODE_OAUTH_KEY;
+    return SUPERLIORA_OAUTH_KEY;
   }
 
   const digest = createHash('sha256')
     .update(JSON.stringify({ oauthHost, baseUrl }))
     .digest('hex')
     .slice(0, 16);
-  return `${KIMI_CODE_SCOPED_OAUTH_KEY_PREFIX}${digest}`;
+  return `${SUPERLIORA_SCOPED_OAUTH_KEY_PREFIX}${digest}`;
 }
 
 /**
@@ -420,7 +423,7 @@ function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
   }
   const contextLength = Number(item['context_length']);
   if (!Number.isInteger(contextLength) || contextLength <= 0) {
-    throw new Error(`Kimi Code model "${item['id']}" must include a positive context_length.`);
+    throw new Error(`SuperLiora model "${item['id']}" must include a positive context_length.`);
   }
   const displayName = item['display_name'];
   const normalizedDisplayName =
@@ -490,7 +493,7 @@ export async function fetchManagedKimiCodeModels(
   if (!response.ok) {
     const message = await readApiErrorMessage(
       response,
-      `Failed to list Kimi Code models (HTTP ${response.status}).`,
+      `Failed to list SuperLiora models (HTTP ${response.status}).`,
     );
     if (response.status === 401 || response.status === 402 || response.status === 403) {
       throw new ManagedKimiCodeModelsAuthError({
@@ -521,7 +524,7 @@ export function applyManagedKimiCodeConfig(
   },
 ): ManagedKimiCodeApplyResult {
   if (options.models.length === 0) {
-    throw new Error('No models available for Kimi Code.');
+    throw new Error('No models available for SuperLiora.');
   }
   for (const model of options.models) {
     assertPositiveContextLength(model);
@@ -532,13 +535,13 @@ export function applyManagedKimiCodeConfig(
     options.oauthKey !== undefined
       ? managedOAuthRef({ key: options.oauthKey, oauthHost: options.oauthHost })
       : resolveKimiCodeOAuthRef({ baseUrl, oauthHost: options.oauthHost });
-  const oauthPool = managedOAuthPool(oauth, config.providers[KIMI_CODE_PROVIDER_NAME]);
+  const oauthPool = managedOAuthPool(oauth, config.providers[SUPERLIORA_PROVIDER_NAME]);
   const existingModels = config.models ?? {};
   const selectedDefault = selectDefaultModel(config, options.models, {
     preserveExisting: options.preserveDefaultModel === true,
   });
 
-  config.providers[KIMI_CODE_PROVIDER_NAME] = {
+  config.providers[SUPERLIORA_PROVIDER_NAME] = {
     type: 'kimi',
     baseUrl,
     apiKey: '',
@@ -550,7 +553,7 @@ export function applyManagedKimiCodeConfig(
   for (const [key, model] of Object.entries(existingModels)) {
     if (
       isRecord(model) &&
-      model['provider'] === KIMI_CODE_PROVIDER_NAME &&
+      model['provider'] === SUPERLIORA_PROVIDER_NAME &&
       !upstreamKeys.has(key)
     ) {
       delete existingModels[key];
@@ -566,7 +569,7 @@ export function applyManagedKimiCodeConfig(
     const existing = isRecord(existingModels[key]) ? existingModels[key] : {};
     existingModels[key] = {
       ...existing,
-      provider: KIMI_CODE_PROVIDER_NAME,
+      provider: SUPERLIORA_PROVIDER_NAME,
       model: model.id,
       maxContextSize: model.contextLength,
       capabilities,
@@ -602,12 +605,12 @@ export function applyManagedKimiCodeConfig(
 }
 
 export function applyManagedKimiCodeLogoutConfig(config: ManagedKimiConfigShape): void {
-  delete config.providers[KIMI_CODE_PROVIDER_NAME];
+  delete config.providers[SUPERLIORA_PROVIDER_NAME];
 
   let removedDefaultModel = false;
   const existingModels = config.models ?? {};
   for (const [key, model] of Object.entries(existingModels)) {
-    if (!isRecord(model) || model['provider'] !== KIMI_CODE_PROVIDER_NAME) continue;
+    if (!isRecord(model) || model['provider'] !== SUPERLIORA_PROVIDER_NAME) continue;
     delete existingModels[key];
     if (config.defaultModel === key) removedDefaultModel = true;
   }
@@ -617,7 +620,7 @@ export function applyManagedKimiCodeLogoutConfig(config: ManagedKimiConfigShape)
     config.defaultModel = undefined;
   }
 
-  if (config['defaultProvider'] === KIMI_CODE_PROVIDER_NAME) {
+  if (config['defaultProvider'] === SUPERLIORA_PROVIDER_NAME) {
     config['defaultProvider'] = undefined;
   }
 
@@ -650,7 +653,7 @@ function selectDefaultModel(
 ): SelectedDefaultModel {
   const firstModel = models[0];
   if (firstModel === undefined) {
-    throw new Error('No models available for Kimi Code.');
+    throw new Error('No models available for SuperLiora.');
   }
 
   const managedModels = new Map(models.map((model) => [managedModelKey(model.id), model]));
@@ -688,20 +691,20 @@ function canPreserveDefaultModel(
 ): boolean {
   if (managedModels.has(defaultModel)) return true;
   const existing = existingModels[defaultModel];
-  return isRecord(existing) && existing['provider'] !== KIMI_CODE_PROVIDER_NAME;
+  return isRecord(existing) && existing['provider'] !== SUPERLIORA_PROVIDER_NAME;
 }
 
 export function clearManagedKimiCodeConfig(
   config: ManagedKimiConfigShape,
 ): ManagedKimiCodeCleanupResult {
-  const removedProvider = Object.hasOwn(config.providers, KIMI_CODE_PROVIDER_NAME);
-  delete config.providers[KIMI_CODE_PROVIDER_NAME];
+  const removedProvider = Object.hasOwn(config.providers, SUPERLIORA_PROVIDER_NAME);
+  delete config.providers[SUPERLIORA_PROVIDER_NAME];
 
   const removedModels: string[] = [];
   const models = config.models;
   if (models !== undefined) {
     for (const [key, model] of Object.entries(models)) {
-      if (!isRecord(model) || model['provider'] !== KIMI_CODE_PROVIDER_NAME) continue;
+      if (!isRecord(model) || model['provider'] !== SUPERLIORA_PROVIDER_NAME) continue;
       delete models[key];
       removedModels.push(key);
     }
@@ -727,7 +730,7 @@ export function clearManagedKimiCodeConfig(
   }
 
   return {
-    providerName: KIMI_CODE_PROVIDER_NAME,
+    providerName: SUPERLIORA_PROVIDER_NAME,
     removedProvider,
     removedModels,
     defaultModelCleared,
@@ -737,7 +740,7 @@ export function clearManagedKimiCodeConfig(
 
 function assertPositiveContextLength(model: ManagedKimiCodeModelInfo): void {
   if (!Number.isInteger(model.contextLength) || model.contextLength <= 0) {
-    throw new Error(`Kimi Code model "${model.id}" must include a positive context_length.`);
+    throw new Error(`SuperLiora model "${model.id}" must include a positive context_length.`);
   }
 }
 
@@ -761,7 +764,7 @@ export async function provisionManagedKimiCodeConfig<TConfig>(
   });
   await options.adapter.write(config);
   return {
-    providerName: KIMI_CODE_PROVIDER_NAME,
+    providerName: SUPERLIORA_PROVIDER_NAME,
     defaultModel: applied.defaultModel,
     defaultThinking: applied.defaultThinking,
     models,

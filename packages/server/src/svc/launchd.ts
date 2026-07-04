@@ -91,7 +91,7 @@ export function createLaunchdManager(
 
     return {
       status: alreadyInstalled ? 'replaced' : 'installed',
-      message: `Kimi server LaunchAgent ${alreadyInstalled ? 'replaced' : 'installed'} at ${plistPath} (port ${plan.port}).`,
+      message: `SuperLiora server LaunchAgent ${alreadyInstalled ? 'replaced' : 'installed'} at ${plistPath} (port ${plan.port}).`,
       plistPath,
     };
   }
@@ -125,7 +125,7 @@ export function createLaunchdManager(
     if (!existsSync(plistPath)) {
       return {
         ok: false,
-        message: 'LaunchAgent is not installed. Run `kimi server install` first.',
+        message: 'LaunchAgent is not installed. Run `liora server install` first.',
       };
     }
     const target = `${deps.guiDomain()}/${KIMI_SERVER_LABEL}`;
@@ -148,7 +148,7 @@ export function createLaunchdManager(
         };
       }
     }
-    return { ok: true, message: `Kimi server started (${KIMI_SERVER_LABEL}).` };
+    return { ok: true, message: `SuperLiora server started (${KIMI_SERVER_LABEL}).` };
   }
 
   async function stop(): Promise<LifecycleResult> {
@@ -164,7 +164,7 @@ export function createLaunchdManager(
         };
       }
     }
-    return { ok: true, message: `Kimi server stopped (${KIMI_SERVER_LABEL}).` };
+    return { ok: true, message: `SuperLiora server stopped (${KIMI_SERVER_LABEL}).` };
   }
 
   async function restart(): Promise<LifecycleResult> {
@@ -176,7 +176,7 @@ export function createLaunchdManager(
         message: `launchctl kickstart -k failed: ${detail(result) ?? 'unknown error'}`,
       };
     }
-    return { ok: true, message: `Kimi server restarted (${KIMI_SERVER_LABEL}).` };
+    return { ok: true, message: `SuperLiora server restarted (${KIMI_SERVER_LABEL}).` };
   }
 
   async function status(): Promise<ServiceStatus> {
@@ -257,7 +257,7 @@ export function parseLaunchctlPrint(output: string): {
 function writePlist(plistPath: string, plan: InstallPlan, logPath: string): void {
   const xml = buildLaunchAgentPlist({
     label: KIMI_SERVER_LABEL,
-    comment: 'Kimi Code local server (managed by `kimi server install`).',
+    comment: 'SuperLiora local server (managed by `liora server install`).',
     programArguments: plan.programArguments,
     stdoutPath: logPath,
     stderrPath: logPath,

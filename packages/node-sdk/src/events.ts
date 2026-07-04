@@ -3,12 +3,12 @@ import type {
   ApprovalResponse,
   QuestionRequest,
   QuestionResult,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Event union plus shared fields/payloads used across event families.
-export type { KimiErrorPayload, Event } from '@moonshot-ai/agent-core';
+export type { LioraErrorPayload, Event } from '@superliora/agent-core';
 
-export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@moonshot-ai/agent-core';
+export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@superliora/agent-core';
 
 // Session lifecycle/status events and their status payload.
 export type {
@@ -23,7 +23,7 @@ export type {
   ErrorEvent,
   WarningEvent,
   UsageStatus,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Turn and step lifecycle events plus the turn-ending reason enum.
 export type {
@@ -34,14 +34,14 @@ export type {
   TurnStepRetryingEvent,
   TurnStepInterruptedEvent,
   TurnEndReason,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Streaming content and hook-result events.
 export type {
   AssistantDeltaEvent,
   HookResultEvent,
   ThinkingDeltaEvent,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Tool-call events and incremental progress payloads.
 export type {
@@ -53,7 +53,7 @@ export type {
   ToolCallResponse,
   ToolUpdate,
   McpOAuthAuthorizationUrlUpdateData,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // MCP tool-list and server status events.
 export type {
@@ -61,7 +61,7 @@ export type {
   ToolListUpdatedReason,
   McpServerStatusEvent,
   McpServerStatusPayload,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Approval reverse-RPC request and response/display payloads.
 export type {
@@ -70,7 +70,7 @@ export type {
   ApprovalScope,
   ApprovalResponse,
   ToolInputDisplay,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Question reverse-RPC request and answer payloads.
 export type {
@@ -81,7 +81,7 @@ export type {
   QuestionAnswers,
   QuestionResponse,
   QuestionResult,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Subagent lifecycle events.
 export type {
@@ -90,7 +90,7 @@ export type {
   SubagentSuspendedEvent,
   SubagentCompletedEvent,
   SubagentFailedEvent,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Compaction lifecycle events and compaction result payload.
 export type {
@@ -99,16 +99,16 @@ export type {
   CompactionCancelledEvent,
   CompactionCompletedEvent,
   CompactionResult,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 // Background task lifecycle events emitted by the BPM. Covers both
 // bash (`bash-*`) and agent (`agent-*`) tasks under one wire format.
 export type {
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
-export type { CronFiredEvent } from '@moonshot-ai/agent-core';
+export type { CronFiredEvent } from '@superliora/agent-core';
 
 // Ultrawork lifecycle events for theatre-style orchestration UIs.
 export type {
@@ -121,7 +121,7 @@ export type {
   UltraworkCouncilDecisionEvent,
   UltraworkVerificationCompletedEvent,
   UltraworkKnowledgePromotedEvent,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 export type MaybePromise<T> = T | Promise<T>;
 

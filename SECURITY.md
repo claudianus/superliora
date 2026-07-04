@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Currently, Super Kimi Code only provides security support for the latest released version.
+Currently, SuperLiora only provides security support for the latest released version.
 
 ## Reporting a Vulnerability
 
@@ -10,12 +10,12 @@ We take security seriously. **Please do not open a public issue for security vul
 
 Preferred channel:
 
-- GitHub Security Advisories — https://github.com/claudianus/super-kimi-code/security/advisories/new
+- GitHub Security Advisories — https://github.com/claudianus/superliora/security/advisories/new
   (private disclosure, tracked with the codebase)
 
 ## What to Include
 
-- Affected version (output of `kimi --version`)
+- Affected version (output of `liora --version`)
 - Reproduction steps
 - Impact assessment
 - Any suggested mitigation

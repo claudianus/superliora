@@ -1,6 +1,6 @@
 # Environment variables
 
-Kimi Code CLI uses environment variables to control a small number of runtime behaviors — relocating the data directory, turning off telemetry, and temporarily switching models without touching the config file.
+SuperLiora CLI uses environment variables to control a small number of runtime behaviors — relocating the data directory, turning off telemetry, and temporarily switching models without touching the config file.
 
 ::: warning Important: API keys are not configured here
 Credential variables such as `KIMI_API_KEY`, `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY` are **not** read automatically from shell environment variables. Running `export KIMI_API_KEY=xxx` in the terminal does not give any provider its key — they must be written in `config.toml` under `[providers.<name>]` or the `[providers.<name>.env]` sub-table.
@@ -12,15 +12,15 @@ For background, see [Config overrides: provider credentials](./overrides.md#prov
 
 ## Core paths
 
-### `KIMI_CODE_HOME`
+### `SUPERLIORA_HOME`
 
-Overrides the data root directory; the default is `~/.kimi-code`. Once set, the config file, sessions, logs, OAuth credentials, and all other data land under the new path:
+Overrides the data root directory; the default is `~/.superliora`. Once set, the config file, sessions, logs, OAuth credentials, and all other data land under the new path:
 
 ```sh
-export KIMI_CODE_HOME="/path/to/custom/kimi-code"
+export SUPERLIORA_HOME="/path/to/custom/kimi-code"
 ```
 
-> Make sure the directory is writable. Multiple `kimi` instances sharing the same `KIMI_CODE_HOME` will share config and credential files.
+> Make sure the directory is writable. Multiple `kimi` instances sharing the same `SUPERLIORA_HOME` will share config and credential files.
 
 For the complete data directory structure, see [Data locations](./data-locations.md).
 
@@ -75,12 +75,12 @@ This group of variables redirects OAuth authentication and managed service endpo
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `KIMI_CODE_OAUTH_HOST` | OAuth auth host; highest priority | Falls back to `KIMI_OAUTH_HOST` when unset |
-| `KIMI_OAUTH_HOST` | OAuth auth host; fallback for `KIMI_CODE_OAUTH_HOST` | Falls back to `https://auth.kimi.com` when unset |
-| `KIMI_CODE_BASE_URL` | Managed API base URL used after OAuth login | `https://api.kimi.com/coding/v1` |
+| `SUPERLIORA_OAUTH_HOST` | OAuth auth host; highest priority | Falls back to `KIMI_OAUTH_HOST` when unset |
+| `KIMI_OAUTH_HOST` | OAuth auth host; fallback for `SUPERLIORA_OAUTH_HOST` | Falls back to `https://auth.kimi.com` when unset |
+| `SUPERLIORA_BASE_URL` | Managed API base URL used after OAuth login | `https://api.kimi.com/coding/v1` |
 
 ::: warning
-`KIMI_CODE_BASE_URL` (OAuth-managed service, targeting `kimi.com`) and `KIMI_BASE_URL` (direct API key connection, targeting `moonshot.ai`) are two distinct variables. Use each one in its appropriate context.
+`SUPERLIORA_BASE_URL` (OAuth-managed service, targeting `kimi.com`) and `KIMI_BASE_URL` (direct API key connection, targeting `moonshot.ai`) are two distinct variables. Use each one in its appropriate context.
 :::
 
 ## Define a model from environment variables (`KIMI_MODEL_*`)
@@ -123,17 +123,17 @@ Switches that control the behavior of subsystems such as telemetry, background t
 | Variable | Purpose | Valid values |
 | --- | --- | --- |
 | `KIMI_DISABLE_TELEMETRY` | Disable anonymous telemetry reporting | `1`, `true`, `yes`, `y` (case-insensitive) |
-| `KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Whether to keep background tasks when the session closes; takes higher priority than `config.toml`. The default is to stop them on exit | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
-| `KIMI_CODE_PLUGIN_MARKETPLACE_URL` | Override the plugin marketplace JSON loaded by `/plugins`; useful for dev loopback servers, staging CDN files, or alternate marketplace directories | `https://code.kimi.com/kimi-code/plugins/marketplace.json`; also accepts `http://`, `file://` URLs, and local paths |
-| `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` | Cap how many AgentSwarm subagents run concurrently during the initial ramp; leave unset for no cap | Positive integer; invalid values fail fast |
-| `KIMI_CODE_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process; `micro_compaction` is already enabled by default | `1`, `true`, `yes`, `on` |
-| `KIMI_CODE_EXPERIMENTAL_MICRO_COMPACTION` | Override [`[experimental].micro_compaction`](./config-files.md#experimental) for this process | Truthy or falsy |
+| `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Whether to keep background tasks when the session closes; takes higher priority than `config.toml`. The default is to stop them on exit | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `SUPERLIORA_PLUGIN_MARKETPLACE_URL` | Override the plugin marketplace JSON loaded by `/plugins`; useful for dev loopback servers, staging CDN files, or alternate marketplace directories | `https://raw.githubusercontent.com/claudianus/superliora/main/plugins/marketplace.json`; also accepts `http://`, `file://` URLs, and local paths |
+| `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY` | Cap how many AgentSwarm subagents run concurrently during the initial ramp; leave unset for no cap | Positive integer; invalid values fail fast |
+| `SUPERLIORA_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process; `micro_compaction` is already enabled by default | `1`, `true`, `yes`, `on` |
+| `SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION` | Override [`[experimental].micro_compaction`](./config-files.md#experimental) for this process | Truthy or falsy |
 | `KIMI_SHELL_PATH` | Override the Git Bash path on Windows (used when auto-detection fails) | Absolute path |
 | `KIMI_MODEL_MAX_COMPLETION_TOKENS` | Hard cap on `max_completion_tokens` per LLM step; applies to the `kimi` provider only | Positive integer; `0` or negative disables clamping |
 | `KIMI_MODEL_TEMPERATURE` | Sampling temperature for every request; applies to the `kimi` provider only (global — independent of `KIMI_MODEL_NAME`) | Number, e.g. `0.3` |
 | `KIMI_MODEL_TOP_P` | Nucleus-sampling `top_p` for every request; applies to the `kimi` provider only (global) | Number, e.g. `0.95` |
 | `KIMI_MODEL_THINKING_KEEP` | Moonshot preserved-thinking passthrough (`thinking.keep`); applies to the `kimi` provider only, and only while Thinking is on | A value the API accepts, e.g. `all` |
-| `KIMI_CODE_NO_AUTO_UPDATE` | Fully disable the update preflight — no check, background install, or prompt. Legacy alias `KIMI_CLI_NO_AUTO_UPDATE` is also honored | Truthy: `1`/`true`/`yes`/`on` |
+| `SUPERLIORA_NO_AUTO_UPDATE` | Fully disable the update preflight — no check, background install, or prompt. Legacy alias `KIMI_CLI_NO_AUTO_UPDATE` is also honored | Truthy: `1`/`true`/`yes`/`on` |
 | `KIMI_DISABLE_CRON` | Disable the scheduled-task tool (`CronCreate` rejects new schedules; existing tasks do not fire) | `1` to disable |
 
 ## Diagnostic logs
@@ -164,7 +164,7 @@ The CLI also reads several standard system variables to detect the runtime envir
 
 ## HTTP proxy
 
-Kimi Code honors the standard proxy environment variables for all outbound traffic — model API calls, MCP servers, web tools, telemetry, sign-in, and update checks:
+SuperLiora honors the standard proxy environment variables for all outbound traffic — model API calls, MCP servers, web tools, telemetry, sign-in, and update checks:
 
 - `HTTP_PROXY` / `http_proxy`: proxy for `http://` requests
 - `HTTPS_PROXY` / `https_proxy`: proxy for `https://` requests
@@ -175,10 +175,10 @@ Both HTTP(S) and SOCKS proxies are supported. A SOCKS proxy is recognized by its
 
 The proxy is applied only when one of these variables is set; otherwise connections are made directly. Loopback hosts (`localhost`, `127.0.0.1`, `::1`) always bypass the proxy, so a local server such as a localhost MCP server keeps working when a proxy is configured — add your own internal hosts to `NO_PROXY` to exempt them too.
 
-Stdio MCP servers that run as Node child processes honor `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` automatically when the child's Node version supports `NODE_USE_ENV_PROXY` (Node ≥ 22.21 or ≥ 24.5); SOCKS proxying applies to Kimi Code's own traffic only.
+Stdio MCP servers that run as Node child processes honor `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` automatically when the child's Node version supports `NODE_USE_ENV_PROXY` (Node ≥ 22.21 or ≥ 24.5); SOCKS proxying applies to SuperLiora's own traffic only.
 
 ## Next steps
 
 - [Config overrides](./overrides.md) — how environment variables, CLI options, and the config file interact by priority
-- [Data locations](./data-locations.md) — directory structure affected by `KIMI_CODE_HOME`
+- [Data locations](./data-locations.md) — directory structure affected by `SUPERLIORA_HOME`
 - [Providers and models](./providers.md) — full connection examples per provider type

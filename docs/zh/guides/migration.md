@@ -1,7 +1,7 @@
 # 从 kimi-cli 迁移
 
 ::: info
-Kimi Code CLI 已完成重大版本升级，底层从 Python/uv 迁移至 Node.js，带来更简单的安装方式、更快的启动速度和全新的终端界面。旧版将逐渐停止维护，建议尽快升级至新版。
+SuperLiora CLI 已完成重大版本升级，底层从 Python/uv 迁移至 Node.js，带来更简单的安装方式、更快的启动速度和全新的终端界面。旧版将逐渐停止维护，建议尽快升级至新版。
 :::
 
 如果你正在从旧版迁移，按照以下步骤操作——一条命令就能把配置、MCP server 与会话历史一并迁移至新版。
@@ -22,7 +22,7 @@ Kimi Code CLI 已完成重大版本升级，底层从 Python/uv 迁移至 Node.j
 你也可以**随时手动运行**：
 
 ```sh
-kimi migrate
+liora migrate
 ```
 
 你可以选择是否同时迁移聊天会话。如果暂时不需要历史记录，选 **Config only**；否则选 **Config + N sessions** 一并迁移。结束后会显示结果摘要。

@@ -4,7 +4,7 @@ outline: 2
 
 # 变更记录
 
-本页记录 Kimi Code CLI 每个版本的变更内容。
+本页记录 SuperLiora CLI 每个版本的变更内容。
 
 ## 0.20.1（2026-06-26）
 
@@ -12,12 +12,12 @@ outline: 2
 
 - 插件现支持在 `kimi.plugin.json` 中声明生命周期 hooks，在指定阶段运行脚本。详见[插件 Hooks](../customization/plugins.md#插件中的-hooks)。
 - `/feedback` 现支持附加诊断日志与代码库上下文。
-- 新增 `kimi update` 命令，等价于 `kimi upgrade`，可用于升级到最新版本。
-- `kimi web` 新增 `--allowed-host <host>` 选项，可将指定 Host 加入 DNS 重绑定白名单；403 错误会提示如何通过 `--allowed-host` 或 `KIMI_CODE_ALLOWED_HOSTS` 放行，例如 `kimi web --allowed-host example.com`。
+- 新增 `kimi update` 命令，等价于 `liora upgrade`，可用于升级到最新版本。
+- `kimi web` 新增 `--allowed-host <host>` 选项，可将指定 Host 加入 DNS 重绑定白名单；403 错误会提示如何通过 `--allowed-host` 或 `SUPERLIORA_ALLOWED_HOSTS` 放行，例如 `kimi web --allowed-host example.com`。
 
 ### 修复
 
-- 修复 Windows 上 kimi server 首次运行后无法启动的问题。
+- 修复 Windows 上 liora server 首次运行后无法启动的问题。
 - 修复 `/web` 命令打开的 Web UI 不会自动登录的问题，现在终端会打印访问 token。
 - chat-completions 供应商的 `max_tokens` 现在不超过剩余上下文窗口，避免上下文溢出与无效参数错误。
 
@@ -129,8 +129,8 @@ outline: 2
 
 - 新增添加额外工作区目录的能力：
   - 使用 `/add-dir <path>` 命令将额外工作目录添加到当前会话，或将其记住到项目中。
-  - 使用 `kimi --add-dir <path>` 在启动时添加它们。
-  - 项目级本地配置现在由 `.kimi-code/local.toml` 管理；我们建议将其添加到你的 `.gitignore` 中。
+  - 使用 `liora --add-dir <path>` 在启动时添加它们。
+  - 项目级本地配置现在由 `.superliora/local.toml` 管理；我们建议将其添加到你的 `.gitignore` 中。
 - 允许使用 `Ctrl+B` 将长时间运行的前台命令和子 Agent 移动到后台任务，并通过 `/tasks` 面板查看它们。
 
 ### 修复
@@ -192,7 +192,7 @@ outline: 2
 
 ### 新功能
 
-- 新增 Kimi Code Web 模式，可通过 `kimi web` 或 CLI 内的 `/web` 启动，在浏览器中的聊天界面继续会话。
+- 新增 SuperLiora Web 模式，可通过 `kimi web` 或 CLI 内的 `/web` 启动，在浏览器中的聊天界面继续会话。
 
 ### 修复
 
@@ -207,7 +207,7 @@ outline: 2
 
 ### 新功能
 
-- 新增内置的 `kimi vis` 命令，可在浏览器中启动会话可视化工具，并指向本地会话。支持 `--port`/`--host`、`--no-open` 以及 `kimi vis <sessionId>` 深度链接。
+- 新增内置的 `liora vis` 命令，可在浏览器中启动会话可视化工具，并指向本地会话。支持 `--port`/`--host`、`--no-open` 以及 `liora vis <sessionId>` 深度链接。
 
 ### 修复
 
@@ -319,7 +319,7 @@ outline: 2
 ### 修复
 
 - 阻止在活跃 turn 期间 fork 会话，并将 wire protocol 定义整合到共享的内部包中。
-- 修复 Kimi Datasource，使其在当前 Kimi Code 环境中使用匹配的 OAuth 凭证和服务端点。
+- 修复 Kimi Datasource，使其在当前 SuperLiora 环境中使用匹配的 OAuth 凭证和服务端点。
 - 修复 goal 标记文本超出终端宽度的问题。
 
 ### 优化
@@ -334,7 +334,7 @@ outline: 2
 
 ### 新功能
 
-- 新增自定义颜色主题。在 `~/.kimi-code/themes/` 中以 JSON 文件定义自己的调色板，或使用内置的 `/custom-theme` Skill 命令生成。
+- 新增自定义颜色主题。在 `~/.superliora/themes/` 中以 JSON 文件定义自己的调色板，或使用内置的 `/custom-theme` Skill 命令生成。
 - 新增 `/import-from-cc-codex` 命令，用于导入选定的 Claude Code 和 Codex 指令、Skills 以及 MCP 设置。
 - 在 marketplace 中显示可用的 plugin 更新。
 
@@ -383,17 +383,17 @@ outline: 2
 - 直接展示完整 plan 卡片，并移除 Plan 卡片键盘快捷键。
 - 在审批提示中换行显示过长的单行 shell 命令，以便完整命令始终可见。
 - 重构 TUI 中的文件引用补全。
-- 当设置了 `KIMI_CODE_HOME` 时，从该路径加载 Kimi 特定的用户 Skills 和全局 Agent 指令。
+- 当设置了 `SUPERLIORA_HOME` 时，从该路径加载 Kimi 特定的用户 Skills 和全局 Agent 指令。
 
 ## 0.11.0（2026-06-05）
 
 ### 新功能
 
-- 新增由环境变量 `KIMI_CODE_EXPERIMENTAL_SUB_SKILL` 控制的实验性子 Skill 发现能力。随附 `sub-skill` 内置包（`sub-skill.review`、`sub-skill.consolidate`），用于盘点 Skill 并将其整理为分层分组。
+- 新增由环境变量 `SUPERLIORA_EXPERIMENTAL_SUB_SKILL` 控制的实验性子 Skill 发现能力。随附 `sub-skill` 内置包（`sub-skill.review`、`sub-skill.consolidate`），用于盘点 Skill 并将其整理为分层分组。
 - 新增以下环境变量：
   - `KIMI_MODEL_TEMPERATURE`、`KIMI_MODEL_TOP_P` —— 全局应用于任意 `kimi` 供应商的采样参数（不绑定到 `KIMI_MODEL_NAME`）。
   - `KIMI_MODEL_THINKING_KEEP` —— Moonshot 的 preserved-thinking 透传（`thinking.keep`），仅在开启 Thinking 时注入。
-  - `KIMI_CODE_NO_AUTO_UPDATE`（旧别名 `KIMI_CLI_NO_AUTO_UPDATE`）—— 完全禁用更新预检（不检查、不后台安装、不提示）。
+  - `SUPERLIORA_NO_AUTO_UPDATE`（旧别名 `KIMI_CLI_NO_AUTO_UPDATE`）—— 完全禁用更新预检（不检查、不后台安装、不提示）。
 - 将内置 Skill 显示为直接斜杠命令，并将其分组排在外部 Skill 命令之前。
 
 ### 修复
@@ -430,7 +430,7 @@ outline: 2
 - 新增内置的 `update-config` Skill —— 你现在可以让 Kimi 编辑它自己的配置文件。
 - 新增持久化的实验性功能开关，以及一个 TUI 面板，确认后会通过重载当前会话来应用变更。
 - 新增 `/reload` 以重载当前会话并应用更新后的配置文件，以及 `/reload-tui` 以仅重载 TUI 偏好设置。
-- 新增 doctor 命令，用于校验 Kimi Code 的配置文件。
+- 新增 doctor 命令，用于校验 SuperLiora 的配置文件。
 
 ### 修复
 
@@ -460,7 +460,7 @@ outline: 2
 
 ### 新功能
 
-- 支持 `kimi acp` 子命令：kimi-code 现在可通过 stdio 使用 [Agent Client Protocol 0.23](https://agentclientprotocol.com/)，因此 IDE（Zed、JetBrains AI Chat、自定义客户端）可以直接驱动会话；覆盖矩阵、Zed 配置和破坏性预发布说明见 [kimi acp 子命令页面](https://moonshotai.github.io/kimi-code/zh/reference/kimi-acp.html)。
+- 支持 `liora acp` 子命令：kimi-code 现在可通过 stdio 使用 [Agent Client Protocol 0.23](https://agentclientprotocol.com/)，因此 IDE（Zed、JetBrains AI Chat、自定义客户端）可以直接驱动会话；覆盖矩阵、Zed 配置和破坏性预发布说明见 [liora acp 子命令页面](https://moonshotai.github.io/kimi-code/zh/reference/kimi-acp.html)。
 - 新增 `/btw`，用于进行不会引导当前主轮次的侧通道对话，并允许 `/btw` 在输入问题前打开侧通道面板。
 
 ### 修复
@@ -484,17 +484,17 @@ outline: 2
 
 ### 新功能
 
-- 新增实验性 goal 模式，用于需要多轮处理的较长任务。在启动 Kimi 前设置 `KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND=1` 即可开启。
+- 新增实验性 goal 模式，用于需要多轮处理的较长任务。在启动 Kimi 前设置 `SUPERLIORA_EXPERIMENTAL_GOAL_COMMAND=1` 即可开启。
   在终端界面中使用 `/goal <objective>` 让 Kimi 跨轮次持续专注于同一任务。例如：
   ```text
   /goal Fix the failing checkout test
   ```
   Kimi 会在终端界面中显示目标，并在工作过程中保持进度可见。使用 `/goal status`、`/goal pause`、`/goal resume`、`/goal cancel` 和 `/goal replace <objective>` 来管理该目标。该功能仍处于实验阶段，欢迎试用并反馈改进建议。
-- 新增 `kimi provider` CLI 子命令，支持 `add`、`remove`、`list` 以及 `catalog list` / `catalog add` 操作，可在不启动终端界面的情况下导入和管理来自自定义 registry（api.json）或公开 models.dev 目录的供应商。
+- 新增 `liora provider` CLI 子命令，支持 `add`、`remove`、`list` 以及 `catalog list` / `catalog add` 操作，可在不启动终端界面的情况下导入和管理来自自定义 registry（api.json）或公开 models.dev 目录的供应商。
 - 新增后台结构化提问，让 Agent 在等待用户回答时也能继续工作。
 - 新增后台自动更新，可在 tui.toml 中关闭。
 - 新增 `/undo` 斜杠命令，用于从对话历史中撤回上一条提示词，并在撤回时保持回放记录同步。
-- 新增 `kimi upgrade` 命令，用于手动检查并升级 Kimi Code CLI。
+- 新增 `liora upgrade` 命令，用于手动检查并升级 SuperLiora CLI。
 - 新增审批生命周期 hook 事件，用于观察待处理和已完成的权限提示。
 - 允许子 Agent 使用在其父 Agent 上注册的自定义工具。
 - 支持用 glob 搜索显式的绝对路径（工作空间之外）。
@@ -545,7 +545,7 @@ outline: 2
 
 ### 新功能
 
-- 新增 `KIMI_MODEL_*` 环境变量通道，让你无需编辑 `config.toml` 即可让 Kimi Code 使用指定模型（供应商类型、base URL、API 密钥、上下文大小、能力以及 thinking 设置）。
+- 新增 `KIMI_MODEL_*` 环境变量通道，让你无需编辑 `config.toml` 即可让 SuperLiora 使用指定模型（供应商类型、base URL、API 密钥、上下文大小、能力以及 thinking 设置）。
 - 支持直接从 GitHub 仓库 URL 安装 plugin，并在 plugin 管理器中展示每次安装的来源和信任级别（kimi-official、curated、third-party）。
 
 ### 修复
@@ -634,7 +634,7 @@ outline: 2
 
 ### 其他
 
-- 增强 `kimi export`，在 manifest 中记录更多诊断信息。
+- 增强 `liora export`，在 manifest 中记录更多诊断信息。
 
 ## 0.3.0（2026-05-26）
 
@@ -672,7 +672,7 @@ outline: 2
 - `/connect` 的供应商和模型选择器现支持键入即搜索过滤，长列表会自动分页；配置了较多模型时，`/model` 选择器同样支持分页。
 - 在终端界面输入框中新增 `Ctrl-J` 作为插入换行的额外快捷键。
 - 在会话回放过程中新增 wire 记录迁移处理。
-- 在首次启动迁移期间，将用户 Skill 从 `~/.kimi/skills/` 迁移到 `~/.kimi-code/skills/`；已存在的目标 Skill 会被保留。
+- 在首次启动迁移期间，将用户 Skill 从 `~/.kimi/skills/` 迁移到 `~/.superliora/skills/`；已存在的目标 Skill 会被保留。
 - 在 stream-json 输出格式中以结构化 meta 消息形式发出会话恢复提示。
 
 ### 修复

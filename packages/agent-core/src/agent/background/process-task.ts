@@ -1,4 +1,4 @@
-import type { KaosProcess } from '@moonshot-ai/kaos';
+import type { KaosProcess } from '@superliora/kaos';
 import type { Readable } from 'node:stream';
 
 import { errorMessage } from '../../loop/errors';

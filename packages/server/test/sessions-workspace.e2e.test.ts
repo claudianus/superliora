@@ -16,8 +16,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { pino } from 'pino';
-import { encodeWorkDirKey } from '@moonshot-ai/agent-core/session/store';
-import type { Session, Workspace } from '@moonshot-ai/protocol';
+import { encodeWorkDirKey } from '@superliora/agent-core/session/store';
+import type { Session, Workspace } from '@superliora/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
@@ -29,9 +29,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-swsessions-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-swsessions-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-swsessions-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-swsessions-home-'));
 });
 
 afterEach(async () => {

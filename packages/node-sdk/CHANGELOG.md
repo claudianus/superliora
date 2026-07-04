@@ -1,4 +1,4 @@
-# @moonshot-ai/kimi-code-sdk
+# @superliora/sdk
 
 ## 0.10.1
 
@@ -14,7 +14,7 @@
 
   - Use the `/add-dir <path>` command to add extra working directories to the current session, or remember them for the project.
   - Use `kimi --add-dir <path>` to add them on startup.
-  - Project-level local config is now managed in `.kimi-code/local.toml`; we recommend adding it to your `.gitignore`.
+  - Project-level local config is now managed in `.superliora/local.toml`; we recommend adding it to your `.gitignore`.
 
 ### Patch Changes
 
@@ -88,7 +88,7 @@
 
 ### Minor Changes
 
-- [#270](https://github.com/MoonshotAI/kimi-code/pull/270) [`ac37d74`](https://github.com/MoonshotAI/kimi-code/commit/ac37d7448458fdb73fbe00e35856dcf44a13f734) - Add experimental goal mode for longer tasks that need more than one turn. Turn it on with `KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND=1` before you start Kimi.
+- [#270](https://github.com/MoonshotAI/kimi-code/pull/270) [`ac37d74`](https://github.com/MoonshotAI/kimi-code/commit/ac37d7448458fdb73fbe00e35856dcf44a13f734) - Add experimental goal mode for longer tasks that need more than one turn. Turn it on with `SUPERLIORA_EXPERIMENTAL_GOAL_COMMAND=1` before you start Kimi.
 
   Use `/goal <objective>` in the TUI when you want Kimi to keep working on one task across turns. For example:
 

@@ -1,4 +1,4 @@
-import { Disposable, ILogService } from '@moonshot-ai/agent-core';
+import { Disposable, ILogService } from '@superliora/agent-core';
 import { pino, type Logger, type LoggerOptions } from 'pino';
 import prettyStream from 'pino-pretty';
 
@@ -15,7 +15,7 @@ export function createServerLogger(opts: CreateLoggerOptions): ServerLogger {
   const pretty = opts.pretty ?? process.stdout.isTTY === true;
   const base: LoggerOptions = {
     level: opts.level,
-    base: { name: 'kimi-server' },
+    base: { name: 'liora-server' },
     timestamp: pino.stdTimeFunctions.isoTime,
   };
   if (pretty) {

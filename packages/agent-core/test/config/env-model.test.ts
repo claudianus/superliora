@@ -10,7 +10,7 @@ import {
   stripEnvModelConfig,
 } from '../../src/config/env-model';
 import { getDefaultConfig, loadRuntimeConfig, readConfigFile, writeConfigFile } from '../../src/config';
-import { KimiError } from '../../src/errors';
+import { LioraError } from '../../src/errors';
 
 function apply(env: Record<string, string | undefined>) {
   return applyEnvModelConfig(getDefaultConfig(), env);
@@ -20,8 +20,8 @@ function expectConfigInvalid(fn: () => unknown): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(KimiError);
-    expect((error as KimiError).code).toBe('config.invalid');
+    expect(error).toBeInstanceOf(LioraError);
+    expect((error as LioraError).code).toBe('config.invalid');
     return;
   }
   throw new Error('expected function to throw');
@@ -59,7 +59,7 @@ describe('applyEnvModelConfig', () => {
     },
   );
 
-  it('synthesizes a kimi provider and model from the minimal set', () => {
+  it('synthesizes a liora provider and model from the minimal set', () => {
     const config = apply({ ...MIN });
     expect(config.providers[ENV_MODEL_PROVIDER_KEY]).toEqual({
       type: 'kimi',

@@ -11,8 +11,8 @@ import {
   promptSteerRequestSchema,
   promptSteerResultSchema,
   type PromptSubmission,
-} from '@moonshot-ai/protocol';
-import { IPromptService, AuthModelNotResolvedError, AuthProvisioningRequiredError, AuthTokenMissingError, AuthTokenUnauthorizedError, PromptAlreadyCompletedError, PromptNotFoundError, SessionBusyError, SessionNotFoundError, FileNotFoundError, IFileStore, type IInstantiationService, type GetResult } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { IPromptService, AuthModelNotResolvedError, AuthProvisioningRequiredError, AuthTokenMissingError, AuthTokenUnauthorizedError, PromptAlreadyCompletedError, PromptNotFoundError, SessionBusyError, SessionNotFoundError, FileNotFoundError, IFileStore, type IInstantiationService, type GetResult } from '@superliora/agent-core';
 import { z } from 'zod';
 
 

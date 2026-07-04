@@ -4,12 +4,12 @@ import {
   type ChatProvider,
   type ModelCapability,
   type ProviderConfig,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 
 import { applyKimiEnvSamplingParams, applyKimiEnvThinkingKeep } from '#/config/kimi-env-params';
 
 import type { Agent } from '..';
-import { ErrorCodes, KimiError } from '../../errors';
+import { ErrorCodes, LioraError } from '../../errors';
 import type { AgentConfigData, AgentConfigUpdateData } from './types';
 import {
   resolveThinkingEffort,
@@ -101,7 +101,7 @@ export class ConfigState {
   get providerConfig(): ProviderConfig {
     const provider = this.resolvedProviderConfig?.provider;
     if (provider === undefined) {
-      throw new KimiError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Provider not set');
+      throw new LioraError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Provider not set');
     }
     return provider;
   }
@@ -118,7 +118,7 @@ export class ConfigState {
   createRuntimeProvider(resolved: ResolvedRuntimeProvider | undefined): ChatProvider {
     const providerConfig = resolved?.provider;
     if (providerConfig === undefined) {
-      throw new KimiError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Provider not set');
+      throw new LioraError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Provider not set');
     }
     const provider = createProvider(providerConfig).withThinking(this.thinkingLevel);
     return applyKimiEnvThinkingKeep(applyKimiEnvSamplingParams(provider), this.thinkingLevel);
@@ -126,7 +126,7 @@ export class ConfigState {
 
   get model(): string {
     if (this._modelAlias === undefined) {
-      throw new KimiError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Model not set');
+      throw new LioraError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Model not set');
     }
     return this._modelAlias;
   }

@@ -1,21 +1,21 @@
 {
-  "name": "@moonshot-ai/kimi-code-sdk",
+  "name": "@superliora/sdk",
   "version": "0.10.1",
   "private": true,
-  "description": "TypeScript SDK for the Kimi Code Agent",
+  "description": "TypeScript SDK for the SuperLiora Agent",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/node-sdk#readme",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://github.com/claudianus/superliora/tree/main/packages/node-sdk#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/claudianus/superliora.git",
     "directory": "packages/node-sdk"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/claudianus/superliora/issues"
   },
   "keywords": [
-    "kimi",
+    "superliora",
     "sdk",
     "typescript",
     "agent",
@@ -62,10 +62,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@moonshot-ai/agent-core": "workspace:^",
-    "@moonshot-ai/kaos": "workspace:^",
-    "@moonshot-ai/kimi-code-oauth": "workspace:^",
-    "@moonshot-ai/kosong": "workspace:^",
+    "@superliora/agent-core": "workspace:^",
+    "@superliora/kaos": "workspace:^",
+    "@superliora/oauth": "workspace:^",
+    "@superliora/kosong": "workspace:^",
     "@types/yazl": "^2.4.6"
   }
 }

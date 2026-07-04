@@ -1,5 +1,5 @@
 
-import { createDecorator } from '@moonshot-ai/agent-core';
+import { createDecorator } from '@superliora/agent-core';
 import type { WsConnection } from '#/ws/connection';
 
 export interface ISessionClientsService {

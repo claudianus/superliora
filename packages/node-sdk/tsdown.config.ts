@@ -20,13 +20,13 @@ export default defineConfig({
     ].join('\n'),
   },
   alias: {
-    '@moonshot-ai/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
-    '@moonshot-ai/kaos': fileURLToPath(new URL('../kaos/src/index.ts', import.meta.url)),
-    '@moonshot-ai/kimi-code-oauth': fileURLToPath(new URL('../oauth/src/index.ts', import.meta.url)),
-    '@moonshot-ai/kosong': fileURLToPath(new URL('../kosong/src/index.ts', import.meta.url)),
+    '@superliora/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
+    '@superliora/kaos': fileURLToPath(new URL('../kaos/src/index.ts', import.meta.url)),
+    '@superliora/oauth': fileURLToPath(new URL('../oauth/src/index.ts', import.meta.url)),
+    '@superliora/kosong': fileURLToPath(new URL('../kosong/src/index.ts', import.meta.url)),
   },
   deps: {
-    alwaysBundle: [/^@moonshot-ai\//],
+    alwaysBundle: [/^@superliora\//],
     neverBundle: [],
   },
 });

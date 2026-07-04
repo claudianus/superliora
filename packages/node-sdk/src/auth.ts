@@ -3,13 +3,13 @@ import {
   readConfigFile,
   readConfigFileForUpdate,
   writeConfigFile,
-  type KimiConfig,
+  type LioraConfig,
   type OAuthRef,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 import {
   applyManagedKimiCodeConfig,
   applyManagedKimiCodeLogoutConfig,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_PROVIDER_NAME,
   KimiOAuthToolkit,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
@@ -23,11 +23,11 @@ import {
   type KimiOAuthLoginOptions,
   type ManagedKimiConfigShape,
   type OAuthRefreshOutcome,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 
 import { mapOAuthTokenError } from '#/oauth-error';
 
-export interface KimiAuthSubmitFeedbackInput {
+export interface LioraAuthSubmitFeedbackInput {
   readonly content: string;
   readonly sessionId: string;
   readonly version: string;
@@ -37,43 +37,43 @@ export interface KimiAuthSubmitFeedbackInput {
   readonly info?: Record<string, unknown>;
 }
 
-export interface KimiAuthCreateFeedbackUploadUrlInput {
+export interface LioraAuthCreateFeedbackUploadUrlInput {
   readonly feedbackId: number;
   readonly filename: string;
   readonly size: number;
   readonly sha256: string;
 }
 
-export interface KimiAuthCompleteFeedbackUploadPart {
+export interface LioraAuthCompleteFeedbackUploadPart {
   readonly partNumber: number;
   readonly etag: string;
 }
 
-export interface KimiAuthCompleteFeedbackUploadInput {
+export interface LioraAuthCompleteFeedbackUploadInput {
   readonly uploadId: number;
-  readonly parts: readonly KimiAuthCompleteFeedbackUploadPart[];
+  readonly parts: readonly LioraAuthCompleteFeedbackUploadPart[];
 }
 
-export interface KimiAuthFeedbackUploadPart {
+export interface LioraAuthFeedbackUploadPart {
   readonly partNumber: number;
   readonly url: string;
   readonly method: string;
   readonly size: number;
 }
 
-export interface KimiAuthCreateFeedbackUploadUrlOk {
+export interface LioraAuthCreateFeedbackUploadUrlOk {
   readonly kind: 'ok';
   readonly uploadId: number;
-  readonly parts: readonly KimiAuthFeedbackUploadPart[];
+  readonly parts: readonly LioraAuthFeedbackUploadPart[];
 }
 
-export type KimiAuthCreateFeedbackUploadUrlResult =
-  | KimiAuthCreateFeedbackUploadUrlOk
+export type LioraAuthCreateFeedbackUploadUrlResult =
+  | LioraAuthCreateFeedbackUploadUrlOk
   | FetchFeedbackUploadError;
 
-export type KimiAuthLoginOptions = Omit<KimiOAuthLoginOptions, 'provisionConfig'>;
+export type LioraAuthLoginOptions = Omit<KimiOAuthLoginOptions, 'provisionConfig'>;
 
-export interface KimiAuthLoginResult {
+export interface LioraAuthLoginResult {
   readonly providerName: string;
   readonly ok: true;
   readonly defaultModel: string;
@@ -81,25 +81,25 @@ export interface KimiAuthLoginResult {
   readonly configPath?: string | undefined;
 }
 
-export interface KimiAuthLogoutResult {
+export interface LioraAuthLogoutResult {
   readonly providerName: string;
   readonly ok: true;
 }
 
-export interface KimiAuthFacadeOptions {
+export interface LioraAuthFacadeOptions {
   readonly homeDir: string;
   readonly configPath: string;
   readonly identity?: KimiHostIdentity | undefined;
-  readonly onConfigUpdated?: ((config: KimiConfig) => void) | undefined;
+  readonly onConfigUpdated?: ((config: LioraConfig) => void) | undefined;
   readonly onRefresh?: ((outcome: OAuthRefreshOutcome) => void) | undefined;
 }
 
-type SDKManagedConfig = KimiConfig & ManagedKimiConfigShape;
+type SDKManagedConfig = LioraConfig & ManagedKimiConfigShape;
 
-export class KimiAuthFacade {
+export class LioraAuthFacade {
   private readonly toolkit: KimiOAuthToolkit<SDKManagedConfig>;
 
-  constructor(private readonly options: KimiAuthFacadeOptions) {
+  constructor(private readonly options: LioraAuthFacadeOptions) {
     this.toolkit = new KimiOAuthToolkit<SDKManagedConfig>({
       homeDir: options.homeDir,
       identity: options.identity,
@@ -123,9 +123,9 @@ export class KimiAuthFacade {
   }
 
   async login(
-    providerName: string | undefined = KIMI_CODE_PROVIDER_NAME,
-    options: KimiAuthLoginOptions = {},
-  ): Promise<KimiAuthLoginResult> {
+    providerName: string | undefined = SUPERLIORA_PROVIDER_NAME,
+    options: LioraAuthLoginOptions = {},
+  ): Promise<LioraAuthLoginResult> {
     const auth = this.resolveManagedAuth(providerName);
     const loginAuth = resolveKimiCodeLoginAuth({
       configuredBaseUrl: auth.baseUrl,
@@ -154,7 +154,7 @@ export class KimiAuthFacade {
     };
   }
 
-  async logout(providerName?: string | undefined): Promise<KimiAuthLogoutResult> {
+  async logout(providerName?: string | undefined): Promise<LioraAuthLogoutResult> {
     const result = await this.toolkit.logout(
       providerName,
       this.resolveRuntimeManagedAuth(providerName).oauthRef,
@@ -176,7 +176,7 @@ export class KimiAuthFacade {
   }
 
   async submitFeedback(
-    input: KimiAuthSubmitFeedbackInput,
+    input: LioraAuthSubmitFeedbackInput,
     providerName?: string | undefined,
   ): Promise<FetchSubmitFeedbackResult> {
     const auth = this.resolveRuntimeManagedAuth(providerName);
@@ -199,9 +199,9 @@ export class KimiAuthFacade {
   }
 
   async createFeedbackUploadUrl(
-    input: KimiAuthCreateFeedbackUploadUrlInput,
+    input: LioraAuthCreateFeedbackUploadUrlInput,
     providerName?: string | undefined,
-  ): Promise<KimiAuthCreateFeedbackUploadUrlResult> {
+  ): Promise<LioraAuthCreateFeedbackUploadUrlResult> {
     const auth = this.resolveRuntimeManagedAuth(providerName);
     const result = await this.toolkit.createFeedbackUploadUrl(
       {
@@ -230,7 +230,7 @@ export class KimiAuthFacade {
   }
 
   async completeFeedbackUpload(
-    input: KimiAuthCompleteFeedbackUploadInput,
+    input: LioraAuthCompleteFeedbackUploadInput,
     providerName?: string | undefined,
   ): Promise<FetchCompleteFeedbackUploadResult> {
     const auth = this.resolveRuntimeManagedAuth(providerName);
@@ -270,7 +270,7 @@ export class KimiAuthFacade {
         try {
           return await provider.getAccessToken(options);
         } catch (error) {
-          // Classify OAuth token failures into the public KimiError protocol;
+          // Classify OAuth token failures into the public LioraError protocol;
           // unrecognized errors are rethrown raw (see mapOAuthTokenError).
           throw mapOAuthTokenError(error, providerName) ?? error;
         }
@@ -282,7 +282,7 @@ export class KimiAuthFacade {
     readonly oauthRef?: OAuthRef | undefined;
     readonly baseUrl?: string | undefined;
   } {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     // Read path: token/status resolution must work off a degraded config
     // instead of failing the session when an unrelated section is broken.
     // Write paths (the toolkit's configAdapter.read) stay strict.
@@ -309,7 +309,7 @@ export class KimiAuthFacade {
     providerName: string | undefined,
     oauthRef?: OAuthRef | undefined,
   ): OAuthRef | undefined {
-    if ((providerName ?? KIMI_CODE_PROVIDER_NAME) !== KIMI_CODE_PROVIDER_NAME) return oauthRef;
+    if ((providerName ?? SUPERLIORA_PROVIDER_NAME) !== SUPERLIORA_PROVIDER_NAME) return oauthRef;
     const auth = this.resolveManagedAuth(providerName);
     return resolveKimiCodeRuntimeAuth({
       configuredBaseUrl: auth.baseUrl,

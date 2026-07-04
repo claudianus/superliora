@@ -69,7 +69,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           'ReadMediaFile',
           'Grep',
           'Glob',
-          'KimiContext',
+          'LioraContext',
           'WebSearch',
           'FetchURL',
           'SearchSkill',
@@ -84,7 +84,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, tool lookup with which/command -v, git status, git diff --stat/name-only/check) or a chain of those commands joined with &&. Use WebSearch, FetchURL, KimiContext, Read, Grep, Glob, SearchExpert, TodoList, or NextPhase.',
+              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, tool lookup with which/command -v, git status, git diff --stat/name-only/check) or a chain of those commands joined with &&. Use WebSearch, FetchURL, LioraContext, Read, Grep, Glob, SearchExpert, TodoList, or NextPhase.',
           };
         }
         if (toolName === 'AskUserQuestion') {
@@ -168,7 +168,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           'ReadMediaFile',
           'Grep',
           'Glob',
-          'KimiContext',
+          'LioraContext',
           'WebSearch',
           'FetchURL',
           'SearchSkill',
@@ -185,7 +185,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Review phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, or NextPhase when ready.',
+              'Bash is blocked in Review phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, LioraContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, or NextPhase when ready.',
           };
         }
         if (toolName === 'ExitPlanMode') {

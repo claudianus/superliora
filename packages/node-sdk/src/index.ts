@@ -1,16 +1,20 @@
-export { KimiHarness, KimiMemoryClient } from '#/kimi-harness';
-export type { KimiHarnessRuntimeOptions } from '#/kimi-harness';
+export { LioraHarness, LioraMemoryClient } from '#/liora-harness';
+export type { LioraHarnessRuntimeOptions } from '#/liora-harness';
 export { Session } from '#/session';
-export { KimiAuthFacade } from '#/auth';
-export { createKimiHarness, SDKRpcClient, type SDKRpcClientOptions } from '#/sdk-rpc-client';
+export { LioraAuthFacade } from '#/auth';
 export {
-  createKimiConfigRpc,
-  KimiConfigRpcClient,
-  type KimiConfigRpc,
-  type KimiConfigValidationIssue,
-  type KimiConfigValidationPathSegment,
-  type ResolveKimiConfigPathInput,
-  type ValidateKimiConfigTomlInput,
+  createLioraHarness,
+  SDKRpcClient,
+  type SDKRpcClientOptions,
+} from '#/sdk-rpc-client';
+export {
+  createLioraConfigRpc,
+  LioraConfigRpcClient,
+  type LioraConfigRpc,
+  type LioraConfigValidationIssue,
+  type LioraConfigValidationPathSegment,
+  type ResolveLioraConfigPathInput,
+  type ValidateLioraConfigTomlInput,
 } from '#/config-rpc';
 export { SDKRpcClientBase } from '#/rpc';
 export { KimiForCodingProvider } from '#/kimi-code-model-provider';
@@ -36,39 +40,30 @@ export type {
 
 export {
   ErrorCodes,
-  KimiError,
-  type KimiErrorCode,
-  type KimiErrorInfo,
-  type KimiErrorOptions,
-  type KimiErrorPayload,
+  LioraError,
+  type LioraErrorCode,
+  type LioraErrorInfo,
+  type LioraErrorOptions,
+  type LioraErrorPayload,
   KIMI_ERROR_INFO,
   fromKimiErrorPayload,
   isKimiError,
   toKimiErrorPayload,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
-// Diagnostic logging — public surface only.
-// RootLogger / getRootLogger / LoggingConfig stay inside agent-core.
 export {
   flushDiagnosticLogs,
   log,
   redact,
   resolveGlobalLogPath,
-  resolveKimiHome,
-} from '@moonshot-ai/agent-core';
-export type { LogContext, LogLevel, LogPayload, Logger } from '@moonshot-ai/agent-core';
+  resolveLioraHome,
+} from '@superliora/agent-core';
+export type { LogContext, LogLevel, LogPayload, Logger } from '@superliora/agent-core';
 
-// Host-side config helpers — safe config reader + config path resolution, used
-// by hosts (e.g. the CLI's server telemetry bootstrap) that need to inspect
-// config without spinning up a full KimiCore.
-export { loadRuntimeConfigSafe, resolveConfigPath } from '@moonshot-ai/agent-core';
+export { loadRuntimeConfigSafe, resolveConfigPath } from '@superliora/agent-core';
 
-// Process-wide HTTP proxy bootstrap — installed once at CLI startup so all
-// outbound fetch honors HTTP_PROXY / HTTPS_PROXY / NO_PROXY.
-export { installGlobalProxyDispatcher } from '@moonshot-ai/agent-core';
+export { installGlobalProxyDispatcher } from '@superliora/agent-core';
 
-// Experimental feature flags — types only. Resolved values come from
-// `KimiHarness.getExperimentalFeatures()` over RPC, not from a re-exported runtime value.
 export type {
   ExperimentalFeatureState,
   ExperimentalFlagMap,
@@ -77,18 +72,18 @@ export type {
   FlagDefinitionInput,
   FlagId,
   FlagSurface,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 export type {
-  KimiAuthCompleteFeedbackUploadInput,
-  KimiAuthCompleteFeedbackUploadPart,
-  KimiAuthCreateFeedbackUploadUrlInput,
-  KimiAuthCreateFeedbackUploadUrlOk,
-  KimiAuthCreateFeedbackUploadUrlResult,
-  KimiAuthFeedbackUploadPart,
-  KimiAuthLoginResult,
-  KimiAuthLogoutResult,
-  KimiAuthSubmitFeedbackInput,
+  LioraAuthCompleteFeedbackUploadInput,
+  LioraAuthCompleteFeedbackUploadPart,
+  LioraAuthCreateFeedbackUploadUrlInput,
+  LioraAuthCreateFeedbackUploadUrlOk,
+  LioraAuthCreateFeedbackUploadUrlResult,
+  LioraAuthFeedbackUploadPart,
+  LioraAuthLoginResult,
+  LioraAuthLogoutResult,
+  LioraAuthSubmitFeedbackInput,
 } from '#/auth';
 
 export * from '#/events';

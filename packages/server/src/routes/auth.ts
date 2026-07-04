@@ -15,8 +15,8 @@
  * services-package façade.
  */
 
-import { authSummarySchema } from '@moonshot-ai/protocol';
-import { IAuthSummaryService, type IInstantiationService } from '@moonshot-ai/agent-core';
+import { authSummarySchema } from '@superliora/protocol';
+import { IAuthSummaryService, type IInstantiationService } from '@superliora/agent-core';
 
 import { okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';

@@ -25,8 +25,8 @@ import {
   oauthLoginStartRequestSchema,
   oauthLogoutRequestSchema,
   oauthLogoutResponseSchema,
-} from '@moonshot-ai/protocol';
-import { IOAuthService, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { IOAuthService, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 import { okEnvelope } from '../envelope';

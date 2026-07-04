@@ -32,8 +32,8 @@
  * emitter (reverse-construction order in `start.ts` is responsible).
  */
 
-import { createDecorator } from '@moonshot-ai/agent-core';
-import type { InFlightTurn, SessionCursor } from '@moonshot-ai/protocol';
+import { createDecorator } from '@superliora/agent-core';
+import type { InFlightTurn, SessionCursor } from '@superliora/protocol';
 
 import type { EventEnvelope } from '#/ws/protocol';
 

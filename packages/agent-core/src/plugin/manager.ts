@@ -250,7 +250,7 @@ export class PluginManager {
         out.push({
           ...hook,
           cwd: record.root,
-          env: { KIMI_CODE_HOME: this.kimiHomeDir, KIMI_PLUGIN_ROOT: record.root },
+          env: { SUPERLIORA_HOME: this.kimiHomeDir, KIMI_PLUGIN_ROOT: record.root },
         });
       }
     }
@@ -494,7 +494,7 @@ function withPluginMcpRuntime(
 
   const env = {
     ...config.env,
-    KIMI_CODE_HOME: kimiHomeDir,
+    SUPERLIORA_HOME: kimiHomeDir,
     KIMI_PLUGIN_ROOT: pluginRoot,
   };
 

@@ -2,11 +2,11 @@ import {
   APIProviderRateLimitError,
   isProviderRateLimitError,
   type TokenUsage,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 
 import type { Agent } from '../agent';
 import type { PromptOrigin } from '../agent/context';
-import { ErrorCodes, type KimiErrorPayload } from '../errors';
+import { ErrorCodes, type LioraErrorPayload } from '../errors';
 import { DenyAllPermissionPolicy } from '../agent/permission/policies/deny-all';
 import { InMemoryAgentRecordPersistence } from '../agent/records';
 import { isAbortError } from '../loop/errors';
@@ -505,7 +505,7 @@ async function runChildTurnToCompletion(child: Agent, signal: AbortSignal): Prom
   }
 }
 
-function providerRateLimitErrorFromPayload(error: KimiErrorPayload): APIProviderRateLimitError {
+function providerRateLimitErrorFromPayload(error: LioraErrorPayload): APIProviderRateLimitError {
   const requestId =
     typeof error.details?.['requestId'] === 'string' ? error.details['requestId'] : null;
   return new APIProviderRateLimitError(error.message, requestId);

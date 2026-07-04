@@ -1,8 +1,9 @@
 /**
- * Submit user feedback to the managed Kimi Code platform.
+ * Submit user feedback to the managed Kimi platform (api.kimi.com), using
+ * the same OAuth token as the "Kimi (Managed OAuth)" provider.
  *
  * POSTs a JSON body to `{kimiCodeBaseUrl}/feedback` with a Bearer access
- * token. The client tags `version` with a `kimi-code-` prefix so the
+ * token. The client tags `version` with a `liora-` prefix so the
  * backend can identify this client.
  */
 

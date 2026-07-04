@@ -3,8 +3,8 @@
  * config snapshot into a flat list of selectable models for the ACP
  * `configOptions` picker (`packages/acp-adapter/src/config-options.ts`).
  *
- * Used to live inside `@moonshot-ai/kimi-code-sdk` as
- * `KimiHarness.listAvailableModels()`; moved here so the SDK keeps a
+ * Used to live inside `@superliora/sdk` as
+ * `LioraHarness.listAvailableModels()`; moved here so the SDK keeps a
  * minimal surface and ACP-specific heuristics (thinking-capability
  * derivation, the toggleable-models allow-list) stay scoped to the
  * adapter.
@@ -22,7 +22,7 @@
  *      allow-list (mirrors `kimi-cli/src/kimi_cli/llm.py:derive_model_capabilities`).
  */
 
-import type { KimiHarness, ModelAlias } from '@moonshot-ai/kimi-code-sdk';
+import type { LioraHarness, ModelAlias } from '@superliora/sdk';
 
 /**
  * One catalog row per configured model alias, suitable for an ACP
@@ -76,7 +76,7 @@ export function deriveAlwaysThinking(alias: ModelAlias): boolean {
  * field.
  */
 export async function listModelsFromHarness(
-  harness: KimiHarness,
+  harness: LioraHarness,
 ): Promise<readonly AcpModelEntry[]> {
   if (typeof harness.getConfig !== 'function') return [];
   let models: Record<string, ModelAlias> | undefined;

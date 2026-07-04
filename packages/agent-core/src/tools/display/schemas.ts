@@ -1,8 +1,8 @@
 export {
   ToolInputDisplaySchema,
   ToolResultDisplaySchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 export type {
   ToolInputDisplay,
   ToolResultDisplay,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';

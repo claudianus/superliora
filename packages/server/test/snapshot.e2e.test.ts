@@ -21,8 +21,8 @@ import { join } from 'node:path';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { Event, SessionSnapshotResponse } from '@moonshot-ai/protocol';
-import { IEventService, IPromptService, PromptService } from '@moonshot-ai/agent-core';
+import type { Event, SessionSnapshotResponse } from '@superliora/protocol';
+import { IEventService, IPromptService, PromptService } from '@superliora/agent-core';
 
 import { IRestGateway, IWSBroadcastService, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -34,9 +34,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-snapshot-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-snapshot-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-snapshot-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-snapshot-home-'));
 });
 
 afterEach(async () => {

@@ -56,17 +56,17 @@ export interface MemoryInput {
 }
 
 export const MemoryInputSchema: z.ZodType<MemoryInput> = z.object({
-  write: WriteMemorySchema.optional().describe('Create a durable Kimi Recall memory.'),
-  search: SearchMemorySchema.optional().describe('Search Kimi Recall.'),
-  read: ReadMemorySchema.optional().describe('Read a specific Kimi Recall memory by id.'),
+  write: WriteMemorySchema.optional().describe('Create a durable Liora Recall memory.'),
+  search: SearchMemorySchema.optional().describe('Search Liora Recall.'),
+  read: ReadMemorySchema.optional().describe('Read a specific Liora Recall memory by id.'),
   forget: ForgetMemorySchema.optional().describe('Forget a memory by id.'),
-  list: ListMemorySchema.optional().describe('List recent Kimi Recall memories.'),
+  list: ListMemorySchema.optional().describe('List recent Liora Recall memories.'),
 });
 
 export class MemoryTool implements BuiltinTool<MemoryInput> {
   readonly name = MEMORY_TOOL_NAME;
   readonly description =
-    'Read, search, write, and forget durable Kimi Recall memories that persist across sessions and context compactions. Use this for stable user preferences, project decisions, reminders, and important work continuity notes.';
+    'Read, search, write, and forget durable Liora Recall memories that persist across sessions and context compactions. Use this for stable user preferences, project decisions, reminders, and important work continuity notes.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(MemoryInputSchema);
 
   constructor(private readonly memory: AgentMemoryRuntime) {}
@@ -74,11 +74,11 @@ export class MemoryTool implements BuiltinTool<MemoryInput> {
   resolveExecution(args: MemoryInput): ToolExecution {
     const action = actionName(args);
     return {
-      description: `${action} Kimi Recall`,
+      description: `${action} Liora Recall`,
       approvalRule: this.name,
       execute: async () => {
         if (!this.memory.isEnabled()) {
-          return { isError: true, output: 'Kimi Recall is disabled by config.' };
+          return { isError: true, output: 'Liora Recall is disabled by config.' };
         }
         if (args.write !== undefined) {
           const saved = await this.memory.remember(toCreateInput(args.write));
@@ -124,14 +124,14 @@ function toCreateInput(input: z.infer<typeof WriteMemorySchema>): MemoryCreateIn
 }
 
 function renderSearchResults(results: readonly MemorySearchResult[]): string {
-  if (results.length === 0) return 'No matching Kimi Recall memories.';
+  if (results.length === 0) return 'No matching Liora Recall memories.';
   return results
     .map((result, index) => `${index + 1}. score=${result.score.toFixed(2)} ${renderMemory(result.memory)}`)
     .join('\n\n');
 }
 
 function renderList(memories: readonly MemoryRecord[]): string {
-  if (memories.length === 0) return 'No Kimi Recall memories stored yet.';
+  if (memories.length === 0) return 'No Liora Recall memories stored yet.';
   return memories.map((memory, index) => `${index + 1}. ${renderMemory(memory)}`).join('\n\n');
 }
 

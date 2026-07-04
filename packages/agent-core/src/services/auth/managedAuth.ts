@@ -1,21 +1,21 @@
 import { readConfigFile, writeConfigFile } from '../../config';
-import type { KimiConfig, OAuthRef } from '../../config';
+import type { LioraConfig, OAuthRef } from '../../config';
 import type { OAuthTokenProviderResolver } from '../../session/provider-manager';
 import {
   applyManagedKimiCodeConfig,
   applyManagedKimiCodeLogoutConfig,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_PROVIDER_NAME,
   KimiOAuthToolkit,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
   type BearerTokenProvider,
   type KimiOAuthLoginOptions,
   type ManagedKimiConfigShape,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 
 import type { IEnvironmentService } from '../environment/environment';
 
-type ServicesManagedConfig = KimiConfig & ManagedKimiConfigShape;
+type ServicesManagedConfig = LioraConfig & ManagedKimiConfigShape;
 
 type ServicesAuthLoginOptions = Omit<KimiOAuthLoginOptions, 'provisionConfig'>;
 
@@ -66,7 +66,7 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
   }
 
   async login(
-    providerName: string | undefined = KIMI_CODE_PROVIDER_NAME,
+    providerName: string | undefined = SUPERLIORA_PROVIDER_NAME,
     options: ServicesAuthLoginOptions = {},
   ): Promise<ServicesAuthLoginResult> {
     const auth = this.resolveManagedAuth(providerName);
@@ -132,7 +132,7 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
     readonly oauthRef?: OAuthRef | undefined;
     readonly baseUrl?: string | undefined;
   } {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     const config = readConfigFile(this.options.configPath);
     const provider = config.providers[name];
     return {
@@ -156,7 +156,7 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
     providerName: string | undefined,
     oauthRef?: OAuthRef | undefined,
   ): OAuthRef | undefined {
-    if ((providerName ?? KIMI_CODE_PROVIDER_NAME) !== KIMI_CODE_PROVIDER_NAME) {
+    if ((providerName ?? SUPERLIORA_PROVIDER_NAME) !== SUPERLIORA_PROVIDER_NAME) {
       return oauthRef;
     }
     const auth = this.resolveManagedAuth(providerName);

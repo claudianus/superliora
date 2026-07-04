@@ -66,7 +66,7 @@ export function createSchtasksManager(
 
     const argString = serializeArguments(plan);
     const xml = buildScheduledTaskXml({
-      description: 'Kimi Code local server (managed by `kimi server install`)',
+      description: 'SuperLiora local server (managed by `liora server install`)',
       command: plan.program,
       ...(argString.length > 0 ? { arguments: argString } : {}),
     });
@@ -107,7 +107,7 @@ export function createSchtasksManager(
 
     return {
       status: alreadyInstalled ? 'replaced' : 'installed',
-      message: `Kimi server scheduled task ${alreadyInstalled ? 'replaced' : 'installed'} (${KIMI_SERVER_TASK_NAME}, port ${plan.port}).`,
+      message: `SuperLiora server scheduled task ${alreadyInstalled ? 'replaced' : 'installed'} (${KIMI_SERVER_TASK_NAME}, port ${plan.port}).`,
       taskName: KIMI_SERVER_TASK_NAME,
     };
   }
@@ -134,7 +134,7 @@ export function createSchtasksManager(
     if (!(await deps.taskExists())) {
       return {
         ok: false,
-        message: 'Scheduled task is not installed. Run `kimi server install` first.',
+        message: 'Scheduled task is not installed. Run `liora server install` first.',
       };
     }
     const result = await deps.execSchtasks(['/Run', '/TN', KIMI_SERVER_TASK_NAME]);
@@ -144,7 +144,7 @@ export function createSchtasksManager(
         message: `schtasks /Run failed: ${detail(result) ?? 'unknown error'}`,
       };
     }
-    return { ok: true, message: `Kimi server started (${KIMI_SERVER_TASK_NAME}).` };
+    return { ok: true, message: `SuperLiora server started (${KIMI_SERVER_TASK_NAME}).` };
   }
 
   async function stop(): Promise<LifecycleResult> {
@@ -155,7 +155,7 @@ export function createSchtasksManager(
         message: `schtasks /End failed: ${detail(result) ?? 'unknown error'}`,
       };
     }
-    return { ok: true, message: `Kimi server stopped (${KIMI_SERVER_TASK_NAME}).` };
+    return { ok: true, message: `SuperLiora server stopped (${KIMI_SERVER_TASK_NAME}).` };
   }
 
   async function restart(): Promise<LifecycleResult> {
@@ -173,7 +173,7 @@ export function createSchtasksManager(
         message: `schtasks /Run failed during restart: ${detail(run) ?? 'unknown error'}`,
       };
     }
-    return { ok: true, message: `Kimi server restarted (${KIMI_SERVER_TASK_NAME}).` };
+    return { ok: true, message: `SuperLiora server restarted (${KIMI_SERVER_TASK_NAME}).` };
   }
 
   async function status(): Promise<ServiceStatus> {
@@ -226,7 +226,7 @@ export function createSchtasksManager(
 
 
 function defaultWriteTaskXml(xml: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'kimi-server-task-'));
+  const dir = mkdtempSync(join(tmpdir(), 'liora-server-task-'));
   const xmlPath = join(dir, 'task.xml');
   const bom = Buffer.from([0xff, 0xfe]);
   const body = Buffer.from(xml, 'utf16le');

@@ -16,14 +16,14 @@ export type {
   LoopRecordedEvent,
   ContextMessage,
   PromptOrigin,
-} from '@moonshot-ai/agent-core';
-export { AGENT_WIRE_PROTOCOL_VERSION } from '@moonshot-ai/agent-core';
-export type { Message, ContentPart, ToolCall, TokenUsage } from '@moonshot-ai/kosong';
+} from '@superliora/agent-core';
+export { AGENT_WIRE_PROTOCOL_VERSION } from '@superliora/agent-core';
+export type { Message, ContentPart, ToolCall, TokenUsage } from '@superliora/kosong';
 
 // Local binding for the `AgentRecord` type used by the vis-only DTOs below
 // (e.g. `WireEntry.data`). The `export type { … }` re-export above forwards
 // the name to consumers but does NOT bring it into this module's scope.
-import type { AgentRecord } from '@moonshot-ai/agent-core';
+import type { AgentRecord } from '@superliora/agent-core';
 
 // ── vis-only DTOs ──────────────────────────────────────────────────────────
 

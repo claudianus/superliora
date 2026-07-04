@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { Hono } from 'hono';
 
-import { KIMI_CODE_HOME } from './config';
+import { SUPERLIORA_HOME } from './config';
 import { serveWebAsset, type WebAsset } from './lib/web-asset';
 import { blobsRoute } from './routes/blobs';
 import { contextRoute } from './routes/context';
@@ -79,7 +79,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
   // /api/* handlers.
   const api = new Hono();
   const authToken = options.authToken;
-  const home = options.homeDir ?? KIMI_CODE_HOME;
+  const home = options.homeDir ?? SUPERLIORA_HOME;
   if (authToken !== undefined && authToken.length > 0) {
     api.use('*', async (c, next) => {
       const token = bearerToken(c.req.header('authorization'));
@@ -87,7 +87,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
         await next();
         return;
       }
-      c.header('www-authenticate', 'Bearer realm="kimi-vis"');
+      c.header('www-authenticate', 'Bearer realm="liora-vis"');
       return c.json({ error: 'unauthorized', code: 'UNAUTHORIZED' }, 401);
     });
   }

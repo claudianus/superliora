@@ -1,4 +1,4 @@
-import { createDecorator } from '@moonshot-ai/agent-core';
+import { createDecorator } from '@superliora/agent-core';
 
 /**
  * `IServerShutdownService` — triggers a graceful, process-terminating shutdown

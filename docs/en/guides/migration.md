@@ -1,7 +1,7 @@
 # Migrating from kimi-cli
 
 ::: info
-Kimi Code CLI has gone through a major version upgrade — moving from Python/uv to Node.js, bringing a simpler install experience, faster startup, and a redesigned terminal UI. The legacy version will gradually be phased out, so we recommend upgrading as soon as possible.
+SuperLiora CLI has gone through a major version upgrade — moving from Python/uv to Node.js, bringing a simpler install experience, faster startup, and a redesigned terminal UI. The legacy version will gradually be phased out, so we recommend upgrading as soon as possible.
 :::
 
 If you are migrating from the legacy version, follow the steps below — a single command migrates your config, MCP servers, and session history to the new version.
@@ -22,7 +22,7 @@ The **first time you run `kimi`** after installing kimi-code, it automatically c
 You can also **run it manually at any time**:
 
 ```sh
-kimi migrate
+liora migrate
 ```
 
 You can choose whether to migrate chat sessions as well. If you don't need the history yet, pick **Config only**; otherwise pick **Config + N sessions** to bring everything across in one go. A summary is printed at the end.

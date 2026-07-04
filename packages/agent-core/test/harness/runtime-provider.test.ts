@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { KimiConfig, OAuthRef } from '../../src/config';
-import { ErrorCodes, KimiError } from '../../src/errors';
+import type { LioraConfig, OAuthRef } from '../../src/config';
+import { ErrorCodes, LioraError } from '../../src/errors';
 import { ProviderManager } from '../../src/session/provider-manager';
 import { resolveThinkingLevel } from '../../src/agent/config/thinking';
 
@@ -9,7 +9,7 @@ import { resolveThinkingLevel } from '../../src/agent/config/thinking';
 // the current ProviderManager API. Kept local so the existing test bodies do
 // not need to change.
 function resolveRuntimeProvider(input: {
-  readonly config: KimiConfig;
+  readonly config: LioraConfig;
   readonly model?: string;
   readonly kimiRequestHeaders?: Record<string, string>;
   readonly promptCacheKey?: string;
@@ -21,7 +21,7 @@ function resolveRuntimeProvider(input: {
   });
   const model = input.model ?? input.config.defaultModel;
   if (model === undefined) {
-    throw new KimiError(
+    throw new LioraError(
       ErrorCodes.CONFIG_INVALID,
       'No model is selected. Set default_model in config.toml or pass a configured model alias.',
     );
@@ -29,7 +29,7 @@ function resolveRuntimeProvider(input: {
   return manager.resolveProviderConfig(model);
 }
 
-const BASE_CONFIG: KimiConfig = {
+const BASE_CONFIG: LioraConfig = {
   defaultModel: 'kimi-code/kimi-for-coding',
   providers: {
     'managed:kimi-code': {
@@ -180,7 +180,7 @@ describe('resolveRuntimeProvider model metadata', () => {
         config: BASE_CONFIG,
         model: 'kimi-code',
       }),
-    ).toThrow(KimiError);
+    ).toThrow(LioraError);
   });
 
   it('allows vertexai providers without an apiKey', () => {
@@ -215,7 +215,7 @@ describe('resolveRuntimeProvider model metadata', () => {
           capabilities: ['thinking'],
         },
       },
-    } as unknown as KimiConfig;
+    } as unknown as LioraConfig;
 
     expect(() =>
       resolveRuntimeProvider({
@@ -593,7 +593,7 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
   });
 
   it('keeps customHeaders isolated between resolved provider instances', () => {
-    const config: KimiConfig = {
+    const config: LioraConfig = {
       defaultModel: 'gpt-alias',
       providers: {
         openai: {
@@ -668,7 +668,7 @@ describe('ProviderManager prompt cache key', () => {
   });
 
   it('reads the current config when constructed with a function', () => {
-    let sharedConfig: KimiConfig = { providers: {} };
+    let sharedConfig: LioraConfig = { providers: {} };
     const manager = new ProviderManager({
       config: () => sharedConfig,
       promptCacheKey: 'session-test',
@@ -1092,7 +1092,7 @@ describe('ProviderManager provider routes', () => {
 });
 
 describe('ProviderManager OAuth auth', () => {
-  function oauthConfig(): KimiConfig {
+  function oauthConfig(): LioraConfig {
     return {
       ...BASE_CONFIG,
       providers: {
@@ -1128,7 +1128,7 @@ describe('ProviderManager OAuth auth', () => {
       config: oauthConfig(),
       resolveOAuthTokenProvider: () => ({
         async getAccessToken() {
-          throw new KimiError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in');
+          throw new LioraError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in');
         },
       }),
     });
@@ -1157,7 +1157,7 @@ describe('ProviderManager OAuth auth', () => {
       },
       resolveOAuthTokenProvider: () => ({
         async getAccessToken() {
-          throw new KimiError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in');
+          throw new LioraError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in');
         },
       }),
     });
@@ -1183,7 +1183,7 @@ describe('ProviderManager OAuth auth', () => {
         oauthKeyFingerprint: expect.any(String),
       },
     });
-    expect(JSON.stringify((thrown as KimiError).details)).not.toContain('oauth/backup');
+    expect(JSON.stringify((thrown as LioraError).details)).not.toContain('oauth/backup');
   });
 
   it('prefers explicit api keys over configured OAuth credentials', () => {

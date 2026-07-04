@@ -2,11 +2,11 @@
 
 import { ulid } from 'ulid';
 
-import { Disposable, DisposableMap, IEventService, IQuestionService, questionDismissedResult, questionToBrokerRequest, ILogService, type IDisposable, type QuestionRequest, type QuestionResult } from '@moonshot-ai/agent-core';
+import { Disposable, DisposableMap, IEventService, IQuestionService, questionDismissedResult, questionToBrokerRequest, ILogService, type IDisposable, type QuestionRequest, type QuestionResult } from '@superliora/agent-core';
 import type {
   Event,
   QuestionRequest as ProtocolQuestionRequest,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

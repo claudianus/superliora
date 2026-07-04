@@ -3,8 +3,8 @@
  *
  * One provider instance per server/resource identity. The provider:
  *  - Persists OAuth tokens, the registered DCR client info, and discovery
- *    state under `<KIMI_CODE_HOME>/credentials/mcp/<key>-*.json`
- *    (mode 0600; default home is `~/.kimi-code`).
+ *    state under `<SUPERLIORA_HOME>/credentials/mcp/<key>-*.json`
+ *    (mode 0600; default home is `~/.superliora`).
  *  - Captures the authorization URL when the SDK calls
  *    `redirectToAuthorization` — the {@link McpOAuthService} reads that field
  *    after the first `auth()` call returns `'REDIRECT'`.

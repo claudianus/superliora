@@ -5,8 +5,8 @@ import {
   ILogService,
   IModelCatalogService,
   toDisposable,
-  type KimiConfig,
-} from '@moonshot-ai/agent-core';
+  type LioraConfig,
+} from '@superliora/agent-core';
 
 export interface IModelCatalogRefreshScheduler {
   readonly _serviceBrand: undefined;
@@ -19,8 +19,8 @@ export const IModelCatalogRefreshScheduler =
 
 export const DEFAULT_MODEL_CATALOG_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
-const REFRESH_INTERVAL_ENV = 'KIMI_CODE_MODEL_CATALOG_REFRESH_INTERVAL_MS';
-const REFRESH_ON_START_ENV = 'KIMI_CODE_MODEL_CATALOG_REFRESH_ON_START';
+const REFRESH_INTERVAL_ENV = 'SUPERLIORA_MODEL_CATALOG_REFRESH_INTERVAL_MS';
+const REFRESH_ON_START_ENV = 'SUPERLIORA_MODEL_CATALOG_REFRESH_ON_START';
 
 export class ModelCatalogRefreshScheduler
   extends Disposable
@@ -77,7 +77,7 @@ export class ModelCatalogRefreshScheduler
 }
 
 function resolveRefreshIntervalMs(
-  config: KimiConfig,
+  config: LioraConfig,
   env: NodeJS.ProcessEnv,
 ): number {
   const envValue = parseNonNegativeInteger(env[REFRESH_INTERVAL_ENV]);
@@ -85,7 +85,7 @@ function resolveRefreshIntervalMs(
   return config.modelCatalog?.refreshIntervalMs ?? DEFAULT_MODEL_CATALOG_REFRESH_INTERVAL_MS;
 }
 
-function resolveRefreshOnStart(config: KimiConfig, env: NodeJS.ProcessEnv): boolean {
+function resolveRefreshOnStart(config: LioraConfig, env: NodeJS.ProcessEnv): boolean {
   const envValue = env[REFRESH_ON_START_ENV];
   if (envValue !== undefined) return isTruthyEnvValue(envValue);
   return config.modelCatalog?.refreshOnStart ?? true;

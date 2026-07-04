@@ -19,9 +19,9 @@ import {
   type WriteTextFileRequest,
   type WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import type { KimiHarness, Session } from '@moonshot-ai/kimi-code-sdk';
-import { log } from '@moonshot-ai/kimi-code-sdk';
-import type { McpServerConfig } from '@moonshot-ai/agent-core';
+import type { LioraHarness, Session } from '@superliora/sdk';
+import { log } from '@superliora/sdk';
+import type { McpServerConfig } from '@superliora/agent-core';
 
 import { acpMcpServersToConfigs } from '../src/mcp';
 import { AcpServer } from '../src/server';
@@ -60,7 +60,7 @@ function makeHarness(
   sessionId: string,
   captured: CapturedCall[],
 ): {
-  harness: KimiHarness;
+  harness: LioraHarness;
 } {
   const fakeSession = {
     id: sessionId,
@@ -76,7 +76,7 @@ function makeHarness(
       captured.push({ options });
       return fakeSession;
     },
-  } as unknown as KimiHarness;
+  } as unknown as LioraHarness;
   return { harness };
 }
 

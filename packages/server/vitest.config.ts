@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 import { rawTextPlugin } from '../../build/raw-text-plugin.mjs';
 
 // `rawTextPlugin` is needed even for server-only tests because the server
-// wires CoreProcessService → KimiCore, which drags in agent-core's
+// wires CoreProcessService → LioraCore, which drags in agent-core's
 // `tools/builtin/*` tree that imports 20+ raw `.md` description files.
 // Without the plugin those imports fail with "Failed to resolve import".
 //
@@ -17,40 +17,40 @@ export default defineConfig({
   resolve: {
     alias: [
       // Order matters — list MORE specific entries first so prefix matching
-      // doesn't route them through the bare `@moonshot-ai/agent-core` alias
+      // doesn't route them through the bare `@superliora/agent-core` alias
       // (which points at agent-core/src/index.ts, breaking subpath imports).
       {
-        find: /^@moonshot-ai\/agent-core\/session\/store$/,
+        find: /^@superliora\/agent-core\/session\/store$/,
         replacement: fileURLToPath(
           new URL('../agent-core/src/session/store/index.ts', import.meta.url),
         ),
       },
       {
-        find: /^@moonshot-ai\/agent-core\/base\/common\/event$/,
+        find: /^@superliora\/agent-core\/base\/common\/event$/,
         replacement: fileURLToPath(
           new URL('../agent-core/src/base/common/event.ts', import.meta.url),
         ),
       },
       {
-        find: '@moonshot-ai/kimi-code-sdk',
+        find: '@superliora/sdk',
         replacement: fileURLToPath(
           new URL('../node-sdk/src/index.ts', import.meta.url),
         ),
       },
       {
-        find: '@moonshot-ai/agent-core',
+        find: '@superliora/agent-core',
         replacement: fileURLToPath(
           new URL('../agent-core/src/index.ts', import.meta.url),
         ),
       },
       {
-        find: '@moonshot-ai/protocol',
+        find: '@superliora/protocol',
         replacement: fileURLToPath(
           new URL('../protocol/src/index.ts', import.meta.url),
         ),
       },
       {
-        find: '@moonshot-ai/kimi-code-oauth',
+        find: '@superliora/oauth',
         replacement: fileURLToPath(
           new URL('../oauth/src/index.ts', import.meta.url),
         ),

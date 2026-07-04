@@ -12,7 +12,7 @@ export const sourceMcpOauthDir = (src: string): string => join(src, 'mcp-oauth')
 export const sourcePluginsDir = (src: string): string => join(src, 'plugins');
 export const migratedMarker = (src: string): string => join(src, '.migrated-to-kimi-code');
 
-// Target (~/.kimi-code/) paths
+// Target (~/.superliora/) paths
 export const targetSessionsDir = (tgt: string): string => join(tgt, 'sessions');
 export const targetUserHistoryDir = (tgt: string): string => join(tgt, 'user-history');
 export const targetSkillsDir = (tgt: string): string => join(tgt, 'skills');

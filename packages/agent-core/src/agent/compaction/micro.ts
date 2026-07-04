@@ -1,4 +1,4 @@
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '..';
 import type { ContextMessage } from '../context';

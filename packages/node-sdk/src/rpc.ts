@@ -17,8 +17,8 @@ import {
   type ToolCallRequest,
   type ToolCallResponse,
   type SwarmModeTrigger,
-} from '@moonshot-ai/agent-core';
-import type { Kaos } from '@moonshot-ai/kaos';
+} from '@superliora/agent-core';
+import type { Kaos } from '@superliora/kaos';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {
@@ -34,8 +34,8 @@ import type {
   GetConfigOptions,
   GoalSnapshot,
   GoalToolResult,
-  KimiConfig,
-  KimiConfigPatch,
+  LioraConfig,
+  LioraConfigPatch,
   ListSessionsOptions,
   MemoryConsolidateResult,
   MemoryCreateInput,
@@ -229,7 +229,7 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async getConfig(input?: GetConfigOptions): Promise<KimiConfig> {
+  async getConfig(input?: GetConfigOptions): Promise<LioraConfig> {
     const rpc = await this.getRpc();
     return rpc.getKimiConfig(input ?? {});
   }
@@ -244,12 +244,12 @@ export abstract class SDKRpcClientBase {
     return rpc.getExperimentalFeatures({});
   }
 
-  async setConfig(input: KimiConfigPatch): Promise<KimiConfig> {
+  async setConfig(input: LioraConfigPatch): Promise<LioraConfig> {
     const rpc = await this.getRpc();
     return rpc.setKimiConfig(input);
   }
 
-  async removeProvider(providerId: string): Promise<KimiConfig> {
+  async removeProvider(providerId: string): Promise<LioraConfig> {
     const rpc = await this.getRpc();
     return rpc.removeKimiProvider({ providerId });
   }

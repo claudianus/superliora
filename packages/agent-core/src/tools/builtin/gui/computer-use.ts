@@ -2,8 +2,8 @@ import type {
   ComputerActInput as RuntimeComputerActInput,
   ComputerCaptureResult,
   ComputerUseRuntime,
-} from '@moonshot-ai/gui-use';
-import type { ContentPart } from '@moonshot-ai/kosong';
+} from '@superliora/gui-use';
+import type { ContentPart } from '@superliora/kosong';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';

@@ -1,4 +1,4 @@
-import type { ContentPart, Message, Tool } from '@moonshot-ai/kosong';
+import type { ContentPart, Message, Tool } from '@superliora/kosong';
 
 const messageTokenEstimateCache = new WeakMap<Message, number>();
 

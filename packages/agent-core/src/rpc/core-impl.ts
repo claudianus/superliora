@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { CloakBrowserRuntime, CuaComputerRuntime } from '@moonshot-ai/gui-use';
+import { CloakBrowserRuntime, CuaComputerRuntime } from '@superliora/gui-use';
 import { join } from 'pathe';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { PluginManager } from '#/plugin';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
@@ -15,7 +15,7 @@ import { getCoreVersion } from '#/version';
 import { resolveThinkingLevel } from '../agent/config/thinking';
 import { Agent } from '../agent';
 import {
-  ensureKimiHome,
+  ensureLioraHome,
   loadRuntimeConfigSafe,
   mergeConfigPatch,
   readConfigFileForUpdate,
@@ -23,9 +23,9 @@ import {
   readWorkspaceAdditionalDirs,
   resolveWorkspaceAdditionalDirs,
   resolveConfigPath,
-  resolveKimiHome,
+  resolveLioraHome,
   writeConfigFile,
-  type KimiConfig,
+  type LioraConfig,
   type McpServerConfig,
   type MoonshotServiceConfig,
 } from '../config';
@@ -36,7 +36,7 @@ import {
 } from '../flags';
 import type { Logger } from '../logging/types';
 import { resolveSessionMcpConfig, mergeCallerMcpServers, type SessionMcpConfig } from '../mcp';
-import { KimiRecallStore } from '../memory';
+import { LioraRecallStore } from '../memory';
 import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
 import { exportSessionDirectory } from '../session/export';
 import {
@@ -133,14 +133,14 @@ import type {
 } from './core-api';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
-import { KIMI_CODE_PROVIDER_NAME } from '@moonshot-ai/kimi-code-oauth';
-import type { SessionWarning } from '@moonshot-ai/protocol';
+import { SUPERLIORA_PROVIDER_NAME } from '@superliora/oauth';
+import type { SessionWarning } from '@superliora/protocol';
 import { proxyWithExtraPayload } from './types';
-import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@moonshot-ai/kaos';
+import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';
 
-const KIMI_CODE_BASE_URL_ENV = 'KIMI_CODE_BASE_URL';
-const KIMI_CODE_OAUTH_HOST_ENV = 'KIMI_CODE_OAUTH_HOST';
+const SUPERLIORA_BASE_URL_ENV = 'SUPERLIORA_BASE_URL';
+const SUPERLIORA_OAUTH_HOST_ENV = 'SUPERLIORA_OAUTH_HOST';
 const KIMI_OAUTH_HOST_ENV = 'KIMI_OAUTH_HOST';
 type AgentScopedPayload<T> = T & { readonly agentId: string };
 type SessionScopedPayload<T> = T & { readonly sessionId: string };
@@ -148,7 +148,7 @@ type SessionAgentPayload<T> = SessionScopedPayload<AgentScopedPayload<T>>;
 type RenameSessionRequest = SessionScopedPayload<RenameSessionPayload>;
 type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMetadataPayload>;
 
-export interface KimiCoreOptions {
+export interface LioraCoreOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
   readonly runtime?: ToolServices | undefined;
@@ -159,7 +159,7 @@ export interface KimiCoreOptions {
   readonly appVersion?: string;
 }
 
-export class KimiCore implements PromisableMethods<CoreAPI> {
+export class LioraCore implements PromisableMethods<CoreAPI> {
   readonly sdk: Promise<SDKRPC>;
   readonly homeDir: string;
   readonly configPath: string;
@@ -168,7 +168,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 
   private kaos: Promise<Kaos> | undefined;
   private runtime: ToolServices | undefined;
-  private config: KimiConfig;
+  private config: LioraConfig;
   private configWarnings: readonly string[] = [];
   private readonly runtimeOverride: ToolServices | undefined;
   private readonly userHomeDir: string;
@@ -181,13 +181,13 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   private pluginsLoadError: Error | undefined;
   private readonly appVersion: string | undefined;
   private readonly experimentalFlags: FlagResolver;
-  private readonly memory: KimiRecallStore;
+  private readonly memory: LioraRecallStore;
 
   constructor(
     protected readonly rpcClient: CoreRPCClient,
-    options: KimiCoreOptions = {},
+    options: LioraCoreOptions = {},
   ) {
-    this.homeDir = resolveKimiHome(options.homeDir);
+    this.homeDir = resolveLioraHome(options.homeDir);
     this.userHomeDir = homedir();
     this.configPath = resolveConfigPath({
       homeDir: this.homeDir,
@@ -200,7 +200,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     this.skillDirs = options.skillDirs ?? [];
     this.telemetry = options.telemetry ?? noopTelemetryClient;
     this.appVersion = options.appVersion;
-    ensureKimiHome(this.homeDir);
+    ensureLioraHome(this.homeDir);
     // Schema errors degrade (invalid sections are dropped with warnings) so a
     // typo cannot prevent startup, but a file that cannot be used at all —
     // TOML syntax error, unreadable — fails fast: defaults-only would start
@@ -220,7 +220,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
       this.config.experimental,
     );
     this.sessionStore = new SessionStore(this.homeDir);
-    this.memory = new KimiRecallStore({
+    this.memory = new LioraRecallStore({
       homeDir: this.homeDir,
       config: () => this.config.memory,
     });
@@ -262,11 +262,11 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, options.mcpServers);
     const parentKaos = overrides.kaos ?? (await this.getKaos());
     const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
-    // Read the workspace local config (`.super-kimi-code/local.toml`) through the
+    // Read the workspace local config (`.superliora/local.toml`) through the
     // persistence (local) kaos, not the tool kaos. In ACP mode the tool kaos is
     // the reverse-RPC bridge and the client does not know the session yet during
     // `session/new`, so reading through it fails with "unknown session"
-    // (https://github.com/SuperKimi/super-kimi-code/issues/988). The local config is
+    // (https://github.com/claudianus/superliora/issues/988). The local config is
     // a system file and must not depend on the tool bridge — same reason
     // `Session.systemContextKaos` is backed by the persistence sink.
     const localWorkspaceDirs = await readWorkspaceAdditionalDirs(persistenceKaos, workDir);
@@ -439,7 +439,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   ): Promise<ResumeSessionResult> {
     const summary = await this.sessionStore.get(input.sessionId);
     const parentKaosForRead = overrides.kaos ?? (await this.getKaos());
-    // Read `.super-kimi-code/local.toml` through the persistence (local) kaos, not the
+    // Read `.superliora/local.toml` through the persistence (local) kaos, not the
     // tool kaos — see createSessionWithOverrides and issue #988.
     const localWorkspaceDirs = await readWorkspaceAdditionalDirs(
       overrides.persistenceKaos ?? parentKaosForRead,
@@ -525,7 +525,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     const summary = await this.sessionStore.get(input.sessionId);
     const active = this.sessions.get(summary.id);
     if (active?.hasActiveTurn === true) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.TURN_AGENT_BUSY,
         `Session "${summary.id}" cannot be reloaded while a turn is running`,
         { details: { sessionId: summary.id } },
@@ -550,7 +550,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     const source = await this.sessionStore.get(input.sessionId);
     const active = this.sessions.get(source.id);
     if (active?.hasActiveTurn === true) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.SESSION_FORK_ACTIVE_TURN,
         `Session "${source.id}" cannot be forked while a turn is running`,
         { details: { sessionId: source.id } },
@@ -615,7 +615,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return result;
   }
 
-  async getKimiConfig(input?: GetKimiConfigPayload): Promise<KimiConfig> {
+  async getKimiConfig(input?: GetKimiConfigPayload): Promise<LioraConfig> {
     if (input?.reload) {
       this.reloadRuntimeConfig();
     }
@@ -626,13 +626,13 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return { warnings: this.configWarnings };
   }
 
-  async setKimiConfig(input: SetKimiConfigPayload): Promise<KimiConfig> {
+  async setKimiConfig(input: SetKimiConfigPayload): Promise<LioraConfig> {
     const config = mergeConfigPatch(this.readConfigForWrite(), input);
     await writeConfigFile(this.configPath, config);
     return this.reloadRuntimeConfig();
   }
 
-  async removeKimiProvider(input: RemoveKimiProviderPayload): Promise<KimiConfig> {
+  async removeKimiProvider(input: RemoveKimiProviderPayload): Promise<LioraConfig> {
     const config = this.readConfigForWrite();
     delete config.providers[input.providerId];
 
@@ -964,7 +964,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
       return summary;
     } catch (error) {
       this.pluginsLoadError = error instanceof Error ? error : new Error(String(error));
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.PLUGIN_LOAD_FAILED,
         `Failed to reload plugins: ${this.pluginsLoadError.message}`,
         { cause: error, details: { kimiHomeDir: this.homeDir } },
@@ -977,7 +977,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     this.assertPluginsLoaded();
     const info = this.plugins.info(id);
     if (info === undefined) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.PLUGIN_NOT_FOUND,
         `Plugin "${id}" is not installed`,
         { details: { id } },
@@ -988,7 +988,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 
   private assertPluginsLoaded(): void {
     if (this.pluginsLoadError === undefined) return;
-    throw new KimiError(
+    throw new LioraError(
       ErrorCodes.PLUGIN_LOAD_FAILED,
       `Plugin state failed to load: ${this.pluginsLoadError.message}. ` +
         `Fix the file at ${this.homeDir}/plugins/installed.json and run /plugins reload.`,
@@ -996,7 +996,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     );
   }
 
-  private async resolveRuntime(config: KimiConfig): Promise<ToolServices> {
+  private async resolveRuntime(config: LioraConfig): Promise<ToolServices> {
     if (this.runtimeOverride !== undefined) return this.runtimeOverride;
     const statefulGui = hasStatefulGuiRuntime(config);
     if (!statefulGui && this.runtime !== undefined) return this.runtime;
@@ -1013,14 +1013,14 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   private getKaos(): Promise<Kaos> {
     this.kaos ??= LocalKaos.create().catch((error: unknown) => {
       if (error instanceof KaosShellNotFoundError) {
-        throw new KimiError(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND, error.message);
+        throw new LioraError(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND, error.message);
       }
       throw error;
     });
     return this.kaos;
   }
 
-  private resolveSessionSkillConfig(config: KimiConfig): SessionSkillConfig {
+  private resolveSessionSkillConfig(config: LioraConfig): SessionSkillConfig {
     const explicitDirs = this.skillDirs.length > 0 ? this.skillDirs : undefined;
     return {
       userHomeDir: this.userHomeDir,
@@ -1069,23 +1069,23 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   }
 
   private managedKimiCodeEnvForPlugins(): Record<string, string> {
-    const provider = this.config.providers[KIMI_CODE_PROVIDER_NAME];
-    const envBaseUrl = process.env[KIMI_CODE_BASE_URL_ENV];
-    const envOAuthHost = process.env[KIMI_CODE_OAUTH_HOST_ENV] ?? process.env[KIMI_OAUTH_HOST_ENV];
+    const provider = this.config.providers[SUPERLIORA_PROVIDER_NAME];
+    const envBaseUrl = process.env[SUPERLIORA_BASE_URL_ENV];
+    const envOAuthHost = process.env[SUPERLIORA_OAUTH_HOST_ENV] ?? process.env[KIMI_OAUTH_HOST_ENV];
     const hasEnvOverride = envBaseUrl !== undefined || envOAuthHost !== undefined;
     const baseUrl =
       envBaseUrl !== undefined ? envBaseUrl.replace(/\/+$/, '') : provider?.baseUrl;
     const oauthHost = hasEnvOverride ? envOAuthHost : provider?.oauth?.oauthHost;
     const env: Record<string, string> = {};
-    if (baseUrl !== undefined) env[KIMI_CODE_BASE_URL_ENV] = baseUrl;
-    if (oauthHost !== undefined) env[KIMI_CODE_OAUTH_HOST_ENV] = oauthHost;
+    if (baseUrl !== undefined) env[SUPERLIORA_BASE_URL_ENV] = baseUrl;
+    if (oauthHost !== undefined) env[SUPERLIORA_OAUTH_HOST_ENV] = oauthHost;
     return env;
   }
 
   private requireSession(sessionId: string): Session {
     const session = this.sessions.get(sessionId);
     if (session === undefined) {
-      throw new KimiError(ErrorCodes.SESSION_NOT_FOUND, `Session "${sessionId}" was not found`, {
+      throw new LioraError(ErrorCodes.SESSION_NOT_FOUND, `Session "${sessionId}" was not found`, {
         details: { sessionId },
       });
     }
@@ -1096,15 +1096,15 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return new SessionAPIImpl(this.requireSession(sessionId));
   }
 
-  private reloadProviderManager(): KimiConfig {
+  private reloadProviderManager(): LioraConfig {
     return this.reloadRuntimeConfig();
   }
 
-  private readConfigForWrite(): KimiConfig {
+  private readConfigForWrite(): LioraConfig {
     return readConfigFileForUpdate(this.configPath);
   }
 
-  private reloadRuntimeConfig(): KimiConfig {
+  private reloadRuntimeConfig(): LioraConfig {
     const loaded = loadRuntimeConfigSafe(this.configPath);
     if (loaded.fileWarnings.length > 0) {
       // Keep the last good config: adopting a salvaged config mid-run could
@@ -1123,7 +1123,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return this.setRuntimeConfig(loaded.config);
   }
 
-  private setRuntimeConfig(config: KimiConfig): KimiConfig {
+  private setRuntimeConfig(config: LioraConfig): LioraConfig {
     this.config = config;
     this.experimentalFlags.setConfigOverrides(config.experimental);
     return this.config;
@@ -1136,7 +1136,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 
   private async refreshSessionRuntimeConfig(
     session: Session,
-    config: KimiConfig,
+    config: LioraConfig,
   ): Promise<void> {
     const api = new SessionAPIImpl(session);
     // A session migrated from an external tool carries no model, and any
@@ -1160,7 +1160,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
         const aliasMissing = config.models?.[model] === undefined;
         if (
           aliasMissing &&
-          error instanceof KimiError &&
+          error instanceof LioraError &&
           error.code === ErrorCodes.CONFIG_INVALID
         ) {
           continue;
@@ -1172,7 +1172,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 }
 
 async function createRuntimeConfig(input: {
-  readonly config: KimiConfig;
+  readonly config: LioraConfig;
   readonly homeDir?: string | undefined;
   readonly kimiRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
@@ -1237,7 +1237,7 @@ async function createRuntimeConfig(input: {
   };
 }
 
-function hasStatefulGuiRuntime(config: KimiConfig): boolean {
+function hasStatefulGuiRuntime(config: LioraConfig): boolean {
   return config.browserUse?.enabled !== false || config.computerUse?.enabled !== false;
 }
 
@@ -1254,7 +1254,7 @@ function serviceCredentials(
     apiKey,
     tokenProvider:
       service.oauth !== undefined
-        ? resolveOAuthTokenProvider?.(KIMI_CODE_PROVIDER_NAME, service.oauth)
+        ? resolveOAuthTokenProvider?.(SUPERLIORA_PROVIDER_NAME, service.oauth)
         : undefined,
     customHeaders: service.customHeaders,
   };
@@ -1267,7 +1267,7 @@ function nonEmptyString(value: string | undefined): string | undefined {
 
 function requiredWorkDir(operation: string, value: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new KimiError(ErrorCodes.REQUEST_WORK_DIR_REQUIRED, `${operation} requires workDir`);
+    throw new LioraError(ErrorCodes.REQUEST_WORK_DIR_REQUIRED, `${operation} requires workDir`);
   }
   return normalizeWorkDir(value);
 }
@@ -1287,7 +1287,7 @@ function withAdditionalDirs<T>(
 }
 
 function telemetryErrorReason(error: unknown): string {
-  if (error instanceof KimiError) return error.code;
+  if (error instanceof LioraError) return error.code;
   if (error instanceof Error && error.name.length > 0) return error.name;
   return typeof error;
 }

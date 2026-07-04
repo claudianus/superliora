@@ -1,12 +1,12 @@
 # Agents and Sub-Agents
 
-Every session in Kimi Code CLI is driven by a **main Agent**. The main Agent understands the user's intent, plans steps, calls tools, and when needed dispatches **sub-agents** to handle more focused sub-tasks — for example, exploring an unfamiliar codebase, reviewing multiple implementations in parallel, or planning a large refactor without touching the main context.
+Every session in SuperLiora CLI is driven by a **main Agent**. The main Agent understands the user's intent, plans steps, calls tools, and when needed dispatches **sub-agents** to handle more focused sub-tasks — for example, exploring an unfamiliar codebase, reviewing multiple implementations in parallel, or planning a large refactor without touching the main context.
 
 A sub-agent receives a task description from the main Agent, works in its own isolated context, and then returns its conclusions. It does not communicate with the user directly, and its intermediate reasoning and tool call records do not mix into the main Agent's history.
 
 ## Built-in Sub-Agents
 
-Kimi Code CLI includes three built-in sub-agents, ready to use out of the box, each aimed at a different task shape:
+SuperLiora CLI includes three built-in sub-agents, ready to use out of the box, each aimed at a different task shape:
 
 - **`coder`**: The default sub-agent — a general-purpose software engineering assistant that can read and write files, execute commands, search code, and land concrete changes.
 - **`explore`**: Dedicated to codebase exploration; performs read-only operations only and does not modify any files. Ideal for quickly searching, reading, and summarizing a repository without touching files.
@@ -39,7 +39,7 @@ If you need a particular type of tool to be permanently unavailable inside sub-a
 
 ## Instruction Files
 
-Global Kimi-specific instructions can live at `$KIMI_CODE_HOME/AGENTS.md` (default: `~/.kimi-code/AGENTS.md`). When you relocate the data root with `KIMI_CODE_HOME`, this global instruction file moves with it. Generic cross-tool instructions can still live under `~/.agents/AGENTS.md` in the real OS home, and project-level instructions remain under the project tree, for example `.kimi-code/AGENTS.md` or `AGENTS.md`.
+Global Kimi-specific instructions can live at `$SUPERLIORA_HOME/AGENTS.md` (default: `~/.superliora/AGENTS.md`). When you relocate the data root with `SUPERLIORA_HOME`, this global instruction file moves with it. Generic cross-tool instructions can still live under `~/.agents/AGENTS.md` in the real OS home, and project-level instructions remain under the project tree, for example `.superliora/AGENTS.md` or `AGENTS.md`.
 
 ## Storage Location in the Session Directory
 

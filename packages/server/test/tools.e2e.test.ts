@@ -22,7 +22,7 @@ import { pino } from 'pino';
 import {
   listMcpServersResponseSchema,
   listToolsResponseSchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
@@ -34,9 +34,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-tools-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-tools-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-tools-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-tools-home-'));
 });
 
 afterEach(async () => {

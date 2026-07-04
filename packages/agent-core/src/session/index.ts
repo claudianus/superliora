@@ -1,12 +1,12 @@
 import { homedir } from 'node:os';
 import { join } from 'pathe';
-import type { Kaos } from '@moonshot-ai/kaos';
-import type { SessionWarning } from '@moonshot-ai/protocol';
+import type { Kaos } from '@superliora/kaos';
+import type { SessionWarning } from '@superliora/protocol';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import type { Logger, SessionLogHandle } from '#/logging/types';
-import type { KimiConfig, SDKSessionRPC } from '#/rpc';
+import type { LioraConfig, SDKSessionRPC } from '#/rpc';
 import { proxyWithExtraPayload } from '#/rpc/types';
 
 import { Agent, type AgentOptions, type AgentType } from '../agent';
@@ -59,7 +59,7 @@ import { responseLanguagePreferenceFromUnknown } from './response-language';
 export interface SessionOptions {
   readonly kaos: Kaos;
   readonly persistenceKaos?: Kaos;
-  readonly config?: KimiConfig;
+  readonly config?: LioraConfig;
   readonly id?: string | undefined;
   readonly homedir: string;
   readonly kimiHomeDir?: string;
@@ -83,7 +83,7 @@ export interface SessionOptions {
 
 export interface SessionSkillConfig {
   readonly userHomeDir?: string;
-  /** Brand data dir (KIMI_CODE_HOME); user brand skills live under `<brandHomeDir>/skills`. */
+  /** Brand data dir (SUPERLIORA_HOME); user brand skills live under `<brandHomeDir>/skills`. */
   readonly brandHomeDir?: string;
   readonly explicitDirs?: readonly string[];
   readonly extraDirs?: readonly string[];
@@ -124,7 +124,7 @@ export interface SessionMeta {
   custom: Record<string, any>;
 }
 
-const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT';
+const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT';
 const ACTIVE_TURN_CLOSE_TIMEOUT_MS = 8_000;
 
 async function waitForSettlementOrTimeout(
@@ -458,7 +458,7 @@ export class Session {
     const entry = this.agents.get(id);
     if (entry !== undefined) return (await this.resolveAgentEntry(entry)).agent;
     if (this.metadata.agents[id] === undefined) {
-      throw new KimiError(ErrorCodes.AGENT_NOT_FOUND, `Agent "${id}" was not found`);
+      throw new LioraError(ErrorCodes.AGENT_NOT_FOUND, `Agent "${id}" was not found`);
     }
     return (await this.resumeAgent(id)).agent;
   }
@@ -545,7 +545,7 @@ export class Session {
       });
       await mainAgent.records.flush();
     } catch (error) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.SESSION_INIT_FAILED,
         error instanceof Error ? error.message : 'Init failed',
         { cause: error },
@@ -804,7 +804,7 @@ export class Session {
     stack: readonly string[] = [],
   ): Promise<ResumedAgent> {
     if (stack.includes(id)) {
-      throw new KimiError(
+      throw new LioraError(
         ErrorCodes.SESSION_STATE_INVALID,
         `Session agent parent chain contains a cycle: ${[...stack, id].join(' -> ')}`,
       );
@@ -825,7 +825,7 @@ export class Session {
     await this.skillsReady;
     const meta = this.metadata.agents[id];
     if (meta === undefined) {
-      throw new KimiError(ErrorCodes.SESSION_STATE_INVALID, `Session agent "${id}" is missing`);
+      throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, `Session agent "${id}" is missing`);
     }
 
     const parentAgentId = meta.parentAgentId ?? null;
@@ -860,7 +860,7 @@ export class Session {
   private requireMainAgent(): Agent {
     const agent = this.getReadyAgent('main');
     if (agent === undefined) {
-      throw new KimiError(ErrorCodes.AGENT_NOT_FOUND, 'Main agent was not found');
+      throw new LioraError(ErrorCodes.AGENT_NOT_FOUND, 'Main agent was not found');
     }
     return agent;
   }

@@ -15,12 +15,12 @@
  * ULID set by Fastify's `genReqId` via `resolveRequestId`.
  */
 
-import { metaResponseSchema } from '@moonshot-ai/protocol';
+import { metaResponseSchema } from '@superliora/protocol';
 
 import { getAvailableOpenInApps } from '../lib/fileLaunch';
 import { okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';
-import type { MetaResponse } from '@moonshot-ai/protocol';
+import type { MetaResponse } from '@superliora/protocol';
 
 /**
  * Minimal structural shape for the Fastify instance — just the verbs this

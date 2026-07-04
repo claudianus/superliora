@@ -13,7 +13,7 @@ import {
   type WriteTextFileRequest,
   type WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import { log, type KimiHarness, type Session } from '@moonshot-ai/kimi-code-sdk';
+import { log, type LioraHarness, type Session } from '@superliora/sdk';
 
 import { AcpServer } from '../src/server';
 import { AUTHED_STATUS } from './_helpers/harness-stubs';
@@ -68,7 +68,7 @@ describe('AcpServer cancel', () => {
     const harness = {
       auth: { status: async () => AUTHED_STATUS },
       createSession: async () => fakeSession,
-    } as unknown as KimiHarness;
+    } as unknown as LioraHarness;
 
     const { agentStream, clientStream } = makeInMemoryStreamPair();
     new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
@@ -92,7 +92,7 @@ describe('AcpServer cancel', () => {
       createSession: async () => {
         throw new Error('createSession should not be called when no session is created');
       },
-    } as unknown as KimiHarness;
+    } as unknown as LioraHarness;
 
     const { agentStream, clientStream } = makeInMemoryStreamPair();
     new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
@@ -123,7 +123,7 @@ describe('AcpServer cancel', () => {
     const harness = {
       auth: { status: async () => AUTHED_STATUS },
       createSession: async () => fakeSession,
-    } as unknown as KimiHarness;
+    } as unknown as LioraHarness;
 
     const { agentStream, clientStream } = makeInMemoryStreamPair();
     new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);

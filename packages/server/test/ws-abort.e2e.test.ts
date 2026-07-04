@@ -29,7 +29,7 @@ import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
-import { IPromptService, PromptService } from '@moonshot-ai/agent-core';
+import { IPromptService, PromptService } from '@superliora/agent-core';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -41,9 +41,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-ws-abort-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-ws-abort-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-ws-abort-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-ws-abort-home-'));
 });
 
 afterEach(async () => {

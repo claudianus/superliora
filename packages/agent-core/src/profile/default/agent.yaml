@@ -1,5 +1,5 @@
 name: agent
-description: Default Kimi Code agent
+description: Default SuperLiora agent
 
 systemPromptPath: ./system.md
 promptVars:
@@ -11,7 +11,7 @@ tools:
   - Edit
   - Grep
   - Glob
-  - KimiContext
+  - LioraContext
   - Bash
   - TaskList
   - TaskOutput

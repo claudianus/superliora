@@ -4,19 +4,19 @@ import type { FlagDefinitionInput } from './types';
  * Experimental feature flags.
  *
  * To add one, append an entry and gate runtime behavior through the scoped
- * resolver available on `KimiCore`, `Session`, or `Agent`:
- *   { id: 'my_feature', title: 'My feature', description: '...', env: 'KIMI_CODE_EXPERIMENTAL_MY_FEATURE', default: false, surface: 'both' }
+ * resolver available on `LioraCore`, `Session`, or `Agent`:
+ *   { id: 'my_feature', title: 'My feature', description: '...', env: 'SUPERLIORA_EXPERIMENTAL_MY_FEATURE', default: false, surface: 'both' }
  *
  * Keep the `as const satisfies` — it derives the literal `FlagId` union that gives `enabled()`
- * autocomplete and typo-checking. `env` must start with 'KIMI_CODE_EXPERIMENTAL_', be unique, and
- * not equal the master switch 'KIMI_CODE_EXPERIMENTAL_FLAG'; `id` must not be 'flag'.
+ * autocomplete and typo-checking. `env` must start with 'SUPERLIORA_EXPERIMENTAL_', be unique, and
+ * not equal the master switch 'SUPERLIORA_EXPERIMENTAL_FLAG'; `id` must not be 'flag'.
  */
 export const FLAG_DEFINITIONS = [
   {
     id: 'micro_compaction',
     title: 'Micro compaction',
     description: 'Trim older large tool results from context while keeping recent conversation intact.',
-    env: 'KIMI_CODE_EXPERIMENTAL_MICRO_COMPACTION',
+    env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
     default: true,
     surface: 'core',
   },

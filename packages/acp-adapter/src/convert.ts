@@ -4,7 +4,7 @@ import {
   type PromptPart,
   type ToolInputDisplay,
   type ToolResultEvent,
-} from '@moonshot-ai/kimi-code-sdk';
+} from '@superliora/sdk';
 
 import { isHideOutputMarker } from './marker';
 

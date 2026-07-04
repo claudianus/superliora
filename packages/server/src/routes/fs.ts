@@ -30,8 +30,8 @@ import {
   type FsSearchRequest,
   type FsStatManyRequest,
   type FsStatRequest,
-} from '@moonshot-ai/protocol';
-import { SessionNotFoundError, FsAlreadyExistsError, FsIsBinaryError, FsIsDirectoryError, FsPathNotFoundError, FsTooLargeError, FsTooManyResultsError, IFsService, FsGrepTimeoutError, IFsSearchService, FsGitUnavailableError, IFsGitService, FsPathEscapesError, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { SessionNotFoundError, FsAlreadyExistsError, FsIsBinaryError, FsIsDirectoryError, FsPathNotFoundError, FsTooLargeError, FsTooManyResultsError, IFsService, FsGrepTimeoutError, IFsSearchService, FsGitUnavailableError, IFsGitService, FsPathEscapesError, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 
@@ -236,7 +236,7 @@ export function registerFsRoutes(
       );
     }
 
-    let resolved: import('@moonshot-ai/agent-core').FsDownloadResolved;
+    let resolved: import('@superliora/agent-core').FsDownloadResolved;
     try {
       resolved = await ix.invokeFunction((a) =>
         a.get(IFsService).resolveDownload(session_id, relPath),

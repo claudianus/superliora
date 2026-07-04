@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tui-ux-contract.v1",
+  "title": "Record a TUI UX improvement contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": ["tui", "ux", "visible-evidence"],
+  "prompt": "Create reports/tui-ux-contract.md with sections for visible evidence, keyboard path, token budget, and rollback proof.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tui-ux-contract.md",
+      "content": "# TUI UX Contract\n\n## Visible Evidence\nrecord before/after tmux or computer-use evidence\n\n## Keyboard Path\nrecord exact keys\n\n## Token Budget\nrecord prompt and output token proxy\n\n## Rollback Proof\nrecord cleanup and reverted resources\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tui-ux-contract.md",
+      "text": "Visible Evidence",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-ux-contract.md",
+      "text": "Keyboard Path",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-ux-contract.md",
+      "text": "Token Budget",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-ux-contract.md",
+      "text": "Rollback Proof",
+      "weight": 1
+    }
+  ]
+}

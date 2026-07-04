@@ -170,10 +170,12 @@ export interface VerificationResult {
   readonly completedAt: string;
 }
 
+export type KnowledgePromotionTarget = 'liora_recall' | 'llm_wiki';
+
 export interface KnowledgePromotion {
   readonly id: string;
   readonly runId: string;
-  readonly target: 'kimi_recall' | 'llm_wiki';
+  readonly target: KnowledgePromotionTarget;
   readonly findingId: string;
   readonly title: string;
   readonly promotedAt: string;
@@ -366,10 +368,15 @@ export const verificationResultSchema = z.object({
   completedAt: isoDateTimeSchema,
 }) satisfies z.ZodType<VerificationResult>;
 
+const knowledgePromotionTargetSchema = z.preprocess(
+  (value) => (value === 'kimi_recall' ? 'liora_recall' : value),
+  z.enum(['liora_recall', 'llm_wiki']),
+);
+
 export const knowledgePromotionSchema = z.object({
   id: z.string().min(1),
   runId: z.string().min(1),
-  target: z.enum(['kimi_recall', 'llm_wiki']),
+  target: knowledgePromotionTargetSchema,
   findingId: z.string().min(1),
   title: z.string().min(1),
   promotedAt: isoDateTimeSchema,

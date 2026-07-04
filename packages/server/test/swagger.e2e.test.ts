@@ -21,9 +21,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-swagger-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-swagger-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-swagger-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-swagger-home-'));
 });
 
 afterEach(async () => {
@@ -135,7 +135,7 @@ describe('Swagger / OpenAPI', () => {
     const doc = res.json() as Record<string, unknown>;
     expect(doc['openapi']).toMatch(/^3\.\d+\.\d+$/);
     expect(typeof doc['info']).toBe('object');
-    expect((doc['info'] as Record<string, unknown>)['title']).toBe('Kimi Code Server API');
+    expect((doc['info'] as Record<string, unknown>)['title']).toBe('SuperLiora Server API');
     expect(typeof (doc['info'] as Record<string, unknown>)['version']).toBe('string');
 
     const paths = doc['paths'] as Record<string, unknown>;

@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KimiCore } from '../../src/rpc/core-impl';
+import { LioraCore } from '../../src/rpc/core-impl';
 
 const tempDirs: string[] = [];
 
@@ -23,8 +23,8 @@ async function makeHome(configToml?: string): Promise<string> {
   return home;
 }
 
-function makeCore(home: string): KimiCore {
-  return new KimiCore(async () => ({}) as never, { homeDir: home });
+function makeCore(home: string): LioraCore {
+  return new LioraCore(async () => ({}) as never, { homeDir: home });
 }
 
 const VALID_TOML = `
@@ -40,7 +40,7 @@ model = "kimi-for-coding"
 max_context_size = 128000
 `;
 
-describe('KimiCore degraded config loading', () => {
+describe('LioraCore degraded config loading', () => {
   it('reports no diagnostics for a valid config', async () => {
     const core = makeCore(await makeHome(VALID_TOML));
     const config = await core.getKimiConfig({});
@@ -83,7 +83,7 @@ max_steps_per_turn = "nope"
     // and must leave the file untouched.
     const write = core.setKimiConfig({ defaultThinking: true });
     await expect(write).rejects.toThrow(/fix it first/i);
-    await expect(write).rejects.toThrow(/kimi doctor/);
+    await expect(write).rejects.toThrow(/liora doctor/);
     await expect(write).rejects.not.toThrow(/invalid_type/);
 
     const after = await readFile(path.join(home, 'config.toml'), 'utf-8');

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ToolCall } from '@moonshot-ai/kosong';
+import type { ToolCall } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import { budgetToolResultForModel } from '../../src/agent/turn/tool-result-budget';
@@ -37,7 +37,7 @@ function installMemory(
 }
 
 describe('Agent tools', () => {
-  it('exposes Memory when Kimi Recall is enabled', () => {
+  it('exposes Memory when Liora Recall is enabled', () => {
     const ctx = testAgent();
     ctx.configure();
     installMemory(ctx.agent, true);
@@ -46,7 +46,7 @@ describe('Agent tools', () => {
     expect(ctx.agent.tools.loopTools.map((tool) => tool.name)).toContain('Memory');
   });
 
-  it('hides Memory when Kimi Recall is disabled', () => {
+  it('hides Memory when Liora Recall is disabled', () => {
     const ctx = testAgent();
     ctx.configure();
     installMemory(ctx.agent, false);

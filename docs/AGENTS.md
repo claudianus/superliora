@@ -28,14 +28,14 @@ low-priority reference material, not an actively marketed product surface:
 Kept here because pages under `docs/` still state these; keep them correct if
 you touch a page that mentions them.
 
-| | Kimi Code platform | Kimi Open Platform |
+| | SuperLiora platform | Kimi Open Platform |
 |---|---|---|
 | Audience | Individual developers, subscription-based | Enterprise / product integration, pay-per-token |
 | OpenAI-compatible base URL | `https://api.kimi.com/coding/v1` | `https://api.moonshot.cn/v1` |
 | Anthropic-compatible base URL | `https://api.kimi.com/coding/` | Not supported |
-| API key entry | [Kimi Code console](https://www.kimi.com/code/console) | [platform.kimi.com](https://platform.kimi.com) |
+| API key entry | [SuperLiora console](https://www.kimi.com/code/console) | [platform.kimi.com](https://platform.kimi.com) |
 
-Never mix the two: `api.kimi.com/coding/…` for Kimi Code CLI / VS Code, `api.moonshot.cn/v1` for Open Platform integration.
+Never mix the two: `api.kimi.com/coding/…` for SuperLiora CLI / VS Code, `api.moonshot.cn/v1` for Open Platform integration.
 
 ## Terminology (when editing bilingual pairs)
 

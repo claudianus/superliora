@@ -262,7 +262,7 @@ describe('default agent profiles', () => {
       cwd: '/workspace/two',
     });
 
-    expect(first).toContain('You are Kimi Code CLI');
+    expect(first).toContain('You are SuperLiora CLI');
     expect(first).toContain('Skill Runtime');
     expect(first).toContain('Current Research Discipline');
     expect(first).toContain('actively use WebSearch and FetchURL throughout the work');

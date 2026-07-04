@@ -2,10 +2,10 @@
  * Loop-local error helpers.
  */
 
-import { ErrorCodes, KimiError, isKimiError } from '#/errors';
+import { ErrorCodes, LioraError, isKimiError } from '#/errors';
 
-export function createMaxStepsExceededError(maxSteps: number, message?: string): KimiError {
-  return new KimiError(
+export function createMaxStepsExceededError(maxSteps: number, message?: string): LioraError {
+  return new LioraError(
     ErrorCodes.LOOP_MAX_STEPS_EXCEEDED,
     message ??
       `Turn exceeded maxSteps=${maxSteps}. If max_steps_per_turn is too small, raise it in config.toml (loop_control.max_steps_per_turn), or run "/update-config" to update it, then "/reload".`,

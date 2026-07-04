@@ -25,8 +25,8 @@ import {
   sessionSnapshotResponseSchema,
   type Message,
   type Session,
-} from '@moonshot-ai/protocol';
-import { IApprovalService, IMessageService, IPromptService, IQuestionService, ISessionService, ILogService, SessionNotFoundError, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { IApprovalService, IMessageService, IPromptService, IQuestionService, ISessionService, ILogService, SessionNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
 

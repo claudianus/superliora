@@ -1,8 +1,8 @@
 /**
  * Filesystem lock for single-instance server enforcement.
  *
- * The lock is a small JSON file at `<KIMI_CODE_HOME>/server/lock` (defaults
- * to `~/.kimi-code/server/lock`; overridable via `KIMI_CODE_HOME` env or
+ * The lock is a small JSON file at `<SUPERLIORA_HOME>/server/lock` (defaults
+ * to `~/.superliora/server/lock`; overridable via `SUPERLIORA_HOME` env or
  * `lockPath` for tests). It records the live server's `pid`, `started_at`,
  * and `port`. Acquisition is exclusive (`O_WRONLY | O_CREAT | O_EXCL`) —
  * racing servers can't both win.
@@ -35,9 +35,9 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { resolveKimiHome } from '@moonshot-ai/agent-core';
+import { resolveLioraHome } from '@superliora/agent-core';
 
-export const DEFAULT_LOCK_DIR = join(resolveKimiHome(), 'server');
+export const DEFAULT_LOCK_DIR = join(resolveLioraHome(), 'server');
 export const DEFAULT_LOCK_PATH = join(DEFAULT_LOCK_DIR, 'lock');
 
 /** JSON shape stored in the lock file. snake_case to match operator-facing logs. */
@@ -47,7 +47,7 @@ export interface LockContents {
   host?: string;
   port: number;
   /** Host CLI version that started this server (e.g. kimi-code package version).
-      Lets `kimi server status` detect a build-mismatched server. Absent in locks
+      Lets `liora server status` detect a build-mismatched server. Absent in locks
       written by older builds. */
   host_version?: string;
   /** Absolute path of the CLI entry that spawned the server. Distinguishes two
@@ -57,7 +57,7 @@ export interface LockContents {
 }
 
 export interface AcquireLockOptions {
-  /** Override default `<KIMI_CODE_HOME>/server/lock` — used in tests. */
+  /** Override default `<SUPERLIORA_HOME>/server/lock` — used in tests. */
   lockPath?: string;
   /** Port the server will bind to. Recorded in the lock file for diagnostics. */
   port: number;
@@ -85,7 +85,7 @@ export interface AcquireLockResult {
    * Rewrite the lock file's recorded `port` to the one actually bound. Used
    * when the requested port was busy (held by a third-party process) and the
    * server retried on `port + 1`: the lock must advertise the real port so
-   * `kimi server status` / `kill` / `ps` can find the daemon. Best-effort and
+   * `liora server status` / `kill` / `ps` can find the daemon. Best-effort and
    * ownership-guarded — a no-op when the file is missing, owned by another
    * pid, or already records `port`.
    */

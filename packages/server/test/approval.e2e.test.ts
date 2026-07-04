@@ -31,7 +31,7 @@ import {
   type ApprovalRequest,
   type ApprovalResponse,
   type Event,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -46,9 +46,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-approvals-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-approvals-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-approvals-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-approvals-home-'));
 });
 
 afterEach(async () => {

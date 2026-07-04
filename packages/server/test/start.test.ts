@@ -53,10 +53,10 @@ let bridgeHome: string;
 const running: RunningServer[] = [];
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-start-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-start-test-'));
   lockPath = join(tmpDir, 'lock');
-  // Isolate KimiCore's `~/.kimi` lookup — bridge construction touches it via plugin discovery.
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-start-home-'));
+  // Isolate LioraCore's `~/.kimi` lookup — bridge construction touches it via plugin discovery.
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-start-home-'));
 });
 
 afterEach(async () => {
@@ -321,7 +321,7 @@ describe('startServer — API-only root', () => {
     expect(openApi.headers.get('content-type')).toContain('application/json');
     await expect(openApi.json()).resolves.toMatchObject({
       info: {
-        title: 'Kimi Code Server API',
+        title: 'SuperLiora Server API',
       },
       paths: {
         '/api/v1/healthz': {},

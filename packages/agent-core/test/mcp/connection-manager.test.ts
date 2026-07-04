@@ -6,7 +6,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { testKaos } from '../fixtures/test-kaos';
-import type { ProviderConfig } from '@moonshot-ai/kosong';
+import type { ProviderConfig } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { randomUUID } from 'node:crypto';
@@ -21,7 +21,7 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { z } from 'zod';
 
-import { KimiError } from '../../src/errors';
+import { LioraError } from '../../src/errors';
 import { ProviderManager } from '../../src/session/provider-manager';
 import { McpConnectionManager, type McpServerEntry } from '../../src/mcp/connection-manager';
 import { JsonFileStore, McpOAuthService } from '../../src/mcp/oauth';
@@ -241,10 +241,10 @@ describe('McpConnectionManager', () => {
     }
   }, 7000);
 
-  it('reconnect throws a coded KimiError when the server name is unknown', async () => {
+  it('reconnect throws a coded LioraError when the server name is unknown', async () => {
     const cm = new McpConnectionManager();
     try {
-      await expect(cm.reconnect('nope')).rejects.toBeInstanceOf(KimiError);
+      await expect(cm.reconnect('nope')).rejects.toBeInstanceOf(LioraError);
       await expect(cm.reconnect('nope')).rejects.toMatchObject({ code: 'mcp.server_not_found' });
     } finally {
       await cm.shutdown();
@@ -259,7 +259,7 @@ describe('McpConnectionManager', () => {
       });
 
       const reconnect = cm.reconnect('off');
-      await expect(reconnect).rejects.toBeInstanceOf(KimiError);
+      await expect(reconnect).rejects.toBeInstanceOf(LioraError);
       await expect(reconnect).rejects.toMatchObject({ code: 'mcp.server_disabled' });
       expect(cm.get('off')).toMatchObject({
         status: 'disabled',
@@ -750,7 +750,7 @@ describe('Session MCP startup', () => {
       ).resolves.toContain('session-token');
       await expect(
         readFile(
-          join(processHome, '.kimi-code', 'credentials', 'mcp', `${provider.storeKey}-tokens.json`),
+          join(processHome, '.superliora', 'credentials', 'mcp', `${provider.storeKey}-tokens.json`),
           'utf-8',
         ),
       ).rejects.toMatchObject({ code: 'ENOENT' });

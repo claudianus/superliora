@@ -32,12 +32,12 @@ export {
   createKimiDeviceHeaders,
   createKimiDeviceId,
   createKimiUserAgent,
-  KIMI_CODE_PLATFORM,
+  SUPERLIORA_PLATFORM,
   readKimiDeviceId,
 } from './identity';
 export type { KimiHostIdentity, KimiIdentityOptions } from './identity';
 
-export { KIMI_CODE_FLOW_CONFIG } from './constants';
+export { SUPERLIORA_FLOW_CONFIG } from './constants';
 
 export {
   applyManagedKimiCodeLogoutConfig,
@@ -46,9 +46,10 @@ export {
   fetchManagedKimiCodeModels,
   kimiCodeEnvBaseUrl,
   kimiCodeEnvOAuthHost,
-  KIMI_CODE_OAUTH_KEY,
-  KIMI_CODE_PLATFORM_ID,
-  KIMI_CODE_PROVIDER_NAME,
+  MANAGED_KIMI_API_PROVIDER,
+  SUPERLIORA_OAUTH_KEY,
+  SUPERLIORA_PLATFORM_ID,
+  SUPERLIORA_PROVIDER_NAME,
   ManagedKimiCodeModelsAuthError,
   provisionManagedKimiCodeConfig,
   resolveKimiCodeLoginAuth,

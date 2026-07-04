@@ -4,12 +4,12 @@ import { join } from 'node:path';
 
 import {
   applyManagedKimiCodeConfig,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_PROVIDER_NAME,
   KimiOAuthToolkit,
   type DeviceAuthorization,
   type KimiHostIdentity,
   type ManagedKimiConfigShape,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 
 async function main(): Promise<void> {
   const explicitHomeDir = process.env['KIMI_OAUTH_SMOKE_HOME'];
@@ -33,16 +33,16 @@ async function main(): Promise<void> {
 
   try {
     if (forceLogin) {
-      await toolkit.logout(KIMI_CODE_PROVIDER_NAME);
+      await toolkit.logout(SUPERLIORA_PROVIDER_NAME);
       process.stdout.write('cleared existing smoke token\n');
     }
 
-    const login = await toolkit.login(KIMI_CODE_PROVIDER_NAME, {
+    const login = await toolkit.login(SUPERLIORA_PROVIDER_NAME, {
       onDeviceCode: printDeviceCode,
     });
-    const status = await toolkit.status(KIMI_CODE_PROVIDER_NAME);
-    const accessToken = await toolkit.tokenProvider(KIMI_CODE_PROVIDER_NAME).getAccessToken();
-    const usage = await toolkit.getManagedUsage(KIMI_CODE_PROVIDER_NAME);
+    const status = await toolkit.status(SUPERLIORA_PROVIDER_NAME);
+    const accessToken = await toolkit.tokenProvider(SUPERLIORA_PROVIDER_NAME).getAccessToken();
+    const usage = await toolkit.getManagedUsage(SUPERLIORA_PROVIDER_NAME);
 
     if (login.provision?.defaultModel === undefined) {
       throw new Error('login did not provision a default model');
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
     if (accessToken.length === 0) {
       throw new Error('token provider returned an empty access token');
     }
-    if (config.providers[KIMI_CODE_PROVIDER_NAME] === undefined) {
+    if (config.providers[SUPERLIORA_PROVIDER_NAME] === undefined) {
       throw new Error('managed provider was not written to config');
     }
 
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
     process.stdout.write('oauth smoke passed\n');
   } finally {
     if (!keepToken) {
-      await toolkit.logout(KIMI_CODE_PROVIDER_NAME).catch(() => {});
+      await toolkit.logout(SUPERLIORA_PROVIDER_NAME).catch(() => {});
     }
     if (explicitHomeDir === undefined && !keepToken) {
       await rm(homeDir, { recursive: true, force: true });
@@ -73,9 +73,9 @@ async function main(): Promise<void> {
 }
 
 function smokeIdentityFromEnv(): KimiHostIdentity {
-  const version = process.env['KIMI_CODE_SMOKE_VERSION'];
+  const version = process.env['SUPERLIORA_SMOKE_VERSION'];
   if (version === undefined || version.trim().length === 0) {
-    throw new Error('KIMI_CODE_SMOKE_VERSION is required for Kimi OAuth smoke.');
+    throw new Error('SUPERLIORA_SMOKE_VERSION is required for Kimi OAuth smoke.');
   }
   return {
     userAgentProduct: "kimi-code-cli",

@@ -7,8 +7,8 @@
 
 import { Readable, type Writable } from 'node:stream';
 
-import type { Kaos, KaosProcess } from '@moonshot-ai/kaos';
-import type { WorkGraph } from '@moonshot-ai/protocol';
+import type { Kaos, KaosProcess } from '@superliora/kaos';
+import type { WorkGraph } from '@superliora/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';

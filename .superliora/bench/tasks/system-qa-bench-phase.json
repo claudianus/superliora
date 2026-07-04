@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "system.qa-bench-phase.v1",
+  "title": "Run the SuperLiora QA bench phase",
+  "suite": "system",
+  "kind": "harness-qa",
+  "risk": "medium",
+  "tags": ["harness", "qa", "self-benchmark"],
+  "prompt": "Run the real SuperLiora autonomous QA bench phase from the source checkout and verify that it produces a passing manifest plus benchmark summary.",
+  "budgets": {
+    "maxWallMs": 300000,
+    "maxCommands": 2,
+    "maxPromptChars": 800
+  },
+  "checks": [
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "scripts/qa-superliora-autonomous.mjs",
+        "--phase",
+        "bench",
+        "--evidence-root",
+        ".superliora/evidence/liora-agent-bench/system-suite/qa-bench"
+      ],
+      "timeoutMs": 240000,
+      "weight": 2
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "-e",
+        "const fs=require('node:fs'); const manifest=JSON.parse(fs.readFileSync('.superliora/evidence/liora-agent-bench/system-suite/qa-bench/manifest.json','utf8')); const summary=JSON.parse(fs.readFileSync('.superliora/evidence/liora-agent-bench/system-suite/qa-bench/bench/summary.json','utf8')); if (manifest.status !== 'bench-pass') throw new Error(`manifest status ${manifest.status}`); if (summary.status !== 'PASS') throw new Error(`bench phase status ${summary.status}`); if (summary.benchSummary?.metrics?.score !== 1) throw new Error('bench score did not reach 1');"
+      ],
+      "timeoutMs": 30000,
+      "weight": 1
+    }
+  ]
+}

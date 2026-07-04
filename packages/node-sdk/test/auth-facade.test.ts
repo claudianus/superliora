@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import {
   FileTokenStorage,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_PROVIDER_NAME,
   KimiOAuthToolkit,
   OAuthConnectionError,
   OAuthError,
@@ -12,10 +12,10 @@ import {
   resolveKimiCodeOAuthKey,
   resolveKimiTokenStorageName,
   type TokenInfo,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createKimiHarness, ErrorCodes, KimiError } from '#/index';
+import { createLioraHarness, ErrorCodes, LioraError } from '#/index';
 
 import { ProviderManager } from '../../agent-core/src/session/provider-manager';
 import { TEST_IDENTITY } from './test-identity';
@@ -54,23 +54,23 @@ afterEach(async () => {
   await rm(homeDir, { recursive: true, force: true });
 });
 
-describe('KimiHarness.auth', () => {
+describe('LioraHarness.auth', () => {
   it('can construct auth facade without host identity', () => {
-    expect(() => createKimiHarness({ homeDir })).not.toThrow();
+    expect(() => createLioraHarness({ homeDir })).not.toThrow();
   });
 
   it('exposes a cached access token without refreshing auth state', async () => {
     await new FileTokenStorage(join(homeDir, 'credentials')).save('kimi-code', freshToken());
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.getCachedAccessToken()).resolves.toBe('oauth-access-token');
   });
 
   it('maps missing runtime OAuth tokens to login-required errors', async () => {
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(
-      harness.auth.resolveOAuthTokenProvider(KIMI_CODE_PROVIDER_NAME).getAccessToken(),
+      harness.auth.resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME).getAccessToken(),
     ).rejects.toMatchObject({
       code: ErrorCodes.AUTH_LOGIN_REQUIRED,
     });
@@ -91,14 +91,14 @@ describe('KimiHarness.auth', () => {
           },
         });
       try {
-        const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+        const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
         const error = await harness.auth
-          .resolveOAuthTokenProvider(KIMI_CODE_PROVIDER_NAME)
+          .resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME)
           .getAccessToken()
           .catch((caught: unknown) => caught);
 
-        expect(error).toBeInstanceOf(KimiError);
+        expect(error).toBeInstanceOf(LioraError);
         expect(error).toMatchObject({
           code: ErrorCodes.PROVIDER_CONNECTION_ERROR,
           message: expect.stringContaining(tokenError.message),
@@ -120,10 +120,10 @@ describe('KimiHarness.auth', () => {
         },
       });
     try {
-      const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+      const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
       await expect(
-        harness.auth.resolveOAuthTokenProvider(KIMI_CODE_PROVIDER_NAME).getAccessToken(),
+        harness.auth.resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME).getAccessToken(),
       ).rejects.toBe(oauthError);
     } finally {
       tokenProviderSpy.mockRestore();
@@ -143,13 +143,13 @@ api_key = ""
 max_steps_per_turn = "abc"
 `,
     );
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     // Token resolution is a read path: a broken section elsewhere in
     // config.toml must degrade, not break OAuth-backed sessions.
     await expect(harness.auth.getCachedAccessToken()).resolves.toBe('oauth-access-token');
     await expect(harness.auth.status()).resolves.toMatchObject({
-      providers: [{ providerName: KIMI_CODE_PROVIDER_NAME, hasToken: true }],
+      providers: [{ providerName: SUPERLIORA_PROVIDER_NAME, hasToken: true }],
     });
   });
 
@@ -172,7 +172,7 @@ api_key = ""
 oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.example.test" }
 `,
     );
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.getCachedAccessToken()).resolves.toBe('dev-access-token');
   });
@@ -196,10 +196,10 @@ api_key = ""
 oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.example.test" }
 `,
     );
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.status()).resolves.toEqual({
-      providers: [{ providerName: KIMI_CODE_PROVIDER_NAME, hasToken: true }],
+      providers: [{ providerName: SUPERLIORA_PROVIDER_NAME, hasToken: true }],
     });
   });
 
@@ -225,12 +225,12 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
     const result = await harness.auth.login();
     const config = await harness.getConfig({ reload: true });
 
     expect(result).toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
       defaultModel: 'kimi-code/kimi-for-coding',
       defaultThinking: true,
@@ -253,7 +253,7 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.
         tool_use: true,
       },
     });
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       type: 'kimi',
       apiKey: '',
       oauth: { storage: 'file', key: 'oauth/kimi-code' },
@@ -324,10 +324,10 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "${oauthHost}" }
       throw new Error(`unexpected request: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.login()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
       defaultModel: 'kimi-code/kimi-for-coding',
     });
@@ -335,7 +335,7 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "${oauthHost}" }
       accessToken: 'rotated-dev-access-token',
     });
     const config = await harness.getConfig({ reload: true });
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       baseUrl,
       oauth: { storage: 'file', key: oauthKey, oauthHost },
     });
@@ -382,17 +382,17 @@ oauth = { storage = "file", key = "oauth/kimi-code" }
       );
     });
     vi.stubGlobal('fetch', fetchMock);
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.login()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
       defaultModel: 'kimi-code/kimi-for-coding',
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const config = await harness.getConfig({ reload: true });
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       baseUrl,
       oauth: { storage: 'file', key: oauthKey, oauthHost: 'https://auth.kimi.com' },
     });
@@ -423,8 +423,8 @@ api_key = ""
 oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https://auth.kimi.com" }
 `,
     );
-    vi.stubEnv('KIMI_CODE_BASE_URL', envBaseUrl);
-    vi.stubEnv('KIMI_CODE_OAUTH_HOST', envOauthHost);
+    vi.stubEnv('SUPERLIORA_BASE_URL', envBaseUrl);
+    vi.stubEnv('SUPERLIORA_OAUTH_HOST', envOauthHost);
     const fetchMock = vi.fn<FetchMock>(async (input, init) => {
       expect(fetchInputUrl(input)).toBe(`${envBaseUrl}/models`);
       expect(new Headers(init?.headers).get('authorization')).toBe('Bearer env-access-token');
@@ -442,17 +442,17 @@ oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https:/
       );
     });
     vi.stubGlobal('fetch', fetchMock);
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.login()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
       defaultModel: 'kimi-code/kimi-for-coding',
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const config = await harness.getConfig({ reload: true });
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toMatchObject({
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toMatchObject({
       baseUrl: envBaseUrl,
       oauth: { storage: 'file', key: envOauthKey, oauthHost: envOauthHost },
     });
@@ -497,12 +497,12 @@ model = "kimi-for-coding"
 
     // A broken config must not prevent startup: the invalid model alias is
     // dropped, the rest of the config survives, and a warning is reported.
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
     const config = await harness.getConfig();
     expect(config.models?.['kimi-code/kimi-for-coding']).toBeUndefined();
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toBeDefined();
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toBeDefined();
     const { warnings } = await harness.getConfigDiagnostics();
-    expect(warnings.some((w) => w.includes('models.kimi-code/kimi-for-coding'))).toBe(true);
+    expect(warnings.some((w) => w.includes('models.superliora/kimi-for-coding'))).toBe(true);
   });
 
   it('removes managed Kimi config on logout', async () => {
@@ -543,16 +543,16 @@ oauth = { storage = "file", key = "oauth/kimi-code" }
 `,
     );
 
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.logout()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
     });
 
     const config = await harness.getConfig({ reload: true });
     expect(config.defaultModel).toBeUndefined();
-    expect(config.providers[KIMI_CODE_PROVIDER_NAME]).toBeUndefined();
+    expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toBeUndefined();
     expect(config.providers['custom']).toMatchObject({ apiKey: 'sk-existing' });
     expect(config.models?.['kimi-code/kimi-for-coding']).toBeUndefined();
     expect(config.models?.['custom-default']).toMatchObject({ provider: 'custom' });
@@ -594,10 +594,10 @@ model = "kimi-for-coding"
 max_context_size = 262144
 `,
     );
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.logout()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
     });
 
@@ -634,10 +634,10 @@ model = "kimi-for-coding"
 max_context_size = 262144
 `,
     );
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.auth.logout()).resolves.toMatchObject({
-      providerName: KIMI_CODE_PROVIDER_NAME,
+      providerName: SUPERLIORA_PROVIDER_NAME,
       ok: true,
     });
 
@@ -660,7 +660,7 @@ max_context_size = 262144
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const harness = createKimiHarness({ homeDir });
+    const harness = createLioraHarness({ homeDir });
     const result = await harness.auth.getManagedUsage();
 
     expect(result).toMatchObject({
@@ -710,7 +710,7 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.
       });
     });
     vi.stubGlobal('fetch', fetchMock);
-    const harness = createKimiHarness({ homeDir });
+    const harness = createLioraHarness({ homeDir });
 
     await expect(harness.auth.getManagedUsage()).resolves.toMatchObject({
       kind: 'ok',
@@ -762,8 +762,8 @@ api_key = ""
 oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https://auth.kimi.com" }
 `,
     );
-    vi.stubEnv('KIMI_CODE_BASE_URL', envBaseUrl);
-    vi.stubEnv('KIMI_CODE_OAUTH_HOST', envOauthHost);
+    vi.stubEnv('SUPERLIORA_BASE_URL', envBaseUrl);
+    vi.stubEnv('SUPERLIORA_OAUTH_HOST', envOauthHost);
     const fetchMock = vi.fn<FetchMock>(async (input) => {
       const url = fetchInputUrl(input);
       if (url.endsWith('/usages')) {
@@ -778,18 +778,18 @@ oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https:/
       });
     });
     vi.stubGlobal('fetch', fetchMock);
-    const harness = createKimiHarness({ homeDir });
+    const harness = createLioraHarness({ homeDir });
 
     await expect(harness.auth.status()).resolves.toEqual({
-      providers: [{ providerName: KIMI_CODE_PROVIDER_NAME, hasToken: true }],
+      providers: [{ providerName: SUPERLIORA_PROVIDER_NAME, hasToken: true }],
     });
     await expect(harness.auth.getCachedAccessToken()).resolves.toBe('env-access-token');
     await expect(
-      harness.auth.resolveOAuthTokenProvider(KIMI_CODE_PROVIDER_NAME).getAccessToken(),
+      harness.auth.resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME).getAccessToken(),
     ).resolves.toBe('env-access-token');
     await expect(
       harness.auth
-        .resolveOAuthTokenProvider(KIMI_CODE_PROVIDER_NAME, {
+        .resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME, {
           storage: 'file',
           key: configuredOauthKey,
           oauthHost: 'https://auth.kimi.com',
@@ -827,7 +827,7 @@ oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https:/
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const harness = createKimiHarness({ homeDir });
+    const harness = createLioraHarness({ homeDir });
     const result = await harness.auth.submitFeedback({
       content: 'great tool',
       sessionId: 'sess-42',
@@ -882,7 +882,7 @@ oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https:/
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const harness = createKimiHarness({ homeDir });
+    const harness = createLioraHarness({ homeDir });
     const result = await harness.auth.createFeedbackUploadUrl({
       feedbackId: 3,
       filename: 'session.zip',
@@ -928,7 +928,7 @@ oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https:/
       ),
     );
 
-    const harness = createKimiHarness({ homeDir });
+    const harness = createLioraHarness({ homeDir });
     const result = await harness.auth.submitFeedback({
       content: 'x',
       sessionId: 's',

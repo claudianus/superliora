@@ -1,21 +1,21 @@
 {
-  "name": "@moonshot-ai/agent-core",
+  "name": "@superliora/agent-core",
   "version": "0.14.1",
   "private": true,
-  "description": "The unified agent engine for Kimi",
+  "description": "The unified agent engine for SuperLiora",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/agent-core#readme",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://github.com/claudianus/superliora/tree/main/packages/agent-core#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/claudianus/superliora.git",
     "directory": "packages/agent-core"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/claudianus/superliora/issues"
   },
   "keywords": [
-    "kimi",
+    "superliora",
     "agent",
     "ai",
     "llm",
@@ -60,11 +60,11 @@
   "dependencies": {
     "@antfu/utils": "^9.3.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@moonshot-ai/gui-use": "workspace:^",
-    "@moonshot-ai/kaos": "workspace:^",
-    "@moonshot-ai/kimi-code-oauth": "workspace:^",
-    "@moonshot-ai/kosong": "workspace:^",
-    "@moonshot-ai/protocol": "workspace:^",
+    "@superliora/gui-use": "workspace:^",
+    "@superliora/kaos": "workspace:^",
+    "@superliora/oauth": "workspace:^",
+    "@superliora/kosong": "workspace:^",
+    "@superliora/protocol": "workspace:^",
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",

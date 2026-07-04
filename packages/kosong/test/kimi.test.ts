@@ -30,7 +30,7 @@ function createProvider(stream: boolean = false): KimiChatProvider {
   });
 }
 
-type KimiGenerationState = {
+type LioraGenerationState = {
   max_tokens?: number | undefined;
   temperature?: number | undefined;
   reasoning_effort?: string | undefined;
@@ -38,8 +38,8 @@ type KimiGenerationState = {
   extra_body?: Record<string, unknown> | undefined;
 };
 
-function getGenerationState(provider: KimiChatProvider): KimiGenerationState {
-  return Reflect.get(provider, '_generationKwargs') as KimiGenerationState;
+function getGenerationState(provider: KimiChatProvider): LioraGenerationState {
+  return Reflect.get(provider, '_generationKwargs') as LioraGenerationState;
 }
 
 /** Capture the request body sent to OpenAI by mocking the client. */

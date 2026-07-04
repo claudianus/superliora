@@ -38,7 +38,7 @@ import type {
   Event,
   SessionSummary,
 } from '../../src';
-import type { PromptSubmission, Session } from '@moonshot-ai/protocol';
+import type { PromptSubmission, Session } from '@superliora/protocol';
 
 import {
   type IAuthSummaryService,

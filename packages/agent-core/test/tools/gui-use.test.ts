@@ -1,4 +1,4 @@
-import type { BrowserUseRuntime, ComputerUseRuntime } from '@moonshot-ai/gui-use';
+import type { BrowserUseRuntime, ComputerUseRuntime } from '@superliora/gui-use';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

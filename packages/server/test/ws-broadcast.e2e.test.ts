@@ -23,8 +23,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { pino } from 'pino';
 import { WebSocket } from 'ws';
 
-import type { Event } from '@moonshot-ai/protocol';
-import { IEventService } from '@moonshot-ai/agent-core';
+import type { Event } from '@superliora/protocol';
+import { IEventService } from '@superliora/agent-core';
 
 import {
   ISessionClientsService,
@@ -40,9 +40,9 @@ let bridgeHome: string;
 const running: RunningServer[] = [];
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-ws-broadcast-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-ws-broadcast-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-ws-broadcast-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-ws-broadcast-home-'));
 });
 
 afterEach(async () => {

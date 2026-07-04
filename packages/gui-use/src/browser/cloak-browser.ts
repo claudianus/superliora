@@ -256,7 +256,7 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
         throw new Error(
           `CloakBrowser launch failed after auto-install: ${describeError(secondError)}. ` +
           `Initial launch error: ${describeError(firstError)}. ` +
-          'Use BrowserStatus or `kimi browser-use doctor` for diagnostics.',
+          'Use BrowserStatus or `liora browser-use doctor` for diagnostics.',
         );
       }
     }
@@ -487,7 +487,7 @@ function describeError(error: unknown): string {
 }
 
 function actionableLaunchError(error: unknown): string {
-  return `${describeError(error)}. Use BrowserStatus or \`kimi browser-use doctor\` before installing Playwright or Chrome manually.`;
+  return `${describeError(error)}. Use BrowserStatus or \`liora browser-use doctor\` before installing Playwright or Chrome manually.`;
 }
 
 function statusFromSetupResult(result: SetupCommandResult, ok: boolean): BrowserStatus {

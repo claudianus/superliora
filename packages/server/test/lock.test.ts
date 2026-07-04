@@ -26,7 +26,7 @@ let tmpDir: string;
 let lockPath: string;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-lock-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-lock-test-'));
   lockPath = join(tmpDir, 'lock');
 });
 
@@ -232,7 +232,7 @@ describe('acquireLock — updatePort', () => {
 
 describe('acquireLock — defaults', () => {
   it('DEFAULT_LOCK_PATH points under the kimi-code home', () => {
-    expect(DEFAULT_LOCK_PATH).toMatch(/[/\\]\.kimi-code[/\\]server[/\\]lock$/);
+    expect(DEFAULT_LOCK_PATH).toMatch(/[/\\]\.superliora[/\\]server[/\\]lock$/);
   });
 });
 

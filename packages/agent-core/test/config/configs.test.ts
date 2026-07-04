@@ -5,9 +5,9 @@ import { join } from 'pathe';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, LioraError } from '../../src/errors';
 import {
-  KimiConfigSchema,
+  LioraConfigSchema,
   ensureConfigFile,
   loadRuntimeConfig,
   loadRuntimeConfigSafe,
@@ -18,7 +18,7 @@ import {
   readConfigFileForUpdate,
   resolveConfigPath,
   resolveConfigValue,
-  resolveKimiHome,
+  resolveLioraHome,
   validateConfig,
   writeConfigFile,
 } from '../../src/config';
@@ -41,8 +41,8 @@ function expectKimiErrorCode(fn: () => unknown, code: string): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(KimiError);
-    expect((error as KimiError).code).toBe(code);
+    expect(error).toBeInstanceOf(LioraError);
+    expect((error as LioraError).code).toBe(code);
     return;
   }
   throw new Error('expected function to throw');
@@ -515,7 +515,7 @@ removed_flag = true
     await ensureConfigFile(configPath);
 
     const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('Runtime settings for Kimi Code.');
+    expect(text).toContain('Runtime settings for SuperLiora.');
     expect(text).not.toMatch(/^default_thinking =/m);
     expect(text).not.toMatch(/^default_model =/m);
 
@@ -550,7 +550,7 @@ removed_flag = true
     expect(text).not.toContain('default_permission_mode');
   });
 
-  it('rejects invalid TOML and invalid schema with KimiError(config.invalid)', () => {
+  it('rejects invalid TOML and invalid schema with LioraError(config.invalid)', () => {
     expectKimiErrorCode(
       () => parseConfigString('[[[', 'broken.toml'),
       ErrorCodes.CONFIG_INVALID,
@@ -618,7 +618,7 @@ hooks = [{ type = "pre-tool-call", command = "echo hi" }]
 
 describe('harness config schema and patch merge', () => {
   it('accepts the empty public config and requires model context size in full configs', () => {
-    expect(KimiConfigSchema.parse({})).toEqual({ providers: {} });
+    expect(LioraConfigSchema.parse({})).toEqual({ providers: {} });
     expect(() =>
       validateConfig({
         providers: {
@@ -703,7 +703,7 @@ micro_compaction = false
   });
 
   it('accepts maxOutputSize on a model alias and round-trips it', () => {
-    const parsed = KimiConfigSchema.parse({
+    const parsed = LioraConfigSchema.parse({
       providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
       models: {
         opus: {
@@ -721,7 +721,7 @@ micro_compaction = false
   });
 
   it('leaves maxOutputSize undefined when omitted', () => {
-    const parsed = KimiConfigSchema.parse({
+    const parsed = LioraConfigSchema.parse({
       providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
       models: {
         opus: {
@@ -800,7 +800,7 @@ max_context_size = 200000
 
   it('rejects maxOutputSize <= 0', () => {
     expect(() =>
-      KimiConfigSchema.parse({
+      LioraConfigSchema.parse({
         providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
         models: {
           opus: {
@@ -816,18 +816,18 @@ max_context_size = 200000
 });
 
 describe('config path env override', () => {
-  it('uses KIMI_CODE_HOME when no explicit homeDir is supplied', () => {
-    const saved = process.env['KIMI_CODE_HOME'];
+  it('uses SUPERLIORA_HOME when no explicit homeDir is supplied', () => {
+    const saved = process.env['SUPERLIORA_HOME'];
     try {
-      process.env['KIMI_CODE_HOME'] = '/tmp/kimi-from-env';
+      process.env['SUPERLIORA_HOME'] = '/tmp/kimi-from-env';
 
-      expect(resolveKimiHome()).toBe('/tmp/kimi-from-env');
-      expect(resolveKimiHome('/tmp/kimi-explicit')).toBe('/tmp/kimi-explicit');
+      expect(resolveLioraHome()).toBe('/tmp/kimi-from-env');
+      expect(resolveLioraHome('/tmp/kimi-explicit')).toBe('/tmp/kimi-explicit');
       expect(resolveConfigPath({})).toBe('/tmp/kimi-from-env/config.toml');
       expect(resolveConfigPath({ configPath: '/tmp/custom.toml' })).toBe('/tmp/custom.toml');
     } finally {
-      if (saved === undefined) delete process.env['KIMI_CODE_HOME'];
-      else process.env['KIMI_CODE_HOME'] = saved;
+      if (saved === undefined) delete process.env['SUPERLIORA_HOME'];
+      else process.env['SUPERLIORA_HOME'] = saved;
     }
   });
 });
@@ -932,7 +932,7 @@ max_context_size = 128000
     expect(result.config.providers).toEqual({});
     // The whole file is unusable: callers decide to fail startup (fileError)
     // or keep the last good config mid-run (fileWarnings).
-    expect(result.fileError).toBeInstanceOf(KimiError);
+    expect(result.fileError).toBeInstanceOf(LioraError);
     expect(result.fileError?.code).toBe(ErrorCodes.CONFIG_INVALID);
     expect(result.fileError?.message).toContain('Invalid TOML');
     expect(result.fileError?.message).toContain(configPath);
@@ -1075,10 +1075,10 @@ max_steps_per_turn = "nope"
       readConfigFileForUpdate(configPath);
       throw new Error('expected readConfigFileForUpdate to throw');
     } catch (error) {
-      expect(error).toBeInstanceOf(KimiError);
-      expect((error as KimiError).message).toContain('fix it first');
-      expect((error as KimiError).message).toContain('kimi doctor');
-      expect((error as KimiError).message).not.toContain('invalid_type');
+      expect(error).toBeInstanceOf(LioraError);
+      expect((error as LioraError).message).toContain('fix it first');
+      expect((error as LioraError).message).toContain('liora doctor');
+      expect((error as LioraError).message).not.toContain('invalid_type');
     }
 
     const goodPath = await writeTempConfig(VALID_TOML);

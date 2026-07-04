@@ -2,7 +2,7 @@
 // Stdio MCP server for kimi-datasource.
 //
 // Speaks newline-delimited JSON-RPC 2.0 on stdin/stdout per the MCP "stdio"
-// transport. Implements the minimal surface the Kimi Code host calls:
+// transport. Implements the minimal surface the SuperLiora host calls:
 //   - initialize
 //   - notifications/initialized
 //   - tools/list
@@ -19,8 +19,8 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 const VERSION = '3.2.0';
-const DEFAULT_KIMI_CODE_OAUTH_HOST = 'https://auth.kimi.com';
-const DEFAULT_KIMI_CODE_BASE_URL = 'https://api.kimi.com/coding/v1';
+const DEFAULT_SUPERLIORA_OAUTH_HOST = 'https://auth.kimi.com';
+const DEFAULT_SUPERLIORA_BASE_URL = 'https://api.kimi.com/coding/v1';
 const API_URL = datasourceApiUrl();
 const REQUEST_TIMEOUT_MS = 30_000;
 const PROTOCOL_VERSION = '2025-06-18';
@@ -29,7 +29,7 @@ const TOOLS = [
   {
     name: 'call_data_source_tool',
     description:
-      "Dispatch a call to any registered data source's API via the Kimi Code gateway. Always call get_data_source_desc(name) first to learn that source's available APIs and required params, then construct this call with api_name and params taken from that description.",
+      "Dispatch a call to any registered data source's API via the SuperLiora gateway. Always call get_data_source_desc(name) first to learn that source's available APIs and required params, then construct this call with api_name and params taken from that description.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -228,8 +228,8 @@ function appendTrace(text, trace) {
 }
 
 function resolveKimiHome() {
-  const explicit = process.env.KIMI_CODE_HOME?.trim();
-  return explicit && explicit.length > 0 ? explicit : path.join(homedir(), '.kimi-code');
+  const explicit = process.env.SUPERLIORA_HOME?.trim();
+  return explicit && explicit.length > 0 ? explicit : path.join(homedir(), '.superliora');
 }
 
 function datasourceApiUrl() {
@@ -239,14 +239,14 @@ function datasourceApiUrl() {
 }
 
 function kimiCodeBaseUrl() {
-  return (process.env.KIMI_CODE_BASE_URL ?? DEFAULT_KIMI_CODE_BASE_URL).replace(/\/+$/, '');
+  return (process.env.SUPERLIORA_BASE_URL ?? DEFAULT_SUPERLIORA_BASE_URL).replace(/\/+$/, '');
 }
 
 function kimiCodeOAuthHost() {
   return normalizeEndpoint(
-    process.env.KIMI_CODE_OAUTH_HOST ??
+    process.env.SUPERLIORA_OAUTH_HOST ??
       process.env.KIMI_OAUTH_HOST ??
-      DEFAULT_KIMI_CODE_OAUTH_HOST,
+      DEFAULT_SUPERLIORA_OAUTH_HOST,
   );
 }
 
@@ -258,8 +258,8 @@ function resolveKimiCodeCredentialName() {
   const oauthHost = kimiCodeOAuthHost();
   const baseUrl = kimiCodeBaseUrl();
   if (
-    oauthHost === normalizeEndpoint(DEFAULT_KIMI_CODE_OAUTH_HOST) &&
-    baseUrl === DEFAULT_KIMI_CODE_BASE_URL
+    oauthHost === normalizeEndpoint(DEFAULT_SUPERLIORA_OAUTH_HOST) &&
+    baseUrl === DEFAULT_SUPERLIORA_BASE_URL
   ) {
     return 'kimi-code';
   }
@@ -285,25 +285,25 @@ async function loadAccessToken() {
   } catch (err) {
     if (isNotFound(err)) {
       throw new Error(
-        `Kimi Code credentials file not found: ${credentialsFile}\nRun /login in Kimi Code first.`,
+        `SuperLiora credentials file not found: ${credentialsFile}\nRun /login in SuperLiora first.`,
       );
     }
     if (err instanceof SyntaxError) {
-      throw new Error(`Failed to parse Kimi Code credentials file: ${err.message}`);
+      throw new Error(`Failed to parse SuperLiora credentials file: ${err.message}`);
     }
     throw err;
   }
 
   if (!isRecord(parsed)) {
-    throw new Error(`Invalid Kimi Code credentials file: ${credentialsFile}`);
+    throw new Error(`Invalid SuperLiora credentials file: ${credentialsFile}`);
   }
   const token = typeof parsed.access_token === 'string' ? parsed.access_token : '';
   if (token.length === 0) {
-    throw new Error('Kimi Code credentials do not contain access_token. Run /login again.');
+    throw new Error('SuperLiora credentials do not contain access_token. Run /login again.');
   }
   const expiresAt = typeof parsed.expires_at === 'number' ? parsed.expires_at : 0;
   if (expiresAt > 0 && expiresAt <= Math.floor(Date.now() / 1000)) {
-    throw new Error('Kimi Code access_token has expired. Run /login again and retry.');
+    throw new Error('SuperLiora access_token has expired. Run /login again and retry.');
   }
   return { kimiHome, token };
 }

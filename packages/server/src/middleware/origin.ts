@@ -5,7 +5,7 @@
  *   - no `Origin` header → non-CORS / same-origin request → proceeds untouched;
  *   - same-origin (`Origin` host === `Host`, port stripped both sides) → allowed;
  *   - cross-origin → allowed only if the full origin (scheme + host) is in the
- *     explicit whitelist (`KIMI_CODE_CORS_ORIGINS`, no `*` wildcard — PLAN
+ *     explicit whitelist (`SUPERLIORA_CORS_ORIGINS`, no `*` wildcard — PLAN
  *     §3.4). Allowed origins get `Access-Control-Allow-*` echoed; `OPTIONS`
  *     preflight short-circuits to `204`;
  *   - cross-origin and NOT whitelisted → no CORS headers are emitted, so the
@@ -31,13 +31,13 @@ export interface OriginHookOptions {
 }
 
 /**
- * Parse `KIMI_CODE_CORS_ORIGINS` into an allowlist.
+ * Parse `SUPERLIORA_CORS_ORIGINS` into an allowlist.
  *
  * Comma-separated, trimmed, empties dropped. No `*` wildcard — every entry is
  * an explicit origin (PLAN §3.4).
  */
 export function parseCorsOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
-  const raw = env['KIMI_CODE_CORS_ORIGINS'];
+  const raw = env['SUPERLIORA_CORS_ORIGINS'];
   if (raw === undefined) {
     return [];
   }

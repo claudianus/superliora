@@ -1,15 +1,15 @@
 {
-  "name": "@moonshot-ai/vis",
+  "name": "@superliora/vis",
   "version": "0.1.1",
   "private": true,
-  "description": "Debug visualization tool for kimi-code sessions",
+  "description": "Debug visualization tool for SuperLiora sessions",
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build:deps": "corepack pnpm --filter @moonshot-ai/agent-core... build",
+    "build:deps": "corepack pnpm --filter @superliora/agent-core... build",
     "predev": "corepack pnpm run build:deps",
     "dev": "node scripts/dev.mjs",
-    "build": "corepack pnpm run build:deps && corepack pnpm --filter @moonshot-ai/vis-server build && corepack pnpm --filter @moonshot-ai/vis-web build && node scripts/copy-web-dist.mjs",
+    "build": "corepack pnpm run build:deps && corepack pnpm --filter @superliora/vis-server build && corepack pnpm --filter @superliora/vis-web build && node scripts/copy-web-dist.mjs",
     "prestart": "corepack pnpm run build",
     "start": "node server/dist/server.mjs"
   },

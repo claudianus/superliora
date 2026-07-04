@@ -2,7 +2,7 @@ import {
   workGraphNodeSchema,
   type WorkGraph,
   type WorkGraphNode,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent';

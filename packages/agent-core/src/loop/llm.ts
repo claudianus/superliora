@@ -16,7 +16,7 @@ import type {
   TokenUsage,
   Tool,
   ToolCall,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 
 export interface ToolCallDelta {
   readonly toolCallId: string;

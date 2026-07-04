@@ -1,6 +1,6 @@
-import type { KimiErrorCode } from './codes';
+import type { LioraErrorCode } from './codes';
 
-export interface KimiErrorOptions {
+export interface LioraErrorOptions {
   /** JSON-serializable structured details. */
   readonly details?: Record<string, unknown>;
   /** Original error or value. Local-only; never serialized to the wire. */
@@ -11,16 +11,16 @@ export interface KimiErrorOptions {
  * The single Kimi error class.
  *
  * Discrimination is always by `code`. Cross-process consumers receive
- * `KimiErrorPayload` and must branch on `code` rather than class identity.
+ * `LioraErrorPayload` and must branch on `code` rather than class identity.
  */
-export class KimiError extends Error {
-  readonly code: KimiErrorCode;
+export class LioraError extends Error {
+  readonly code: LioraErrorCode;
   readonly details?: Record<string, unknown>;
   override readonly cause?: unknown;
 
-  constructor(code: KimiErrorCode, message: string, options: KimiErrorOptions = {}) {
+  constructor(code: LioraErrorCode, message: string, options: LioraErrorOptions = {}) {
     super(message);
-    this.name = 'KimiError';
+    this.name = 'LioraError';
     this.code = code;
     this.details = options.details;
     this.cause = options.cause;

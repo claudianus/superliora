@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import type { PermissionMode } from '../../src/agent/permission';
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, LioraError } from '../../src/errors';
 import type { QuestionRequest, QuestionResult } from '../../src/rpc';
 import {
   AskUserQuestionInputSchema,
@@ -268,7 +268,7 @@ describe('AskUserQuestionTool', () => {
   });
 
   it('starts a background question task and stores the eventual answer in task output', async () => {
-    vi.stubEnv('KIMI_CODE_EXPERIMENTAL_FLAG', '1');
+    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_FLAG', '1');
 
     let resolveQuestion!: (result: QuestionResult) => void;
     const questionResult = new Promise<QuestionResult>((resolve) => {
@@ -371,7 +371,7 @@ describe('AskUserQuestionTool', () => {
   it('resolves question rpc error responses as dismissed answers', async () => {
     const { tool } = makeTool({
       requestQuestion: async () => {
-        throw new KimiError(ErrorCodes.INTERNAL, 'JSON-RPC question error response');
+        throw new LioraError(ErrorCodes.INTERNAL, 'JSON-RPC question error response');
       },
     });
 
@@ -426,7 +426,7 @@ describe('AskUserQuestionTool', () => {
   it('returns a distinct hard error when the client signals unsupported', async () => {
     const { tool } = makeTool({
       requestQuestion: async () => {
-        throw new KimiError(ErrorCodes.NOT_IMPLEMENTED, 'Client does not support questions');
+        throw new LioraError(ErrorCodes.NOT_IMPLEMENTED, 'Client does not support questions');
       },
     });
 

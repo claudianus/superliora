@@ -2,8 +2,8 @@ import {
   configResponseSchema,
   ErrorCode,
   patchConfigRequestSchema,
-} from '@moonshot-ai/protocol';
-import { IConfigService, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { IConfigService, type IInstantiationService } from '@superliora/agent-core';
 
 import { errEnvelope, okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';

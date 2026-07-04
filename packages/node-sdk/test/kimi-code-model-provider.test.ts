@@ -8,10 +8,10 @@ import {
   OAuthError,
   OAuthUnauthorizedError,
   RetryableRefreshError,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ErrorCodes, KimiError, KimiForCodingProvider } from '#/index';
+import { ErrorCodes, LioraError, KimiForCodingProvider } from '#/index';
 
 import { TEST_IDENTITY } from './test-identity';
 
@@ -55,7 +55,7 @@ describe('KimiForCodingProvider OAuth error mapping', () => {
       const auth = resolveAuth();
       const caught = await auth(async () => 'ok').catch((error: unknown) => error);
 
-      expect(caught).toBeInstanceOf(KimiError);
+      expect(caught).toBeInstanceOf(LioraError);
       expect(caught).toMatchObject({
         code: ErrorCodes.PROVIDER_CONNECTION_ERROR,
         message: expect.stringContaining(tokenError.message),

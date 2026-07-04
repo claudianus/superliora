@@ -2,7 +2,7 @@
  * `FastifyRestGateway` — implementation of `IRestGateway`.
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { Disposable } from '@superliora/agent-core';
 
 import { IRestGateway, type FastifyLike } from './restGateway';
 

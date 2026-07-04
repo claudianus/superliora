@@ -33,7 +33,7 @@
  */
 
 import type { SessionConfigOption, SessionConfigSelectOption } from '@agentclientprotocol/sdk';
-import type { KimiHarness } from '@moonshot-ai/kimi-code-sdk';
+import type { LioraHarness } from '@superliora/sdk';
 
 import { ACP_MODES, type AcpModeId } from './modes';
 import { listModelsFromHarness, type AcpModelEntry } from './model-catalog';
@@ -183,7 +183,7 @@ export function buildModeOption(currentModeId: AcpModeId): SessionConfigOption {
  * mutate it.
  */
 export async function buildSessionConfigOptions(
-  harness: KimiHarness,
+  harness: LioraHarness,
   currentBaseModelId: string,
   currentThinkingEnabled: boolean,
   currentModeId: AcpModeId,

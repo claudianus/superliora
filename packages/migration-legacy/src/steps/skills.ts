@@ -15,7 +15,7 @@ export interface SkillsStepResult {
 
 /**
  * Copy the user's legacy skills tree (~/.kimi/skills/) into kimi-code's
- * default user skills root (~/.kimi-code/skills/). Granularity is one
+ * default user skills root (~/.superliora/skills/). Granularity is one
  * top-level entry per "skill unit" — that matches how the new scanner
  * treats a directory containing SKILL.md as a bundle and a flat .md as a
  * skill on its own. We do not filter non-skill entries; the new scanner
@@ -52,7 +52,7 @@ export async function migrateSkillsStep(input: SkillsStepInput): Promise<SkillsS
     }
 
     // Defer creating the target root until we know there is something to put
-    // in it — touching it earlier would fail when ~/.kimi-code/skills is
+    // in it — touching it earlier would fail when ~/.superliora/skills is
     // blocked by a file or has restrictive permissions, turning an empty
     // source into a hard error.
     if (!targetDirReady) {

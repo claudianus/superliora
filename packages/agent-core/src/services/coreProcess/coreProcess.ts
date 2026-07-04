@@ -4,7 +4,7 @@
  *
  *   1. `createRPC<CoreAPI, SDKAPI>()` produces a `[coreRpc, sdkRpc]` pair of
  *      `RPCClient` functions (packages/agent-core/src/rpc/client.ts:31-103).
- *   2. `new KimiCore(coreRpc, options)` — the core is constructed with the
+ *   2. `new LioraCore(coreRpc, options)` — the core is constructed with the
  *      core-side RPC client (it calls into the SDK side over `coreRpc`).
  *   3. `sdkRpc(new BridgeClientAPI({ ... }))` — the SDK side of the pair is
  *      satisfied by a `BridgeClientAPI` instance whose `SDKAPI` methods route
@@ -18,26 +18,26 @@
  * so daemon-side code stays one abstraction layer away.
  *
  * Lifecycle:
- *   - `ready()` resolves when both the `KimiCore` plugin/config load AND the
+ *   - `ready()` resolves when both the `LioraCore` plugin/config load AND the
  *     SDK-side RPC binding have settled. Construction is eager (Singleton
  *     pattern); awaiting `ready()` is the safe gate before issuing RPC calls.
  *   - `dispose()` is idempotent. It flips an internal flag so future `rpc`
- *     method dispatch throws before reaching `KimiCore`, then walks the
- *     `Disposable` child stack. `KimiCore` itself has no `dispose()` today —
+ *     method dispatch throws before reaching `LioraCore`, then walks the
+ *     `Disposable` child stack. `LioraCore` itself has no `dispose()` today —
  *     when it gets one, we wire it here.
  *
  * Role: cross-process adapter — see `packages/services/AGENTS.md`.
  */
 
 import { createDecorator } from '../../di';
-import type { CoreRPC, KimiCoreOptions } from '../../rpc';
-import { type KimiHostIdentity } from '@moonshot-ai/kimi-code-oauth';
+import type { CoreRPC, LioraCoreOptions } from '../../rpc';
+import { type KimiHostIdentity } from '@superliora/oauth';
 
-export interface CoreProcessServiceOptions extends KimiCoreOptions {
+export interface CoreProcessServiceOptions extends LioraCoreOptions {
   /**
    * Host identity (product name + version). When set and
    * `kimiRequestHeaders` is omitted, the adapter default-wires
-   * `createKimiDefaultHeaders({ homeDir, ...identity })` into KimiCore so
+   * `createKimiDefaultHeaders({ homeDir, ...identity })` into LioraCore so
    * upstream sees `User-Agent: <product>/<version>` + `X-Msh-Platform: …`.
    * Without this, the managed Kimi-for-Coding endpoint rejects requests
    * with 40340 ("only available for Coding Agents") because the default
@@ -59,14 +59,14 @@ export interface ICoreProcessService {
   readonly rpc: CoreRPC;
 
   /**
-   * Resolves once `KimiCore` is fully constructed and the SDK side of the
+   * Resolves once `LioraCore` is fully constructed and the SDK side of the
    * in-process RPC has been bound. Repeated calls return the cached promise.
    */
   ready(): Promise<void>;
 
   /**
    * Tear down the adapter. After dispose, `rpc.<method>(...)` rejects with a
-   * "core process disposed" error before reaching `KimiCore`. Idempotent.
+   * "core process disposed" error before reaching `LioraCore`. Idempotent.
    */
   dispose(): void;
 }

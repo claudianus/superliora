@@ -1,18 +1,18 @@
 import { Disposable, InstantiationType, registerSingleton } from '../../di';
-import type { KimiConfig, ProviderConfig } from '../../config';
+import type { LioraConfig, ProviderConfig } from '../../config';
 import type {
   ModelCatalogItem,
   ProviderCatalogItem,
   RefreshOAuthProviderModelsResponse,
   RefreshProviderModelsResponse,
   SetDefaultModelResponse,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 import {
   refreshProviderModels,
   type ManagedKimiOAuthRef,
   type RefreshProviderHost,
   type RefreshResult,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@superliora/oauth';
 
 import { createManagedAuthFacade, type ServicesAuthFacade } from '../auth/managedAuth';
 import { ICoreProcessService } from '../coreProcess/coreProcess';
@@ -168,12 +168,12 @@ export class ModelCatalogService
     return tokenProvider.getAccessToken();
   }
 
-  private async _readConfig(): Promise<KimiConfig> {
+  private async _readConfig(): Promise<LioraConfig> {
     return this.core.rpc.getKimiConfig({ reload: true });
   }
 
   private async _provider(
-    config: KimiConfig,
+    config: LioraConfig,
     providerId: string,
     provider: ProviderConfig,
   ): Promise<ProviderCatalogItem> {

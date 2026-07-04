@@ -1,4 +1,4 @@
-import type { ToolCall } from '@moonshot-ai/kosong';
+import type { ToolCall } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -227,7 +227,7 @@ describe('Plan mode permission policy', () => {
     expect(planMode.phase).toBe('research');
     expect(evaluatePlanPolicy(agent, 'WebSearch', { query: 'current API release notes' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com' })).toBeUndefined();
-    expect(evaluatePlanPolicy(agent, 'KimiContext', { query: 'ultrawork' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'LioraContext', { query: 'ultrawork' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'SearchExpert', { query: 'architecture review' })).toBeUndefined();
     expect(
       evaluatePlanPolicy(agent, 'TodoList', {
@@ -460,7 +460,7 @@ describe('Plan mode permission policy', () => {
 
   it.each([
     ['ReadMediaFile', { path: '/workspace/screenshot.png' }],
-    ['KimiContext', { query: 'plan mode guard' }],
+    ['LioraContext', { query: 'plan mode guard' }],
     ['SearchSkill', { query: 'tui review workflow' }],
     ['Skill', { skill: 'write-tui' }],
     ['SearchExpert', { query: 'testing evidence review' }],

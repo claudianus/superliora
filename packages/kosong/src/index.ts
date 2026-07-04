@@ -31,7 +31,7 @@ export type { ProviderConfig, ProviderType } from './providers';
 // backend (instanceof) and apply Kimi-specific request params (generation
 // kwargs, `thinking.keep` extra body).
 export { KimiChatProvider } from './providers/kimi';
-export type { ExtraBody, GenerationKwargs, KimiOptions, ThinkingConfig } from './providers/kimi';
+export type { ExtraBody, GenerationKwargs, LioraOptions, ThinkingConfig } from './providers/kimi';
 
 // Model capability matrix
 export { UNKNOWN_CAPABILITY, isUnknownCapability } from './capability';
@@ -76,6 +76,6 @@ export {
 /**
  * Concrete provider adapters stay off the root barrel because their SDK type
  * graphs pollute downstream declaration bundles. Import them from subpaths:
- * `@moonshot-ai/kosong/providers/kimi`,
- * `@moonshot-ai/kosong/providers/openai-legacy`, etc.
+ * `@superliora/kosong/providers/kimi`,
+ * `@superliora/kosong/providers/openai-legacy`, etc.
  */

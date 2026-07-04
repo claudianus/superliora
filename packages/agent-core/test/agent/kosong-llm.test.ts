@@ -5,7 +5,7 @@ import {
   type ModelCapability,
   type StreamedMessagePart,
   type ToolCall,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

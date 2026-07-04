@@ -19,7 +19,7 @@
 
 import type { Readable } from 'node:stream';
 
-import type { Kaos, KaosProcess } from '@moonshot-ai/kaos';
+import type { Kaos, KaosProcess } from '@superliora/kaos';
 import { normalize } from 'pathe';
 import { z } from 'zod';
 

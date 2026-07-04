@@ -218,7 +218,7 @@ export interface GoalChange {
   readonly actor?: GoalActor;
 }
 
-export type KimiErrorCode =
+export type LioraErrorCode =
   | 'config.invalid'
   | 'session.not_found'
   | 'session.already_exists'
@@ -277,8 +277,8 @@ export type KimiErrorCode =
   | 'not_implemented'
   | 'internal';
 
-export interface KimiErrorPayload {
-  readonly code: KimiErrorCode;
+export interface LioraErrorPayload {
+  readonly code: LioraErrorCode;
   readonly message: string;
   readonly name?: string;
   readonly details?: Record<string, unknown>;
@@ -488,7 +488,7 @@ export interface PluginCommandActivatedEvent {
   readonly trigger: 'user-slash';
 }
 
-export interface ErrorEvent extends KimiErrorPayload {
+export interface ErrorEvent extends LioraErrorPayload {
   readonly type: 'error';
 }
 
@@ -508,7 +508,7 @@ export interface TurnEndedEvent {
   readonly type: 'turn.ended';
   readonly turnId: number;
   readonly reason: TurnEndReason;
-  readonly error?: KimiErrorPayload;
+  readonly error?: LioraErrorPayload;
   readonly durationMs?: number;
 }
 
@@ -1035,7 +1035,7 @@ export const kimiErrorCodeSchema = z.enum([
   'shell.git_bash_not_found',
   'not_implemented',
   'internal',
-]) satisfies z.ZodType<KimiErrorCode>;
+]) satisfies z.ZodType<LioraErrorCode>;
 
 export const kimiErrorPayloadSchema = z.object({
   code: kimiErrorCodeSchema,
@@ -1043,7 +1043,7 @@ export const kimiErrorPayloadSchema = z.object({
   name: z.string().optional(),
   details: z.record(z.string(), z.unknown()).optional(),
   retryable: z.boolean(),
-}) satisfies z.ZodType<KimiErrorPayload>;
+}) satisfies z.ZodType<LioraErrorPayload>;
 
 export const backgroundTaskInfoBaseSchema = z.object({
   taskId: z.string(),

@@ -1,4 +1,4 @@
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 export type ResponseLanguageCode = 'en' | 'ja' | 'ko' | 'zh';
 export type ResponseLanguageSource = 'detected' | 'explicit';

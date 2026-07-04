@@ -1,21 +1,21 @@
 {
-  "name": "@moonshot-ai/kaos",
+  "name": "@superliora/kaos",
   "version": "0.1.6",
   "private": true,
   "description": "Execution environment abstraction for AI agent applications",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/kaos#readme",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://github.com/claudianus/superliora/tree/main/packages/kaos#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/claudianus/superliora.git",
     "directory": "packages/kaos"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/claudianus/superliora/issues"
   },
   "keywords": [
-    "kimi",
+    "superliora",
     "agent",
     "execution",
     "sandbox",

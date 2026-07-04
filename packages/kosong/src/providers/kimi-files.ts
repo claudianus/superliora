@@ -15,7 +15,7 @@ import {
   resolveAuthBackedClient,
 } from './request-auth';
 
-export interface KimiUploadOptions {
+export interface LioraUploadOptions {
   auth?: ProviderRequestAuth;
   signal?: AbortSignal;
 }
@@ -74,7 +74,7 @@ export class KimiFiles {
    */
   async uploadVideo(
     input: string | VideoUploadInput,
-    options?: KimiUploadOptions,
+    options?: LioraUploadOptions,
   ): Promise<VideoURLPart> {
     let file: unknown;
 

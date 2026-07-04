@@ -89,7 +89,7 @@ describe('Event public types', () => {
       EventByType<'ultrawork.team.staffed'>['team']['experts'][number]['coverageLane']
     >().toEqualTypeOf<string | undefined>();
     expectTypeOf<EventByType<'ultrawork.knowledge.promoted'>['promotion']['target']>().toEqualTypeOf<
-      'kimi_recall' | 'llm_wiki'
+      'liora_recall' | 'llm_wiki'
     >();
   });
 

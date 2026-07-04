@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRPC,
-  KimiCore,
+  LioraCore,
   type CoreAPI,
   type SDKAPI,
   type TelemetryClient,
@@ -293,7 +293,7 @@ reason = "no rm"
     await freshRpc.resumeSession({ sessionId: created.id });
     await getRootLogger().flushSession(created.id);
 
-    const logText = await readFile(join(created.sessionDir, 'logs', 'kimi-code.log'), 'utf-8');
+    const logText = await readFile(join(created.sessionDir, 'logs', 'liora.log'), 'utf-8');
     expect(logText).toContain('session resume');
     expect(logText).toContain('app_version=1.2.3-test');
   });
@@ -465,7 +465,7 @@ max_context_size = 1000000
     } = {},
   ) {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    void new KimiCore(coreRpc, {
+    void new LioraCore(coreRpc, {
       homeDir,
       configPath,
       appVersion: options.appVersion,

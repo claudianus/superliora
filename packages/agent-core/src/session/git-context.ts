@@ -15,7 +15,7 @@
 
 import type { Readable } from 'node:stream';
 
-import type { Kaos, KaosProcess } from '@moonshot-ai/kaos';
+import type { Kaos, KaosProcess } from '@superliora/kaos';
 
 import { log } from '../logging/logger';
 

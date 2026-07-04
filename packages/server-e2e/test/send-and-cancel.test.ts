@@ -15,11 +15,11 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DaemonClient, EnvelopeError, type AnyFrame } from '../src/index.js';
+import { DaemonClient, EnvelopeError, resolveServerUrl, type AnyFrame } from '../src/index.js';
 import { fetchWithReport } from '../src/report.js';
 import { createCaseLogger, errorForLog } from './log.js';
 
-const BASE_URL = process.env['KIMI_SERVER_URL'] ?? 'http://127.0.0.1:58627';
+const BASE_URL = resolveServerUrl();
 const API_PREFIX = '/api/v1';
 const PROMPT_TIMEOUT_MS = 120_000;
 const SHORT_TIMEOUT_MS = 30_000;

@@ -15,13 +15,13 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
-$DefaultRepoUrl = 'https://github.com/claudianus/super-kimi-code.git'
+$DefaultRepoUrl = 'https://github.com/claudianus/superliora.git'
 $DefaultRef = 'main'
-$DefaultInstallDir = Join-Path $HOME '.super-kimi-code/source'
-$DefaultBinDir = Join-Path $env:LOCALAPPDATA 'SuperKimiCode/bin'
-$DefaultCommandName = 'skimi'
+$DefaultInstallDir = Join-Path $HOME '.superliora/source'
+$DefaultBinDir = Join-Path $env:LOCALAPPDATA 'SuperLiora/bin'
+$DefaultCommandName = 'liora'
 $DefaultNodeMin = '24.15.0'
-$WrapperMarker = 'Managed by super-kimi-code install.ps1'
+$WrapperMarker = 'Managed by superliora install.ps1'
 
 function Get-ValueOrDefault {
   param([string]$Value, [string]$EnvName, [string]$Default)
@@ -101,13 +101,13 @@ function Sync-Source {
   }
 
   if (Test-Path $gitDir) {
-    Write-Step "Updating Super Kimi Code source in $TargetDir"
+    Write-Step "Updating SuperLiora source in $TargetDir"
     & git -C $TargetDir remote set-url origin $Repository
     & git -C $TargetDir fetch --depth 1 origin $GitRef
     & git -C $TargetDir checkout --force FETCH_HEAD
     & git -C $TargetDir reset --hard FETCH_HEAD
   } else {
-    Write-Step "Cloning Super Kimi Code source into $TargetDir"
+    Write-Step "Cloning SuperLiora source into $TargetDir"
     $parent = Split-Path -Parent $TargetDir
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     & git clone --depth 1 $Repository $TargetDir
@@ -124,7 +124,7 @@ function Build-Source {
     $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
     & corepack pnpm install --frozen-lockfile
     & corepack pnpm run build:packages
-    & corepack pnpm -C apps/kimi-code run build
+    & corepack pnpm -C apps/liora run build
   } finally {
     Pop-Location
   }
@@ -136,7 +136,7 @@ function Install-CloakBrowser {
   Push-Location $TargetDir
   try {
     $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
-    & corepack pnpm --filter '@moonshot-ai/gui-use' exec cloakbrowser install
+    & corepack pnpm --filter '@superliora/gui-use' exec cloakbrowser install
   } catch {
     Write-Warning "CloakBrowser binary pre-install failed; retry with '$CommandName browser-use install'"
   } finally {
@@ -167,7 +167,7 @@ function Test-ManagedFile {
 function Write-Wrappers {
   param([string]$TargetDir, [string]$OutDir, [string]$Name, [bool]$Replace)
   New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-  $mainFile = Join-Path $TargetDir 'apps/kimi-code/dist/main.mjs'
+  $mainFile = Join-Path $TargetDir 'apps/liora/dist/main.mjs'
   $cmdPath = Join-Path $OutDir "$Name.cmd"
   $psPath = Join-Path $OutDir "$Name.ps1"
 
@@ -181,7 +181,7 @@ function Write-Wrappers {
 @echo off
 rem $WrapperMarker
 setlocal
-if "%KIMI_CODE_NO_AUTO_UPDATE%"=="" set "KIMI_CODE_NO_AUTO_UPDATE=1"
+if "%SUPERLIORA_NO_AUTO_UPDATE%"=="" set "SUPERLIORA_NO_AUTO_UPDATE=1"
 node "$mainFile" %*
 "@
   Set-Content -LiteralPath $cmdPath -Value $cmd -Encoding ASCII
@@ -189,8 +189,8 @@ node "$mainFile" %*
   $escapedMain = $mainFile.Replace("'", "''")
   $ps = @"
 # $WrapperMarker
-if ([string]::IsNullOrWhiteSpace(`$env:KIMI_CODE_NO_AUTO_UPDATE)) {
-  `$env:KIMI_CODE_NO_AUTO_UPDATE = '1'
+if ([string]::IsNullOrWhiteSpace(`$env:SUPERLIORA_NO_AUTO_UPDATE)) {
+  `$env:SUPERLIORA_NO_AUTO_UPDATE = '1'
 }
 & node '$escapedMain' @args
 exit `$LASTEXITCODE
@@ -227,12 +227,12 @@ function Add-UserPath {
   }
 }
 
-$RepoUrl = Get-ValueOrDefault $RepoUrl 'SUPER_KIMI_REPO_URL' $DefaultRepoUrl
-$Ref = Get-ValueOrDefault $Ref 'SUPER_KIMI_REF' $DefaultRef
-$InstallDir = Get-ValueOrDefault $InstallDir 'SUPER_KIMI_INSTALL_DIR' $DefaultInstallDir
-$BinDir = Get-ValueOrDefault $BinDir 'SUPER_KIMI_BIN_DIR' $DefaultBinDir
-$CommandName = Get-ValueOrDefault $CommandName 'SUPER_KIMI_COMMAND' $DefaultCommandName
-$NodeMin = Get-ValueOrDefault $NodeMin 'SUPER_KIMI_NODE_MIN' $DefaultNodeMin
+$RepoUrl = Get-ValueOrDefault $RepoUrl 'SUPERLIORA_REPO_URL' $DefaultRepoUrl
+$Ref = Get-ValueOrDefault $Ref 'SUPERLIORA_REF' $DefaultRef
+$InstallDir = Get-ValueOrDefault $InstallDir 'SUPERLIORA_INSTALL_DIR' $DefaultInstallDir
+$BinDir = Get-ValueOrDefault $BinDir 'SUPERLIORA_BIN_DIR' $DefaultBinDir
+$CommandName = Get-ValueOrDefault $CommandName 'SUPERLIORA_COMMAND' $DefaultCommandName
+$NodeMin = Get-ValueOrDefault $NodeMin 'SUPERLIORA_NODE_MIN' $DefaultNodeMin
 
 if ($CommandName -notmatch '^[A-Za-z0-9._-]+$') {
   Fail '-CommandName must be a simple command name'
@@ -247,10 +247,10 @@ Ensure-Pnpm
 Sync-Source $RepoUrl $Ref $InstallDir ([bool]$Force)
 if (-not $NoBuild) {
   Build-Source $InstallDir
-  if ((-not $NoBrowserUse) -and $env:SUPER_KIMI_SKIP_BROWSER_USE -ne '1') {
+  if ((-not $NoBrowserUse) -and $env:SUPERLIORA_SKIP_BROWSER_USE -ne '1') {
     Install-CloakBrowser $InstallDir
   }
-  if ((-not $NoComputerUse) -and $env:SUPER_KIMI_SKIP_COMPUTER_USE -ne '1') {
+  if ((-not $NoComputerUse) -and $env:SUPERLIORA_SKIP_COMPUTER_USE -ne '1') {
     Install-CuaDriver
   }
 }
@@ -267,7 +267,7 @@ try {
 }
 
 Write-Host ''
-Write-Host 'Super Kimi Code is installed from GitHub source.'
+Write-Host 'SuperLiora is installed from GitHub source.'
 Write-Host "Command: $CommandName"
 Write-Host "Source:  $InstallDir"
 Write-Host "Bin dir: $BinDir"

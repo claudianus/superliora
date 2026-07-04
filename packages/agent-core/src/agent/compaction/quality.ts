@@ -1,4 +1,4 @@
-import { extractText, type Message } from '@moonshot-ai/kosong';
+import { extractText, type Message } from '@superliora/kosong';
 
 import type { CompactionPlan } from './planner';
 import type {
@@ -103,7 +103,7 @@ export function validateRenderedCompactionSummary(
   const warnings: string[] = [];
   const warningCategories: CompactionQualityWarningCategory[] = [];
 
-  if (!summary.includes('# Super Kimi Context Compaction v2 Memory')) {
+  if (!summary.includes('# SuperLiora Context Compaction v2 Memory')) {
     critical.push('rendered summary is missing the v2 memory header');
   }
 

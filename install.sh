@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_REPO_URL="https://github.com/claudianus/super-kimi-code.git"
+DEFAULT_REPO_URL="https://github.com/claudianus/superliora.git"
 DEFAULT_REF="main"
-DEFAULT_INSTALL_DIR="${HOME}/.super-kimi-code/source"
+DEFAULT_INSTALL_DIR="${HOME}/.superliora/source"
 DEFAULT_BIN_DIR="${HOME}/.local/bin"
-DEFAULT_COMMAND="skimi"
+DEFAULT_COMMAND="liora"
 DEFAULT_NODE_MIN="24.15.0"
 
-REPO_URL="${SUPER_KIMI_REPO_URL:-$DEFAULT_REPO_URL}"
-REF="${SUPER_KIMI_REF:-$DEFAULT_REF}"
-INSTALL_DIR="${SUPER_KIMI_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
-BIN_DIR="${SUPER_KIMI_BIN_DIR:-$DEFAULT_BIN_DIR}"
-COMMAND_NAME="${SUPER_KIMI_COMMAND:-$DEFAULT_COMMAND}"
-NODE_MIN="${SUPER_KIMI_NODE_MIN:-$DEFAULT_NODE_MIN}"
+REPO_URL="${SUPERLIORA_REPO_URL:-$DEFAULT_REPO_URL}"
+REF="${SUPERLIORA_REF:-$DEFAULT_REF}"
+INSTALL_DIR="${SUPERLIORA_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
+BIN_DIR="${SUPERLIORA_BIN_DIR:-$DEFAULT_BIN_DIR}"
+COMMAND_NAME="${SUPERLIORA_COMMAND:-$DEFAULT_COMMAND}"
+NODE_MIN="${SUPERLIORA_NODE_MIN:-$DEFAULT_NODE_MIN}"
 FORCE=0
 NO_BUILD=0
 NO_SHELL_RC=0
@@ -24,14 +24,14 @@ usage() {
   cat <<EOF
 Usage: install.sh [options]
 
-Installs Super Kimi Code from GitHub source and creates the skimi command.
+Installs SuperLiora from GitHub source and creates the liora command.
 
 Options:
   --repo <url>          Git repository URL. Default: ${DEFAULT_REPO_URL}
   --ref <ref>           Branch, tag, or ref to install. Default: ${DEFAULT_REF}
-  --install-dir <path>  Source checkout directory. Default: ~/.super-kimi-code/source
+  --install-dir <path>  Source checkout directory. Default: ~/.superliora/source
   --bin-dir <path>      Command install directory. Default: ~/.local/bin
-  --command <name>      Command name. Default: skimi
+  --command <name>      Command name. Default: liora
   --node-min <version>  Minimum Node.js version. Default: ${DEFAULT_NODE_MIN}
   --force              Replace an existing checkout/wrapper when needed
   --no-build           Skip pnpm install/build after checkout
@@ -41,9 +41,9 @@ Options:
   -h, --help           Show this help
 
 Environment variables:
-  SUPER_KIMI_REPO_URL, SUPER_KIMI_REF, SUPER_KIMI_INSTALL_DIR,
-  SUPER_KIMI_BIN_DIR, SUPER_KIMI_COMMAND, SUPER_KIMI_NODE_MIN,
-  SUPER_KIMI_SKIP_BROWSER_USE, SUPER_KIMI_SKIP_COMPUTER_USE
+  SUPERLIORA_REPO_URL, SUPERLIORA_REF, SUPERLIORA_INSTALL_DIR,
+  SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
+  SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE
 EOF
 }
 
@@ -156,7 +156,7 @@ BIN_DIR="$(expand_path "$BIN_DIR")"
 case "$(uname -s)" in
   Darwin|Linux) ;;
   MINGW*|MSYS*|CYGWIN*)
-    die "Use install.ps1 on Windows: irm https://raw.githubusercontent.com/claudianus/super-kimi-code/main/install.ps1 | iex"
+    die "Use install.ps1 on Windows: irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
     ;;
 esac
 
@@ -211,13 +211,13 @@ if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
-  log "Updating Super Kimi Code source in $INSTALL_DIR"
+  log "Updating SuperLiora source in $INSTALL_DIR"
   git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$REF"
   git -C "$INSTALL_DIR" checkout --force FETCH_HEAD
   git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
 else
-  log "Cloning Super Kimi Code source into $INSTALL_DIR"
+  log "Cloning SuperLiora source into $INSTALL_DIR"
   mkdir -p "$(dirname "$INSTALL_DIR")"
   git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$REF"
@@ -230,18 +230,18 @@ if [ "$NO_BUILD" -eq 0 ]; then
     cd "$INSTALL_DIR"
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --frozen-lockfile
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm run build:packages
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -C apps/kimi-code run build
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -C apps/liora run build
   )
 
-  if [ "$NO_BROWSER_USE" -eq 0 ] && [ "${SUPER_KIMI_SKIP_BROWSER_USE:-0}" != "1" ]; then
+  if [ "$NO_BROWSER_USE" -eq 0 ] && [ "${SUPERLIORA_SKIP_BROWSER_USE:-0}" != "1" ]; then
     log "Pre-installing CloakBrowser binary cache"
     (
       cd "$INSTALL_DIR"
-      COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter @moonshot-ai/gui-use exec cloakbrowser install
+      COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter @superliora/gui-use exec cloakbrowser install
     ) || log "warning: CloakBrowser binary pre-install failed; retry with '$COMMAND_NAME browser-use install'"
   fi
 
-  if [ "$NO_COMPUTER_USE" -eq 0 ] && [ "${SUPER_KIMI_SKIP_COMPUTER_USE:-0}" != "1" ]; then
+  if [ "$NO_COMPUTER_USE" -eq 0 ] && [ "${SUPERLIORA_SKIP_COMPUTER_USE:-0}" != "1" ]; then
     case "$(uname -s)" in
       Darwin|Linux)
         log "Installing cua-driver computer-use runtime"
@@ -263,14 +263,14 @@ if [ "$NO_SHELL_RC" -eq 1 ]; then
   install_args+=("--no-shell-rc")
 fi
 
-node "$INSTALL_DIR/scripts/install-skimi.mjs" "${install_args[@]}"
+node "$INSTALL_DIR/scripts/install-liora.mjs" "${install_args[@]}"
 
 if [ -x "$BIN_DIR/$COMMAND_NAME" ]; then
   "$BIN_DIR/$COMMAND_NAME" --version >/dev/null 2>&1 || true
 fi
 
 log ""
-log "Super Kimi Code is installed from GitHub source."
+log "SuperLiora is installed from GitHub source."
 log "Command: $COMMAND_NAME"
 log "Source:  $INSTALL_DIR"
 log "Bin dir: $BIN_DIR"

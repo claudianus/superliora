@@ -1,10 +1,10 @@
-import type { KimiHostIdentity } from '@moonshot-ai/kimi-code-oauth';
-import { type KimiHarness, type Session, type Event } from '@moonshot-ai/kimi-code-sdk';
+import type { KimiHostIdentity } from '@superliora/oauth';
+import { type LioraHarness, type Session, type Event } from '@superliora/sdk';
 
 export function smokeIdentityFromEnv(): KimiHostIdentity {
-  const version = process.env['KIMI_CODE_SMOKE_VERSION'];
+  const version = process.env['SUPERLIORA_SMOKE_VERSION'];
   if (version === undefined || version.trim().length === 0) {
-    throw new Error('KIMI_CODE_SMOKE_VERSION is required for Kimi SDK smoke examples.');
+    throw new Error('SUPERLIORA_SMOKE_VERSION is required for Kimi SDK smoke examples.');
   }
   return {
     userAgentProduct: 'kimi-code-cli',
@@ -12,7 +12,7 @@ export function smokeIdentityFromEnv(): KimiHostIdentity {
   };
 }
 
-export async function createConfiguredSession(harness: KimiHarness): Promise<Session> {
+export async function createConfiguredSession(harness: LioraHarness): Promise<Session> {
   const config = await harness.getConfig();
   const model = config.defaultModel;
   if (model === undefined) {

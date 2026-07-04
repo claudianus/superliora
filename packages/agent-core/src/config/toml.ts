@@ -2,10 +2,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, open } from 'node:fs/promises';
 import { dirname } from 'pathe';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors';
 import { applyEnvModelConfig, stripEnvModelConfig } from './env-model';
 import {
-  KimiConfigSchema,
+  LioraConfigSchema,
   formatConfigValidationError,
   getDefaultConfig,
   type BackgroundConfig,
@@ -13,7 +13,7 @@ import {
   type ComputerUseConfig,
   type ExperimentalConfig,
   type HookDefConfig,
-  type KimiConfig,
+  type LioraConfig,
   type LoopControl,
   type MemoryConfig,
   type ModelCatalogConfig,
@@ -48,8 +48,8 @@ function camelToSnake(str: string): string {
 /*  Read / parse                                                       */
 /* ------------------------------------------------------------------ */
 
-const DEFAULT_CONFIG_FILE_TEXT = `# ~/.kimi-code/config.toml
-# Runtime settings for Kimi Code.
+const DEFAULT_CONFIG_FILE_TEXT = `# ~/.superliora/config.toml
+# Runtime settings for SuperLiora.
 # This file starts empty so built-in defaults can apply.
 # Login will populate managed Kimi provider and model entries.
 `;
@@ -68,7 +68,7 @@ export async function ensureConfigFile(filePath: string): Promise<void> {
   }
 }
 
-export function readConfigFile(filePath: string): KimiConfig {
+export function readConfigFile(filePath: string): LioraConfig {
   if (!existsSync(filePath)) {
     return getDefaultConfig();
   }
@@ -82,14 +82,14 @@ export function readConfigFile(filePath: string): KimiConfig {
  * sections). Re-throws validation failures with a short actionable message —
  * UIs surface it directly — instead of the raw validation details.
  */
-export function readConfigFileForUpdate(filePath: string): KimiConfig {
+export function readConfigFileForUpdate(filePath: string): LioraConfig {
   try {
     return readConfigFile(filePath);
   } catch (error) {
-    if (error instanceof KimiError && error.code === ErrorCodes.CONFIG_INVALID) {
-      throw new KimiError(
+    if (error instanceof LioraError && error.code === ErrorCodes.CONFIG_INVALID) {
+      throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
-        `Cannot change settings while ${filePath} is invalid — fix it first (run \`kimi doctor\` for details).`,
+        `Cannot change settings while ${filePath} is invalid — fix it first (run \`liora doctor\` for details).`,
         { cause: error },
       );
     }
@@ -106,12 +106,12 @@ export function readConfigFileForUpdate(filePath: string): KimiConfig {
 export function loadRuntimeConfig(
   filePath: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
-): KimiConfig {
+): LioraConfig {
   return applyEnvModelConfig(readConfigFile(filePath), env);
 }
 
 export interface RuntimeConfigLoadResult {
-  readonly config: KimiConfig;
+  readonly config: LioraConfig;
   /** Problems in config.toml itself; non-empty means parts (or all) of the file were ignored. */
   readonly fileWarnings: readonly string[];
   /** Problems applying KIMI_MODEL_* env overrides; the overlay was skipped. */
@@ -123,7 +123,7 @@ export interface RuntimeConfigLoadResult {
    * an actionable parse error. Mid-run reloads ignore it and keep the last
    * good config instead.
    */
-  readonly fileError?: KimiError;
+  readonly fileError?: LioraError;
 }
 
 /**
@@ -140,14 +140,14 @@ export function loadRuntimeConfigSafe(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): RuntimeConfigLoadResult {
   const fileWarnings: string[] = [];
-  let fileError: KimiError | undefined;
+  let fileError: LioraError | undefined;
   let config = getDefaultConfig();
 
   let text: string | undefined;
   try {
     text = existsSync(filePath) ? readFileSync(filePath, 'utf-8') : undefined;
   } catch (error) {
-    fileError = new KimiError(
+    fileError = new LioraError(
       ErrorCodes.CONFIG_INVALID,
       `Failed to read ${filePath}: ${describeUnknownError(error)}`,
       { cause: error },
@@ -162,7 +162,7 @@ export function loadRuntimeConfigSafe(
     } catch (error) {
       // Same message as the strict parser, code frame included, so failing
       // startup points straight at the offending line.
-      fileError = new KimiError(
+      fileError = new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Invalid TOML in ${filePath}: ${describeUnknownError(error)}`,
         { cause: error },
@@ -175,7 +175,7 @@ export function loadRuntimeConfigSafe(
       transformed['raw'] = raw;
       const salvaged = salvageConfigData(transformed);
       if (salvaged.config === undefined) {
-        fileError = new KimiError(
+        fileError = new LioraError(
           ErrorCodes.CONFIG_INVALID,
           `Invalid configuration in ${filePath}: ${formatConfigValidationError(salvaged.error)}`,
           { cause: salvaged.error },
@@ -187,7 +187,7 @@ export function loadRuntimeConfigSafe(
         config = salvaged.config;
         if (salvaged.dropped.length > 0) {
           fileWarnings.push(
-            `Ignored invalid config in ${filePath}: ${salvaged.dropped.join(', ')}. Run \`kimi doctor\` for details.`,
+            `Ignored invalid config in ${filePath}: ${salvaged.dropped.join(', ')}. Run \`liora doctor\` for details.`,
           );
         }
       }
@@ -210,7 +210,7 @@ export function loadRuntimeConfigSafe(
 const ENTRY_KEYED_SECTIONS = new Set(['providers', 'models']);
 
 interface SalvageResult {
-  readonly config: KimiConfig | undefined;
+  readonly config: LioraConfig | undefined;
   readonly dropped: readonly string[];
   readonly error?: unknown;
 }
@@ -218,7 +218,7 @@ interface SalvageResult {
 function salvageConfigData(transformed: Record<string, unknown>): SalvageResult {
   const dropped: string[] = [];
   for (;;) {
-    const result = KimiConfigSchema.safeParse(transformed);
+    const result = LioraConfigSchema.safeParse(transformed);
     if (result.success) {
       return { config: result.data, dropped };
     }
@@ -268,7 +268,7 @@ function describeTomlSyntaxError(error: unknown): string {
   return firstLine;
 }
 
-export function parseConfigString(tomlText: string, filePath = 'config.toml'): KimiConfig {
+export function parseConfigString(tomlText: string, filePath = 'config.toml'): LioraConfig {
   if (tomlText.trim().length === 0) {
     return getDefaultConfig();
   }
@@ -277,7 +277,7 @@ export function parseConfigString(tomlText: string, filePath = 'config.toml'): K
   try {
     data = parseToml(tomlText) as Record<string, unknown>;
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid TOML in ${filePath}: ${error instanceof Error ? error.message : String(error)}`, {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid TOML in ${filePath}: ${error instanceof Error ? error.message : String(error)}`, {
       cause: error,
     });
   }
@@ -285,15 +285,15 @@ export function parseConfigString(tomlText: string, filePath = 'config.toml'): K
   return parseConfigData(data, filePath);
 }
 
-function parseConfigData(data: Record<string, unknown>, filePath: string): KimiConfig {
+function parseConfigData(data: Record<string, unknown>, filePath: string): LioraConfig {
   const raw = cloneRecord(data);
   const transformed = transformTomlData(data);
   transformed['raw'] = raw;
 
   try {
-    return KimiConfigSchema.parse(transformed);
+    return LioraConfigSchema.parse(transformed);
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid configuration in ${filePath}: ${formatConfigValidationError(error)}`, {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid configuration in ${filePath}: ${formatConfigValidationError(error)}`, {
       cause: error,
     });
   }
@@ -484,7 +484,7 @@ function transformResearchLocalSearchData(data: Record<string, unknown>): Record
 /*  Write / stringify                                                  */
 /* ------------------------------------------------------------------ */
 
-export async function writeConfigFile(filePath: string, config: KimiConfig): Promise<void> {
+export async function writeConfigFile(filePath: string, config: LioraConfig): Promise<void> {
   // Final guard: never persist the env-synthesized model/provider to disk,
   // even if a caller passes back the runtime config as a patch (see
   // stripEnvModelConfig / the getConfig -> setConfig round-trip).
@@ -493,7 +493,7 @@ export async function writeConfigFile(filePath: string, config: KimiConfig): Pro
   await atomicWrite(filePath, `${stringifyToml(configToTomlData(validated))}\n`);
 }
 
-export function configToTomlData(config: KimiConfig): Record<string, unknown> {
+export function configToTomlData(config: LioraConfig): Record<string, unknown> {
   const out = cloneRecord(config.raw);
 
   // Strip deprecated fields
@@ -502,7 +502,7 @@ export function configToTomlData(config: KimiConfig): Record<string, unknown> {
   delete out['defaultPermissionMode'];
 
   // Top-level scalar fields
-  const scalarFields: (keyof KimiConfig)[] = [
+  const scalarFields: (keyof LioraConfig)[] = [
     'defaultProvider',
     'defaultModel',
     'planMode',

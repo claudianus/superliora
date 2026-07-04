@@ -1,6 +1,6 @@
 # Interaction and input
 
-Kimi Code CLI runs as an interactive TUI (terminal user interface) built around three components: the input box, the conversation view, and the status bar. This page covers how to enter text, paste media, navigate the approval flow, and switch between modes.
+SuperLiora CLI runs as an interactive TUI (terminal user interface) built around three components: the input box, the conversation view, and the status bar. This page covers how to enter text, paste media, navigate the approval flow, and switch between modes.
 
 ## Input box basics
 
@@ -10,16 +10,16 @@ The input box accepts free-form text. Press `Enter` to send, or `Shift-Enter` / 
 
 ## Pasting images and video
 
-Kimi Code CLI supports pasting images and video directly into the input box, so you can discuss screenshots, UI mockups, architecture diagrams, or code demos without uploading or converting files first.
+SuperLiora CLI supports pasting images and video directly into the input box, so you can discuss screenshots, UI mockups, architecture diagrams, or code demos without uploading or converting files first.
 
-**Video input is a distinctive Kimi Code capability** — you can paste a video clip and have the model analyze its content, UI flow, or code walkthrough.
+**Video input is a distinctive SuperLiora capability** — you can paste a video clip and have the model analyze its content, UI flow, or code walkthrough.
 
 How to paste:
 
 - **macOS / Linux**: `Ctrl-V`
 - **Windows**: `Alt-V`
 
-After pasting, the input box shows a placeholder that you can edit like normal text; on submit, the placeholder is replaced with the actual content. A plain-text clipboard falls back to ordinary paste. Media support depends on the current model's multimodal capabilities (`image_in` / `video_in`); it is enabled by default when you are logged in to a Kimi Code account.
+After pasting, the input box shows a placeholder that you can edit like normal text; on submit, the placeholder is replaced with the actual content. A plain-text clipboard falls back to ordinary paste. Media support depends on the current model's multimodal capabilities (`image_in` / `video_in`); it is enabled by default when you are logged in to a SuperLiora account.
 
 ## Slash commands
 
@@ -31,7 +31,7 @@ Some commands are only available when the agent is idle — you need to press `E
 
 ## File references
 
-Type `@` to trigger file-path completion. Selecting a path inserts its relative form into your message; the agent loads the file content directly when it reads the message. File references work in both git and non-git directories, and folder suggestions end with `/` so you can keep completing paths inside them. If the fast search helper is still downloading, Kimi Code falls back to a basic filesystem scan. Hidden paths are available, but `.git` is excluded from suggestions.
+Type `@` to trigger file-path completion. Selecting a path inserts its relative form into your message; the agent loads the file content directly when it reads the message. File references work in both git and non-git directories, and folder suggestions end with `/` so you can keep completing paths inside them. If the fast search helper is still downloading, SuperLiora falls back to a basic filesystem scan. Hidden paths are available, but `.git` is excluded from suggestions.
 
 > `@` references and slash commands are two separate mechanisms: `@` gives the agent file context, while `/` invokes built-in features or Skills. A `/` typed after leading whitespace is treated as normal text, not as the slash-command menu.
 

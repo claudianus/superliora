@@ -42,7 +42,7 @@ import {
   sanitizeToolCallId,
   type ToolCallIdPolicy,
 } from './tool-call-id';
-export interface KimiOptions {
+export interface LioraOptions {
   apiKey?: string | undefined;
   baseUrl?: string | undefined;
   model: string;
@@ -218,7 +218,7 @@ export function extractUsageFromChunk(
   return null;
 }
 
-class KimiStreamedMessage implements StreamedMessage {
+class LioraStreamedMessage implements StreamedMessage {
   private _id: string | null = null;
   private _usage: TokenUsage | null = null;
   private _finishReason: FinishReason | null = null;
@@ -372,7 +372,7 @@ export class KimiChatProvider implements ChatProvider {
   private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
   private _files: KimiFiles | undefined;
 
-  constructor(options: KimiOptions) {
+  constructor(options: LioraOptions) {
     const apiKey = options.apiKey ?? process.env['KIMI_API_KEY'];
     this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
     this._baseUrl = options.baseUrl ?? process.env['KIMI_BASE_URL'] ?? 'https://api.moonshot.ai/v1';
@@ -501,7 +501,7 @@ export class KimiChatProvider implements ChatProvider {
       const response = data as unknown as
         | OpenAI.Chat.ChatCompletion
         | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
-      return new KimiStreamedMessage(response, this._stream, responseHeaders);
+      return new LioraStreamedMessage(response, this._stream, responseHeaders);
     } catch (error: unknown) {
       throw convertOpenAIError(error);
     }

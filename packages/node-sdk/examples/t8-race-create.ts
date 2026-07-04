@@ -1,15 +1,15 @@
 // T8.4 driver: create session with explicit id, twice concurrently in same process.
-import { createKimiHarness, type KimiHarness } from '@moonshot-ai/kimi-code-sdk';
+import { createLioraHarness, type LioraHarness } from '@superliora/sdk';
 
 const workDir = process.argv[2]!;
 const homeDir = process.argv[3]!;
 const sessionId = process.argv[4]!;
 
 const identity: any = { userAgentProduct: 'kimi-code-cli', version: '0.0.1-test' };
-const harnessA = createKimiHarness({ identity, homeDir });
-const harnessB = createKimiHarness({ identity, homeDir });
+const harnessA = createLioraHarness({ identity, homeDir });
+const harnessB = createLioraHarness({ identity, homeDir });
 
-async function run(label: string, h: KimiHarness): Promise<void> {
+async function run(label: string, h: LioraHarness): Promise<void> {
   try {
     const s = await h.createSession({ workDir, id: sessionId, model: 'kimi-code/kimi-for-coding' });
     console.log(JSON.stringify({ label, ok: true, id: s.id, dir: s.summary?.sessionDir }));

@@ -1,6 +1,6 @@
 import { Disposable, InstantiationType, registerSingleton } from '../../di';
-import type { KimiConfig, ProviderConfig } from '../../config';
-import type { ConfigResponse, PatchConfigRequest } from '@moonshot-ai/protocol';
+import type { LioraConfig, ProviderConfig } from '../../config';
+import type { ConfigResponse, PatchConfigRequest } from '@superliora/protocol';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { IEventService } from '../event/event';
@@ -38,7 +38,7 @@ export class ConfigService extends Disposable implements IConfigService {
   }
 }
 
-function toConfigResponse(config: KimiConfig): ConfigResponse {
+function toConfigResponse(config: LioraConfig): ConfigResponse {
   const providers: Record<string, { type: string; base_url?: string; default_model?: string; has_api_key: boolean }> = {};
   for (const [providerId, provider] of Object.entries(config.providers ?? {})) {
     providers[providerId] = {

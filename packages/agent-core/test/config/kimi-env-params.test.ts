@@ -1,29 +1,29 @@
-import { type ChatProvider, KimiChatProvider } from '@moonshot-ai/kosong';
+import { type ChatProvider, KimiChatProvider } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { applyKimiEnvSamplingParams, applyKimiEnvThinkingKeep } from '../../src/config/kimi-env-params';
-import { KimiError } from '../../src/errors';
+import { LioraError } from '../../src/errors';
 
 function kimi(): KimiChatProvider {
   return new KimiChatProvider({ model: 'kimi-k2', apiKey: 'k' });
 }
 
-interface KimiGenerationState {
+interface LioraGenerationState {
   temperature?: number;
   top_p?: number;
   extra_body?: { thinking?: { keep?: unknown } };
 }
 
-function genState(provider: ChatProvider): KimiGenerationState {
-  return Reflect.get(provider as object, '_generationKwargs') as KimiGenerationState;
+function genState(provider: ChatProvider): LioraGenerationState {
+  return Reflect.get(provider as object, '_generationKwargs') as LioraGenerationState;
 }
 
 function expectConfigInvalid(fn: () => unknown): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(KimiError);
-    expect((error as KimiError).code).toBe('config.invalid');
+    expect(error).toBeInstanceOf(LioraError);
+    expect((error as LioraError).code).toBe('config.invalid');
     return;
   }
   throw new Error('expected function to throw');
@@ -35,7 +35,7 @@ describe('applyKimiEnvSamplingParams', () => {
     expect(applyKimiEnvSamplingParams(provider, {})).toBe(provider);
   });
 
-  it('injects temperature and top_p for a kimi provider', () => {
+  it('injects temperature and top_p for a liora provider', () => {
     const out = applyKimiEnvSamplingParams(kimi(), {
       KIMI_MODEL_TEMPERATURE: '0.3',
       KIMI_MODEL_TOP_P: '0.95',
@@ -45,7 +45,7 @@ describe('applyKimiEnvSamplingParams', () => {
     expect(state.top_p).toBe(0.95);
   });
 
-  it('leaves non-kimi providers untouched', () => {
+  it('leaves non-liora providers untouched', () => {
     const stub = { name: 'stub' } as unknown as ChatProvider;
     expect(applyKimiEnvSamplingParams(stub, { KIMI_MODEL_TEMPERATURE: '0.3' })).toBe(stub);
   });
@@ -73,7 +73,7 @@ describe('applyKimiEnvThinkingKeep', () => {
     expect(applyKimiEnvThinkingKeep(provider, 'high', {})).toBe(provider);
   });
 
-  it('leaves non-kimi providers untouched', () => {
+  it('leaves non-liora providers untouched', () => {
     const stub = { name: 'stub' } as unknown as ChatProvider;
     expect(applyKimiEnvThinkingKeep(stub, 'high', { KIMI_MODEL_THINKING_KEEP: 'all' })).toBe(stub);
   });

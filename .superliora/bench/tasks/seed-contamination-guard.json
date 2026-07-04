@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "seed.contamination-guard.v1",
+  "title": "Quarantine leaked answer fixture",
+  "suite": "guard",
+  "kind": "guard",
+  "risk": "low",
+  "expectedOutcome": "QUARANTINED",
+  "tags": ["contamination", "anti-overfit"],
+  "prompt": "This task intentionally contains a leaked answer file and must be quarantined before solver execution.",
+  "budgets": {
+    "maxWallMs": 30000,
+    "maxCommands": 0,
+    "maxPromptChars": 500
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "answers/solution.txt",
+        "content": "leaked answer: do not solve this task\n"
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "should-not-run.txt",
+      "content": "solver should not run\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": ["answers/solution.txt"]
+  },
+  "checks": [
+    {
+      "type": "file_exists",
+      "path": "should-not-run.txt",
+      "weight": 1
+    }
+  ]
+}

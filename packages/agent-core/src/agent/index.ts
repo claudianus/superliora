@@ -2,18 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'pathe';
 
 import { normalizeAdditionalDirs } from '../config';
-import { ErrorCodes, KimiError, makeErrorPayload } from '#/errors';
+import { ErrorCodes, LioraError, makeErrorPayload } from '#/errors';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import type {
   AgentAPI,
   AgentEvent,
-  KimiConfig,
+  LioraConfig,
   ProviderRouteStatus,
   SDKAgentRPC,
   UsageStatus,
 } from '#/rpc';
-import { generate } from '@moonshot-ai/kosong';
+import { generate } from '@superliora/kosong';
 
 import { expandCommandArguments } from '../plugin/commands';
 import type { EnabledPluginSessionStart, PluginCommandDef } from '#/plugin';
@@ -68,7 +68,7 @@ import {
 import { UsageRecorder } from './usage';
 import { LlmRequestLogger, splitGenerateOptions } from './llm-request-logger';
 import { resolveCompletionBudget } from '../utils/completion-budget';
-import type { Kaos } from '@moonshot-ai/kaos';
+import type { Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';
 import type { ResponseLanguagePreference } from '../session/response-language';
 
@@ -81,7 +81,7 @@ export type AgentType = 'main' | 'sub' | 'independent';
 
 export interface AgentOptions {
   readonly kaos: Kaos;
-  readonly config?: KimiConfig;
+  readonly config?: LioraConfig;
   readonly homedir?: string;
   readonly rpc?: Partial<SDKAgentRPC>;
   readonly persistence?: AgentRecordPersistence;
@@ -115,7 +115,7 @@ export class Agent {
     return this._kaos;
   }
 
-  readonly kimiConfig?: KimiConfig;
+  readonly kimiConfig?: LioraConfig;
   readonly homedir?: string;
   readonly rpc?: Partial<SDKAgentRPC>;
   readonly toolServices?: ToolServices;
@@ -460,7 +460,7 @@ export class Agent {
       },
       activateSkill: async (payload) => {
         if (this.skills === null) {
-          throw new KimiError(ErrorCodes.SKILL_NOT_FOUND, `Skill "${payload.name}" was not found`);
+          throw new LioraError(ErrorCodes.SKILL_NOT_FOUND, `Skill "${payload.name}" was not found`);
         }
         await this.skills.activate(payload);
       },
@@ -470,7 +470,7 @@ export class Agent {
             command.pluginId === payload.pluginId && command.name === payload.commandName,
         );
         if (def === undefined) {
-          throw new KimiError(
+          throw new LioraError(
             ErrorCodes.REQUEST_INVALID,
             `Plugin command "${payload.pluginId}:${payload.commandName}" was not found`,
           );

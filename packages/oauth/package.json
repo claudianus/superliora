@@ -1,21 +1,21 @@
 {
-  "name": "@moonshot-ai/kimi-code-oauth",
+  "name": "@superliora/oauth",
   "version": "0.2.2",
   "private": true,
-  "description": "Kimi OAuth toolkit for managed Kimi Code authentication",
+  "description": "OAuth toolkit for SuperLiora authentication (managed providers and custom registries)",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/oauth#readme",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://github.com/claudianus/superliora/tree/main/packages/oauth#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/claudianus/superliora.git",
     "directory": "packages/oauth"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/claudianus/superliora/issues"
   },
   "keywords": [
-    "kimi",
+    "superliora",
     "oauth",
     "authentication",
     "auth",

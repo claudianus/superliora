@@ -1,6 +1,6 @@
 import { Disposable, IInstantiationService, InstantiationType, registerSingleton } from '../../di';
 import { Emitter } from '../../base/common/event';
-import { ErrorCodes, KimiError } from '../../errors';
+import { ErrorCodes, LioraError } from '../../errors';
 import type { AgentContextData, ContextMessage } from '../../agent/context';
 import type { JsonObject, ListSessionsPayload, SessionSummary } from '../../rpc';
 import type { SessionMeta } from '../../session';
@@ -20,7 +20,7 @@ import {
   type SessionWarning,
   type UndoSessionRequest,
   type UndoSessionResponse,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 import { IApprovalService } from '../approval/approval';
 import { ICoreProcessService } from '../coreProcess/coreProcess';
@@ -530,7 +530,7 @@ export class SessionService extends Disposable implements ISessionService {
         count: input.count,
       });
     } catch (error) {
-      if (error instanceof KimiError && error.code === ErrorCodes.REQUEST_INVALID) {
+      if (error instanceof LioraError && error.code === ErrorCodes.REQUEST_INVALID) {
         throw new SessionUndoUnavailableError(id, error.message);
       }
       throw error;

@@ -9,11 +9,11 @@
  */
 import assert from 'node:assert/strict';
 
-import { ErrorCode } from '@moonshot-ai/protocol';
+import { ErrorCode } from '@superliora/protocol';
 
-import { DaemonClient, EnvelopeError } from '../src/index';
+import { DaemonClient, EnvelopeError, resolveServerUrl } from '../src/index';
 
-const KIMI_SERVER_URL = process.env['KIMI_SERVER_URL'] ?? 'http://127.0.0.1:58627';
+const SERVER_URL = resolveServerUrl();
 const SHORT_TIMEOUT_MS = 15_000;
 
 const ONE_BY_ONE_PNG = Buffer.from(
@@ -22,8 +22,8 @@ const ONE_BY_ONE_PNG = Buffer.from(
 );
 
 async function main() {
-  console.log(`▶ server at ${KIMI_SERVER_URL}`);
-  const client = new DaemonClient({ baseUrl: KIMI_SERVER_URL });
+  console.log(`▶ server at ${SERVER_URL}`);
+  const client = new DaemonClient({ baseUrl: SERVER_URL });
   const files: string[] = [];
   let sid: string | undefined;
 

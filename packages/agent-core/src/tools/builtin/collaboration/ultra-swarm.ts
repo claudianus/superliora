@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { TeamPlan, WorkGraph, WorkGraphNode } from '@moonshot-ai/protocol';
+import type { TeamPlan, WorkGraph, WorkGraphNode } from '@superliora/protocol';
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent';
@@ -163,7 +163,7 @@ This tool automatically assembles and orchestrates a swarm of specialized expert
 - Be specific in your description for better expert matching
 - You can explicitly request experts by ID, or let the system auto-select
 - Each expert receives their full persona + your task description
-- Each call can launch up to 128 expert subagents; cap active concurrency with KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY when needed
+- Each call can launch up to 128 expert subagents; cap active concurrency with SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY when needed
 - Results are tagged with expert name and emoji for easy identification
 
 ## Available divisions

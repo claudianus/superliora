@@ -2,8 +2,8 @@
 
 import { join } from 'node:path';
 
-import { Disposable, IEnvironmentService, IEventService, ILogService } from '@moonshot-ai/agent-core';
-import { isVolatileEventType, type Event, type SessionCursor } from '@moonshot-ai/protocol';
+import { Disposable, IEnvironmentService, IEventService, ILogService } from '@superliora/agent-core';
+import { isVolatileEventType, type Event, type SessionCursor } from '@superliora/protocol';
 import { IConnectionRegistry } from './connectionRegistry';
 import { InFlightTurnTracker } from './inFlightTurnTracker';
 import { ISessionClientsService } from './sessionClients';

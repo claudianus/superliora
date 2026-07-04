@@ -28,16 +28,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   oauthFlowSnapshotSchema,
   oauthFlowStartSchema,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 import {
   IOAuthService,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 import type {
   OAuthFlowSnapshot,
   OAuthFlowStart,
   OAuthLoginCancelResponse,
   OAuthLogoutResponse,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -48,9 +48,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-oauth-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-oauth-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-oauth-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-oauth-home-'));
 });
 
 afterEach(async () => {

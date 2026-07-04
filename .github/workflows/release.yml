@@ -42,12 +42,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Kimi Code built-in catalog
+      - name: Generate SuperLiora built-in catalog
         shell: bash
         run: |
-          CATALOG_FILE="$RUNNER_TEMP/kimi-code-built-in-catalog.json"
-          node apps/kimi-code/scripts/update-catalog.mjs --out "$CATALOG_FILE"
-          echo "KIMI_CODE_BUILT_IN_CATALOG_FILE=$CATALOG_FILE" >> "$GITHUB_ENV"
+          CATALOG_FILE="$RUNNER_TEMP/liora-built-in-catalog.json"
+          node apps/liora/scripts/update-catalog.mjs --out "$CATALOG_FILE"
+          echo "SUPERLIORA_BUILT_IN_CATALOG_FILE=$CATALOG_FILE" >> "$GITHUB_ENV"
 
       - name: Build packages
         run: pnpm build
@@ -64,10 +64,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # NPM_TOKEN is not needed with Trusted Publishing (OIDC)
 
-      - name: Resolve Kimi Code native release
+      - name: Resolve SuperLiora native release
         if: steps.changesets.outputs.published == 'true'
         id: kimi-release
-        run: node apps/kimi-code/scripts/native/resolve-release.mjs
+        run: node apps/liora/scripts/native/resolve-release.mjs
         env:
           CHANGESETS_PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
 
@@ -87,7 +87,7 @@ jobs:
     if: needs.release.outputs.kimi_native_release == 'true'
     uses: ./.github/workflows/_native-build.yml
     with:
-      upload-artifact-prefix: kimi-code-native
+      upload-artifact-prefix: liora-native
       retention-days: 7
       sign-macos: true
     secrets:
@@ -114,14 +114,14 @@ jobs:
       - name: Download native artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: kimi-code-native-*
+          pattern: liora-native-*
           path: dist-native-release
           merge-multiple: true
 
       - name: Produce manifest.json
         env:
           RELEASE_TAG: ${{ needs.release.outputs.kimi_release_tag }}
-        run: node apps/kimi-code/scripts/native/produce-manifest.mjs dist-native-release "$RELEASE_TAG"
+        run: node apps/liora/scripts/native/produce-manifest.mjs dist-native-release "$RELEASE_TAG"
 
       - name: Upload assets to GitHub Release
         env:

@@ -4,8 +4,8 @@ import {
   type ICoreProcessService,
   type ILogService,
   type IModelCatalogService,
-  type KimiConfig,
-} from '@moonshot-ai/agent-core';
+  type LioraConfig,
+} from '@superliora/agent-core';
 
 import {
   DEFAULT_MODEL_CATALOG_REFRESH_INTERVAL_MS,
@@ -27,11 +27,11 @@ class TestLogger implements ILogService {
   }
 }
 
-function makeConfig(modelCatalog?: KimiConfig['modelCatalog']): KimiConfig {
+function makeConfig(modelCatalog?: LioraConfig['modelCatalog']): LioraConfig {
   return { providers: {}, modelCatalog };
 }
 
-function makeCore(config: KimiConfig): ICoreProcessService {
+function makeCore(config: LioraConfig): ICoreProcessService {
   return {
     _serviceBrand: undefined,
     rpc: {
@@ -59,14 +59,14 @@ function makeCatalog(impl?: () => Promise<unknown>): IModelCatalogService {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  delete process.env['KIMI_CODE_MODEL_CATALOG_REFRESH_INTERVAL_MS'];
-  delete process.env['KIMI_CODE_MODEL_CATALOG_REFRESH_ON_START'];
+  delete process.env['SUPERLIORA_MODEL_CATALOG_REFRESH_INTERVAL_MS'];
+  delete process.env['SUPERLIORA_MODEL_CATALOG_REFRESH_ON_START'];
 });
 
 afterEach(() => {
   vi.useRealTimers();
-  delete process.env['KIMI_CODE_MODEL_CATALOG_REFRESH_INTERVAL_MS'];
-  delete process.env['KIMI_CODE_MODEL_CATALOG_REFRESH_ON_START'];
+  delete process.env['SUPERLIORA_MODEL_CATALOG_REFRESH_INTERVAL_MS'];
+  delete process.env['SUPERLIORA_MODEL_CATALOG_REFRESH_ON_START'];
 });
 
 describe('ModelCatalogRefreshScheduler', () => {
@@ -107,8 +107,8 @@ describe('ModelCatalogRefreshScheduler', () => {
   });
 
   it('lets environment variables override config values', async () => {
-    process.env['KIMI_CODE_MODEL_CATALOG_REFRESH_INTERVAL_MS'] = '250';
-    process.env['KIMI_CODE_MODEL_CATALOG_REFRESH_ON_START'] = '1';
+    process.env['SUPERLIORA_MODEL_CATALOG_REFRESH_INTERVAL_MS'] = '250';
+    process.env['SUPERLIORA_MODEL_CATALOG_REFRESH_ON_START'] = '1';
 
     const catalog = makeCatalog();
     const scheduler = new ModelCatalogRefreshScheduler(

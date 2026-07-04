@@ -1,4 +1,4 @@
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 import type { TelemetryClient } from '../../telemetry';
 import type { ExecutableToolResult } from '../../loop/types';

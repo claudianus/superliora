@@ -1,8 +1,8 @@
-import { APIConnectionError, emptyUsage, isRetryableGenerateError } from '@moonshot-ai/kosong';
+import { APIConnectionError, emptyUsage, isRetryableGenerateError } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
-import type { KimiConfig } from '#/config';
-import { ErrorCodes, KimiError } from '#/errors';
+import type { LioraConfig } from '#/config';
+import { ErrorCodes, LioraError } from '#/errors';
 import type { LLM, LLMChatParams, LLMChatResponse } from '#/loop/llm';
 import { chatWithRetry } from '#/loop/retry';
 import { ProviderManager } from '#/session/provider-manager';
@@ -78,7 +78,7 @@ describe('chatWithRetry: terminated stream drops', () => {
       resolveOAuthTokenProvider: () => ({
         async getAccessToken() {
           tokenCalls += 1;
-          throw new KimiError(
+          throw new LioraError(
             ErrorCodes.PROVIDER_CONNECTION_ERROR,
             'OAuth provider "managed:kimi-code" failed to fetch an access token: fetch failed',
           );
@@ -107,7 +107,7 @@ describe('chatWithRetry: terminated stream drops', () => {
   });
 });
 
-function oauthConfig(): KimiConfig {
+function oauthConfig(): LioraConfig {
   return {
     defaultModel: 'kimi-code/kimi-for-coding',
     providers: {

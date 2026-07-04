@@ -67,16 +67,16 @@ let prevHome: string | undefined;
 
 beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), 'kimi-launchd-test-'));
-  // Pin KIMI_CODE_HOME so the implicit install.json path lands under workDir.
-  prevHome = process.env['KIMI_CODE_HOME'];
-  process.env['KIMI_CODE_HOME'] = workDir;
+  // Pin SUPERLIORA_HOME so the implicit install.json path lands under workDir.
+  prevHome = process.env['SUPERLIORA_HOME'];
+  process.env['SUPERLIORA_HOME'] = workDir;
 });
 
 afterEach(() => {
   if (prevHome === undefined) {
-    delete process.env['KIMI_CODE_HOME'];
+    delete process.env['SUPERLIORA_HOME'];
   } else {
-    process.env['KIMI_CODE_HOME'] = prevHome;
+    process.env['SUPERLIORA_HOME'] = prevHome;
   }
   rmSync(workDir, { recursive: true, force: true });
 });
@@ -146,13 +146,13 @@ describe('resolveSupervisorProgram', () => {
   });
 
   it('returns execPath in SEA mode even when argv[1] is a bare command name', () => {
-    // Reproduces `kimi server run` from the shell: argv[1] is the invoked command
+    // Reproduces `liora server run` from the shell: argv[1] is the invoked command
     // name, not a path — resolving it against cwd produced `<cwd>/kimi` (ENOENT).
-    expect(resolveSupervisorProgram(['/Users/x/.kimi-code/bin/kimi', 'kimi', 'server', 'run'], '/Users/x', '/Users/x/.kimi-code/bin/kimi', true)).toBe('/Users/x/.kimi-code/bin/kimi');
+    expect(resolveSupervisorProgram(['/Users/x/.superliora/bin/kimi', 'kimi', 'server', 'run'], '/Users/x', '/Users/x/.superliora/bin/kimi', true)).toBe('/Users/x/.superliora/bin/kimi');
   });
 
   it('returns execPath in SEA mode for a spawned `server` child', () => {
-    expect(resolveSupervisorProgram(['/Users/x/.kimi-code/bin/kimi', 'server', 'run'], '/Users/x', '/Users/x/.kimi-code/bin/kimi', true)).toBe('/Users/x/.kimi-code/bin/kimi');
+    expect(resolveSupervisorProgram(['/Users/x/.superliora/bin/kimi', 'server', 'run'], '/Users/x', '/Users/x/.superliora/bin/kimi', true)).toBe('/Users/x/.superliora/bin/kimi');
   });
 });
 

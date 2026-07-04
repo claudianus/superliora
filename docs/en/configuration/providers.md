@@ -1,6 +1,6 @@
 # Providers and models
 
-Kimi Code CLI supports connecting to multiple LLM platforms simultaneously — one-click login via the Kimi Code managed service, connecting Claude with an Anthropic API key, or connecting third-party inference services via the OpenAI-compatible protocol. Each provider corresponds to a specific API protocol; models are declared on top of providers with their own name, context length, and capabilities. This page explains how to configure each type of provider in `config.toml`.
+SuperLiora CLI supports connecting to multiple LLM platforms simultaneously — one-click login via the SuperLiora managed service, connecting Claude with an Anthropic API key, or connecting third-party inference services via the OpenAI-compatible protocol. Each provider corresponds to a specific API protocol; models are declared on top of providers with their own name, context length, and capabilities. This page explains how to configure each type of provider in `config.toml`.
 
 ## Supported provider types
 
@@ -8,7 +8,7 @@ The `type` field in the `providers` table determines which protocol implementati
 
 | Type | Protocol | Typical use |
 | --- | --- | --- |
-| `kimi` | OpenAI-compatible | Kimi Code managed service, Kimi Platform API key |
+| `kimi` | OpenAI-compatible | SuperLiora managed service, Kimi Platform API key |
 | `anthropic` | Anthropic Messages | Claude model family |
 | `openai` | OpenAI Chat Completions | OpenAI and compatible services, DeepSeek, Qwen, etc. |
 | `openai_responses` | OpenAI Responses API | OpenAI's newer Responses interface |
@@ -35,14 +35,14 @@ Two paths when adding:
 - **Custom registry (api.json)**: paste a custom registry URL and Bearer token; the CLI automatically creates the `providers` / `models` entries. On later startup, providers from the same registry URL are refreshed together, so upstream provider additions, removals, and model metadata changes are synced.
 
 ::: warning
-Kimi Code OAuth managed accounts logged in via `/login` do not appear in `/provider`. Use `/login` and `/logout` to manage them.
+SuperLiora OAuth managed accounts logged in via `/login` do not appear in `/provider`. Use `/login` and `/logout` to manage them.
 :::
 
-The same operations are also available in non-interactive environments via the shell command: [`kimi provider`](../reference/kimi-command.md#kimi-provider).
+The same operations are also available in non-interactive environments via the shell command: [`liora provider`](../reference/liora-command.md#kimi-provider).
 
 ## `kimi`
 
-For connecting to Moonshot AI's OpenAI-compatible interface, including the Kimi Code managed service and Kimi Platform API keys.
+For connecting to Moonshot AI's OpenAI-compatible interface, including the SuperLiora managed service and Kimi Platform API keys.
 
 - Default `base_url`: `https://api.moonshot.ai/v1`
 - Credential key names: `KIMI_API_KEY`, `KIMI_BASE_URL`
@@ -55,7 +55,7 @@ base_url = "https://api.moonshot.ai/v1"
 api_key = "sk-xxxxx"
 ```
 
-> When using the Kimi Code managed service, running `/login` automatically configures `base_url` and credentials — no manual setup needed.
+> When using the SuperLiora managed service, running `/login` automatically configures `base_url` and credentials — no manual setup needed.
 
 ## `anthropic`
 
@@ -123,7 +123,7 @@ api_key = "xxxxx"
 
 Shares the same implementation as `google-genai`; setting `type = "vertexai"` switches to the Vertex AI access path.
 
-Authentication follows the standard Google Cloud ADC flow (`gcloud auth application-default login` or a `GOOGLE_APPLICATION_CREDENTIALS` service account JSON) — this part is unrelated to Kimi Code. **The project ID and region must be written in the `[providers.vertexai.env]` sub-table** — simply `export GOOGLE_CLOUD_PROJECT` in the shell will not be read by the CLI.
+Authentication follows the standard Google Cloud ADC flow (`gcloud auth application-default login` or a `GOOGLE_APPLICATION_CREDENTIALS` service account JSON) — this part is unrelated to SuperLiora. **The project ID and region must be written in the `[providers.vertexai.env]` sub-table** — simply `export GOOGLE_CLOUD_PROJECT` in the shell will not be read by the CLI.
 
 ```toml
 [providers.vertexai]
@@ -141,7 +141,7 @@ kimi
 
 ## OAuth and credential injection
 
-The Kimi Code managed service uses OAuth rather than static API keys. After running `/login`, the built-in authentication toolchain automatically writes and refreshes credentials — no manual configuration is needed in `config.toml` for this.
+The SuperLiora managed service uses OAuth rather than static API keys. After running `/login`, the built-in authentication toolchain automatically writes and refreshes credentials — no manual configuration is needed in `config.toml` for this.
 
 ## Credential pools and routing
 
@@ -150,27 +150,27 @@ Provider credentials can be configured as pools when one upstream account is not
 Use the CLI for the common setup path:
 
 ```sh
-kimi provider key add openai --api-key-env OPENAI_PRIMARY_KEY --label primary
-kimi provider key add openai --api-key-env OPENAI_BACKUP_KEY --label backup --rpm 60 --tpm 120000 --auto-route
-kimi provider route preview openai/gpt-4.1
+liora provider key add openai --api-key-env OPENAI_PRIMARY_KEY --label primary
+liora provider key add openai --api-key-env OPENAI_BACKUP_KEY --label backup --rpm 60 --tpm 120000 --auto-route
+liora provider route preview openai/gpt-4.1
 ```
 
 For OAuth-backed providers, add account references instead of API keys:
 
 ```sh
-kimi login --oauth-key kimi-work
-kimi provider oauth add kimi --key kimi-work --label work --auto-route
+liora login --oauth-key kimi-work
+liora provider oauth add kimi --key kimi-work --label work --auto-route
 ```
 
 Routes can use `auto`, `fallback`, `fill_first`, `round_robin`, `weighted_round_robin`, `least_used`, `lowest_latency`, `rate_limit_aware`, or `random`. The `auto` strategy prefers healthy credentials with available rate-limit headroom, recent low latency, and configured weights before falling back to the next model alias.
 
 ```sh
-kimi provider route auto openai/gpt-4.1
-kimi provider route set openai/gpt-4.1 --fallback anthropic/claude-opus --strategy rate_limit_aware --session-affinity on
-kimi provider route status <sessionId>
+liora provider route auto openai/gpt-4.1
+liora provider route set openai/gpt-4.1 --fallback anthropic/claude-opus --strategy rate_limit_aware --session-affinity on
+liora provider route status <sessionId>
 ```
 
-Run `kimi provider doctor` after editing config or importing providers. It validates missing environment references, malformed per-credential `base_url` values, duplicate labels, broken fallback aliases, and invalid preferred credential labels without printing API keys or OAuth storage keys.
+Run `liora provider doctor` after editing config or importing providers. It validates missing environment references, malformed per-credential `base_url` values, duplicate labels, broken fallback aliases, and invalid preferred credential labels without printing API keys or OAuth storage keys.
 
 ## Next steps
 

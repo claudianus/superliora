@@ -1,6 +1,6 @@
 # Plugins
 
-Plugins package reusable Kimi Code CLI capabilities into installable units — they can add [Agent Skills](./skills.md), automatically load a specified Skill at session start, and declare MCP servers to provide real tool capabilities. They are ideal for sharing workflows with a team, connecting to external services, or installing extensions from the official marketplace.
+Plugins package reusable SuperLiora CLI capabilities into installable units — they can add [Agent Skills](./skills.md), automatically load a specified Skill at session start, and declare MCP servers to provide real tool capabilities. They are ideal for sharing workflows with a team, connecting to external services, or installing extensions from the official marketplace.
 
 ## Installation and Management
 
@@ -49,13 +49,13 @@ Network requests only go through `github.com` redirects and `codeload.github.com
 ### Notes
 
 - Plugin changes apply after `/reload` or in new sessions. After installing, enabling/disabling, or removing a plugin, run `/reload` or `/new`; the current session will not update.
-- Local installations are copied to `$KIMI_CODE_HOME/plugins/managed/<id>/`, and the CLI always runs from this managed copy. Editing the original source directory after installation has no effect; you must reinstall.
+- Local installations are copied to `$SUPERLIORA_HOME/plugins/managed/<id>/`, and the CLI always runs from this managed copy. Editing the original source directory after installation has no effect; you must reinstall.
 - Removing a plugin only deletes the installation record; the managed copy and original source files remain on disk.
 - Plugins are currently installed per-user and apply to all projects; project-level installation scope is not yet supported.
 
 ### Custom marketplace JSON
 
-Pass a custom marketplace JSON path or URL to `/plugins marketplace <source>`, or set [`KIMI_CODE_PLUGIN_MARKETPLACE_URL`](../configuration/env-vars.md) to override the default catalog. Each entry in the `plugins` array needs an `id` and a `source` (local path, zip URL, or GitHub URL):
+Pass a custom marketplace JSON path or URL to `/plugins marketplace <source>`, or set [`SUPERLIORA_PLUGIN_MARKETPLACE_URL`](../configuration/env-vars.md) to override the default catalog. Each entry in the `plugins` array needs an `id` and a `source` (local path, zip URL, or GitHub URL):
 
 ```json
 {
@@ -72,11 +72,11 @@ Pass a custom marketplace JSON path or URL to `/plugins marketplace <source>`, o
 
 ## Kimi Datasource
 
-Kimi Datasource is the official Kimi Code data plugin. It lets you query financial market data, macroeconomic indicators, corporate registration records, academic literature, and Chinese laws and regulations in natural language — no manual API calls or data account registration required.
+Kimi Datasource is the official SuperLiora data plugin. It lets you query financial market data, macroeconomic indicators, corporate registration records, academic literature, and Chinese laws and regulations in natural language — no manual API calls or data account registration required.
 
 ### Installation
 
-You must first complete OAuth login with a Kimi Code account via `/login`. The plugin relies on local credentials to access data services.
+You must first complete OAuth login with a SuperLiora account via `/login`. The plugin relies on local credentials to access data services.
 
 1. Run `/plugins` and select **Official**
 2. Find **Kimi Datasource** and press `Enter` to install
@@ -86,7 +86,7 @@ The current latest version is v3.2.0. The plugin does not update automatically �
 
 ### How to use
 
-Once installed, describe your need in natural language and Kimi Code will automatically invoke the data capabilities. You can also explicitly trigger the data query skill with `/skill:kimi-datasource`.
+Once installed, describe your need in natural language and SuperLiora will automatically invoke the data capabilities. You can also explicitly trigger the data query skill with `/skill:kimi-datasource`.
 
 ### What you can do
 
@@ -112,7 +112,7 @@ Once installed, describe your need in natural language and Kimi Code will automa
 
 ### Billing and limitations
 
-- Data queries are billed per call and consume Kimi Code account credits
+- Data queries are billed per call and consume SuperLiora account credits
 - The plugin provides read-only queries; no write or trading functionality is available
 - Technical indicators and real-time prices are only available during active trading hours
 - AI-generated output is for reference only and does not constitute investment or business advice
@@ -134,7 +134,7 @@ Example:
 {
   "name": "kimi-finance",
   "version": "1.0.0",
-  "description": "Finance data and analysis workflows for Kimi Code CLI",
+  "description": "Finance data and analysis workflows for SuperLiora CLI",
   "skills": "./skills/",
   "sessionStart": {
     "skill": "using-finance"
@@ -175,7 +175,7 @@ my-plugin/
       SKILL.md
 ```
 
-`sessionStart.skill` loads a plugin Skill into the main Agent at session start, making it suitable for initialization instructions, workflow rules, or mapping terminology from other tools to Kimi Code CLI. It only injects text; it does not execute code.
+`sessionStart.skill` loads a plugin Skill into the main Agent at session start, making it suitable for initialization instructions, workflow rules, or mapping terminology from other tools to SuperLiora CLI. It only injects text; it does not execute code.
 
 Regardless of how a Skill is loaded (`sessionStart.skill`, `/skill:<name>`, or automatic model invocation), `skillInstructions` appears alongside that plugin's Skill.
 
@@ -241,7 +241,7 @@ Plugin hooks reuse the same mechanism as global hooks — see [Hooks](./hooks.md
 
 - A plugin's hooks are active only while the plugin is **enabled**; disabling the plugin stops its hooks.
 - Each hook runs with its working directory set to the plugin root, so `command` can use `./` paths inside the plugin.
-- The hook process receives two extra environment variables: `KIMI_CODE_HOME` and `KIMI_PLUGIN_ROOT` (the plugin root directory).
+- The hook process receives two extra environment variables: `SUPERLIORA_HOME` and `KIMI_PLUGIN_ROOT` (the plugin root directory).
 
 Installing a plugin never runs its hooks by itself — they only fire when their matching event occurs while the plugin is enabled.
 

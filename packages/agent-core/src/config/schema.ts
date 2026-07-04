@@ -1,6 +1,6 @@
 import { HOOK_EVENT_TYPES } from '../session/hooks/types';
 import { parsePattern } from '#/agent/permission/matches-rule';
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors';
 import { z } from 'zod';
 
 export const ProviderTypeSchema = z.enum([
@@ -91,7 +91,7 @@ export const ModelAliasSchema = z.object({
   // whose model name does not encode a parseable Claude version.
   adaptiveThinking: z.boolean().optional(),
   // Route the Anthropic transport through the beta Messages API instead of the
-  // standard endpoint. Used by managed Kimi Code models that declare the
+  // standard endpoint. Used by managed SuperLiora models that declare the
   // Anthropic-compatible protocol.
   betaApi: z.boolean().optional(),
   fallbackModels: z.array(z.string().min(1)).optional(),
@@ -325,7 +325,7 @@ export const McpServerConfigSchema = z.preprocess((raw) => {
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
-export const KimiConfigSchema = z.object({
+export const LioraConfigSchema = z.object({
   providers: z.record(z.string(), ProviderConfigSchema).default({}),
   defaultProvider: z.string().optional(),
   defaultModel: z.string().optional(),
@@ -356,7 +356,7 @@ export const KimiConfigSchema = z.object({
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
-export type KimiConfig = z.infer<typeof KimiConfigSchema>;
+export type LioraConfig = z.infer<typeof LioraConfigSchema>;
 
 const ProviderConfigPatchSchema = ProviderConfigSchema.partial();
 const ModelAliasPatchSchema = ModelAliasSchema.partial();
@@ -382,7 +382,7 @@ const ServicesConfigPatchSchema = z.object({
   moonshotFetch: MoonshotServiceConfigPatchSchema.optional(),
 });
 
-export const KimiConfigPatchSchema = z
+export const LioraConfigPatchSchema = z
   .object({
     providers: z.record(z.string(), ProviderConfigPatchSchema).optional(),
     defaultProvider: z.string().optional(),
@@ -414,19 +414,19 @@ export const KimiConfigPatchSchema = z
   })
   .strict();
 
-export type KimiConfigPatch = z.infer<typeof KimiConfigPatchSchema>;
+export type LioraConfigPatch = z.infer<typeof LioraConfigPatchSchema>;
 
-export function getDefaultConfig(): KimiConfig {
+export function getDefaultConfig(): LioraConfig {
   return {
     providers: {},
   };
 }
 
-export function validateConfig(config: unknown): KimiConfig {
+export function validateConfig(config: unknown): LioraConfig {
   try {
-    return KimiConfigSchema.parse(config);
+    return LioraConfigSchema.parse(config);
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid configuration: ${formatConfigValidationError(error)}`, {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid configuration: ${formatConfigValidationError(error)}`, {
       cause: error,
     });
   }

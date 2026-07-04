@@ -1,5 +1,5 @@
 /**
- * `@moonshot-ai/server-e2e` — wire-level test client for the kimi-code server.
+ * `@superliora/server-e2e` — wire-level test client for the kimi-code server.
  *
  * Use this package from scenarios (`scenarios/*.ts`) and vitest e2e tests
  * to drive a real server process at `http://127.0.0.1:58627` (or any baseUrl
@@ -14,8 +14,8 @@
  *   - `installReverseRpcHandler` — uniform helper for approval/question
  *   - `waitForFrame` / `waitForSessionStatus` — standalone wait helpers
  *
- * Re-exports `@moonshot-ai/protocol` types are NOT bundled here — scenarios
- * that want them import from `@moonshot-ai/protocol` directly.
+ * Re-exports `@superliora/protocol` types are NOT bundled here — scenarios
+ * that want them import from `@superliora/protocol` directly.
  */
 export { DaemonClient } from './client.js';
 export type {
@@ -65,5 +65,7 @@ export type {
 
 export { installReverseRpcHandler } from './reverse-rpc.js';
 export type { ReverseRpcOptions } from './reverse-rpc.js';
+
+export { resolveServerUrl } from './env.js';
 
 export { DEFAULT_FRAME_TIMEOUT_MS, waitForFrame, waitForSessionStatus } from './wait.js';

@@ -4,7 +4,7 @@ import type {
   ToolCallContent,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
-import type { ApprovalRequest, ApprovalResponse } from '@moonshot-ai/kimi-code-sdk';
+import type { ApprovalRequest, ApprovalResponse } from '@superliora/sdk';
 
 import { displayBlockToAcpContent } from './convert';
 import { acpToolCallId } from './events-map';
@@ -34,7 +34,7 @@ export const REJECT_OPTION_ID = 'reject';
  *    or has fewer than two entries (covers the "plan with no explicit
  *    selectable variants" branch).
  *  - `plan_revise` / `plan_reject_and_exit` — the two reject-side
- *    options surfaced in the TUI by `apps/kimi-code/src/tui/reverse-rpc/approval/adapter.ts:13`'s
+ *    options surfaced in the TUI by `apps/liora/src/tui/reverse-rpc/approval/adapter.ts:13`'s
  *    `PLAN_REJECT_CHOICES`. Order is preserved so Zed renders the same
  *    bottom-of-list ordering as the TUI.
  */

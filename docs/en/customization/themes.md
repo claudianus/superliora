@@ -1,6 +1,6 @@
 # Custom Themes
 
-Kimi Code CLI can use a built-in color scheme or a custom JSON theme file. Custom files live in the themes directory and appear in `/theme` alongside the built-in choices.
+SuperLiora CLI can use a built-in color scheme or a custom JSON theme file. Custom files live in the themes directory and appear in `/theme` alongside the built-in choices.
 
 ## Built-in color tokens
 
@@ -51,7 +51,7 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 
 ## Use the custom-theme skill
 
-You do not need to write the JSON by hand. Run the built-in `/custom-theme [extra text]` skill command to enter the custom-theme workflow; the skill can choose colors, write the file under `~/.kimi-code/themes/`, validate the hex values, and tell you how to apply it.
+You do not need to write the JSON by hand. Run the built-in `/custom-theme [extra text]` skill command to enter the custom-theme workflow; the skill can choose colors, write the file under `~/.superliora/themes/`, validate the hex values, and tell you how to apply it.
 
 Example invocations:
 
@@ -65,8 +65,8 @@ After activation, the skill usually asks whether you want a light or dark base, 
 
 Add a `.json` file to the themes directory:
 
-- `~/.kimi-code/themes/`
-- or `$KIMI_CODE_HOME/themes/` when the `KIMI_CODE_HOME` environment variable is set
+- `~/.superliora/themes/`
+- or `$SUPERLIORA_HOME/themes/` when the `SUPERLIORA_HOME` environment variable is set
 
 Create the directory if it does not exist. **The filename is the theme name**: `ember.json` appears in `/theme` as `Custom: ember`.
 
@@ -105,11 +105,11 @@ Use the token names from [Built-in color tokens](#built-in-color-tokens). Any to
 
 Two ways:
 
-1. **The `/theme` command** (recommended): opens the theme picker with Super Kimi presets, bundled external terminal themes, and custom themes. Moving focus previews the highlighted theme immediately, including the demo panel and syntax colors. Custom themes appear as `Custom: <filename>`. The picker **re-scans the themes directory every time it opens**, so a theme file you just added shows up **without a restart**.
+1. **The `/theme` command** (recommended): opens the theme picker with SuperLiora presets, bundled external terminal themes, and custom themes. Moving focus previews the highlighted theme immediately, including the demo panel and syntax colors. Custom themes appear as `Custom: <filename>`. The picker **re-scans the themes directory every time it opens**, so a theme file you just added shows up **without a restart**.
 2. **`tui.toml`**: set `theme` to your theme name:
 
    ```toml
-   # ~/.kimi-code/tui.toml
+   # ~/.superliora/tui.toml
    theme = "ember"
    ```
 

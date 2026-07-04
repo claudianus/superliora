@@ -1,7 +1,7 @@
 /**
- * Re-export the envelope helpers from `@moonshot-ai/protocol`.
+ * Re-export the envelope helpers from `@superliora/protocol`.
  *
- * The wire-shape source of truth lives in `@moonshot-ai/protocol`. Re-exporting
+ * The wire-shape source of truth lives in `@superliora/protocol`. Re-exporting
  * the protocol helpers preserves field order and JSON output for server
  * responses.
  *
@@ -9,4 +9,4 @@
  * barrel) so downstream `from './envelope'` imports inside the server stay
  * stable and don't all need to be touched.
  */
-export { okEnvelope, errEnvelope, type Envelope } from '@moonshot-ai/protocol';
+export { okEnvelope, errEnvelope, type Envelope } from '@superliora/protocol';

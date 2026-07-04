@@ -14,10 +14,10 @@ const apiExtractorBinPath = packageBinPath('@microsoft/api-extractor', 'bin/api-
 
 const packageDirs = new Set(['agent-core', 'kaos', 'kosong', 'node-sdk', 'oauth']);
 const workspacePackages = new Map([
-  ['@moonshot-ai/agent-core', 'agent-core'],
-  ['@moonshot-ai/kaos', 'kaos'],
-  ['@moonshot-ai/kimi-code-oauth', 'oauth'],
-  ['@moonshot-ai/kosong', 'kosong'],
+  ['@superliora/agent-core', 'agent-core'],
+  ['@superliora/kaos', 'kaos'],
+  ['@superliora/oauth', 'oauth'],
+  ['@superliora/kosong', 'kosong'],
 ]);
 
 try {
@@ -105,7 +105,7 @@ async function rewriteWorkspaceSpecifiers() {
           `import { GoogleGenAI as GenAIClient } from '${providerClientSpecifier}';`,
         );
       const updated = providerClientText.replaceAll(
-        /(["'])(#\/[^"']+|@moonshot-ai\/(?:agent-core|kaos|kimi-code-oauth|kosong)(?:\/[^"']+)?)\1/g,
+        /(["'])(#\/[^"']+|@superliora\/(?:agent-core|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
         (_match, quote, specifier) => {
           const resolved = resolveSpecifier({
             currentFile: file,

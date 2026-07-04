@@ -24,8 +24,8 @@ import {
   listToolsQuerySchema,
   listToolsResponseSchema,
   restartMcpServerResultSchema,
-} from '@moonshot-ai/protocol';
-import { IMcpService, IToolService, McpServerNotFoundError, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { IMcpService, IToolService, McpServerNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 
 
 import { errEnvelope, okEnvelope } from '../envelope';

@@ -1,4 +1,4 @@
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 export type MemoryKind = 'semantic' | 'episodic' | 'procedural' | 'prospective' | 'governance';
 export type MemoryScope = 'user' | 'workspace' | 'session';
@@ -125,7 +125,7 @@ export interface MemoryConsolidateResult {
   readonly merged: number;
 }
 
-export interface KimiRecallConfig {
+export interface LioraRecallConfig {
   readonly enabled?: boolean;
   readonly storePath?: string;
   readonly maxRetrieved?: number;

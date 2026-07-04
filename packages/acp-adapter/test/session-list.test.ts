@@ -13,7 +13,7 @@ import {
   type WriteTextFileRequest,
   type WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import type { KimiHarness, SessionSummary } from '@moonshot-ai/kimi-code-sdk';
+import type { LioraHarness, SessionSummary } from '@superliora/sdk';
 
 import { AcpServer } from '../src/server';
 import { AUTHED_STATUS } from './_helpers/harness-stubs';
@@ -51,7 +51,7 @@ interface CapturedListOptions {
 function makeHarness(
   summaries: SessionSummary[],
   captured: CapturedListOptions[] = [],
-): KimiHarness {
+): LioraHarness {
   return {
     auth: { status: async () => AUTHED_STATUS },
     listSessions: async (options: { workDir?: string; sessionId?: string } = {}) => {
@@ -61,10 +61,10 @@ function makeHarness(
       }
       return summaries;
     },
-  } as unknown as KimiHarness;
+  } as unknown as LioraHarness;
 }
 
-function openConn(harness: KimiHarness): ClientSideConnection {
+function openConn(harness: LioraHarness): ClientSideConnection {
   const { agentStream, clientStream } = makeInMemoryStreamPair();
   new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
   return new ClientSideConnection((_a) => new StubClient(), clientStream);

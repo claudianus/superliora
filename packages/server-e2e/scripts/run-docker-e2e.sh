@@ -18,10 +18,10 @@ fi
 workspace_hash="$(printf '%s' "${REPO_ROOT}" | cksum | awk '{print $1}')"
 RUN_ID="${KIMI_SERVER_E2E_RUN_ID:-${workspace_slug}-${workspace_hash}}"
 
-BASE_IMAGE="${KIMI_SERVER_E2E_BASE_IMAGE:-kimi-server-e2e-base:${RUN_ID}}"
-IMAGE="${KIMI_SERVER_E2E_IMAGE:-kimi-server-e2e:${RUN_ID}}"
-CONTAINER="${KIMI_SERVER_E2E_CONTAINER:-kimi-server-e2e-${RUN_ID}}"
-STATE_ROOT="${KIMI_SERVER_E2E_STATE_ROOT:-${HOME}/.kimi-code-server-dev}"
+BASE_IMAGE="${KIMI_SERVER_E2E_BASE_IMAGE:-liora-server-e2e-base:${RUN_ID}}"
+IMAGE="${KIMI_SERVER_E2E_IMAGE:-liora-server-e2e:${RUN_ID}}"
+CONTAINER="${KIMI_SERVER_E2E_CONTAINER:-liora-server-e2e-${RUN_ID}}"
+STATE_ROOT="${KIMI_SERVER_E2E_STATE_ROOT:-${HOME}/.superliora-server-dev}"
 PORT="${KIMI_SERVER_E2E_PORT:-58627}"
 
 KIMI_HOME_HOST="${KIMI_SERVER_E2E_KIMI_HOME_HOST:-${STATE_ROOT}/docker-e2e/${RUN_ID}/kimi-code-home}"
@@ -45,7 +45,7 @@ NM_ROOT="${STATE_ROOT}/docker-e2e/${RUN_ID}/nm"
 
 workspace_node_modules=(
   "root:/workspace/kimi-code/node_modules"
-  "apps_kimi-code:/workspace/kimi-code/apps/kimi-code/node_modules"
+  "apps_kimi-code:/workspace/kimi-code/apps/liora/node_modules"
   "apps_vis:/workspace/kimi-code/apps/vis/node_modules"
   "apps_vis_server:/workspace/kimi-code/apps/vis/server/node_modules"
   "apps_vis_web:/workspace/kimi-code/apps/vis/web/node_modules"
@@ -93,8 +93,8 @@ read -r -d '' container_script <<'EOS' || true
 set -euo pipefail
 
 cd /workspace/kimi-code
-mkdir -p "${KIMI_CODE_HOME}/server" "${KIMI_SERVER_E2E_REPORT_DIR}" "${TMPDIR}" /data/server-e2e-reports/docker
-rm -f "${KIMI_CODE_HOME}/server/lock"
+mkdir -p "${SUPERLIORA_HOME}/server" "${KIMI_SERVER_E2E_REPORT_DIR}" "${TMPDIR}" /data/server-e2e-reports/docker
+rm -f "${SUPERLIORA_HOME}/server/lock"
 
 if [[ ! -e /workspace/kimi-code/node_modules/.modules.yaml || ! -e /workspace/kimi-code/packages/server-e2e/node_modules/ws ]]; then
   echo "[server-e2e:docker] installing pnpm deps"
@@ -157,7 +157,7 @@ docker_args=(
   --init
   --name "${CONTAINER}"
   --workdir /workspace/kimi-code/packages/server-e2e
-  --env "KIMI_CODE_HOME=${KIMI_HOME_CONTAINER}"
+  --env "SUPERLIORA_HOME=${KIMI_HOME_CONTAINER}"
   --env "KIMI_SERVER_E2E_PORT=${PORT}"
   --env "KIMI_SERVER_URL=http://127.0.0.1:${PORT}"
   --env "KIMI_SERVER_E2E_REPORT_DIR=${REPORT_DIR_CONTAINER}"

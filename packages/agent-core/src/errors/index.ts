@@ -1,19 +1,19 @@
 export {
   ErrorCodes,
   KIMI_ERROR_INFO,
-  type KimiErrorCode,
-  type KimiErrorInfo,
+  type LioraErrorCode,
+  type LioraErrorInfo,
 } from './codes';
 export {
-  KimiError,
-  type KimiErrorOptions,
+  LioraError,
+  type LioraErrorOptions,
 } from './classes';
 export {
   fromKimiErrorPayload,
   isKimiError,
   makeErrorPayload,
   toKimiErrorPayload,
-  type KimiErrorPayload,
+  type LioraErrorPayload,
 } from './serialize';
 export {
   onUnexpectedError,

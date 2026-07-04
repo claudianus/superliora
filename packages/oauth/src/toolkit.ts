@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { KIMI_CODE_FLOW_CONFIG } from './constants';
+import { SUPERLIORA_FLOW_CONFIG } from './constants';
 import { OAuthUnauthorizedError } from './errors';
 import { assertKimiHostIdentity, createKimiDeviceHeaders, type KimiHostIdentity } from './identity';
 import {
@@ -19,8 +19,8 @@ import {
   type FetchCreateFeedbackUploadUrlResult,
 } from './managed-feedback-upload';
 import {
-  KIMI_CODE_OAUTH_KEY,
-  KIMI_CODE_PROVIDER_NAME,
+  SUPERLIORA_OAUTH_KEY,
+  SUPERLIORA_PROVIDER_NAME,
   provisionManagedKimiCodeConfig,
   resolveKimiCodeOAuthKey,
   type ManagedKimiCodeProvisionResult,
@@ -114,7 +114,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     this.homeDir = options.homeDir ?? defaultKimiHome();
     const credentialsDir = options.credentialsDir ?? join(this.homeDir, 'credentials');
     this.storage = options.storage ?? new FileTokenStorage(credentialsDir);
-    this.flowConfig = options.flowConfig ?? KIMI_CODE_FLOW_CONFIG;
+    this.flowConfig = options.flowConfig ?? SUPERLIORA_FLOW_CONFIG;
     this.configAdapter = options.configAdapter;
     this.fetchImpl = options.fetchImpl;
     this.managerOptions = {
@@ -130,7 +130,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     providerName?: string | undefined,
     oauthRef?: KimiOAuthTokenRef | undefined,
   ): Promise<AuthStatus> {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     const oauthHost = this.oauthHostFor(oauthRef);
     const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
     return {
@@ -147,7 +147,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     providerName?: string | undefined,
     options: KimiOAuthLoginOptions = {},
   ): Promise<KimiOAuthLoginResult> {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     const oauthHost = this.oauthHostFor(options.oauthRef, options.oauthHost);
     const oauthKey = options.oauthRef?.key ?? this.defaultOAuthKey(options.baseUrl, oauthHost);
     const manager = this.managerFor(name, oauthKey, oauthHost);
@@ -219,11 +219,11 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     providerName?: string | undefined,
     oauthRef?: KimiOAuthTokenRef | undefined,
   ): Promise<KimiOAuthLogoutResult> {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     const oauthHost = this.oauthHostFor(oauthRef);
     const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
     await this.managerFor(name, oauthKey, oauthHost).logout();
-    if (this.configAdapter?.remove !== undefined && name === KIMI_CODE_PROVIDER_NAME) {
+    if (this.configAdapter?.remove !== undefined && name === SUPERLIORA_PROVIDER_NAME) {
       const config = await this.configAdapter.read();
       this.configAdapter.remove(config);
       await this.configAdapter.write(config);
@@ -238,7 +238,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
       readonly oauthRef?: KimiOAuthTokenRef | undefined;
     } = {},
   ): Promise<string> {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     const oauthHost = this.oauthHostFor(options.oauthRef);
     const oauthKey = options.oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
     return this.managerFor(name, oauthKey, oauthHost).ensureFresh(options);
@@ -248,7 +248,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     providerName?: string,
     oauthRef?: KimiOAuthTokenRef,
   ): Promise<string | undefined> {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     const oauthHost = this.oauthHostFor(oauthRef);
     const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
     return this.managerFor(name, oauthKey, oauthHost).getCachedAccessToken();
@@ -258,7 +258,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     providerName?: string | undefined,
     oauthRef?: KimiOAuthTokenRef | undefined,
   ): BearerTokenProvider {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     const oauthHost = this.oauthHostFor(oauthRef);
     const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
     return {
@@ -273,7 +273,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
       readonly baseUrl?: string | undefined;
     } = {},
   ): Promise<AuthManagedUsageResult> {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     try {
       const accessToken = await this.ensureFresh(name, {
         oauthRef: options.oauthRef ?? this.defaultOAuthRef(options.baseUrl),
@@ -316,7 +316,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     },
     run: (accessToken: string) => Promise<T>,
   ): Promise<T | { readonly kind: 'error'; readonly message: string }> {
-    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     try {
       const accessToken = await this.ensureFresh(name, {
         oauthRef: options.oauthRef ?? this.defaultOAuthRef(options.baseUrl),
@@ -362,7 +362,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
 
   managerFor(
     providerName: string,
-    oauthKey = KIMI_CODE_OAUTH_KEY,
+    oauthKey = SUPERLIORA_OAUTH_KEY,
     oauthHost?: string | undefined,
   ): OAuthManager {
     const storageName = resolveKimiTokenStorageName({ providerName, oauthKey });
@@ -423,13 +423,13 @@ export function resolveKimiTokenStorageName(input: {
   readonly providerName?: string | undefined;
   readonly oauthKey?: string | undefined;
 }): string {
-  const providerName = input.providerName ?? KIMI_CODE_PROVIDER_NAME;
-  if (providerName !== KIMI_CODE_PROVIDER_NAME) {
+  const providerName = input.providerName ?? SUPERLIORA_PROVIDER_NAME;
+  if (providerName !== SUPERLIORA_PROVIDER_NAME) {
     throw new Error(`No OAuth manager configured for provider "${providerName}".`);
   }
 
-  const key = input.oauthKey ?? KIMI_CODE_OAUTH_KEY;
-  if (key === 'kimi-code' || key === KIMI_CODE_OAUTH_KEY) return 'kimi-code';
+  const key = input.oauthKey ?? SUPERLIORA_OAUTH_KEY;
+  if (key === 'kimi-code' || key === SUPERLIORA_OAUTH_KEY) return 'kimi-code';
 
   const prefix = 'oauth/';
   if (key.startsWith(prefix) && key.slice(prefix.length).length > 0) {
@@ -441,9 +441,9 @@ export function resolveKimiTokenStorageName(input: {
 }
 
 function defaultKimiHome(): string {
-  const override = process.env['KIMI_CODE_HOME'];
+  const override = process.env['SUPERLIORA_HOME'];
   if (override !== undefined && override.length > 0) return override;
-  return join(homedir(), '.kimi-code');
+  return join(homedir(), '.superliora');
 }
 
 function managedUsageUrl(baseUrl: string | undefined): string {

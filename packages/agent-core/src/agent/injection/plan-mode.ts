@@ -195,12 +195,12 @@ function exitReminder(): string {
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
-You are in the Research Phase. Your allowed tools are read-only evidence tools: WebSearch, FetchURL, KimiContext, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, narrow read-only Bash inspection, TodoList for progress tracking, and NextPhase.
+You are in the Research Phase. Your allowed tools are read-only evidence tools: WebSearch, FetchURL, LioraContext, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, narrow read-only Bash inspection, TodoList for progress tracking, and NextPhase.
 AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, and ExitPlanMode are BLOCKED.
 
 Goal: gather current, source-backed context before the UltraPlan interview creates question options or asks the user to choose.
 - Search current docs, release notes, papers, security advisories, benchmark pages, or OSS examples when they can affect correctness.
-- Use KimiContext, Grep, Glob, and Read for local code facts before asking path or architecture questions.
+- Use LioraContext, Grep, Glob, and Read for local code facts before asking path or architecture questions.
 - Use SearchExpert when Ultrawork may need specialist lanes; capture candidate expert IDs before writing the Swarm decision.
 - Fetch primary sources before relying on snippets. Label findings as verified, candidate, stale/offline, or irrelevant.
 - Distill a compact evidence pack: facts learned, source URLs or file paths, remaining unknowns, and which unknowns truly require user input.
@@ -259,7 +259,7 @@ You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-You are in the Review Phase. Read-only tools plus TodoList progress tracking only (Read, ReadMediaFile, Grep, Glob, KimiContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, and read-only Bash inspection).
+You are in the Review Phase. Read-only tools plus TodoList progress tracking only (Read, ReadMediaFile, Grep, Glob, LioraContext, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, and read-only Bash inspection).
 Write, Edit, and general Bash execution are BLOCKED.
 
 Goal: Re-read key files to verify your understanding before writing the plan.

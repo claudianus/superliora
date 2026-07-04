@@ -1,6 +1,6 @@
 # Config overrides
 
-Kimi Code CLI has three places where runtime parameters can be influenced: the config file, command-line options, and environment variables. They are not a simple "whoever has higher priority wins" relationship — the three serve different scenarios and have non-overlapping scopes:
+SuperLiora CLI has three places where runtime parameters can be influenced: the config file, command-line options, and environment variables. They are not a simple "whoever has higher priority wins" relationship — the three serve different scenarios and have non-overlapping scopes:
 
 - **Config file** stores long-term preferences (model, keys, loop control, etc.); takes effect on every startup
 - **Command-line options** make one-off changes for the current startup; discarded after exit
@@ -12,24 +12,24 @@ This distinction matters: many users run `export KIMI_API_KEY=xxx` in the shell 
 
 Environment variables fall into three categories by function and cannot be collapsed into a single linear priority order:
 
-1. **Locating the config file**: `KIMI_CODE_HOME` sets the data root directory, making the config file path `$KIMI_CODE_HOME/config.toml`. This step runs before all other resolution and is not a fallback for individual parameters.
+1. **Locating the config file**: `SUPERLIORA_HOME` sets the data root directory, making the config file path `$SUPERLIORA_HOME/config.toml`. This step runs before all other resolution and is not a fallback for individual parameters.
 2. **Runtime switches**: A small set of variables like `KIMI_DISABLE_TELEMETRY` directly shut down the corresponding subsystem — even if `config.toml` has `telemetry = true`, setting this variable to a truthy value disables telemetry. The semantics are "additionally disable", not "ordinary override".
-3. **Runtime endpoints and diagnostics**: Variables like `KIMI_CODE_OAUTH_HOST`, `KIMI_CODE_BASE_URL`, and `KIMI_LOG_LEVEL` are read when the OAuth or logging subsystems initialize. For the full list, see [Environment variables](./env-vars.md).
+3. **Runtime endpoints and diagnostics**: Variables like `SUPERLIORA_OAUTH_HOST`, `SUPERLIORA_BASE_URL`, and `KIMI_LOG_LEVEL` are read when the OAuth or logging subsystems initialize. For the full list, see [Environment variables](./env-vars.md).
 
 ## Priority for ordinary runtime parameters
 
 For ordinary runtime parameters such as model alias, Plan mode, yolo mode, and Skills directories, priority from highest to lowest is:
 
 1. **Command-line options** (`-m`, `--plan`, `--yolo`, etc.): apply only to the current startup
-2. **User config file** (`~/.kimi-code/config.toml`): stores long-term preferences
+2. **User config file** (`~/.superliora/config.toml`): stores long-term preferences
 
-A small number of environment variables explicitly override specific config file fields — for example, `KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT` has higher priority than `[background].keep_alive_on_exit`. These exceptions are noted in [Environment variables](./env-vars.md) and in the relevant field descriptions in [Configuration files](./config-files.md).
+A small number of environment variables explicitly override specific config file fields — for example, `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` has higher priority than `[background].keep_alive_on_exit`. These exceptions are noted in [Environment variables](./env-vars.md) and in the relevant field descriptions in [Configuration files](./config-files.md).
 
 ::: warning
 **Ordinary runtime parameters do not fall back to shell environment variables.** Provider `api_key` / `base_url` are read only from `config.toml` (including the `[providers.<name>.env]` sub-table) and do not fall back to `export`-ed shell variables. The only exception is the explicit `KIMI_MODEL_*` channel — see [Define a model from environment variables](./env-vars.md#define-a-model-from-environment-variables-kimi-model).
 :::
 
-The CLI currently reads a single user-level config file and has no project-level config file mechanism. To isolate config between different projects, point `KIMI_CODE_HOME` at different data directories — see [Common scenarios](#common-scenarios) below.
+The CLI currently reads a single user-level config file and has no project-level config file mechanism. To isolate config between different projects, point `SUPERLIORA_HOME` at different data directories — see [Common scenarios](#common-scenarios) below.
 
 ## Provider credentials
 
@@ -78,7 +78,7 @@ Mutual exclusion rules (startup fails if violated):
 **Isolated test environment** — use a separate data directory to avoid polluting the main config and sessions:
 
 ```sh
-KIMI_CODE_HOME="$PWD/.kimi-sandbox" kimi
+SUPERLIORA_HOME="$PWD/.kimi-sandbox" kimi
 ```
 
 **One-off test key** — since provider credentials are read only from the config file, write a test key into the `env` sub-table:
@@ -103,4 +103,4 @@ kimi --plan
 ## Next steps
 
 - [Configuration files](./config-files.md) — complete reference for all configurable fields
-- [Environment variables](./env-vars.md) — full list and description of `KIMI_CODE_HOME` and related variables
+- [Environment variables](./env-vars.md) — full list and description of `SUPERLIORA_HOME` and related variables

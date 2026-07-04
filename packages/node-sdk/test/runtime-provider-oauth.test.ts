@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ErrorCodes, KimiError, type KimiConfig, type Logger } from '#/index';
+import { ErrorCodes, LioraError, type LioraConfig, type Logger } from '#/index';
 
 import { ProviderManager } from '../../agent-core/src/session/provider-manager';
 
-function managedConfig(): KimiConfig {
+function managedConfig(): LioraConfig {
   return {
     providers: {
       'managed:kimi-code': {
@@ -26,7 +26,7 @@ function managedConfig(): KimiConfig {
 }
 
 async function resolveRuntimeProviderWithOAuth(options: {
-  readonly config: KimiConfig;
+  readonly config: LioraConfig;
   readonly resolveOAuthTokenProvider?: import('../../agent-core/src/session/provider-manager').OAuthTokenProviderResolver;
   readonly log?: Logger;
 }) {
@@ -36,7 +36,7 @@ async function resolveRuntimeProviderWithOAuth(options: {
   });
   const model = options.config.defaultModel;
   if (model === undefined) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, 'No model is selected.');
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, 'No model is selected.');
   }
   const { providerName, provider } = manager.resolveProviderConfig(model);
 
@@ -53,7 +53,7 @@ async function resolveRuntimeProviderWithOAuth(options: {
   const tokenProvider = options.resolveOAuthTokenProvider?.(providerName, oauthRef);
 
   if (tokenProvider === undefined) {
-    throw new KimiError(
+    throw new LioraError(
       ErrorCodes.AUTH_LOGIN_REQUIRED,
       `OAuth provider "${providerName}" requires login before it can be used.`,
     );
@@ -65,11 +65,11 @@ async function resolveRuntimeProviderWithOAuth(options: {
     await tokenProvider.getAccessToken(undefined);
   } catch (error) {
     if (
-      !(error instanceof KimiError && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED)
+      !(error instanceof LioraError && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED)
     ) {
       options.log?.warn('oauth token fetch failed', { providerName, error });
     }
-    throw new KimiError(
+    throw new LioraError(
       ErrorCodes.AUTH_LOGIN_REQUIRED,
       `OAuth provider "${providerName}" requires login before it can be used.`,
       { cause: error },
@@ -85,7 +85,7 @@ async function resolveRuntimeProviderWithOAuth(options: {
           opts?.forceRefresh ? { force: true } : undefined,
         );
         if (apiKey.trim().length === 0) {
-          throw new KimiError(
+          throw new LioraError(
             ErrorCodes.AUTH_LOGIN_REQUIRED,
             `OAuth provider "${providerName}" requires login before it can be used.`,
           );
@@ -93,11 +93,11 @@ async function resolveRuntimeProviderWithOAuth(options: {
         return { apiKey };
       } catch (error) {
         if (
-          !(error instanceof KimiError && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED)
+          !(error instanceof LioraError && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED)
         ) {
           options.log?.warn('oauth token fetch failed', { providerName, error });
         }
-        throw new KimiError(
+        throw new LioraError(
           ErrorCodes.AUTH_LOGIN_REQUIRED,
           `OAuth provider "${providerName}" requires login before it can be used.`,
           { cause: error },
@@ -148,7 +148,7 @@ describe('resolveRuntimeProviderWithOAuth', () => {
 
   it('prefers explicit static apiKey over configured OAuth credentials', async () => {
     const getAccessToken = vi.fn().mockResolvedValue('unused');
-    const conflicting: KimiConfig = {
+    const conflicting: LioraConfig = {
       ...managedConfig(),
       providers: {
         'managed:kimi-code': {
@@ -179,7 +179,7 @@ describe('resolveRuntimeProviderWithOAuth', () => {
         }),
       }),
     ).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'LioraError',
       code: 'auth.login_required',
     });
   });
@@ -210,7 +210,7 @@ describe('resolveRuntimeProviderWithOAuth', () => {
         log,
         resolveOAuthTokenProvider: () => ({
           getAccessToken: vi.fn().mockRejectedValue(
-            new KimiError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in'),
+            new LioraError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'not logged in'),
           ),
         }),
       }),

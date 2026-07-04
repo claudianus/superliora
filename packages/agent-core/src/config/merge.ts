@@ -1,24 +1,24 @@
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors';
 import {
-  KimiConfigPatchSchema,
+  LioraConfigPatchSchema,
   formatConfigValidationError,
-  type KimiConfig,
-  type KimiConfigPatch,
+  type LioraConfig,
+  type LioraConfigPatch,
   validateConfig,
 } from '#/config/schema';
 
-export function mergeConfigPatch(config: KimiConfig, patch: KimiConfigPatch): KimiConfig {
+export function mergeConfigPatch(config: LioraConfig, patch: LioraConfigPatch): LioraConfig {
   const base = validateConfig(config);
   const parsedPatch = parsePatch(patch);
   const merged = deepMerge(base, parsedPatch);
   return validateConfig(merged);
 }
 
-function parsePatch(patch: KimiConfigPatch): KimiConfigPatch {
+function parsePatch(patch: LioraConfigPatch): LioraConfigPatch {
   try {
-    return stripUndefinedDeep(KimiConfigPatchSchema.parse(patch)) as KimiConfigPatch;
+    return stripUndefinedDeep(LioraConfigPatchSchema.parse(patch)) as LioraConfigPatch;
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid configuration patch: ${formatConfigValidationError(error)}`, {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid configuration patch: ${formatConfigValidationError(error)}`, {
       cause: error,
     });
   }

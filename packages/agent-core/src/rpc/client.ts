@@ -3,7 +3,7 @@ import { createControlledPromise, objectMap } from '@antfu/utils';
 
 import {
   fromKimiErrorPayload,
-  type KimiErrorPayload,
+  type LioraErrorPayload,
   toKimiErrorPayload,
 } from '../errors';
 import { abortable } from '../utils/abort';
@@ -16,7 +16,7 @@ export interface RPCCallOptions {
 
 type RpcResponse =
   | { readonly ok: true; readonly value: unknown }
-  | { readonly ok: false; readonly error: KimiErrorPayload };
+  | { readonly ok: false; readonly error: LioraErrorPayload };
 
 export type RPCMethods<T> = {
   [K in keyof T]: T[K] extends (payload: infer Payload) => infer Return

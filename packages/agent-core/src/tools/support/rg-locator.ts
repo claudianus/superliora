@@ -4,8 +4,8 @@
  * Lookup order (first hit wins):
  *   1. System PATH (`which rg`) — fastest, respects developer setup
  *   2. Bundled vendor binary (hook; not wired yet — `getVendorRgPath` is a stub)
- *   3. `<KIMI_CODE_HOME>/bin/rg` — persistent cache for this app.
- *   4. CDN download to <KIMI_CODE_HOME>/bin/ — one-off bootstrap
+ *   3. `<SUPERLIORA_HOME>/bin/rg` — persistent cache for this app.
+ *   4. GitHub release download to <SUPERLIORA_HOME>/bin/ — one-off bootstrap
  *
  * If steps 1-4 all fail, callers receive a structured error they can
  * turn into a user-facing "install ripgrep" hint instead of the naked
@@ -26,7 +26,9 @@ import { type Entry, fromBuffer as yauzlFromBuffer } from 'yauzl';
 import { abortable } from '../../utils/abort';
 
 const RG_VERSION = '15.0.0';
-const RG_BASE_URL = 'https://code.kimi.com/kimi-code/rg';
+// Fetched straight from ripgrep's own GitHub releases (SHA256-verified below),
+// not mirrored through any third-party CDN.
+const RG_BASE_URL = `https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}`;
 const DOWNLOAD_TIMEOUT_MS = 600_000;
 const RG_ARCHIVE_SHA256: Record<string, string> = {
   'ripgrep-15.0.0-aarch64-apple-darwin.tar.gz':
@@ -125,9 +127,9 @@ function rgBinaryName(): string {
 }
 
 function getShareDir(): string {
-  const override = process.env['KIMI_CODE_HOME'];
+  const override = process.env['SUPERLIORA_HOME'];
   if (override !== undefined && override !== '') return override;
-  return join(homedir(), '.kimi-code');
+  return join(homedir(), '.superliora');
 }
 
 function getVendorRgPath(_binName: string): string | undefined {
@@ -197,7 +199,7 @@ async function downloadAndInstallRg(shareDir: string): Promise<string> {
   await mkdir(binDir, { recursive: true });
   const destination = join(binDir, rgBinaryName());
 
-  const tmp = await mkdtemp(join(tmpdir(), 'kimi-rg-'));
+  const tmp = await mkdtemp(join(tmpdir(), 'liora-rg-'));
   try {
     const archivePath = join(tmp, archiveName);
 

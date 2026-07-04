@@ -1,48 +1,48 @@
 import {
   createRPC,
   ErrorCodes,
-  KimiError,
+  LioraError,
   parseConfigString,
   resolveConfigPath,
   type RPCMethods,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 import { z } from 'zod';
 
-export type KimiConfigValidationPathSegment = string | number;
+export type LioraConfigValidationPathSegment = string | number;
 
-export interface KimiConfigValidationIssue {
-  readonly path: readonly KimiConfigValidationPathSegment[];
+export interface LioraConfigValidationIssue {
+  readonly path: readonly LioraConfigValidationPathSegment[];
   readonly message: string;
 }
 
-export interface ResolveKimiConfigPathInput {
+export interface ResolveLioraConfigPathInput {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
 }
 
-export interface ValidateKimiConfigTomlInput {
+export interface ValidateLioraConfigTomlInput {
   readonly text: string;
   readonly filePath?: string | undefined;
 }
 
-export interface KimiConfigRpc {
-  resolveConfigPath(input?: ResolveKimiConfigPathInput): Promise<string>;
-  validateConfigToml(input: ValidateKimiConfigTomlInput): Promise<void>;
+export interface LioraConfigRpc {
+  resolveConfigPath(input?: ResolveLioraConfigPathInput): Promise<string>;
+  validateConfigToml(input: ValidateLioraConfigTomlInput): Promise<void>;
 }
 
-interface KimiConfigCoreRpc {
-  resolveConfigPath(input: ResolveKimiConfigPathInput): string;
-  validateConfigToml(input: ValidateKimiConfigTomlInput): void;
+interface LioraConfigCoreRpc {
+  resolveConfigPath(input: ResolveLioraConfigPathInput): string;
+  validateConfigToml(input: ValidateLioraConfigTomlInput): void;
 }
 
-interface KimiConfigClientRpc {}
+interface LioraConfigClientRpc {}
 
-class KimiConfigCoreRpcImpl implements KimiConfigCoreRpc {
-  resolveConfigPath(input: ResolveKimiConfigPathInput): string {
+class LioraConfigCoreRpcImpl implements LioraConfigCoreRpc {
+  resolveConfigPath(input: ResolveLioraConfigPathInput): string {
     return resolveConfigPath(input);
   }
 
-  validateConfigToml(input: ValidateKimiConfigTomlInput): void {
+  validateConfigToml(input: ValidateLioraConfigTomlInput): void {
     try {
       parseConfigString(input.text, input.filePath);
     } catch (error) {
@@ -55,48 +55,48 @@ class KimiConfigCoreRpcImpl implements KimiConfigCoreRpc {
   }
 }
 
-export class KimiConfigRpcClient implements KimiConfigRpc {
-  private readonly ready: Promise<RPCMethods<KimiConfigCoreRpc>>;
+export class LioraConfigRpcClient implements LioraConfigRpc {
+  private readonly ready: Promise<RPCMethods<LioraConfigCoreRpc>>;
 
   constructor() {
-    const [coreRpc, clientRpc] = createRPC<KimiConfigCoreRpc, KimiConfigClientRpc>();
-    void coreRpc(new KimiConfigCoreRpcImpl());
+    const [coreRpc, clientRpc] = createRPC<LioraConfigCoreRpc, LioraConfigClientRpc>();
+    void coreRpc(new LioraConfigCoreRpcImpl());
     this.ready = clientRpc({});
   }
 
-  async resolveConfigPath(input: ResolveKimiConfigPathInput = {}): Promise<string> {
+  async resolveConfigPath(input: ResolveLioraConfigPathInput = {}): Promise<string> {
     const rpc = await this.ready;
     return rpc.resolveConfigPath(input);
   }
 
-  async validateConfigToml(input: ValidateKimiConfigTomlInput): Promise<void> {
+  async validateConfigToml(input: ValidateLioraConfigTomlInput): Promise<void> {
     const rpc = await this.ready;
     await rpc.validateConfigToml(input);
   }
 }
 
-export function createKimiConfigRpc(): KimiConfigRpc {
-  return new KimiConfigRpcClient();
+export function createLioraConfigRpc(): LioraConfigRpc {
+  return new LioraConfigRpcClient();
 }
 
 function toConfigValidationError(
   error: unknown,
-  validationIssues: readonly KimiConfigValidationIssue[],
-): KimiError {
+  validationIssues: readonly LioraConfigValidationIssue[],
+): LioraError {
   const details =
-    error instanceof KimiError && error.details !== undefined
+    error instanceof LioraError && error.details !== undefined
       ? { ...error.details, validationIssues }
       : { validationIssues };
 
-  if (error instanceof KimiError) {
-    return new KimiError(error.code, error.message, { details });
+  if (error instanceof LioraError) {
+    return new LioraError(error.code, error.message, { details });
   }
 
   const message = error instanceof Error ? error.message : String(error);
-  return new KimiError(ErrorCodes.CONFIG_INVALID, message, { details });
+  return new LioraError(ErrorCodes.CONFIG_INVALID, message, { details });
 }
 
-function extractValidationIssues(error: unknown): readonly KimiConfigValidationIssue[] | undefined {
+function extractValidationIssues(error: unknown): readonly LioraConfigValidationIssue[] | undefined {
   const zodError = findZodError(error);
   if (zodError === undefined) return undefined;
   return zodError.issues.map((issue) => ({

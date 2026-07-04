@@ -5,11 +5,11 @@
  * Stagnation Detection, and Lateral Thinking into the existing PlanMode.
  *
  * This is NOT a copy of Ouroboros; it is a natural evolution of
- * SuperKimi's plan mode, borrowing the most powerful concepts and
+ * SuperLiora's plan mode, borrowing the most powerful concepts and
  * adapting them to the existing architecture.
  */
 
-import { extractText } from '@moonshot-ai/kosong';
+import { extractText } from '@superliora/kosong';
 
 import type { Agent } from '..';
 import { isRealUserPromptOrigin } from '../context';

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { emptyUsage } from '@moonshot-ai/kosong';
+import { emptyUsage } from '@superliora/kosong';
 
 import { ProviderManager } from '../../src/session/provider-manager';
 import { testAgent } from './harness';

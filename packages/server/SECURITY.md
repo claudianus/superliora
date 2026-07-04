@@ -1,6 +1,6 @@
 # Server deployment security
 
-Operational guide for exposing the `@moonshot-ai/server` HTTP/WebSocket API beyond
+Operational guide for exposing the `@superliora/server` HTTP/WebSocket API beyond
 `127.0.0.1`. For reporting vulnerabilities, see the repo root `SECURITY.md`.
 
 ## Threat model
@@ -17,7 +17,7 @@ The server classifies the bind host into one of three tiers
 **Important:** the hardening gate in `start.ts` is `bindClass !== 'loopback'`. LAN and
 public binds therefore receive the **same** hardening stack (TLS opt-out + rate-limit
 + endpoint downgrade + security headers). Authentication is the persistent bearer
-token (printed in the startup banner); `KIMI_CODE_PASSWORD` is an optional additional
+token (printed in the startup banner); `SUPERLIORA_PASSWORD` is an optional additional
 credential on every tier. The tier label only changes the banner and the automatic
 Host allowlist entry. Treat LAN exposure with the same care as public exposure.
 
@@ -26,15 +26,15 @@ Not in scope (see PLAN §6): NAT traversal, untrusted relays, end-to-end encrypt
 ## Default (loopback) deployment
 
 ```
-kimi server run
+liora server run
 ```
 
 - Binds `127.0.0.1:58627` by default (`--host` / `--port` to override).
 - Uses a persistent bearer token (`crypto.randomBytes(32)`, base64url) generated
-  once on first boot and written to `<KIMI_CODE_HOME>/server.token` with mode
+  once on first boot and written to `<SUPERLIORA_HOME>/server.token` with mode
   `0600` (parent directory `0700`). The same token is reused across restarts; it
   is NOT deleted when the server exits. Rotate it explicitly with
-  `kimi server rotate-token` (a running server picks up the new token without a
+  `liora server rotate-token` (a running server picks up the new token without a
   restart).
 - The local CLI reads that token file automatically and sends
   `Authorization: Bearer <token>` on every REST/WebSocket call — no setup required.
@@ -46,11 +46,11 @@ Bind a specific LAN interface. Because the hardening gate is `bindClass !== 'loo
 a LAN bind gets the same hardening stack as a public bind:
 
 ```
-kimi server run --host 192.168.1.10 --insecure-no-tls
+liora server run --host 192.168.1.10 --insecure-no-tls
 ```
 
 - Authentication is the persistent bearer token printed in the startup banner; send it
-  as `Authorization: Bearer <token>`. `KIMI_CODE_PASSWORD` is optional and adds a
+  as `Authorization: Bearer <token>`. `SUPERLIORA_PASSWORD` is optional and adds a
   second credential (it is never required).
 - `--insecure-no-tls` is required unless TLS is terminated in front of the server
   (reverse proxy or tunnel). Use it only on a trusted network.
@@ -66,11 +66,11 @@ server behind a TLS-terminating reverse proxy (or a tunnel); do not terminate TL
 process.
 
 ```
-kimi server run --host 0.0.0.0 --insecure-no-tls
+liora server run --host 0.0.0.0 --insecure-no-tls
 ```
 
 - Authentication is the persistent bearer token printed in the startup banner;
-  `KIMI_CODE_PASSWORD` is optional. `--insecure-no-tls` is mandatory here because
+  `SUPERLIORA_PASSWORD` is optional. `--insecure-no-tls` is mandatory here because
   the proxy terminates TLS; without it (and without app-level TLS) the server refuses
   to bind.
 - The reverse proxy must pass through the `Authorization` header and the `Host`
@@ -130,12 +130,12 @@ the remote reachability and TLS.
 ## Credential management
 
 - **Token** — a persistent bearer token generated once on first boot, held in
-  memory and written to `<KIMI_CODE_HOME>/server.token` (`0600`, directory
+  memory and written to `<SUPERLIORA_HOME>/server.token` (`0600`, directory
   `0700`). It survives restarts and is reused until explicitly rotated with
-  `kimi server rotate-token`, which rewrites the file (the previous token stops
+  `liora server rotate-token`, which rewrites the file (the previous token stops
   working immediately, even for a running server). The CLI reads it
   automatically; treat the file as a secret.
-- **Password** — set `KIMI_CODE_PASSWORD` in the environment. The server hashes it at
+- **Password** — set `SUPERLIORA_PASSWORD` in the environment. The server hashes it at
   boot with bcrypt (cost 12) and keeps only the hash in memory; verification uses
   `bcrypt.compare`. Password auth is accepted as `Authorization: Bearer <password>`.
 - **Stored password hash** — the current path is env-only. There is **no**
@@ -143,7 +143,7 @@ the remote reachability and TLS.
   hash is needed later, generate one externally with cost 12, e.g.:
 
   ```
-  node -e "require('bcryptjs').hash(process.env.KIMI_CODE_PASSWORD,12).then(h=>console.log(h))"
+  node -e "require('bcryptjs').hash(process.env.SUPERLIORA_PASSWORD,12).then(h=>console.log(h))"
   ```
 
   (This is forward-looking; do not rely on it until config support lands.)
@@ -156,15 +156,15 @@ tiers.
 - **Default Host allowlist:** `localhost`, `*.localhost`, `127.0.0.1`, `::1`,
   `[::1]`, and the actual bind host/IP. Requests with any other `Host` get
   `403 Invalid Host header` (DNS-rebinding protection).
-- **`KIMI_CODE_ALLOWED_HOSTS`** — comma-separated extra hosts. A leading dot matches
-  a subdomain wildcard, e.g. `KIMI_CODE_ALLOWED_HOSTS=.example.com,kimi.local`.
-- **`kimi server run --allowed-host <host...>`** — CLI equivalent for appending
+- **`SUPERLIORA_ALLOWED_HOSTS`** — comma-separated extra hosts. A leading dot matches
+  a subdomain wildcard, e.g. `SUPERLIORA_ALLOWED_HOSTS=.example.com,kimi.local`.
+- **`liora server run --allowed-host <host...>`** — CLI equivalent for appending
   extra allowed hosts; repeatable or comma-separated.
-- **`KIMI_CODE_CORS_ORIGINS`** — comma-separated list of allowed cross-origin values
+- **`SUPERLIORA_CORS_ORIGINS`** — comma-separated list of allowed cross-origin values
   (full `scheme://host[:port]`). No `*` wildcard. Matched origins get
   `Access-Control-Allow-Origin` echoed; `OPTIONS` preflight short-circuits to `204`.
-  Example: `KIMI_CODE_CORS_ORIGINS=https://kimi.example.com`.
-- **`KIMI_CODE_DISABLE_HOST_CHECK=1`** — disables the Host check entirely on **all**
+  Example: `SUPERLIORA_CORS_ORIGINS=https://kimi.example.com`.
+- **`SUPERLIORA_DISABLE_HOST_CHECK=1`** — disables the Host check entirely on **all**
   tiers (loopback, LAN, and public). Test/controlled environments only; this removes
   the DNS-rebinding protection and must not be set in production.
 

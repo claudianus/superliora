@@ -62,7 +62,7 @@ describe('isOriginAllowed', () => {
 
 describe('parseCorsOrigins', () => {
   it('splits, trims, and drops empties', () => {
-    expect(parseCorsOrigins({ KIMI_CODE_CORS_ORIGINS: ' https://a.com, https://b.com, ' })).toEqual([
+    expect(parseCorsOrigins({ SUPERLIORA_CORS_ORIGINS: ' https://a.com, https://b.com, ' })).toEqual([
       'https://a.com',
       'https://b.com',
     ]);

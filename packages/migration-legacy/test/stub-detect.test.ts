@@ -20,8 +20,8 @@ describe('isConfigStubOrMissing', () => {
   it('returns true when content matches DEFAULT_CONFIG_FILE_TEXT exactly', async () => {
     // From packages/kimi-core/src/harness/configs/toml.ts:42
     const stub =
-      '# ~/.kimi-code/config.toml\n' +
-      '# Runtime settings for Kimi Code.\n' +
+      '# ~/.superliora/config.toml\n' +
+      '# Runtime settings for SuperLiora.\n' +
       '# This file starts empty so built-in defaults can apply.\n' +
       '# Login will populate managed Kimi provider and model entries.\n';
     await writeFile(join(dir, 'config.toml'), stub, 'utf-8');
@@ -30,8 +30,8 @@ describe('isConfigStubOrMissing', () => {
 
   it('returns false when user added a single non-comment line', async () => {
     const modified =
-      '# ~/.kimi-code/config.toml\n' +
-      '# Runtime settings for Kimi Code.\n' +
+      '# ~/.superliora/config.toml\n' +
+      '# Runtime settings for SuperLiora.\n' +
       '# This file starts empty so built-in defaults can apply.\n' +
       '# Login will populate managed Kimi provider and model entries.\n' +
       'default_thinking = true\n';
@@ -41,8 +41,8 @@ describe('isConfigStubOrMissing', () => {
 
   it('returns false on any byte difference, even trailing whitespace', async () => {
     const stubPlusSpace =
-      '# ~/.kimi-code/config.toml\n' +
-      '# Runtime settings for Kimi Code.\n' +
+      '# ~/.superliora/config.toml\n' +
+      '# Runtime settings for SuperLiora.\n' +
       '# This file starts empty so built-in defaults can apply.\n' +
       '# Login will populate managed Kimi provider and model entries.\n' +
       ' ';
@@ -58,9 +58,9 @@ describe('isTuiStubOrMissing', () => {
 
   it('returns true when content is byte-equal to default render', async () => {
     const defaultRender =
-      '# ~/.kimi-code/tui.toml\n' +
+      '# ~/.superliora/tui.toml\n' +
       '# Terminal UI preferences for kimi-code.\n' +
-      '# Agent/runtime settings stay in ~/.kimi-code/config.toml.\n' +
+      '# Agent/runtime settings stay in ~/.superliora/config.toml.\n' +
       '\n' +
       'theme = "auto" # "auto" | "dark" | "light"\n' +
       '\n' +

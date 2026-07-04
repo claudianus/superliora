@@ -1,4 +1,4 @@
-import type { ContentPart, Message } from '@moonshot-ai/kosong';
+import type { ContentPart, Message } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import {

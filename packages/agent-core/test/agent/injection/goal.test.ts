@@ -89,7 +89,7 @@ describe('GoalInjector content', () => {
     await store.createGoal({ objective: 'Ship feature X' });
     const text = (await injectOnce(store))!;
     expect(text).toContain('Kimi Lean Context');
-    expect(text).toContain('KimiContext');
+    expect(text).toContain('LioraContext');
     expect(text).toContain('codegraph');
     expect(text).toContain('rg');
     expect(text).toContain('summarize bulky outputs');

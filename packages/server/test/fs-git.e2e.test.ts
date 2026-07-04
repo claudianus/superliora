@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
-import { parsePorcelain, parseNumstat } from '@moonshot-ai/agent-core';
+import { parsePorcelain, parseNumstat } from '@superliora/agent-core';
 
 let tmpDir: string;
 let lockPath: string;
@@ -36,9 +36,9 @@ function rmSyncRobust(path: string): void {
 }
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-fs-git-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-fs-git-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-fs-git-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-fs-git-home-'));
   workspace = join(tmpDir, 'workspace');
   mkdirSync(workspace, { recursive: true });
 });

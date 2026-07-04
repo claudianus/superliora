@@ -26,8 +26,8 @@ describe('kimiCodeFeedbackUrl', () => {
     expect(kimiCodeFeedbackUrl()).toBe('https://api.kimi.com/coding/v1/feedback');
   });
 
-  it('honours KIMI_CODE_BASE_URL and trims trailing slashes', () => {
-    vi.stubEnv('KIMI_CODE_BASE_URL', 'https://example.test/v9///');
+  it('honours SUPERLIORA_BASE_URL and trims trailing slashes', () => {
+    vi.stubEnv('SUPERLIORA_BASE_URL', 'https://example.test/v9///');
     expect(kimiCodeFeedbackUrl()).toBe('https://example.test/v9/feedback');
   });
 });

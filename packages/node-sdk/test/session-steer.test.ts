@@ -1,7 +1,7 @@
-import type * as KosongModule from '@moonshot-ai/kosong';
+import type * as KosongModule from '@superliora/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createKimiHarness, type KimiError } from '#/index';
+import { createLioraHarness, type LioraError } from '#/index';
 
 import { makeTempDir, removeTempDirs, waitForAgentWireEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
@@ -10,7 +10,7 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'steer response',
 }));
 
-vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
+vi.mock('@superliora/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,
@@ -55,7 +55,7 @@ describe('Session.steer', () => {
   it('sends turn.steer to the core session runtime', async () => {
     const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-home-');
     const workDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-work-');
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_steer_wire', workDir });
@@ -78,15 +78,15 @@ describe('Session.steer', () => {
   it('rejects empty steer input', async () => {
     const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-home-');
     const workDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-work-');
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_steer_empty', workDir });
 
       await expect(session.steer('   ')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'LioraError',
         code: 'request.prompt_input_empty',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<LioraError>);
     } finally {
       await harness.close();
     }
@@ -95,16 +95,16 @@ describe('Session.steer', () => {
   it('rejects after the session is closed', async () => {
     const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-home-');
     const workDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-work-');
-    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_steer_closed', workDir });
       await session.close();
 
       await expect(session.steer('hello')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'LioraError',
         code: 'session.closed',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<LioraError>);
     } finally {
       await harness.close();
     }

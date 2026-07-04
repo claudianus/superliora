@@ -17,7 +17,7 @@
  * we never bleed it into the JSON response.
  */
 
-import { errEnvelope, ErrorCode } from '@moonshot-ai/protocol';
+import { errEnvelope, ErrorCode } from '@superliora/protocol';
 import type { FastifyError } from 'fastify';
 
 /**

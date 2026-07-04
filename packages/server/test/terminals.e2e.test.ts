@@ -3,8 +3,8 @@ import { realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { SyncDescriptor, ITerminalService, TerminalService } from '@moonshot-ai/agent-core';
-import type { Terminal } from '@moonshot-ai/protocol';
+import { SyncDescriptor, ITerminalService, TerminalService } from '@superliora/agent-core';
+import type { Terminal } from '@superliora/protocol';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -19,9 +19,9 @@ let server: RunningServer | undefined;
 let backend: FakeTerminalBackend;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-terminals-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-terminals-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-terminals-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-terminals-home-'));
   backend = new FakeTerminalBackend();
 });
 

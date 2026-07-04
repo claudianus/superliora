@@ -1,4 +1,4 @@
-import type { BrowserUseRuntime, ComputerUseRuntime } from '@moonshot-ai/gui-use';
+import type { BrowserUseRuntime, ComputerUseRuntime } from '@superliora/gui-use';
 import type { UrlFetcher, WebSearchProvider } from '../builtin';
 
 export interface ToolServices {

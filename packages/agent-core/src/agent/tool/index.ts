@@ -1,5 +1,5 @@
 import { uniq } from '@antfu/utils';
-import type { ChatProvider, Tool } from '@moonshot-ai/kosong';
+import type { ChatProvider, Tool } from '@superliora/kosong';
 import picomatch from 'picomatch';
 
 import type { Agent } from '..';
@@ -483,7 +483,7 @@ export class ToolManager {
         new b.EditTool(kaos, workspace),
         new b.GrepTool(kaos, workspace, this.agent.telemetry),
         new b.GlobTool(kaos, workspace, this.agent.telemetry),
-        new b.KimiContextTool(kaos, workspace),
+        new b.LioraContextTool(kaos, workspace),
         new b.BashTool(kaos, cwd, background, {
           allowBackground,
         }),

@@ -11,7 +11,7 @@ export * from './collaboration/ask-user';
 export * from './collaboration/search-expert';
 export * from './collaboration/search-skill';
 export * from './collaboration/skill-tool';
-export * from './context/kimi-context';
+export * from './context/liora-context';
 export * from './file/edit';
 export * from './file/glob';
 export * from './file/grep';

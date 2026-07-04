@@ -1,5 +1,5 @@
 /**
- * Test stubs for `KimiHarness` interactions that used to live as
+ * Test stubs for `LioraHarness` interactions that used to live as
  * dedicated convenience methods on the SDK (`auth.hasUsableToken`,
  * `listAvailableModels`). The methods are gone; the adapter now calls
  * the underlying SDK API directly (`auth.status`, `getConfig().models`)
@@ -7,7 +7,7 @@
  * file doesn't have to hand-roll them.
  */
 
-import type { ModelAlias } from '@moonshot-ai/kimi-code-sdk';
+import type { ModelAlias } from '@superliora/sdk';
 
 /** Stub `auth.status()` payload for an authenticated harness. */
 export const AUTHED_STATUS = {

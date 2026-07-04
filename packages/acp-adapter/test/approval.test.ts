@@ -17,10 +17,10 @@ import type {
   ApprovalRequest,
   ApprovalResponse,
   Event,
-  KimiHarness,
+  LioraHarness,
   Session,
   ToolInputDisplay,
-} from '@moonshot-ai/kimi-code-sdk';
+} from '@superliora/sdk';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -235,7 +235,7 @@ describe('AcpSession ↔ requestPermission bridge (end-to-end via wire)', () => 
     const harness = {
       auth: { status: async () => AUTHED_STATUS },
       createSession: async () => handle.session,
-    } as unknown as KimiHarness;
+    } as unknown as LioraHarness;
 
     const { agentStream, clientStream } = makeInMemoryStreamPair();
     new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
@@ -317,7 +317,7 @@ describe('AcpSession ↔ requestPermission bridge (end-to-end via wire)', () => 
     const harness = {
       auth: { status: async () => AUTHED_STATUS },
       createSession: async () => handle.session,
-    } as unknown as KimiHarness;
+    } as unknown as LioraHarness;
 
     const { agentStream, clientStream } = makeInMemoryStreamPair();
     new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);

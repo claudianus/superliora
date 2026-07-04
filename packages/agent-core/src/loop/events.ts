@@ -1,4 +1,4 @@
-import type { FinishReason, TextPart, ThinkPart, TokenUsage } from '@moonshot-ai/kosong';
+import type { FinishReason, TextPart, ThinkPart, TokenUsage } from '@superliora/kosong';
 
 import type { LLMProviderRouteSelection } from './llm';
 import type { ToolInputDisplay } from '../tools/display';

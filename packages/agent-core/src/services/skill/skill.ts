@@ -27,7 +27,7 @@
  *   - `SkillNotActivatableError` (→ 40912) when agent-core reports
  *     `skill.type_unsupported` (e.g. `reference`-type skills).
  *
- * **Anti-corruption**: imports `@moonshot-ai/agent-core` only for the
+ * **Anti-corruption**: imports `@superliora/agent-core` only for the
  * `createDecorator` value and the `SkillSummary` type.
  */
 
@@ -36,7 +36,7 @@ import type {
   SkillSearchResult as AgentCoreSkillSearchResult,
   SkillSummary as AgentCoreSkillSummary,
 } from '../../rpc';
-import type { SkillDescriptor, SkillSearchHit } from '@moonshot-ai/protocol';
+import type { SkillDescriptor, SkillSearchHit } from '@superliora/protocol';
 
 // ---------------------------------------------------------------------------
 // Adapter helpers

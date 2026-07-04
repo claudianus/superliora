@@ -1,6 +1,6 @@
 # Common use cases
 
-This page collects typical Kimi Code CLI scenarios along with ready-to-use prompt examples — copy them as-is or adapt them to your needs.
+This page collects typical SuperLiora CLI scenarios along with ready-to-use prompt examples — copy them as-is or adapt them to your needs.
 
 ## Understanding an unfamiliar project
 
@@ -139,7 +139,7 @@ For every public function under src/api that is missing a docstring, add a docum
 Based on the command implementations in src/cli, generate a draft command reference listing each subcommand, its arguments, and default values. Put it in docs/en/reference for me to review later.
 ```
 
-When you need a record or a retrospective, use `kimi export <sessionId>` to package the session as a ZIP, or use `/export-md` inside the TUI to export a readable Markdown transcript.
+When you need a record or a retrospective, use `liora export <sessionId>` to package the session as a ZIP, or use `/export-md` inside the TUI to export a readable Markdown transcript.
 
 ## Next steps
 

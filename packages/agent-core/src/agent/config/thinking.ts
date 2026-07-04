@@ -1,4 +1,4 @@
-import type { ThinkingEffort } from '@moonshot-ai/kosong';
+import type { ThinkingEffort } from '@superliora/kosong';
 
 import type { ThinkingConfig } from '../../config/schema';
 

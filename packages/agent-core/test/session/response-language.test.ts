@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 import type { Session } from '../../src/session';
 import { SessionAPIImpl } from '../../src/session/rpc';

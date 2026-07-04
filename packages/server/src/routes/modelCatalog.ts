@@ -7,8 +7,8 @@ import {
   listProvidersResponseSchema,
   refreshOAuthProviderModelsResponseSchema,
   setDefaultModelResponseSchema,
-} from '@moonshot-ai/protocol';
-import { IModelCatalogService, ModelNotFoundError, ProviderNotFoundError, type IInstantiationService } from '@moonshot-ai/agent-core';
+} from '@superliora/protocol';
+import { IModelCatalogService, ModelNotFoundError, ProviderNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 
 import { errEnvelope, okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';

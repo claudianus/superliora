@@ -6,10 +6,10 @@ import type {
   TelemetryClient,
   TelemetryContextPatch,
   TelemetryProperties,
-} from '@moonshot-ai/agent-core';
-import type { Kaos } from '@moonshot-ai/kaos';
-import type { KimiHostIdentity, OAuthRefreshOutcome } from '@moonshot-ai/kimi-code-oauth';
-import type { ContentPart } from '@moonshot-ai/kosong';
+} from '@superliora/agent-core';
+import type { Kaos } from '@superliora/kaos';
+import type { KimiHostIdentity, OAuthRefreshOutcome } from '@superliora/oauth';
+import type { ContentPart } from '@superliora/kosong';
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
@@ -37,8 +37,8 @@ export type {
   GoalSnapshot,
   GoalStatus,
   GoalToolResult,
-  KimiConfig,
-  KimiConfigPatch,
+  LioraConfig,
+  LioraConfigPatch,
   KnowledgePromotion,
   LoopControl,
   MemoryConsolidateResult,
@@ -92,11 +92,11 @@ export type {
   WorkGraph,
   WorkGraphNode,
   SubagentLifecycleTraceEvent,
-} from '@moonshot-ai/agent-core';
+} from '@superliora/agent-core';
 
 export type { KimiHostIdentity, OAuthRefreshOutcome };
 export type { TelemetryClient, TelemetryContextPatch, TelemetryProperties };
-export type { ContentPart, Role, ToolCall } from '@moonshot-ai/kosong';
+export type { ContentPart, Role, ToolCall } from '@superliora/kosong';
 
 export type PermissionMode = 'yolo' | 'manual' | 'auto';
 
@@ -110,7 +110,7 @@ export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'vi
 
 export type PromptInput = readonly PromptPart[];
 
-export interface KimiHarnessOptions {
+export interface LioraHarnessOptions {
   readonly identity?: KimiHostIdentity | undefined;
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;

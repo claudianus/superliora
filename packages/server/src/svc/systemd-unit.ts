@@ -28,7 +28,7 @@ export interface BuildSystemdUnitInput {
 
 export function buildSystemdUnit(input: BuildSystemdUnitInput): string {
   const execStart = input.programArguments.map(systemdEscapeArg).join(' ');
-  const description = (input.description ?? 'Kimi Code local server').trim();
+  const description = (input.description ?? 'SuperLiora local server').trim();
   assertNoLineBreaks(description, 'Systemd Description');
 
   const workingDirLine = input.workingDirectory

@@ -12,13 +12,13 @@ import {
   isContextOverflowStatusError,
   type ContentPart,
   type TokenUsage,
-} from '@moonshot-ai/kosong';
+} from '@superliora/kosong';
 import { basename } from 'pathe';
 
 import type { Agent } from '..';
 import {
   ErrorCodes,
-  type KimiErrorPayload,
+  type LioraErrorPayload,
   isKimiError,
   makeErrorPayload,
   toKimiErrorPayload,
@@ -590,7 +590,7 @@ export class TurnFlow {
     try {
       await this.agent.memory?.recordTurn({ turnId, input, reason });
     } catch (error) {
-      this.agent.log.warn('kimi recall turn capture failed', error);
+      this.agent.log.warn('liora recall turn capture failed', error);
     }
   }
 
@@ -1080,7 +1080,7 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
   }
 }
 
-function summarizeTurnError(error: unknown, turnId: number): KimiErrorPayload {
+function summarizeTurnError(error: unknown, turnId: number): LioraErrorPayload {
   const payload = toKimiErrorPayload(error);
   const details = { ...payload.details, turnId };
 
@@ -1094,7 +1094,7 @@ function summarizeTurnError(error: unknown, turnId: number): KimiErrorPayload {
   return { ...payload, details };
 }
 
-function goalFailurePauseReason(error: KimiErrorPayload | undefined): string {
+function goalFailurePauseReason(error: LioraErrorPayload | undefined): string {
   if (error?.code === ErrorCodes.PROVIDER_RATE_LIMIT) return GOAL_RATE_LIMIT_PAUSE_REASON;
   if (error?.code === ErrorCodes.PROVIDER_CONNECTION_ERROR) {
     return pauseReasonWithMessage(GOAL_PROVIDER_CONNECTION_PAUSE_PREFIX, error.message);
@@ -1142,7 +1142,7 @@ interface ApiErrorClassification {
   readonly statusCode?: number;
 }
 
-function classifyApiError(error: unknown, summary: KimiErrorPayload): ApiErrorClassification {
+function classifyApiError(error: unknown, summary: LioraErrorPayload): ApiErrorClassification {
   const statusCode = apiStatusCode(error) ?? summaryStatusCode(summary);
   if (statusCode !== undefined) {
     if (statusCode === 429) return { errorType: 'rate_limit', statusCode };
@@ -1176,16 +1176,16 @@ function apiStatusCode(error: unknown): number | undefined {
   return typeof status === 'number' ? status : undefined;
 }
 
-function summaryStatusCode(summary: KimiErrorPayload): number | undefined {
+function summaryStatusCode(summary: LioraErrorPayload): number | undefined {
   const statusCode = summary.details?.['statusCode'];
   return typeof statusCode === 'number' ? statusCode : undefined;
 }
 
-function isApiConnectionError(error: unknown, summary: KimiErrorPayload): boolean {
+function isApiConnectionError(error: unknown, summary: LioraErrorPayload): boolean {
   return error instanceof APIConnectionError || summary.name === 'APIConnectionError';
 }
 
-function isApiTimeoutError(error: unknown, summary: KimiErrorPayload): boolean {
+function isApiTimeoutError(error: unknown, summary: LioraErrorPayload): boolean {
   return (
     error instanceof APITimeoutError ||
     summary.name === 'APITimeoutError' ||
@@ -1193,7 +1193,7 @@ function isApiTimeoutError(error: unknown, summary: KimiErrorPayload): boolean {
   );
 }
 
-function isApiEmptyResponseError(error: unknown, summary: KimiErrorPayload): boolean {
+function isApiEmptyResponseError(error: unknown, summary: LioraErrorPayload): boolean {
   return error instanceof APIEmptyResponseError || summary.name === 'APIEmptyResponseError';
 }
 

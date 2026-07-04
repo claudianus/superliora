@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ContentBlock } from '@agentclientprotocol/sdk';
 
-import { log, type ToolInputDisplay } from '@moonshot-ai/kimi-code-sdk';
+import { log, type ToolInputDisplay } from '@superliora/sdk';
 
 import { acpBlocksToPromptParts, displayBlockToAcpContent } from '../src/convert';
 

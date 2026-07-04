@@ -1,5 +1,5 @@
 <!--
-Thank you for your contribution to Super Kimi Code.
+Thank you for your contribution to SuperLiora.
 Please open an issue before sending a feature PR — PRs without prior discussion may be closed without review.
 
 See the repository contribution notes before opening a PR.
@@ -17,7 +17,7 @@ Resolve #(issue_number)
 
 ## What changed
 
-<!-- What did you implement, and why does this approach fit Super Kimi Code? -->
+<!-- What did you implement, and why does this approach fit SuperLiora? -->
 
 ## Checklist
 

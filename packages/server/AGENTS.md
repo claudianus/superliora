@@ -1,16 +1,16 @@
 # server Agent Guide
 
-Package-local rules for `packages/server` (`@moonshot-ai/server`).
+Package-local rules for `packages/server` (`@superliora/server`).
 
 ## What it is
 
-The Kimi Code server. It hosts `agent-core` sessions and exposes them over REST + WebSocket under a single `/api/v1` prefix. It is consumed by `apps/kimi-code` (the CLI/TUI) — **do not add a reverse dependency** on the CLI app.
+The SuperLiora server. It hosts `agent-core` sessions and exposes them over REST + WebSocket under a single `/api/v1` prefix. It is consumed by `apps/liora` (the CLI/TUI) — **do not add a reverse dependency** on the CLI app.
 
 ## Entry points & launch
 
 - Bootstrap: `src/start.ts` exports `startServer(opts): Promise<RunningServer>`. The public surface is re-exported from `src/index.ts`.
-- Dev: run from the **repo root** with `pnpm dev:server` (auto-restart variant `pnpm dev:server:restart`). This shells into `kimi server run` via `apps/kimi-code`. This package has **no `dev` script** of its own.
-- Prod: the CLI command `kimi server run` (`apps/kimi-code/src/cli/sub/server/run.ts`) imports `startServer`.
+- Dev: run from the **repo root** with `pnpm dev:server` (auto-restart variant `pnpm dev:server:restart`). This shells into `liora server run` via `apps/liora`. This package has **no `dev` script** of its own.
+- Prod: the CLI command `liora server run` (`apps/liora/src/cli/sub/server/run.ts`) imports `startServer`.
 
 ## Layout (`src/`)
 
@@ -19,9 +19,9 @@ The Kimi Code server. It hosts `agent-core` sessions and exposes them over REST 
 - `services/` — server-owned DI adapters: `approval/`, `question/`, `gateway/` (`rest`/`ws`/`broadcast`/`connectionRegistry`/`sessionClients`/`sessionEventJournal`/`inFlightTurnTracker`), `pinoLoggerService.ts`, `serviceCollection.ts`.
 - `ws/` — `connection.ts` (`WsConnection`), `protocol.ts` (frame builders), `rawData.ts`.
 - `middleware/` — `defineRoute.ts`, `schema.ts`, `validate.ts`. `openapi/transforms.ts`.
-- `svc/` — OS service managers (launchd / systemd / schtasks) backing `kimi server install/start`.
+- `svc/` — OS service managers (launchd / systemd / schtasks) backing `liora server install/start`.
 
-## DI: how it consumes `@moonshot-ai/agent-core`
+## DI: how it consumes `@superliora/agent-core`
 
 Service conventions (naming, file layout, registration) live in `packages/agent-core/src/services/AGENTS.md` — read that before adding or changing a service. This package only wires the container:
 
@@ -33,23 +33,23 @@ Service conventions (naming, file layout, registration) live in `packages/agent-
 
 - REST is **Fastify**. All v1 routes are registered under `/api/v1` in `routes/registerApiV1Routes.ts`. Declare routes with `middleware/defineRoute.ts`: one object carries the Zod validators and the OpenAPI response schema; the `200` schema is expanded into the envelope `oneOf`.
 - `start.ts` neuters Fastify's validator/serializer compilers — validation happens in `defineRoute` preHandlers, not in Fastify's own pipeline.
-- Doc/meta endpoints in `start.ts`: `/openapi.json` (`@fastify/swagger`, lazily imported), `/asyncapi.json` (`createAsyncApiDocument` from `@moonshot-ai/protocol`), `/healthz`.
+- Doc/meta endpoints in `start.ts`: `/openapi.json` (`@fastify/swagger`, lazily imported), `/asyncapi.json` (`createAsyncApiDocument` from `@superliora/protocol`), `/healthz`.
 - WebSocket uses the `ws` package; frames/envelopes live in `ws/protocol.ts` (`server_hello`, `ack`, `event`, `resync_required`, per-session `seq`).
 
 ## Commands
 
-- `pnpm --filter @moonshot-ai/server build` — `tsdown`.
-- `pnpm --filter @moonshot-ai/server typecheck` — `tsc -p tsconfig.json --noEmit`.
-- `pnpm --filter @moonshot-ai/server test` — `vitest run`.
-- `pnpm --filter @moonshot-ai/server clean` — `rm -rf dist`.
+- `pnpm --filter @superliora/server build` — `tsdown`.
+- `pnpm --filter @superliora/server typecheck` — `tsc -p tsconfig.json --noEmit`.
+- `pnpm --filter @superliora/server test` — `vitest run`.
+- `pnpm --filter @superliora/server clean` — `rm -rf dist`.
 - Dev server: `pnpm dev:server` at the repo root.
-- E2E: in-process tests live in `test/*.e2e.test.ts` and boot `startServer` directly. Live e2e against a running server lives in `packages/server-e2e` (default `http://127.0.0.1:58627`, override with `KIMI_SERVER_URL`).
+- E2E: in-process tests live in `test/*.e2e.test.ts` and boot `startServer` directly. Live e2e against a running server lives in `packages/server-e2e` (default `http://127.0.0.1:58627`, override with `SUPERLIORA_SERVER_URL` or legacy `KIMI_SERVER_URL`).
 
 ## Gotchas / hard rules
 
 - **Path alias:** `#/*` maps to `./src/*.ts` (with `#/services/...` variants). Use `#/...`, not `@/`.
 - **Single-instance lock:** `start.ts` calls `acquireLock`; a second start throws `ServerLockedError`. Tests must pass a unique `lockPath`/`port` and use `serviceOverrides`.
-- **Port-busy policy:** the lock is acquired *before* binding, so any `EADDRINUSE` from `listen` is a third-party listener (never another kimi server). `listenWithPortRetry` then walks `port + 1`, `+ 2`, … (capped by `PORT_RETRY_LIMIT`) and calls `lockHandle.updatePort(boundPort)` so the lock advertises the real port. Port `0` (ephemeral) is never retried. The daemon spawner mirrors this in `resolveDaemonPort` (`apps/kimi-code`).
+- **Port-busy policy:** the lock is acquired *before* binding, so any `EADDRINUSE` from `listen` is a third-party listener (never another liora server). `listenWithPortRetry` then walks `port + 1`, `+ 2`, … (capped by `PORT_RETRY_LIMIT`) and calls `lockHandle.updatePort(boundPort)` so the lock advertises the real port. Port `0` (ephemeral) is never retried. The daemon spawner mirrors this in `resolveDaemonPort` (`apps/liora`).
 - **Uniform response envelope** `{ code, msg, data, request_id }` (`envelope.ts`, `error-handler.ts`); request id comes from `request-id.ts` / `genReqId`.
 - **`:action` URL convention** is handled by `routes/action-suffix.ts` (`parseActionSuffix`) — Fastify cannot disambiguate `:id` from `:id:action` on its own.
 - **`FsWatcherService` is created manually and `services.set`-registered after the collection is built** — this is ordering-sensitive; keep the boot wiring in `start.ts`.

@@ -1,12 +1,12 @@
 import { createDecorator } from '../../di';
-import type { KimiConfig, ModelAlias, ProviderConfig } from '../../config';
+import type { LioraConfig, ModelAlias, ProviderConfig } from '../../config';
 import type {
   ModelCatalogItem,
   ProviderCatalogItem,
   RefreshOAuthProviderModelsResponse,
   RefreshProviderModelsResponse,
   SetDefaultModelResponse,
-} from '@moonshot-ai/protocol';
+} from '@superliora/protocol';
 
 export type RefreshProviderModelsScope = 'all' | 'oauth';
 
@@ -77,7 +77,7 @@ export interface ProviderCredentialState {
 export function toProtocolProvider(
   providerId: string,
   provider: ProviderConfig,
-  config: KimiConfig,
+  config: LioraConfig,
   credential: ProviderCredentialState,
 ): ProviderCatalogItem {
   const models = modelIdsForProvider(config, providerId);
@@ -94,7 +94,7 @@ export function toProtocolProvider(
 }
 
 export function modelIdsForProvider(
-  config: KimiConfig,
+  config: LioraConfig,
   providerId: string,
 ): string[] {
   const models = config.models ?? {};
@@ -104,7 +104,7 @@ export function modelIdsForProvider(
 }
 
 function globalDefaultForProvider(
-  config: KimiConfig,
+  config: LioraConfig,
   providerId: string,
 ): string | undefined {
   const defaultModel = config.defaultModel;
