@@ -3,6 +3,47 @@ import type { ToolFileAccess } from '../../../loop/tool-access';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
+/**
+ * Tools that are inherently read-only — they never mutate files, runstate,
+ * or scheduled work.  In Ultra Plan read-only phases (research, design,
+ * review) these are always allowed without per-phase enumeration.
+ *
+ * When a new read-only tool is added to the codebase, add its name here and
+ * it is automatically permitted in every read-only phase.  This replaces the
+ * old per-phase hardcoded arrays that drifted out of sync (e.g. `ReadMediaFile`
+ * and `LioraContext` were allowed in research/review but not in design).
+ */
+const READ_ONLY_TOOL_NAMES = new Set<string>([
+  'Read',
+  'ReadMediaFile',
+  'Grep',
+  'Glob',
+  'LioraContext',
+  'WebSearch',
+  'FetchURL',
+  'SearchSkill',
+  'Skill',
+  'SearchExpert',
+  'TodoList',
+  'TaskList',
+  'TaskOutput',
+]);
+
+/** Phase-transition and plan-lifecycle tools that are always allowed in the
+ *  phases that need them.  Kept separate from read-only research tools. */
+const PHASE_LIFECYCLE_TOOLS = new Set<string>([
+  'NextPhase',
+  'ExitPlanMode',
+  'EnterPlanMode',
+]);
+
+/** Tools that mutate the plan file or workspace and are handled separately. */
+const PLAN_WRITE_TOOLS = new Set<string>(['Write', 'Edit']);
+
+function isReadOnlyTool(toolName: string): boolean {
+  return READ_ONLY_TOOL_NAMES.has(toolName);
+}
+
 export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
   readonly name = 'plan-mode-guard-deny';
 
@@ -64,21 +105,8 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
     const toolName = context.toolCall.name;
     switch (phase) {
       case 'research': {
-        const researchAllowed = [
-          'Read',
-          'ReadMediaFile',
-          'Grep',
-          'Glob',
-          'LioraContext',
-          'WebSearch',
-          'FetchURL',
-          'SearchSkill',
-          'Skill',
-          'SearchExpert',
-          'TodoList',
-          'NextPhase',
-        ];
-        if (researchAllowed.includes(toolName)) return;
+        // Read-only tools are always allowed in research phase.
+        if (isReadOnlyTool(toolName) || toolName === 'NextPhase') return;
         if (toolName === 'Bash') {
           if (isNarrowReadOnlyBash(context)) return;
           return {
@@ -130,19 +158,8 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         };
       }
       case 'design': {
-        const designAllowed = [
-          'Read',
-          'Grep',
-          'Glob',
-          'WebSearch',
-          'FetchURL',
-          'SearchSkill',
-          'Skill',
-          'SearchExpert',
-          'TodoList',
-          'NextPhase',
-        ];
-        if (designAllowed.includes(toolName)) return;
+        // Read-only tools are always allowed in design phase.
+        if (isReadOnlyTool(toolName) || toolName === 'NextPhase') return;
         if (toolName === 'Bash') {
           if (isReadOnlyReviewBash(context)) return;
           return {
@@ -159,27 +176,12 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Design phase. Only read-only tools, read-only Bash inspection, and TodoList progress tracking are allowed (Read, Grep, Glob, WebSearch, FetchURL, Bash inspection, SearchSkill, Skill, SearchExpert, TodoList). Use NextPhase to advance when ready.`,
+          message: `${toolName} is blocked in Design phase. Only read-only tools, read-only Bash inspection, and TodoList progress tracking are allowed. Use NextPhase to advance when ready.`,
         };
       }
       case 'review': {
-        const reviewAllowed = [
-          'Read',
-          'ReadMediaFile',
-          'Grep',
-          'Glob',
-          'LioraContext',
-          'WebSearch',
-          'FetchURL',
-          'SearchSkill',
-          'Skill',
-          'SearchExpert',
-          'TodoList',
-          'TaskList',
-          'TaskOutput',
-          'NextPhase',
-        ];
-        if (reviewAllowed.includes(toolName)) return;
+        // Read-only tools are always allowed in review phase.
+        if (isReadOnlyTool(toolName) || toolName === 'NextPhase') return;
         if (toolName === 'Bash') {
           if (isReadOnlyReviewBash(context)) return;
           return {

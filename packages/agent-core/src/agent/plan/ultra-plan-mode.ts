@@ -115,6 +115,14 @@ export interface InterviewState {
   readonly completionCandidateStreak: number;
   readonly lastReadyEvidenceHash?: string;
   readonly lastReadyRoundCount?: number;
+  /** Evidence hash of the last scored round — prevents re-calling the LLM
+   *  when the evidence has not changed (eliminates score oscillation). */
+  readonly lastScoredEvidenceHash?: string;
+  /** Cached LLM ambiguity result for the current evidence hash. */
+  readonly cachedLlmResult?: LLMAmbiguityResult;
+  /** Once true, the interview stays "ready" until a new round is added —
+   *  LLM non-determinism cannot un-ready an already-passed gate. */
+  readonly monotonicReadyLocked?: boolean;
 }
 
 export const ULTRA_PLAN_REQUIRED_SECTIONS = [
@@ -137,6 +145,10 @@ const COMPLETION_STREAK_REQUIRED = 1;
 const GOAL_CLARITY_FLOOR = 0.75;
 const CONSTRAINT_CLARITY_FLOOR = 0.65;
 const SUCCESS_CRITERIA_CLARITY_FLOOR = 0.70;
+
+/** Maximum interview rounds before the engine force-advances to Design.
+ *  Prevents infinite interview loops caused by LLM score oscillation. */
+const MAX_INTERVIEW_ROUNDS = 8;
 
 export interface UltraPlanReadiness {
   readonly ready: boolean;
@@ -240,6 +252,9 @@ export class UltraPlanModeEngine {
       completionCandidateStreak: 0,
       lastReadyEvidenceHash: undefined,
       lastReadyRoundCount: -1,
+      lastScoredEvidenceHash: undefined,
+      cachedLlmResult: undefined,
+      monotonicReadyLocked: false,
     };
   }
 
@@ -550,6 +565,9 @@ export class UltraPlanModeEngine {
     completionCandidateStreak: 0,
     lastReadyEvidenceHash: undefined,
     lastReadyRoundCount: -1,
+    lastScoredEvidenceHash: undefined,
+    cachedLlmResult: undefined,
+    monotonicReadyLocked: false,
   };
 
   get interviewState(): InterviewState {
@@ -584,6 +602,9 @@ export class UltraPlanModeEngine {
       ambiguityScore: null,
       completionCandidateStreak: 0,
       lastReadyEvidenceHash: undefined,
+      lastScoredEvidenceHash: undefined,
+      cachedLlmResult: undefined,
+      monotonicReadyLocked: false,
     };
   }
 
@@ -598,6 +619,11 @@ export class UltraPlanModeEngine {
     this._interviewState = {
       ...this._interviewState,
       rounds: [...this._interviewState.rounds, round],
+      // A new round changes the evidence — invalidate the LLM cache and
+      // unlock monotonic ready so the gate is re-evaluated fairly.
+      lastScoredEvidenceHash: undefined,
+      cachedLlmResult: undefined,
+      monotonicReadyLocked: false,
     };
   }
 
@@ -620,18 +646,43 @@ export class UltraPlanModeEngine {
    * Calculate ambiguity score from interview state using the LLM-based
    * Ouroboros-style clarity scorer. Regex heuristics have been removed; all
    * ambiguity dimensions are derived from the LLM's structured JSON response.
+   *
+   * Stability guarantees (prevents infinite interview loops):
+   * - **Evidence-keyed cache**: if the evidence text has not changed since the
+   *   last LLM call, the cached result is reused — no new LLM round, so the
+   *   score cannot oscillate between calls.
+   * - **Monotonic ready**: once `isReadyForSeed` is true for a given evidence
+   *   hash, it stays true until a new interview round changes the evidence.
+   *   LLM non-determinism cannot un-ready an already-passed gate.
+   * - **Max rounds**: after MAX_INTERVIEW_ROUNDS the engine force-advances
+   *   even if the LLM keeps producing borderline scores.
    */
   async calculateAmbiguityScore(
     signal?: AbortSignal,
     onProgress?: (text: string) => void,
   ): Promise<AmbiguityScoreResult> {
+    const evidence = this.interviewEvidenceText();
+    const evidenceHash = this._hash(evidence);
+
+    // ── Evidence-keyed cache hit: reuse the LLM result without a new call.
+    if (
+      this._interviewState.lastScoredEvidenceHash === evidenceHash &&
+      this._interviewState.cachedLlmResult !== undefined
+    ) {
+      return this.buildScoreResult(
+        this._interviewState.cachedLlmResult,
+        evidenceHash,
+        onProgress,
+        /* skipLlm */ true,
+      );
+    }
+
     this.emitProgress(onProgress, 'Analyzing your answers...');
     this.emitProgress(
       onProgress,
       'Scoring ambiguity across goal, constraints, and success criteria...',
     );
 
-    const evidence = this.interviewEvidenceText();
     const llmResult = await this._calculateAmbiguityWithLLM(evidence, signal);
     if (llmResult === null) {
       throw new Error(
@@ -640,6 +691,28 @@ export class UltraPlanModeEngine {
     }
     this._lastAmbiguityResult = llmResult;
 
+    // Cache the LLM result for this evidence hash so subsequent calls
+    // (e.g. interviewReadiness → calculateAmbiguityScore) don't re-call the
+    // LLM and produce a different score.
+    this._interviewState = {
+      ...this._interviewState,
+      lastScoredEvidenceHash: evidenceHash,
+      cachedLlmResult: llmResult,
+    };
+
+    return this.buildScoreResult(llmResult, evidenceHash, onProgress, false);
+  }
+
+  /**
+   * Build the {@link AmbiguityScoreResult} from a (possibly cached) LLM
+   * result and update the interview-state streak / monotonic-ready flags.
+   */
+  private buildScoreResult(
+    llmResult: LLMAmbiguityResult,
+    evidenceHash: string,
+    onProgress: ((text: string) => void) | undefined,
+    skipLlm: boolean,
+  ): AmbiguityScoreResult {
     const totalRounds = this._interviewState.rounds.length;
     const answerRoundClarity = Math.min(totalRounds / 3, 1.0);
     const specificityClarity = llmResult.specificityScore;
@@ -677,13 +750,27 @@ export class UltraPlanModeEngine {
       gatedOverall <= 0.3 ? 'refined' :
       gatedOverall <= 0.4 ? 'progress' : 'initial';
 
-    const isReady = (
+    let isReady = (
       gatedOverall <= AMBIGUITY_THRESHOLD &&
       openGaps.length === 0 &&
       verifiableGoal &&
       floorFailures.length === 0
     );
-    const evidenceHash = this._hash(this.interviewEvidenceText());
+
+    // ── Monotonic ready: once locked, stay ready until evidence changes.
+    if (this._interviewState.monotonicReadyLocked === true) {
+      isReady = true;
+    }
+
+    // ── Max-rounds safety: force ready after too many rounds.
+    const hitMaxRounds = totalRounds >= MAX_INTERVIEW_ROUNDS;
+    if (hitMaxRounds && !isReady) {
+      isReady = true;
+      this.emitProgress(
+        onProgress,
+        `Reached max interview rounds (${MAX_INTERVIEW_ROUNDS}). Force-advancing to Design.`,
+      );
+    }
 
     const lastReadyRoundCount = this._interviewState.lastReadyRoundCount ?? -1;
     const hasNewRoundSinceLastReady =
@@ -697,6 +784,9 @@ export class UltraPlanModeEngine {
         completionCandidateStreak: this._interviewState.completionCandidateStreak + 1,
         lastReadyEvidenceHash: evidenceHash,
         lastReadyRoundCount: this._interviewState.rounds.length,
+        // Lock monotonic ready so subsequent calls with the same evidence
+        // cannot un-ready the gate due to LLM non-determinism.
+        monotonicReadyLocked: true,
       };
     } else {
       this._interviewState = {
@@ -704,6 +794,8 @@ export class UltraPlanModeEngine {
         completionCandidateStreak: isReady ? this._interviewState.completionCandidateStreak : 0,
         lastReadyEvidenceHash: isReady ? this._interviewState.lastReadyEvidenceHash : undefined,
         lastReadyRoundCount: isReady ? this._interviewState.lastReadyRoundCount : -1,
+        // Only unlock when a genuinely new round makes isReady false.
+        monotonicReadyLocked: isReady ? this._interviewState.monotonicReadyLocked : false,
       };
     }
 
