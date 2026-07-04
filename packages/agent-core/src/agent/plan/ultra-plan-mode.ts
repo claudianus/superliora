@@ -65,7 +65,7 @@ export interface DriftMetrics {
   readonly ontologyDrift: number;
 }
 
-export const ULTRA_PLAN_DRIFT_THRESHOLD = 0.3;
+export const ULTRA_PLAN_DRIFT_THRESHOLD = 0.4;
 
 export function combinedDrift(metrics: DriftMetrics): number {
   return metrics.goalDrift * 0.5 + metrics.constraintDrift * 0.3 + metrics.ontologyDrift * 0.2;
@@ -784,14 +784,14 @@ export class UltraPlanModeEngine {
     return ULTRA_PLAN_REQUIRED_SECTIONS.filter((section) => !presentSet.has(section));
   }
 
-  async readinessBlockerMessage(): Promise<string> {
-    const readiness = await this.interviewReadiness();
-    const gaps = readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ');
-    const floorFailures = readiness.floorFailures.length === 0 ? 'none' : readiness.floorFailures.join('; ');
+  async readinessBlockerMessage(readiness?: UltraPlanReadiness): Promise<string> {
+    const resolved = readiness ?? (await this.interviewReadiness());
+    const gaps = resolved.openGaps.length === 0 ? 'none' : resolved.openGaps.join(', ');
+    const floorFailures = resolved.floorFailures.length === 0 ? 'none' : resolved.floorFailures.join('; ');
     return [
       'UltraPlan interview is not ready for Design.',
-      `ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)}`,
-      `verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'}`,
+      `ambiguity=${resolved.ambiguityScore.overallScore.toFixed(3)}`,
+      `verifiable_goal=${resolved.verifiableGoal ? 'true' : 'false'}`,
       `dimension_floor_failures=${floorFailures}`,
       `open_gaps=${gaps}`,
       'Continue AskUserQuestion until the UltraGoal is true/false-verifiable, every clarity floor is met, and every required Seed section is resolved.',

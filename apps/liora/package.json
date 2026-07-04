@@ -78,6 +78,10 @@
     "koffi": "^2.16.0",
     "node-pty": "^1.1.0"
   },
+  "dependencies": {
+    "cloakbrowser": "0.4.5",
+    "playwright-core": "^1.61.1"
+  },
   "devDependencies": {
     "@harness-kit/tui-renderer": "workspace:^",
     "@superliora/acp-adapter": "workspace:^",

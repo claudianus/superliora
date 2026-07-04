@@ -328,7 +328,7 @@ describe('ExitPlanModeTool', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('ExitPlanMode blocked');
-    expect(result.output).toContain('Combined Drift: 0.622 (threshold: 0.3)');
+    expect(result.output).toContain('Combined Drift: 0.622 (threshold: 0.4)');
     expect(result.output).toContain('Status: BLOCKED');
     expect(result.output).toContain('Ultra Plan interview has been reopened');
     expect(result.output).toContain('Ask 1-3 focused AskUserQuestion questions');
