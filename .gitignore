@@ -30,14 +30,18 @@ reports/
 .ouroboros/
 .ouroboros_eval_artifact.md
 /kimi-code/
-.super-kimi/evidence/
-.super-kimi/wiki/
-.super-kimi/boulder.json
-.super-kimi/drafts/
-.super-kimi/notepads/
-.super-kimi/plans/
-.super-kimi/research/
-.super-kimi/runbooks/
-.super-kimi/scripts/
-.super-kimi/start-work/
-.super-kimi/ulw-loop/
+plan/
+# `.super-kimi/` sub-paths below use a `**/` prefix so they are also ignored
+# when a tool creates them under a nested package/app directory (e.g.
+# `apps/kimi-code/.super-kimi/`) instead of the repo root.
+**/.super-kimi/evidence/
+**/.super-kimi/wiki/
+**/.super-kimi/boulder.json
+**/.super-kimi/drafts/
+**/.super-kimi/notepads/
+**/.super-kimi/plans/
+**/.super-kimi/research/
+**/.super-kimi/runbooks/
+**/.super-kimi/scripts/
+**/.super-kimi/start-work/
+**/.super-kimi/ulw-loop/
