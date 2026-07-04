@@ -89,7 +89,17 @@ You can only advance forward, never backward.`;
         };
       }
       if (this.agent.planMode.ultraEngine.seedSpec === null) {
-        const seed = await this.agent.planMode.ultraEngine.autoGenerateSeedSpecFromInterview('UltraGoal');
+        const seed = await this.agent.planMode.ultraEngine.autoGenerateSeedSpecFromInterview(
+          'UltraGoal',
+          undefined,
+          (delta) => {
+            this.agent.emitEvent({
+              type: 'thinking.delta',
+              turnId: this.agent.turn.currentTurnId() ?? 0,
+              delta,
+            });
+          },
+        );
         this.agent.planMode.ultraEngine.setSeedSpec(seed);
       }
     }

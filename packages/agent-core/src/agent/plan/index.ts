@@ -172,8 +172,15 @@ export class PlanMode {
   ): Promise<void> {
     if (!this._isActive || !this._isUltraMode || this._phase !== 'interview') return;
     this.ultraEngine.recordInterviewAnswers(questions, answers);
-    await this.ultraEngine.calculateAmbiguityScore();
+    await this.ultraEngine.calculateAmbiguityScore(undefined, (delta) => {
+      this.emitThinkingDelta(delta);
+    });
     this._interviewRoundCount = this.ultraEngine.interviewState.rounds.length;
+  }
+
+  private emitThinkingDelta(delta: string): void {
+    const turnId = this.agent.turn.currentTurnId() ?? 0;
+    this.agent.emitEvent({ type: 'thinking.delta', turnId, delta });
   }
 
   async data(): Promise<PlanData> {

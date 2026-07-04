@@ -115,6 +115,12 @@ export class TurnFlow {
 
   constructor(protected readonly agent: Agent) {}
 
+  /** Returns the id of the currently active turn, or undefined if no turn is running. */
+  currentTurnId(): number | undefined {
+    if (this.activeTurn === null || this.activeTurn === 'resuming') return undefined;
+    return this.activeTurn.turnId;
+  }
+
   /** Best-effort agent id (main / generated id) derived from the agent homedir. */
   private get agentId(): string {
     return this.agent.homedir ? basename(this.agent.homedir) : this.agent.type;

@@ -210,7 +210,7 @@ describe('UltraPlanModeEngine', () => {
       expect(scored.isReadyForSeed).toBe(true);
       expect(engine.interviewState.ambiguityScore).toEqual(scored);
       expect(engine.interviewState.completionCandidateStreak).toBe(1);
-      expect(await engine.canAutoComplete()).toBe(false);
+      expect(await engine.canAutoComplete()).toBe(true);
 
       engine.addInterviewRound(
         'Confirm the Seed is complete without changing scope.',
@@ -220,6 +220,79 @@ describe('UltraPlanModeEngine', () => {
 
       expect(engine.interviewState.completionCandidateStreak).toBe(2);
       expect(await engine.canAutoComplete()).toBe(true);
+    });
+
+    it('emits progress messages while scoring ambiguity', async () => {
+      const engine = new UltraPlanModeEngine(createMockAgent(ambiguityResponse()));
+      engine.startInterview('Build a simple CLI tool');
+      engine.addInterviewRound('What is the goal?', 'Goal: build a simple CLI tool.');
+
+      const progress: string[] = [];
+      const result = await engine.calculateAmbiguityScore(undefined, (text) => progress.push(text));
+
+      expect(progress).toContain('Analyzing your answers...');
+      expect(progress).toContain(
+        'Scoring ambiguity across goal, constraints, and success criteria...',
+      );
+      expect(progress.some((text) => text.startsWith('Goal clarity:'))).toBe(true);
+      expect(progress.some((text) => text.startsWith('Constraint clarity:'))).toBe(true);
+      expect(progress.some((text) => text.startsWith('Success criteria clarity:'))).toBe(true);
+      expect(progress.some((text) => text.startsWith('Open Seed gaps:'))).toBe(true);
+      expect(progress.some((text) => text.includes('Seed Spec is ready.'))).toBe(true);
+      expect(result.isReadyForSeed).toBe(true);
+    });
+
+    it('emits progress messages for open gaps while scoring ambiguity', async () => {
+      const engine = new UltraPlanModeEngine(
+        createMockAgent(
+          ambiguityResponse({
+            present_sections: ['goal'],
+            goal_clarity_score: 0.6,
+            constraint_clarity_score: 0.5,
+            success_criteria_clarity_score: 0.5,
+            specificity_score: 0.5,
+          }),
+        ),
+      );
+      engine.startInterview('Implement a guarded Ultrawork mode');
+      engine.addInterviewRound(
+        'What is the goal?',
+        'Goal: implement a verifiable UltraGoal.',
+      );
+
+      const progress: string[] = [];
+      const result = await engine.calculateAmbiguityScore(undefined, (text) => progress.push(text));
+
+      expect(progress.some((text) => text.startsWith('Open Seed gaps:'))).toBe(true);
+      expect(progress.some((text) => text.includes('Preparing next question...'))).toBe(true);
+      expect(result.isReadyForSeed).toBe(false);
+    });
+
+    it('emits progress messages while extracting Seed Spec', async () => {
+      const llmOutput = JSON.stringify({
+        goal: 'Build a Korean danmaku game',
+        taskType: 'code',
+        constraints: ['Phaser 4 CDN', 'no external assets'],
+        acceptanceCriteria: ['60fps', '3 spell cards'],
+        ontology: {
+          name: 'DanmakuEmperor',
+          description: 'Game domain',
+          fields: [{ name: 'spellCard', type: 'string', description: 'Boss phase', required: true }],
+        },
+        evaluationPrinciples: [{ name: 'performance', description: '60fps', weight: 1.0 }],
+        exitConditions: [{ name: 'tests pass', description: 'All tests pass', criteria: 'CI green' }],
+        ambiguityScore: 0.1,
+      });
+      const engine = new UltraPlanModeEngine(createMockAgent(textResponse(llmOutput)));
+      engine.startInterview('Build a danmaku game');
+
+      const progress: string[] = [];
+      await engine.autoGenerateSeedSpecFromInterview('DanmakuEmperor', undefined, (text) =>
+        progress.push(text),
+      );
+
+      expect(progress).toContain('Extracting Seed Spec from interview evidence...');
+      expect(progress).toContain('Seed Spec extracted.');
     });
 
     it('keeps interview blocked until every required seed ledger gap is closed', async () => {
@@ -289,7 +362,7 @@ describe('UltraPlanModeEngine', () => {
       );
       await engine.calculateAmbiguityScore();
       expect(engine.interviewState.completionCandidateStreak).toBe(1);
-      expect(await engine.canAutoComplete()).toBe(false);
+      expect(await engine.canAutoComplete()).toBe(true);
 
       // Simulate a hash collision: all evidence hashes look identical, so the old
       // evidence-hash-only check would never count the second ready round.
@@ -333,7 +406,7 @@ describe('UltraPlanModeEngine', () => {
       expect(readiness.openGaps).toEqual([]);
       expect(readiness.verifiableGoal).toBe(true);
       expect(readiness.ambiguityScore.overallScore).toBeLessThanOrEqual(0.2);
-      expect(readiness.stableReady).toBe(false);
+      expect(readiness.stableReady).toBe(true);
       expect(readiness.completionCandidateStreak).toBe(1);
     });
   });

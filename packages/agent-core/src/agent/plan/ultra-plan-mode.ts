@@ -133,7 +133,7 @@ export const ULTRA_PLAN_REQUIRED_SECTIONS = [
 export type UltraPlanRequiredSection = typeof ULTRA_PLAN_REQUIRED_SECTIONS[number];
 
 const AMBIGUITY_THRESHOLD = 0.2;
-const COMPLETION_STREAK_REQUIRED = 2;
+const COMPLETION_STREAK_REQUIRED = 1;
 const GOAL_CLARITY_FLOOR = 0.75;
 const CONSTRAINT_CLARITY_FLOOR = 0.65;
 const SUCCESS_CRITERIA_CLARITY_FLOOR = 0.70;
@@ -621,7 +621,16 @@ export class UltraPlanModeEngine {
    * Ouroboros-style clarity scorer. Regex heuristics have been removed; all
    * ambiguity dimensions are derived from the LLM's structured JSON response.
    */
-  async calculateAmbiguityScore(signal?: AbortSignal): Promise<AmbiguityScoreResult> {
+  async calculateAmbiguityScore(
+    signal?: AbortSignal,
+    onProgress?: (text: string) => void,
+  ): Promise<AmbiguityScoreResult> {
+    this.emitProgress(onProgress, 'Analyzing your answers...');
+    this.emitProgress(
+      onProgress,
+      'Scoring ambiguity across goal, constraints, and success criteria...',
+    );
+
     const evidence = this.interviewEvidenceText();
     const llmResult = await this._calculateAmbiguityWithLLM(evidence, signal);
     if (llmResult === null) {
@@ -742,6 +751,32 @@ export class UltraPlanModeEngine {
       ambiguityScore: result,
     };
 
+    this.emitProgress(
+      onProgress,
+      `Goal clarity: ${goalClarity.toFixed(2)} — ${llmResult.justifications.goal}`,
+    );
+    this.emitProgress(
+      onProgress,
+      `Constraint clarity: ${constraintClarity.toFixed(2)} — ${llmResult.justifications.constraints}`,
+    );
+    this.emitProgress(
+      onProgress,
+      `Success criteria clarity: ${criteriaClarity.toFixed(2)} — ${llmResult.justifications.successCriteria}`,
+    );
+    this.emitProgress(
+      onProgress,
+      `Open Seed gaps: ${openGaps.length === 0 ? 'none' : openGaps.join(', ')}`,
+    );
+    if (floorFailures.length > 0) {
+      this.emitProgress(onProgress, `Dimension floor failures: ${floorFailures.join('; ')}`);
+    }
+    this.emitProgress(
+      onProgress,
+      result.isReadyForSeed
+        ? 'Seed Spec is ready. Preparing next question...'
+        : 'Preparing next question...',
+    );
+
     return result;
   }
 
@@ -757,10 +792,12 @@ export class UltraPlanModeEngine {
   }
 
   async interviewReadiness(): Promise<UltraPlanReadiness> {
-    const stableReady = await this.canAutoComplete();
-    const ambiguityScore = this._interviewState.ambiguityScore!;
+    const ambiguityScore = await this.calculateAmbiguityScore();
     const openGaps = await this.openSeedGaps();
     const verifiableGoal = this._lastAmbiguityResult?.verifiableGoal ?? false;
+    const stableReady =
+      ambiguityScore.isReadyForSeed &&
+      this._interviewState.completionCandidateStreak >= COMPLETION_STREAK_REQUIRED;
     return {
       ready: ambiguityScore.isReadyForSeed && openGaps.length === 0 && verifiableGoal,
       stableReady,
@@ -805,15 +842,27 @@ export class UltraPlanModeEngine {
   async autoGenerateSeedSpecFromInterview(
     ontologyName: string,
     signal?: AbortSignal,
+    onProgress?: (text: string) => void,
   ): Promise<SeedSpec> {
+    this.emitProgress(onProgress, 'Extracting Seed Spec from interview evidence...');
     const allText = this.interviewEvidenceText();
     const llmResult = await this._extractSeedSpecFromLLM(allText, ontologyName, signal);
     if (llmResult !== null) {
+      this.emitProgress(onProgress, 'Seed Spec extracted.');
       return this._normalizeSeedSpec(llmResult, ontologyName, true);
     }
     throw new Error(
       'LLM-based Seed Spec extraction failed: the LLM is unavailable or returned invalid JSON.',
     );
+  }
+
+  private emitProgress(onProgress: ((text: string) => void) | undefined, text: string): void {
+    if (onProgress === undefined) return;
+    try {
+      onProgress(text);
+    } catch {
+      // Progress is best-effort; do not let a listener failure break the engine.
+    }
   }
 
   private interviewEvidenceText(): string {
