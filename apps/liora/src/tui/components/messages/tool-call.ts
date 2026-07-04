@@ -35,7 +35,7 @@ import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import type { TokenUsage } from '@superliora/sdk';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
-import { renderAnimatedGradientText, renderPulseText } from '#/tui/utils/appearance-effects';
+import { renderAnimatedGradientText, renderPulseText, appearanceAnimationNow } from '#/tui/utils/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
 
@@ -540,8 +540,15 @@ export class ToolCallComponent extends Container {
   private subagentUsage: TokenUsage | undefined;
   private subagentResultSummary: string | undefined;
   private subagentError: string | undefined;
-  private streamingProgressTimer: ReturnType<typeof setInterval> | undefined;
-  private subagentElapsedTimer: ReturnType<typeof setInterval> | undefined;
+  // ── Clock-driven periodic refresh ────────────────────────────────
+  //
+  // Streaming-progress and subagent-elapsed counters previously used private
+  // setInterval(1s) timers.  They now tick off the shared animation clock
+  // during render() — see PREMIUM.md §7.1.  We track the last update so we
+  // only rebuild the body/header once per second even when the render loop
+  // fires faster.
+  private lastStreamingProgressTickMs = 0;
+  private lastSubagentElapsedTickMs = 0;
   private subagentStartedAtMs: number | undefined;
   private subagentEndedAtMs: number | undefined;
 
@@ -603,11 +610,54 @@ export class ToolCallComponent extends Container {
   private readonly renderCache = new RendererChildrenRenderCache();
 
   override render(width: number): string[] {
+    // Clock-driven periodic refresh: advance the streaming-progress and
+    // subagent-elapsed counters from the shared animation clock instead of
+    // private setInterval timers. See PREMIUM.md §7.1.
+    this.tickClockDrivenRefresh();
     return this.renderCache.render({
       width,
       children: this.children,
       isCacheEnabled: isRenderCacheEnabled,
     });
+  }
+
+  /**
+   * Advance the streaming-progress and subagent-elapsed counters from the
+   * shared animation clock.  Only rebuilds once per
+   * STREAMING_PROGRESS_INTERVAL_MS / SUBAGENT_ELAPSED_INTERVAL_MS, even when
+   * the render loop fires faster.
+   */
+  private tickClockDrivenRefresh(): void {
+    const now = appearanceAnimationNow();
+
+    // Streaming-edit progress.
+    if (this.isStreamingEditPreview()) {
+      if (now - this.lastStreamingProgressTickMs >= STREAMING_PROGRESS_INTERVAL_MS) {
+        this.lastStreamingProgressTickMs = now;
+        this.rebuildBody();
+        this.ui?.requestRender();
+      }
+    } else {
+      this.lastStreamingProgressTickMs = 0;
+    }
+
+    // Subagent elapsed timer.
+    const phase = this.getDerivedSubagentPhase();
+    const subagentShouldTick =
+      this.isSingleSubagentView() &&
+      this.subagentStartedAtMs !== undefined &&
+      (phase === 'queued' || phase === 'spawning' || phase === 'running');
+    if (subagentShouldTick) {
+      if (now - this.lastSubagentElapsedTickMs >= SUBAGENT_ELAPSED_INTERVAL_MS) {
+        this.lastSubagentElapsedTickMs = now;
+        this.headerText.setText(this.buildHeader());
+        this.invalidate();
+        this.notifySnapshotChange();
+        this.ui?.requestRender();
+      }
+    } else {
+      this.lastSubagentElapsedTickMs = 0;
+    }
   }
 
   override invalidate(): void {
@@ -693,8 +743,6 @@ export class ToolCallComponent extends Container {
   }
 
   dispose(): void {
-    this.stopStreamingProgressTimer();
-    this.stopSubagentElapsedTimer();
     this.stopDetachHintTimer();
   }
 
@@ -893,26 +941,12 @@ export class ToolCallComponent extends Container {
     );
   }
 
+  // Streaming-progress and subagent-elapsed timers were replaced by
+  // clock-driven refresh in tickClockDrivenRefresh() — see render().
+  // These no-op stubs remain so callers (setResult, updateToolCall) don't
+  // need to change their call sites.
   private syncStreamingProgressTimer(): void {
-    if (!this.isStreamingEditPreview()) {
-      this.stopStreamingProgressTimer();
-      return;
-    }
-    if (this.ui === undefined || this.streamingProgressTimer !== undefined) return;
-    this.streamingProgressTimer = setInterval(() => {
-      if (!this.isStreamingEditPreview()) {
-        this.stopStreamingProgressTimer();
-        return;
-      }
-      this.rebuildBody();
-      this.ui?.requestRender();
-    }, STREAMING_PROGRESS_INTERVAL_MS);
-  }
-
-  private stopStreamingProgressTimer(): void {
-    if (this.streamingProgressTimer === undefined) return;
-    clearInterval(this.streamingProgressTimer);
-    this.streamingProgressTimer = undefined;
+    // Clock-driven in render().
   }
 
   /** Only foreground Bash/Agent calls can be detached via Ctrl+B. */
@@ -955,34 +989,10 @@ export class ToolCallComponent extends Container {
     this.addChild(new Text(currentTheme.dim(DETACH_HINT_TEXT), 2, 0));
   }
 
+  // syncSubagentElapsedTimer / stopSubagentElapsedTimer were replaced by
+  // clock-driven refresh in tickClockDrivenRefresh() — see render().
   private syncSubagentElapsedTimer(): void {
-    const phase = this.getDerivedSubagentPhase();
-    const shouldTick =
-      this.isSingleSubagentView() &&
-      this.subagentStartedAtMs !== undefined &&
-      (phase === 'queued' || phase === 'spawning' || phase === 'running');
-    if (!shouldTick) {
-      this.stopSubagentElapsedTimer();
-      return;
-    }
-    if (this.ui === undefined || this.subagentElapsedTimer !== undefined) return;
-    this.subagentElapsedTimer = setInterval(() => {
-      const latestPhase = this.getDerivedSubagentPhase();
-      if (latestPhase !== 'queued' && latestPhase !== 'spawning' && latestPhase !== 'running') {
-        this.stopSubagentElapsedTimer();
-        return;
-      }
-      this.headerText.setText(this.buildHeader());
-      this.invalidate();
-      this.notifySnapshotChange();
-      this.ui?.requestRender();
-    }, SUBAGENT_ELAPSED_INTERVAL_MS);
-  }
-
-  private stopSubagentElapsedTimer(): void {
-    if (this.subagentElapsedTimer === undefined) return;
-    clearInterval(this.subagentElapsedTimer);
-    this.subagentElapsedTimer = undefined;
+    // Clock-driven in render().
   }
 
   private finalizeSubagentElapsedIfNeeded(): void {

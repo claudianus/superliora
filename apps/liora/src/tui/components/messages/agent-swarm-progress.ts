@@ -226,7 +226,7 @@ export class AgentSwarmProgressComponent implements Component {
   private toolCallActive = true;
   private promptTemplateText = '';
   private activitySpinnerText: (() => string) | undefined;
-  private timer: ReturnType<typeof setInterval> | undefined;
+  private lastFrameTickMs = 0;
 
   constructor(options: AgentSwarmProgressOptions) {
     this.description = options.description;
@@ -242,9 +242,8 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   dispose(): void {
-    if (this.timer === undefined) return;
-    clearInterval(this.timer);
-    this.timer = undefined;
+    // No private timer to clear — animation is clock-driven via
+    // tickClockDrivenAnimation() called from render().
   }
 
   invalidate(): void {}
@@ -474,6 +473,10 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   render(width: number): string[] {
+    // Clock-driven animation: request a render frame from the shared loop
+    // ticker instead of a private setInterval. See PREMIUM.md §7.1.
+    this.tickClockDrivenAnimation();
+
     const outerWidth = Math.max(1, width);
     const innerWidth = Math.max(
       1,
@@ -766,16 +769,26 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   private startAnimationIfNeeded(): void {
-    if (this.requestRender === undefined || this.timer !== undefined) return;
-    if (!this.hasAnimatedMembers()) return;
-    const requestRender = this.requestRender;
-    this.timer = setInterval(() => {
-      requestRender();
-      if (!this.hasAnimatedMembers()) this.dispose();
-    }, FRAME_INTERVAL_MS);
-    if (typeof this.timer === 'object' && 'unref' in this.timer) {
-      this.timer.unref();
+    // No-op: animation is now clock-driven via tickClockDrivenAnimation()
+    // called from render(). Kept as a stub so the many call sites don't need
+    // to change.
+  }
+
+  /**
+   * Clock-driven animation tick.  Instead of a private setInterval, we
+   * request a render frame from the shared loop ticker at most once per
+   * FRAME_INTERVAL_MS.  When no members are animating, the tick is a no-op.
+   */
+  private tickClockDrivenAnimation(): void {
+    if (this.requestRender === undefined) return;
+    if (!this.hasAnimatedMembers()) {
+      this.lastFrameTickMs = 0;
+      return;
     }
+    const now = Date.now();
+    if (this.lastFrameTickMs !== 0 && now - this.lastFrameTickMs < FRAME_INTERVAL_MS) return;
+    this.lastFrameTickMs = now;
+    this.requestRender();
   }
 
   private hasAnimatedMembers(): boolean {
