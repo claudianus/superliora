@@ -22,6 +22,7 @@ import {
 } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
 
@@ -33,8 +34,6 @@ export class ThinkingComponent implements Component {
   private mode: ThinkingRenderMode;
   private expanded = false;
   private readonly ui: RendererRootUI | undefined;
-  private spinnerFrame = 0;
-  private spinnerInterval: ReturnType<typeof setInterval> | undefined;
   private readonly startedAt: number | undefined;
   private finishedAt: number | undefined;
   // Hold a single Text instance so the renderer's (text, width) -> lines cache
@@ -57,9 +56,6 @@ export class ThinkingComponent implements Component {
     this.ui = ui;
     this.startedAt = mode === 'live' ? Date.now() : undefined;
     this.textComponent = new Text(this.styled(text), 0, 0);
-    if (mode === 'live') {
-      this.startSpinner();
-    }
   }
 
   private markRenderDirty(): void {
@@ -88,12 +84,9 @@ export class ThinkingComponent implements Component {
       this.finishedAt = Date.now();
     }
     this.markRenderDirty();
-    this.stopSpinner();
   }
 
-  dispose(): void {
-    this.stopSpinner();
-  }
+  dispose(): void {}
 
   setExpanded(expanded: boolean): void {
     if (this.expanded === expanded) return;
@@ -102,6 +95,10 @@ export class ThinkingComponent implements Component {
   }
 
   render(width: number): string[] {
+    // In live mode the spinner frame advances with the shared animation clock.
+    // Clear the render cache so the spinner glyph is always fresh even when the
+    // thinking text itself hasn't changed between frames.  See PREMIUM.md §7.1.
+    if (this.mode === 'live') this.markRenderDirty();
     return this.renderCache.render({
       width,
       isCacheEnabled: isRenderCacheEnabled,
@@ -117,9 +114,12 @@ export class ThinkingComponent implements Component {
               tail: true,
             }).lines
             : [];
+          const spinnerFrame =
+            Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
+            BRAILLE_SPINNER_FRAMES.length;
           const spinner = currentTheme.fg(
             'textDim',
-            `${BRAILLE_SPINNER_FRAMES[this.spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
+            `${BRAILLE_SPINNER_FRAMES[spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
           );
           const elapsed = this.renderElapsedSuffix();
           return [
@@ -154,23 +154,8 @@ export class ThinkingComponent implements Component {
     });
   }
 
-  private startSpinner(): void {
-    if (this.ui === undefined || this.spinnerInterval !== undefined) return;
-    this.spinnerInterval = setInterval(() => {
-      this.spinnerFrame = (this.spinnerFrame + 1) % BRAILLE_SPINNER_FRAMES.length;
-      this.markRenderDirty();
-      this.ui?.requestRender();
-    }, BRAILLE_SPINNER_INTERVAL_MS);
-  }
-
   private renderElapsedSuffix(): string {
     if (this.startedAt === undefined) return '';
     return ` ${formatElapsedTime(this.startedAt, this.finishedAt)}`;
-  }
-
-  private stopSpinner(): void {
-    if (this.spinnerInterval === undefined) return;
-    clearInterval(this.spinnerInterval);
-    this.spinnerInterval = undefined;
   }
 }

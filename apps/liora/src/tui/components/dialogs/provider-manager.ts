@@ -537,7 +537,7 @@ function renderRow(
         : currentTheme.fg('text', text);
 
   // The active provider is flagged with a trailing "← current" (success),
-  // matching the model selector's current-item marker — see .agents/skills/write-tui/DESIGN.md.
+  // matching the model selector's current-item marker — see src/tui/PREMIUM.md § Selection language.
   const isActive = row.kind === 'source' && row.hasActive;
   const marker = isActive ? ` ${CURRENT_MARK}` : '';
 

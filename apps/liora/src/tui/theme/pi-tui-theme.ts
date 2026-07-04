@@ -41,10 +41,10 @@ export function createMarkdownTheme(options?: { transient?: boolean }): Markdown
     // prefix. Ordered lists arrive as "1. " / "2. " and are left
     // untouched by the leading-dash anchor.
     listBullet: (text) => chalk.hex(currentTheme.color('text'))(text.replace(/^-/, '•')),
-    bold: (text) => chalk.bold(text),
-    italic: (text) => chalk.italic(text),
-    strikethrough: (text) => chalk.strikethrough(text),
-    underline: (text) => chalk.underline(text),
+    bold: (text) => chalk.hex(currentTheme.color('textStrong')).bold(text),
+    italic: (text) => chalk.hex(currentTheme.color('text')).italic(text),
+    strikethrough: (text) => chalk.hex(currentTheme.color('textMuted')).strikethrough(text),
+    underline: (text) => chalk.hex(currentTheme.color('primary')).underline(text),
     highlightCode: (code: string, lang?: string) => {
       if (transient) return code.split('\n');
 

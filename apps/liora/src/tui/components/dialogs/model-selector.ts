@@ -100,7 +100,7 @@ function effectiveThinking(model: ModelAlias, thinkingDraft: boolean): boolean {
  * One navigation axis: ↑/↓ move the cursor (PgUp/PgDn page), typing fuzzy-filters
  * across every provider (provider name included), and ←/→ toggle the thinking
  * draft for models that support it. There are no provider tabs — filtering by
- * typing a provider name replaces them. See .agents/skills/write-tui/DESIGN.md.
+ * typing a provider name replaces them. See src/tui/PREMIUM.md § List dialogs.
  */
 export class ModelSelectorComponent extends Container implements Focusable {
   focused = false;

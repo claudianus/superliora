@@ -10,7 +10,7 @@
  * forwarded to the active inner selector; Tab / Shift-Tab cycle between tabs.
  *
  * The active tab is highlighted with a filled background (matching the
- * AskUserQuestion dialog's tab strip) — see .agents/skills/write-tui/DESIGN.md.
+ * AskUserQuestion dialog's tab strip) — see src/tui/PREMIUM.md § Tab strips.
  */
 
 import type { ModelAlias } from '@superliora/sdk';

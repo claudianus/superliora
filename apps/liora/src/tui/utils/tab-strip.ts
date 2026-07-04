@@ -2,7 +2,7 @@
  * Shared tab strip renderer for tabbed dialogs (model selector, plugin
  * marketplace, …). The active tab is filled with the brand background, inactive
  * tabs are muted — matching the AskUserQuestion dialog. See
- * .agents/skills/write-tui/DESIGN.md §5.
+ * src/tui/PREMIUM.md § Tab strips.
  *
  * When the strip is wider than the terminal, it scrolls to keep the active tab
  * visible, framed by `<`/`>` markers.

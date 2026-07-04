@@ -18,6 +18,7 @@ import type { RendererRootUI } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
 
 const BLINK_INTERVAL = 500;
 
@@ -26,8 +27,6 @@ export class CompactionComponent extends Container {
   private readonly headerText: Text;
   private readonly instruction: string | undefined;
   private readonly tip: string | undefined;
-  private blinkOn = true;
-  private blinkTimer: ReturnType<typeof setInterval> | null = null;
   private done = false;
   private canceled = false;
   private tokensBefore: number | undefined;
@@ -45,8 +44,6 @@ export class CompactionComponent extends Container {
     this.headerText = new Text(this.buildHeader(), 0, 0);
     this.addChild(this.headerText);
     this.addInstructionChild();
-
-    this.startBlink();
   }
 
   private addInstructionChild(): void {
@@ -70,12 +67,21 @@ export class CompactionComponent extends Container {
     super.invalidate();
   }
 
+  override render(width: number): string[] {
+    // Recompute the blink state from the shared animation clock so the bullet
+    // pulses with the render loop's ticker instead of a private setInterval.
+    // See PREMIUM.md §7.1 (single animation clock).
+    if (!this.done && !this.canceled) {
+      this.headerText.setText(this.buildHeader());
+    }
+    return super.render(width);
+  }
+
   markDone(tokensBefore?: number, tokensAfter?: number): void {
     if (this.done || this.canceled) return;
     this.done = true;
     this.tokensBefore = tokensBefore;
     this.tokensAfter = tokensAfter;
-    this.stopBlink();
     this.headerText.setText(this.buildHeader());
     this.ui?.requestRender();
   }
@@ -83,14 +89,11 @@ export class CompactionComponent extends Container {
   markCanceled(): void {
     if (this.done || this.canceled) return;
     this.canceled = true;
-    this.stopBlink();
     this.headerText.setText(this.buildHeader());
     this.ui?.requestRender();
   }
 
-  dispose(): void {
-    this.stopBlink();
-  }
+  dispose(): void {}
 
   private buildHeader(): string {
     if (this.done) {
@@ -107,24 +110,11 @@ export class CompactionComponent extends Container {
       const label = currentTheme.boldFg('warning', 'Compaction cancelled');
       return `${bullet}${label}`;
     }
-    const bullet = this.blinkOn ? currentTheme.fg('text', STATUS_BULLET) : '  ';
+    // Derive the blink phase from the animation clock — no private timer.
+    const blinkOn = Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0;
+    const bullet = blinkOn ? currentTheme.fg('text', STATUS_BULLET) : '  ';
     const label = currentTheme.boldFg('primary', 'Compacting context...');
     const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
     return `${bullet}${label}${tip}`;
-  }
-
-  private startBlink(): void {
-    this.blinkTimer = setInterval(() => {
-      this.blinkOn = !this.blinkOn;
-      this.headerText.setText(this.buildHeader());
-      this.ui?.requestRender();
-    }, BLINK_INTERVAL);
-  }
-
-  private stopBlink(): void {
-    if (this.blinkTimer !== null) {
-      clearInterval(this.blinkTimer);
-      this.blinkTimer = null;
-    }
   }
 }

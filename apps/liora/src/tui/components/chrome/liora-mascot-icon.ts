@@ -14,6 +14,7 @@ export interface LioraMascotOptions {
 }
 
 export const PREMIUM_MASCOT_FRAMES: readonly (readonly string[])[] = [
+  // Frame 0 — rest: thin border, calm glyph
   [
     '  ╭─────╮  ',
     ' ╱       ╲ ',
@@ -21,14 +22,35 @@ export const PREMIUM_MASCOT_FRAMES: readonly (readonly string[])[] = [
     ' ╲       ╱ ',
     '  ╰─────╯  ',
   ],
+  // Frame 1 — rising: heavy border, awakening glyph
   [
-    '  ╭─────╮  ',
+    '  ╭━━━━━╮  ',
     ' ╱       ╲ ',
     '│    ✧    │',
     ' ╲       ╱ ',
-    '  ╰─────╯  ',
+    '  ╰━━━━━╯  ',
+  ],
+  // Frame 2 — peak: double border, radiant glyph
+  [
+    '  ╭═════╮  ',
+    ' ╱       ╲ ',
+    '│    ✺    │',
+    ' ╲       ╱ ',
+    '  ╰═════╯  ',
+  ],
+  // Frame 3 — fading: heavy border, settling glyph
+  [
+    '  ╭━━━━━╮  ',
+    ' ╱       ╲ ',
+    '│    ✧    │',
+    ' ╲       ╱ ',
+    '  ╰━━━━━╯  ',
   ],
 ];
+
+/** Animation interval for the premium mascot — fast enough for a smooth
+ *  breathing pulse, slow enough to feel calm. */
+export const PREMIUM_MASCOT_INTERVAL_MS = 600;
 
 const STANDARD_MASCOT = [' ╭───╮ ', '╱  ✦  ╲', '╲     ╱', ' ╰───╯ '] as const;
 const COMPACT_MASCOT = ['╭✦╮', '╰─╯'] as const;
@@ -74,15 +96,20 @@ export function renderLioraMascotIcon(options: LioraMascotOptions): string[] {
     case 'standard':
       return paintRows(asciiFallback() ? ASCII_STANDARD_MASCOT : STANDARD_MASCOT, 'primary');
     case 'premium': {
-      const frame = PREMIUM_MASCOT_FRAMES[
-        Math.floor(appearanceAnimationNow() / 900) % PREMIUM_MASCOT_FRAMES.length
-      ]!;
+      const frameIndex =
+        Math.floor(appearanceAnimationNow() / PREMIUM_MASCOT_INTERVAL_MS) %
+        PREMIUM_MASCOT_FRAMES.length;
+      const frame = PREMIUM_MASCOT_FRAMES[frameIndex]!;
+      // Shift the gradient phase per frame so colours breathe alongside the
+      // border pulse, giving the mascot a living, premium feel.
+      const phase = frameIndex * 2;
       return frame.map((line) =>
         gradientText(
           padPlain(line, mascotWidth(frame)),
           currentTheme.color('gradientStart'),
           currentTheme.color('gradientEnd'),
           1.1,
+          phase,
         ),
       );
     }

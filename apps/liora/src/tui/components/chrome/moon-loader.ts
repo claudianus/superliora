@@ -8,14 +8,13 @@ import {
   MOON_SPINNER_INTERVAL_MS,
 } from '#/tui/constant/rendering';
 import { currentTheme } from '#/tui/theme';
+import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderPulseText } from '#/tui/utils/appearance-effects';
 
 export type SpinnerStyle = 'moon' | 'braille';
 
 export class MoonLoader extends Text {
-  private currentFrame = 0;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
   private ui: RendererRootUI;
   private frames: string[];
   private interval: number;
@@ -28,6 +27,9 @@ export class MoonLoader extends Text {
   private tip: string = '';
   private availableWidth = 0;
   private readonly startedAt = Date.now();
+  // Once stopped, the spinner freezes and render() no longer overwrites the
+  // text — callers use setText() to plant a final ✓/✗ message.
+  private stopped = false;
 
   constructor(
     ui: RendererRootUI,
@@ -41,51 +43,61 @@ export class MoonLoader extends Text {
     this.interval = style === 'moon' ? MOON_SPINNER_INTERVAL_MS : BRAILLE_SPINNER_INTERVAL_MS;
     this.colorFn = colorFn;
     this.label = label;
-    this.start();
+    this.refreshDisplay();
   }
 
-  start(): void {
-    this.updateDisplay();
-    this.intervalId = setInterval(() => {
-      this.currentFrame = (this.currentFrame + 1) % this.frames.length;
-      this.updateDisplay();
-    }, this.interval);
-  }
+  /** No-op — the spinner frame is now derived from the shared animation clock
+   *  during each render, so there is no timer to start.  Kept for callers that
+   *  call `start()` after construction. */
+  start(): void {}
 
+  /** Freezes the spinner.  After `stop()`, `render()` no longer overwrites the
+   *  text, so callers can plant a final result line via `setText()`. */
   stop(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    this.stopped = true;
   }
 
   setLabel(label: string): void {
     this.label = label;
-    this.updateDisplay();
+    this.refreshDisplay();
   }
 
   setColorFn(colorFn: (s: string) => string): void {
     this.colorFn = colorFn;
-    this.updateDisplay();
+    this.refreshDisplay();
   }
 
   setTip(tip: string): void {
     this.tip = tip;
-    this.updateDisplay();
+    this.refreshDisplay();
   }
 
   setAvailableWidth(width: number): void {
     if (this.availableWidth === width) return;
     this.availableWidth = width;
-    this.updateDisplay();
+    this.refreshDisplay();
   }
 
   renderInline(): string {
     return this.inlineText;
   }
 
-  private updateDisplay(): void {
-    const frame = this.frames[this.currentFrame]!;
+  override render(width: number): string[] {
+    // Recompute the spinner frame from the animation clock on every render so
+    // the spinner animates with the render loop's ticker instead of a private
+    // setInterval.  See PREMIUM.md §7.1 (single animation clock).
+    // NOTE: only compute the display — do NOT call requestRender() from within
+    // render(), which would recurse into the render loop.
+    // Once stopped, skip computeDisplay() so a final ✓/✗ message planted via
+    // setText() is not overwritten by the spinner frame.
+    if (!this.stopped) this.computeDisplay();
+    return super.render(width);
+  }
+
+  private computeDisplay(): void {
+    const frameIndex =
+      Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
+    const frame = this.frames[frameIndex]!;
     const coloredFrame = this.colorFn ? this.colorFn(frame) : frame;
     const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt)}`);
     const label = this.label.length > 0
@@ -103,6 +115,10 @@ export class MoonLoader extends Text {
     }
     this.displayText = text;
     this.setText(this.displayText);
+  }
+
+  private refreshDisplay(): void {
+    this.computeDisplay();
     this.ui.requestRender();
   }
 }

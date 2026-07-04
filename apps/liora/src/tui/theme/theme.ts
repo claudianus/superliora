@@ -76,25 +76,31 @@ export class Theme {
   }
 
   /* ── Standalone style helpers ── */
+  //
+  // These apply a text attribute (bold / dim / italic / …) using a sensible
+  // default palette token so they never fall back to the terminal's bare
+  // foreground.  Prefer the explicit `boldFg(token, text)` / `dimFg(token,
+  // text)` helpers when the caller knows the exact semantic token; these are
+  // convenience shortcuts for callers that only need the attribute.
 
   bold(text: string): string {
-    return chalk.bold(text);
+    return chalk.hex(this._palette.textStrong).bold(text);
   }
 
   dim(text: string): string {
-    return chalk.dim(text);
+    return chalk.hex(this._palette.textDim).dim(text);
   }
 
   italic(text: string): string {
-    return chalk.italic(text);
+    return chalk.hex(this._palette.text).italic(text);
   }
 
   underline(text: string): string {
-    return chalk.underline(text);
+    return chalk.hex(this._palette.primary).underline(text);
   }
 
   strikethrough(text: string): string {
-    return chalk.strikethrough(text);
+    return chalk.hex(this._palette.textMuted).strikethrough(text);
   }
 }
 

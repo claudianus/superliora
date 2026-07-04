@@ -9,6 +9,6 @@ export const FAILURE_MARK = '✗ ';
 
 // Shared selector markers — keep every list picker visually consistent.
 // SELECT_POINTER marks the highlighted row; CURRENT_MARK is appended to the
-// row that is the currently-active value. See .agents/skills/write-tui/DESIGN.md.
+// row that is the currently-active value. See src/tui/PREMIUM.md § Selection language.
 export const SELECT_POINTER = '❯';
 export const CURRENT_MARK = '← current';
