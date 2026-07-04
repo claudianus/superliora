@@ -316,6 +316,105 @@ describe('RendererViewport', () => {
     ]);
   });
 
+  // ── Virtual scroll ──────────────────────────────────────────────────────
+  //
+  // The transcript viewport must only render the children that intersect the
+  // visible line window, not every child.  These tests verify the fast path
+  // by counting how many children actually get their render() called.
+
+  it('virtualizes: only renders children intersecting the visible window', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 3,
+    });
+    // 10 children, each 2 lines → 20 total lines, viewport shows last 3.
+    let renderCount = 0;
+    for (let i = 0; i < 10; i++) {
+      const label = `child-${i}`;
+      component.addChild({
+        invalidate: () => {},
+        render: () => {
+          renderCount++;
+          return [`${label}-a`, `${label}-b`];
+        },
+      });
+    }
+
+    const lines = component.render(80);
+    // First render: resolveChildLineCounts renders all 10 children (cache
+    // miss), then renderVisibleChildren renders the 2 visible children again.
+    expect(renderCount).toBe(12);
+    // Viewport at bottom: lines 17,18,19 → child-8-b, child-9-a, child-9-b.
+    expect(lines).toEqual(['child-8-b', 'child-9-a', 'child-9-b']);
+
+    // Second render at the same width — line-count cache hit, only the 2
+    // visible children are rendered.
+    renderCount = 0;
+    component.render(80);
+    expect(renderCount).toBe(2);
+  });
+
+  it('virtualizes: renders only visible children when scrolled to the top', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 3,
+    });
+    let renderCount = 0;
+    for (let i = 0; i < 10; i++) {
+      const label = `child-${i}`;
+      component.addChild({
+        invalidate: () => {},
+        render: () => {
+          renderCount++;
+          return [`${label}-a`, `${label}-b`];
+        },
+      });
+    }
+
+    // First render: cache miss → all children rendered for line counts, then
+    // visible children rendered again.
+    component.render(80);
+    expect(renderCount).toBe(12);
+
+    // Scroll to the top.
+    viewport.scroll('top');
+
+    // Second render: cache hit → only the 2 visible children rendered.
+    renderCount = 0;
+    const lines = component.render(80);
+    expect(renderCount).toBe(2);
+    // Viewport at top shows the first 3 lines (child-0 both lines + child-1-a).
+    expect(lines).toEqual(['child-0-a', 'child-0-b', 'child-1-a']);
+  });
+
+  it('contentRowCount uses cached line counts without re-rendering children', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 100,
+    });
+    let renderCount = 0;
+    for (let i = 0; i < 5; i++) {
+      component.addChild({
+        invalidate: () => {},
+        render: () => {
+          renderCount++;
+          return ['a', 'b'];
+        },
+      });
+    }
+
+    // render() populates the cache.
+    component.render(80);
+    const countAfterRender = renderCount;
+
+    // contentRowCount must use the cache — no additional renders.
+    expect(component.contentRowCount(80)).toBe(10);
+    expect(renderCount).toBe(countAfterRender);
+  });
+
   it('projects scrollable line windows with tail-follow and padding', () => {
     expect(projectRendererScrollableLineWindow({
       lines: ['a', 'b', 'c', 'd'],

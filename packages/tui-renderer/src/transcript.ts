@@ -153,6 +153,22 @@ export class RendererTranscriptViewportComponent extends Container {
   private readonly isCacheEnabled: () => boolean;
   private renderCache: RendererTranscriptViewportRenderCache | undefined;
 
+  // ── Virtual-scroll line-count cache ────────────────────────────────────
+  //
+  // Every render needs the total content row count (to sync the viewport) and
+  // the per-child row counts (to map a viewport line range back to the
+  // children that occupy it).  Computing either requires rendering every
+  // child — the dominant cost once the transcript grows past a few hundred
+  // messages.  We cache the row counts keyed by inner width so that, after the
+  // first render at a given width, subsequent renders only re-render the
+  // children that actually changed (and only paint the visible ones).
+  //
+  // The cache is invalidated on invalidate(), on width change, and on child
+  // count change.  Individual children that mutate call invalidate() which
+  // propagates up, so stale counts are never served.
+  private lineCountCacheWidth = -1;
+  private lineCountCache: number[] = [];
+
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
     this.viewport = options.viewport;
@@ -171,6 +187,8 @@ export class RendererTranscriptViewportComponent extends Container {
 
   override invalidate(): void {
     this.renderCache = undefined;
+    this.lineCountCacheWidth = -1;
+    this.lineCountCache = [];
     super.invalidate();
   }
 
@@ -182,31 +200,101 @@ export class RendererTranscriptViewportComponent extends Container {
    * Total number of rows the transcript content would occupy if rendered
    * without a viewport cap. Used by callers that want to size a container to
    * the actual content instead of always reserving the full viewport.
+   *
+   * Uses the cached per-child row counts so it does not re-render unchanged
+   * children on every call.
    */
   contentRowCount(width: number): number {
-    return this.renderChildren(width).length;
+    const inner = this.innerWidth(width);
+    return this.resolveChildLineCounts(inner).reduce((sum, c) => sum + c, 0);
   }
 
   renderWithVisibleRows(width: number, visibleRows: number): string[] {
-    const lines = this.renderChildren(width);
-    const snapshot = this.viewport.sync(lines.length, visibleRows);
-    const window = projectRendererViewportLineWindow({
-      lines,
-      viewportRows: snapshot.viewportRows,
-      offsetFromBottom: snapshot.offsetFromBottom,
-      followOutput: snapshot.followOutput,
-    });
-    if (!window.hasOverflow) return [...window.lines];
-    if (!this.scrollbar || this.rightPad <= 0) return [...window.lines];
-    return this.renderScrollbar(window.lines, width, window);
-  }
-
-  private renderChildren(width: number): string[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
+
+    // Phase 1 — resolve per-child row counts (cached).  This is the only
+    // place that may render *all* children, and only on a cache miss; once
+    // cached, subsequent frames skip children whose render output is reused.
+    const childCounts = this.resolveChildLineCounts(inner);
+    const totalLines = childCounts.reduce((sum, c) => sum + c, 0);
+
+    // Phase 2 — sync the viewport with the total content size.
+    const snapshot = this.viewport.sync(totalLines, visibleRows);
+
+    // Phase 3 — when the content fits inside the viewport (no overflow) we
+    // still need every child, but we can reuse the cached prefixed lines.
+    if (!snapshot.hasOverflow) {
+      return this.renderAllChildren(width, inner, safeWidth, childCounts);
+    }
+
+    // Phase 4 — overflow: render only the children that intersect the visible
+    // line window.  This is the virtual-scroll fast path.
+    const visibleLines = this.renderVisibleChildren(
+      inner,
+      safeWidth,
+      childCounts,
+      snapshot.start,
+      snapshot.end,
+    );
+
+    // Phase 5 — attach a scrollbar gutter if configured.
+    if (!this.scrollbar || this.rightPad <= 0) return visibleLines;
+    return this.renderScrollbar(visibleLines, width, snapshot);
+  }
+
+  // ── Virtual-scroll internals ───────────────────────────────────────────
+
+  /** Returns the inner content width (total minus horizontal padding). */
+  private innerWidth(width: number): number {
+    const safeWidth = normalizeTranscriptWidth(width);
+    return Math.max(1, safeWidth - this.leftPad - this.rightPad);
+  }
+
+  /**
+   * Resolves the row count of every child at `inner` width, using the
+   * line-count cache when possible.  A cache miss forces a render of all
+   * children, but the children's own render caches make this cheap on the
+   * second pass — and once cached here, subsequent frames pay nothing for
+   * unchanged children.
+   */
+  private resolveChildLineCounts(inner: number): number[] {
+    const n = this.children.length;
+    if (
+      this.isCacheEnabled() &&
+      this.lineCountCacheWidth === inner &&
+      this.lineCountCache.length === n
+    ) {
+      return this.lineCountCache;
+    }
+
+    const counts = new Array<number>(n);
+    for (let i = 0; i < n; i++) {
+      counts[i] = this.children[i]!.render(inner).length;
+    }
+    if (this.isCacheEnabled()) {
+      this.lineCountCacheWidth = inner;
+      this.lineCountCache = counts;
+    }
+    return counts;
+  }
+
+  /**
+   * Renders **all** children and applies the canvas paint + left padding to
+   * every line.  Used when the content fits inside the viewport (no overflow)
+   * so there is no benefit from virtualization.  The existing prefixed-line
+   * cache is reused so unchanged children are not repainted.
+   */
+  private renderAllChildren(
+    width: number,
+    inner: number,
+    safeWidth: number,
+    _childCounts: number[],
+  ): string[] {
     const lead = ' '.repeat(this.leftPad);
     const cache = this.renderCache;
-    const cacheValid = this.isCacheEnabled() &&
+    const cacheValid =
+      this.isCacheEnabled() &&
       cache !== undefined &&
       cache.width === safeWidth &&
       cache.childRefs.length === this.children.length;
@@ -221,7 +309,8 @@ export class RendererTranscriptViewportComponent extends Container {
       const lines = child.render(inner);
       childRefs.push(child);
       childRenderRefs.push(lines);
-      const reused = cacheValid &&
+      const reused =
+        cacheValid &&
         cache.childRefs[i] === child &&
         cache.childRenderRefs[i] === lines;
       if (reused) {
@@ -238,6 +327,51 @@ export class RendererTranscriptViewportComponent extends Container {
       this.renderCache = { width: safeWidth, childRefs, childRenderRefs, prefixed, out };
     } else {
       this.renderCache = undefined;
+    }
+
+    return out;
+  }
+
+  /**
+   * Renders only the children whose lines intersect the viewport window
+   * `[startLine, endLine)` and returns the painted, left-padded visible lines.
+   * This is the virtual-scroll fast path: children entirely above or below the
+   * visible window are never rendered or painted, which keeps frame time
+   * roughly constant regardless of transcript length.
+   */
+  private renderVisibleChildren(
+    inner: number,
+    safeWidth: number,
+    childCounts: number[],
+    startLine: number,
+    endLine: number,
+  ): string[] {
+    const lead = ' '.repeat(this.leftPad);
+    const out: string[] = [];
+
+    // Walk children accumulating a running line offset so we can skip those
+    // entirely above the viewport, render the partial first/last children,
+    // and stop once we pass the viewport bottom.
+    let lineOffset = 0;
+    for (let i = 0; i < this.children.length; i++) {
+      const childLines = childCounts[i]!;
+      const childStart = lineOffset;
+      const childEnd = lineOffset + childLines;
+
+      // Child is entirely below the viewport — done.
+      if (childStart >= endLine) break;
+
+      if (childEnd > startLine) {
+        // Child intersects the viewport — render and slice.
+        const lines = this.children[i]!.render(inner);
+        const sliceStart = Math.max(0, startLine - childStart);
+        const sliceEnd = Math.min(lines.length, endLine - childStart);
+        for (let j = sliceStart; j < sliceEnd; j++) {
+          out.push(this.paintCanvasLine(lead + lines[j]!, safeWidth));
+        }
+      }
+
+      lineOffset = childEnd;
     }
 
     return out;
