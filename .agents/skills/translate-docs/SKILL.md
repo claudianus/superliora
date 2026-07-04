@@ -7,9 +7,11 @@ description: Translate and sync bilingual user documentation between docs/zh/ an
 
 ## Overview
 
-This repository keeps bilingual user documentation under `docs/zh/` and `docs/en/`. This skill synchronizes the two locales, page by page, after either side has been updated.
+This repository keeps bilingual reference documentation under `docs/zh/` and `docs/en/`. This skill synchronizes the two locales, page by page, after either side has been updated.
 
-This skill is invoked by both `gen-docs` (incremental updates) and `audit-docs` (full pre-release audit) to keep locale mirrors in sync.
+`docs/` is not the deployed public site (see `docs/AGENTS.md`) — this skill keeps the reference tree factually accurate and bilingually mirrored, it does not publish anything.
+
+This skill is invoked by `gen-docs` (incremental updates) to keep locale mirrors in sync.
 
 ## Prerequisites
 

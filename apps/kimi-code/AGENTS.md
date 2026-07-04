@@ -19,7 +19,8 @@ Main directories:
 - `src/tui/tui-state.ts`: `TUIState`, `createTUIState`, `createInitialAppState` — the single global UI-state shape.
 - `src/tui/controllers/`: independently-testable responsibilities — `session-event-handler` (SDK event routing), `streaming-ui` (streaming render), `session-replay` (resume/replay), `tasks-browser`, `editor-keyboard`, `auth-flow`.
 - `src/tui/commands/`: slash command definitions, parsing, ordering, and dynamic skill command generation.
-- `src/tui/components/`: pi-tui components, organized by UI type.
+- `src/tui/components/`: UI components rendered through the native renderer facade, organized by UI type.
+- `src/tui/renderer/`: the local renderer facade — re-exports `@harness-kit/tui-renderer` (the native terminal renderer: cell buffer, diffing, layout, input) plus app-local adapters (`native-root-ui.ts`, `region-layout.ts`, `lifecycle.ts`). Prefer importing TUI primitives through this facade rather than the renderer package directly. The former `@earendil-works/pi-tui` backend has been removed; `test/tui/renderer-facade-guard.test.ts` guards against reintroducing direct `pi-tui` imports.
 - `src/tui/constant/`: non-copy constants reused across TUI modules — symbols, terminal sequences, render sizing, streaming-arg match rules, and so on.
 - `src/tui/components/chrome/`: persistent UI chrome — footer, todo panel, welcome, loader, device code.
 - `src/tui/components/dialogs/`: selectors, approval panels, question popups, and settings popups that temporarily replace the editor.

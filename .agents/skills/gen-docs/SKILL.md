@@ -7,18 +7,18 @@ description: Update Kimi Code CLI user documentation after meaningful code chang
 
 ## Overview
 
-This repository maintains bilingual user documentation under `docs/`. `docs/en/` and `docs/zh/` are mirrored pairs for most pages; update both in the same change. **Changelog is the exception** — English is the source, and Chinese is translated from English.
+This repository keeps bilingual reference documentation under `docs/`. `docs/en/` and `docs/zh/` are mirrored pairs for most pages; update both in the same change. **Changelog is the exception** — English is the source, and Chinese is translated from English.
 
-Use this skill to update the corresponding documentation whenever the codebase has changes that affect product behavior or user experience.
+**`docs/` is not the deployed public site.** GitHub Pages serves the hand-built `site/` directory instead (see `docs/AGENTS.md`); `docs/` has no live VitePress build. Treat this skill as reference-maintenance (keep pages factually accurate and bilingually mirrored), not as updating a marketed product surface — see `docs/AGENTS.md` for the current scope.
 
-For a **full pre-release audit** of all pages (detecting hallucinations and coverage gaps), use the `audit-docs` skill instead.
+Use this skill to update the corresponding reference pages whenever the codebase has changes that affect product behavior or user experience.
 
 ## Prerequisites
 
 This skill depends on the following being in place. If any are missing, stop and report to the user before continuing:
 
-- `docs/` directory with `docs/zh/`, `docs/en/`, and `docs/.vitepress/config.ts` set up (VitePress site).
-- `docs/AGENTS.md` style guide — defines source-of-truth rules, terminology table, typography, and writing style.
+- `docs/` directory with mirrored `docs/zh/` and `docs/en/` trees.
+- `docs/AGENTS.md` — defines source-of-truth rules and terminology.
 - `docs/scripts/sync-changelog.mjs` — auto-syncs root `CHANGELOG.md` to `docs/en/release-notes/changelog.md`.
 - `translate-docs` skill in `.agents/skills/` — handles bilingual synchronization.
 

@@ -13,9 +13,11 @@ description: Use after a release succeeds, when maintainers need to sync apps/ki
 apps/kimi-code/CHANGELOG.md
 ```
 
-This file is the **only upstream source** for the documentation-site changelog. Internal package changelogs such as `packages/*/CHANGELOG.md` do not go into the documentation site.
+This file is the **only upstream source** for the `docs/` changelog page. Internal package changelogs such as `packages/*/CHANGELOG.md` do not go into it.
 
-After the release flow finishes (Release PR merged → `Version Packages` completed → npm publish succeeded), maintainers manually run this skill to copy the new CLI changelog entries into the docs site, translate the English increment into Chinese, wait for an optional human review, then commit on a dedicated branch and open a PR.
+Note: `docs/` is an unpublished bilingual reference tree, not the deployed public site (`site/` is — see `docs/AGENTS.md`). This skill keeps `docs/en/release-notes/changelog.md` / `docs/zh/release-notes/changelog.md` accurate for anyone reading the repo directly; it does not publish anything.
+
+After the release flow finishes (Release PR merged → `Version Packages` completed → npm publish succeeded), maintainers manually run this skill to copy the new CLI changelog entries into the docs changelog page, translate the English increment into Chinese, wait for an optional human review, then commit on a dedicated branch and open a PR.
 
 ## When To Use
 

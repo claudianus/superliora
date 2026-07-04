@@ -106,6 +106,13 @@ no new suffixes get reintroduced.
 | `task/` | `task.ts` | `taskService.ts` | `ITaskService` |
 | `oauth/` | `oauth.ts` | `oauthService.ts` | `IOAuthService` |
 | `authSummary/` | `authSummary.ts` | `authSummaryService.ts` | `IAuthSummaryService` |
+| `memory/` | `memory.ts` | `memoryService.ts` | `IMemoryService` |
+| `modelCatalog/` | `modelCatalog.ts` | `modelCatalogService.ts` | `IModelCatalogService` |
+| `skill/` | `skill.ts` | `skillService.ts` | `ISkillService` |
+| `terminal/` | `terminal.ts` | `terminalService.ts` | `ITerminalService` |
+
+`services/auth/managedAuth.ts` is intentionally not in this table: it is a plain
+factory-created facade (`ServicesAuthFacade`), not a DI-registered `IXxxService`.
 
 Adding a new service: create the folder + contracts + impl pair, add a
 bottom-of-file `registerSingleton(IXxxService, XxxService,

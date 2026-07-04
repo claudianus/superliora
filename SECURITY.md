@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Currently, Kimi Code only provides security support for the latest released version.
+Currently, Super Kimi Code only provides security support for the latest released version.
 
 ## Reporting a Vulnerability
 
@@ -10,12 +10,8 @@ We take security seriously. **Please do not open a public issue for security vul
 
 Preferred channel:
 
-- GitHub Security Advisories — https://github.com/MoonshotAI/kimi-code/security/advisories/new
+- GitHub Security Advisories — https://github.com/claudianus/super-kimi-code/security/advisories/new
   (private disclosure, tracked with the codebase)
-
-Alternative channel:
-
-- Email: code@moonshot.ai (please include "[security]" in the subject)
 
 ## What to Include
 

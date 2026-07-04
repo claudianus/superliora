@@ -1,10 +1,10 @@
-# Contributing to kimi-code
+# Contributing to Super Kimi Code
 
 Thanks for taking the time to contribute! This project moves quickly, and thoughtful contributions from the community are what keep it sharp. The guide below walks you through how we work so your PR has the best chance of landing smoothly.
 
 ## Before You Start
 
-Kimi Code already has opinions on CLI/TUI behavior, agent workflows, and public APIs. If your change shifts that direction, open an issue first so we can align before you invest time in a PR.
+Super Kimi Code already has opinions on CLI/TUI behavior, agent workflows, and public APIs. If your change shifts that direction, open an issue first so we can align before you invest time in a PR.
 
 We hold AI-assisted contributions to the same standard as hand-written ones. **You should understand what you submit** — what changed, how it behaves at the edges, and why it fits this codebase. If you cannot explain that, the PR is not ready for review.
 
@@ -31,7 +31,8 @@ This is a pnpm monorepo. The most relevant entry points are:
 - `apps/vis` — session replay & debugging visualizer
 - `packages/node-sdk` — public TypeScript SDK (`@moonshot-ai/kimi-code-sdk`)
 - `packages/agent-core`, `kosong`, `kaos`, `oauth`, `telemetry` — internal engine packages
-- `docs/` — VitePress bilingual docs site
+- `site/` — the public landing page (deployed to GitHub Pages)
+- `docs/` — unpublished bilingual (`en`/`zh`) reference pages; not the deployed site (see `docs/AGENTS.md`)
 
 For the full project map, see [AGENTS.md](AGENTS.md).
 
@@ -40,8 +41,8 @@ For the full project map, see [AGENTS.md](AGENTS.md).
 Prerequisites: Node.js >= 24.15.0, pnpm 10.33.0, Git.
 
 ```sh
-git clone https://github.com/MoonshotAI/kimi-code.git
-cd kimi-code
+git clone https://github.com/claudianus/super-kimi-code.git
+cd super-kimi-code
 pnpm install
 ```
 
@@ -86,7 +87,7 @@ This repo uses [changesets](https://github.com/changesets/changesets) to manage 
 
 Use the [PR template](.github/pull_request_template.md) when opening a feature pull request.
 
-PR titles must follow [Conventional Commits](#commit-convention); CI runs `pnpm lint`, `pnpm typecheck`, and `pnpm test` on every PR. Update user-facing docs in `docs/` when behavior changes — use the `gen-docs` skill when working with coding agents.
+PR titles must follow [Conventional Commits](#commit-convention); CI runs `pnpm lint`, `pnpm typecheck`, and `pnpm test` on every PR. If behavior changes, update the reference pages under `docs/` for accuracy (see `docs/AGENTS.md` — it is not the deployed site, but is still read directly on GitHub) — use the `gen-docs` skill when working with coding agents.
 
 ## Code Style
 
