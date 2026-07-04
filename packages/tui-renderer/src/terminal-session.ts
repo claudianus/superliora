@@ -49,6 +49,7 @@ export interface NativeTerminalSessionOptions extends RendererTerminalOutputOpti
   readonly bracketedPaste?: boolean;
   readonly focusEvents?: boolean;
   readonly clearOnStart?: boolean;
+  readonly autoWrap?: boolean;
   readonly imageProtocol?: RendererInlineImageProtocol;
   readonly onInput?: (data: string | Buffer) => void;
   readonly onResize?: (size: NativeTerminalSize) => void;
@@ -72,6 +73,8 @@ export const ANSI_ENABLE_SGR_MOUSE_MODE = '\u001B[?1006h';
 export const ANSI_DISABLE_SGR_MOUSE_MODE = '\u001B[?1006l';
 export const ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL = '\u001B[>1u';
 export const ANSI_POP_KITTY_KEYBOARD_PROTOCOL = '\u001B[<u';
+export const ANSI_DISABLE_AUTO_WRAP = '\u001B[?7l';
+export const ANSI_ENABLE_AUTO_WRAP = '\u001B[?7h';
 
 export class NativeTerminalSession {
   private started = false;
@@ -106,6 +109,12 @@ export class NativeTerminalSession {
       });
     }
     if (this.options.clearOnStart === true) output.write(ANSI_CLEAR_SCREEN);
+    if (this.options.autoWrap === false) {
+      output.write(ANSI_DISABLE_AUTO_WRAP);
+      this.cleanup.push(() => {
+        output.write(ANSI_ENABLE_AUTO_WRAP);
+      });
+    }
     const inlineImageClear = encodeRendererClearInlineImages(this.options.imageProtocol ?? 'none');
     if (inlineImageClear.length > 0) output.write(inlineImageClear);
     if (this.options.hideCursor === true) {

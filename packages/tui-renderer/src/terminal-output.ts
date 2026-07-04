@@ -18,6 +18,7 @@ export const ANSI_SHOW_CURSOR = '\u001B[?25h';
 export const ANSI_RESET_STYLE = '\u001B[0m';
 export const ANSI_END_HYPERLINK = '\u001B]8;;\u001B\\';
 export const ANSI_ERASE_IN_LINE = '\u001B[K';
+export const ANSI_ERASE_FROM_CURSOR_TO_SCREEN_END = '\u001B[0J';
 
 export type RendererColorMode = 'truecolor' | 'ansi256' | 'ansi16' | 'none';
 export type RendererCursorShape = 'block' | 'underline' | 'bar';
@@ -188,6 +189,14 @@ export function cursorTo(x: number, y: number): string {
   return `\u001B[${String(Math.max(1, Math.floor(y) + 1))};${String(
     Math.max(1, Math.floor(x) + 1),
 )}H`;
+}
+
+export function encodeTerminalClearBelowRow(
+  row: number,
+  originX = 0,
+  originY = 0,
+): string {
+  return cursorTo(originX, originY + row) + ANSI_ERASE_FROM_CURSOR_TO_SCREEN_END;
 }
 
 export function cursorForward(cells: number): string {

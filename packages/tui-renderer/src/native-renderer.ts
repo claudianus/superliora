@@ -26,7 +26,11 @@ import {
   type NativeTerminalSynchronizedOutputProbeResult,
 } from './terminal-probe';
 import type { RendererCell } from './cell-buffer';
-import type { RendererCursorState, RendererTerminalOutputOptions } from './terminal-output';
+import {
+  encodeTerminalClearBelowRow,
+  type RendererCursorState,
+  type RendererTerminalOutputOptions,
+} from './terminal-output';
 import type { RendererInlineImageProtocol } from './terminal-graphics';
 import {
   diagnoseNativeRendererStats,
@@ -98,6 +102,7 @@ export interface NativeTerminalRendererOptions extends RendererTerminalOutputOpt
   readonly bracketedPaste?: boolean;
   readonly focusEvents?: boolean;
   readonly clearOnStart?: boolean;
+  readonly autoWrap?: boolean;
   readonly imageProtocol?: RendererInlineImageProtocol;
   readonly targetFps?: number;
   readonly unrefTimers?: boolean;
@@ -129,6 +134,15 @@ export interface NativeTerminalRendererOptions extends RendererTerminalOutputOpt
     stats: NativeFrameStatsSnapshot,
   ) => void;
   readonly onQualityChange?: (change: NativeTerminalRendererQualityChange) => void;
+  /**
+   * Lets the caller cap the internal frame buffer height below the real
+   * terminal size, e.g. to grow the UI with its content instead of always
+   * occupying the full viewport. Returning a value larger than the real
+   * terminal row count, `undefined`, or a non-finite/non-positive number
+   * falls back to the real terminal height. The result is clamped to
+   * `size.rows`.
+   */
+  readonly measureFrameHeight?: (size: NativeTerminalSize) => number;
 }
 
 export interface NativeTerminalRendererFrameMetrics {
@@ -233,6 +247,7 @@ export class NativeTerminalRenderer {
   private readonly deferredAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
   private nextDeferredAnimationFrameId = -1;
   private autoFrameHoldOverride: boolean | undefined;
+  private measureFrameHeightOverride: ((size: NativeTerminalSize) => number) | undefined;
   private autoFrameHeld = false;
   private releasingHeldAutoFrames = false;
   private readonly heldRenderCauses = new Set<NativeRenderCause>();
@@ -258,6 +273,7 @@ export class NativeTerminalRenderer {
       bracketedPaste: this.options.bracketedPaste,
       focusEvents: this.options.focusEvents,
       clearOnStart: this.options.clearOnStart,
+      autoWrap: this.options.autoWrap,
       hideCursor: this.options.hideCursor,
       showCursor: this.options.showCursor,
       synchronized: this.currentSynchronized,
@@ -437,6 +453,15 @@ export class NativeTerminalRenderer {
     if (!held) this.releaseHeldAutoFrames();
   }
 
+  /**
+   * Overrides (or clears, when `undefined`) the `measureFrameHeight` option
+   * after construction. Useful for callers that must finish building
+   * application state before they can compute a content-driven height.
+   */
+  setMeasureFrameHeight(measure: ((size: NativeTerminalSize) => number) | undefined): void {
+    this.measureFrameHeightOverride = measure;
+  }
+
   clearAutoFrameHoldOverride(): void {
     this.autoFrameHoldOverride = undefined;
     this.releaseHeldAutoFramesIfReady();
@@ -507,13 +532,29 @@ export class NativeTerminalRenderer {
   }
 
   private handleResize(size: NativeTerminalSize): void {
+    const previousRows = this.frameRenderer.height;
     this.frameRenderer.resize(size.columns, size.rows);
+    this.clearStaleFrameRowsOnShrink(size.rows, previousRows);
     this.trace.recordResize({
       timestampMs: this.loop.now(),
       size,
     });
     this.options.onResize?.(size);
     this.loop.requestRender('resize');
+  }
+
+  private resolveFrameHeight(size: NativeTerminalSize): number {
+    const measure = this.measureFrameHeightOverride ?? this.options.measureFrameHeight;
+    const measured = measure?.(size);
+    if (measured === undefined || !Number.isFinite(measured) || measured <= 0) return size.rows;
+    return Math.min(size.rows, Math.floor(measured));
+  }
+
+  private clearStaleFrameRowsOnShrink(height: number, previousHeight: number): void {
+    if (this.options.screenMode === 'alternate' || height >= previousHeight) return;
+    this.session.write(
+      encodeTerminalClearBelowRow(height, this.options.originX ?? 0, this.options.originY ?? 0),
+    );
   }
 
   private shouldScheduleRegionVfxFrames(): boolean {
@@ -669,7 +710,12 @@ export class NativeTerminalRenderer {
     const startedAt = this.loop.now();
     const size = this.size;
     const qualityBeforeRender = this.qualityController.snapshot();
-    this.frameRenderer.resize(size.columns, size.rows);
+    const previousHeight = this.frameRenderer.height;
+    const frameHeight = this.resolveFrameHeight(size);
+    this.frameRenderer.resize(size.columns, frameHeight);
+    if (!frame.causes.includes('start')) {
+      this.clearStaleFrameRowsOnShrink(frameHeight, previousHeight);
+    }
     if (this.options.autoBeginFrame !== false) {
       this.frameRenderer.beginFrame({ fill: this.options.fill });
     }

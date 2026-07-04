@@ -7,6 +7,8 @@ import {
   ANSI_CLEAR_SCREEN,
   ANSI_END_SYNCHRONIZED_UPDATE,
   ANSI_ENTER_ALTERNATE_SCREEN,
+  ANSI_DISABLE_AUTO_WRAP,
+  ANSI_ENABLE_AUTO_WRAP,
   ANSI_EXIT_ALTERNATE_SCREEN,
   ANSI_HIDE_CURSOR,
   ANSI_DISABLE_MOUSE_TRACKING,
@@ -23,6 +25,7 @@ import {
   NativeRootUI,
   NativeTerminalRenderer,
   createRendererRegionVfx,
+  encodeTerminalClearBelowRow,
   renderNativeLayoutFrame,
   type NativeRenderLoopScheduler,
   type NativeRenderTimer,
@@ -103,6 +106,56 @@ describe('NativeTerminalRenderer', () => {
     expect(renderer.frameRenderer.height).toBe(40);
     expect(output.writes.at(-1)).toMatch(/^\u001B\[1;1H120x40/);
     expect(renderer.lastFrame?.present?.diff.totalCells).toBe(120 * 40);
+  });
+
+  it('clears stale terminal rows below the viewport when shrinking on the main screen', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      screenMode: 'main',
+      render: ({ renderer: frameRenderer, size }) => {
+        frameRenderer.writeText(0, size.rows - 1, 'tail');
+      },
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+    const writesBeforeShrink = output.writes.length;
+
+    output.rows = 20;
+    output.emit('resize');
+    scheduler.advance(0);
+
+    expect(output.writes.slice(writesBeforeShrink, writesBeforeShrink + 1)).toEqual([
+      encodeTerminalClearBelowRow(20),
+    ]);
+    expect(renderer.frameRenderer.height).toBe(20);
+    expect(renderer.lastFrame?.size).toEqual({ columns: 80, rows: 20 });
+  });
+
+  it('does not clear below the viewport when shrinking on the alternate screen', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      screenMode: 'alternate',
+      clearOnStart: true,
+      render: () => {},
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+    const writesBeforeShrink = output.writes.length;
+
+    output.rows = 20;
+    output.emit('resize');
+    scheduler.advance(0);
+
+    const shrinkWrites = output.writes.slice(writesBeforeShrink);
+    expect(shrinkWrites).not.toContain(encodeTerminalClearBelowRow(20));
   });
 
   it('routes input and animation requests through the runtime facade', () => {
@@ -425,9 +478,10 @@ describe('NativeTerminalRenderer', () => {
     renderer.start();
     scheduler.advance(0);
 
-    expect(output.writes.slice(0, 8)).toEqual([
+    expect(output.writes.slice(0, 9)).toEqual([
       ANSI_ENTER_ALTERNATE_SCREEN,
       ANSI_CLEAR_SCREEN,
+      ANSI_DISABLE_AUTO_WRAP,
       ANSI_HIDE_CURSOR,
       ANSI_ENABLE_BRACKETED_PASTE,
       ANSI_ENABLE_FOCUS_EVENTS,

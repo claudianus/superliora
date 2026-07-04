@@ -178,6 +178,15 @@ export class RendererTranscriptViewportComponent extends Container {
     return this.renderWithVisibleRows(width, this.getVisibleRows(width));
   }
 
+  /**
+   * Total number of rows the transcript content would occupy if rendered
+   * without a viewport cap. Used by callers that want to size a container to
+   * the actual content instead of always reserving the full viewport.
+   */
+  contentRowCount(width: number): number {
+    return this.renderChildren(width).length;
+  }
+
   renderWithVisibleRows(width: number, visibleRows: number): string[] {
     const lines = this.renderChildren(width);
     const snapshot = this.viewport.sync(lines.length, visibleRows);

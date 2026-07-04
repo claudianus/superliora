@@ -20,6 +20,7 @@ export interface NativeTerminalFeatureOptions extends RendererTerminalOutputOpti
   readonly bracketedPaste?: boolean;
   readonly focusEvents?: boolean;
   readonly clearOnStart?: boolean;
+  readonly autoWrap?: boolean;
   readonly imageProtocol?: RendererInlineImageProtocol;
 }
 
@@ -74,6 +75,7 @@ const INLINE_APP_FEATURES: NativeTerminalFeatureOptions = {
   synchronized: true,
   hideCursor: true,
   showCursor: true,
+  autoWrap: false,
 };
 
 const FULLSCREEN_APP_FEATURES: NativeTerminalFeatureOptions = {
@@ -286,6 +288,7 @@ export function nativeTerminalAdaptiveFeatureProfile(
     bracketedPaste: capabilities.bracketedPaste ? base.bracketedPaste : undefined,
     focusEvents: capabilities.focusEvents ? base.focusEvents : undefined,
     clearOnStart: capabilities.interactive ? base.clearOnStart : undefined,
+    autoWrap: capabilities.interactive ? base.autoWrap : undefined,
     keyboardProtocol: capabilities.keyboardProtocol ? base.keyboardProtocol : undefined,
     mouseTracking: capabilities.mouseTracking ? base.mouseTracking : undefined,
     synchronized: capabilities.synchronized ? base.synchronized : undefined,
@@ -319,6 +322,7 @@ export function mergeNativeTerminalFeatureOptions<T extends NativeTerminalFeatur
     bracketedPaste: options.bracketedPaste ?? resolved.bracketedPaste,
     focusEvents: options.focusEvents ?? resolved.focusEvents,
     clearOnStart: options.clearOnStart ?? resolved.clearOnStart,
+    autoWrap: options.autoWrap ?? resolved.autoWrap,
     synchronized: options.synchronized ?? resolved.synchronized,
     hideCursor: options.hideCursor ?? resolved.hideCursor,
     showCursor: options.showCursor ?? resolved.showCursor,

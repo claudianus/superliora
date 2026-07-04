@@ -15,6 +15,7 @@ import {
   ANSI_SHOW_CURSOR,
   ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
   CURSOR_MARKER,
+  encodeTerminalClearBelowRow,
   type AutocompleteItem,
   type AutocompleteProvider,
   type Component,
@@ -103,6 +104,33 @@ function providerReturning(items: AutocompleteItem[]): AutocompleteProvider {
       return { lines: [next], cursorLine, cursorCol: beforePrefix.length + item.value.length + 2 };
     }),
   };
+}
+
+function filteringAutocompleteProvider(items: AutocompleteItem[]): AutocompleteProvider {
+  return {
+    getSuggestions: async (lines, cursorLine, cursorCol) => {
+      const line = lines[cursorLine] ?? '';
+      const beforeCursor = line.slice(0, cursorCol);
+      const match = /\/(\S*)$/.exec(beforeCursor);
+      if (match === null) return null;
+      const query = match[1] ?? '';
+      const filtered = items.filter((item) => item.value.startsWith(query));
+      if (filtered.length === 0) return null;
+      return { items: filtered, prefix: `/${query}` };
+    },
+    applyCompletion: (lines, cursorLine, cursorCol, item, prefix) => {
+      const line = lines[cursorLine] ?? '';
+      const beforePrefix = line.slice(0, cursorCol - prefix.length);
+      const afterCursor = line.slice(cursorCol);
+      const next = `${beforePrefix}/${item.value} ${afterCursor}`;
+      return { lines: [next], cursorLine, cursorCol: beforePrefix.length + item.value.length + 2 };
+    },
+  };
+}
+
+function frameText(frame: { renderer: { frame: { width: number; height: number; getCell(x: number, y: number): { char: string } } } }): string {
+  const { width, height } = frame.renderer.frame;
+  return Array.from({ length: height }, (_, y) => rowText(frame.renderer.frame, y)).join('\n');
 }
 
 describe('createTUIState', () => {
@@ -201,6 +229,37 @@ describe('createTUIState', () => {
     expect(state.editor.isShowingAutocomplete()).toBe(true);
     expect(rowText(frame.renderer.frame, 4)).toBe('╰──────────────────────╯');
     expect(rowText(frame.renderer.frame, 5).trim()).toBe('→ help  Show help');
+  });
+
+  it('keeps incremental native frames free of stale ghost cells while typing with autocomplete open', async () => {
+    const width = 30;
+    const height = 12;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.editor.setAutocompleteProvider(filteringAutocompleteProvider([
+      { value: 'thinking', label: 'thinking', description: 'Set thinking effort for the session' },
+      { value: 'tasks', label: 'tasks', description: 'Browse background tasks' },
+      { value: 'test', label: 'test', description: 'Some other command' },
+    ]));
+    state.editorContainer.addChild(state.editor);
+
+    let renderer: import('#/tui/renderer').NativeFrameRenderer | undefined;
+    for (const char of ['/', 't', 'e', 's', 't']) {
+      state.editor.handleInput(char);
+      await flushAutocomplete();
+      // Incremental frame: reuses the renderer + composition caches across keystrokes,
+      // exactly like the live app does.
+      const incremental = renderTUIStateNativeFrame(state, { renderer });
+      renderer = incremental.renderer;
+      // Authoritative frame: a brand-new renderer with no caches, forced full redraw.
+      const authoritative = renderTUIStateNativeFrame(state, { force: true });
+
+      expect(frameText(incremental)).toBe(frameText(authoritative));
+    }
   });
 
   it('renders footer history badge from the transcript viewport state', () => {
@@ -465,6 +524,55 @@ describe('createTUIState', () => {
     expect(renderer.lastFrame?.size).toEqual({ columns: 10, rows: 5 });
     expect(renderer.frameRenderer.width).toBe(10);
     expect(renderer.frameRenderer.height).toBe(5);
+    renderer.stop();
+  });
+
+  it('grows the native renderer frame height with transcript content instead of always filling the viewport', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    state.transcriptContainer.addChild(fixedLines(['t1', 't2']));
+    state.editorContainer.addChild(fixedLines(['ed']));
+    state.footerContainer.addChild(fixedLines(['ft']));
+    const output = new FakeNativeOutput(10, 10);
+    const scheduler = new FakeRenderLoopScheduler();
+    const renderer = createTUIStateNativeRenderer(state, {
+      output,
+      scheduler,
+      renderOnStart: true,
+      growWithContent: true,
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+
+    // transcript (2 lines) + editor (1) + footer (1) = 4, well below the 10 real rows.
+    expect(renderer.frameRenderer.height).toBe(4);
+    expect(renderer.lastFrame?.size).toEqual({ columns: 10, rows: 10 });
+
+    state.transcriptContainer.addChild(fixedLines(['t3', 't4', 't5']));
+    state.transcriptContainer.invalidate();
+    renderer.requestRender('manual');
+    scheduler.advance(17);
+
+    expect(renderer.frameRenderer.height).toBe(7);
+
+    const writesBeforeShrink = output.writes.length;
+    state.transcriptContainer.children.length = 0;
+    state.transcriptContainer.addChild(fixedLines(['t1']));
+    state.transcriptContainer.invalidate();
+    renderer.requestRender('manual');
+    scheduler.advance(17);
+
+    expect(renderer.frameRenderer.height).toBe(3);
+    const shrinkWrites = output.writes.slice(writesBeforeShrink);
+    expect(shrinkWrites).toContain(encodeTerminalClearBelowRow(3));
     renderer.stop();
   });
 

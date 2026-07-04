@@ -20,6 +20,8 @@ import {
   ANSI_ENABLE_MOUSE_TRACKING,
   ANSI_ENABLE_SGR_MOUSE_MODE,
   ANSI_ENTER_ALTERNATE_SCREEN,
+  ANSI_DISABLE_AUTO_WRAP,
+  ANSI_ENABLE_AUTO_WRAP,
   ANSI_ERASE_IN_LINE,
   ANSI_EXIT_ALTERNATE_SCREEN,
   ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
@@ -2603,6 +2605,26 @@ describe('RendererCellBuffer', () => {
     expect(buffer.damage).toEqual({ x: 0, y: 0, width: 5, height: 1 });
   });
 
+  it('drops wide clusters that would cross the right edge', () => {
+    const buffer = new RendererCellBuffer(3, 1);
+
+    buffer.writeText(0, 0, 'ab한');
+
+    expect(rowText(buffer, 0)).toBe('ab ');
+    expect(buffer.getCell(2, 0)).toEqual({ char: ' ' });
+  });
+
+  it('writes a wide cluster flush against the right buffer edge', () => {
+    const buffer = new RendererCellBuffer(4, 1);
+
+    buffer.writeText(0, 0, 'a한');
+
+    expect(rowText(buffer, 0)).toBe('a한 ');
+    expect(buffer.getCell(1, 0)).toEqual({ char: '한', width: 2 });
+    expect(buffer.getCell(2, 0)).toEqual({ char: '', width: 0, continuation: true });
+    expect(buffer.getCell(3, 0)).toEqual({ char: ' ' });
+  });
+
   it('creates human-readable visual snapshots with style and link runs', () => {
     const buffer = new RendererCellBuffer(6, 2);
 
@@ -2869,6 +2891,15 @@ describe('diffCellBuffers', () => {
       { char: 'e' },
     ]);
     expect(encodeTerminalFrame(diff)).toBe('\u001B[1;1Hb한e');
+  });
+
+  it('encodes wide clusters anchored at the right edge without continuation desync', () => {
+    const previous = new RendererCellBuffer(4, 1);
+    const next = new RendererCellBuffer(4, 1);
+    next.writeText(0, 0, 'a한');
+    const diff = diffCellBuffers(previous, next);
+
+    expect(encodeTerminalFrame(diff)).toBe('\u001B[1;1Ha한');
   });
 
   it('does not bridge styled gaps that would add extra style transitions', () => {
@@ -4014,10 +4045,12 @@ describe('NativeTerminalSession', () => {
       synchronized: true,
       hideCursor: true,
       showCursor: true,
+      autoWrap: false,
     });
     expect(nativeTerminalFeatureProfile('fullscreen-app')).toMatchObject({
       screenMode: 'alternate',
       clearOnStart: true,
+      autoWrap: false,
       rawMode: true,
       bracketedPaste: true,
       focusEvents: true,
@@ -4388,6 +4421,7 @@ describe('NativeTerminalSession', () => {
       mouseTracking: 'sgr',
       bracketedPaste: true,
       synchronized: true,
+      autoWrap: false,
       colorMode: 'truecolor',
       imageProtocol: 'kitty',
     });
@@ -4413,6 +4447,7 @@ describe('NativeTerminalSession', () => {
     expect(nativeTerminalAdaptiveFeatureProfile('fullscreen-app', { TERM: 'dumb' })).toEqual({
       screenMode: undefined,
       clearOnStart: undefined,
+      autoWrap: undefined,
       rawMode: undefined,
       bracketedPaste: undefined,
       focusEvents: undefined,
@@ -4517,6 +4552,7 @@ describe('NativeTerminalSession', () => {
     expect(output.writes).toEqual([
       ANSI_ENTER_ALTERNATE_SCREEN,
       ANSI_CLEAR_SCREEN,
+      ANSI_DISABLE_AUTO_WRAP,
       ANSI_HIDE_CURSOR,
       ANSI_ENABLE_BRACKETED_PASTE,
       ANSI_ENABLE_FOCUS_EVENTS,
@@ -4529,16 +4565,67 @@ describe('NativeTerminalSession', () => {
 
     session.stop();
 
-    expect(output.writes.slice(8)).toEqual([
+    expect(output.writes.slice(9)).toEqual([
       ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
       ANSI_DISABLE_SGR_MOUSE_MODE,
       ANSI_DISABLE_MOUSE_TRACKING,
       ANSI_DISABLE_FOCUS_EVENTS,
       ANSI_DISABLE_BRACKETED_PASTE,
       ANSI_SHOW_CURSOR,
+      ANSI_ENABLE_AUTO_WRAP,
       ANSI_EXIT_ALTERNATE_SCREEN,
     ]);
     expect(input.paused).toBe(1);
+  });
+
+  it('disables terminal autowrap for inline-app profiles and restores it on stop', () => {
+    const input = new FakeInput();
+    const output = new FakeOutput();
+    const session = new NativeTerminalSession({
+      input,
+      output,
+      features: 'inline-app',
+      rawMode: false,
+      keyboardProtocol: undefined,
+    });
+
+    session.start();
+
+    expect(output.writes).toEqual([
+      ANSI_DISABLE_AUTO_WRAP,
+      ANSI_HIDE_CURSOR,
+      ANSI_ENABLE_BRACKETED_PASTE,
+      ANSI_ENABLE_FOCUS_EVENTS,
+      ANSI_ENABLE_MOUSE_TRACKING,
+      ANSI_ENABLE_SGR_MOUSE_MODE,
+      ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
+    ]);
+
+    session.stop();
+
+    expect(output.writes.slice(7)).toEqual([
+      ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
+      ANSI_DISABLE_SGR_MOUSE_MODE,
+      ANSI_DISABLE_MOUSE_TRACKING,
+      ANSI_DISABLE_FOCUS_EVENTS,
+      ANSI_DISABLE_BRACKETED_PASTE,
+      ANSI_SHOW_CURSOR,
+      ANSI_ENABLE_AUTO_WRAP,
+    ]);
+  });
+
+  it('leaves terminal autowrap untouched when autoWrap is undefined', () => {
+    const output = new FakeOutput();
+    const session = new NativeTerminalSession({
+      output,
+      screenMode: 'alternate',
+    });
+
+    session.start();
+    session.stop();
+
+    expect(output.writes).not.toContain(ANSI_DISABLE_AUTO_WRAP);
+    expect(output.writes).not.toContain(ANSI_ENABLE_AUTO_WRAP);
   });
 
   it('forwards input and resize events while started, then detaches listeners', () => {

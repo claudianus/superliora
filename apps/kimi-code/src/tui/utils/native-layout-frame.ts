@@ -103,6 +103,14 @@ export interface TUIStateNativeDiagnosticsOverlayOptions {
 export interface TUIStateNativeRenderCallbackOptions {
   readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
   readonly fill?: RendererCell;
+  /**
+   * When true, the rendered UI height is capped to the actual content
+   * height (transcript + chrome) instead of always occupying the full
+   * terminal viewport. The UI grows as the transcript grows and never
+   * exceeds the real terminal height. Defaults to false (always fill the
+   * terminal), matching the previous fixed full-viewport behavior.
+   */
+  readonly growWithContent?: boolean;
 }
 
 export interface TUIStateNativeRendererOptions
@@ -163,7 +171,11 @@ export function createTUIStateNativeRenderCallback(
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
     advanceAppearanceAnimationClock(frame.timestamp);
     setAppearanceRenderQuality(quality.level);
-    const nativeFrame = buildTUIStateNativeFrame(state, size.columns, size.rows, {
+    // The frame buffer may already be capped below the real terminal height
+    // (see `measureFrameHeight` in createTUIStateNativeRenderer), so layout
+    // must be computed against the actual buffer height, not `size.rows`.
+    const height = runtime.frameRenderer.height;
+    const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
     });
@@ -186,6 +198,9 @@ export function createTUIStateNativeRenderer(
     autoBeginFrame: false,
     autoFrameHold: options.autoFrameHold ?? (() => !state.transcriptViewport.followOutput),
     outputPolicy: options.outputPolicy ?? 'balanced',
+    measureFrameHeight: options.growWithContent === true
+      ? (size) => measureTUIStateNativeFrameHeight(state, size.columns, size.rows)
+      : options.measureFrameHeight,
     render: createTUIStateNativeRenderCallback(state, options),
     onFrame: (result, stats) => {
       setAppearanceRenderHealth(stats.health);
@@ -254,6 +269,53 @@ export function getTUIStateNativeEditorRect(
     },
   });
   return layout.regions.find((region) => region.id === 'editor')?.rect;
+}
+
+/**
+ * Computes the smallest frame height (at most `terminalRows`) that fits the
+ * chrome regions at their natural size plus the transcript's actual content,
+ * so the UI grows with the conversation instead of always occupying the full
+ * terminal viewport.
+ */
+export function measureTUIStateNativeFrameHeight(
+  state: TUIState,
+  width: number,
+  terminalRows: number,
+): number {
+  if (!Number.isFinite(terminalRows) || terminalRows <= 0) return terminalRows;
+  const frameWidth = normalizeFrameSize(width, DEFAULT_NATIVE_FRAME_COLUMNS);
+  const activityRows = state.activityContainer.render(frameWidth).length;
+  const todoRows = state.todoPanelContainer.render(frameWidth).length;
+  const queueRows = state.queueContainer.render(frameWidth).length;
+  const btwRows = state.btwPanelContainer.render(frameWidth).length;
+  const editorLines = state.editorContainer.render(frameWidth).length;
+  const footerRows = state.footerContainer.render(frameWidth).length;
+  const fixedRowsWithoutEditor = activityRows + todoRows + queueRows + btwRows + footerRows;
+  const editorRows = nativeEditorRegionRowsForLayout(
+    state,
+    editorLines,
+    terminalRows,
+    fixedRowsWithoutEditor,
+  );
+  const layout = measureRendererRegions({
+    terminalRows,
+    terminalColumns: frameWidth,
+    heights: {
+      activity: activityRows,
+      todo: todoRows,
+      queue: queueRows,
+      btw: btwRows,
+      editor: editorRows,
+      footer: footerRows,
+    },
+  });
+  if (!Number.isFinite(layout.transcriptRows)) return terminalRows;
+  const contentRows = state.transcriptContainer.contentRowCount(frameWidth);
+  const desiredTranscriptRows = Math.min(
+    layout.transcriptRows,
+    Math.max(NATIVE_LAYOUT_MIN_TRANSCRIPT_ROWS, contentRows),
+  );
+  return terminalRows - (layout.transcriptRows - desiredTranscriptRows);
 }
 
 interface TUIStateNativeFrame {

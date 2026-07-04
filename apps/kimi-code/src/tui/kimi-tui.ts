@@ -130,7 +130,10 @@ import {
   createTUIStateNativeInputRouter,
   type TUIStateNativeInputRouter,
 } from './utils/native-input-router';
-import { createTUIStateNativeRenderCallback } from './utils/native-layout-frame';
+import {
+  createTUIStateNativeRenderCallback,
+  measureTUIStateNativeFrameHeight,
+} from './utils/native-layout-frame';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -638,6 +641,9 @@ export class KimiTUI {
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
     this.state.ui.setRenderCallback(
       createTUIStateNativeRenderCallback(this.state, { diagnosticsOverlay }),
+    );
+    this.state.ui.renderer.setMeasureFrameHeight((size) =>
+      measureTUIStateNativeFrameHeight(this.state, size.columns, size.rows),
     );
   }
 

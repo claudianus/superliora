@@ -15,25 +15,25 @@ export interface KimiMascotOptions {
 
 export const PREMIUM_MASCOT_FRAMES: readonly (readonly string[])[] = [
   [
-    '   ╭────╮   ',
-    '   ◢●  ●◣   ',
-    '  ◢  ◡   ◣  ',
-    '  ╰─╮⌁╭─╯   ',
-    '    ╰──╯    ',
+    '  ╭─────╮  ',
+    ' ╱       ╲ ',
+    '│    ✦    │',
+    ' ╲       ╱ ',
+    '  ╰─────╯  ',
   ],
   [
-    '   ╭────╮   ',
-    '   ◢─  ●◣   ',
-    '  ◢  ◡   ◣  ',
-    '  ╰─╮✦╭─╯   ',
-    '    ╰──╯    ',
+    '  ╭─────╮  ',
+    ' ╱       ╲ ',
+    '│    ✧    │',
+    ' ╲       ╱ ',
+    '  ╰─────╯  ',
   ],
 ];
 
-const STANDARD_MASCOT = [' ╭───╮ ', '◢● ●◣', '◥ ◡ ◤', ' ╰─╯ '] as const;
-const COMPACT_MASCOT = ['◢●●◣', '╰◡╯'] as const;
-const ASCII_STANDARD_MASCOT = [' /---\\ ', '| o o |', '|  -  |', ' \\___/ '] as const;
-const ASCII_COMPACT_MASCOT = ['/-\\', '\\_/'] as const;
+const STANDARD_MASCOT = [' ╭───╮ ', '╱  ✦  ╲', '╲     ╱', ' ╰───╯ '] as const;
+const COMPACT_MASCOT = ['╭✦╮', '╰─╯'] as const;
+const ASCII_STANDARD_MASCOT = [' /---\\ ', '|  *  |', '|     |', ' \\---/ '] as const;
+const ASCII_COMPACT_MASCOT = ['/*\\', '\\-/'] as const;
 
 export function resolveKimiMascotVariant(options: KimiMascotOptions): KimiMascotVariant {
   const mascot = options.appearance.mascot;
