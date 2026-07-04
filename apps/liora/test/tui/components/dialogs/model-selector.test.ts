@@ -16,7 +16,7 @@ const RIGHT = `${ESC}[C`;
 
 function model(displayName: string, capabilities: string[] = ['thinking']): ModelAlias {
   return {
-    provider: 'managed:kimi-code',
+    provider: 'managed:kimi-api',
     model: displayName.toLowerCase().replaceAll(' ', '-'),
     maxContextSize: 200_000,
     displayName,

@@ -31,7 +31,7 @@ function make(): {
   const onSelect = vi.fn();
   const component = new TabbedModelSelectorComponent({
     models: {
-      k2: model('Kimi K2', 'managed:kimi-code'),
+      k2: model('Kimi K2', 'managed:kimi-api'),
       gpt: model('GPT-5', 'openai'),
     },
     currentValue: 'k2',

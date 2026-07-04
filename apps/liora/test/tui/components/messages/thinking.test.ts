@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
+import { advanceAppearanceAnimationClock } from '#/tui/utils/appearance-effects';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -12,6 +13,7 @@ const longThinking = ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'lin
 
 describe('ThinkingComponent', () => {
   it('shows only the live spinner header while collapsed', () => {
+    advanceAppearanceAnimationClock(0);
     const component = new ThinkingComponent('working it out', true, 'live');
     const out = strip(component.render(80).join('\n'));
 
@@ -46,24 +48,25 @@ describe('ThinkingComponent', () => {
     expect(out).not.toContain('ctrl+o to expand');
   });
 
-  it('animates the live spinner and stops on finalize', () => {
-    vi.useFakeTimers();
-    const requestRender = vi.fn();
+  it('advances the live spinner frame with the animation clock and stops on finalize', () => {
+    advanceAppearanceAnimationClock(0);
     const component = new ThinkingComponent('step', true, 'live', {
-      requestRender,
+      requestRender: vi.fn(),
     } as unknown as RendererRootUI);
 
+    // Frame 0 at time 0.
     expect(strip(component.render(80).join('\n'))).toContain('⠋ thinking...');
 
-    vi.advanceTimersByTime(80);
-    expect(requestRender).toHaveBeenCalled();
+    // Advance the animation clock by one spinner interval → frame 1.
+    advanceAppearanceAnimationClock(80);
     expect(strip(component.render(80).join('\n'))).toContain('⠙ thinking...');
 
+    // After finalize the spinner line is replaced by the "thinking complete"
+    // summary — no spinner glyph should appear.
     component.finalize();
-    requestRender.mockClear();
-    vi.advanceTimersByTime(160);
-    expect(requestRender).not.toHaveBeenCalled();
-    vi.useRealTimers();
+    const finalized = strip(component.render(80).join('\n'));
+    expect(finalized).not.toContain('⠙');
+    expect(finalized).toContain('thinking complete');
   });
 
   it('finalizes in place into a hidden collapsed summary', () => {

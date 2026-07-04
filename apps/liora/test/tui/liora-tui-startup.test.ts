@@ -49,6 +49,12 @@ interface ThemeTrackingDriver extends StartupDriver {
   refreshTerminalThemeTracking(): void;
 }
 
+/** Exposes the private {@link LioraTUI.initMainTui} entry point for startup
+ *  tests that need to drive the main-TUI init sequence directly. */
+interface MainTuiDriver extends StartupDriver {
+  initMainTui(): Promise<boolean>;
+}
+
 function makeStartupInput(
   cliOptions: Partial<LioraTUIStartupInput['cliOptions']> = {},
   tuiConfig: Partial<LioraTUIStartupInput['tuiConfig']> = {},
@@ -163,7 +169,7 @@ function createResumeState(overrides: { permissionMode?: string; planMode?: bool
 }
 
 function loginRequiredError(): Error & { readonly code: string } {
-  return Object.assign(new Error('OAuth provider "managed:kimi-code" requires login.'), {
+  return Object.assign(new Error('OAuth provider "managed:kimi-api" requires login.'), {
     code: 'auth.login_required',
   });
 }
@@ -182,6 +188,7 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
     track: vi.fn(),
     setTelemetryContext: vi.fn(),
     getExperimentalFeatures: vi.fn(async () => []),
+    removeProvider: vi.fn(async () => {}),
     auth: {
       status: vi.fn(async () => ({ providers: [] })),
       login: vi.fn(async () => {}),
@@ -939,7 +946,7 @@ describe('LioraTUI startup', () => {
     const stop = vi.spyOn(driver, 'stop').mockResolvedValue(undefined);
     copyTextToClipboardMock.mockClear();
 
-    await expect((driver as unknown as MigrateExitDriver).initMainTui()).resolves.toBe(false);
+    await expect((driver as unknown as MainTuiDriver).initMainTui()).resolves.toBe(false);
     await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
 
     const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
@@ -1004,7 +1011,7 @@ describe('LioraTUI startup', () => {
     const driver = makeDriver(harness, makeStartupInput({ session: '' }));
     const stop = vi.spyOn(driver, 'stop').mockResolvedValue(undefined);
 
-    await expect((driver as unknown as MigrateExitDriver).initMainTui()).resolves.toBe(false);
+    await expect((driver as unknown as MainTuiDriver).initMainTui()).resolves.toBe(false);
     await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
 
     const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
@@ -1249,7 +1256,7 @@ describe('LioraTUI startup', () => {
       maxContextTokens: 100,
     });
     expect(harness.track).toHaveBeenCalledWith('login', {
-      provider: 'managed:kimi-code',
+      provider: 'managed:kimi-api',
       method: 'oauth',
       already_logged_in: false,
     });
@@ -1260,7 +1267,7 @@ describe('LioraTUI startup', () => {
     const harness = makeHarness(session, {
       auth: {
         status: vi.fn(async () => ({
-          providers: [{ providerName: 'managed:kimi-code', hasToken: true }],
+          providers: [{ providerName: 'managed:kimi-api', hasToken: true }],
         })),
         login: vi.fn(async () => {}),
         logout: vi.fn(),
@@ -1276,14 +1283,14 @@ describe('LioraTUI startup', () => {
     await handleLoginCommand(driver as any);
 
     expect(harness.auth.login).toHaveBeenCalledWith(
-      'managed:kimi-code',
+      'managed:kimi-api',
       expect.objectContaining({
         signal: expect.any(AbortSignal),
         onDeviceCode: expect.any(Function),
       }),
     );
     expect(harness.track).toHaveBeenCalledWith('login', {
-      provider: 'managed:kimi-code',
+      provider: 'managed:kimi-api',
       method: 'oauth',
       already_logged_in: true,
     });
@@ -1312,7 +1319,7 @@ describe('LioraTUI startup', () => {
       await handleLoginCommand(driver as any);
 
       expect(harness.auth.login).toHaveBeenCalledWith(
-        'managed:kimi-code',
+        'managed:kimi-api',
         expect.objectContaining({
           signal: expect.any(AbortSignal),
           onDeviceCode: expect.any(Function),
@@ -1321,7 +1328,7 @@ describe('LioraTUI startup', () => {
       expect(warn).toHaveBeenCalledWith(
         'login failed',
         expect.objectContaining({
-          providerName: 'managed:kimi-code',
+          providerName: 'managed:kimi-api',
           alreadyLoggedIn: false,
           sessionId: 'ses-1',
           error: expect.objectContaining({
@@ -1339,13 +1346,13 @@ describe('LioraTUI startup', () => {
     const harness = makeHarness(session, {
       getConfig: vi.fn(async () => ({
         models: {
-          k2: { provider: 'managed:kimi-code', model: 'moonshot-v1', maxContextSize: 100 },
+          k2: { provider: 'managed:kimi-api', model: 'moonshot-v1', maxContextSize: 100 },
         },
-        providers: { 'managed:kimi-code': { type: 'kimi' } },
+        providers: { 'managed:kimi-api': { type: 'kimi' } },
       })),
       auth: {
         status: vi.fn(async () => ({
-          providers: [{ providerName: 'managed:kimi-code', hasToken: true }],
+          providers: [{ providerName: 'managed:kimi-api', hasToken: true }],
         })),
         login: vi.fn(async () => {}),
         logout: vi.fn(),
@@ -1357,17 +1364,17 @@ describe('LioraTUI startup', () => {
     await expect(driver.init()).resolves.toBe(false);
     harness.track.mockClear();
 
-    vi.mocked(promptLogoutProviderSelection).mockResolvedValue('managed:kimi-code');
+    vi.mocked(promptLogoutProviderSelection).mockResolvedValue('managed:kimi-api');
     await handleLogoutCommand(driver as any);
 
-    expect(harness.auth.logout).toHaveBeenCalledWith('managed:kimi-code');
+    expect(harness.auth.logout).toHaveBeenCalledWith('managed:kimi-api');
     expect(session.close).toHaveBeenCalledOnce();
     expect(driver.state.appState).toMatchObject({
       sessionId: '',
       model: '',
       sessionTitle: null,
     });
-    expect(harness.track).toHaveBeenCalledWith('logout', { provider: 'managed:kimi-code' });
+    expect(harness.track).toHaveBeenCalledWith('logout', { provider: 'managed:kimi-api' });
   });
 
   it('keeps the active session when logging out a different provider', async () => {
@@ -1376,17 +1383,17 @@ describe('LioraTUI startup', () => {
     const harness = makeHarness(session, {
       getConfig: vi.fn(async () => ({
         models: {
-          k2: { provider: 'managed:kimi-code', model: 'moonshot-v1', maxContextSize: 100 },
+          k2: { provider: 'managed:kimi-api', model: 'moonshot-v1', maxContextSize: 100 },
         },
         providers: {
-          'managed:kimi-code': { type: 'kimi' },
+          'managed:kimi-api': { type: 'kimi' },
           openai: { type: 'openai', baseUrl: 'https://api.openai.com/v1' },
         },
       })),
       removeProvider,
       auth: {
         status: vi.fn(async () => ({
-          providers: [{ providerName: 'managed:kimi-code', hasToken: true }],
+          providers: [{ providerName: 'managed:kimi-api', hasToken: true }],
         })),
         login: vi.fn(async () => {}),
         logout: vi.fn(),
@@ -1416,15 +1423,15 @@ describe('LioraTUI startup', () => {
     const harness = makeHarness(session, {
       getConfig: vi.fn(async () => ({
         models: {
-          k2: { provider: 'managed:kimi-code', model: 'moonshot-v1', maxContextSize: 100 },
+          k2: { provider: 'managed:kimi-api', model: 'moonshot-v1', maxContextSize: 100 },
         },
-        providers: { 'managed:kimi-code': { type: 'kimi' } },
+        providers: { 'managed:kimi-api': { type: 'kimi' } },
       })),
       auth: {
         // Token gone (e.g. credentials file deleted) but the managed entry
         // is still sitting in config.providers.
         status: vi.fn(async () => ({
-          providers: [{ providerName: 'managed:kimi-code', hasToken: false }],
+          providers: [{ providerName: 'managed:kimi-api', hasToken: false }],
         })),
         login: vi.fn(async () => {}),
         logout: vi.fn(),
@@ -1435,10 +1442,10 @@ describe('LioraTUI startup', () => {
 
     await expect(driver.init()).resolves.toBe(false);
 
-    vi.mocked(promptLogoutProviderSelection).mockResolvedValue('managed:kimi-code');
+    vi.mocked(promptLogoutProviderSelection).mockResolvedValue('managed:kimi-api');
     await handleLogoutCommand(driver as any);
 
-    expect(harness.auth.logout).toHaveBeenCalledWith('managed:kimi-code');
+    expect(harness.auth.logout).toHaveBeenCalledWith('managed:kimi-api');
   });
 
   it('starts TUI without replaying when --continue needs OAuth login', async () => {
@@ -1496,7 +1503,7 @@ describe('LioraTUI startup', () => {
     const driver = makeDriver(
       harness,
       makeStartupInput({ session: 'missing-session' }),
-    ) as unknown as MigrateExitDriver;
+    ) as unknown as MainTuiDriver;
 
     await expect(driver.initMainTui()).rejects.toThrow('Session "missing-session" not found.');
     expect(uiContainsFooter(driver)).toBe(false);
@@ -1510,7 +1517,7 @@ describe('LioraTUI startup', () => {
     const driver = makeDriver(
       harness,
       makeStartupInput({ session: 'ses-target' }),
-    ) as unknown as MigrateExitDriver;
+    ) as unknown as MainTuiDriver;
 
     // Not mounted until init() succeeds.
     expect(uiContainsFooter(driver)).toBe(false);
@@ -1529,7 +1536,7 @@ describe('LioraTUI startup', () => {
     const driver = makeDriver(
       harness,
       makeStartupInput({ session: 'ses-target' }),
-    ) as unknown as MigrateExitDriver;
+    ) as unknown as MainTuiDriver;
 
     await driver.initMainTui();
 
@@ -1557,7 +1564,7 @@ describe('LioraTUI startup', () => {
     const driver = makeDriver(
       harness,
       makeStartupInput({ session: 'ses-target' }),
-    ) as unknown as MigrateExitDriver;
+    ) as unknown as MainTuiDriver;
 
     await driver.initMainTui();
 
@@ -1602,7 +1609,7 @@ describe('LioraTUI startup', () => {
       const driver = makeDriver(
         harness,
         makeStartupInput({ session: 'ses-target' }),
-      ) as unknown as MigrateExitDriver;
+      ) as unknown as MainTuiDriver;
 
       await driver.initMainTui();
 
@@ -1659,7 +1666,7 @@ describe('LioraTUI startup', () => {
       const driver = makeDriver(
         harness,
         makeStartupInput({ session: 'ses-target' }),
-      ) as unknown as MigrateExitDriver;
+      ) as unknown as MainTuiDriver;
 
       await driver.initMainTui();
 

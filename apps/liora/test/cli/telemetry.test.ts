@@ -31,7 +31,7 @@ vi.mock('@superliora/telemetry', () => ({
 
 vi.mock('@superliora/oauth', () => ({
   createKimiDeviceId: mocks.createKimiDeviceId,
-  SUPERLIORA_PROVIDER_NAME: 'managed:kimi-code',
+  SUPERLIORA_PROVIDER_NAME: 'managed:kimi-api',
 }));
 
 vi.mock('@superliora/sdk', async (importOriginal) => {

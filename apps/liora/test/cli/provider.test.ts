@@ -477,7 +477,7 @@ describe('liora provider list', () => {
         apiKey: 'k',
         source: { kind: 'apiJson', url: REGISTRY_URL, apiKey: 'k' },
       },
-      'managed:kimi-code': {
+      'managed:kimi-api': {
         type: 'kimi',
         baseUrl: 'https://api.kimi.com/coding/v1',
         oauth: { storage: 'file', key: 'oauth/kimi-code' },
@@ -516,7 +516,7 @@ describe('liora provider list', () => {
 
     const out = stdout.join('');
     expect(out).toMatch(/kohub\s+type=anthropic\s+models=2\s+keys=1\s+source=apiJson\(/);
-    expect(out).toMatch(/managed:kimi-code\s+type=kimi\s+models=0\s+keys=0\s+source=oauth/);
+    expect(out).toMatch(/managed:kimi-api\s+type=kimi\s+models=0\s+keys=0\s+source=oauth/);
     expect(out).toMatch(/manual\s+type=openai\s+models=1\s+keys=1\s+source=inline/);
     expect(out).toContain('aliases: manual/x');
     expect(out).toContain('aliases: kohub/a (KoHub A), kohub/b');
@@ -545,7 +545,7 @@ describe('liora provider list', () => {
     };
     expect(Object.keys(parsed.providers).toSorted()).toEqual([
       'kohub',
-      'managed:kimi-code',
+      'managed:kimi-api',
       'manual',
     ]);
     expect(Object.keys(parsed.models)).toContain('kohub/a');
@@ -2513,7 +2513,7 @@ describe('liora provider route', () => {
 describe('liora provider use', () => {
   const config: LioraConfig = {
     providers: {
-      'managed:kimi-code': {
+      'managed:kimi-api': {
         type: 'kimi',
         baseUrl: 'https://api.kimi.com/coding/v1',
         oauth: { storage: 'file', key: 'oauth/kimi-code' },
@@ -2521,7 +2521,7 @@ describe('liora provider use', () => {
     },
     models: {
       'kimi-code/kimi-for-coding': {
-        provider: 'managed:kimi-code',
+        provider: 'managed:kimi-api',
         model: 'kimi-for-coding',
         maxContextSize: 1024,
         capabilities: [],
@@ -2561,21 +2561,21 @@ describe('registerProviderCommand', () => {
   it('shows the configured provider list when run without a subcommand', async () => {
     const { harness } = makeHarness({
       providers: {
-        'managed:kimi-code': {
+        'managed:kimi-api': {
           type: 'kimi',
           baseUrl: 'https://api.kimi.com/coding/v1',
           oauth: { storage: 'file', key: 'oauth/kimi-code' },
         },
       },
       models: {
-        'managed:kimi-code/k2': {
-          provider: 'managed:kimi-code',
+        'managed:kimi-api/k2': {
+          provider: 'managed:kimi-api',
           model: 'k2',
           maxContextSize: 1024,
           capabilities: [],
         },
       },
-      defaultModel: 'managed:kimi-code/k2',
+      defaultModel: 'managed:kimi-api/k2',
     } as unknown as LioraConfig);
     const { deps, stdout, stderr, exitCodes } = makeDeps(harness);
 
@@ -2587,16 +2587,16 @@ describe('registerProviderCommand', () => {
     expect(exitCodes).toEqual([]);
     expect(stderr.join('')).toBe('');
     expect(stdout.join('')).toContain(
-      'managed:kimi-code  type=kimi  models=1  keys=0  source=oauth',
+      'managed:kimi-api  type=kimi  models=1  keys=0  source=oauth',
     );
-    expect(stdout.join('')).toContain('aliases: managed:kimi-code/k2');
-    expect(stdout.join('')).toContain('Default model: managed:kimi-code/k2');
+    expect(stdout.join('')).toContain('aliases: managed:kimi-api/k2');
+    expect(stdout.join('')).toContain('Default model: managed:kimi-api/k2');
   });
 
   it('routes provider use through commander', async () => {
     const { harness, current } = makeHarness({
       providers: {
-        'managed:kimi-code': {
+        'managed:kimi-api': {
           type: 'kimi',
           baseUrl: 'https://api.kimi.com/coding/v1',
           oauth: { storage: 'file', key: 'oauth/kimi-code' },
@@ -2604,7 +2604,7 @@ describe('registerProviderCommand', () => {
       },
       models: {
         'kimi-code/kimi-for-coding': {
-          provider: 'managed:kimi-code',
+          provider: 'managed:kimi-api',
             model: 'kimi-for-coding',
             maxContextSize: 1024,
             capabilities: [],

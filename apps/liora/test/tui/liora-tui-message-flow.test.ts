@@ -87,6 +87,7 @@ interface MessageDriver {
   persistInputHistory(text: string): Promise<void>;
   sendQueuedMessage(session: unknown, item: QueuedMessage): void;
   getCurrentSessionId(): string;
+  appearanceController: { dispose(): void };
 }
 
 interface FeedbackDriver extends MessageDriver {
@@ -287,6 +288,10 @@ async function makeDriver(
   vi.spyOn(driver.state.terminal, 'setProgress').mockImplementation(() => {});
   driver.persistInputHistory = vi.fn(async () => {});
   await driver.init();
+  // Dispose the animation scheduler so the RendererTicker does not infinitely
+  // re-schedule under vi.useFakeTimers() + vi.runAllTimersAsync() in tests
+  // that advance fake timers.
+  driver.appearanceController.dispose();
   return { driver, session, harness };
 }
 
@@ -526,7 +531,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -544,7 +549,7 @@ command = "vim"
       expect.objectContaining({
         content: 'useful feedback',
         sessionId: 'ses-1',
-        version: 'kimi-code-0.0.0-test',
+        version: 'liora-0.0.0-test',
         model: 'k2',
       }),
     );
@@ -562,7 +567,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -628,7 +633,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -715,7 +720,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -765,7 +770,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -820,7 +825,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -863,7 +868,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -895,7 +900,7 @@ command = "vim"
             k2: {
               model: 'moonshot-v1',
               maxContextSize: 100,
-              provider: 'managed:kimi-code',
+              provider: 'managed:kimi-api',
             },
           },
         })),
@@ -4472,14 +4477,14 @@ command = "vim"
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-k2',
             maxContextSize: 100,
             displayName: 'Kimi K2',
             capabilities: ['thinking'],
           },
           turbo: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-turbo',
             maxContextSize: 100,
             displayName: 'Kimi Turbo',
@@ -4530,14 +4535,14 @@ command = "vim"
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-k2',
             maxContextSize: 100,
             displayName: 'Kimi K2',
             capabilities: ['thinking'],
           },
           turbo: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-turbo',
             maxContextSize: 100,
             displayName: 'Kimi Turbo',
@@ -4575,14 +4580,14 @@ command = "vim"
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-k2',
             maxContextSize: 100,
             displayName: 'Kimi K2',
             capabilities: ['thinking'],
           },
           turbo: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-turbo',
             maxContextSize: 100,
             displayName: 'Kimi Turbo',
@@ -4624,7 +4629,7 @@ command = "vim"
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-k2',
             maxContextSize: 100,
             displayName: 'Kimi K2',
@@ -4660,7 +4665,7 @@ command = "vim"
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-k2',
             maxContextSize: 100,
             displayName: 'Old Kimi K2',
@@ -4678,7 +4683,7 @@ command = "vim"
       tui.setAppState({
         availableModels: {
           k2: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-k2',
             maxContextSize: 100,
             displayName: 'Fresh Kimi K2',
@@ -4686,7 +4691,7 @@ command = "vim"
           },
         },
       });
-      return { changed: [], unchanged: ['managed:kimi-code'], failed: [] };
+      return { changed: [], unchanged: ['managed:kimi-api'], failed: [] };
     });
     (
       tui.authFlow as unknown as {
@@ -4712,7 +4717,7 @@ command = "vim"
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-k2',
             maxContextSize: 100,
             displayName: 'Kimi K2',
@@ -4754,14 +4759,14 @@ command = "vim"
     const { driver } = await makeDriver();
     const selection = runModelSelector(driver as any, {
       alpha: {
-        provider: 'managed:kimi-code',
+        provider: 'managed:kimi-api',
         model: 'kimi-alpha',
         maxContextSize: 100,
         displayName: 'Kimi Alpha',
         capabilities: ['thinking'],
       },
       turbo: {
-        provider: 'managed:kimi-code',
+        provider: 'managed:kimi-api',
         model: 'kimi-turbo',
         maxContextSize: 100,
         displayName: 'Kimi Turbo',
