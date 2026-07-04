@@ -144,15 +144,46 @@ export function getNativeCacheBase(options: NativeAssetOptions = {}): string {
   const cacheDirEnv = optionalEnvValue(env, 'SUPERLIORA_CACHE_DIR');
   if (cacheDirEnv !== null) return cacheDirEnv;
 
-  if (platform === 'darwin') return joinPosix(home, 'Library', 'Caches', 'kimi-code');
+  if (platform === 'darwin') return joinPosix(home, 'Library', 'Caches', 'liora');
   if (platform === 'win32') {
     const localAppData = optionalEnvValue(env, 'LOCALAPPDATA');
     return localAppData !== null
-      ? pathWin32.join(localAppData, 'kimi-code')
-      : pathWin32.join(home, 'AppData', 'Local', 'kimi-code', 'Cache');
+      ? pathWin32.join(localAppData, 'liora')
+      : pathWin32.join(home, 'AppData', 'Local', 'liora', 'Cache');
   }
 
-  return joinPosix(optionalEnvValue(env, 'XDG_CACHE_HOME') ?? joinPosix(home, '.cache'), 'kimi-code');
+  return joinPosix(optionalEnvValue(env, 'XDG_CACHE_HOME') ?? joinPosix(home, '.cache'), 'liora');
+}
+
+function legacyNativeCacheBases(options: NativeAssetOptions = {}): string[] {
+  if (options.cacheBase !== undefined) return [];
+
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const home = options.homeDir ?? homedir();
+
+  if (platform === 'darwin') return [joinPosix(home, 'Library', 'Caches', 'kimi-code')];
+  if (platform === 'win32') {
+    const localAppData = optionalEnvValue(env, 'LOCALAPPDATA');
+    return localAppData !== null
+      ? [pathWin32.join(localAppData, 'kimi-code')]
+      : [pathWin32.join(home, 'AppData', 'Local', 'kimi-code', 'Cache')];
+  }
+
+  return [
+    joinPosix(optionalEnvValue(env, 'XDG_CACHE_HOME') ?? joinPosix(home, '.cache'), 'kimi-code'),
+  ];
+}
+
+/** Remove native asset caches left by the pre-SuperLiora `kimi-code` install. */
+export function removeLegacyNativeCacheBases(options: NativeAssetOptions = {}): void {
+  for (const legacyBase of legacyNativeCacheBases(options)) {
+    try {
+      rmSync(legacyBase, { recursive: true, force: true });
+    } catch {
+      // Best-effort cache cleanup only.
+    }
+  }
 }
 
 export function getNativeAssetCacheRoot(
@@ -206,7 +237,7 @@ function ensureFile(path: string, bytes: Buffer, expectedSha256: string, mode?: 
 }
 
 function ensureEntryFile(cacheRoot: string): void {
-  const entryPath = join(cacheRoot, 'node_modules', '.kimi-native-entry.cjs');
+  const entryPath = join(cacheRoot, 'node_modules', '.liora-native-entry.cjs');
   ensureFile(
     entryPath,
     Buffer.from('module.exports = require;\n'),
@@ -352,6 +383,8 @@ export function cleanupStaleNativeCache(options: CleanupOptions): CleanupResult 
 export function cleanupStaleNativeCacheForCurrent(
   options: NativeAssetOptions = {},
 ): CleanupResult | null {
+  removeLegacyNativeCacheBases(options);
+
   const source = options.source ?? getSeaAssetSource();
   if (source === null) return null;
 

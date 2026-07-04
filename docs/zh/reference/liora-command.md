@@ -262,16 +262,6 @@ liora export 01HZ...XYZ -o ./bug-report.zip
 liora export 01HZ...XYZ -o ./bug-report.zip --no-include-global-log
 ```
 
-### `liora migrate`
-
-将旧版 kimi-cli 的本地数据迁移到 SuperLiora，包括历史会话和配置文件。纯交互式运行，会引导你完成全流程。
-
-```sh
-liora migrate
-```
-
-完整迁移说明见[从 kimi-cli 迁移](../guides/migration.md)。
-
 ### `liora upgrade`
 
 立即检查最新版本并展示更新提示，选择操作后退出。也可以使用别名 `liora update`。

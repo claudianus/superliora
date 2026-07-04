@@ -4369,8 +4369,6 @@ async function runTuiLaunchPhase(context) {
   let tempHomeCreated = false;
   let tempRootCreated = false;
   let tmuxSessionCreated = false;
-  let migrationSkipMarker;
-
   await mkdir(tuiDir, { recursive: true });
   await writeTuiAttachHelpers(context, tmuxSession);
 
@@ -4418,29 +4416,13 @@ async function runTuiLaunchPhase(context) {
         summary.status = realHomeProbe.status === 'BLOCKED' ? 'BLOCKED' : 'FAIL';
         summary.reason = realHomeProbe.reason;
         return await finishTuiLaunchPhase(context, summary, cleanupOverrides);
-      }
-      summary.migrationPromptSuppressed = {
-        status: 'NOT_REQUIRED',
-        reason:
-          'Real user SUPERLIORA_HOME was selected by explicit opt-in; the harness did not write migration markers.',
-        markerPath: undefined,
-      };
-    } else {
+      }    } else {
       await mkdir(context.plannedLioraHome, { recursive: true, mode: 0o700 });
-      tempHomeCreated = true;
-      migrationSkipMarker = path.join(context.plannedLioraHome, '.skip-migration-from-kimi-cli');
-      await writeFile(migrationSkipMarker, '', 'utf8');
-      summary.lioraHomeProbe = {
+      tempHomeCreated = true;      summary.lioraHomeProbe = {
         status: 'PASS',
-        reason: 'Temporary isolated SUPERLIORA_HOME was created with migration prompt suppressed.',
+        reason: 'Temporary isolated SUPERLIORA_HOME was created with a fresh home directory.',
         path: context.plannedLioraHome,
-      };
-      summary.migrationPromptSuppressed = {
-        status: 'PASS',
-        reason: 'Temporary QA SUPERLIORA_HOME includes the first-launch migration skip marker.',
-        markerPath: migrationSkipMarker,
-      };
-    }
+      };    }
     await createDisposableGitWorktree(context);
     targetWorktreeCreated = true;
 
@@ -4808,12 +4790,9 @@ async function runTuiRealWorkflowPhase(context) {
       }
     } else {
       await mkdir(context.plannedLioraHome, { recursive: true, mode: 0o700 });
-      tempHomeCreated = true;
-      const migrationSkipMarker = path.join(context.plannedLioraHome, '.skip-migration-from-kimi-cli');
-      await writeFile(migrationSkipMarker, '', 'utf8');
-      summary.lioraHomeProbe = {
+      tempHomeCreated = true;      summary.lioraHomeProbe = {
         status: 'PASS',
-        reason: 'Temporary isolated SUPERLIORA_HOME was created with migration prompt suppressed.',
+        reason: 'Temporary isolated SUPERLIORA_HOME was created with a fresh home directory.',
         path: context.plannedLioraHome,
       };
     }
@@ -5333,15 +5312,9 @@ async function runTuiUltraworkWorkflowPhase(context) {
       }
     } else {
       await mkdir(context.plannedLioraHome, { recursive: true, mode: 0o700 });
-      tempHomeCreated = true;
-      await writeFile(
-        path.join(context.plannedLioraHome, '.skip-migration-from-kimi-cli'),
-        '',
-        'utf8',
-      );
-      summary.lioraHomeProbe = {
+      tempHomeCreated = true;      summary.lioraHomeProbe = {
         status: 'PASS',
-        reason: 'Temporary isolated SUPERLIORA_HOME was created with migration prompt suppressed.',
+        reason: 'Temporary isolated SUPERLIORA_HOME was created with a fresh home directory.',
         path: context.plannedLioraHome,
       };
     }

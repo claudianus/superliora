@@ -85,7 +85,6 @@
     "@superliora/oauth": "workspace:^",
     "@superliora/sdk": "workspace:^",
     "@superliora/telemetry": "workspace:^",
-    "@superliora/migration-legacy": "workspace:^",
     "@superliora/server": "workspace:^",
     "@superliora/vis-server": "workspace:^",
     "@superliora/vis-web": "workspace:*",

@@ -11,7 +11,6 @@ import {
   visibleWidth,
   type Focusable,
 } from '#/tui/renderer';
-import { formatSessionLabel } from '#/migration/index';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import { SearchableList } from '#/tui/utils/searchable-list';
@@ -352,7 +351,7 @@ export class SessionPickerComponent extends Container implements Focusable {
     const time = formatRelativeTime(session.updated_at);
     const badge = isCurrent ? CURRENT_MARK : '';
     const rawTitle = (session.title ?? session.id).trim() || session.id;
-    const titleSource = formatSessionLabel({ title: rawTitle, metadata: session.metadata });
+    const titleSource = rawTitle;
 
     // Inline trailing parts after the title: "<title>  <time>  ← current".
     const trailingParts = [time, badge].filter((p) => p.length > 0);

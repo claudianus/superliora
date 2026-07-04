@@ -69,7 +69,6 @@
         ./packages/server-e2e
         ./packages/kaos
         ./packages/kosong
-        ./packages/migration-legacy
         ./packages/node-sdk
         ./packages/oauth
         ./packages/protocol
@@ -89,7 +88,6 @@
         "@superliora/server-e2e"
         "@superliora/kaos"
         "@superliora/kosong"
-        "@superliora/migration-legacy"
         "@superliora/sdk"
         "@superliora/oauth"
         "@superliora/protocol"

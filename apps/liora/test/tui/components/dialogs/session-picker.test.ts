@@ -96,7 +96,7 @@ describe('SessionPickerComponent', () => {
     expect(output).toContain('Refactor sessions list');
     // Session id is rendered in full, never abbreviated with an ellipsis.
     expect(output).toContain('ses_01HXYABCDEFGHIJK');
-    expect(output).not.toMatch(/ses_01\S*…/);
+    expect(output).not.toMatch(/ses_01\S*?/);
     expect(output).toContain('/tmp/project');
     expect(output).toContain('please redesign the picker UI');
   });
@@ -122,7 +122,7 @@ describe('SessionPickerComponent', () => {
 
     const output = renderPlain(component);
 
-    expect(output).not.toMatch(/^\s*›/m);
+    expect(output).not.toMatch(/^\s*?/m);
   });
 
   it('truncates overly long last_prompt content', () => {
@@ -147,14 +147,14 @@ describe('SessionPickerComponent', () => {
     });
 
     const lines = component.render(60).map((line) => stripAnsi(line));
-    const promptLine = lines.find((line) => line.trimStart().startsWith('›'));
+    const promptLine = lines.find((line) => line.trimStart().startsWith('?'));
     expect(promptLine).toBeDefined();
     expect(promptLine!.length).toBeLessThanOrEqual(60);
-    expect(promptLine!.endsWith('…')).toBe(true);
+    expect(promptLine!.endsWith('?')).toBe(true);
     expect(promptLine).not.toContain(longPrompt);
   });
 
-  it('marks the current session with a "← current" badge', () => {
+  it('marks the current session with a "? current" badge', () => {
     const now = new Date('2026-05-11T12:00:00.000Z').getTime();
     vi.spyOn(Date, 'now').mockReturnValue(now);
 
@@ -182,8 +182,8 @@ describe('SessionPickerComponent', () => {
     const lines = component.render(120).map((line) => stripAnsi(line));
     const currentLine = lines.find((line) => line.includes('this is current'));
     const otherLine = lines.find((line) => line.includes('not current'));
-    expect(currentLine).toContain('← current');
-    expect(otherLine).not.toContain('← current');
+    expect(currentLine).toContain('? current');
+    expect(otherLine).not.toContain('? current');
   });
 
   it('places the relative time on the same line as the title, not right-aligned', () => {
@@ -214,7 +214,7 @@ describe('SessionPickerComponent', () => {
     expect(headerLine).not.toMatch(/Short title\s{8,}/);
   });
 
-  it('prepends [imported] badge before the title for sessions migrated from kimi-cli', () => {
+  it('renders migrated and native session titles the same way', () => {
     const now = new Date('2026-05-11T12:00:00.000Z').getTime();
     vi.spyOn(Date, 'now').mockReturnValue(now);
 
@@ -243,8 +243,9 @@ describe('SessionPickerComponent', () => {
     const lines = component.render(120).map((line) => stripAnsi(line));
     const importedLine = lines.find((line) => line.includes('Migrated session'));
     const nativeLine = lines.find((line) => line.includes('Fresh session'));
-    expect(importedLine).toContain('[imported] Migrated session');
-    expect(nativeLine).not.toContain('[imported]');
+    expect(importedLine).toContain('Migrated session');
+    expect(nativeLine).toContain('Fresh session');
+    expect(importedLine).not.toContain('[imported]');
   });
 
   it('keeps every rendered line within the terminal width even for CJK content', () => {
@@ -255,10 +256,10 @@ describe('SessionPickerComponent', () => {
       sessions: [
         {
           id: 'ses_cjk_long_session_id_value',
-          title: '现在要重构一下 TUI 的 sessions 列表，要渲染几个字段，让 UI 更好看',
+          title: '??????? TUI ? sessions ???????????? UI ???',
           last_prompt:
-            '我们要渲染几个：sessionid title lastPrompt。工作目录，修改时间。需要重新设计下 UI。',
-          work_dir: '/Users/someone/Desktop/中文目录/very-long-project-folder-name',
+            '????????sessionid title lastPrompt?????????????????? UI?',
+          work_dir: '/Users/someone/Desktop/????/very-long-project-folder-name',
           updated_at: now - 5 * 60 * 1000,
         },
       ],
@@ -400,7 +401,7 @@ describe('SessionPickerComponent', () => {
     const output = renderPlain(component);
 
     expect(output).toContain('All sessions');
-    expect(output).toContain('↑↓ navigate · Ctrl+A current cwd · Enter select · Esc cancel');
+    expect(output).toContain('?? navigate ? Ctrl+A current cwd ? Enter select ? Esc cancel');
   });
 
   it('selects the full session row on Enter', () => {

@@ -20,11 +20,9 @@ import type {
   PromptPart,
   Session,
 } from '@superliora/sdk';
-import type { MigrationPlan } from '@superliora/migration-legacy';
 import { resolve } from 'pathe';
 
 import type { CLIOptions } from '#/cli/options';
-import { MigrationScreenComponent, type MigrationScreenResult } from '#/migration/index';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 import { appendInputHistory, loadInputHistory } from '#/utils/history/input-history';
 import { openUrl } from '#/utils/open-url';
@@ -191,9 +189,6 @@ export interface LioraTUIStartupInput {
   readonly version: string;
   readonly workDir: string;
   readonly startupNotice?: string;
-  readonly migrationPlan?: MigrationPlan | null;
-  /** When true, run only the migration screen, then exit (the `liora migrate` command). */
-  readonly migrateOnly?: boolean;
 }
 
 type EffectiveActivityPaneMode = ActivityPaneMode | 'idle' | 'session';
@@ -289,8 +284,6 @@ export class LioraTUI {
   private signalCleanupHandlers: Array<() => void> = [];
   private isShuttingDown = false;
   private eventLoopStarted = false;
-  private readonly migrationPlan: MigrationPlan | null;
-  private readonly migrateOnly: boolean;
   private startupNotice: string | undefined;
   private lastActivityMode: string | undefined;
   private currentLoadingTip: { kind: LoadingTipKind; tip: string | undefined; pinned: boolean } | undefined =
@@ -358,8 +351,6 @@ export class LioraTUI {
       },
     };
     this.options = tuiOptions;
-    this.migrationPlan = startupInput.migrationPlan ?? null;
-    this.migrateOnly = startupInput.migrateOnly ?? false;
     this.startupNotice = startupInput.startupNotice;
     this.state = createTUIState(tuiOptions);
 
@@ -530,29 +521,6 @@ export class LioraTUI {
     this.registerSignalHandlers();
     // Outer try rolls back signal listeners on startup failure.
     try {
-      if (this.migrationPlan !== null) {
-        // Migration needs the event loop running first because it is renderer-backed.
-        this.startEventLoop();
-        try {
-          const migrationResult = await this.runMigrationScreen(this.migrationPlan);
-          if (this.migrateOnly) {
-            const failed = migrationResult.decision === 'now' && migrationResult.migrated === false;
-            this.disposeTerminalTracking();
-            this.state.renderer.stop();
-            await this.onExit?.(failed ? 1 : 0);
-            return;
-          }
-          const shouldReplayHistory = await this.initMainTui();
-          this.startBackgroundFdAutocomplete();
-          await this.finishStartup(shouldReplayHistory);
-        } catch (error) {
-          this.disposeTerminalTracking();
-          this.state.renderer.stop();
-          throw error;
-        }
-        return;
-      }
-
       const shouldReplayHistory = await this.initMainTui();
       this.startEventLoop();
       try {
@@ -2814,35 +2782,6 @@ export class LioraTUI {
     this.state.editor.setText(text);
     this.updateEditorBorderHighlight(text);
     this.state.ui.requestRender();
-  }
-
-  private async runMigrationScreen(plan: MigrationPlan): Promise<MigrationScreenResult> {
-    const result = await new Promise<MigrationScreenResult>((resolve) => {
-      const screen = new MigrationScreenComponent({
-        plan,
-        sourceHome: plan.sourceHome,
-        targetHome: this.harness.homeDir,
-        skipDecisionStep: this.migrateOnly,
-        requestRender: () => {
-          this.state.ui.requestRender();
-        },
-        onComplete: (r) => {
-          resolve(r);
-        },
-      });
-      this.mountEditorReplacement(screen);
-    });
-    this.restoreEditor();
-    if (result.decision === 'never') {
-      // Persist the skip marker `detectPendingMigration` checks, so "Never ask
-      // again" actually stops the prompt from reappearing every launch.
-      try {
-        writeFileSync(join(this.harness.homeDir, '.skip-migration-from-kimi-cli'), '', 'utf-8');
-      } catch {
-        // Non-blocking: a failed marker write must never crash startup.
-      }
-    }
-    return result;
   }
 
   showHelpPanel(args = ''): void {

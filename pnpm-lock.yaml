@@ -66,9 +66,6 @@ importers:
       '@superliora/gui-use':
         specifier: workspace:^
         version: link:../../packages/gui-use
-      '@superliora/migration-legacy':
-        specifier: workspace:^
-        version: link:../../packages/migration-legacy
       '@superliora/oauth':
         specifier: workspace:^
         version: link:../../packages/oauth
@@ -403,22 +400,6 @@ importers:
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.18.0)
-
-  packages/migration-legacy:
-    dependencies:
-      '@superliora/agent-core':
-        specifier: workspace:^
-        version: link:../agent-core
-      smol-toml:
-        specifier: ^1.6.1
-        version: 1.6.1
-      zod:
-        specifier: ^4.3.6
-        version: 4.3.6
-    devDependencies:
-      '@superliora/kaos':
-        specifier: workspace:^
-        version: link:../kaos
 
   packages/node-sdk:
     dependencies:
