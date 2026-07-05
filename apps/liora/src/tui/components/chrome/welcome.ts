@@ -1,22 +1,18 @@
 /**
  * Welcome panel shown at the top of the TUI.
- * Renders a round-bordered box with the logo, session, model, and version.
+ * Renders a round-bordered box with a figlet banner, session, model, and version.
  */
 
 import type { Component } from '#/tui/renderer';
 import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import { PRODUCT_NAME } from '#/constant/app';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
-import {
-  renderAnimatedGradientText,
-  renderParticleRail,
-} from '#/tui/utils/appearance-effects';
-import { mascotWidth, renderLioraMascotIcon } from './liora-mascot-icon';
+import { renderParticleRail } from '#/tui/utils/appearance-effects';
+import { renderWelcomeBanner } from './welcome-banner';
 
 const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab to toggle Ultrawork/off.';
 
@@ -36,54 +32,29 @@ export class WelcomeComponent implements Component {
     const activeModel = this.state.availableModels[this.state.model];
     const layout = resolveResponsiveLayout({ width: safeWidth });
     const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
-    const titleText = `Welcome to ${PRODUCT_NAME}!`;
 
     if (safeWidth < 24 || layout === 'tiny') {
-      const title = renderAnimatedGradientText(titleText, 'welcome:title', appearance);
+      const banner = renderWelcomeBanner(layout, appearance, safeWidth);
       const prompt = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)('Run /login or /provider to get started.')
         : chalk.hex(currentTheme.palette.textDim)(LOGGED_IN_PROMPT);
       const model = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)('not set, run /login or /provider')
         : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
-      return ['', title, prompt, `Model: ${model}`].map((line) =>
+      return ['', ...banner, prompt, `Model: ${model}`].map((line) =>
         truncateToWidth(line, safeWidth, '…'),
       );
     }
 
     const innerWidth = Math.max(1, safeWidth - 4);
-
-    // Mascot + side-by-side text.
-    const logo = renderLioraMascotIcon({ layout, appearance });
-    const logoWidth = logo.length === 0 ? 0 : mascotWidth(logo);
-    const gap = '  ';
-    const textWidth = Math.max(4, innerWidth - logoWidth - (logoWidth > 0 ? gap.length : 0));
-
-    const rightRow0 = truncateToWidth(
-      renderAnimatedGradientText(titleText, 'welcome:title', appearance),
-      textWidth,
-      '…',
-    );
+    const bannerLines = renderWelcomeBanner(layout, appearance, innerWidth);
     const dim = chalk.hex(currentTheme.palette.textDim);
     const labelStyle = chalk.bold.hex(currentTheme.palette.textDim);
-    const rightRow1 = truncateToWidth(
+    const promptLine = truncateToWidth(
       dim(isLoggedOut ? 'Run /login or /provider to get started.' : LOGGED_IN_PROMPT),
-      textWidth,
+      innerWidth,
       '…',
     );
-
-    const textRows = [rightRow0, rightRow1];
-    const headerRows = Math.max(logo.length, textRows.length);
-    const renderedHeaderLines: string[] = [];
-    for (let i = 0; i < headerRows; i++) {
-      const logoRow = logo[i] ?? ''.padEnd(logoWidth);
-      const textRow = textRows[i] ?? '';
-      renderedHeaderLines.push(
-        logoWidth > 0
-          ? logoRow + gap + textRow
-          : textRow,
-      );
-    }
 
     const modelValue = isLoggedOut
       ? chalk.hex(currentTheme.palette.warning)('not set, run /login or /provider')
@@ -100,7 +71,7 @@ export class WelcomeComponent implements Component {
       infoLines.push(labelStyle('MCP:       ') + this.state.mcpServersSummary);
     }
 
-    const contentLines: string[] = [...renderedHeaderLines, '', ...infoLines];
+    const contentLines: string[] = [...bannerLines, '', promptLine, '', ...infoLines];
 
     return [
       '',

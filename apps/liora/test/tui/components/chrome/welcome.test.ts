@@ -2,11 +2,6 @@ import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import {
-  PREMIUM_MASCOT_FRAMES,
-  renderLioraMascotIcon,
-} from '#/tui/components/chrome/liora-mascot-icon';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import type { AppState } from '#/tui/types';
 
@@ -52,8 +47,8 @@ function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
-/** The two header rows (logo + title) of the rendered welcome box. */
-function headerOf(lines: string[]): string {
+/** The first two banner rows inside the welcome box. */
+function bannerHeaderOf(lines: string[]): string {
   return [lines[3], lines[4]].join('\n');
 }
 
@@ -70,7 +65,7 @@ describe('WelcomeComponent', () => {
   });
 
   it('renders the banner in a single brand color by default', () => {
-    const codes = truecolorCodes(headerOf(new WelcomeComponent(appState).render(80)));
+    const codes = truecolorCodes(bannerHeaderOf(new WelcomeComponent(appState).render(80)));
 
     // No rainbow by default — just the brand primary (plus the dim tagline).
     expect(codes.size).toBeLessThanOrEqual(2);
@@ -79,8 +74,9 @@ describe('WelcomeComponent', () => {
   it('leads logged-in users to describe the task first', () => {
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
-    expect(output).toContain('Welcome to SuperLiora!');
+    expect(output).toContain('____  ___');
     expect(output).toContain('Type normally, or press Shift-Tab to toggle Ultrawork/off.');
+    expect(output).not.toContain('Welcome to SuperLiora!');
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');
     expect(output).not.toContain('Kimi checks readiness and verification.');
@@ -123,31 +119,6 @@ describe('WelcomeComponent', () => {
       for (const line of new WelcomeComponent(appState).render(width)) {
         expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
-    }
-  });
-
-  it('keeps every premium mascot animation frame at a fixed visible width', () => {
-    const expectedWidth = visibleWidth(PREMIUM_MASCOT_FRAMES[0]![0]!);
-    for (const frame of PREMIUM_MASCOT_FRAMES) {
-      for (const line of frame) {
-        expect(visibleWidth(line)).toBe(expectedWidth);
-      }
-    }
-  });
-
-  it('uses an ASCII mascot fallback in dumb terminals', () => {
-    const previousTerm = process.env['TERM'];
-    process.env['TERM'] = 'dumb';
-    try {
-      const rows = renderLioraMascotIcon({
-        layout: 'standard',
-        appearance: DEFAULT_APPEARANCE_PREFERENCES,
-      });
-
-      expect(strip(rows.join('\n'))).toContain('/---\\');
-    } finally {
-      if (previousTerm === undefined) delete process.env['TERM'];
-      else process.env['TERM'] = previousTerm;
     }
   });
 });
