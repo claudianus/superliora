@@ -2,6 +2,7 @@ import type { WorkGraph } from '@superliora/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
+import { parseWorkGraphNodesFromPlan } from '../../src/agent/plan/work-graph-from-plan';
 import {
   TODO_STORE_KEY,
   type TodoItem,
@@ -180,5 +181,40 @@ describe('UltraworkGraphTool', () => {
         evidenceIds: ['evidence_1'],
       }),
     });
+  });
+});
+
+describe('parseWorkGraphNodesFromPlan', () => {
+  it('parses markdown table rows from the WorkGraph section', () => {
+    const plan = [
+      '## WorkGraph',
+      '| Node ID | AC ID | Stage | Owner/Lane | Dependencies | Required Evidence |',
+      '| ac_1 | AC-1 | swarm | main/implementation | none | focused test evidence |',
+      '| ac_2 | AC-2 | verify | qa/review | ac_1 | screenshot evidence |',
+      '',
+      '## Swarm Decision',
+    ].join('\n');
+
+    expect(parseWorkGraphNodesFromPlan(plan)).toEqual([
+      expect.objectContaining({
+        id: 'ac_1',
+        acceptanceCriterionId: 'AC-1',
+        stage: 'swarm',
+        laneId: 'implementation',
+        requiredEvidence: ['focused test evidence'],
+      }),
+      expect.objectContaining({
+        id: 'ac_2',
+        acceptanceCriterionId: 'AC-2',
+        stage: 'verify',
+        laneId: 'review',
+        dependsOn: ['ac_1'],
+        requiredEvidence: ['screenshot evidence'],
+      }),
+    ]);
+  });
+
+  it('returns undefined when the WorkGraph section has no parseable nodes', () => {
+    expect(parseWorkGraphNodesFromPlan('## WorkGraph\nNo nodes yet.')).toBeUndefined();
   });
 });
