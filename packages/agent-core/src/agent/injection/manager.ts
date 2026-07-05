@@ -3,6 +3,7 @@ import { formatTaskList } from '#/tools/background/task-list';
 import { ContextOSInjector } from './context-os';
 import { GoalInjector } from './goal';
 import type { DynamicInjector } from './injector';
+import { LeanContextInjector } from './lean-context-injector';
 import { MemoryInjector } from './memory';
 import { PermissionModeInjector } from './permission-mode';
 import { PluginSessionStartInjector } from './plugin-session-start';
@@ -26,6 +27,7 @@ export class InjectionManager {
     this.injectors = [
       new PluginSessionStartInjector(agent),
       new MemoryInjector(agent),
+      new LeanContextInjector(agent),
       new ContextOSInjector(agent),
       new TodoListReminderInjector(agent),
       new PlanModeInjector(agent),

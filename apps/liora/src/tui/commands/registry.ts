@@ -316,7 +316,6 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Ask a forked side agent a question',
     priority: 90,
-    visibility: 'advanced',
     availability: 'always',
   },
   {

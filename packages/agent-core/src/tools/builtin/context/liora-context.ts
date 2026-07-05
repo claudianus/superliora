@@ -1,6 +1,7 @@
 import type { Kaos } from '@superliora/kaos';
 import { z } from 'zod';
 
+import { composeRankContext } from '../../../lean-context/compose/ranker';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
@@ -26,9 +27,9 @@ export const LioraContextInputSchema = z
       .optional()
       .describe('Optional file paths to map directly. Relative paths resolve from the workspace.'),
     mode: z
-      .enum(['pack', 'search', 'map'])
+      .enum(['pack', 'search', 'map', 'compose'])
       .optional()
-      .describe('pack returns ranked files plus symbols and snippets; search returns matches; map returns symbols.'),
+      .describe('pack returns ranked files plus symbols and snippets; search returns matches; map returns symbols; compose bundles orientation + inline evidence (call FIRST).'),
     max_files: z.number().int().min(1).max(20).optional(),
     max_symbols_per_file: z.number().int().min(1).max(40).optional(),
   })
@@ -40,9 +41,10 @@ export const LioraContextInputSchema = z
 export type LioraContextInput = z.Infer<typeof LioraContextInputSchema>;
 
 const DESCRIPTION = [
-  'Build a compact Kimi code-context packet before broad file reads.',
-  'Use this first for Ultrawork or coding tasks when you need repo orientation, symbol maps, or query-focused evidence.',
-  'It follows Kimi Lean Context / code graph principles: compact overview first, file paths and line evidence, targeted source expansion hints, no full-file dumps.',
+  'Primary orientation tool — call FIRST before broad Read/Grep when exploring code.',
+  'compose mode bundles ranked files, symbols, relationships, and inline evidence in one compact packet.',
+  'Use LioraRead/LioraSearch/LioraSymbol for follow-up; Read only for edit-ready exact bytes.',
+  'Inspired by lean context routing: compact overview first, reversible archives via LioraExpand.',
 ].join(' ');
 
 export class LioraContextTool implements BuiltinTool<LioraContextInput> {
@@ -84,6 +86,19 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
     explicitPaths: readonly string[] | undefined,
   ): Promise<ExecutableToolResult> {
     try {
+      const mode = input.mode ?? (input.query !== undefined ? 'compose' : 'pack');
+      if (input.query !== undefined && explicitPaths === undefined) {
+        const composed = await composeRankContext({
+          kaos: this.kaos,
+          workspace: this.workspace,
+          query: input.query,
+          maxFiles: input.max_files,
+          maxSymbolsPerFile: input.max_symbols_per_file,
+        });
+        const body = renderContextPacket(composed.ranked, { ...input, mode }, composed.allFiles);
+        const hint = composed.indexStaleHint === undefined ? '' : `\nstatus: ${composed.indexStaleHint}`;
+        return { output: `${body}${hint}` };
+      }
       const files = await collectContextFiles({
         kaos: this.kaos,
         workspace: this.workspace,
@@ -91,7 +106,9 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
         query: input.query,
       });
       const ranked = rankContextFiles(files, input);
-      return { output: renderContextPacket(ranked, input, files) };
+      return {
+        output: renderContextPacket(ranked, { ...input, mode }, files),
+      };
     } catch (error) {
       return { isError: true, output: error instanceof Error ? error.message : String(error) };
     }

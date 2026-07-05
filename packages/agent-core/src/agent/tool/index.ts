@@ -11,7 +11,8 @@ import { mcpResultToExecutableOutput } from '../../mcp/output';
 import { isMcpToolName, qualifyMcpToolName } from '../../mcp/tool-naming';
 import type { MCPClient } from '../../mcp/types';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
-import { extendWorkspaceWithSkillRoots } from '../../skill';
+import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
+import { warmWorkspaceIndex } from '../../tools/builtin/context/liora-index';
 import * as b from '../../tools/builtin';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
 import type {
@@ -79,6 +80,10 @@ export class ToolManager {
     this.mcpToolStatusUnsubscribe = mcp.onStatusChange((entry) => {
       this.handleMcpServerStatusChange(mcp, entry);
     });
+  }
+
+  getStore(): ToolStore {
+    return this.toolStore;
   }
 
   updateStore<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
@@ -484,8 +489,16 @@ export class ToolManager {
         new b.GrepTool(kaos, workspace, this.agent.telemetry),
         new b.GlobTool(kaos, workspace, this.agent.telemetry),
         new b.LioraContextTool(kaos, workspace),
+        new b.LioraIndexTool(kaos, workspace, this.agent.telemetry),
+        new b.LioraReadTool(kaos, workspace, this.toolStore),
+        new b.LioraSearchTool(kaos, workspace, this.toolStore),
+        new b.LioraTreeTool(kaos, workspace),
+        new b.LioraSymbolTool(kaos, workspace),
+        new b.LioraCallgraphTool(kaos, workspace),
+        new b.LioraExpandTool(this.toolStore),
         new b.BashTool(kaos, cwd, background, {
           allowBackground,
+          store: this.toolStore,
         }),
         (modelCapabilities.image_in || modelCapabilities.video_in) &&
           new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
@@ -545,6 +558,7 @@ export class ToolManager {
         .filter((tool) => !!tool)
         .map((tool) => [tool.name, tool] as const),
     );
+    void warmWorkspaceIndex(kaos, workspace).catch(() => undefined);
   }
 
   refreshBuiltinTools(): void {

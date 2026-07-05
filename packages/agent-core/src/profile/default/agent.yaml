@@ -12,6 +12,13 @@ tools:
   - Grep
   - Glob
   - LioraContext
+  - LioraRead
+  - LioraSearch
+  - LioraTree
+  - LioraSymbol
+  - LioraCallgraph
+  - LioraExpand
+  - LioraIndex
   - Bash
   - TaskList
   - TaskOutput

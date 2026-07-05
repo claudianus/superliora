@@ -88,11 +88,10 @@ describe('GoalInjector content', () => {
     const store = makeStore();
     await store.createGoal({ objective: 'Ship feature X' });
     const text = (await injectOnce(store))!;
-    expect(text).toContain('Kimi Lean Context');
+    expect(text).toContain('Liora Lean Context');
     expect(text).toContain('LioraContext');
-    expect(text).toContain('codegraph');
-    expect(text).toContain('rg');
-    expect(text).toContain('summarize bulky outputs');
+    expect(text).toContain('LioraRead');
+    expect(text).toContain('LioraExpand');
   });
 
   it('wraps the completion criterion when present', async () => {

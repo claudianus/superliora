@@ -13,6 +13,13 @@ tools:
   - Glob
   - Grep
   - LioraContext
+  - LioraRead
+  - LioraSearch
+  - LioraTree
+  - LioraSymbol
+  - LioraCallgraph
+  - LioraExpand
+  - LioraIndex
   - Write
   - Edit
   - Memory

@@ -35,6 +35,9 @@ import {
   type ExecutableToolResultBuilderResult,
   ToolResultBuilder,
 } from '../../support/result-builder';
+import type { ToolStore } from '../../store';
+import { archiveContent } from '../context/context-archive';
+import { compressShellOutput } from '../context/context-terse';
 import bashDescriptionTemplate from './bash.md?raw';
 
 const MS_PER_SECOND = 1000;
@@ -77,6 +80,12 @@ export const BashInputSchema = z
       .optional()
       .describe(
         'If true, do not apply a timeout to the command. Only applies when run_in_background is true.',
+      ),
+    compress_output: z
+      .boolean()
+      .optional()
+      .describe(
+        'When true, compress stdout/stderr for model context (test/build/git output patterns). Overflow can be recovered with LioraExpand when archived.',
       ),
   })
   .superRefine((val, ctx) => {
@@ -159,16 +168,20 @@ export class BashTool implements BuiltinTool<BashInput> {
 
   private readonly allowBackground: boolean;
 
+  private readonly store: ToolStore | undefined;
+
   constructor(
     private readonly kaos: Kaos,
     private readonly cwd: string,
     private readonly backgroundManager: BackgroundManager,
     options?: {
       allowBackground?: boolean | undefined;
+      store?: ToolStore | undefined;
     },
   ) {
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
     this.allowBackground = options?.allowBackground ?? true;
+    this.store = options?.store;
     const rendered = renderBashDescription(this.kaos.osEnv.shellName);
     this.description = this.allowBackground ? rendered : withoutBackgroundDescription(rendered);
   }
@@ -319,7 +332,7 @@ export class BashTool implements BuiltinTool<BashInput> {
         );
       }
 
-      return await this.foregroundCompletionResult(taskId, proc, builder, foregroundTimeoutMs);
+      return await this.foregroundCompletionResult(taskId, proc, builder, foregroundTimeoutMs, args);
     } finally {
       collectForegroundOutput = false;
     }
@@ -353,6 +366,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     proc: KaosProcess,
     builder: ToolResultBuilder,
     foregroundTimeoutMs: number,
+    args: BashInput,
   ): Promise<ExecutableToolResult> {
     const current = this.backgroundManager.getTask(taskId);
     const exitCode = current?.kind === 'process' ? current.exitCode : proc.exitCode;
@@ -377,7 +391,37 @@ export class BashTool implements BuiltinTool<BashInput> {
         brief: `Failed with exit code: ${String(exitCode)}`,
       });
     }
-    return this.addForegroundOutputReference(taskId, result);
+    return this.addForegroundOutputReference(taskId, this.maybeCompressForegroundResult(args, result));
+  }
+
+  private maybeCompressForegroundResult(
+    args: BashInput,
+    result: ExecutableToolResultBuilderResult,
+  ): ExecutableToolResultBuilderResult {
+    if (args.compress_output !== true || result.output.length === 0) return result;
+    const compressed = compressShellOutput({
+      stdout: result.output,
+      stderr: '',
+      command: args.command,
+    });
+    if (compressed.overflow === undefined || this.store === undefined) {
+      return {
+        ...result,
+        output:
+          compressed.savedPercent > 0
+            ? `${compressed.text}\n<system>shell output compressed (~${String(compressed.savedPercent)}% saved). Use compress_output=false or LioraExpand after archive for full bytes.</system>`
+            : result.output,
+      };
+    }
+    const archived = archiveContent({
+      store: this.store,
+      content: compressed.overflow,
+      label: `bash:${args.command.slice(0, 80)}`,
+    });
+    return {
+      ...result,
+      output: `${compressed.text}\n${archived.marker}\nrecover: LioraExpand(id="${archived.id}")`,
+    };
   }
 
   private async addForegroundOutputReference(

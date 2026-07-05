@@ -2,7 +2,7 @@ import type { ContextFile, RankedFile } from './context-types';
 
 interface RenderContextInput {
   readonly query?: string | undefined;
-  readonly mode?: 'pack' | 'search' | 'map' | undefined;
+  readonly mode?: 'pack' | 'search' | 'map' | 'compose' | undefined;
 }
 
 export function renderContextPacket(
@@ -25,7 +25,7 @@ function buildPacketBody(
   ranked: readonly RankedFile[],
   input: RenderContextInput,
   allFiles: readonly ContextFile[],
-  mode: 'pack' | 'search' | 'map',
+  mode: 'pack' | 'search' | 'map' | 'compose',
 ): string[] {
   const body: string[] = [
     `<kimi_context_packet version="1" mode="${mode}">`,
@@ -45,7 +45,8 @@ function buildPacketBody(
     appendRelationships(body, item);
     appendTestHints(body, item);
     appendMatches(body, item, mode);
-    body.push('expand: use Read with this file and the listed line numbers for exact source.');
+    if (mode === 'compose') appendInlineEvidence(body, item);
+    body.push('expand: use LioraRead(mode=lines|full) or Read for exact edit bytes.');
   }
   return body;
 }
@@ -53,7 +54,7 @@ function buildPacketBody(
 function appendSymbols(
   body: string[],
   item: RankedFile,
-  mode: 'pack' | 'search' | 'map',
+  mode: 'pack' | 'search' | 'map' | 'compose',
 ): void {
   if (mode === 'search') return;
   body.push('symbols:');
@@ -69,7 +70,7 @@ function appendSymbols(
 function appendMatches(
   body: string[],
   item: RankedFile,
-  mode: 'pack' | 'search' | 'map',
+  mode: 'pack' | 'search' | 'map' | 'compose',
 ): void {
   if (mode === 'map') return;
   body.push('matches:');
@@ -104,6 +105,29 @@ function appendTestHints(body: string[], item: RankedFile): void {
   for (const hint of item.testHints.slice(0, 3)) {
     body.push(`- ${hint.confidence} ${hint.path}: ${hint.reason}`);
   }
+}
+
+function appendInlineEvidence(body: string[], item: RankedFile): void {
+  body.push('inline_evidence:');
+  const lines = item.file.content.split(/\r?\n/);
+  const wantedLines = new Set<number>();
+  for (const match of item.matches) wantedLines.add(match.line);
+  for (const symbol of item.symbols.slice(0, 4)) wantedLines.add(symbol.line);
+  const selected = [...wantedLines].toSorted((a, b) => a - b).slice(0, 8);
+  if (selected.length === 0) {
+    body.push('- (none)');
+    return;
+  }
+  for (const lineNo of selected) {
+    const line = lines[lineNo - 1];
+    if (line === undefined) continue;
+    body.push(`- L${String(lineNo)} ${truncate(line.trim(), 180)}`);
+  }
+}
+
+function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 3) + '...';
 }
 
 function computeStats(body: readonly string[], rawChars: number): {

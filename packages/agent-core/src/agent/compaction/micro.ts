@@ -6,6 +6,7 @@ import {
   estimateTokensForContentParts,
   estimateTokensForMessages,
 } from '../../utils/tokens';
+import { extractArchiveIdFromToolOutput } from '../../lean-context/postprocess/tool-result';
 
 export interface MicroCompactionConfig {
   keepRecentMessages: number;
@@ -190,7 +191,7 @@ export class MicroCompaction {
   ): string {
     const toolCallId = message.toolCallId ?? 'unknown';
     const toolName = this.toolNameFor(toolCallId, messages) ?? 'unknown';
-    return [
+    const lines = [
       this.config.truncatedMarker,
       `toolCallId=${toolCallId}`,
       `toolName=${toolName}`,
@@ -199,7 +200,17 @@ export class MicroCompaction {
       `policyReason=${policyReason}`,
       'rawResult=replay',
       `preview=${preview}`,
-    ].join('\n');
+    ];
+    const fullText = message.content
+      .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n');
+    const archiveId = extractArchiveIdFromToolOutput(fullText);
+    if (archiveId !== undefined) {
+      lines.push(`archiveId=${archiveId}`);
+      lines.push('recover=LioraExpand');
+    }
+    return lines.join('\n');
   }
 
   private decideToolResultPolicy(

@@ -1,10 +1,13 @@
 export function buildLeanContextGuidance(): string {
   return [
-    'Kimi Lean Context:',
-    '- Prefer the LioraContext tool for compact code packets before broad file reads; it is the built-in lean-codegraph surface.',
-    '- Prefer indexed codegraph lookup when available; otherwise use LioraContext, rg, or similarly precise search before broad file reads.',
-    '- Retrieve exact symbols, call sites, and changed files first; cite file paths or source names for important evidence.',
-    '- Keep working context small: summarize bulky outputs, retain decisions and open questions, and avoid dumping irrelevant context.',
-    '- Use memory only for durable preferences and decisions, not raw transcripts or transient scratch data.',
+    'Liora Lean Context (token-efficient exploration):',
+    '- Call LioraContext FIRST for orientation (mode=compose). One compose replaces search→read→symbol chains.',
+    '- Read path: LioraContext → LioraRead(mode=signatures|map|lines) → Read only for edit-ready exact bytes.',
+    '- Search path: LioraSearch or LioraSymbol before Grep/Read when exploring unknown code.',
+    '- Structure path: LioraTree before Bash ls/find; LioraCallgraph for caller/callee impact.',
+    '- Compressed output is reversible: use LioraExpand(id=...) when you see [liora-archived ...] markers.',
+    '- Parallel work: fire independent LioraContext/LioraSearch/LioraRead calls in the same turn.',
+    '- Ultrawork/UltraSwarm: keep subagent packets compact; archive bulky logs; expand only on failure paths.',
+    '- Memory stays durable facts only — not raw transcripts or archived tool dumps.',
   ].join('\n');
 }

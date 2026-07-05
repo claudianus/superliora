@@ -74,10 +74,25 @@ describe('default agent profiles', () => {
     expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
   });
 
-  it('exposes LioraContext to coding profiles as the default compact code-context surface', () => {
-    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('LioraContext');
-    expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('LioraContext');
-    expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('LioraContext');
+  it('exposes Liora lean context tools to coding profiles as the default compact exploration surface', () => {
+    const leanTools = [
+      'LioraContext',
+      'LioraRead',
+      'LioraSearch',
+      'LioraTree',
+      'LioraSymbol',
+      'LioraCallgraph',
+      'LioraExpand',
+      'LioraIndex',
+    ];
+    for (const tool of leanTools) {
+      expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain(tool);
+      expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain(tool);
+    }
+    for (const tool of ['LioraContext', 'LioraRead', 'LioraSearch', 'LioraTree', 'LioraExpand', 'LioraIndex']) {
+      expect(DEFAULT_AGENT_PROFILES['explore']?.tools).toContain(tool);
+      expect(DEFAULT_AGENT_PROFILES['plan']?.tools).toContain(tool);
+    }
   });
 
   it('exposes Liora Recall only to writable coding profiles', () => {

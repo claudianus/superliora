@@ -16,5 +16,11 @@ tools:
   - ReadMediaFile
   - Glob
   - Grep
+  - LioraContext
+  - LioraRead
+  - LioraSearch
+  - LioraTree
+  - LioraExpand
+  - LioraIndex
   - WebSearch
   - FetchURL

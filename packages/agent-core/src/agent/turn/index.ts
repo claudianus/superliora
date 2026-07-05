@@ -42,6 +42,7 @@ import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { ToolCallDeduplicator } from './tool-dedup';
 import { budgetToolResultForModel } from './tool-result-budget';
+import { postprocessLeanToolResult } from '../../lean-context/postprocess/tool-result';
 
 interface ActiveTurn {
   readonly turnId: number;
@@ -786,12 +787,19 @@ export class TurnFlow {
                   toolOutput: isError === true ? undefined : toolOutputText(output).slice(0, 2000),
                 },
               });
-              return budgetToolResultForModel({
+              let budgeted = await budgetToolResultForModel({
                 homedir: this.agent.homedir,
                 toolName: ctx.toolCall.name,
                 toolCallId: ctx.toolCall.id,
                 result: finalResult,
               });
+              budgeted = await postprocessLeanToolResult({
+                agent: this.agent,
+                toolName: ctx.toolCall.name,
+                args: ctx.args,
+                result: budgeted,
+              });
+              return budgeted;
             },
           },
         });

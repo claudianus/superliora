@@ -469,7 +469,7 @@ ${taskDescription}
         : '';
     const workNodeLine = workNodes.length === 0 ? '' : `\n\n${formatWorkNodeContract(workNodes)}`;
     return appendSwarmResearchAutonomy(
-      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${handoffLine}\n\nApply your ${spec.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills. Subagents must not directly integrate final product-file edits; return a compact handoff for the parent agent to integrate.`,
+      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${handoffLine}\n\nLean context: prefer LioraContext(mode=compose) and LioraSearch before broad Read/Grep; keep handoffs compact and cite file:line evidence.\n\nApply your ${spec.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills. Subagents must not directly integrate final product-file edits; return a compact handoff for the parent agent to integrate.`,
     );
   }
 

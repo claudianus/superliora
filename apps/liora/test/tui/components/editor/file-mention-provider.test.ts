@@ -263,6 +263,21 @@ describe('FileMentionProvider', () => {
     expect(exactArgs!.items.map((item) => item.value)).toEqual(['replace']);
   });
 
+  it('includes primary /btw in slash name suggestions', async () => {
+    const btw = findBuiltInSlashCommand('btw');
+    expect(btw).toBeDefined();
+    if (btw === undefined) throw new Error('expected built-in btw command');
+    const provider = new FileMentionProvider([btw], workDir, NO_FD);
+
+    const bare = await provider.getSuggestions(['/'], 0, 1, { signal: ctrl() });
+    const prefixed = await provider.getSuggestions(['/bt'], 0, 3, { signal: ctrl() });
+
+    expect(bare).not.toBeNull();
+    expect(bare!.items.map((item) => item.value)).toContain('btw');
+    expect(prefixed).not.toBeNull();
+    expect(prefixed!.items[0]).toMatchObject({ value: 'btw' });
+  });
+
   it('includes the argument hint in the description like the inner provider does', async () => {
     const provider = new FileMentionProvider(
       [{ name: 'goal', description: 'Start or manage a goal', argumentHint: '<objective>' }],

@@ -34,6 +34,7 @@ reports/
 # Workspace-local data dirs (`.superliora/` canonical, `.super-kimi/` legacy).
 # The `**/` prefix also matches nested package/app directories (e.g. `apps/liora/.superliora/`).
 **/.superliora/evidence/
+**/.superliora/index/
 **/.superliora/wiki/
 **/.superliora/boulder.json
 **/.superliora/drafts/

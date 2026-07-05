@@ -14,6 +14,7 @@ promptVars:
     - Running read-only shell commands (git log, git diff, ls, find, etc.)
 
     Guidelines:
+    - Use LioraContext (mode=compose) and LioraSearch before broad Glob/Grep when exploring unknown code
     - Use Glob for broad file pattern matching. Prefer patterns with a literal anchor (extension or subdirectory); pure wildcards like `*` or `**/*` are allowed but usually truncate at the match cap.
     - Use Grep for searching file contents with regex
     - Use Read when you know the specific file path
@@ -33,5 +34,11 @@ tools:
   - ReadMediaFile
   - Glob
   - Grep
+  - LioraContext
+  - LioraRead
+  - LioraSearch
+  - LioraTree
+  - LioraExpand
+  - LioraIndex
   - WebSearch
   - FetchURL

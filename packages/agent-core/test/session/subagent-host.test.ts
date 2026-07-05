@@ -306,6 +306,12 @@ describe('SessionSubagentHost', () => {
       'Bash',
       'Glob',
       'Grep',
+      'LioraContext',
+      'LioraExpand',
+      'LioraIndex',
+      'LioraRead',
+      'LioraSearch',
+      'LioraTree',
       'Read',
     ]);
     expect(child.llmCalls[0]?.history).toMatchObject([
@@ -358,6 +364,12 @@ describe('SessionSubagentHost', () => {
       'Bash',
       'Glob',
       'Grep',
+      'LioraContext',
+      'LioraExpand',
+      'LioraIndex',
+      'LioraRead',
+      'LioraSearch',
+      'LioraTree',
       'Read',
     ]);
     expect(parent.allEvents).toContainEqual(
@@ -466,7 +478,14 @@ describe('SessionSubagentHost', () => {
       'Edit',
       'Glob',
       'Grep',
+      'LioraCallgraph',
       'LioraContext',
+      'LioraExpand',
+      'LioraIndex',
+      'LioraRead',
+      'LioraSearch',
+      'LioraSymbol',
+      'LioraTree',
       'Read',
       'Write',
     ]);
