@@ -19,6 +19,7 @@ import type {
   ToolResultBlockData,
   TranscriptEntry,
 } from '../types';
+import { notifySubagentAttention } from '../utils/attention-notifications';
 import { formatBackgroundAgentTranscript } from '../utils/background-agent-status';
 import { argsRecord, serializeToolResultOutput } from '../utils/event-payload';
 import { formatHookResultPlain } from '../utils/hook-result-format';
@@ -236,6 +237,26 @@ export class SubAgentEventHandler {
     this.ultraSwarmTeamsByToolCallId.set(event.toolCallId, event.team);
     this.updateAgentSwarmProgress(event.toolCallId, (progress) => {
       progress.applyUltraSwarmTeam(ultraSwarmMembersFromTeam(event.team));
+    });
+  }
+
+  handleUltraworkCollaborationMessage(
+    event: Extract<Event, { type: 'ultrawork.collaboration.message' }>,
+  ): void {
+    const toolCallId = event.message.parentToolCallId;
+    if (toolCallId.length === 0) return;
+    this.updateAgentSwarmProgress(toolCallId, (progress) => {
+      progress.applySwarmCollaborationMessage(event.message);
+    });
+  }
+
+  handleUltraworkCollaborationMention(
+    event: Extract<Event, { type: 'ultrawork.collaboration.mention' }>,
+  ): void {
+    const toolCallId = event.message.parentToolCallId;
+    if (toolCallId.length === 0) return;
+    this.updateAgentSwarmProgress(toolCallId, (progress) => {
+      progress.applySwarmCollaborationMention(event.message);
     });
   }
 
@@ -487,6 +508,12 @@ export class SubAgentEventHandler {
       usage: event.usage,
       resultSummary: event.resultSummary,
     });
+    notifySubagentAttention(
+      this.host.state,
+      event.subagentId,
+      'completed',
+      event.resultSummary,
+    );
     this.host.streamingUI.removeToolComponentIfInactive(parentToolCallId);
   }
 
@@ -505,6 +532,7 @@ export class SubAgentEventHandler {
     const tc = this.host.streamingUI.getToolComponent(parentToolCallId);
     if (tc === undefined) return;
     tc.onSubagentFailed({ error: event.error });
+    notifySubagentAttention(this.host.state, event.subagentId, 'failed', event.error);
     this.host.streamingUI.removeToolComponentIfInactive(parentToolCallId);
   }
 
@@ -516,7 +544,12 @@ export class SubAgentEventHandler {
     if (event.type === 'assistant.delta' || event.type === 'thinking.delta') {
       progress.appendModelDelta({ agentId: subagentId, delta: event.delta });
     } else if (event.type === 'tool.call.started') {
-      progress.recordToolCall({ agentId: subagentId, toolCallId: event.toolCallId });
+      progress.recordToolCall({
+        agentId: subagentId,
+        toolCallId: event.toolCallId,
+        toolName: event.name,
+        toolDescription: event.description,
+      });
     }
   }
 
@@ -548,7 +581,8 @@ export class SubAgentEventHandler {
     const progress = new AgentSwarmProgressComponent({
       description: agentSwarmDescriptionFromArgs(args),
       title: swarmProgressTitleForToolName(options.toolName ?? 'AgentSwarm'),
-      availableGridHeight: () => this.agentSwarmGridHeight(),
+      availableGridHeight: () =>
+        this.agentSwarmGridHeight((options.toolName ?? 'AgentSwarm') === 'UltraSwarm'),
       requestRender: () => {
         this.requestRender();
       },
@@ -581,12 +615,12 @@ export class SubAgentEventHandler {
     this.host.updateActivityPane();
   }
 
-  private agentSwarmGridHeight(): number | undefined {
+  private agentSwarmGridHeight(opsFeed = false): number | undefined {
     const { state } = this.host;
     const terminalRows = state.ui.terminal.rows;
     const terminalColumns = state.ui.terminal.columns;
     if (!Number.isFinite(terminalColumns) || terminalColumns <= 0) {
-      return agentSwarmGridHeightForTerminalRows(terminalRows);
+      return agentSwarmGridHeightForTerminalRows(terminalRows, 0, { opsFeed });
     }
 
     const width = Math.floor(terminalColumns);
@@ -595,7 +629,7 @@ export class SubAgentEventHandler {
       state.transcriptContainer,
       width,
     );
-    return agentSwarmGridHeightForTerminalRows(terminalRows, rowsAfterSwarm);
+    return agentSwarmGridHeightForTerminalRows(terminalRows, rowsAfterSwarm, { opsFeed });
   }
 
   private markAgentSwarmFailedOrCancelled(

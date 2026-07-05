@@ -39,6 +39,12 @@ export class Theme {
     this._canvasBackgroundEnabled = enabled;
   }
 
+  /** Cell used to paint the full native frame and region clears. */
+  canvasBackgroundCell(): { char: ' '; style: { bg: string } } | undefined {
+    if (!this._canvasBackgroundEnabled) return undefined;
+    return { char: ' ', style: { bg: this._palette.background } };
+  }
+
   color(token: ColorToken): string {
     return this._palette[token];
   }

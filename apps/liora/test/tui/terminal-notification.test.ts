@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { TUIState } from '#/tui/liora-tui';
 import {
+  notifyBackgroundTaskAttention,
+  notifyGoalBlockedAttention,
+  notifyGoalCompletedAttention,
+  notifySubagentAttention,
+} from '#/tui/utils/attention-notifications';
+import {
   buildNativeNotificationCommand,
   buildTerminalNotificationSequences,
   emitNativeNotification,
@@ -359,6 +365,112 @@ describe('supportsTerminalProgress', () => {
     expect(supportsTerminalProgress({ ConEmuANSI: 'OFF' })).toBe(false);
     expect(supportsTerminalProgress({ WT_SESSION: '' })).toBe(false);
     expect(supportsTerminalProgress({})).toBe(false);
+  });
+});
+
+describe('attention notifications', () => {
+  const terminalOnly = { platform: 'freebsd' as NodeJS.Platform };
+
+  it('emits goal completion attention once per goal id', () => {
+    const state = makeNotificationState();
+    const goal = {
+      goalId: 'g1',
+      objective: 'Ship feature',
+      status: 'complete' as const,
+      turnsUsed: 1,
+      tokensUsed: 10,
+      wallClockMs: 100,
+      budget: {
+        tokenBudget: null,
+        turnBudget: 20,
+        wallClockBudgetMs: null,
+        remainingTokens: null,
+        remainingTurns: 19,
+        remainingWallClockMs: null,
+        tokenBudgetReached: false,
+        turnBudgetReached: false,
+        wallClockBudgetReached: false,
+        overBudget: false,
+      },
+    };
+
+    notifyGoalCompletedAttention(state, goal, terminalOnly);
+    notifyGoalCompletedAttention(state, goal, terminalOnly);
+
+    expect(state.terminal.write).toHaveBeenCalledTimes(1);
+    expect(state.terminal.write).toHaveBeenCalledWith(']9;SuperLiora goal complete: Ship feature');
+  });
+
+  it('emits goal blocked attention with the blocker reason', () => {
+    const state = makeNotificationState();
+    const goal = {
+      goalId: 'g2',
+      objective: 'Deploy',
+      status: 'blocked' as const,
+      turnsUsed: 1,
+      tokensUsed: 10,
+      wallClockMs: 100,
+      budget: {
+        tokenBudget: null,
+        turnBudget: 20,
+        wallClockBudgetMs: null,
+        remainingTokens: null,
+        remainingTurns: 19,
+        remainingWallClockMs: null,
+        tokenBudgetReached: false,
+        turnBudgetReached: false,
+        wallClockBudgetReached: false,
+        overBudget: false,
+      },
+      terminalReason: 'needs credentials',
+    };
+
+    notifyGoalBlockedAttention(state, goal, 'missing API key', terminalOnly);
+
+    expect(state.terminal.write).toHaveBeenCalledWith(
+      ']9;SuperLiora goal blocked: missing API key',
+    );
+  });
+
+  it('emits background task attention with terminal status details', () => {
+    const state = makeNotificationState();
+
+    notifyBackgroundTaskAttention(
+      state,
+      {
+        taskId: 'bash-1',
+        kind: 'process',
+        status: 'completed',
+        description: 'pnpm test',
+        command: 'pnpm test',
+        pid: 1,
+        exitCode: 0,
+        startedAt: 0,
+        endedAt: 1,
+      },
+      terminalOnly,
+    );
+
+    expect(state.terminal.write).toHaveBeenCalledWith(
+      ']9;SuperLiora background task finished: bash task completed in background — pnpm test · exit 0',
+    );
+  });
+
+  it('emits subagent attention once per subagent outcome', () => {
+    const state = makeNotificationState();
+
+    notifySubagentAttention(state, 'agent-1', 'completed', 'Done', terminalOnly);
+    notifySubagentAttention(state, 'agent-1', 'failed', 'Oops', terminalOnly);
+
+    expect(state.terminal.write).toHaveBeenCalledTimes(2);
+    expect(state.terminal.write).toHaveBeenNthCalledWith(
+      1,
+      ']9;SuperLiora subagent finished: Done',
+    );
+    expect(state.terminal.write).toHaveBeenNthCalledWith(
+      2,
+      ']9;SuperLiora subagent failed: Oops',
+    );
   });
 });
 

@@ -109,7 +109,9 @@ export function shouldAnimate(appearance: AppearancePreferences): boolean {
 export function shouldRenderAmbientAnimationFrame(
   followOutput: boolean,
   terminalRows: number,
+  transcriptSelectionActive = false,
 ): boolean {
+  if (transcriptSelectionActive) return false;
   if (!followOutput) return false;
   if (!Number.isFinite(terminalRows) || terminalRows <= 0) return false;
   return true;
