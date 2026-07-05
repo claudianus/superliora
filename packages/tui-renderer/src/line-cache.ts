@@ -91,6 +91,13 @@ export function rendererLineToCells(
   return mergeCellsStyle(line, style);
 }
 
+/** Parses ANSI string region lines into cell lines once for native composition. */
+export function promoteRendererRegionLinesToCells(
+  lines: readonly RendererRegionLine[],
+): readonly RendererRegionLine[] {
+  return lines.map((line) => (typeof line === 'string' ? ansiTextToCells(line) : line));
+}
+
 function mergeCellsStyle(
   cells: readonly RendererCell[],
   style: RendererCellStyle | undefined,
