@@ -54,6 +54,16 @@ export interface RendererEditorFrameOptions {
   readonly scrollbarThumbStyle?: RendererCellStyle;
   readonly scrollbarTrackChar?: string;
   readonly scrollbarThumbChar?: string;
+  readonly omitBottomBorder?: boolean;
+}
+
+export interface RendererEditorOverlayLinesOptions {
+  readonly width: number;
+  readonly lines: readonly RendererRegionLine[];
+  readonly borderStyle?: RendererCellStyle;
+  readonly surfaceStyle?: RendererCellStyle;
+  readonly textStyle?: RendererCellStyle;
+  readonly contentX?: number;
 }
 
 export interface RendererEditorFrameResult {
@@ -75,6 +85,7 @@ export interface RendererEditorSurfaceOptions
   readonly argumentHint?: RendererEditorSurfaceArgumentHintOptions;
   readonly overlays?: readonly RendererRegionLine[];
   readonly scrollbar?: RendererEditorSurfaceScrollbarOptions | false;
+  readonly slashTokenStyle?: RendererCellStyle;
 }
 
 export interface RendererEditorSurfaceResult {
@@ -119,6 +130,10 @@ export interface RendererEditorSurfaceStyles {
   readonly scrollbarThumbStyle: RendererCellStyle;
   readonly placeholderStyle: RendererCellStyle;
   readonly selectionStyle: RendererCellStyle;
+  readonly autocompleteSelectedStyle: RendererCellStyle;
+  readonly autocompleteDescriptionStyle: RendererCellStyle;
+  readonly autocompleteScrollStyle: RendererCellStyle;
+  readonly slashTokenStyle: RendererCellStyle;
 }
 
 export interface RendererEditorSurfaceLayoutOptions {
@@ -185,26 +200,21 @@ export function highlightRendererEditorSlashToken(
   paint: RendererEditorPaint,
 ): string | undefined {
   const visible = stripRendererEditorSgr(line);
-  const slashIndex = visible.indexOf('/');
-  if (slashIndex < 0) return undefined;
-  for (let i = 0; i < slashIndex; i++) {
-    if (visible[i] !== ' ' && visible[i] !== '\t') return undefined;
-  }
-
-  let endVisible = slashIndex + 1;
-  while (endVisible < visible.length) {
-    const ch = visible[endVisible];
-    if (ch === ' ' || ch === '\t') break;
-    endVisible++;
-  }
-
-  const visibleToken = visible.slice(slashIndex, endVisible);
-  if (visibleToken.slice(1).includes('/')) return undefined;
-  const ranges = [{ start: slashIndex, end: endVisible }];
-  if (visibleToken === '/goal') {
-    ranges.push(...goalCommandPathRanges(visible, endVisible));
-  }
+  const ranges = resolveRendererEditorSlashTokenRanges(visible);
+  if (ranges === undefined) return undefined;
   return highlightVisibleRanges(line, ranges, paint);
+}
+
+export function projectRendererEditorSlashToken(
+  lines: readonly RendererRegionLine[],
+  style: RendererCellStyle,
+): readonly RendererRegionLine[] {
+  const first = lines[0];
+  if (first === undefined || typeof first === 'string') return lines;
+  const visible = first.map((cell) => cell.char).join('');
+  const ranges = resolveRendererEditorSlashTokenRanges(visible);
+  if (ranges === undefined) return lines;
+  return [applyRendererEditorVisibleRangeStyle(first, ranges, style), ...lines.slice(1)];
 }
 
 export function injectRendererEditorArgumentHint(
@@ -381,7 +391,7 @@ export function renderRendererEditorFrame(
     lines.push(cells);
   }
 
-  if (height > 1) {
+  if (height > 1 && options.omitBottomBorder !== true) {
     lines.push(createRendererEditorBorderLine({
       width,
       left: '╰',
@@ -417,7 +427,7 @@ export function renderRendererEditorSurface(
     options.argumentHint?.width ?? options.width - contentX - 2,
   );
   const argumentHint = options.argumentHint;
-  const inputLines =
+  let inputLines =
     argumentHint === undefined || argumentHint.enabled === false
       ? options.content.lines
       : projectRendererEditorArgumentHint(options.content.lines, {
@@ -427,6 +437,9 @@ export function renderRendererEditorSurface(
           width: contentWidth,
           style: argumentHint.style,
         });
+  if (options.slashTokenStyle !== undefined && inputLines.length > 0) {
+    inputLines = projectRendererEditorSlashToken(inputLines, options.slashTokenStyle);
+  }
   const scrollbarLines = options.scrollbarLines ?? renderRendererEditorSurfaceScrollbar(
     options.content,
     viewportRows,
@@ -436,6 +449,8 @@ export function renderRendererEditorSurface(
     options.scrollbar !== false && options.scrollbar !== undefined
       ? options.scrollbar
       : undefined;
+  const overlayLines = options.overlays ?? [];
+  const hasOverlays = overlayLines.length > 0;
   const frame = renderRendererEditorFrame({
     ...options,
     height: frameRows,
@@ -444,15 +459,24 @@ export function renderRendererEditorSurface(
     scrollbarLines,
     scrollbarTrackChar: scrollbarOptions?.trackChar ?? options.scrollbarTrackChar,
     scrollbarThumbChar: scrollbarOptions?.thumbChar ?? options.scrollbarThumbChar,
+    omitBottomBorder: hasOverlays,
   });
-  const overlayLines = options.overlays ?? [];
+  const renderedOverlays = hasOverlays
+    ? renderRendererEditorOverlayLines({
+        width: options.width,
+        lines: overlayLines,
+        borderStyle: options.borderStyle,
+        surfaceStyle: options.surfaceStyle,
+        textStyle: options.textStyle,
+      })
+    : [];
   const surface: {
     readonly lines: readonly RendererRegionLine[];
     readonly frameLines: readonly RendererRegionLine[];
     readonly overlayLines: readonly RendererRegionLine[];
     cursor?: RendererCursorState;
   } = {
-    lines: [...frame.lines, ...overlayLines],
+    lines: [...frame.lines, ...renderedOverlays],
     frameLines: frame.lines,
     overlayLines,
   };
@@ -494,27 +518,99 @@ export function resolveRendererEditorSurfaceStyles(
     scrollbarThumbStyle: { fg: palette.textStrong },
     placeholderStyle: { fg: palette.textMuted, dim: true },
     selectionStyle: { fg: palette.selectionText, bg: palette.selectionBg },
+    autocompleteSelectedStyle: { fg: palette.textStrong, bold: true },
+    autocompleteDescriptionStyle: { fg: palette.textMuted, dim: true },
+    autocompleteScrollStyle: { fg: palette.textMuted, dim: true },
+    slashTokenStyle: { fg: palette.textStrong, bold: true },
   };
+}
+
+export function measureRendererEditorSurfaceNaturalRows(
+  overlays: readonly RendererRegionLine[] = [],
+  contentRows = 1,
+): number {
+  if (overlays.length > 0) {
+    return 2 + overlays.length + 1;
+  }
+  const normalizedContentRows = Math.max(1, Math.floor(contentRows));
+  return Math.max(3, 2 + normalizedContentRows);
 }
 
 export function measureRendererEditorSurfaceLayout(
   options: RendererEditorSurfaceLayoutOptions,
 ): RendererEditorSurfaceLayoutResult {
   const rows = normalizeEditorFrameSize(options.height);
+  const overlays = options.overlays ?? [];
+  if (overlays.length === 0) {
+    const minFrameRows = Math.min(
+      rows,
+      normalizeEditorFrameSize(options.minFrameRows ?? 3),
+    );
+    const frameRows = rows === 0 ? 0 : Math.max(minFrameRows, rows);
+    return {
+      rows,
+      frameRows,
+      contentRows: Math.max(0, frameRows - 2),
+      overlayRows: 0,
+      overlayLines: [],
+    };
+  }
+
   const minFrameRows = Math.min(
     rows,
-    normalizeEditorFrameSize(options.minFrameRows ?? 3),
+    normalizeEditorFrameSize(options.minFrameRows ?? 2),
   );
-  const overlays = options.overlays ?? [];
-  const overlayRows = Math.min(overlays.length, Math.max(0, rows - minFrameRows));
-  const frameRows = rows === 0 ? 0 : Math.max(minFrameRows, rows - overlayRows);
+  const overlayBottomRows = 1;
+  const overlayRows = Math.min(
+    overlays.length,
+    Math.max(0, rows - minFrameRows - overlayBottomRows),
+  );
+  const frameRows = rows === 0 ? 0 : minFrameRows;
   return {
     rows,
     frameRows,
-    contentRows: Math.max(0, frameRows - 2),
+    contentRows: Math.max(0, frameRows - 1),
     overlayRows,
     overlayLines: overlays.slice(0, overlayRows),
   };
+}
+
+export function renderRendererEditorOverlayLines(
+  options: RendererEditorOverlayLinesOptions,
+): readonly RendererCell[][] {
+  const width = normalizeEditorFrameSize(options.width);
+  if (width === 0 || options.lines.length === 0) return [];
+
+  const contentX = normalizeEditorFrameCoordinate(
+    options.contentX,
+    RENDERER_EDITOR_CONTENT_X,
+  );
+  const contentWidth = Math.max(1, width - contentX - 1);
+  const lines: RendererCell[][] = [];
+  for (const line of options.lines) {
+    const cells = createRendererEditorBlankLine(width, options.surfaceStyle);
+    cells[0] = { char: '│', style: options.borderStyle };
+    cells[width - 1] = { char: '│', style: options.borderStyle };
+    if (typeof line === 'string') {
+      writeRendererRegionLineCells(
+        cells,
+        contentX,
+        truncateToWidth(line, contentWidth, ''),
+        contentWidth,
+        options.textStyle,
+      );
+    } else {
+      writeRendererRegionLineCells(cells, contentX, line, contentWidth);
+    }
+    lines.push(cells);
+  }
+  lines.push(createRendererEditorBorderLine({
+    width,
+    left: '╰',
+    right: '╯',
+    style: options.borderStyle,
+  }));
+  return lines;
 }
 
 function renderRendererEditorSurfaceScrollbar(
@@ -609,14 +705,22 @@ function writeRendererRegionLineCells(
   x: number,
   line: RendererRegionLine | undefined,
   maxWidth: number,
+  style: RendererCellStyle | undefined = undefined,
 ): void {
   if (line === undefined || maxWidth <= 0 || x < 0 || x >= target.length) return;
   const cells = typeof line === 'string' ? ansiTextToCells(line) : line;
   for (let i = 0; i < maxWidth; i++) {
     const cell = cells[i];
     if (cell === undefined || x + i >= target.length) break;
-    target[x + i] = cell;
+    target[x + i] = style === undefined
+      ? cell
+      : { ...cell, style: { ...style, ...cell.style } };
   }
+}
+
+function rendererRegionLinePlainText(line: RendererRegionLine): string {
+  if (typeof line === 'string') return line;
+  return line.map((cell) => cell.char).join('');
 }
 
 function normalizeEditorFrameSize(value: number): number {
@@ -674,6 +778,52 @@ function readTokenRange(
 
 function isTokenSpace(ch: string | undefined): boolean {
   return ch === ' ' || ch === '\t';
+}
+
+function resolveRendererEditorSlashTokenRanges(
+  visible: string,
+): Array<{ start: number; end: number }> | undefined {
+  const slashIndex = visible.indexOf('/');
+  if (slashIndex < 0) return undefined;
+  for (let i = 0; i < slashIndex; i++) {
+    if (visible[i] !== ' ' && visible[i] !== '\t') return undefined;
+  }
+
+  let endVisible = slashIndex + 1;
+  while (endVisible < visible.length) {
+    const ch = visible[endVisible];
+    if (ch === ' ' || ch === '\t') break;
+    endVisible++;
+  }
+
+  const visibleToken = visible.slice(slashIndex, endVisible);
+  if (visibleToken.slice(1).includes('/')) return undefined;
+  const ranges = [{ start: slashIndex, end: endVisible }];
+  if (visibleToken === '/goal') {
+    ranges.push(...goalCommandPathRanges(visible, endVisible));
+  }
+  return ranges;
+}
+
+function applyRendererEditorVisibleRangeStyle(
+  cells: readonly RendererCell[],
+  ranges: Array<{ start: number; end: number }>,
+  style: RendererCellStyle,
+): RendererCell[] {
+  const styled = cells.map((cell) => ({ ...cell }));
+  let visible = 0;
+  for (let i = 0; i < styled.length; i++) {
+    const cell = styled[i];
+    if (cell === undefined) continue;
+    const width = rendererCellWidth(cell);
+    const start = visible;
+    const end = visible + width;
+    if (ranges.some((range) => start < range.end && end > range.start)) {
+      styled[i] = { ...cell, style: { ...cell.style, ...style } };
+    }
+    visible = end;
+  }
+  return styled;
 }
 
 function highlightVisibleRanges(

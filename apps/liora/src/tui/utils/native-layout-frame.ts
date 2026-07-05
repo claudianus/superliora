@@ -10,8 +10,10 @@ import {
   rendererEditorContentHeight,
   rendererEditorContentWidth,
   measureRendererEditorSurfaceLayout,
+  measureRendererEditorSurfaceNaturalRows,
   projectRendererCursorMarkerLines,
   projectRendererEditorSurfaceCursor,
+  promoteRendererRegionLinesToCells,
   renderNativeLayoutFrame,
   renderRendererEditorSurface,
   resolveRendererEditorSurfaceStyles,
@@ -264,6 +266,7 @@ export function getTUIStateNativeEditorRect(
         editorRows,
         frameHeight,
         activityRows + todoRows + queueRows + btwRows + footerRows,
+        frameWidth,
       ),
       footer: footerRows,
     },
@@ -288,14 +291,15 @@ export function measureTUIStateNativeFrameHeight(
   const todoRows = state.todoPanelContainer.render(frameWidth).length;
   const queueRows = state.queueContainer.render(frameWidth).length;
   const btwRows = state.btwPanelContainer.render(frameWidth).length;
-  const editorLines = state.editorContainer.render(frameWidth).length;
+  const editorLineCount = state.editorContainer.render(frameWidth).length;
   const footerRows = state.footerContainer.render(frameWidth).length;
   const fixedRowsWithoutEditor = activityRows + todoRows + queueRows + btwRows + footerRows;
   const editorRows = nativeEditorRegionRowsForLayout(
     state,
-    editorLines,
+    editorLineCount,
     terminalRows,
     fixedRowsWithoutEditor,
+    frameWidth,
   );
   const layout = measureRendererRegions({
     terminalRows,
@@ -349,6 +353,7 @@ function buildTUIStateNativeFrame(
     editorLines.length,
     height,
     fixedRowsWithoutEditor,
+    width,
   );
   const layout = measureRendererRegions({
     terminalRows: height,
@@ -388,7 +393,7 @@ function buildTUIStateNativeFrame(
       if (projected.cursor !== undefined && cursor.visible === false) {
         cursor = projected.cursor;
       }
-      const content = projected.lines;
+      const content = promoteRendererRegionLinesToCells(projected.lines);
       if (content.length === 0 && region.id !== 'transcript') return [];
       const vfx = region.id === 'editor' && state.editor.borderHighlighted
         ? createTUIStateNativeRegionVfx(state, 'focus-pulse', {
@@ -514,17 +519,23 @@ function nativeEditorRegionRowsForLayout(
   editorRows: number,
   terminalRows: number,
   fixedRowsWithoutEditor: number,
+  frameWidth: number,
 ): number {
   if (!state.editorContainer.children.includes(state.editor) || editorRows <= 0) {
     return editorRows;
   }
 
-  const minEditorRows = Math.min(editorRows, 3);
+  const overlayLines = state.editor.getNativeOverlayLines?.(Math.floor(frameWidth)) ?? [];
+  const desiredRows = state.editor.getNativeLayoutRowCount?.(Math.floor(frameWidth))
+    ?? (overlayLines.length > 0
+      ? measureRendererEditorSurfaceNaturalRows(overlayLines)
+      : editorRows);
+  const minEditorRows = Math.min(desiredRows, 3);
   const availableRows = Math.max(
     0,
     Math.floor(terminalRows) - fixedRowsWithoutEditor - NATIVE_LAYOUT_MIN_TRANSCRIPT_ROWS,
   );
-  return Math.min(editorRows, Math.max(minEditorRows, availableRows));
+  return Math.min(desiredRows, Math.max(minEditorRows, availableRows));
 }
 
 function projectNativeEditorRegion(
@@ -552,12 +563,6 @@ function projectNativeEditorRegion(
     });
   }
 
-  const overlayLines = state.editor.getNativeOverlayLines?.(Math.floor(rect.width)) ?? [];
-  const surfaceLayout = measureRendererEditorSurfaceLayout({
-    height: Math.floor(rect.height),
-    overlays: overlayLines,
-  });
-  const editorFrameRect = { ...rect, height: surfaceLayout.frameRows };
   const palette = currentTheme.palette;
   const isBash = state.editor.inputMode === 'bash';
   const editorStyles = resolveRendererEditorSurfaceStyles({
@@ -576,6 +581,17 @@ function projectNativeEditorRegion(
       selectionText: palette.selectionText,
     },
   });
+  const overlayLines = state.editor.getNativeOverlayLines?.(Math.floor(rect.width), {
+    text: editorStyles.textStyle,
+    selected: editorStyles.autocompleteSelectedStyle,
+    description: editorStyles.autocompleteDescriptionStyle,
+    scroll: editorStyles.autocompleteScrollStyle,
+  }) ?? [];
+  const surfaceLayout = measureRendererEditorSurfaceLayout({
+    height: Math.floor(rect.height),
+    overlays: overlayLines,
+  });
+  const editorFrameRect = { ...rect, height: surfaceLayout.frameRows };
   const contentHeight = rendererEditorContentHeight(
     editorFrameRect,
     RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
@@ -615,6 +631,7 @@ function projectNativeEditorRegion(
     surfaceStyle: editorStyles.surfaceStyle,
     scrollbarTrackStyle: editorStyles.scrollbarTrackStyle,
     scrollbarThumbStyle: editorStyles.scrollbarThumbStyle,
+    slashTokenStyle: isBash ? undefined : editorStyles.slashTokenStyle,
   });
   const cursor = projectRendererEditorSurfaceCursor({
     surface,

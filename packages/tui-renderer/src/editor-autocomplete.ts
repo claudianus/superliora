@@ -2,9 +2,26 @@ import type {
   AutocompleteItem,
   AutocompleteProvider,
 } from './autocomplete';
+import type { RendererCell, RendererCellStyle } from './cell-buffer';
+import type { RendererRegionLine } from './compositor';
+import type { NativeInputKeyEvent } from './input-events';
 import type { RendererEditorCursor } from './editor-text-input';
 import { Key, matchesKey } from './input-keys';
-import { truncateToWidth } from './text-component';
+import {
+  createRendererStyledTextCells,
+  truncateRendererStyledTextRuns,
+  type RendererStyledTextRun,
+} from './styled-text';
+import { RENDERER_SELECT_POINTER } from './symbols';
+
+export { RENDERER_SELECT_POINTER } from './symbols';
+
+export interface RendererEditorAutocompleteLineStyles {
+  readonly text?: RendererCellStyle;
+  readonly selected?: RendererCellStyle;
+  readonly description?: RendererCellStyle;
+  readonly scroll?: RendererCellStyle;
+}
 
 export interface RendererEditorAutocompleteSource {
   getLines(): string[];
@@ -14,6 +31,7 @@ export interface RendererEditorAutocompleteSource {
 export interface RendererEditorAutocompleteOptions {
   readonly requestRender?: () => void;
   readonly maxVisible?: number;
+  readonly lineStyles?: RendererEditorAutocompleteLineStyles;
 }
 
 export interface RendererEditorAutocompleteRequestOptions {
@@ -41,6 +59,7 @@ const DEFAULT_AUTOCOMPLETE_MAX_VISIBLE = 6;
 
 export class RendererEditorAutocompleteController {
   private readonly maxVisible: number;
+  private lineStyles: RendererEditorAutocompleteLineStyles;
   private provider: AutocompleteProvider | undefined;
   private abort: AbortController | undefined;
   private requestId = 0;
@@ -48,6 +67,11 @@ export class RendererEditorAutocompleteController {
 
   constructor(private readonly options: RendererEditorAutocompleteOptions = {}) {
     this.maxVisible = normalizeAutocompleteMaxVisible(options.maxVisible);
+    this.lineStyles = options.lineStyles ?? {};
+  }
+
+  setLineStyles(styles: RendererEditorAutocompleteLineStyles): void {
+    this.lineStyles = styles;
   }
 
   setProvider(provider: AutocompleteProvider | undefined): void {
@@ -114,10 +138,33 @@ export class RendererEditorAutocompleteController {
     data: string,
     source: RendererEditorAutocompleteSource,
   ): RendererEditorAutocompleteInputResult {
+    if (matchesKey(data, Key.up)) {
+      return this.handleNativeInput({ type: 'key', key: 'up', raw: data, eventType: 'press' }, source);
+    }
+    if (matchesKey(data, Key.down)) {
+      return this.handleNativeInput({ type: 'key', key: 'down', raw: data, eventType: 'press' }, source);
+    }
+    if (matchesKey(data, Key.tab)) {
+      return this.handleNativeInput({ type: 'key', key: 'tab', raw: data, eventType: 'press' }, source);
+    }
+    if (matchesKey(data, Key.enter)) {
+      return this.handleNativeInput({ type: 'key', key: 'enter', raw: data, eventType: 'press' }, source);
+    }
+    if (matchesKey(data, Key.escape)) {
+      return this.handleNativeInput({ type: 'key', key: 'escape', raw: data, eventType: 'press' }, source);
+    }
+    return { handled: false };
+  }
+
+  handleNativeInput(
+    event: NativeInputKeyEvent,
+    source: RendererEditorAutocompleteSource,
+  ): RendererEditorAutocompleteInputResult {
+    if (event.eventType === 'release') return { handled: false };
     const state = this.state;
     if (state === undefined) return { handled: false };
 
-    if (matchesKey(data, Key.up)) {
+    if (event.key === 'up' && event.ctrl !== true && event.alt !== true) {
       state.selectedIndex =
         state.selectedIndex === 0
           ? Math.max(0, state.items.length - 1)
@@ -126,7 +173,7 @@ export class RendererEditorAutocompleteController {
       return { handled: true };
     }
 
-    if (matchesKey(data, Key.down)) {
+    if (event.key === 'down' && event.ctrl !== true && event.alt !== true) {
       state.selectedIndex =
         state.selectedIndex >= state.items.length - 1
           ? 0
@@ -135,14 +182,14 @@ export class RendererEditorAutocompleteController {
       return { handled: true };
     }
 
-    if (matchesKey(data, Key.tab) || matchesKey(data, Key.enter)) {
+    if (event.key === 'tab' || event.key === 'enter') {
       const completion = this.applySelected(source);
       return completion === undefined
         ? { handled: true }
         : { handled: true, completion };
     }
 
-    if (matchesKey(data, Key.escape)) {
+    if (event.key === 'escape') {
       this.close(true);
       return { handled: true };
     }
@@ -187,7 +234,10 @@ export class RendererEditorAutocompleteController {
     return true;
   }
 
-  lines(width: number): readonly string[] {
+  overlayLines(
+    width: number,
+    styles: RendererEditorAutocompleteLineStyles = this.lineStyles,
+  ): readonly RendererRegionLine[] {
     const state = this.state;
     if (state === undefined) return [];
 
@@ -198,20 +248,33 @@ export class RendererEditorAutocompleteController {
       this.maxVisible,
     );
     const endIndex = Math.min(state.items.length, startIndex + this.maxVisible);
-    const lines: string[] = [];
+    const lines: RendererRegionLine[] = [];
 
     for (let index = startIndex; index < endIndex; index++) {
       const item = state.items[index];
       if (item === undefined) continue;
-      lines.push(renderAutocompleteItem(item, index === state.selectedIndex, safeWidth));
+      lines.push(renderAutocompleteOverlayLine(
+        item,
+        index === state.selectedIndex,
+        safeWidth,
+        styles,
+      ));
     }
 
     if (startIndex > 0 || endIndex < state.items.length) {
-      lines.push(
-        truncateToWidth(`  (${state.selectedIndex + 1}/${state.items.length})`, safeWidth, ''),
-      );
+      lines.push(renderAutocompleteScrollLine(
+        state.selectedIndex + 1,
+        state.items.length,
+        safeWidth,
+        styles,
+      ));
     }
     return lines;
+  }
+
+  /** @deprecated Use {@link overlayLines} for styled cell output. */
+  lines(width: number): readonly string[] {
+    return this.overlayLines(width).map(regionLineToPlainText);
   }
 }
 
@@ -242,15 +305,48 @@ function autocompleteWindowStart(
   );
 }
 
-function renderAutocompleteItem(
+function renderAutocompleteOverlayLine(
   item: AutocompleteItem,
   selected: boolean,
   width: number,
-): string {
-  const prefix = selected ? '→ ' : '  ';
+  styles: RendererEditorAutocompleteLineStyles,
+): readonly RendererCell[] {
+  const textStyle = styles.text;
+  const selectedStyle = styles.selected ?? textStyle;
+  const descriptionStyle = styles.description ?? textStyle;
+  const pointer = selected ? RENDERER_SELECT_POINTER : ' ';
   const label = item.label || item.value;
   const description = item.description?.replaceAll(/[\r\n]+/g, ' ').trim();
-  const suffix =
-    description === undefined || description.length === 0 ? '' : `  ${description}`;
-  return truncateToWidth(`${prefix}${label}${suffix}`, width, '');
+  const runs: RendererStyledTextRun[] = [
+    { text: '  ', style: textStyle },
+    { text: pointer, style: selected ? selectedStyle : textStyle },
+    { text: ' ', style: textStyle },
+    { text: label, style: selected ? selectedStyle : textStyle },
+  ];
+  if (description !== undefined && description.length > 0) {
+    runs.push({ text: '  ', style: textStyle });
+    runs.push({ text: description, style: descriptionStyle });
+  }
+  return createRendererStyledTextCells(
+    truncateRendererStyledTextRuns(runs, { width }),
+  );
+}
+
+function renderAutocompleteScrollLine(
+  selectedOneBased: number,
+  total: number,
+  width: number,
+  styles: RendererEditorAutocompleteLineStyles,
+): readonly RendererCell[] {
+  return createRendererStyledTextCells(
+    truncateRendererStyledTextRuns(
+      [{ text: `  (${selectedOneBased}/${total})`, style: styles.scroll ?? styles.description ?? styles.text }],
+      { width },
+    ),
+  );
+}
+
+function regionLineToPlainText(line: RendererRegionLine): string {
+  if (typeof line === 'string') return line;
+  return line.map((cell) => cell.char).join('');
 }

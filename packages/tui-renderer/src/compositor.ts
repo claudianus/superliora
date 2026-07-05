@@ -147,6 +147,7 @@ export function composeRendererRegions(
   let cellsClipped = 0;
   const canReuseRows = options.reuseCachedRows === true && options.cache !== undefined;
   const lineCacheBefore = options.lineCache?.snapshot();
+  const underlayRowKeys = new Map<number, string>();
 
   for (const { region, index } of ordered) {
     const rect = normalizeRect(region.rect);
@@ -168,9 +169,11 @@ export function composeRendererRegions(
       const sourceY = y - rect.y + scrollY;
       const line = region.lines[sourceY];
       const rowId = createRowId(region, index, y);
-      const rowKey = createRowKey(region, rect, clipped, y, sourceY, line);
+      const underlayKey = underlayRowKeys.get(y) ?? '';
+      const rowKey = createRowKey(region, rect, clipped, y, sourceY, line, underlayKey);
       if (rowClearing && options.cache?.shouldReuseRow(rowId, rowKey)) {
         rowsReused++;
+        underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
         continue;
       }
 
@@ -179,7 +182,10 @@ export function composeRendererRegions(
       }
       options.cache?.markComposedRow(rowId, rowKey);
       rowsComposed++;
-      if (line === undefined) continue;
+      if (line === undefined) {
+        underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
+        continue;
+      }
 
       const cells = applyRendererRegionVfx(
         options.lineCache?.get(line, region.style) ?? rendererLineToCells(line, region.style),
@@ -197,6 +203,7 @@ export function composeRendererRegions(
         buffer.setCell(x, y, cell);
         cellsWritten++;
       }
+      underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
     }
   }
 
@@ -281,8 +288,10 @@ function createRowKey(
   y: number,
   sourceY: number,
   line: RendererRegionLine | undefined,
+  underlayKey = '',
 ): string {
   return [
+    underlayKey,
     rect.x,
     rect.y,
     clipped.x,
@@ -296,6 +305,10 @@ function createRowKey(
     vfxKey(region.vfx),
     lineKey(line),
   ].join('\u0000');
+}
+
+function appendUnderlayRowKey(underlayKey: string, rowKey: string): string {
+  return underlayKey.length === 0 ? rowKey : `${underlayKey}\u0001${rowKey}`;
 }
 
 function applyRendererRegionVfx(

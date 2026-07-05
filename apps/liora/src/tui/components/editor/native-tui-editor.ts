@@ -5,7 +5,13 @@ import {
   RendererTextInput,
   isKeyRelease,
   matchesKey,
+  measureRendererEditorSurfaceLayout,
+  measureRendererEditorSurfaceNaturalRows,
+  RENDERER_EDITOR_CONTENT_RIGHT_INSET,
+  RENDERER_EDITOR_CONTENT_X,
   renderRendererEditorSurface,
+  resolveRendererEditorSurfaceStyles,
+  type RendererEditorAutocompleteLineStyles,
   type AutocompleteProvider,
   type RendererEditorAutocompleteCompletion,
   type RendererEditorCursor,
@@ -135,9 +141,20 @@ export class NativeTUIEditor implements TUIEditor {
     if (!matchesKey(normalized, Key.escape)) this.onNonEscapeInput?.();
 
     if (this.handleAppShortcut(normalized)) return;
-    if (this.handleAutocompleteInput(normalized)) return;
 
     const events = this.decoder.decode(normalized);
+    if (this.autocomplete.isOpen()) {
+      for (const event of events) {
+        if (event.type !== 'key' || event.eventType === 'release') continue;
+        const result = this.autocomplete.handleNativeInput(event, this);
+        if (!result.handled) continue;
+        if (result.completion !== undefined) {
+          this.applyAutocompleteCompletion(result.completion);
+        }
+        return;
+      }
+    }
+
     for (const event of events) {
       if (event.type === 'paste') {
         this.onTextPaste?.();
@@ -194,32 +211,30 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   render(width: number): string[] {
-    const safeWidth = Math.max(1, Math.floor(width));
-    const contentWidth = Math.max(1, safeWidth - 6);
-    const content = this.input.render({
-      width: contentWidth,
-      focused: this.focused,
-    });
-    const surface = renderRendererEditorSurface({
-      width: safeWidth,
-      content,
-      argumentHint: this.inputMode === 'bash'
-        ? undefined
-        : {
-            text: this.getText(),
-            cursor: this.getCursor(),
-            hints: this.argumentHints,
-            width: contentWidth,
-          },
-      prompt: this.inputMode === 'bash' ? '!' : '>',
-      connectedAbove: this.connectedAbove && !this.borderHighlighted,
-      overlays: this.getNativeOverlayLines(safeWidth),
-    });
-    return surface.lines.map(regionLineToText);
+    return this.buildNativeEditorSurface(width).lines.map(regionLineToText);
   }
 
-  getNativeOverlayLines(width: number): readonly RendererRegionLine[] {
-    return this.autocomplete.lines(width);
+  getNativeLayoutRowCount(width: number): number {
+    const safeWidth = Math.max(1, Math.floor(width));
+    const overlayLines = this.getNativeOverlayLines(safeWidth);
+    const contentWidth = Math.max(
+      1,
+      safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
+    );
+    const content = this.input.render({
+      width: contentWidth,
+      height: 1,
+      focused: this.focused,
+    });
+    return measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows);
+  }
+
+  getNativeOverlayLines(
+    width: number,
+    styles?: RendererEditorAutocompleteLineStyles,
+  ): readonly RendererRegionLine[] {
+    const contentWidth = Math.max(1, Math.floor(width) - RENDERER_EDITOR_CONTENT_X - 1);
+    return this.autocomplete.overlayLines(contentWidth, styles);
   }
 
   private handleAppShortcut(data: string): boolean {
@@ -346,15 +361,6 @@ export class NativeTUIEditor implements TUIEditor {
     this.onInputModeChange?.(mode);
   }
 
-  private handleAutocompleteInput(data: string): boolean {
-    const result = this.autocomplete.handleInput(data, this);
-    if (!result.handled) return false;
-    if (result.completion !== undefined) {
-      this.applyAutocompleteCompletion(result.completion);
-    }
-    return true;
-  }
-
   private async requestAutocomplete(options: { readonly force?: boolean } = {}): Promise<void> {
     await this.autocomplete.request(this, options);
   }
@@ -371,6 +377,45 @@ export class NativeTUIEditor implements TUIEditor {
     this.setCursorPosition({ line: result.cursorLine, col: result.cursorCol });
     if (this.getText() !== before) this.onChange?.(this.getText());
     void this.requestAutocomplete({ force: this.inputMode === 'bash' });
+  }
+
+  private buildNativeEditorSurface(width: number) {
+    const safeWidth = Math.max(1, Math.floor(width));
+    const contentWidth = Math.max(
+      1,
+      safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
+    );
+    const overlayLines = this.getNativeOverlayLines(safeWidth);
+    const content = this.input.render({
+      width: contentWidth,
+      focused: this.focused,
+    });
+    const surfaceLayout = measureRendererEditorSurfaceLayout({
+      height: measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows),
+      overlays: overlayLines,
+    });
+    return renderRendererEditorSurface({
+      width: safeWidth,
+      frameRows: surfaceLayout.frameRows,
+      content,
+      argumentHint: this.inputMode === 'bash'
+        ? undefined
+        : {
+            text: this.getText(),
+            cursor: this.getCursor(),
+            hints: this.argumentHints,
+            width: contentWidth,
+          },
+      prompt: this.inputMode === 'bash' ? '!' : '>',
+      connectedAbove: this.connectedAbove && !this.borderHighlighted,
+      overlays: surfaceLayout.overlayLines,
+      slashTokenStyle: this.inputMode === 'bash'
+        ? undefined
+        : resolveRendererEditorSurfaceStyles({
+            commandMode: false,
+            focused: this.focused,
+          }).slashTokenStyle,
+    });
   }
 }
 

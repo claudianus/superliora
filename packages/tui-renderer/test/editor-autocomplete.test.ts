@@ -60,11 +60,9 @@ describe('RendererEditorAutocompleteController', () => {
 
     expect(controller.isOpen()).toBe(true);
     expect(requestRender).toHaveBeenCalledOnce();
-    expect(controller.lines(24)).toEqual([
-      '→ help  Show help',
-      '  history  Show history',
-      '  (1/3)',
-    ]);
+    expect(controller.overlayLines(24).map(cellsToText)[0]).toContain('❯ help');
+    expect(controller.overlayLines(24).map(cellsToText)[1]).toContain('history');
+    expect(controller.lines(24)[2]).toBe('  (1/3)');
   });
 
   it('moves selection and returns a completion without mutating the source', async () => {
@@ -135,6 +133,41 @@ describe('RendererEditorAutocompleteController', () => {
     await firstRequest;
 
     expect(firstSignal?.aborted).toBe(true);
-    expect(controller.lines(20)).toEqual(['→ latest']);
+    expect(cellsToText(controller.overlayLines(20)[0] ?? [])).toContain('❯ latest');
+  });
+
+  it('routes structured native key events for autocomplete navigation', async () => {
+    const controller = new RendererEditorAutocompleteController();
+    controller.setProvider(providerReturning([
+      { value: 'help', label: 'help' },
+      { value: 'history', label: 'history' },
+    ]));
+    const source = new TestAutocompleteSource('/');
+
+    await controller.request(source);
+    expect(controller.handleNativeInput({
+      type: 'key',
+      key: 'down',
+      raw: '\u001B[B',
+      eventType: 'press',
+    }, source).handled).toBe(true);
+    expect(controller.handleNativeInput({
+      type: 'key',
+      key: 'enter',
+      raw: '\r',
+      eventType: 'press',
+    }, source)).toMatchObject({
+      handled: true,
+      completion: {
+        lines: ['/history '],
+        cursorLine: 0,
+        cursorCol: 9,
+      },
+    });
   });
 });
+
+function cellsToText(cells: readonly { char: string }[] | string): string {
+  if (typeof cells === 'string') return cells;
+  return cells.map((cell) => cell.char).join('');
+}

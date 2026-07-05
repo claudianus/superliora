@@ -2,6 +2,7 @@ import type {
   AutocompleteProvider,
   Component,
   Focusable,
+  RendererEditorAutocompleteLineStyles,
   RendererEditorCursor,
   RendererEditorTextInputTarget,
   RendererRegionLine,
@@ -52,7 +53,11 @@ export interface TUIEditor
   setArgumentHints(hints: ReadonlyMap<string, string>): void;
   setAutocompleteProvider(provider: AutocompleteProvider): void;
   isShowingAutocomplete(): boolean;
-  getNativeOverlayLines?(width: number): readonly RendererRegionLine[];
+  getNativeLayoutRowCount?(width: number): number;
+  getNativeOverlayLines?(
+    width: number,
+    styles?: RendererEditorAutocompleteLineStyles,
+  ): readonly RendererRegionLine[];
   addToHistory(text: string): void;
   recordNativeInputInteraction(): void;
   reopenAutocompleteAfterNativeInput(): void;

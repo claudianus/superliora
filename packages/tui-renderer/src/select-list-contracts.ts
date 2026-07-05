@@ -1,5 +1,6 @@
 import { type Component, truncateToWidth, visibleWidth } from './text-component';
 import { Key, matchesKey } from './input-keys';
+import { RENDERER_SELECT_POINTER } from './symbols';
 import { RendererSelectableListViewport } from './viewport';
 
 export interface SelectItem {
@@ -144,7 +145,7 @@ export class SelectList implements Component {
     width: number,
     primaryColumnWidth: number,
   ): string {
-    const prefix = isSelected ? '→ ' : '  ';
+    const prefix = isSelected ? `${RENDERER_SELECT_POINTER} ` : '  ';
     const prefixWidth = visibleWidth(prefix);
     const descriptionSingleLine = item.description?.replaceAll(/[\r\n]+/g, ' ').trim();
 

@@ -279,4 +279,53 @@ describe('RendererCompositionCache', () => {
     });
     expect(second.output).toBe('');
   });
+
+  it('invalidates opaque row reuse when a lower layer row changes underneath', () => {
+    const cache = new RendererCompositionCache();
+    const buffer = new RendererCellBuffer(5, 1);
+    const baseLayer = {
+      rect: { x: 0, y: 0, width: 5, height: 1 },
+      clear: true,
+      zIndex: 0,
+      lines: ['aaaaa'],
+    };
+    const overlayLayer = {
+      rect: { x: 0, y: 0, width: 5, height: 1 },
+      clear: true,
+      zIndex: 10,
+      lines: ['.....'],
+    };
+
+    cache.beginFrame({ bufferWidth: 5, bufferHeight: 1, layers: [baseLayer, overlayLayer] });
+    composeRendererRegions(buffer, [baseLayer, overlayLayer], { cache });
+    buffer.resetDamage();
+
+    cache.beginFrame({ bufferWidth: 5, bufferHeight: 1, layers: [baseLayer, overlayLayer] });
+    const reused = composeRendererRegions(buffer, [baseLayer, overlayLayer], {
+      cache,
+      reuseCachedRows: true,
+    });
+    expect(reused.rowsReused).toBeGreaterThan(0);
+
+    const changedBase = { ...baseLayer, lines: ['bbbbb'] };
+    cache.beginFrame({ bufferWidth: 5, bufferHeight: 1, layers: [changedBase, overlayLayer] });
+    const afterBaseChange = composeRendererRegions(buffer, [changedBase, overlayLayer], {
+      cache,
+      reuseCachedRows: true,
+    });
+
+    expect(afterBaseChange.rowsReused).toBe(0);
+    expect(afterBaseChange.rowsComposed).toBe(2);
+    expect(buffer.getCell(0, 0).char).toBe('.');
+  });
+
+  it('promotes ANSI string region lines into parsed cell lines', () => {
+    const lines = promoteRendererRegionLinesToCells(['a\u001B[31mb', [{ char: 'x' }]]);
+
+    expect(typeof lines[0]).not.toBe('string');
+    expect(lines[1]).toEqual([{ char: 'x' }]);
+    expect((lines[0] as readonly { char: string; style?: { fg?: string } }[])[1]?.style?.fg).toBe(
+      '#ff0000',
+    );
+  });
 });

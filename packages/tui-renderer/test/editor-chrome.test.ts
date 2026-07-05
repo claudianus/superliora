@@ -9,7 +9,9 @@ import {
   injectRendererEditorArgumentHint,
   injectRendererEditorPromptSymbol,
   measureRendererEditorSurfaceLayout,
+  measureRendererEditorSurfaceNaturalRows,
   projectRendererEditorArgumentHint,
+  projectRendererEditorSlashToken,
   projectRendererEditorSurfaceCursor,
   renderRendererEditorFrame,
   renderRendererEditorSurface,
@@ -81,6 +83,28 @@ describe('renderer editor chrome helpers', () => {
     expect((projected[0] as RendererCell[])[5]?.style).toEqual({ fg: '#777777' });
   });
 
+  it('projects slash command tokens onto native cell editor lines', () => {
+    const projected = projectRendererEditorSlashToken(
+      [[
+        { char: '/' },
+        { char: 'g' },
+        { char: 'o' },
+        { char: 'a' },
+        { char: 'l' },
+        { char: ' ' },
+        { char: 'n' },
+        { char: 'e' },
+        { char: 'x' },
+        { char: 't' },
+      ]],
+      { fg: '#aaaaaa', bold: true },
+    );
+
+    expect(projected[0]?.[0]?.style).toEqual({ fg: '#aaaaaa', bold: true });
+    expect(projected[0]?.[6]?.style).toEqual({ fg: '#aaaaaa', bold: true });
+    expect(projected[0]?.[5]?.style).toBeUndefined();
+  });
+
   it('wraps legacy editor rows with painted side borders and labels', () => {
     const top = '─'.repeat(24);
     const rows = wrapRendererEditorSideBorders([top, '   x                  ', top], paint, {
@@ -145,21 +169,20 @@ describe('renderer editor chrome helpers', () => {
         cursor: { line: 0, col: 5 },
         hints: new Map([['goal', '[status]']]),
       },
-      overlays: ['→ help'],
+      overlays: ['❯ help'],
     });
 
     expect(surface.lines.map(rowText)).toEqual([
       '╭────────────────╮',
       '│ > /goal [statu │',
+      '│   ❯ help       │',
       '╰────────────────╯',
-      '→ help',
     ]);
     expect(surface.frameLines.map(rowText)).toEqual([
       '╭────────────────╮',
       '│ > /goal [statu │',
-      '╰────────────────╯',
     ]);
-    expect(surface.overlayLines).toEqual(['→ help']);
+    expect(surface.overlayLines).toEqual(['❯ help']);
     expect(surface.cursor).toMatchObject({ x: 9, y: 1, visible: true });
   });
 
@@ -214,6 +237,10 @@ describe('renderer editor chrome helpers', () => {
       scrollbarThumbStyle: { fg: '#333333' },
       placeholderStyle: { fg: '#222222', dim: true },
       selectionStyle: { fg: '#999999', bg: '#888888' },
+      autocompleteSelectedStyle: { fg: '#333333', bold: true },
+      autocompleteDescriptionStyle: { fg: '#222222', dim: true },
+      autocompleteScrollStyle: { fg: '#222222', dim: true },
+      slashTokenStyle: { fg: '#333333', bold: true },
     });
 
     expect(resolveRendererEditorSurfaceStyles({
@@ -238,7 +265,7 @@ describe('renderer editor chrome helpers', () => {
       overlays: ['one', 'two', 'three'],
     })).toEqual({
       rows: 5,
-      frameRows: 3,
+      frameRows: 2,
       contentRows: 1,
       overlayRows: 2,
       overlayLines: ['one', 'two'],
@@ -275,5 +302,23 @@ describe('renderer editor chrome helpers', () => {
     });
 
     expect(frame.cursor).toMatchObject({ x: 5, y: 1, visible: true });
+  });
+
+  it('measures natural rows from multiline content height', () => {
+    expect(measureRendererEditorSurfaceNaturalRows([], 1)).toBe(3);
+    expect(measureRendererEditorSurfaceNaturalRows([], 3)).toBe(5);
+    expect(measureRendererEditorSurfaceNaturalRows(['a', 'b'], 1)).toBe(5);
+  });
+
+  it('renders a labeled top border in the native editor frame', () => {
+    const frame = renderRendererEditorFrame({
+      width: 30,
+      height: 3,
+      inputLines: [[{ char: 'x' }]],
+      connectedAbove: true,
+      topLabel: ' ! shell mode ',
+    });
+
+    expect(rowText(frame.lines[0]!)).toBe(`├ ! shell mode ${'─'.repeat(14)}┤`);
   });
 });

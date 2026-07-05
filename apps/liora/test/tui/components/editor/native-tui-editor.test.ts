@@ -140,13 +140,21 @@ describe('NativeTUIEditor', () => {
 
     expect(editor.isShowingAutocomplete()).toBe(true);
     expect(requestRender).toHaveBeenCalled();
-    expect(editor.render(24)).toContain('→ help  Show help');
+    expect(editor.render(24).join('\n')).toContain('❯ help');
 
     editor.handleInput('\u001B[B');
-    expect(editor.render(24)).toContain('→ history  Show history');
+    expect(editor.render(24).join('\n')).toContain('❯ history');
 
     editor.handleInput('\t');
     expect(editor.getText()).toBe('/history ');
     expect(editor.isShowingAutocomplete()).toBe(false);
+  });
+
+  it('reports layout row count from multiline content without string roundtrip', () => {
+    const editor = new NativeTUIEditor();
+    editor.setText('a\nb\nc');
+
+    expect(editor.getNativeLayoutRowCount(24)).toBe(5);
+    expect(editor.render(24)).toHaveLength(5);
   });
 });

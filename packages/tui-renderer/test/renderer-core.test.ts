@@ -2459,7 +2459,7 @@ describe('renderer text metrics', () => {
     list.onSelectionChange = (item) => changed.push(item.value);
 
     expect(list.render(48)).toEqual([
-      'S:→ alpha   first item',
+      'S:❯ alpha   first item',
       '  betaD:    second item',
       'I:  (1/3)',
     ]);

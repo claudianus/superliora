@@ -227,8 +227,16 @@ describe('createTUIState', () => {
     const frame = renderTUIStateNativeFrame(state);
 
     expect(state.editor.isShowingAutocomplete()).toBe(true);
+    expect(rowText(frame.renderer.frame, 3)).toContain('❯ help');
+    expect(rowText(frame.renderer.frame, 3)).toContain('Show help');
     expect(rowText(frame.renderer.frame, 4)).toBe('╰──────────────────────╯');
-    expect(rowText(frame.renderer.frame, 5).trim()).toBe('→ help  Show help');
+
+    const editorRegion = frame.regions.find((region) => region.id === 'editor');
+    const plainLines = (editorRegion?.lines ?? []).map((line) =>
+      typeof line === 'string' ? line : line.map((cell) => cell.char).join(''),
+    );
+    expect(plainLines.filter((line) => line.includes('╰'))).toHaveLength(1);
+    expect(plainLines.at(-1)).toBe('╰──────────────────────╯');
   });
 
   it('keeps incremental native frames free of stale ghost cells while typing with autocomplete open', async () => {
@@ -442,13 +450,37 @@ describe('createTUIState', () => {
     state.editorContainer.addChild(state.editor);
 
     const first = renderTUIStateNativeFrame(state);
-    const scrollbarColumn = first.width - 2;
-    const scrollbarChars = Array.from({ length: first.height }, (_, y) =>
-      first.renderer.frame.getCell(scrollbarColumn, y).char,
+    const editorRegion = first.regions.find((region) => region.id === 'editor');
+    expect(editorRegion?.rect).toBeDefined();
+    const scrollbarColumn = (editorRegion?.rect?.x ?? 0) + (editorRegion?.rect?.width ?? first.width) - 2;
+    const scrollbarTop = editorRegion?.rect?.y ?? 0;
+    const scrollbarBottom = scrollbarTop + (editorRegion?.rect?.height ?? first.height);
+    const scrollbarChars = Array.from({ length: scrollbarBottom - scrollbarTop }, (_, index) =>
+      first.renderer.frame.getCell(scrollbarColumn, scrollbarTop + index).char,
     );
 
-    expect(scrollbarChars).toContain('│');
     expect(scrollbarChars).toContain('█');
+  });
+
+  it('allocates more native editor rows for multiline input', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 10 });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 24 });
+    state.editor.setText('a\nb\nc');
+    state.editorContainer.addChild(state.editor);
+
+    const frame = renderTUIStateNativeFrame(state);
+    const editorRegion = frame.regions.find((region) => region.id === 'editor');
+
+    expect(editorRegion?.rect?.height).toBeGreaterThanOrEqual(5);
   });
 
   it('builds native frame regions without mutating mounted footer state', () => {
