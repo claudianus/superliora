@@ -22,6 +22,7 @@ import { UserMessageComponent } from '../components/messages/user-message';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import type { TranscriptEntry } from '../types';
 import { formatErrorMessage } from '../utils/event-payload';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import { getTranscriptComponentEntry } from '../utils/transcript-component-metadata';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { SlashCommandHost } from './dispatch';
@@ -120,7 +121,7 @@ async function undoByCount(host: SlashCommandHost, count: number): Promise<boole
     renderWelcome(host);
   }
 
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
   return true;
 }
 

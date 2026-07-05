@@ -175,6 +175,7 @@ describe('copyTranscriptSelectionToClipboard', () => {
 
     expect(await copyTranscriptSelectionToClipboard(state)).toBe(true);
     expect(copyTextToClipboardMock).toHaveBeenCalledWith('Hello');
+    expect(state.transcriptSelection.hasSelection).toBe(false);
   });
 });
 

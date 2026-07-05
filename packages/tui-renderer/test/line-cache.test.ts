@@ -281,6 +281,34 @@ describe('RendererCompositionCache', () => {
     expect(second.output).toBe('');
   });
 
+  it('disables composition row reuse while time-varying region VFX is active', () => {
+    const cache = new RendererCompositionCache();
+    const renderer = new NativeFrameRenderer({
+      width: 4,
+      height: 1,
+      output: { write: () => {} },
+    });
+    const regions = [
+      {
+        rect: { x: 0, y: 0, width: 4, height: 1 },
+        clear: true,
+        content: ['ok'],
+        vfx: {
+          effect: { kind: 'pulse' as const, color: '#ffffff', nowMs: 0, intervalMs: 100 },
+        },
+      },
+    ];
+
+    renderNativeLayoutFrame(renderer, regions, { composition: { cache } });
+    const second = renderNativeLayoutFrame(renderer, regions, { composition: { cache } });
+
+    expect(second.composition).toMatchObject({
+      rowsVisited: 1,
+      rowsComposed: 1,
+      rowsReused: 0,
+    });
+  });
+
   it('invalidates opaque row reuse when a lower layer row changes underneath', () => {
     const cache = new RendererCompositionCache();
     const buffer = new RendererCellBuffer(5, 1);

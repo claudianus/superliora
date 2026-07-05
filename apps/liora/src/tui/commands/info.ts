@@ -13,6 +13,7 @@ import { buildUsageReportLines, UsagePanelComponent, type ManagedUsageReport } f
 import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { formatErrorMessage } from '../utils/event-payload';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { loadPreflightHumanWriting } from './preflight';
 import type { SlashCommandHost } from './dispatch';
@@ -59,7 +60,7 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
   };
   const panel = new UsagePanelComponent(() => buildUsageReportLines(reportArgs), 'primary');
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 export async function showStatusReport(host: SlashCommandHost): Promise<void> {
@@ -105,7 +106,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
   };
   const panel = new UsagePanelComponent(() => buildStatusReportLines(reportArgs), 'primary', ' Status ');
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 export async function showMcpServers(host: SlashCommandHost): Promise<void> {
@@ -124,7 +125,7 @@ export async function showMcpServers(host: SlashCommandHost): Promise<void> {
     title,
   );
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 async function loadSessionUsageReport(host: SlashCommandHost): Promise<SessionUsageResult> {

@@ -8,6 +8,10 @@ import type {
 } from '@harness-kit/tui-renderer';
 
 import { LioraNativeRootUI } from './native-root-ui';
+import type { FrameInvalidationIntent } from '#/tui/utils/native-frame-policy';
+import { frameInvalidationIntentToCause } from '#/tui/utils/native-frame-policy';
+
+export type { FrameInvalidationIntent } from '#/tui/utils/native-frame-policy';
 
 export interface TerminalRenderer {
   readonly terminal: RendererTerminalHost;
@@ -20,6 +24,7 @@ export interface TerminalRenderer {
   start(): void;
   stop(): void;
   requestRender(force?: boolean | NativeRenderCause): void;
+  invalidateFrame(intent: FrameInvalidationIntent): void;
   drainInput(): Promise<void>;
 }
 
@@ -85,6 +90,9 @@ export function createNativeTerminalRenderer(options: {
         nativeRuntime.setAutoFrameHold(autoFrameHold());
       }
       nativeRuntime.requestRender(nativeRenderCause(force));
+    },
+    invalidateFrame: (intent: FrameInvalidationIntent) => {
+      renderer.requestRender(frameInvalidationIntentToCause(intent));
     },
     drainInput: () => terminal.drainInput?.() ?? Promise.resolve(),
   };

@@ -11,6 +11,7 @@ import {
   NativeFrameRenderer,
   type NativeFramePresentResult,
 } from './native-frame';
+import { rendererRegionsRequireAnimationFrame } from './region-vfx';
 import type { RendererCursorState } from './terminal-output';
 
 export interface RendererLineSource {
@@ -51,10 +52,11 @@ export function renderNativeLayoutFrame(
     layers,
   }) ?? false;
   const clear = options.clear ?? !reusableRows;
+  const timeVaryingVfx = rendererRegionsRequireAnimationFrame(layers);
   renderer.beginFrame({ clear, fill: options.fill });
   const composition = composeRendererRegions(renderer.frame, layers, {
     ...options.composition,
-    reuseCachedRows: reusableRows && !clear,
+    reuseCachedRows: reusableRows && !clear && !timeVaryingVfx,
   });
   if (options.cursor !== undefined) {
     renderer.setCursor(options.cursor);

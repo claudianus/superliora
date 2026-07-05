@@ -2,6 +2,7 @@ import { visibleWidth, type RendererRegionLine } from '#/tui/renderer';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
 import type { TUIState } from '../tui-state';
+import { requestTUILayoutRender } from './frame-render';
 import { CHROME_GUTTER } from '../constant/rendering';
 import { resolveTranscriptHitTestContext } from './transcript-hit-test';
 
@@ -215,5 +216,7 @@ export async function copyTranscriptSelectionToClipboard(state: TUIState): Promi
   );
   if (text.length === 0) return false;
   await copyTextToClipboard(text);
+  state.transcriptSelection.clear();
+  requestTUILayoutRender(state);
   return true;
 }

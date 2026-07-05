@@ -13,6 +13,7 @@ import {
   NO_ACTIVE_SESSION_MESSAGE,
 } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import type { ImageAttachmentStore } from '../utils/image-attachment-store';
 import { copyTranscriptSelectionToClipboard } from '../utils/transcript-selection';
 import type { PendingExit, QueuedMessage } from '../types';
@@ -252,7 +253,7 @@ export class EditorKeyboardController {
         }
       }
       host.updateQueueDisplay();
-      host.state.ui.requestRender();
+      requestTUILayoutRender(host.state);
     };
 
     editor.onCtrlB = (): boolean => {
@@ -332,7 +333,7 @@ export class EditorKeyboardController {
           editor.onInputModeChange?.(mode);
         }
         host.updateQueueDisplay();
-        host.state.ui.requestRender();
+        requestTUILayoutRender(host.state);
         return true;
       }
       return false;
@@ -377,12 +378,12 @@ export class EditorKeyboardController {
     const timer = setTimeout(() => {
       if (this.pendingExit?.timer === timer) {
         this.clearPendingExit();
-        this.host.state.ui.requestRender();
+        requestTUILayoutRender(this.host.state);
       }
     }, EXIT_CONFIRM_WINDOW_MS);
 
     this.pendingExit = { kind, timer };
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   private clearEditorTextIfPresent(): boolean {
@@ -424,7 +425,7 @@ export class EditorKeyboardController {
     if (media.kind === 'video') {
       const attachment = this.imageStore.addVideo(media.mimeType, media.sourcePath, media.filename);
       this.host.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
-      this.host.state.ui.requestRender();
+      requestTUILayoutRender(this.host.state);
       this.host.track('shortcut_paste', { kind: 'video' });
       return true;
     }
@@ -433,7 +434,7 @@ export class EditorKeyboardController {
     if (meta === null) return false;
     const attachment = this.imageStore.addImage(media.bytes, meta.mime, meta.width, meta.height);
     this.host.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
     this.host.track('shortcut_paste', { kind: 'image' });
     return true;
   }

@@ -17,6 +17,7 @@ import { AnimationScheduler } from './animation-scheduler';
 export interface AppearanceControllerOptions {
   readonly terminal: RendererTerminalHost;
   readonly requestRender: () => void;
+  readonly onAppearanceApplied?: () => void;
   readonly getAppearance: () => AppearancePreferences;
   readonly shouldRenderAnimation?: () => boolean;
 }
@@ -24,12 +25,14 @@ export interface AppearanceControllerOptions {
 export class AppearanceController {
   private readonly terminal: RendererTerminalHost;
   private readonly getAppearance: () => AppearancePreferences;
+  private readonly onAppearanceApplied: (() => void) | undefined;
   private readonly scheduler: AnimationScheduler;
   private terminalMutated = false;
 
   constructor(options: AppearanceControllerOptions) {
     this.terminal = options.terminal;
     this.getAppearance = options.getAppearance;
+    this.onAppearanceApplied = options.onAppearanceApplied;
     const appearance = options.getAppearance();
     this.scheduler = new AnimationScheduler({
       fps: appearance.animationFps,
@@ -52,6 +55,7 @@ export class AppearanceController {
       enabled: shouldAnimate(appearance),
     });
     this.applyTerminalColors(appearance, currentTheme.palette);
+    this.onAppearanceApplied?.();
   }
 
   dispose(): void {

@@ -83,6 +83,7 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import { errorReportHintLine } from '../constant/feedback';
 import { formatStepDebugTiming } from '#/utils/usage/debug-timing';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { BtwPanelController } from './btw-panel';
 import type { StreamingUIController } from './streaming-ui';
@@ -319,7 +320,7 @@ export class SessionEventHandler {
     } else {
       existing.applyEvent(event);
     }
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   stopAllMcpServerStatusSpinners(): void {
@@ -663,7 +664,7 @@ export class SessionEventHandler {
     this.host.state.transcriptContainer.addChild(
       new SwarmModeMarkerComponent(state),
     );
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   private handleGoalUpdated(event: GoalUpdatedEvent): void {
@@ -695,7 +696,7 @@ export class SessionEventHandler {
         renderMode: 'markdown',
         content: buildGoalCompletionMessage(event.snapshot),
       });
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
       return;
     }
 
@@ -719,7 +720,7 @@ export class SessionEventHandler {
     const marker = buildGoalMarker(change, state.toolOutputExpanded, change.actor);
     if (marker !== null) {
       state.transcriptContainer.addChild(marker);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
     }
   }
 
@@ -731,7 +732,7 @@ export class SessionEventHandler {
     const marker = buildGoalMarker(change, state.toolOutputExpanded, 'model');
     if (marker !== null) {
       state.transcriptContainer.addChild(marker);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
     }
   }
 
@@ -957,7 +958,7 @@ export class SessionEventHandler {
     const spinner = new MoonLoader(state.ui, 'braille', tint, label);
     state.transcriptContainer.addChild(spinner);
     this.mcpServerStatusSpinners.set(name, spinner);
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
   }
 
   private finalizeMcpServerStatusRow(name: string, message: string, color: ColorToken): void {
@@ -978,7 +979,7 @@ export class SessionEventHandler {
       state.transcriptContainer.addChild(status);
     }
     this.mcpServerStatusSpinners.delete(name);
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
   }
 
   private handleSkillActivated(event: SkillActivatedEvent): void {
@@ -1163,6 +1164,6 @@ export class SessionEventHandler {
       }
     }
     state.footer.setBackgroundCounts({ bashTasks, agentTasks });
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
   }
 }

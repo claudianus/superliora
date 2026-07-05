@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { workspaceRelativePath } from '#/constant/workspace-data';
 
 import type { SlashCommandHost } from './dispatch';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import { quoteShellArg } from '../../utils/shell-quote';
 
 const DEFAULT_BENCH_SUFFIX = ['evidence', 'superliora-provider-bench', 'final-quality-gate'] as const;
@@ -66,7 +67,7 @@ export async function handleBenchCommand(host: SlashCommandHost, args: string): 
   const status = loadBenchStatus(host.state.appState.workDir, args);
   const panel = new UsagePanelComponent(() => buildBenchStatusLines(status), 'primary', ' Bench ');
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 export function loadBenchStatus(workDir: string, args: string): BenchStatus {

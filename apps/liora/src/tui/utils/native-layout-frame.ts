@@ -56,6 +56,21 @@ import {
 
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers/appearance';
 import type { TUIState } from '../tui-state';
+import {
+  resolveTUIStateNativeFramePolicy,
+  shouldForceTUIStateNativeLayoutFrame,
+  shouldRefreshNativeTerminalPalette,
+} from './native-frame-policy';
+
+export {
+  frameInvalidationIntentToCause,
+  resolveTUIStateNativeFramePolicy,
+  shouldForceTUIStateNativeLayoutFrame,
+  shouldRefreshNativeTerminalPalette,
+  type FrameInvalidationIntent,
+  type TUIStateNativeFramePolicy,
+  type TUIStateNativeFramePolicyInput,
+} from './native-frame-policy';
 import { CHROME_GUTTER } from '../constant/rendering';
 import {
   cellSelectedAtColumn,
@@ -189,21 +204,6 @@ interface TUIStateNativeLayoutTracking {
   editorLayoutRows?: number;
 }
 
-export function shouldForceTUIStateNativeLayoutFrame(
-  causes: readonly NativeRenderCause[],
-  layoutShifted: boolean,
-  options: { readonly ambientAnimation?: boolean } = {},
-): boolean {
-  return (
-    causes.includes('start') ||
-    causes.includes('resize') ||
-    causes.includes('manual') ||
-    causes.includes('transcript-scroll') ||
-    layoutShifted ||
-    options.ambientAnimation === true
-  );
-}
-
 export function detectTUIStateNativeLayoutShift(
   state: TUIState,
   frameWidth: number,
@@ -248,33 +248,38 @@ export function createTUIStateNativeRenderCallback(
     // (see `measureFrameHeight` in createTUIStateNativeRenderer), so layout
     // must be computed against the actual buffer height, not `size.rows`.
     const height = runtime.frameRenderer.height;
+    const priorStart = layoutTracking.transcriptStart;
     const layoutShift = detectTUIStateNativeLayoutShift(state, size.columns, layoutTracking);
-    layoutTracking = layoutShift.next;
-    const ambientAnimationFrame =
-      frame.causes.includes('animation') &&
+    const ambientAnimationAllowed =
       shouldAnimate(state.appState.appearance ?? getActiveAppearancePreferences()) &&
       shouldRenderAmbientAnimationFrame(
         state.transcriptViewport.followOutput,
         size.rows,
         state.transcriptSelection.isDragging || state.transcriptSelection.hasSelection,
       );
-    const force = shouldForceTUIStateNativeLayoutFrame(frame.causes, layoutShift.shifted, {
-      ambientAnimation: ambientAnimationFrame,
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: frame.causes,
+      layoutShifted: layoutShift.shifted,
+      priorTranscriptStart: priorStart,
+      nextTranscriptStart: layoutShift.next.transcriptStart ?? 0,
+      ambientAnimationAllowed,
     });
-    const refreshTerminalPalette =
-      force &&
-      (frame.causes.includes('start') ||
-        frame.causes.includes('resize') ||
-        frame.causes.includes('manual'));
-    if (refreshTerminalPalette) options.onAuthoritativeFrame?.();
+    if (
+      policy.clearTranscriptSelection &&
+      (state.transcriptSelection.hasSelection || state.transcriptSelection.isDragging)
+    ) {
+      state.transcriptSelection.clear();
+    }
+    layoutTracking = layoutShift.next;
+    if (policy.refreshTerminalPalette) options.onAuthoritativeFrame?.();
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
     });
     const result = runtime.renderLayoutFrame(nativeFrame.regions, {
       fill: options.fill ?? currentTheme.canvasBackgroundCell(),
-      force,
-      clear: force,
+      force: policy.force,
+      clear: policy.clear,
       cursor: nativeFrame.cursor,
     });
     return result;

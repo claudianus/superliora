@@ -10,6 +10,7 @@ import {
 } from '../components/messages/swarm-markers';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import type { SlashCommandHost } from './dispatch';
 
 export async function handleSwarmCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -152,5 +153,5 @@ function renderSwarmModeMarker(host: SlashCommandHost, state: SwarmModeMarkerSta
   host.state.transcriptContainer.addChild(
     new SwarmModeMarkerComponent(state),
   );
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }

@@ -12,6 +12,7 @@ import type { StreamingUIController } from '../controllers/streaming-ui';
 import type { TasksBrowserController } from '../controllers/tasks-browser';
 import type { ResolvedTheme } from '../theme/colors';
 import type { TUIState } from '../tui-state';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import type {
   AppState,
   LoginProgressSpinnerHandle,
@@ -281,7 +282,7 @@ async function handleBuiltInSlashCommand(
       return;
     case 'new':
       await host.createNewSession();
-      host.state.ui.requestRender();
+      requestTUILayoutRender(host.state);
       return;
     case 'sessions':
       void host.showSessionPicker();

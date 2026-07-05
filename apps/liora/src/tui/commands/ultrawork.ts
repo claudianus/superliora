@@ -12,6 +12,7 @@ import { UltraworkModeMarkerComponent } from '../components/messages/ultrawork-m
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { KNOWLEDGE_MAP_FILENAME, resolveLlmWikiPaths, resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';
 import { formatErrorMessage } from '../utils/event-payload';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import type { SlashCommandHost } from './dispatch';
 import { writeProjectLlmWikiSeed } from './llm-wiki';
 import {
@@ -190,7 +191,7 @@ async function startUltrawork(
   host.state.transcriptContainer.addChild(
     new UltraworkModeMarkerComponent('active', request.objective),
   );
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
   host.sendNormalUserInput(
     buildUltraworkPrompt(request.objective, source, request.replace, {
       evidenceSeed,

@@ -38,6 +38,7 @@ import {
   detectTUIStateNativeLayoutShift,
   renderTUIStateNativeFrame,
   shouldForceTUIStateNativeLayoutFrame,
+  shouldRefreshNativeTerminalPalette,
 } from '#/tui/utils/native-layout-frame';
 import { renderNativeLayoutFrame } from '#/tui/renderer';
 import {
@@ -364,6 +365,12 @@ describe('createTUIState', () => {
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: false }),
     ).toBe(false);
+  });
+
+  it('refreshes terminal palette after transcript layout shifts', () => {
+    expect(shouldRefreshNativeTerminalPalette(['request'], true)).toBe(true);
+    expect(shouldRefreshNativeTerminalPalette(['animation'], false)).toBe(false);
+    expect(shouldRefreshNativeTerminalPalette(['manual'], false)).toBe(true);
   });
 
   it('renders footer history badge from the transcript viewport state', () => {

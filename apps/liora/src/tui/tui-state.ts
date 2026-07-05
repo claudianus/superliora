@@ -120,7 +120,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   const footer = new FooterComponent(
     { ...initialAppState },
     () => {
-      renderer.requestRender();
+      renderer.invalidateFrame('content');
     },
     () => transcriptViewport.snapshot(),
   );

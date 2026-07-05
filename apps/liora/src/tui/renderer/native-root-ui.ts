@@ -7,6 +7,7 @@ import {
   type Component,
   type NativeInputEvent,
   type NativeRootUIOptions,
+  type NativeRenderCause,
   type NativeTerminalRendererRender,
   type RendererInputListener,
   type RendererInputListenerResult,
@@ -77,8 +78,14 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
     this.renderer.stop();
   }
 
-  requestRender(force?: boolean): void {
-    this.renderer.requestRender(force === true ? 'manual' : 'request');
+  requestRender(force?: boolean | NativeRenderCause): void {
+    if (force === true) {
+      this.renderer.requestRender('manual');
+    } else if (force === false || force === undefined) {
+      this.renderer.requestRender('request');
+    } else {
+      this.renderer.requestRender(force);
+    }
   }
 
   addChild(component: TComponent): void {

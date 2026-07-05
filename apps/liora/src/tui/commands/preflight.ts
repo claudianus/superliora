@@ -7,6 +7,7 @@ import type { MemorySearchResult, MemoryStats } from '@superliora/sdk';
 
 import { loadBenchStatus, redactBenchStatusText, type BenchStatus } from './bench';
 import type { SlashCommandHost } from './dispatch';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import {
   formatEvidenceSignal,
   loadMemoryReadinessEvidence,
@@ -210,7 +211,7 @@ export async function handlePreflightCommand(host: SlashCommandHost, rawArgs: st
   const status = await loadPreflightStatus(host, rawArgs);
   const panel = new UsagePanelComponent(() => buildPreflightLines(status), 'primary', ' Preflight ');
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 export async function loadPreflightStatus(

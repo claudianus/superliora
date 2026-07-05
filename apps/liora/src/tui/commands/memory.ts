@@ -6,6 +6,7 @@ import {
 } from '#/constant/workspace-data';
 
 import type { SlashCommandHost } from './dispatch';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import {
   buildLlmWikiStatusLines,
   buildPromoteEvidenceLines,
@@ -111,7 +112,7 @@ async function showMemoryReadiness(host: SlashCommandHost, query: string): Promi
     ' Memory ',
   );
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 function showLlmWikiStatus(host: SlashCommandHost): void {

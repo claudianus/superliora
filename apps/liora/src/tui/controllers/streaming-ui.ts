@@ -23,6 +23,7 @@ import type {
   TranscriptEntry,
 } from '../types';
 import type { TUIState } from '../tui-state';
+import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/frame-render';
 
 export interface StreamingUIHost {
   state: TUIState;
@@ -394,7 +395,7 @@ export class StreamingUIController {
     this._currentStep = 0;
     this._streamingToolCallArguments.clear();
     this.pendingToolCallFlushIds.clear();
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   // ---------------------------------------------------------------------------
@@ -517,7 +518,7 @@ export class StreamingUIController {
     }
     this._assistantDraft = '';
     this.host.updateActivityPane();
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   resetLiveText(): void {
@@ -595,7 +596,7 @@ export class StreamingUIController {
     this._streamingBlock = { component, entry };
     this.host.pushTranscriptEntry(entry);
     state.transcriptContainer.addChild(component);
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
   }
 
   onStreamingTextUpdate(fullText: string): void {
@@ -603,7 +604,7 @@ export class StreamingUIController {
     if (block !== null) {
       block.entry.content = fullText;
       block.component.updateContent(fullText, { transient: true });
-      this.host.state.ui.requestRender();
+      requestTUIContentRender(this.host.state);
     }
   }
 
@@ -629,17 +630,18 @@ export class StreamingUIController {
       );
       if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
       state.transcriptContainer.addChild(this._activeThinkingComponent);
-    } else {
-      this._activeThinkingComponent.setText(fullText);
+      requestTUILayoutRender(state);
+      return;
     }
-    state.ui.requestRender();
+    this._activeThinkingComponent.setText(fullText);
+    requestTUIContentRender(state);
   }
 
   onThinkingEnd(): void {
     if (this._activeThinkingComponent === undefined) return;
     this._activeThinkingComponent.finalize();
     this._activeThinkingComponent = undefined;
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
     this.host.mergeCurrentTurnSteps();
   }
 
@@ -663,7 +665,7 @@ export class StreamingUIController {
     if (!handled) handled = this.tryAttachReadToolCall(toolCall, tc);
     if (!handled) {
       state.transcriptContainer.addChild(tc);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
     }
 
     if (toolCall.name === 'ExitPlanMode' && typeof toolCall.args['plan'] !== 'string') {
@@ -686,7 +688,7 @@ export class StreamingUIController {
     if (tc) {
       tc.setResult(result);
       this._pendingToolComponents.delete(toolCallId);
-      state.ui.requestRender();
+      requestTUIContentRender(state);
       this.host.mergeCurrentTurnSteps();
       return;
     }
@@ -700,7 +702,7 @@ export class StreamingUIController {
       );
       if (state.toolOutputExpanded) completed.setExpanded(true);
       state.transcriptContainer.addChild(completed);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
     }
     this.host.mergeCurrentTurnSteps();
   }
@@ -712,7 +714,7 @@ export class StreamingUIController {
     if (!state.todoPanel.isEmpty()) {
       state.todoPanelContainer.addChild(state.todoPanel);
     }
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
   }
 
   beginCompaction(instruction?: string): void {
@@ -724,7 +726,7 @@ export class StreamingUIController {
     const block = new CompactionComponent(state.ui, instruction, currentWorkingTip()?.text);
     this._activeCompactionBlock = block;
     state.transcriptContainer.addChild(block);
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
   }
 
   endCompaction(tokensBefore?: number, tokensAfter?: number): void {
@@ -732,7 +734,7 @@ export class StreamingUIController {
     if (block === undefined) return;
     block.markDone(tokensBefore, tokensAfter);
     this._activeCompactionBlock = undefined;
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   cancelCompaction(): void {
@@ -740,7 +742,7 @@ export class StreamingUIController {
     if (block === undefined) return;
     block.markCanceled();
     this._activeCompactionBlock = undefined;
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   // ---------------------------------------------------------------------------
@@ -792,7 +794,7 @@ export class StreamingUIController {
     if (cur === null) {
       this._pendingAgentGroup = { step, turnId, solo: tc };
       state.transcriptContainer.addChild(tc);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
       return true;
     }
 
@@ -805,13 +807,13 @@ export class StreamingUIController {
     if (solo === undefined) {
       this._pendingAgentGroup = { step, turnId, solo: tc };
       state.transcriptContainer.addChild(tc);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
       return true;
     }
     const group = this.upgradeSoloAgentToGroup(solo);
     group.attach(toolCall.id, tc);
     this._pendingAgentGroup = { step, turnId, group };
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
     return true;
   }
 
@@ -849,7 +851,7 @@ export class StreamingUIController {
     if (cur === null) {
       this._pendingReadGroup = { step, turnId, solo: tc };
       state.transcriptContainer.addChild(tc);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
       return true;
     }
 
@@ -862,13 +864,13 @@ export class StreamingUIController {
     if (solo === undefined) {
       this._pendingReadGroup = { step, turnId, solo: tc };
       state.transcriptContainer.addChild(tc);
-      state.ui.requestRender();
+      requestTUILayoutRender(state);
       return true;
     }
     const group = this.upgradeSoloReadToGroup(solo);
     group.attach(toolCall.id, tc);
     this._pendingReadGroup = { step, turnId, group };
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
     return true;
   }
 

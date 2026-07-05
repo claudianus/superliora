@@ -20,6 +20,7 @@ import {
 } from '../components/messages/plugins-status-panel';
 import { UsagePanelComponent } from '../components/messages/usage-panel';
 import { formatErrorMessage } from '../utils/event-payload';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import { formatPluginSourceLabel, isOfficialPluginSource } from '../utils/plugin-source-label';
 import { loadPluginMarketplace } from '#/utils/plugin-marketplace';
 import type { SlashCommandHost } from './dispatch';
@@ -214,7 +215,7 @@ async function loadMarketplaceCatalog(
   } catch (error) {
     panel.setMarketplaceError(formatErrorMessage(error));
   }
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 async function showPluginMcpPicker(
@@ -313,13 +314,13 @@ async function installFromPanel(
   } else {
     host.showStatus(`Installing or updating ${label} from marketplace...`);
   }
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
   try {
     await installPluginFromSource(host, source);
   } catch (error) {
     if (official) {
       panel.clearInstalling();
-      host.state.ui.requestRender();
+      requestTUILayoutRender(host.state);
     } else {
       // The trust prompt replaced the panel; re-mount it so the user can retry
       // instead of being dropped back at the editor.
@@ -457,7 +458,7 @@ async function renderPluginsList(
     title,
   );
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 async function renderPluginInfo(host: SlashCommandHost, id: string): Promise<void> {
@@ -468,7 +469,7 @@ async function renderPluginInfo(host: SlashCommandHost, id: string): Promise<voi
     ` ${info.id} `,
   );
   host.state.transcriptContainer.addChild(panel);
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 async function installPluginFromSource(

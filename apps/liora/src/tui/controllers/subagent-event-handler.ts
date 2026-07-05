@@ -25,6 +25,7 @@ import { argsRecord, serializeToolResultOutput } from '../utils/event-payload';
 import { formatHookResultPlain } from '../utils/hook-result-format';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { SessionEventHost } from './session-event-handler';
+import { requestTUILayoutRender } from '../utils/frame-render';
 
 export interface SubagentInfo {
   readonly parentToolCallId: string;
@@ -674,7 +675,7 @@ export class SubAgentEventHandler {
   }
 
   private requestRender(): void {
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 }
 

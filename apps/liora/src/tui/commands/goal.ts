@@ -16,6 +16,7 @@ import {
   UpcomingGoalAddedMessageComponent,
 } from '../components/messages/goal-panel';
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import {
   appendGoalQueueItem,
   moveGoalQueueItem,
@@ -224,7 +225,7 @@ async function queueNextGoal(
   host.state.transcriptContainer.addChild(
     new UpcomingGoalAddedMessageComponent(),
   );
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 async function showGoalQueueManager(
@@ -438,7 +439,7 @@ async function startGoal(
     return false;
   }
   host.state.transcriptContainer.addChild(new GoalSetMessageComponent());
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
   if (options.sendInput !== undefined) {
     options.sendInput(parsed.objective);
   } else {
@@ -582,7 +583,7 @@ async function showGoalStatus(host: SlashCommandHost): Promise<void> {
   host.state.transcriptContainer.addChild(
     new GoalStatusMessageComponent(goal),
   );
-  host.state.ui.requestRender();
+  requestTUILayoutRender(host.state);
 }
 
 function isStreaming(host: SlashCommandHost): boolean {

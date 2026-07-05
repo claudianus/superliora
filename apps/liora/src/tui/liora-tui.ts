@@ -145,6 +145,11 @@ import {
 import { hasDispose, isExpandable } from './utils/component-capabilities';
 import { isDeadTerminalError } from './utils/dead-terminal';
 import { formatErrorMessage } from './utils/event-payload';
+import {
+  requestTUIContentRender,
+  requestTUILayoutRender,
+  requestTUIScrollRender,
+} from './utils/frame-render';
 import { pickForegroundTasks } from './utils/foreground-task';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
@@ -376,7 +381,10 @@ export class LioraTUI {
       terminal: this.state.terminal,
       getAppearance: () => this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
       requestRender: () => {
-        this.state.renderer.requestRender();
+        this.state.renderer.requestRender('animation');
+      },
+      onAppearanceApplied: () => {
+        this.state.renderer.invalidateFrame('palette');
       },
       shouldRenderAnimation: () => this.shouldRenderAmbientAnimationFrame(),
     });
@@ -549,7 +557,7 @@ export class LioraTUI {
     if (banner === null) return;
 
     this.renderBanner();
-    this.state.ui.requestRender();
+    requestTUILayoutRender(this.state);
 
     if (banner.display === 'always') return;
     try {
@@ -665,7 +673,7 @@ export class LioraTUI {
     this.nativeRendererDiagnosticsHudEnabled = enabled;
     this.track('native_renderer_diagnostics_hud', { enabled, command });
 
-    this.state.renderer.requestRender(true);
+    requestTUILayoutRender(this.state);
     this.showStatus(`Native renderer diagnostics HUD: ${enabled ? 'ON' : 'OFF'}.`);
   }
 
@@ -677,7 +685,7 @@ export class LioraTUI {
     const renderer = this.state.renderer.nativeRuntime;
     if (renderer === undefined) return false;
     renderer.resetStats();
-    this.state.renderer.requestRender(true);
+    requestTUILayoutRender(this.state);
     return true;
   }
 
@@ -720,7 +728,7 @@ export class LioraTUI {
     const renderer = this.nativeRendererTraceRuntime();
     if (renderer === undefined) return false;
     renderer.resetTrace();
-    this.state.renderer.requestRender(true);
+    requestTUILayoutRender(this.state);
     return true;
   }
 
@@ -766,7 +774,7 @@ export class LioraTUI {
       footer: this.state.footer,
       getModelSupportsImage: () => this.supportsCurrentModelCapability('image_in'),
       requestRender: () => {
-        this.state.renderer.requestRender();
+        requestTUIContentRender(this.state);
       },
     });
     this.clipboardImageHintController.start();
@@ -1064,7 +1072,7 @@ export class LioraTUI {
 
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
     const changed = applyTranscriptViewportScroll(this.state.transcriptViewport, action);
-    if (changed) this.state.renderer.requestRender('transcript-scroll');
+    if (changed) requestTUIScrollRender(this.state);
     return changed;
   }
 
@@ -1120,7 +1128,7 @@ export class LioraTUI {
       if (this.state.appState.streamingPhase !== 'idle') {
         this.enqueueMessage(text, undefined, 'bash');
         this.updateQueueDisplay();
-        this.state.ui.requestRender();
+        requestTUILayoutRender(this.state);
         return;
       }
       this.runShellCommandFromInput(text);
@@ -1157,7 +1165,7 @@ export class LioraTUI {
       content: '',
     };
     const outputComponent = new ShellRunComponent(() => {
-      this.state.ui.requestRender();
+      requestTUIContentRender(this.state);
     });
     this.shellOutputStreams.set(commandId, { entry: outputEntry, component: outputComponent });
     this.state.transcriptEntries.push(outputEntry);
@@ -1166,7 +1174,7 @@ export class LioraTUI {
     // Treat command execution as a streaming phase so input queues, the activity
     // pane shows the moon spinner, and ctrl+b is enabled while it runs.
     this.setAppState({ streamingPhase: 'shell' });
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
 
     void session.runShellCommand(command, { commandId }).then(
       ({ stdout, stderr, isError, backgrounded }) => {
@@ -1268,7 +1276,7 @@ export class LioraTUI {
       this.sendMessage(session, text, { displayText: options?.displayText });
     }
     this.updateQueueDisplay();
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   private validateMediaCapabilities(
@@ -1562,20 +1570,20 @@ export class LioraTUI {
       this.sessionEventHandler.retryQueuedGoalPromotion();
     }
     if (additionalDirsChanged) this.setupAutocomplete();
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   patchLivePane(patch: Partial<LivePaneState>): void {
     if (!hasPatchChanges(this.state.livePane, patch)) return;
     Object.assign(this.state.livePane, patch);
     this.updateActivityPane();
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   resetLivePane(): void {
     this.state.livePane = { ...INITIAL_LIVE_PANE };
     this.updateActivityPane();
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   private syncAdditionalDirs(session: Session): void {
@@ -2015,7 +2023,7 @@ export class LioraTUI {
     const trimmed = this.trimTranscriptWindow();
     const merged = this.mergeCurrentTurnSteps();
     if (component || trimmed || merged) {
-      this.state.ui.requestRender();
+      requestTUIContentRender(this.state);
     }
   }
 
@@ -2301,7 +2309,7 @@ export class LioraTUI {
 
   showStatus(message: string, color?: ColorToken): void {
     this.state.transcriptContainer.addChild(new StatusMessageComponent(message, color));
-    this.state.renderer.requestRender('manual');
+    requestTUILayoutRender(this.state);
   }
 
   showNotice(
@@ -2322,7 +2330,7 @@ export class LioraTUI {
     this.state.transcriptContainer.addChild(
       new NoticeMessageComponent(title, detail, coalesceKey),
     );
-    this.state.renderer.requestRender('manual');
+    requestTUILayoutRender(this.state);
   }
 
   showError(message: string): void {
@@ -2338,14 +2346,14 @@ export class LioraTUI {
     const spinner = new MoonLoader(this.state.ui, 'braille', tint, label);
     this.state.transcriptContainer.addChild(new Spacer(1));
     this.state.transcriptContainer.addChild(spinner);
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
     return {
       stop: ({ ok, label: finalLabel }) => {
         spinner.stop();
         const tone = ok ? 'success' : 'error';
         const symbol = ok ? '✓' : '✗';
         spinner.setText(currentTheme.fg(tone, `${symbol} ${finalLabel}`));
-        this.state.ui.requestRender();
+        requestTUILayoutRender(this.state);
       },
       setLabel: (nextLabel) => {
         spinner.setLabel(nextLabel);
@@ -2363,7 +2371,7 @@ export class LioraTUI {
         hint: 'Press Ctrl-C to cancel',
       }),
     );
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
     return this.showLoginProgressSpinner('Waiting for authorization…');
   }
 
@@ -2425,7 +2433,7 @@ export class LioraTUI {
       case 'hidden':
         this.stopActivitySpinner();
         this.syncAgentSwarmActivitySpinner(undefined);
-        this.state.ui.requestRender();
+        requestTUILayoutRender(this.state);
         return;
       case 'waiting': {
         const spinner = this.ensureActivitySpinner('moon');
@@ -2479,7 +2487,7 @@ export class LioraTUI {
         break;
       }
     }
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   private resolveActivityPaneMode(): EffectiveActivityPaneMode {
@@ -2542,12 +2550,12 @@ export class LioraTUI {
       if (!isExpandable(child)) continue;
       child.setExpanded(this.state.toolOutputExpanded && i >= expandCutoff);
     }
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   toggleTodoPanelExpansion(): void {
     this.state.todoPanel.toggleExpanded();
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   private async detachRunningShellCommand(): Promise<void> {
@@ -2652,9 +2660,9 @@ export class LioraTUI {
       // prompt) that took over while this timer was pending.
       if (this.state.footer.getTransientHint() !== hint) return;
       this.state.footer.setTransientHint(null);
-      this.state.ui.requestRender();
+      requestTUIContentRender(this.state);
     }, DETACH_HINT_DISPLAY_MS);
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   updateEditorBorderHighlight(text?: string): void {
@@ -2669,7 +2677,7 @@ export class LioraTUI {
     // Shell mode gets its own hue; plan-mode and slash context stay primary.
     const borderToken = isBash ? 'shellMode' : highlighted ? 'primary' : 'border';
     this.state.editor.borderColor = (s: string) => currentTheme.fg(borderToken, s);
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   async applyTheme(themeName: ThemeName, resolved?: ResolvedTheme): Promise<void> {
@@ -2681,7 +2689,7 @@ export class LioraTUI {
     // Force every historical message to re-render so Markdown/Text caches
     // (which hold old ANSI colour codes) are cleared.
     this.state.transcriptContainer.invalidate();
-    this.state.ui.requestRender(true);
+    requestTUILayoutRender(this.state);
   }
 
   refreshTerminalThemeTracking(): void {
@@ -2708,7 +2716,7 @@ export class LioraTUI {
     // Repaint already-rendered transcript entries (status/markdown caches hold
     // old ANSI codes), matching applyTheme()'s behaviour.
     this.state.transcriptContainer.invalidate();
-    this.state.ui.requestRender(true);
+    requestTUILayoutRender(this.state);
   }
 
   private shouldShowTerminalProgress(effectiveMode: EffectiveActivityPaneMode): boolean {
@@ -2779,7 +2787,7 @@ export class LioraTUI {
     this.state.editorContainer.addChild(panel);
     this.state.ui.setFocus(panel);
     this.mountNativeInputModal(panel);
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   restoreEditor(): void {
@@ -2789,7 +2797,7 @@ export class LioraTUI {
     this.nativeInputModalDispose?.();
     this.nativeInputModalDispose = undefined;
     this.nativeInputRouter?.focusEditor();
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   private mountNativeInputModal(panel: Component & Focusable): void {
@@ -2810,7 +2818,7 @@ export class LioraTUI {
     this.restoreEditor();
     this.state.editor.setText(text);
     this.updateEditorBorderHighlight(text);
-    this.state.ui.requestRender();
+    requestTUIContentRender(this.state);
   }
 
   showHelpPanel(args = ''): void {
@@ -3046,7 +3054,7 @@ export class LioraTUI {
     this.state.ui.clear();
     this.state.ui.addChild(viewer);
     this.state.ui.setFocus(viewer);
-    this.state.ui.requestRender(true);
+    requestTUILayoutRender(this.state);
     this.approvalPreview = { component: viewer, savedChildren, panel };
   }
 
@@ -3059,7 +3067,7 @@ export class LioraTUI {
       this.state.ui.addChild(child);
     }
     this.state.ui.setFocus(preview.panel);
-    this.state.ui.requestRender(true);
+    requestTUILayoutRender(this.state);
   }
 
   private showQuestionDialog(payload: QuestionPanelData): void {

@@ -25,6 +25,7 @@ import type {
   TranscriptEntry,
 } from '../types';
 import { formatErrorMessage, isTodoItemShape } from '../utils/event-payload';
+import { requestTUILayoutRender } from '../utils/frame-render';
 import { formatBackgroundAgentTranscript } from '../utils/background-agent-status';
 import { formatBackgroundTaskTranscript } from '../utils/background-task-status';
 import { buildGoalCompletionMessage } from '../utils/goal-completion';
@@ -187,7 +188,7 @@ export class SessionReplayRenderer {
       }
     }
     state.footer.setBackgroundCounts(countActiveBackgroundTasks(sessionEventHandler.backgroundTasks));
-    state.ui.requestRender();
+    requestTUILayoutRender(state);
   }
 
   // ---------------------------------------------------------------------------
@@ -259,7 +260,7 @@ export class SessionReplayRenderer {
     } else {
       existing.applyEvent(replayEvent);
     }
-    this.host.state.ui.requestRender();
+    requestTUILayoutRender(this.host.state);
   }
 
   private renderMessage(context: ReplayRenderContext, message: ContextMessage): void {
