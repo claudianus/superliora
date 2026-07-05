@@ -113,6 +113,7 @@ export async function handleUltraworkModeToggle(
     enabled
       ? 'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.'
       : undefined,
+    { coalesceKey: 'ultrawork-mode' },
   );
 }
 

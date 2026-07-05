@@ -112,6 +112,11 @@ export { handleUndoCommand } from './undo';
 // Host interface
 // ---------------------------------------------------------------------------
 
+export interface ShowNoticeOptions {
+  /** Replace any existing notice in the transcript with the same coalesce key. */
+  readonly coalesceKey?: string;
+}
+
 export interface SlashCommandHost {
   state: TUIState;
   session: Session | undefined;
@@ -123,7 +128,7 @@ export interface SlashCommandHost {
   resetLivePane(): void;
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
-  showNotice(title: string, detail?: string): void;
+  showNotice(title: string, detail?: string, options?: ShowNoticeOptions): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   track(event: string, props?: Record<string, unknown>): void;
   mountEditorReplacement(panel: Component & Focusable): void;

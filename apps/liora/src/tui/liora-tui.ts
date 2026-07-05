@@ -2301,12 +2301,28 @@ export class LioraTUI {
 
   showStatus(message: string, color?: ColorToken): void {
     this.state.transcriptContainer.addChild(new StatusMessageComponent(message, color));
-    this.state.ui.requestRender();
+    this.state.renderer.requestRender('manual');
   }
 
-  showNotice(title: string, detail?: string): void {
-    this.state.transcriptContainer.addChild(new NoticeMessageComponent(title, detail));
-    this.state.ui.requestRender();
+  showNotice(
+    title: string,
+    detail?: string,
+    options?: slashCommands.ShowNoticeOptions,
+  ): void {
+    const coalesceKey = options?.coalesceKey;
+    if (coalesceKey !== undefined) {
+      const { children } = this.state.transcriptContainer;
+      for (let index = children.length - 1; index >= 0; index -= 1) {
+        const child = children[index];
+        if (child instanceof NoticeMessageComponent && child.coalesceKey === coalesceKey) {
+          children.splice(index, 1);
+        }
+      }
+    }
+    this.state.transcriptContainer.addChild(
+      new NoticeMessageComponent(title, detail, coalesceKey),
+    );
+    this.state.renderer.requestRender('manual');
   }
 
   showError(message: string): void {

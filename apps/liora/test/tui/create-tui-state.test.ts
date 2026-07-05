@@ -357,6 +357,15 @@ describe('createTUIState', () => {
     }
   });
 
+  it('forces native redraws on ambient animation frames', () => {
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: true }),
+    ).toBe(true);
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: false }),
+    ).toBe(false);
+  });
+
   it('renders footer history badge from the transcript viewport state', () => {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),

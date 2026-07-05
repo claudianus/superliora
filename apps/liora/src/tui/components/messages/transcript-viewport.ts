@@ -3,6 +3,7 @@ import {
   ansiTextToCells,
   RendererTranscriptViewportComponent,
   visibleWidth,
+  type Component,
   type RendererRegionLine,
 } from '#/tui/renderer';
 
@@ -30,6 +31,11 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       paintRegionLine: paintTranscriptRegionLine,
       isCacheEnabled: isRenderCacheEnabled,
     });
+  }
+
+  override addChild(component: Component): void {
+    super.addChild(component);
+    this.invalidate();
   }
 }
 

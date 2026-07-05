@@ -54,6 +54,7 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 
+import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers/appearance';
 import type { TUIState } from '../tui-state';
 import { CHROME_GUTTER } from '../constant/rendering';
 import {
@@ -184,19 +185,22 @@ export function renderTUIStateNativeFrame(
 interface TUIStateNativeLayoutTracking {
   transcriptStart?: number;
   transcriptContentRows?: number;
+  transcriptChildCount?: number;
   editorLayoutRows?: number;
 }
 
 export function shouldForceTUIStateNativeLayoutFrame(
   causes: readonly NativeRenderCause[],
   layoutShifted: boolean,
+  options: { readonly ambientAnimation?: boolean } = {},
 ): boolean {
   return (
     causes.includes('start') ||
     causes.includes('resize') ||
     causes.includes('manual') ||
     causes.includes('transcript-scroll') ||
-    layoutShifted
+    layoutShifted ||
+    options.ambientAnimation === true
   );
 }
 
@@ -207,6 +211,7 @@ export function detectTUIStateNativeLayoutShift(
 ): { readonly shifted: boolean; readonly next: TUIStateNativeLayoutTracking } {
   const transcriptStart = state.transcriptViewport.start();
   const transcriptContentRows = state.transcriptContainer.contentRowCount(frameWidth);
+  const transcriptChildCount = state.transcriptContainer.children.length;
   const editorLayoutRows =
     state.editorContainer.children.includes(state.editor) &&
     state.editor.getNativeLayoutRowCount !== undefined
@@ -216,10 +221,16 @@ export function detectTUIStateNativeLayoutShift(
     (prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart) ||
     (prior.transcriptContentRows !== undefined &&
       prior.transcriptContentRows !== transcriptContentRows) ||
+    (prior.transcriptChildCount !== undefined &&
+      prior.transcriptChildCount !== transcriptChildCount) ||
     (prior.editorLayoutRows !== undefined &&
       editorLayoutRows !== undefined &&
       prior.editorLayoutRows !== editorLayoutRows);
-  const next: TUIStateNativeLayoutTracking = { transcriptStart, transcriptContentRows };
+  const next: TUIStateNativeLayoutTracking = {
+    transcriptStart,
+    transcriptContentRows,
+    transcriptChildCount,
+  };
   if (editorLayoutRows !== undefined) next.editorLayoutRows = editorLayoutRows;
   return { shifted, next };
 }
@@ -239,8 +250,23 @@ export function createTUIStateNativeRenderCallback(
     const height = runtime.frameRenderer.height;
     const layoutShift = detectTUIStateNativeLayoutShift(state, size.columns, layoutTracking);
     layoutTracking = layoutShift.next;
-    const force = shouldForceTUIStateNativeLayoutFrame(frame.causes, layoutShift.shifted);
-    if (force) options.onAuthoritativeFrame?.();
+    const ambientAnimationFrame =
+      frame.causes.includes('animation') &&
+      shouldAnimate(state.appState.appearance ?? getActiveAppearancePreferences()) &&
+      shouldRenderAmbientAnimationFrame(
+        state.transcriptViewport.followOutput,
+        size.rows,
+        state.transcriptSelection.isDragging || state.transcriptSelection.hasSelection,
+      );
+    const force = shouldForceTUIStateNativeLayoutFrame(frame.causes, layoutShift.shifted, {
+      ambientAnimation: ambientAnimationFrame,
+    });
+    const refreshTerminalPalette =
+      force &&
+      (frame.causes.includes('start') ||
+        frame.causes.includes('resize') ||
+        frame.causes.includes('manual'));
+    if (refreshTerminalPalette) options.onAuthoritativeFrame?.();
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,

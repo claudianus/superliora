@@ -56,13 +56,15 @@ export class StatusMessageComponent extends Container {
 }
 
 export class NoticeMessageComponent extends Container {
+  readonly coalesceKey?: string;
   private titleText: Text;
   private detailText?: Text;
   private title: string;
   private detail?: string;
 
-  constructor(title: string, detail: string | undefined) {
+  constructor(title: string, detail: string | undefined, coalesceKey?: string) {
     super();
+    this.coalesceKey = coalesceKey;
     this.title = title;
     this.detail = detail;
     this.addChild(new Spacer(1));
