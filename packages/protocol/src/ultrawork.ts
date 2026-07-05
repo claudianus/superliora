@@ -157,6 +157,56 @@ export interface CouncilDecision {
   readonly riskAreas?: readonly ('architecture' | 'security' | 'qa' | 'performance' | 'ux' | 'research')[];
 }
 
+export type SwarmBusChannel = 'standup' | 'lane' | 'direct' | 'blocker' | 'council';
+
+export type SwarmBusMessageKind =
+  | 'status'
+  | 'question'
+  | 'answer'
+  | 'artifact_ref'
+  | 'verdict'
+  | 'mention';
+
+export interface SwarmBusParticipant {
+  readonly expertId: string;
+  readonly agentId: string;
+  readonly name: string;
+  readonly emoji?: string;
+}
+
+export interface SwarmBusMessageRefs {
+  readonly workNodeId?: string;
+  readonly evidenceIds?: readonly string[];
+  readonly artifactId?: string;
+}
+
+export interface SwarmBusMessage {
+  readonly id: string;
+  readonly runId: string;
+  readonly parentToolCallId: string;
+  readonly at: string;
+  readonly from: SwarmBusParticipant;
+  readonly to?: { readonly expertId: string };
+  readonly channel: SwarmBusChannel;
+  readonly kind: SwarmBusMessageKind;
+  readonly body: string;
+  readonly refs?: SwarmBusMessageRefs;
+  readonly threadId?: string;
+}
+
+export type SwarmArtifactKind = 'decision' | 'risk' | 'patch_plan';
+
+export interface SwarmArtifact {
+  readonly id: string;
+  readonly runId: string;
+  readonly parentToolCallId: string;
+  readonly kind: SwarmArtifactKind;
+  readonly title: string;
+  readonly summary: string;
+  readonly fromExpertId: string;
+  readonly at: string;
+}
+
 export interface VerificationResult {
   readonly id: string;
   readonly runId: string;
@@ -344,6 +394,57 @@ export const workGraphSchema = z.object({
   updatedAt: isoDateTimeSchema.optional(),
   nodes: z.array(workGraphNodeSchema),
 }) satisfies z.ZodType<WorkGraph>;
+
+export const swarmBusChannelSchema = z.enum(['standup', 'lane', 'direct', 'blocker', 'council']);
+
+export const swarmBusMessageKindSchema = z.enum([
+  'status',
+  'question',
+  'answer',
+  'artifact_ref',
+  'verdict',
+  'mention',
+]);
+
+export const swarmBusParticipantSchema = z.object({
+  expertId: z.string().min(1),
+  agentId: z.string().min(1),
+  name: z.string().min(1),
+  emoji: z.string().min(1).optional(),
+}) satisfies z.ZodType<SwarmBusParticipant>;
+
+export const swarmBusMessageRefsSchema = z.object({
+  workNodeId: z.string().min(1).optional(),
+  evidenceIds: z.array(z.string().min(1)).optional(),
+  artifactId: z.string().min(1).optional(),
+}) satisfies z.ZodType<SwarmBusMessageRefs>;
+
+export const swarmBusMessageSchema = z.object({
+  id: z.string().min(1),
+  runId: z.string().min(1),
+  parentToolCallId: z.string().min(1),
+  at: isoDateTimeSchema,
+  from: swarmBusParticipantSchema,
+  to: z.object({ expertId: z.string().min(1) }).optional(),
+  channel: swarmBusChannelSchema,
+  kind: swarmBusMessageKindSchema,
+  body: z.string().min(1).max(500),
+  refs: swarmBusMessageRefsSchema.optional(),
+  threadId: z.string().min(1).optional(),
+}) satisfies z.ZodType<SwarmBusMessage>;
+
+export const swarmArtifactKindSchema = z.enum(['decision', 'risk', 'patch_plan']);
+
+export const swarmArtifactSchema = z.object({
+  id: z.string().min(1),
+  runId: z.string().min(1),
+  parentToolCallId: z.string().min(1),
+  kind: swarmArtifactKindSchema,
+  title: z.string().min(1).max(120),
+  summary: z.string().min(1).max(500),
+  fromExpertId: z.string().min(1),
+  at: isoDateTimeSchema,
+}) satisfies z.ZodType<SwarmArtifact>;
 
 export const councilDecisionSchema = z.object({
   id: z.string().min(1),

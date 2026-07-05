@@ -23,6 +23,7 @@ import {
   knowledgePromotionSchema,
   researchBackendSchema,
   researchEvidenceSchema,
+  swarmBusMessageSchema,
   teamPlanSchema,
   ultraworkRunSchema,
   ultraworkStageSchema,
@@ -32,6 +33,7 @@ import {
   type KnowledgePromotion,
   type ResearchBackend,
   type ResearchEvidence,
+  type SwarmBusMessage,
   type TeamPlan,
   type UltraworkRun,
   type UltraworkStage,
@@ -445,6 +447,19 @@ export interface UltraworkTaskAssignedEvent {
   readonly task: WorkGraphNode;
 }
 
+export interface UltraworkCollaborationMessageEvent {
+  readonly type: 'ultrawork.collaboration.message';
+  readonly runId: string;
+  readonly message: SwarmBusMessage;
+}
+
+export interface UltraworkCollaborationMentionEvent {
+  readonly type: 'ultrawork.collaboration.mention';
+  readonly runId: string;
+  readonly message: SwarmBusMessage;
+  readonly mentionExpertIds: readonly string[];
+}
+
 export interface UltraworkCouncilDecisionEvent {
   readonly type: 'ultrawork.council.decision';
   readonly runId: string;
@@ -757,6 +772,8 @@ export type AgentEvent =
   | UltraworkResearchFindingVerifiedEvent
   | UltraworkTeamStaffedEvent
   | UltraworkTaskAssignedEvent
+  | UltraworkCollaborationMessageEvent
+  | UltraworkCollaborationMentionEvent
   | UltraworkCouncilDecisionEvent
   | UltraworkVerificationCompletedEvent
   | UltraworkKnowledgePromotedEvent
@@ -1204,6 +1221,19 @@ export const ultraworkTaskAssignedEventSchema = z.object({
   task: workGraphNodeSchema,
 }) satisfies z.ZodType<UltraworkTaskAssignedEvent>;
 
+export const ultraworkCollaborationMessageEventSchema = z.object({
+  type: z.literal('ultrawork.collaboration.message'),
+  runId: z.string().min(1),
+  message: swarmBusMessageSchema,
+}) satisfies z.ZodType<UltraworkCollaborationMessageEvent>;
+
+export const ultraworkCollaborationMentionEventSchema = z.object({
+  type: z.literal('ultrawork.collaboration.mention'),
+  runId: z.string().min(1),
+  message: swarmBusMessageSchema,
+  mentionExpertIds: z.array(z.string().min(1)).min(1),
+}) satisfies z.ZodType<UltraworkCollaborationMentionEvent>;
+
 export const ultraworkCouncilDecisionEventSchema = z.object({
   type: z.literal('ultrawork.council.decision'),
   runId: z.string().min(1),
@@ -1509,6 +1539,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   ultraworkResearchFindingVerifiedEventSchema,
   ultraworkTeamStaffedEventSchema,
   ultraworkTaskAssignedEventSchema,
+  ultraworkCollaborationMessageEventSchema,
+  ultraworkCollaborationMentionEventSchema,
   ultraworkCouncilDecisionEventSchema,
   ultraworkVerificationCompletedEventSchema,
   ultraworkKnowledgePromotedEventSchema,
