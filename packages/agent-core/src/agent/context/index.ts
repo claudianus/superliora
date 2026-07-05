@@ -250,11 +250,11 @@ export class ContextMemory {
       if (message === undefined) continue;
       if (!isReclaimableEphemeralUserMessage(message)) continue;
 
-      const [removedMessage] = this._history.splice(i, 1);
+      this._history.splice(i, 1);
       removed++;
       if (i < this.tokenCountCoveredMessageCount) {
         this.tokenCountCoveredMessageCount--;
-        this._tokenCount -= estimateTokensForMessages([removedMessage]);
+        this._tokenCount -= estimateTokensForMessages([message]);
       }
       this.agent.injection.onContextMessageRemoved(i);
     }
