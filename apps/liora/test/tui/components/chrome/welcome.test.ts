@@ -2,10 +2,17 @@ import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import type { AppState } from '#/tui/types';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
-const TRUECOLOR_PATTERN = /\u001B\[38;2;(\d+);(\d+);(\d+)m/g;
+const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 
 const appState: AppState = {
   version: '1.2.3',
@@ -35,21 +42,17 @@ const appState: AppState = {
   mcpServersSummary: null,
 };
 
-function truecolorCodes(text: string): Set<string> {
-  const codes = new Set<string>();
-  for (const match of text.matchAll(TRUECOLOR_PATTERN)) {
-    codes.add(`${match[1]},${match[2]},${match[3]}`);
-  }
-  return codes;
+function ansiSequenceCount(text: string): number {
+  return (text.match(ANSI_SGR) ?? []).length;
+}
+
+/** Banner lines inside the welcome box. */
+function bannerOf(lines: string[]): string {
+  return lines.slice(2, 8).join('\n');
 }
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
-}
-
-/** The first two banner rows inside the welcome box. */
-function bannerHeaderOf(lines: string[]): string {
-  return [lines[3], lines[4]].join('\n');
 }
 
 describe('WelcomeComponent', () => {
@@ -57,6 +60,9 @@ describe('WelcomeComponent', () => {
 
   beforeEach(() => {
     chalk.level = 3;
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    setAppearanceRenderQuality('full');
+    setAppearanceRenderHealth('healthy');
   });
 
   afterEach(() => {
@@ -64,11 +70,28 @@ describe('WelcomeComponent', () => {
     vi.useRealTimers();
   });
 
-  it('renders the banner in a single brand color by default', () => {
-    const codes = truecolorCodes(bannerHeaderOf(new WelcomeComponent(appState).render(80)));
+  it('animates the banner with multi-color spectacular effects by default', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
 
-    // No rainbow by default — just the brand primary (plus the dim tagline).
-    expect(codes.size).toBeLessThanOrEqual(2);
+    try {
+      const output = bannerOf(new WelcomeComponent(appState).render(80));
+      expect(ansiSequenceCount(output)).toBeGreaterThan(6);
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it('leads logged-in users to describe the task first', () => {

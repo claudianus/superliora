@@ -11,6 +11,12 @@ import chalk from 'chalk';
 
 import { THINKING_PREVIEW_LINES } from '../../constant/rendering';
 import { currentTheme } from '../../theme';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '../../utils/appearance-effects';
 
 type BtwPanelPhase = 'running' | 'done' | 'failed';
 
@@ -122,12 +128,17 @@ export class BtwPanelComponent implements Component {
   }
 
   private renderTitle(width: number, truncated: boolean): string {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     const paint = (s: string): string => chalk.hex(currentTheme.palette.border)(s);
     const hint = truncated && this.options.canUseScrollKeys()
       ? 'Esc close · ↑↓ scroll '
       : 'Esc close ';
+    const titleLabel = animated
+      ? renderPremiumHeadline('BTW', 'btw:title', appearance)
+      : chalk.hex(currentTheme.palette.accent).bold(' BTW ');
     const title =
-      chalk.hex(currentTheme.palette.accent).bold(' BTW ') +
+      titleLabel +
       paint('─ ') +
       chalk.hex(currentTheme.palette.textMuted)(hint);
     return fitRendererFrameTitle(title, width, '');
@@ -162,7 +173,14 @@ export class BtwPanelComponent implements Component {
   }
 
   private renderTurn(turn: BtwTurn, width: number): string[] {
-    const prompt = chalk.hex(currentTheme.palette.accent)(`Q: ${turn.prompt}`);
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const promptText = animated
+      ? renderSpectacularText(`Q: ${turn.prompt}`, `btw:prompt:${turn.prompt}`, appearance, {
+          intense: true,
+        })
+      : chalk.hex(currentTheme.palette.accent)(`Q: ${turn.prompt}`);
+    const prompt = promptText;
     const lines = [...new Text(prompt, 0, 0).render(width)];
     const answer = turn.answer.trim();
     const thinking = turn.thinking.trim();

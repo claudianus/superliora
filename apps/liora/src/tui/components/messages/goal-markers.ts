@@ -13,6 +13,11 @@ import type { GoalChange } from '@superliora/sdk';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const HEAD_INDENT = '  ';
 const DETAIL_INDENT = '    ';
@@ -55,8 +60,13 @@ export class GoalMarkerComponent implements Component {
   }
 
   render(width: number): string[] {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const prominent = this.textToken !== 'textDim';
     const dot = currentTheme.fg(this.accentToken, this.marker);
-    const head = currentTheme.fg(this.textToken, this.headline);
+    const head = prominent && animated
+      ? renderPremiumHeadline(this.headline, `goal:${this.headline}`, appearance)
+      : currentTheme.fg(this.textToken, this.headline);
     const hasDetail = this.detail !== undefined && this.detail.length > 0;
     if (!hasDetail) return this.clampToWidth([`${this.indent}${dot} ${head}`], width);
 

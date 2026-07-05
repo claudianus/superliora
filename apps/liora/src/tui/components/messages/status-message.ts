@@ -4,9 +4,9 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
-  renderAnimatedGradientText,
+  renderPremiumHeadline,
   renderShimmerPrefix,
-  resolveAmbientEffectMode,
+  renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -42,7 +42,8 @@ export class StatusMessageComponent extends Container {
   private renderText(): string {
     const appearance = getActiveAppearancePreferences();
     const shimmer =
-      premiumEffectsActive() && (this.color === 'success' || this.color === 'warning')
+      shouldRenderAmbientEffects(appearance) &&
+      (this.color === 'success' || this.color === 'warning')
         ? renderShimmerPrefix(appearance)
         : '';
     const content = shimmer + this.content;
@@ -68,7 +69,7 @@ export class NoticeMessageComponent extends Container {
     this.titleText = new Text(`  ${renderNoticeTitle(title)}`, 0, 0);
     this.addChild(this.titleText);
     if (detail !== undefined && detail.length > 0) {
-      this.detailText = new Text(`  ${currentTheme.fg('textDim', detail)}`, 0, 0);
+      this.detailText = new Text(`  ${renderNoticeDetail(detail)}`, 0, 0);
       this.addChild(this.detailText);
     }
   }
@@ -76,21 +77,23 @@ export class NoticeMessageComponent extends Container {
   override invalidate(): void {
     this.titleText.setText(`  ${renderNoticeTitle(this.title)}`);
     if (this.detailText !== undefined && this.detail !== undefined) {
-      this.detailText.setText(`  ${currentTheme.fg('textDim', this.detail)}`);
+      this.detailText.setText(`  ${renderNoticeDetail(this.detail)}`);
     }
     super.invalidate();
   }
 }
 
 function renderNoticeTitle(title: string): string {
-  return premiumEffectsActive()
-    ? renderAnimatedGradientText(title, `notice:${title}`)
-    : currentTheme.fg('textStrong', title);
+  return renderPremiumHeadline(title, `notice:${title}`);
 }
 
-function premiumEffectsActive(): boolean {
+function renderNoticeDetail(detail: string): string {
   const appearance = getActiveAppearancePreferences();
-  return (
-    shouldRenderAmbientEffects(appearance) && resolveAmbientEffectMode(appearance) === 'premium'
-  );
+  if (shouldRenderAmbientEffects(appearance)) {
+    return renderSpectacularText(detail, `notice-detail:${detail}`, appearance, {
+      intense: true,
+      pace: 'slow',
+    });
+  }
+  return currentTheme.fg('textDim', detail);
 }

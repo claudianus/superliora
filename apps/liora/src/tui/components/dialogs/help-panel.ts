@@ -17,6 +17,7 @@ import {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
+import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 
 export interface KeyboardShortcut {
   readonly keys: string;
@@ -154,7 +155,7 @@ export class HelpPanelComponent extends Container implements Focusable {
       scrollTop: this.scrollTop,
       footerTopGap: false,
       dividerStyle: accent,
-      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      titleStyle: (text) => renderPremiumHeadline(text.trim(), 'help:title'),
       hintStyle: muted,
       scrollFooter: (window) =>
         window.hasOverflow

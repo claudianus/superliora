@@ -21,9 +21,13 @@ import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   appearanceAnimationNow,
+  getActiveAppearancePreferences,
   renderAnimatedGradientText,
+  renderParticleDivider,
+  renderPremiumHeadline,
   renderPulseGlyph,
   renderShimmerPrefix,
+  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
@@ -186,12 +190,18 @@ export class TodoPanelComponent implements Component {
   render(width: number): string[] {
     if (this.todos.length === 0) return [];
     const c = currentTheme.palette;
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     const lines: string[] = [
-      renderRendererDividerRow({
-        width,
-        style: (text) => chalk.hex(c.border)(text),
-      }),
-      renderAnimatedGradientText('  Todo Board', 'todo:title'),
+      animated
+        ? renderParticleDivider(width, 'todo:divider', appearance)
+        : renderRendererDividerRow({
+            width,
+            style: (text) => chalk.hex(c.border)(text),
+          }),
+      animated
+        ? renderPremiumHeadline('  Todo Board', 'todo:title', appearance)
+        : renderAnimatedGradientText('  Todo Board', 'todo:title'),
       renderBoardMeta(this.todos, c, this.currentChangeSummary()),
     ];
 

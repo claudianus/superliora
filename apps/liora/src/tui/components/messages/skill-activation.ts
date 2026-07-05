@@ -16,6 +16,11 @@ import { Container, Text, Spacer } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import type { SkillActivationTrigger } from '#/tui/types';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const ARGS_PREVIEW_MAX = 200;
 
@@ -34,10 +39,7 @@ export class SkillActivationComponent extends Container {
     this.name = name;
     this.args = args;
     this.addChild(new Spacer(1));
-    const head =
-      currentTheme.boldFg('primary', '▶ Activated skill: ') +
-      currentTheme.boldFg('roleUser', name);
-    this.headText = new Text(head, 0, 0);
+    this.headText = new Text(this.renderHead(), 0, 0);
     this.addChild(this.headText);
     const trimmed = args?.trim() ?? '';
     if (trimmed.length > 0) {
@@ -49,10 +51,7 @@ export class SkillActivationComponent extends Container {
   }
 
   override invalidate(): void {
-    const head =
-      currentTheme.boldFg('primary', '▶ Activated skill: ') +
-      currentTheme.boldFg('roleUser', this.name);
-    this.headText.setText(head);
+    this.headText.setText(this.renderHead());
     if (this.previewText !== undefined && this.args !== undefined) {
       const trimmed = this.args.trim();
       const preview =
@@ -60,5 +59,17 @@ export class SkillActivationComponent extends Container {
       this.previewText.setText('  ' + currentTheme.fg('textDim', preview));
     }
     super.invalidate();
+  }
+
+  private renderHead(): string {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const prefix = animated
+      ? renderPremiumHeadline('▶ Activated skill:', 'skill:prefix', appearance)
+      : currentTheme.boldFg('primary', '▶ Activated skill: ');
+    const name = animated
+      ? renderPremiumHeadline(this.name, `skill:name:${this.name}`, appearance)
+      : currentTheme.boldFg('roleUser', this.name);
+    return `${prefix} ${name}`;
   }
 }

@@ -1,12 +1,7 @@
 import type { AppearancePreferences } from '#/tui/config';
 import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
 import { truncateToWidth } from '#/tui/renderer';
-import { currentTheme } from '#/tui/theme';
-import { gradientText } from '#/tui/theme/gradient-text';
-import {
-  motionEffectsAllowed,
-  resolveQualityAdjustedAmbientEffectMode,
-} from '#/tui/utils/appearance-effects';
+import { renderSpectacularText } from '#/tui/utils/appearance-effects';
 
 // figlet Slant "SUPERLIORA". Regenerate via scripts/generate-liora-mascot-art.sh banner.
 const BANNER_LARGE = [
@@ -42,19 +37,12 @@ export function renderWelcomeBanner(
 function paintBannerLine(
   line: string,
   appearance: AppearancePreferences,
-  phase: number,
+  rowIndex: number,
   maxWidth: number,
 ): string {
   const plain = truncateToWidth(line, maxWidth, '…');
-  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-  if (motionEffectsAllowed() && mode === 'premium') {
-    return gradientText(
-      plain,
-      currentTheme.color('gradientStart'),
-      currentTheme.color('gradientEnd'),
-      1.2,
-      phase * 2,
-    );
-  }
-  return currentTheme.boldFg('primary', plain);
+  return renderSpectacularText(plain, `welcome:banner:${String(rowIndex)}`, appearance, {
+    rowIndex,
+    intense: true,
+  });
 }

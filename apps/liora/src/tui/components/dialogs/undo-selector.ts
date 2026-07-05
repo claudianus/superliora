@@ -10,6 +10,7 @@ import {
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
 const MAX_VISIBLE_CHOICES = 5;
@@ -97,7 +98,7 @@ export class UndoSelectorComponent extends Container implements Focusable {
       hint: ' ' + hintParts.join(' · '),
       body,
       dividerStyle: (text) => currentTheme.fg('primary', text),
-      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      titleStyle: (text) => renderPremiumHeadline(text.trim(), 'undo-selector:title'),
       hintStyle: (text) => currentTheme.fg('textMuted', text),
     });
   }

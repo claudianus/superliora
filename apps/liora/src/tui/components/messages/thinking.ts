@@ -22,7 +22,12 @@ import {
 } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
 
@@ -122,9 +127,10 @@ export class ThinkingComponent implements Component {
             `${BRAILLE_SPINNER_FRAMES[spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
           );
           const elapsed = this.renderElapsedSuffix();
+          const thinkingLabel = renderThinkingStatusLabel(`thinking...${elapsed}`);
           return [
             '',
-            spinner + currentTheme.fg('textDim', `thinking...${elapsed}`),
+            spinner + thinkingLabel,
             ...visibleLines.map((line) => MESSAGE_INDENT + line),
           ];
         }
@@ -141,7 +147,7 @@ export class ThinkingComponent implements Component {
 
         const marker = this.showMarker ? currentTheme.fg('textDim', STATUS_BULLET) : MESSAGE_INDENT;
         const elapsed = this.renderElapsedSuffix();
-        const summary = `${marker}${currentTheme.fg('textDim', `thinking complete${elapsed}`)}`;
+        const summary = `${marker}${renderThinkingStatusLabel(`thinking complete${elapsed}`)}`;
         const hint = `... (${String(contentLines.length)} lines hidden, ctrl+o to expand)`;
         const indentWidth = Math.min(MESSAGE_INDENT.length, Math.max(0, width));
         const hintWidth = Math.max(0, width - indentWidth);
@@ -158,4 +164,15 @@ export class ThinkingComponent implements Component {
     if (this.startedAt === undefined) return '';
     return ` ${formatElapsedTime(this.startedAt, this.finishedAt)}`;
   }
+}
+
+function renderThinkingStatusLabel(label: string): string {
+  const appearance = getActiveAppearancePreferences();
+  if (shouldRenderAmbientEffects(appearance)) {
+    return renderSpectacularText(label, `thinking:${label}`, appearance, {
+      intense: true,
+      pace: 'slow',
+    });
+  }
+  return currentTheme.fg('textDim', label);
 }

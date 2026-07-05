@@ -18,6 +18,7 @@ import type {
   UpcomingGoal,
 } from '#/tui/goal-queue-store';
 import { currentTheme } from '#/tui/theme';
+import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
@@ -144,7 +145,7 @@ export class GoalQueueManagerComponent extends Container implements Focusable {
       hint: ` ${hint}`,
       body,
       dividerStyle: (text) => currentTheme.fg('primary', text),
-      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      titleStyle: (text) => renderPremiumHeadline(text.trim(), 'goal-queue:title'),
       hintStyle: (text) => currentTheme.fg('textMuted', text),
       ellipsis: ELLIPSIS,
     });

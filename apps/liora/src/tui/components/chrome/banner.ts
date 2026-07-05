@@ -3,6 +3,12 @@ import { visibleWidth, wrapTextWithAnsi } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import type { BannerState } from '#/tui/types';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumAccentLine,
+  renderPremiumHeadline,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const PREFIX_STAR = '✦';
 const PADDING = ' ';
@@ -13,7 +19,10 @@ export class BannerComponent implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    const main = (s: string): string => currentTheme.boldFg('textStrong', s);
+    const main = (s: string): string =>
+      animated
+        ? renderPremiumAccentLine(s, `banner:main:${s.slice(0, 24)}`, appearance)
+        : currentTheme.boldFg('textStrong', s);
     const dim = (s: string): string => currentTheme.fg('textDim', s);
 
     // Render nothing but the trailing blank if the terminal cannot hold a
@@ -23,10 +32,17 @@ export class BannerComponent implements Component {
     }
 
     const tagText = this.state.tag ?? '';
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     // Do not add a colon/tag suffix here; the caller-provided tag includes its
     // own punctuation/separator.
     const tagLabel = tagText.length > 0 ? `${PREFIX_STAR} ${tagText}` : '';
-    const tagStyled = tagLabel.length > 0 ? currentTheme.boldFg('primary', tagLabel) : '';
+    const tagStyled =
+      tagLabel.length > 0
+        ? animated
+          ? renderPremiumHeadline(tagLabel, `banner:tag:${tagText}`, appearance)
+          : currentTheme.boldFg('primary', tagLabel)
+        : '';
     const tagDisplay = tagStyled.length > 0 ? tagStyled + PADDING : '';
     const tagWidth = visibleWidth(tagDisplay);
     const showTag = tagWidth > 0 && tagWidth < width;

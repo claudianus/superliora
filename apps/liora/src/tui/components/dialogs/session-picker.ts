@@ -13,6 +13,7 @@ import {
 } from '#/tui/renderer';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
 export interface SessionRow {
@@ -329,7 +330,7 @@ export class SessionPickerComponent extends Container implements Focusable {
       bodyTopGap: options.bodyTopGap,
       footerTopGap: options.footerTopGap,
       dividerStyle: (text) => currentTheme.fg('primary', text),
-      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      titleStyle: (text) => renderPremiumHeadline(text.trim(), 'session-picker:title'),
       hintStyle: (text) => currentTheme.fg('textMuted', text),
       ellipsis: ELLIPSIS,
     });

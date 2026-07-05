@@ -2,6 +2,13 @@ import { truncateToWidth, type Component } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumAccentLine,
+  renderPremiumHeadline,
+  renderPulseGlyph,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export type UltraworkModeMarkerState = 'active' | 'ended';
 
@@ -23,19 +30,24 @@ export class UltraworkModeMarkerComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
-    const token = this.state === 'ended' ? 'textDim' : 'success';
-    const marker = currentTheme.boldFg(token, STATUS_BULLET);
-    const label = currentTheme.boldFg(token, ultraworkMarkerLabel(this.state));
-    const pipelineToken = this.state === 'ended' ? 'textDim' : 'primary';
+    const appearance = getActiveAppearancePreferences();
+    const active = this.state === 'active';
+    const animated = active && shouldRenderAmbientEffects(appearance);
+    const token = active ? 'success' : 'textDim';
+    const marker = animated
+      ? renderPulseGlyph(['✦', '✧', '✺', '∙'], `ultrawork:marker:${this.state}`, STATUS_BULLET, token, appearance)
+      : currentTheme.boldFg(token, STATUS_BULLET);
+    const label = animated
+      ? renderPremiumHeadline(ultraworkMarkerLabel(this.state), `ultrawork:label:${this.state}`, appearance)
+      : currentTheme.boldFg(token, ultraworkMarkerLabel(this.state));
     const pipelineText =
       `  ${ULTRAWORK_PIPELINE}`.length <= safeWidth
         ? `  ${ULTRAWORK_PIPELINE}`
         : `  ${ULTRAWORK_COMPACT_PIPELINE}`;
-    const pipelineLine = currentTheme.fg(
-      pipelineToken,
-      truncateToWidth(pipelineText, safeWidth, '…'),
-    );
-    const stageStatusToken = this.state === 'ended' ? 'textDim' : 'text';
+    const pipelineLine = animated
+      ? renderPremiumAccentLine(pipelineText, 'ultrawork:pipeline', appearance)
+      : currentTheme.fg(active ? 'primary' : 'textDim', truncateToWidth(pipelineText, safeWidth, '…'));
+    const stageStatusToken = active ? 'text' : 'textDim';
     const stageStatusLine = currentTheme.fg(
       stageStatusToken,
       truncateToWidth(`  ${ULTRAWORK_STAGE_STATUS}`, safeWidth, '…'),
@@ -52,7 +64,7 @@ export class UltraworkModeMarkerComponent implements Component {
     return [
       '',
       truncateToWidth(marker + label, safeWidth, '…'),
-      pipelineLine,
+      truncateToWidth(pipelineLine, safeWidth, '…'),
       stageStatusLine,
       researchLine,
       nextActionLine,

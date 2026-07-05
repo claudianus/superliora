@@ -8,6 +8,12 @@ import {
 import { SELECT_POINTER } from '../../constant/symbols';
 import type { QueuedMessage } from '../../types';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderParticleDivider,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export interface QueuePaneOptions {
   readonly messages: readonly QueuedMessage[];
@@ -41,14 +47,21 @@ export class QueuePaneComponent extends Container {
   }
 
   override render(width: number): string[] {
-    const accent = (text: string) => currentTheme.fg('accent', text);
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const accent = (text: string) =>
+      animated
+        ? renderSpectacularText(text, `queue:accent:${text}`, appearance, { intense: true })
+        : currentTheme.fg('accent', text);
     const shell = (text: string) => currentTheme.fg('shellMode', text);
     const dim = (text: string) => currentTheme.fg('textDim', text);
     const lines: string[] = [
-      renderRendererDividerRow({
-        width,
-        style: (text) => currentTheme.fg('border', text),
-      }),
+      animated
+        ? renderParticleDivider(width, 'queue:divider', appearance)
+        : renderRendererDividerRow({
+            width,
+            style: (text) => currentTheme.fg('border', text),
+          }),
     ];
 
     for (const item of this.messages) {

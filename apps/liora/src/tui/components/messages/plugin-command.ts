@@ -2,6 +2,11 @@ import { Container, Spacer, Text } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import type { PluginCommandTrigger } from '#/tui/types';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const ARGS_PREVIEW_MAX = 200;
 
@@ -40,10 +45,15 @@ export class PluginCommandComponent extends Container {
   }
 
   private renderHead(): string {
-    return (
-      currentTheme.boldFg('primary', '▶ Ran command: ') +
-      currentTheme.boldFg('roleUser', `/${this.commandLabel}`)
-    );
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const prefix = animated
+      ? renderPremiumHeadline('▶ Ran command:', 'plugin-cmd:prefix', appearance)
+      : currentTheme.boldFg('primary', '▶ Ran command: ');
+    const command = animated
+      ? renderPremiumHeadline(`/${this.commandLabel}`, `plugin-cmd:${this.commandLabel}`, appearance)
+      : currentTheme.boldFg('roleUser', `/${this.commandLabel}`);
+    return `${prefix} ${command}`;
   }
 }
 

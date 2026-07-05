@@ -18,7 +18,12 @@ import type { RendererRootUI } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const BLINK_INTERVAL = 500;
 
@@ -96,9 +101,13 @@ export class CompactionComponent extends Container {
   dispose(): void {}
 
   private buildHeader(): string {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     if (this.done) {
       const bullet = currentTheme.fg('success', STATUS_BULLET);
-      const label = currentTheme.boldFg('success', 'Compaction complete');
+      const label = animated
+        ? renderPremiumHeadline('Compaction complete', 'compaction:done', appearance)
+        : currentTheme.boldFg('success', 'Compaction complete');
       const detail =
         this.tokensBefore !== undefined && this.tokensAfter !== undefined
           ? currentTheme.dim(` (${String(this.tokensBefore)} → ${String(this.tokensAfter)} tokens)`)
@@ -107,13 +116,17 @@ export class CompactionComponent extends Container {
     }
     if (this.canceled) {
       const bullet = currentTheme.fg('warning', STATUS_BULLET);
-      const label = currentTheme.boldFg('warning', 'Compaction cancelled');
+      const label = animated
+        ? renderPremiumHeadline('Compaction cancelled', 'compaction:cancel', appearance)
+        : currentTheme.boldFg('warning', 'Compaction cancelled');
       return `${bullet}${label}`;
     }
     // Derive the blink phase from the animation clock — no private timer.
     const blinkOn = Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0;
     const bullet = blinkOn ? currentTheme.fg('text', STATUS_BULLET) : '  ';
-    const label = currentTheme.boldFg('primary', 'Compacting context...');
+    const label = animated
+      ? renderPremiumHeadline('Compacting context...', 'compaction:active', appearance)
+      : currentTheme.boldFg('primary', 'Compacting context...');
     const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
     return `${bullet}${label}${tip}`;
   }

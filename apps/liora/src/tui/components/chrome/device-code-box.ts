@@ -10,6 +10,13 @@ import type { Component } from '#/tui/renderer';
 import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderParticleRail,
+  renderPremiumHeadline,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export interface DeviceCodeBoxParams {
   readonly title: string;
@@ -34,7 +41,15 @@ export class DeviceCodeBoxComponent implements Component {
     if (safeWidth <= 0) return [''];
     const innerWidth = Math.max(1, safeWidth - 4);
 
-    const titleLine = truncateToWidth(currentTheme.boldFg('textStrong', title), innerWidth, '…');
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const titleLine = truncateToWidth(
+      animated
+        ? renderPremiumHeadline(title, 'device-code:title', appearance)
+        : currentTheme.boldFg('textStrong', title),
+      innerWidth,
+      '…',
+    );
     const promptLine = truncateToWidth(
       currentTheme.fg('textDim', 'Visit the URL below in your browser to authorize:'),
       innerWidth,
@@ -43,7 +58,9 @@ export class DeviceCodeBoxComponent implements Component {
     const urlLine = truncateToWidth(currentTheme.fg('primary', url), innerWidth, '…');
 
     const codeLabel = currentTheme.boldFg('textDim', 'Verification code:  ');
-    const codeValue = currentTheme.boldFg('accent', code);
+    const codeValue = animated
+      ? renderSpectacularText(code, 'device-code:code', appearance, { intense: true })
+      : currentTheme.boldFg('accent', code);
     const codeLine = truncateToWidth(`${codeLabel}${codeValue}`, innerWidth, '…');
 
     const contentLines: string[] = [titleLine, '', promptLine, urlLine, '', codeLine];
@@ -59,7 +76,13 @@ export class DeviceCodeBoxComponent implements Component {
     return [
       '',
       ...renderRendererFrameRows({
-        content: ['', ...contentLines, ''],
+        content: [
+          renderParticleRail(safeWidth - 2, appearance, 'device-code-top'),
+          '',
+          ...contentLines,
+          '',
+          renderParticleRail(safeWidth - 2, appearance, 'device-code-bottom'),
+        ],
         width: safeWidth,
         height: contentLines.length + 4,
         borderKind: 'rounded',

@@ -14,6 +14,12 @@ import type {
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme, type ColorToken } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumAccentLine,
+  renderPremiumHeadline,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const ULTRAWORK_THEATRE_EVENT_TYPES = new Set<Event['type']>([
   'ultrawork.stage.changed',
@@ -113,22 +119,39 @@ export class UltraworkTheatreComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
-    const title = `${currentTheme.boldFg('success', STATUS_BULLET)}${currentTheme.boldFg('success', ' Ultrawork Theatre')}`;
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const bullet = currentTheme.boldFg('success', STATUS_BULLET);
+    const title = animated
+      ? `${bullet}${renderPremiumHeadline('Ultrawork Theatre', 'ultrawork-theatre:title', appearance)}`
+      : `${bullet}${currentTheme.boldFg('success', ' Ultrawork Theatre')}`;
     return [
       '',
       truncateToWidth(title, safeWidth, '…'),
       this.line(`  goal   ${this.objective ?? this.run?.objective ?? 'pending'}`, safeWidth, 'text'),
-      this.line(
-        `  top    stage ${this.stage ?? this.run?.stage ?? 'intake'} | verify ${this.verification?.status ?? 'pending'} | learn ${this.promotions.size}`,
-        safeWidth,
-        'primary',
-      ),
+      this.stageLine(safeWidth, appearance, animated),
       this.line(`  lanes  ${STAGE_LANE}`, safeWidth, 'textDim'),
       this.line(`  team   ${this.teamSummary()}`, safeWidth, 'text'),
       this.line(`  search ${this.researchSummary()}`, safeWidth, 'text'),
       this.line(`  work   ${this.workSummary()}`, safeWidth, 'text'),
       this.line(`  review ${this.reviewSummary()}`, safeWidth, 'textDim'),
     ];
+  }
+
+  private stageLine(
+    width: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    animated: boolean,
+  ): string {
+    const text = `  top    stage ${this.stage ?? this.run?.stage ?? 'intake'} | verify ${this.verification?.status ?? 'pending'} | learn ${this.promotions.size}`;
+    if (animated) {
+      return truncateToWidth(
+        renderPremiumAccentLine(text, 'ultrawork-theatre:stage', appearance),
+        width,
+        '…',
+      );
+    }
+    return this.line(text, width, 'primary');
   }
 
   private line(text: string, width: number, token: ColorToken): string {

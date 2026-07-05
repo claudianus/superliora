@@ -22,8 +22,8 @@ import {
   getActiveAppearancePreferences,
   renderAnimatedGradientText,
   renderParticleDivider,
+  renderPremiumHeadline,
   renderShimmerPrefix,
-  resolveAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
@@ -148,8 +148,7 @@ export class ChoicePickerComponent extends Container implements Focusable {
     const view = this.list.view();
     const options = view.items;
     const appearance = getActiveAppearancePreferences();
-    const premium =
-      shouldRenderAmbientEffects(appearance) && resolveAmbientEffectMode(appearance) === 'premium';
+    const animated = shouldRenderAmbientEffects(appearance);
 
     // Header mirrors the model dialog (see model-selector.ts): border, title
     // with a "(type to search)" suffix until you type, the hint, a blank, then
@@ -164,12 +163,8 @@ export class ChoicePickerComponent extends Container implements Focusable {
         ? currentTheme.fg('textMuted', '  (type to search)')
         : '';
     const hintLines = hint.split(/\r?\n/);
-    const title = premium
-      ? renderAnimatedGradientText(
-          ` ${this.opts.title}`,
-          `choice:title:${this.opts.title}`,
-          appearance,
-        )
+    const title = animated
+      ? ` ${renderPremiumHeadline(this.opts.title, `choice:title:${this.opts.title}`, appearance)}`
       : currentTheme.boldFg('primary', ` ${this.opts.title}`);
     const lines: string[] = [
       renderParticleDivider(width, `choice:top:${this.opts.title}`, appearance),
@@ -205,9 +200,9 @@ export class ChoicePickerComponent extends Container implements Focusable {
       const isCurrent = opt.value === this.opts.currentValue;
       const pointer = isSelected ? SELECT_POINTER : ' ';
       const labelStyle = optionLabelStyle(opt, isSelected);
-      const pulse = premium && isSelected ? renderShimmerPrefix(appearance) : '';
+      const pulse = animated && isSelected ? renderShimmerPrefix(appearance) : '';
       let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pulse}${pointer} `);
-      line += premium && isSelected && opt.tone !== 'danger'
+      line += animated && isSelected && opt.tone !== 'danger'
         ? renderAnimatedGradientText(opt.label, `choice:row:${opt.value}`, appearance)
         : labelStyle(opt.label);
       if (isCurrent) {

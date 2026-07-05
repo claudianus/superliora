@@ -11,6 +11,7 @@ import type { ExperimentalFeatureState } from '@superliora/sdk';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
@@ -114,7 +115,7 @@ export class ExperimentsSelectorComponent extends Container implements Focusable
       body,
       footer,
       dividerStyle: (text) => currentTheme.fg('primary', text),
-      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      titleStyle: (text) => renderPremiumHeadline(text.trim(), 'experiments-selector:title'),
       hintStyle: (text) => currentTheme.fg('textMuted', text),
       ellipsis: ELLIPSIS,
     });

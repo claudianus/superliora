@@ -5,6 +5,12 @@ import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { CronTranscriptData } from '#/tui/types';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export class CronMessageComponent implements Component {
   private readonly spacer = new Spacer(1);
@@ -36,6 +42,8 @@ export class CronMessageComponent implements Component {
     if (safeWidth <= 0) return [''];
 
     const missed = this.data.missedCount !== undefined;
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     const titleToken: keyof ColorPalette = this.data.stale === true || missed ? 'warning' : 'accent';
     const bullet = currentTheme.boldFg(titleToken, STATUS_BULLET);
     const bulletWidth = visibleWidth(bullet);
@@ -47,13 +55,22 @@ export class CronMessageComponent implements Component {
       lines.push(line);
     }
 
-    const titleLines = new Text(currentTheme.boldFg(titleToken, this.title), 0, 0).render(contentWidth);
+    const titleStyled = animated
+      ? renderPremiumHeadline(this.title, `cron:title:${this.title}`, appearance)
+      : currentTheme.boldFg(titleToken, this.title);
+    const titleLines = new Text(titleStyled, 0, 0).render(contentWidth);
     for (let i = 0; i < titleLines.length; i += 1) {
       lines.push(`${i === 0 ? bullet : continuationIndent}${titleLines[i]}`);
     }
 
     if (this.detail !== undefined) {
-      const detailLines = new Text(currentTheme.fg('textDim', this.detail), 0, 0).render(contentWidth);
+      const detailStyled = animated
+        ? renderSpectacularText(this.detail, `cron:detail:${this.detail}`, appearance, {
+            intense: true,
+            pace: 'slow',
+          })
+        : currentTheme.fg('textDim', this.detail);
+      const detailLines = new Text(detailStyled, 0, 0).render(contentWidth);
       for (const line of detailLines) {
         lines.push(`${continuationIndent}${line}`);
       }

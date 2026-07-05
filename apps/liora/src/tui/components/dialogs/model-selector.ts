@@ -12,6 +12,7 @@ import {
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '#/constant/app';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
 import type { ChoiceOption } from './choice-picker';
@@ -266,7 +267,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
       body,
       footer,
       dividerStyle: (text) => currentTheme.fg('primary', text),
-      titleStyle: (text) => currentTheme.boldFg('primary', text),
+      titleStyle: (text) => renderPremiumHeadline(text.trim(), 'model-selector:title'),
       hintStyle: (text) => currentTheme.fg('textMuted', text),
     });
   }

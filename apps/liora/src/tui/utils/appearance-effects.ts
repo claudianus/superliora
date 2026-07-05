@@ -6,13 +6,17 @@ import {
   rendererAnimationFrameIntervalMs,
   rendererEffectFrameIntervalMs,
   hashRendererEffectSeed,
+  mixHexColor,
   rendererPositiveModulo,
   renderRendererDividerRow,
+  renderRendererStyledTextRunsAnsi,
   resolveRendererSeededIndex,
   resolveRendererEffectLevel,
+  splitDisplayClusters,
   type NativeFrameStatsHealth,
   type RendererEffectLevel,
   type RendererQualityLevel,
+  type RendererStyledTextRun,
 } from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
 import { currentTheme } from '#/tui/theme';
@@ -31,6 +35,24 @@ const PARTICLE_TOKENS: readonly ColorToken[] = [
 const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
 const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
+const SPECTACULAR_TOKENS: readonly ColorToken[] = [
+  'gradientStart',
+  'primary',
+  'glow',
+  'accent',
+  'gradientEnd',
+  'particle',
+  'shellMode',
+  'success',
+];
+
+export interface SpectacularTextOptions {
+  readonly rowIndex?: number;
+  /** Faster color cycling and space sparkles. */
+  readonly intense?: boolean;
+  /** Slower wave for secondary copy. */
+  readonly pace?: 'fast' | 'slow';
+}
 
 let activeAppearance: AppearancePreferences = DEFAULT_APPEARANCE_PREFERENCES;
 let animationClockMs = Date.now();
@@ -218,20 +240,10 @@ export function renderAnimatedGradientText(
 ): string {
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (!motionEffectsAllowed() || mode === 'off') return currentTheme.boldFg('primary', text);
-  if (mode !== 'premium') return currentTheme.boldFg('primary', text);
-  const phase = resolveRendererSeededIndex({
-    seed,
-    nowMs: appearanceAnimationNow(),
-    intervalMs: 140,
-    length: Array.from(text).length,
-  }) ?? 0;
-  return gradientText(
-    text,
-    currentTheme.color('gradientStart'),
-    currentTheme.color('gradientEnd'),
-    1.15,
-    phase,
-  );
+  return renderSpectacularText(text, seed, appearance, {
+    intense: mode === 'premium',
+    pace: mode === 'premium' ? 'fast' : 'slow',
+  });
 }
 
 export function renderPulseText(
@@ -241,16 +253,13 @@ export function renderPulseText(
   appearance: AppearancePreferences = activeAppearance,
 ): string {
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-  if (!motionEffectsAllowed() || mode !== 'premium') {
+  if (!motionEffectsAllowed() || mode === 'off') {
     return currentTheme.boldFg(fallbackToken, text);
   }
-  const token = PULSE_TOKENS[resolveRendererSeededIndex({
-    seed,
-    nowMs: appearanceAnimationNow(),
-    intervalMs: 220,
-    length: PULSE_TOKENS.length,
-  }) ?? 0]!;
-  return currentTheme.boldFg(token, text);
+  return renderSpectacularText(text, seed, appearance, {
+    intense: mode === 'premium',
+    pace: 'fast',
+  });
 }
 
 export function renderPulseGlyph(
@@ -271,6 +280,100 @@ export function renderPulseGlyph(
     length: glyphs.length,
   }) ?? 0;
   return currentTheme.boldFg(PULSE_TOKENS[index % PULSE_TOKENS.length]!, glyphs[index]!);
+}
+
+export function renderSpectacularText(
+  text: string,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+  options: SpectacularTextOptions = {},
+): string {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return currentTheme.boldFg('primary', text);
+  }
+
+  const rowIndex = options.rowIndex ?? 0;
+  const intense = options.intense !== false && mode === 'premium';
+  const pace = options.pace ?? (intense ? 'fast' : 'slow');
+  const intervalMs = pace === 'fast' ? (intense ? 70 : 120) : 160;
+  const tick = Math.floor(appearanceAnimationNow() / intervalMs);
+  const base = hashRendererEffectSeed(seed) + rowIndex * 37;
+  const waveStride = intense ? 2 : 1;
+  const runs: RendererStyledTextRun[] = [];
+  let clusterIndex = 0;
+
+  for (const cluster of splitDisplayClusters(text)) {
+    const char = cluster.text;
+    if (char === ' ') {
+      if (
+        intense &&
+        rendererPositiveModulo(base + clusterIndex + tick * 3, 23) === 0
+      ) {
+        const glyph =
+          PREMIUM_PARTICLES[
+            rendererPositiveModulo(base + tick + clusterIndex, PREMIUM_PARTICLES.length)
+          ]!;
+        runs.push({
+          text: glyph,
+          style: {
+            fg: currentTheme.color(
+              PARTICLE_TOKENS[
+                rendererPositiveModulo(base + tick + clusterIndex, PARTICLE_TOKENS.length)
+              ]!,
+            ),
+            bold: true,
+          },
+        });
+        clusterIndex += cluster.width;
+        continue;
+      }
+      runs.push({ text: char });
+      clusterIndex += cluster.width;
+      continue;
+    }
+
+    const wave = rendererPositiveModulo(
+      clusterIndex + tick * waveStride + base,
+      SPECTACULAR_TOKENS.length * 4,
+    );
+    const tokenIndex = Math.floor(wave / 4);
+    const tokenA = SPECTACULAR_TOKENS[tokenIndex % SPECTACULAR_TOKENS.length]!;
+    const tokenB = SPECTACULAR_TOKENS[(tokenIndex + 1) % SPECTACULAR_TOKENS.length]!;
+    const blend = (wave % 4) / 4;
+    runs.push({
+      text: char,
+      style: {
+        fg: mixHexColor(currentTheme.color(tokenA), currentTheme.color(tokenB), blend),
+        bold: intense || char !== char.toLowerCase() || /[\\/|_\-=+#@*]/.test(char),
+      },
+    });
+    clusterIndex += cluster.width;
+  }
+
+  return renderRendererStyledTextRunsAnsi(runs, { resetStyle: true });
+}
+
+export function renderPremiumHeadline(
+  text: string,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  if (!shouldRenderAmbientEffects(appearance)) {
+    return currentTheme.boldFg('textStrong', text);
+  }
+  return `${renderShimmerPrefix(appearance)}${renderSpectacularText(text, seed, appearance, { intense: true })}`;
+}
+
+export function renderPremiumAccentLine(
+  text: string,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  if (!shouldRenderAmbientEffects(appearance)) {
+    return currentTheme.fg('primary', text);
+  }
+  return renderSpectacularText(text, seed, appearance, { intense: true, pace: 'slow' });
 }
 
 export function renderShimmerPrefix(appearance: AppearancePreferences = activeAppearance): string {

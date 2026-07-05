@@ -14,6 +14,7 @@ import {
   renderParticleDivider,
   renderPulseGlyph,
   renderShimmerPrefix,
+  renderSpectacularText,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
@@ -315,6 +316,23 @@ describe('AppearanceController', () => {
 
     expect(visibleWidth(line)).toBe(40);
     expect(strip(line)).toMatch(/[✦✧✺∙•]/);
+  });
+
+  it('cycles spectacular colors across characters', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    const rendered = renderSpectacularText('/\\ ABC', 'spectacular-test', appearance, {
+      intense: true,
+    });
+    const codes = new Set(rendered.match(/\u001B\[[0-9;]*m/g) ?? []);
+    expect(codes.size).toBeGreaterThan(2);
+    expect(strip(rendered)).toContain('/\\ ABC');
   });
 });
 

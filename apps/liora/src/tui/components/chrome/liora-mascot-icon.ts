@@ -13,38 +13,41 @@ export interface LioraMascotOptions {
   readonly appearance: AppearancePreferences;
 }
 
+// Premium frames: hex logo rasterised with ascii-image-converter (12×6, map " .:-=+*#@").
+// Standard / compact: figlet Graceful "Li" and a smaller converter pass. Regenerate via
+// scripts/generate-liora-mascot-art.sh.
 export const PREMIUM_MASCOT_FRAMES: readonly (readonly string[])[] = [
-  // Frame 0 — rest: thin border, calm glyph
   [
-    '  ╭─────╮  ',
-    ' ╱       ╲ ',
-    '│    ✦    │',
-    ' ╲       ╱ ',
-    '  ╰─────╯  ',
+    '   .-=+-.   ',
+    ' -+=-  :=== ',
+    ' #:  ==   @:',
+    ' #:  +*.  #:',
+    ' =+-:  .-=+.',
+    '   :=++=:   ',
   ],
-  // Frame 1 — rising: heavy border, awakening glyph
   [
-    '  ╭━━━━━╮  ',
-    ' ╱       ╲ ',
-    '│    ✧    │',
-    ' ╲       ╱ ',
-    '  ╰━━━━━╯  ',
+    '   :=**+:   ',
+    ' =*+-. -+*+.',
+    '.@- .+*: .@-',
+    '.@- .##-  @-',
+    ' +*+-  :=**.',
+    '   -+*#*-.  ',
   ],
-  // Frame 2 — peak: double border, radiant glyph
   [
-    '  ╭═════╮  ',
-    ' ╱       ╲ ',
-    '│    ✺    │',
-    ' ╲       ╱ ',
-    '  ╰═════╯  ',
+    '   :+##+-   ',
+    '.+#*=:.-*#*:',
+    ':@+ :*#= :@+',
+    ':@= -@@+ .@=',
+    '.*#*-..:+##:',
+    '  .-*##*=.  ',
   ],
-  // Frame 3 — fading: heavy border, settling glyph
   [
-    '  ╭━━━━━╮  ',
-    ' ╱       ╲ ',
-    '│    ✧    │',
-    ' ╲       ╱ ',
-    '  ╰━━━━━╯  ',
+    '   -*@@*-.  ',
+    '.*##+-:=#@*-',
+    '-@+ =##+ -@+',
+    '-@+ +@@# :@+',
+    ':#@*=::-*@#-',
+    '  .=#@@#+:  ',
   ],
 ];
 
@@ -52,10 +55,8 @@ export const PREMIUM_MASCOT_FRAMES: readonly (readonly string[])[] = [
  *  breathing pulse, slow enough to feel calm. */
 export const PREMIUM_MASCOT_INTERVAL_MS = 600;
 
-const STANDARD_MASCOT = [' ╭───╮ ', '╱  ✦  ╲', '╲     ╱', ' ╰───╯ '] as const;
-const COMPACT_MASCOT = ['╭✦╮', '╰─╯'] as const;
-const ASCII_STANDARD_MASCOT = [' /---\\ ', '|  *  |', '|     |', ' \\---/ '] as const;
-const ASCII_COMPACT_MASCOT = ['/*\\', '\\-/'] as const;
+const STANDARD_MASCOT = [' __    __  ', '(  )  (  ) ', '/ (_/\\ )(  ', '\\____/(__) '] as const;
+const COMPACT_MASCOT = [' :====: ', '-*.-.=++', '=* == =+', ' :====- '] as const;
 
 export function resolveLioraMascotVariant(options: LioraMascotOptions): LioraMascotVariant {
   const mascot = options.appearance.mascot;
@@ -63,9 +64,7 @@ export function resolveLioraMascotVariant(options: LioraMascotOptions): LioraMas
   if (mascot === 'minimal') return 'tiny';
   if (mascot === 'standard') return options.layout === 'tiny' ? 'tiny' : 'standard';
   if (mascot === 'premium') {
-    return options.layout !== 'tiny' &&
-      (options.layout === 'wide' || options.layout === 'ultrawide') &&
-      !motionDegraded()
+    return options.layout !== 'tiny' && options.layout !== 'compact' && !motionDegraded()
       ? 'premium'
       : 'standard';
   }
@@ -80,7 +79,9 @@ export function resolveLioraMascotVariant(options: LioraMascotOptions): LioraMas
         ? 'premium'
         : 'standard';
     case 'standard':
-      return 'standard';
+      return options.appearance.profile === 'premium' && !motionDegraded()
+        ? 'premium'
+        : 'standard';
   }
 }
 
@@ -92,9 +93,9 @@ export function renderLioraMascotIcon(options: LioraMascotOptions): string[] {
     case 'tiny':
       return [currentTheme.boldFg('primary', asciiFallback() ? '> Liora' : '◆ Liora')];
     case 'compact':
-      return paintRows(asciiFallback() ? ASCII_COMPACT_MASCOT : COMPACT_MASCOT, 'primary');
+      return paintRows(COMPACT_MASCOT, 'primary');
     case 'standard':
-      return paintRows(asciiFallback() ? ASCII_STANDARD_MASCOT : STANDARD_MASCOT, 'primary');
+      return paintRows(STANDARD_MASCOT, 'primary');
     case 'premium': {
       const frameIndex =
         Math.floor(appearanceAnimationNow() / PREMIUM_MASCOT_INTERVAL_MS) %
