@@ -80,13 +80,13 @@ export async function refreshGitCheckoutUpdateTarget(
 ): Promise<GitCheckoutTarget | null> {
   if (repoRoot.length === 0) return null;
   await execGit(repoRoot, ['fetch', '--quiet']);
-  const upstream = await execGit(repoRoot, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  const upstream = await resolveGitCheckoutUpstream(repoRoot);
   const local = await execGit(repoRoot, ['rev-parse', 'HEAD']);
-  const remote = await execGit(repoRoot, ['rev-parse', '@{u}']);
+  const remote = await execGit(repoRoot, ['rev-parse', upstream]);
   if (local === remote) return null;
 
-  const behind = Number(await execGit(repoRoot, ['rev-list', '--count', 'HEAD..@{u}']));
-  const ahead = Number(await execGit(repoRoot, ['rev-list', '--count', '@{u}..HEAD']));
+  const behind = Number(await execGit(repoRoot, ['rev-list', '--count', `HEAD..${upstream}`]));
+  const ahead = Number(await execGit(repoRoot, ['rev-list', '--count', `${upstream}..HEAD`]));
   if (!Number.isFinite(behind) || behind <= 0) return null;
   if (Number.isFinite(ahead) && ahead > 0) {
     throw new Error(`Git checkout has diverged from ${upstream}; update manually.`);
@@ -96,4 +96,24 @@ export async function refreshGitCheckoutUpdateTarget(
     upstream,
     version: `${upstream}@${remote.slice(0, 12)}`,
   };
+}
+
+async function resolveGitCheckoutUpstream(repoRoot: string): Promise<string> {
+  const tracking = await execGit(repoRoot, [
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{u}',
+  ]).catch(() => '');
+  if (tracking.length > 0) return tracking;
+
+  const originHead = await execGit(repoRoot, [
+    'symbolic-ref',
+    '--short',
+    'refs/remotes/origin/HEAD',
+  ]).catch(() => '');
+  if (originHead.length > 0) return originHead;
+
+  await execGit(repoRoot, ['rev-parse', '--verify', 'origin/main']);
+  return 'origin/main';
 }
