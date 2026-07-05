@@ -16,6 +16,7 @@ import chalk from 'chalk';
 import { Option, type Command } from 'commander';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS } from '#/constant/app';
+import { t, tln } from '#/cli/i18n';
 import { darkColors } from '#/tui/theme/colors';
 import { getDataDir } from '#/utils/paths';
 
@@ -82,44 +83,47 @@ export function buildRunCommand(cmd: Command): Command {
   return cmd
     .option(
       '--port <port>',
-      `Bind port (default ${DEFAULT_SERVER_PORT})`,
+      t('cli.sub.server.option.port', { port: String(DEFAULT_SERVER_PORT) }),
       String(DEFAULT_SERVER_PORT),
     )
     .option(
       '--host [host]',
-      `Bind host. Omit to bind ${DEFAULT_SERVER_HOST} (this machine only); pass --host to bind ${DEFAULT_LAN_HOST} (all interfaces), or --host <host> for a specific host. The bearer token is printed at startup.`,
+      t('cli.sub.server.option.host', {
+        defaultHost: DEFAULT_SERVER_HOST,
+        lanHost: DEFAULT_LAN_HOST,
+      }),
     )
     .option(
       '--allowed-host <host...>',
-      'Extra Host header value to allow through the DNS-rebinding check. Repeat or comma-separate; a leading dot matches a domain suffix (e.g. .example.com).',
+      t('cli.sub.server.option.allowedHost'),
     )
     .option(
       '--insecure-no-tls',
-      'Allow a non-loopback bind without a TLS-terminating reverse proxy. Defaults to true; only relevant for non-loopback binds.',
+      t('cli.sub.server.option.insecureNoTls'),
       true,
     )
     .option(
       '--allow-remote-shutdown',
-      'On a non-loopback bind, keep POST /api/v1/shutdown enabled (default: route is disabled → 404).',
+      t('cli.sub.server.option.allowRemoteShutdown'),
       false,
     )
     .option(
       '--allow-remote-terminals',
-      'On a non-loopback bind, keep the PTY /api/v1/terminals/* routes enabled (default: disabled → 404). Remote shell is high risk.',
+      t('cli.sub.server.option.allowRemoteTerminals'),
       false,
     )
     .option(
       '--log-level <level>',
-      `Server log level: ${VALID_LOG_LEVELS.join('|')}. Omit to keep logs off.`,
+      t('cli.sub.server.option.logLevel', { levels: VALID_LOG_LEVELS.join('|') }),
     )
     .option(
       '--debug-endpoints',
-      'Mount /api/v1/debug/* routes for test introspection. OFF by default; production callers leave this unset.',
+      t('cli.sub.server.option.debugEndpoints'),
       false,
     )
     .option(
       '--foreground',
-      'Run the server in the foreground and keep this terminal attached until SIGINT/SIGTERM (do not daemonize).',
+      t('cli.sub.server.option.foreground'),
       false,
     )
     .addOption(
@@ -187,14 +191,14 @@ export async function handleRunCommand(
 
 function formatReuseNotice(origin: string): string {
   return (
-    `${chalk.hex(darkColors.warning)('A server is already running')} at ${origin} — ` +
-    `the options from this command were not applied. ` +
-    `Run ${chalk.bold('liora server kill')} first to bind a new host/port.\n`
+    `${chalk.hex(darkColors.warning)(t('cli.runtime.server.reuseNoticePrefix'))} at ${origin} — ` +
+    `${t('cli.runtime.server.reuseNoticeMiddle')} ` +
+    `Run ${chalk.bold(t('cli.runtime.server.bannerStopCmd'))} ${t('cli.runtime.server.reuseNoticeSuffix')}\n`
   );
 }
 
 function formatReadyLine(origin: string, _token: string | undefined): string {
-  return `SuperLiora server: ${origin}\n`;
+  return tln('cli.runtime.server.readyLine', { origin });
 }
 
 /**
@@ -393,8 +397,8 @@ function formatReadyBanner(
   const logo = ['▐█▛█▛█▌', '▐█████▌'] as const;
   const lines: string[] = [
     '',
-    `  ${primary(logo[0])}  ${title('SuperLiora server ready')}  ${dim(getVersion())}`,
-    `  ${primary(logo[1])}  ${dim('Local REST and WebSocket API is available from this machine.')}`,
+    `  ${primary(logo[0])}  ${title(t('cli.runtime.server.bannerTitle'))}  ${dim(getVersion())}`,
+    `  ${primary(logo[1])}  ${dim(t('cli.runtime.server.bannerSubtitle'))}`,
     '',
   ];
 
@@ -408,19 +412,25 @@ function formatReadyBanner(
   }
   // On a loopback bind there is no network URL; show how to enable one.
   if (isLoopbackHost(host)) {
-    lines.push(`  ${label('Network:  ')}${muted('off')}${dim('  use --host to enable')}`);
+    lines.push(
+      `  ${label(t('cli.runtime.server.labelNetworkBanner'))}${muted(t('cli.runtime.server.bannerNetworkOff'))}${dim(t('cli.runtime.server.bannerNetworkHint'))}`,
+    );
   }
   if (opts.token !== undefined) {
     // Set the token off with surrounding whitespace rather than color, so it is
     // easy to spot without being highlighted.
     lines.push('');
-    lines.push(`  ${label('Token:    ')}${opts.token}`);
+    lines.push(`  ${label(t('cli.runtime.server.labelToken'))}${opts.token}`);
     lines.push('');
   }
 
   // Auxiliary controls last.
-  lines.push(`  ${label('Logs:     ')}${muted('off')}${dim('  use --log-level info to enable')}`);
-  lines.push(`  ${label('Stop:     ')}${muted('liora server kill')}`);
+  lines.push(
+    `  ${label(t('cli.runtime.server.labelLogs'))}${muted(t('cli.runtime.server.bannerLogsOff'))}${dim(t('cli.runtime.server.bannerLogsHint'))}`,
+  );
+  lines.push(
+    `  ${label(t('cli.runtime.server.labelStop'))}${muted(t('cli.runtime.server.bannerStopCmd'))}`,
+  );
   lines.push('');
   return lines.join('\n');
 }

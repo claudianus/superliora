@@ -7,18 +7,19 @@
  */
 
 import type { Command } from 'commander';
+import { t } from '#/cli/i18n';
 
 import { runLoginFlow } from './login-flow';
 
 export function registerLoginCommand(parent: Command): void {
   parent
     .command('login')
-    .description('Authenticate with SuperLiora CLI via the device-code flow.')
+    .description(t('cli.sub.login.description'))
     .option(
       '--oauth-key <key>',
-      'Use a distinct OAuth storage key, preserving existing accounts as fallback refs.',
+      t('cli.sub.login.option.oauthKey'),
     )
-    .option('--oauth-host <host>', 'Override the OAuth host for this login.')
+    .option('--oauth-host <host>', t('cli.sub.login.option.oauthHost'))
     .action(async (options: { oauthKey?: string; oauthHost?: string }) => {
       await runLoginFlow({
         ...(options.oauthKey === undefined ? {} : { oauthKey: options.oauthKey }),

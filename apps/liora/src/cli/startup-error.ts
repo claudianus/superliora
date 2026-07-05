@@ -1,6 +1,7 @@
 import { ErrorCodes, KIMI_ERROR_INFO, isKimiError } from '@superliora/sdk';
 import { chalkStderr } from 'chalk';
 
+import { t } from '#/cli/i18n';
 import { STARTUP_ERROR_COLOR } from '#/constant/startup-error';
 
 export interface StartupErrorFormatOptions {
@@ -12,6 +13,21 @@ function formatUnknownErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function localizeStartupOperation(operation: string): string {
+  switch (operation) {
+    case 'run prompt':
+      return t('cli.runtime.startup.operation.runPrompt');
+    case 'start shell':
+      return t('cli.runtime.startup.operation.startShell');
+    case 'upgrade':
+      return t('cli.runtime.startup.operation.upgrade');
+    case 'run plugin node entry':
+      return t('cli.runtime.startup.operation.pluginNode');
+    default:
+      return operation;
+  }
+}
+
 export function formatStartupError(
   error: unknown,
   options: StartupErrorFormatOptions = {},
@@ -19,12 +35,16 @@ export function formatStartupError(
   const errorStyle = options.errorStyle ?? chalkStderr.hex(STARTUP_ERROR_COLOR);
 
   if (!isKimiError(error)) {
-    const operation = options.operation ?? 'start shell';
+    const operation = localizeStartupOperation(options.operation ?? 'start shell');
     const message = formatUnknownErrorMessage(error);
-    const lines = [errorStyle(`error: failed to ${operation}: ${message}`)];
+    const lines = [
+      errorStyle(
+        t('cli.runtime.startup.failedOperation', { operation, message }),
+      ),
+    ];
     const nextSteps = authNextStepsFromMessage(message);
     if (nextSteps.length > 0) {
-      lines.push('', errorStyle('next steps:'));
+      lines.push('', errorStyle(t('cli.runtime.startup.nextStepsLabel')));
       for (const step of nextSteps) {
         lines.push(errorStyle(`- ${step}`));
       }
@@ -34,14 +54,14 @@ export function formatStartupError(
 
   const info = KIMI_ERROR_INFO[error.code];
   const lines = [
-    errorStyle(`error: ${info.title}`),
+    errorStyle(t('cli.runtime.startup.errorTitle', { title: info.title })),
     '',
-    errorStyle('message:'),
+    errorStyle(t('cli.runtime.startup.messageLabel')),
     errorStyle(error.message),
   ];
   const nextSteps = authNextSteps(error.code);
   if (nextSteps.length > 0) {
-    lines.push('', errorStyle('next steps:'));
+    lines.push('', errorStyle(t('cli.runtime.startup.nextStepsLabel')));
     for (const step of nextSteps) {
       lines.push(errorStyle(`- ${step}`));
     }
@@ -53,14 +73,14 @@ export function formatStartupError(
 function authNextSteps(code: string): readonly string[] {
   if (code === ErrorCodes.AUTH_LOGIN_REQUIRED) {
     return [
-      'Run `liora login` to refresh your SuperLiora login.',
-      'Then rerun the same command.',
+      t('cli.runtime.startup.authLoginStep1'),
+      t('cli.runtime.startup.authLoginStep2'),
     ];
   }
   if (code === ErrorCodes.PROVIDER_AUTH_ERROR) {
     return [
-      'Run `liora provider` to inspect configured providers and the default model.',
-      'Run `liora provider use <model-alias>` to switch defaults, or update the API key; then rerun the same command.',
+      t('cli.runtime.startup.providerAuthStep1'),
+      t('cli.runtime.startup.providerAuthStep2'),
     ];
   }
   return [];

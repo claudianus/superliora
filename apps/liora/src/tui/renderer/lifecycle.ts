@@ -27,6 +27,14 @@ export function createTerminalRenderer(): TerminalRenderer {
   const ui = new LioraNativeRootUI({
     input: process.stdin as NativeTerminalInput,
     output: process.stdout as NativeTerminalOutput,
+    // Full-screen alternate-screen takeover: isolates the TUI from the
+    // terminal's pre-session scrollback (so scrolling up never escapes into
+    // earlier shell output) and enables the advanced input features the
+    // renderer-owned virtual scroll depends on (kitty keyboard, SGR mouse,
+    // synchronized output, bracketed paste, focus events). Restores the
+    // forced full-screen occupation that the inline/main-screen rendering
+    // had lost.
+    features: 'fullscreen-app',
   });
   return createNativeTerminalRenderer({ ui });
 }

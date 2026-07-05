@@ -14,6 +14,7 @@ export default defineConfig({
     name: 'cli',
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    setupFiles: ['test/i18n-setup.ts'],
     env: {
       KIMI_LOG_LEVEL: 'off',
     },

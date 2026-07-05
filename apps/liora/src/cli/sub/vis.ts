@@ -9,6 +9,7 @@
  */
 
 import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 import { createCliTelemetryBootstrap } from '#/cli/telemetry';
 import { openUrl } from '#/utils/open-url';
@@ -76,7 +77,7 @@ export async function handleVis(deps: VisDeps, opts: VisOptions): Promise<void> 
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    deps.stderr.write(`Failed to start liora vis: ${msg}\n`);
+    deps.stderr.write(tln('cli.runtime.vis.startFailed', { message: msg }));
     return deps.exit(1);
   }
 
@@ -85,14 +86,14 @@ export async function handleVis(deps: VisDeps, opts: VisOptions): Promise<void> 
       ? server.url
       : `${server.url}sessions/${encodeURIComponent(opts.sessionId)}`;
 
-  deps.stdout.write(`liora vis is running at ${server.url}\n`);
-  deps.stdout.write('Press Ctrl-C to stop.\n');
+  deps.stdout.write(tln('cli.runtime.vis.runningAt', { url: server.url }));
+  deps.stdout.write(tln('cli.runtime.vis.pressCtrlC'));
 
   if (opts.open) {
     try {
       await deps.openUrl(target);
     } catch {
-      deps.stderr.write(`Could not open a browser; visit ${target} manually.\n`);
+      deps.stderr.write(tln('cli.runtime.vis.browserOpenFailed', { target }));
     }
   }
 
@@ -103,11 +104,11 @@ export async function handleVis(deps: VisDeps, opts: VisOptions): Promise<void> 
 export function registerVisCommand(parent: Command, overrides?: Partial<VisDeps>): void {
   parent
     .command('vis')
-    .description('Launch the session visualizer in your browser.')
-    .option('--port <number>', 'Port to bind. Default: auto-pick a free port.')
-    .option('--host <host>', 'Host to bind. Default: 127.0.0.1.')
-    .option('--no-open', 'Do not open the browser automatically.')
-    .argument('[sessionId]', 'Open directly to this session.')
+    .description(t('cli.sub.vis.description'))
+    .option('--port <number>', t('cli.sub.vis.option.port'))
+    .option('--host <host>', t('cli.sub.vis.option.host'))
+    .option('--no-open', t('cli.sub.vis.option.noOpen'))
+    .argument('[sessionId]', t('cli.sub.vis.arg.sessionId'))
     .action(
       async (
         sessionId: string | undefined,

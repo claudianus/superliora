@@ -20,6 +20,7 @@
  */
 
 import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 import {
   ACP_BUILTIN_SLASH_COMMANDS,
@@ -38,10 +39,10 @@ import { runLoginFlow } from './login-flow';
 export function registerAcpCommand(parent: Command): void {
   parent
     .command('acp')
-    .description('Run kimi-code as an Agent Client Protocol (ACP) server over stdio.')
+    .description(t('cli.sub.acp.description'))
     .option(
       '--login',
-      'Run the device-code login flow then exit (entry point for ACP terminal-auth).',
+      t('cli.sub.acp.option.login'),
       false,
     )
     .action(async (opts: { login?: boolean }) => {
@@ -119,7 +120,7 @@ export function registerAcpCommand(parent: Command): void {
         });
         process.exit(0);
       } catch (err) {
-        process.stderr.write(`acp server: fatal error: ${String(err)}\n`);
+        process.stderr.write(tln('cli.runtime.acp.fatalError', { message: String(err) }));
         process.exit(1);
       }
     });

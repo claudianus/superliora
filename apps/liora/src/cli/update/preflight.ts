@@ -8,6 +8,7 @@ import {
   NATIVE_INSTALL_COMMAND_WIN,
   PRODUCT_NAME,
 } from '#/constant/app';
+import { t, tln } from '#/cli/i18n';
 import { loadTuiConfig } from '#/tui/config';
 
 import { readUpdateCache } from './cache';
@@ -172,37 +173,53 @@ export function renderManualUpdateMessage(
       sourceDesc = 'homebrew';
       break;
     case 'github-checkout':
-      sourceDesc = 'GitHub checkout';
+      sourceDesc = t('cli.runtime.update.source.githubCheckout');
       break;
     case 'native':
-      sourceDesc = 'native (windows). Auto-update is not supported on this platform.';
+      sourceDesc = t('cli.runtime.update.source.native');
       break;
     case 'unsupported':
-      sourceDesc = 'unsupported package manager or layout.';
+      sourceDesc = t('cli.runtime.update.source.unsupported');
       break;
   }
   return (
-    `A newer version of ${NPM_PACKAGE_NAME} is available ` +
-    `(${currentVersion} -> ${target.version}).\n` +
-    `Detected install source: ${sourceDesc}\n` +
-    `To update manually, run: ${installCommand}\n`
+    `${t('cli.runtime.update.manualHeader', {
+      package: NPM_PACKAGE_NAME,
+      current: currentVersion,
+      target: target.version,
+    })}\n` +
+    `${t('cli.runtime.update.manualSource', { source: sourceDesc })}\n` +
+    `${t('cli.runtime.update.manualCommand', { command: installCommand })}\n`
   );
 }
 
 export function renderInstallSuccessMessage(target: UpdateTarget): string {
-  return `Updated ${NPM_PACKAGE_NAME} to ${target.version}. Restart the CLI to use the new version.\n`;
+  return tln('cli.runtime.update.installSuccess', {
+    package: NPM_PACKAGE_NAME,
+    version: target.version,
+  });
 }
 
 function renderGithubCheckoutInstallSuccessMessage(target: UpdateTarget): string {
-  return `Updated ${PRODUCT_NAME} from GitHub (${target.version}). Restart the CLI to use the new build.\n`;
+  return tln('cli.runtime.update.githubInstallSuccess', {
+    product: PRODUCT_NAME,
+    version: target.version,
+  });
 }
 
 function renderBackgroundInstallSuccessNotice(version: string, source?: InstallSource): string {
   if (source === 'github-checkout') {
-    return `${PRODUCT_NAME} updated from GitHub (${version})\n`;
+    return tln('cli.runtime.update.backgroundGithub', {
+      product: PRODUCT_NAME,
+      version,
+    });
   }
   const displayVersion = version.startsWith('v') ? version : `v${version}`;
-  return `${PRODUCT_NAME} updated to ${displayVersion}\nChangelog: ${CHANGELOG_URL}\n`;
+  return t('cli.runtime.update.backgroundSuccess', {
+    product: PRODUCT_NAME,
+    version: displayVersion,
+    changelog: CHANGELOG_URL,
+  });
 }
 
 function refreshInBackground(): void {
@@ -746,7 +763,10 @@ export async function runUpdatePreflight(
         return 'exit';
       } catch (error) {
         stderr.write(
-          `warning: failed to update ${PRODUCT_NAME} from GitHub: ${formatErrorMessage(error)}\n`,
+          tln('cli.runtime.upgrade.githubInstallFailed', {
+            product: PRODUCT_NAME,
+            reason: formatErrorMessage(error),
+          }),
         );
         return 'continue';
       }
@@ -856,8 +876,11 @@ export async function runUpdatePreflight(
       return 'exit';
     } catch (error) {
       stderr.write(
-        `warning: failed to install ${NPM_PACKAGE_NAME}@${userVisibleTarget.version}: ` +
-          `${formatErrorMessage(error)}\n`,
+        tln('cli.runtime.upgrade.installFailed', {
+          package: NPM_PACKAGE_NAME,
+          version: userVisibleTarget.version,
+          reason: formatErrorMessage(error),
+        }),
       );
       return 'continue';
     }

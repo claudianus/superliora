@@ -21,6 +21,7 @@ import { resolve } from 'pathe';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, PROMPT_CLEANUP_TIMEOUT_MS } from '#/constant/app';
 
+import { tln } from '#/cli/i18n';
 import type { CLIOptions, PromptOutputFormat } from './options';
 import {
   formatGoalSummaryText,
@@ -393,7 +394,7 @@ async function resolvePromptSession(
         goalModel: configuredModel(opts.model, status.model),
       };
     }
-    stderr.write(`No sessions to continue under "${workDir}"; starting a fresh session.\n`);
+    stderr.write(tln('cli.runtime.prompt.noSessionsContinue', { workDir }));
   }
 
   const model = requireConfiguredModel(opts.model, defaultModel);
@@ -652,7 +653,7 @@ class PromptTranscriptWriter implements PromptTurnWriter {
     if (this.showThinking || this.progressTimer !== undefined) return;
     this.progressTimer = setTimeout(() => {
       this.progressTimer = undefined;
-      this.stderr.write('Working...\n');
+      this.stderr.write(tln('cli.runtime.prompt.working'));
     }, PROMPT_PROGRESS_DELAY_MS);
   }
 

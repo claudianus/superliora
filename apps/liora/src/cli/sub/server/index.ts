@@ -11,6 +11,7 @@
  */
 
 import type { Command } from 'commander';
+import { t } from '#/cli/i18n';
 
 import { registerPsCommand } from './ps';
 import { registerKillCommand } from './kill';
@@ -20,10 +21,10 @@ import { registerRotateTokenCommand } from './rotate-token';
 export function registerServerCommand(program: Command): void {
   const server = program
     .command('server')
-    .description('Run the local SuperLiora server (REST + WebSocket API).');
+    .description(t('cli.sub.server.description'));
 
   buildRunCommand(
-    server.command('run').description('Start the SuperLiora server (background daemon; use --foreground to attach).'),
+    server.command('run').description(t('cli.sub.server.cmd.run.desc')),
   );
 
   registerPsCommand(server);

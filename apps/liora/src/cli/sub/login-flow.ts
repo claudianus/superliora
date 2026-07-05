@@ -7,6 +7,7 @@
 
 import { createLioraHarness } from '@superliora/sdk';
 
+import { t, tln } from '#/cli/i18n';
 import { createLioraHostIdentity } from '#/cli/version';
 import { openUrl } from '#/utils/open-url';
 
@@ -41,18 +42,15 @@ export async function runLoginFlow(options: LoginFlowOptions = {}): Promise<neve
       ...(oauthKey === undefined && oauthHost !== undefined ? { oauthHost } : {}),
       onDeviceCode: (data) => {
         const url = data.verificationUriComplete || data.verificationUri;
-        // Print the manual fallback before attempting to open the user's
-        // browser so headless/browser-opener failures never hide the URL
-        // and code needed to complete login.
         process.stderr.write(
           [
             '',
-            `Opening browser for managed API device login: ${url}`,
-            `If the browser did not open, paste the URL above and enter code: ${data.userCode}`,
+            t('cli.runtime.login.openingBrowser', { url }),
+            t('cli.runtime.login.manualFallback', { code: data.userCode }),
             data.expiresIn !== null && data.expiresIn !== undefined
-              ? `Code expires in ${data.expiresIn}s.`
+              ? t('cli.runtime.login.codeExpires', { seconds: String(data.expiresIn) })
               : undefined,
-            'Waiting for authorization to complete...',
+            t('cli.runtime.login.waiting'),
             '',
           ]
             .filter((line): line is string => line !== undefined)
@@ -65,14 +63,14 @@ export async function runLoginFlow(options: LoginFlowOptions = {}): Promise<neve
         }
       },
     });
-    process.stderr.write(`Logged in to ${result.providerName}.\n`);
+    process.stderr.write(tln('cli.runtime.login.success', { provider: result.providerName }));
     process.exit(0);
   } catch (error) {
     if (controller.signal.aborted) {
-      process.stderr.write('Login cancelled.\n');
+      process.stderr.write(tln('cli.runtime.login.cancelled'));
     } else {
       const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`Login failed: ${message}\n`);
+      process.stderr.write(tln('cli.runtime.login.failed', { message }));
     }
     process.exit(1);
   }

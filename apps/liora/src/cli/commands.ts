@@ -1,4 +1,5 @@
 import { CLI_COMMAND_NAME } from '#/constant/app';
+import { t } from '#/cli/i18n';
 import { Command, Option } from 'commander';
 
 import type { CLIOptions } from './options';
@@ -23,19 +24,19 @@ export function createProgram(
   onUpgrade: UpgradeCommandHandler = () => {},
 ): Command {
   const program = new Command(CLI_COMMAND_NAME)
-    .description('The Starting Point for Next-Gen Agents')
+    .description(t('cli.description'))
     .version(version, '-V, --version')
     .allowUnknownOption(false)
     .configureHelp({ helpWidth: 100 })
-    .helpOption('-h, --help', 'Show help.')
-    .usage('[options] [command]')
-    .addHelpText('after', '\nDocumentation:        https://claudianus.github.io/superliora/en/\n');
+    .helpOption('-h, --help', t('cli.help'))
+    .usage(t('cli.usage'))
+    .addHelpText('after', t('cli.helpAfter'));
 
   program
     .addOption(
       new Option(
         '-S, --session [id]',
-        'Resume a session. With ID: resume that session. Without ID: interactively pick.',
+        t('cli.option.session'),
       ).argParser((val: string | boolean) => (val === true ? '' : (val as string))),
     )
     .addOption(
@@ -43,33 +44,33 @@ export function createProgram(
         .hideHelp()
         .argParser((val: string | boolean) => (val === true ? '' : (val as string))),
     )
-    .option('-c, --continue', 'Continue the previous session for the working directory.', false)
+    .option('-c, --continue', t('cli.option.continue'), false)
     .addOption(new Option('-C').hideHelp().default(false))
-    .option('-y, --yolo', 'Automatically approve all actions.', false)
-    .option('--auto', 'Start in auto permission mode.', false)
+    .option('-y, --yolo', t('cli.option.yolo'), false)
+    .option('--auto', t('cli.option.auto'), false)
     .addOption(
       new Option(
         '-m, --model <model>',
-        'LLM model alias to use for this invocation. Defaults to default_model in config.toml.',
+        t('cli.option.model'),
       ),
     )
     .addOption(
       new Option(
         '-p, --prompt <prompt>',
-        'Run one prompt non-interactively and print the response.',
+        t('cli.option.prompt'),
       ),
     )
     .addOption(
       new Option(
         '--output-format <format>',
-        'Output format for prompt mode. Defaults to text.',
+        t('cli.option.outputFormat'),
       ).choices(['text', 'stream-json']),
     )
-    .option('--show-thinking', 'Print model thinking to stderr in prompt text mode.', false)
+    .option('--show-thinking', t('cli.option.showThinking'), false)
     .addOption(
       new Option(
         '--skills-dir <dir>',
-        'Load skills from this directory instead of auto-discovered user and project directories. Can be repeated.',
+        t('cli.option.skillsDir'),
       )
         .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
         .default([]),
@@ -77,14 +78,14 @@ export function createProgram(
     .addOption(
       new Option(
         '--add-dir <dir>',
-        'Add an additional workspace directory for this session. Can be repeated.',
+        t('cli.option.addDir'),
       )
         .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
         .default([]),
     )
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false))
-    .option('--plan', 'Start with Ultrawork plan steering.', false);
+    .option('--plan', t('cli.option.plan'), false);
 
   registerExportCommand(program);
   registerProviderCommand(program);
@@ -98,7 +99,7 @@ export function createProgram(
   program
     .command('upgrade')
     .alias('update')
-    .description('Upgrade SuperLiora to the latest version.')
+    .description(t('cli.sub.upgrade.description'))
     .action(async () => {
       await onUpgrade();
     });
@@ -114,7 +115,7 @@ export function createProgram(
 
   program.argument('[args...]').action((args: string[]) => {
     if (args.length > 0) {
-      program.error(`unknown command '${args[0]}'. See '${CLI_COMMAND_NAME} --help'.`);
+      program.error(t('cli.error.unknownCommand', { arg: args[0]!, cmd: CLI_COMMAND_NAME }));
     }
 
     const raw = program.opts<Record<string, unknown>>();

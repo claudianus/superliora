@@ -38,10 +38,10 @@ export class PlanModeInjector extends DynamicInjector {
       this.injectedAt = null;
       this.wasActive = true;
       if (isUltraMode) {
-        return phaseReminder(planFilePath, phase);
+        return withResponseLanguage(phaseReminder(planFilePath, phase), this.agent);
       }
       if (await this.hasCurrentPlanContent()) {
-        return reentryReminder(planFilePath);
+        return withResponseLanguage(reentryReminder(planFilePath), this.agent);
       }
     }
     const variant = this.getVariant();
@@ -49,15 +49,15 @@ export class PlanModeInjector extends DynamicInjector {
 
     if (isUltraMode) {
       return variant === 'full' || variant === 'reentry'
-        ? phaseReminder(planFilePath, phase, this.agent)
-        : phaseSparseReminder(planFilePath, phase, this.agent);
+        ? withResponseLanguage(phaseReminder(planFilePath, phase, this.agent), this.agent)
+        : withResponseLanguage(phaseSparseReminder(planFilePath, phase, this.agent), this.agent);
     }
 
     return variant === 'full'
-      ? fullReminder(planFilePath)
+      ? withResponseLanguage(fullReminder(planFilePath), this.agent)
       : variant === 'sparse'
-        ? sparseReminder(planFilePath)
-        : reentryReminder(planFilePath);
+        ? withResponseLanguage(sparseReminder(planFilePath), this.agent)
+        : withResponseLanguage(reentryReminder(planFilePath), this.agent);
   }
 
   protected getVariant(): PlanModeVariant | null {
@@ -92,6 +92,12 @@ export class PlanModeInjector extends DynamicInjector {
 function withPlanFileFooter(body: string, planFilePath: PlanFilePath): string {
   if (planFilePath === null || planFilePath.length === 0) return body;
   return `${body}\n\nPlan file: ${planFilePath}`;
+}
+
+function withResponseLanguage(body: string, agent: Agent): string {
+  const preference = agent.getResponseLanguagePreference?.();
+  if (preference === undefined) return body;
+  return `${body}\n\nResponse language: write this plan and every other user-facing artifact in ${preference.label} (${preference.code}). Keep code, commands, file paths, identifiers, and API names in their original language. Do not switch to English as the plan grows.`;
 }
 
 function fullReminder(planFilePath: PlanFilePath): string {

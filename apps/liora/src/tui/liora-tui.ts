@@ -130,7 +130,6 @@ import {
 } from './utils/native-input-router';
 import {
   createTUIStateNativeRenderCallback,
-  measureTUIStateNativeFrameHeight,
 } from './utils/native-layout-frame';
 import {
   INITIAL_LIVE_PANE,
@@ -610,9 +609,15 @@ export class LioraTUI {
     this.state.ui.setRenderCallback(
       createTUIStateNativeRenderCallback(this.state, { diagnosticsOverlay }),
     );
-    this.state.ui.renderer.setMeasureFrameHeight((size) =>
-      measureTUIStateNativeFrameHeight(this.state, size.columns, size.rows),
-    );
+    // Occupy the full terminal viewport. The renderer is created with the
+    // `fullscreen-app` feature profile (alternate screen + clearOnStart), so
+    // the TUI owns the whole screen in its own buffer and the terminal's
+    // pre-session scrollback never shows through. The `measureFrameHeight`
+    // "grow with content" override is intentionally NOT set here — it would
+    // cap the frame to the transcript's content height and leave the rest of
+    // the alternate screen blank, which is the opposite of the forced
+    // full-screen occupation we want. It remains available for tests via
+    // createTUIStateNativeRenderer({ growWithContent: true }).
   }
 
   private startEventLoop(): void {

@@ -14,7 +14,7 @@
  * another user), which surfaces as an error rather than a silent miss.
  */
 
-import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 import { getLiveLock, type LockContents } from '@superliora/server';
 
@@ -47,7 +47,7 @@ export interface KillCommandDeps {
 export function registerKillCommand(server: Command): void {
   server
     .command('kill')
-    .description('Stop the running SuperLiora server (graceful API + forced PID kill).')
+    .description(t('cli.sub.server.cmd.kill.desc'))
     .action(async () => {
       try {
         await handleKillCommand(DEFAULT_KILL_DEPS);
@@ -61,7 +61,7 @@ export function registerKillCommand(server: Command): void {
 export async function handleKillCommand(deps: KillCommandDeps): Promise<void> {
   const lock = deps.getLiveLock();
   if (!lock) {
-    deps.stdout.write('No running SuperLiora server.\n');
+    deps.stdout.write(tln('cli.runtime.server.noRunning'));
     return;
   }
 
@@ -80,20 +80,18 @@ export async function handleKillCommand(deps: KillCommandDeps): Promise<void> {
   deps.signalPid(pid, 'SIGTERM');
 
   if (await waitForExit(pid, TERM_GRACE_MS, deps)) {
-    deps.stdout.write(`SuperLiora server (pid ${String(pid)}) stopped.\n`);
+    deps.stdout.write(tln('cli.runtime.server.stopped', { pid: String(pid) }));
     return;
   }
 
   deps.signalPid(pid, 'SIGKILL');
 
   if (await waitForExit(pid, KILL_GRACE_MS, deps)) {
-    deps.stdout.write(`SuperLiora server (pid ${String(pid)}) killed.\n`);
+    deps.stdout.write(tln('cli.runtime.server.killed', { pid: String(pid) }));
     return;
   }
 
-  throw new Error(
-    `Failed to stop SuperLiora server (pid ${String(pid)}); insufficient permissions?`,
-  );
+  throw new Error(t('cli.runtime.server.killFailed', { pid: String(pid) }));
 }
 
 async function waitForExit(

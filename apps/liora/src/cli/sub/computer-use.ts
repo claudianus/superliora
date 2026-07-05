@@ -8,6 +8,7 @@ import {
   type SetupCommandResult,
 } from '@superliora/gui-use';
 import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 interface WritableLike {
   write(chunk: string): boolean;
@@ -32,39 +33,39 @@ export function registerComputerUseCommand(
 ): void {
   const command = parent
     .command('computer-use')
-    .description('Manage the local cua-driver computer-use runtime.');
+    .description(t('cli.sub.computerUse.description'));
 
   command
     .command('install')
-    .description('Install cua-driver using the upstream installer.')
+    .description(t('cli.sub.computerUse.cmd.install.desc'))
     .action(async () => {
       await runComputerUseCommand(deps, 'install');
     });
 
   command
     .command('update')
-    .description('Update cua-driver using the upstream installer.')
+    .description(t('cli.sub.computerUse.cmd.update.desc'))
     .action(async () => {
       await runComputerUseCommand(deps, 'update');
     });
 
   command
     .command('status')
-    .description('Install cua-driver if needed, then print installation status.')
+    .description(t('cli.sub.computerUse.cmd.status.desc'))
     .action(async () => {
       await runComputerUseCommand(deps, 'status');
     });
 
   command
     .command('doctor')
-    .description('Run cua-driver MCP health diagnostics.')
+    .description(t('cli.sub.computerUse.cmd.doctor.desc'))
     .action(async () => {
       await runComputerUseCommand(deps, 'doctor');
     });
 
   command
     .command('permissions')
-    .description('Print host permission guidance for computer-use.')
+    .description(t('cli.sub.computerUse.cmd.permissions.desc'))
     .action(async () => {
       await runComputerUseCommand(deps, 'permissions');
     });
@@ -86,9 +87,7 @@ export async function handleComputerUseCommand(
       writeResultOutput(resolved, result);
       status = resolved.status();
       if (!status.installed && !result.ok) {
-        resolved.stderr.write(
-          'Computer-use auto-install failed. Retry with `liora computer-use install`.\n',
-        );
+        resolved.stderr.write(tln('cli.runtime.computerUse.autoInstallFailed'));
       }
     }
     resolved.stdout.write(`${JSON.stringify(status, undefined, 2)}\n`);
@@ -102,7 +101,7 @@ export async function handleComputerUseCommand(
   const result = await runner({ quiet: true });
   writeResultOutput(resolved, result);
   if (result.ok) return 0;
-  resolved.stderr.write(`Computer-use ${action} failed. Retry with \`liora computer-use ${action}\`.\n`);
+  resolved.stderr.write(tln('cli.runtime.computerUse.actionFailed', { action }));
   return 1;
 }
 
@@ -148,27 +147,27 @@ function writeResultOutput(deps: ComputerUseCommandDeps, result: SetupCommandRes
 function permissionGuidance(platform: NodeJS.Platform): string {
   if (platform === 'darwin') {
     return [
-      'Computer-use permissions for macOS:',
-      '- Grant Accessibility to the terminal or app that launches SuperLiora.',
-      '- Grant Screen Recording to the same launcher, and to CuaDriver.app if macOS prompts for it.',
-      '- Re-run `liora computer-use doctor` after changing permissions.',
+      t('cli.runtime.computerUse.permissions.darwin.title'),
+      t('cli.runtime.computerUse.permissions.darwin.line1'),
+      t('cli.runtime.computerUse.permissions.darwin.line2'),
+      t('cli.runtime.computerUse.permissions.darwin.line3'),
       '',
     ].join('\n');
   }
   if (platform === 'win32') {
     return [
-      'Computer-use permissions for Windows:',
-      '- cua-driver can drive normal desktop apps without extra setup.',
-      '- Apps running elevated may require launching SuperLiora from an elevated terminal.',
-      '- Re-run `liora computer-use doctor` after changing permissions.',
+      t('cli.runtime.computerUse.permissions.win32.title'),
+      t('cli.runtime.computerUse.permissions.win32.line1'),
+      t('cli.runtime.computerUse.permissions.win32.line2'),
+      t('cli.runtime.computerUse.permissions.win32.line3'),
       '',
     ].join('\n');
   }
   return [
-    'Computer-use permissions for Linux:',
-    '- Run under a graphical session with DISPLAY or the compositor support required by cua-driver.',
-    '- Install the platform accessibility stack requested by `cua-driver` if doctor reports it missing.',
-    '- Re-run `liora computer-use doctor` after changing permissions.',
+    t('cli.runtime.computerUse.permissions.linux.title'),
+    t('cli.runtime.computerUse.permissions.linux.line1'),
+    t('cli.runtime.computerUse.permissions.linux.line2'),
+    t('cli.runtime.computerUse.permissions.linux.line3'),
     '',
   ].join('\n');
 }

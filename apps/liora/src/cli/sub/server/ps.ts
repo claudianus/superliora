@@ -5,8 +5,7 @@
  * single-instance lock (`~/.superliora/server/lock`) to discover its origin.
  */
 
-import chalk from 'chalk';
-import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 import { getLiveLock } from '@superliora/server';
 
@@ -38,8 +37,8 @@ const USER_AGENT_MAX_WIDTH = 40;
 export function registerPsCommand(server: Command): void {
   server
     .command('ps')
-    .description('List clients currently connected to the running SuperLiora server.')
-    .option('--json', 'Print the raw connection list as JSON.')
+    .description(t('cli.sub.server.cmd.ps.desc'))
+    .option('--json', t('cli.sub.server.cmd.ps.option.json'))
     .action(async (opts: { json?: boolean }) => {
       try {
         await handlePsCommand(opts);
@@ -53,14 +52,12 @@ export function registerPsCommand(server: Command): void {
 async function handlePsCommand(opts: { json?: boolean }): Promise<void> {
   const lock = getLiveLock();
   if (!lock) {
-    throw new Error(
-      'No running SuperLiora server. Start one with `liora server run`.',
-    );
+    throw new Error(t('cli.runtime.server.noRunningStartHint'));
   }
 
   const origin = serverOrigin(lockConnectHost(lock), lock.port);
   if (!(await isServerHealthy(origin, HEALTH_TIMEOUT_MS))) {
-    throw new Error(`SuperLiora server at ${origin} is not responding.`);
+    throw new Error(t('cli.runtime.server.notResponding', { origin }));
   }
 
   // The `/api/v1/connections` route is gated by bearer auth (M5.1). Read the
@@ -87,16 +84,21 @@ async function fetchConnections(origin: string, token: string): Promise<Connecti
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new Error(`Failed to list clients: HTTP ${String(res.status)} from ${origin}.`);
+      throw new Error(
+        t('cli.runtime.server.listClientsHttpFailed', {
+          status: String(res.status),
+          origin,
+        }),
+      );
     }
     const body = (await res.json()) as ConnectionsEnvelope;
     if (body.code !== 0) {
-      throw new Error(`Failed to list clients: ${body.msg}`);
+      throw new Error(t('cli.runtime.server.listClientsFailed', { message: body.msg }));
     }
     return body.data?.connections ?? [];
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Timed out listing clients from ${origin}.`, { cause: error });
+      throw new Error(t('cli.runtime.server.listClientsTimeout', { origin }), { cause: error });
     }
     throw error;
   } finally {
@@ -106,7 +108,7 @@ async function fetchConnections(origin: string, token: string): Promise<Connecti
 
 function formatTable(connections: ConnectionInfo[]): string {
   if (connections.length === 0) {
-    return 'No active clients.\n';
+    return tln('cli.runtime.server.noActiveClients');
   }
 
   const header = ['ID', 'CONNECTED', 'REMOTE', 'USER_AGENT', 'SESSIONS', 'HELLO'];

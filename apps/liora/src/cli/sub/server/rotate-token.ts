@@ -9,6 +9,7 @@
 import { getLiveLock, rotateServerToken } from '@superliora/server';
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 import { darkColors } from '#/tui/theme/colors';
 import { getDataDir } from '#/utils/paths';
@@ -19,19 +20,15 @@ import { DEFAULT_SERVER_HOST } from './shared';
 export function registerRotateTokenCommand(server: Command): void {
   server
     .command('rotate-token')
-    .description(
-      'Generate a new persistent server token; the previous token stops working immediately.',
-    )
+    .description(t('cli.sub.server.cmd.rotateToken.desc'))
     .action(async () => {
       try {
         const token = await rotateServerToken(getDataDir());
         process.stdout.write(
-          'The previous token is now invalid. A running server picks up the new token automatically.\n',
+          tln('cli.runtime.server.rotateTokenInvalid'),
         );
 
-        // Token in the middle: indented and set off by blank lines (no color
-        // highlight), so it is easy to spot without dominating the output.
-        process.stdout.write(`\n  ${chalk.bold('New server token:')} ${token}\n\n`);
+        process.stdout.write(`\n  ${chalk.bold(t('cli.runtime.server.rotateTokenNew'))} ${token}\n\n`);
 
         // Re-print the access links with the new token so the user can
         // reconnect immediately. When a server is running its bind host/port

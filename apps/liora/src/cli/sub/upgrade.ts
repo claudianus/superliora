@@ -3,6 +3,7 @@ import { track as trackTelemetry, type TelemetryProperties } from '@superliora/t
 import { updateCloakBrowser, updateCuaDriver } from '@superliora/gui-use';
 
 import { getHostPackageRoot } from '#/cli/version';
+import { t, tln } from '#/cli/i18n';
 import { refreshUpdateCache } from '#/cli/update/refresh';
 import { selectUpdateTarget } from '#/cli/update/select';
 import { detectInstallSource } from '#/cli/update/source';
@@ -78,7 +79,7 @@ export async function handleUpgrade(
       currentVersion,
       error,
     });
-    deps.stderr.write(`error: failed to check for updates: ${reason}\n`);
+    deps.stderr.write(tln('cli.runtime.upgrade.checkFailed', { reason }));
     return 1;
   }
 
@@ -90,7 +91,12 @@ export async function handleUpgrade(
     logUpgradeInfo(deps.logger, 'manual upgrade no update', {
       currentVersion,
     });
-    deps.stdout.write(`${PRODUCT_NAME} is already up to date (${formatDisplayVersion(currentVersion)}).\n`);
+    deps.stdout.write(
+      tln('cli.runtime.upgrade.alreadyUpToDate', {
+        product: PRODUCT_NAME,
+        version: formatDisplayVersion(currentVersion),
+      }),
+    );
     return 0;
   }
 
@@ -175,8 +181,11 @@ export async function handleUpgrade(
       error,
     });
     deps.stderr.write(
-      `warning: failed to install ${NPM_PACKAGE_NAME}@${target.version}: ` +
-        `${formatErrorMessage(error)}\n`,
+      tln('cli.runtime.upgrade.installFailed', {
+        package: NPM_PACKAGE_NAME,
+        version: target.version,
+        reason: formatErrorMessage(error),
+      }),
     );
     return 1;
   }
@@ -202,7 +211,7 @@ async function handleGithubCheckoutUpgrade(
       currentVersion,
       error,
     });
-    deps.stderr.write(`error: failed to check the GitHub checkout for updates: ${reason}\n`);
+    deps.stderr.write(tln('cli.runtime.upgrade.githubCheckFailed', { reason }));
     return 1;
   }
 
@@ -215,7 +224,7 @@ async function handleGithubCheckoutUpgrade(
       currentVersion,
       source,
     });
-    deps.stdout.write(`${PRODUCT_NAME} GitHub checkout is already up to date.\n`);
+    deps.stdout.write(tln('cli.runtime.upgrade.githubAlreadyUpToDate', { product: PRODUCT_NAME }));
     return 0;
   }
 
@@ -273,7 +282,12 @@ async function handleGithubCheckoutUpgrade(
       targetVersion: target.version,
       source,
     });
-    deps.stdout.write(`Updated ${PRODUCT_NAME} from GitHub (${target.version}). Restart the CLI to use the new build.\n`);
+    deps.stdout.write(
+      tln('cli.runtime.upgrade.githubUpdated', {
+        product: PRODUCT_NAME,
+        version: target.version,
+      }),
+    );
     return 0;
   } catch (error) {
     trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
@@ -290,7 +304,10 @@ async function handleGithubCheckoutUpgrade(
       error,
     });
     deps.stderr.write(
-      `warning: failed to update ${PRODUCT_NAME} from GitHub: ${formatErrorMessage(error)}\n`,
+      tln('cli.runtime.upgrade.githubInstallFailed', {
+        product: PRODUCT_NAME,
+        reason: formatErrorMessage(error),
+      }),
     );
     return 1;
   }
@@ -334,20 +351,17 @@ async function updateBrowserUseAfterUpgrade(deps: {
   try {
     const result = await updateCloakBrowser({ cwd: getHostPackageRoot(), quiet: true });
     if (result.ok) {
-      deps.stdout.write('CloakBrowser binary cache is up to date.\n');
+      deps.stdout.write(tln('cli.runtime.upgrade.cloakBrowserUpToDate'));
       return;
     }
     const detail = result.error ?? firstNonEmpty(result.stderr, result.stdout);
-    deps.stderr.write(
-      'warning: failed to update the CloakBrowser binary cache. ' +
-        'Run `liora browser-use update` to retry.\n',
-    );
+    deps.stderr.write(tln('cli.runtime.upgrade.cloakBrowserUpdateFailed'));
     if (detail.length > 0) deps.stderr.write(`${detail}\n`);
   } catch (error) {
     deps.stderr.write(
-      'warning: failed to update the CloakBrowser binary cache. ' +
-        'Run `liora browser-use update` to retry. ' +
-        `${formatErrorMessage(error)}\n`,
+      tln('cli.runtime.upgrade.cloakBrowserUpdateFailedDetail', {
+        reason: formatErrorMessage(error),
+      }),
     );
   }
 }
@@ -359,20 +373,17 @@ async function updateComputerUseAfterUpgrade(deps: {
   try {
     const result = await updateCuaDriver({ cwd: getHostPackageRoot(), quiet: true });
     if (result.ok) {
-      deps.stdout.write('cua-driver computer-use runtime is up to date.\n');
+      deps.stdout.write(tln('cli.runtime.upgrade.cuaUpToDate'));
       return;
     }
     const detail = result.error ?? firstNonEmpty(result.stderr, result.stdout);
-    deps.stderr.write(
-      'warning: failed to update the cua-driver computer-use runtime. ' +
-        'Run `liora computer-use update` to retry.\n',
-    );
+    deps.stderr.write(tln('cli.runtime.upgrade.cuaUpdateFailed'));
     if (detail.length > 0) deps.stderr.write(`${detail}\n`);
   } catch (error) {
     deps.stderr.write(
-      'warning: failed to update the cua-driver computer-use runtime. ' +
-        'Run `liora computer-use update` to retry. ' +
-        `${formatErrorMessage(error)}\n`,
+      tln('cli.runtime.upgrade.cuaUpdateFailedDetail', {
+        reason: formatErrorMessage(error),
+      }),
     );
   }
 }

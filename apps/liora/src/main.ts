@@ -23,6 +23,7 @@ import {
 } from '@superliora/telemetry';
 
 import { createProgram } from './cli/commands';
+import { detectCliLocale, setCliLocale, t, tln } from './cli/i18n';
 import { finalizeHeadlessRun } from './cli/headless-exit';
 import type { CLIOptions } from './cli/options';
 import { OptionConflictError, validateOptions } from './cli/options';
@@ -64,7 +65,7 @@ export async function handleMainCommand(
     validated = validateOptions(opts);
   } catch (error) {
     if (error instanceof OptionConflictError) {
-      process.stderr.write(`error: ${error.message}\n`);
+      process.stderr.write(tln('cli.runtime.main.errorPrefix', { message: error.message }));
       process.exit(1);
     }
     throw error;
@@ -139,6 +140,11 @@ export function main(): void {
 
   const version = getVersion();
 
+  // Apply the user's CLI locale before building the program so commander help
+  // text, option descriptions, and subcommand summaries render in the user's
+  // language. Defaults to English; switches to Korean for ko* locales.
+  setCliLocale(detectCliLocale(process.env));
+
   const program = createProgram(
     version,
     (opts) => {
@@ -160,7 +166,9 @@ export function main(): void {
               operation,
             }),
           );
-          process.stderr.write(`See log: ${resolveGlobalLogPath(resolveLioraHome())}\n`);
+          process.stderr.write(
+            tln('cli.runtime.main.seeLog', { path: resolveGlobalLogPath(resolveLioraHome()) }),
+          );
           process.exit(1);
         });
     },
@@ -175,7 +183,9 @@ export function main(): void {
       void handleUpgradeCommand(version).catch(async (error: unknown) => {
         await logStartupFailure('upgrade', error);
         process.stderr.write(formatStartupError(error, { operation: 'upgrade' }));
-        process.stderr.write(`See log: ${resolveGlobalLogPath(resolveLioraHome())}\n`);
+        process.stderr.write(
+          tln('cli.runtime.main.seeLog', { path: resolveGlobalLogPath(resolveLioraHome()) }),
+        );
         process.exit(1);
       });
     },

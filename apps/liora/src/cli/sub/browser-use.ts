@@ -6,6 +6,7 @@ import {
   type SetupCommandResult,
 } from '@superliora/gui-use';
 import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 import { getHostPackageRoot } from '#/cli/version';
 
@@ -31,32 +32,32 @@ export function registerBrowserUseCommand(
 ): void {
   const command = parent
     .command('browser-use')
-    .description('Manage the local CloakBrowser browser-use runtime.');
+    .description(t('cli.sub.browserUse.description'));
 
   command
     .command('install')
-    .description('Pre-download the CloakBrowser binary cache.')
+    .description(t('cli.sub.browserUse.cmd.install.desc'))
     .action(async () => {
       await runBrowserUseCommand(deps, 'install');
     });
 
   command
     .command('update')
-    .description('Update the CloakBrowser binary cache.')
+    .description(t('cli.sub.browserUse.cmd.update.desc'))
     .action(async () => {
       await runBrowserUseCommand(deps, 'update');
     });
 
   command
     .command('status')
-    .description('Print CloakBrowser runtime status.')
+    .description(t('cli.sub.browserUse.cmd.status.desc'))
     .action(async () => {
       await runBrowserUseCommand(deps, 'status');
     });
 
   command
     .command('doctor')
-    .description('Diagnose the CloakBrowser browser-use runtime.')
+    .description(t('cli.sub.browserUse.cmd.doctor.desc'))
     .action(async () => {
       await runBrowserUseCommand(deps, 'doctor');
     });
@@ -77,13 +78,15 @@ export async function handleBrowserUseCommand(
 
   if (result.ok) {
     if (action === 'doctor') {
-      resolved.stdout.write('Browser-use doctor passed.\n');
+      resolved.stdout.write(tln('cli.runtime.browserUse.doctorPassed'));
     }
     return 0;
   }
 
   const command = action === 'update' ? 'liora browser-use update' : 'liora browser-use install';
-  resolved.stderr.write(`Browser-use ${action} failed. Retry with \`${command}\`.\n`);
+  resolved.stderr.write(
+    tln('cli.runtime.browserUse.actionFailed', { action, command }),
+  );
   return 1;
 }
 

@@ -14,6 +14,7 @@ import {
   withTelemetryContext,
 } from '@superliora/telemetry';
 
+import { tln } from '#/cli/i18n';
 import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';
 import type { TuiConfig } from '#/tui/config';
 import { loadTuiConfig, TuiConfigParseError } from '#/tui/config';
@@ -121,7 +122,7 @@ export async function runShell(opts: CLIOptions, version: string): Promise<void>
     trackLifecycle('exit', { duration_s: (Date.now() - startedAt) / 1000 });
     await shutdownTelemetry({ timeoutMs: CLI_SHUTDOWN_TIMEOUT_MS });
     const gutter = ' '.repeat(CHROME_GUTTER);
-    process.stdout.write(`${gutter}Bye!\n`);
+    process.stdout.write(`${gutter}${tln('cli.runtime.shell.bye').trimEnd()}\n`);
     const hints: string[] = [];
     if (sessionId !== '' && hasContent) {
       hints.push(`${gutter}To resume this session: liora -r ${sessionId}`);

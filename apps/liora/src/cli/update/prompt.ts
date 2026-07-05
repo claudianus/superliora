@@ -3,6 +3,7 @@ import { clearLine, cursorTo, emitKeypressEvents, moveCursor } from 'node:readli
 import chalk from 'chalk';
 
 import { PRODUCT_NAME } from '#/constant/app';
+import { t } from '#/cli/i18n';
 import { HIDE_CURSOR, SHOW_CURSOR } from '#/constant/terminal';
 import {
   UPDATE_PROMPT_MUTED,
@@ -32,13 +33,13 @@ export interface InstallPromptOptions {
   readonly output?: NodeJS.WriteStream;
 }
 
-const INSTALL_HINT = 'Install update now';
-const SKIP_HINT = 'Continue with current version';
+const INSTALL_HINT = () => t('cli.runtime.update.prompt.installHint');
+const SKIP_HINT = () => t('cli.runtime.update.prompt.skipHint');
 
 export function createInstallPromptChoices(target: UpdateTarget): readonly InstallPromptChoice[] {
   return [
-    { value: 'install', label: `${INSTALL_HINT} (${target.version})` },
-    { value: 'skip', label: SKIP_HINT },
+    { value: 'install', label: `${INSTALL_HINT()} (${target.version})` },
+    { value: 'skip', label: SKIP_HINT() },
   ];
 }
 
@@ -68,18 +69,24 @@ function renderInstallPrompt(
   const targetVersion = chalk.hex(UPDATE_PROMPT_SUCCESS).bold(options.target.version);
   const sourceLabel = chalk.hex(UPDATE_PROMPT_PRIMARY).bold(options.installSource);
   const command = chalk.hex(UPDATE_PROMPT_PRIMARY)(options.installCommand);
-  const changelogText = chalk.hex(UPDATE_PROMPT_PRIMARY).underline(`View changelog: ${CHANGELOG_URL}`);
+  const changelogText = chalk.hex(UPDATE_PROMPT_PRIMARY).underline(
+    t('cli.runtime.update.prompt.changelog', { url: CHANGELOG_URL }),
+  );
   const lines = [
-    chalk.hex(UPDATE_PROMPT_PRIMARY).bold(`${PRODUCT_NAME} Update Available`),
-    chalk.hex(UPDATE_PROMPT_MUTED)(`${PRODUCT_NAME} has a newer release ready.`),
+    chalk.hex(UPDATE_PROMPT_PRIMARY).bold(
+      t('cli.runtime.update.prompt.title', { product: PRODUCT_NAME }),
+    ),
+    chalk.hex(UPDATE_PROMPT_MUTED)(
+      t('cli.runtime.update.prompt.subtitle', { product: PRODUCT_NAME }),
+    ),
     `]8;;${CHANGELOG_URL}\\${changelogText}]8;;\\`,
     '',
-    `${label('Current')}  ${currentVersion}`,
-    `${label('Target ')}  ${targetVersion}`,
-    `${label('Source ')}  ${sourceLabel}`,
-    `${label('Command')}  ${command}`,
+    `${label(t('cli.runtime.update.prompt.labelCurrent'))}  ${currentVersion}`,
+    `${label(t('cli.runtime.update.prompt.labelTarget'))}  ${targetVersion}`,
+    `${label(t('cli.runtime.update.prompt.labelSource'))}  ${sourceLabel}`,
+    `${label(t('cli.runtime.update.prompt.labelCommand'))}  ${command}`,
     '',
-    chalk.hex(UPDATE_PROMPT_MUTED)('↑↓ choose · Enter confirm · Esc continue'),
+    chalk.hex(UPDATE_PROMPT_MUTED)(t('cli.runtime.update.prompt.hints')),
     '',
   ];
 
@@ -87,7 +94,7 @@ function renderInstallPrompt(
     const choice = choices[i];
     if (choice === undefined) continue;
     const isSelected = i === selectedIndex;
-    const pointer = isSelected ? '❯' : ' ';
+    const pointer = isSelected ? '?' : ' ';
     const content = ` ${pointer} ${choice.label}`;
     if (isSelected) {
       lines.push(chalk.hex(UPDATE_PROMPT_PRIMARY).bold(content));

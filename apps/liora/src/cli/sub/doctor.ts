@@ -8,6 +8,7 @@ import {
   type LioraConfigValidationIssue,
 } from '@superliora/sdk';
 import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 import { z } from 'zod';
 
 import { getTuiConfigPath, parseTuiConfig } from '#/tui/config';
@@ -81,23 +82,23 @@ export async function handleDoctor(deps: DoctorDeps, options: DoctorOptions): Pr
 export function registerDoctorCommand(parent: Command, deps?: Partial<DoctorDeps>): void {
   const doctor = parent
     .command('doctor')
-    .description('Validate SuperLiora configuration files.')
+    .description(t('cli.sub.doctor.description'))
     .action(async () => {
       await runDoctorCommand(deps, {});
     });
 
   doctor
     .command('config')
-    .description('Validate config.toml.')
-    .argument('[path]', 'Validate this file as config.toml instead of the default path.')
+    .description(t('cli.sub.doctor.cmd.config.desc'))
+    .argument('[path]', t('cli.sub.doctor.arg.configPath'))
     .action(async (path: string | undefined) => {
       await runDoctorCommand(deps, { target: 'config', path });
     });
 
   doctor
     .command('tui')
-    .description('Validate tui.toml.')
-    .argument('[path]', 'Validate this file as tui.toml instead of the default path.')
+    .description(t('cli.sub.doctor.cmd.tui.desc'))
+    .argument('[path]', t('cli.sub.doctor.arg.tuiPath'))
     .action(async (path: string | undefined) => {
       await runDoctorCommand(deps, { target: 'tui', path });
     });
@@ -197,8 +198,8 @@ async function checkTomlFile(deps: ResolvedDoctorDeps, spec: CheckSpec): Promise
       path: spec.path,
       status: spec.explicit ? 'ERROR' : 'SKIP',
       message: spec.explicit
-        ? 'File does not exist.'
-        : 'File does not exist; built-in defaults will apply.',
+        ? t('cli.runtime.doctor.fileMissing')
+        : t('cli.runtime.doctor.fileMissingDefaults'),
     };
   }
 
@@ -238,18 +239,23 @@ function resolveInputPath(input: string, cwd: string): string {
 
 function formatSuccess(results: readonly CheckResult[]): string {
   return [
-    'Liora doctor',
+    t('cli.runtime.doctor.title'),
     '',
     ...formatResults(results),
     '',
-    'All checked config files are valid.',
+    t('cli.runtime.doctor.allValid'),
     '',
   ].join('\n');
 }
 
 function formatFailure(results: readonly CheckResult[], issueCount: number): string {
+  const issueWord =
+    issueCount === 1 ? t('cli.runtime.doctor.issue') : t('cli.runtime.doctor.issues');
   return [
-    `Liora doctor found ${String(issueCount)} ${issueCount === 1 ? 'issue' : 'issues'}.`,
+    t('cli.runtime.doctor.foundIssues', {
+      count: String(issueCount),
+      issueWord,
+    }),
     '',
     ...formatResults(results),
     '',
@@ -273,8 +279,8 @@ function formatErrorMessage(error: unknown, filePath: string): string {
   const validationIssues = findValidationIssues(error);
   if (validationIssues !== undefined) {
     return [
-      `Invalid configuration in ${filePath}.`,
-      'Validation issues:',
+      t('cli.runtime.doctor.invalidConfig', { path: filePath }),
+      t('cli.runtime.doctor.validationIssues'),
       ...validationIssues.map((issue) => `  ${formatIssuePath(issue.path)}: ${issue.message}`),
     ].join('\n');
   }
@@ -282,8 +288,8 @@ function formatErrorMessage(error: unknown, filePath: string): string {
   const zodError = findZodError(error);
   if (zodError !== undefined) {
     return [
-      `Invalid configuration in ${filePath}.`,
-      'Validation issues:',
+      t('cli.runtime.doctor.invalidConfig', { path: filePath }),
+      t('cli.runtime.doctor.validationIssues'),
       ...zodError.issues.map((issue) => `  ${formatIssuePath(issue.path)}: ${issue.message}`),
     ].join('\n');
   }

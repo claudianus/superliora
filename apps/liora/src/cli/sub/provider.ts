@@ -37,6 +37,7 @@ import {
   type ProviderRouteStatus,
 } from '@superliora/sdk';
 import type { Command } from 'commander';
+import { t, tln } from '#/cli/i18n';
 
 import { createLioraHostIdentity } from '#/cli/version';
 import {
@@ -46,6 +47,38 @@ import {
 
 interface WritableLike {
   write(chunk: string): boolean;
+}
+
+function writeProviderErr(deps: ProviderDeps, key: string, params?: Record<string, string | number>): void {
+  deps.stderr.write(tln(key, params));
+}
+function writeProviderOut(deps: ProviderDeps, key: string, params?: Record<string, string | number>): void {
+  deps.stdout.write(tln(key, params));
+}
+
+function providerUnit(count: number): string {
+  return t(count === 1 ? 'cli.runtime.provider.unit.provider' : 'cli.runtime.provider.unit.providers');
+}
+function modelUnit(count: number): string {
+  return t(count === 1 ? 'cli.runtime.provider.unit.model' : 'cli.runtime.provider.unit.models');
+}
+function apiKeyWord(count: number): string {
+  return t(count === 1 ? 'cli.runtime.provider.unit.apiKeyWord' : 'cli.runtime.provider.unit.apiKeysWord');
+}
+function oauthRefWord(count: number): string {
+  return t(count === 1 ? 'cli.runtime.provider.unit.oauthRef' : 'cli.runtime.provider.unit.oauthRefs');
+}
+function aliasWord(count: number): string {
+  return t(count === 1 ? 'cli.runtime.provider.unit.alias' : 'cli.runtime.provider.unit.aliases');
+}
+function doctorErrorWord(count: number): string {
+  return t(count === 1 ? 'cli.runtime.provider.unit.error' : 'cli.runtime.provider.unit.errors');
+}
+function doctorWarningWord(count: number): string {
+  return t(count === 1 ? 'cli.runtime.provider.unit.warning' : 'cli.runtime.provider.unit.warnings');
+}
+function routeRole(index: number): string {
+  return t(index === 0 ? 'cli.runtime.provider.rolePrimary' : 'cli.runtime.provider.roleFallback');
 }
 
 export interface ProviderDeps {
@@ -241,15 +274,13 @@ export async function handleProviderAdd(
 ): Promise<void> {
   const apiKey = resolveApiKey(opts.apiKey, deps.env);
   if (apiKey === undefined) {
-    deps.stderr.write(
-      'Missing API key. Pass --api-key <key> or set KIMI_REGISTRY_API_KEY.\n',
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.missingRegistryApiKey');
     deps.exit(1);
   }
 
   const trimmedUrl = url.trim();
   if (trimmedUrl.length === 0) {
-    deps.stderr.write('Registry URL is required.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.registryUrlRequired');
     deps.exit(1);
   }
 
@@ -266,14 +297,16 @@ export async function handleProviderAdd(
   try {
     entries = await fetchCustomRegistry(source);
   } catch (error) {
-    const suffix = error instanceof CustomRegistryApiError ? ` (HTTP ${String(error.status)})` : '';
-    deps.stderr.write(`Failed to fetch registry${suffix}: ${errorMessage(error)}\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.fetchRegistryFailed', {
+      suffix: error instanceof CustomRegistryApiError ? ` (HTTP ${String(error.status)})` : '',
+      error: errorMessage(error),
+    });
     deps.exit(1);
   }
 
   const entryList = Object.values(entries);
   if (entryList.length === 0) {
-    deps.stderr.write(`Registry at ${trimmedUrl} contained no usable providers.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.registryEmpty', { url: trimmedUrl });
     deps.exit(1);
   }
 
@@ -303,12 +336,15 @@ export async function handleProviderAdd(
     models: config.models,
   });
 
-  deps.stdout.write(
-    `Imported ${String(addedProviderIds.length)} provider${addedProviderIds.length === 1 ? '' : 's'} ` +
-      `(${String(modelCount)} model${modelCount === 1 ? '' : 's'}) from ${trimmedUrl}:\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.importedHeader', {
+    count: String(addedProviderIds.length),
+    providerUnit: providerUnit(addedProviderIds.length),
+    modelCount: String(modelCount),
+    modelUnit: modelUnit(modelCount),
+    url: trimmedUrl,
+  });
   for (const id of addedProviderIds) {
-    deps.stdout.write(`  - ${id}\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.importedItem', { id });
   }
 }
 
@@ -320,11 +356,11 @@ export async function handleProviderRemove(
   await harness.ensureConfigFile();
   const config = await harness.getConfig();
   if (config.providers[providerId] === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   await harness.removeProvider(providerId);
-  deps.stdout.write(`Removed provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.removed', { providerId });
 }
 
 export async function handleProviderList(
@@ -360,7 +396,7 @@ export async function handleProviderList(
 
   const providerIds = Object.keys(config.providers).toSorted();
   if (providerIds.length === 0) {
-    deps.stdout.write('No providers configured.\n');
+    writeProviderOut(deps, 'cli.runtime.provider.noProvidersConfigured');
     return;
   }
 
@@ -368,21 +404,24 @@ export async function handleProviderList(
     const provider = config.providers[id]!;
     const aliases = modelsByProvider.get(id) ?? [];
     const sourceLabel = providerSourceLabel(provider);
-    deps.stdout.write(
-      `${id}  type=${provider.type}  models=${String(aliases.length)}  ` +
-        `keys=${String(providerApiKeyCount(provider))}  source=${sourceLabel}\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.listLine', {
+      id,
+      type: provider.type,
+      modelCount: String(aliases.length),
+      keyCount: String(providerApiKeyCount(provider)),
+      source: sourceLabel,
+    });
     if (aliases.length > 0) {
       const labels = aliases
         .toSorted()
         .map((alias) => formatAliasListLabel(alias, models[alias]));
-      deps.stdout.write(`  aliases: ${labels.join(', ')}\n`);
+      writeProviderOut(deps, 'cli.runtime.provider.listAliases', { aliases: labels.join(', ') });
     }
   }
   if (config.defaultModel !== undefined) {
-    deps.stdout.write(
-      `\nDefault model: ${formatModelSelectionLabel(config.defaultModel, models[config.defaultModel])}\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.listDefaultModel', {
+      label: formatModelSelectionLabel(config.defaultModel, models[config.defaultModel]),
+    });
   }
 }
 
@@ -412,7 +451,7 @@ export async function handleProviderUse(
 ): Promise<void> {
   const alias = modelAlias.trim();
   if (alias.length === 0) {
-    deps.stderr.write('Model alias is required.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.modelAliasRequired');
     deps.exit(1);
   }
 
@@ -421,20 +460,21 @@ export async function handleProviderUse(
   const config = await harness.getConfig();
   const model = config.models?.[alias];
   if (model === undefined) {
-    deps.stderr.write(
-      `Model "${alias}" not found. Run \`liora provider list --json\` to see configured model aliases.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.modelNotFoundListHint', { alias });
     deps.exit(1);
   }
   if (config.providers[model.provider] === undefined) {
-    deps.stderr.write(
-      `Model "${alias}" points at missing provider "${model.provider}". Run \`liora provider\` to inspect configured providers.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.modelMissingProvider', {
+      alias,
+      provider: model.provider,
+    });
     deps.exit(1);
   }
 
   await harness.setConfig({ defaultModel: alias });
-  deps.stdout.write(`Default model set to ${formatModelSelectionLabel(alias, model)}.\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.defaultModelSet', {
+    label: formatModelSelectionLabel(alias, model),
+  });
 }
 
 export async function handleProviderCustomAdd(
@@ -444,12 +484,12 @@ export async function handleProviderCustomAdd(
 ): Promise<void> {
   const baseUrl = opts.baseUrl?.trim();
   if (baseUrl === undefined || baseUrl.length === 0) {
-    deps.stderr.write('Missing base URL. Pass --base-url <url>.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.missingBaseUrl');
     deps.exit(1);
   }
   const modelId = opts.model?.trim();
   if (modelId === undefined || modelId.length === 0) {
-    deps.stderr.write('Missing model id. Pass --model <modelId>.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.missingModelId');
     deps.exit(1);
   }
   const apiKey = resolveProviderApiKeySource(
@@ -457,10 +497,7 @@ export async function handleProviderCustomAdd(
     deps,
   );
   if (apiKey === undefined && opts.keyless !== true) {
-    deps.stderr.write(
-      'Missing API key. Pass --api-key <key>, --api-key-env <name>, set KIMI_PROVIDER_API_KEY, ' +
-        'or use --keyless for local endpoints.\n',
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.missingCustomApiKey');
     deps.exit(1);
   }
 
@@ -479,7 +516,7 @@ export async function handleProviderCustomAdd(
   const config = await harness.getConfig();
   const existingProvider = config.providers[providerId];
   if (existingProvider !== undefined && providerHasOAuth(existingProvider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; choose a different provider id.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthChooseDifferentId', { providerId });
     deps.exit(1);
   }
 
@@ -508,11 +545,12 @@ export async function handleProviderCustomAdd(
     models: config.models,
     defaultModel: config.defaultModel,
   });
-  deps.stdout.write(
-    `Added custom endpoint provider "${applied.providerId}" with model "${applied.modelAlias}".\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.customEndpointAdded', {
+    providerId: applied.providerId,
+    modelAlias: applied.modelAlias,
+  });
   if (opts.setDefault === true) {
-    deps.stdout.write(`Default model set to ${applied.modelAlias}.\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.defaultModelSetAlias', { alias: applied.modelAlias });
   }
 }
 
@@ -523,9 +561,7 @@ export async function handleProviderKeyAdd(
 ): Promise<void> {
   const apiKeys = resolveProviderApiKeySources(opts, deps);
   if (apiKeys.length === 0) {
-    deps.stderr.write(
-      'Missing API key. Pass --api-key <key>, --api-keys <keys>, --api-key-env <name>, --api-key-envs <names>, or set KIMI_PROVIDER_API_KEY.\n',
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.missingKeyAddApiKey');
     deps.exit(1);
   }
 
@@ -534,11 +570,11 @@ export async function handleProviderKeyAdd(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasOAuth(provider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; API keys cannot be mixed into it.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyMixed', { providerId });
     deps.exit(1);
   }
 
@@ -560,7 +596,10 @@ export async function handleProviderKeyAdd(
     if (autoRoute?.models !== undefined) {
       await harness.setConfig({ models: autoRoute.models });
     }
-    deps.stdout.write(`API key${apiKeys.length === 1 ? '' : 's'} already configured for provider "${providerId}".\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.apiKeyAlreadyConfigured', {
+      keyWord: apiKeyWord(apiKeys.length),
+      providerId,
+    });
     writeProviderAutoRouteSummary(deps, providerId, autoRoute);
     return;
   }
@@ -578,11 +617,14 @@ export async function handleProviderKeyAdd(
     models: autoRoute?.models,
   });
   if (apiKeys.length === 1) {
-    deps.stdout.write(`Added API key to provider "${providerId}".\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.apiKeyAdded', { providerId });
     writeProviderAutoRouteSummary(deps, providerId, autoRoute);
     return;
   }
-  deps.stdout.write(`Added ${String(apiKeys.length)} API keys to provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.apiKeysAdded', {
+    count: String(apiKeys.length),
+    providerId,
+  });
   writeProviderAutoRouteSummary(deps, providerId, autoRoute);
 }
 
@@ -595,30 +637,36 @@ export async function handleProviderKeyList(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
 
   const slots = providerApiKeySlots(provider);
   if (slots.length === 0) {
-    deps.stdout.write(`Provider "${providerId}" has no configured API keys.\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.noApiKeys', { providerId });
     return;
   }
 
-  deps.stdout.write(
-    `Provider "${providerId}" has ${String(slots.length)} configured ` +
-      `API key${slots.length === 1 ? '' : 's'}:\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.apiKeysHeader', {
+    providerId,
+    count: String(slots.length),
+    keyWord: apiKeyWord(slots.length),
+  });
   for (let index = 0; index < slots.length; index += 1) {
     const slot = slots[index]!;
-    const role = index === 0 ? 'primary' : 'fallback';
+    const role = routeRole(index);
     const labelText = slot.label === undefined ? '' : `  label=${slot.label}`;
     const rpmText = slot.rpm === undefined ? '' : `  rpm=${String(slot.rpm)}`;
     const tpmText = slot.tpm === undefined ? '' : `  tpm=${String(slot.tpm)}`;
     const baseUrlText = slot.baseUrl === undefined ? '' : `  base_url=${slot.baseUrl}`;
-    deps.stdout.write(
-      `  #${String(index + 1)}  ${role}${labelText}${rpmText}${tpmText}${baseUrlText}\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.apiKeyListLine', {
+      index: String(index + 1),
+      role,
+      labelText,
+      rpmText,
+      tpmText,
+      baseUrlText,
+    });
   }
 }
 
@@ -633,20 +681,20 @@ export async function handleProviderKeyRemove(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasOAuth(provider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; API keys cannot be removed from it.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotRemove', { providerId });
     deps.exit(1);
   }
 
   const slots = providerApiKeySlots(provider);
   if (index < 1 || index > slots.length) {
-    deps.stderr.write(
-      `API key #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider key list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.apiKeyNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
 
@@ -657,7 +705,7 @@ export async function handleProviderKeyRemove(
       [providerId]: rewriteProviderApiKeySlots(provider, nextSlots),
     },
   });
-  deps.stdout.write(`Removed API key #${String(index)} from provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.apiKeyRemoved', { index: String(index), providerId });
 }
 
 export async function handleProviderKeyPromote(
@@ -671,24 +719,24 @@ export async function handleProviderKeyPromote(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasOAuth(provider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; API keys cannot be promoted.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotPromote', { providerId });
     deps.exit(1);
   }
 
   const slots = providerApiKeySlots(provider);
   if (index < 1 || index > slots.length) {
-    deps.stderr.write(
-      `API key #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider key list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.apiKeyNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
   if (index === 1) {
-    deps.stdout.write(`API key #1 is already primary for provider "${providerId}".\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.apiKeyAlreadyPrimary', { providerId });
     return;
   }
 
@@ -698,7 +746,10 @@ export async function handleProviderKeyPromote(
       [providerId]: rewriteProviderApiKeySlots(provider, promoteSlot(slots, index - 1)),
     },
   });
-  deps.stdout.write(`Promoted API key #${String(index)} to primary for provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.apiKeyPromoted', {
+    index: String(index),
+    providerId,
+  });
 }
 
 export async function handleProviderKeyLabel(
@@ -714,20 +765,20 @@ export async function handleProviderKeyLabel(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasOAuth(provider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; API keys cannot be labeled.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotLabel', { providerId });
     deps.exit(1);
   }
 
   const slots = providerApiKeySlots(provider);
   if (index < 1 || index > slots.length) {
-    deps.stderr.write(
-      `API key #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider key list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.apiKeyNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
   const duplicate = slots.find(
@@ -735,7 +786,7 @@ export async function handleProviderKeyLabel(
       slotIndex !== index - 1 && slot.label?.toLowerCase() === label.toLowerCase(),
   );
   if (duplicate !== undefined) {
-    deps.stderr.write(`Credential label "${label}" is already used by another API key.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.credentialLabelDuplicate', { label });
     deps.exit(1);
   }
 
@@ -748,9 +799,11 @@ export async function handleProviderKeyLabel(
       [providerId]: rewriteProviderApiKeySlots(provider, nextSlots),
     },
   });
-  deps.stdout.write(
-    `Labeled API key #${String(index)} for provider "${providerId}" as "${label}".\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.apiKeyLabeled', {
+    index: String(index),
+    providerId,
+    label,
+  });
 }
 
 export async function handleProviderKeyUnlabel(
@@ -764,24 +817,27 @@ export async function handleProviderKeyUnlabel(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasOAuth(provider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; API keys cannot be unlabeled.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotUnlabel', { providerId });
     deps.exit(1);
   }
 
   const slots = providerApiKeySlots(provider);
   if (index < 1 || index > slots.length) {
-    deps.stderr.write(
-      `API key #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider key list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.apiKeyNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
   if (slots[index - 1]?.label === undefined) {
-    deps.stdout.write(`API key #${String(index)} for provider "${providerId}" has no label.\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.apiKeyNoLabel', {
+      index: String(index),
+      providerId,
+    });
     return;
   }
 
@@ -794,7 +850,10 @@ export async function handleProviderKeyUnlabel(
       [providerId]: rewriteProviderApiKeySlots(provider, nextSlots),
     },
   });
-  deps.stdout.write(`Removed label from API key #${String(index)} for provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.apiKeyLabelRemoved', {
+    index: String(index),
+    providerId,
+  });
 }
 
 export async function handleProviderKeyLimit(
@@ -804,11 +863,11 @@ export async function handleProviderKeyLimit(
   opts: KeyLimitOptions,
 ): Promise<void> {
   if (opts.rpm === undefined && opts.tpm === undefined && opts.clear !== true) {
-    deps.stderr.write('Nothing to update. Pass --rpm, --tpm, or --clear.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.keyLimitNothingToUpdate');
     deps.exit(1);
   }
   if (opts.clear === true && (opts.rpm !== undefined || opts.tpm !== undefined)) {
-    deps.stderr.write('Pass either --clear or limit values, not both.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.keyLimitClearOrValues');
     deps.exit(1);
   }
 
@@ -818,20 +877,20 @@ export async function handleProviderKeyLimit(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasOAuth(provider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; API key limits cannot be changed.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyLimitsCannotChange', { providerId });
     deps.exit(1);
   }
 
   const slots = providerApiKeySlots(provider);
   if (index < 1 || index > slots.length) {
-    deps.stderr.write(
-      `API key #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider key list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.apiKeyNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
 
@@ -858,14 +917,16 @@ export async function handleProviderKeyLimit(
     },
   });
   if (opts.clear === true) {
-    deps.stdout.write(
-      `Cleared local limits for API key #${String(index)} on provider "${providerId}".\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.keyLimitsCleared', {
+      index: String(index),
+      providerId,
+    });
     return;
   }
-  deps.stdout.write(
-    `Updated local limits for API key #${String(index)} on provider "${providerId}".\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.keyLimitsUpdated', {
+    index: String(index),
+    providerId,
+  });
 }
 
 export async function handleProviderKeyClear(
@@ -877,11 +938,11 @@ export async function handleProviderKeyClear(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasOAuth(provider)) {
-    deps.stderr.write(`Provider "${providerId}" uses OAuth; API keys cannot be removed from it.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotRemove', { providerId });
     deps.exit(1);
   }
 
@@ -891,7 +952,7 @@ export async function handleProviderKeyClear(
       [providerId]: rewriteProviderApiKeySlots(provider, []),
     },
   });
-  deps.stdout.write(`Removed all API keys from provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.allApiKeysRemoved', { providerId });
 }
 
 export async function handleProviderOAuthAdd(
@@ -901,7 +962,7 @@ export async function handleProviderOAuthAdd(
 ): Promise<void> {
   const key = nonEmptyString(opts.key);
   if (key === undefined) {
-    deps.stderr.write('Missing OAuth storage key. Pass --key <key>.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.missingOAuthStorageKey');
     deps.exit(1);
   }
   const storage = parseOAuthStorage(opts.storage ?? 'file', deps);
@@ -920,13 +981,11 @@ export async function handleProviderOAuthAdd(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasApiKeySource(provider)) {
-    deps.stderr.write(
-      `Provider "${providerId}" uses API keys; OAuth accounts cannot be mixed into it.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyMixedInto', { providerId });
     deps.exit(1);
   }
 
@@ -936,7 +995,7 @@ export async function handleProviderOAuthAdd(
     if (autoRoute?.models !== undefined) {
       await harness.setConfig({ models: autoRoute.models });
     }
-    deps.stdout.write(`OAuth account ref is already configured for provider "${providerId}".\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.oauthRefAlreadyConfigured', { providerId });
     writeProviderAutoRouteSummary(deps, providerId, autoRoute);
     return;
   }
@@ -953,7 +1012,7 @@ export async function handleProviderOAuthAdd(
     providers: nextConfig.providers,
     models: autoRoute?.models,
   });
-  deps.stdout.write(`Added OAuth account ref to provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.oauthRefAdded', { providerId });
   writeProviderAutoRouteSummary(deps, providerId, autoRoute);
 }
 
@@ -966,28 +1025,33 @@ export async function handleProviderOAuthList(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
 
   const refs = providerOAuthRefs(provider);
   if (refs.length === 0) {
-    deps.stdout.write(`Provider "${providerId}" has no configured OAuth account refs.\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.noOAuthRefs', { providerId });
     return;
   }
 
-  deps.stdout.write(
-    `Provider "${providerId}" has ${String(refs.length)} configured ` +
-      `OAuth account ref${refs.length === 1 ? '' : 's'}:\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.oauthRefsHeader', {
+    providerId,
+    count: String(refs.length),
+    refWord: oauthRefWord(refs.length),
+  });
   for (let index = 0; index < refs.length; index += 1) {
     const ref = refs[index]!;
-    const role = index === 0 ? 'primary' : 'fallback';
+    const role = routeRole(index);
     const labelText = ref.label === undefined ? '' : `  label=${ref.label}`;
-    deps.stdout.write(
-      `  #${String(index + 1)}  ${role}${labelText}  storage=${ref.storage}  ` +
-        `host=${ref.oauthHost ?? '(default)'}  fingerprint=${fingerprintOAuthRef(ref)}\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.oauthListLine', {
+      index: String(index + 1),
+      role,
+      labelText,
+      storage: ref.storage,
+      host: ref.oauthHost ?? '(default)',
+      fingerprint: fingerprintOAuthRef(ref),
+    });
   }
 }
 
@@ -1002,16 +1066,16 @@ export async function handleProviderOAuthRemove(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
 
   const refs = providerOAuthRefs(provider);
   if (index < 1 || index > refs.length) {
-    deps.stderr.write(
-      `OAuth account ref #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider oauth list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthRefNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
 
@@ -1022,7 +1086,10 @@ export async function handleProviderOAuthRemove(
       [providerId]: rewriteProviderOAuthRefs(provider, nextRefs),
     },
   });
-  deps.stdout.write(`Removed OAuth account ref #${String(index)} from provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.oauthRefRemoved', {
+    index: String(index),
+    providerId,
+  });
 }
 
 export async function handleProviderOAuthPromote(
@@ -1036,26 +1103,24 @@ export async function handleProviderOAuthPromote(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasApiKeySource(provider)) {
-    deps.stderr.write(
-      `Provider "${providerId}" uses API keys; OAuth accounts cannot be promoted.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotPromoteOAuth', { providerId });
     deps.exit(1);
   }
 
   const refs = providerOAuthRefs(provider);
   if (index < 1 || index > refs.length) {
-    deps.stderr.write(
-      `OAuth account ref #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider oauth list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthRefNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
   if (index === 1) {
-    deps.stdout.write(`OAuth account ref #1 is already primary for provider "${providerId}".\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.oauthRefAlreadyPrimary', { providerId });
     return;
   }
 
@@ -1065,9 +1130,10 @@ export async function handleProviderOAuthPromote(
       [providerId]: rewriteProviderOAuthRefs(provider, promoteSlot(refs, index - 1)),
     },
   });
-  deps.stdout.write(
-    `Promoted OAuth account ref #${String(index)} to primary for provider "${providerId}".\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.oauthRefPromoted', {
+    index: String(index),
+    providerId,
+  });
 }
 
 export async function handleProviderOAuthLabel(
@@ -1083,22 +1149,20 @@ export async function handleProviderOAuthLabel(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasApiKeySource(provider)) {
-    deps.stderr.write(
-      `Provider "${providerId}" uses API keys; OAuth account refs cannot be labeled.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotLabelOAuth', { providerId });
     deps.exit(1);
   }
 
   const refs = providerOAuthRefs(provider);
   if (index < 1 || index > refs.length) {
-    deps.stderr.write(
-      `OAuth account ref #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider oauth list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthRefNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
   const duplicate = refs.find(
@@ -1106,7 +1170,7 @@ export async function handleProviderOAuthLabel(
       refIndex !== index - 1 && ref.label?.toLowerCase() === label.toLowerCase(),
   );
   if (duplicate !== undefined) {
-    deps.stderr.write(`OAuth label "${label}" is already used by another account ref.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.oauthLabelDuplicate', { label });
     deps.exit(1);
   }
 
@@ -1119,9 +1183,11 @@ export async function handleProviderOAuthLabel(
       [providerId]: rewriteProviderOAuthRefs(provider, nextRefs),
     },
   });
-  deps.stdout.write(
-    `Labeled OAuth account ref #${String(index)} for provider "${providerId}" as "${label}".\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.oauthRefLabeled', {
+    index: String(index),
+    providerId,
+    label,
+  });
 }
 
 export async function handleProviderOAuthUnlabel(
@@ -1135,28 +1201,27 @@ export async function handleProviderOAuthUnlabel(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
   if (providerHasApiKeySource(provider)) {
-    deps.stderr.write(
-      `Provider "${providerId}" uses API keys; OAuth account refs cannot be unlabeled.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthApiKeyCannotUnlabelOAuth', { providerId });
     deps.exit(1);
   }
 
   const refs = providerOAuthRefs(provider);
   if (index < 1 || index > refs.length) {
-    deps.stderr.write(
-      `OAuth account ref #${String(index)} not found for provider "${providerId}". ` +
-        `Run \`liora provider oauth list ${providerId}\`.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.oauthRefNotFound', {
+      index: String(index),
+      providerId,
+    });
     deps.exit(1);
   }
   if (refs[index - 1]?.label === undefined) {
-    deps.stdout.write(
-      `OAuth account ref #${String(index)} for provider "${providerId}" has no label.\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.oauthRefNoLabel', {
+      index: String(index),
+      providerId,
+    });
     return;
   }
 
@@ -1169,9 +1234,10 @@ export async function handleProviderOAuthUnlabel(
       [providerId]: rewriteProviderOAuthRefs(provider, nextRefs),
     },
   });
-  deps.stdout.write(
-    `Removed label from OAuth account ref #${String(index)} for provider "${providerId}".\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.oauthRefLabelRemoved', {
+    index: String(index),
+    providerId,
+  });
 }
 
 export async function handleProviderOAuthClear(
@@ -1183,7 +1249,7 @@ export async function handleProviderOAuthClear(
   const config = await harness.getConfig();
   const provider = config.providers[providerId];
   if (provider === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.notFound', { providerId });
     deps.exit(1);
   }
 
@@ -1193,7 +1259,7 @@ export async function handleProviderOAuthClear(
       [providerId]: rewriteProviderOAuthRefs(provider, []),
     },
   });
-  deps.stdout.write(`Removed all OAuth account refs from provider "${providerId}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.allOAuthRefsRemoved', { providerId });
 }
 
 export async function handleProviderRouteShow(
@@ -1205,27 +1271,37 @@ export async function handleProviderRouteShow(
   const config = await harness.getConfig();
   const model = config.models?.[modelAlias];
   if (model === undefined) {
-    deps.stderr.write(`Model "${modelAlias}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.modelNotFound', { modelAlias });
     deps.exit(1);
   }
 
-  deps.stdout.write(`Route for ${modelAlias}:\n`);
-  deps.stdout.write(`  provider: ${model.provider}\n`);
-  deps.stdout.write(`  model: ${model.model}\n`);
-  deps.stdout.write(`  fallback_models: ${(model.fallbackModels ?? []).join(', ') || '(none)'}\n`);
-  deps.stdout.write(`  strategy: ${model.routing?.strategy ?? '(auto)'}\n`);
-  deps.stdout.write(`  weights: ${formatRouteWeights(model.routing?.weights)}\n`);
-  deps.stdout.write(
-    `  session_affinity: ${model.routing?.sessionAffinity === true ? 'on' : 'off'}\n`,
-  );
-  deps.stdout.write(
-    `  preferred_credential: ${model.routing?.preferredCredential ?? '(none)'}\n`,
-  );
-  deps.stdout.write(
-    `  cooldown_ms: ${
-      model.routing?.cooldownMs === undefined ? '(default)' : String(model.routing.cooldownMs)
-    }\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowHeader', { modelAlias });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowProvider', { provider: model.provider });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowModel', { model: model.model });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowFallbackModels', {
+    fallbacks: (model.fallbackModels ?? []).join(', ') || t('cli.runtime.provider.valueNone'),
+  });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowStrategy', {
+    strategy: model.routing?.strategy ?? t('cli.runtime.provider.valueAuto'),
+  });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowWeights', {
+    weights: formatRouteWeights(model.routing?.weights),
+  });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowSessionAffinity', {
+    value:
+      model.routing?.sessionAffinity === true
+        ? t('cli.runtime.provider.valueOn')
+        : t('cli.runtime.provider.valueOff'),
+  });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowPreferredCredential', {
+    value: model.routing?.preferredCredential ?? t('cli.runtime.provider.valueNone'),
+  });
+  writeProviderOut(deps, 'cli.runtime.provider.routeShowCooldownMs', {
+    value:
+      model.routing?.cooldownMs === undefined
+        ? t('cli.runtime.provider.valueDefault')
+        : String(model.routing.cooldownMs),
+  });
 }
 
 export async function handleProviderRoutePreview(
@@ -1264,9 +1340,7 @@ export async function handleProviderRouteSet(
     opts.sessionAffinity === undefined &&
     opts.preferredCredential === undefined
   ) {
-    deps.stderr.write(
-      'Nothing to update. Pass --fallback, --strategy, --cooldown-ms, --weights, --session-affinity, or --prefer-credential.\n',
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.routeSetNothingToUpdate');
     deps.exit(1);
   }
 
@@ -1276,7 +1350,7 @@ export async function handleProviderRouteSet(
   const models = config.models ?? {};
   const model = models[modelAlias];
   if (model === undefined) {
-    deps.stderr.write(`Model "${modelAlias}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.modelNotFound', { modelAlias });
     deps.exit(1);
   }
 
@@ -1284,11 +1358,11 @@ export async function handleProviderRouteSet(
     opts.fallback === undefined ? model.fallbackModels : parseFallbackModels(opts.fallback);
   const missingFallback = fallbackModels?.find((alias) => models[alias] === undefined);
   if (missingFallback !== undefined) {
-    deps.stderr.write(`Fallback model "${missingFallback}" is not configured.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.fallbackModelNotConfigured', { fallback: missingFallback });
     deps.exit(1);
   }
   if (fallbackModels?.includes(modelAlias) === true) {
-    deps.stderr.write('A model cannot list itself as a fallback.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.selfFallback');
     deps.exit(1);
   }
 
@@ -1343,7 +1417,7 @@ export async function handleProviderRouteSet(
       [modelAlias]: nextModel,
     },
   });
-  deps.stdout.write(`Updated route for model "${modelAlias}".\n`);
+  writeProviderOut(deps, 'cli.runtime.provider.routeUpdated', { modelAlias });
 }
 
 export async function handleProviderRouteAuto(
@@ -1357,7 +1431,7 @@ export async function handleProviderRouteAuto(
   const models = config.models ?? {};
   const model = models[modelAlias];
   if (model === undefined) {
-    deps.stderr.write(`Model "${modelAlias}" not found.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.modelNotFound', { modelAlias });
     deps.exit(1);
   }
 
@@ -1365,11 +1439,11 @@ export async function handleProviderRouteAuto(
     opts.fallback === undefined ? model.fallbackModels : parseFallbackModels(opts.fallback);
   const missingFallback = fallbackModels?.find((alias) => models[alias] === undefined);
   if (missingFallback !== undefined) {
-    deps.stderr.write(`Fallback model "${missingFallback}" is not configured.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.fallbackModelNotConfigured', { fallback: missingFallback });
     deps.exit(1);
   }
   if (fallbackModels?.includes(modelAlias) === true) {
-    deps.stderr.write('A model cannot list itself as a fallback.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.selfFallback');
     deps.exit(1);
   }
 
@@ -1413,16 +1487,15 @@ export async function handleProviderRouteAuto(
   };
   const preview = buildRoutePreview(nextConfig, modelAlias);
   if (preview.candidates.length < 2) {
-    deps.stderr.write(
-      `Auto route for model "${modelAlias}" needs at least two candidates. Add another API key/OAuth account or pass --fallback <alias>.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.autoRouteNeedsCandidates', { modelAlias });
     deps.exit(1);
   }
 
   await harness.setConfig({ models: nextConfig.models });
-  deps.stdout.write(
-    `Enabled auto route for model "${modelAlias}" with ${String(preview.candidates.length)} candidates.\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.autoRouteEnabled', {
+    modelAlias,
+    count: String(preview.candidates.length),
+  });
   deps.stdout.write(formatRoutePreview(preview));
 }
 
@@ -1434,12 +1507,14 @@ export async function handleProviderRouteReset(
   const session = await harness.resumeSession({ id: sessionId });
   const status = await session.resetProviderRouteStatus();
   if (status === null) {
-    deps.stdout.write(`No provider route health to reset for session "${sessionId}".\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.routeResetNone', { sessionId });
     return;
   }
-  deps.stdout.write(
-    `Reset provider route health for "${status.modelAlias}" in session "${sessionId}" (${status.candidates.length} candidates).\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.routeResetDone', {
+    modelAlias: status.modelAlias,
+    sessionId,
+    count: String(status.candidates.length),
+  });
 }
 
 export async function handleProviderRouteStatus(
@@ -1455,7 +1530,7 @@ export async function handleProviderRouteStatus(
     return;
   }
   if (routeStatus === null) {
-    deps.stdout.write(`No provider route health for session "${sessionId}".\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.routeStatusNone', { sessionId });
     return;
   }
   deps.stdout.write(formatProviderRouteStatus(routeStatus, Date.now()));
@@ -1464,11 +1539,18 @@ export async function handleProviderRouteStatus(
 type ConfigModelAlias = NonNullable<LioraConfig['models']>[string];
 
 function formatProviderRouteStatus(status: ProviderRouteStatus, now: number): string {
-  const affinityText = status.sessionAffinity === true ? ', affinity=on' : '';
+  const affinityText = status.sessionAffinity === true ? t('cli.runtime.provider.routeHealthAffinityOn') : '';
   const preferredText =
-    status.preferredCredential === undefined ? '' : `, preferred=${status.preferredCredential}`;
+    status.preferredCredential === undefined
+      ? ''
+      : t('cli.runtime.provider.routeHealthPreferred', { credential: status.preferredCredential });
   const lines = [
-    `Route health for ${status.modelAlias} (strategy=${status.strategy}${affinityText}${preferredText}):`,
+    t('cli.runtime.provider.routeHealthHeader', {
+      modelAlias: status.modelAlias,
+      strategy: status.strategy,
+      affinityText,
+      preferredText,
+    }),
     ...status.candidates.map((candidate, index) =>
       formatProviderRouteCandidate(candidate, index, now),
     ),
@@ -1483,8 +1565,10 @@ function formatProviderRouteCandidate(
 ): string {
   const cooling = candidate.cooldownUntil !== undefined && candidate.cooldownUntil > now;
   const state = cooling
-    ? `cooling ${formatDuration(candidate.cooldownUntil! - now)}`
-    : 'ready';
+    ? t('cli.runtime.provider.routeHealthCooling', {
+        duration: formatDuration(candidate.cooldownUntil! - now),
+      })
+    : t('cli.runtime.provider.routeHealthReady');
   const parts = [
     `  #${String(index + 1)}`,
     state,
@@ -1567,21 +1651,21 @@ function buildProviderDoctorReport(
     addDoctorIssue(issues, {
       level: 'warning',
       code: 'no_providers',
-      message: 'No providers are configured.',
+      message: t('cli.runtime.provider.doctor.noProviders'),
     });
   }
   if (Object.keys(models).length === 0) {
     addDoctorIssue(issues, {
       level: 'warning',
       code: 'no_models',
-      message: 'No model aliases are configured.',
+      message: t('cli.runtime.provider.doctor.noModels'),
     });
   }
   if (config.defaultModel !== undefined && models[config.defaultModel] === undefined) {
     addDoctorIssue(issues, {
       level: 'error',
       code: 'missing_default_model',
-      message: `Default model "${config.defaultModel}" is not configured.`,
+      message: t('cli.runtime.provider.doctor.missingDefaultModel', { alias: config.defaultModel }),
       modelAlias: config.defaultModel,
     });
   }
@@ -1643,7 +1727,7 @@ function collectProviderDoctorIssues(
     addDoctorIssue(issues, {
       level: 'error',
       code: 'missing_auth',
-      message: 'Provider has no API key, OAuth account, keyless marker, or supported service account source.',
+      message: t('cli.runtime.provider.doctor.missingAuth'),
       providerId,
     });
   }
@@ -1652,7 +1736,7 @@ function collectProviderDoctorIssues(
     addDoctorIssue(issues, {
       level: 'warning',
       code: 'mixed_auth',
-      message: 'Provider has both API key sources and OAuth refs; API key sources take precedence.',
+      message: t('cli.runtime.provider.doctor.mixedAuth'),
       providerId,
     });
   }
@@ -1662,7 +1746,10 @@ function collectProviderDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'missing_env',
-        message: `Environment variable "${ref.envVar}" is referenced by ${ref.source} but is not set.`,
+        message: t('cli.runtime.provider.doctor.missingEnv', {
+          envVar: ref.envVar,
+          source: ref.source,
+        }),
         providerId,
         envVar: ref.envVar,
       });
@@ -1688,7 +1775,7 @@ function collectProviderCredentialDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'empty_credential_api_key',
-        message: `${source} has an empty api_key.`,
+        message: t('cli.runtime.provider.doctor.emptyCredentialApiKey', { source }),
         providerId,
       });
       continue;
@@ -1698,8 +1785,7 @@ function collectProviderCredentialDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'invalid_credential_label',
-        message:
-          `${source} label must use only letters, numbers, dot, underscore, or dash.`,
+        message: t('cli.runtime.provider.doctor.invalidCredentialLabel', { source }),
         providerId,
       });
     }
@@ -1708,7 +1794,7 @@ function collectProviderCredentialDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'invalid_credential_base_url',
-        message: `${source} base_url must start with http:// or https://.`,
+        message: t('cli.runtime.provider.doctor.invalidCredentialBaseUrl', { source }),
         providerId,
       });
     }
@@ -1717,7 +1803,7 @@ function collectProviderCredentialDoctorIssues(
       addDoctorIssue(issues, {
         level: 'warning',
         code: 'duplicate_credential',
-        message: `${source} duplicates an earlier API key/base_url slot and will be ignored.`,
+        message: t('cli.runtime.provider.doctor.duplicateCredential', { source }),
         providerId,
       });
     }
@@ -1732,8 +1818,9 @@ function collectProviderCredentialDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'duplicate_credential_label',
-        message:
-          `credentials[${String(index + 1)}] label duplicates an earlier credential label.`,
+        message: t('cli.runtime.provider.doctor.duplicateCredentialLabel', {
+          index: String(index + 1),
+        }),
         providerId,
       });
     }
@@ -1755,8 +1842,7 @@ function collectProviderOAuthDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'invalid_oauth_label',
-        message:
-          `OAuth account ref #${String(index + 1)} label must use only letters, numbers, dot, underscore, or dash.`,
+        message: t('cli.runtime.provider.doctor.invalidOAuthLabel', { index: String(index + 1) }),
         providerId,
       });
     }
@@ -1765,8 +1851,7 @@ function collectProviderOAuthDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'duplicate_oauth_label',
-        message:
-          `OAuth account ref #${String(index + 1)} label duplicates an earlier OAuth label.`,
+        message: t('cli.runtime.provider.doctor.duplicateOAuthLabel', { index: String(index + 1) }),
         providerId,
       });
     }
@@ -1785,14 +1870,14 @@ function collectModelDoctorIssues(
     addDoctorIssue(issues, {
       level: 'error',
       code: 'missing_model_provider',
-      message: 'Model does not define a provider and no default provider is configured.',
+      message: t('cli.runtime.provider.doctor.missingModelProvider'),
       modelAlias,
     });
   } else if (config.providers[providerName] === undefined) {
     addDoctorIssue(issues, {
       level: 'error',
       code: 'missing_model_provider',
-      message: `Model points at missing provider "${providerName}".`,
+      message: t('cli.runtime.provider.doctor.missingModelProviderName', { providerName }),
       modelAlias,
     });
   }
@@ -1802,14 +1887,14 @@ function collectModelDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'self_fallback_model',
-        message: 'Model lists itself as a fallback.',
+        message: t('cli.runtime.provider.doctor.selfFallback'),
         modelAlias,
       });
     } else if (config.models?.[fallbackAlias] === undefined) {
       addDoctorIssue(issues, {
         level: 'error',
         code: 'missing_fallback_model',
-        message: `Fallback model "${fallbackAlias}" is not configured.`,
+        message: t('cli.runtime.provider.doctor.missingFallbackModel', { fallback: fallbackAlias }),
         modelAlias,
       });
     }
@@ -1821,7 +1906,7 @@ function collectModelDoctorIssues(
       addDoctorIssue(issues, {
         level: 'warning',
         code: 'unused_route_weight',
-        message: `Route weight for "${weightAlias}" is ignored because it is not the model or a fallback.`,
+        message: t('cli.runtime.provider.doctor.unusedRouteWeight', { weightAlias }),
         modelAlias,
       });
     }
@@ -1839,8 +1924,9 @@ function collectModelDoctorIssues(
       addDoctorIssue(issues, {
         level: 'error',
         code: 'invalid_preferred_credential',
-        message:
-          `Preferred credential "${preferredCredential}" is not one of the expanded route candidates.`,
+        message: t('cli.runtime.provider.doctor.invalidPreferredCredential', {
+          credential: preferredCredential,
+        }),
         modelAlias,
       });
     }
@@ -1883,10 +1969,20 @@ function formatProviderDoctorReport(report: ProviderDoctorReport): string {
   const lines =
     report.issues.length === 0
       ? [
-          `Provider doctor: ok (providers=${String(report.providerCount)}, models=${String(report.modelCount)}, routes=${String(report.routeCount)}, candidates=${String(report.candidateCount)})`,
+          t('cli.runtime.provider.doctor.ok', {
+            providerCount: String(report.providerCount),
+            modelCount: String(report.modelCount),
+            routeCount: String(report.routeCount),
+            candidateCount: String(report.candidateCount),
+          }),
         ]
       : [
-          `Provider doctor: ${String(report.errorCount)} error${report.errorCount === 1 ? '' : 's'}, ${String(report.warningCount)} warning${report.warningCount === 1 ? '' : 's'}`,
+          t('cli.runtime.provider.doctor.summary', {
+            errorCount: String(report.errorCount),
+            errorWord: doctorErrorWord(report.errorCount),
+            warningCount: String(report.warningCount),
+            warningWord: doctorWarningWord(report.warningCount),
+          }),
           ...report.issues.map(formatProviderDoctorIssue),
         ];
   return `${lines.join('\n')}\n`;
@@ -1894,12 +1990,23 @@ function formatProviderDoctorReport(report: ProviderDoctorReport): string {
 
 function formatProviderDoctorIssue(issue: ProviderDoctorIssue): string {
   const scope = [
-    issue.providerId === undefined ? undefined : `provider=${issue.providerId}`,
-    issue.modelAlias === undefined ? undefined : `model=${issue.modelAlias}`,
-    issue.envVar === undefined ? undefined : `env=${issue.envVar}`,
+    issue.providerId === undefined
+      ? undefined
+      : t('cli.runtime.provider.doctor.scopeProvider', { providerId: issue.providerId }),
+    issue.modelAlias === undefined
+      ? undefined
+      : t('cli.runtime.provider.doctor.scopeModel', { modelAlias: issue.modelAlias }),
+    issue.envVar === undefined
+      ? undefined
+      : t('cli.runtime.provider.doctor.scopeEnv', { envVar: issue.envVar }),
   ].filter((part): part is string => part !== undefined);
-  const scopeText = scope.length === 0 ? '' : ` ${scope.join(' ')}`;
-  return `  [${issue.level}] ${issue.code}${scopeText}: ${issue.message}`;
+  const scopeText = scope.length === 0 ? '' : scope.join('');
+  return t('cli.runtime.provider.doctor.issueLine', {
+    level: issue.level,
+    code: issue.code,
+    scope: scopeText,
+    message: issue.message,
+  });
 }
 
 function formatDuration(ms: number): string {
@@ -1919,7 +2026,7 @@ function buildRoutePreview(config: LioraConfig, modelAlias: string): RoutePrevie
   const models = config.models ?? {};
   const model = models[modelAlias];
   if (model === undefined) {
-    throw new Error(`Model "${modelAlias}" not found.`);
+    throw new Error(t('cli.runtime.provider.modelNotFoundThrow', { modelAlias }));
   }
   const fallbackModels = model.fallbackModels ?? [];
   const candidateAliases = uniqueStrings([modelAlias, ...fallbackModels]);
@@ -2003,15 +2110,14 @@ function writeProviderAutoRouteSummary(
 ): void {
   if (result === undefined) return;
   if (result.aliases.length === 0) {
-    deps.stdout.write(
-      `No model aliases for provider "${providerId}" had enough route candidates to auto-route.\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.autoRouteNoCandidates', { providerId });
     return;
   }
-  deps.stdout.write(
-    `Enabled auto route for ${String(result.aliases.length)} model ` +
-      `alias${result.aliases.length === 1 ? '' : 'es'}: ${result.aliases.join(', ')}.\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.autoRouteEnabledSummary', {
+    count: String(result.aliases.length),
+    aliasWord: aliasWord(result.aliases.length),
+    aliases: result.aliases.join(', '),
+  });
 }
 
 function routePreviewCandidatesForAlias(
@@ -2021,15 +2127,17 @@ function routePreviewCandidatesForAlias(
 ): RoutePreviewCandidate[] {
   const model = config.models?.[modelAlias];
   if (model === undefined) {
-    throw new Error(`Fallback model "${modelAlias}" is not configured.`);
+    throw new Error(t('cli.runtime.provider.fallbackModelNotConfiguredThrow', { modelAlias }));
   }
   const providerName = model.provider ?? config.defaultProvider;
   if (providerName === undefined) {
-    throw new Error(`Model "${modelAlias}" must define a provider.`);
+    throw new Error(t('cli.runtime.provider.modelMustDefineProvider', { modelAlias }));
   }
   const provider = config.providers[providerName];
   if (provider === undefined) {
-    throw new Error(`Provider "${providerName}" for model "${modelAlias}" is not configured.`);
+    throw new Error(
+      t('cli.runtime.provider.providerNotConfiguredForModel', { providerName, modelAlias }),
+    );
   }
 
   const credentialSources = providerCredentialSources(provider);
@@ -2210,13 +2318,27 @@ function hasVertexAIServiceAccountSource(provider: LioraConfig['providers'][stri
 
 function formatRoutePreview(preview: RoutePreview): string {
   const lines = [
-    `Route preview for ${preview.modelAlias}:`,
-    `  active: ${preview.active ? 'yes' : 'no'}`,
-    `  strategy: ${preview.strategy}`,
-    `  fallback_models: ${preview.fallbackModels.length === 0 ? '(none)' : preview.fallbackModels.join(', ')}`,
-    `  session_affinity: ${preview.sessionAffinity === true ? 'on' : 'off'}`,
-    `  preferred_credential: ${preview.preferredCredential ?? '(none)'}`,
-    '  candidates:',
+    t('cli.runtime.provider.routePreviewHeader', { modelAlias: preview.modelAlias }),
+    t('cli.runtime.provider.routePreviewActive', {
+      value: preview.active ? t('cli.runtime.provider.valueYes') : t('cli.runtime.provider.valueNo'),
+    }),
+    t('cli.runtime.provider.routePreviewStrategy', { strategy: preview.strategy }),
+    t('cli.runtime.provider.routePreviewFallbackModels', {
+      fallbacks:
+        preview.fallbackModels.length === 0
+          ? t('cli.runtime.provider.valueNone')
+          : preview.fallbackModels.join(', '),
+    }),
+    t('cli.runtime.provider.routePreviewSessionAffinity', {
+      value:
+        preview.sessionAffinity === true
+          ? t('cli.runtime.provider.valueOn')
+          : t('cli.runtime.provider.valueOff'),
+    }),
+    t('cli.runtime.provider.routePreviewPreferredCredential', {
+      value: preview.preferredCredential ?? t('cli.runtime.provider.valueNone'),
+    }),
+    t('cli.runtime.provider.routePreviewCandidatesLabel'),
     ...preview.candidates.map((candidate, index) =>
       formatRoutePreviewCandidate(candidate, index),
     ),
@@ -2293,7 +2415,7 @@ export async function handleCatalogList(
   if (providerId !== undefined) {
     const entry = catalog[providerId];
     if (entry === undefined) {
-      deps.stderr.write(`Provider "${providerId}" not found in catalog at ${url}.\n`);
+      writeProviderErr(deps, 'cli.runtime.provider.catalogProviderNotFound', { providerId, url });
       deps.exit(1);
     }
     const models = catalogProviderModels(entry);
@@ -2304,10 +2426,13 @@ export async function handleCatalogList(
       return;
     }
     if (models.length === 0) {
-      deps.stdout.write(`Provider "${providerId}" lists no usable models in this catalog.\n`);
+      writeProviderOut(deps, 'cli.runtime.provider.catalogNoModels', { providerId });
       return;
     }
-    deps.stdout.write(`${entry.name ?? providerId} (${providerId})\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.catalogProviderHeader', {
+      name: entry.name ?? providerId,
+      providerId,
+    });
     for (const model of models) {
       const cap: string[] = [];
       if (model.capability.tool_use) cap.push('tool_use');
@@ -2318,7 +2443,11 @@ export async function handleCatalogList(
           ? String(model.capability.max_context_tokens)
           : '?';
       const capLabel = cap.length > 0 ? ` [${cap.join(',')}]` : '';
-      deps.stdout.write(`  ${model.id}  ctx=${ctx}${capLabel}\n`);
+      writeProviderOut(deps, 'cli.runtime.provider.catalogModelLine', {
+        id: model.id,
+        ctx,
+        capLabel,
+      });
     }
     return;
   }
@@ -2341,9 +2470,9 @@ export async function handleCatalogList(
 
   if (entries.length === 0) {
     if (filter !== undefined) {
-      deps.stdout.write(`No providers in catalog match "${filter}".\n`);
+      writeProviderOut(deps, 'cli.runtime.provider.catalogNoMatch', { filter });
     } else {
-      deps.stdout.write('Catalog is empty.\n');
+      writeProviderOut(deps, 'cli.runtime.provider.catalogEmpty');
     }
     return;
   }
@@ -2351,9 +2480,12 @@ export async function handleCatalogList(
   for (const [id, entry] of entries) {
     const modelCount = entry.models === undefined ? 0 : Object.keys(entry.models).length;
     const wire = inferWireType(entry) ?? '?';
-    deps.stdout.write(
-      `${id}  wire=${wire}  models=${String(modelCount)}  ${entry.name ?? ''}\n`,
-    );
+    writeProviderOut(deps, 'cli.runtime.provider.catalogListLine', {
+      id,
+      wire,
+      modelCount: String(modelCount),
+      name: entry.name ?? '',
+    });
   }
 }
 
@@ -2369,9 +2501,7 @@ export async function handleCatalogAdd(
 ): Promise<void> {
   const apiKey = resolveCatalogProviderApiKeySource(opts, deps);
   if (apiKey === undefined) {
-    deps.stderr.write(
-      'Missing API key. Pass --api-key <key>, --api-key-env <name>, or set KIMI_REGISTRY_API_KEY.\n',
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.catalogMissingApiKey');
     deps.exit(1);
   }
 
@@ -2380,26 +2510,27 @@ export async function handleCatalogAdd(
 
   const entry = catalog[providerId];
   if (entry === undefined) {
-    deps.stderr.write(`Provider "${providerId}" not found in catalog at ${url}.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.catalogProviderNotFound', { providerId, url });
     deps.exit(1);
   }
 
   const wire = inferWireType(entry);
   if (wire === undefined) {
-    deps.stderr.write(`Provider "${providerId}" has an unsupported wire type in the catalog.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.catalogUnsupportedWire', { providerId });
     deps.exit(1);
   }
 
   const models = catalogProviderModels(entry);
   if (models.length === 0) {
-    deps.stderr.write(`Provider "${providerId}" lists no usable models in this catalog.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.catalogNoModels', { providerId });
     deps.exit(1);
   }
 
   if (opts.defaultModel !== undefined && !models.some((m) => m.id === opts.defaultModel)) {
-    deps.stderr.write(
-      `Model "${opts.defaultModel}" is not in provider "${providerId}". Run "liora provider catalog list ${providerId}" to see available ids.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.catalogModelNotInProvider', {
+      model: opts.defaultModel,
+      providerId,
+    });
     deps.exit(1);
   }
 
@@ -2462,11 +2593,18 @@ export async function handleCatalogAdd(
   });
 
   const displayName = entry.name ?? providerId;
-  deps.stdout.write(
-    `Imported ${displayName} (${providerId}) with ${String(models.length)} model${models.length === 1 ? '' : 's'} from ${url}.\n`,
-  );
+  writeProviderOut(deps, 'cli.runtime.provider.catalogImported', {
+    displayName,
+    providerId,
+    modelCount: String(models.length),
+    modelUnit: modelUnit(models.length),
+    url,
+  });
   if (opts.defaultModel !== undefined) {
-    deps.stdout.write(`Default model set to ${providerId}/${opts.defaultModel}.\n`);
+    writeProviderOut(deps, 'cli.runtime.provider.catalogDefaultModelSet', {
+      providerId,
+      model: opts.defaultModel,
+    });
   }
 }
 
@@ -2474,8 +2612,11 @@ async function loadCatalogOrExit(deps: ProviderDeps, url: string): Promise<Catal
   try {
     return await fetchCatalog(url);
   } catch (error) {
-    const suffix = error instanceof CatalogFetchError ? ` (HTTP ${String(error.status)})` : '';
-    deps.stderr.write(`Failed to fetch catalog from ${url}${suffix}: ${errorMessage(error)}\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.fetchCatalogFailed', {
+      url,
+      suffix: error instanceof CatalogFetchError ? ` (HTTP ${String(error.status)})` : '',
+      error: errorMessage(error),
+    });
     deps.exit(1);
   }
 }
@@ -2483,7 +2624,7 @@ async function loadCatalogOrExit(deps: ProviderDeps, url: string): Promise<Catal
 export function registerProviderCommand(parent: Command, deps?: Partial<ProviderDeps>): void {
   const provider = parent
     .command('provider')
-    .description('Manage LLM providers non-interactively.')
+    .description(t('cli.sub.provider.description'))
     .action(async () => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderList(resolved, { json: false }));
@@ -2504,8 +2645,8 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   provider
     .command('add <url>')
-    .description('Import every provider listed in a custom registry (api.json).')
-    .option('--api-key <key>', 'Registry API key. Falls back to KIMI_REGISTRY_API_KEY.')
+    .description(t('cli.sub.provider.cmd.add.desc'))
+    .option('--api-key <key>', t('cli.sub.provider.cmd.add.option.apiKey'))
     .action(async (url: string, options: { apiKey?: string }) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderAdd(resolved, url, { apiKey: options.apiKey }));
@@ -2513,7 +2654,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   provider
     .command('remove <providerId>')
-    .description('Remove a provider and every model alias that referenced it.')
+    .description(t('cli.sub.provider.cmd.remove.desc'))
     .action(async (providerId: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderRemove(resolved, providerId));
@@ -2521,8 +2662,8 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   provider
     .command('list')
-    .description('Show configured providers and their model counts.')
-    .option('--json', 'Emit the raw providers/models config as JSON.', false)
+    .description(t('cli.sub.provider.cmd.list.desc'))
+    .option('--json', t('cli.sub.provider.cmd.list.option.json'), false)
     .action(async (options: { json?: boolean }) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderList(resolved, { json: options.json === true }));
@@ -2530,8 +2671,8 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   provider
     .command('doctor')
-    .description('Validate provider auth, environment refs, and routes without exposing secrets.')
-    .option('--json', 'Emit provider diagnostics as JSON.', false)
+    .description(t('cli.sub.provider.cmd.doctor.desc'))
+    .option('--json', t('cli.sub.provider.cmd.doctor.option.json'), false)
     .action(async (options: { json?: boolean }) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () =>
@@ -2541,7 +2682,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   provider
     .command('use <modelAlias>')
-    .description('Set the default model alias for future runs.')
+    .description(t('cli.sub.provider.cmd.use.desc'))
     .action(async (modelAlias: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderUse(resolved, modelAlias));
@@ -2549,30 +2690,32 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   const custom = provider
     .command('custom')
-    .description('Add direct custom endpoints without an api.json registry.');
+    .description(t('cli.sub.provider.cmd.custom.desc'));
 
   custom
     .command('add <providerId>')
-    .description('Add an OpenAI-compatible or supported direct custom endpoint.')
-    .requiredOption('--base-url <url>', 'Endpoint base URL, for example http://localhost:11434/v1.')
-    .requiredOption('--model <modelId>', 'Upstream model id to send to the endpoint.')
-    .option('--api-key <key>', 'Provider API key. Falls back to KIMI_PROVIDER_API_KEY.')
-    .option('--api-key-env <name>', 'Store {env:NAME} instead of a raw provider API key.')
+    .description(t('cli.sub.provider.cmd.customAdd.desc'))
+    .requiredOption('--base-url <url>', t('cli.sub.provider.cmd.customAdd.option.baseUrl'))
+    .requiredOption('--model <modelId>', t('cli.sub.provider.cmd.customAdd.option.model'))
+    .option('--api-key <key>', t('cli.sub.provider.cmd.customAdd.option.apiKey'))
+    .option('--api-key-env <name>', t('cli.sub.provider.cmd.customAdd.option.apiKeyEnv'))
     .option(
       '--keyless',
-      'Use a placeholder key for local endpoints that do not require auth.',
+      t('cli.sub.provider.cmd.customAdd.option.keyless'),
       false,
     )
-    .option('--alias <alias>', 'Model alias to create. Defaults to <providerId>/<modelId>.')
-    .option('--type <type>', 'Provider wire type. Defaults to openai.')
+    .option('--alias <alias>', t('cli.sub.provider.cmd.customAdd.option.alias'))
+    .option('--type <type>', t('cli.sub.provider.cmd.customAdd.option.type'))
     .option(
       '--context <tokens>',
-      `Context window. Defaults to ${String(DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE)}.`,
+      t('cli.sub.provider.cmd.customAdd.option.context', {
+        size: String(DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE),
+      }),
     )
-    .option('--output <tokens>', 'Max output tokens for this model.')
-    .option('--display-name <name>', 'Friendly model name shown in selectors.')
-    .option('--thinking', 'Mark the model as thinking-capable.', false)
-    .option('--set-default', 'Make the added model the default model.', false)
+    .option('--output <tokens>', t('cli.sub.provider.cmd.customAdd.option.output'))
+    .option('--display-name <name>', t('cli.sub.provider.cmd.customAdd.option.displayName'))
+    .option('--thinking', t('cli.sub.provider.cmd.customAdd.option.thinking'), false)
+    .option('--set-default', t('cli.sub.provider.cmd.customAdd.option.setDefault'), false)
     .action(async (providerId: string, options: CustomAddOptions) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderCustomAdd(resolved, providerId, options));
@@ -2580,21 +2723,21 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   const key = provider
     .command('key')
-    .description('Manage API keys for configured providers.');
+    .description(t('cli.sub.provider.cmd.key.desc'));
 
   key
     .command('add <providerId>')
-    .description('Add an API key to a configured provider for fallback/load balancing.')
-    .option('--api-key <key>', 'Provider API key. Falls back to KIMI_PROVIDER_API_KEY.')
-    .option('--api-keys <keys>', 'Comma-separated provider API keys to add in one write.')
-    .option('--api-key-env <name>', 'Store {env:NAME} instead of a raw provider API key.')
-    .option('--api-key-envs <names>', 'Comma-separated env var names to store as {env:NAME} refs.')
-    .option('--base-url <url>', 'Per-credential endpoint override for the added key(s).')
-    .option('--label <label>', 'Friendly label for one added key, e.g. work or account-1.')
-    .option('--labels <labels>', 'Comma-separated labels for bulk key adds.')
-    .option('--rpm <count>', 'Local requests-per-minute limit for the added key(s).')
-    .option('--tpm <tokens>', 'Local tokens-per-minute limit for the added key(s).')
-    .option('--auto-route', 'Enable auto routing for model aliases that use this provider.')
+    .description(t('cli.sub.provider.cmd.keyAdd.desc'))
+    .option('--api-key <key>', t('cli.sub.provider.cmd.keyAdd.option.apiKey'))
+    .option('--api-keys <keys>', t('cli.sub.provider.cmd.keyAdd.option.apiKeys'))
+    .option('--api-key-env <name>', t('cli.sub.provider.cmd.keyAdd.option.apiKeyEnv'))
+    .option('--api-key-envs <names>', t('cli.sub.provider.cmd.keyAdd.option.apiKeyEnvs'))
+    .option('--base-url <url>', t('cli.sub.provider.cmd.keyAdd.option.baseUrl'))
+    .option('--label <label>', t('cli.sub.provider.cmd.keyAdd.option.label'))
+    .option('--labels <labels>', t('cli.sub.provider.cmd.keyAdd.option.labels'))
+    .option('--rpm <count>', t('cli.sub.provider.cmd.keyAdd.option.rpm'))
+    .option('--tpm <tokens>', t('cli.sub.provider.cmd.keyAdd.option.tpm'))
+    .option('--auto-route', t('cli.sub.provider.cmd.keyAdd.option.autoRoute'))
     .action(async (providerId: string, options: KeyAddOptions) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderKeyAdd(resolved, providerId, options));
@@ -2602,7 +2745,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   key
     .command('list <providerId>')
-    .description('List configured API key slots without printing secret values.')
+    .description(t('cli.sub.provider.cmd.keyList.desc'))
     .action(async (providerId: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderKeyList(resolved, providerId));
@@ -2610,7 +2753,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   key
     .command('remove <providerId> <index>')
-    .description('Remove one configured API key by its 1-based slot number.')
+    .description(t('cli.sub.provider.cmd.keyRemove.desc'))
     .action(async (providerId: string, index: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderKeyRemove(resolved, providerId, index));
@@ -2618,7 +2761,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   key
     .command('promote <providerId> <index>')
-    .description('Move one configured API key slot to primary without printing secret values.')
+    .description(t('cli.sub.provider.cmd.keyPromote.desc'))
     .action(async (providerId: string, index: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderKeyPromote(resolved, providerId, index));
@@ -2626,7 +2769,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   key
     .command('label <providerId> <index> <label>')
-    .description('Set a friendly label on one configured API key slot.')
+    .description(t('cli.sub.provider.cmd.keyLabel.desc'))
     .action(async (providerId: string, index: string, label: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () =>
@@ -2636,7 +2779,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   key
     .command('unlabel <providerId> <index>')
-    .description('Remove the friendly label from one configured API key slot.')
+    .description(t('cli.sub.provider.cmd.keyUnlabel.desc'))
     .action(async (providerId: string, index: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderKeyUnlabel(resolved, providerId, index));
@@ -2644,10 +2787,10 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   key
     .command('limit <providerId> <index>')
-    .description('Set or clear local RPM/TPM limits on one API key slot.')
-    .option('--rpm <count>', 'Local requests-per-minute limit.')
-    .option('--tpm <tokens>', 'Local tokens-per-minute limit.')
-    .option('--clear', 'Remove local RPM/TPM limits from this key.', false)
+    .description(t('cli.sub.provider.cmd.keyLimit.desc'))
+    .option('--rpm <count>', t('cli.sub.provider.cmd.keyLimit.option.rpm'))
+    .option('--tpm <tokens>', t('cli.sub.provider.cmd.keyLimit.option.tpm'))
+    .option('--clear', t('cli.sub.provider.cmd.keyLimit.option.clear'), false)
     .action(async (providerId: string, index: string, options: KeyLimitOptions) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () =>
@@ -2657,7 +2800,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   key
     .command('clear <providerId>')
-    .description('Remove every configured API key from a provider.')
+    .description(t('cli.sub.provider.cmd.keyClear.desc'))
     .action(async (providerId: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderKeyClear(resolved, providerId));
@@ -2665,16 +2808,16 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   const oauth = provider
     .command('oauth')
-    .description('Manage OAuth account refs for configured providers.');
+    .description(t('cli.sub.provider.cmd.oauth.desc'));
 
   oauth
     .command('add <providerId>')
-    .description('Add an OAuth account ref to a configured provider for fallback/load balancing.')
-    .requiredOption('--key <key>', 'OAuth credential storage key to reference.')
-    .option('--storage <storage>', 'OAuth storage backend: file or keyring. Defaults to file.')
-    .option('--oauth-host <host>', 'OAuth host override for providers with multiple auth hosts.')
-    .option('--label <label>', 'Friendly label for this OAuth account ref.')
-    .option('--auto-route', 'Enable auto routing for model aliases that use this provider.')
+    .description(t('cli.sub.provider.cmd.oauthAdd.desc'))
+    .requiredOption('--key <key>', t('cli.sub.provider.cmd.oauthAdd.option.key'))
+    .option('--storage <storage>', t('cli.sub.provider.cmd.oauthAdd.option.storage'))
+    .option('--oauth-host <host>', t('cli.sub.provider.cmd.oauthAdd.option.oauthHost'))
+    .option('--label <label>', t('cli.sub.provider.cmd.oauthAdd.option.label'))
+    .option('--auto-route', t('cli.sub.provider.cmd.oauthAdd.option.autoRoute'))
     .action(
       async (
         providerId: string,
@@ -2701,7 +2844,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   oauth
     .command('list <providerId>')
-    .description('List configured OAuth account ref slots without printing storage keys.')
+    .description(t('cli.sub.provider.cmd.oauthList.desc'))
     .action(async (providerId: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderOAuthList(resolved, providerId));
@@ -2709,7 +2852,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   oauth
     .command('remove <providerId> <index>')
-    .description('Remove one configured OAuth account ref by its 1-based slot number.')
+    .description(t('cli.sub.provider.cmd.oauthRemove.desc'))
     .action(async (providerId: string, index: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderOAuthRemove(resolved, providerId, index));
@@ -2717,7 +2860,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   oauth
     .command('promote <providerId> <index>')
-    .description('Move one configured OAuth account ref slot to primary without printing storage keys.')
+    .description(t('cli.sub.provider.cmd.oauthPromote.desc'))
     .action(async (providerId: string, index: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderOAuthPromote(resolved, providerId, index));
@@ -2725,7 +2868,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   oauth
     .command('label <providerId> <index> <label>')
-    .description('Set a friendly label on one OAuth account ref slot.')
+    .description(t('cli.sub.provider.cmd.oauthLabel.desc'))
     .action(async (providerId: string, index: string, label: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () =>
@@ -2735,7 +2878,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   oauth
     .command('unlabel <providerId> <index>')
-    .description('Remove the friendly label from one OAuth account ref slot.')
+    .description(t('cli.sub.provider.cmd.oauthUnlabel.desc'))
     .action(async (providerId: string, index: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderOAuthUnlabel(resolved, providerId, index));
@@ -2743,7 +2886,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   oauth
     .command('clear <providerId>')
-    .description('Remove every configured OAuth account ref from a provider.')
+    .description(t('cli.sub.provider.cmd.oauthClear.desc'))
     .action(async (providerId: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderOAuthClear(resolved, providerId));
@@ -2751,11 +2894,11 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   const route = provider
     .command('route')
-    .description('Manage model fallback and load-balancing routes.');
+    .description(t('cli.sub.provider.cmd.route.desc'));
 
   route
     .command('show <modelAlias>')
-    .description('Show fallback routing config for a model alias.')
+    .description(t('cli.sub.provider.cmd.routeShow.desc'))
     .action(async (modelAlias: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderRouteShow(resolved, modelAlias));
@@ -2763,8 +2906,8 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   route
     .command('preview <modelAlias>')
-    .description('Preview expanded route candidates without exposing secret values.')
-    .option('--json', 'Emit expanded route candidates as JSON.', false)
+    .description(t('cli.sub.provider.cmd.routePreview.desc'))
+    .option('--json', t('cli.sub.provider.cmd.routePreview.option.json'), false)
     .action(async (modelAlias: string, options: { json?: boolean }) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () =>
@@ -2774,16 +2917,16 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   route
     .command('auto <modelAlias>')
-    .description('Enable smart auto routing when a model has a credential pool or fallbacks.')
-    .option('--fallback <aliases>', 'Comma-separated fallback model aliases. Empty string clears.')
-    .option('--cooldown-ms <ms>', 'Cooldown after rate/auth/quota failures.')
+    .description(t('cli.sub.provider.cmd.routeAuto.desc'))
+    .option('--fallback <aliases>', t('cli.sub.provider.cmd.routeAuto.option.fallback'))
+    .option('--cooldown-ms <ms>', t('cli.sub.provider.cmd.routeAuto.option.cooldownMs'))
     .option(
       '--session-affinity <mode>',
-      'Pin a session to the first successful route candidate: on or off. Defaults to on.',
+      t('cli.sub.provider.cmd.routeAuto.option.sessionAffinity'),
     )
     .option(
       '--prefer-credential <label>',
-      'Prefer a credential label, e.g. api_key:2 or primary:api_key:2. Empty string clears.',
+      t('cli.sub.provider.cmd.routeAuto.option.preferCredential'),
     )
     .action(
       async (
@@ -2809,21 +2952,21 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   route
     .command('set <modelAlias>')
-    .description('Set fallback routing config for a model alias.')
-    .option('--fallback <aliases>', 'Comma-separated fallback model aliases. Empty string clears.')
+    .description(t('cli.sub.provider.cmd.routeSet.desc'))
+    .option('--fallback <aliases>', t('cli.sub.provider.cmd.routeSet.option.fallback'))
       .option(
         '--strategy <strategy>',
-        'Routing strategy: auto, fallback, fill_first, round_robin, weighted_round_robin, least_used, lowest_latency, rate_limit_aware, or random.',
+        t('cli.sub.provider.cmd.routeSet.option.strategy'),
       )
-      .option('--cooldown-ms <ms>', 'Cooldown after rate/auth/quota failures.')
-      .option('--weights <aliases>', 'Comma-separated model weights, e.g. primary=3,backup=1. Empty string clears.')
+      .option('--cooldown-ms <ms>', t('cli.sub.provider.cmd.routeSet.option.cooldownMs'))
+      .option('--weights <aliases>', t('cli.sub.provider.cmd.routeSet.option.weights'))
       .option(
         '--session-affinity <mode>',
-        'Pin a session to the first successful route candidate: on or off.',
+        t('cli.sub.provider.cmd.routeSet.option.sessionAffinity'),
       )
       .option(
         '--prefer-credential <label>',
-        'Prefer a credential label, e.g. api_key:2 or primary:api_key:2. Empty string clears.',
+        t('cli.sub.provider.cmd.routeSet.option.preferCredential'),
       )
       .action(
         async (
@@ -2853,7 +2996,7 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   route
     .command('reset <sessionId>')
-    .description('Reset runtime route cooldown and health counters for a session.')
+    .description(t('cli.sub.provider.cmd.routeReset.desc'))
     .action(async (sessionId: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderRouteReset(resolved, sessionId));
@@ -2861,8 +3004,8 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   route
     .command('status <sessionId>')
-    .description('Show runtime route health, cooldowns, and counters for a session.')
-    .option('--json', 'Emit route health as JSON.', false)
+    .description(t('cli.sub.provider.cmd.routeStatus.desc'))
+    .option('--json', t('cli.sub.provider.cmd.routeStatus.option.json'), false)
     .action(async (sessionId: string, options: { json?: boolean }) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () =>
@@ -2872,14 +3015,14 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   const catalog = provider
     .command('catalog')
-    .description('Discover and import providers from the public models.dev catalog.');
+    .description(t('cli.sub.provider.cmd.catalog.desc'));
 
   catalog
     .command('list [providerId]')
-    .description('List providers in the catalog, or models when a providerId is given.')
-    .option('--filter <substring>', 'Case-insensitive id/name substring filter.')
-    .option('--url <url>', `Override catalog URL. Defaults to ${DEFAULT_CATALOG_URL}.`)
-    .option('--json', 'Emit the matching catalog slice as JSON.', false)
+    .description(t('cli.sub.provider.cmd.catalogList.desc'))
+    .option('--filter <substring>', t('cli.sub.provider.cmd.catalogList.option.filter'))
+    .option('--url <url>', t('cli.sub.provider.cmd.catalogList.option.url', { url: DEFAULT_CATALOG_URL }))
+    .option('--json', t('cli.sub.provider.cmd.catalogList.option.json'), false)
     .action(
       async (
         providerId: string | undefined,
@@ -2898,11 +3041,11 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   catalog
     .command('add <providerId>')
-    .description('Import a known provider from the catalog by id.')
-    .option('--api-key <key>', 'API key for the provider. Falls back to KIMI_REGISTRY_API_KEY.')
-    .option('--api-key-env <name>', 'Store {env:NAME} instead of a raw provider API key.')
-    .option('--default-model <modelId>', 'Mark the imported model as default_model after import.')
-    .option('--url <url>', `Override catalog URL. Defaults to ${DEFAULT_CATALOG_URL}.`)
+    .description(t('cli.sub.provider.cmd.catalogAdd.desc'))
+    .option('--api-key <key>', t('cli.sub.provider.cmd.catalogAdd.option.apiKey'))
+    .option('--api-key-env <name>', t('cli.sub.provider.cmd.catalogAdd.option.apiKeyEnv'))
+    .option('--default-model <modelId>', t('cli.sub.provider.cmd.catalogAdd.option.defaultModel'))
+    .option('--url <url>', t('cli.sub.provider.cmd.catalogAdd.option.url', { url: DEFAULT_CATALOG_URL }))
     .action(
       async (
         providerId: string,
@@ -2962,7 +3105,7 @@ function resolveProviderApiKeySource(
   const apiKey = nonEmptyString(input.apiKey);
   const apiKeyEnv = nonEmptyString(input.apiKeyEnv);
   if (apiKey !== undefined && apiKeyEnv !== undefined) {
-    deps.stderr.write('Pass either --api-key or --api-key-env, not both.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.passApiKeyOrEnv');
     deps.exit(1);
   }
   if (apiKeyEnv !== undefined) return `{env:${parseEnvVarName(apiKeyEnv, deps)}}`;
@@ -2976,7 +3119,7 @@ function resolveCatalogProviderApiKeySource(
   const apiKey = nonEmptyString(input.apiKey);
   const apiKeyEnv = nonEmptyString(input.apiKeyEnv);
   if (apiKey !== undefined && apiKeyEnv !== undefined) {
-    deps.stderr.write('Pass either --api-key or --api-key-env, not both.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.passApiKeyOrEnv');
     deps.exit(1);
   }
   if (apiKeyEnv !== undefined) return `{env:${parseEnvVarName(apiKeyEnv, deps)}}`;
@@ -2993,9 +3136,7 @@ function resolveProviderApiKeySources(input: KeyAddOptions, deps: ProviderDeps):
     ...splitCommaList(input.apiKeyEnvs),
   ]);
   if (rawKeys.length > 0 && envNames.length > 0) {
-    deps.stderr.write(
-      'Pass either raw API key options (--api-key/--api-keys) or environment reference options (--api-key-env/--api-key-envs), not both.\n',
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.passRawOrEnvKeys');
     deps.exit(1);
   }
   if (envNames.length > 0) {
@@ -3013,14 +3154,12 @@ function resolveProviderCredentialLabels(
   const label = nonEmptyString(input.label);
   const labelsText = nonEmptyString(input.labels);
   if (label !== undefined && labelsText !== undefined) {
-    deps.stderr.write('Pass either --label or --labels, not both.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.passLabelOrLabels');
     deps.exit(1);
   }
   if (label !== undefined) {
     if (keyCount !== 1) {
-      deps.stderr.write(
-        '--label can only be used when adding one API key. Use --labels for bulk adds.\n',
-      );
+      writeProviderErr(deps, 'cli.runtime.provider.labelOnlyForSingleKey');
       deps.exit(1);
     }
     return [parseCredentialLabel(label, deps)];
@@ -3029,14 +3168,14 @@ function resolveProviderCredentialLabels(
 
   const labels = labelsText.split(',').map((entry) => parseCredentialLabel(entry, deps));
   if (labels.length !== keyCount) {
-    deps.stderr.write('The number of --labels entries must match the number of added API keys.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.labelsCountMismatch');
     deps.exit(1);
   }
   const seen = new Set<string>();
   for (const value of labels) {
     const normalized = value.toLowerCase();
     if (seen.has(normalized)) {
-      deps.stderr.write(`Duplicate credential label "${value}".\n`);
+      writeProviderErr(deps, 'cli.runtime.provider.duplicateCredentialLabel', { label: value });
       deps.exit(1);
     }
     seen.add(normalized);
@@ -3063,9 +3202,7 @@ function resolveProviderCredentialLocalLimits(
 function parseCredentialLabel(value: string, deps: ProviderDeps): string {
   const label = value.trim();
   if (!isValidCredentialLabel(label)) {
-    deps.stderr.write(
-      `Invalid credential label "${value}". Use only letters, numbers, dot, underscore, or dash.\n`,
-    );
+    writeProviderErr(deps, 'cli.runtime.provider.invalidCredentialLabel', { label: value });
     deps.exit(1);
   }
   return label;
@@ -3083,7 +3220,7 @@ function splitCommaList(value: string | undefined): string[] {
 function parseEnvVarName(value: string, deps: ProviderDeps): string {
   const name = value.trim();
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-    deps.stderr.write(`Invalid environment variable name "${value}".\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.invalidEnvVarName', { name: value });
     deps.exit(1);
   }
   return name;
@@ -3304,7 +3441,7 @@ function isValidCredentialLabel(value: string): boolean {
 function parseKeyIndex(indexText: string, deps: ProviderDeps): number {
   const index = Number(indexText);
   if (!Number.isInteger(index) || index < 1) {
-    deps.stderr.write('API key index must be a positive integer.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.apiKeyIndexPositive');
     deps.exit(1);
   }
   return index;
@@ -3313,7 +3450,7 @@ function parseKeyIndex(indexText: string, deps: ProviderDeps): number {
 function parseOAuthIndex(indexText: string, deps: ProviderDeps): number {
   const index = Number(indexText);
   if (!Number.isInteger(index) || index < 1) {
-    deps.stderr.write('OAuth account ref index must be a positive integer.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.oauthIndexPositive');
     deps.exit(1);
   }
   return index;
@@ -3321,7 +3458,7 @@ function parseOAuthIndex(indexText: string, deps: ProviderDeps): number {
 
 function parseOAuthStorage(value: string, deps: ProviderDeps): ConfigOAuthRef['storage'] {
   if (value === 'file' || value === 'keyring') return value;
-  deps.stderr.write('OAuth storage must be "file" or "keyring".\n');
+  writeProviderErr(deps, 'cli.runtime.provider.oauthStorageInvalid');
   deps.exit(1);
 }
 
@@ -3362,16 +3499,14 @@ function parseRoutingStrategy(
   ) {
     return value;
   }
-  deps.stderr.write(
-    'Routing strategy must be "auto", "fallback", "fill_first", "round_robin", "weighted_round_robin", "least_used", "lowest_latency", "rate_limit_aware", or "random".\n',
-  );
+  writeProviderErr(deps, 'cli.runtime.provider.routingStrategyInvalid');
   deps.exit(1);
 }
 
 function parseCooldownMs(value: string, deps: ProviderDeps): number {
   const cooldownMs = Number(value);
   if (!Number.isInteger(cooldownMs) || cooldownMs < 0) {
-    deps.stderr.write('Cooldown must be a non-negative integer number of milliseconds.\n');
+    writeProviderErr(deps, 'cli.runtime.provider.cooldownNonNegative');
     deps.exit(1);
   }
   return cooldownMs;
@@ -3381,7 +3516,7 @@ function parseSessionAffinity(value: string, deps: ProviderDeps): boolean {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'on' || normalized === 'true' || normalized === '1') return true;
   if (normalized === 'off' || normalized === 'false' || normalized === '0') return false;
-  deps.stderr.write('Session affinity must be "on" or "off".\n');
+  writeProviderErr(deps, 'cli.runtime.provider.sessionAffinityOnOff');
   deps.exit(1);
 }
 
@@ -3401,12 +3536,12 @@ function parseRouteWeights(
     const alias = rawAlias?.trim() ?? '';
     const weightText = rawWeight?.trim() ?? '';
     if (alias.length === 0 || weightText.length === 0 || extra.length > 0) {
-      deps.stderr.write('Weights must use comma-separated alias=weight entries.\n');
+      writeProviderErr(deps, 'cli.runtime.provider.weightsFormat');
       deps.exit(1);
     }
     const weight = Number(weightText);
     if (!Number.isInteger(weight) || weight <= 0) {
-      deps.stderr.write('Route weights must be positive integers.\n');
+      writeProviderErr(deps, 'cli.runtime.provider.routeWeightsPositive');
       deps.exit(1);
     }
     weights[alias] = weight;
@@ -3423,9 +3558,7 @@ function validateRouteWeights(
   const routeAliasSet = new Set(routeAliases);
   for (const alias of Object.keys(weights)) {
     if (!routeAliasSet.has(alias)) {
-      deps.stderr.write(
-        `Route weight "${alias}" is not the model alias or one of its fallback models.\n`,
-      );
+      writeProviderErr(deps, 'cli.runtime.provider.routeWeightNotInRoute', { alias });
       deps.exit(1);
     }
   }
@@ -3438,9 +3571,9 @@ function validatePreferredCredential(
 ): void {
   if (preferredCredential === undefined) return;
   if (labels.includes(preferredCredential)) return;
-  deps.stderr.write(
-    `Preferred credential "${preferredCredential}" is not one of the route candidates. Run \`liora provider route preview\` to inspect credential labels.\n`,
-  );
+  writeProviderErr(deps, 'cli.runtime.provider.preferredCredentialInvalid', {
+    credential: preferredCredential,
+  });
   deps.exit(1);
 }
 
@@ -3481,7 +3614,9 @@ function matchesRoutePreviewPreferred(
 }
 
 function formatRouteWeights(weights: Readonly<Record<string, number>> | undefined): string {
-  if (weights === undefined || Object.keys(weights).length === 0) return '(none)';
+  if (weights === undefined || Object.keys(weights).length === 0) {
+    return t('cli.runtime.provider.valueNone');
+  }
   return Object.entries(weights)
     .map(([alias, weight]) => `${alias}=${String(weight)}`)
     .join(', ');
@@ -3490,7 +3625,7 @@ function formatRouteWeights(weights: Readonly<Record<string, number>> | undefine
 function parsePositiveInt(value: string, label: string, deps: ProviderDeps): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    deps.stderr.write(`${label} must be a positive integer.\n`);
+    writeProviderErr(deps, 'cli.runtime.provider.positiveIntRequired', { label });
     deps.exit(1);
   }
   return parsed;
@@ -3509,10 +3644,7 @@ function parseProviderType(
     case 'vertexai':
       return value;
     default:
-      deps.stderr.write(
-        'Provider type must be one of: anthropic, openai, kimi, google-genai, ' +
-          'openai_responses, vertexai.\n',
-      );
+      writeProviderErr(deps, 'cli.runtime.provider.providerTypeInvalid');
       deps.exit(1);
   }
 }

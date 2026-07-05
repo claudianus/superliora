@@ -6,6 +6,7 @@
  */
 
 import { formatHostForUrl, listNetworkAddresses, type NetworkAddress } from './networks';
+import { t } from '#/cli/i18n';
 
 export function buildServerOriginUrl(bareOrigin: string): string {
   const base = bareOrigin.endsWith('/') ? bareOrigin.slice(0, -1) : bareOrigin;
@@ -47,19 +48,32 @@ export function accessUrlLines(
 ): AccessUrlLine[] {
   if (isWildcard(host)) {
     const lines: AccessUrlLine[] = [
-      { label: 'Local:    ', url: buildServerOriginUrl(`http://localhost:${port}`) },
+      {
+        label: t('cli.runtime.server.labelLocal'),
+        url: buildServerOriginUrl(`http://localhost:${port}`),
+      },
     ];
     const addrs = networkAddresses ?? listNetworkAddresses();
     for (const addr of addrs) {
       lines.push({
-        label: 'Network:  ',
+        label: t('cli.runtime.server.labelNetwork'),
         url: buildServerOriginUrl(`http://${formatHostForUrl(addr.address, addr.family)}:${port}`),
       });
     }
     return lines;
   }
   if (isLoopbackHost(host)) {
-    return [{ label: 'Local:    ', url: buildServerOriginUrl(hostOrigin(host, port)) }];
+    return [
+      {
+        label: t('cli.runtime.server.labelLocal'),
+        url: buildServerOriginUrl(hostOrigin(host, port)),
+      },
+    ];
   }
-  return [{ label: 'URL:      ', url: buildServerOriginUrl(hostOrigin(host, port)) }];
+  return [
+    {
+      label: t('cli.runtime.server.labelUrl'),
+      url: buildServerOriginUrl(hostOrigin(host, port)),
+    },
+  ];
 }
