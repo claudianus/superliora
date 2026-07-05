@@ -271,6 +271,36 @@ describe('createTUIState', () => {
     }
   });
 
+  it('keeps incremental native frames consistent after transcript viewport scroll', () => {
+    const width = 40;
+    const height = 16;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.transcriptContainer.addChild(
+      fixedLines(
+        Array.from(
+          { length: 40 },
+          (_, index) => `transcript-line-${String(index).padStart(2, '0')}`,
+        ),
+      ),
+    );
+    state.editorContainer.addChild(state.editor);
+    state.footerContainer.addChild(fixedLines(['footer']));
+
+    let renderer = renderTUIStateNativeFrame(state, { force: true }).renderer;
+    for (let step = 0; step < 6; step++) {
+      state.transcriptViewport.scroll('line-up');
+      const incremental = renderTUIStateNativeFrame(state, { renderer });
+      renderer = incremental.renderer;
+      const authoritative = renderTUIStateNativeFrame(state, { force: true });
+      expect(frameText(incremental)).toBe(frameText(authoritative));
+    }
+  });
+
   it('renders footer history badge from the transcript viewport state', () => {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),

@@ -20,6 +20,7 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 
+import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 
 import type { TUIEditor, TUIEditorInputMode } from './editor-contract';
@@ -450,13 +451,39 @@ export class NativeTUIEditor implements TUIEditor {
     void this.requestAutocomplete({ force: this.inputMode === 'bash' });
   }
 
+  private resolveEditorSurfaceStyles() {
+    const palette = currentTheme.palette;
+    return resolveRendererEditorSurfaceStyles({
+      commandMode: this.inputMode === 'bash',
+      focused: this.focused,
+      canvasBackground: currentTheme.canvasBackgroundEnabled,
+      palette: {
+        text: palette.text,
+        textMuted: palette.textMuted,
+        textStrong: palette.textStrong,
+        border: palette.border,
+        borderFocus: palette.primary,
+        command: palette.shellMode,
+        surfaceSunken: palette.surfaceSunken,
+        selectionBg: palette.selectionBg,
+        selectionText: palette.selectionText,
+      },
+    });
+  }
+
   private buildNativeEditorSurface(width: number) {
     const safeWidth = Math.max(1, Math.floor(width));
     const contentWidth = Math.max(
       1,
       safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
     );
-    const overlayLines = this.getNativeOverlayLines(safeWidth);
+    const editorStyles = this.resolveEditorSurfaceStyles();
+    const overlayLines = this.getNativeOverlayLines(safeWidth, {
+      text: editorStyles.textStyle,
+      selected: editorStyles.autocompleteSelectedStyle,
+      description: editorStyles.autocompleteDescriptionStyle,
+      scroll: editorStyles.autocompleteScrollStyle,
+    });
     const content = this.input.render({
       width: contentWidth,
       focused: this.focused,
@@ -481,12 +508,10 @@ export class NativeTUIEditor implements TUIEditor {
       topLabel: this.inputMode === 'bash' ? RENDERER_EDITOR_SHELL_MODE_LABEL : undefined,
       connectedAbove: this.connectedAbove && !this.borderHighlighted,
       overlays: surfaceLayout.overlayLines,
-      slashTokenStyle: this.inputMode === 'bash'
-        ? undefined
-        : resolveRendererEditorSurfaceStyles({
-            commandMode: false,
-            focused: this.focused,
-          }).slashTokenStyle,
+      borderStyle: editorStyles.borderStyle,
+      promptStyle: editorStyles.promptStyle,
+      surfaceStyle: editorStyles.surfaceStyle,
+      slashTokenStyle: this.inputMode === 'bash' ? undefined : editorStyles.slashTokenStyle,
     });
   }
 }

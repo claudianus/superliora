@@ -3,6 +3,7 @@ import {
   NativeRendererTerminalHost,
   NativeTerminalRenderer,
   renderNativeRootChildren,
+  resolveNativePremiumRendererDefaults,
   type Component,
   type NativeInputEvent,
   type NativeRootUIOptions,
@@ -42,8 +43,14 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
 
   constructor(options: LioraNativeRootUIOptions) {
     this.terminal = new NativeRendererTerminalHost(options.output, options.input);
+    const premiumDefaults = resolveNativePremiumRendererDefaults({
+      features: options.features,
+      synchronized: options.synchronized,
+      environment: process.env,
+    });
     this.renderer = new NativeTerminalRenderer({
       ...options,
+      outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
       onInput: (data) => {
         this.handleRawInput(data.toString('utf8'));
       },

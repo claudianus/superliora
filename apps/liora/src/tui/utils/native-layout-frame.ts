@@ -38,6 +38,7 @@ import {
   type RendererRect,
   type RendererRegionVfxPreset,
   type RendererRegionId,
+  type NativeRenderCause,
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
@@ -174,10 +175,50 @@ export function renderTUIStateNativeFrame(
   return { ...result, renderer, width, height, cursor: frame.cursor };
 }
 
+interface TUIStateNativeLayoutTracking {
+  transcriptStart?: number;
+  editorLayoutRows?: number;
+}
+
+export function shouldForceTUIStateNativeLayoutFrame(
+  causes: readonly NativeRenderCause[],
+  layoutShifted: boolean,
+): boolean {
+  return (
+    causes.includes('start') ||
+    causes.includes('resize') ||
+    causes.includes('manual') ||
+    causes.includes('transcript-scroll') ||
+    layoutShifted
+  );
+}
+
+function detectTUIStateNativeLayoutShift(
+  state: TUIState,
+  frameWidth: number,
+  prior: TUIStateNativeLayoutTracking,
+): { readonly shifted: boolean; readonly next: TUIStateNativeLayoutTracking } {
+  const transcriptStart = state.transcriptViewport.start();
+  const editorLayoutRows =
+    state.editorContainer.children.includes(state.editor) &&
+    state.editor.getNativeLayoutRowCount !== undefined
+      ? state.editor.getNativeLayoutRowCount(frameWidth)
+      : undefined;
+  const shifted =
+    (prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart) ||
+    (prior.editorLayoutRows !== undefined &&
+      editorLayoutRows !== undefined &&
+      prior.editorLayoutRows !== editorLayoutRows);
+  const next: TUIStateNativeLayoutTracking = { transcriptStart };
+  if (editorLayoutRows !== undefined) next.editorLayoutRows = editorLayoutRows;
+  return { shifted, next };
+}
+
 export function createTUIStateNativeRenderCallback(
   state: TUIState,
   options: TUIStateNativeRenderCallbackOptions,
 ): NativeTerminalRendererRender {
+  let layoutTracking: TUIStateNativeLayoutTracking = {};
   return ({ frame, runtime, size, quality }) => {
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
     advanceAppearanceAnimationClock(frame.timestamp);
@@ -186,13 +227,17 @@ export function createTUIStateNativeRenderCallback(
     // (see `measureFrameHeight` in createTUIStateNativeRenderer), so layout
     // must be computed against the actual buffer height, not `size.rows`.
     const height = runtime.frameRenderer.height;
+    const layoutShift = detectTUIStateNativeLayoutShift(state, size.columns, layoutTracking);
+    layoutTracking = layoutShift.next;
+    const force = shouldForceTUIStateNativeLayoutFrame(frame.causes, layoutShift.shifted);
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
     });
     const result = runtime.renderLayoutFrame(nativeFrame.regions, {
       fill: options.fill ?? currentTheme.canvasBackgroundCell(),
-      force: frame.causes.includes('start') || frame.causes.includes('resize'),
+      force,
+      clear: force,
       cursor: nativeFrame.cursor,
     });
     return result;
