@@ -51,6 +51,7 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
     });
     this.renderer = new NativeTerminalRenderer({
       ...options,
+      adaptiveQuality: false,
       outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
       onInput: (data) => {
         this.handleRawInput(data.toString('utf8'));

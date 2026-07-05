@@ -104,13 +104,19 @@ export function resolveAmbientEffectMode(appearance: AppearancePreferences): Amb
   return 'subtle';
 }
 
+function pinsPremiumAppearanceEffects(appearance: AppearancePreferences): boolean {
+  return resolveAmbientEffectMode(appearance) === 'premium';
+}
+
 export function resolveQualityAdjustedAmbientEffectMode(
   appearance: AppearancePreferences,
   quality: RendererQualityLevel = appearanceRenderQuality,
   health: NativeFrameStatsHealth = appearanceRenderHealth,
 ): AmbientEffectMode {
+  const requested = resolveAmbientEffectMode(appearance);
+  if (pinsPremiumAppearanceEffects(appearance)) return 'premium';
   return resolveRendererEffectLevel({
-    requested: resolveAmbientEffectMode(appearance),
+    requested,
     // When the renderer drops to minimal quality during bursts of input, keep
     // ambient effects alive at the balanced level so they do not appear to freeze
     // while the user is typing.
@@ -124,6 +130,18 @@ export function appearanceAnimationFrameIntervalMs(
   quality: RendererQualityLevel = appearanceRenderQuality,
   health: NativeFrameStatsHealth = appearanceRenderHealth,
 ): number {
+  if (pinsPremiumAppearanceEffects(appearance)) {
+    return rendererAnimationFrameIntervalMs({
+      fps: appearance.animationFps,
+      requested: 'premium',
+      quality: 'full',
+      health: 'healthy',
+      maxFps: 30,
+      defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
+      premiumMs: 33,
+      offMs: 1000,
+    });
+  }
   return rendererAnimationFrameIntervalMs({
     fps: appearance.animationFps,
     requested: resolveAmbientEffectMode(appearance),

@@ -15,6 +15,7 @@ import {
   renderPulseGlyph,
   renderShimmerPrefix,
   renderSpectacularText,
+  resolveQualityAdjustedAmbientEffectMode,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
@@ -197,7 +198,7 @@ describe('AppearanceController', () => {
     expect(writes.at(-1)).toContain('\u001B]104');
   });
 
-  it('paces animation ticks from effect cadence and renderer health', () => {
+  it('keeps premium animation ticks at the configured fps regardless of renderer health', () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const appearance = {
@@ -208,9 +209,9 @@ describe('AppearanceController', () => {
     };
     const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
 
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(160);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(420);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(420);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(33);
 
     setAppearanceRenderHealth('watch');
     const controller = new AppearanceController({
@@ -220,7 +221,7 @@ describe('AppearanceController', () => {
       shouldRenderAnimation: () => true,
     });
 
-    vi.advanceTimersByTime(419);
+    vi.advanceTimersByTime(32);
     expect(requestRender).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(requestRender).toHaveBeenCalledTimes(1);
@@ -270,7 +271,7 @@ describe('AppearanceController', () => {
     expect(strip(changed)).not.toBe(strip(first));
   });
 
-  it('falls back to subtle ambient effects at minimal renderer quality', () => {
+  it('keeps premium ambient effects at full quality under renderer pressure', () => {
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
@@ -279,15 +280,16 @@ describe('AppearanceController', () => {
 
     setAppearanceRenderQuality('balanced');
     expect(getAppearanceRenderQuality()).toBe('balanced');
-    expect(strip(renderPulseGlyph(['A', 'B'], 'quality-test', 'A', 'primary', appearance))).toBe('A');
+    expect(resolveQualityAdjustedAmbientEffectMode(appearance, 'balanced', 'healthy')).toBe('premium');
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
 
     setAppearanceRenderQuality('minimal');
+    expect(resolveQualityAdjustedAmbientEffectMode(appearance, 'minimal', 'degraded')).toBe('premium');
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
     expect(strip(renderParticleDivider(8, 'quality-divider', appearance))).toMatch(/[✦✧∙·]/);
   });
 
-  it('falls back to subtle ambient effects at degraded renderer frame health', () => {
+  it('keeps premium ambient effects at full quality under degraded renderer frame health', () => {
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
@@ -296,10 +298,11 @@ describe('AppearanceController', () => {
 
     setAppearanceRenderHealth('watch');
     expect(getAppearanceRenderHealth()).toBe('watch');
-    expect(strip(renderPulseGlyph(['A', 'B'], 'health-test', 'A', 'primary', appearance))).toBe('A');
+    expect(resolveQualityAdjustedAmbientEffectMode(appearance, 'minimal', 'watch')).toBe('premium');
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
 
     setAppearanceRenderHealth('degraded');
+    expect(resolveQualityAdjustedAmbientEffectMode(appearance, 'minimal', 'degraded')).toBe('premium');
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
     expect(strip(renderParticleDivider(8, 'health-divider', appearance))).toMatch(/[✦✧∙·]/);
   });

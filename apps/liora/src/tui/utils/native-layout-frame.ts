@@ -591,11 +591,12 @@ function createTUIStateNativeRegionVfx(
   if (!state.transcriptViewport.followOutput) return undefined;
   if (!motionEffectsAllowed()) return undefined;
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
+  const premiumPinned = resolveAmbientEffectMode(appearance) === 'premium';
   return createRendererRegionVfx({
     preset,
     requested: resolveAmbientEffectMode(appearance),
-    quality: getAppearanceRenderQuality(),
-    health: getAppearanceRenderHealth(),
+    quality: premiumPinned ? 'full' : getAppearanceRenderQuality(),
+    health: premiumPinned ? 'healthy' : getAppearanceRenderHealth(),
     nowMs: appearanceAnimationNow(),
     seed: options.seed,
     color: options.color,
