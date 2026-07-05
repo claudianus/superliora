@@ -72,8 +72,11 @@ export function resolveTUIStateNativeFramePolicy(
   const force = shouldForceTUIStateNativeLayoutFrame(input.causes, input.layoutShifted, {
     ambientAnimation: ambientAnimationFrame,
   });
-  const refreshTerminalPalette =
-    force && shouldRefreshNativeTerminalPalette(input.causes, input.layoutShifted);
+  // Any authoritative redraw clears the terminal surface; re-apply OSC palette
+  // colors first so default-fg cells and indexed colors stay on-theme. Animation
+  // frames force redraws too, and skipping palette refresh there was dropping
+  // theme colors once agent work started and ambient ticks ramped up.
+  const refreshTerminalPalette = force;
   const clearTranscriptSelection =
     input.priorTranscriptStart !== undefined &&
     input.priorTranscriptStart !== input.nextTranscriptStart;

@@ -54,8 +54,17 @@ export class AppearanceController {
       fps: appearance.animationFps,
       enabled: shouldAnimate(appearance),
     });
-    this.applyTerminalColors(appearance, currentTheme.palette);
+    this.reapplyTerminalPalette(appearance);
     this.onAppearanceApplied?.();
+  }
+
+  /**
+   * Re-emit OSC palette / background colors after an authoritative native redraw.
+   * Does not touch appearance preferences, animation scheduling, or palette
+   * invalidation callbacks — callers already sit inside a forced frame.
+   */
+  reapplyTerminalPalette(appearance: AppearancePreferences = this.getAppearance()): void {
+    this.applyTerminalColors(appearance, currentTheme.palette);
   }
 
   dispose(): void {

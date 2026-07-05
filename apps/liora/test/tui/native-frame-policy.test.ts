@@ -30,7 +30,7 @@ describe('native-frame-policy', () => {
     expect(policy.clearTranscriptSelection).toBe(false);
   });
 
-  it('forces animation frames without palette refresh when layout is stable', () => {
+  it('refreshes terminal palette on ambient animation authoritative frames', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['animation'],
       layoutShifted: false,
@@ -41,7 +41,7 @@ describe('native-frame-policy', () => {
 
     expect(policy.force).toBe(true);
     expect(policy.clear).toBe(true);
-    expect(policy.refreshTerminalPalette).toBe(false);
+    expect(policy.refreshTerminalPalette).toBe(true);
     expect(shouldRefreshNativeTerminalPalette(['animation'], false)).toBe(false);
     expect(shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: true })).toBe(
       true,

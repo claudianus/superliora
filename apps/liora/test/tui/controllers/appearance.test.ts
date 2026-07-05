@@ -168,6 +168,40 @@ describe('AppearanceController', () => {
     expect(terminalMutationAllowed(appearance)).toBe(false);
   });
 
+  it('reapplies OSC palette without scheduling another palette invalidation', () => {
+    const writes: string[] = [];
+    const terminal = {
+      write: (chunk: string) => {
+        writes.push(chunk);
+      },
+    } as RendererTerminalHost;
+    const onAppearanceApplied = vi.fn();
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off' as const,
+      canvasBackground: false,
+      terminalBackground: 'session' as const,
+      terminalPalette: true,
+    };
+
+    const controller = new AppearanceController({
+      terminal,
+      requestRender: vi.fn(),
+      getAppearance: () => appearance,
+      onAppearanceApplied,
+    });
+    writes.length = 0;
+    onAppearanceApplied.mockClear();
+
+    controller.reapplyTerminalPalette();
+
+    expect(onAppearanceApplied).not.toHaveBeenCalled();
+    expect(writes.join('')).toContain('\u001B]11;');
+    expect(writes.join('')).toContain('\u001B]4;0;');
+
+    controller.dispose();
+  });
+
   it('applies canvas background and opt-in OSC colors, then resets them on dispose', () => {
     const writes: string[] = [];
     const terminal = {

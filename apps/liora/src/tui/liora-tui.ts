@@ -619,7 +619,7 @@ export class LioraTUI {
       createTUIStateNativeRenderCallback(this.state, {
         diagnosticsOverlay,
         onAuthoritativeFrame: () => {
-          this.appearanceController.apply();
+          this.appearanceController.reapplyTerminalPalette();
         },
       }),
     );

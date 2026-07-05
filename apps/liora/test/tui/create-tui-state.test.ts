@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
 import { NoticeMessageComponent } from '#/tui/components/messages/status-message';
+import { UserMessageComponent } from '#/tui/components/messages/user-message';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import {
   ANSI_ENABLE_BRACKETED_PASTE,
@@ -36,6 +37,7 @@ import {
   createTUIStateNativeRenderer,
   createTUIStateVisibleNativeRenderer,
   detectTUIStateNativeLayoutShift,
+  resolveTUIStateNativeFramePolicy,
   renderTUIStateNativeFrame,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
@@ -355,6 +357,64 @@ describe('createTUIState', () => {
       renderer = incremental.renderer;
       const authoritative = renderTUIStateNativeFrame(state, { force: true, width, height });
       expect(frameText(incremental)).toBe(frameText(authoritative));
+    }
+  });
+
+  it('preserves transcript foreground colors across animation and layout-shift frames', () => {
+    const envKeys = ['CI', 'NO_COLOR'] as const;
+    const saved = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+    for (const key of envKeys) delete process.env[key];
+    try {
+    const width = 80;
+    const height = 24;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    currentTheme.setCanvasBackgroundEnabled(true);
+    state.transcriptContainer.addChild(new UserMessageComponent('start work now'));
+    state.editorContainer.addChild(state.editor);
+    state.footerContainer.addChild(fixedLines(['footer']));
+
+    const hasColorOutput = (output: string) => /\u001B\[[0-9;]*m/.test(output);
+
+    const initial = renderTUIStateNativeFrame(state, { width, height, force: true });
+    expect(hasColorOutput(initial.output)).toBe(true);
+
+    const animationPolicy = resolveTUIStateNativeFramePolicy({
+      causes: ['animation'],
+      layoutShifted: false,
+      nextTranscriptStart: state.transcriptViewport.start(),
+      ambientAnimationAllowed: true,
+    });
+    expect(animationPolicy.refreshTerminalPalette).toBe(true);
+
+    const animated = renderTUIStateNativeFrame(state, {
+      renderer: initial.renderer,
+      width,
+      height,
+      force: animationPolicy.force,
+    });
+    expect(hasColorOutput(animated.output)).toBe(true);
+
+    state.transcriptContainer.addChild(
+      new NoticeMessageComponent('Ultrawork mode: ON', 'Shift-Tab routes the next task.'),
+    );
+    const grown = renderTUIStateNativeFrame(state, {
+      renderer: animated.renderer,
+      width,
+      height,
+      force: true,
+    });
+    expect(hasColorOutput(grown.output)).toBe(true);
+    } finally {
+      for (const key of envKeys) {
+        const value = saved[key];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });
 
