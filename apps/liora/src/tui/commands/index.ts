@@ -36,7 +36,7 @@ export {
   parseUltraworkCommand,
   shouldAutoActivateUltrawork,
 } from './ultrawork';
-export { handleFeedbackCommand, showMcpServers, showStatusReport, showUsage } from './info';
+export { showMcpServers, showStatusReport, showUsage } from './info';
 export {
   buildMemoryReadinessLines,
   handleMemoryCommand,
@@ -67,7 +67,6 @@ export { handleUndoCommand } from './undo';
 export {
   promptApiKey,
   promptCatalogProviderSelection,
-  promptFeedbackInput,
   promptLogoutProviderSelection,
   promptModelSelectionForCatalog,
   promptModelSelectionForOpenPlatform,

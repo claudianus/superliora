@@ -1,5 +1,4 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { release as osRelease, type as osType } from 'node:os';
 import { join, relative } from 'node:path';
 
 import { resolveEvidenceRoot } from '#/constant/workspace-data';
@@ -11,87 +10,12 @@ import {
   type StatusRecoveryReadiness,
 } from '../components/messages/status-panel';
 import { buildUsageReportLines, UsagePanelComponent, type ManagedUsageReport } from '../components/messages/usage-panel';
-import {
-  FEEDBACK_ISSUE_URL,
-  FEEDBACK_STATUS_CANCELLED,
-  FEEDBACK_STATUS_FALLBACK,
-  FEEDBACK_STATUS_NOT_SIGNED_IN,
-  FEEDBACK_STATUS_SUBMITTING,
-  FEEDBACK_STATUS_SUCCESS,
-  FEEDBACK_STATUS_UPLOAD_FAILED,
-  FEEDBACK_TELEMETRY_EVENT,
-  feedbackIdLine,
-  feedbackSessionLine,
-  withFeedbackVersionPrefix,
-} from '../constant/feedback';
 import { isManagedUsageProvider } from '../constant/liora-tui';
-import { submitFeedbackWithAttachments } from '../../feedback/feedback-attachments';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { formatErrorMessage } from '../utils/event-payload';
 import { createGitStatusCache } from '#/utils/git/git-status';
-import { openUrl } from '#/utils/open-url';
 import { loadPreflightHumanWriting } from './preflight';
-import { promptFeedbackAttachment, promptFeedbackInput } from './prompts';
 import type { SlashCommandHost } from './dispatch';
-
-// ---------------------------------------------------------------------------
-// Feedback
-// ---------------------------------------------------------------------------
-
-export async function handleFeedbackCommand(host: SlashCommandHost): Promise<void> {
-  const fallback = (reason: string): void => {
-    host.showStatus(reason);
-    host.showStatus(FEEDBACK_ISSUE_URL);
-    openUrl(FEEDBACK_ISSUE_URL);
-  };
-
-  const providerKey = host.state.appState.availableModels[host.state.appState.model]?.provider;
-  if (!isManagedUsageProvider(providerKey)) {
-    fallback(FEEDBACK_STATUS_NOT_SIGNED_IN);
-    return;
-  }
-
-  // Stage 1: collect the free-form feedback text.
-  const input = await promptFeedbackInput(host);
-  if (input === undefined) {
-    host.showStatus(FEEDBACK_STATUS_CANCELLED);
-    return;
-  }
-
-  // Stage 2: ask whether to attach diagnostics (logs / codebase).
-  const level = await promptFeedbackAttachment(host);
-  if (level === undefined) {
-    host.showStatus(FEEDBACK_STATUS_CANCELLED);
-    return;
-  }
-
-  const version = withFeedbackVersionPrefix(host.state.appState.version);
-  const spinner = host.showLoginProgressSpinner(FEEDBACK_STATUS_SUBMITTING);
-  const res = await host.harness.auth.submitFeedback({
-    content: input.value,
-    sessionId: host.state.appState.sessionId,
-    version,
-    os: `${osType()} ${osRelease()}`,
-    model: host.state.appState.model.length > 0 ? host.state.appState.model : null,
-  });
-
-  if (res.kind !== 'ok') {
-    spinner.stop({ ok: false, label: res.message });
-    fallback(FEEDBACK_STATUS_FALLBACK);
-    return;
-  }
-
-  // Stage 3: prepare and upload each requested attachment independently.
-  const attachmentFailed = await submitFeedbackWithAttachments(host, res.feedbackId, level);
-
-  spinner.stop({ ok: true, label: FEEDBACK_STATUS_SUCCESS });
-  host.showStatus(feedbackSessionLine(host.state.appState.sessionId));
-  host.showStatus(feedbackIdLine(res.feedbackId));
-  host.track(FEEDBACK_TELEMETRY_EVENT);
-  if (attachmentFailed) {
-    host.showStatus(FEEDBACK_STATUS_UPLOAD_FAILED);
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Info commands

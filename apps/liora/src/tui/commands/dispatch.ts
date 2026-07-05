@@ -37,7 +37,7 @@ import {
   showSettingsSelector,
 } from './config';
 import { handleGoalCommand } from './goal';
-import { handleFeedbackCommand, showMcpServers, showStatusReport, showUsage } from './info';
+import { showMcpServers, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
 import { handleBenchCommand } from './bench';
 import { handleMemoryCommand } from './memory';
@@ -93,7 +93,7 @@ export {
 } from './config';
 export { handleSwarmCommand } from './swarm';
 export { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
-export { handleFeedbackCommand, showMcpServers, showStatusReport, showUsage } from './info';
+export { showMcpServers, showStatusReport, showUsage } from './info';
 export { handleMemoryCommand } from './memory';
 export { handlePluginsCommand } from './plugins';
 export { handlePreflightCommand } from './preflight';
@@ -334,9 +334,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'status':
       void showStatusReport(host);
-      return;
-    case 'feedback':
-      await handleFeedbackCommand(host);
       return;
     case 'btw':
       await handleBtwCommand(host, args);

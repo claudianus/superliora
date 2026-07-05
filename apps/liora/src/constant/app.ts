@@ -43,15 +43,6 @@ export const DEFAULT_OAUTH_PROVIDER_NAME = 'managed:kimi-api';
 // auto-propagates instead of silently breaking the startup recovery path.
 export const OAUTH_LOGIN_REQUIRED_CODE = ErrorCodes.AUTH_LOGIN_REQUIRED;
 
-export const FEEDBACK_ISSUE_URL = 'https://github.com/claudianus/superliora/issues';
-
-// Sent in the feedback `version` field so the backend can distinguish this
-// TypeScript client from clients that send a bare version.
-export const FEEDBACK_VERSION_PREFIX = 'liora-';
-
-// Telemetry event name; keep stable for dashboard queries.
-export const FEEDBACK_TELEMETRY_EVENT = 'feedback_submitted';
-
 // SuperLiora is installed from this repo's GitHub source; update/plugin/tips
 // manifests are served from the same place, not a third-party CDN.
 export const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/claudianus/superliora/main';
