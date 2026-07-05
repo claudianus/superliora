@@ -15,6 +15,7 @@ import {
   BackgroundTaskPersistence,
   ProcessBackgroundTask,
   type BackgroundManager,
+  type BackgroundTaskInfo,
 } from '../../../src/agent/background';
 import {
   agentTask,
@@ -805,4 +806,45 @@ describe('BackgroundManager', () => {
     expect(info).toMatchObject({ kind: 'process', status: 'completed', exitCode: 0 });
     expect(await manager.readOutput(taskId)).toContain('bg-ok');
   }, 15_000);
+});
+
+describe('waitForActiveTasks', () => {
+  function deferred<T>(): {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+    reject: (reason?: unknown) => void;
+  } {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  const isAgent = (info: BackgroundTaskInfo): boolean => info.kind === 'agent';
+
+  it('resolves immediately when no task matches the predicate', async () => {
+    const { manager } = createBackgroundManager();
+    registerProcess(manager, immediateProcess(0), 'noop', 'proc');
+    await expect(manager.waitForActiveTasks(isAgent)).resolves.toBeUndefined();
+  });
+
+  it('waits until a matching agent task reaches a terminal state', async () => {
+    const { manager } = createBackgroundManager();
+    const done = deferred<{ result: string }>();
+    manager.registerTask(agentTask(done.promise, 'agent'));
+
+    let settled = false;
+    const wait = manager.waitForActiveTasks(isAgent).then(() => {
+      settled = true;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(settled).toBe(false);
+
+    done.resolve({ result: 'ok' });
+    await wait;
+    expect(settled).toBe(true);
+  });
 });

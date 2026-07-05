@@ -111,6 +111,11 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
       }).transcriptRows,
   );
   const editor = createTUIEditor(ui);
+  if ('setDisablePasteBurst' in editor) {
+    (editor as { setDisablePasteBurst(disabled: boolean): void }).setDisablePasteBurst(
+      initialAppState.disablePasteBurst ?? false,
+    );
+  }
   const nativeEditorTextInput = new NativeEditorTextInputController();
   const footer = new FooterComponent(
     { ...initialAppState },

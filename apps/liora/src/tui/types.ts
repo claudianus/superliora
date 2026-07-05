@@ -48,6 +48,7 @@ export interface AppState {
   streamingStartTime: number;
   activityTip?: string | null;
   theme: ThemeName;
+  disablePasteBurst?: boolean;
   version: string;
   editorCommand: string | null;
   notifications: NotificationsConfig;

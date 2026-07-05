@@ -233,6 +233,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     streamingStartTime: 0,
     activityTip: null,
     theme: input.tuiConfig.theme,
+    disablePasteBurst: input.tuiConfig.disablePasteBurst,
     version: input.version,
     editorCommand: input.tuiConfig.editorCommand,
     notifications: input.tuiConfig.notifications,
@@ -1103,11 +1104,11 @@ export class LioraTUI {
       this.showError('Cannot send input while session history is replaying.');
       return;
     }
-    // Shell commands (`! …`) are not prompts — keep them out of input history
-    // so ↑ recall never surfaces a bare command stripped of its `!`.
-    if (!wasBashMode) {
-      void this.persistInputHistory(text);
-    }
+    // Shell commands are stored with a leading `!` so ↑ recall can tell them
+    // apart from prompts and restore bash mode. The `!` is stripped again when
+    // the entry is recalled.
+    const historyText = wasBashMode ? `!${text}` : text;
+    void this.persistInputHistory(historyText);
     if (wasBashMode) {
       // Only one foreground action at a time: queue the shell command while
       // another shell command is running or an agent turn is in progress.

@@ -6,3 +6,4 @@ export * from './quality';
 export * from './strategy';
 export * from './types';
 export * from './memory';
+export * from './handoff';

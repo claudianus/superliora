@@ -69,6 +69,7 @@ export interface LoopToolCallEvent {
   readonly args: unknown;
   readonly description?: string | undefined;
   readonly display?: ToolInputDisplay | undefined;
+  readonly extras?: Record<string, unknown> | undefined;
 }
 
 export interface LoopToolResultEvent {

@@ -19,6 +19,13 @@ export interface ProjectOptions {
   readonly dropLeadingNonUser?: boolean;
   /** Merge adjacent assistant turns for strict providers that require alternation. */
   readonly mergeConsecutiveAssistants?: boolean;
+  /**
+   * When `true`, drop assistant tool calls whose id already appeared earlier
+   * (first occurrence wins; a message left with no content and no calls is
+   * dropped), and drop every tool result after the first for a given id so the
+   * kept call keeps exactly one answer. Strict-resend only.
+   */
+  readonly dedupeDuplicateToolCalls?: boolean;
   /** Observe projection repairs for diagnostics without mutating source history. */
   readonly onAnomaly?: (anomaly: ProjectionAnomaly) => void;
 }
@@ -27,15 +34,18 @@ export type ProjectionAnomaly =
   | { readonly kind: 'tool_result_reordered'; readonly toolCallId: string }
   | { readonly kind: 'tool_result_synthesized'; readonly toolCallId: string; readonly trailing: boolean }
   | { readonly kind: 'orphan_tool_result_dropped'; readonly toolCallId: string }
+  | { readonly kind: 'duplicate_tool_call_dropped'; readonly toolCallId: string }
+  | { readonly kind: 'duplicate_tool_result_dropped'; readonly toolCallId: string }
   | { readonly kind: 'leading_non_user_dropped'; readonly role: string }
   | { readonly kind: 'consecutive_assistants_merged' }
   | { readonly kind: 'whitespace_text_dropped'; readonly role: string };
 
 export function project(history: readonly ContextMessage[], options?: ProjectOptions): Message[] {
-  let result = repairToolExchangeAdjacency(
-    mergeAdjacentUserMessages(history, options?.onAnomaly),
-    options,
-  );
+  let result = mergeAdjacentUserMessages(history, options?.onAnomaly);
+  if (options?.dedupeDuplicateToolCalls === true) {
+    result = dedupeDuplicateToolCalls(result, options.onAnomaly);
+  }
+  result = repairToolExchangeAdjacency(result, options);
   if (options?.mergeConsecutiveAssistants === true) {
     result = mergeConsecutiveAssistantMessages(result, options.onAnomaly);
   }
@@ -111,6 +121,42 @@ function makeSyntheticToolResult(toolCallId: string): Message {
     toolCalls: [],
     toolCallId,
   };
+}
+
+function dedupeDuplicateToolCalls(
+  messages: readonly Message[],
+  onAnomaly?: (anomaly: ProjectionAnomaly) => void,
+): Message[] {
+  const seenToolCallIds = new Set<string>();
+  const seenToolResultIds = new Set<string>();
+  const out: Message[] = [];
+  for (const message of messages) {
+    if (message.role === 'assistant' && message.toolCalls.length > 0) {
+      const kept = message.toolCalls.filter((toolCall) => {
+        if (seenToolCallIds.has(toolCall.id)) {
+          onAnomaly?.({ kind: 'duplicate_tool_call_dropped', toolCallId: toolCall.id });
+          return false;
+        }
+        seenToolCallIds.add(toolCall.id);
+        return true;
+      });
+      if (kept.length === message.toolCalls.length) {
+        out.push(message);
+      } else if (kept.length > 0 || message.content.length > 0) {
+        out.push({ ...message, toolCalls: kept });
+      }
+      continue;
+    }
+    if (message.role === 'tool' && message.toolCallId !== undefined) {
+      if (seenToolResultIds.has(message.toolCallId)) {
+        onAnomaly?.({ kind: 'duplicate_tool_result_dropped', toolCallId: message.toolCallId });
+        continue;
+      }
+      seenToolResultIds.add(message.toolCallId);
+    }
+    out.push(message);
+  }
+  return out;
 }
 
 function dropOrphanToolResults(

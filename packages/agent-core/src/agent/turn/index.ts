@@ -538,6 +538,9 @@ export class TurnFlow {
         }
       }
     }
+    // A turn that ended with recorded tool calls still awaiting results must
+    // close the exchange before turn.ended so later messages are not stranded.
+    this.closeAbandonedToolExchange(ended);
     // Emit the terminal turn.ended and (for a standalone turn) release the active
     // turn in the SAME synchronous frame, so the session is observably idle the
     // instant turn.ended fires. A goal drive keeps the active turn across its
@@ -713,6 +716,21 @@ export class TurnFlow {
               if (this.flushSteerBuffer()) return { continue: true };
               signal.throwIfAborted();
 
+              if (this.agent.printDrainAgentTasksOnStop) {
+                const remaining = this.agent.printDrainDeadlineMs - Date.now();
+                const hasActiveAgentTask = this.agent.background
+                  .list(true)
+                  .some((task) => task.kind === 'agent');
+                if (hasActiveAgentTask && remaining > 0) {
+                  await this.agent.background.waitForActiveTasks(
+                    (task) => task.kind === 'agent',
+                    { timeoutMs: remaining, signal },
+                  );
+                  this.flushSteerBuffer();
+                  return { continue: true };
+                }
+              }
+
               // 2. After UpdateGoal marks a goal terminal, ask the model for one
               //    final user-facing outcome message before the turn ends.
               if (
@@ -833,6 +851,26 @@ export class TurnFlow {
         }
         throw error;
       }
+    }
+  }
+
+  private closeAbandonedToolExchange(ended: TurnEndedEvent): void {
+    try {
+      const closed = this.agent.context.closeAbandonedToolExchange(
+        abandonedToolResultOutput(ended),
+      );
+      if (closed === 0) return;
+      this.agent.log.warn('closed abandoned tool exchange at turn end', {
+        turnId: ended.turnId,
+        reason: ended.reason,
+        closed,
+      });
+      this.agent.telemetry.track('tool_exchange_abandoned', {
+        reason: ended.reason,
+        closed,
+      });
+    } catch (error) {
+      this.agent.log.warn('failed to close abandoned tool exchange', { error });
     }
   }
 
@@ -1240,4 +1278,14 @@ function telemetryToolErrorType(result: ToolTelemetryResult): string {
 
 function toolResultText(result: ToolTelemetryResult): string {
   return toolOutputText(result.output);
+}
+
+function abandonedToolResultOutput(ended: TurnEndedEvent): string {
+  const cause =
+    ended.reason === 'cancelled'
+      ? 'the turn was cancelled'
+      : ended.reason === 'failed'
+        ? `the turn failed${ended.error !== undefined ? ` (${ended.error.message})` : ''}`
+        : 'the turn ended';
+  return `Tool call did not complete: ${cause} before its result was recorded. Do not assume the tool completed successfully.`;
 }

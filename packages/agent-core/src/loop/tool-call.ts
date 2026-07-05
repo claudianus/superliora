@@ -723,6 +723,7 @@ async function dispatchToolCall(
     args,
     description: displayFields?.description,
     display: displayFields?.display,
+    extras: toolCall.extras,
   });
 }
 

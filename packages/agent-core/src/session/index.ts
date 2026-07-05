@@ -79,6 +79,11 @@ export interface SessionOptions {
   readonly experimentalFlags?: ExperimentalFlagResolver;
   readonly additionalDirs?: readonly string[];
   readonly memory?: SessionMemoryRuntime;
+  /**
+   * Print-mode (`liora -p`) only: hold the main turn open while background
+   * subagents are still running before the run exits.
+   */
+  readonly drainAgentTasksOnStop?: boolean;
 }
 
 export interface SessionSkillConfig {
@@ -120,6 +125,10 @@ export interface SessionMeta {
   isCustomTitle: boolean;
   lastPrompt?: string;
   forkedFrom?: string;
+  /** Absolute working directory the session was created in. Persisted so the
+   *  session directory is self-describing and the global session index does not
+   *  have to be trusted for the (one-way-hashed) workDir. */
+  workDir?: string;
   agents: Record<string, AgentMeta>;
   custom: Record<string, any>;
 }
@@ -296,6 +305,11 @@ export class Session {
     const { agent } = await this.createAgent({ type: 'main' }, {
       profile: DEFAULT_AGENT_PROFILES['agent'],
     });
+    if (this.options.drainAgentTasksOnStop) {
+      const ceilingS = this.options.background?.printWaitCeilingS ?? 3600;
+      agent.printDrainAgentTasksOnStop = true;
+      agent.printDrainDeadlineMs = Date.now() + ceilingS * 1000;
+    }
     await this.triggerSessionStart('startup');
     return agent;
   }

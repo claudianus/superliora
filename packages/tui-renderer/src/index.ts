@@ -27,6 +27,7 @@ export * from './native-frame';
 export * from './native-renderer';
 export * from './native-root-ui';
 export * from './overlay';
+export * from './paste-burst';
 export * from './progress';
 export * from './quality';
 export * from './region-vfx';

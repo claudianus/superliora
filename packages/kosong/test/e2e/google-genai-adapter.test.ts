@@ -62,11 +62,22 @@ describe('e2e: Google GenAI adapter bridge', () => {
             { role: 'user', parts: [{ text: 'Add and multiply these numbers.' }] },
             {
               role: 'model',
-              parts: [{ text: 'I will calculate both.' }, {}, {}],
+              parts: [
+                { text: 'I will calculate both.' },
+                { functionCall: { name: 'add', args: { a: 2, b: 3 } } },
+                { functionCall: { name: 'multiply', args: { a: 4, b: 5 } } },
+              ],
             },
             {
               role: 'user',
-              parts: [{}, {}],
+              parts: [
+                {
+                  functionResponse: { name: 'add', response: { output: '5' }, parts: [] },
+                },
+                {
+                  functionResponse: { name: 'multiply', response: { output: '20' }, parts: [] },
+                },
+              ],
             },
           ]);
 

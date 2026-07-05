@@ -278,6 +278,46 @@ export class EditorKeyboardController {
       host.track('shortcut_paste', { kind: 'text' });
     };
 
+    let browseMode: 'prompt' | 'bash' | null = null;
+    if ('setHistoryFilter' in editor && typeof editor.setHistoryFilter === 'function') {
+      editor.setHistoryFilter((entry: string) => {
+        const mode = browseMode ?? editor.inputMode;
+        return mode === 'bash' ? entry.startsWith('!') : true;
+      });
+    }
+    editor.onRecall = (entry: string) => {
+      if (entry.startsWith('!')) {
+        if ('setInputMode' in editor && typeof editor.setInputMode === 'function') {
+          (editor as { setInputMode(mode: 'prompt' | 'bash'): void }).setInputMode('bash');
+        } else {
+          editor.inputMode = 'bash';
+          editor.onInputModeChange?.('bash');
+        }
+        return entry.slice(1);
+      }
+      if ('setInputMode' in editor && typeof editor.setInputMode === 'function') {
+        (editor as { setInputMode(mode: 'prompt' | 'bash'): void }).setInputMode('prompt');
+      } else {
+        editor.inputMode = 'prompt';
+        editor.onInputModeChange?.('prompt');
+      }
+      return undefined;
+    };
+    editor.onHistoryDraftSave = () => {
+      browseMode = editor.inputMode;
+      return editor.inputMode;
+    };
+    editor.onHistoryDraftRestore = (state: unknown) => {
+      const mode = state as 'prompt' | 'bash';
+      if ('setInputMode' in editor && typeof editor.setInputMode === 'function') {
+        (editor as { setInputMode(mode: 'prompt' | 'bash'): void }).setInputMode(mode);
+      } else {
+        editor.inputMode = mode;
+        editor.onInputModeChange?.(mode);
+      }
+      browseMode = null;
+    };
+
     editor.onUpArrowEmpty = () => {
       if (host.btwPanelController.scroll('up')) return true;
       if (host.state.appState.streamingPhase === 'idle' && !host.state.appState.isCompacting) return false;

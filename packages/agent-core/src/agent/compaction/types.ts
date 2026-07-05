@@ -1,8 +1,31 @@
 export interface CompactionResult {
+  /** Human-facing summary text produced by the compaction model. */
   summary: string;
+  /**
+   * Exact summary message stored in the live model context. It includes the
+   * compaction prefix that tells the next model this is handoff context rather
+   * than a real user prompt. Optional for backward compatibility with older
+   * wire records, where `summary` was also the model-context text.
+   */
+  contextSummary?: string;
   compactedCount: number;
   tokensBefore: number;
   tokensAfter: number;
+  /**
+   * Number of real user messages kept verbatim ahead of the summary in the
+   * post-compaction live context.
+   */
+  keptUserMessageCount?: number;
+  /**
+   * Of `keptUserMessageCount`, how many messages form the HEAD segment when
+   * the selection split into head + tail.
+   */
+  keptHeadUserMessageCount?: number;
+  /**
+   * Number of oldest messages trimmed from the summarizer input when the
+   * compaction request overflowed the model window.
+   */
+  droppedCount?: number;
   algorithmVersion?: string;
   actions?: readonly CompactionResultAction[];
   rawRefs?: readonly CompactionResultRawRef[];
@@ -119,6 +142,17 @@ export interface CompactionResultRawRef {
 }
 
 export type CompactionSource = 'manual' | 'auto';
+
+/**
+ * Inputs `ContextMemory.applyCompaction` needs to derive a `CompactionResult`.
+ */
+export type CompactionInput = Pick<CompactionResult, 'summary' | 'compactedCount' | 'tokensBefore'> &
+  Partial<
+    Pick<
+      CompactionResult,
+      'contextSummary' | 'tokensAfter' | 'keptUserMessageCount' | 'keptHeadUserMessageCount' | 'droppedCount'
+    >
+  >;
 
 export interface CompactionBeginData {
   instruction?: string;

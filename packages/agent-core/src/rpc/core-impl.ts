@@ -324,12 +324,14 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       additionalDirs,
       memory: this.memory.runtimeForSession({ sessionId: summary.id, workDir }),
       pluginCommands,
+      drainAgentTasksOnStop: options.drainAgentTasksOnStop,
     });
     try {
       session.metadata = {
         ...session.metadata,
         createdAt: new Date(summary.createdAt).toISOString(),
         updatedAt: new Date(summary.updatedAt).toISOString(),
+        workDir,
         ...(summary.title !== undefined
           ? {
               title: summary.title,

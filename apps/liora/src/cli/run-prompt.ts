@@ -403,6 +403,7 @@ async function resolvePromptSession(
     model,
     permission: 'auto',
     additionalDirs: opts.addDirs?.length ? opts.addDirs : undefined,
+    drainAgentTasksOnStop: true,
   });
   installHeadlessHandlers(session);
   return {

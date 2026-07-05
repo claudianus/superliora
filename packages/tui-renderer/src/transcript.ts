@@ -123,6 +123,7 @@ export interface RendererPrefixedWrappedLineOptions {
   readonly continuationPrefix: string;
   readonly text: string;
   readonly tailLines?: number;
+  readonly minLines?: number;
   readonly truncateMark?: string;
 }
 
@@ -429,11 +430,15 @@ export class RendererPrefixedWrappedLine implements RendererComponent {
           tailLines !== undefined && wrapped.length > tailLines
             ? wrapped.slice(wrapped.length - tailLines)
             : wrapped;
+        const padded =
+          this.options.minLines !== undefined
+            ? [...lines, ...Array(Math.max(0, this.options.minLines - lines.length)).fill('')]
+            : lines;
         return renderRendererTranscriptLineBlock({
           width: safeWidth,
           prefix: this.options.firstPrefix,
           continuationPrefix: this.options.continuationPrefix,
-          lines,
+          lines: padded,
           truncateMark: this.options.truncateMark ?? '…',
         });
       },

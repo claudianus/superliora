@@ -2,12 +2,13 @@ import { createHash } from 'node:crypto';
 import type { Logger } from '#/logging/types';
 import type { ProviderConfig as KosongProviderConfig, ModelCapability, ProviderRequestAuth } from '@superliora/kosong';
 import { APIStatusError, getModelCapability, UNKNOWN_CAPABILITY } from '@superliora/kosong';
-import type {
-  LioraConfig,
-  ModelAlias,
-  ModelRoutingStrategy,
-  OAuthRef,
-  ProviderConfig,
+import {
+  effectiveModelAlias,
+  type LioraConfig,
+  type ModelAlias,
+  type ModelRoutingStrategy,
+  type OAuthRef,
+  type ProviderConfig,
 } from '../config';
 import { ErrorCodes, isKimiError, LioraError } from '../errors';
 
@@ -187,13 +188,14 @@ export class ProviderManager implements ModelProvider {
   }
 
   private resolveModelAlias(model: string): ResolvedRuntimeProvider {
-    const alias = this.config.models?.[model];
-    if (alias === undefined) {
+    const rawAlias = this.config.models?.[model];
+    if (rawAlias === undefined) {
       throw new LioraError(
         ErrorCodes.CONFIG_INVALID,
         `Model "${model}" is not configured in config.toml. Add a [models."${model}"] entry with max_context_size.`,
       );
     }
+    const alias = effectiveModelAlias(rawAlias);
 
     const providerName = alias.provider ?? this.config.defaultProvider;
     if (providerName === undefined) {

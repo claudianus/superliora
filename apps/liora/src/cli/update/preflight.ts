@@ -534,7 +534,10 @@ export async function installUpdate(
 ): Promise<void> {
   const { cmd, args } = spawnForSource(source, version, platform);
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(cmd, [...args], { stdio: 'inherit' });
+    const child = spawn(cmd, [...args], {
+      stdio: 'inherit',
+      shell: platform === 'win32' ? true : undefined,
+    });
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       if (code === 0) {
@@ -643,7 +646,11 @@ async function startBackgroundInstall(
       });
     };
 
-    const child = spawn(cmd, [...args], { detached: true, stdio: 'ignore' });
+    const child = spawn(cmd, [...args], {
+      detached: true,
+      stdio: 'ignore',
+      shell: platform === 'win32' ? true : undefined,
+    });
     child.once('error', () => { finish(false); });
     child.once('exit', (code) => { finish(code === 0); });
     child.unref();

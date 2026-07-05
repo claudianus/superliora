@@ -49,6 +49,7 @@ export const AppearancePreferencesSchema = z.object({
 
 export const TuiConfigFileSchema = z.object({
   theme: TuiThemeSchema.optional(),
+  disable_paste_burst: z.boolean().optional(),
   editor: z
     .object({
       command: z.string().optional(),
@@ -81,6 +82,7 @@ export const TuiConfigFileSchema = z.object({
 
 export const TuiConfigSchema = z.object({
   theme: TuiThemeSchema,
+  disablePasteBurst: z.boolean(),
   editorCommand: z.string().nullable(),
   notifications: NotificationsConfigSchema,
   upgrade: UpgradePreferencesSchema,
@@ -115,6 +117,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
 
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
   theme: 'auto',
+  disablePasteBurst: false,
   editorCommand: null,
   notifications: DEFAULT_NOTIFICATIONS_CONFIG,
   upgrade: DEFAULT_UPGRADE_PREFERENCES,
@@ -175,6 +178,7 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
   const command = config.editor?.command?.trim();
   return TuiConfigSchema.parse({
     theme: config.theme ?? DEFAULT_TUI_CONFIG.theme,
+    disablePasteBurst: config.disable_paste_burst ?? DEFAULT_TUI_CONFIG.disablePasteBurst,
     editorCommand: command === undefined || command.length === 0 ? null : command,
     notifications: {
       enabled: config.notifications?.enabled ?? DEFAULT_NOTIFICATIONS_CONFIG.enabled,
@@ -208,6 +212,7 @@ export function renderTuiConfig(config: TuiConfig): string {
 # Agent/runtime settings stay in ~/.superliora/config.toml.
 
 theme = "${escapeTomlBasicString(config.theme)}" # "auto" | "dark" | "light" | custom theme name
+disable_paste_burst = ${String(config.disablePasteBurst)} # true disables non-bracketed paste-burst fallback
 
 [editor]
 command = "${escapeTomlBasicString(config.editorCommand ?? '')}" # Empty uses $VISUAL / $EDITOR

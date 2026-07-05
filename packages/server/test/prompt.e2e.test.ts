@@ -21,13 +21,15 @@
  *     → kosong content adapter against a mocked bridge.
  */
 
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { readFile, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
+import { Jimp } from 'jimp';
 
 import type { Event, PromptSubmission } from '@superliora/protocol';
 import { IEventService, IPromptService, PromptService } from '@superliora/agent-core';
@@ -41,9 +43,9 @@ let bridgeHome: string;
 let server: RunningServer | undefined;
 
 beforeEach(() => {
-  tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-prompts-test-'));
+  tmpDir = mkdtempSync(join(tmpdir(), 'kimi-server-prompts-test-'));
   lockPath = join(tmpDir, 'lock');
-  bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-prompts-home-'));
+  bridgeHome = mkdtempSync(join(tmpdir(), 'kimi-server-prompts-home-'));
 });
 
 afterEach(async () => {
@@ -217,7 +219,7 @@ async function openSubscriber(
   const wsUrl = r.address.replace('http://', 'ws://') + '/api/v1/ws';
   const received: Record<string, unknown>[] = [];
   const ws = await new Promise<WebSocket>((resolve, reject) => {
-    const sock = new WebSocket(wsUrl, ['kimi-code.bearer.test-token']);
+    const sock = new WebSocket(wsUrl, ['superliora.bearer.test-token']);
     sock.on('message', (data) => {
       try {
         received.push(JSON.parse(wsDataToString(data)) as Record<string, unknown>);
@@ -421,6 +423,142 @@ describe('POST /api/v1/sessions/{sid}/prompts — submit validation (W7.2 / Chai
     ]);
   });
 
+  it('compresses an oversized uploaded image when resolving the prompt, leaving the stored file intact', async () => {
+    let submitted: PromptSubmission | undefined;
+    const r = await bootDaemon([
+      [
+        IPromptService,
+        createPromptServiceOverride({
+          submit: async (_sid, body) => {
+            submitted = body;
+            return {
+              prompt_id: 'prompt_from_stub',
+              user_message_id: 'msg_from_stub',
+              status: 'running',
+              content: body.content,
+              created_at: '2026-06-09T00:00:00.000Z',
+            };
+          },
+        }),
+      ],
+    ]);
+    const sid = await createSession(r);
+
+    const bigPng = Buffer.from(
+      await new Jimp({ width: 2600, height: 2600, color: 0x3366ccff }).getBuffer('image/png'),
+    );
+    const upload = buildMultipart({
+      file: { fieldName: 'file', filename: 'big.png', contentType: 'image/png', data: bigPng },
+    });
+    const uploadRes = await appOf(r).inject({
+      method: 'POST',
+      url: '/api/v1/files',
+      payload: upload.body,
+      headers: { 'content-type': upload.contentType },
+    });
+    const uploadEnv = envelopeOf<{ id: string; media_type: string; size: number }>(
+      uploadRes.json(),
+    );
+    expect(uploadEnv.code).toBe(0);
+    // The stored file keeps its ORIGINAL bytes — only the prompt copy is shrunk.
+    expect(uploadEnv.data?.size).toBe(bigPng.length);
+
+    const res = await appOf(r).inject({
+      method: 'POST',
+      url: `/api/v1/sessions/${sid}/prompts`,
+      payload: {
+        content: [{ type: 'image', source: { kind: 'file', file_id: uploadEnv.data!.id } }],
+      },
+    });
+    expect(envelopeOf(res.json()).code).toBe(0);
+
+    const part = submitted?.content[1];
+    if (part?.type !== 'image' || part.source.kind !== 'base64') {
+      throw new Error('expected a resolved base64 image part');
+    }
+    const sentBytes = Buffer.from(part.source.data, 'base64');
+    const decoded = await Jimp.fromBuffer(sentBytes);
+    // The model-facing copy is downsampled to the edge cap.
+    expect(Math.max(decoded.width, decoded.height)).toBeLessThanOrEqual(2000);
+
+    // Compression is announced next to the image, and the caption points at
+    // the stored file (which keeps the original bytes) for readback.
+    const caption = submitted?.content[0];
+    if (caption?.type !== 'text') {
+      throw new Error('expected a compression caption before the image part');
+    }
+    expect(caption.text).toContain('Image compressed');
+    expect(caption.text).toContain('2600x2600');
+    const pathMatch = /saved at "([^"]+)"/.exec(caption.text);
+    expect(pathMatch).not.toBeNull();
+    const persisted = await readFile(pathMatch![1]!);
+    expect(persisted.equals(bigPng)).toBe(true);
+  });
+
+  it('compresses an inline base64 image submitted directly in the prompt', async () => {
+    let submitted: PromptSubmission | undefined;
+    const r = await bootDaemon([
+      [
+        IPromptService,
+        createPromptServiceOverride({
+          submit: async (_sid, body) => {
+            submitted = body;
+            return {
+              prompt_id: 'prompt_from_stub',
+              user_message_id: 'msg_from_stub',
+              status: 'running',
+              content: body.content,
+              created_at: '2026-06-09T00:00:00.000Z',
+            };
+          },
+        }),
+      ],
+    ]);
+    const sid = await createSession(r);
+
+    // Solid 2600×2600: over the edge cap but tiny in bytes, so it stays well
+    // under Fastify's inline-JSON limit yet still benefits from downscaling.
+    const base64 = Buffer.from(
+      await new Jimp({ width: 2600, height: 2600, color: 0x3366ccff }).getBuffer('image/png'),
+    ).toString('base64');
+
+    const res = await appOf(r).inject({
+      method: 'POST',
+      url: `/api/v1/sessions/${sid}/prompts`,
+      payload: {
+        content: [
+          { type: 'image', source: { kind: 'base64', media_type: 'image/png', data: base64 } },
+        ],
+      },
+    });
+    expect(envelopeOf(res.json()).code).toBe(0);
+
+    const part = submitted?.content[1];
+    if (part?.type !== 'image' || part.source.kind !== 'base64') {
+      throw new Error('expected a base64 image part');
+    }
+    const decoded = await Jimp.fromBuffer(Buffer.from(part.source.data, 'base64'));
+    expect(Math.max(decoded.width, decoded.height)).toBeLessThanOrEqual(2000);
+
+    // Inline base64 has no stored file, so the original is persisted into the
+    // session's media-originals dir and the caption points there.
+    const caption = submitted?.content[0];
+    if (caption?.type !== 'text') {
+      throw new Error('expected a compression caption before the image part');
+    }
+    expect(caption.text).toContain('Image compressed');
+    const pathMatch = /saved at "([^"]+)"/.exec(caption.text);
+    expect(pathMatch).not.toBeNull();
+    // Session dirs live under the daemon home: <home>/sessions/<ws>/<id>.
+    // (realpath both sides: macOS tmpdir is a /var → /private/var symlink.)
+    const realHome = await realpath(bridgeHome);
+    const realPersistedPath = await realpath(pathMatch![1]!);
+    expect(realPersistedPath.startsWith(realHome)).toBe(true);
+    expect(pathMatch![1]!).toContain('/media-originals/');
+    const persisted = await readFile(pathMatch![1]!);
+    expect(persisted.equals(Buffer.from(base64, 'base64'))).toBe(true);
+  });
+
   it('returns 40407 when prompt image file_id is unknown', async () => {
     let submitted = false;
     const r = await bootDaemon([
@@ -622,17 +760,21 @@ describe('POST /api/v1/sessions/{sid}/prompts — submit validation (W7.2 / Chai
     });
     const env = envelopeOf<unknown>(res.json());
     expect(env.code).toBe(0);
-    expect(submitted?.content).toEqual([
-      { type: 'text', text: 'what happens in this video?' },
-      {
-        type: 'video',
-        source: {
-          kind: 'base64',
-          media_type: 'video/mp4',
-          data: TINY_MP4.toString('base64'),
-        },
-      },
-    ]);
+    // Video is NOT base64-inlined. It is materialized into the cache and
+    // referenced by a `<video path="...">` tag so ReadMediaFile / the
+    // provider's VideoUploader handle it, matching the TUI.
+    const content = submitted?.content;
+    expect(content).toHaveLength(2);
+    expect(content?.[0]).toEqual({ type: 'text', text: 'what happens in this video?' });
+    const videoPart = content?.[1] as { type: string; text: string } | undefined;
+    expect(videoPart?.type).toBe('text');
+    const match = /<video path="([^"]+)"><\/video>/.exec(videoPart?.text ?? '');
+    expect(match).not.toBeNull();
+    const cachePath = match![1]!;
+    expect(cachePath.startsWith(join(bridgeHome, 'cache'))).toBe(true);
+    expect(cachePath.endsWith('.mp4')).toBe(true);
+    expect(existsSync(cachePath)).toBe(true);
+    expect(readFileSync(cachePath).equals(TINY_MP4)).toBe(true);
   });
 
   it('rejects non-video file_id content before submitting the prompt', async () => {

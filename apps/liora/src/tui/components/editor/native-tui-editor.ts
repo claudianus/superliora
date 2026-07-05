@@ -1,6 +1,7 @@
 import {
   Key,
   NativeInputDecoder,
+  PasteBurst,
   RendererEditorAutocompleteController,
   RendererTextInput,
   isKeyRelease,
@@ -59,7 +60,15 @@ export class NativeTUIEditor implements TUIEditor {
   onShiftTabUltra?: () => void;
   onInputModeChange?: (mode: TUIEditorInputMode) => void;
   onPasteImage?: () => Promise<boolean>;
+  onRecall?: (entry: string) => string | undefined;
+  onHistoryDraftSave?: () => unknown;
+  onHistoryDraftRestore?: (state: unknown) => void;
 
+  private readonly pasteBurst = new PasteBurst();
+  private disablePasteBurst = false;
+  private historyFilter: ((entry: string) => boolean) | null = null;
+  private historyDraftText: string | undefined;
+  private hostHistoryDraft: unknown;
   private readonly decoder = new NativeInputDecoder();
   private readonly input = new RendererTextInput({ focused: true });
   private readonly autocomplete: RendererEditorAutocompleteController;
@@ -126,6 +135,15 @@ export class NativeTUIEditor implements TUIEditor {
     this.historyIndex = undefined;
   }
 
+  setDisablePasteBurst(disabled: boolean): void {
+    this.disablePasteBurst = disabled;
+    if (disabled) this.pasteBurst.reset();
+  }
+
+  setHistoryFilter(filter: ((entry: string) => boolean) | null): void {
+    this.historyFilter = filter;
+  }
+
   recordNativeInputInteraction(): void {
     this.onNonEscapeInput?.();
   }
@@ -159,6 +177,7 @@ export class NativeTUIEditor implements TUIEditor {
     for (const event of events) {
       if (event.type === 'paste') {
         this.onTextPaste?.();
+        this.pasteBurst.reset();
         this.applyPromptAwareMutation(() => this.input.handleInput(event), event.text);
         continue;
       }
@@ -166,6 +185,16 @@ export class NativeTUIEditor implements TUIEditor {
       if (event.eventType === 'release') continue;
 
       if (event.key === 'enter' && !event.shift && event.raw === '\r') {
+        if (
+          !this.disablePasteBurst &&
+          this.pasteBurst.shouldInsertNewlineInsteadOfSubmit(Date.now())
+        ) {
+          this.applyPromptAwareMutation(() => this.input.handleInput(event));
+          this.pasteBurst.extendWindow(Date.now());
+          this.onInsertNewline?.();
+          continue;
+        }
+        this.pasteBurst.reset();
         this.submit();
         continue;
       }
@@ -205,7 +234,20 @@ export class NativeTUIEditor implements TUIEditor {
       }
 
       const changed = this.applyPromptAwareMutation(() => this.input.handleInput(event));
-      if (!changed) continue;
+      if (!changed) {
+        if (!this.disablePasteBurst && event.key !== 'enter') {
+          this.pasteBurst.reset();
+        }
+        continue;
+      }
+      if (!this.disablePasteBurst && event.type === 'key') {
+        const printable = printableChar(event.raw);
+        if (printable !== undefined) {
+          this.pasteBurst.onPlainChar(Date.now());
+        } else if (event.key !== 'enter') {
+          this.pasteBurst.reset();
+        }
+      }
       if (event.key === 'enter') this.onInsertNewline?.();
       void this.requestAutocomplete({ force: this.inputMode === 'bash' });
     }
@@ -317,10 +359,34 @@ export class NativeTUIEditor implements TUIEditor {
 
   private navigateHistory(direction: -1 | 1): void {
     if (this.history.length === 0) return;
-    const current = this.historyIndex ?? this.history.length;
-    const next = Math.max(0, Math.min(this.history.length, current + direction));
-    this.historyIndex = next === this.history.length ? undefined : next;
-    this.setTextInternal(this.historyIndex === undefined ? '' : this.history[this.historyIndex] ?? '', true);
+    const entering = this.historyIndex === undefined && this.getText().length === 0;
+    if (entering) {
+      this.historyDraftText = this.getText();
+      this.hostHistoryDraft = this.onHistoryDraftSave?.();
+    }
+
+    let index = this.historyIndex ?? this.history.length;
+    while (true) {
+      index += direction;
+      if (index >= this.history.length) {
+        this.historyIndex = undefined;
+        this.setTextInternal(this.historyDraftText ?? '', true);
+        if (this.hostHistoryDraft !== undefined) {
+          this.onHistoryDraftRestore?.(this.hostHistoryDraft);
+          this.hostHistoryDraft = undefined;
+        }
+        this.historyDraftText = undefined;
+        return;
+      }
+      if (index < 0) return;
+      const entry = this.history[index];
+      if (entry === undefined) return;
+      if (this.historyFilter !== null && !this.historyFilter(entry)) continue;
+      this.historyIndex = index;
+      const recalled = this.onRecall?.(entry) ?? entry;
+      this.setTextInternal(recalled, true);
+      return;
+    }
   }
 
   private applyPromptAwareMutation(

@@ -1,4 +1,4 @@
-import { InstantiationService, resolveConfigPath, resolveLioraHome, setUnexpectedErrorHandler, IApprovalService, IAuthSummaryService, IEnvironmentService, IEventService, ICoreProcessService, IModelCatalogService, IMcpService, IMessageService, IOAuthService, IFileStore, IFsGitService, IFsSearchService, IFsService, IFsWatcher, ILogService, IPromptService, IQuestionService, ISessionService, ISkillService, ITaskService, ITerminalService, IToolService, IWorkspaceFsService, IWorkspaceRegistry, FsPathEscapesError, FsWatchLimitError, FsWatcherService, SessionNotFoundError, createConnectionLookup, resolveSafePath, type ServiceIdentifier, type CoreProcessServiceOptions } from '@superliora/agent-core';
+import { InstantiationService, resolveConfigPath, resolveLioraHome, setUnexpectedErrorHandler, IApprovalService, IAuthSummaryService, IEnvironmentService, IEventService, ICoreProcessService, IModelCatalogService, IMcpService, IMessageService, IOAuthService, IFileStore, IFsGitService, IFsSearchService, IFsService, IFsWatcher, ILogService, IPromptService, IQuestionService, ISessionService, ISkillService, ITaskService, ITerminalService, IToolService, IWorkspaceFsService, IWorkspaceRegistry, FsPathEscapesError, FsWatchLimitError, FsWatcherService, SessionNotFoundError, SessionStore, createConnectionLookup, resolveSafePath, type ServiceIdentifier, type CoreProcessServiceOptions } from '@superliora/agent-core';
 import { ErrorCode, createAsyncApiDocument } from '@superliora/protocol';
 import Fastify from 'fastify';
 import { promises as fspPromises } from 'node:fs';
@@ -204,6 +204,17 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
       configPath: opts.coreProcessOptions?.configPath,
     }),
   };
+
+  // Sessions can exist on disk but be missing from session_index.jsonl (e.g. after
+  // a crash between mkdir and index append). Rebuild the index at boot so they
+  // show up in the web UI even though their directory still exists. Repairing here keeps
+  // the request path scan-free. Best-effort: never blocks startup on failure.
+  try {
+    const stats = await new SessionStore(envService.homeDir).reindex();
+    pinoLogger.info(stats, 'session index rebuilt');
+  } catch (error) {
+    pinoLogger.warn({ err: String(error) }, 'session index rebuild failed (best-effort)');
+  }
 
   // Token auth (ROADMAP M5.1). The real `IAuthTokenService` needs an
   // async-built `TokenStore` over the persistent `<homeDir>/server.token`

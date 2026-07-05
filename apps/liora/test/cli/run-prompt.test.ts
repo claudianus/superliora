@@ -215,6 +215,7 @@ describe('runPrompt', () => {
       model: 'k2',
       permission: 'auto',
       additionalDirs: undefined,
+      drainAgentTasksOnStop: true,
     });
     expect(mocks.session.setPermission).not.toHaveBeenCalled();
     expect(mocks.session.setApprovalHandler).toHaveBeenCalledWith(expect.any(Function));
@@ -330,6 +331,7 @@ describe('runPrompt', () => {
       model: 'kimi-code/k2.5',
       permission: 'auto',
       additionalDirs: undefined,
+      drainAgentTasksOnStop: true,
     });
     expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'kimi-code/k2.5' }),
@@ -347,6 +349,7 @@ describe('runPrompt', () => {
       model: 'k2',
       permission: 'auto',
       additionalDirs: ['../shared', '/tmp/extra'],
+      drainAgentTasksOnStop: true,
     });
   });
 

@@ -45,10 +45,16 @@ export async function applyReloadedTuiConfig(
   host.refreshTerminalThemeTracking();
   host.setAppState({
     editorCommand: config.editorCommand,
+    disablePasteBurst: config.disablePasteBurst,
     notifications: config.notifications,
     upgrade: config.upgrade,
     appearance: config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
   });
+  if ('setDisablePasteBurst' in host.state.editor) {
+    (host.state.editor as { setDisablePasteBurst(disabled: boolean): void }).setDisablePasteBurst(
+      config.disablePasteBurst,
+    );
+  }
 }
 
 function applyRuntimeConfig(host: SlashCommandHost, config: LioraConfig): void {

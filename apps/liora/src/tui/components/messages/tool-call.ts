@@ -21,6 +21,8 @@ import type { RendererRootUI } from '#/tui/renderer';
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import {
+  BRAILLE_SPINNER_FRAMES,
+  BRAILLE_SPINNER_INTERVAL_MS,
   COMMAND_PREVIEW_LINES,
   RESULT_PREVIEW_LINES,
   THINKING_PREVIEW_LINES,
@@ -53,11 +55,14 @@ import { TruncatedOutputComponent } from './tool-renderers/truncated';
 const MAX_ARG_LENGTH = 60;
 const MAX_SUB_TOOL_CALLS_SHOWN = 4;
 const MAX_SINGLE_SUBAGENT_TOOL_ROWS = 4;
+// Cap the Agent `description` in the single-subagent header so a long prompt
+// cannot wrap the header onto a second row and break the card's stable height.
+const MAX_SUBAGENT_DESCRIPTION_LENGTH = 60;
 // Hanging indent for a sub-tool's previewed output, nested under its activity row.
 const SUBAGENT_SUBTOOL_OUTPUT_INDENT = 6;
 const APPROVED_PLAN_MARKER = '## Approved Plan:';
 const STREAMING_PROGRESS_INTERVAL_MS = 1000;
-const SUBAGENT_ELAPSED_INTERVAL_MS = 1000;
+const SUBAGENT_ELAPSED_INTERVAL_MS = BRAILLE_SPINNER_INTERVAL_MS;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
 const ABORTED_MARK = '⊘';
 const MAX_LIVE_OUTPUT_CHARS = 50_000;
@@ -515,6 +520,7 @@ export class ToolCallComponent extends Container {
    */
   private subagentText = '';
   private subagentThinkingText = '';
+  private lastSubagentStreamKind: SubagentTextKind = 'text';
   // ── Subagent lifecycle state from subagent.spawned/started/completed/failed ──
   private subagentPhase: SubagentPhase | undefined;
   /**
@@ -551,6 +557,7 @@ export class ToolCallComponent extends Container {
   private lastSubagentElapsedTickMs = 0;
   private subagentStartedAtMs: number | undefined;
   private subagentEndedAtMs: number | undefined;
+  private subagentSpinnerFrame = 0;
 
   // ── Live progress lines ──────────────────────────────────────────
   //
@@ -650,8 +657,9 @@ export class ToolCallComponent extends Container {
     if (subagentShouldTick) {
       if (now - this.lastSubagentElapsedTickMs >= SUBAGENT_ELAPSED_INTERVAL_MS) {
         this.lastSubagentElapsedTickMs = now;
+        this.subagentSpinnerFrame =
+          (this.subagentSpinnerFrame + 1) % BRAILLE_SPINNER_FRAMES.length;
         this.headerText.setText(this.buildHeader());
-        this.invalidate();
         this.notifySnapshotChange();
         this.ui?.requestRender();
       }
@@ -1206,6 +1214,7 @@ export class ToolCallComponent extends Container {
   }
 
   appendSubagentText(text: string, kind: SubagentTextKind = 'text'): void {
+    this.lastSubagentStreamKind = kind;
     if (kind === 'thinking') {
       this.subagentThinkingText += text;
     } else {
@@ -1696,25 +1705,32 @@ export class ToolCallComponent extends Container {
 
   private buildSingleSubagentHeader(): string {
     const phase = this.getDerivedSubagentPhase();
-    const isFailed = phase === 'failed';
     const isDone = phase === 'done';
-    const bullet = isFailed
-      ? currentTheme.fg('error', '✗ ')
-      : isDone
-        ? currentTheme.fg('success', STATUS_BULLET)
-        : currentTheme.fg('text', STATUS_BULLET);
+    const marker = this.buildSingleSubagentMarker(phase);
     const labelText = formatSubagentLabel(this.subagentAgentName);
     const label = currentTheme.boldFg('primary', labelText);
     const status = this.formatSingleSubagentStatus(phase);
-    const description = str(this.toolCall.args['description']);
+    const rawDescription = str(this.toolCall.args['description']);
+    const description =
+      rawDescription.length > MAX_SUBAGENT_DESCRIPTION_LENGTH
+        ? `${rawDescription.slice(0, MAX_SUBAGENT_DESCRIPTION_LENGTH - 1)}…`
+        : rawDescription;
     const descriptionPlain = description.length > 0 ? ` (${description})` : '';
     const descriptionText = descriptionPlain.length > 0 ? currentTheme.dim(descriptionPlain) : '';
     const statsText = this.formatSingleSubagentStatsText();
     if (isDone) {
-      return `${bullet}${currentTheme.boldFg('success', labelText)} ${currentTheme.fg('success', `Completed${descriptionPlain}${statsText}`)}`;
+      return `${marker}${currentTheme.boldFg('success', labelText)} ${currentTheme.fg('success', `Completed${descriptionPlain}${statsText}`)}`;
     }
     const stats = currentTheme.dim(statsText);
-    return `${bullet}${label} ${status}${descriptionText}${stats}`;
+    return `${marker}${label} ${status}${descriptionText}${stats}`;
+  }
+
+  private buildSingleSubagentMarker(phase: SubagentPhase | undefined): string {
+    if (phase === 'failed') return currentTheme.fg('error', '✗ ');
+    if (phase === 'done') return currentTheme.fg('success', STATUS_BULLET);
+    if (phase === 'backgrounded') return currentTheme.dim('◐ ');
+    const frame = BRAILLE_SPINNER_FRAMES[this.subagentSpinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0];
+    return currentTheme.fg('primary', `${frame} `);
   }
 
   private formatSingleSubagentStatus(phase: SubagentPhase | undefined): string {

@@ -1,6 +1,7 @@
 export * from './agent';
 export * from './expert-agents';
 export * from './session';
+export { SessionStore } from './session/store';
 export * from './rpc';
 export * from './config';
 export * from './memory';
@@ -47,6 +48,33 @@ export type {
   QuestionBackgroundTaskInfo,
 } from './agent/background';
 export type { ToolServices } from './tools/support/services';
+export {
+  buildImageCompressionCaption,
+  compressImageForModel,
+  compressBase64ForModel,
+  compressImageContentParts,
+  cropImageForModel,
+  formatByteSize,
+  IMAGE_BYTE_BUDGET,
+  MAX_IMAGE_EDGE_PX,
+} from './tools/support/image-compress';
+export type {
+  CompressAnnotateOptions,
+  CompressImageOptions,
+  CompressImageResult,
+  CompressBase64Result,
+  CropImageOptions,
+  CropImageOutcome,
+  ImageCompressionCaptionInput,
+  ImageCropRegion,
+  ImageVariantDescription,
+} from './tools/support/image-compress';
+export {
+  originalImageCacheDir,
+  persistOriginalImage,
+  sessionMediaOriginalsDir,
+} from './tools/support/image-originals';
+export type { PersistOriginalImageOptions } from './tools/support/image-originals';
 export { SingleModelProvider } from './session/provider-manager';
 export type {
   BearerTokenProvider,
@@ -64,7 +92,17 @@ export type {
 } from './agent/records';
 export { AGENT_WIRE_PROTOCOL_VERSION } from './agent/records';
 export type { AgentConfigUpdateData } from './agent/config';
-export type { CompactionBeginData, CompactionResult } from './agent/compaction';
+export type { CompactionBeginData, CompactionInput, CompactionResult } from './agent/compaction';
+export {
+  COMPACT_USER_MESSAGE_HEAD_TOKENS,
+  COMPACT_USER_MESSAGE_MAX_TOKENS,
+  COMPACTION_ELISION_VARIANT,
+  buildCompactionElisionText,
+  collectCompactableUserMessages,
+  isRealUserInput,
+  selectCompactionUserMessages,
+  selectRecentUserMessages,
+} from './agent/compaction';
 export type {
   PermissionApprovalResultRecord,
   PermissionMode,

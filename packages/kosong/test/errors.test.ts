@@ -262,6 +262,14 @@ describe('isRecoverableRequestStructureError', () => {
     ).toBe(true);
   });
 
+  it('matches the Anthropic duplicate tool_use id rejection', () => {
+    expect(
+      isRecoverableRequestStructureError(
+        new APIStatusError(400, 'messages: `tool_use` ids must be unique'),
+      ),
+    ).toBe(true);
+  });
+
   it('does not match context overflow, auth, generic bad requests, or non-status errors', () => {
     expect(
       isRecoverableRequestStructureError(

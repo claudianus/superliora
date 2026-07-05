@@ -141,6 +141,7 @@ export interface CreateSessionPayload {
   readonly mcpServers?: Readonly<Record<string, McpServerConfig>>;
   readonly additionalDirs?: readonly string[];
   readonly client?: ClientTelemetryInfo | undefined;
+  readonly drainAgentTasksOnStop?: boolean;
 }
 
 export interface CloseSessionPayload {

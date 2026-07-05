@@ -2,8 +2,10 @@ import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { setTimeout as delay } from 'node:timers/promises';
+import { Readable, type Writable } from 'node:stream';
 
-import type { Kaos } from '@superliora/kaos';
+import type { Kaos, KaosProcess } from '@superliora/kaos';
+import { createControlledPromise } from '@antfu/utils';
 import {
   APIConnectionError,
   APIEmptyResponseError,
@@ -18,6 +20,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { HookEngine } from '../../src/session/hooks';
 import { abortError } from '../../src/utils/abort';
 import type { AgentOptions } from '../../src/agent';
+import { ProcessBackgroundTask } from '../../src/agent/background';
+import type { AgentRecord, AgentRecordPersistence } from '../../src/agent/records';
+import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import { ErrorCodes, LioraError } from '../../src/errors';
 import type { Logger, LogPayload } from '../../src/logging';
 import type {
@@ -28,6 +33,7 @@ import type {
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, testAgent, type TestAgentOptions } from './harness/agent';
+import { agentTask } from './background/helpers';
 import { executeTool } from '../tools/fixtures/execute-tool';
 
 type GenerateFn = NonNullable<AgentOptions['generate']>;
@@ -74,6 +80,36 @@ describe('Agent turn flow', () => {
         ),
       ).toBe(true);
     });
+  });
+
+  it('holds the turn until a background subagent finishes, then runs a wrap-up step', async () => {
+    const ctx = testAgent();
+    ctx.agent.printDrainAgentTasksOnStop = true;
+    ctx.agent.printDrainDeadlineMs = Date.now() + 60_000;
+
+    const subDone = createControlledPromise<{ result: string }>();
+    ctx.agent.background.registerTask(agentTask(subDone, 'subagent'));
+
+    ctx.configure();
+    ctx.mockNextResponse({ type: 'text', text: 'first' });
+    ctx.mockNextResponse({ type: 'text', text: 'wrap-up' });
+
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'go' }] });
+
+    let turnEnded = false;
+    const turnEnd = ctx.untilTurnEnd().then(() => {
+      turnEnded = true;
+    });
+
+    for (let i = 0; i < 100 && ctx.llmCalls.length < 1; i++) await delay(5);
+    await delay(20);
+    expect(turnEnded).toBe(false);
+
+    subDone.resolve({ result: 'sub-result' });
+    await turnEnd;
+
+    expect(turnEnded).toBe(true);
+    expect(ctx.llmCalls.length).toBe(2);
   });
 
   it('tracks duplicate tool-call detection telemetry', async () => {
@@ -1984,3 +2020,59 @@ function textResult(text: string): Awaited<ReturnType<GenerateFn>> {
     rawFinishReason: 'stop',
   };
 }
+
+describe('abandoned tool exchange teardown', () => {
+  it('closes dangling tool calls when a turn dies mid-batch so follow-up messages are not swallowed', async () => {
+    const base = new InMemoryAgentRecordPersistence();
+    let failedOnce = false;
+    const persistence: AgentRecordPersistence = {
+      read: () => base.read(),
+      append: (record: AgentRecord) => {
+        if (
+          !failedOnce &&
+          record.type === 'context.append_loop_event' &&
+          record.event.type === 'tool.result'
+        ) {
+          failedOnce = true;
+          throw new Error('transcript write failed');
+        }
+        base.append(record);
+      },
+      rewrite: (records) => {
+        base.rewrite(records);
+      },
+      flush: () => base.flush(),
+      close: () => base.close(),
+    };
+    const ctx = testAgent({ kaos: createCommandKaos('ok'), persistence });
+    ctx.configure({ tools: ['Bash'] });
+    await ctx.rpc.setPermission({ mode: 'auto' });
+
+    ctx.mockNextResponse(
+      { type: 'text', text: 'I will run both commands.' },
+      bashCallWithId('call_one', 'echo one'),
+      bashCallWithId('call_two', 'echo two'),
+    );
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'run both' }] });
+    const events = await ctx.untilTurnEnd();
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: 'turn.ended',
+        args: expect.objectContaining({ reason: 'failed' }),
+      }),
+    );
+
+    const toolMessages = ctx.agent.context.history.filter((message) => message.role === 'tool');
+    expect(toolMessages.map((message) => message.toolCallId)).toEqual(['call_one', 'call_two']);
+    for (const message of toolMessages) {
+      expect(message.isError).toBe(true);
+    }
+
+    ctx.agent.context.appendMessage({
+      role: 'user',
+      content: [{ type: 'text', text: 'follow-up after failure' }],
+      toolCalls: [],
+    });
+    expect(JSON.stringify(ctx.agent.context.history)).toContain('follow-up after failure');
+  });
+});

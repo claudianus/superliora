@@ -55,6 +55,7 @@ export class InjectionManager {
   async injectAfterCompaction(): Promise<void> {
     await this.injectGoal();
     this.injectActiveBackgroundTasks();
+    await this.inject();
   }
 
   onContextClear(): void {

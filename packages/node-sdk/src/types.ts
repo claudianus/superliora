@@ -134,6 +134,11 @@ export interface CreateSessionOptions {
   readonly persistenceKaos?: Kaos | undefined;
   readonly additionalDirs?: readonly string[];
   readonly sessionStartedProperties?: TelemetryProperties;
+  /**
+   * Print-mode (`liora -p`) only: hold the main turn open while background
+   * subagents are still running before the run exits.
+   */
+  readonly drainAgentTasksOnStop?: boolean;
 }
 
 export interface RenameSessionInput {

@@ -75,7 +75,7 @@ export const ModelRoutingConfigSchema = z.object({
 
 export type ModelRoutingConfig = z.infer<typeof ModelRoutingConfigSchema>;
 
-export const ModelAliasSchema = z.object({
+const ModelAliasBaseSchema = z.object({
   provider: z.string(),
   model: z.string(),
   maxContextSize: z.number().int().min(1),
@@ -86,16 +86,23 @@ export const ModelAliasSchema = z.object({
   displayName: z.string().optional(),
   reasoningKey: z.string().optional(),
   protocol: z.literal('anthropic').optional(),
-  // Explicitly declare adaptive-thinking support, overriding the kosong
-  // model-name version inference. Needed for custom-named Anthropic endpoints
-  // whose model name does not encode a parseable Claude version.
   adaptiveThinking: z.boolean().optional(),
-  // Route the Anthropic transport through the beta Messages API instead of the
-  // standard endpoint. Used by managed SuperLiora models that declare the
-  // Anthropic-compatible protocol.
   betaApi: z.boolean().optional(),
   fallbackModels: z.array(z.string().min(1)).optional(),
   routing: ModelRoutingConfigSchema.optional(),
+});
+
+export const ModelAliasOverrideSchema = ModelAliasBaseSchema.omit({
+  provider: true,
+  model: true,
+  protocol: true,
+  betaApi: true,
+}).partial();
+
+export type ModelAliasOverrides = z.infer<typeof ModelAliasOverrideSchema>;
+
+export const ModelAliasSchema = ModelAliasBaseSchema.extend({
+  overrides: ModelAliasOverrideSchema.optional(),
 });
 
 export type ModelAlias = z.infer<typeof ModelAliasSchema>;

@@ -158,6 +158,14 @@ export class Agent {
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
 
+  /**
+   * Print-mode (`liora -p`) only: when true and the agent ends a turn while
+   * background subagents are still running, hold the turn open until they finish.
+   */
+  printDrainAgentTasksOnStop = false;
+  /** Absolute deadline (ms epoch) bounding print-mode drain waits for this agent. */
+  printDrainDeadlineMs = Number.POSITIVE_INFINITY;
+
   private additionalDirs: readonly string[];
 
   constructor(options: AgentOptions) {

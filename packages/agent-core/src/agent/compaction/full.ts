@@ -79,6 +79,7 @@ import {
   mergeIntoAnchor,
   renderAnchor,
 } from './anchor';
+import { buildCompactionSummaryText } from './handoff';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
@@ -569,7 +570,8 @@ export class FullCompaction {
       }
 
       summary = this.renderStructuredV2Summary(summary, plan);
-      const summaryTokens = estimateTokensForMessages([compactionSummaryMessage(summary)]);
+      const contextSummary = buildCompactionSummaryText(summary);
+      const summaryTokens = estimateTokens(contextSummary);
       const retained = this.agent.context.history.slice(compactedCount);
       const retainedTokens = estimateTokensForMessages(retained);
       const tokensAfter = summaryTokens + retainedTokens;
@@ -586,6 +588,7 @@ export class FullCompaction {
 
       const resultWithoutContextPack: CompactionResultWithQualityWarnings = {
         summary,
+        contextSummary,
         compactedCount,
         tokensBefore,
         tokensAfter,
