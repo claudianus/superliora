@@ -9,6 +9,7 @@ import {
   measureRendererEditorSurfaceNaturalRows,
   RENDERER_EDITOR_CONTENT_RIGHT_INSET,
   RENDERER_EDITOR_CONTENT_X,
+  RENDERER_EDITOR_SHELL_MODE_LABEL,
   renderRendererEditorSurface,
   resolveRendererEditorSurfaceStyles,
   type RendererEditorAutocompleteLineStyles,
@@ -407,6 +408,7 @@ export class NativeTUIEditor implements TUIEditor {
             width: contentWidth,
           },
       prompt: this.inputMode === 'bash' ? '!' : '>',
+      topLabel: this.inputMode === 'bash' ? RENDERER_EDITOR_SHELL_MODE_LABEL : undefined,
       connectedAbove: this.connectedAbove && !this.borderHighlighted,
       overlays: surfaceLayout.overlayLines,
       slashTokenStyle: this.inputMode === 'bash'

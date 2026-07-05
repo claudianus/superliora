@@ -126,6 +126,13 @@ describe('NativeTUIEditor', () => {
     expect(shellEditor.render(24).join('\n')).not.toContain('[status]');
   });
 
+  it('renders the shell mode label on the native editor top border', () => {
+    const editor = makeEditor();
+    editor.handleInput('!');
+
+    expect(editor.render(30).join('\n')).toContain('! shell mode');
+  });
+
   it('requests, renders, and applies autocomplete suggestions without the legacy editor', async () => {
     const requestRender = vi.fn();
     const editor = new NativeTUIEditor({ requestRender });
