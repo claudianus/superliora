@@ -62,4 +62,5 @@ export interface TUIEditor
   addToHistory(text: string): void;
   recordNativeInputInteraction(): void;
   reopenAutocompleteAfterNativeInput(): void;
+  applyNativeTextInputSync?(text: string, cursor: RendererEditorCursor): void;
 }

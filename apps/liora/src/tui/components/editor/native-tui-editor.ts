@@ -105,6 +105,16 @@ export class NativeTUIEditor implements TUIEditor {
     this.input.setCursor({ line: cursor.line, column: cursor.col });
   }
 
+  applyNativeTextInputSync(text: string, cursor: RendererEditorCursor): void {
+    const before = this.getText();
+    if (text !== before) {
+      this.input.setText(text);
+      this.historyIndex = undefined;
+      this.onChange?.(text);
+    }
+    this.input.setCursor({ line: cursor.line, column: cursor.col });
+  }
+
   setText(text: string): void {
     this.setTextInternal(text, true);
     this.closeAutocomplete(false);

@@ -12,6 +12,7 @@ import {
   isRendererEditorTextMutation,
   rendererEditorContentHeight,
   rendererEditorContentWidth,
+  syncRendererEditorTextInputToTarget,
   type NativeInputEvent,
   type NativeInputKeyEvent,
   type RendererEditorCursor,
@@ -470,6 +471,31 @@ describe('RendererEditorTextInput bridge', () => {
 
     expect(editor.getText()).toBe('x');
     expect(editor.getCursor()).toEqual({ line: 0, col: 1 });
+  });
+
+  it('uses applyNativeTextInputSync when the host editor provides it', () => {
+    const editor = mutableEditor('');
+    let setTextCalls = 0;
+    const synced = {
+      ...editor,
+      setText: (next: string) => {
+        setTextCalls += 1;
+        editor.setText(next);
+      },
+      applyNativeTextInputSync: (next: string, cursor: RendererEditorCursor) => {
+        editor.setText(next);
+        editor.setCursorPosition(cursor);
+      },
+    };
+    const controller = new RendererEditorTextInputController();
+    const input = controller.inputForEditor(synced);
+
+    input.handleInput(key('character', { text: '한' }));
+    syncRendererEditorTextInputToTarget(synced, input);
+
+    expect(setTextCalls).toBe(0);
+    expect(synced.getText()).toBe('한');
+    expect(synced.getCursor()).toEqual({ line: 0, col: '한'.length });
   });
 
   it('handles command-prefix mode transitions before text mutation fallback', () => {

@@ -848,6 +848,8 @@ function createTraceRecorder(
 
 function isAutoFrameHoldCause(cause: NativeRenderCause): boolean {
   return cause === 'request' || cause === 'animation' || cause === 'quality';
+  // 'input' is intentionally excluded: editor keystrokes must repaint even while
+  // transcript auto-frame hold is active (for example after scrolling up).
 }
 
 function nativeInputTraceData(event: NativeInputEvent): RendererTraceInputData {

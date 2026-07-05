@@ -132,7 +132,7 @@ export class TUIStateNativeInputRouter {
   }
 
   private requestRenderAfterInput(): void {
-    if (this.options.requestRender !== false) this.state.renderer.requestRender();
+    if (this.options.requestRender !== false) this.state.renderer.requestRender('input');
   }
 }
 

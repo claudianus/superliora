@@ -305,6 +305,39 @@ describe('NativeTerminalRenderer', () => {
     renderer.stop();
   });
 
+  it('repaints input-driven frames while automatic frame hold is active', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    const events: string[] = [];
+    let label = 'start';
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      targetFps: 20,
+      renderOnStart: true,
+      autoFrameHold: () => true,
+      render: ({ frame, renderer: frameRenderer }) => {
+        events.push(`render:${frame.frame}:${frame.causes.join(',')}`);
+        frameRenderer.writeText(0, 0, label);
+      },
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+
+    renderer.requestRender('request');
+    scheduler.advance(100);
+    expect(events).toEqual(['render:0:start']);
+
+    label = 'typed';
+    renderer.requestRender('input');
+    scheduler.advance(0);
+
+    expect(events).toEqual(['render:0:start', 'render:1:input']);
+    expect(rowText(renderer.frameRenderer.frame, 0).startsWith('typed')).toBe(true);
+    renderer.stop();
+  });
+
   it('can explicitly release held automatic frames while the hold predicate remains active', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const output = new FakeOutput();

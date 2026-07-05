@@ -2673,6 +2673,7 @@ export class LioraTUI {
       (this.state.appState.ultraworkMode ?? false) ||
       isBash ||
       trimmed.startsWith('/');
+    if (this.state.editor.borderHighlighted === highlighted) return;
     this.state.editor.borderHighlighted = highlighted;
     // Shell mode gets its own hue; plan-mode and slash context stay primary.
     const borderToken = isBash ? 'shellMode' : highlighted ? 'primary' : 'border';

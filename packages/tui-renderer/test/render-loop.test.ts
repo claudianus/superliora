@@ -65,6 +65,33 @@ describe('NativeRenderLoop', () => {
     });
   });
 
+  it('schedules input-driven frames immediately without FPS throttling', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 10,
+      render: (frame) => frames.push(frame),
+    });
+
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0);
+    scheduler.advance(10);
+    loop.requestRender('input');
+
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(10);
+    scheduler.advance(0);
+
+    expect(frames).toHaveLength(2);
+    expect(frames[1]).toMatchObject({
+      timestamp: 10,
+      deltaMs: 10,
+      frame: 1,
+      causes: ['input'],
+    });
+  });
+
   it('runs animation callbacks before render and defers nested callbacks to the next frame', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const events: string[] = [];

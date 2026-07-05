@@ -1,6 +1,7 @@
 export type NativeRenderCause =
   | 'start'
   | 'request'
+  | 'input'
   | 'animation'
   | 'resize'
   | 'manual'
@@ -130,8 +131,9 @@ export class NativeRenderLoop {
     }
 
     const now = this.scheduler.now();
-    const delayMs =
-      this.lastFrameAt === undefined
+    const delayMs = this.pendingCauses.has('input')
+      ? 0
+      : this.lastFrameAt === undefined
         ? 0
         : Math.max(0, this.lastFrameAt + this.targetFrameIntervalMs - now);
     const timer = this.scheduler.setTimeout(() => {

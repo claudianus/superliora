@@ -19,6 +19,11 @@ export interface RendererEditorTextInputSource {
 export interface RendererEditorTextInputTarget extends RendererEditorTextInputSource {
   setText(text: string): void;
   setCursorPosition?(cursor: RendererEditorCursor): void;
+  /**
+   * Optional fast path for native editor sync: update text/cursor without the
+   * heavier `setText` side effects (for example closing autocomplete overlays).
+   */
+  applyNativeTextInputSync?(text: string, cursor: RendererEditorCursor): void;
 }
 
 export type RendererEditorAtomicRangesForText = (
@@ -146,9 +151,14 @@ export function syncRendererEditorTextInputToTarget(
   input: RendererTextInput,
 ): void {
   const text = input.getText();
-  if (editor.getText() !== text) editor.setText(text);
   const cursor = input.getCursor();
-  editor.setCursorPosition?.({ line: cursor.line, col: cursor.column });
+  const nextCursor = { line: cursor.line, col: cursor.column };
+  if (editor.applyNativeTextInputSync !== undefined) {
+    editor.applyNativeTextInputSync(text, nextCursor);
+    return;
+  }
+  if (editor.getText() !== text) editor.setText(text);
+  editor.setCursorPosition?.(nextCursor);
 }
 
 export function handleRendererEditorMouseInput(
