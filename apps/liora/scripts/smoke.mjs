@@ -23,6 +23,19 @@ async function ensureBundleExists() {
   }
 }
 
+async function ensureBundleIsSelfContained() {
+  try {
+    await execFileAsync(process.execPath, [resolve(appRoot, 'scripts/check-cli-bundle.mjs')], {
+      cwd: appRoot,
+    });
+  } catch (error) {
+    const detail = [error.stdout?.trim(), error.stderr?.trim(), error.message]
+      .filter(Boolean)
+      .join('\n');
+    fail(`CLI bundle guard failed before smoke run:\n${detail}`);
+  }
+}
+
 async function runBundle(args) {
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, [bundlePath, ...args], {
@@ -45,6 +58,7 @@ function assertIncludes(output, expected, command) {
 }
 
 await ensureBundleExists();
+await ensureBundleIsSelfContained();
 
 const versionOutput = await runBundle(['--version']);
 assertIncludes(versionOutput, expectedVersion, '--version');

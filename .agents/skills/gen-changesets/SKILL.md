@@ -176,6 +176,39 @@ Add the server-hosted web UI, including chat layout and session list behaviors.
 Add the server REST and WebSocket APIs that power the web UI.
 ```
 
+## Upstream sync changes
+
+SuperLiora release semver is independent from Kimi Code. When porting upstream:
+
+1. Update `meta/upstream.lock.yaml` with the upstream product, version/ref, `syncedAt`, and the SuperLiora commit that contains the port.
+2. Run `pnpm -C apps/liora run prebuild` so `src/generated/upstream-baseline.generated.ts` matches the lock file.
+3. Write the changeset for `@superliora/liora` using SuperLiora user impact for the bump level, not upstream's bump.
+4. Start the changelog entry with an **Upstream sync** section that names the upstream baseline, then add SuperLiora-only bullets separately when the PR also contains fork-specific work.
+
+Upstream-only port:
+
+```markdown
+---
+"@superliora/liora": patch
+---
+
+Upstream sync: port kimi-code 0.22.3 image auto-compression, paste-burst fallback, and subagent drain fixes.
+```
+
+Mixed upstream port plus SuperLiora-only guard work:
+
+```markdown
+---
+"@superliora/liora": patch
+---
+
+Upstream sync: port kimi-code 0.22.3 stability fixes for tool exchange teardown and session index rebuild.
+
+Add install bundle guards that reject mistyped workspace imports before source installs fail at runtime.
+```
+
+Do **not** bump `@superliora/liora` to match upstream semver (for example, do not release liora `0.22.0` just because kimi-code reached `0.22.x`).
+
 ## Red Flags
 
 - You are about to write `major` without asking the user.
@@ -188,3 +221,5 @@ Add the server REST and WebSocket APIs that power the web UI.
 - The wording claims more than the diff actually did.
 - The CLI wording mentions internal package names, class names, or PR numbers.
 - The entry includes real internal identifiers instead of neutral placeholders.
+- An upstream port PR merged without updating `meta/upstream.lock.yaml`.
+- A changeset claims an upstream sync but the lock file still points at an older baseline.

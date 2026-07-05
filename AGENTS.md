@@ -80,3 +80,31 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 - After finishing a task and before submitting a PR, you must run the `gen-changesets` skill (see `.agents/skills/gen-changesets/SKILL.md`) and generate a changeset under `.changeset/` according to its rules.
 - When generating a changeset, **never** decide on a `major` bump on your own. When you judge a change to meet the major criteria (breaking changes, incompatible user configuration, renamed or removed commands/arguments, changed behavior semantics, etc.), you must stop and explain it to the user and ask for confirmation. **Only write `major` after the user has explicitly agreed.** Otherwise default to `minor` (and fall back to `patch` if `minor` is unclear). See the "Hard rule: confirm with the user before writing `major`" section in `.agents/skills/gen-changesets/SKILL.md` for details.
 - Prefer importing via `import ... from '#/...'`, which serves the same purpose as `import ... from '@/...'`.
+
+## Install & Release Verification
+
+Changes that touch `packages/agent-core`, `packages/node-sdk`, `packages/acp-adapter`, or the `apps/liora` bundle graph must pass the source-install path before merge, not just local dev (`tsx` / `dev:cli-only`).
+
+Required checks:
+
+- `pnpm run build` — full monorepo build, including `@superliora/sdk` declaration emit (`build:dts`).
+- `pnpm run check:imports` — rejects mistyped workspace package names such as `@superliora/superliora-sdk`.
+- `pnpm -C apps/liora run build` — CLI bundle build plus `check-cli-bundle.mjs` (no runtime `@superliora/*` imports left in `dist/main.mjs`).
+- `pnpm -C apps/liora run smoke` — runs the bundle with `--version` / `--help` after the bundle guard.
+
+When porting upstream (for example Kimi Code), grep for legacy package names (`@superliora/superliora-`, `@kimi-code/`) and split imports by actual package ownership: SDK surface from `@superliora/sdk`, engine internals from `@superliora/agent-core`.
+
+## Versioning
+
+SuperLiora tracks **two independent version lines**:
+
+- **Release version** — `@superliora/liora` semver in `apps/liora/package.json`. This is the only user-facing version (`liora --version`). Bump it with changesets based on SuperLiora user impact, not upstream semver.
+- **Upstream baseline** — recorded in `meta/upstream.lock.yaml` and embedded into the CLI at build time. It answers “which Kimi Code snapshot did we last port?” without tying our release number to upstream’s.
+
+Rules:
+
+- Never copy upstream semver into `@superliora/liora` (for example, porting kimi-code `0.22.x` does **not** require liora `0.22.x`).
+- Every upstream port PR must update `meta/upstream.lock.yaml`, run `pnpm -C apps/liora run prebuild` (or `build`) to refresh `src/generated/upstream-baseline.generated.ts`, and mention the upstream baseline in the changeset changelog under an **Upstream sync** section when user-visible.
+- SuperLiora-only changes do **not** touch `meta/upstream.lock.yaml`.
+- Internal package versions (`agent-core`, `sdk`, …) stay internal; only `@superliora/liora` matters for releases.
+- `/status` shows the upstream baseline; `liora --version` stays short.

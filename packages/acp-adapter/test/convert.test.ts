@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import type { ContentBlock } from '@agentclientprotocol/sdk';
 import { Jimp } from 'jimp';
 
-import { log, type ToolInputDisplay } from '@superliora/superliora-sdk';
+import { log, type ToolInputDisplay } from '@superliora/sdk';
 
 import {
   acpBlocksToPromptParts,

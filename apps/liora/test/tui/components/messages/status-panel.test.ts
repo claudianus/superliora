@@ -128,6 +128,28 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('Runtime');
   });
 
+  it('shows the upstream baseline under the release version', () => {
+    const lines = buildStatusReportLines({
+      version: '0.20.1',
+      upstreamBaseline: 'kimi-code 0.22.x @ main@8fbe8553 (sync 2026-07-05, 8fbe85531b05)',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+      availableModels: {},
+    }).map(strip);
+
+    const output = lines.join('\n');
+    expect(output).toContain('>_ SuperLiora (v0.20.1)');
+    expect(output).toContain('Upstream  kimi-code 0.22.x @ main@8fbe8553 (sync 2026-07-05, 8fbe85531b05)');
+  });
+
   it('falls back to app state and shows status load errors as warnings', () => {
     const lines = buildStatusReportLines({
       version: '1.2.3',

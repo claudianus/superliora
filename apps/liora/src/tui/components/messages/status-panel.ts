@@ -71,6 +71,7 @@ export interface StatusReportOptions {
   readonly gitStatus?: GitStatus | null;
   readonly humanWriting?: StatusHumanWritingReadiness;
   readonly recovery?: StatusRecoveryReadiness;
+  readonly upstreamBaseline?: string;
 }
 
 type Colorize = (text: string) => string;
@@ -504,8 +505,11 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
 
   const lines: string[] = [
     `${accent(`>_ ${PRODUCT_NAME}`)} ${muted(`(v${options.version})`)}`,
-    '',
   ];
+  if (options.upstreamBaseline !== undefined && options.upstreamBaseline.length > 0) {
+    lines.push(`${muted('Upstream')}  ${value(options.upstreamBaseline)}`);
+  }
+  lines.push('');
   addFieldRows(lines, rows, muted, value, errorStyle);
 
   const { ratio, tokens, maxTokens } = contextValues(options);

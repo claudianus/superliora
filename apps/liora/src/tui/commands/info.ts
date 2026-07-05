@@ -26,6 +26,7 @@ import {
 } from '../constant/feedback';
 import { isManagedUsageProvider } from '../constant/liora-tui';
 import { submitFeedbackWithAttachments } from '../../feedback/feedback-attachments';
+import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { formatErrorMessage } from '../utils/event-payload';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { openUrl } from '#/utils/open-url';
@@ -176,6 +177,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     recovery,
     managedUsage: managedUsage?.usage,
     managedUsageError: managedUsage?.error,
+    upstreamBaseline: formatUpstreamBaselineSummary(),
   };
   const panel = new UsagePanelComponent(() => buildStatusReportLines(reportArgs), 'primary', ' Status ');
   host.state.transcriptContainer.addChild(panel);
