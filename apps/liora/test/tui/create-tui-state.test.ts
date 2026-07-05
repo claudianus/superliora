@@ -1,9 +1,12 @@
 import { EventEmitter } from 'node:events';
 
 import { describe, it, expect, vi } from 'vitest';
+import chalk from 'chalk';
 
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
 import { NoticeMessageComponent } from '#/tui/components/messages/status-message';
+import { ThinkingComponent } from '#/tui/components/messages/thinking';
+import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import {
@@ -363,6 +366,8 @@ describe('createTUIState', () => {
   it('preserves transcript foreground colors across animation and layout-shift frames', () => {
     const envKeys = ['CI', 'NO_COLOR'] as const;
     const saved = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+    const previousChalkLevel = chalk.level;
+    chalk.level = 3;
     for (const key of envKeys) delete process.env[key];
     try {
     const width = 80;
@@ -375,6 +380,14 @@ describe('createTUIState', () => {
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
     currentTheme.setCanvasBackgroundEnabled(true);
     state.transcriptContainer.addChild(new UserMessageComponent('start work now'));
+    state.transcriptContainer.addChild(new ThinkingComponent('researching game frameworks', true, 'live'));
+    state.transcriptContainer.addChild(
+      new ToolCallComponent({
+        id: 'call_websearch',
+        name: 'WebSearch',
+        args: { query: 'Phaser 3 browser game' },
+      }),
+    );
     state.editorContainer.addChild(state.editor);
     state.footerContainer.addChild(fixedLines(['footer']));
 
@@ -382,6 +395,7 @@ describe('createTUIState', () => {
 
     const initial = renderTUIStateNativeFrame(state, { width, height, force: true });
     expect(hasColorOutput(initial.output)).toBe(true);
+    expect(countVisibleTranscriptCellsWithForeground(initial.renderer.frame)).toBeGreaterThan(0);
 
     const animationPolicy = resolveTUIStateNativeFramePolicy({
       causes: ['animation'],
@@ -391,6 +405,7 @@ describe('createTUIState', () => {
     });
     expect(animationPolicy.refreshTerminalPalette).toBe(true);
 
+    advanceAppearanceAnimationClock(appearanceAnimationNow() + 120);
     const animated = renderTUIStateNativeFrame(state, {
       renderer: initial.renderer,
       width,
@@ -398,6 +413,7 @@ describe('createTUIState', () => {
       force: animationPolicy.force,
     });
     expect(hasColorOutput(animated.output)).toBe(true);
+    expect(countVisibleTranscriptCellsWithForeground(animated.renderer.frame)).toBeGreaterThan(0);
 
     state.transcriptContainer.addChild(
       new NoticeMessageComponent('Ultrawork mode: ON', 'Shift-Tab routes the next task.'),
@@ -409,7 +425,16 @@ describe('createTUIState', () => {
       force: true,
     });
     expect(hasColorOutput(grown.output)).toBe(true);
+    expect(countVisibleTranscriptCellsWithForeground(grown.renderer.frame)).toBeGreaterThan(0);
+
+    const incremental = renderTUIStateNativeFrame(state, {
+      renderer: grown.renderer,
+      width,
+      height,
+    });
+    expect(countVisibleTranscriptCellsWithForeground(incremental.renderer.frame)).toBeGreaterThan(0);
     } finally {
+      chalk.level = previousChalkLevel;
       for (const key of envKeys) {
         const value = saved[key];
         if (value === undefined) delete process.env[key];
@@ -1889,6 +1914,21 @@ function fixedLines(lines: readonly string[]): Component {
 
 function rowText(buffer: { width: number; getCell(x: number, y: number): { char: string } }, y: number): string {
   return Array.from({ length: buffer.width }, (_, x) => buffer.getCell(x, y).char).join('');
+}
+
+function countVisibleTranscriptCellsWithForeground(buffer: {
+  readonly width: number;
+  readonly height: number;
+  getCell(x: number, y: number): { char: string; style?: { fg?: string } };
+}): number {
+  let count = 0;
+  for (let y = 0; y < buffer.height; y++) {
+    for (let x = 0; x < buffer.width; x++) {
+      const cell = buffer.getCell(x, y);
+      if (cell.char.trim().length > 0 && cell.style?.fg !== undefined) count++;
+    }
+  }
+  return count;
 }
 
 function withMotionEffectsAllowedEnv(run: () => void): void {

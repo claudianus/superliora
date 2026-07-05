@@ -501,9 +501,11 @@ function buildTUIStateNativeFrame(
       if (projected.cursor !== undefined && cursor.visible === false) {
         cursor = projected.cursor;
       }
-      const content = region.id === 'transcript' || region.id === 'editor'
+      const content = region.id === 'editor'
         ? projected.lines
-        : promoteRendererRegionLinesToCells(projected.lines);
+        : region.id === 'transcript'
+          ? promoteTranscriptRegionLinesToCells(projected.lines)
+          : promoteRendererRegionLinesToCells(projected.lines);
       if (content.length === 0 && region.id !== 'transcript') return [];
       const vfx = region.id === 'editor' && state.editor.borderHighlighted
         ? createTUIStateNativeRegionVfx(state, 'focus-pulse', {
@@ -782,6 +784,26 @@ function nativeEditorFallbackLineCount(state: TUIState, width: number): number {
     return state.editor.getNativeLayoutRowCount(width);
   }
   return state.editorContainer.render(width).length;
+}
+
+/**
+ * Parse transcript ANSI lines at frame-compose time (same path as footer chrome)
+ * and backfill a theme text foreground when a visible cell only carries background.
+ * Without an explicit fg, terminals fall back to their default foreground (often
+ * bright white) after authoritative clears — which looked like "theme colors died"
+ * in the transcript while footer strings kept their chalk hex colors.
+ */
+function promoteTranscriptRegionLinesToCells(
+  lines: readonly RendererRegionLine[],
+): readonly RendererRegionLine[] {
+  const defaultFg = currentTheme.palette.text;
+  return promoteRendererRegionLinesToCells(lines).map((line) => {
+    if (typeof line === 'string') return line;
+    return line.map((cell) => {
+      if (cell.style?.fg !== undefined || cell.char.trim().length === 0) return cell;
+      return { ...cell, style: { fg: defaultFg, ...cell.style } };
+    });
+  });
 }
 
 function nativeTranscriptRegionLines(
