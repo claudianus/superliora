@@ -887,6 +887,9 @@ describe('Simple permission policy direct behavior', () => {
     expect(denied).toMatchObject({
       message: expect.stringContaining('CreateGoal'),
     });
+    expect(
+      policy.evaluate(hookContext({ id: 'call_graph', toolName: 'UltraworkGraph' })),
+    ).toBeUndefined();
   });
 
   it('denies AgentSwarm mixed with other tool calls in the same response', () => {

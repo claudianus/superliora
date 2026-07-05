@@ -14,6 +14,7 @@ export class UltraSwarmEngageGateDenyPermissionPolicy implements PermissionPolic
     // GetGoal is allowed so the model can confirm the current goal state.
     if (
       toolName === 'UltraSwarm' ||
+      toolName === 'UltraworkGraph' ||
       toolName === 'EnterPlanMode' ||
       toolName === 'CreateGoal' ||
       toolName === 'GetGoal'
@@ -24,7 +25,7 @@ export class UltraSwarmEngageGateDenyPermissionPolicy implements PermissionPolic
     return {
       kind: 'deny',
       message:
-        'UltraSwarm ENGAGE is binding. Create the verifiable UltraGoal with CreateGoal (or check it with GetGoal), then call UltraSwarm as the next execution tool. To revise the Swarm decision to DEFER with a waiver, enter plan mode.',
+        'UltraSwarm ENGAGE is binding. Create the verifiable UltraGoal with CreateGoal (or check it with GetGoal), update UltraworkGraph if needed, then call UltraSwarm as the next execution tool. To revise the Swarm decision to DEFER with a waiver, enter plan mode.',
       reason: {
         required_tool: 'UltraSwarm',
         attempted_tool: toolName,

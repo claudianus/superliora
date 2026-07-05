@@ -8,7 +8,7 @@
 import { Readable, type Writable } from 'node:stream';
 
 import type { Kaos, KaosProcess } from '@superliora/kaos';
-import type { WorkGraph } from '@superliora/protocol';
+import type { WorkGraph, TeamPlan } from '@superliora/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -56,6 +56,10 @@ import {
   UltraSwarmTool,
   UltraSwarmToolInputSchema,
 } from '../../src/tools/builtin/collaboration/ultra-swarm';
+import { globalUltraSwarmOrchestrator } from '../../src/expert-agents/orchestrator';
+import { SwarmChannelTool } from '../../src/tools/builtin/collaboration/swarm-channel';
+import { createUltraSwarmRunContext } from '../../src/agent/ultra-swarm-run';
+import { initSwarmRunBus, renderSwarmBusDigest } from '../../src/tools/builtin/state/swarm-bus';
 import { appendSwarmResearchAutonomy } from '../../src/tools/builtin/collaboration/swarm-research-autonomy';
 import { TODO_STORE_KEY } from '../../src/tools/builtin/state/todo-list';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
@@ -88,13 +92,44 @@ function mockToolStore(initial: Partial<ToolStoreData> = {}): {
   };
 }
 
+function mockSwarmTeam(): TeamPlan {
+  return {
+    id: 'team_1',
+    runId: 'uw_1',
+    intensity: 'premium',
+    maxExperts: 8,
+    experts: [
+      {
+        id: 'impl-engineer',
+        name: 'Impl Engineer',
+        role: 'implementation',
+        focus: 'implement',
+        status: 'queued',
+        division: 'engineering',
+      },
+      {
+        id: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        role: 'security',
+        focus: 'review',
+        status: 'queued',
+        division: 'security',
+      },
+    ],
+  };
+}
+
 function mockUltraSwarmAgent(
   flags = new FlagResolver({}, FLAG_DEFINITIONS),
+  store?: ToolStore,
 ): Agent {
   return {
     emitEvent: vi.fn(),
     ultraSwarmEngageGate: { clear: vi.fn() },
     experimentalFlags: flags,
+    tools: store === undefined ? undefined : { getStore: () => store },
+    turn: { hasActiveTurn: false },
+    context: { appendSystemReminder: vi.fn() },
   } as unknown as Agent;
 }
 
@@ -127,6 +162,8 @@ function mockSubagentHost<T extends Partial<SessionSubagentHost>>(
     resume: vi.fn(),
     runQueued: vi.fn(),
     getSwarmItem: vi.fn(),
+    parentAgentId: 'parent-agent-1',
+    startSwarmStandupTimer: vi.fn(() => ({ stop: vi.fn() })),
     ...host,
   } as unknown as T & SessionSubagentHost;
 }
@@ -1116,6 +1153,148 @@ describe('current builtin collaboration tools', () => {
     expect(result.output).toContain('<integration_handoff>');
   });
 
+  it('UltraSwarm attaches critic edges to review experts and retries blocked reviews once', async () => {
+    let reviewAttempt = 0;
+    const runQueued = vi.fn(
+      async <T>(
+        tasks: readonly QueuedSubagentTask<T>[],
+      ): Promise<Array<QueuedSubagentRunResult<T>>> =>
+        tasks.map((task) => {
+          const phase = (task.data as { phase?: string }).phase ?? 'phase';
+          if (phase === 'review') {
+            reviewAttempt += 1;
+            const verdict = reviewAttempt === 1 ? 'VERDICT: BLOCKED needs tests' : 'VERDICT: PASS';
+            return {
+              task,
+              agentId: 'agent-review',
+              status: 'completed' as const,
+              result: verdict,
+            };
+          }
+          return {
+            task,
+            agentId: `agent-${phase}`,
+            status: 'completed' as const,
+            result: `${phase} handoff evidence_ids: ev_${phase}`,
+          };
+        }),
+    );
+    const host = mockSubagentHost({
+      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
+    });
+    const { store } = mockToolStore();
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, mockUltraSwarmAgent());
+
+    const result = await executeTool(
+      tool,
+      context({
+        description: 'Implement a feature with product, architecture, and QA review',
+        run_id: 'uw_review_retry',
+        experts: ['product-manager', 'engineering-software-architect', 'testing-evidence-collector'],
+        auto_select: false,
+        max_experts: 3,
+        focus: 'full',
+      }),
+    );
+
+    expect(runQueued).toHaveBeenCalledTimes(4);
+    const reviewPrompts = runQueued.mock.calls
+      .flatMap((call) => call[0] ?? [])
+      .map((task) => task.prompt)
+      .filter((prompt) => prompt.includes('UltraSwarm phase: review'));
+    expect(reviewPrompts.some((prompt) => prompt.includes('<critic_assignment>'))).toBe(true);
+    expect(reviewPrompts.some((prompt) => prompt.includes('<review_revision_request>'))).toBe(true);
+    expect(result.output).toContain('verdict="PASS"');
+    expect(result.output).not.toContain('VERDICT: BLOCKED');
+  });
+
+  it('UltraSwarm restaffs additional experts when revision gaps remain', async () => {
+    const originalBuildSwarmPlan = globalUltraSwarmOrchestrator.buildSwarmPlan.bind(
+      globalUltraSwarmOrchestrator,
+    );
+    const buildSwarmPlanSpy = vi
+      .spyOn(globalUltraSwarmOrchestrator, 'buildSwarmPlan')
+      .mockImplementation(async (description, expertIds, options) => {
+        if (description.includes('revision staffing')) {
+          return {
+            taskDescription: description,
+            strategy: 'parallel' as const,
+            experts: [
+              {
+                expertId: 'security-appsec-engineer',
+                expertName: 'AppSec Engineer',
+                prompt: 'Close remaining security and QA gaps.',
+                division: 'Security',
+                emoji: '🔒',
+                color: 'red',
+                coverageLane: 'security_privacy',
+              },
+            ],
+          };
+        }
+        return originalBuildSwarmPlan(description, expertIds, options);
+      });
+
+    const runQueued = vi.fn(
+      async <T>(
+        tasks: readonly QueuedSubagentTask<T>[],
+      ): Promise<Array<QueuedSubagentRunResult<T>>> =>
+        tasks.map((task) => {
+          const phase = (task.data as { phase?: string }).phase ?? 'phase';
+          const profileName = task.profileName ?? '';
+          if (phase === 'review' && profileName === 'testing-evidence-collector') {
+            return {
+              task,
+              agentId: 'agent-review',
+              status: 'completed' as const,
+              result: 'VERDICT: BLOCKED needs tests',
+            };
+          }
+          if (phase === 'review' && profileName === 'security-appsec-engineer') {
+            return {
+              task,
+              agentId: 'agent-restaff',
+              status: 'completed' as const,
+              result: 'VERDICT: PASS security gaps closed',
+            };
+          }
+          return {
+            task,
+            agentId: `agent-${phase}`,
+            status: 'completed' as const,
+            result: `${phase} handoff evidence_ids: ev_${phase}`,
+          };
+        }),
+    );
+    const host = mockSubagentHost({
+      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
+    });
+    const { store } = mockToolStore();
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, mockUltraSwarmAgent());
+
+    const result = await executeTool(
+      tool,
+      context({
+        description: 'Implement a feature with product, architecture, and QA review',
+        run_id: 'uw_restaff',
+        experts: ['product-manager', 'engineering-software-architect', 'testing-evidence-collector'],
+        auto_select: false,
+        max_experts: 5,
+        focus: 'full',
+      }),
+    );
+
+    expect(buildSwarmPlanSpy).toHaveBeenCalledWith(
+      expect.stringContaining('revision staffing'),
+      undefined,
+      expect.objectContaining({ maxExperts: 2 }),
+    );
+    expect(runQueued).toHaveBeenCalledTimes(5);
+    expect(result.output).toContain('security-appsec-engineer');
+    expect(result.output).toContain('Restaffed after revision gaps.');
+    buildSwarmPlanSpy.mockRestore();
+  });
+
   it('UltraSwarm blocks dependent phases when a required planning expert blocks', async () => {
     const runQueued = vi.fn(
       async <T>(
@@ -1267,6 +1446,24 @@ describe('current builtin collaboration tools', () => {
     });
   });
 
+  it('UltraSwarm explains when work_node_ids is used without a seeded graph', async () => {
+    const host = mockSubagentHost({});
+    const { store } = mockToolStore();
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, mockUltraSwarmAgent());
+
+    const result = await executeTool(tool, context({
+      description: 'Implement the graph harness',
+      work_node_ids: ['ac_1'],
+      experts: ['academic-anthropologist'],
+      auto_select: false,
+      max_experts: 1,
+    }));
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('work_node_ids requires an existing UltraworkGraph');
+    expect(result.output).toContain('ExitPlanMode');
+  });
+
   it('UltraSwarm rejects explicit expert requests above max_experts', async () => {
     const host = mockSubagentHost({});
     const { store } = mockToolStore();
@@ -1281,6 +1478,258 @@ describe('current builtin collaboration tools', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('max_experts is 1');
+  });
+
+  it('UltraSwarm always injects swarm bus roster rules during runs', async () => {
+    const runQueued = vi.fn(
+      async <T>(
+        tasks: readonly QueuedSubagentTask<T>[],
+      ): Promise<Array<QueuedSubagentRunResult<T>>> =>
+        tasks.map((task) => ({
+          task,
+          agentId: 'agent-expert-1',
+          status: 'completed' as const,
+          result: 'expert result',
+        })),
+    );
+    const host = mockSubagentHost({
+      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
+    });
+    const { store } = mockToolStore();
+    const agent = mockUltraSwarmAgent(undefined, store);
+    const tool = new UltraSwarmTool(host, mockSwarmMode(), store, agent);
+
+    await executeTool(
+      tool,
+      context(
+        {
+          description: 'Review the product launch plan',
+          run_id: 'uw_1',
+          experts: ['academic-anthropologist'],
+          auto_select: false,
+          max_experts: 1,
+          focus: 'review',
+        },
+        'call_ultra_swarm',
+      ),
+    );
+
+    const prompts = runQueued.mock.calls.flatMap(
+      (call) => call[0]?.map((task) => task.prompt) ?? [],
+    );
+    expect(prompts.length).toBeGreaterThan(0);
+    expect(prompts.some((prompt) => prompt.includes('<team_roster>'))).toBe(true);
+    expect(prompts.some((prompt) => prompt.includes('<swarm_channel_rules>'))).toBe(true);
+    expect(agent.ultraSwarmRun).toBeUndefined();
+    expect(host.startSwarmStandupTimer).toHaveBeenCalledTimes(1);
+  });
+
+  it('renderSwarmBusDigest prioritizes verdict and blocker messages', () => {
+    const { store } = mockToolStore();
+    initSwarmRunBus(store, {
+      runId: 'uw_1',
+      parentToolCallId: 'call_uw',
+      team: mockSwarmTeam(),
+    });
+    const post = (input: {
+      channel: 'lane' | 'blocker' | 'council';
+      kind: 'status' | 'verdict' | 'artifact_ref';
+      body: string;
+      expertId: string;
+      name: string;
+    }) => {
+      const state = store.get('swarm_bus');
+      if (state === undefined) throw new Error('missing bus');
+      state.messages.push({
+        id: `msg-${input.body}`,
+        runId: 'uw_1',
+        parentToolCallId: 'call_uw',
+        at: new Date().toISOString(),
+        from: {
+          expertId: input.expertId,
+          agentId: `agent-${input.expertId}`,
+          name: input.name,
+        },
+        channel: input.channel,
+        kind: input.kind,
+        body: input.body,
+      });
+    };
+    post({
+      channel: 'lane',
+      kind: 'status',
+      body: 'routine lane update',
+      expertId: 'impl-engineer',
+      name: 'Impl Engineer',
+    });
+    post({
+      channel: 'blocker',
+      kind: 'status',
+      body: 'missing auth tests',
+      expertId: 'security-appsec-engineer',
+      name: 'AppSec Engineer',
+    });
+    post({
+      channel: 'council',
+      kind: 'verdict',
+      body: 'VERDICT: BLOCKED',
+      expertId: 'security-appsec-engineer',
+      name: 'AppSec Engineer',
+    });
+    post({
+      channel: 'lane',
+      kind: 'artifact_ref',
+      body: 'patch-plan-v2',
+      expertId: 'impl-engineer',
+      name: 'Impl Engineer',
+    });
+
+    const digest = renderSwarmBusDigest(store, { limit: 4 });
+    expect(digest.indexOf('VERDICT: BLOCKED')).toBeLessThan(digest.indexOf('missing auth tests'));
+    expect(digest.indexOf('patch-plan-v2')).toBeLessThan(digest.indexOf('routine lane update'));
+  });
+
+  it('SwarmChannel post/list/reply coordinates through the swarm bus store', async () => {
+    const { store } = mockToolStore();
+    const team = mockSwarmTeam();
+    initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
+    const parent = mockUltraSwarmAgent();
+    const run = createUltraSwarmRunContext({
+      runId: 'uw_1',
+      parentToolCallId: 'call_uw',
+      team,
+      busEnabled: true,
+    });
+    const expert = team.experts[0]!;
+    const onMessagePosted = vi.fn();
+    const tool = new SwarmChannelTool({
+      parentAgent: parent,
+      parentStore: store,
+      run,
+      expert,
+      childAgentId: 'child-1',
+      onMessagePosted,
+    });
+
+    const postResult = await executeTool(
+      tool,
+      context({
+        action: 'post',
+        channel: 'direct',
+        kind: 'question',
+        body: 'Need auth review @security-appsec-engineer',
+        to_expert_id: 'security-appsec-engineer',
+      }),
+    );
+    expect(postResult.isError).toBeUndefined();
+    expect(onMessagePosted).toHaveBeenCalledOnce();
+
+    const listResult = await executeTool(tool, context({ action: 'list', channel: 'direct' }));
+    expect(listResult.output).toContain('Impl Engineer');
+    expect(listResult.output).toContain('Need auth review');
+
+    const replyResult = await executeTool(
+      tool,
+      context({
+        action: 'reply',
+        thread_id: 'thread-1',
+        body: 'Will add tests next.',
+      }),
+    );
+    expect(replyResult.isError).toBeUndefined();
+    expect(replyResult.output).toContain('Posted to Swarm bus.');
+  });
+
+  it('SwarmChannel enforces allowlist and rate limits on the swarm bus', async () => {
+    const { store } = mockToolStore();
+    const team = mockSwarmTeam();
+    initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
+    const run = createUltraSwarmRunContext({
+      runId: 'uw_1',
+      parentToolCallId: 'call_uw',
+      team,
+      busEnabled: true,
+    });
+    const tool = new SwarmChannelTool({
+      parentAgent: mockUltraSwarmAgent(),
+      parentStore: store,
+      run,
+      expert: {
+        id: 'unknown-expert',
+        name: 'Unknown',
+        role: 'implementation',
+        focus: 'implement',
+        status: 'queued',
+        division: 'engineering',
+      },
+      childAgentId: 'child-2',
+    });
+
+    const blocked = await executeTool(
+      tool,
+      context({ action: 'post', channel: 'lane', body: 'hello team' }),
+    );
+    expect(blocked.isError).toBe(true);
+    expect(blocked.output).toContain('not on the staffed team');
+
+    const allowedTool = new SwarmChannelTool({
+      parentAgent: mockUltraSwarmAgent(),
+      parentStore: store,
+      run,
+      expert: team.experts[0]!,
+      childAgentId: 'child-1',
+    });
+    for (let index = 0; index < 12; index += 1) {
+      const result = await executeTool(
+        allowedTool,
+        context({ action: 'post', channel: 'lane', body: `status ${String(index)}` }),
+      );
+      expect(result.isError).toBeUndefined();
+    }
+    const throttled = await executeTool(
+      allowedTool,
+      context({ action: 'post', channel: 'lane', body: 'one too many' }),
+    );
+    expect(throttled.isError).toBe(true);
+    expect(throttled.output).toContain('rate limit');
+  });
+
+  it('SwarmChannel publishes typed artifacts with artifact_ref bus messages', async () => {
+    const { store } = mockToolStore();
+    const team = mockSwarmTeam();
+    initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
+    const run = createUltraSwarmRunContext({
+      runId: 'uw_1',
+      parentToolCallId: 'call_uw',
+      team,
+      busEnabled: true,
+    });
+    const onMessagePosted = vi.fn();
+    const tool = new SwarmChannelTool({
+      parentAgent: mockUltraSwarmAgent(),
+      parentStore: store,
+      run,
+      expert: team.experts[0]!,
+      childAgentId: 'child-1',
+      onMessagePosted,
+    });
+
+    const result = await executeTool(
+      tool,
+      context({
+        action: 'artifact',
+        artifact_kind: 'patch_plan',
+        title: 'Auth middleware patch plan',
+        body: 'Add integration tests for auth middleware hooks.',
+      }),
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('artifact_id=');
+    expect(onMessagePosted).toHaveBeenCalledOnce();
+    const bus = store.get('swarm_bus');
+    expect(Object.keys(bus?.artifacts ?? {})).toHaveLength(1);
+    expect(bus?.messages.at(-1)?.kind).toBe('artifact_ref');
   });
 
   it('Skill exposes parameters and reports unknown skills as tool errors', async () => {

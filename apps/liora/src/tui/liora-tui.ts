@@ -1048,9 +1048,11 @@ export class LioraTUI {
   }
 
   private shouldRenderAmbientAnimationFrame(): boolean {
+    const selection = this.state.transcriptSelection;
     return shouldRenderAmbientAnimationFrame(
       this.state.transcriptViewport.followOutput,
       this.state.terminal.rows,
+      selection.isDragging || selection.hasSelection,
     );
   }
 

@@ -41,6 +41,12 @@ const ACTIVITY_SPINNER_PLACEHOLDER = '  ';
 const AGENT_SWARM_LEFT_INDENT = ' ';
 const AGENT_SWARM_RIGHT_GAP = 1;
 const AGENT_SWARM_NON_GRID_LINES = 6;
+/** Extra transcript rows reserved for the UltraSwarm ops feed (header + feed + padding). */
+export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 8;
+const SWARM_OPS_FEED_MAX_ENTRIES = 48;
+const SWARM_OPS_FEED_RENDER_LINES = 6;
+const SWARM_OPS_HEARTBEAT_MS = 4_000;
+const SWARM_OPS_FEED_TIME_WIDTH = 8;
 const COMPACT_TERMINAL_MARK_WIDTH = 1;
 const ORCHESTRATING_LABEL = 'Orchestrating...';
 const PROMPTING_LABEL = 'Prompting...';
@@ -127,6 +133,35 @@ export interface UltraSwarmMemberMetadata {
   readonly taskIds?: readonly string[];
 }
 
+type SwarmOpsFeedTag =
+  | 'staff'
+  | 'join'
+  | 'live'
+  | 'tool'
+  | 'pulse'
+  | 'done'
+  | 'fail'
+  | 'wait'
+  | 'stop'
+  | 'msg'
+  | 'mention'
+  | 'block'
+  | 'standup';
+
+interface SwarmCollaborationFeedMessage {
+  readonly from: { readonly name: string; readonly emoji?: string };
+  readonly to?: { readonly expertId: string };
+  readonly channel: 'standup' | 'lane' | 'direct' | 'blocker' | 'council';
+  readonly body: string;
+}
+
+interface SwarmOpsFeedEntry {
+  readonly atMs: number;
+  readonly tag: SwarmOpsFeedTag;
+  readonly actor: string;
+  readonly detail: string;
+}
+
 interface AgentSwarmMember {
   readonly id: string;
   agentId?: string;
@@ -146,6 +181,8 @@ interface AgentSwarmMember {
   suspendedReason?: string;
   completedAtMs?: number;
   failedAtMs?: number;
+  lastOpsFeedHeartbeatMs?: number;
+  lastOpsFeedSnippet?: string;
 }
 
 interface AgentSwarmSnapshot {
@@ -227,6 +264,7 @@ export class AgentSwarmProgressComponent implements Component {
   private promptTemplateText = '';
   private activitySpinnerText: (() => string) | undefined;
   private lastFrameTickMs = 0;
+  private readonly opsFeed: SwarmOpsFeedEntry[] = [];
 
   constructor(options: AgentSwarmProgressOptions) {
     this.description = options.description;
@@ -320,6 +358,37 @@ export class AgentSwarmProgressComponent implements Component {
       member.itemText = ultraSwarmMemberLabel(metadata);
     }
     this.itemsStarted = members.length > 0;
+    if (members.length > 0) {
+      const lanes = uniqueCoverageLanes(members);
+      const laneSummary = lanes.length > 0 ? ` · lanes: ${lanes.join(', ')}` : '';
+      this.appendOpsFeed({
+        tag: 'staff',
+        actor: 'control',
+        detail: `${members.length} expert${members.length === 1 ? '' : 's'} assigned${laneSummary}`,
+      });
+    }
+  }
+
+  applySwarmCollaborationMessage(message: SwarmCollaborationFeedMessage): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const actor = swarmCollaborationActorLabel(message.from);
+    const detail = formatSwarmCollaborationFeedDetail(message);
+    this.appendOpsFeed({
+      tag: swarmCollaborationFeedTag(message.channel),
+      actor,
+      detail,
+    });
+  }
+
+  applySwarmCollaborationMention(message: SwarmCollaborationFeedMessage): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const actor = swarmCollaborationActorLabel(message.from);
+    const detail = formatSwarmCollaborationFeedDetail(message);
+    this.appendOpsFeed({
+      tag: 'mention',
+      actor,
+      detail,
+    });
   }
 
   markInputComplete(): void {
@@ -341,6 +410,13 @@ export class AgentSwarmProgressComponent implements Component {
     if (member === undefined) return;
     member.agentId = input.agentId;
     if (member.phase === 'pending') member.phase = 'queued';
+    if (member.ultraSwarm !== undefined) {
+      this.appendOpsFeed({
+        tag: 'join',
+        actor: swarmMemberDisplayName(member),
+        detail: `slot ${member.id} · ${swarmMemberLaneFocus(member)}`,
+      });
+    }
     this.startAnimationIfNeeded();
   }
 
@@ -351,12 +427,21 @@ export class AgentSwarmProgressComponent implements Component {
     this.progressEstimator.markStarted(member.id, nowMs);
     member.ticks = Math.max(member.ticks, 1);
     this.promoteToRunning(member, nowMs);
+    if (member.ultraSwarm !== undefined) {
+      this.appendOpsFeed({
+        tag: 'live',
+        actor: swarmMemberDisplayName(member),
+        detail: swarmMemberLaneFocus(member),
+      });
+    }
     this.startAnimationIfNeeded();
   }
 
   recordToolCall(input: {
     readonly agentId: string;
     readonly toolCallId: string;
+    readonly toolName?: string;
+    readonly toolDescription?: string;
   }): void {
     const member = this.findMemberByAgentId(input.agentId);
     if (member === undefined) return;
@@ -368,6 +453,13 @@ export class AgentSwarmProgressComponent implements Component {
     if (!result.accepted) return;
     member.ticks = result.rawTicks;
     this.promoteToRunning(member);
+    if (member.ultraSwarm !== undefined) {
+      this.appendOpsFeed({
+        tag: 'tool',
+        actor: swarmMemberDisplayName(member),
+        detail: formatSwarmToolReport(input.toolName, input.toolDescription),
+      });
+    }
     this.startAnimationIfNeeded();
   }
 
@@ -381,6 +473,7 @@ export class AgentSwarmProgressComponent implements Component {
       -MAX_LATEST_MODEL_CHARS,
     );
     this.promoteToRunning(member, Date.now(), true);
+    this.maybeAppendOpsHeartbeat(member);
   }
 
   markCompleted(agentId: string, completedText?: string): void {
@@ -404,6 +497,13 @@ export class AgentSwarmProgressComponent implements Component {
     this.progressEstimator.markQueued(member.id, Date.now());
     member.phase = 'suspended';
     clearMemberState(member, ...TERMINAL_CLEAR_KEYS);
+    if (member.ultraSwarm !== undefined) {
+      this.appendOpsFeed({
+        tag: 'wait',
+        actor: swarmMemberDisplayName(member),
+        detail: collapseWhitespace(input.reason),
+      });
+    }
     this.startAnimationIfNeeded();
   }
 
@@ -430,6 +530,13 @@ export class AgentSwarmProgressComponent implements Component {
     const member = this.findMemberByAgentId(agentId);
     if (member === undefined) return;
     this.cancelMember(member, Date.now());
+    if (member.ultraSwarm !== undefined) {
+      this.appendOpsFeed({
+        tag: 'stop',
+        actor: swarmMemberDisplayName(member),
+        detail: 'aborted',
+      });
+    }
   }
 
   markActiveCancelled(): void {
@@ -485,7 +592,7 @@ export class AgentSwarmProgressComponent implements Component {
     if (this.members.length === 0) {
       const lines = [
         '',
-        this.renderHeader(innerWidth, undefined),
+        ...this.renderHeaderLines(innerWidth, undefined),
         '',
         this.renderStatusLine(innerWidth),
         '',
@@ -503,7 +610,7 @@ export class AgentSwarmProgressComponent implements Component {
     const summary = summarizeSnapshots(snapshots);
     const lines = [
       '',
-      this.renderHeader(innerWidth, summary),
+      ...this.renderHeaderLines(innerWidth, summary),
       '',
       ...this.renderGrid(
         innerWidth,
@@ -511,6 +618,7 @@ export class AgentSwarmProgressComponent implements Component {
         snapshots,
         nowMs,
       ),
+      ...this.renderOpsFeed(innerWidth),
       '',
       this.renderStatusLine(innerWidth),
       '',
@@ -532,13 +640,15 @@ export class AgentSwarmProgressComponent implements Component {
     );
   }
 
-  private renderHeader(width: number, _summary: AgentSwarmSummary | undefined): string {
+  private renderHeaderLines(width: number, summary: AgentSwarmSummary | undefined): string[] {
     const dividerStyle = (text: string): string => chalk.hex(this.colors.primary)(text);
     if (width <= 3) {
-      return renderRendererDividerRow({
-        width,
-        style: dividerStyle,
-      });
+      return [
+        renderRendererDividerRow({
+          width,
+          style: dividerStyle,
+        }),
+      ];
     }
 
     const title = gradientText(this.title, this.colors.primary, this.colors.accent, AGENT_SWARM_TITLE_ACCENT_BIAS);
@@ -547,10 +657,147 @@ export class AgentSwarmProgressComponent implements Component {
         ? chalk.hex(this.colors.primary)(` ${renderRendererDividerRow({ width: 1 })} `) +
           chalk.hex(this.colors.text)(this.description)
         : '';
-    return renderRendererLabeledDividerRow({
+    const lines = [
+      renderRendererLabeledDividerRow({
+        width,
+        label: title + description,
+        dividerStyle,
+      }),
+    ];
+    if (!this.isUltraSwarmOpsFeedEnabled() || summary === undefined) return lines;
+
+    const ticker = this.renderControlTowerTicker(width, summary);
+    if (ticker.length > 0) lines.push(ticker);
+    return lines;
+  }
+
+  private renderControlTowerTicker(width: number, summary: AgentSwarmSummary): string {
+    const running = this.members.filter((member) => member.phase === 'running').length;
+    const queued = this.members.filter((member) =>
+      member.phase === 'queued' || member.phase === 'pending' || member.phase === 'suspended',
+    ).length;
+    const lanes = uniqueCoverageLanes(
+      this.members
+        .map((member) => member.ultraSwarm)
+        .filter((metadata): metadata is UltraSwarmMemberMetadata => metadata !== undefined),
+    );
+    const segments = [
+      `RUN ${chalk.hex(this.colors.textDim)('│')}`,
+      summarySegment('live', running, this.colors.success),
+      summarySegment('queue', queued, this.colors.textDim),
+      summarySegment('done', summary.completed, this.colors.primary),
+      summary.failed > 0 ? summarySegment('fail', summary.failed, this.colors.error) : undefined,
+      lanes.length > 0
+        ? `${chalk.hex(this.colors.textDim)('lanes')} ${chalk.hex(this.colors.text)(lanes.join(', '))}`
+        : undefined,
+    ].filter((segment): segment is string => segment !== undefined);
+    const body = segments.join(` ${chalk.hex(this.colors.textDim)('·')} `);
+    return truncateToWidth(
+      chalk.hex(this.colors.textDim)('  ') + body,
       width,
-      label: title + description,
-      dividerStyle,
+    );
+  }
+
+  private renderOpsFeed(width: number): string[] {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return [];
+    const dividerStyle = (text: string): string => chalk.hex(this.colors.primary)(text);
+    const lines: string[] = [
+      '',
+      renderRendererLabeledDividerRow({
+        width,
+        label: chalk.hex(this.colors.accent)('SWARM FEED'),
+        dividerStyle,
+      }),
+    ];
+    const entries = this.opsFeed.slice(-SWARM_OPS_FEED_RENDER_LINES);
+    if (entries.length === 0) {
+      lines.push(
+        truncateToWidth(
+          chalk.hex(this.colors.textDim)('  awaiting operator reports…'),
+          width,
+        ),
+      );
+      return lines;
+    }
+    for (const entry of entries) {
+      lines.push(this.renderOpsFeedLine(entry, width));
+    }
+    return lines;
+  }
+
+  private renderOpsFeedLine(entry: SwarmOpsFeedEntry, width: number): string {
+    const time = chalk.hex(this.colors.textDim)(formatSwarmOpsFeedTime(entry.atMs));
+    const tag = chalk.hex(swarmOpsFeedTagColor(entry.tag, this.colors))(swarmOpsFeedTagLabel(entry.tag));
+    const actor = chalk.hex(this.colors.primary)(entry.actor);
+    const detail =
+      entry.detail.length > 0
+        ? `${chalk.hex(this.colors.textDim)(' · ')}${chalk.hex(this.colors.text)(entry.detail)}`
+        : '';
+    const line = `  ${time} ${tag} ${actor}${detail}`;
+    return truncateToWidth(line, width);
+  }
+
+  private isUltraSwarmOpsFeedEnabled(): boolean {
+    return this.title === 'UltraSwarm';
+  }
+
+  private appendOpsFeed(input: {
+    readonly tag: SwarmOpsFeedTag;
+    readonly actor: string;
+    readonly detail: string;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const actor = collapseWhitespace(input.actor);
+    const detail = collapseWhitespace(input.detail);
+    const last = this.opsFeed.at(-1);
+    if (
+      last !== undefined &&
+      last.tag === input.tag &&
+      last.actor === actor &&
+      last.detail === detail
+    ) {
+      return;
+    }
+    this.opsFeed.push({
+      atMs: Date.now(),
+      tag: input.tag,
+      actor,
+      detail,
+    });
+    if (this.opsFeed.length > SWARM_OPS_FEED_MAX_ENTRIES) {
+      this.opsFeed.splice(0, this.opsFeed.length - SWARM_OPS_FEED_MAX_ENTRIES);
+    }
+  }
+
+  private maybeAppendOpsHeartbeat(member: AgentSwarmMember): void {
+    if (!this.isUltraSwarmOpsFeedEnabled() || member.ultraSwarm === undefined) return;
+    if (member.phase !== 'running') return;
+    const snippet = latestNonEmptyLine(member.latestModelText);
+    if (snippet.length === 0) return;
+    const nowMs = Date.now();
+    const lastHeartbeatMs = member.lastOpsFeedHeartbeatMs ?? 0;
+    if (
+      snippet === member.lastOpsFeedSnippet &&
+      nowMs - lastHeartbeatMs < SWARM_OPS_HEARTBEAT_MS
+    ) {
+      return;
+    }
+    if (nowMs - lastHeartbeatMs < SWARM_OPS_HEARTBEAT_MS) return;
+    member.lastOpsFeedHeartbeatMs = nowMs;
+    member.lastOpsFeedSnippet = snippet;
+    this.appendOpsFeed({
+      tag: 'pulse',
+      actor: swarmMemberDisplayName(member),
+      detail: snippet,
+    });
+  }
+
+  private appendTerminalOpsFeed(member: AgentSwarmMember, tag: SwarmOpsFeedTag, detail: string): void {
+    if (member.ultraSwarm === undefined) return;
+    this.appendOpsFeed({
+      tag,
+      actor: swarmMemberDisplayName(member),
+      detail,
     });
   }
 
@@ -820,6 +1067,7 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   private completeMember(member: AgentSwarmMember, nowMs: number, completedText?: string): void {
+    const wasTerminal = member.phase === 'completed';
     if (member.phase !== 'completed') {
       this.progressEstimator.markCompleted(member.id, nowMs);
       member.completedAtMs = nowMs;
@@ -828,9 +1076,13 @@ export class AgentSwarmProgressComponent implements Component {
     if (normalizedCompletedText !== undefined) member.completedText = normalizedCompletedText;
     member.phase = 'completed';
     clearMemberState(member, ...COMPLETED_CLEAR_KEYS);
+    if (!wasTerminal) {
+      this.appendTerminalOpsFeed(member, 'done', completedOpsFeedDetail(member, normalizedCompletedText));
+    }
   }
 
   private failMember(member: AgentSwarmMember, nowMs: number, failureText?: string): void {
+    const wasTerminal = member.phase === 'failed';
     if (member.phase !== 'failed') {
       this.progressEstimator.markFailed(member.id, nowMs);
       member.failedAtMs = nowMs;
@@ -839,6 +1091,13 @@ export class AgentSwarmProgressComponent implements Component {
     if (normalizedFailureText !== undefined) member.failureText = normalizedFailureText;
     member.phase = 'failed';
     clearMemberState(member, ...FAILED_CLEAR_KEYS);
+    if (!wasTerminal) {
+      this.appendTerminalOpsFeed(
+        member,
+        'fail',
+        normalizedFailureText ?? member.failureText ?? 'failed',
+      );
+    }
   }
 
   private cancelMember(member: AgentSwarmMember, nowMs: number): void {
@@ -1258,12 +1517,16 @@ export function calculateAgentSwarmGridLayout(
 export function agentSwarmGridHeightForTerminalRows(
   rows: number | undefined,
   followingRows = 0,
+  options?: { readonly opsFeed?: boolean },
 ): number | undefined {
   if (rows === undefined || !Number.isFinite(rows)) return undefined;
   const rowsAfterSwarm = Number.isFinite(followingRows)
     ? Math.max(0, Math.floor(followingRows))
     : 0;
-  return Math.max(0, Math.floor(rows) - rowsAfterSwarm - AGENT_SWARM_NON_GRID_LINES);
+  const nonGridLines =
+    AGENT_SWARM_NON_GRID_LINES +
+    (options?.opsFeed === true ? AGENT_SWARM_OPS_FEED_LINE_BUDGET : 0);
+  return Math.max(0, Math.floor(rows) - rowsAfterSwarm - nonGridLines);
 }
 
 function agentSwarmGridIdWidth(count: number): number {
@@ -1572,6 +1835,154 @@ function ultraSwarmMemberLabel(metadata: UltraSwarmMemberMetadata): string {
   const lane = metadata.coverageLane ?? metadata.division;
   const focus = metadata.focus === undefined ? '' : `/${metadata.focus}`;
   return lane === undefined ? `${name}${focus}` : `${name} ${lane}${focus}`;
+}
+
+function uniqueCoverageLanes(members: readonly UltraSwarmMemberMetadata[]): string[] {
+  const lanes = new Set<string>();
+  for (const member of members) {
+    const lane = member.coverageLane ?? member.division;
+    if (lane !== undefined && lane.length > 0) lanes.add(lane);
+  }
+  return [...lanes];
+}
+
+function swarmMemberDisplayName(member: AgentSwarmMember): string {
+  const metadata = member.ultraSwarm;
+  if (metadata === undefined) return member.id;
+  return metadata.emoji === undefined ? metadata.name : `${metadata.emoji} ${metadata.name}`;
+}
+
+function swarmMemberLaneFocus(member: AgentSwarmMember): string {
+  const metadata = member.ultraSwarm;
+  if (metadata === undefined) return collapseWhitespace(member.itemText);
+  const lane = metadata.coverageLane ?? metadata.division;
+  const focus = metadata.focus;
+  if (lane === undefined && focus === undefined) return collapseWhitespace(member.itemText);
+  if (lane === undefined) return focus ?? '';
+  if (focus === undefined) return lane;
+  return `${lane}/${focus}`;
+}
+
+function formatSwarmToolReport(toolName: string | undefined, toolDescription: string | undefined): string {
+  const name = toolName === undefined ? 'tool' : toolName;
+  const description = collapseWhitespace(toolDescription ?? '');
+  if (description.length === 0) return name;
+  return `${name}: ${description}`;
+}
+
+function formatSwarmOpsFeedTime(atMs: number): string {
+  const date = new Date(atMs);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `[${hours}:${minutes}:${seconds}]`.padEnd(SWARM_OPS_FEED_TIME_WIDTH);
+}
+
+function swarmOpsFeedTagLabel(tag: SwarmOpsFeedTag): string {
+  switch (tag) {
+    case 'staff':
+      return 'STAFF';
+    case 'join':
+      return 'JOIN';
+    case 'live':
+      return 'LIVE';
+    case 'tool':
+      return 'TOOL';
+    case 'pulse':
+      return '···';
+    case 'done':
+      return 'DONE';
+    case 'fail':
+      return 'FAIL';
+    case 'wait':
+      return 'WAIT';
+    case 'stop':
+      return 'STOP';
+    case 'msg':
+      return 'MSG';
+    case 'mention':
+      return '@';
+    case 'block':
+      return 'BLOCK';
+    case 'standup':
+      return 'STANDUP';
+  }
+}
+
+function swarmOpsFeedTagColor(tag: SwarmOpsFeedTag, colors: ColorPalette): string {
+  switch (tag) {
+    case 'staff':
+    case 'join':
+      return colors.primary;
+    case 'live':
+    case 'tool':
+    case 'pulse':
+      return colors.accent;
+    case 'done':
+      return colors.success;
+    case 'fail':
+    case 'stop':
+      return colors.error;
+    case 'wait':
+      return colors.warning;
+    case 'msg':
+      return colors.accent;
+    case 'mention':
+      return colors.warning;
+    case 'block':
+      return colors.error;
+    case 'standup':
+      return colors.primary;
+  }
+}
+
+function swarmCollaborationFeedTag(
+  channel: SwarmCollaborationFeedMessage['channel'],
+): SwarmOpsFeedTag {
+  switch (channel) {
+    case 'standup':
+      return 'standup';
+    case 'blocker':
+      return 'block';
+    default:
+      return 'msg';
+  }
+}
+
+function swarmCollaborationActorLabel(from: SwarmCollaborationFeedMessage['from']): string {
+  const name = collapseWhitespace(from.name);
+  const emoji = from.emoji?.trim();
+  return emoji !== undefined && emoji.length > 0 ? `${emoji} ${name}` : name;
+}
+
+function formatSwarmCollaborationFeedDetail(message: SwarmCollaborationFeedMessage): string {
+  const body = collapseWhitespace(message.body);
+  if (message.to !== undefined) {
+    return `→ @${message.to.expertId} · ${body}`;
+  }
+  if (message.channel === 'blocker') {
+    return `blocker: ${body}`;
+  }
+  return body;
+}
+
+function summarySegment(label: string, count: number, color: string): string {
+  return `${chalk.hex(color)(label)} ${count}`;
+}
+
+function completedOpsFeedDetail(
+  member: AgentSwarmMember,
+  completedText: string | undefined,
+): string {
+  if (member.verdict !== undefined) {
+    const evidence =
+      member.evidenceIds === undefined || member.evidenceIds.length === 0
+        ? ''
+        : ` (${member.evidenceIds.join(', ')})`;
+    return `${member.verdict}${evidence}`;
+  }
+  if (completedText !== undefined && completedText.length > 0) return completedText;
+  return 'completed';
 }
 
 function completedCellText(member: AgentSwarmMember, fallback: string): string {

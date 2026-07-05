@@ -153,6 +153,7 @@ describe('calculateAgentSwarmGridLayout', () => {
     expect(agentSwarmGridHeightForTerminalRows(10)).toBe(4);
     expect(agentSwarmGridHeightForTerminalRows(20, 5)).toBe(9);
     expect(agentSwarmGridHeightForTerminalRows(4)).toBe(0);
+    expect(agentSwarmGridHeightForTerminalRows(20, 0, { opsFeed: true })).toBe(6);
   });
 });
 
@@ -249,6 +250,9 @@ describe('AgentSwarmProgressComponent', () => {
     let output = renderText(component);
     expect(output).toContain('UltraSwarm');
     expect(output).toContain('AppSec Engineer security_privacy/review');
+    expect(output).toContain('SWARM FEED');
+    expect(output).toContain('STAFF');
+    expect(output).toContain('lanes: security_privacy');
 
     component.applyResult([
       '<ultra_swarm_result run_id="uw_1">',
@@ -258,6 +262,96 @@ describe('AgentSwarmProgressComponent', () => {
 
     output = renderText(component);
     expect(output).toContain('AppSec Engineer: PASS evidence ev_1,ev_2');
+    expect(output).toContain('DONE');
+    expect(output).toContain('PASS (ev_1, ev_2)');
+  });
+
+  it('streams UltraSwarm operator reports into the ops feed', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+    component.registerSubagent({ agentId: 'sub-1', swarmIndex: 1 });
+    component.markStarted('sub-1');
+    component.recordToolCall({
+      agentId: 'sub-1',
+      toolCallId: 'call-read-1',
+      toolName: 'Read',
+      toolDescription: 'packages/agent-core/src/example.ts',
+    });
+    component.appendModelDelta({
+      agentId: 'sub-1',
+      delta: 'Inspecting auth middleware hooks\n',
+    });
+
+    const output = renderText(component, 120);
+    expect(output).toContain('SWARM FEED');
+    expect(output).toContain('JOIN');
+    expect(output).toContain('LIVE');
+    expect(output).toContain('TOOL');
+    expect(output).toContain('Read: packages/agent-core/src/example.ts');
+    expect(output).toContain('RUN');
+    expect(output).toContain('live 1');
+  });
+
+  it('renders UltraSwarm collaboration bus messages in the ops feed', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        coverageLane: 'security_privacy',
+        focus: 'review',
+      },
+    ]);
+    component.markInputComplete();
+
+    component.applySwarmCollaborationMessage({
+      from: { name: 'AppSec Engineer' },
+      to: { expertId: 'impl-engineer' },
+      channel: 'blocker',
+      body: 'auth middleware missing tests',
+    });
+    component.applySwarmCollaborationMessage({
+      from: { name: 'Impl Engineer' },
+      channel: 'lane',
+      body: 'patch ready for review',
+    });
+    component.applySwarmCollaborationMessage({
+      from: { name: 'Swarm Control' },
+      channel: 'standup',
+      body: 'implement phase started · 2 expert(s) active',
+    });
+    component.applySwarmCollaborationMention({
+      from: { name: 'AppSec Engineer' },
+      to: { expertId: 'impl-engineer' },
+      channel: 'direct',
+      body: 'Need auth review @impl-engineer',
+    });
+
+    const output = renderText(component, 120);
+    expect(output).toContain('SWARM FEED');
+    expect(output).toContain('BLOCK');
+    expect(output).toContain('MSG');
+    expect(output).toContain('STANDUP');
+    expect(output).toContain('@impl-engineer');
+    expect(output).toContain('auth middleware missing tests');
+    expect(output).toContain(' @ AppSec Engineer');
+  });
+
+  it('does not render the ops feed for plain Agent Swarm runs', () => {
+    const component = createComponent({ title: 'Agent Swarm' });
+    registerSubagents(component, 2);
+    startSubagents(component, 2);
+
+    const output = renderText(component);
+    expect(output).not.toContain('SWARM FEED');
   });
 
   it('fits three queued columns with the narrower gap and minimum cell width', () => {

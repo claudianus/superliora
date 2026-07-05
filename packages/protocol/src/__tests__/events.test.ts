@@ -233,6 +233,43 @@ describe('events / display re-exports', () => {
       agentId: 'agent_architect',
     });
 
+    const collaboration = eventSchema.parse({
+      type: 'ultrawork.collaboration.message',
+      agentId: 'main',
+      sessionId: 'sess_1',
+      runId: 'uw_1',
+      message: {
+        id: 'swarm-msg-1',
+        runId: 'uw_1',
+        parentToolCallId: 'call_ultra_swarm',
+        at: '2026-07-01T00:00:01.000Z',
+        from: {
+          expertId: 'security-appsec-engineer',
+          agentId: 'agent_sec',
+          name: 'AppSec Engineer',
+        },
+        to: { expertId: 'impl-engineer' },
+        channel: 'blocker',
+        kind: 'mention',
+        body: 'auth middleware missing tests',
+      },
+    });
+
+    expect(collaboration.type).toBe('ultrawork.collaboration.message');
+    expect(collaboration.message.channel).toBe('blocker');
+
+    const mention = eventSchema.parse({
+      type: 'ultrawork.collaboration.mention',
+      agentId: 'main',
+      sessionId: 'sess_1',
+      runId: 'uw_1',
+      message: collaboration.message,
+      mentionExpertIds: ['impl-engineer'],
+    });
+
+    expect(mention.type).toBe('ultrawork.collaboration.mention');
+    expect(mention.mentionExpertIds).toEqual(['impl-engineer']);
+
     const verified = eventSchema.parse({
       type: 'ultrawork.verification.completed',
       agentId: 'main',

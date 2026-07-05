@@ -316,6 +316,7 @@ export function buildUltraworkPrompt(
     '- After an AskUserQuestion response, continue the same Ultrawork turn toward a complete plan; do not implement until the plan is approved and UltraGoal exists.',
     '- After the research prelude evidence pack, call NextPhase({ phase: "interview" }) before asking questions. After the final needed AskUserQuestion response, call NextPhase({ phase: "design" }) before design exploration or plan writing.',
     '- Product-file edits are forbidden until Ultra Plan has reached Write or Exit phase, the complete plan has been saved, ExitPlanMode has surfaced the approved plan, and UltraGoal has been created from that plan.',
+    '- After ExitPlanMode approves an Ultra Plan, the runtime UltraworkGraph is seeded from the plan WorkGraph; pass those node ids to UltraSwarm work_node_ids without calling UltraworkGraph first unless you need to revise the graph.',
     '- When UltraSwarm ENGAGE is chosen, call UltraSwarm as the first post-plan execution tool and pass relevant UltraworkGraph node ids through UltraSwarm `work_node_ids`; subagents must keep local planning inside their assigned nodes and report VERDICT plus evidence_ids.',
     '- Finish by verifying the real surface, reporting concise evidence, and calling UpdateGoal complete or blocked.',
     '</ultrawork_flow>',

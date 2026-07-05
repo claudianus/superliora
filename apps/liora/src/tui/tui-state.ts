@@ -21,6 +21,11 @@ import { currentTheme, type Theme } from './theme';
 import { NativeEditorTextInputController } from './utils/native-editor-text-input';
 import { createTerminalState, type TerminalState } from './utils/terminal-state';
 import {
+  createTranscriptSelectionState,
+  shouldHoldTranscriptAnimation,
+  type TranscriptSelectionState,
+} from './utils/transcript-selection';
+import {
   createTranscriptViewportState,
   type TranscriptViewportState,
 } from './utils/transcript-viewport';
@@ -39,6 +44,7 @@ export interface TUIState {
   ui: RendererRootUI;
   terminal: RendererTerminalHost;
   transcriptViewport: TranscriptViewportState;
+  transcriptSelection: TranscriptSelectionState;
   transcriptContainer: TranscriptViewportComponent;
   activityContainer: Container;
   todoPanelContainer: Container;
@@ -76,7 +82,10 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   const { terminal, ui } = renderer;
 
   const transcriptViewport = createTranscriptViewportState();
-  renderer.setAutoFrameHold(() => !transcriptViewport.followOutput);
+  const transcriptSelection = createTranscriptSelectionState();
+  renderer.setAutoFrameHold(() =>
+    shouldHoldTranscriptAnimation({ followOutput: transcriptViewport.followOutput, transcriptSelection }),
+  );
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanel = new TodoPanelComponent();
@@ -116,6 +125,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     ui,
     terminal,
     transcriptViewport,
+    transcriptSelection,
     transcriptContainer,
     activityContainer,
     todoPanelContainer,

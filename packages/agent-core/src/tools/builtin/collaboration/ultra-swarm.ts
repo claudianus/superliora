@@ -8,10 +8,34 @@ import type { SwarmMode } from '../../../agent/swarm';
 import type { BuiltinTool } from '../../../agent/tool';
 import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
-  type QueuedSubagentRunResult,
   type QueuedSubagentTask,
   type SessionSubagentHost,
 } from '../../../session/subagent-host';
+import {
+  assignReviewCriticEdges,
+  buildCriticAssignmentXml,
+  type CriticAssignment,
+} from '../../../session/ultra-swarm-critic';
+import {
+  buildRestaffReflectionPrompt,
+  collectRestaffGaps,
+  filterRestaffPlan,
+  needsRestaffing,
+  restaffPhaseForGaps,
+  restaffSlotsAvailable,
+} from '../../../session/ultra-swarm-restaff';
+import { createUltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
+import {
+  buildSwarmChannelRulesXml,
+  buildTeamRosterXml,
+  emitCouncilDecisionFromReview,
+  postOrchestratorStandup,
+  postWaveStandup,
+  type SwarmStandupTimerHandle,
+} from '../../../session/swarm-bus-coordination';
+import {
+  buildDependencyWaves,
+} from '../../../session/subagent-wave-scheduler';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
@@ -26,6 +50,12 @@ import {
   cloneWorkGraph,
   todosFromWorkGraph,
 } from '../state/ultrawork-graph';
+import {
+  clearSwarmRunBus,
+  extendSwarmBusAllowlist,
+  initSwarmRunBus,
+  renderSwarmBusDigest,
+} from '../state/swarm-bus';
 
 const MAX_ULTRA_SWARM_SUBAGENTS = 128;
 const ULTRA_SWARM_PHASES = ['plan', 'implement', 'review'] as const;
@@ -128,6 +158,7 @@ interface UltraSwarmSpec {
   readonly runId: string;
   readonly requiredForCompletion: boolean;
   readonly workNodeIds: readonly string[];
+  readonly criticAssignment?: CriticAssignment;
 }
 
 interface UltraSwarmRunResult {
@@ -275,7 +306,23 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
       };
     });
 
-    this.emitTeamStaffed(runId, toolCallId, specs, args, maxExperts);
+    let team = buildTeamPlan(runId, specs, args, maxExperts);
+    this.emitTeamStaffedEvent(runId, toolCallId, team);
+
+    const busEnabled = true;
+    let standupTimer: SwarmStandupTimerHandle | undefined;
+    initSwarmRunBus(this.store, { runId, parentToolCallId: toolCallId, team });
+    this.agent.ultraSwarmRun = createUltraSwarmRunContext({
+      runId,
+      parentToolCallId: toolCallId,
+      team,
+      busEnabled: true,
+    });
+    standupTimer = this.subagentHost.startSwarmStandupTimer(this.agent, this.store, {
+      parentAgentId: this.subagentHost.parentAgentId,
+      runId,
+      parentToolCallId: toolCallId,
+    });
 
     if (workNodeContext !== undefined) {
       this.markWorkNodesRunning(
@@ -296,41 +343,107 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
           continue;
         }
 
-        const tasks = phaseSpecs.map((spec): QueuedSubagentTask<UltraSwarmSpec> => ({
-          kind: 'spawn',
-          data: spec,
-          profileName: spec.expertId,
-          profileBaseName,
-          parentToolCallId: toolCallId,
-          prompt: this.buildExpertPrompt(
-            spec,
-            args.description,
-            workNodeContext?.nodes ?? [],
-            phaseHandoff,
-          ),
-          description: `${args.description} #${String(spec.index)} (${spec.expertName} ${spec.emoji})`,
-          swarmIndex: spec.index,
-          runInBackground: args.run_in_background === true,
-          swarmItem: spec.workNodeIds.length === 1 ? spec.workNodeIds[0] : spec.expertId,
-          signal,
-          timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
-        }));
+        if (busEnabled) {
+          postOrchestratorStandup(
+            this.agent,
+            {
+              parentAgentId: this.subagentHost.parentAgentId,
+              runId,
+              parentToolCallId: toolCallId,
+              phase,
+              expertCount: phaseSpecs.length,
+            },
+            this.store,
+          );
+        }
 
-        const results = await this.subagentHost.runQueued(tasks);
-        const renderedPhaseResults = results
-          .map(({ task, ...result }) => ({ spec: task.data, ...result }))
-          .map(withRenderedMetadata);
+        let phaseSpecsForRun = phaseSpecs;
+        if (phase === 'review') {
+          phaseSpecsForRun = attachCriticAssignments(
+            phaseSpecs,
+            phaseResults.map(withRenderedMetadata),
+          );
+        }
+
+        let renderedPhaseResults = await this.runPhaseExperts({
+          phaseSpecs: phaseSpecsForRun,
+          phase,
+          phaseHandoff,
+          team,
+          busEnabled,
+          args,
+          workNodeContext,
+          profileBaseName,
+          toolCallId,
+          runId,
+          signal,
+        });
+
+        if (phase === 'review') {
+          renderedPhaseResults = await this.retryFailedReviewExperts({
+            renderedPhaseResults,
+            phaseHandoff,
+            team,
+            busEnabled,
+            args,
+            workNodeContext,
+            profileBaseName,
+            toolCallId,
+            runId,
+            signal,
+          });
+        }
+
         phaseResults.push(...renderedPhaseResults);
-        phaseHandoff = buildPhaseHandoff(phaseResults.map(withRenderedMetadata));
+        phaseHandoff = buildPhaseHandoff(
+          renderedPhaseResults.map(withRenderedMetadata),
+          busEnabled ? renderSwarmBusDigest(this.store) : '',
+        );
         blockedBy = blockingRequiredResult(renderedPhaseResults, phase);
       }
+
+      const restaffed = await this.maybeRestaffForRevision({
+        rendered: phaseResults.map(withRenderedMetadata),
+        specs,
+        team,
+        busEnabled,
+        args,
+        workNodeContext,
+        profileBaseName,
+        toolCallId,
+        runId,
+        signal,
+        maxExperts,
+        requiredExpertIds,
+        onTeamUpdated: (nextTeam) => {
+          team = nextTeam;
+        },
+      });
+      phaseResults.push(...restaffed);
     } catch (error) {
       if (workNodeContext !== undefined) {
         this.failWorkNodes(workNodeContext.nodes.map((node) => node.id), error);
       }
       throw error;
+    } finally {
+      if (busEnabled) {
+        standupTimer?.stop();
+        clearSwarmRunBus(this.store);
+        this.agent.ultraSwarmRun = undefined;
+      }
     }
     const rendered = phaseResults.map(withRenderedMetadata);
+    if (busEnabled) {
+      emitCouncilDecisionFromReview(this.agent, {
+        runId,
+        councilExpertIds: team.councilExpertIds ?? [],
+        verdictSummary: rendered
+          .filter((result) => result.spec.phase === 'review')
+          .map((result) => `${result.spec.expertId}=${result.verdict}`)
+          .join(', '),
+        decision: councilDecisionFromReview(rendered),
+      });
+    }
     if (workNodeContext !== undefined) {
       this.finishWorkNodes(workNodeContext.nodes.map((node) => node.id), rendered);
     }
@@ -349,12 +462,19 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
     if (ids.length === 0) return undefined;
     const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
     if (graph === undefined) {
-      throw new Error('UltraSwarm work_node_ids requires an existing UltraworkGraph.');
+      throw new Error(
+        'UltraSwarm work_node_ids requires an existing UltraworkGraph. Approved Ultra Plans seed the graph on ExitPlanMode; otherwise call UltraworkGraph first or omit work_node_ids.',
+      );
     }
     const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
     const nodes = ids.map((id) => {
       const node = nodeById.get(id);
-      if (node === undefined) throw new Error(`UltraSwarm work_node_ids includes missing node ${id}.`);
+      if (node === undefined) {
+        const knownIds = graph.nodes.map((entry) => entry.id).join(', ');
+        throw new Error(
+          `UltraSwarm work_node_ids includes missing node ${id}. Known node ids: ${knownIds.length === 0 ? 'none' : knownIds}.`,
+        );
+      }
       return node;
     });
     return { graph: cloneWorkGraph(graph), nodes: nodes.map(cloneWorkGraphNode) };
@@ -442,11 +562,244 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
     return capPlan(base, maxExperts);
   }
 
+  private async runPhaseExperts(input: {
+    readonly phaseSpecs: readonly UltraSwarmSpec[];
+    readonly phase: UltraSwarmPhase;
+    readonly phaseHandoff: string;
+    readonly team: TeamPlan;
+    readonly busEnabled: boolean;
+    readonly args: UltraSwarmToolInput;
+    readonly workNodeContext: { readonly nodes: readonly WorkGraphNode[] } | undefined;
+    readonly profileBaseName: string | undefined;
+    readonly toolCallId: string;
+    readonly runId: string;
+    readonly signal: AbortSignal;
+  }): Promise<readonly UltraSwarmRenderedResult[]> {
+    const waves = buildDependencyWaves(input.phaseSpecs);
+    const phaseResults: UltraSwarmRunResult[] = [];
+    let dependencyHandoff = '';
+    let waveIndex = 0;
+
+    for (const wave of waves) {
+      waveIndex += 1;
+      const tasks = wave.map((spec): QueuedSubagentTask<UltraSwarmSpec> => ({
+        kind: 'spawn',
+        data: spec,
+        profileName: spec.expertId,
+        profileBaseName: input.profileBaseName,
+        parentToolCallId: input.toolCallId,
+        prompt: this.buildExpertPrompt(
+          spec,
+          input.args.description,
+          input.workNodeContext?.nodes ?? [],
+          input.phaseHandoff,
+          input.team,
+          input.busEnabled,
+          dependencyHandoff,
+        ),
+        description: `${input.args.description} #${String(spec.index)} (${spec.expertName} ${spec.emoji})`,
+        swarmIndex: spec.index,
+        runInBackground: input.args.run_in_background === true,
+        swarmItem: spec.workNodeIds.length === 1 ? spec.workNodeIds[0] : spec.expertId,
+        signal: input.signal,
+        timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
+      }));
+
+      const results = await this.subagentHost.runQueued(tasks);
+      const renderedWaveResults = results
+        .map(({ task, ...result }) => ({ spec: task.data, ...result }))
+        .map(withRenderedMetadata);
+      phaseResults.push(...renderedWaveResults);
+      dependencyHandoff = buildIntraPhaseDependencyHandoff(renderedWaveResults);
+
+      if (input.busEnabled && input.phase === 'implement') {
+        postWaveStandup(
+          this.agent,
+          {
+            parentAgentId: this.subagentHost.parentAgentId,
+            runId: input.runId,
+            parentToolCallId: input.toolCallId,
+            phase: input.phase,
+            waveIndex,
+            waveCount: waves.length,
+            expertCount: renderedWaveResults.length,
+          },
+          this.store,
+        );
+      }
+    }
+
+    return phaseResults.map(withRenderedMetadata);
+  }
+
+  private async retryFailedReviewExperts(input: {
+    readonly renderedPhaseResults: readonly UltraSwarmRenderedResult[];
+    readonly phaseHandoff: string;
+    readonly team: TeamPlan;
+    readonly busEnabled: boolean;
+    readonly args: UltraSwarmToolInput;
+    readonly workNodeContext: { readonly nodes: readonly WorkGraphNode[] } | undefined;
+    readonly profileBaseName: string | undefined;
+    readonly toolCallId: string;
+    readonly runId: string;
+    readonly signal: AbortSignal;
+  }): Promise<readonly UltraSwarmRenderedResult[]> {
+    const retrySpecs = input.renderedPhaseResults
+      .filter((result) => needsReviewRetry(result))
+      .map((result) => result.spec);
+    if (retrySpecs.length === 0) {
+      return input.renderedPhaseResults;
+    }
+
+    if (input.busEnabled) {
+      postOrchestratorStandup(
+        this.agent,
+        {
+          parentAgentId: this.subagentHost.parentAgentId,
+          runId: input.runId,
+          parentToolCallId: input.toolCallId,
+          phase: 'review-revision',
+          expertCount: retrySpecs.length,
+        },
+        this.store,
+      );
+    }
+
+    const retryHandoff = buildReviewRetryHandoff(
+      input.renderedPhaseResults.filter((result) => needsReviewRetry(result)),
+    );
+    const retryResults = await this.runPhaseExperts({
+      phaseSpecs: retrySpecs,
+      phase: 'review',
+      phaseHandoff: `${input.phaseHandoff}\n\n${retryHandoff}`,
+      team: input.team,
+      busEnabled: input.busEnabled,
+      args: input.args,
+      workNodeContext: input.workNodeContext,
+      profileBaseName: input.profileBaseName,
+      toolCallId: input.toolCallId,
+      runId: input.runId,
+      signal: input.signal,
+    });
+
+    return mergeReviewResults(input.renderedPhaseResults, retryResults);
+  }
+
+  private async maybeRestaffForRevision(input: {
+    readonly rendered: readonly UltraSwarmRenderedResult[];
+    readonly specs: readonly UltraSwarmSpec[];
+    readonly team: TeamPlan;
+    readonly busEnabled: boolean;
+    readonly args: UltraSwarmToolInput;
+    readonly workNodeContext: { readonly nodes: readonly WorkGraphNode[] } | undefined;
+    readonly profileBaseName: string | undefined;
+    readonly toolCallId: string;
+    readonly runId: string;
+    readonly signal: AbortSignal;
+    readonly maxExperts: number;
+    readonly requiredExpertIds: ReadonlySet<string>;
+    readonly onTeamUpdated: (team: TeamPlan) => void;
+  }): Promise<readonly UltraSwarmRunResult[]> {
+    const gaps = collectRestaffGaps(input.rendered);
+    const slots = restaffSlotsAvailable(input.specs.length, input.maxExperts);
+    if (!needsRestaffing(gaps, input.specs.length, input.maxExperts) || slots === 0) {
+      return [];
+    }
+
+    const reflection = buildRestaffReflectionPrompt(
+      input.args.description,
+      gaps,
+      input.busEnabled ? renderSwarmBusDigest(this.store) : undefined,
+    );
+    const restaffPlan = filterRestaffPlan(
+      await globalUltraSwarmOrchestrator.buildSwarmPlan(reflection, undefined, {
+        intensity: input.args.intensity,
+        maxExperts: slots,
+      }),
+      input.specs.map((spec) => spec.expertId),
+      slots,
+    );
+    if (restaffPlan.experts.length === 0) return [];
+
+    if (input.busEnabled) {
+      postOrchestratorStandup(
+        this.agent,
+        {
+          parentAgentId: this.subagentHost.parentAgentId,
+          runId: input.runId,
+          parentToolCallId: input.toolCallId,
+          phase: 'restaff',
+          expertCount: restaffPlan.experts.length,
+        },
+        this.store,
+      );
+      extendSwarmBusAllowlist(this.store, restaffPlan.experts.map((assignment) => assignment.expertId));
+    }
+
+    const phase = restaffPhaseForGaps(gaps);
+    const startIndex = input.specs.length;
+    const restaffSpecs: UltraSwarmSpec[] = restaffPlan.experts.map((assignment, offset) => ({
+      index: startIndex + offset + 1,
+      expertId: assignment.expertId,
+      expertName: assignment.expertName,
+      division: assignment.division ?? assignment.divisionLabel,
+      assignmentPrompt: assignment.prompt,
+      phase,
+      focus: focusForPhase(phase, input.args.focus),
+      dependsOn: assignment.dependsOn,
+      emoji: assignment.emoji,
+      color: assignment.color,
+      coverageLane: assignment.coverageLane,
+      selectionReason: assignment.selectionReason ?? 'Restaffed after revision gaps.',
+      runId: input.runId,
+      requiredForCompletion: true,
+      workNodeIds: input.workNodeContext?.nodes.map((node) => node.id) ?? [],
+    }));
+
+    const nextTeam = augmentTeamPlan(input.team, restaffSpecs, input.args, input.maxExperts);
+    input.onTeamUpdated(nextTeam);
+    this.emitTeamStaffedEvent(input.runId, input.toolCallId, nextTeam);
+    if (this.agent.ultraSwarmRun !== undefined) {
+      this.agent.ultraSwarmRun = {
+        ...this.agent.ultraSwarmRun,
+        team: nextTeam,
+      };
+    }
+
+    const phaseHandoff = buildPhaseHandoff(
+      input.rendered,
+      input.busEnabled ? renderSwarmBusDigest(this.store) : '',
+    );
+    const phaseSpecs =
+      phase === 'review'
+        ? attachCriticAssignments(restaffSpecs, input.rendered)
+        : restaffSpecs;
+
+    const results = await this.runPhaseExperts({
+      phaseSpecs,
+      phase,
+      phaseHandoff,
+      team: nextTeam,
+      busEnabled: input.busEnabled,
+      args: input.args,
+      workNodeContext: input.workNodeContext,
+      profileBaseName: input.profileBaseName,
+      toolCallId: input.toolCallId,
+      runId: input.runId,
+      signal: input.signal,
+    });
+
+    return results;
+  }
+
   private buildExpertPrompt(
     spec: UltraSwarmSpec,
     taskDescription: string,
     workNodes: readonly WorkGraphNode[],
     phaseHandoff: string,
+    team: TeamPlan,
+    busEnabled: boolean,
+    dependencyHandoff = '',
   ): string {
     const briefing = `<expert_briefing name="${spec.expertName}" emoji="${spec.emoji}" color="${spec.color}" phase="${spec.phase}">
 ${spec.assignmentPrompt}
@@ -463,48 +816,30 @@ ${taskDescription}
     const handoffLine = phaseHandoff.length === 0
       ? ''
       : `\n\n<previous_phase_handoff>\n${phaseHandoff}\n</previous_phase_handoff>`;
+    const dependencyLine = dependencyHandoff.length === 0
+      ? ''
+      : `\n\n${dependencyHandoff}`;
     const reviewLine =
       spec.phase === 'review' || spec.focus === 'review' || spec.focus === 'full'
         ? '\nReview gate: start your final answer with one of "VERDICT: PASS", "VERDICT: BLOCKED", or "VERDICT: FAIL". Return PASS only when evidence is sufficient; otherwise return concrete fixes and the evidence still missing.'
         : '';
     const workNodeLine = workNodes.length === 0 ? '' : `\n\n${formatWorkNodeContract(workNodes)}`;
+    const collaborationLine = busEnabled
+      ? `\n\n${buildTeamRosterXml(team)}\n\n${buildSwarmChannelRulesXml()}`
+      : '';
+    const criticLine = spec.criticAssignment === undefined
+      ? ''
+      : `\n\n${buildCriticAssignmentXml(spec.criticAssignment)}`;
     return appendSwarmResearchAutonomy(
-      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${handoffLine}\n\nLean context: prefer LioraContext(mode=compose) and LioraSearch before broad Read/Grep; keep handoffs compact and cite file:line evidence.\n\nApply your ${spec.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills. Subagents must not directly integrate final product-file edits; return a compact handoff for the parent agent to integrate.`,
+      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${collaborationLine}${handoffLine}${dependencyLine}${criticLine}\n\nLean context: prefer LioraContext(mode=compose) and LioraSearch before broad Read/Grep; keep handoffs compact and cite file:line evidence.\n\nApply your ${spec.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills. Subagents must not directly integrate final product-file edits; return a compact handoff for the parent agent to integrate.`,
     );
   }
 
-  private emitTeamStaffed(
+  private emitTeamStaffedEvent(
     runId: string,
     toolCallId: string,
-    specs: readonly UltraSwarmSpec[],
-    args: UltraSwarmToolInput,
-    maxExperts: number,
+    team: TeamPlan,
   ): void {
-    const team: TeamPlan = {
-      id: `team-${runId}`,
-      runId,
-      intensity: args.intensity ?? 'balanced',
-      maxExperts,
-      requiredExperts: args.required_experts,
-      councilExpertIds: specs
-        .filter((spec) => spec.phase === 'review')
-        .map((spec) => spec.expertId),
-      reason: 'UltraSwarm staffed a phased specialist team.',
-      experts: specs.map((spec) => ({
-        id: spec.expertId,
-        name: spec.expertName,
-        role: spec.coverageLane ?? spec.division ?? 'specialist',
-        focus: spec.focus,
-        status: 'queued',
-        taskIds: spec.workNodeIds.length > 0 ? spec.workNodeIds : undefined,
-        division: spec.division,
-        emoji: spec.emoji,
-        color: spec.color,
-        coverageLane: spec.coverageLane,
-        selectionReason: spec.selectionReason,
-        dependsOn: spec.dependsOn,
-      })),
-    };
     this.agent.emitEvent({
       type: 'ultrawork.team.staffed',
       runId,
@@ -644,7 +979,153 @@ function blockedResultsForPhase(
   }));
 }
 
-function buildPhaseHandoff(results: readonly UltraSwarmRenderedResult[]): string {
+function buildTeamPlan(
+  runId: string,
+  specs: readonly UltraSwarmSpec[],
+  args: UltraSwarmToolInput,
+  maxExperts: number,
+): TeamPlan {
+  return {
+    id: `team-${runId}`,
+    runId,
+    intensity: args.intensity ?? 'balanced',
+    maxExperts,
+    requiredExperts: args.required_experts,
+    councilExpertIds: specs
+      .filter((spec) => spec.phase === 'review')
+      .map((spec) => spec.expertId),
+    reason: 'UltraSwarm staffed a phased specialist team.',
+    experts: specs.map((spec) => ({
+      id: spec.expertId,
+      name: spec.expertName,
+      role: spec.coverageLane ?? spec.division ?? 'specialist',
+      focus: spec.focus,
+      status: 'queued',
+      taskIds: spec.workNodeIds.length > 0 ? spec.workNodeIds : undefined,
+      division: spec.division,
+      emoji: spec.emoji,
+      color: spec.color,
+      coverageLane: spec.coverageLane,
+      selectionReason: spec.selectionReason,
+      dependsOn: spec.dependsOn,
+    })),
+  };
+}
+
+function augmentTeamPlan(
+  team: TeamPlan,
+  newSpecs: readonly UltraSwarmSpec[],
+  args: UltraSwarmToolInput,
+  maxExperts: number,
+): TeamPlan {
+  return {
+    ...team,
+    maxExperts,
+    reason: 'UltraSwarm restaffed additional specialists after revision gaps.',
+    experts: [
+      ...team.experts,
+      ...newSpecs.map((spec) => ({
+        id: spec.expertId,
+        name: spec.expertName,
+        role: spec.coverageLane ?? spec.division ?? 'specialist',
+        focus: spec.focus,
+        status: 'queued' as const,
+        taskIds: spec.workNodeIds.length > 0 ? spec.workNodeIds : undefined,
+        division: spec.division,
+        emoji: spec.emoji,
+        color: spec.color,
+        coverageLane: spec.coverageLane,
+        selectionReason: spec.selectionReason,
+        dependsOn: spec.dependsOn,
+      })),
+    ],
+  };
+}
+
+function councilDecisionFromReview(
+  results: readonly UltraSwarmRenderedResult[],
+): 'approve' | 'revise' | 'block' {
+  const reviewResults = results.filter((result) => result.spec.phase === 'review');
+  if (reviewResults.some((result) => result.verdict === 'FAIL')) return 'block';
+  if (reviewResults.some((result) => result.verdict === 'BLOCKED')) return 'revise';
+  if (reviewResults.some((result) => result.verdict !== 'PASS')) return 'revise';
+  return 'approve';
+}
+
+function attachCriticAssignments(
+  specs: readonly UltraSwarmSpec[],
+  priorResults: readonly UltraSwarmRenderedResult[],
+): UltraSwarmSpec[] {
+  const assignments = assignReviewCriticEdges(
+    specs.map((spec) => ({ expertId: spec.expertId, expertName: spec.expertName })),
+    priorResults
+      .filter((result) => result.status === 'completed')
+      .map((result) => ({
+        expertId: result.spec.expertId,
+        expertName: result.spec.expertName,
+        phase: result.spec.phase,
+        verdict: result.verdict,
+        handoff: collapseForHandoff(result.result ?? result.error ?? ''),
+      })),
+  );
+  return specs.map((spec) => {
+    const assignment = assignments.get(spec.expertId);
+    if (assignment === undefined) return spec;
+    return { ...spec, criticAssignment: assignment };
+  });
+}
+
+function needsReviewRetry(result: UltraSwarmRenderedResult): boolean {
+  return result.spec.phase === 'review'
+    && result.spec.requiredForCompletion
+    && result.verdict !== 'PASS'
+    && result.status !== 'aborted';
+}
+
+function mergeReviewResults(
+  original: readonly UltraSwarmRenderedResult[],
+  retries: readonly UltraSwarmRenderedResult[],
+): UltraSwarmRenderedResult[] {
+  const byExpertId = new Map(retries.map((result) => [result.spec.expertId, result]));
+  return original.map((result) => byExpertId.get(result.spec.expertId) ?? result);
+}
+
+function buildReviewRetryHandoff(results: readonly UltraSwarmRenderedResult[]): string {
+  const lines = [
+    '<review_revision_request>',
+    'Council revision pass: address the gaps from your prior review verdict before re-issuing VERDICT.',
+  ];
+  for (const result of results) {
+    lines.push(
+      `<prior_review expert_id="${escapeXml(result.spec.expertId)}" verdict="${result.verdict}">${escapeXml(collapseForHandoff(result.result ?? result.error ?? ''))}</prior_review>`,
+    );
+  }
+  lines.push('</review_revision_request>');
+  return lines.join('\n');
+}
+
+function buildIntraPhaseDependencyHandoff(
+  results: readonly UltraSwarmRenderedResult[],
+): string {
+  if (results.length === 0) return '';
+  const lines = ['<dependency_handoff>'];
+  for (const result of results) {
+    const text = collapseForHandoff(result.result ?? result.error ?? '');
+    const evidence = result.evidenceIds.length === 0
+      ? ''
+      : ` evidence_ids="${escapeXml(result.evidenceIds.join(','))}"`;
+    lines.push(
+      `<upstream expert_id="${escapeXml(result.spec.expertId)}" phase="${result.spec.phase}" verdict="${result.verdict}"${evidence}>${escapeXml(text)}</upstream>`,
+    );
+  }
+  lines.push('</dependency_handoff>');
+  return lines.join('\n');
+}
+
+function buildPhaseHandoff(
+  results: readonly UltraSwarmRenderedResult[],
+  busDigest: string,
+): string {
   const lines = ['<phase_handoff_pack>'];
   for (const result of results.slice(-12)) {
     const text = collapseForHandoff(result.result ?? result.error ?? '');
@@ -656,6 +1137,10 @@ function buildPhaseHandoff(results: readonly UltraSwarmRenderedResult[]): string
     );
   }
   lines.push('</phase_handoff_pack>');
+  if (busDigest.length > 0) {
+    lines.push('');
+    lines.push(busDigest);
+  }
   return lines.join('\n');
 }
 

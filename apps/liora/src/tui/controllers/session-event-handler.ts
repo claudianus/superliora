@@ -48,6 +48,11 @@ import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from '../constant/liora-tui';
+import {
+  notifyBackgroundTaskAttention,
+  notifyGoalBlockedAttention,
+  notifyGoalCompletedAttention,
+} from '../utils/attention-notifications';
 import { buildGoalCompletionMessage } from '../utils/goal-completion';
 import {
   argsRecord,
@@ -298,6 +303,12 @@ export class SessionEventHandler {
   private handleUltraworkEvent(event: UltraworkTheatreEvent): void {
     if (event.type === 'ultrawork.team.staffed') {
       this.subAgentEventHandler.handleUltraworkTeamStaffed(event);
+    }
+    if (event.type === 'ultrawork.collaboration.message') {
+      this.subAgentEventHandler.handleUltraworkCollaborationMessage(event);
+    }
+    if (event.type === 'ultrawork.collaboration.mention') {
+      this.subAgentEventHandler.handleUltraworkCollaborationMention(event);
     }
     const runId = ultraworkTheatreRunId(event);
     const existing = this.ultraworkTheatres.get(runId);
@@ -677,6 +688,7 @@ export class SessionEventHandler {
       this.pendingModelBlockedFallback = undefined;
       this.goalCompletionAwaitingClear = true;
       this.goalCompletionTurnEnded = false;
+      notifyGoalCompletedAttention(state, event.snapshot);
       this.host.appendTranscriptEntry({
         id: nextTranscriptId(),
         kind: 'assistant',
@@ -690,6 +702,9 @@ export class SessionEventHandler {
     // Lifecycle change (pause / resume / blocked) -> a low-profile,
     // ctrl+o-expandable marker.
     if (change.kind === 'lifecycle' && change.status === 'blocked') {
+      if (event.snapshot !== null) {
+        notifyGoalBlockedAttention(state, event.snapshot, change.reason);
+      }
       void this.notifyQueuedGoalWaitingOnBlocked();
       if (change.actor === 'model' || change.reason === undefined) {
         this.pendingModelBlockedFallback = this.currentTurnHasAssistantText
@@ -1084,6 +1099,7 @@ export class SessionEventHandler {
     }
 
     if (event.type === 'background.task.terminated' && isTerminal) {
+      notifyBackgroundTaskAttention(state, info);
       if (info.kind === 'agent') {
         // The Agent tool's spawn-success ToolResult is not an error, so the
         // parent toolCall card would otherwise render `✓ Completed` for any

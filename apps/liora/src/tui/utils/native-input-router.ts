@@ -3,6 +3,7 @@ import {
   NativeInputRouter,
   rendererViewportActionForInput,
   type NativeInputEvent,
+  type NativeInputMouseEvent,
   type NativeInputRouteResult,
 } from '#/tui/renderer';
 
@@ -13,9 +14,11 @@ import {
   handleNativeEditorTextInput,
 } from './native-editor-text-input';
 import { getTUIStateNativeEditorRect } from './native-layout-frame';
+import { handleTranscriptSelectionMouseInput } from './transcript-selection-mouse';
 import type { TranscriptScrollAction } from './transcript-viewport';
 
 export const TUI_NATIVE_EDITOR_INPUT_TARGET_ID = 'editor';
+const TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID = 'transcript-selection';
 const TUI_NATIVE_TRANSCRIPT_SCROLL_HANDLER_ID = 'transcript-scroll';
 
 export interface NativeLegacyInputTarget {
@@ -52,6 +55,12 @@ export class TUIStateNativeInputRouter {
           ((event) => handleTUIStateNativeEditorInput(state, event)),
       }),
     );
+    this.disposers.push(
+      this.router.registerGlobalHandler({
+        id: TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID,
+        onInput: (event) => handleTranscriptSelectionMouseInput(state, event),
+      }),
+    );
     if (options.scrollTranscriptViewport !== undefined) {
       this.disposers.push(
         this.router.registerGlobalHandler({
@@ -59,7 +68,9 @@ export class TUIStateNativeInputRouter {
           onInput: (event) => {
             const action = transcriptScrollActionForNativeInput(event);
             if (action === undefined) return false;
-            return options.scrollTranscriptViewport?.(action) === true;
+            const changed = options.scrollTranscriptViewport?.(action) === true;
+            if (changed) state.transcriptSelection.clear();
+            return changed;
           },
         }),
       );
