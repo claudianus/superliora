@@ -399,6 +399,8 @@ function ultraworkTitle(type: string): string {
   if (type === 'ultrawork.stage.changed') return 'Ultrawork stage changed';
   if (type === 'ultrawork.team.staffed') return 'Ultrawork team staffed';
   if (type === 'ultrawork.task.assigned') return 'Ultrawork task assigned';
+  if (type === 'ultrawork.collaboration.message') return 'Ultrawork collaboration message';
+  if (type === 'ultrawork.collaboration.mention') return 'Ultrawork collaboration mention';
   if (type === 'ultrawork.council.decision') return 'Ultrawork council decision';
   if (type === 'ultrawork.verification.completed') return 'Ultrawork verification completed';
   if (type === 'ultrawork.knowledge.promoted') return 'Ultrawork knowledge promoted';

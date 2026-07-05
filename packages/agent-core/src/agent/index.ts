@@ -44,6 +44,7 @@ import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
 import { PlanMode } from './plan';
 import { UltraSwarmEngageGate } from './plan/ultra-swarm-engage-gate';
+import type { UltraSwarmRunContext } from './ultra-swarm-run';
 import {
   AgentRecords,
   BlobStore,
@@ -146,6 +147,7 @@ export class Agent {
   readonly permission: PermissionManager;
   readonly planMode: PlanMode;
   readonly ultraSwarmEngageGate: UltraSwarmEngageGate;
+  ultraSwarmRun: UltraSwarmRunContext | undefined;
   readonly swarmMode: SwarmMode;
   readonly usage: UsageRecorder;
   readonly skills: SkillManager | null;
@@ -205,6 +207,7 @@ export class Agent {
     this.permission = new PermissionManager(this, options.permission);
     this.planMode = new PlanMode(this);
     this.ultraSwarmEngageGate = new UltraSwarmEngageGate(this);
+    this.ultraSwarmRun = undefined;
     this.swarmMode = new SwarmMode(this);
     this.usage = new UsageRecorder(this);
     this.skills = options.skills ? new SkillManager(this, options.skills) : null;

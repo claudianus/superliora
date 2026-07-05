@@ -13,6 +13,17 @@ import { isAbortError } from '../loop/errors';
 import { EXPERT_CATALOG_BY_ID } from '../expert-agents/catalog';
 import type { ExpertCatalogEntry } from '../expert-agents/types';
 import {
+  deliverSwarmBusCoordination,
+  emitSwarmCollaborationMessage,
+  emitSwarmCollaborationMention,
+  startSwarmStandupTimer,
+  type SwarmStandupTimerHandle,
+  type SwarmStandupTimerInput,
+} from './swarm-bus-coordination';
+import {
+  SwarmChannelTool,
+} from '../tools/builtin/collaboration/swarm-channel';
+import {
   DEFAULT_AGENT_PROFILES,
   prepareSystemPromptContext,
   type ResolvedAgentProfile,
@@ -114,6 +125,19 @@ export class SessionSubagentHost {
     private readonly ownerAgentId: string,
   ) {}
 
+  get parentAgentId(): string {
+    return this.ownerAgentId;
+  }
+
+  startSwarmStandupTimer(
+    parent: Agent,
+    store: import('../tools/store').ToolStore,
+    input: SwarmStandupTimerInput,
+    intervalMs?: number,
+  ): SwarmStandupTimerHandle {
+    return startSwarmStandupTimer(this.session, parent, store, input, intervalMs);
+  }
+
   async spawn(options: SpawnSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
 
@@ -126,7 +150,7 @@ export class SessionSubagentHost {
     const completion = this.runWithActiveChild(id, options, async (runOptions) => {
       this.emitSubagentSpawned(parent, id, profile.name, runOptions);
       try {
-        await this.configureChild(parent, agent, profile);
+        await this.configureChild(parent, agent, profile, id, runOptions);
         return await this.runPromptTurn(parent, id, agent, profile.name, runOptions);
       } catch (error) {
         this.emitSubagentFailed(parent, id, runOptions, error);
@@ -148,6 +172,7 @@ export class SessionSubagentHost {
       this.emitSubagentSpawned(parent, agentId, profileName, runOptions);
       try {
         child.config.update({ modelAlias: parent.config.modelAlias });
+        this.attachUltraSwarmChannelIfNeeded(parent, child, agentId, runOptions, profileName);
         return await this.runPromptTurn(parent, agentId, child, profileName, runOptions);
       } catch (error) {
         this.emitSubagentFailed(parent, agentId, runOptions, error);
@@ -380,6 +405,8 @@ export class SessionSubagentHost {
     parent: Agent,
     child: Agent,
     profile: ResolvedAgentProfile,
+    childId: string,
+    options: RunSubagentOptions,
   ): Promise<void> {
     // A subagent always inherits the parent agent's model.
     child.config.update({
@@ -395,6 +422,40 @@ export class SessionSubagentHost {
     );
     child.useProfile(profile, context);
     child.tools.inheritUserTools(parent.tools);
+    this.attachUltraSwarmChannelIfNeeded(parent, child, childId, options, profile.name);
+  }
+
+  private attachUltraSwarmChannelIfNeeded(
+    parent: Agent,
+    child: Agent,
+    childAgentId: string,
+    options: RunSubagentOptions,
+    profileName: string,
+  ): void {
+    const run = parent.ultraSwarmRun;
+    if (
+      run === undefined ||
+      !run.busEnabled ||
+      options.parentToolCallId !== run.parentToolCallId
+    ) {
+      return;
+    }
+    const expert = run.team.experts.find((entry) => entry.id === profileName);
+    if (expert === undefined) return;
+    child.tools.attachEphemeralBuiltin(
+      new SwarmChannelTool({
+        parentAgent: parent,
+        parentStore: parent.tools.getStore(),
+        run,
+        expert,
+        childAgentId,
+        onMessagePosted: ({ message, mentionExpertIds }) => {
+          emitSwarmCollaborationMessage(parent, message);
+          emitSwarmCollaborationMention(parent, message, mentionExpertIds);
+          deliverSwarmBusCoordination(this.session, parent, message, mentionExpertIds);
+        },
+      }),
+    );
   }
 
   private async triggerSubagentStart(
@@ -442,6 +503,14 @@ export class SessionSubagentHost {
     profileName: string,
     options: RunSubagentOptions,
   ): void {
+    const run = parent.ultraSwarmRun;
+    if (
+      run !== undefined &&
+      run.busEnabled &&
+      options.parentToolCallId === run.parentToolCallId
+    ) {
+      run.expertAgentIds.set(profileName, childId);
+    }
     parent.emitEvent({
       type: 'subagent.spawned',
       subagentId: childId,

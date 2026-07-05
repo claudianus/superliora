@@ -5,10 +5,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
+import { parseWorkGraphNodesFromPlan } from '../../src/agent/plan/work-graph-from-plan';
 import {
   ExitPlanModeInputSchema,
   ExitPlanModeTool,
 } from '../../src/tools/builtin/planning/exit-plan-mode';
+import { TODO_STORE_KEY } from '../../src/tools/builtin/state/todo-list';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
 import { executeTool } from './fixtures/execute-tool';
 
 const signal = new AbortController().signal;
@@ -38,7 +41,12 @@ function makeAgent(
     readonly drift?: DriftFixture | undefined;
     readonly emit?: ((event: unknown) => void) | undefined;
   } = {},
-): { agent: Agent; requestApproval: ReturnType<typeof vi.fn>; emit: ReturnType<typeof vi.fn> } {
+): {
+  agent: Agent;
+  requestApproval: ReturnType<typeof vi.fn>;
+  emit: ReturnType<typeof vi.fn>;
+  toolStore: Record<string, unknown>;
+} {
   let active = input.active ?? true;
   let phase = input.phase ?? 'exit';
   const requestApproval = vi.fn(async () => ({ decision: 'approved' }));
@@ -49,6 +57,7 @@ function makeAgent(
   const reopenUltraInterviewForDrift = vi.fn(() => {
     phase = 'interview';
   });
+  const toolStore: Record<string, unknown> = {};
   const agent = {
     planMode: {
       get isActive() {
@@ -86,8 +95,21 @@ function makeAgent(
     rpc: { requestApproval },
     telemetry: { track: vi.fn() },
     emit,
+    records: { logRecord: vi.fn() },
+    ultraSwarmEngageGate: { engage: vi.fn(), isActive: false },
+    tools: {
+      updateStore: vi.fn((key: string, value: unknown) => {
+        toolStore[key] = value;
+      }),
+      getStore: vi.fn(() => ({
+        get: (key: string) => toolStore[key],
+        set: (key: string, value: unknown) => {
+          toolStore[key] = value;
+        },
+      })),
+    },
   } as unknown as Agent;
-  return { agent, requestApproval, emit };
+  return { agent, requestApproval, emit, toolStore };
 }
 
 describe('ExitPlanModeTool', () => {
@@ -342,7 +364,7 @@ describe('ExitPlanModeTool', () => {
   });
 
   it('tells approved Ultra Plan ENGAGE decisions to call UltraSwarm next', async () => {
-    const { agent, emit } = makeAgent({
+    const { agent, emit, toolStore } = makeAgent({
       ultra: true,
       phase: 'exit',
       plan: [
@@ -396,7 +418,15 @@ describe('ExitPlanModeTool', () => {
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
     expect(result.output).toContain('UltraSwarm ENGAGE is binding');
     expect(result.output).toContain('call UltraSwarm as the only tool call');
-    expect(result.output).toContain('work_node_ids');
+    expect(result.output).toContain('work_node_ids: ac_1');
+    expect(result.output).toContain('## UltraworkGraph Seed');
+    expect(toolStore[ULTRAWORK_GRAPH_STORE_KEY]).toMatchObject({
+      runId: 'ultra-plan-kimi-plan',
+      nodes: [expect.objectContaining({ id: 'ac_1', acceptanceCriterionId: 'AC-1', stage: 'swarm' })],
+    });
+    expect(toolStore[TODO_STORE_KEY]).toEqual([
+      { title: '[ac_1] [AC-1] focused test evidence', status: 'pending' },
+    ]);
   });
 
   it('blocks Ultra Plan exit when the Swarm decision lacks specialist value and owner', async () => {

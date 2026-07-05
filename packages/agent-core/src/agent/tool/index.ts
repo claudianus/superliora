@@ -38,6 +38,7 @@ export class ToolManager {
   protected readonly userTools: Map<string, ExecutableTool> = new Map();
   protected readonly mcpTools: Map<string, McpToolEntry> = new Map();
   private loopToolsOverride: readonly ExecutableTool[] | undefined;
+  private readonly ephemeralBuiltinTools = new Map<string, BuiltinTool>();
   /** server name → list of qualified tool names registered for that server. */
   protected readonly mcpToolsByServer: Map<string, string[]> = new Map();
   protected enabledTools: Set<string> = new Set();
@@ -422,6 +423,16 @@ export class ToolManager {
     this.loopToolsOverride = source.loopTools;
   }
 
+  attachEphemeralBuiltin(tool: BuiltinTool): void {
+    this.ephemeralBuiltinTools.set(tool.name, tool);
+    this.enabledTools.add(tool.name);
+  }
+
+  detachEphemeralBuiltin(name: string): void {
+    this.ephemeralBuiltinTools.delete(name);
+    this.enabledTools.delete(name);
+  }
+
   private isMcpToolEnabled(name: string): boolean {
     return this.mcpAccessPatterns.some((pattern) => picomatch.isMatch(name, pattern));
   }
@@ -592,6 +603,7 @@ export class ToolManager {
         (name) =>
           this.userTools.get(name) ??
           this.mcpTools.get(name)?.tool ??
+          this.ephemeralBuiltinTools.get(name) ??
           this.builtinTools.get(name),
       )
       .filter((tool) => !!tool);

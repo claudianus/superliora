@@ -8,6 +8,10 @@
 
 import type { Agent } from '#/agent';
 import {
+  formatSeededWorkGraphNotice,
+  seedUltraworkGraphFromApprovedPlan,
+} from '#/agent/plan/work-graph-from-plan';
+import {
   ultraSwarmDecision,
   ultraSwarmEngageNextAction,
 } from '#/agent/plan/ultra-swarm-decision';
@@ -178,6 +182,11 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     const engageUltraSwarm = isUltra && ultraSwarmDecision(resolvedPlan.plan) === 'ENGAGE';
     const failed = this.exitPlanMode();
     if (failed !== undefined) return failed;
+
+    const seededWorkGraph = isUltra
+      ? seedUltraworkGraphFromApprovedPlan(this.agent, resolvedPlan.plan, resolvedPlan.path)
+      : { seeded: false, nodeIds: [] };
+
     if (engageUltraSwarm) {
       this.agent.ultraSwarmEngageGate?.engage({
         planPath: resolvedPlan.path,
@@ -189,7 +198,12 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
 
     return {
       isError: false,
-      output: formatPlanForOutput(resolvedPlan.plan, resolvedPlan.path, ultraDrift),
+      output: formatPlanForOutput(
+        resolvedPlan.plan,
+        resolvedPlan.path,
+        ultraDrift,
+        seededWorkGraph,
+      ),
     };
   }
 
@@ -560,6 +574,7 @@ function formatPlanForOutput(
   plan: string,
   path: string | undefined,
   ultraDrift: UltraPlanDriftResult | undefined,
+  seededWorkGraph: ReturnType<typeof seedUltraworkGraphFromApprovedPlan>,
 ): string {
   const savedTo = path !== undefined ? `Plan saved to: ${path}\n\n` : '';
   let output = `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${plan}`;
@@ -568,7 +583,11 @@ function formatPlanForOutput(
     if (ultraDrift.warning !== undefined) {
       output += `\n\n---\n## Warning\n${ultraDrift.warning}`;
     }
-    const nextAction = ultraSwarmEngageNextAction(plan);
+    const seededNotice = formatSeededWorkGraphNotice(seededWorkGraph);
+    if (seededNotice !== undefined) {
+      output += `\n\n---\n## UltraworkGraph Seed\n${seededNotice}`;
+    }
+    const nextAction = ultraSwarmEngageNextAction(plan, seededWorkGraph);
     if (nextAction !== undefined) {
       output += `\n\n---\n## Required Next Action\n${nextAction}`;
     }
