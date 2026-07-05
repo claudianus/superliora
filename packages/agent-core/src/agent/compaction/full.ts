@@ -190,7 +190,10 @@ export class FullCompaction {
     }
     const compactedCount = this.strategy.computeCompactCount(this.agent.context.history, data.source);
     if (compactedCount === 0) {
-      throw new LioraError(ErrorCodes.COMPACTION_UNABLE, 'No prefix that can be compacted in current history.');
+      if (data.source === 'manual') {
+        throw new LioraError(ErrorCodes.COMPACTION_UNABLE, 'No prefix that can be compacted in current history.');
+      }
+      return;
     }
     this.agent.records.logRecord({
       type: 'full_compaction.begin',
@@ -228,6 +231,16 @@ export class FullCompaction {
       type: 'full_compaction.complete',
     });
     this.compacting = null;
+  }
+
+  private syncCompactionBaseline(): void {
+    this.lastCompactedTokenCount = this.tokenCountWithPending;
+  }
+
+  private hasCompactionSummaryInHistory(): boolean {
+    return this.agent.context.history.some(
+      (message) => message.origin?.kind === 'compaction_summary',
+    );
   }
 
   private get tokenCountWithPending(): number {
@@ -306,7 +319,7 @@ export class FullCompaction {
 
   async beforeStep(signal: AbortSignal): Promise<void> {
     this.checkAutoCompaction();
-    if (this.strategy.shouldBlock(this.tokenCountWithPending)) {
+    if (this.compacting !== null || this.strategy.shouldBlock(this.tokenCountWithPending)) {
       await this.block(signal);
     }
   }
@@ -342,8 +355,43 @@ export class FullCompaction {
       }
       return false;
     }
+    if (!this.canAutoCompact(throwOnLimit)) {
+      return false;
+    }
     this.begin({ source: 'auto', instruction: undefined });
-    return this.compacting !== null;
+    if (this.compacting === null) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Returns false when auto compaction cannot proceed and the caller should not
+   * start a worker. Throws only when the context is over the block threshold
+   * and neither structural compaction nor ephemeral reclaim can recover.
+   */
+  private canAutoCompact(throwOnLimit: boolean): boolean {
+    let compactedCount = this.strategy.computeCompactCount(this.agent.context.history, 'auto');
+    if (
+      compactedCount === 0 &&
+      this.hasCompactionSummaryInHistory() &&
+      this.agent.context.reclaimEphemeralUserMessages() > 0
+    ) {
+      compactedCount = this.strategy.computeCompactCount(this.agent.context.history, 'auto');
+    }
+    if (compactedCount > 0) {
+      return true;
+    }
+    if (!this.strategy.shouldBlock(this.tokenCountWithPending)) {
+      return false;
+    }
+    if (throwOnLimit) {
+      throw new LioraError(
+        ErrorCodes.CONTEXT_OVERFLOW,
+        'Context is over the model window and no further compaction prefix is available.',
+      );
+    }
+    return false;
   }
 
   private async block(signal: AbortSignal): Promise<void> {
@@ -419,6 +467,7 @@ export class FullCompaction {
         finalResult.qualityWarnings = [...new Set(finalQualityWarnings)];
       }
       await this.agent.injection.injectAfterCompaction();
+      this.syncCompactionBaseline();
       this.triggerPostCompactHook(data, finalResult);
       this.markCompleted();
       this.agent.emitEvent({ type: 'compaction.completed', result: finalResult });

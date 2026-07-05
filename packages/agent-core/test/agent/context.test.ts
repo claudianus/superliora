@@ -632,6 +632,25 @@ describe('Agent context', () => {
     await ctx.expectResumeMatches();
   });
 
+  it('reclaimEphemeralUserMessages removes droppable user-role injections but keeps summaries', () => {
+    const ctx = testAgent();
+    ctx.configure();
+
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'kept task' }]);
+    ctx.agent.context.appendUserMessage(
+      [{ type: 'text', text: 'compacted summary body' }],
+      { kind: 'compaction_summary' },
+    );
+    ctx.agent.context.appendSystemReminder('inject me', { kind: 'injection', variant: 'goal' });
+    ctx.agent.context.appendSystemReminder('inject me too', { kind: 'injection', variant: 'lean_context' });
+
+    expect(ctx.agent.context.reclaimEphemeralUserMessages()).toBe(2);
+    expect(ctx.agent.context.history.map((message) => message.origin?.kind)).toEqual([
+      'user',
+      'compaction_summary',
+    ]);
+  });
+
   it('preserves deferred reminders when compaction keeps a pending tool exchange', async () => {
     const ctx = testAgent();
     ctx.configure();

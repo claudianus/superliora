@@ -2528,7 +2528,7 @@ describe('FullCompaction', () => {
     ]);
   });
 
-  it('fails the turn with compaction.unable when auto compaction has no compactable prefix', async () => {
+  it('fails the turn with context.overflow when auto compaction has no compactable prefix', async () => {
     const ctx = testAgent();
     ctx.configure({
       provider: CATALOGUED_PROVIDER,
@@ -2549,11 +2549,38 @@ describe('FullCompaction', () => {
         event: 'turn.ended',
         args: expect.objectContaining({
           reason: 'failed',
-          error: expect.objectContaining({ code: 'compaction.unable' }),
+          error: expect.objectContaining({ code: 'context.overflow' }),
         }),
       }),
     );
     await ctx.expectResumeMatches();
+  });
+
+  it('reclaims ephemeral injections when auto compaction has no structural prefix', async () => {
+    const ctx = testAgent();
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: {
+        ...CATALOGUED_MODEL_CAPABILITIES,
+        max_context_tokens: 2_000,
+      },
+    });
+
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'kept task' }]);
+    ctx.agent.context.appendUserMessage(
+      [{ type: 'text', text: 'x'.repeat(4_000) }],
+      { kind: 'compaction_summary' },
+    );
+    ctx.agent.context.appendSystemReminder(`inject ${'y'.repeat(12_000)}`, {
+      kind: 'injection',
+      variant: 'lean_context',
+    });
+
+    const abort = new AbortController();
+    await ctx.agent.fullCompaction.beforeStep(abort.signal);
+
+    expect(ctx.agent.context.history.some((message) => message.origin?.kind === 'injection')).toBe(false);
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
   });
 
   it('rejects manual compaction with compaction.unable when no prefix is compactable', async () => {

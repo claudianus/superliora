@@ -237,6 +237,34 @@ export class ContextMemory {
     }
   }
 
+  /**
+   * Drop user-role messages that injectors rebuild (lean context, goal, recall,
+   * etc.). Used when auto compaction cannot find a structural split but the
+   * context is still over budget — typically right after a successful compaction
+   * when post-compaction injections dominate the live history.
+   */
+  reclaimEphemeralUserMessages(): number {
+    let removed = 0;
+    for (let i = this._history.length - 1; i >= 0; i--) {
+      const message = this._history[i];
+      if (message === undefined) continue;
+      if (!isReclaimableEphemeralUserMessage(message)) continue;
+
+      const [removedMessage] = this._history.splice(i, 1);
+      removed++;
+      if (i < this.tokenCountCoveredMessageCount) {
+        this.tokenCountCoveredMessageCount--;
+        this._tokenCount -= estimateTokensForMessages([removedMessage]);
+      }
+      this.agent.injection.onContextMessageRemoved(i);
+    }
+    if (removed > 0) {
+      this.agent.microCompaction.reset(this._history.length);
+      this.agent.emitStatusUpdated();
+    }
+    return removed;
+  }
+
   applyCompaction(input: CompactionInput): CompactionResult {
     const compactableUserMessages = collectCompactableUserMessages(this._history);
     const restoreTailOnly =
@@ -694,6 +722,12 @@ function splitImageCompressionCaptions(content: readonly ContentPart[]): {
     }
   }
   return { captions, parts };
+}
+
+function isReclaimableEphemeralUserMessage(message: ContextMessage): boolean {
+  if (message.role !== 'user') return false;
+  const kind = message.origin?.kind;
+  return kind === 'injection' || kind === 'background_task';
 }
 
 function isEmptyOutputText(output: string): boolean {
