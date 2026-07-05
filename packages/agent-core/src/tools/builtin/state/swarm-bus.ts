@@ -30,7 +30,7 @@ declare module '../../store' {
 export interface SwarmRunBusState {
   readonly runId: string;
   readonly parentToolCallId: string;
-  readonly allowlistedExpertIds: string[];
+  allowlistedExpertIds: string[];
   messages: SwarmBusMessage[];
   artifacts: Record<string, SwarmArtifact>;
   readonly postTimestampsByExpertId: Record<string, number[]>;

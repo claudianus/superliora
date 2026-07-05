@@ -157,13 +157,13 @@ function parseWorkGraphBullets(section: string): WorkGraphNode[] {
 }
 
 interface WorkGraphColumnIndex {
-  readonly id?: number;
-  readonly title?: number;
-  readonly acceptanceCriterionId?: number;
-  readonly stage?: number;
-  readonly ownerLane?: number;
-  readonly dependsOn?: number;
-  readonly requiredEvidence?: number;
+  id?: number;
+  title?: number;
+  acceptanceCriterionId?: number;
+  stage?: number;
+  ownerLane?: number;
+  dependsOn?: number;
+  requiredEvidence?: number;
 }
 
 function mapWorkGraphColumns(headerCells: readonly string[]): WorkGraphColumnIndex {
