@@ -116,6 +116,12 @@ export interface TUIStateNativeRenderCallbackOptions {
   readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
   readonly fill?: RendererCell;
   /**
+   * Invoked when the native renderer performs an authoritative full redraw
+   * (layout shift, resize, scroll, etc.). Use this to refresh terminal-side
+   * theme state such as OSC palette colors after incremental frames are cleared.
+   */
+  readonly onAuthoritativeFrame?: () => void;
+  /**
    * When true, the rendered UI height is capped to the actual content
    * height (transcript + chrome) instead of always occupying the full
    * terminal viewport. The UI grows as the transcript grows and never
@@ -177,6 +183,7 @@ export function renderTUIStateNativeFrame(
 
 interface TUIStateNativeLayoutTracking {
   transcriptStart?: number;
+  transcriptContentRows?: number;
   editorLayoutRows?: number;
 }
 
@@ -193,12 +200,13 @@ export function shouldForceTUIStateNativeLayoutFrame(
   );
 }
 
-function detectTUIStateNativeLayoutShift(
+export function detectTUIStateNativeLayoutShift(
   state: TUIState,
   frameWidth: number,
   prior: TUIStateNativeLayoutTracking,
 ): { readonly shifted: boolean; readonly next: TUIStateNativeLayoutTracking } {
   const transcriptStart = state.transcriptViewport.start();
+  const transcriptContentRows = state.transcriptContainer.contentRowCount(frameWidth);
   const editorLayoutRows =
     state.editorContainer.children.includes(state.editor) &&
     state.editor.getNativeLayoutRowCount !== undefined
@@ -206,10 +214,12 @@ function detectTUIStateNativeLayoutShift(
       : undefined;
   const shifted =
     (prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart) ||
+    (prior.transcriptContentRows !== undefined &&
+      prior.transcriptContentRows !== transcriptContentRows) ||
     (prior.editorLayoutRows !== undefined &&
       editorLayoutRows !== undefined &&
       prior.editorLayoutRows !== editorLayoutRows);
-  const next: TUIStateNativeLayoutTracking = { transcriptStart };
+  const next: TUIStateNativeLayoutTracking = { transcriptStart, transcriptContentRows };
   if (editorLayoutRows !== undefined) next.editorLayoutRows = editorLayoutRows;
   return { shifted, next };
 }
@@ -230,6 +240,7 @@ export function createTUIStateNativeRenderCallback(
     const layoutShift = detectTUIStateNativeLayoutShift(state, size.columns, layoutTracking);
     layoutTracking = layoutShift.next;
     const force = shouldForceTUIStateNativeLayoutFrame(frame.causes, layoutShift.shifted);
+    if (force) options.onAuthoritativeFrame?.();
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,

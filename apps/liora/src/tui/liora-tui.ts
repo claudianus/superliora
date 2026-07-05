@@ -608,7 +608,12 @@ export class LioraTUI {
     }
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
     this.state.ui.setRenderCallback(
-      createTUIStateNativeRenderCallback(this.state, { diagnosticsOverlay }),
+      createTUIStateNativeRenderCallback(this.state, {
+        diagnosticsOverlay,
+        onAuthoritativeFrame: () => {
+          this.appearanceController.apply();
+        },
+      }),
     );
     // Occupy the full terminal viewport. The renderer is created with the
     // `fullscreen-app` feature profile (alternate screen + clearOnStart), so

@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { describe, it, expect, vi } from 'vitest';
 
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
+import { NoticeMessageComponent } from '#/tui/components/messages/status-message';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import {
   ANSI_ENABLE_BRACKETED_PASTE,
@@ -34,7 +35,9 @@ import {
   buildTUIStateNativeFrameRegions,
   createTUIStateNativeRenderer,
   createTUIStateVisibleNativeRenderer,
+  detectTUIStateNativeLayoutShift,
   renderTUIStateNativeFrame,
+  shouldForceTUIStateNativeLayoutFrame,
 } from '#/tui/utils/native-layout-frame';
 import { renderNativeLayoutFrame } from '#/tui/renderer';
 import {
@@ -297,6 +300,59 @@ describe('createTUIState', () => {
       const incremental = renderTUIStateNativeFrame(state, { renderer });
       renderer = incremental.renderer;
       const authoritative = renderTUIStateNativeFrame(state, { force: true });
+      expect(frameText(incremental)).toBe(frameText(authoritative));
+    }
+  });
+
+  it('detects transcript content growth without viewport scroll as a layout shift', () => {
+    const width = 80;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    state.editorContainer.addChild(state.editor);
+
+    let tracking = {};
+    const first = detectTUIStateNativeLayoutShift(state, width, tracking);
+    expect(first.shifted).toBe(false);
+
+    state.transcriptContainer.addChild(
+      new NoticeMessageComponent(
+        'Ultrawork mode: ON',
+        'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.',
+      ),
+    );
+    const second = detectTUIStateNativeLayoutShift(state, width, first.next);
+    expect(second.shifted).toBe(true);
+    expect(shouldForceTUIStateNativeLayoutFrame(['request'], second.shifted)).toBe(true);
+  });
+
+  it('keeps incremental native frames consistent after spamming transcript notices', () => {
+    const width = 80;
+    const height = 30;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.transcriptContainer.addChild(fixedLines(['seed line']));
+    state.editorContainer.addChild(state.editor);
+    state.footerContainer.addChild(fixedLines(['footer']));
+
+    let renderer = renderTUIStateNativeFrame(state, { force: true, width, height }).renderer;
+    for (let i = 0; i < 12; i++) {
+      state.transcriptContainer.addChild(
+        new NoticeMessageComponent(
+          i % 2 === 0 ? 'Ultrawork mode: ON' : 'Ultrawork mode: OFF',
+          i % 2 === 0
+            ? 'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.'
+            : undefined,
+        ),
+      );
+      const incremental = renderTUIStateNativeFrame(state, { renderer, width, height });
+      renderer = incremental.renderer;
+      const authoritative = renderTUIStateNativeFrame(state, { force: true, width, height });
       expect(frameText(incremental)).toBe(frameText(authoritative));
     }
   });
