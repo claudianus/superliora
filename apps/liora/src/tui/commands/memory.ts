@@ -1,60 +1,30 @@
-import { existsSync, readdirSync, readFileSync, statSync, type Stats } from 'node:fs';
-import { basename, join } from 'node:path';
-
 import type { MemoryRecord, MemorySearchResult, MemoryStats } from '@superliora/sdk';
 
 import {
   CANONICAL_EVIDENCE_ROOT,
   CANONICAL_LLM_WIKI_ROOT,
-  resolveEvidenceRoot,
-  resolveLlmWikiRoot,
 } from '#/constant/workspace-data';
 
 import type { SlashCommandHost } from './dispatch';
 import {
   buildLlmWikiStatusLines,
+  buildPromoteEvidenceLines,
   loadLlmWikiStatus,
+  promoteProjectEvidenceToVerified,
 } from './llm-wiki';
+import {
+  formatEvidenceSignal,
+  loadMemoryReadinessEvidence,
+  type MemoryReadinessSnapshot,
+} from './evidence-readiness';
 
-const MAX_EVIDENCE_DEPTH = 5;
-const MAX_EVIDENCE_FILES = 200;
-const MAX_EVIDENCE_READ_BYTES = 32_000;
-const MAX_MALFORMED_EVIDENCE_WARNING_SAMPLES = 3;
-const MALFORMED_EVIDENCE_WARNING_PREFIX = 'Malformed evidence ignored: ';
-
-const EVIDENCE_PATTERNS = {
-  llmWiki: /\b(?:llm[-_\s]?wiki|llms\.txt|liora recall|durable memory|memory readiness)\b/iu,
-  knowledgeMap: /\b(?:liora knowledge map|kimi knowledge map|knowledge[-_\s]?map|compact[-_\s]?project[-_\s]?map|relationship_confidence|path_affected_questions|EXTRACTED, INFERRED, or AMBIGUOUS)\b/iu,
-  browserUsePath: /\b(?:browser[-_]?use|browser_use|playwright|chromium)\b/iu,
-  browserUseText: /\b(?:browser[-_\s]?use|browser automation|playwright|chromium|accessibility snapshot|browser_use)\b/iu,
-  computerUsePath: /\b(?:computer[-_]?use|computer_use|screencapture|app[-_]?state)\b/iu,
-  computerUseText: /\b(?:computer[-_\s]?use|mcp__computer_use|screencapture|app-state|computer_use)\b/iu,
-} as const;
-
-export interface MemoryReadinessEvidenceSignal {
-  readonly ready: boolean;
-  readonly matchCount: number;
-  readonly sourcePath?: string;
-  readonly summary: string;
-}
-
-export interface MemoryReadinessEvidence {
-  readonly sourceRoot: string;
-  readonly llmWiki: MemoryReadinessEvidenceSignal;
-  readonly knowledgeMap: MemoryReadinessEvidenceSignal;
-  readonly browserUse: MemoryReadinessEvidenceSignal;
-  readonly computerUse: MemoryReadinessEvidenceSignal;
-  readonly warnings: readonly string[];
-}
-
-export interface MemoryReadinessSnapshot {
-  readonly stats?: MemoryStats;
-  readonly statsError?: string;
-  readonly query: string;
-  readonly searchResults?: readonly MemorySearchResult[];
-  readonly searchError?: string;
-  readonly evidence: MemoryReadinessEvidence;
-}
+export type {
+  MemoryReadinessEvidence,
+  MemoryReadinessEvidenceSignal,
+  MemoryReadinessEvidenceTier,
+  MemoryReadinessSnapshot,
+} from './evidence-readiness';
+export { loadMemoryReadinessEvidence, formatEvidenceSignal } from './evidence-readiness';
 
 export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: string): Promise<void> {
   const args = rawArgs.trim();
@@ -78,6 +48,10 @@ export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: strin
     case 'wiki':
       showLlmWikiStatus(host);
       return;
+    case 'verify':
+    case 'promote':
+      verifyProjectEvidence(host);
+      return;
     case 'remember':
     case 'write':
       await rememberMemory(host, tail);
@@ -90,7 +64,7 @@ export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: strin
       await consolidateMemories(host);
       return;
     default:
-      host.showError('Usage: /memory [stats|list|search|wiki|readiness|health|remember|forget|consolidate]');
+      host.showError('Usage: /memory [stats|list|search|wiki|verify|readiness|health|remember|forget|consolidate]');
   }
 }
 
@@ -146,6 +120,14 @@ function showLlmWikiStatus(host: SlashCommandHost): void {
     buildLlmWikiStatusLines(loadLlmWikiStatus(host.state.appState.workDir))
       .map(redactMemoryReadinessText)
       .join('\n'),
+  );
+}
+
+function verifyProjectEvidence(host: SlashCommandHost): void {
+  const result = promoteProjectEvidenceToVerified(host.state.appState.workDir);
+  host.showNotice(
+    'Evidence verify',
+    buildPromoteEvidenceLines(result).map(redactMemoryReadinessText).join('\n'),
   );
 }
 
@@ -250,75 +232,6 @@ function renderMemory(memory: MemoryRecord): string {
   return `${memory.subject}${tags}\n${memory.id} ${memory.kind}/${memory.scope}\n${memory.content}`;
 }
 
-export function loadMemoryReadinessEvidence(workDir: string): MemoryReadinessEvidence {
-  const evidenceRoot = join(workDir, resolveEvidenceRoot(workDir));
-  const wikiRoot = join(workDir, resolveLlmWikiRoot(workDir));
-  const sourceRoot = `${evidenceRoot}; ${wikiRoot}`;
-  const roots = [evidenceRoot, wikiRoot].filter((root) => existsSync(root));
-  if (roots.length === 0) {
-    return emptyMemoryReadinessEvidence(sourceRoot, [
-      `No local evidence found at ${evidenceRoot} or ${wikiRoot}`,
-    ]);
-  }
-
-  const warnings: string[] = [];
-  const matches = {
-    llmWiki: createEvidenceAccumulator(),
-    knowledgeMap: createEvidenceAccumulator(),
-    browserUse: createEvidenceAccumulator(),
-    computerUse: createEvidenceAccumulator(),
-  };
-
-  for (const root of roots) {
-    const files = collectEvidenceFiles(root);
-    if (files.truncated) warnings.push(`Evidence scan stopped after ${MAX_EVIDENCE_FILES} files under ${root}`);
-    for (const file of files.paths) {
-      const evidenceFile = readEvidenceFile(file);
-      if (evidenceFile.warning !== undefined) warnings.push(evidenceFile.warning);
-      if (isUnderRoot(file, wikiRoot)) continue;
-      const haystack = `${basename(file)}\n${evidenceFile.text}`;
-      updateEvidenceAccumulator(matches.llmWiki, file, haystack, EVIDENCE_PATTERNS.llmWiki);
-      updateEvidenceAccumulator(
-        matches.knowledgeMap,
-        file,
-        haystack,
-        EVIDENCE_PATTERNS.knowledgeMap,
-      );
-      updateCapabilityEvidenceAccumulator(
-        matches.browserUse,
-        file,
-        evidenceFile.text,
-        EVIDENCE_PATTERNS.browserUsePath,
-        EVIDENCE_PATTERNS.browserUseText,
-      );
-      updateCapabilityEvidenceAccumulator(
-        matches.computerUse,
-        file,
-        evidenceFile.text,
-        EVIDENCE_PATTERNS.computerUsePath,
-        EVIDENCE_PATTERNS.computerUseText,
-      );
-    }
-  }
-
-  const wikiStatus = loadLlmWikiStatus(workDir);
-  if (wikiStatus.indexExists && wikiStatus.manifestValid) {
-    matches.llmWiki.matchCount += 1;
-    matches.llmWiki.sourcePath ??= wikiStatus.indexPath;
-  } else if (wikiStatus.exists) {
-    warnings.push(...wikiStatus.warnings);
-  }
-
-  return {
-    sourceRoot,
-    llmWiki: evidenceSignal(matches.llmWiki, 'No llm-wiki or durable-memory evidence found.'),
-    knowledgeMap: evidenceSignal(matches.knowledgeMap, 'No Liora Knowledge Map evidence found.'),
-    browserUse: evidenceSignal(matches.browserUse, 'No browser-use evidence found.'),
-    computerUse: evidenceSignal(matches.computerUse, 'No computer-use evidence found.'),
-    warnings: summarizeEvidenceWarnings(warnings),
-  };
-}
-
 export function buildMemoryReadinessLines(snapshot: MemoryReadinessSnapshot): string[] {
   const lines = [
     'SuperLiora / Liora Recall readiness',
@@ -347,168 +260,6 @@ export function redactMemoryReadinessText(text: string): string {
     .replaceAll(/\b(?:sk|sk-proj|ghp|xoxb)-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED_SECRET]');
 }
 
-function emptyMemoryReadinessEvidence(
-  sourceRoot: string,
-  warnings: readonly string[] = [],
-): MemoryReadinessEvidence {
-  return {
-    sourceRoot,
-    llmWiki: {
-      ready: false,
-      matchCount: 0,
-      summary: 'No llm-wiki or durable-memory evidence found.',
-    },
-    knowledgeMap: {
-      ready: false,
-      matchCount: 0,
-      summary: 'No Liora Knowledge Map evidence found.',
-    },
-    browserUse: {
-      ready: false,
-      matchCount: 0,
-      summary: 'No browser-use evidence found.',
-    },
-    computerUse: {
-      ready: false,
-      matchCount: 0,
-      summary: 'No computer-use evidence found.',
-    },
-    warnings,
-  };
-}
-
-function collectEvidenceFiles(root: string): { readonly paths: readonly string[]; readonly truncated: boolean } {
-  const paths: string[] = [];
-  visitEvidenceDir(root, 0, paths);
-  return { paths, truncated: paths.length >= MAX_EVIDENCE_FILES };
-}
-
-function visitEvidenceDir(dir: string, depth: number, paths: string[]): void {
-  if (depth > MAX_EVIDENCE_DEPTH || paths.length >= MAX_EVIDENCE_FILES) return;
-
-  let entries;
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const entry of entries) {
-    if (paths.length >= MAX_EVIDENCE_FILES) return;
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      visitEvidenceDir(path, depth + 1, paths);
-      continue;
-    }
-    if (!entry.isFile() || !isEvidenceFile(path, safeStat(path))) continue;
-    paths.push(path);
-  }
-}
-
-function isEvidenceFile(path: string, stats: Stats | undefined): boolean {
-  if (stats === undefined || stats.size <= 0) return false;
-  return /\.(?:json|jsonl|md|txt|log)$/iu.test(path);
-}
-
-function readEvidenceFile(path: string): { readonly text: string; readonly warning?: string } {
-  try {
-    const stats = safeStat(path);
-    const text = readFileSync(path, 'utf8').slice(0, MAX_EVIDENCE_READ_BYTES);
-    if (stats !== undefined && stats.size <= MAX_EVIDENCE_READ_BYTES && isJsonEvidenceFile(path) && !isValidJsonEvidence(text)) {
-      return { text: '', warning: `Malformed evidence ignored: ${path}` };
-    }
-    return { text };
-  } catch {
-    return { text: '' };
-  }
-}
-
-function summarizeEvidenceWarnings(warnings: readonly string[]): readonly string[] {
-  const malformed: string[] = [];
-  const other: string[] = [];
-  for (const warning of warnings) {
-    if (warning.startsWith(MALFORMED_EVIDENCE_WARNING_PREFIX)) {
-      malformed.push(warning);
-    } else {
-      other.push(warning);
-    }
-  }
-
-  if (malformed.length <= MAX_MALFORMED_EVIDENCE_WARNING_SAMPLES) {
-    return [...other, ...malformed];
-  }
-
-  const sampled = malformed.slice(0, MAX_MALFORMED_EVIDENCE_WARNING_SAMPLES);
-  const hidden = malformed.length - sampled.length;
-  return [
-    ...other,
-    ...sampled,
-    `${MALFORMED_EVIDENCE_WARNING_PREFIX}${malformed.length} files total; ${hidden} more hidden`,
-  ];
-}
-
-function safeStat(path: string): Stats | undefined {
-  try {
-    return statSync(path);
-  } catch {
-    return undefined;
-  }
-}
-
-function createEvidenceAccumulator(): { matchCount: number; sourcePath?: string } {
-  return { matchCount: 0 };
-}
-
-function updateEvidenceAccumulator(
-  accumulator: { matchCount: number; sourcePath?: string },
-  path: string,
-  haystack: string,
-  pattern: RegExp,
-): void {
-  if (!pattern.test(haystack)) return;
-  accumulator.matchCount += 1;
-  if (
-    accumulator.sourcePath === undefined
-    || evidenceSourcePriority(path) < evidenceSourcePriority(accumulator.sourcePath)
-  ) {
-    accumulator.sourcePath = path;
-  }
-}
-
-function updateCapabilityEvidenceAccumulator(
-  accumulator: { matchCount: number; sourcePath?: string },
-  path: string,
-  text: string,
-  pathPattern: RegExp,
-  textPattern: RegExp,
-): void {
-  const pathHaystack = `${basename(path)}\n${path}`;
-  if (!pathPattern.test(pathHaystack)) return;
-  if (!textPattern.test(text) || !hasEvidenceProof(text)) return;
-  accumulator.matchCount += 1;
-  accumulator.sourcePath ??= path;
-}
-
-function evidenceSignal(
-  accumulator: { readonly matchCount: number; readonly sourcePath?: string },
-  missingSummary: string,
-): MemoryReadinessEvidenceSignal {
-  if (accumulator.matchCount === 0) {
-    return {
-      ready: false,
-      matchCount: 0,
-      summary: missingSummary,
-    };
-  }
-
-  return {
-    ready: true,
-    matchCount: accumulator.matchCount,
-    sourcePath: accumulator.sourcePath,
-    summary: 'evidence found',
-  };
-}
-
 function durableStatsLine(stats: MemoryStats | undefined, error: string | undefined): string {
   if (stats === undefined) return `Durable memory  unavailable: ${error ?? 'stats failed'}`;
   return `Durable memory  active ${stats.active} / total ${stats.total}; archived ${stats.archived}, deleted ${stats.deleted}`;
@@ -532,13 +283,6 @@ function recallSearchLine(
   return `Recall search  ${results.length} matches for "${query}"; top ${top.score.toFixed(2)} ${top.memory.subject}`;
 }
 
-function formatEvidenceSignal(signal: MemoryReadinessEvidenceSignal): string {
-  if (!signal.ready) return `missing; ${signal.summary}`;
-  const matchWord = signal.matchCount === 1 ? 'match' : 'matches';
-  const source = signal.sourcePath === undefined ? 'source not recorded' : signal.sourcePath;
-  return `ready; ${signal.matchCount} ${matchWord}; ${source}`;
-}
-
 function nextMemoryReadinessAction(snapshot: MemoryReadinessSnapshot): string {
   if (snapshot.stats === undefined) return 'Fix Liora Recall availability, then rerun /memory readiness.';
   if (snapshot.stats.total === 0) return 'Create a durable memory with /memory remember <subject> :: <content>.';
@@ -546,7 +290,13 @@ function nextMemoryReadinessAction(snapshot: MemoryReadinessSnapshot): string {
   if (snapshot.searchError !== undefined) return 'Fix recall search, then rerun /memory readiness <query>.';
   if ((snapshot.searchResults?.length ?? 0) === 0) return 'Add or refine durable memories for this query.';
   if (!snapshot.evidence.llmWiki.ready) return `Start Ultrawork to create project-local LLM Wiki evidence under ${CANONICAL_LLM_WIKI_ROOT}.`;
+  if (!snapshot.evidence.llmWiki.verified) {
+    return `Run /memory verify to promote LLM Wiki seed to verified, then rerun /memory readiness.`;
+  }
   if (!snapshot.evidence.knowledgeMap.ready) return `Capture Liora Knowledge Map evidence under ${CANONICAL_EVIDENCE_ROOT}.`;
+  if (!snapshot.evidence.knowledgeMap.verified) {
+    return `Run /memory verify to promote Liora Knowledge Map seed to verified, then rerun /memory readiness.`;
+  }
   if (!snapshot.evidence.browserUse.ready) return `Capture browser-use evidence under ${CANONICAL_EVIDENCE_ROOT}.`;
   if (!snapshot.evidence.computerUse.ready) return `Capture computer-use evidence under ${CANONICAL_EVIDENCE_ROOT}.`;
   return 'Ready: run the harness with current recall and evidence.';
@@ -554,54 +304,4 @@ function nextMemoryReadinessAction(snapshot: MemoryReadinessSnapshot): string {
 
 function formatMemoryReadinessError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isJsonEvidenceFile(path: string): boolean {
-  return /\.(?:json|jsonl)$/iu.test(path);
-}
-
-function isValidJsonEvidence(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) return false;
-  try {
-    JSON.parse(trimmed);
-    return true;
-  } catch {
-    // Fall through to JSONL validation below.
-  }
-  if (trimmed.includes('\n')) {
-    return trimmed.split(/\r?\n/u).every((line) => {
-      const value = line.trim();
-      if (value.length === 0) return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
-    });
-  }
-  return false;
-}
-
-function hasEvidenceProof(text: string): boolean {
-  return /\b(?:PASS|passed|status|screenshot|transcript|action log|observation|validator|cleanup)\b/iu.test(text);
-}
-
-function isUnderRoot(path: string, root: string): boolean {
-  return path === root || path.startsWith(`${root}/`);
-}
-
-function evidenceSourcePriority(path: string): number {
-  const name = basename(path).toLowerCase();
-  if (
-    name.includes('llm-wiki')
-    || name.includes('llms.txt')
-    || name.includes('liora-knowledge-map')
-    || name.includes('browser-use')
-    || name.includes('computer-use')
-  ) {
-    return 0;
-  }
-  return 1;
 }

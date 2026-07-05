@@ -301,6 +301,7 @@ describe('built-in slash command registry', () => {
     const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
 
     expect(primaryValues).toContain('wiki');
+    expect(primaryValues).toContain('verify');
     expect(primaryValues).not.toContain('readiness');
     expect(primaryValues).not.toContain('health');
     expect(memoryArgumentCompletions('r')?.map((item) => item.value)).not.toContain('readiness');

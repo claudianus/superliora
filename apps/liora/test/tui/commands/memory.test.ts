@@ -31,24 +31,32 @@ describe('memory readiness slash command builders', () => {
         sourceRoot: '/repo/.superliora/evidence',
         llmWiki: {
           ready: true,
+          verified: true,
+          tier: 'verified',
           matchCount: 1,
           sourcePath: '/repo/.superliora/evidence/llm-wiki.md',
           summary: 'evidence found',
         },
         knowledgeMap: {
           ready: true,
+          verified: true,
+          tier: 'verified',
           matchCount: 1,
           sourcePath: '/repo/.superliora/evidence/liora-knowledge-map.json',
           summary: 'evidence found',
         },
         browserUse: {
           ready: true,
+          verified: true,
+          tier: 'verified',
           matchCount: 2,
           sourcePath: '/repo/.superliora/evidence/browser-use.json',
           summary: 'evidence found',
         },
         computerUse: {
           ready: true,
+          verified: true,
+          tier: 'verified',
           matchCount: 1,
           sourcePath: '/repo/.superliora/evidence/computer-use-state.json',
           summary: 'evidence found',
@@ -60,10 +68,10 @@ describe('memory readiness slash command builders', () => {
 
     expect(text).toContain('Durable memory  active 2 / total 2');
     expect(text).toContain('Recall search  1 matches for "launch recall"; top 0.91 recall launch token [REDACTED_SECRET]');
-    expect(text).toContain('LLM-wiki/durable  ready; 1 match');
-    expect(text).toContain('Knowledge-map evidence  ready; 1 match');
-    expect(text).toContain('Browser-use evidence  ready; 2 matches');
-    expect(text).toContain('Computer-use evidence  ready; 1 match');
+    expect(text).toContain('LLM-wiki/durable  verified; 1 match');
+    expect(text).toContain('Knowledge-map evidence  verified; 1 match');
+    expect(text).toContain('Browser-use evidence  verified; 2 matches');
+    expect(text).toContain('Computer-use evidence  verified; 1 match');
     expect(text).toContain('Next  Ready: run the harness with current recall and evidence.');
     expect(text).not.toContain('sk-proj-1234567890abcdef');
   });
@@ -140,7 +148,11 @@ describe('memory readiness slash command builders', () => {
       expect(evidence.knowledgeMap.ready).toBe(true);
       expect(evidence.browserUse.ready).toBe(false);
       expect(evidence.computerUse.ready).toBe(false);
-      expect(evidence.llmWiki.sourcePath).toContain('llm-wiki.md');
+      expect(evidence.llmWiki.verified).toBe(false);
+      expect(evidence.knowledgeMap.verified).toBe(false);
+      expect(evidence.llmWiki.tier).toBe('seed');
+      expect(evidence.knowledgeMap.tier).toBe('seed');
+      expect(evidence.llmWiki.sourcePath).toContain('.superliora/wiki/index.md');
       expect(evidence.knowledgeMap.sourcePath).toContain('liora-knowledge-map.json');
     } finally {
       rmSync(workDir, { recursive: true, force: true });
@@ -257,12 +269,47 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
+  it('promotes Ultrawork seed evidence to verified through /memory verify', async () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-verify-command-'));
+    try {
+      createUltraworkEvidenceSeed(
+        workDir,
+        'Verify harness evidence promotion',
+        'manual',
+        false,
+        new Date('2026-07-02T00:00:00.000Z'),
+      );
+
+      const before = loadMemoryReadinessEvidence(workDir);
+      expect(before.llmWiki.tier).toBe('seed');
+      expect(before.knowledgeMap.tier).toBe('seed');
+
+      const host = {
+        state: { appState: { workDir } },
+        showNotice: vi.fn(),
+      } as unknown as SlashCommandHost;
+
+      await handleMemoryCommand(host, 'verify');
+
+      const after = loadMemoryReadinessEvidence(workDir);
+      expect(after.llmWiki.verified).toBe(true);
+      expect(after.knowledgeMap.verified).toBe(true);
+      expect(host.showNotice).toHaveBeenCalledWith(
+        'Evidence verify',
+        expect.stringContaining('LLM Wiki  verified'),
+      );
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not offer internal readiness and health subcommands in memory completions', () => {
     const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
     const healthValues = memoryArgumentCompletions('h')?.map((item) => item.value);
     const readinessValues = memoryArgumentCompletions('r')?.map((item) => item.value);
 
     expect(primaryValues).toContain('wiki');
+    expect(primaryValues).toContain('verify');
     expect(healthValues).toBeUndefined();
     expect(readinessValues).toEqual(['remember']);
   });

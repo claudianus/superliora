@@ -333,7 +333,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('llm_wiki_index: .superliora/wiki/index.md');
     expect(prompt).toContain('llm_wiki_manifest: .superliora/wiki/manifest.json');
     expect(prompt).toContain('llm_wiki_run: .superliora/wiki/runs/run-1.md');
-    expect(prompt).toContain('llm_wiki_seed: .superliora/evidence/ultrawork-runs/run-1/llm-wiki.md');
+    expect(prompt).not.toContain('llm_wiki_seed:');
     expect(prompt).toContain('knowledge_map_seed: .superliora/evidence/ultrawork-runs/run-1/liora-knowledge-map.json');
     expect(prompt).toContain('coverage_matrix_seed: .superliora/evidence/ultrawork-runs/run-1/capability-coverage-matrix.json');
     expect(prompt).toContain('expert_review_loop_seed: .superliora/evidence/ultrawork-runs/run-1/expert-review-loop.md');
@@ -437,7 +437,6 @@ describe('handleUltraworkCommand', () => {
       const wikiIndexPath = join(workDir, '.superliora/wiki/index.md');
       const wikiManifestPath = join(workDir, '.superliora/wiki/manifest.json');
       const wikiRunPath = join(workDir, '.superliora/wiki/runs', `${runDirs[0] ?? ''}.md`);
-      const llmWikiPath = join(runRoot, 'llm-wiki.md');
       const knowledgeMapPath = join(runRoot, 'liora-knowledge-map.json');
       const coverageMatrixPath = join(runRoot, 'capability-coverage-matrix.json');
       const reviewLoopPath = join(runRoot, 'expert-review-loop.md');
@@ -447,7 +446,6 @@ describe('handleUltraworkCommand', () => {
         wikiIndexPath,
         wikiManifestPath,
         wikiRunPath,
-        llmWikiPath,
         knowledgeMapPath,
         coverageMatrixPath,
         reviewLoopPath,
@@ -456,19 +454,21 @@ describe('handleUltraworkCommand', () => {
         expect(existsSync(path)).toBe(true);
       }
 
-      expect(readFileSync(llmWikiPath, 'utf8')).toContain('Current Understanding');
-      expect(readFileSync(llmWikiPath, 'utf8')).toContain('.superliora/wiki/index.md');
+      expect(existsSync(join(runRoot, 'llm-wiki.md'))).toBe(false);
+      expect(readFileSync(wikiRunPath, 'utf8')).toContain('Current Understanding');
+      expect(readFileSync(wikiRunPath, 'utf8')).toContain('.superliora/wiki/index.md');
       expect(readFileSync(wikiIndexPath, 'utf8')).toContain('This project-local wiki stores human-reviewable');
       expect(readFileSync(wikiRunPath, 'utf8')).toContain('Next Retrieval Hints');
       const manifest = JSON.parse(readFileSync(wikiManifestPath, 'utf8')) as {
         kind: string;
         latestRunId: string;
-        runs: Array<{ path: string; llmWikiPath: string }>;
+        runs: Array<{ path: string; llmWikiPath: string; evidenceState?: string }>;
       };
       expect(manifest.kind).toBe('llm-wiki-manifest');
       expect(manifest.latestRunId).toBe(runDirs[0]);
       expect(manifest.runs[0]?.path).toBe(`.superliora/wiki/runs/${runDirs[0]}.md`);
-      expect(manifest.runs[0]?.llmWikiPath).toContain('llm-wiki.md');
+      expect(manifest.runs[0]?.llmWikiPath).toBe(`.superliora/wiki/runs/${runDirs[0]}.md`);
+      expect(manifest.runs[0]?.evidenceState).toBe('seed');
       expect(readFileSync(reviewLoopPath, 'utf8')).toContain('Review required: yes');
       const knowledgeMap = JSON.parse(readFileSync(knowledgeMapPath, 'utf8')) as Record<string, unknown>;
       expect(knowledgeMap['kind']).toBe('liora knowledge map');

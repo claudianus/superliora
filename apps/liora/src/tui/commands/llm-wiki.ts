@@ -17,6 +17,8 @@ export const LLM_WIKI_MANIFEST_PATH = `${CANONICAL_LLM_WIKI_ROOT}/manifest.json`
 const LLM_WIKI_SCHEMA_VERSION = 1;
 const MAX_MANIFEST_RUNS = 50;
 
+export type LlmWikiEvidenceState = 'seed' | 'verified';
+
 export interface LlmWikiCoverageLane {
   readonly id: string;
   readonly label: string;
@@ -57,6 +59,7 @@ interface LlmWikiManifestRun {
   readonly objective: string;
   readonly source: UltraworkActivationSource;
   readonly replaceGoal: boolean;
+  readonly evidenceState?: LlmWikiEvidenceState;
   readonly path: string;
   readonly evidenceRoot: string;
   readonly llmWikiPath: string;
@@ -109,6 +112,97 @@ export function writeProjectLlmWikiSeed(workDir: string, input: LlmWikiSeedInput
   writeFileSync(join(workDir, artifacts.wikiIndexPath), renderIndexPage(manifest), 'utf8');
   writeFileSync(join(workDir, artifacts.wikiManifestPath), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return artifacts;
+}
+
+export function resolveLatestRunEvidenceState(workDir: string): LlmWikiEvidenceState | undefined {
+  const manifest = readExistingManifest(workDir);
+  if (manifest === undefined) return undefined;
+  const latest = manifest.runs.find((run) => run.runId === manifest.latestRunId);
+  return latest?.evidenceState ?? 'seed';
+}
+
+export interface PromoteProjectEvidenceResult {
+  readonly wikiPromoted: boolean;
+  readonly knowledgeMapPromoted: boolean;
+  readonly manifestPath: string;
+  readonly wikiRunPath?: string;
+  readonly knowledgeMapPath?: string;
+  readonly warnings: readonly string[];
+}
+
+export function promoteProjectEvidenceToVerified(workDir: string, now = new Date()): PromoteProjectEvidenceResult {
+  const wikiPaths = resolveLlmWikiPaths(workDir);
+  const manifestPath = join(workDir, wikiPaths.wikiManifestPath);
+  const manifest = readExistingManifest(workDir);
+  const warnings: string[] = [];
+  if (manifest === undefined) {
+    return {
+      wikiPromoted: false,
+      knowledgeMapPromoted: false,
+      manifestPath,
+      warnings: [`Missing or invalid LLM Wiki manifest: ${manifestPath}`],
+    };
+  }
+
+  const latestRunId = manifest.latestRunId;
+  const latest = manifest.runs.find((run) => run.runId === latestRunId);
+  if (latest === undefined) {
+    return {
+      wikiPromoted: false,
+      knowledgeMapPromoted: false,
+      manifestPath,
+      warnings: [`Latest LLM Wiki run not found in manifest: ${latestRunId}`],
+    };
+  }
+
+  const updatedAt = now.toISOString();
+  const nextManifest: LlmWikiManifest = {
+    ...manifest,
+    updatedAt,
+    runs: manifest.runs.map((run) =>
+      run.runId === latestRunId ? { ...run, evidenceState: 'verified' } : run,
+    ),
+  };
+  writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, 'utf8');
+
+  let knowledgeMapPromoted = false;
+  const knowledgeMapAbsolutePath = join(workDir, latest.knowledgeMapPath);
+  if (existsSync(knowledgeMapAbsolutePath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(knowledgeMapAbsolutePath, 'utf8')) as Record<string, unknown>;
+      writeFileSync(
+        knowledgeMapAbsolutePath,
+        `${JSON.stringify({ ...parsed, evidenceState: 'verified', verifiedAt: updatedAt }, null, 2)}\n`,
+        'utf8',
+      );
+      knowledgeMapPromoted = true;
+    } catch {
+      warnings.push(`Failed to promote knowledge map: ${knowledgeMapAbsolutePath}`);
+    }
+  } else {
+    warnings.push(`Knowledge map not found: ${knowledgeMapAbsolutePath}`);
+  }
+
+  return {
+    wikiPromoted: true,
+    knowledgeMapPromoted,
+    manifestPath,
+    wikiRunPath: join(workDir, latest.path),
+    knowledgeMapPath: knowledgeMapAbsolutePath,
+    warnings,
+  };
+}
+
+export function buildPromoteEvidenceLines(result: PromoteProjectEvidenceResult): string[] {
+  const lines = [
+    `LLM Wiki  ${result.wikiPromoted ? 'verified' : 'blocked'}`,
+    `Manifest  ${result.manifestPath}`,
+    `Run  ${result.wikiRunPath ?? 'none'}`,
+    `Knowledge map  ${result.knowledgeMapPromoted ? 'verified' : 'blocked'}; ${result.knowledgeMapPath ?? 'none'}`,
+    `Next  ${result.wikiPromoted && result.knowledgeMapPromoted ? 'Run /memory readiness or /preflight to confirm gates.' : 'Fix warnings, then rerun /memory verify.'}`,
+  ];
+  for (const warning of result.warnings) lines.push(`Warning  ${warning}`);
+  return lines;
 }
 
 export function loadLlmWikiStatus(workDir: string): LlmWikiStatus {
@@ -169,10 +263,21 @@ function readExistingManifest(workDir: string): LlmWikiManifest | undefined {
   if (!existsSync(path)) return undefined;
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown;
-    return isValidLlmWikiManifest(parsed) ? parsed : undefined;
+    if (!isValidLlmWikiManifest(parsed)) return undefined;
+    return normalizeLlmWikiManifest(parsed);
   } catch {
     return undefined;
   }
+}
+
+function normalizeLlmWikiManifest(manifest: LlmWikiManifest): LlmWikiManifest {
+  return {
+    ...manifest,
+    runs: manifest.runs.map((run) => ({
+      ...run,
+      evidenceState: run.evidenceState ?? 'seed',
+    })),
+  };
 }
 
 function isValidLlmWikiManifest(value: unknown): value is LlmWikiManifest {
@@ -200,6 +305,7 @@ function isValidManifestRun(value: unknown): value is LlmWikiManifestRun {
     && typeof run.objective === 'string'
     && typeof run.source === 'string'
     && typeof run.replaceGoal === 'boolean'
+    && (run.evidenceState === undefined || run.evidenceState === 'seed' || run.evidenceState === 'verified')
     && typeof run.path === 'string'
     && typeof run.evidenceRoot === 'string'
     && typeof run.llmWikiPath === 'string'
@@ -221,6 +327,7 @@ function upsertManifest(
     objective: input.objective,
     source: input.source,
     replaceGoal: input.replaceGoal,
+    evidenceState: 'seed',
     path: artifacts.wikiRunPath,
     evidenceRoot: input.evidenceFiles.root,
     llmWikiPath: input.evidenceFiles.llmWikiPath,
@@ -324,7 +431,7 @@ ${input.objective}
 - LLM Wiki index: ${artifacts.wikiIndexPath}
 - LLM Wiki manifest: ${artifacts.wikiManifestPath}
 - Run evidence root: ${input.evidenceFiles.root}
-- Run llm-wiki seed: ${input.evidenceFiles.llmWikiPath}
+- Canonical run page: ${input.evidenceFiles.llmWikiPath}
 - Liora Knowledge Map: ${input.evidenceFiles.knowledgeMapPath}
 - Capability Coverage Matrix: ${input.evidenceFiles.coverageMatrixPath}
 - Expert Review Loop: ${input.evidenceFiles.reviewLoopPath}

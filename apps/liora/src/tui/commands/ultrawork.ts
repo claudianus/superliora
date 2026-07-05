@@ -10,7 +10,7 @@ import {
 } from '../components/dialogs/swarm-start-permission-prompt';
 import { UltraworkModeMarkerComponent } from '../components/messages/ultrawork-markers';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { KNOWLEDGE_MAP_FILENAME, resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';
+import { KNOWLEDGE_MAP_FILENAME, resolveLlmWikiPaths, resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './dispatch';
 import { writeProjectLlmWikiSeed } from './llm-wiki';
@@ -350,8 +350,9 @@ export function createUltraworkEvidenceSeed(
 
   const safeObjective = redactEvidenceText(objective);
   const coverageMatrix = buildUltraworkCoverageMatrix(objective);
+  const wikiRunPath = `${resolveLlmWikiPaths(workDir).wikiRootPath}/runs/${runId}.md`;
   const files = {
-    llmWikiPath: join(root, 'llm-wiki.md'),
+    llmWikiPath: wikiRunPath,
     knowledgeMapPath: join(root, KNOWLEDGE_MAP_FILENAME),
     coverageMatrixPath: join(root, 'capability-coverage-matrix.json'),
     reviewLoopPath: join(root, 'expert-review-loop.md'),
@@ -366,24 +367,12 @@ export function createUltraworkEvidenceSeed(
     coverageMatrix,
     evidenceFiles: { root, ...files },
   });
-
-  writeFileSync(
-    join(workDir, files.llmWikiPath),
-    renderLlmWikiSeed({
-      createdAt,
-      objective: safeObjective,
-      source,
-      replaceGoal,
-      coverageMatrix,
-      files: { ...files, ...wikiArtifacts },
-    }),
-    'utf8',
-  );
   writeFileSync(
     join(workDir, files.knowledgeMapPath),
     `${JSON.stringify({
       kind: 'liora knowledge map',
       schema: 1,
+      evidenceState: 'seed',
       createdAt,
       objective: safeObjective,
       extractionPolicy: 'Relationships must be labelled EXTRACTED, INFERRED, or AMBIGUOUS.',
@@ -448,7 +437,7 @@ export function createUltraworkEvidenceSeed(
           action: 'wrote',
           reason: 'Created project-local LLM Wiki v2 index and run page before implementation.',
           path: wikiArtifacts.wikiRunPath,
-          evidence: files.llmWikiPath,
+          evidence: wikiArtifacts.wikiRunPath,
         },
       ],
     }, null, 2)}\n`,
@@ -456,68 +445,6 @@ export function createUltraworkEvidenceSeed(
   );
 
   return { root, ...wikiArtifacts, ...files };
-}
-
-function renderLlmWikiSeed(input: {
-  readonly createdAt: string;
-  readonly objective: string;
-  readonly source: UltraworkActivationSource;
-  readonly replaceGoal: boolean;
-  readonly coverageMatrix: readonly UltraworkCoverageLane[];
-  readonly files: Omit<UltraworkEvidenceSeed, 'root'>;
-}): string {
-  const lanes = input.coverageMatrix
-    .map((lane) => `- ${lane.id}: ${lane.reason} Owner: ${lane.owner}. Evidence: ${lane.evidenceNeeded.join(', ')}.`)
-    .join('\n');
-  return `# LLM Wiki - Ultrawork Run Seed
-
-Created: ${input.createdAt}
-Source: ${input.source}
-Replace goal requested: ${String(input.replaceGoal)}
-
-## Objective
-
-${input.objective}
-
-## Current Understanding
-
-This is the run-local LLM Wiki seed. The canonical project-local index is ${input.files.wikiIndexPath}. Startup content is intentionally marked as seed material; during Learn, replace placeholders with verified findings, durable decisions, and source-backed project knowledge.
-
-## Durable Decisions
-
-- Liora Recall remains global searchable memory for concise durable facts, decisions, and user preferences.
-- The project-local LLM Wiki lives under ${input.files.wikiRootPath} for human review and future retrieval.
-- Code, tests, runtime evidence, and cited sources remain the source of truth.
-
-## Evidence Links
-
-- LLM Wiki root: ${input.files.wikiRootPath}
-- LLM Wiki index: ${input.files.wikiIndexPath}
-- LLM Wiki manifest: ${input.files.wikiManifestPath}
-- LLM Wiki run page: ${input.files.wikiRunPath}
-- Liora Knowledge Map: ${input.files.knowledgeMapPath}
-- Capability Coverage Matrix: ${input.files.coverageMatrixPath}
-- Expert Review Loop: ${input.files.reviewLoopPath}
-- Knowledge persistence ledger: ${input.files.learnLedgerPath}
-
-## Verification
-
-- pending: add focused checks, runtime observations, source URLs, or reviewer verdicts before completion.
-
-## Open Questions
-
-- pending: move unverified claims here until backed by evidence.
-
-## Capability Coverage Matrix
-
-${lanes}
-
-## Next Retrieval Hints
-
-- Start with ${input.files.wikiIndexPath}, then inspect ${input.files.wikiRunPath}.
-- Use LioraContext for compact source maps before broad reads.
-- Write Liora Recall only when a verified reusable finding should survive across sessions.
-`;
 }
 
 function renderExpertReviewLoopSeed(

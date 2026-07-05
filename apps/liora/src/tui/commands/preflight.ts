@@ -8,10 +8,11 @@ import type { MemorySearchResult, MemoryStats } from '@superliora/sdk';
 import { loadBenchStatus, redactBenchStatusText, type BenchStatus } from './bench';
 import type { SlashCommandHost } from './dispatch';
 import {
+  formatEvidenceSignal,
   loadMemoryReadinessEvidence,
-  redactMemoryReadinessText,
   type MemoryReadinessSnapshot,
-} from './memory';
+} from './evidence-readiness';
+import { redactMemoryReadinessText } from './memory';
 
 const DEFAULT_PREFLIGHT_RECALL_QUERY = 'superliora harness knowledge-map browser-use computer-use llm-wiki readiness';
 const PREFLIGHT_RECALL_MEMORY_SUBJECT = 'preflight-readiness';
@@ -266,8 +267,8 @@ export function buildPreflightStatus(input: {
     ready: isBenchReady(input.bench)
       && isMemoryReady(input.memory)
       && isRecallReady(input.memory)
-      && input.memory.evidence.llmWiki.ready
-      && input.memory.evidence.knowledgeMap.ready
+      && input.memory.evidence.llmWiki.verified
+      && input.memory.evidence.knowledgeMap.verified
       && input.memory.evidence.browserUse.ready
       && input.memory.evidence.computerUse.ready
       && freshness.ready
@@ -310,8 +311,8 @@ export function buildPreflightLines(status: PreflightStatus): string[] {
     `Bench score  ${formatScore(status.bench.score)}; passRate ${formatPassRate(status.bench.passRate)}`,
     `Memory  ${readyWord(isMemoryReady(status.memory))}; ${memoryStatsSummary(status.memory.stats, status.memory.statsError)}`,
     `Recall  ${readyWord(isRecallReady(status.memory))}; ${recallSummary(status.memory)}`,
-    `LLM-wiki evidence  ${readyWord(status.memory.evidence.llmWiki.ready)}`,
-    `Knowledge-map evidence  ${readyWord(status.memory.evidence.knowledgeMap.ready)}`,
+    `LLM-wiki evidence  ${readyWord(status.memory.evidence.llmWiki.verified)}; ${formatEvidenceSignal(status.memory.evidence.llmWiki)}`,
+    `Knowledge-map evidence  ${readyWord(status.memory.evidence.knowledgeMap.verified)}; ${formatEvidenceSignal(status.memory.evidence.knowledgeMap)}`,
     `Browser-use evidence  ${readyWord(status.memory.evidence.browserUse.ready)}`,
     `Computer-use evidence  ${readyWord(status.memory.evidence.computerUse.ready)}`,
     `Ready gates  ${readinessGateSummary(status)}`,
@@ -715,7 +716,13 @@ function nextPreflightAction(
   if (memory.searchError !== undefined) return 'Fix recall search, then rerun /preflight.';
   if ((memory.searchResults?.length ?? 0) === 0) return `Run ${preflightRecallMemoryCommand(memory.query)}, then rerun /preflight.`;
   if (!memory.evidence.llmWiki.ready) return preflightRuntimeEvidenceAction('llm-wiki/durable-memory');
+  if (!memory.evidence.llmWiki.verified) {
+    return `Run /memory verify to promote LLM Wiki seed to verified, then rerun /preflight.`;
+  }
   if (!memory.evidence.knowledgeMap.ready) return preflightRuntimeEvidenceAction('Liora Knowledge Map');
+  if (!memory.evidence.knowledgeMap.verified) {
+    return `Run /memory verify to promote Liora Knowledge Map seed to verified, then rerun /preflight.`;
+  }
   if (!memory.evidence.browserUse.ready) return preflightRuntimeEvidenceAction('browser-use');
   if (!memory.evidence.computerUse.ready) return preflightRuntimeEvidenceAction('computer-use');
   if (!freshness.ready) {
@@ -738,8 +745,8 @@ function buildPreflightRefreshPlan(
   memory: MemoryReadinessSnapshot,
   freshness: PreflightFreshness,
 ): PreflightRefreshPlan {
-  const missingRuntimeEvidence = !memory.evidence.llmWiki.ready
-    || !memory.evidence.knowledgeMap.ready
+  const missingRuntimeEvidence = !memory.evidence.llmWiki.verified
+    || !memory.evidence.knowledgeMap.verified
     || !memory.evidence.browserUse.ready
     || !memory.evidence.computerUse.ready;
   const needed = !isBenchReady(bench) || missingRuntimeEvidence || !freshness.ready;
@@ -760,7 +767,9 @@ function refreshReason(
   if (!isBenchReady(bench)) return 'benchmark evidence unavailable';
   if (!freshness.ready) return 'evidence stale or missing';
   if (!memory.evidence.llmWiki.ready) return 'llm-wiki evidence missing';
+  if (!memory.evidence.llmWiki.verified) return 'llm-wiki evidence seed-only';
   if (!memory.evidence.knowledgeMap.ready) return 'knowledge-map evidence missing';
+  if (!memory.evidence.knowledgeMap.verified) return 'knowledge-map evidence seed-only';
   if (!memory.evidence.browserUse.ready) return 'browser-use evidence missing';
   if (!memory.evidence.computerUse.ready) return 'computer-use evidence missing';
   return 'not needed';
@@ -794,8 +803,8 @@ function readinessGateSummary(status: PreflightStatus): string {
     { name: 'bench', ready: isBenchReady(status.bench) },
     { name: 'memory', ready: isMemoryReady(status.memory) },
     { name: 'recall', ready: isRecallReady(status.memory) },
-    { name: 'llmWiki', ready: status.memory.evidence.llmWiki.ready },
-    { name: 'knowledgeMap', ready: status.memory.evidence.knowledgeMap.ready },
+    { name: 'llmWiki', ready: status.memory.evidence.llmWiki.verified },
+    { name: 'knowledgeMap', ready: status.memory.evidence.knowledgeMap.verified },
     { name: 'browserUse', ready: status.memory.evidence.browserUse.ready },
     { name: 'computerUse', ready: status.memory.evidence.computerUse.ready },
     { name: 'freshness', ready: status.freshness.ready },

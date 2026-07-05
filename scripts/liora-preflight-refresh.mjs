@@ -106,7 +106,7 @@ function main() {
   appendJsonl(commandsPath, commandRecord('seed-fixture-benchmark', benchResult));
 
   const benchSummary = readJson(path.join(benchEvidenceRoot, 'summary.json'));
-  const runtimeEvidence = auditRuntimeEvidence(runtimeEvidenceRoot, parsed.options.maxAgeMs);
+  const runtimeEvidence = auditWorkspaceEvidence(workDir, parsed.options.maxAgeMs);
   const runtimeEvidenceCandidates = discoverRuntimeEvidenceCandidates({
     evidenceSearchRoot,
     maxAgeMs: parsed.options.maxAgeMs,
@@ -123,7 +123,7 @@ function main() {
     ? undefined
     : 'node scripts/liora-preflight-refresh.mjs';
   const missingOrStaleRuntimeEvidence = CHANNELS
-    .filter((channel) => runtimeEvidence[channel.id].state !== 'fresh')
+    .filter((channel) => !isRuntimeChannelReady(runtimeEvidence[channel.id]))
     .map((channel) => ({
       channel: channel.id,
       label: channel.label,
@@ -233,7 +233,7 @@ function buildReadinessGates({ benchPassed, benchStatus, missingOrStaleRuntimeEv
       return {
         id: channel.id,
         label: channel.label,
-        ready: evidence.state === 'fresh',
+        ready: isRuntimeChannelReady(evidence),
         state: evidence.state,
         reason: evidence.summary,
       };
@@ -407,6 +407,189 @@ function commandRecord(name, result) {
   });
 }
 
+function isRuntimeChannelReady(evidence) {
+  if (evidence.state === 'missing') return false;
+  if (evidence.verified === false) return false;
+  return evidence.state === 'fresh';
+}
+
+function auditWorkspaceEvidence(workDir, maxAgeMs) {
+  const evidenceRoot = path.join(workDir, WORKSPACE_DIR, 'evidence');
+  const wikiRoot = path.join(workDir, WORKSPACE_DIR, 'wiki');
+  const nowMs = Date.now();
+  return Object.fromEntries(CHANNELS.map((channel) => [
+    channel.id,
+    evaluateRuntimeChannel(channel, { workDir, evidenceRoot, wikiRoot, nowMs, maxAgeMs }),
+  ]));
+}
+
+function evaluateRuntimeChannel(channel, context) {
+  if (channel.id === 'llmWiki') return evaluateLlmWikiChannel(context);
+  if (channel.id === 'knowledgeMap') return evaluateKnowledgeMapChannel(context);
+  return evaluateCapabilityChannel(channel, context);
+}
+
+function evaluateLlmWikiChannel({ workDir, evidenceRoot, wikiRoot, nowMs, maxAgeMs }) {
+  const manifestPath = path.join(wikiRoot, 'manifest.json');
+  const indexPath = path.join(wikiRoot, 'index.md');
+  const manifest = readJson(manifestPath);
+  if (manifest?.kind === 'llm-wiki-manifest' && existsSync(indexPath) && Array.isArray(manifest.runs)) {
+    const latest = manifest.runs.find((run) => run.runId === manifest.latestRunId);
+    const evidenceState = latest?.evidenceState ?? 'seed';
+    if (evidenceState !== 'verified') {
+      return {
+        ready: false,
+        fresh: false,
+        verified: false,
+        tier: 'seed',
+        state: 'seed',
+        matchCount: 1,
+        sourcePath: indexPath,
+        summary: 'LLM-wiki seed only; run /memory verify or promote evidenceState to verified.',
+      };
+    }
+    return freshnessFromSource(indexPath, nowMs, maxAgeMs, {
+      verified: true,
+      tier: 'verified',
+      matchCount: 1,
+      label: 'LLM-wiki',
+    });
+  }
+
+  const legacy = findLegacyEvidenceMatches(evidenceRoot, wikiRoot, /llm[-_ ]?wiki|durable[-_ ]?memory|memory/i, /llm[-_ ]?wiki|durable memory|liora recall|memory readiness/i);
+  if (legacy === undefined) {
+    return missingChannelEvidence('LLM-wiki');
+  }
+  return freshnessFromSource(legacy.file, nowMs, maxAgeMs, {
+    verified: true,
+    tier: 'legacy',
+    matchCount: legacy.matchCount,
+    label: 'LLM-wiki',
+  });
+}
+
+function evaluateKnowledgeMapChannel({ evidenceRoot, wikiRoot, nowMs, maxAgeMs }) {
+  const files = collectEvidenceFiles(evidenceRoot, wikiRoot, MAX_DISCOVERY_SCAN_FILES)
+    .map((file) => ({ file, text: readText(file) }))
+    .filter(({ file, text }) => /knowledge[-_ ]?map|liora-knowledge-map/i.test(file) || /liora knowledge map|relationship_confidence|path_affected_questions/i.test(text));
+
+  if (files.length === 0) return missingChannelEvidence('knowledge-map');
+
+  const ranked = files
+    .map(({ file, text }) => ({
+      file,
+      text,
+      tier: resolveKnowledgeMapTier(text),
+      mtimeMs: statSync(file).mtimeMs,
+    }))
+    .toSorted((a, b) => {
+      const tierRank = { verified: 3, legacy: 2, seed: 1, missing: 0 };
+      const rankDiff = (tierRank[b.tier] ?? 0) - (tierRank[a.tier] ?? 0);
+      return rankDiff !== 0 ? rankDiff : b.mtimeMs - a.mtimeMs;
+    });
+  const best = ranked[0];
+  if (best === undefined) return missingChannelEvidence('knowledge-map');
+  if (best.tier === 'seed') {
+    return {
+      ready: false,
+      fresh: false,
+      verified: false,
+      tier: 'seed',
+      state: 'seed',
+      matchCount: files.length,
+      sourcePath: best.file,
+      summary: 'Knowledge-map seed only; run /memory verify or set evidenceState to verified.',
+    };
+  }
+  return freshnessFromSource(best.file, nowMs, maxAgeMs, {
+    verified: true,
+    tier: best.tier,
+    matchCount: files.length,
+    label: 'knowledge-map',
+  });
+}
+
+function evaluateCapabilityChannel(channel, { evidenceRoot, wikiRoot, nowMs, maxAgeMs }) {
+  const files = collectEvidenceFiles(evidenceRoot, wikiRoot, MAX_DISCOVERY_SCAN_FILES)
+    .map((file) => ({ file, text: readText(file) }))
+    .filter(({ file, text }) =>
+      (channel.pathPattern.test(file) || channel.textPattern.test(text))
+      && hasEvidenceProof(text));
+  if (files.length === 0) return missingChannelEvidence(channel.label);
+  const newest = files
+    .map(({ file }) => ({ file, mtimeMs: statSync(file).mtimeMs }))
+    .toSorted((a, b) => b.mtimeMs - a.mtimeMs)[0];
+  return freshnessFromSource(newest.file, nowMs, maxAgeMs, {
+    verified: true,
+    tier: 'verified',
+    matchCount: files.length,
+    label: channel.label,
+  });
+}
+
+function freshnessFromSource(sourcePath, nowMs, maxAgeMs, extra) {
+  const ageMs = Math.max(0, nowMs - statSync(sourcePath).mtimeMs);
+  const fresh = ageMs <= maxAgeMs;
+  return {
+    ready: fresh && extra.verified !== false,
+    fresh,
+    verified: extra.verified !== false,
+    tier: extra.tier,
+    state: fresh ? 'fresh' : 'stale',
+    ageMs,
+    matchCount: extra.matchCount,
+    sourcePath,
+    summary: `${extra.label} evidence ${fresh ? 'fresh' : 'stale'}.`,
+  };
+}
+
+function missingChannelEvidence(label) {
+  return {
+    ready: false,
+    fresh: false,
+    verified: false,
+    tier: 'missing',
+    state: 'missing',
+    matchCount: 0,
+    summary: `No ${label} evidence found.`,
+  };
+}
+
+function resolveKnowledgeMapTier(text) {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed.evidenceState === 'verified') return 'verified';
+    if (parsed.evidenceState === 'seed') return 'seed';
+    if (/\bPASS\b/u.test(text)) return 'verified';
+    if (Array.isArray(parsed.relationship_confidence) && parsed.relationship_confidence.length > 0) return 'verified';
+    if (parsed.kind === 'liora knowledge map') return 'seed';
+  } catch {
+    // Fall through to legacy classification.
+  }
+  return 'legacy';
+}
+
+function findLegacyEvidenceMatches(evidenceRoot, wikiRoot, pathPattern, textPattern) {
+  const files = collectEvidenceFiles(evidenceRoot, wikiRoot, MAX_DISCOVERY_SCAN_FILES)
+    .map((file) => ({ file, text: readText(file) }))
+    .filter(({ file, text }) => pathPattern.test(file) || textPattern.test(text));
+  if (files.length === 0) return undefined;
+  const newest = files
+    .map(({ file }) => ({ file, mtimeMs: statSync(file).mtimeMs }))
+    .toSorted((a, b) => b.mtimeMs - a.mtimeMs)[0];
+  return { file: newest.file, matchCount: files.length };
+}
+
+function collectEvidenceFiles(evidenceRoot, wikiRoot, maxFiles) {
+  const files = [];
+  if (existsSync(evidenceRoot)) visit(evidenceRoot, files, maxFiles);
+  return files.filter((file) => !file.startsWith(`${wikiRoot}${path.sep}`));
+}
+
+function hasEvidenceProof(text) {
+  return /\b(?:PASS|passed|status|screenshot|transcript|action log|observation|validator|cleanup)\b/i.test(text);
+}
+
 function auditRuntimeEvidence(root, maxAgeMs) {
   const files = collectFiles(root, MAX_SCAN_FILES);
   const nowMs = Date.now();
@@ -451,7 +634,7 @@ function discoverRuntimeEvidenceCandidates({
   const files = collectFiles(evidenceSearchRoot, MAX_DISCOVERY_SCAN_FILES)
     .filter((file) => !file.startsWith(`${runtimeEvidenceRoot}${path.sep}`));
   return Object.fromEntries(CHANNELS.flatMap((channel) => {
-    if (runtimeEvidence[channel.id].state === 'fresh') return [];
+    if (isRuntimeChannelReady(runtimeEvidence[channel.id])) return [];
     const matches = files
       .map((file) => ({ file, text: readText(file) }))
       .filter(({ file, text }) => channel.pathPattern.test(file) || channel.textPattern.test(text));
