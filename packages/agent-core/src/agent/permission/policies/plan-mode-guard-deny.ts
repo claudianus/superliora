@@ -36,17 +36,6 @@ const READ_ONLY_TOOL_NAMES = new Set<string>([
   'TaskOutput',
 ]);
 
-/** Phase-transition and plan-lifecycle tools that are always allowed in the
- *  phases that need them.  Kept separate from read-only research tools. */
-const PHASE_LIFECYCLE_TOOLS = new Set<string>([
-  'NextPhase',
-  'ExitPlanMode',
-  'EnterPlanMode',
-]);
-
-/** Tools that mutate the plan file or workspace and are handled separately. */
-const PLAN_WRITE_TOOLS = new Set<string>(['Write', 'Edit']);
-
 function isReadOnlyTool(toolName: string): boolean {
   return READ_ONLY_TOOL_NAMES.has(toolName);
 }
