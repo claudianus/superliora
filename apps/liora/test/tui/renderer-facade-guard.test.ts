@@ -16,6 +16,11 @@ import {
   RENDERER_EDITOR_PROMPT_X as RENDERER_PACKAGE_EDITOR_PROMPT_X,
   RENDERER_EDITOR_SCROLLBAR_THUMB as RENDERER_PACKAGE_EDITOR_SCROLLBAR_THUMB,
   RENDERER_EDITOR_SCROLLBAR_TRACK as RENDERER_PACKAGE_EDITOR_SCROLLBAR_TRACK,
+  RENDERER_EDITOR_SHELL_MODE_LABEL as RENDERER_PACKAGE_EDITOR_SHELL_MODE_LABEL,
+  RENDERER_SELECT_POINTER as RENDERER_PACKAGE_SELECT_POINTER,
+  measureRendererEditorSurfaceNaturalRows as rendererMeasureEditorSurfaceNaturalRows,
+  projectRendererEditorSlashToken as rendererProjectEditorSlashToken,
+  promoteRendererRegionLinesToCells as rendererPromoteRegionLinesToCells,
   decodeKittyPrintable as rendererDecodeKittyPrintable,
   createRendererGradientTextCells as rendererCreateGradientTextCells,
   createRendererGradientTextRuns as rendererCreateGradientTextRuns,
@@ -154,6 +159,11 @@ import {
   RENDERER_EDITOR_PROMPT_X,
   RENDERER_EDITOR_SCROLLBAR_THUMB,
   RENDERER_EDITOR_SCROLLBAR_TRACK,
+  RENDERER_EDITOR_SHELL_MODE_LABEL,
+  RENDERER_SELECT_POINTER,
+  measureRendererEditorSurfaceNaturalRows,
+  projectRendererEditorSlashToken,
+  promoteRendererRegionLinesToCells,
   createNativeRootUI,
   createRendererStyledTextCells,
   projectRendererCursorMarkerLine,
@@ -267,6 +277,11 @@ describe('TUI renderer facade guard', () => {
     );
     expect(RENDERER_EDITOR_SCROLLBAR_TRACK).toBe(RENDERER_PACKAGE_EDITOR_SCROLLBAR_TRACK);
     expect(RENDERER_EDITOR_SCROLLBAR_THUMB).toBe(RENDERER_PACKAGE_EDITOR_SCROLLBAR_THUMB);
+    expect(RENDERER_EDITOR_SHELL_MODE_LABEL).toBe(RENDERER_PACKAGE_EDITOR_SHELL_MODE_LABEL);
+    expect(RENDERER_SELECT_POINTER).toBe(RENDERER_PACKAGE_SELECT_POINTER);
+    expect(measureRendererEditorSurfaceNaturalRows).toBe(rendererMeasureEditorSurfaceNaturalRows);
+    expect(projectRendererEditorSlashToken).toBe(rendererProjectEditorSlashToken);
+    expect(promoteRendererRegionLinesToCells).toBe(rendererPromoteRegionLinesToCells);
   });
 
   it('serves cursor and focus contracts from the reusable renderer package', () => {

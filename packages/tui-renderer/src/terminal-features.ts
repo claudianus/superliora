@@ -1,3 +1,4 @@
+import type { RendererFrameOutputPolicyProfile } from './frame-output-policy';
 import type { RendererColorMode, RendererTerminalOutputOptions } from './terminal-output';
 import type { RendererInlineImageProtocol } from './terminal-graphics';
 import type {
@@ -306,6 +307,41 @@ export function resolveNativeTerminalFeatures(
   if (features === undefined) return {};
   if (typeof features === 'string') return nativeTerminalFeatureProfile(features);
   return { ...features };
+}
+
+export type NativeTerminalRegionVfxFramePolicy = 'auto' | 'always' | 'never';
+
+export interface NativePremiumRendererDefaultsOptions {
+  readonly features?: NativeTerminalFeatureInput;
+  readonly synchronized?: boolean;
+  readonly outputPolicy?: RendererFrameOutputPolicyProfile;
+  readonly regionVfxFrames?: NativeTerminalRegionVfxFramePolicy;
+  readonly environment?: NativeTerminalEnvironment;
+}
+
+export interface NativePremiumRendererDefaults {
+  readonly outputPolicy: RendererFrameOutputPolicyProfile;
+  readonly regionVfxFrames: NativeTerminalRegionVfxFramePolicy;
+}
+
+export function resolveNativePremiumRendererDefaults(
+  options: NativePremiumRendererDefaultsOptions = {},
+): NativePremiumRendererDefaults {
+  const regionVfxFrames = options.regionVfxFrames ?? 'auto';
+  if (options.outputPolicy !== undefined) {
+    return { outputPolicy: options.outputPolicy, regionVfxFrames };
+  }
+
+  const resolved = resolveNativeTerminalFeatures(options.features ?? 'inline-app');
+  const capabilities = detectNativeTerminalCapabilities(options.environment ?? {});
+  const premiumCapable =
+    options.synchronized === true ||
+    (resolved.synchronized !== false && capabilities.synchronized);
+
+  return {
+    outputPolicy: premiumCapable ? 'premium' : 'balanced',
+    regionVfxFrames,
+  };
 }
 
 export function mergeNativeTerminalFeatureOptions<T extends NativeTerminalFeatureOptions>(

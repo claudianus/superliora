@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { QuestionDialogComponent } from '#/tui/components/dialogs/question-dialog';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
 import type { PendingQuestion } from '#/tui/reverse-rpc/types';
 import { currentTheme } from '#/tui/theme';
 
@@ -219,7 +220,7 @@ describe('QuestionDialogComponent', () => {
 
     dialog.handleInput('3');
     let out = strip(dialog.render(80).join('\n'));
-    expect(out).toContain('→ [3] Custom:');
+    expect(out).toContain(`${SELECT_POINTER} [3] Custom:`);
     expect(out).not.toContain('Type your own answer');
 
     dialog.handleInput('H');
@@ -293,8 +294,8 @@ describe('QuestionDialogComponent', () => {
     dialog.handleInput('\u001B[D');
 
     const out = dialog.render(80).join('\n');
-    expect(out).toContain(currentTheme.boldFg('success', '  → [1] A'));
-    expect(out).not.toContain(currentTheme.fg('primary', '  → [1] A'));
+    expect(out).toContain(currentTheme.boldFg('success', `  ${SELECT_POINTER} [1] A`));
+    expect(out).not.toContain(currentTheme.fg('primary', `  ${SELECT_POINTER} [1] A`));
   });
 
   it('stretches the border to the full available width', () => {

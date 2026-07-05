@@ -26,6 +26,7 @@ import type {
 } from '#/tui/reverse-rpc/types';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { printableChar } from '#/tui/utils/printable-key';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
 
 export interface ApprovalPanelResponse {
   readonly response: 'approved' | 'approved_for_session' | 'rejected' | 'cancelled';
@@ -372,12 +373,13 @@ export class ApprovalPanelComponent extends Container implements Focusable {
       const num = idx + 1;
 
       const labelWithNum = `${String(num)}. ${option.label}`;
+      const pointer = isSelected ? SELECT_POINTER : ' ';
       if (this.feedbackMode && option.requires_feedback === true && isSelected) {
-        body.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum)));
+        body.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum, pointer)));
       } else if (isSelected) {
-        body.push(indent(`${selectColorBold('▶')} ${selectColorBold(labelWithNum)}`));
+        body.push(indent(selectColorBold(`  ${pointer} ${labelWithNum}`)));
       } else {
-        body.push(indent(strong(`  ${labelWithNum}`)));
+        body.push(indent(strong(`  ${pointer} ${labelWithNum}`)));
       }
 
       // Optional helper text under the label, aligned past the pointer/number.
@@ -409,7 +411,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
 
     return renderRendererPanelChromeRows({
       width,
-      title: `  ▶ ${title}`,
+      title: ` ${title}`,
       body,
       footerTopGap: false,
       dividerStyle: borderColor,
@@ -443,8 +445,8 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     }
   }
 
-  private renderInlineFeedbackLine(width: number, labelWithNum: string): string {
-    const prefix = `${currentTheme.boldFg('accent', '▶')} ${currentTheme.boldFg('accent', labelWithNum)}  `;
+  private renderInlineFeedbackLine(width: number, labelWithNum: string, pointer: string): string {
+    const prefix = `${currentTheme.boldFg('accent', `  ${pointer} ${labelWithNum}`)}  `;
     const inputWidth = Math.max(4, width - visibleWidth(prefix) + 2);
     const inputLine = this.feedbackInput.render(inputWidth)[0] ?? '> ';
     const inlineInput = inputLine.startsWith('> ') ? inputLine.slice(2) : inputLine;

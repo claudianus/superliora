@@ -398,6 +398,25 @@ describe('NativeTerminalRenderer', () => {
     expect(disabled.requestAnimationFrameForRegions([{ vfx }])).toBe(false);
   });
 
+  it('schedules region VFX in auto mode when synchronized output is enabled', () => {
+    const vfx = createRendererRegionVfx({
+      preset: 'loading-shimmer',
+      requested: 'premium',
+      nowMs: 450,
+    });
+    const renderer = new NativeTerminalRenderer({
+      output: new FakeOutput(),
+      scheduler: new FakeRenderLoopScheduler(),
+      synchronized: true,
+      regionVfxFrames: 'auto',
+      render: () => {},
+    });
+
+    renderer.start();
+
+    expect(renderer.requestAnimationFrameForRegions([{ vfx }])).toBe(true);
+  });
+
   it('renders layout frames and schedules region VFX through the runtime facade', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const output = new FakeOutput();

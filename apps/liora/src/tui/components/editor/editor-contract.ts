@@ -54,6 +54,7 @@ export interface TUIEditor
   setAutocompleteProvider(provider: AutocompleteProvider): void;
   isShowingAutocomplete(): boolean;
   getNativeLayoutRowCount?(width: number): number;
+  getNativeRegionLines?(width: number): readonly RendererRegionLine[];
   getNativeOverlayLines?(
     width: number,
     styles?: RendererEditorAutocompleteLineStyles,

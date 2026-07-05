@@ -316,6 +316,22 @@ describe('RendererViewport', () => {
     ]);
   });
 
+  it('renders transcript viewport region lines without a string roundtrip', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 2,
+      paintRegionLine: (line) => [{ char: line.trimEnd(), style: { fg: '#111111' } }],
+    });
+    component.addChild(new Text('alpha\nbeta\ngamma', 0, 0));
+
+    const lines = component.renderWithVisibleRegionLines(6, 2);
+    expect(lines).toHaveLength(2);
+    expect(lines.every((line) => Array.isArray(line))).toBe(true);
+    expect(lines[0]).toEqual([{ char: 'beta', style: { fg: '#111111' } }]);
+    expect(lines[1]).toEqual([{ char: 'gamma', style: { fg: '#111111' } }]);
+  });
+
   // ── Virtual scroll ──────────────────────────────────────────────────────
   //
   // The transcript viewport must only render the children that intersect the

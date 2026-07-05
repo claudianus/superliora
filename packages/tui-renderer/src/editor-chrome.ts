@@ -289,6 +289,7 @@ export function projectRendererEditorArgumentHint(
   return [projectedFirst, ...lines.slice(1)];
 }
 
+/** @deprecated Prefer {@link renderRendererEditorFrame} with `topLabel` for cell-native chrome. */
 export function wrapRendererEditorSideBorders(
   lines: string[],
   paint: RendererEditorPaint,

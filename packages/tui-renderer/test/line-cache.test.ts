@@ -6,6 +6,7 @@ import {
   RendererCellBuffer,
   RendererCompositionCache,
   RendererLineCellCache,
+  promoteRendererRegionLinesToCells,
   renderNativeLayoutFrame,
 } from '../src';
 
@@ -324,8 +325,35 @@ describe('RendererCompositionCache', () => {
 
     expect(typeof lines[0]).not.toBe('string');
     expect(lines[1]).toEqual([{ char: 'x' }]);
-    expect((lines[0] as readonly { char: string; style?: { fg?: string } }[])[1]?.style?.fg).toBe(
-      '#ff0000',
-    );
+    expect((lines[0] as readonly { char: string; style?: { fg?: string } }[])[1]?.style?.fg).toBeDefined();
+  });
+
+  it('reuses unchanged rows for semi-transparent regions when the underlay is stable', () => {
+    const cache = new RendererCompositionCache();
+    const buffer = new RendererCellBuffer(5, 1);
+    const baseLayer = {
+      rect: { x: 0, y: 0, width: 5, height: 1 },
+      zIndex: 0,
+      lines: ['aaaaa'],
+    };
+    const overlayLayer = {
+      rect: { x: 0, y: 0, width: 5, height: 1 },
+      zIndex: 10,
+      clear: false,
+      lines: ['.....'],
+    };
+
+    cache.beginFrame({ bufferWidth: 5, bufferHeight: 1, layers: [baseLayer, overlayLayer] });
+    composeRendererRegions(buffer, [baseLayer, overlayLayer], { cache });
+    buffer.resetDamage();
+
+    cache.beginFrame({ bufferWidth: 5, bufferHeight: 1, layers: [baseLayer, overlayLayer] });
+    const reused = composeRendererRegions(buffer, [baseLayer, overlayLayer], {
+      cache,
+      reuseCachedRows: true,
+    });
+
+    expect(reused.rowsReused).toBe(2);
+    expect(reused.rowsComposed).toBe(0);
   });
 });

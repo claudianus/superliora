@@ -193,7 +193,7 @@ describe('ApprovalPanelComponent', () => {
     dialog.handleInput('4');
 
     const out = strip(dialog.render(80).join('\n'));
-    expect(out).toContain('▶ 4. Reject with feedback');
+    expect(out).toContain('❯ 4. Reject with feedback');
     expect(out).not.toContain('\n  > ');
   });
 

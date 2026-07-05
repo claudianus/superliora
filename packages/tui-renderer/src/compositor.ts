@@ -171,7 +171,7 @@ export function composeRendererRegions(
       const rowId = createRowId(region, index, y);
       const underlayKey = underlayRowKeys.get(y) ?? '';
       const rowKey = createRowKey(region, rect, clipped, y, sourceY, line, underlayKey);
-      if (rowClearing && options.cache?.shouldReuseRow(rowId, rowKey)) {
+      if (canReuseRows && options.cache?.shouldReuseRow(rowId, rowKey)) {
         rowsReused++;
         underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
         continue;

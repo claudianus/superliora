@@ -1,3 +1,5 @@
+import { ansiTextToCells } from './ansi-text';
+import type { RendererRegionLine } from './compositor';
 import { truncateToWidth, visibleWidth } from './text-component';
 
 export interface RendererScrollbarOptions {
@@ -111,6 +113,33 @@ export function renderRendererRightGutterLines(
   return options.lines.map((line, index) =>
     renderRendererRightGutterLine(line, width, options.glyphs[index] ?? emptyGlyph),
   );
+}
+
+export function renderRendererRightGutterRegionLines(
+  options: RendererRightGutterRegionLinesOptions,
+): RendererRegionLine[] {
+  const width = normalizeTrackRows(options.width);
+  if (width <= 0) return options.lines.map((line) => line);
+  const emptyGlyph = firstDisplayChar(options.emptyGlyph, DEFAULT_EMPTY_GUTTER_GLYPH);
+  return options.lines.map((line, index) =>
+    appendRendererRegionLineRightGutter(line, width, options.glyphs[index] ?? emptyGlyph),
+  );
+}
+
+export interface RendererRightGutterRegionLinesOptions {
+  readonly lines: readonly RendererRegionLine[];
+  readonly width: number;
+  readonly glyphs: readonly string[];
+  readonly emptyGlyph?: string;
+}
+
+export function appendRendererRegionLineRightGutter(
+  line: RendererRegionLine,
+  width: number,
+  glyph: string,
+): RendererRegionLine {
+  const plain = typeof line === 'string' ? line : line.map((cell) => cell.char).join('');
+  return ansiTextToCells(renderRendererRightGutterLine(plain, width, glyph));
 }
 
 function renderRendererRightGutterLine(line: string, width: number, glyph: string): string {

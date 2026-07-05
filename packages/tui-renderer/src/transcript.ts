@@ -1,6 +1,8 @@
 import { Container, RendererWidthRenderCache } from './component-primitives';
+import type { RendererRegionLine } from './compositor';
 import {
   renderRendererRightGutterLines,
+  renderRendererRightGutterRegionLines,
   renderRendererVerticalScrollbar,
 } from './scrollbar';
 import {
@@ -28,6 +30,11 @@ export type RendererTranscriptViewportLinePainter = (
   width: number,
 ) => string;
 
+export type RendererTranscriptViewportRegionLinePainter = (
+  line: string,
+  width: number,
+) => RendererRegionLine;
+
 export interface RendererTranscriptViewportComponentOptions {
   readonly viewport: RendererTranscriptViewport;
   readonly getVisibleRows: (width: number) => number;
@@ -38,6 +45,7 @@ export interface RendererTranscriptViewportComponentOptions {
   readonly scrollbarThumbChar?: string;
   readonly minScrollbarThumbRows?: number;
   readonly paintLine?: RendererTranscriptViewportLinePainter;
+  readonly paintRegionLine?: RendererTranscriptViewportRegionLinePainter;
   readonly isCacheEnabled?: () => boolean;
 }
 
@@ -45,8 +53,8 @@ interface RendererTranscriptViewportRenderCache {
   width: number;
   childRefs: Component[];
   childRenderRefs: string[][];
-  prefixed: string[][];
-  out: string[];
+  prefixed: RendererRegionLine[][];
+  out: RendererRegionLine[];
 }
 
 export interface RendererTranscriptLineBlockOptions {
@@ -150,6 +158,7 @@ export class RendererTranscriptViewportComponent extends Container {
   private readonly scrollbarThumbChar: string;
   private readonly minScrollbarThumbRows: number;
   private readonly paintLine: RendererTranscriptViewportLinePainter | undefined;
+  private readonly paintRegionLine: RendererTranscriptViewportRegionLinePainter | undefined;
   private readonly isCacheEnabled: () => boolean;
   private renderCache: RendererTranscriptViewportRenderCache | undefined;
 
@@ -182,6 +191,7 @@ export class RendererTranscriptViewportComponent extends Container {
       options.minScrollbarThumbRows ?? 1,
     );
     this.paintLine = options.paintLine;
+    this.paintRegionLine = options.paintRegionLine;
     this.isCacheEnabled = options.isCacheEnabled ?? (() => true);
   }
 
@@ -210,6 +220,14 @@ export class RendererTranscriptViewportComponent extends Container {
   }
 
   renderWithVisibleRows(width: number, visibleRows: number): string[] {
+    return this.renderVisibleRegionLines(width, visibleRows).map(regionLineToTranscriptDisplayString);
+  }
+
+  renderWithVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
+    return this.renderVisibleRegionLines(width, visibleRows);
+  }
+
+  private renderVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
 
@@ -243,21 +261,12 @@ export class RendererTranscriptViewportComponent extends Container {
     return this.renderScrollbar(visibleLines, width, snapshot);
   }
 
-  // ── Virtual-scroll internals ───────────────────────────────────────────
-
   /** Returns the inner content width (total minus horizontal padding). */
   private innerWidth(width: number): number {
     const safeWidth = normalizeTranscriptWidth(width);
     return Math.max(1, safeWidth - this.leftPad - this.rightPad);
   }
 
-  /**
-   * Resolves the row count of every child at `inner` width, using the
-   * line-count cache when possible.  A cache miss forces a render of all
-   * children, but the children's own render caches make this cheap on the
-   * second pass — and once cached here, subsequent frames pay nothing for
-   * unchanged children.
-   */
   private resolveChildLineCounts(inner: number): number[] {
     const n = this.children.length;
     if (
@@ -279,18 +288,18 @@ export class RendererTranscriptViewportComponent extends Container {
     return counts;
   }
 
-  /**
-   * Renders **all** children and applies the canvas paint + left padding to
-   * every line.  Used when the content fits inside the viewport (no overflow)
-   * so there is no benefit from virtualization.  The existing prefixed-line
-   * cache is reused so unchanged children are not repainted.
-   */
+  private formatCanvasLine(line: string, width: number): RendererRegionLine {
+    if (this.paintRegionLine !== undefined) return this.paintRegionLine(line, width);
+    if (this.paintLine !== undefined) return this.paintLine(line, width);
+    return line;
+  }
+
   private renderAllChildren(
     width: number,
     inner: number,
     safeWidth: number,
     _childCounts: number[],
-  ): string[] {
+  ): RendererRegionLine[] {
     const lead = ' '.repeat(this.leftPad);
     const cache = this.renderCache;
     const cacheValid =
@@ -301,7 +310,7 @@ export class RendererTranscriptViewportComponent extends Container {
 
     const childRefs: Component[] = [];
     const childRenderRefs: string[][] = [];
-    const prefixed: string[][] = [];
+    const prefixed: RendererRegionLine[][] = [];
     let allReused = cacheValid;
 
     for (let i = 0; i < this.children.length; i++) {
@@ -317,7 +326,7 @@ export class RendererTranscriptViewportComponent extends Container {
         prefixed.push(cache.prefixed[i]!);
       } else {
         allReused = false;
-        prefixed.push(lines.map((line) => this.paintCanvasLine(lead + line, safeWidth)));
+        prefixed.push(lines.map((line) => this.formatCanvasLine(lead + line, safeWidth)));
       }
     }
 
@@ -332,42 +341,30 @@ export class RendererTranscriptViewportComponent extends Container {
     return out;
   }
 
-  /**
-   * Renders only the children whose lines intersect the viewport window
-   * `[startLine, endLine)` and returns the painted, left-padded visible lines.
-   * This is the virtual-scroll fast path: children entirely above or below the
-   * visible window are never rendered or painted, which keeps frame time
-   * roughly constant regardless of transcript length.
-   */
   private renderVisibleChildren(
     inner: number,
     safeWidth: number,
     childCounts: number[],
     startLine: number,
     endLine: number,
-  ): string[] {
+  ): RendererRegionLine[] {
     const lead = ' '.repeat(this.leftPad);
-    const out: string[] = [];
+    const out: RendererRegionLine[] = [];
 
-    // Walk children accumulating a running line offset so we can skip those
-    // entirely above the viewport, render the partial first/last children,
-    // and stop once we pass the viewport bottom.
     let lineOffset = 0;
     for (let i = 0; i < this.children.length; i++) {
       const childLines = childCounts[i]!;
       const childStart = lineOffset;
       const childEnd = lineOffset + childLines;
 
-      // Child is entirely below the viewport — done.
       if (childStart >= endLine) break;
 
       if (childEnd > startLine) {
-        // Child intersects the viewport — render and slice.
         const lines = this.children[i]!.render(inner);
         const sliceStart = Math.max(0, startLine - childStart);
         const sliceEnd = Math.min(lines.length, endLine - childStart);
         for (let j = sliceStart; j < sliceEnd; j++) {
-          out.push(this.paintCanvasLine(lead + lines[j]!, safeWidth));
+          out.push(this.formatCanvasLine(lead + lines[j]!, safeWidth));
         }
       }
 
@@ -377,15 +374,11 @@ export class RendererTranscriptViewportComponent extends Container {
     return out;
   }
 
-  private paintCanvasLine(line: string, width: number): string {
-    return this.paintLine?.(line, width) ?? line;
-  }
-
   private renderScrollbar(
-    lines: readonly string[],
+    lines: readonly RendererRegionLine[],
     width: number,
     viewport: RendererViewportSnapshot,
-  ): string[] {
+  ): RendererRegionLine[] {
     if (!viewport.hasOverflow || !Number.isFinite(viewport.viewportRows) || width < 2) {
       return [...lines];
     }
@@ -400,8 +393,13 @@ export class RendererTranscriptViewportComponent extends Container {
       thumbChar: this.scrollbarThumbChar,
     });
     if (glyphs.length === 0) return [...lines];
-    return renderRendererRightGutterLines({ lines, width, glyphs });
+    return renderRendererRightGutterRegionLines({ lines, width, glyphs });
   }
+}
+
+function regionLineToTranscriptDisplayString(line: RendererRegionLine): string {
+  if (typeof line === 'string') return line;
+  return line.map((cell) => cell.char).join('');
 }
 
 export class RendererPrefixedWrappedLine implements RendererComponent {

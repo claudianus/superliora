@@ -567,7 +567,11 @@ export class NativeTerminalRenderer {
       case 'never':
         return false;
       case 'auto':
-        return this.currentSynchronized === true || this.options.screenMode === 'alternate';
+        return (
+          this.currentSynchronized === true ||
+          this.options.screenMode === 'alternate' ||
+          this.options.synchronized === true
+        );
     }
   }
 

@@ -117,6 +117,7 @@ import {
   interpolateRendererScalar,
   isFocusable,
   nativeTerminalAdaptiveFeatureProfile,
+  resolveNativePremiumRendererDefaults,
   nativeTerminalFeatureProfile,
   parseNativeSynchronizedOutputSupport,
   parseNativeTerminalDecModeReport,
@@ -4460,6 +4461,32 @@ describe('NativeTerminalSession', () => {
       showCursor: undefined,
       colorMode: 'none',
       imageProtocol: 'none',
+    });
+  });
+
+  it('resolves premium renderer defaults from synchronized terminal capabilities', () => {
+    expect(resolveNativePremiumRendererDefaults({
+      features: 'inline-app',
+      environment: { TERM: 'xterm-kitty', KITTY_WINDOW_ID: '1' },
+    })).toEqual({
+      outputPolicy: 'premium',
+      regionVfxFrames: 'auto',
+    });
+
+    expect(resolveNativePremiumRendererDefaults({
+      features: 'inline-app',
+      environment: { TERM: 'dumb' },
+    })).toEqual({
+      outputPolicy: 'balanced',
+      regionVfxFrames: 'auto',
+    });
+
+    expect(resolveNativePremiumRendererDefaults({
+      synchronized: true,
+      environment: { TERM: 'dumb' },
+    })).toEqual({
+      outputPolicy: 'premium',
+      regionVfxFrames: 'auto',
     });
   });
 

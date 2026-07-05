@@ -6,6 +6,7 @@ import {
   NativeFrameRenderer,
   NativeTerminalRenderer,
   nativeTerminalAdaptiveFeatureProfile,
+  resolveNativePremiumRendererDefaults,
   RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
   RENDERER_EDITOR_SHELL_MODE_LABEL,
   rendererEditorContentHeight,
@@ -195,12 +196,20 @@ export function createTUIStateNativeRenderer(
   state: TUIState,
   options: TUIStateNativeRendererOptions,
 ): NativeTerminalRenderer {
+  const premiumDefaults = resolveNativePremiumRendererDefaults({
+    features: options.features,
+    synchronized: options.synchronized,
+    outputPolicy: typeof options.outputPolicy === 'string' ? options.outputPolicy : undefined,
+    regionVfxFrames: options.regionVfxFrames,
+    environment: process.env,
+  });
   let nativeRenderer: NativeTerminalRenderer;
   nativeRenderer = new NativeTerminalRenderer({
     ...options,
     autoBeginFrame: false,
     autoFrameHold: options.autoFrameHold ?? (() => !state.transcriptViewport.followOutput),
-    outputPolicy: options.outputPolicy ?? 'balanced',
+    outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
+    regionVfxFrames: options.regionVfxFrames ?? premiumDefaults.regionVfxFrames,
     measureFrameHeight: options.growWithContent === true
       ? (size) => measureTUIStateNativeFrameHeight(state, size.columns, size.rows)
       : options.measureFrameHeight,
@@ -252,7 +261,7 @@ export function getTUIStateNativeEditorRect(
   const todoRows = state.todoPanelContainer.render(frameWidth).length;
   const queueRows = state.queueContainer.render(frameWidth).length;
   const btwRows = state.btwPanelContainer.render(frameWidth).length;
-  const editorRows = state.editorContainer.render(frameWidth).length;
+  const editorRows = nativeEditorFallbackLineCount(state, frameWidth);
   const footerRows = state.footerContainer.render(frameWidth).length;
   const layout = measureRendererRegions({
     terminalRows: frameHeight,
@@ -292,7 +301,7 @@ export function measureTUIStateNativeFrameHeight(
   const todoRows = state.todoPanelContainer.render(frameWidth).length;
   const queueRows = state.queueContainer.render(frameWidth).length;
   const btwRows = state.btwPanelContainer.render(frameWidth).length;
-  const editorLineCount = state.editorContainer.render(frameWidth).length;
+  const editorLineCount = nativeEditorFallbackLineCount(state, frameWidth);
   const footerRows = state.footerContainer.render(frameWidth).length;
   const fixedRowsWithoutEditor = activityRows + todoRows + queueRows + btwRows + footerRows;
   const editorRows = nativeEditorRegionRowsForLayout(
@@ -341,7 +350,7 @@ function buildTUIStateNativeFrame(
   const todoLines = state.todoPanelContainer.render(width);
   const queueLines = state.queueContainer.render(width);
   const btwLines = state.btwPanelContainer.render(width);
-  const editorLines = state.editorContainer.render(width);
+  const editorLines = nativeEditorFallbackRegionLines(state, width);
   const footerLines = state.footerContainer.render(width);
   const fixedRowsWithoutEditor =
     activityLines.length +
@@ -369,7 +378,7 @@ function buildTUIStateNativeFrame(
     },
   });
   const linesByRegion = {
-    transcript: state.transcriptContainer.renderWithVisibleRows(width, layout.transcriptRows),
+    transcript: nativeTranscriptRegionLines(state, width, layout.transcriptRows),
     activity: activityLines,
     todo: todoLines,
     queue: queueLines,
@@ -394,7 +403,9 @@ function buildTUIStateNativeFrame(
       if (projected.cursor !== undefined && cursor.visible === false) {
         cursor = projected.cursor;
       }
-      const content = promoteRendererRegionLinesToCells(projected.lines);
+      const content = region.id === 'transcript' || region.id === 'editor'
+        ? projected.lines
+        : promoteRendererRegionLinesToCells(projected.lines);
       if (content.length === 0 && region.id !== 'transcript') return [];
       const vfx = region.id === 'editor' && state.editor.borderHighlighted
         ? createTUIStateNativeRegionVfx(state, 'focus-pulse', {
@@ -649,6 +660,43 @@ function projectNativeEditorRegion(
   };
   if (cursor !== undefined) projected.cursor = cursor;
   return projected;
+}
+
+function nativeEditorFallbackRegionLines(
+  state: TUIState,
+  width: number,
+): readonly RendererRegionLine[] {
+  if (
+    state.editorContainer.children.includes(state.editor) &&
+    state.editor.getNativeRegionLines !== undefined
+  ) {
+    return state.editor.getNativeRegionLines(width);
+  }
+  return state.editorContainer.render(width);
+}
+
+function nativeEditorFallbackLineCount(state: TUIState, width: number): number {
+  if (
+    state.editorContainer.children.includes(state.editor) &&
+    state.editor.getNativeLayoutRowCount !== undefined
+  ) {
+    return state.editor.getNativeLayoutRowCount(width);
+  }
+  return state.editorContainer.render(width).length;
+}
+
+function nativeTranscriptRegionLines(
+  state: TUIState,
+  width: number,
+  visibleRows: number,
+): readonly RendererRegionLine[] {
+  const container = state.transcriptContainer;
+  if (typeof container.renderWithVisibleRegionLines === 'function') {
+    return container.renderWithVisibleRegionLines(width, visibleRows);
+  }
+  return promoteRendererRegionLinesToCells(
+    container.renderWithVisibleRows(width, visibleRows),
+  );
 }
 
 function normalizeFrameSize(value: number, fallback: number): number {

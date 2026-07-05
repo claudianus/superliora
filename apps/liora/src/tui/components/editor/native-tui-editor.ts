@@ -212,7 +212,11 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   render(width: number): string[] {
-    return this.buildNativeEditorSurface(width).lines.map(regionLineToText);
+    return this.getNativeRegionLines(width).map(regionLineToText);
+  }
+
+  getNativeRegionLines(width: number): readonly RendererRegionLine[] {
+    return this.buildNativeEditorSurface(width).lines;
   }
 
   getNativeLayoutRowCount(width: number): number {
