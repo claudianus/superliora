@@ -14,6 +14,7 @@ import {
 } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { ImageAttachmentStore } from '../utils/image-attachment-store';
+import { copyTranscriptSelectionToClipboard } from '../utils/transcript-selection';
 import type { PendingExit, QueuedMessage } from '../types';
 import type { TranscriptScrollAction } from '../utils/transcript-viewport';
 import type { TUIState } from '../tui-state';
@@ -76,6 +77,11 @@ export class EditorKeyboardController {
     };
 
     editor.onCtrlC = () => {
+      if (host.state.transcriptSelection.hasSelection) {
+        void copyTranscriptSelectionToClipboard(host.state);
+        return;
+      }
+
       if (host.cancelInFlight !== undefined) {
         const cancel = host.cancelInFlight;
         host.cancelInFlight = undefined;

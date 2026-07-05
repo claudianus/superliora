@@ -29,6 +29,7 @@ import {
   type RendererTerminalHost,
 } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
+import { currentTheme } from '#/tui/theme';
 import {
   buildTUIStateNativeFrameRegions,
   createTUIStateNativeRenderer,
@@ -498,6 +499,32 @@ describe('createTUIState', () => {
 
     expect(regions.map((region) => region.id)).toEqual(['transcript']);
     expect(state.footerContainer.children).toHaveLength(0);
+  });
+
+  it('fills empty native frame cells with the theme background when canvas background is enabled', () => {
+    const previous = currentTheme.canvasBackgroundEnabled;
+    currentTheme.setCanvasBackgroundEnabled(true);
+    try {
+      const state = createTUIState({
+        initialAppState: fakeInitialAppState(),
+        startup: {
+          continueLast: false,
+          yolo: false,
+          auto: false,
+          plan: false,
+        },
+      });
+      Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
+      Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 12 });
+
+      const frame = renderTUIStateNativeFrame(state);
+      const background = currentTheme.palette.background;
+
+      expect(frame.renderer.frame.getCell(0, 0).style?.bg).toBe(background);
+      expect(frame.renderer.frame.getCell(11, 5).style?.bg).toBe(background);
+    } finally {
+      currentTheme.setCanvasBackgroundEnabled(previous);
+    }
   });
 
   it('can drive current renderer containers through the live native renderer runtime', () => {

@@ -19,6 +19,7 @@ import {
   renderNativeLayoutFrame,
   renderRendererEditorSurface,
   resolveRendererEditorSurfaceStyles,
+  visibleWidth,
   type NativeLayoutFrameResult,
   type NativeTerminalInput,
   type NativeTerminalOutput,
@@ -53,6 +54,12 @@ import {
 } from '#/tui/utils/appearance-effects';
 
 import type { TUIState } from '../tui-state';
+import { CHROME_GUTTER } from '../constant/rendering';
+import {
+  cellSelectedAtColumn,
+  shouldHoldTranscriptAnimation,
+  type TranscriptSelectionRange,
+} from './transcript-selection';
 
 const DEFAULT_NATIVE_FRAME_COLUMNS = 80;
 const DEFAULT_NATIVE_FRAME_ROWS = 24;
@@ -155,7 +162,7 @@ export function renderTUIStateNativeFrame(
     diagnostics: options.diagnostics,
   });
   const result = renderNativeLayoutFrame(renderer, frame.regions, {
-    fill: options.fill,
+    fill: options.fill ?? currentTheme.canvasBackgroundCell(),
     force: options.force,
     cursor: frame.cursor,
     composition: {
@@ -184,7 +191,7 @@ export function createTUIStateNativeRenderCallback(
       diagnostics: runtime.diagnostics,
     });
     const result = runtime.renderLayoutFrame(nativeFrame.regions, {
-      fill: options.fill,
+      fill: options.fill ?? currentTheme.canvasBackgroundCell(),
       force: frame.causes.includes('start') || frame.causes.includes('resize'),
       cursor: nativeFrame.cursor,
     });
@@ -207,7 +214,10 @@ export function createTUIStateNativeRenderer(
   nativeRenderer = new NativeTerminalRenderer({
     ...options,
     autoBeginFrame: false,
-    autoFrameHold: options.autoFrameHold ?? (() => !state.transcriptViewport.followOutput),
+    autoFrameHold: options.autoFrameHold ?? (() => shouldHoldTranscriptAnimation({
+      followOutput: state.transcriptViewport.followOutput,
+      transcriptSelection: state.transcriptSelection,
+    })),
     outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
     regionVfxFrames: options.regionVfxFrames ?? premiumDefaults.regionVfxFrames,
     measureFrameHeight: options.growWithContent === true
@@ -388,6 +398,7 @@ function buildTUIStateNativeFrame(
   } satisfies Record<RendererRegionId, readonly RendererRegionLine[]>;
 
   let cursor = hiddenNativeCursor();
+  const canvasBackground = currentTheme.canvasBackgroundCell();
   const regions = createRendererStackFrameRegions(
     layout,
     layout.regions.flatMap((region) => {
@@ -413,7 +424,7 @@ function buildTUIStateNativeFrame(
             seed: 'native-editor-focus',
           })
         : undefined;
-      return [{ id: region.id, content, clear: true, vfx }];
+      return [{ id: region.id, content, clear: true, background: canvasBackground, vfx }];
     }),
   );
   const diagnosticsOverlay = createTUIStateDiagnosticsOverlayRegion(
@@ -691,12 +702,80 @@ function nativeTranscriptRegionLines(
   visibleRows: number,
 ): readonly RendererRegionLine[] {
   const container = state.transcriptContainer;
-  if (typeof container.renderWithVisibleRegionLines === 'function') {
-    return container.renderWithVisibleRegionLines(width, visibleRows);
-  }
-  return promoteRendererRegionLinesToCells(
-    container.renderWithVisibleRows(width, visibleRows),
+  const lines = typeof container.renderWithVisibleRegionLines === 'function'
+    ? container.renderWithVisibleRegionLines(width, visibleRows)
+    : promoteRendererRegionLinesToCells(
+        container.renderWithVisibleRows(width, visibleRows),
+      );
+  const range = state.transcriptSelection.rangeForRender();
+  if (range === undefined) return lines;
+  const editorStyles = resolveRendererEditorSurfaceStyles({
+    palette: currentTheme.palette,
+    canvasBackground: currentTheme.canvasBackgroundEnabled,
+  });
+  return applyTranscriptSelectionOverlay(
+    lines,
+    state.transcriptViewport.start(),
+    range,
+    editorStyles.selectionStyle,
   );
+}
+
+function applyTranscriptSelectionOverlay(
+  lines: readonly RendererRegionLine[],
+  viewportStart: number,
+  range: TranscriptSelectionRange,
+  selectionStyle: RendererCellStyle,
+): readonly RendererRegionLine[] {
+  return lines.map((line, rowIndex) =>
+    applyTranscriptSelectionOverlayToLine(
+      line,
+      viewportStart + rowIndex,
+      range,
+      selectionStyle,
+    ),
+  );
+}
+
+function applyTranscriptSelectionOverlayToLine(
+  line: RendererRegionLine,
+  globalLine: number,
+  range: TranscriptSelectionRange,
+  selectionStyle: RendererCellStyle,
+): RendererRegionLine {
+  if (typeof line === 'string') {
+    return applyTranscriptSelectionOverlayToLine(
+      promoteRendererRegionLinesToCells([line])[0] ?? [],
+      globalLine,
+      range,
+      selectionStyle,
+    );
+  }
+  let col = 0;
+  return line.map((cell) => {
+    const cellWidth = Math.max(1, visibleWidth(cell.char));
+    const selected = cellSelectedAtColumn(
+      globalLine,
+      col,
+      col + cellWidth,
+      range,
+      CHROME_GUTTER,
+    );
+    col += cellWidth;
+    if (!selected) return cell;
+    return {
+      ...cell,
+      style: mergeTranscriptSelectionCellStyle(cell.style, selectionStyle),
+    };
+  });
+}
+
+function mergeTranscriptSelectionCellStyle(
+  base: RendererCellStyle | undefined,
+  overlay: RendererCellStyle,
+): RendererCellStyle {
+  if (base === undefined) return overlay;
+  return { ...base, ...overlay };
 }
 
 function normalizeFrameSize(value: number, fallback: number): number {
