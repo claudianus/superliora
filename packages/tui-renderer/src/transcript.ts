@@ -47,10 +47,12 @@ export interface RendererTranscriptViewportComponentOptions {
   readonly paintLine?: RendererTranscriptViewportLinePainter;
   readonly paintRegionLine?: RendererTranscriptViewportRegionLinePainter;
   readonly isCacheEnabled?: () => boolean;
+  readonly getCacheEpoch?: () => number;
 }
 
 interface RendererTranscriptViewportRenderCache {
   width: number;
+  cacheEpoch: number;
   childRefs: Component[];
   childRenderRefs: string[][];
   prefixed: RendererRegionLine[][];
@@ -161,6 +163,7 @@ export class RendererTranscriptViewportComponent extends Container {
   private readonly paintLine: RendererTranscriptViewportLinePainter | undefined;
   private readonly paintRegionLine: RendererTranscriptViewportRegionLinePainter | undefined;
   private readonly isCacheEnabled: () => boolean;
+  private readonly getCacheEpoch: () => number;
   private renderCache: RendererTranscriptViewportRenderCache | undefined;
 
   // ── Virtual-scroll line-count cache ────────────────────────────────────
@@ -177,6 +180,7 @@ export class RendererTranscriptViewportComponent extends Container {
   // count change.  Individual children that mutate call invalidate() which
   // propagates up, so stale counts are never served.
   private lineCountCacheWidth = -1;
+  private lineCountCacheEpoch = -1;
   private lineCountCache: number[] = [];
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
@@ -194,11 +198,13 @@ export class RendererTranscriptViewportComponent extends Container {
     this.paintLine = options.paintLine;
     this.paintRegionLine = options.paintRegionLine;
     this.isCacheEnabled = options.isCacheEnabled ?? (() => true);
+    this.getCacheEpoch = options.getCacheEpoch ?? (() => -1);
   }
 
   override invalidate(): void {
     this.renderCache = undefined;
     this.lineCountCacheWidth = -1;
+    this.lineCountCacheEpoch = -1;
     this.lineCountCache = [];
     super.invalidate();
   }
@@ -270,9 +276,11 @@ export class RendererTranscriptViewportComponent extends Container {
 
   private resolveChildLineCounts(inner: number): number[] {
     const n = this.children.length;
+    const cacheEpoch = this.getCacheEpoch();
     if (
       this.isCacheEnabled() &&
       this.lineCountCacheWidth === inner &&
+      this.lineCountCacheEpoch === cacheEpoch &&
       this.lineCountCache.length === n
     ) {
       return this.lineCountCache;
@@ -284,6 +292,7 @@ export class RendererTranscriptViewportComponent extends Container {
     }
     if (this.isCacheEnabled()) {
       this.lineCountCacheWidth = inner;
+      this.lineCountCacheEpoch = cacheEpoch;
       this.lineCountCache = counts;
     }
     return counts;
@@ -303,10 +312,12 @@ export class RendererTranscriptViewportComponent extends Container {
   ): RendererRegionLine[] {
     const lead = ' '.repeat(this.leftPad);
     const cache = this.renderCache;
+    const cacheEpoch = this.getCacheEpoch();
     const cacheValid =
       this.isCacheEnabled() &&
       cache !== undefined &&
       cache.width === safeWidth &&
+      cache.cacheEpoch === cacheEpoch &&
       cache.childRefs.length === this.children.length;
 
     const childRefs: Component[] = [];
@@ -334,7 +345,7 @@ export class RendererTranscriptViewportComponent extends Container {
     const out = allReused ? cache!.out : prefixed.flat();
 
     if (this.isCacheEnabled()) {
-      this.renderCache = { width: safeWidth, childRefs, childRenderRefs, prefixed, out };
+      this.renderCache = { width: safeWidth, cacheEpoch, childRefs, childRenderRefs, prefixed, out };
     } else {
       this.renderCache = undefined;
     }

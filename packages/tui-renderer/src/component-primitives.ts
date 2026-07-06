@@ -58,6 +58,7 @@ export interface RendererChildrenRenderCacheOptions {
   readonly width: number;
   readonly children: readonly Component[];
   readonly isCacheEnabled?: () => boolean;
+  readonly cacheEpoch?: number;
   readonly renderChild?: (
     child: Component,
     width: number,
@@ -73,6 +74,7 @@ export interface RendererChildrenRenderCacheOptions {
 
 interface RendererChildrenRenderCacheSnapshot {
   width: number;
+  cacheEpoch: number;
   childRefs: Component[];
   childRenderRefs: ReadonlyArray<readonly string[]>;
   projectedLines: ReadonlyArray<readonly string[]>;
@@ -88,11 +90,13 @@ export class RendererChildrenRenderCache {
 
   render(options: RendererChildrenRenderCacheOptions): string[] {
     const width = options.width;
+    const cacheEpoch = options.cacheEpoch ?? -1;
     const cacheEnabled = options.isCacheEnabled?.() ?? true;
     const cache = this.cache;
     const cacheValid = cacheEnabled &&
       cache !== undefined &&
       cache.width === width &&
+      cache.cacheEpoch === cacheEpoch &&
       cache.childRefs.length === options.children.length;
 
     const childRefs: Component[] = [];
@@ -118,7 +122,7 @@ export class RendererChildrenRenderCache {
 
     const out = allReused ? cache!.out : projectedLines.flat();
     if (cacheEnabled) {
-      this.cache = { width, childRefs, childRenderRefs, projectedLines, out };
+      this.cache = { width, cacheEpoch, childRefs, childRenderRefs, projectedLines, out };
     } else {
       this.cache = undefined;
     }
@@ -129,11 +133,13 @@ export class RendererChildrenRenderCache {
 export interface RendererWidthRenderCacheOptions {
   readonly width: number;
   readonly isCacheEnabled?: () => boolean;
+  readonly cacheEpoch?: number;
   readonly render: (width: number) => string[];
 }
 
 interface RendererWidthRenderCacheSnapshot {
   width: number;
+  cacheEpoch: number;
   out: string[];
 }
 
@@ -146,17 +152,19 @@ export class RendererWidthRenderCache {
 
   render(options: RendererWidthRenderCacheOptions): string[] {
     const cacheEnabled = options.isCacheEnabled?.() ?? true;
+    const cacheEpoch = options.cacheEpoch ?? -1;
     if (
       cacheEnabled &&
       this.cache !== undefined &&
-      this.cache.width === options.width
+      this.cache.width === options.width &&
+      this.cache.cacheEpoch === cacheEpoch
     ) {
       return this.cache.out;
     }
 
     const out = options.render(options.width);
     if (cacheEnabled) {
-      this.cache = { width: options.width, out };
+      this.cache = { width: options.width, cacheEpoch, out };
     } else {
       this.cache = undefined;
     }
