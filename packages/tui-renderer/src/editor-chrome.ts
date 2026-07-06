@@ -110,6 +110,8 @@ export interface RendererEditorSurfaceStylePalette {
   readonly borderFocus: string;
   readonly command: string;
   readonly surfaceSunken: string;
+  /** Root canvas color; used for editor fill when `canvasBackground` is enabled. */
+  readonly background?: string;
   readonly selectionBg: string;
   readonly selectionText: string;
 }
@@ -514,7 +516,7 @@ export function resolveRendererEditorSurfaceStyles(
     textStyle: { fg: palette.text },
     promptStyle: { fg: commandMode ? palette.command : palette.textStrong, bold: true },
     surfaceStyle: options.canvasBackground === true
-      ? { fg: palette.text, bg: palette.surfaceSunken }
+      ? { fg: palette.text, bg: palette.background ?? palette.surfaceSunken }
       : { fg: palette.text },
     scrollbarTrackStyle: { fg: palette.textMuted, dim: true },
     scrollbarThumbStyle: { fg: palette.textStrong },

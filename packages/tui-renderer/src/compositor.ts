@@ -200,7 +200,7 @@ export function composeRendererRegions(
           cellsClipped++;
           continue;
         }
-        buffer.setCell(x, y, cell);
+        buffer.setCell(x, y, inheritRegionBackground(cell, region));
         cellsWritten++;
       }
       underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
@@ -219,6 +219,18 @@ export function composeRendererRegions(
     lineCacheFrame: diffLineCacheStats(lineCacheBefore, lineCache),
     compositionCache: options.cache?.snapshot(),
   };
+}
+
+function inheritRegionBackground(
+  cell: RendererCell,
+  region: RendererRegionLayer,
+): RendererCell {
+  if (cell.style?.bg !== undefined) return cell;
+  const inheritedBg = region.background?.style?.bg ?? region.style?.bg;
+  if (inheritedBg === undefined) return cell;
+  return cell.style === undefined
+    ? { ...cell, style: { bg: inheritedBg } }
+    : { ...cell, style: { ...cell.style, bg: inheritedBg } };
 }
 
 function compareRegions(a: OrderedRegion, b: OrderedRegion): number {

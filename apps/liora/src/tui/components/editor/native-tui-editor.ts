@@ -475,6 +475,7 @@ export class NativeTUIEditor implements TUIEditor {
         borderFocus: palette.primary,
         command: palette.shellMode,
         surfaceSunken: palette.surfaceSunken,
+        background: palette.background,
         selectionBg: palette.selectionBg,
         selectionText: palette.selectionText,
       },

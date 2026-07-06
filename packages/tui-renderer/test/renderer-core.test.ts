@@ -4797,6 +4797,32 @@ describe('composeRendererRegions', () => {
     expect(buffer.getCell(1, 0)).toEqual({ char: 'b' });
   });
 
+  it('inherits region background into foreground-only cells', () => {
+    const buffer = new RendererCellBuffer(5, 1);
+
+    composeRendererRegions(buffer, [
+      {
+        rect: { x: 0, y: 0, width: 5, height: 1 },
+        background: { char: ' ', style: { bg: '#0B0F14' } },
+        lines: [[
+          { char: 'a', style: { fg: '#ff0000' } },
+          { char: ' ', style: { fg: '#00ff00' } },
+          { char: 'b' },
+        ]],
+      },
+    ]);
+
+    expect(buffer.getCell(0, 0)).toEqual({
+      char: 'a',
+      style: { fg: '#ff0000', bg: '#0B0F14' },
+    });
+    expect(buffer.getCell(1, 0)).toEqual({
+      char: ' ',
+      style: { fg: '#00ff00', bg: '#0B0F14' },
+    });
+    expect(buffer.getCell(2, 0)).toEqual({ char: 'b', style: { bg: '#0B0F14' } });
+  });
+
   it('parses ANSI styled strings before composing regions', () => {
     const buffer = new RendererCellBuffer(3, 1);
 
