@@ -223,7 +223,7 @@ describe('default agent profiles', () => {
     expect(prompt).toContain('# Skill Runtime');
     expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
     expect(prompt).toContain('Translate non-English user requests');
-    expect(prompt).toContain('Load exactly one needed skill with the Skill tool');
+    expect(prompt).toContain('Apply loaded skills selectively');
     expect(prompt).not.toContain('- review:');
     expect(prompt).not.toContain('When to use: When code review is requested.');
     expect(prompt).not.toContain('- nested-review:');
@@ -265,7 +265,8 @@ describe('default agent profiles', () => {
     expect(first).toContain('You are SuperLiora CLI');
     expect(first).toContain('Skill Runtime');
     expect(first).toContain('## Research');
-    expect(first).toContain('use WebSearch and FetchURL throughout');
+    expect(first).toContain('Context7Resolve');
+    expect(first).toContain('WebSearch and FetchURL');
     expect(first).toContain('/workspace/one');
     expect(second).toContain('/workspace/two');
     expect(second).not.toContain('/workspace/one');

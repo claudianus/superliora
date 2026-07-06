@@ -10,6 +10,11 @@ import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { LocalWebSearchProvider } from '#/tools/providers/local-web-search';
 import { MoonshotFetchURLProvider } from '#/tools/providers/moonshot-fetch-url';
 import { MoonshotWebSearchProvider } from '#/tools/providers/moonshot-web-search';
+import {
+  createContext7Provider,
+  isContext7Enabled,
+  readContext7ApiKeyFromConfig,
+} from '#/tools/providers/context7-session';
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
 import { resolveThinkingLevel } from '../agent/config/thinking';
@@ -145,6 +150,7 @@ import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import { SUPERLIORA_PROVIDER_NAME } from '@superliora/oauth';
 import type { SessionWarning } from '@superliora/protocol';
+import type { CredentialRequest, CredentialResponse } from '@superliora/agent-core';
 import { proxyWithExtraPayload } from './types';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';
@@ -311,7 +317,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
     // Session ctor attaches its own log sink. If anything in the setup-after-
     // ctor block throws, `session.close()` releases the sink (and mcp).
-    const runtime = await this.resolveRuntime(config);
+    const runtime = await this.buildSessionToolServices(config, summary.id);
     const session = new Session({
       kaos: parentKaos.withCwd(workDir),
       persistenceKaos,
@@ -497,7 +503,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     const pluginSessionStarts = this.plugins.enabledSessionStarts();
     const pluginCommands = await this.plugins.enabledCommands();
     const mcpConfig = this.mergePluginMcpConfig(withCallerMcp);
-    const runtime = await this.resolveRuntime(config);
+    const runtime = await this.buildSessionToolServices(config, summary.id);
     const parentKaos = parentKaosForRead;
     const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
     const session = new Session({
@@ -1075,6 +1081,38 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     });
     if (!statefulGui) this.runtime = runtime;
     return runtime;
+  }
+
+  private async buildSessionToolServices(
+    config: LioraConfig,
+    sessionId: string,
+  ): Promise<ToolServices> {
+    const runtime = await this.resolveRuntime(config);
+    const context7 = createContext7Provider({
+      isEnabled: () => isContext7Enabled(config),
+      readApiKey: () => readContext7ApiKeyFromConfig(this.config),
+      requestApiKey: async ({ toolCallId }) => {
+        const sdk = await this.sdk;
+        const response = await sdk.requestCredential({
+          sessionId,
+          agentId: 'main',
+          id: 'context7',
+          title: 'Context7',
+          subtitleLines: [
+            'Free API keys: https://context7.com/dashboard',
+            'Saved to ~/.superliora/config.toml',
+          ],
+          toolCallId,
+        });
+        const value = response?.value;
+        return value !== undefined && value.length > 0 ? value : undefined;
+      },
+      persistApiKey: async (apiKey) => {
+        await this.setKimiConfig({ research: { context7: { apiKey } } });
+      },
+    });
+    if (context7 === undefined) return runtime;
+    return { ...runtime, context7 };
   }
 
   private getKaos(): Promise<Kaos> {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
+import { resolveExpertWhenToUse } from '../../../expert-agents/expert-persona';
 import type { ExpertSearchResult } from '../../../expert-agents/types';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { escapeXml, escapeXmlAttr } from '../../../utils/xml-escape';
@@ -58,6 +59,7 @@ export class SearchExpertTool implements BuiltinTool<SearchExpertInput> {
       query,
       topK: args.top_k,
       division: args.division?.trim(),
+      taskDescription: query,
     });
 
     if (results.length === 0) {
@@ -83,6 +85,7 @@ export class SearchExpertTool implements BuiltinTool<SearchExpertInput> {
 
 function renderExpertSearchHit(result: ExpertSearchResult, rank: number): string {
   const { expert } = result;
+  const whenToUse = resolveExpertWhenToUse(expert);
   const attrs = [
     `rank="${String(rank)}"`,
     `id="${escapeXmlAttr(expert.id)}"`,
@@ -94,7 +97,7 @@ function renderExpertSearchHit(result: ExpertSearchResult, rank: number): string
   return [
     `<expert-candidate ${attrs.join(' ')}>`,
     `  <description>${escapeXml(expert.description)}</description>`,
-    `  <when_to_use>${escapeXml(expert.whenToUse)}</when_to_use>`,
+    `  <when_to_use>${escapeXml(whenToUse)}</when_to_use>`,
     `  <tags>${escapeXml(expert.tags.slice(0, 12).join(', '))}</tags>`,
     `  <capabilities>${escapeXml(expert.capabilities.slice(0, 8).join(', '))}</capabilities>`,
     '</expert-candidate>',

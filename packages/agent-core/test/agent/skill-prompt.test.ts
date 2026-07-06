@@ -23,6 +23,8 @@ describe('renderSkillLoadedBlock skill directory', () => {
   it('includes the skill directory for model-tool activations', () => {
     const text = renderModelToolSkillPrompt({ ...base, trigger: 'model-tool' });
     expect(text).toContain('dir="/home/user/.superliora/skills/review"');
+    expect(text).toContain('<skill_application_protocol>');
+    expect(text).toContain('selectively');
   });
 
   it('includes the skill directory for nested-skill activations', () => {

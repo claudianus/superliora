@@ -201,7 +201,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('UltraGoal: create or replace the active goal only after UltraPlan has produced the verifiable objective');
     expect(prompt).toContain('If Ultrawork is entered through /goal and an active goal already exists');
     expect(prompt).toContain('UltraSwarm: decide ENGAGE or DEFER after the verifiable UltraGoal exists');
-    expect(prompt).toContain('UltraSwarm subagents may use WebSearch and FetchURL as much as their scope needs');
+    expect(prompt).toContain('Context7Resolve/Context7Docs');
+    expect(prompt).toContain('WebSearch/FetchURL');
     expect(prompt).toContain('latest papers, framework guidance, verified libraries, security advisories');
     expect(prompt).toContain('UltraSwarm is not proof by badge');
     expect(prompt).toContain('ENGAGE is an execution commitment, not a status label');
@@ -234,7 +235,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('never hide the only proof inside chat');
     expect(prompt).toContain('UltraResearch / SuperLiora Free Web Research');
     expect(prompt).toContain('no-subscription web research as a primary Ultrawork capability');
-    expect(prompt).toContain('built-in WebSearch and FetchURL tools');
+    expect(prompt).toContain('Context7Resolve and Context7Docs');
     expect(prompt).toContain('Re-search throughout the run, not only during UltraResearch prelude');
     expect(prompt).toContain('LocalResearchStack is always the free fallback path');
     expect(prompt).toContain('precise 3-12 keyword queries');

@@ -50,10 +50,14 @@ const AGENT_SWARM_NON_GRID_LINES = 14;
 /** Extra transcript rows reserved for the UltraSwarm feed box (border + feed + padding). */
 export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 10;
 const SWARM_OPS_FEED_MAX_ENTRIES = 48;
-const SWARM_OPS_FEED_RENDER_LINES = 6;
-const SWARM_OPS_FEED_RENDER_LINES_TINY = 3;
-const SWARM_OPS_HEARTBEAT_MS = 4_000;
-const SWARM_OPS_FEED_TIME_WIDTH = 8;
+const SWARM_OPS_FEED_RENDER_LINES = 8;
+const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
+const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block']);
+const SWARM_FEED_BODY_MIN_WIDTH = 24;
+const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
+const SWARM_FEED_NARROW_WIDTH = 72;
+const SWARM_FEED_SHORT_NAME_MAX = 6;
+const SWARM_FEED_SHORT_ID_MAX = 6;
 const COMPACT_TERMINAL_MARK_WIDTH = 1;
 const ORCHESTRATING_LABEL = 'Orchestrating...';
 const PROMPTING_LABEL = 'Prompting...';
@@ -155,7 +159,7 @@ type SwarmOpsFeedTag =
   | 'standup';
 
 interface SwarmCollaborationFeedMessage {
-  readonly from: { readonly name: string; readonly emoji?: string };
+  readonly from: { readonly expertId?: string; readonly name: string; readonly emoji?: string };
   readonly to?: { readonly expertId: string };
   readonly channel: 'standup' | 'lane' | 'direct' | 'blocker' | 'council';
   readonly body: string;
@@ -164,8 +168,11 @@ interface SwarmCollaborationFeedMessage {
 interface SwarmOpsFeedEntry {
   readonly atMs: number;
   readonly tag: SwarmOpsFeedTag;
-  readonly actor: string;
-  readonly detail: string;
+  readonly fromExpertId?: string;
+  readonly fromName?: string;
+  readonly fromEmoji?: string;
+  readonly toExpertId?: string;
+  readonly body: string;
 }
 
 interface AgentSwarmMember {
@@ -187,8 +194,6 @@ interface AgentSwarmMember {
   suspendedReason?: string;
   completedAtMs?: number;
   failedAtMs?: number;
-  lastOpsFeedHeartbeatMs?: number;
-  lastOpsFeedSnippet?: string;
   todos: TodoItem[];
 }
 
@@ -272,6 +277,7 @@ export class AgentSwarmProgressComponent implements Component {
   private activitySpinnerText: (() => string) | undefined;
   private lastFrameTickMs = 0;
   private readonly opsFeed: SwarmOpsFeedEntry[] = [];
+  private readonly expertSlotById = new Map<string, string>();
 
   constructor(options: AgentSwarmProgressOptions) {
     this.description = options.description;
@@ -365,36 +371,31 @@ export class AgentSwarmProgressComponent implements Component {
       member.itemText = ultraSwarmMemberLabel(metadata);
     }
     this.itemsStarted = members.length > 0;
-    if (members.length > 0) {
-      const lanes = uniqueCoverageLanes(members);
-      const laneSummary = lanes.length > 0 ? ` · lanes: ${lanes.join(', ')}` : '';
-      this.appendOpsFeed({
-        tag: 'staff',
-        actor: 'control',
-        detail: `${members.length} expert${members.length === 1 ? '' : 's'} assigned${laneSummary}`,
-      });
-    }
+    this.rebuildExpertSlotIndex();
   }
 
   applySwarmCollaborationMessage(message: SwarmCollaborationFeedMessage): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const actor = swarmCollaborationActorLabel(message.from);
-    const detail = formatSwarmCollaborationFeedDetail(message);
-    this.appendOpsFeed({
+    if (!isAgentConversationChannel(message.channel)) return;
+    this.appendConversationFeed({
       tag: swarmCollaborationFeedTag(message.channel),
-      actor,
-      detail,
+      fromExpertId: message.from.expertId,
+      fromName: message.from.name,
+      fromEmoji: message.from.emoji,
+      toExpertId: message.to?.expertId,
+      body: message.body,
     });
   }
 
   applySwarmCollaborationMention(message: SwarmCollaborationFeedMessage): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const actor = swarmCollaborationActorLabel(message.from);
-    const detail = formatSwarmCollaborationFeedDetail(message);
-    this.appendOpsFeed({
+    this.appendConversationFeed({
       tag: 'mention',
-      actor,
-      detail,
+      fromExpertId: message.from.expertId,
+      fromName: message.from.name,
+      fromEmoji: message.from.emoji,
+      toExpertId: message.to?.expertId,
+      body: message.body,
     });
   }
 
@@ -417,13 +418,6 @@ export class AgentSwarmProgressComponent implements Component {
     if (member === undefined) return;
     member.agentId = input.agentId;
     if (member.phase === 'pending') member.phase = 'queued';
-    if (member.ultraSwarm !== undefined) {
-      this.appendOpsFeed({
-        tag: 'join',
-        actor: swarmMemberDisplayName(member),
-        detail: `slot ${member.id} · ${swarmMemberLaneFocus(member)}`,
-      });
-    }
     this.startAnimationIfNeeded();
   }
 
@@ -434,13 +428,6 @@ export class AgentSwarmProgressComponent implements Component {
     this.progressEstimator.markStarted(member.id, nowMs);
     member.ticks = Math.max(member.ticks, 1);
     this.promoteToRunning(member, nowMs);
-    if (member.ultraSwarm !== undefined) {
-      this.appendOpsFeed({
-        tag: 'live',
-        actor: swarmMemberDisplayName(member),
-        detail: swarmMemberLaneFocus(member),
-      });
-    }
     this.startAnimationIfNeeded();
   }
 
@@ -467,13 +454,6 @@ export class AgentSwarmProgressComponent implements Component {
     if (!result.accepted) return;
     member.ticks = result.rawTicks;
     this.promoteToRunning(member);
-    if (member.ultraSwarm !== undefined) {
-      this.appendOpsFeed({
-        tag: 'tool',
-        actor: swarmMemberDisplayName(member),
-        detail: formatSwarmToolReport(input.toolName, input.toolDescription),
-      });
-    }
     this.startAnimationIfNeeded();
   }
 
@@ -487,7 +467,6 @@ export class AgentSwarmProgressComponent implements Component {
       -MAX_LATEST_MODEL_CHARS,
     );
     this.promoteToRunning(member, Date.now(), true);
-    this.maybeAppendOpsHeartbeat(member);
   }
 
   markCompleted(agentId: string, completedText?: string): void {
@@ -511,13 +490,6 @@ export class AgentSwarmProgressComponent implements Component {
     this.progressEstimator.markQueued(member.id, Date.now());
     member.phase = 'suspended';
     clearMemberState(member, ...TERMINAL_CLEAR_KEYS);
-    if (member.ultraSwarm !== undefined) {
-      this.appendOpsFeed({
-        tag: 'wait',
-        actor: swarmMemberDisplayName(member),
-        detail: collapseWhitespace(input.reason),
-      });
-    }
     this.startAnimationIfNeeded();
   }
 
@@ -544,13 +516,6 @@ export class AgentSwarmProgressComponent implements Component {
     const member = this.findMemberByAgentId(agentId);
     if (member === undefined) return;
     this.cancelMember(member, Date.now());
-    if (member.ultraSwarm !== undefined) {
-      this.appendOpsFeed({
-        tag: 'stop',
-        actor: swarmMemberDisplayName(member),
-        detail: 'aborted',
-      });
-    }
   }
 
   markActiveCancelled(): void {
@@ -656,65 +621,36 @@ export class AgentSwarmProgressComponent implements Component {
   ): string[] {
     const profile = resolveResponsiveLayout({ width });
     const missionContent = this.renderMissionContent(width, summary);
-    const teamContent = [
-      ...this.renderGrid(width, this.availableGridHeight?.(), snapshots, nowMs),
-      ...this.renderMemberTodoSection(width),
-    ];
+    const teamContent = this.renderGrid(width, this.availableGridHeight?.(), snapshots, nowMs);
     const feedLimit = profile === 'tiny' ? SWARM_OPS_FEED_RENDER_LINES_TINY : SWARM_OPS_FEED_RENDER_LINES;
     const feedContent = this.renderOpsFeedContent(width, feedLimit);
     const statusFooter = ['', this.renderStatusLine(width), ''];
 
-    if (profile === 'tiny') {
-      return [
-        '',
-        ...missionContent,
-        '',
-        ...(teamContent.length > 0 ? teamContent : [chalk.hex(this.colors.textDim)('awaiting agents…')]),
-        '',
-        ...feedContent,
-        ...statusFooter,
-      ];
-    }
-
     const teamBody = teamContent.length > 0
       ? teamContent
       : [chalk.hex(this.colors.textDim)('awaiting agents…')];
+    const feedHeader = chalk.hex(this.colors.textDim)('feed');
+    const panelContent = [
+      ...missionContent,
+      '',
+      ...teamBody,
+      '',
+      feedHeader,
+      ...feedContent,
+    ];
 
-    if (profile === 'compact') {
-      return [
-        '',
-        ...renderRoundedPanel({
-          title: ' UltraSwarm ',
-          content: [...missionContent, '', ...teamBody, '', ...feedContent],
-          width,
-          borderToken: 'primary',
-          minBoxWidth: 60,
-        }),
-        ...statusFooter,
-      ];
+    if (profile === 'tiny') {
+      return ['', ...panelContent, ...statusFooter];
     }
 
     return [
       '',
       ...renderRoundedPanel({
         title: ' UltraSwarm ',
-        content: missionContent,
+        content: panelContent,
         width,
         borderToken: 'primary',
-      }),
-      '',
-      ...renderRoundedPanel({
-        title: ' Team ',
-        content: teamBody,
-        width,
-        borderToken: 'accent',
-      }),
-      '',
-      ...renderRoundedPanel({
-        title: ' Swarm Feed ',
-        content: feedContent,
-        width,
-        borderToken: 'primary',
+        minBoxWidth: 60,
       }),
       ...statusFooter,
     ];
@@ -725,15 +661,22 @@ export class AgentSwarmProgressComponent implements Component {
     const description = this.description.length > 0
       ? chalk.hex(this.colors.text)(this.description)
       : '';
-    const headline = description.length > 0
-      ? `${title} ${chalk.hex(this.colors.textDim)('·')} ${description}`
-      : title;
-    const lines = [truncateToWidth(headline, width)];
-    if (summary !== undefined) {
-      const ticker = this.renderControlTowerTicker(width, summary, false);
-      if (ticker.length > 0) lines.push(ticker);
-    }
-    return lines;
+    const stats = summary === undefined ? '' : this.renderMissionStats(summary);
+    const headlineParts = [title];
+    if (description.length > 0) headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${description}`);
+    if (stats.length > 0) headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${stats}`);
+    return [truncateToWidth(headlineParts.join(' '), width)];
+  }
+
+  private renderMissionStats(summary: AgentSwarmSummary): string {
+    const total = summary.active + summary.completed + summary.failed + summary.cancelled;
+    const running = this.members.filter((member) => member.phase === 'running').length;
+    const segments = [
+      running > 0 ? `${String(running)} working` : undefined,
+      summary.completed > 0 ? `${String(summary.completed)}/${String(total)} done` : undefined,
+      summary.failed > 0 ? `${String(summary.failed)} failed` : undefined,
+    ].filter((segment): segment is string => segment !== undefined);
+    return segments.length > 0 ? segments.join(' · ') : `${String(total)} agents`;
   }
 
   private indentLines(lines: readonly string[], width: number): string[] {
@@ -773,10 +716,6 @@ export class AgentSwarmProgressComponent implements Component {
         dividerStyle,
       }),
     ];
-    if (!this.isUltraSwarmOpsFeedEnabled() || summary === undefined) return lines;
-
-    const ticker = this.renderControlTowerTicker(width, summary);
-    if (ticker.length > 0) lines.push(ticker);
     return lines;
   }
 
@@ -795,35 +734,6 @@ export class AgentSwarmProgressComponent implements Component {
       lines.push(...memberLines);
     }
     return lines;
-  }
-
-  private renderControlTowerTicker(
-    width: number,
-    summary: AgentSwarmSummary,
-    indent = true,
-  ): string {
-    const running = this.members.filter((member) => member.phase === 'running').length;
-    const queued = this.members.filter((member) =>
-      member.phase === 'queued' || member.phase === 'pending' || member.phase === 'suspended',
-    ).length;
-    const lanes = uniqueCoverageLanes(
-      this.members
-        .map((member) => member.ultraSwarm)
-        .filter((metadata): metadata is UltraSwarmMemberMetadata => metadata !== undefined),
-    );
-    const segments = [
-      `RUN ${chalk.hex(this.colors.textDim)('│')}`,
-      summarySegment('live', running, this.colors.success),
-      summarySegment('queue', queued, this.colors.textDim),
-      summarySegment('done', summary.completed, this.colors.primary),
-      summary.failed > 0 ? summarySegment('fail', summary.failed, this.colors.error) : undefined,
-      lanes.length > 0
-        ? `${chalk.hex(this.colors.textDim)('lanes')} ${chalk.hex(this.colors.text)(lanes.join(', '))}`
-        : undefined,
-    ].filter((segment): segment is string => segment !== undefined);
-    const body = segments.join(` ${chalk.hex(this.colors.textDim)('·')} `);
-    const prefix = indent ? chalk.hex(this.colors.textDim)('  ') : '';
-    return truncateToWidth(prefix + body, width);
   }
 
   private renderOpsFeed(width: number): string[] {
@@ -846,92 +756,174 @@ export class AgentSwarmProgressComponent implements Component {
     maxLines = SWARM_OPS_FEED_RENDER_LINES,
     indent = false,
   ): string[] {
-    const entries = this.opsFeed.slice(-maxLines);
+    const profile = resolveResponsiveLayout({ width });
+    const entries = this.opsFeed
+      .filter((entry) => isConversationFeedTag(entry.tag))
+      .slice(-maxLines);
     if (entries.length === 0) {
       return [
         truncateToWidth(
-          chalk.hex(this.colors.textDim)('awaiting operator reports…'),
+          chalk.hex(this.colors.textDim)('awaiting team messages…'),
           width,
         ),
       ];
     }
-    return entries.map((entry) => this.renderOpsFeedLine(entry, width, indent));
+
+    const lines: string[] = [];
+    let previousThreadKey: string | undefined;
+    for (const entry of entries) {
+      const threadKey = feedThreadKey(entry);
+      const showHeader = threadKey !== previousThreadKey;
+      previousThreadKey = threadKey;
+      lines.push(...this.renderConversationFeedEntry(entry, width, indent, showHeader, profile));
+    }
+    return lines.slice(-maxLines);
   }
 
-  private renderOpsFeedLine(entry: SwarmOpsFeedEntry, width: number, indent = true): string {
-    const time = chalk.hex(this.colors.textDim)(formatSwarmOpsFeedTime(entry.atMs));
-    const tag = chalk.hex(swarmOpsFeedTagColor(entry.tag, this.colors))(swarmOpsFeedTagLabel(entry.tag));
-    const actor = chalk.hex(this.colors.primary)(entry.actor);
-    const detail =
-      entry.detail.length > 0
-        ? `${chalk.hex(this.colors.textDim)(' · ')}${chalk.hex(this.colors.text)(entry.detail)}`
-        : '';
-    const line = `${indent ? '  ' : ''}${time} ${tag} ${actor}${detail}`;
-    return truncateToWidth(line, width);
+  private renderConversationFeedEntry(
+    entry: SwarmOpsFeedEntry,
+    width: number,
+    indent: boolean,
+    showHeader: boolean,
+    profile: ReturnType<typeof resolveResponsiveLayout>,
+  ): string[] {
+    const pad = indent ? '  ' : '';
+    const innerWidth = Math.max(1, width - visibleWidth(pad));
+    const bodyText = entry.body;
+    const bodyStyled = chalk.hex(this.colors.text)(bodyText);
+
+    if (!showHeader) {
+      return [
+        truncateToWidth(`${pad}  ${bodyStyled}`, width),
+      ];
+    }
+
+    const headerPlain = this.formatFeedHeaderPlain(entry);
+    const headerStyled = this.formatFeedHeaderStyled(entry);
+    const separator = ': ';
+    const combinedWidth = visibleWidth(headerPlain) + visibleWidth(separator) + visibleWidth(bodyText);
+    const useTwoLines =
+      profile === 'tiny' ||
+      innerWidth < SWARM_FEED_NARROW_WIDTH ||
+      combinedWidth > innerWidth;
+
+    if (useTwoLines) {
+      return [
+        truncateToWidth(`${pad}${headerStyled}`, width),
+        truncateToWidth(`${pad}  ${bodyStyled}`, width),
+      ];
+    }
+
+    const bodyWidth = Math.max(
+      SWARM_FEED_BODY_MIN_WIDTH,
+      Math.floor(innerWidth * SWARM_FEED_BODY_WIDTH_RATIO),
+    );
+    const headerWidth = Math.max(0, innerWidth - bodyWidth - visibleWidth(separator));
+    const header = headerWidth > 0
+      ? truncateToWidth(headerStyled, headerWidth)
+      : '';
+    const body = truncateToWidth(bodyStyled, bodyWidth);
+    if (header.length === 0) {
+      return [truncateToWidth(`${pad}${body}`, width)];
+    }
+    return [truncateToWidth(`${pad}${header}${separator}${body}`, width)];
+  }
+
+  private formatFeedHeaderPlain(entry: SwarmOpsFeedEntry): string {
+    return stripAnsiText(this.formatFeedHeaderStyled(entry));
+  }
+
+  private formatFeedHeaderStyled(entry: SwarmOpsFeedEntry): string {
+    const from = this.formatExpertLabel(entry.fromExpertId, entry.fromName, entry.fromEmoji);
+    const fromStyled = chalk.hex(this.colors.primary)(from);
+    if (entry.toExpertId !== undefined) {
+      const to = this.formatExpertLabel(entry.toExpertId);
+      const toLabel = entry.tag === 'mention' ? `@${to}` : to;
+      const toStyled = chalk.hex(this.colors.textDim)(toLabel);
+      return `${fromStyled}${chalk.hex(this.colors.textDim)('→')}${toStyled}`;
+    }
+    if (entry.tag === 'block') {
+      return `${fromStyled}${chalk.hex(this.colors.warning)(' ⚠')}`;
+    }
+    if (entry.tag === 'mention') {
+      return chalk.hex(this.colors.warning)(`@${fromStyled}`);
+    }
+    return fromStyled;
+  }
+
+  private formatExpertLabel(
+    expertId?: string,
+    name?: string,
+    emoji?: string,
+  ): string {
+    const slot = this.resolveExpertSlot(expertId, name);
+    const trimmedEmoji = emoji?.trim();
+    if (slot !== undefined) {
+      return trimmedEmoji !== undefined && trimmedEmoji.length > 0 ? `${trimmedEmoji}${slot}` : slot;
+    }
+    if (name !== undefined && name.length > 0) return shortExpertName(name);
+    if (expertId !== undefined && expertId.length > 0) return shortExpertId(expertId);
+    return '?';
+  }
+
+  private resolveExpertSlot(expertId?: string, name?: string): string | undefined {
+    if (expertId !== undefined) {
+      const byId = this.expertSlotById.get(expertId);
+      if (byId !== undefined) return byId;
+    }
+    if (name === undefined) return undefined;
+    for (const member of this.members) {
+      if (member.ultraSwarm?.name === name) return member.id;
+    }
+    return undefined;
+  }
+
+  private rebuildExpertSlotIndex(): void {
+    this.expertSlotById.clear();
+    for (const member of this.members) {
+      const expertId = member.ultraSwarm?.expertId;
+      if (expertId !== undefined) this.expertSlotById.set(expertId, member.id);
+    }
   }
 
   private isUltraSwarmOpsFeedEnabled(): boolean {
     return this.title === 'UltraSwarm';
   }
 
-  private appendOpsFeed(input: {
+  private appendConversationFeed(input: {
     readonly tag: SwarmOpsFeedTag;
-    readonly actor: string;
-    readonly detail: string;
+    readonly fromExpertId?: string;
+    readonly fromName?: string;
+    readonly fromEmoji?: string;
+    readonly toExpertId?: string;
+    readonly body: string;
   }): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const actor = collapseWhitespace(input.actor);
-    const detail = collapseWhitespace(input.detail);
+    const body = collapseWhitespace(input.body);
+    if (body.length === 0) return;
     const last = this.opsFeed.at(-1);
     if (
       last !== undefined &&
       last.tag === input.tag &&
-      last.actor === actor &&
-      last.detail === detail
+      last.fromExpertId === input.fromExpertId &&
+      last.fromName === input.fromName &&
+      last.toExpertId === input.toExpertId &&
+      last.body === body
     ) {
       return;
     }
     this.opsFeed.push({
       atMs: Date.now(),
       tag: input.tag,
-      actor,
-      detail,
+      fromExpertId: input.fromExpertId,
+      fromName: input.fromName,
+      fromEmoji: input.fromEmoji,
+      toExpertId: input.toExpertId,
+      body,
     });
     if (this.opsFeed.length > SWARM_OPS_FEED_MAX_ENTRIES) {
       this.opsFeed.splice(0, this.opsFeed.length - SWARM_OPS_FEED_MAX_ENTRIES);
     }
-  }
-
-  private maybeAppendOpsHeartbeat(member: AgentSwarmMember): void {
-    if (!this.isUltraSwarmOpsFeedEnabled() || member.ultraSwarm === undefined) return;
-    if (member.phase !== 'running') return;
-    const snippet = latestNonEmptyLine(member.latestModelText);
-    if (snippet.length === 0) return;
-    const nowMs = Date.now();
-    const lastHeartbeatMs = member.lastOpsFeedHeartbeatMs ?? 0;
-    if (
-      snippet === member.lastOpsFeedSnippet &&
-      nowMs - lastHeartbeatMs < SWARM_OPS_HEARTBEAT_MS
-    ) {
-      return;
-    }
-    if (nowMs - lastHeartbeatMs < SWARM_OPS_HEARTBEAT_MS) return;
-    member.lastOpsFeedHeartbeatMs = nowMs;
-    member.lastOpsFeedSnippet = snippet;
-    this.appendOpsFeed({
-      tag: 'pulse',
-      actor: swarmMemberDisplayName(member),
-      detail: snippet,
-    });
-  }
-
-  private appendTerminalOpsFeed(member: AgentSwarmMember, tag: SwarmOpsFeedTag, detail: string): void {
-    if (member.ultraSwarm === undefined) return;
-    this.appendOpsFeed({
-      tag,
-      actor: swarmMemberDisplayName(member),
-      detail,
-    });
   }
 
   private renderStatusLine(width: number): string {
@@ -1200,7 +1192,6 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   private completeMember(member: AgentSwarmMember, nowMs: number, completedText?: string): void {
-    const wasTerminal = member.phase === 'completed';
     if (member.phase !== 'completed') {
       this.progressEstimator.markCompleted(member.id, nowMs);
       member.completedAtMs = nowMs;
@@ -1209,13 +1200,9 @@ export class AgentSwarmProgressComponent implements Component {
     if (normalizedCompletedText !== undefined) member.completedText = normalizedCompletedText;
     member.phase = 'completed';
     clearMemberState(member, ...COMPLETED_CLEAR_KEYS);
-    if (!wasTerminal) {
-      this.appendTerminalOpsFeed(member, 'done', completedOpsFeedDetail(member, normalizedCompletedText));
-    }
   }
 
   private failMember(member: AgentSwarmMember, nowMs: number, failureText?: string): void {
-    const wasTerminal = member.phase === 'failed';
     if (member.phase !== 'failed') {
       this.progressEstimator.markFailed(member.id, nowMs);
       member.failedAtMs = nowMs;
@@ -1224,13 +1211,6 @@ export class AgentSwarmProgressComponent implements Component {
     if (normalizedFailureText !== undefined) member.failureText = normalizedFailureText;
     member.phase = 'failed';
     clearMemberState(member, ...FAILED_CLEAR_KEYS);
-    if (!wasTerminal) {
-      this.appendTerminalOpsFeed(
-        member,
-        'fail',
-        normalizedFailureText ?? member.failureText ?? 'failed',
-      );
-    }
   }
 
   private cancelMember(member: AgentSwarmMember, nowMs: number): void {
@@ -1965,109 +1945,13 @@ function runningCellLabelText(member: AgentSwarmMember): string {
 }
 
 function ultraSwarmMemberLabel(metadata: UltraSwarmMemberMetadata): string {
-  const name = metadata.emoji === undefined ? metadata.name : `${metadata.emoji} ${metadata.name}`;
-  const lane = metadata.coverageLane ?? metadata.division;
-  const focus = metadata.focus === undefined ? '' : `/${metadata.focus}`;
-  return lane === undefined ? `${name}${focus}` : `${name} ${lane}${focus}`;
-}
-
-function uniqueCoverageLanes(members: readonly UltraSwarmMemberMetadata[]): string[] {
-  const lanes = new Set<string>();
-  for (const member of members) {
-    const lane = member.coverageLane ?? member.division;
-    if (lane !== undefined && lane.length > 0) lanes.add(lane);
-  }
-  return [...lanes];
+  return metadata.emoji === undefined ? metadata.name : `${metadata.emoji} ${metadata.name}`;
 }
 
 function swarmMemberDisplayName(member: AgentSwarmMember): string {
   const metadata = member.ultraSwarm;
   if (metadata === undefined) return member.id;
   return metadata.emoji === undefined ? metadata.name : `${metadata.emoji} ${metadata.name}`;
-}
-
-function swarmMemberLaneFocus(member: AgentSwarmMember): string {
-  const metadata = member.ultraSwarm;
-  if (metadata === undefined) return collapseWhitespace(member.itemText);
-  const lane = metadata.coverageLane ?? metadata.division;
-  const focus = metadata.focus;
-  if (lane === undefined && focus === undefined) return collapseWhitespace(member.itemText);
-  if (lane === undefined) return focus ?? '';
-  if (focus === undefined) return lane;
-  return `${lane}/${focus}`;
-}
-
-function formatSwarmToolReport(toolName: string | undefined, toolDescription: string | undefined): string {
-  const name = toolName === undefined ? 'tool' : toolName;
-  const description = collapseWhitespace(toolDescription ?? '');
-  if (description.length === 0) return name;
-  return `${name}: ${description}`;
-}
-
-function formatSwarmOpsFeedTime(atMs: number): string {
-  const date = new Date(atMs);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `[${hours}:${minutes}:${seconds}]`.padEnd(SWARM_OPS_FEED_TIME_WIDTH);
-}
-
-function swarmOpsFeedTagLabel(tag: SwarmOpsFeedTag): string {
-  switch (tag) {
-    case 'staff':
-      return 'STAFF';
-    case 'join':
-      return 'JOIN';
-    case 'live':
-      return 'LIVE';
-    case 'tool':
-      return 'TOOL';
-    case 'pulse':
-      return '···';
-    case 'done':
-      return 'DONE';
-    case 'fail':
-      return 'FAIL';
-    case 'wait':
-      return 'WAIT';
-    case 'stop':
-      return 'STOP';
-    case 'msg':
-      return 'MSG';
-    case 'mention':
-      return '@';
-    case 'block':
-      return 'BLOCK';
-    case 'standup':
-      return 'STANDUP';
-  }
-}
-
-function swarmOpsFeedTagColor(tag: SwarmOpsFeedTag, colors: ColorPalette): string {
-  switch (tag) {
-    case 'staff':
-    case 'join':
-      return colors.primary;
-    case 'live':
-    case 'tool':
-    case 'pulse':
-      return colors.accent;
-    case 'done':
-      return colors.success;
-    case 'fail':
-    case 'stop':
-      return colors.error;
-    case 'wait':
-      return colors.warning;
-    case 'msg':
-      return colors.accent;
-    case 'mention':
-      return colors.warning;
-    case 'block':
-      return colors.error;
-    case 'standup':
-      return colors.primary;
-  }
 }
 
 function swarmCollaborationFeedTag(
@@ -2083,49 +1967,43 @@ function swarmCollaborationFeedTag(
   }
 }
 
-function swarmCollaborationActorLabel(from: SwarmCollaborationFeedMessage['from']): string {
-  const name = collapseWhitespace(from.name);
-  const emoji = from.emoji?.trim();
-  return emoji !== undefined && emoji.length > 0 ? `${emoji} ${name}` : name;
+function feedThreadKey(entry: SwarmOpsFeedEntry): string {
+  return `${entry.fromExpertId ?? entry.fromName ?? ''}|${entry.toExpertId ?? ''}|${entry.tag}`;
 }
 
-function formatSwarmCollaborationFeedDetail(message: SwarmCollaborationFeedMessage): string {
-  const body = collapseWhitespace(message.body);
-  if (message.to !== undefined) {
-    return `→ @${message.to.expertId} · ${body}`;
-  }
-  if (message.channel === 'blocker') {
-    return `blocker: ${body}`;
-  }
-  return body;
+function shortExpertName(name: string): string {
+  const collapsed = collapseWhitespace(name);
+  if (visibleWidth(collapsed) <= SWARM_FEED_SHORT_NAME_MAX) return collapsed;
+  const firstToken = collapsed.split(' ')[0] ?? collapsed;
+  if (visibleWidth(firstToken) <= SWARM_FEED_SHORT_NAME_MAX) return firstToken;
+  return truncateToWidth(firstToken, SWARM_FEED_SHORT_NAME_MAX, '…');
 }
 
-function summarySegment(label: string, count: number, color: string): string {
-  return `${chalk.hex(color)(label)} ${count}`;
+function shortExpertId(expertId: string): string {
+  const parts = expertId.split('-').filter((part) => part.length > 0);
+  const candidate = parts.length >= 2 ? parts[parts.length - 2]! : parts[0] ?? expertId;
+  if (visibleWidth(candidate) <= SWARM_FEED_SHORT_ID_MAX) return candidate;
+  return truncateToWidth(candidate, SWARM_FEED_SHORT_ID_MAX, '…');
 }
 
-function completedOpsFeedDetail(
-  member: AgentSwarmMember,
-  completedText: string | undefined,
-): string {
-  if (member.verdict !== undefined) {
-    const evidence =
-      member.evidenceIds === undefined || member.evidenceIds.length === 0
-        ? ''
-        : ` (${member.evidenceIds.join(', ')})`;
-    return `${member.verdict}${evidence}`;
-  }
-  if (completedText !== undefined && completedText.length > 0) return completedText;
-  return 'completed';
+function stripAnsiText(text: string): string {
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
+
+function isAgentConversationChannel(
+  channel: SwarmCollaborationFeedMessage['channel'],
+): boolean {
+  return channel === 'direct' || channel === 'blocker' || channel === 'lane';
+}
+
+function isConversationFeedTag(tag: SwarmOpsFeedTag): boolean {
+  return CONVERSATION_FEED_TAGS.has(tag);
 }
 
 function completedCellText(member: AgentSwarmMember, fallback: string): string {
   if (member.verdict === undefined) return fallback;
-  const evidence = member.evidenceIds === undefined || member.evidenceIds.length === 0
-    ? ''
-    : ` evidence ${member.evidenceIds.join(',')}`;
   const expert = member.ultraSwarm?.name === undefined ? '' : `${member.ultraSwarm.name}: `;
-  return `${expert}${member.verdict}${evidence}`;
+  return `${expert}${member.verdict}`;
 }
 
 function renderCancelledCellLabel(

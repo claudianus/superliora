@@ -31,4 +31,8 @@ tools:
   - LioraIndex
   - WebSearch
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
+  - SearchSkill
+  - Skill
   - TodoList

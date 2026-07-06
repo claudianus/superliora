@@ -233,7 +233,7 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).not.toContain('agents=2');
   });
 
-  it('renders UltraSwarm expert metadata and verdict evidence summaries', () => {
+  it('renders UltraSwarm expert metadata and verdict summaries', () => {
     const component = createComponent({ title: 'UltraSwarm' });
 
     component.applyUltraSwarmTeam([
@@ -249,11 +249,12 @@ describe('AgentSwarmProgressComponent', () => {
 
     let output = renderText(component);
     expect(output).toContain('╭');
-    expect(output).toContain('Team');
-    expect(output).toContain('AppSec Engineer security_privacy/review');
-    expect(output).toContain('Swarm Feed');
-    expect(output).toContain('STAFF');
-    expect(output).toContain('lanes: security_privacy');
+    expect(output).toContain('UltraSwarm');
+    expect(output).toContain('AppSec Engineer');
+    expect(output).toContain('feed');
+    expect(output).toContain('awaiting team messages');
+    expect(output).not.toContain('STAFF');
+    expect(output).not.toContain('lanes:');
 
     component.applyResult([
       '<ultra_swarm_result run_id="uw_1">',
@@ -262,12 +263,12 @@ describe('AgentSwarmProgressComponent', () => {
     ].join('\n'));
 
     output = renderText(component);
-    expect(output).toContain('AppSec Engineer: PASS evidence ev_1,ev_2');
-    expect(output).toContain('DONE');
-    expect(output).toContain('PASS (ev_1, ev_2)');
+    expect(output).toContain('AppSec Engineer: PASS');
+    expect(output).not.toContain('ev_1');
+    expect(output).not.toContain('DONE');
   });
 
-  it('streams UltraSwarm operator reports into the ops feed', () => {
+  it('does not stream operator work logs into the UltraSwarm feed', () => {
     const component = createComponent({ title: 'UltraSwarm' });
     component.applyUltraSwarmTeam([
       {
@@ -292,35 +293,43 @@ describe('AgentSwarmProgressComponent', () => {
     });
 
     const output = renderText(component, 120);
-    expect(output).toContain('Swarm Feed');
-    expect(output).toContain('JOIN');
-    expect(output).toContain('LIVE');
-    expect(output).toContain('TOOL');
-    expect(output).toContain('Read: packages/agent-core/src/example.ts');
-    expect(output).toContain('RUN');
-    expect(output).toContain('live 1');
+    expect(output).toContain('feed');
+    expect(output).not.toContain('JOIN');
+    expect(output).not.toContain('LIVE');
+    expect(output).not.toContain('TOOL');
+    expect(output).not.toContain('Read: packages/agent-core/src/example.ts');
+    expect(output).not.toContain('RUN');
+    expect(output).toContain('awaiting team messages');
   });
 
-  it('renders UltraSwarm collaboration bus messages in the ops feed', () => {
+  it('renders only agent conversation in the UltraSwarm feed', () => {
     const component = createComponent({ title: 'UltraSwarm' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'security-appsec-engineer',
         name: 'AppSec Engineer',
+        emoji: '🔒',
         coverageLane: 'security_privacy',
         focus: 'review',
+      },
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+        focus: 'build',
       },
     ]);
     component.markInputComplete();
 
     component.applySwarmCollaborationMessage({
-      from: { name: 'AppSec Engineer' },
+      from: { expertId: 'security-appsec-engineer', name: 'AppSec Engineer', emoji: '🔒' },
       to: { expertId: 'impl-engineer' },
       channel: 'blocker',
       body: 'auth middleware missing tests',
     });
     component.applySwarmCollaborationMessage({
-      from: { name: 'Impl Engineer' },
+      from: { expertId: 'impl-engineer', name: 'Impl Engineer', emoji: '🔧' },
       channel: 'lane',
       body: 'patch ready for review',
     });
@@ -330,20 +339,76 @@ describe('AgentSwarmProgressComponent', () => {
       body: 'implement phase started · 2 expert(s) active',
     });
     component.applySwarmCollaborationMention({
-      from: { name: 'AppSec Engineer' },
+      from: { expertId: 'security-appsec-engineer', name: 'AppSec Engineer', emoji: '🔒' },
       to: { expertId: 'impl-engineer' },
       channel: 'direct',
       body: 'Need auth review @impl-engineer',
     });
 
     const output = renderText(component, 120);
-    expect(output).toContain('Swarm Feed');
-    expect(output).toContain('BLOCK');
-    expect(output).toContain('MSG');
-    expect(output).toContain('STANDUP');
-    expect(output).toContain('@impl-engineer');
-    expect(output).toContain('auth middleware missing tests');
-    expect(output).toContain(' @ AppSec Engineer');
+    const feedSection = output.split('feed')[1]?.split('╰')[0] ?? '';
+    expect(output).toContain('feed');
+    expect(feedSection).toContain('001→002: auth middleware missing tests');
+    expect(feedSection).toContain('002: patch ready for review');
+    expect(feedSection).toContain('001→@002: Need auth review @impl-engineer');
+    expect(feedSection).not.toContain('AppSec Engineer');
+    expect(feedSection).not.toContain('Impl Engineer');
+    expect(output).not.toContain('STANDUP');
+    expect(output).not.toContain('implement phase started');
+  });
+
+  it('collapses consecutive feed messages from the same thread', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        coverageLane: 'security_privacy',
+      },
+    ]);
+    component.markInputComplete();
+
+    component.applySwarmCollaborationMessage({
+      from: { expertId: 'security-appsec-engineer', name: 'AppSec Engineer' },
+      to: { expertId: 'impl-engineer' },
+      channel: 'blocker',
+      body: 'auth middleware missing tests',
+    });
+    component.applySwarmCollaborationMessage({
+      from: { expertId: 'security-appsec-engineer', name: 'AppSec Engineer' },
+      to: { expertId: 'impl-engineer' },
+      channel: 'blocker',
+      body: 'blocking merge until CI passes',
+    });
+
+    const output = renderText(component, 120);
+    expect(output).toContain('001→impl: auth middleware missing tests');
+    expect(output).toContain('blocking merge until CI passes');
+    expect(output.match(/001→impl/g)?.length).toBe(1);
+  });
+
+  it('uses a two-line feed layout on narrow terminals to preserve message bodies', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        emoji: '🔒',
+      },
+    ]);
+    component.markInputComplete();
+    component.applySwarmCollaborationMessage({
+      from: { expertId: 'security-appsec-engineer', name: 'AppSec Engineer', emoji: '🔒' },
+      to: { expertId: 'impl-engineer' },
+      channel: 'blocker',
+      body: 'auth middleware missing tests for OAuth callback path',
+    });
+
+    const lines = renderLines(component, 60);
+    const feedHeaderIndex = lines.findIndex((line) => line.includes('001→impl'));
+    expect(feedHeaderIndex).toBeGreaterThan(-1);
+    expect(lines[feedHeaderIndex + 1]).toContain('auth middleware missing tests for OAuth callback path');
+    expect(lines[feedHeaderIndex]).not.toContain('auth middleware');
   });
 
   it('does not render the ops feed for plain Agent Swarm runs', () => {

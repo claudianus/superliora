@@ -485,6 +485,7 @@ function configuredModel(...models: readonly (string | undefined)[]): string | u
 function installHeadlessHandlers(session: Session): void {
   session.setApprovalHandler(() => ({ decision: 'approved' }));
   session.setQuestionHandler(() => null);
+  session.setCredentialHandler(() => null);
 }
 
 function installPromptTerminationCleanup(

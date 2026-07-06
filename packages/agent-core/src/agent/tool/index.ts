@@ -572,6 +572,8 @@ export class ToolManager {
         toolServices?.computerUse && new b.ComputerStatusTool(toolServices.computerUse),
         toolServices?.webSearcher && new b.WebSearchTool(toolServices.webSearcher),
         toolServices?.urlFetcher && new b.FetchURLTool(toolServices.urlFetcher),
+        toolServices?.context7 && new b.Context7ResolveTool(toolServices.context7),
+        toolServices?.context7 && new b.Context7DocsTool(toolServices.context7),
       ]
         .filter((tool) => !!tool)
         .map((tool) => [tool.name, tool] as const),

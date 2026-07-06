@@ -116,8 +116,8 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     } satisfies Event, vi.fn());
 
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledTimes(1);
-    expect(renderedTheatre(host)).toContain('Ultrawork Theatre');
-    expect(renderedTheatre(host)).toContain('stage research');
+    expect(renderedTheatre(host)).toContain('Ultrawork');
+    expect(renderedTheatre(host)).toContain('research');
 
     handler.handleEvent({
       type: 'ultrawork.research.started',
@@ -193,10 +193,11 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     } satisfies Event, vi.fn());
 
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledTimes(1);
+    expect(renderedTheatre(host)).toContain('Ultrawork');
+    expect(renderedTheatre(host)).toContain('Ship current-library feature');
     expect(renderedTheatre(host)).toContain('LocalResearchStack');
-    expect(renderedTheatre(host)).toContain('1/24 experts');
-    expect(renderedTheatre(host)).toContain('Security Reviewer:security_privacy/queued');
+    expect(renderedTheatre(host)).toContain('1 expert');
     expect(renderedTheatre(host)).toContain('verify passed');
-    expect(renderedTheatre(host)).toContain('learn 1');
+    expect(renderedTheatre(host)).toContain('1 saved');
   });
 });

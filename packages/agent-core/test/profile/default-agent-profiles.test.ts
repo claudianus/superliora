@@ -110,17 +110,18 @@ describe('default agent profiles', () => {
     ).toThrow(/Embedded agent profile source missing: profile\/default\/missing\.md/);
   });
 
-  it('omits the skill runtime section for subagent profiles that lack the Skill tool', () => {
+  it('includes skill tools for subagent profiles used by UltraSwarm experts', () => {
     const agentPrompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext) ?? '';
     expect(agentPrompt).toContain('# Skill Runtime');
     expect(agentPrompt).toContain('- test-skill: does things');
 
     for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
-      expect(tools).not.toContain('Skill');
+      expect(tools).toContain('SearchSkill');
+      expect(tools).toContain('Skill');
       const prompt = DEFAULT_AGENT_PROFILES[name]?.systemPrompt(promptContext) ?? '';
-      expect(prompt).not.toContain('# Skill Runtime');
-      expect(prompt).not.toContain('- test-skill: does things');
+      expect(prompt).toContain('# Skill Runtime');
+      expect(prompt).toContain('- test-skill: does things');
     }
   });
 

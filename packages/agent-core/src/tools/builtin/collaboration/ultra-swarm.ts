@@ -28,6 +28,7 @@ import { createUltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
 import { maybeAdvanceUltraworkStage } from '../../../ultrawork';
 import {
   buildSwarmChannelRulesXml,
+  buildSwarmCollaborationRequiredXml,
   buildTeamRosterXml,
   emitCouncilDecisionFromReview,
   postOrchestratorStandup,
@@ -46,6 +47,7 @@ import type { ExpertAssignment, ExpertSwarmPlan } from '../../../expert-agents/t
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
 import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
+import { buildExpertSwarmExecutionFooter } from '../../../expert-agents/expert-persona';
 import type { ToolStore } from '../../store';
 import { TODO_STORE_KEY } from '../state/todo-list';
 import {
@@ -586,6 +588,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           input.team,
           input.busEnabled,
           dependencyHandoff,
+          input.phase,
+          this.store,
         ),
         description: `${input.args.description} #${String(spec.index)} (${spec.expertName} ${spec.emoji})`,
         swarmIndex: spec.index,
@@ -790,6 +794,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     team: TeamPlan,
     busEnabled: boolean,
     dependencyHandoff = '',
+    phase: UltraSwarmPhase = spec.phase,
+    store?: ToolStore,
   ): string {
     const briefing = `<expert_briefing name="${spec.expertName}" emoji="${spec.emoji}" color="${spec.color}" phase="${spec.phase}">
 ${spec.assignmentPrompt}
@@ -814,14 +820,18 @@ ${taskDescription}
         ? '\nReview gate: start your final answer with one of "VERDICT: PASS", "VERDICT: BLOCKED", or "VERDICT: FAIL". Return PASS only when evidence is sufficient; otherwise return concrete fixes and the evidence still missing.'
         : '';
     const workNodeLine = workNodes.length === 0 ? '' : `\n\n${formatWorkNodeContract(workNodes)}`;
+    const liveBusDigest = busEnabled && store !== undefined
+      ? renderSwarmBusDigest(store, { limit: 8 })
+      : '';
+    const liveBusLine = liveBusDigest.length > 0 ? `\n\n${liveBusDigest}` : '';
     const collaborationLine = busEnabled
-      ? `\n\n${buildTeamRosterXml(team)}\n\n${buildSwarmChannelRulesXml()}`
+      ? `\n\n${buildTeamRosterXml(team)}\n\n${buildSwarmChannelRulesXml()}\n\n${buildSwarmCollaborationRequiredXml(phase)}${liveBusLine}`
       : '';
     const criticLine = spec.criticAssignment === undefined
       ? ''
       : `\n\n${buildCriticAssignmentXml(spec.criticAssignment)}`;
     return appendSwarmResearchAutonomy(
-      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${collaborationLine}${handoffLine}${dependencyLine}${criticLine}\n\nLean context: LioraContext(compose) + LioraSearch before broad Read/Grep; compact handoffs with file:line evidence.\n\nApply ${spec.expertName} expertise; return a compact handoff for the parent — do not integrate final product-file edits yourself.\n\nTodoList: create a live scope board within your first 2 tool calls (3–7 actionable cards). Update after each major tool batch — split vague cards, mark done only after verification. The parent sees your progress on the swarm panel; your final handoff is separate.`,
+      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${collaborationLine}${handoffLine}${dependencyLine}${criticLine}\n\n${buildExpertSwarmExecutionFooter(spec.expertName)}`,
     );
   }
 

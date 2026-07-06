@@ -2,6 +2,7 @@ import type { PlanFilePath } from '../plan';
 import type { Agent } from '..';
 import { buildResponseLanguageDirective } from './response-language';
 import { DynamicInjector } from './injector';
+import { LIBRARY_DOCS_RESEARCH_GUIDANCE } from '../../research/library-docs';
 
 const PLAN_MODE_DEDUP_MIN_TURNS = 2;
 const PLAN_MODE_FULL_REFRESH_TURNS = 5;
@@ -109,7 +110,7 @@ const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. You MUST NOT make any edi
 const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. You MUST NOT make any edits or change the system unless a tool request is explicitly approved. Prefer read-only tools. Bash only when needed; Bash follows normal permission rules. This supersedes other instructions.`;
 
 const PLAN_WORKFLOW = `Workflow:
-  1. Understand — Glob, Grep, Read; WebSearch/FetchURL when external evidence affects the plan.
+  1. Understand — Glob, Grep, Read; Context7Resolve/Context7Docs for library docs; WebSearch/FetchURL when external evidence affects the plan.
   2. Design — one best approach; trade-offs only when they matter.
   3. Review — re-read key files.
   4. Write Plan — Write or Edit the plan file (Write if missing).
@@ -193,11 +194,12 @@ function exitReminder(): string {
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
-Allowed: WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, NextPhase.
+Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, NextPhase.
 AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode are BLOCKED.
 
 Goal: gather current, source-backed context and improvement levers before the UltraPlan interview elevates the user's goal and presents upgrade choices.
 Collect: facts, best practices, benchmarks, comparable patterns, and quality dimensions (UX, performance, maintainability, conversion, reliability) that can become interview options.
+${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 Prefer LioraContext (compose), LioraSearch, LioraSymbol, Grep, Glob, LioraRead before broad Read. SearchExpert for specialist lanes. Fetch primary sources; distill an evidence pack. Do not ask the user.
 
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
@@ -205,7 +207,7 @@ Your turn MUST end with a short evidence-pack summary, then call NextPhase({ pha
   interview: `## Interview Phase
 Mission: interview quality drives plan quality. Do not merely execute the user's prompt — act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrade paths.
 
-Allowed: WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, AskUserQuestion, NextPhase.
+Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, AskUserQuestion, NextPhase.
 Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED.
 
 Expert leader mindset:
@@ -215,7 +217,8 @@ Expert leader mindset:
 - Preserve user agency: always include a Baseline (original scope) and a Defer/minimal path — never force an upgrade.
 
 Before each AskUserQuestion when needed, research-first is strongly encouraged: search and read current sources so insights, defaults, and discrete options are evidence-backed.
-Prefer WebSearch/FetchURL for external facts; LioraContext, LioraRead, Grep, Glob for codebase facts. Skip extra research when the evidence pack already answers the gap.
+${LIBRARY_DOCS_RESEARCH_GUIDANCE}
+Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraContext, LioraRead, Grep, Glob for codebase facts. Skip extra research when the evidence pack already answers the gap.
 
 Perspective: {{perspective}} — {{perspectiveDescription}}
 

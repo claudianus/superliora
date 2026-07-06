@@ -9,6 +9,7 @@ import {
 } from './sub-skill';
 import { UPDATE_CONFIG_SKILL } from './update-config';
 import { WRITE_GOAL_SKILL } from './write-goal';
+import { registerCatalogSkills as loadCatalogSkills } from '../catalog-loader';
 
 export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(MCP_CONFIG_SKILL);
@@ -19,6 +20,10 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(SUB_SKILL_PARENT);
   registry.registerBuiltinSkill(SUB_SKILL_REVIEW);
   registry.registerBuiltinSkill(SUB_SKILL_CONSOLIDATE);
+}
+
+export async function registerCatalogSkills(registry: SessionSkillRegistry): Promise<number> {
+  return loadCatalogSkills(registry);
 }
 
 export {

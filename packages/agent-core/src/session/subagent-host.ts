@@ -15,7 +15,8 @@ import { ErrorCodes, type LioraErrorPayload } from '../errors';
 import { DenyAllPermissionPolicy } from '../agent/permission/policies/deny-all';
 import { InMemoryAgentRecordPersistence } from '../agent/records';
 import { isAbortError } from '../loop/errors';
-import { EXPERT_CATALOG_BY_ID } from '../expert-agents/catalog';
+import { resolveExpertCatalogEntry } from '../expert-agents/catalog-extensions';
+import { renderExpertSystemPrompt, resolveExpertWhenToUse } from '../expert-agents/expert-persona';
 import type { ExpertCatalogEntry } from '../expert-agents/types';
 import {
   deliverSwarmBusCoordination,
@@ -326,7 +327,7 @@ export class SessionSubagentHost {
       DEFAULT_AGENT_PROFILES['agent']?.subagents?.[profileName];
     if (profile !== undefined) return profile;
 
-    const expert = EXPERT_CATALOG_BY_ID[profileName];
+    const expert = resolveExpertCatalogEntry(profileName);
     if (expert === undefined) {
       throw new Error(`Subagent profile "${profileName}" was not found`);
     }
@@ -688,34 +689,10 @@ function createExpertSubagentProfile(
     ...baseProfile,
     name: expert.id,
     description: expert.description,
-    whenToUse: expert.whenToUse.trim().length > 0 ? expert.whenToUse : expert.description,
+    whenToUse: resolveExpertWhenToUse(expert),
     systemPrompt: (context) =>
       renderExpertSystemPrompt(baseProfile.systemPrompt(context), expert, baseProfile.name),
     tools: [...baseProfile.tools],
     subagents: baseProfile.subagents,
   };
-}
-
-function renderExpertSystemPrompt(
-  basePrompt: string,
-  expert: ExpertCatalogEntry,
-  baseProfileName: string,
-): string {
-  return [
-    basePrompt,
-    '',
-    '## Expert Subagent Profile',
-    '',
-    `You are running as the "${expert.id}" expert subagent, based on the "${baseProfileName}" execution profile.`,
-    `Expert name: ${expert.name}`,
-    `Division: ${expert.divisionLabel} (${expert.division})`,
-    `Summary: ${expert.description}`,
-    expert.vibe.trim().length > 0 ? `Operating stance: ${expert.vibe}` : undefined,
-    '',
-    '<expert_persona>',
-    expert.personaText,
-    '</expert_persona>',
-    '',
-    'Apply this expert persona as your primary role while keeping all base subagent constraints: treat the parent agent as your caller, avoid asking the end user direct questions, and finish with a compact but technically complete handoff.',
-  ].filter((line): line is string => line !== undefined).join('\n');
 }

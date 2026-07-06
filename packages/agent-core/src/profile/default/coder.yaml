@@ -34,5 +34,9 @@ tools:
   - ComputerAct
   - ComputerStatus
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
+  - SearchSkill
+  - Skill
   - TodoList
   - mcp__*

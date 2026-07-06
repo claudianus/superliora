@@ -124,6 +124,9 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('Research Phase');
+    expect(text).toContain('Context7Resolve');
+    expect(text).toContain('Context7Docs');
+    expect(text).toContain('Context7Resolve → Context7Docs');
     expect(text).toContain('improvement levers');
     expect(text).toContain('AskUserQuestion');
     expect(text).toContain('BLOCKED');
@@ -151,6 +154,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('no required gaps remain, and the UltraGoal is verifiable');
     expect(text).toContain('Option shape: Baseline');
     expect(text).toContain('research-first is strongly encouraged');
+    expect(text).toContain('Context7Resolve/Context7Docs for library APIs');
     expect(text).toContain('WebSearch/FetchURL for external facts');
     expect(text).toContain('Perspective: architect');
     expect(text).not.toContain('{{perspective}}');

@@ -15,7 +15,7 @@
  * NOT here. The peer-service interfaces stay SDK-shaped.
  */
 
-import type { ApprovalRequest, ApprovalResponse, Event, QuestionRequest, QuestionResult, SDKAPI, ToolCallRequest, ToolCallResponse } from '../../rpc';
+import type { ApprovalRequest, ApprovalResponse, CredentialRequest, CredentialResponse, Event, QuestionRequest, QuestionResult, SDKAPI, ToolCallRequest, ToolCallResponse } from '../../rpc';
 
 import type { IApprovalService } from '../approval/approval';
 import type { IEventService } from '../event/event';
@@ -56,6 +56,12 @@ export class BridgeClientAPI implements SDKAPI {
     options?: { signal?: AbortSignal },
   ): Promise<QuestionResult> {
     return this.deps.questionService.request(request, options);
+  }
+
+  async requestCredential(
+    _request: CredentialRequest & { sessionId: string; agentId: string },
+  ): Promise<CredentialResponse | null> {
+    return null;
   }
 
   async toolCall(

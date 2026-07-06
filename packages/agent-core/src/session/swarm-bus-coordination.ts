@@ -229,11 +229,38 @@ export function buildSwarmChannelRulesXml(): string {
     '- Use SwarmChannel to coordinate with peers: post status, ask questions, report blockers.',
     '- Channels: standup (progress), lane (lane work), direct (@peer), blocker (urgent), council (review notes).',
     '- Keep posts under 500 chars. Mention peers with @expert_id or @Expert Name.',
-    '- Post a standup snapshot at least every 30 minutes during long implement/review work.',
-    '- Call SwarmChannel list before major decisions to read recent team messages.',
+    '- At implement/review start: SwarmChannel list (limit 12) before major decisions.',
+    '- When blocked: SwarmChannel blocker or direct @mention with a concrete question — do not guess across lanes.',
+    '- Before finishing implement work: SwarmChannel standup post with findings, gaps, and evidence status.',
     '- Review experts receive critic-edge assignments against upstream implement/plan handoffs.',
     '- Failed required reviews may receive one revision pass before council synthesis.',
     '</swarm_channel_rules>',
+  ].join('\n');
+}
+
+export function buildSwarmCollaborationRequiredXml(phase: 'plan' | 'implement' | 'review'): string {
+  if (phase === 'implement') {
+    return [
+      '<collaboration_required>',
+      '1. SwarmChannel list — read peer updates before major decisions.',
+      '2. If blocked or needing another lane: SwarmChannel direct @mention with a specific question.',
+      '3. Before handoff: SwarmChannel standup — outcome, evidence, open gaps.',
+      '</collaboration_required>',
+    ].join('\n');
+  }
+  if (phase === 'review') {
+    return [
+      '<collaboration_required>',
+      '1. Read upstream handoffs and SwarmChannel list before issuing VERDICT.',
+      '2. Post council notes via SwarmChannel when findings affect other experts.',
+      '</collaboration_required>',
+    ].join('\n');
+  }
+  return [
+    '<collaboration_required>',
+    '1. SwarmChannel standup when your plan findings affect implement or review lanes.',
+    '2. @mention peers when a dependency or assumption needs another specialist.',
+    '</collaboration_required>',
   ].join('\n');
 }
 

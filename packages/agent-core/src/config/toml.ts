@@ -23,6 +23,7 @@ import {
   type PermissionConfig,
   type ProviderConfig,
   type ResearchConfig,
+  type ResearchContext7Config,
   type ResearchLocalSearchConfig,
   type ServicesConfig,
   type ThinkingConfig,
@@ -469,6 +470,9 @@ function transformResearchData(data: Record<string, unknown>): Record<string, un
   if (isPlainObject(out['localSearch'])) {
     out['localSearch'] = transformResearchLocalSearchData(out['localSearch']);
   }
+  if (isPlainObject(out['context7'])) {
+    out['context7'] = transformPlainObject(out['context7']);
+  }
   return out;
 }
 
@@ -723,9 +727,19 @@ function researchToToml(research: ResearchConfig, rawResearch: unknown): Record<
   for (const [key, value] of Object.entries(research)) {
     if (key === 'localSearch' && value !== undefined) {
       out['local_search'] = researchLocalSearchToToml(value as ResearchLocalSearchConfig);
+    } else if (key === 'context7' && value !== undefined) {
+      out['context7'] = researchContext7ToToml(value as ResearchContext7Config);
     } else {
       setDefined(out, camelToSnake(key), value);
     }
+  }
+  return out;
+}
+
+function researchContext7ToToml(context7: ResearchContext7Config): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(context7)) {
+    setDefined(out, camelToSnake(key), value);
   }
   return out;
 }

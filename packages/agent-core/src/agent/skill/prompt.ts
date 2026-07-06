@@ -1,5 +1,6 @@
 import { escapeXml } from '#/utils/xml-escape';
 import type { SkillSource } from '../../skill';
+import { renderSkillApplicationProtocol } from '../../skill/skill-composition';
 
 export type SkillPromptTrigger = 'user-slash' | 'model-tool' | 'nested-skill';
 
@@ -24,7 +25,9 @@ interface RenderSkillLoadedBlockInput extends RenderSkillPromptInput {
 
 export function renderUserSlashSkillPrompt(input: RenderSkillPromptInput): string {
   return [
-    `User activated the skill "${escapeXml(input.skillName)}". Follow the loaded skill instructions.`,
+    `User activated the skill "${escapeXml(input.skillName)}". Apply it selectively per skill_application_protocol — do not follow blindly.`,
+    '',
+    renderSkillApplicationProtocol(),
     '',
     renderSkillLoadedBlock({ ...input, trigger: 'user-slash' }),
   ].join('\n');
@@ -36,7 +39,9 @@ export interface RenderModelToolSkillPromptInput extends RenderSkillPromptInput 
 
 export function renderModelToolSkillPrompt(input: RenderModelToolSkillPromptInput): string {
   return [
-    'Skill tool loaded instructions for this request. Follow them.',
+    'Skill tool loaded reference material for this request. Apply selectively per skill_application_protocol — do not follow blindly.',
+    '',
+    renderSkillApplicationProtocol(),
     '',
     renderSkillLoadedBlock({ ...input, trigger: input.trigger }),
   ].join('\n');

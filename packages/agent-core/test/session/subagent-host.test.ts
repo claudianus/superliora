@@ -396,10 +396,9 @@ describe('SessionSubagentHost', () => {
     await expect(handle.completion).resolves.toMatchObject({ result: summary.trim() });
     expect(handle.profileName).toBe('academic-anthropologist');
     expect(child.agent.config.profileName).toBe('academic-anthropologist');
-    expect(child.llmCalls[0]?.systemPrompt).toContain('## Expert Subagent Profile');
-    expect(child.llmCalls[0]?.systemPrompt).toContain(
-      'You are running as the "academic-anthropologist" expert subagent',
-    );
+    expect(child.llmCalls[0]?.systemPrompt).toContain('<persona_spec>');
+    expect(child.llmCalls[0]?.systemPrompt).toContain('<role_declaration>');
+    expect(child.llmCalls[0]?.systemPrompt).toContain('Anthropologist');
     expect(child.llmCalls[0]?.systemPrompt).toContain('Anthropologist Agent Personality');
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([

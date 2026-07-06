@@ -120,6 +120,7 @@ import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
 import { registerReverseRPCHandlers } from './reverse-rpc/index';
 import { QuestionController } from './reverse-rpc/question/controller';
 import { createQuestionAskHandler } from './reverse-rpc/question/handler';
+import { createContext7CredentialHandler } from './reverse-rpc/credential/handler';
 import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
 import { currentTheme, getColorPalette, getBuiltInPalette, isBuiltInTheme } from './theme';
 import type { ColorToken, ResolvedTheme, ThemeName } from './theme';
@@ -1706,6 +1707,7 @@ export class LioraTUI {
     this.clearReverseRpcPanels();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
+    previous?.setCredentialHandler(undefined);
     this.approvalController.cancelAll(reason);
     this.questionController.cancelAll(reason);
     this.session = undefined;
@@ -1728,6 +1730,7 @@ export class LioraTUI {
       }),
     );
     session.setQuestionHandler(createQuestionAskHandler(this.questionController));
+    session.setCredentialHandler(createContext7CredentialHandler(this));
   }
 
   async fetchSessions(scope: 'cwd' | 'all' = this.state.sessionsScope): Promise<void> {

@@ -47,6 +47,17 @@ export interface QuestionResponse {
 
 export type QuestionResult = null | QuestionAnswers | QuestionResponse;
 
+export interface CredentialRequest {
+  readonly id: string;
+  readonly title: string;
+  readonly subtitleLines?: readonly string[] | undefined;
+  readonly toolCallId?: string | undefined;
+}
+
+export interface CredentialResponse {
+  readonly value?: string | undefined;
+}
+
 export interface QuestionRequest {
   readonly turnId?: number;
   readonly toolCallId?: string;
@@ -68,6 +79,7 @@ export interface SDKAgentAPI {
   emitEvent: (event: AgentEvent) => void;
   requestApproval: (request: ApprovalRequest) => Promise<ApprovalResponse>;
   requestQuestion: (request: QuestionRequest) => Promise<QuestionResult>;
+  requestCredential: (request: CredentialRequest) => Promise<CredentialResponse | null>;
   toolCall: (request: ToolCallRequest) => Promise<ToolCallResponse>;
 }
 export type SDKAgentRPC = RPCMethods<SDKAgentAPI>;

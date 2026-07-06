@@ -325,6 +325,18 @@ describe('Plan mode permission policy', () => {
     expect(planMode.phase).toBe('research');
     expect(evaluatePlanPolicy(agent, 'WebSearch', { query: 'current API release notes' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com' })).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'Context7Resolve', {
+        library_name: 'next.js',
+        query: 'middleware',
+      }),
+    ).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'Context7Docs', {
+        library_id: '/vercel/next.js',
+        query: 'middleware',
+      }),
+    ).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'LioraContext', { query: 'ultrawork' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'SearchExpert', { query: 'architecture review' })).toBeUndefined();
     expect(

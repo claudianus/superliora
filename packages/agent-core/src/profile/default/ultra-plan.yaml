@@ -18,6 +18,8 @@ tools:
   - Grep
   - WebSearch
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
   - Write
   - Edit
   - Bash

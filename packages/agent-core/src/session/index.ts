@@ -41,6 +41,7 @@ import {
 import type { ProviderManager } from './provider-manager';
 import {
   registerBuiltinSkills,
+  registerCatalogSkills,
   SessionSkillRegistry,
   resolveSkillRoots,
   summarizeSkill,
@@ -679,6 +680,7 @@ export class Session {
     });
     await this.skills.loadRoots(roots);
     registerBuiltinSkills(this.skills);
+    await registerCatalogSkills(this.skills);
   }
 
   private async loadMcpServers(): Promise<void> {

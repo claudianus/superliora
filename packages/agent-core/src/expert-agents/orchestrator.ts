@@ -1,5 +1,7 @@
 import type { ExpertCatalogEntry, ExpertSearchResult, ExpertSwarmPlan } from './types';
 import { globalExpertSearchEngine } from './search';
+import { inferExpertTaskProfile } from './task-profile';
+import { buildExpertAssignmentPrompt } from './expert-persona';
 
 export interface TaskAnalysis {
   readonly domains: readonly string[];
@@ -35,7 +37,11 @@ export class UltraSwarmOrchestrator {
     const seenExperts = new Set<string>();
 
     // Search with the full description first
-    const fullResults = globalExpertSearchEngine.search({ query: taskDescription, topK: 10 });
+    const fullResults = globalExpertSearchEngine.search({
+      query: taskDescription,
+      topK: 10,
+      taskDescription,
+    });
     for (const r of fullResults) {
       domainSet.add(r.expert.division);
       seenExperts.add(r.expert.id);
@@ -43,7 +49,11 @@ export class UltraSwarmOrchestrator {
 
     // Then search with individual keywords for broader coverage
     for (const keyword of keywords.slice(0, 5)) {
-      const results = globalExpertSearchEngine.search({ query: keyword, topK: 3 });
+      const results = globalExpertSearchEngine.search({
+        query: keyword,
+        topK: 3,
+        taskDescription,
+      });
       for (const r of results) {
         if (!seenExperts.has(r.expert.id)) {
           domainSet.add(r.expert.division);
@@ -66,6 +76,7 @@ export class UltraSwarmOrchestrator {
     options: UltraSwarmPlanOptions = {},
   ): Promise<ExpertSwarmPlan> {
     await globalExpertSearchEngine.initialize();
+    const taskProfile = inferExpertTaskProfile(taskDescription);
 
     let experts: ExpertSearchResult[];
 
@@ -88,6 +99,7 @@ export class UltraSwarmOrchestrator {
         const laneExperts = globalExpertSearchEngine.search({
           query: `${taskDescription} ${coverageLaneQuery(lane)}`,
           topK: 8,
+          taskDescription,
           filter: (expert) => coverageLaneForExpert(expert, taskDescription) === lane,
         });
         for (const e of laneExperts) {
@@ -100,10 +112,12 @@ export class UltraSwarmOrchestrator {
       }
 
       for (const domain of analysis.domains) {
+        if (taskProfile.excludedDivisions.includes(domain)) continue;
         const domainExperts = globalExpertSearchEngine.search({
           query: taskDescription,
           topK: 1,
           division: domain,
+          taskDescription,
         });
         for (const e of domainExperts) {
           if (!seen.has(e.expert.id)) {
@@ -120,6 +134,7 @@ export class UltraSwarmOrchestrator {
         const broad = globalExpertSearchEngine.search({
           query: taskDescription,
           topK: targetExpertCount + 8,
+          taskDescription,
         });
         for (const e of broad) {
           if (!seen.has(e.expert.id)) {
@@ -158,11 +173,11 @@ export class UltraSwarmOrchestrator {
   }
 
   private buildExpertPrompt(expert: ExpertCatalogEntry, taskDescription: string, index: number): string {
-    const base = `You are ${expert.name} (${expert.emoji}), the "${expert.id}" expert subagent.`;
-    const context = index === 0
-      ? `You have been summoned as part of an UltraSwarm to tackle this task:\n\n${taskDescription}\n\nFocus on your specific expertise and provide a detailed, high-quality contribution.`
-      : `You are working alongside other experts on this task:\n\n${taskDescription}\n\nFocus on your specific expertise. Your work may build on or complement the work of other experts in the swarm.`;
-    return `${base}\n\n---\n\n${context}`;
+    return buildExpertAssignmentPrompt(expert, {
+      taskDescription,
+      swarmIndex: index,
+      totalExperts: undefined,
+    });
   }
 }
 
@@ -222,22 +237,55 @@ function coverageLaneQuery(lane: string): string {
 }
 
 function coverageLaneForExpert(expert: ExpertCatalogEntry, taskDescription: string): string {
-  const expertText = `${expert.division} ${expert.divisionLabel} ${expert.name} ${expert.description} ${expert.tags.join(' ')}`.toLowerCase();
-  const taskText = taskDescription.toLowerCase();
   const division = expert.division.toLowerCase();
+  const expertText = `${expert.name} ${expert.description} ${expert.tags.join(' ')} ${expert.capabilities.join(' ')}`.toLowerCase();
+
+  switch (division) {
+    case 'testing':
+      return 'testing_evidence';
+    case 'product':
+    case 'project-management':
+      return 'product_requirements';
+    case 'engineering':
+      return 'architecture_implementation';
+    case 'design':
+      return 'ux_visual_content';
+    case 'security':
+      return 'security_privacy';
+    case 'sales':
+    case 'marketing':
+    case 'paid-media':
+    case 'finance':
+    case 'support':
+    case 'academic':
+    case 'gis':
+    case 'specialized':
+      return 'domain_subject_matter';
+    case 'spatial-computing':
+      if (/\b(?:terminal|tui|cli|renderer|interface|ui|ux)\b/.test(expertText)) {
+        return 'ux_visual_content';
+      }
+      return 'architecture_implementation';
+    case 'game-development':
+      return 'ux_visual_content';
+    default:
+      break;
+  }
+
+  const taskText = taskDescription.toLowerCase();
   if (/\b(?:security|auth|privacy|payment|compliance|legal)\b/.test(expertText)) return 'security_privacy';
-  if (division === 'testing' || /\b(?:test|testing|qa|quality|verification|validation|evidence)\b/.test(expertText)) return 'testing_evidence';
+  if (/\b(?:test|testing|qa|quality|verification|validation|evidence)\b/.test(expertText)) return 'testing_evidence';
   if (/\b(?:performance|latency|scale|reliability|benchmark)\b/.test(expertText)) return 'performance_reliability';
-  if (division === 'product' || /\b(?:product|project|manager|requirements|strategy)\b/.test(expertText)) return 'product_requirements';
-  if (division === 'engineering' || /\b(?:engineer|engineering|architect|software|developer|implementation|code)\b/.test(expertText)) return 'architecture_implementation';
-  if (/\b(?:design|visual|brand|ux|ui|motion|animation)\b/.test(expertText)) return 'ux_visual_content';
-  if (/\b(?:product|project|manager|requirements|strategy)\b/.test(expertText)) return 'product_requirements';
-  if (/\b(?:academic|finance|gis|game|marketing|sales|support|specialized)\b/.test(expertText)) return 'domain_subject_matter';
+  if (/\b(?:design|visual|brand|ux|ui|motion|animation|terminal|tui|cli)\b/.test(expertText)) return 'ux_visual_content';
+  if (/\b(?:engineer|engineering|architect|software|developer|implementation|code)\b/.test(expertText)) {
+    return 'architecture_implementation';
+  }
   if (/\b(?:security|auth|privacy|payment|compliance|legal)\b/.test(taskText)) return 'security_privacy';
-  if (/\b(?:design|visual|brand|ux|ui|motion|game|animation)\b/.test(taskText)) return 'ux_visual_content';
+  if (/\b(?:design|visual|brand|ux|ui|motion|game|animation|tui|terminal|cli)\b/.test(taskText)) {
+    return 'ux_visual_content';
+  }
   if (/\b(?:test|qa|quality|review|verification|validation)\b/.test(taskText)) return 'testing_evidence';
   if (/\b(?:performance|latency|scale|reliability|benchmark)\b/.test(taskText)) return 'performance_reliability';
-  if (/\b(?:product|project|manager|requirements|strategy)\b/.test(taskText)) return 'product_requirements';
   return 'architecture_implementation';
 }
 

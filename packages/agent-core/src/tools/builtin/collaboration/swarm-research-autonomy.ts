@@ -1,6 +1,6 @@
 const SWARM_RESEARCH_AUTONOMY = [
   '<swarm_research_autonomy>',
-  'Unless forbidden, use WebSearch and FetchURL as often as needed for current papers, APIs, security, libraries, and OSS relevant to your scope. Fetch primary sources; cite URLs that affect recommendations.',
+  'Unless forbidden, use Context7Resolve and Context7Docs for library/API documentation; use WebSearch and FetchURL for papers, CVEs, blogs, and other primary sources. Fetch and cite URLs that affect recommendations.',
   '</swarm_research_autonomy>',
 ].join('\n');
 

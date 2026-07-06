@@ -45,6 +45,8 @@ tools:
   - AgentSwarm
   - UltraSwarm
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
   - AskUserQuestion
   - EnterPlanMode
   - NextPhase

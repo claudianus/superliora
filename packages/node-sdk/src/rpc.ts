@@ -7,6 +7,8 @@ import {
   type ApprovalRequest,
   type ApprovalResponse,
   type CoreAPI,
+  type CredentialRequest,
+  type CredentialResponse,
   type Event,
   type ExperimentalFeatureState,
   type QuestionRequest,
@@ -21,7 +23,7 @@ import {
 } from '@superliora/agent-core';
 import type { Kaos } from '@superliora/kaos';
 
-import type { ApprovalHandler, QuestionHandler } from '#/events';
+import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/events';
 import type {
   AddAdditionalDirInput,
   AddAdditionalDirResult,
@@ -152,6 +154,7 @@ export abstract class SDKRpcClientBase {
   private readonly eventListeners = new Set<(event: Event) => void>();
   private readonly approvalHandlers = new Map<string, ApprovalHandler>();
   private readonly questionHandlers = new Map<string, QuestionHandler>();
+  private readonly credentialHandlers = new Map<string, CredentialHandler>();
 
   get interactiveAgentId(): string {
     return this.interactiveAgentScope.getStore() ?? MAIN_AGENT_ID;
@@ -873,9 +876,18 @@ export abstract class SDKRpcClientBase {
     this.questionHandlers.set(sessionId, handler);
   }
 
+  setCredentialHandler(sessionId: string, handler: CredentialHandler | undefined): void {
+    if (handler === undefined) {
+      this.credentialHandlers.delete(sessionId);
+      return;
+    }
+    this.credentialHandlers.set(sessionId, handler);
+  }
+
   clearSessionHandlers(sessionId: string): void {
     this.approvalHandlers.delete(sessionId);
     this.questionHandlers.delete(sessionId);
+    this.credentialHandlers.delete(sessionId);
   }
 
   async requestApproval(
@@ -924,6 +936,25 @@ export abstract class SDKRpcClientBase {
     }
   }
 
+  async requestCredential(
+    request: CredentialRequest & { sessionId: string; agentId: string },
+  ): Promise<CredentialResponse | null> {
+    const handler = this.credentialHandlers.get(request.sessionId);
+    if (handler === undefined) return null;
+
+    try {
+      return await handler(request);
+    } catch (error) {
+      this.receiveEvent({
+        type: 'error',
+        sessionId: request.sessionId,
+        agentId: request.agentId,
+        ...makeErrorPayload(ErrorCodes.SESSION_QUESTION_HANDLER_ERROR, errorMessage(error)),
+      });
+      return null;
+    }
+  }
+
   async toolCall(request: ToolCallRequest): Promise<ToolCallResponse> {
     return {
       output: `SDK custom tool calls are not supported: ${request.toolCallId}`,
@@ -950,6 +981,12 @@ export class ClientAPI implements SDKAPI {
     request: QuestionRequest & { sessionId: string; agentId: string },
   ): Promise<QuestionResult> {
     return this.client.requestQuestion(request);
+  }
+
+  requestCredential(
+    request: CredentialRequest & { sessionId: string; agentId: string },
+  ): Promise<CredentialResponse | null> {
+    return this.client.requestCredential(request);
   }
 
   toolCall(request: ToolCallRequest): Promise<ToolCallResponse> {

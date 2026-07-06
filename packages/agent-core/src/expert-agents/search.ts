@@ -1,6 +1,11 @@
 import MiniSearch from 'minisearch';
 import type { ExpertCatalogEntry, ExpertSearchResult } from './types';
 import { EXPERT_CATALOG } from './catalog';
+import { EXPERT_CATALOG_EXTENSIONS } from './catalog-extensions';
+import { enrichExpertForCatalog } from './expert-persona';
+import { inferExpertTaskProfile, type ExpertTaskProfile } from './task-profile';
+
+const ALL_EXPERTS: readonly ExpertCatalogEntry[] = [...EXPERT_CATALOG, ...EXPERT_CATALOG_EXTENSIONS];
 
 export interface ExpertSearchOptions {
   readonly query: string;
@@ -8,6 +13,10 @@ export interface ExpertSearchOptions {
   readonly division?: string;
   readonly filter?: (expert: ExpertCatalogEntry) => boolean;
   readonly useEmbedding?: boolean; // default true if available
+  readonly preferredDivisions?: readonly string[];
+  readonly excludedDivisions?: readonly string[];
+  readonly taskDescription?: string;
+  readonly minScore?: number;
 }
 
 export class ExpertSearchEngine {
@@ -22,7 +31,7 @@ export class ExpertSearchEngine {
       storeFields: ['id'],
       searchOptions: {
         boost: { name: 3, description: 2, tags: 2, vibe: 1.5, capabilities: 1.5, division: 1 },
-        fuzzy: 0.3,
+        fuzzy: 0.2,
         prefix: true,
       },
     });
@@ -31,19 +40,21 @@ export class ExpertSearchEngine {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    const docs = EXPERT_CATALOG.map((expert) => ({
-      ...expert,
-      // Flatten arrays for indexing
-      tags: expert.tags.join(' '),
-      capabilities: expert.capabilities.join(' '),
-    }));
+    const docs = ALL_EXPERTS.map((expert) => {
+      const enriched = enrichExpertForCatalog(expert);
+      return {
+        ...enriched,
+        tags: enriched.tags.join(' '),
+        capabilities: enriched.capabilities.join(' '),
+      };
+    });
     this.index.addAll(docs as unknown as ExpertCatalogEntry[]);
-    for (const expert of EXPERT_CATALOG) {
+    for (const expert of ALL_EXPERTS) {
       this.expertById.set(expert.id, expert);
     }
     // Cache embeddings for fast cosine similarity
     this.embeddingCache = new Map();
-    for (const expert of EXPERT_CATALOG) {
+    for (const expert of ALL_EXPERTS) {
       if (expert.embedding !== undefined && expert.embedding.length > 0) {
         this.embeddingCache.set(expert.id, expert.embedding);
       }
@@ -56,10 +67,14 @@ export class ExpertSearchEngine {
       throw new Error('ExpertSearchEngine not initialized. Call initialize() first.');
     }
     const topK = options.topK ?? 5;
+    const minScore = options.minScore ?? 0.04;
+    const taskProfile = resolveTaskProfile(options);
     const useEmbedding = options.useEmbedding !== false && this.embeddingCache !== undefined && this.embeddingCache.size > 0;
 
     // 1. Sparse search (MiniSearch)
-    const miniResults = this.index.search(options.query).map((r) => {
+    const miniResults = this.index.search(options.query, {
+      fuzzy: options.query.trim().length <= 3 ? 0.05 : 0.2,
+    }).map((r) => {
       const expert = this.expertById.get(r.id);
       if (expert === undefined) return undefined;
       return { expert, score: r.score };
@@ -68,38 +83,48 @@ export class ExpertSearchEngine {
     // 2. Dense search (cosine similarity on embeddings) if available
     let denseResults: ExpertSearchResult[] = [];
     if (useEmbedding) {
-      denseResults = this.denseSearch(options.query, topK * 2);
+      denseResults = this.denseSearch(options.query, topK * 2, taskProfile);
     }
 
     // 3. RRF fusion
-    const fused = this.rrfFusion(miniResults, denseResults, topK);
+    const fused = this.rrfFusion(miniResults, denseResults, topK * 3);
 
-    // 4. Apply filters
-    let results = fused;
+    // 4. Apply filters and task-aware reranking
+    let results = fused
+      .map((result) => ({
+        ...result,
+        score: applyTaskProfileScore(result, taskProfile, options),
+      }))
+      .filter((result) => result.score >= minScore)
+      .sort((a, b) => b.score - a.score);
     if (options.division !== undefined) {
       results = results.filter((r) => r.expert.division === options.division);
     }
     if (options.filter !== undefined) {
       results = results.filter((r) => options.filter!(r.expert));
     }
+    if (taskProfile.excludedDivisions.length > 0) {
+      results = results.filter((r) => !taskProfile.excludedDivisions.includes(r.expert.division));
+    }
     return results.slice(0, topK);
   }
 
-  private denseSearch(query: string, topK: number): ExpertSearchResult[] {
+  private denseSearch(query: string, topK: number, taskProfile: ExpertTaskProfile): ExpertSearchResult[] {
     if (!this.embeddingCache || this.embeddingCache.size === 0) return [];
 
     // For dense search without a query embedding model, we use a simple approach:
     // compute a pseudo-embedding from the query by averaging keyword-matched expert embeddings
     // This is a lightweight fallback when no query embedding is available at search time.
-    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    const queryTerms = query.toLowerCase().split(/\s+/).filter((term) => term.length > 2);
     if (queryTerms.length === 0) return [];
 
     const scores = new Map<string, number>();
     for (const id of this.embeddingCache.keys()) {
       const expert = this.expertById.get(id);
-      if (!expert) continue;
+      if (expert === undefined) continue;
+      if (taskProfile.excludedDivisions.includes(expert.division)) continue;
       const text = `${expert.name} ${expert.description} ${expert.vibe} ${expert.tags.join(' ')} ${expert.capabilities.join(' ')}`.toLowerCase();
-      const matches = queryTerms.filter(t => text.includes(t)).length;
+      const matches = queryTerms.filter((term) => text.includes(term)).length;
       if (matches > 0) {
         scores.set(id, matches / queryTerms.length);
       }
@@ -181,12 +206,39 @@ export class ExpertSearchEngine {
   }
 
   getExpertsByDivision(division: string): ExpertCatalogEntry[] {
-    return EXPERT_CATALOG.filter((e) => e.division === division);
+    return ALL_EXPERTS.filter((expert) => expert.division === division);
   }
 
   listAll(): ExpertCatalogEntry[] {
-    return [...EXPERT_CATALOG];
+    return [...ALL_EXPERTS];
   }
+}
+
+function resolveTaskProfile(options: ExpertSearchOptions): ExpertTaskProfile {
+  if (options.preferredDivisions !== undefined || options.excludedDivisions !== undefined) {
+    return {
+      technical: true,
+      preferredDivisions: options.preferredDivisions ?? [],
+      excludedDivisions: options.excludedDivisions ?? [],
+    };
+  }
+  if (options.taskDescription !== undefined && options.taskDescription.length > 0) {
+    return inferExpertTaskProfile(options.taskDescription);
+  }
+  return inferExpertTaskProfile(options.query);
+}
+
+function applyTaskProfileScore(
+  result: ExpertSearchResult,
+  taskProfile: ExpertTaskProfile,
+  options: ExpertSearchOptions,
+): number {
+  let score = result.score;
+  const division = result.expert.division;
+  if (taskProfile.preferredDivisions.includes(division)) score *= 1.35;
+  if (taskProfile.excludedDivisions.includes(division)) score *= 0.12;
+  if (options.division !== undefined && division === options.division) score *= 1.2;
+  return score;
 }
 
 export const globalExpertSearchEngine = new ExpertSearchEngine();

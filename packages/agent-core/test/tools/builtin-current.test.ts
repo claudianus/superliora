@@ -558,7 +558,8 @@ describe('current builtin collaboration tools', () => {
     expect(description).toContain('at least 2');
     expect(description).toContain('{{item}}');
     expect(description.toLowerCase()).toContain('distinct');
-    expect(description).toContain('WebSearch and FetchURL as much as needed');
+    expect(description).toContain('Context7Resolve/Context7Docs');
+    expect(description).toContain('WebSearch/FetchURL');
     expect(description).toContain('source URLs');
   });
 
@@ -1076,7 +1077,7 @@ describe('current builtin collaboration tools', () => {
     expect(queuedTasks[0]?.prompt).toContain('Focus lane: review.');
     expect(queuedTasks[0]?.prompt).toContain('VERDICT: PASS');
     expect(queuedTasks[0]?.prompt).toContain('<swarm_research_autonomy>');
-    expect(queuedTasks[0]?.prompt).toContain('WebSearch and FetchURL as often as needed');
+    expect(queuedTasks[0]?.prompt).toContain('Context7Resolve and Context7Docs');
     expect(result.output).toContain('<ultra_swarm_result run_id="uw_1">');
     expect(result.output).toContain('<summary>completed: 2, failed: 0, aborted: 0</summary>');
     expect(result.output).toContain('<coverage>Each expert row includes the assigned coverage lane');

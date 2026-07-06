@@ -198,10 +198,19 @@ export const ResearchLocalSearchConfigSchema = z.object({
 
 export type ResearchLocalSearchConfig = z.infer<typeof ResearchLocalSearchConfigSchema>;
 
+export const ResearchContext7ConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  apiKey: z.string().optional(),
+  apiKeyEnv: z.string().optional(),
+});
+
+export type ResearchContext7Config = z.infer<typeof ResearchContext7ConfigSchema>;
+
 export const ResearchConfigSchema = z.object({
   enabled: z.boolean().optional(),
   intensity: ResearchIntensitySchema.optional(),
   localSearch: ResearchLocalSearchConfigSchema.optional(),
+  context7: ResearchContext7ConfigSchema.optional(),
   persistVerifiedFindings: z.boolean().optional(),
 });
 
@@ -377,8 +386,10 @@ const ResearchLocalDirectSourcesPatchSchema = ResearchLocalDirectSourcesSchema.p
 const ResearchLocalSearchConfigPatchSchema = ResearchLocalSearchConfigSchema.extend({
   directSources: ResearchLocalDirectSourcesPatchSchema.optional(),
 }).partial();
+const ResearchContext7ConfigPatchSchema = ResearchContext7ConfigSchema.partial();
 const ResearchConfigPatchSchema = ResearchConfigSchema.extend({
   localSearch: ResearchLocalSearchConfigPatchSchema.optional(),
+  context7: ResearchContext7ConfigPatchSchema.optional(),
 }).partial();
 const ModelCatalogConfigPatchSchema = ModelCatalogConfigSchema.partial();
 const BrowserUseConfigPatchSchema = BrowserUseConfigSchema.partial();

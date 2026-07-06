@@ -1,6 +1,8 @@
 import type {
   ApprovalRequest,
   ApprovalResponse,
+  CredentialRequest,
+  CredentialResponse,
   QuestionRequest,
   QuestionResult,
 } from '@superliora/agent-core';
@@ -127,6 +129,12 @@ export type {
 
 export type MaybePromise<T> = T | Promise<T>;
 
+export type { CredentialRequest, CredentialResponse } from '@superliora/agent-core';
+
 export type ApprovalHandler = (request: ApprovalRequest) => MaybePromise<ApprovalResponse>;
 
 export type QuestionHandler = (request: QuestionRequest) => MaybePromise<QuestionResult>;
+
+export type CredentialHandler = (
+  request: CredentialRequest,
+) => MaybePromise<CredentialResponse | null>;

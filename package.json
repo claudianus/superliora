@@ -14,6 +14,8 @@
     "check:imports": "node scripts/check-workspace-imports.mjs",
     "dev:server": "corepack pnpm -C apps/liora run dev:server",
     "build:plugin-marketplace": "corepack pnpm -C apps/liora run build:plugin-marketplace",
+    "build:expert-catalog": "node scripts/build-expert-catalog.mjs",
+    "build:skill-catalog": "node scripts/build-skill-catalog.mjs",
     "vis": "corepack pnpm -C apps/vis run dev",
     "dev:docs": "corepack pnpm -C apps/site run dev",
     "typecheck": "corepack pnpm run build:packages && corepack pnpm -r --filter './packages/*' run typecheck && corepack pnpm --filter @superliora/liora run typecheck && corepack pnpm --filter @superliora/vis-server run typecheck && corepack pnpm --filter @superliora/vis-web run typecheck",

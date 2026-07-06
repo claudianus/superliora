@@ -28,6 +28,8 @@ const READ_ONLY_TOOL_NAMES = new Set<string>([
   'LioraIndex',
   'WebSearch',
   'FetchURL',
+  'Context7Resolve',
+  'Context7Docs',
   'SearchSkill',
   'Skill',
   'SearchExpert',
