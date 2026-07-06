@@ -78,6 +78,18 @@ export async function handleUltraworkCommand(
     return;
   }
 
+  if (parsed.kind === 'create') {
+    const existingRun = await host.requireSession().getUltraworkRun();
+    if (existingRun?.status === 'blocked') {
+      await resumeUltrawork(host);
+      return;
+    }
+    if (existingRun?.status === 'running' && source === 'auto') {
+      host.sendNormalUserInput(args.trim());
+      return;
+    }
+  }
+
   if (host.state.appState.model.trim().length === 0) {
     host.showError(LLM_NOT_SET_MESSAGE);
     return;
@@ -555,6 +567,7 @@ async function prepareUltraworkSetup(
   host: SlashCommandHost,
   setup: UltraworkSetupState,
   initialContext = '',
+  options: { readonly preservePlan?: boolean } = {},
 ): Promise<void> {
   const session = host.requireSession();
   if (!setup.swarmModeWasEnabled) {
@@ -563,12 +576,26 @@ async function prepareUltraworkSetup(
     host.setAppState({ swarmMode: true });
     host.state.swarmModeEntry = 'task';
   }
-  await forceUltraPlanMode(session, initialContext);
-  setup.planChanged = true;
+  if (options.preservePlan) {
+    setup.planChanged = await ensureUltraPlanMode(session, initialContext);
+  } else {
+    await resetUltraPlanMode(session, initialContext);
+    setup.planChanged = true;
+  }
   host.setAppState({ planMode: true, ultraworkMode: true });
 }
 
-async function forceUltraPlanMode(
+async function ensureUltraPlanMode(
+  session: ReturnType<SlashCommandHost['requireSession']>,
+  initialContext = '',
+): Promise<boolean> {
+  const status = await session.getStatus();
+  if (status.planMode) return false;
+  await session.setPlanMode(true, true, initialContext);
+  return true;
+}
+
+async function resetUltraPlanMode(
   session: ReturnType<SlashCommandHost['requireSession']>,
   initialContext = '',
 ): Promise<void> {
@@ -579,6 +606,13 @@ async function forceUltraPlanMode(
     await session.setPlanMode(false, false);
     await session.setPlanMode(true, true, initialContext);
   }
+}
+
+async function forceUltraPlanMode(
+  session: ReturnType<SlashCommandHost['requireSession']>,
+  initialContext = '',
+): Promise<void> {
+  await resetUltraPlanMode(session, initialContext);
 }
 
 async function rollbackUltraworkSetup(
@@ -665,7 +699,7 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
     swarmEnabled: false,
   };
   try {
-    await prepareUltraworkSetup(host, setup, current.objective);
+    await prepareUltraworkSetup(host, setup, current.objective, { preservePlan: true });
   } catch (error) {
     await rollbackUltraworkSetup(host, setup);
     host.showError(`Failed to restore Ultrawork setup: ${formatErrorMessage(error)}`);
@@ -704,5 +738,55 @@ async function cancelUltrawork(host: SlashCommandHost): Promise<void> {
     host.showStatus(`Ultrawork run ${run.id} cancelled.`);
   } catch (error) {
     host.showError(`Failed to cancel Ultrawork: ${formatErrorMessage(error)}`);
+  }
+}
+
+export async function autoResumeUltraworkFromSession(
+  host: Pick<
+    SlashCommandHost,
+    'requireSession' | 'setAppState' | 'showNotice' | 'sendNormalUserInput' | 'state' | 'showStatus' | 'showError'
+  >,
+  session: ReturnType<SlashCommandHost['requireSession']>,
+): Promise<boolean> {
+  const run = await session.getUltraworkRun();
+  if (run === null || run.status === 'done' || run.status === 'failed') return false;
+
+  const setup: UltraworkSetupState = {
+    planModeWasEnabled: host.state.appState.planMode,
+    swarmModeWasEnabled: host.state.appState.swarmMode,
+    ultraworkModeWasEnabled: host.state.appState.ultraworkMode ?? false,
+    previousSwarmModeEntry: host.state.swarmModeEntry,
+    planChanged: false,
+    swarmEnabled: false,
+  };
+  try {
+    await prepareUltraworkSetup(
+      host as SlashCommandHost,
+      setup,
+      run.objective,
+      { preservePlan: true },
+    );
+  } catch (error) {
+    host.showError(`Failed to restore Ultrawork setup: ${formatErrorMessage(error)}`);
+    return false;
+  }
+
+  try {
+    const result = await session.resumeUltrawork();
+    if (result === null) return false;
+    host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP, ultraworkMode: true, planMode: true });
+    host.showNotice(
+      'Ultrawork 자동 재개',
+      `중단된 실행을 stage ${result.run.stage}에서 이어갑니다.`,
+      { coalesceKey: 'ultrawork-auto-resume' },
+    );
+    host.sendNormalUserInput(result.recoveryPrompt, {
+      displayText: `Resume Ultrawork: ${run.objective}`,
+    });
+    host.showStatus(`Ultrawork resumed at stage ${result.run.stage}.`);
+    return true;
+  } catch (error) {
+    host.showError(`Failed to resume Ultrawork: ${formatErrorMessage(error)}`);
+    return false;
   }
 }

@@ -54,6 +54,8 @@ import {
 import type { StreamingUIController } from './streaming-ui';
 import type { SessionEventHandler } from './session-event-handler';
 import type { TUIState } from '../tui-state';
+import { autoResumeUltraworkFromSession } from '../commands/ultrawork';
+import type { SlashCommandHost } from '../commands/dispatch';
 
 type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
 type CompactionReplayRecord = Extract<AgentReplayRecord, { type: 'compaction' }>;
@@ -69,6 +71,9 @@ export interface SessionReplayHost {
   showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   mergeAllTurnSteps(): void;
+  sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
+  requireSession(): Session;
+  showStatus(msg: string, severity?: 'info' | 'warning' | 'error'): void;
 }
 
 function extractBashTag(
@@ -103,7 +108,7 @@ export class SessionReplayRenderer {
       this.renderRecords(main);
       this.applyTerminalBackgroundAgentStatuses(main);
       this.host.mergeAllTurnSteps();
-      await this.notifyInterruptedUltraworkIfNeeded(session);
+      await this.autoResumeUltraworkIfNeeded(session);
       return true;
     } catch (error) {
       const message = formatErrorMessage(error);
@@ -741,21 +746,11 @@ export class SessionReplayRenderer {
     sessionEventHandler.subAgentEventHandler.backgroundAgentMetadata.delete(meta.agentId);
   }
 
-  private async notifyInterruptedUltraworkIfNeeded(session: Session): Promise<void> {
+  private async autoResumeUltraworkIfNeeded(session: Session): Promise<void> {
     try {
-      const [run, goalResult] = await Promise.all([session.getUltraworkRun(), session.getGoal()]);
-      if (run === null) return;
-      if (run.status !== 'blocked') return;
-      const goal = goalResult.goal;
-      if (goal?.status !== 'paused' && goal?.status !== 'blocked') return;
-      this.host.setAppState({ ultraworkMode: true, planMode: true });
-      this.host.showNotice(
-        'Interrupted Ultrawork detected',
-        `Run ${run.id} is paused at stage ${run.stage}. Use /ultrawork resume to continue.`,
-        { coalesceKey: 'ultrawork-resume-hint' },
-      );
+      await autoResumeUltraworkFromSession(this.host as SlashCommandHost, session);
     } catch {
-      // Best-effort resume hint only.
+      // Best-effort auto-resume only.
     }
   }
 }

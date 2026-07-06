@@ -43,6 +43,13 @@ function makeHost(
       updatedAt: '2026-07-06T00:00:00.000Z',
     })),
     getUltraworkRun: vi.fn(async () => null),
+    getStatus: vi.fn(async () => ({
+      planMode: overrides.planMode ?? false,
+      swarmMode: overrides.swarmMode ?? false,
+      model: overrides.model ?? 'kimi-model',
+      thinkingLevel: 'off',
+      permission: overrides.permissionMode ?? 'auto',
+    })),
     pauseUltrawork: vi.fn(async () => null),
     resumeUltrawork: vi.fn(async () => null),
     cancelUltrawork: vi.fn(async () => null),
@@ -574,5 +581,95 @@ describe('handleUltraworkCommand', () => {
       expect.stringContaining('goal_replace_requested: true'),
       { displayText: 'Ship feature Y' },
     );
+  });
+
+  it('resumes blocked runs without resetting plan mode', async () => {
+    const { host, session } = makeHost({ planMode: true });
+    session.getUltraworkRun.mockResolvedValue({
+      id: 'run-blocked',
+      objective: 'Resume me',
+      status: 'blocked',
+      stage: 'plan',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:05:00.000Z',
+    });
+    session.resumeUltrawork.mockResolvedValue({
+      run: {
+        id: 'run-blocked',
+        objective: 'Resume me',
+        status: 'running',
+        stage: 'plan',
+        createdAt: '2026-07-06T00:00:00.000Z',
+        updatedAt: '2026-07-06T00:06:00.000Z',
+      },
+      recoveryPrompt: '<ultrawork_recovery>\nResume me\n</ultrawork_recovery>',
+      goalResumed: false,
+      report: {
+        run: {
+          id: 'run-blocked',
+          objective: 'Resume me',
+          status: 'running',
+          stage: 'plan',
+          createdAt: '2026-07-06T00:00:00.000Z',
+          updatedAt: '2026-07-06T00:06:00.000Z',
+        },
+        orphanedWorkNodes: [],
+        orphanedExperts: [],
+        lostBackgroundTasks: [],
+        nextActions: [],
+      },
+    });
+
+    await handleUltraworkCommand(host, 'resume', 'manual');
+
+    expect(session.setPlanMode).not.toHaveBeenCalledWith(false, false);
+    expect(session.resumeUltrawork).toHaveBeenCalled();
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith(
+      expect.stringContaining('<ultrawork_recovery>'),
+      { displayText: 'Resume Ultrawork: Resume me' },
+    );
+  });
+
+  it('routes auto activation to resume when a blocked run exists', async () => {
+    const { host, session } = makeHost({ planMode: true });
+    session.getUltraworkRun.mockResolvedValue({
+      id: 'run-blocked',
+      objective: 'Resume me',
+      status: 'blocked',
+      stage: 'research',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:05:00.000Z',
+    });
+    session.resumeUltrawork.mockResolvedValue({
+      run: {
+        id: 'run-blocked',
+        objective: 'Resume me',
+        status: 'running',
+        stage: 'research',
+        createdAt: '2026-07-06T00:00:00.000Z',
+        updatedAt: '2026-07-06T00:06:00.000Z',
+      },
+      recoveryPrompt: '<ultrawork_recovery>',
+      goalResumed: false,
+      report: {
+        run: {
+          id: 'run-blocked',
+          objective: 'Resume me',
+          status: 'running',
+          stage: 'research',
+          createdAt: '2026-07-06T00:00:00.000Z',
+          updatedAt: '2026-07-06T00:06:00.000Z',
+        },
+        orphanedWorkNodes: [],
+        orphanedExperts: [],
+        lostBackgroundTasks: [],
+        nextActions: [],
+      },
+    });
+
+    await handleUltraworkCommand(host, '울트라워크로 readme 작업 재개해줘', 'auto');
+
+    expect(session.createUltraworkRun).not.toHaveBeenCalled();
+    expect(session.resumeUltrawork).toHaveBeenCalled();
   });
 });
