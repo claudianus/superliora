@@ -38,6 +38,10 @@ import type { Logger } from '../logging/types';
 import { resolveSessionMcpConfig, mergeCallerMcpServers, type SessionMcpConfig } from '../mcp';
 import { LioraRecallStore } from '../memory';
 import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
+import {
+  responseLanguagePreferenceFromHostLocale,
+  responseLanguagePreferenceFromUnknown,
+} from '../session/response-language';
 import { exportSessionDirectory } from '../session/export';
 import {
   ProviderManager, type BearerTokenProvider,
@@ -345,6 +349,18 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
           : {}),
         custom: options.metadata === undefined ? {} : { ...options.metadata },
       };
+      if (responseLanguagePreferenceFromUnknown(session.metadata.custom['responseLanguage']) === undefined) {
+        const seeded = responseLanguagePreferenceFromHostLocale();
+        if (seeded !== undefined) {
+          session.metadata = {
+            ...session.metadata,
+            custom: {
+              ...session.metadata.custom,
+              responseLanguage: seeded,
+            },
+          };
+        }
+      }
       const mainAgent = await session.createMain();
       mainAgent.config.update({
         modelAlias: options.model ?? config.defaultModel,

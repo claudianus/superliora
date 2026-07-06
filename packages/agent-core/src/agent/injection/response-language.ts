@@ -9,7 +9,7 @@ import { DynamicInjector } from './injector';
  * of the context so the model does not drift back to English as the
  * conversation grows long or after context compaction.
  */
-const RESPONSE_LANGUAGE_REFRESH_ASSISTANT_TURNS = 4;
+const RESPONSE_LANGUAGE_REFRESH_ASSISTANT_TURNS = 2;
 
 export class ResponseLanguageInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'response_language';
@@ -29,12 +29,8 @@ export class ResponseLanguageInjector extends DynamicInjector {
     const preference = this.agent.getResponseLanguagePreference();
     if (preference === undefined) return undefined;
 
-    const key = `${preference.code}:${preference.source}`;
+    const key = `${preference.code}:${preference.source}:${preference.updatedAt}`;
     if (this.injectedAt !== null && this.lastInjectedKey === key) {
-      // Re-inject when a new real user prompt arrives, or periodically once
-      // enough assistant turns have passed, so the directive stays near the
-      // tail instead of being buried by a long run of tool calls and drifting
-      // back to English as the context grows.
       const hasNewUserPrompt = this.hasRealUserPromptSinceInjection();
       const assistantTurns = this.countAssistantTurnsSinceInjection();
       if (!hasNewUserPrompt && assistantTurns < RESPONSE_LANGUAGE_REFRESH_ASSISTANT_TURNS) {
@@ -68,6 +64,17 @@ export class ResponseLanguageInjector extends DynamicInjector {
   }
 }
 
+const USER_FACING_ARTIFACTS = [
+  'answers and preambles',
+  'status updates and summaries',
+  'plan files and every plan section',
+  'wiki / project docs',
+  'AskUserQuestion tool calls — question text, headers, option labels, and option descriptions',
+  'interview and clarification questions',
+  'todo items and confirmations',
+  'user-visible errors and warnings',
+].join('; ');
+
 /**
  * Builds the response-language directive. Used by the per-step
  * {@link ResponseLanguageInjector} (wrapped in `<response_language>`) and by
@@ -79,9 +86,12 @@ export function buildResponseLanguageDirective(
   options: { readonly wrapped?: boolean } = {},
 ): string {
   const body = [
-    `Response language LOCKED: ${preference.label} (${preference.code}). Never lapses — not in long chats, after compaction, or amid English-heavy context.`,
-    `Write ALL user-facing text in ${preference.label} (answers, preambles, plans, summaries, status, questions). Keep code, commands, paths, identifiers, APIs, quoted source, and tool args in their original language.`,
-    `Do not drift to English. A later user message may override; otherwise stay in ${preference.label}.`,
+    `MANDATORY response language LOCKED: ${preference.label} (${preference.code}). This lock NEVER lapses — not in long chats, after compaction, tool-heavy runs, or foreign-language code context.`,
+    `Write ALL user-facing text in ${preference.label}: ${USER_FACING_ARTIFACTS}.`,
+    'Keep code, shell commands, file paths, identifiers, APIs, quoted source text, and tool argument values in their original language.',
+    `Do NOT drift to any other natural language. A later explicit user override may change this; until then every user-visible artifact stays in ${preference.label}.`,
+    `Before calling AskUserQuestion or writing plan/wiki content, verify the text is in ${preference.label}; rewrite if not.`,
+    `If system reminders are in another language, still produce every user-visible artifact in ${preference.label}.`,
   ].join('\n');
   if (options.wrapped === false) return body;
   return `<response_language>\n${body}\n</response_language>`;

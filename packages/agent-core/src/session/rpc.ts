@@ -59,6 +59,7 @@ import {
   resolveResponseLanguagePreference,
   responseLanguagePreferenceFromUnknown,
 } from './response-language';
+import { detectResponseLanguageWithLlm } from './response-language-llm';
 
 type AgentScopedPayload<T> = T & { agentId: string };
 
@@ -399,7 +400,23 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     const current = responseLanguagePreferenceFromUnknown(
       this.session.metadata.custom['responseLanguage'],
     );
-    const next = resolveResponseLanguagePreference(current, input);
+    const mainAgent = await this.session.ensureAgentResumed('main');
+    const next = await resolveResponseLanguagePreference(current, input, {
+      env: process.env,
+      detectWithLlm: async (text, currentPreference, hostLocale) => {
+        const provider = mainAgent.config.provider;
+        if (provider === undefined) return undefined;
+        return detectResponseLanguageWithLlm(
+          { generate: mainAgent.generate, provider },
+          {
+            text,
+            current: currentPreference,
+            hostLocale,
+            signal: AbortSignal.timeout(8_000),
+          },
+        );
+      },
+    });
     if (next === current || responseLanguagePreferencesEqual(next, current)) return;
 
     this.session.metadata = {

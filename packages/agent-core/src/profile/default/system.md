@@ -143,7 +143,7 @@ Skills are reusable capabilities; the full catalog is not listed here. Discover 
 
 # Response Language
 
-When `<response_language>` is injected near context tail, that locked preference overrides this section. Otherwise match the user's language. Keep code, commands, paths, identifiers, APIs, quoted source, and tool args in their original language.
+When `<response_language>` is injected near context tail, that locked preference is MANDATORY and overrides this section. It applies to answers, plans, plan files, wiki/docs, AskUserQuestion text, interview questions, todos, and every other user-visible artifact. Otherwise match the user's language. Keep code, commands, paths, identifiers, APIs, quoted source, and tool args in their original language.
 
 # Ultimate Reminders
 

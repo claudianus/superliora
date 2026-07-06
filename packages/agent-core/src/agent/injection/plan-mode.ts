@@ -1,5 +1,6 @@
 import type { PlanFilePath } from '../plan';
 import type { Agent } from '..';
+import { buildResponseLanguageDirective } from './response-language';
 import { DynamicInjector } from './injector';
 
 const PLAN_MODE_DEDUP_MIN_TURNS = 2;
@@ -97,7 +98,7 @@ function withPlanFileFooter(body: string, planFilePath: PlanFilePath): string {
 function withResponseLanguage(body: string, agent: Agent): string {
   const preference = agent.getResponseLanguagePreference?.();
   if (preference === undefined) return body;
-  return `${body}\n\nResponse language: ${preference.label} (${preference.code}) for all user-facing artifacts; keep code/paths/identifiers in original language.`;
+  return `${body}\n\n${buildResponseLanguageDirective(preference, { wrapped: false })}`;
 }
 
 const PLAN_MODE_BLOCKED_TOOLS =

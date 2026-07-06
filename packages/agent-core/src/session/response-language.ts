@@ -1,40 +1,61 @@
 import type { ContentPart } from '@superliora/kosong';
 
-export type ResponseLanguageCode = 'en' | 'ja' | 'ko' | 'zh';
-export type ResponseLanguageSource = 'detected' | 'explicit';
+import type { LlmResponseLanguageDetection } from './response-language-llm';
+
+export type ResponseLanguageSource = 'detected' | 'explicit' | 'locale';
 
 export interface ResponseLanguagePreference {
-  readonly code: ResponseLanguageCode;
+  readonly code: string;
   readonly label: string;
   readonly source: ResponseLanguageSource;
   readonly locked: true;
   readonly updatedAt: string;
 }
 
-interface ScriptCounts {
-  readonly ko: number;
-  readonly ja: number;
-  readonly zh: number;
-  readonly en: number;
+export interface HostLocaleTag {
+  readonly code: string;
+  readonly label: string;
 }
 
-const LANGUAGE_LABELS: Record<ResponseLanguageCode, string> = {
-  en: 'English',
-  ja: 'Japanese',
-  ko: 'Korean',
-  zh: 'Chinese',
-};
+const HOST_LOCALE_ENV_NAMES = [
+  'SUPERLIORA_LOCALE',
+  'LANGUAGE',
+  'LC_ALL',
+  'LC_MESSAGES',
+  'LANG',
+] as const;
 
-const EXPLICIT_PATTERNS: Array<readonly [ResponseLanguageCode, RegExp]> = [
-  ['ko', /(?:한국어|한글|한국말)(?:로|으로)?\s*(?:답|응답|대답|말|작성|써|계속)/iu],
-  ['ko', /(?:답|응답|대답|말|작성|써|계속).*?(?:한국어|한글|한국말)(?:로|으로)?/iu],
-  ['en', /(?:영어|english)(?:로|으로)?\s*(?:답|응답|대답|말|작성|써|계속|reply|respond|answer|write|continue)/iu],
-  ['en', /\b(?:reply|respond|answer|write|continue)\s+(?:in\s+)?english\b/iu],
-  ['ja', /(?:일본어|日本語|japanese)(?:로|으로)?\s*(?:답|응답|대답|말|작성|써|계속|reply|respond|answer|write|continue)/iu],
-  ['ja', /\b(?:reply|respond|answer|write|continue)\s+(?:in\s+)?japanese\b/iu],
-  ['zh', /(?:중국어|中文|chinese)(?:로|으로)?\s*(?:답|응답|대답|말|작성|써|계속|reply|respond|answer|write|continue)/iu],
-  ['zh', /\b(?:reply|respond|answer|write|continue)\s+(?:in\s+)?chinese\b/iu],
-];
+const MIN_LLM_CONFIDENCE = 0.5;
+
+export interface ResponseLanguageDetectDeps {
+  readonly env?: Record<string, string | undefined> | undefined;
+  readonly detectWithLlm?:
+    | ((
+        text: string,
+        current: ResponseLanguagePreference | undefined,
+        hostLocale: HostLocaleTag | undefined,
+      ) => Promise<LlmResponseLanguageDetection | undefined>)
+    | undefined;
+}
+
+export function normalizeResponseLanguageCode(code: string): string | undefined {
+  const normalized = code.trim().toLowerCase();
+  if (!/^[a-z]{2}$/u.test(normalized)) return undefined;
+  if (normalized === 'und') return undefined;
+  return normalized;
+}
+
+export function responseLanguageLabelForCode(code: string, displayLocale = 'en'): string {
+  const normalized = normalizeResponseLanguageCode(code);
+  if (normalized === undefined) return code;
+  try {
+    const label = new Intl.DisplayNames([displayLocale], { type: 'language' }).of(normalized);
+    if (label !== undefined && label.length > 0 && label !== normalized) return label;
+  } catch {
+    // Intl may be unavailable in some runtimes.
+  }
+  return normalized;
+}
 
 export function responseLanguagePreferenceFromUnknown(
   value: unknown,
@@ -44,57 +65,98 @@ export function responseLanguagePreferenceFromUnknown(
   const code = input['code'];
   const source = input['source'];
   const updatedAt = input['updatedAt'];
-  if (!isResponseLanguageCode(code)) return undefined;
-  if (source !== 'detected' && source !== 'explicit') return undefined;
+  if (typeof code !== 'string') return undefined;
+  const normalizedCode = normalizeResponseLanguageCode(code);
+  if (normalizedCode === undefined) return undefined;
+  if (source !== 'detected' && source !== 'explicit' && source !== 'locale') return undefined;
   if (typeof updatedAt !== 'string' || updatedAt.trim().length === 0) return undefined;
+  const storedLabel = input['label'];
+  const label =
+    typeof storedLabel === 'string' && storedLabel.trim().length > 0
+      ? storedLabel.trim()
+      : responseLanguageLabelForCode(normalizedCode);
   return {
-    code,
-    label: LANGUAGE_LABELS[code],
+    code: normalizedCode,
+    label,
     source,
     locked: true,
     updatedAt,
   };
 }
 
-export function resolveResponseLanguagePreference(
-  current: ResponseLanguagePreference | undefined,
-  input: readonly ContentPart[],
+/**
+ * Reads the host process locale from standard environment variables. Returns
+ * `undefined` for neutral locales such as `C` / `C.UTF-8` so a language is not
+ * forced when the OS locale is unset.
+ */
+export function detectHostLocaleTag(
+  env: Record<string, string | undefined> = {},
+): HostLocaleTag | undefined {
+  for (const name of HOST_LOCALE_ENV_NAMES) {
+    const raw = env[name];
+    if (typeof raw !== 'string' || raw.length === 0) continue;
+    const first = raw.split(':')[0]!.toLowerCase();
+    const localePart = first.split('.')[0]!.split('@')[0]!;
+    if (localePart === 'c' || localePart === 'posix') continue;
+    const primary = localePart.split(/[-_]/)[0] ?? localePart;
+    const code = normalizeResponseLanguageCode(primary);
+    if (code === undefined) continue;
+    return {
+      code,
+      label: responseLanguageLabelForCode(code),
+    };
+  }
+  return undefined;
+}
+
+export function responseLanguagePreferenceFromHostLocale(
+  env: Record<string, string | undefined> = {},
   now: Date = new Date(),
 ): ResponseLanguagePreference | undefined {
-  const text = promptText(input);
-  if (text === undefined) return current;
+  const hostLocale = detectHostLocaleTag(env);
+  if (hostLocale === undefined) return undefined;
+  return createPreference(hostLocale.code, 'locale', now, hostLocale.label);
+}
 
-  const explicit = detectExplicitResponseLanguage(text);
-  if (explicit !== undefined) {
-    return createPreference(explicit, 'explicit', now);
+export async function resolveResponseLanguagePreference(
+  current: ResponseLanguagePreference | undefined,
+  input: readonly ContentPart[],
+  deps: ResponseLanguageDetectDeps = {},
+  now: Date = new Date(),
+): Promise<ResponseLanguagePreference | undefined> {
+  const text = promptText(input);
+  const hostLocale = detectHostLocaleTag(deps.env ?? {});
+
+  if (text !== undefined && deps.detectWithLlm !== undefined) {
+    const llm = await deps.detectWithLlm(text, current, hostLocale);
+    if (llm !== undefined && llm.confidence >= MIN_LLM_CONFIDENCE) {
+      const normalizedCode = normalizeResponseLanguageCode(llm.code);
+      if (normalizedCode !== undefined) {
+        if (llm.explicit) {
+          return createPreference(normalizedCode, 'explicit', now, llm.label);
+        }
+        if (current?.locked !== true) {
+          return createPreference(normalizedCode, 'detected', now, llm.label);
+        }
+      }
+    }
   }
+
   if (current?.locked === true) return current;
 
-  const detected = detectResponseLanguage(text);
-  return detected === undefined ? current : createPreference(detected, 'detected', now);
-}
-
-export function detectExplicitResponseLanguage(text: string): ResponseLanguageCode | undefined {
-  const stripped = stripCode(text);
-  for (const [code, pattern] of EXPLICIT_PATTERNS) {
-    if (pattern.test(stripped)) return code;
+  if (hostLocale !== undefined) {
+    return createPreference(hostLocale.code, 'locale', now, hostLocale.label);
   }
-  return undefined;
+
+  return current;
 }
 
-export function detectResponseLanguage(text: string): ResponseLanguageCode | undefined {
-  const stripped = stripCode(text);
-  const counts = countScripts(stripped);
-  const cjkTotal = counts.ko + counts.ja + counts.zh;
-  const total = cjkTotal + counts.en;
-  if (total < 4) return undefined;
-
-  if (counts.ko >= 4 && counts.ko / total >= 0.18) return 'ko';
-  if (counts.ja >= 4 && counts.ja / total >= 0.18) return 'ja';
-  if (counts.ja >= 2 && counts.zh >= 2 && (counts.ja + counts.zh) / total >= 0.25) return 'ja';
-  if (counts.zh >= 4 && counts.ja === 0 && counts.ko === 0 && counts.zh / total >= 0.35) return 'zh';
-  if (counts.en >= 12 && cjkTotal === 0) return 'en';
-  return undefined;
+export function stripPromptTextForLanguageDetection(text: string): string {
+  return text
+    .replaceAll(/```[\s\S]*?```/g, ' ')
+    .replaceAll(/`[^`\n]*`/g, ' ')
+    .replaceAll(/https?:\/\/\S+/giu, ' ')
+    .trim();
 }
 
 function promptText(input: readonly ContentPart[]): string | undefined {
@@ -106,47 +168,16 @@ function promptText(input: readonly ContentPart[]): string | undefined {
 }
 
 function createPreference(
-  code: ResponseLanguageCode,
+  code: string,
   source: ResponseLanguageSource,
   now: Date,
+  label?: string,
 ): ResponseLanguagePreference {
   return {
     code,
-    label: LANGUAGE_LABELS[code],
+    label: label ?? responseLanguageLabelForCode(code),
     source,
     locked: true,
     updatedAt: now.toISOString(),
   };
-}
-
-function stripCode(text: string): string {
-  return text
-    .replaceAll(/```[\s\S]*?```/g, ' ')
-    .replaceAll(/`[^`\n]*`/g, ' ')
-    .replaceAll(/https?:\/\/\S+/giu, ' ');
-}
-
-function countScripts(text: string): ScriptCounts {
-  let ko = 0;
-  let ja = 0;
-  let zh = 0;
-  let en = 0;
-
-  for (const char of text) {
-    if (/\p{Script=Hangul}/u.test(char)) {
-      ko += 1;
-    } else if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(char)) {
-      ja += 1;
-    } else if (/\p{Script=Han}/u.test(char)) {
-      zh += 1;
-    } else if (/[A-Za-z]/.test(char)) {
-      en += 1;
-    }
-  }
-
-  return { ko, ja, zh, en };
-}
-
-function isResponseLanguageCode(value: unknown): value is ResponseLanguageCode {
-  return value === 'en' || value === 'ja' || value === 'ko' || value === 'zh';
 }
