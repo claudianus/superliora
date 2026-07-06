@@ -596,7 +596,7 @@ describe('UltraPlanModeEngine', () => {
   });
 
   describe('Serialization', () => {
-    it('should serialize and deserialize', () => {
+    it('should serialize and deserialize seed spec and evaluation plan', () => {
       const engine = new UltraPlanModeEngine(mockAgent);
       const seed = engine.generateSeedSpecFromInterview('test', [], [], 'Test', []);
       engine.setSeedSpec(seed);
@@ -610,6 +610,20 @@ describe('UltraPlanModeEngine', () => {
       newEngine.deserialize(serialized);
       expect(newEngine.seedSpec).toEqual(seed);
       expect(newEngine.evaluationPlan).toEqual(engine.evaluationPlan);
+    });
+
+    it('should serialize and deserialize interview state', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Ship feature X');
+      engine.addInterviewRound('What is the scope?', 'README and landing page only');
+
+      const serialized = engine.serialize();
+      expect(serialized['interviewState']).toBeDefined();
+
+      const newEngine = new UltraPlanModeEngine(mockAgent);
+      newEngine.deserialize(serialized);
+      expect(newEngine.interviewState.rounds).toHaveLength(1);
+      expect(newEngine.interviewState.initialContext).toBe('Ship feature X');
     });
   });
 });

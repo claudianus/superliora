@@ -96,6 +96,48 @@ describe('Ultrawork recovery', () => {
     expect(resumed?.recoveryPrompt).toContain('Paused after interruption');
   });
 
+  it('builds a recovery prompt with plan checkpoint context', () => {
+    const prompt = buildUltraworkRecoveryPrompt(
+      {
+        run: sampleRun(),
+        interruptReason: 'Paused after interruption',
+        orphanedWorkNodes: ['node-1'],
+        orphanedExperts: [],
+        lostBackgroundTasks: [],
+        nextActions: ['Reconcile Swarm staffing'],
+      },
+      {
+        planFilePath: '/tmp/plans/quasar-archangel-falcon.md',
+        phase: 'interview',
+        interviewRoundCount: 3,
+      },
+    );
+    expect(prompt).toContain('Plan file: /tmp/plans/quasar-archangel-falcon.md');
+    expect(prompt).toContain('UltraPlan phase: interview');
+    expect(prompt).toContain('Interview rounds completed: 3');
+    expect(prompt).toContain('Do not restart the UltraPlan interview from round 1.');
+  });
+
+  it('restores ultra plan phase and interview state through records', async () => {
+    const homedir = join(tmpdir(), `ultrawork-plan-state-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    await agent.planMode.enter('resume-plan', false, true, true, 'Resume plan state');
+    agent.planMode.setPhase('interview');
+    agent.planMode.ultraEngine.addInterviewRound('Scope?', 'README only');
+    agent.planMode.incrementInterviewRound();
+    agent.planMode.setPhase('interview');
+    await agent.records.flush();
+
+    const replayAgent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    await replayAgent.resume();
+
+    expect(replayAgent.planMode.isActive).toBe(true);
+    expect(replayAgent.planMode.phase).toBe('interview');
+    expect(replayAgent.planMode.ultraEngine.interviewState.rounds).toHaveLength(1);
+  });
+
   it('checkpoints and restores run state through records', async () => {
     const homedir = join(tmpdir(), `ultrawork-recovery-${String(Date.now())}`);
     mkdirSync(homedir, { recursive: true });

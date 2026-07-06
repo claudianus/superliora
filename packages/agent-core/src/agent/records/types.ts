@@ -54,6 +54,11 @@ export interface AgentRecordEvents {
     id: string;
     ultra?: boolean;
   };
+  'plan_mode.state': {
+    phase: 'research' | 'interview' | 'design' | 'review' | 'write' | 'exit';
+    interviewRoundCount: number;
+    ultraPlan: Record<string, unknown>;
+  };
   'plan_mode.cancel': {
     id?: string;
   };

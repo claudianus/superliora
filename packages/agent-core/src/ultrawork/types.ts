@@ -20,7 +20,14 @@ export interface UltraworkRunMirror {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
   readonly interruptReason?: string;
+  readonly planCheckpoint?: UltraworkPlanRecoveryContext;
   readonly lastCheckpointAt: string;
+}
+
+export interface UltraworkPlanRecoveryContext {
+  readonly planFilePath?: string;
+  readonly phase?: string;
+  readonly interviewRoundCount?: number;
 }
 
 export interface UltraworkRecoveryReport {

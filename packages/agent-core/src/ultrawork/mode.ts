@@ -20,6 +20,7 @@ import type {
   PauseUltraworkInput,
   ResumeUltraworkResult,
   UltraworkActivation,
+  UltraworkPlanRecoveryContext,
 } from './types';
 import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt } from './recovery';
 
@@ -182,7 +183,13 @@ export class UltraworkMode {
       lostBackgroundTasks: reconciled.lostBackgroundTasks,
     });
 
-    return { run, report, goalResumed, recoveryPrompt: buildUltraworkRecoveryPrompt(report) };
+    const planContext = this.capturePlanRecoveryContext();
+    return {
+      run,
+      report,
+      goalResumed,
+      recoveryPrompt: buildUltraworkRecoveryPrompt(report, planContext),
+    };
   }
 
   async cancel(reason = 'Cancelled by user'): Promise<UltraworkRun | null> {
@@ -247,14 +254,26 @@ export class UltraworkMode {
   private writeCheckpoint(options: { flush?: boolean } = {}): void {
     if (this.machine === undefined) return;
     const run = this.machine.snapshot();
+    const planCheckpoint = this.capturePlanRecoveryContext();
     checkpointUltraworkRun(this.agent, run, {
       activation: this.activation,
       interruptReason: this.interruptReason,
       flush: options.flush,
+      planCheckpoint,
     });
     if (options.flush) {
       void this.agent.records.flush();
     }
+  }
+
+  private capturePlanRecoveryContext(): UltraworkPlanRecoveryContext | undefined {
+    const planMode = this.agent.planMode;
+    if (!planMode.isActive || !planMode.isUltraMode) return undefined;
+    return {
+      planFilePath: planMode.planFilePath ?? undefined,
+      phase: planMode.phase,
+      interviewRoundCount: planMode.interviewRoundCount,
+    };
   }
 
   private scheduleCheckpoint(options: { flush?: boolean } = {}): void {

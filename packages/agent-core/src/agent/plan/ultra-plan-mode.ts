@@ -542,6 +542,8 @@ export class UltraPlanModeEngine {
       stagnationHistory: this._stagnationHistory,
       evaluationPlan: this._evaluationPlan,
       lateralThinking: this._lateralThinking,
+      interviewState: this._interviewState,
+      currentPerspective: this._currentPerspective,
     };
   }
 
@@ -1294,5 +1296,8 @@ Respond ONLY with valid JSON. No other text before or after.
     if (data['evaluationPlan']) this._evaluationPlan = data['evaluationPlan'] as EvaluationPlan;
     if (data['lateralThinking']) this._lateralThinking = data['lateralThinking'] as LateralThinkingResult;
     if (data['interviewState']) this._interviewState = data['interviewState'] as InterviewState;
+    if (data['currentPerspective']) {
+      this._currentPerspective = data['currentPerspective'] as InterviewPerspective;
+    }
   }
 }

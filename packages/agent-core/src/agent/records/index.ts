@@ -73,6 +73,9 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'plan_mode.enter':
       agent.planMode.restoreEnter(input);
       return;
+    case 'plan_mode.state':
+      agent.planMode.restoreState(input);
+      return;
     case 'plan_mode.cancel':
       agent.planMode.cancel(input.id);
       return;

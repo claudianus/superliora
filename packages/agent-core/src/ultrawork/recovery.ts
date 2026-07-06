@@ -10,7 +10,7 @@ import type {
 import type { Agent } from '../agent';
 import { isBackgroundTaskTerminal } from '../agent/background';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
-import type { UltraworkActivation, UltraworkRecoveryReport } from './types';
+import type { UltraworkActivation, UltraworkPlanRecoveryContext, UltraworkRecoveryReport } from './types';
 
 export interface ReconcileUltraworkRunResult {
   readonly run: UltraworkRun;
@@ -74,7 +74,10 @@ export function buildUltraworkRecoveryReport(input: {
   };
 }
 
-export function buildUltraworkRecoveryPrompt(report: UltraworkRecoveryReport): string {
+export function buildUltraworkRecoveryPrompt(
+  report: UltraworkRecoveryReport,
+  planContext?: UltraworkPlanRecoveryContext,
+): string {
   const lines = [
     '<ultrawork_recovery>',
     'Resume the interrupted Ultrawork run from the last durable checkpoint. Do not restart from scratch unless the checkpoint is unusable.',
@@ -90,6 +93,17 @@ export function buildUltraworkRecoveryPrompt(report: UltraworkRecoveryReport): s
   }
   if (report.activation !== undefined) {
     lines.push(`Evidence root: ${report.activation.evidenceRoot}`);
+  }
+  if (planContext?.planFilePath !== undefined) {
+    lines.push(`Plan file: ${planContext.planFilePath}`);
+    lines.push('Do not create a new plan file or restart EnterPlanMode.');
+  }
+  if (planContext?.phase !== undefined) {
+    lines.push(`UltraPlan phase: ${planContext.phase}`);
+  }
+  if (planContext?.interviewRoundCount !== undefined && planContext.interviewRoundCount > 0) {
+    lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}`);
+    lines.push('Do not restart the UltraPlan interview from round 1.');
   }
   if (report.run.workGraph !== undefined && report.run.workGraph.nodes.length > 0) {
     const pending = report.run.workGraph.nodes.filter((node) => node.status !== 'done');

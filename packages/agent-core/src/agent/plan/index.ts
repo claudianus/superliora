@@ -18,6 +18,12 @@ export type PlanData = null | {
 };
 export type PlanFilePath = string | null;
 
+export interface PlanModeStateCheckpoint {
+  readonly phase: UltraPlanPhase;
+  readonly interviewRoundCount: number;
+  readonly ultraPlan: Record<string, unknown>;
+}
+
 export class PlanMode {
   protected _isActive = false;
   protected _planId: null | string = null;
@@ -67,6 +73,7 @@ export class PlanMode {
         this.ultraEngine.startInterview(initialContext);
         await this.writeUltraPlanTemplate(planFilePath);
         maybeAdvanceUltraworkStage(this.agent, 'research', 'Ultra plan research phase');
+        this.logStateCheckpoint();
       }
     } catch (error) {
       if (enterRecorded) {
@@ -95,7 +102,26 @@ export class PlanMode {
     this._planId = id;
     this._planFilePath = this.planFilePathFor(id);
     this._isUltraMode = ultra ?? false;
-    this._phase = this._isUltraMode ? 'research' : 'interview';
+  }
+
+  restoreState(record: {
+    readonly phase: UltraPlanPhase;
+    readonly interviewRoundCount: number;
+    readonly ultraPlan: Record<string, unknown>;
+  }): void {
+    if (!this._isActive) return;
+    this._phase = record.phase;
+    this._interviewRoundCount = record.interviewRoundCount;
+    this.ultraEngine.deserialize(record.ultraPlan);
+  }
+
+  captureStateCheckpoint(): PlanModeStateCheckpoint | null {
+    if (!this._isActive) return null;
+    return {
+      phase: this._phase,
+      interviewRoundCount: this._interviewRoundCount,
+      ultraPlan: this.ultraEngine.serialize(),
+    };
   }
 
   cancel(id?: string): void {
@@ -155,12 +181,14 @@ export class PlanMode {
 
   setPhase(phase: UltraPlanPhase): void {
     this._phase = phase;
+    this.logStateCheckpoint();
   }
 
   reopenUltraInterviewForDrift(metrics: DriftMetrics): void {
     if (!this._isActive || !this._isUltraMode) return;
     this._phase = 'interview';
     this.ultraEngine.reopenInterviewForSeedRefinement(metrics);
+    this.logStateCheckpoint();
     this.agent.emitStatusUpdated();
   }
 
@@ -178,6 +206,7 @@ export class PlanMode {
       this.emitThinkingDelta(delta);
     });
     this._interviewRoundCount = this.ultraEngine.interviewState.rounds.length;
+    this.logStateCheckpoint();
   }
 
   private emitThinkingDelta(delta: string): void {
@@ -235,6 +264,18 @@ export class PlanMode {
         ? join(this.agent.config.cwd, 'plan')
         : join(this.agent.homedir, 'plans');
     return join(plansDir, `${id}.md`);
+  }
+
+  private logStateCheckpoint(): void {
+    if (this.agent.records.restoring) return;
+    const checkpoint = this.captureStateCheckpoint();
+    if (checkpoint === null) return;
+    this.agent.records.logRecord({
+      type: 'plan_mode.state',
+      phase: checkpoint.phase,
+      interviewRoundCount: checkpoint.interviewRoundCount,
+      ultraPlan: checkpoint.ultraPlan,
+    });
   }
 }
 

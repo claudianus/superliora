@@ -4,7 +4,7 @@ import { join } from 'pathe';
 import type { UltraworkRun } from '@superliora/protocol';
 
 import type { Agent } from '../agent';
-import type { UltraworkActivation, UltraworkRunMirror } from './types';
+import type { UltraworkActivation, UltraworkRunMirror, UltraworkPlanRecoveryContext } from './types';
 
 const RUN_STATE_FILENAME = 'run-state.json';
 const EVIDENCE_ROOT_SEGMENT = '.superliora/evidence/ultrawork-runs';
@@ -18,6 +18,7 @@ export function mirrorUltraworkRunToDisk(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
   readonly interruptReason?: string;
+  readonly planCheckpoint?: UltraworkPlanRecoveryContext;
 }): void {
   const directory = join(input.workDir, EVIDENCE_ROOT_SEGMENT, input.run.id);
   mkdirSync(directory, { recursive: true });
@@ -26,6 +27,7 @@ export function mirrorUltraworkRunToDisk(input: {
     run: input.run,
     activation: input.activation,
     interruptReason: input.interruptReason,
+    planCheckpoint: input.planCheckpoint,
     lastCheckpointAt: new Date().toISOString(),
   };
   writeFileSync(join(directory, RUN_STATE_FILENAME), `${JSON.stringify(mirror, null, 2)}\n`, 'utf8');
@@ -39,6 +41,7 @@ export function checkpointUltraworkRun(
     readonly interruptReason?: string;
     readonly workDir?: string;
     readonly flush?: boolean;
+    readonly planCheckpoint?: UltraworkPlanRecoveryContext;
   } = {},
 ): void {
   agent.records.logRecord({
@@ -56,6 +59,7 @@ export function checkpointUltraworkRun(
       run,
       activation: input.activation,
       interruptReason: input.interruptReason,
+      planCheckpoint: input.planCheckpoint,
     });
   } catch (error) {
     agent.log.warn('ultrawork run mirror failed', { runId: run.id, error });
