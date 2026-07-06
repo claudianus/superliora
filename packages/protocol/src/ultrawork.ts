@@ -151,7 +151,7 @@ export interface CouncilDecision {
   readonly id: string;
   readonly runId: string;
   readonly stage: UltraworkStage;
-  readonly decision: 'approve' | 'revise' | 'block';
+  readonly decision: 'approve' | 'revise' | 'block' | 'interrupted';
   readonly reason: string;
   readonly reviewerExpertIds?: readonly string[];
   readonly riskAreas?: readonly ('architecture' | 'security' | 'qa' | 'performance' | 'ux' | 'research')[];
@@ -450,7 +450,7 @@ export const councilDecisionSchema = z.object({
   id: z.string().min(1),
   runId: z.string().min(1),
   stage: ultraworkStageSchema,
-  decision: z.enum(['approve', 'revise', 'block']),
+  decision: z.enum(['approve', 'revise', 'block', 'interrupted']),
   reason: z.string().min(1),
   reviewerExpertIds: z.array(z.string().min(1)).optional(),
   riskAreas: z.array(z.enum(['architecture', 'security', 'qa', 'performance', 'ux', 'research'])).optional(),

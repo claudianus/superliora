@@ -10,6 +10,7 @@ import { addUsage, emptyUsage, type TokenUsage } from '@superliora/kosong';
 
 import type { Logger } from '#/logging/types';
 
+import { isUserCancellation } from '../utils/abort';
 import {
   createMaxStepsExceededError,
   errorMessage,
@@ -125,7 +126,10 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     }
   } catch (error) {
     if (isAbortError(error) || signal.aborted) {
-      dispatchEvent(makeInterruptedEvent('aborted', steps, activeStep));
+      dispatchEvent({
+        ...makeInterruptedEvent('aborted', steps, activeStep),
+        cancelledByUser: isUserCancellation(signal.reason),
+      });
       return { stopReason: 'aborted', steps, usage };
     }
     const reason: LoopInterruptReason = isMaxStepsExceededError(error) ? 'max_steps' : 'error';

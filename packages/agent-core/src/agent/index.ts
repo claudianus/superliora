@@ -381,9 +381,9 @@ export class Agent {
       },
       cancel: (payload) => {
         if (this.turn.hasActiveTurn) {
-          this.telemetry.track('cancel', { from: 'streaming' });
+          this.telemetry.track('cancel', { from: payload.source ?? 'streaming' });
         }
-        this.turn.cancel(payload.turnId);
+        this.turn.cancel(payload.turnId, undefined, payload.source);
       },
       undoHistory: (payload) => {
         this.context.undo(payload.count);

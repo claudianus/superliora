@@ -407,7 +407,7 @@ export class Session {
       return;
     }
 
-    agent.turn.cancel(undefined, abortError('Session closed'));
+    agent.turn.cancel(undefined, abortError('Session closed'), 'session-close');
     const settled = await waitForSettlementOrTimeout(waitForTurn, ACTIVE_TURN_CLOSE_TIMEOUT_MS);
     if (!settled) {
       this.log.warn('timed out waiting for active turn to cancel during session close', {

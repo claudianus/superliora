@@ -4,6 +4,7 @@ import {
   type AgentContextData,
   type LioraErrorCode,
   type SwarmModeTrigger,
+  type TurnCancelSource,
 } from '@superliora/agent-core';
 
 import { type ApprovalHandler, type Event, type QuestionHandler } from '#/events';
@@ -190,9 +191,9 @@ export class Session {
     return this.rpc.startBtw({ sessionId: this.id });
   }
 
-  async cancel(): Promise<void> {
+  async cancel(options?: { source?: TurnCancelSource }): Promise<void> {
     this.ensureOpen();
-    await this.rpc.cancel({ sessionId: this.id });
+    await this.rpc.cancel({ sessionId: this.id, source: options?.source });
   }
 
   async setModel(model: string): Promise<void> {

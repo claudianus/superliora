@@ -17,6 +17,7 @@ import {
   type ToolCallRequest,
   type ToolCallResponse,
   type SwarmModeTrigger,
+  type TurnCancelSource,
 } from '@superliora/agent-core';
 import type { Kaos } from '@superliora/kaos';
 
@@ -83,6 +84,10 @@ export interface SessionPromptRpcInput {
 
 export interface SessionIdRpcInput {
   readonly sessionId: string;
+}
+
+export interface CancelSessionRpcInput extends SessionIdRpcInput {
+  readonly source?: TurnCancelSource;
 }
 
 export interface ReloadSessionRpcInput extends SessionIdRpcInput {
@@ -378,12 +383,13 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async cancel(input: SessionIdRpcInput): Promise<void> {
+  async cancel(input: CancelSessionRpcInput): Promise<void> {
     const agentId = this.interactiveAgentId;
     const rpc = await this.getRpc();
     return rpc.cancel({
       sessionId: input.sessionId,
       agentId,
+      source: input.source,
     });
   }
 

@@ -237,6 +237,9 @@ export class UltraworkTheatreComponent implements Component {
   private reviewSummary(): string {
     const latest = [...this.decisions.values()].at(-1);
     if (latest === undefined) return 'council pending';
+    if (latest.decision === 'interrupted') {
+      return `interrupted: ${latest.reason}`;
+    }
     return `${latest.decision}: ${latest.reason}`;
   }
 
