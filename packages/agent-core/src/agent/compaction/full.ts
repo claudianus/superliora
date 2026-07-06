@@ -88,6 +88,7 @@ import {
   extractSwarmRunsFromMessages,
   renderSwarmRunsMemorySection,
 } from './swarm-memory-extract';
+import { buildUltraworkCompactionEnvelope } from '../../ultrawork/envelope';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
@@ -741,6 +742,11 @@ export class FullCompaction {
       );
       if (swarmSection.length > 0) {
         summary = `${summary.trim()}\n\n${swarmSection}`;
+      }
+
+      const ultraworkEnvelope = buildUltraworkCompactionEnvelope(this.agent);
+      if (ultraworkEnvelope !== undefined) {
+        summary = `${summary.trim()}\n\n${ultraworkEnvelope}`;
       }
 
       summary = this.renderStructuredV2Summary(summary, plan);

@@ -115,6 +115,17 @@ export class PlanMode {
     this.ultraEngine.deserialize(record.ultraPlan);
   }
 
+  restoreStateQuiet(record: {
+    readonly phase: UltraPlanPhase;
+    readonly interviewRoundCount: number;
+    readonly ultraPlan: Record<string, unknown>;
+  }): void {
+    if (!this._isActive) return;
+    this._phase = record.phase;
+    this._interviewRoundCount = record.interviewRoundCount;
+    this.ultraEngine.deserialize(record.ultraPlan);
+  }
+
   captureStateCheckpoint(): PlanModeStateCheckpoint | null {
     if (!this._isActive) return null;
     return {

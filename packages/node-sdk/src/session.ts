@@ -8,6 +8,10 @@ import {
 } from '@superliora/agent-core';
 
 import { type ApprovalHandler, type Event, type QuestionHandler } from '#/events';
+import {
+  tryAutoResumeUltrawork,
+  type AutoResumeUltraworkResult,
+} from '#/ultrawork-auto-resume';
 import type { SDKRpcClientBase } from '#/rpc';
 import type {
   AddAdditionalDirOptions,
@@ -496,6 +500,11 @@ export class Session {
   async resumeUltrawork(): Promise<ResumeUltraworkPayloadResult | null> {
     this.ensureOpen();
     return this.rpc.resumeUltrawork({ sessionId: this.id });
+  }
+
+  async tryAutoResumeUltrawork(): Promise<AutoResumeUltraworkResult | null> {
+    this.ensureOpen();
+    return tryAutoResumeUltrawork(this);
   }
 
   async cancelUltrawork(input: CancelUltraworkInput = {}): Promise<UltraworkRun | null> {

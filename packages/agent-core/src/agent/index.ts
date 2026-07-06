@@ -40,6 +40,7 @@ import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
 import { UltraworkMode } from '../ultrawork';
+import { reconcileUltraworkFromMirror } from '../ultrawork/mirror-reconcile';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
@@ -357,6 +358,7 @@ export class Agent {
       this.replayBuilder.postRestoring = true;
       this.goal.normalizeAfterReplay();
       this.ultrawork.normalizeAfterReplay();
+      await reconcileUltraworkFromMirror(this);
       await this.background.loadFromDisk();
       await this.background.reconcile();
       await this.cron?.loadFromDisk();

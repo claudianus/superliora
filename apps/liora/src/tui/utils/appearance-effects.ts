@@ -16,6 +16,7 @@ import {
   type NativeFrameStatsHealth,
   type RendererEffectLevel,
   type RendererQualityLevel,
+  type RendererCellStyle,
   type RendererStyledTextRun,
 } from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
@@ -34,6 +35,10 @@ const PARTICLE_TOKENS: readonly ColorToken[] = [
 ];
 const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
 const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
+/** How often ambient animation frames repaint (~20fps). */
+const PREMIUM_AMBIENT_RENDER_TICK_MS = 50;
+const SUBTLE_AMBIENT_RENDER_TICK_MS = 140;
+const PULSE_GLYPH_INTERVAL_MS = 280;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
 const SPECTACULAR_TOKENS: readonly ColorToken[] = [
   'gradientStart',
@@ -136,9 +141,9 @@ export function appearanceAnimationFrameIntervalMs(
       requested: 'premium',
       quality: 'full',
       health: 'healthy',
-      maxFps: 30,
+      maxFps: 24,
       defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
-      premiumMs: 33,
+      premiumMs: PREMIUM_AMBIENT_RENDER_TICK_MS,
       offMs: 1000,
     });
   }
@@ -149,10 +154,10 @@ export function appearanceAnimationFrameIntervalMs(
     // the animation cadence stays consistent even when the renderer throttles.
     quality: quality === 'minimal' ? 'balanced' : quality,
     health: health === 'degraded' ? 'watch' : health,
-    maxFps: 30,
+    maxFps: 24,
     defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
-    premiumMs: 33,
-    subtleMs: 120,
+    premiumMs: PREMIUM_AMBIENT_RENDER_TICK_MS,
+    subtleMs: SUBTLE_AMBIENT_RENDER_TICK_MS,
     offMs: 1000,
   });
 }
@@ -311,7 +316,7 @@ export function renderPulseGlyph(
   const index = resolveRendererSeededIndex({
     seed,
     nowMs: appearanceAnimationNow(),
-    intervalMs: 180,
+    intervalMs: PULSE_GLYPH_INTERVAL_MS,
     length: glyphs.length,
   }) ?? 0;
   return currentTheme.boldFg(PULSE_TOKENS[index % PULSE_TOKENS.length]!, glyphs[index]!);
@@ -330,12 +335,13 @@ export function renderSpectacularText(
 
   const rowIndex = options.rowIndex ?? 0;
   const intense = options.intense !== false && mode === 'premium';
-  const frameMs = Math.max(1, Math.floor(appearanceAnimationFrameIntervalMs(appearance)));
+  const pace = options.pace ?? (intense ? 'fast' : 'slow');
+  const cycleMs = resolveSpectacularTextCycleMs(appearance, pace, intense);
   const nowMs = appearanceAnimationNow();
-  const tickFloat = nowMs / frameMs;
+  const tickFloat = nowMs / cycleMs;
   const tick = Math.floor(tickFloat);
   const base = hashRendererEffectSeed(seed) + rowIndex * 37;
-  const waveStride = intense ? 2 : 1;
+  const waveStride = resolveSpectacularWaveStride(intense, pace);
   const waveSpan = SPECTACULAR_TOKENS.length * 4;
   const runs: RendererStyledTextRun[] = [];
   let clusterIndex = 0;
@@ -353,19 +359,19 @@ export function renderSpectacularText(
           ]!;
         runs.push({
           text: glyph,
-          style: {
+          style: withSpectacularCanvasBackground({
             fg: currentTheme.color(
               PARTICLE_TOKENS[
                 rendererPositiveModulo(base + tick + clusterIndex, PARTICLE_TOKENS.length)
               ]!,
             ),
             bold: true,
-          },
+          }),
         });
         clusterIndex += cluster.width;
         continue;
       }
-      runs.push({ text: char });
+      runs.push({ text: char, style: withSpectacularCanvasBackground(undefined) });
       clusterIndex += cluster.width;
       continue;
     }
@@ -378,10 +384,10 @@ export function renderSpectacularText(
     const blend = wave - tokenIndex;
     runs.push({
       text: char,
-      style: {
+      style: withSpectacularCanvasBackground({
         fg: mixHexColor(currentTheme.color(tokenA), currentTheme.color(tokenB), blend),
         bold: intense || char !== char.toLowerCase() || /[\\/|_\-=+#@*]/.test(char),
-      },
+      }),
     });
     clusterIndex += cluster.width;
   }
@@ -426,10 +432,36 @@ export function renderShimmerPrefix(appearance: AppearancePreferences = activeAp
   return `${SHIMMER_FRAMES[index]!} `;
 }
 
+function resolveSpectacularTextCycleMs(
+  appearance: AppearancePreferences,
+  pace: 'fast' | 'slow',
+  intense: boolean,
+): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (mode === 'subtle') return pace === 'fast' ? 380 : 480;
+  if (pace === 'slow') return intense ? 320 : 400;
+  return intense ? 220 : 280;
+}
+
+function resolveSpectacularWaveStride(intense: boolean, pace: 'fast' | 'slow'): number {
+  if (!intense) return 0.45;
+  return pace === 'fast' ? 1 : 0.65;
+}
+
 function isRemoteSession(): boolean {
   return (
     (process.env['SSH_TTY'] ?? '').length > 0 ||
     (process.env['SSH_CONNECTION'] ?? '').length > 0 ||
     (process.env['SSH_CLIENT'] ?? '').length > 0
   );
+}
+
+function withSpectacularCanvasBackground(
+  style: RendererCellStyle | undefined,
+): RendererCellStyle | undefined {
+  if (!currentTheme.canvasBackgroundEnabled) return style;
+  const bg = currentTheme.color('background');
+  if (style === undefined) return { bg };
+  if (style.bg !== undefined) return style;
+  return { ...style, bg };
 }

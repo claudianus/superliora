@@ -476,6 +476,11 @@ export class AcpServer implements Agent {
       }
       throw err;
     }
+    try {
+      await session.tryAutoResumeUltrawork();
+    } catch {
+      // Best-effort Ultrawork restore; ACP clients own the next prompt turn.
+    }
     // Phase 14 (PLAN D11) — same `configOptions:` advertisement as
     // `newSession`. `currentModeId` is `default` on every load (mode
     // is session-scoped per PLAN D9); `currentModelId` is read from

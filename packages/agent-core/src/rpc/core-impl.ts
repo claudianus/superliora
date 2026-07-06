@@ -1372,6 +1372,10 @@ async function resumeSessionResult(
       tools: await api.getTools({ agentId }),
       toolStore: agent.tools.storeData(),
       background: agent.background.list(false),
+      ultrawork: {
+        modeEnabled: agent.ultrawork.isModeEnabled(),
+        run: agent.ultrawork.getRun(),
+      },
     };
   }
   return withAdditionalDirs(

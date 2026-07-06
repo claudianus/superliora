@@ -60,7 +60,7 @@ describe('AnimationScheduler', () => {
     expect(requestRender).toHaveBeenCalledTimes(1);
 
     scheduler.update({ enabled: true, fps: 30 });
-    vi.advanceTimersByTime(34);
+    vi.advanceTimersByTime(50);
     expect(requestRender).toHaveBeenCalledTimes(2);
 
     scheduler.dispose();
@@ -243,9 +243,9 @@ describe('AppearanceController', () => {
     };
     const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
 
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(33);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(33);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(50);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(50);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(50);
 
     setAppearanceRenderHealth('watch');
     const controller = new AppearanceController({
@@ -255,7 +255,7 @@ describe('AppearanceController', () => {
       shouldRenderAnimation: () => true,
     });
 
-    vi.advanceTimersByTime(32);
+    vi.advanceTimersByTime(49);
     expect(requestRender).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(requestRender).toHaveBeenCalledTimes(1);
@@ -298,7 +298,7 @@ describe('AppearanceController', () => {
     vi.advanceTimersByTime(10_000);
     const unchanged = renderPulseGlyph(['A', 'B'], 'clock-test', 'A', 'primary', appearance);
 
-    advanceAppearanceAnimationClock(180);
+    advanceAppearanceAnimationClock(280);
     const changed = renderPulseGlyph(['A', 'B'], 'clock-test', 'A', 'primary', appearance);
 
     expect(strip(unchanged)).toBe(strip(first));
@@ -320,7 +320,7 @@ describe('AppearanceController', () => {
     setAppearanceRenderQuality('minimal');
     expect(resolveQualityAdjustedAmbientEffectMode(appearance, 'minimal', 'degraded')).toBe('premium');
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
-    expect(strip(renderParticleDivider(8, 'quality-divider', appearance))).toMatch(/[✦✧∙·]/);
+    expect(strip(renderParticleDivider(8, 'quality-divider', appearance))).toMatch(/[✦✧✺∙•]/);
   });
 
   it('keeps premium ambient effects at full quality under degraded renderer frame health', () => {
@@ -338,7 +338,7 @@ describe('AppearanceController', () => {
     setAppearanceRenderHealth('degraded');
     expect(resolveQualityAdjustedAmbientEffectMode(appearance, 'minimal', 'degraded')).toBe('premium');
     expect(strip(renderShimmerPrefix(appearance))).toMatch(/[✦✧∙·] /);
-    expect(strip(renderParticleDivider(8, 'health-divider', appearance))).toMatch(/[✦✧∙·]/);
+    expect(strip(renderParticleDivider(8, 'health-divider', appearance))).toMatch(/[✦✧✺∙•]/);
   });
 
   it('renders premium particle dividers at a stable visible width', () => {
@@ -370,6 +370,24 @@ describe('AppearanceController', () => {
     const codes = new Set(rendered.match(/\u001B\[[0-9;]*m/g) ?? []);
     expect(codes.size).toBeGreaterThan(2);
     expect(strip(rendered)).toContain('/\\ ABC');
+  });
+
+  it('paints theme canvas background on spectacular whitespace when canvas background is enabled', () => {
+    const previousCanvasBackground = currentTheme.canvasBackgroundEnabled;
+    currentTheme.setCanvasBackgroundEnabled(true);
+    try {
+      const appearance = {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium' as const,
+        particles: 'premium' as const,
+      };
+      const rendered = renderSpectacularText('   A', 'spectacular-space', appearance, {
+        intense: true,
+      });
+      expect(rendered).toContain('48;2;11;15;20');
+    } finally {
+      currentTheme.setCanvasBackgroundEnabled(previousCanvasBackground);
+    }
   });
 
   it('advances spectacular text colors with the shared animation clock', () => {

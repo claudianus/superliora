@@ -52,6 +52,7 @@ function makeHost(
     })),
     pauseUltrawork: vi.fn(async () => null),
     resumeUltrawork: vi.fn(async () => null),
+    tryAutoResumeUltrawork: vi.fn(async () => null),
     cancelUltrawork: vi.fn(async () => null),
     setPlanMode: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),

@@ -21,8 +21,8 @@ export class AnimationScheduler {
       resolveIntervalMs: options.resolveIntervalMs,
       onTick: options.requestRender,
       defaultFps: 12,
-      maxFps: 30,
-      minIntervalMs: 33,
+      maxFps: 24,
+      minIntervalMs: 50,
     });
   }
 

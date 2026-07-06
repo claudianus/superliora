@@ -48,7 +48,7 @@ function ansiSequenceCount(text: string): number {
 
 /** Banner lines inside the welcome box. */
 function bannerOf(lines: string[]): string {
-  return lines.slice(2, 7).join('\n');
+  return lines.slice(2, 8).join('\n');
 }
 
 function strip(text: string): string {
@@ -106,7 +106,7 @@ describe('WelcomeComponent', () => {
     expect(output).not.toContain('Send /help for help information.');
   });
 
-  it('does not decorate the welcome frame with animated particle rails', () => {
+  it('renders ambient particle rails by default in safe terminals', () => {
     const previousEnv = {
       TERM: process.env['TERM'],
       CI: process.env['CI'],
@@ -126,9 +126,9 @@ describe('WelcomeComponent', () => {
 
     try {
       const lines = new WelcomeComponent(appState).render(80);
-      const frameBody = strip(lines.slice(2, -2).join('\n'));
 
-      expect(frameBody).not.toMatch(/[✦✧✺·∙•]/);
+      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧]/);
+      expect(strip(lines.at(-3) ?? '')).toMatch(/[·∙✧]/);
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];
