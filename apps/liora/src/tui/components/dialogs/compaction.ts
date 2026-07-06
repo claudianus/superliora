@@ -82,11 +82,14 @@ export class CompactionComponent extends Container {
     return super.render(width);
   }
 
-  markDone(tokensBefore?: number, tokensAfter?: number): void {
+  markDone(tokensBefore?: number, tokensAfter?: number, detail?: string): void {
     if (this.done || this.canceled) return;
     this.done = true;
     this.tokensBefore = tokensBefore;
     this.tokensAfter = tokensAfter;
+    if (detail !== undefined && detail.length > 0) {
+      this.addChild(new Text(currentTheme.dim(`  ${detail}`), 0, 0));
+    }
     this.headerText.setText(this.buildHeader());
     this.ui?.requestRender();
   }

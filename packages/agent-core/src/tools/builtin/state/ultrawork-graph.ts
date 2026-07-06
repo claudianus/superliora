@@ -6,6 +6,7 @@ import {
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent';
+import { maybeFinishUltraworkRun } from '../../../ultrawork';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -111,6 +112,8 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
       this.store.set(TODO_STORE_KEY, todosFromWorkGraph(graph));
     }
     this.emitChangedNodes(previous, graph);
+    this.agent.ultrawork.syncWorkGraphFromStore();
+    maybeFinishUltraworkRun(this.agent);
 
     const changedCount = changedNodes(previous, graph).length;
     const todoLine = syncTodos ? `\n${renderTodoList(todosFromWorkGraph(graph), 'Synced TodoList:')}` : '';

@@ -10,6 +10,7 @@ import { PluginSessionStartInjector } from './plugin-session-start';
 import { PlanModeInjector } from './plan-mode';
 import { ResponseLanguageInjector } from './response-language';
 import { TodoListReminderInjector } from './todo-list';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
   "The conversation was compacted, so the earlier messages that started these background tasks are gone, but the tasks are still running from before. Do not start duplicates. Use TaskOutput to fetch a task's result, TaskList to list them, and TaskStop to cancel one.";
@@ -55,6 +56,7 @@ export class InjectionManager {
   async injectAfterCompaction(): Promise<void> {
     await this.injectGoal();
     this.injectActiveBackgroundTasks();
+    this.injectUltraworkGraphStatus();
     await this.inject();
   }
 
@@ -97,5 +99,24 @@ export class InjectionManager {
       `${ACTIVE_BACKGROUND_TASK_GUIDANCE}\n\n${formatTaskList(tasks, true)}`,
       { kind: 'injection', variant: 'background_task_status' },
     );
+  }
+
+  private injectUltraworkGraphStatus(): void {
+    if (this.agent.type !== 'main') return;
+    if (this.agent.ultraSwarmRun !== undefined) return;
+    const graph = this.agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
+    if (graph === undefined || graph.nodes.length === 0) return;
+    const lines = [
+      '<ultrawork_graph_status>',
+      'Post-compaction UltraworkGraph node status (continue assigned nodes from here):',
+    ];
+    for (const node of graph.nodes.slice(0, 32)) {
+      lines.push(`- ${node.id}: ${node.status} — ${node.title}`);
+    }
+    lines.push('</ultrawork_graph_status>');
+    this.agent.context.appendSystemReminder(lines.join('\n'), {
+      kind: 'injection',
+      variant: 'ultrawork_graph_status',
+    });
   }
 }

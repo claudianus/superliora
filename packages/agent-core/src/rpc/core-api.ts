@@ -449,6 +449,32 @@ export interface CreateGoalPayload {
   readonly replace?: boolean;
 }
 
+export interface CreateUltraworkRunPayload {
+  readonly id: string;
+  readonly objective: string;
+  readonly source: 'manual' | 'auto' | 'shift-tab' | 'goal' | 'headless';
+  readonly replaceGoal: boolean;
+  readonly evidenceRoot: string;
+  readonly workDir: string;
+}
+
+export interface PauseUltraworkPayload {
+  readonly reason?: string;
+}
+
+export interface CancelUltraworkPayload {
+  readonly reason?: string;
+}
+
+export type UltraworkRunSnapshot = import('@superliora/protocol').UltraworkRun;
+
+export interface ResumeUltraworkPayloadResult {
+  readonly run: UltraworkRunSnapshot;
+  readonly report: import('../ultrawork').UltraworkRecoveryReport;
+  readonly goalResumed: boolean;
+  readonly recoveryPrompt: string;
+}
+
 export interface GetKimiConfigPayload {
   readonly reload?: boolean;
 }
@@ -531,6 +557,11 @@ export interface AgentAPI {
   pauseGoal: (payload: EmptyPayload) => GoalSnapshot;
   resumeGoal: (payload: EmptyPayload) => GoalSnapshot;
   cancelGoal: (payload: EmptyPayload) => GoalSnapshot;
+  createUltraworkRun: (payload: CreateUltraworkRunPayload) => UltraworkRunSnapshot;
+  getUltraworkRun: (payload: EmptyPayload) => UltraworkRunSnapshot | null;
+  pauseUltrawork: (payload: PauseUltraworkPayload) => UltraworkRunSnapshot | null;
+  resumeUltrawork: (payload: EmptyPayload) => ResumeUltraworkPayloadResult | null;
+  cancelUltrawork: (payload: CancelUltraworkPayload) => UltraworkRunSnapshot | null;
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
   getConfig: (payload: EmptyPayload) => AgentConfigData;

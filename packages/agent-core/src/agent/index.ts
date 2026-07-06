@@ -39,6 +39,7 @@ import { CronManager } from './cron';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
+import { UltraworkMode } from '../ultrawork';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
@@ -155,6 +156,7 @@ export class Agent {
   readonly background: BackgroundManager;
   readonly cron: CronManager | null;
   readonly goal: GoalMode;
+  readonly ultrawork: UltraworkMode;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
 
@@ -226,6 +228,7 @@ export class Agent {
     );
     this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.goal = new GoalMode(this);
+    this.ultrawork = new UltraworkMode(this);
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
   }
@@ -353,6 +356,7 @@ export class Agent {
     try {
       this.replayBuilder.postRestoring = true;
       this.goal.normalizeAfterReplay();
+      this.ultrawork.normalizeAfterReplay();
       await this.background.loadFromDisk();
       await this.background.reconcile();
       await this.cron?.loadFromDisk();
@@ -514,6 +518,21 @@ export class Agent {
       pauseGoal: () => this.goal.pauseGoal(),
       resumeGoal: () => this.goal.resumeGoal(),
       cancelGoal: () => this.goal.cancelGoal(),
+      createUltraworkRun: (payload) =>
+        this.ultrawork.create({
+          id: payload.id,
+          objective: payload.objective,
+          activation: {
+            source: payload.source,
+            replaceGoal: payload.replaceGoal,
+            evidenceRoot: payload.evidenceRoot,
+            workDir: payload.workDir,
+          },
+        }),
+      getUltraworkRun: () => this.ultrawork.getRun(),
+      pauseUltrawork: (payload) => this.ultrawork.pause(payload),
+      resumeUltrawork: () => this.ultrawork.resume(),
+      cancelUltrawork: (payload) => this.ultrawork.cancel(payload.reason),
       getBackgroundOutput: (payload) => this.background.readOutput(payload.taskId, payload.tail),
       getContext: () => this.context.data(),
       getConfig: () => this.config.data(),

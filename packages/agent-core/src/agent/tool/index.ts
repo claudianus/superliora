@@ -547,7 +547,7 @@ export class ToolManager {
           ),
         this.agent.subagentHost && new b.SearchExpertTool(),
         this.agent.subagentHost &&
-          new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode),
+          new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode, this.toolStore),
         this.agent.subagentHost &&
           new b.UltraSwarmTool(
             this.agent.subagentHost,

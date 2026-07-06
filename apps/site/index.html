@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuperLiora - 지속 가능한 AI 코딩 에이전트</title>
+    <meta name="description" content="SuperLiora는 UltraPlan, UltraGoal, UltraResearch, UltraSwarm, UltraWork를 하나의 흐름으로 연결하는 독립 AI 코딩 에이전트입니다.">
+    <meta property="og:title" content="SuperLiora">
+    <meta property="og:description" content="계획, 조사, 병렬 실행, 검증, 기억, 문서화를 이어가는 독립 AI 코딩 에이전트.">
+    <meta property="og:image" content="/superliora/assets/hero-command-center.png">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2306080d'/><text x='50' y='68' font-size='52' fill='%2348d8ff' text-anchor='middle' font-family='sans-serif' font-weight='800'>S</text></svg>">
+    <link rel="preload" href="/superliora/assets/hero-command-center.png" as="image">
+    <link rel="stylesheet" href="/src/style.css">
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <div id="ambient" aria-hidden="true">
+      <div class="mesh"></div>
+    </div>
+    <div id="mouse-glow" aria-hidden="true"></div>
+    <canvas id="particle-network" aria-hidden="true"></canvas>
+
+    <header class="nav">
+      <div class="nav__inner">
+        <a class="brand" href="/superliora/">
+          <span class="brand__mark">S</span>
+          <span class="brand__name">SuperLiora</span>
+        </a>
+        <nav class="nav__links" aria-label="Primary">
+          <a href="#ultra">Ultra System</a>
+          <a href="#memory">Memory &amp; Wiki</a>
+          <a href="#themes">Themes</a>
+          <a href="#install">Install</a>
+        </nav>
+        <div class="lang" aria-label="Language">
+          <a href="/superliora/" aria-current="page">KR</a>
+          <a href="/superliora/en/">EN</a>
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="테마 전환" aria-pressed="true">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrapper hero__grid">
+          <div class="hero__copy reveal">
+            <div class="eyebrow">Independent AI coding agent</div>
+            <h1>개발 흐름을 끝까지 이어가는 AI 코딩 에이전트</h1>
+            <p class="hero__lead">SuperLiora는 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억을 하나의 작업 흐름으로 연결합니다. 긴 세션에서도 맥락을 보존하고, 근거 있는 결정을 남기며, 개발자가 다음 단계에 집중할 수 있도록 돕습니다.</p>
+            <div class="hero__actions">
+              <a class="btn-primary" href="#install">바로 설치</a>
+              <a class="btn-secondary" href="https://github.com/claudianus/superliora">GitHub 보기</a>
+            </div>
+          </div>
+          <div class="hero__visual reveal" data-tilt>
+            <div class="hero-visual">
+              <img src="/superliora/assets/hero-command-center.png" alt="SuperLiora command center generated artwork" loading="eager">
+              <div class="hero__status">
+                <div class="status-chip"><b>UltraWork</b><span>Plan → Goal → Research → Decision → Verify</span></div>
+                <div class="status-chip"><b>Liora Recall</b><span>Memory, decisions, procedures</span></div>
+                <div class="status-chip"><b>LLM Wiki</b><span>Evidence-backed project knowledge</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="problem section">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Problem</div>
+            <h2>긴 작업은 맥락을 잃고, 결정은 흩어집니다</h2>
+            <p class="section-body">복잡한 구현, 마이그레이션, 리팩터링은 중간에 목표가 흐려지고, 근거가 사라지며, 같은 질문을 반복하게 됩니다. 도구가 많아질수록 오히려 흐름이 끊깁니다.</p>
+          </div>
+          <div class="use-case-grid">
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 0">
+              <h3>Migration &amp; refactoring</h3>
+              <p>대규모 변경에서 계획, 영향 범위, 검증을 하나의 흐름으로 유지합니다.</p>
+            </div>
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 1">
+              <h3>Feature implementation</h3>
+              <p>요구사항을 명확히 고정하고, 구현 중에도 완료 기준을 잃지 않습니다.</p>
+            </div>
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 2">
+              <h3>Incident &amp; debugging</h3>
+              <p>조사 근거와 시도한 방법을 정리하며 루트 원인에 집중합니다.</p>
+            </div>
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 3">
+              <h3>Documentation &amp; knowledge</h3>
+              <p>검증된 결정을 다음 작업에서 다시 사용할 수 있는 자산으로 남깁니다.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="solution section">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Solution</div>
+            <h2>Shift-Tab 한 번으로 Ultrawork 시작</h2>
+            <p class="section-body">일반 프롬프트는 가볍게, 복잡한 작업은 Ultrawork로 전환합니다. UltraPlan interview부터 UltraGoal, research, Swarm decision, verification, learning까지 이어집니다.</p>
+          </div>
+          <div class="terminal glass reveal" data-tilt>
+            <div class="terminal__bar">
+              <span class="terminal__dot" style="background:var(--color-rose)"></span>
+              <span class="terminal__dot" style="background:var(--color-amber)"></span>
+              <span class="terminal__dot" style="background:var(--color-emerald)"></span>
+            </div>
+            <div class="terminal__body">
+              <span style="color:var(--color-amber)">$</span> <span data-typing></span><span class="terminal__cursor">|</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="ultra">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Ultra workflow</div>
+            <h2>계획부터 검증까지 이어지는 실행 구조</h2>
+            <p class="section-body">Shift-Tab Ultrawork mode는 복잡한 요청을 UltraPlan interview로 먼저 좁히고, true/false로 검증 가능한 UltraGoal을 만든 뒤 research, Swarm decision, integration, verification 순서로 진행합니다.</p>
+          </div>
+          <div class="split">
+            <div class="rail reveal">
+              <div class="rail__item" data-tilt style="--reveal-index: 0">
+                <h3>UltraPlan <span>01</span></h3>
+                <p>완료 여부가 명백해질 때까지 요구사항, 제약, 위험을 인터뷰합니다.</p>
+              </div>
+              <div class="rail__item" data-tilt style="--reveal-index: 1">
+                <h3>UltraGoal <span>02</span></h3>
+                <p>계획이 승인된 뒤 구체적 목표와 검증 기준을 고정합니다.</p>
+              </div>
+              <div class="rail__item" data-tilt style="--reveal-index: 2">
+                <h3>Swarm decision <span>03</span></h3>
+                <p>ENGAGE 또는 DEFER를 먼저 기록한 뒤 필요한 specialist subagent만 투입합니다.</p>
+              </div>
+            </div>
+            <div class="media reveal">
+              <img src="/superliora/assets/ultra-orchestration.png" alt="Generated Ultra workflow orchestration visual" loading="lazy">
+            </div>
+          </div>
+          <div class="workflow reveal">
+            <div class="workflow__step" data-tilt style="--reveal-index: 0"><b>Plan</b><p>요구를 정리합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 1"><b>Goal</b><p>완료 기준을 고정합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 2"><b>Research</b><p>근거를 확인합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 3"><b>Decision</b><p>팀 투입 여부를 판단합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 4"><b>Verify</b><p>테스트와 위험을 점검합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 5"><b>Learn</b><p>검증된 지식을 남깁니다.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="proof">
+        <div class="wrapper proof__grid">
+          <div class="proof__item reveal" style="--reveal-index: 0"><span>Gate</span><strong>UltraPlan</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 1"><span>Goal</span><strong>UltraGoal</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 2"><span>Evidence</span><strong>Research</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 3"><span>Decision</span><strong>Swarm</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 4"><span>Core</span><strong>Memory + Wiki</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 5"><span>Surface</span><strong>Premium Themes</strong></div>
+        </div>
+      </section>
+
+      <section class="section" id="memory">
+        <div class="wrapper">
+          <div class="split split--reverse">
+            <div class="media reveal">
+              <img src="/superliora/assets/memory-wiki-themes.png" alt="Generated memory and LLM wiki knowledge vault visual" loading="lazy">
+            </div>
+            <div class="section-head reveal">
+              <div class="section-kicker">Memory and LLM Wiki</div>
+              <h2>작업의 맥락을 기록하고 다시 활용합니다</h2>
+              <p class="section-body">Liora Recall은 프로젝트 사실, 결정, 절차, 후속 작업을 기억합니다. LLM Wiki는 코드베이스와 검증 근거를 문서화해 다음 작업이 같은 출발점을 공유하도록 돕습니다.</p>
+              <div class="rail" style="margin-top:24px">
+                <div class="rail__item" data-tilt>
+                  <h3>Semantic memory <span>facts</span></h3>
+                  <p>프로젝트 구조, API 제약, 팀 규칙을 보존합니다.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Procedural memory <span>how-to</span></h3>
+                  <p>반복되는 빌드, 배포, 검증 절차를 다시 사용할 수 있게 정리합니다.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Governance memory <span>rules</span></h3>
+                  <p>중요한 정책과 금지 사항을 이후 작업에서도 확인할 수 있게 유지합니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="themes">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Premium operator surface</div>
+            <h2>오래 머무는 터미널을 더 읽기 쉽게</h2>
+            <p class="section-body">긴 세션에서는 시각 피로, 코드 가독성, 상태 인지가 작업 품질에 영향을 줍니다. SuperLiora는 preset, 외부 terminal palette, syntax-aware color를 정제된 TUI 경험으로 제공합니다.</p>
+          </div>
+          <div class="showcase">
+            <div class="media reveal">
+              <img src="/superliora/assets/agent-cockpit.png" alt="Generated SuperLiora premium cockpit visual" loading="lazy">
+            </div>
+            <div class="theme-board reveal">
+              <div class="theme-card" data-tilt style="--reveal-index: 0">
+                <div class="theme-card__bar"><i style="background:#48d8ff"></i><i style="background:#5efad5"></i><i style="background:#ffce6a"></i></div>
+                <h3>Neon Operator</h3>
+                <p>명령, 상태, diff를 선명하게 구분합니다.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 1">
+                <div class="theme-card__bar"><i style="background:#b48cff"></i><i style="background:#ff77b7"></i><i style="background:#c9d4e4"></i></div>
+                <h3>Prism Syntax</h3>
+                <p>긴 코드 블록과 reasoning 로그의 가독성을 높입니다.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 2">
+                <div class="theme-card__bar"><i style="background:#66f2a2"></i><i style="background:#48ffd2"></i><i style="background:#9aa9bd"></i></div>
+                <h3>Recall Green</h3>
+                <p>memory, wiki, evidence 흐름을 쉽게 구분합니다.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 3">
+                <div class="theme-card__bar"><i style="background:#ffce6a"></i><i style="background:#48d8ff"></i><i style="background:#f5f8ff"></i></div>
+                <h3>Executive Gold</h3>
+                <p>review, verify, release gate에 필요한 대비를 제공합니다.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Premium capabilities</div>
+            <h2>현장에서 필요한 기능을 한 흐름에 담았습니다</h2>
+            <p class="section-body">SuperLiora는 계정과 API, context, research, memory, theme, workflow를 따로 관리하지 않고 같은 에이전트 흐름에서 다룹니다.</p>
+          </div>
+          <div class="feature-grid">
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 0">
+              <span class="feature-card__index">01</span>
+              <h3>Provider routing</h3>
+              <p>여러 API key와 OAuth account를 등록하고 quota, cooldown, latency 상태를 기준으로 fallback 후보를 선택합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 1">
+              <span class="feature-card__index">02</span>
+              <h3>Local web research</h3>
+              <p>외부 검색 경로가 충분하지 않을 때 local fetch/search fallback으로 필요한 근거를 보완합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 2">
+              <span class="feature-card__index">03</span>
+              <h3>Context OS</h3>
+              <p>긴 세션을 structured working memory, repair, bounded rehydration으로 관리합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 3">
+              <span class="feature-card__index">04</span>
+              <h3>LLM Wiki</h3>
+              <p>코드베이스 지식, 조사 근거, 검증 결과를 다음 작업에서 다시 쓸 수 있는 문서 자산으로 정리합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 4">
+              <span class="feature-card__index">05</span>
+              <h3>UltraGoal</h3>
+              <p>목표, 예산, 완료 조건을 명확히 두어 장기 작업의 방향을 유지합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 5">
+              <span class="feature-card__index">06</span>
+              <h3>ACP ready</h3>
+              <p>터미널과 호환 editor에서 같은 SuperLiora workflow를 이어갈 수 있습니다.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="install">
+        <div class="wrapper">
+          <div class="install glass" data-tilt>
+            <div class="install__grid">
+              <div>
+                <div class="section-kicker">Install</div>
+                <h2>소스에서 설치하고 liora로 시작하세요</h2>
+                <p class="section-body">설치 스크립트는 SuperLiora를 독립 명령으로 빌드하고 실행 경로를 설정합니다. macOS/Linux는 curl, Windows는 PowerShell one-liner로 시작할 수 있습니다.</p>
+              </div>
+              <div class="install__code-list">
+                <div class="code-block">
+                  <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash" type="button"></button>
+                  <code><span style="color:var(--color-amber)">$</span> curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash</code>
+                </div>
+                <div class="code-block">
+                  <button class="copy-btn" data-copy="irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex" type="button"></button>
+                  <code><span style="color:var(--color-amber)">PS&gt;</span> irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex</code>
+                </div>
+                <div class="code-block">
+                  <button class="copy-btn" data-copy="liora" type="button"></button>
+                  <code><span style="color:var(--color-amber)">$</span> liora</code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta">
+        <div class="wrapper">
+          <div class="reveal">
+            <h2>Shift-Tab로 Ultrawork를 시작해 보세요</h2>
+            <p>복잡한 작업도 계획, 목표, 근거, 검증을 하나의 흐름으로 이어갑니다.</p>
+            <div class="cta__actions">
+              <a class="btn-primary" href="#install">설치하기</a>
+              <a class="btn-secondary" href="https://github.com/claudianus/superliora">GitHub 보기</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrapper footer__inner">
+        <span class="footer__copy">SuperLiora. 장기 개발 작업을 위한 AI 코딩 에이전트.</span>
+        <nav class="footer__links" aria-label="Footer">
+          <a href="https://github.com/claudianus/superliora">GitHub</a>
+          <a href="https://github.com/claudianus/superliora/issues">Issues</a>
+          <a href="/superliora/en/">English</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,9 +1,9 @@
 # SuperLiora CLI
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/) <br>
-[사이트](https://claudianus.github.io/superliora/) · [이슈](https://github.com/claudianus/superliora/issues) · [English](README.md) · [中文](README.zh-CN.md)
+[사이트](https://claudianus.github.io/superliora/) · [이슈](https://github.com/claudianus/superliora/issues) · [English](README.md)
 
-![SuperLiora command center](./site/assets/hero-command-center.png)
+![SuperLiora command center](./apps/site/public/assets/hero-command-center.png)
 
 ## 개발 흐름을 끝까지 이어가는 AI 코딩 에이전트
 
@@ -106,7 +106,6 @@ Zed 예시:
 
 - [한국어 사이트](https://claudianus.github.io/superliora/)
 - [English site](https://claudianus.github.io/superliora/en/)
-- [中文站点](https://claudianus.github.io/superliora/zh/)
 
 ## 개발
 
@@ -124,6 +123,12 @@ pnpm test
 pnpm typecheck
 pnpm lint
 pnpm build
+```
+
+GitHub Pages 랜딩 사이트를 로컬에서 실행하려면:
+
+```sh
+pnpm dev:docs
 ```
 
 ## 커뮤니티

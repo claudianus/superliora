@@ -1,9 +1,9 @@
 # SuperLiora CLI
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/en/) <br>
-[Site](https://claudianus.github.io/superliora/en/) · [Issues](https://github.com/claudianus/superliora/issues) · [한국어](README.ko.md) · [中文](README.zh-CN.md)
+[Site](https://claudianus.github.io/superliora/en/) · [Issues](https://github.com/claudianus/superliora/issues) · [한국어](README.ko.md)
 
-![SuperLiora command center](./site/assets/hero-command-center.png)
+![SuperLiora command center](./apps/site/public/assets/hero-command-center.png)
 
 ## AI coding work, carried through
 
@@ -106,7 +106,6 @@ For Zed, add this to `~/.config/zed/settings.json`:
 
 - [English site](https://claudianus.github.io/superliora/en/)
 - [한국어 사이트](https://claudianus.github.io/superliora/)
-- [中文站点](https://claudianus.github.io/superliora/zh/)
 
 ## Develop
 
@@ -124,6 +123,12 @@ pnpm test
 pnpm typecheck
 pnpm lint
 pnpm build
+```
+
+To run the GitHub Pages landing site locally:
+
+```sh
+pnpm dev:docs
 ```
 
 ## Community

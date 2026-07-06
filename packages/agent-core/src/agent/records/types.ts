@@ -1,5 +1,7 @@
 import type { ContentPart, TokenUsage } from '@superliora/kosong';
 
+import type { UltraworkRun } from '@superliora/protocol';
+
 import type { LoopRecordedEvent } from '../../loop';
 import type { GoalActor, GoalBudgetLimits, GoalStatus } from '../goal';
 import type { ToolStoreUpdate } from '../../tools/store';
@@ -117,6 +119,19 @@ export interface AgentRecordEvents {
   };
   'ultrawork.event': {
     event: SerializableAgentEvent;
+  };
+  'ultrawork.run': {
+    run: UltraworkRun;
+    activation?: {
+      source: 'manual' | 'auto' | 'shift-tab' | 'goal' | 'headless';
+      replaceGoal: boolean;
+      evidenceRoot: string;
+      workDir: string;
+    };
+    interruptReason?: string;
+  };
+  'ultrawork.mode': {
+    enabled: boolean;
   };
 }
 

@@ -17,13 +17,30 @@ export interface CompactionConfig {
   parallelBlockThreshold: number;
   parallelBlockTarget: number;
   absoluteTriggerBlocks?: boolean;
+  speculativeStepBufferTokens: number;
+}
+
+export function resolveCompactionBlockRatio(
+  triggerRatio: number,
+  configuredBlockRatio?: number,
+): number {
+  if (configuredBlockRatio !== undefined) return configuredBlockRatio;
+  return Math.max(DEFAULT_COMPACTION_BLOCK_RATIO, triggerRatio + 0.05);
 }
 
 const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
+/** Zylos / Factory-style early trigger: compact with headroom for summary output. */
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.72;
+/** Block the turn only once context is closer to the hard window. */
+export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.8;
+/** Estimated tokens the next agent step may add (tool call + result) for speculative compaction. */
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 12_000;
+const MAX_QUALITY_TRIGGER_BIAS = 0.1;
+
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
-  triggerRatio: 0.85,
-  blockRatio: 0.85,
+  triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
+  blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
   reservedContextSize: 50_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
@@ -31,10 +48,11 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.2,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 200_000,
+  absoluteTriggerTokens: 180_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 30_000,
   parallelBlockTarget: 15_000,
+  speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
 };
 
 export interface CompactionStrategy {
@@ -50,6 +68,8 @@ export interface CompactionStrategy {
 }
 
 export class DefaultCompactionStrategy implements CompactionStrategy {
+  private qualityTriggerBias = 0;
+
   constructor(
     protected readonly maxSizeProvider: () => number,
     protected readonly config: CompactionConfig = DEFAULT_COMPACTION_CONFIG
@@ -59,13 +79,47 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
     return this.maxSizeProvider();
   }
 
+  get effectiveTriggerRatio(): number {
+    return Math.max(0.5, this.config.triggerRatio - this.qualityTriggerBias);
+  }
+
+  get speculativeStepBufferTokens(): number {
+    return this.config.speculativeStepBufferTokens;
+  }
+
+  applyQualityFeedback(input: {
+    readonly recallEvalScore?: number | undefined;
+    readonly usedEmergencyBackstop: boolean;
+  }): number {
+    if (input.usedEmergencyBackstop) {
+      this.qualityTriggerBias = Math.min(MAX_QUALITY_TRIGGER_BIAS, this.qualityTriggerBias + 0.03);
+    } else if (
+      input.recallEvalScore !== undefined &&
+      input.recallEvalScore < 0.75
+    ) {
+      this.qualityTriggerBias = Math.min(MAX_QUALITY_TRIGGER_BIAS, this.qualityTriggerBias + 0.02);
+    } else if (
+      input.recallEvalScore !== undefined &&
+      input.recallEvalScore >= 0.9
+    ) {
+      this.qualityTriggerBias = Math.max(0, this.qualityTriggerBias - 0.01);
+    }
+    return this.qualityTriggerBias;
+  }
+
   shouldCompact(usedSize: number): boolean {
     if (this.maxSize <= 0) return false;
     return (
       this.shouldTriggerAbsolute(usedSize) ||
-      usedSize >= this.maxSize * this.config.triggerRatio ||
+      usedSize >= this.maxSize * this.effectiveTriggerRatio ||
       this.shouldUseReservedContext(usedSize)
     );
+  }
+
+  shouldSpeculativelyCompact(projectedUsedSize: number): boolean {
+    if (this.maxSize <= 0) return false;
+    if (this.shouldCompact(projectedUsedSize)) return true;
+    return projectedUsedSize >= this.maxSize * this.config.blockRatio;
   }
 
   shouldBlock(usedSize: number): boolean {
@@ -94,12 +148,16 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
     // LLM Input: messages.slice(0, N) + [user:instruction]
     // Preserved recent messages: messages.slice(N)
 
-    // Manual compaction
+    // Manual compaction: when no assistant/tool boundary exists, compact the full
+    // prefix so applyCompaction can apply head/tail user-message retention.
     if (source === 'manual') {
       for (let i = messages.length - 1; i > 0; i--) {
         if (canSplitAfter(messages, i)) {
           return this.fitCompactCountToWindow(messages, i + 1);
         }
+      }
+      if (messages.length > 0) {
+        return this.fitCompactCountToWindow(messages, messages.length);
       }
       return 0;
     }

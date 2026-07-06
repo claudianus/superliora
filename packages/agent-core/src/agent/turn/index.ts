@@ -360,6 +360,7 @@ export class TurnFlow {
           signal,
         );
       }
+      await this.markUltraworkInterruptedForTurnEnd(end);
       return end;
     } finally {
       if (ownsActiveTurn()) {
@@ -404,14 +405,18 @@ export class TurnFlow {
 
       if (end.event.reason === 'cancelled') {
         await this.agent.goal.pauseOnInterrupt({ reason: 'Paused after interruption' });
+        await this.agent.ultrawork.markInterrupted({ reason: 'Paused after interruption' });
         return end;
       }
       if (end.event.reason === 'failed') {
-        await this.agent.goal.pauseActiveGoal({ reason: goalFailurePauseReason(end.event.error) });
+        const reason = goalFailurePauseReason(end.event.error);
+        await this.agent.goal.pauseActiveGoal({ reason });
+        await this.agent.ultrawork.markInterrupted({ reason });
         return end;
       }
       if (end.event.reason === 'filtered') {
         await this.agent.goal.pauseActiveGoal({ reason: GOAL_PROVIDER_FILTERED_PAUSE_REASON });
+        await this.agent.ultrawork.markInterrupted({ reason: GOAL_PROVIDER_FILTERED_PAUSE_REASON });
         return end;
       }
       if (end.blockedByUserPromptHook === true) {
@@ -436,6 +441,20 @@ export class TurnFlow {
       turnId = this.allocateTurnId();
       turnInput = [{ type: 'text', text: GOAL_CONTINUATION_PROMPT }];
       turnOrigin = GOAL_CONTINUATION_ORIGIN;
+    }
+  }
+
+  private async markUltraworkInterruptedForTurnEnd(end: TurnEndResult): Promise<void> {
+    if (end.event.reason === 'cancelled') {
+      await this.agent.ultrawork.markInterrupted({ reason: 'Paused after interruption' });
+      return;
+    }
+    if (end.event.reason === 'failed') {
+      await this.agent.ultrawork.markInterrupted({ reason: goalFailurePauseReason(end.event.error) });
+      return;
+    }
+    if (end.event.reason === 'filtered') {
+      await this.agent.ultrawork.markInterrupted({ reason: GOAL_PROVIDER_FILTERED_PAUSE_REASON });
     }
   }
 
@@ -492,6 +511,7 @@ export class TurnFlow {
     // sits just past the turn.ended boundary that consumers watch for.
     let errorEvent: AgentEvent | undefined;
     try {
+      await this.agent.fullCompaction.prepareForTurn(signal);
       const promptHookEnded = await this.applyUserPromptHook(turnId, input, origin, signal, startedAt);
       if (promptHookEnded !== undefined) {
         ended = promptHookEnded.event;

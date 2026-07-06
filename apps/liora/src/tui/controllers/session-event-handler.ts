@@ -113,7 +113,7 @@ export interface SessionEventHost {
   resetLivePane(): void;
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
-  showNotice(title: string, detail?: string): void;
+  showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   updateActivityPane(): void;
   track(event: string, props?: Record<string, unknown>): void;
   mountEditorReplacement(panel: Component & Focusable): void;
@@ -164,6 +164,7 @@ export class SessionEventHandler {
   resetRuntimeState(): void {
     this.backgroundTasks.clear();
     this.backgroundTaskTranscriptedTerminal.clear();
+    this.ultraworkTheatres.clear();
     this.subAgentEventHandler.resetRuntimeState();
     this.renderedSkillActivationIds.clear();
     this.renderedPluginCommandActivationIds.clear();
@@ -323,6 +324,20 @@ export class SessionEventHandler {
     requestTUILayoutRender(this.host.state);
   }
 
+  private async notifyUltraworkInterrupted(reason: string): Promise<void> {
+    try {
+      const run = await this.host.requireSession().getUltraworkRun();
+      if (run === null || run.status === 'done' || run.status === 'failed') return;
+      this.host.showNotice(
+        'Ultrawork interrupted',
+        `${reason}\nStage: ${run.stage}\nUse /ultrawork resume to continue.`,
+        { coalesceKey: 'ultrawork-interrupted' },
+      );
+    } catch {
+      // Best-effort UI hint only.
+    }
+  }
+
   stopAllMcpServerStatusSpinners(): void {
     for (const spinner of this.mcpServerStatusSpinners.values()) {
       spinner.stop();
@@ -466,6 +481,7 @@ export class SessionEventHandler {
     if (reason === 'error') return;
     if (reason === 'aborted' || reason === undefined || reason === '') {
       this.markActiveAgentSwarmsCancelled();
+      void this.notifyUltraworkInterrupted('Paused after interruption');
       this.host.showStatus('Interrupted by user', 'error');
       return;
     }
@@ -1029,7 +1045,14 @@ export class SessionEventHandler {
     event: CompactionCompletedEvent,
     sendQueued: (item: QueuedMessage) => void,
   ): void {
-    this.host.streamingUI.endCompaction(event.result.tokensBefore, event.result.tokensAfter);
+    const swarmDetail = event.result.summary.includes('swarm_runs:')
+      ? 'Swarm coordination state preserved in structured memory'
+      : undefined;
+    this.host.streamingUI.endCompaction(
+      event.result.tokensBefore,
+      event.result.tokensAfter,
+      swarmDetail,
+    );
     this.finishCompaction(sendQueued);
   }
 

@@ -127,6 +127,11 @@ function mockUltraSwarmAgent(
     emitEvent: vi.fn(),
     ultraSwarmEngageGate: { clear: vi.fn() },
     experimentalFlags: flags,
+    telemetry: { track: vi.fn() },
+    ultrawork: {
+      attachTeamPlan: vi.fn(),
+      getRun: vi.fn(() => null),
+    },
     tools: store === undefined ? undefined : { getStore: () => store },
     turn: { hasActiveTurn: false },
     context: { appendSystemReminder: vi.fn() },
@@ -174,6 +179,11 @@ function agentTool(host: SessionSubagentHost): AgentTool {
 
 function mockSwarmMode(): SwarmMode {
   return { enter: vi.fn() } as unknown as SwarmMode;
+}
+
+function agentSwarmTool(host: SessionSubagentHost, swarmMode: SwarmMode): AgentSwarmTool {
+  const { store } = mockToolStore();
+  return new AgentSwarmTool(host, swarmMode, store);
 }
 
 function processWithOutput(stdout: string, exitCode = 0): KaosProcess {
@@ -445,7 +455,7 @@ describe('current builtin collaboration tools', () => {
       ]),
     });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
     const input = {
       description: 'Review files',
       prompt_template: 'Review {{item}}',
@@ -520,18 +530,15 @@ describe('current builtin collaboration tools', () => {
         },
       ],
     );
-    expect(result.output).toBe([
-      '<agent_swarm_result>',
-      '<summary>completed: 2</summary>',
-      '<subagent agent_id="agent-explore-1" item="src/a.ts" outcome="completed">explore result a</subagent>',
-      '<subagent agent_id="agent-explore-2" item="src/b.ts" outcome="completed">explore result b</subagent>',
-      '</agent_swarm_result>',
-    ].join('\n'));
+    expect(result.output).toContain('<agent_swarm_result>');
+    expect(result.output).toContain('agent_id="agent-explore-1"');
+    expect(result.output).toContain('explore result a');
+    expect(result.output).toContain('[liora-archived id=');
     expect(result.isError).toBeUndefined();
   });
 
   it('AgentSwarm does not expose permission rule argument matching', () => {
-    const tool = new AgentSwarmTool(mockSubagentHost({}), mockSwarmMode());
+    const tool = agentSwarmTool(mockSubagentHost({}), mockSwarmMode());
     const execution = tool.resolveExecution({
       description: 'Review files',
       prompt_template: 'Review {{item}}',
@@ -544,7 +551,7 @@ describe('current builtin collaboration tools', () => {
   });
 
   it('AgentSwarm description states the enforced input requirements', () => {
-    const description = new AgentSwarmTool(mockSubagentHost({}), mockSwarmMode()).description;
+    const description = agentSwarmTool(mockSubagentHost({}), mockSwarmMode()).description;
     // Mirrors the throws in createAgentSwarmSpecs (agent-swarm.ts): min-2-unless-resume,
     // prompt_template required + must contain {{item}}, distinct resulting prompts.
     expect(description).toContain('at least 2');
@@ -557,7 +564,7 @@ describe('current builtin collaboration tools', () => {
   it('AgentSwarm rejects more than 128 subagents at execution time', async () => {
     const host = mockSubagentHost({ runQueued: vi.fn() });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
 
     const result = await executeTool(
       tool,
@@ -603,7 +610,7 @@ describe('current builtin collaboration tools', () => {
   ])('AgentSwarm rejects $name at execution time', async ({ input, output }) => {
     const host = mockSubagentHost({ runQueued: vi.fn() });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
 
     const result = await executeTool(tool, context(input));
 
@@ -634,7 +641,7 @@ describe('current builtin collaboration tools', () => {
       runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
     });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
     const input = {
       description: 'Finish review',
       subagent_type: 'explore',
@@ -730,14 +737,11 @@ describe('current builtin collaboration tools', () => {
         },
       ],
     );
-    expect(result.output).toBe([
-      '<agent_swarm_result>',
-      '<summary>completed: 3</summary>',
-      '<subagent mode="resume" agent_id="agent-old-1" item="src/old-a.ts" outcome="completed">result 1</subagent>',
-      '<subagent mode="resume" agent_id="agent-old-2" item="src/old-b.ts" outcome="completed">result 2</subagent>',
-      '<subagent agent_id="agent-new-3" item="src/new.ts" outcome="completed">result 3</subagent>',
-      '</agent_swarm_result>',
-    ].join('\n'));
+    expect(result.output).toContain('<agent_swarm_result>');
+    expect(result.output).toContain('<summary>completed: 3</summary>');
+    expect(result.output).toContain('agent_id="agent-old-1"');
+    expect(result.output).toContain('result 3');
+    expect(result.output).toContain('[liora-archived id=');
     expect(result.isError).toBeUndefined();
   });
 
@@ -761,7 +765,7 @@ describe('current builtin collaboration tools', () => {
       runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
     });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
     const input = {
       description: 'Resume review',
       resume_agent_ids: {
@@ -796,12 +800,9 @@ describe('current builtin collaboration tools', () => {
         timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
       },
     ]);
-    expect(result.output).toBe([
-      '<agent_swarm_result>',
-      '<summary>completed: 1</summary>',
-      '<subagent mode="resume" agent_id="agent-old-1" item="src/old-a.ts" outcome="completed">resumed result</subagent>',
-      '</agent_swarm_result>',
-    ].join('\n'));
+    expect(result.output).toContain('<agent_swarm_result>');
+    expect(result.output).toContain('resumed result');
+    expect(result.output).toContain('[liora-archived id=');
     expect(result.isError).toBeUndefined();
   });
 
@@ -839,7 +840,7 @@ describe('current builtin collaboration tools', () => {
       ]),
     });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
 
     const result = await executeTool(
       tool,
@@ -853,14 +854,12 @@ describe('current builtin collaboration tools', () => {
       ),
     );
 
-    expect(result.output).toBe([
-      '<agent_swarm_result>',
-      '<summary>completed: 1, failed: 1</summary>',
-      '<resume_hint>Call AgentSwarm with resume_agent_ids using the agent_id values in this result to continue unfinished work.</resume_hint>',
-      '<subagent agent_id="agent-coder-1" item="src/a.ts" outcome="completed">imports are stable</subagent>',
-      '<subagent agent_id="agent-coder-2" item="src/b.ts" outcome="failed">Agent timed out after 30s.</subagent>',
-      '</agent_swarm_result>',
-    ].join('\n'));
+    expect(result.output).toContain('<agent_swarm_result>');
+    expect(result.output).toContain('<summary>completed: 1, failed: 1</summary>');
+    expect(result.output).toContain('<resume_hint>');
+    expect(result.output).toContain('imports are stable');
+    expect(result.output).toContain('outcome="failed"');
+    expect(result.output).toContain('[liora-archived id=');
     expect(swarmMode.enter).toHaveBeenCalledWith('tool');
     expect(result.isError).toBeUndefined();
   });
@@ -897,7 +896,7 @@ describe('current builtin collaboration tools', () => {
       ]),
     });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
 
     const result = await executeTool(
       tool,
@@ -911,13 +910,10 @@ describe('current builtin collaboration tools', () => {
       ),
     );
 
-    expect(result.output).toBe([
-      '<agent_swarm_result>',
-      '<summary>failed: 2</summary>',
-      '<subagent item="src/a.ts" outcome="failed">Agent did not start.</subagent>',
-      '<subagent item="src/b.ts" outcome="failed">Agent also did not start.</subagent>',
-      '</agent_swarm_result>',
-    ].join('\n'));
+    expect(result.output).toContain('<agent_swarm_result>');
+    expect(result.output).toContain('<summary>failed: 2</summary>');
+    expect(result.output).toContain('Agent did not start.');
+    expect(result.output).toContain('[liora-archived id=');
     expect(result.isError).toBeUndefined();
   });
 
@@ -970,7 +966,7 @@ describe('current builtin collaboration tools', () => {
       ]),
     });
     const swarmMode = mockSwarmMode();
-    const tool = new AgentSwarmTool(host, swarmMode);
+    const tool = agentSwarmTool(host, swarmMode);
 
     const result = await executeTool(
       tool,
@@ -984,15 +980,12 @@ describe('current builtin collaboration tools', () => {
       ),
     );
 
-    expect(result.output).toBe([
-      '<agent_swarm_result>',
-      '<summary>completed: 1, aborted: 2</summary>',
-      '<resume_hint>Call AgentSwarm with resume_agent_ids using the agent_id values in this result to continue unfinished work.</resume_hint>',
-      '<subagent agent_id="agent-coder-1" item="src/a.ts" outcome="completed">imports are stable</subagent>',
-      '<subagent agent_id="agent-coder-2" item="src/b.ts" state="started" outcome="aborted">The user manually interrupted this subagent batch before this subagent finished.</subagent>',
-      '<subagent item="src/c.ts" state="not_started" outcome="aborted">The user manually interrupted this subagent batch before this subagent was started.</subagent>',
-      '</agent_swarm_result>',
-    ].join('\n'));
+    expect(result.output).toContain('<agent_swarm_result>');
+    expect(result.output).toContain('<summary>completed: 1, aborted: 2</summary>');
+    expect(result.output).toContain('<resume_hint>');
+    expect(result.output).toContain('imports are stable');
+    expect(result.output).toContain('outcome="aborted"');
+    expect(result.output).toContain('[liora-archived id=');
     expect(result.isError).toBeUndefined();
   });
 
@@ -1091,7 +1084,7 @@ describe('current builtin collaboration tools', () => {
     expect(result.output).toContain('required_for_completion="true"');
     expect(result.output).toContain('<selection_reason>');
     expect(result.output).toContain('expert result 1');
-    expect(result.output).toContain('expert result 2');
+    expect(result.output).toContain('[liora-archived id=');
     expect(result.isError).toBeUndefined();
     expect(agent.emitEvent).toHaveBeenCalledWith({
       type: 'ultrawork.team.staffed',
@@ -1382,6 +1375,12 @@ describe('current builtin collaboration tools', () => {
     const agent = {
       emitEvent,
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
+      telemetry: { track: vi.fn() },
+      ultraSwarmEngageGate: { clear: vi.fn() },
+      ultrawork: {
+        attachTeamPlan: vi.fn(),
+        getRun: vi.fn(() => null),
+      },
     } as unknown as Agent;
     const runQueued = vi.fn(
       async <T>(

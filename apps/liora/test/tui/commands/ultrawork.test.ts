@@ -34,6 +34,18 @@ function makeHost(
 ) {
   const session = {
     createGoal: vi.fn(async () => ({})),
+    createUltraworkRun: vi.fn(async () => ({
+      id: 'run-test',
+      objective: 'test',
+      status: 'running',
+      stage: 'plan',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+    })),
+    getUltraworkRun: vi.fn(async () => null),
+    pauseUltrawork: vi.fn(async () => null),
+    resumeUltrawork: vi.fn(async () => null),
+    cancelUltrawork: vi.fn(async () => null),
     setPlanMode: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
     setSwarmMode: vi.fn(async () => {}),
@@ -52,6 +64,7 @@ function makeHost(
       theme: currentTheme,
       transcriptContainer: { addChild: vi.fn() },
       ui: { requestRender: vi.fn() },
+      renderer: { invalidateFrame: vi.fn() },
     },
     session: hasSession ? session : undefined,
     requireSession: () => session,
@@ -363,14 +376,12 @@ describe('parseUltraworkCommand', () => {
     expect(parsed.message).not.toMatch(/ultragoal/i);
   });
 
-  it('keeps non-create guidance focused on Ultrawork', () => {
-    const parsed = parseUltraworkCommand('status');
-
-    expect(parsed.kind).toBe('error');
-    if (parsed.kind !== 'error') return;
-    expect(parsed.message).toContain('Ultrawork');
-    expect(parsed.message).toContain('/goal status');
-    expect(parsed.message).not.toMatch(/ultragoal/i);
+  it('parses control subcommands', () => {
+    expect(parseUltraworkCommand('status')).toEqual({ kind: 'status' });
+    expect(parseUltraworkCommand('pause')).toEqual({ kind: 'pause' });
+    expect(parseUltraworkCommand('resume')).toEqual({ kind: 'resume', runId: undefined });
+    expect(parseUltraworkCommand('resume run-123')).toEqual({ kind: 'resume', runId: 'run-123' });
+    expect(parseUltraworkCommand('cancel')).toEqual({ kind: 'cancel' });
   });
 
   it('keeps replace-without-objective guidance focused on Ultrawork', () => {
@@ -394,6 +405,7 @@ describe('handleUltraworkCommand', () => {
     expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: true, ultraworkMode: true });
     expect(session.createGoal).not.toHaveBeenCalled();
+    expect(session.createUltraworkRun).toHaveBeenCalled();
     expect(host.setAppState).toHaveBeenCalledWith({
       activityTip: 'Ultrawork mode: research first, then UltraPlan interview, verifiable UltraGoal, Swarm decision, verify',
     });

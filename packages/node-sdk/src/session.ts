@@ -14,6 +14,9 @@ import type {
   BackgroundTaskInfo,
   CompactOptions,
   CreateGoalInput,
+  CreateUltraworkRunInput,
+  PauseUltraworkInput,
+  CancelUltraworkInput,
   GoalSnapshot,
   GoalToolResult,
   McpServerInfo,
@@ -28,6 +31,8 @@ import type {
   PluginSummary,
   PromptInput,
   ReloadSessionOptions,
+  ResumeUltraworkPayloadResult,
+  UltraworkRun,
   ReloadSummary,
   ResumedSessionState,
   ResumedSessionSummary,
@@ -470,6 +475,31 @@ export class Session {
   async cancelGoal(): Promise<GoalSnapshot> {
     this.ensureOpen();
     return this.rpc.cancelGoal({ sessionId: this.id });
+  }
+
+  async createUltraworkRun(input: CreateUltraworkRunInput): Promise<UltraworkRun> {
+    this.ensureOpen();
+    return this.rpc.createUltraworkRun({ sessionId: this.id, ...input });
+  }
+
+  async getUltraworkRun(): Promise<UltraworkRun | null> {
+    this.ensureOpen();
+    return this.rpc.getUltraworkRun({ sessionId: this.id });
+  }
+
+  async pauseUltrawork(input: PauseUltraworkInput = {}): Promise<UltraworkRun | null> {
+    this.ensureOpen();
+    return this.rpc.pauseUltrawork({ sessionId: this.id, ...input });
+  }
+
+  async resumeUltrawork(): Promise<ResumeUltraworkPayloadResult | null> {
+    this.ensureOpen();
+    return this.rpc.resumeUltrawork({ sessionId: this.id });
+  }
+
+  async cancelUltrawork(input: CancelUltraworkInput = {}): Promise<UltraworkRun | null> {
+    this.ensureOpen();
+    return this.rpc.cancelUltrawork({ sessionId: this.id, ...input });
   }
 
   async listMcpServers(): Promise<readonly McpServerInfo[]> {

@@ -61,6 +61,23 @@ export async function handleUltraworkCommand(
     return;
   }
 
+  if (parsed.kind === 'status') {
+    await showUltraworkStatus(host);
+    return;
+  }
+  if (parsed.kind === 'pause') {
+    await pauseUltrawork(host);
+    return;
+  }
+  if (parsed.kind === 'resume') {
+    await resumeUltrawork(host, parsed.runId);
+    return;
+  }
+  if (parsed.kind === 'cancel') {
+    await cancelUltrawork(host);
+    return;
+  }
+
   if (host.state.appState.model.trim().length === 0) {
     host.showError(LLM_NOT_SET_MESSAGE);
     return;
@@ -173,6 +190,22 @@ async function startUltrawork(
   }
 
   host.track('ultrawork_start', { source, replace: request.replace });
+  const runId = buildUltraworkRunId(request.objective);
+  const evidenceRoot = join(resolveUltraworkEvidenceRoot(host.state.appState.workDir), runId);
+  try {
+    await host.requireSession().createUltraworkRun({
+      id: runId,
+      objective: request.objective,
+      source: mapUltraworkActivationSource(source),
+      replaceGoal: request.replace,
+      evidenceRoot,
+      workDir: host.state.appState.workDir,
+    });
+  } catch (error) {
+    await rollbackUltraworkSetup(host, setup);
+    host.showError(`Failed to register Ultrawork run: ${formatErrorMessage(error)}`);
+    return;
+  }
   let evidenceSeed: UltraworkEvidenceSeed | undefined;
   let evidenceSeedError: string | undefined;
   try {
@@ -181,6 +214,7 @@ async function startUltrawork(
       request.objective,
       source,
       request.replace,
+      runId,
     );
     host.showStatus(`Ultrawork evidence seed: ${evidenceSeed.root}`);
   } catch (error) {
@@ -337,15 +371,20 @@ export function buildUltraworkCoverageMatrix(objective: string): readonly Ultraw
   return lanes;
 }
 
+export function buildUltraworkRunId(objective: string, now = new Date()): string {
+  const createdAt = now.toISOString();
+  return `${createdAt.replaceAll(/[:.]/gu, '').replaceAll(/[^0-9TZ-]/gu, '')}-${slugifyObjective(objective)}-${randomUUID().slice(0, 8)}`;
+}
+
 export function createUltraworkEvidenceSeed(
   workDir: string,
   objective: string,
   source: UltraworkActivationSource,
   replaceGoal: boolean,
+  runId = buildUltraworkRunId(objective),
   now = new Date(),
 ): UltraworkEvidenceSeed {
   const createdAt = now.toISOString();
-  const runId = `${createdAt.replaceAll(/[:.]/gu, '').replaceAll(/[^0-9TZ-]/gu, '')}-${slugifyObjective(objective)}-${randomUUID().slice(0, 8)}`;
   const root = join(resolveUltraworkEvidenceRoot(workDir), runId);
   const absoluteRoot = join(workDir, root);
   mkdirSync(absoluteRoot, { recursive: true });
@@ -558,5 +597,112 @@ async function rollbackUltraworkSetup(
     await session.setSwarmMode(false, 'task').catch(() => {});
     host.setAppState({ swarmMode: setup.swarmModeWasEnabled });
     host.state.swarmModeEntry = setup.previousSwarmModeEntry;
+  }
+}
+
+function mapUltraworkActivationSource(
+  source: UltraworkActivationSource,
+): 'manual' | 'auto' | 'shift-tab' | 'goal' | 'headless' {
+  if (source === 'auto') return 'auto';
+  if (source === 'goal') return 'goal';
+  if (source === 'headless') return 'headless';
+  return 'manual';
+}
+
+async function showUltraworkStatus(host: SlashCommandHost): Promise<void> {
+  const run = await host.requireSession().getUltraworkRun();
+  if (run === null) {
+    host.showStatus('No active Ultrawork run.');
+    return;
+  }
+  const goal = (await host.requireSession().getGoal()).goal;
+  const pendingNodes = run.workGraph?.nodes.filter((node) => node.status !== 'done').length ?? 0;
+  host.showNotice(
+    'Ultrawork status',
+    [
+      `Run: ${run.id}`,
+      `Stage: ${run.stage}`,
+      `Status: ${run.status}`,
+      `Updated: ${run.updatedAt}`,
+      goal === null ? 'Goal: none' : `Goal: ${goal.status} — ${goal.objective}`,
+      `Pending WorkGraph nodes: ${String(pendingNodes)}`,
+    ].join('\n'),
+    { coalesceKey: 'ultrawork-status' },
+  );
+}
+
+async function pauseUltrawork(host: SlashCommandHost): Promise<void> {
+  try {
+    const run = await host.requireSession().pauseUltrawork({ reason: 'Paused by user' });
+    if (run === null) {
+      host.showStatus('No active Ultrawork run to pause.');
+      return;
+    }
+    host.showStatus(`Ultrawork paused at stage ${run.stage}. Use /ultrawork resume to continue.`);
+  } catch (error) {
+    host.showError(`Failed to pause Ultrawork: ${formatErrorMessage(error)}`);
+  }
+}
+
+async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<void> {
+  const session = host.requireSession();
+  const current = await session.getUltraworkRun();
+  if (current === null) {
+    host.showError('No Ultrawork run is available to resume in this session.');
+    return;
+  }
+  if (runId !== undefined && current.id !== runId) {
+    host.showError(`Active Ultrawork run is ${current.id}, not ${runId}.`);
+    return;
+  }
+
+  const setup: UltraworkSetupState = {
+    planModeWasEnabled: host.state.appState.planMode,
+    swarmModeWasEnabled: host.state.appState.swarmMode,
+    ultraworkModeWasEnabled: host.state.appState.ultraworkMode ?? false,
+    previousSwarmModeEntry: host.state.swarmModeEntry,
+    planChanged: false,
+    swarmEnabled: false,
+  };
+  try {
+    await prepareUltraworkSetup(host, setup, current.objective);
+  } catch (error) {
+    await rollbackUltraworkSetup(host, setup);
+    host.showError(`Failed to restore Ultrawork setup: ${formatErrorMessage(error)}`);
+    return;
+  }
+
+  try {
+    const result = await session.resumeUltrawork();
+    if (result === null) {
+      host.showError('Ultrawork run cannot be resumed from its current state.');
+      return;
+    }
+    host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP, ultraworkMode: true, planMode: true });
+    host.state.transcriptContainer.addChild(
+      new UltraworkModeMarkerComponent('active', current.objective),
+    );
+    requestTUILayoutRender(host.state);
+    host.sendNormalUserInput(result.recoveryPrompt, {
+      displayText: `Resume Ultrawork: ${current.objective}`,
+    });
+    host.showStatus(`Ultrawork resumed at stage ${result.run.stage}.`);
+  } catch (error) {
+    await rollbackUltraworkSetup(host, setup);
+    host.showError(`Failed to resume Ultrawork: ${formatErrorMessage(error)}`);
+  }
+}
+
+async function cancelUltrawork(host: SlashCommandHost): Promise<void> {
+  try {
+    const run = await host.requireSession().cancelUltrawork({ reason: 'Cancelled by user' });
+    if (run === null) {
+      host.showStatus('No active Ultrawork run to cancel.');
+      return;
+    }
+    host.setAppState({ ultraworkMode: false, activityTip: null });
+    host.showStatus(`Ultrawork run ${run.id} cancelled.`);
+  } catch (error) {
+    host.showError(`Failed to cancel Ultrawork: ${formatErrorMessage(error)}`);
   }
 }

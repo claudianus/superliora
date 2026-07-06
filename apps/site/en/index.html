@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuperLiora - AI coding agent for sustained software work</title>
+    <meta name="description" content="SuperLiora is an independent AI coding agent that connects UltraPlan, UltraGoal, UltraResearch, UltraSwarm, and UltraWork in one gated workflow.">
+    <meta property="og:title" content="SuperLiora">
+    <meta property="og:description" content="An independent AI coding agent for planning, research, parallel execution, verification, memory, and project documentation.">
+    <meta property="og:image" content="/superliora/assets/hero-command-center.png">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2306080d'/><text x='50' y='68' font-size='52' fill='%2348d8ff' text-anchor='middle' font-family='sans-serif' font-weight='800'>S</text></svg>">
+    <link rel="preload" href="/superliora/assets/hero-command-center.png" as="image">
+    <link rel="stylesheet" href="/src/style.css">
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <div id="ambient" aria-hidden="true">
+      <div class="mesh"></div>
+    </div>
+    <div id="mouse-glow" aria-hidden="true"></div>
+    <canvas id="particle-network" aria-hidden="true"></canvas>
+
+    <header class="nav">
+      <div class="nav__inner">
+        <a class="brand" href="/superliora/en/">
+          <span class="brand__mark">S</span>
+          <span class="brand__name">SuperLiora</span>
+        </a>
+        <nav class="nav__links" aria-label="Primary">
+          <a href="#ultra">Ultra System</a>
+          <a href="#memory">Memory &amp; Wiki</a>
+          <a href="#themes">Themes</a>
+          <a href="#install">Install</a>
+        </nav>
+        <div class="lang" aria-label="Language">
+          <a href="/superliora/">KR</a>
+          <a href="/superliora/en/" aria-current="page">EN</a>
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme" aria-pressed="true">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrapper hero__grid">
+          <div class="hero__copy reveal">
+            <div class="eyebrow">Independent AI coding agent</div>
+            <h1>An AI coding agent for sustained software work</h1>
+            <p class="hero__lead">SuperLiora connects planning, research, goal control, parallel execution, verification, memory, and project documentation in one workflow. It preserves context during long sessions and keeps decisions traceable.</p>
+            <div class="hero__actions">
+              <a class="btn-primary" href="#install">Install now</a>
+              <a class="btn-secondary" href="https://github.com/claudianus/superliora">View GitHub</a>
+            </div>
+          </div>
+          <div class="hero__visual reveal" data-tilt>
+            <div class="hero-visual">
+              <img src="/superliora/assets/hero-command-center.png" alt="SuperLiora command center generated artwork" loading="eager">
+              <div class="hero__status">
+                <div class="status-chip"><b>UltraWork</b><span>Plan → Goal → Research → Decision → Verify</span></div>
+                <div class="status-chip"><b>Liora Recall</b><span>Memory, decisions, procedures</span></div>
+                <div class="status-chip"><b>LLM Wiki</b><span>Evidence-backed project knowledge</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="problem section">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Problem</div>
+            <h2>Long tasks lose context and scatter decisions</h2>
+            <p class="section-body">Complex implementations, migrations, and refactors blur the goal, lose evidence, and repeat the same questions. More tools often mean more broken flow.</p>
+          </div>
+          <div class="use-case-grid">
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 0">
+              <h3>Migration &amp; refactoring</h3>
+              <p>Keep plan, impact surface, and verification in one continuous thread.</p>
+            </div>
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 1">
+              <h3>Feature implementation</h3>
+              <p>Lock requirements and completion criteria so the target stays clear while building.</p>
+            </div>
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 2">
+              <h3>Incident &amp; debugging</h3>
+              <p>Track investigated paths and evidence so you stay focused on the root cause.</p>
+            </div>
+            <div class="use-case-card reveal" data-tilt style="--reveal-index: 3">
+              <h3>Documentation &amp; knowledge</h3>
+              <p>Turn verified decisions into reusable assets for the next task.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="solution section">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Solution</div>
+            <h2>Shift-Tab into Ultrawork</h2>
+            <p class="section-body">Use lightweight prompts for quick work. Switch to Ultrawork for complex tasks and move through UltraPlan interview, UltraGoal, research, Swarm decision, verification, and learning.</p>
+          </div>
+          <div class="terminal glass reveal" data-tilt>
+            <div class="terminal__bar">
+              <span class="terminal__dot" style="background:var(--color-rose)"></span>
+              <span class="terminal__dot" style="background:var(--color-amber)"></span>
+              <span class="terminal__dot" style="background:var(--color-emerald)"></span>
+            </div>
+            <div class="terminal__body">
+              <span style="color:var(--color-amber)">$</span> <span data-typing></span><span class="terminal__cursor">|</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="ultra">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Ultra workflow</div>
+            <h2>Execution from plan to verification</h2>
+            <p class="section-body">Shift-Tab Ultrawork mode gathers source-backed research first, narrows complex requests through UltraPlan interview, creates a true/false-verifiable UltraGoal, then proceeds through Swarm decision, integration, and verification.</p>
+          </div>
+          <div class="split">
+            <div class="rail reveal">
+              <div class="rail__item" data-tilt style="--reveal-index: 0">
+                <h3>Research <span>01</span></h3>
+                <p>Checks current sources before the interview creates question options.</p>
+              </div>
+              <div class="rail__item" data-tilt style="--reveal-index: 1">
+                <h3>UltraPlan <span>02</span></h3>
+                <p>Interviews requirements, constraints, and risks until completion can be judged clearly.</p>
+              </div>
+              <div class="rail__item" data-tilt style="--reveal-index: 2">
+                <h3>Swarm decision <span>03</span></h3>
+                <p>Records ENGAGE or DEFER before specialist subagents are invoked.</p>
+              </div>
+            </div>
+            <div class="media reveal">
+              <img src="/superliora/assets/ultra-orchestration.png" alt="Generated Ultra workflow orchestration visual" loading="lazy">
+            </div>
+          </div>
+          <div class="workflow reveal">
+            <div class="workflow__step" data-tilt style="--reveal-index: 0"><b>Plan</b><p>Clarify the work.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 1"><b>Goal</b><p>Fix the done criteria.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 2"><b>Research</b><p>Check the evidence.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 3"><b>Decision</b><p>Decide team value.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 4"><b>Verify</b><p>Test and review risk.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 5"><b>Learn</b><p>Keep verified knowledge.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="proof">
+        <div class="wrapper proof__grid">
+          <div class="proof__item reveal" style="--reveal-index: 0"><span>Gate</span><strong>UltraPlan</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 1"><span>Goal</span><strong>UltraGoal</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 2"><span>Evidence</span><strong>Research</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 3"><span>Decision</span><strong>Swarm</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 4"><span>Core</span><strong>Memory + Wiki</strong></div>
+          <div class="proof__item reveal" style="--reveal-index: 5"><span>Surface</span><strong>Premium Themes</strong></div>
+        </div>
+      </section>
+
+      <section class="section" id="memory">
+        <div class="wrapper">
+          <div class="split split--reverse">
+            <div class="media reveal">
+              <img src="/superliora/assets/memory-wiki-themes.png" alt="Generated memory and LLM wiki knowledge vault visual" loading="lazy">
+            </div>
+            <div class="section-head reveal">
+              <div class="section-kicker">Memory and LLM Wiki</div>
+              <h2>Record project context and use it again</h2>
+              <p class="section-body">Liora Recall preserves project facts, decisions, procedures, and follow-up work. LLM Wiki turns codebase knowledge and verified evidence into documentation the next task can share.</p>
+              <div class="rail" style="margin-top:24px">
+                <div class="rail__item" data-tilt>
+                  <h3>Semantic memory <span>facts</span></h3>
+                  <p>Stores project structure, API constraints, and operating rules.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Procedural memory <span>how-to</span></h3>
+                  <p>Organizes build, deployment, and verification routines for reuse.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Governance memory <span>rules</span></h3>
+                  <p>Keeps policies and hard constraints available for later work.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="themes">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Premium operator surface</div>
+            <h2>A clearer terminal for long sessions</h2>
+            <p class="section-body">In long sessions, visual fatigue, code readability, and status recognition affect output quality. SuperLiora brings presets, imported terminal palettes, and syntax-aware colors into a refined TUI.</p>
+          </div>
+          <div class="showcase">
+            <div class="media reveal">
+              <img src="/superliora/assets/agent-cockpit.png" alt="Generated SuperLiora premium cockpit visual" loading="lazy">
+            </div>
+            <div class="theme-board reveal">
+              <div class="theme-card" data-tilt style="--reveal-index: 0">
+                <div class="theme-card__bar"><i style="background:#48d8ff"></i><i style="background:#5efad5"></i><i style="background:#ffce6a"></i></div>
+                <h3>Neon Operator</h3>
+                <p>Clear separation for commands, status, and diffs.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 1">
+                <div class="theme-card__bar"><i style="background:#b48cff"></i><i style="background:#ff77b7"></i><i style="background:#c9d4e4"></i></div>
+                <h3>Prism Syntax</h3>
+                <p>Improves readability for long code blocks and reasoning logs.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 2">
+                <div class="theme-card__bar"><i style="background:#66f2a2"></i><i style="background:#48ffd2"></i><i style="background:#9aa9bd"></i></div>
+                <h3>Recall Green</h3>
+                <p>Distinguishes memory, wiki, and evidence flows.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 3">
+                <div class="theme-card__bar"><i style="background:#ffce6a"></i><i style="background:#48d8ff"></i><i style="background:#f5f8ff"></i></div>
+                <h3>Executive Gold</h3>
+                <p>Provides contrast for review, verify, and release gates.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Premium capabilities</div>
+            <h2>Capabilities for real project work</h2>
+            <p class="section-body">SuperLiora handles accounts, APIs, context, research, memory, themes, and workflows in the same agent flow.</p>
+          </div>
+          <div class="feature-grid">
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 0">
+              <span class="feature-card__index">01</span>
+              <h3>Provider routing</h3>
+              <p>Register API keys and OAuth accounts, then select fallback candidates by quota, cooldown, and latency.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 1">
+              <span class="feature-card__index">02</span>
+              <h3>Local web research</h3>
+              <p>Use local fetch/search fallback when external research paths are not enough.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 2">
+              <span class="feature-card__index">03</span>
+              <h3>Context OS</h3>
+              <p>Maintain long sessions with structured working memory, repair, and bounded rehydration.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 3">
+              <span class="feature-card__index">04</span>
+              <h3>LLM Wiki</h3>
+              <p>Turns codebase knowledge, evidence, and verification results into reusable project documentation.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 4">
+              <span class="feature-card__index">05</span>
+              <h3>UltraGoal</h3>
+              <p>Keeps objectives, budgets, and done criteria explicit during long work.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 5">
+              <span class="feature-card__index">06</span>
+              <h3>ACP ready</h3>
+              <p>Continue the same SuperLiora workflow from the terminal or compatible editors.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="install">
+        <div class="wrapper">
+          <div class="install glass" data-tilt>
+            <div class="install__grid">
+              <div>
+                <div class="section-kicker">Install</div>
+                <h2>Install from source and start with liora</h2>
+                <p class="section-body">The installer builds SuperLiora from source and sets up the independent liora command. Use curl on macOS/Linux or the PowerShell one-liner on Windows.</p>
+              </div>
+              <div class="install__code-list">
+                <div class="code-block">
+                  <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash" type="button"></button>
+                  <code><span style="color:var(--color-amber)">$</span> curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash</code>
+                </div>
+                <div class="code-block">
+                  <button class="copy-btn" data-copy="irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex" type="button"></button>
+                  <code><span style="color:var(--color-amber)">PS&gt;</span> irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex</code>
+                </div>
+                <div class="code-block">
+                  <button class="copy-btn" data-copy="liora" type="button"></button>
+                  <code><span style="color:var(--color-amber)">$</span> liora</code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta">
+        <div class="wrapper">
+          <div class="reveal">
+            <h2>Start Ultrawork with Shift-Tab</h2>
+            <p>Plan, goal, evidence, and verification flow together for complex work.</p>
+            <div class="cta__actions">
+              <a class="btn-primary" href="#install">Install now</a>
+              <a class="btn-secondary" href="https://github.com/claudianus/superliora">View GitHub</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrapper footer__inner">
+        <span class="footer__copy">SuperLiora. AI coding agent for sustained software work.</span>
+        <nav class="footer__links" aria-label="Footer">
+          <a href="https://github.com/claudianus/superliora">GitHub</a>
+          <a href="https://github.com/claudianus/superliora/issues">Issues</a>
+          <a href="/superliora/">Korean</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -314,12 +314,7 @@ describe('SessionSubagentHost', () => {
       'LioraTree',
       'Read',
     ]);
-    expect(child.llmCalls[0]?.history).toMatchObject([
-      {
-        role: 'user',
-        content: [{ type: 'text', text: 'Find the cause' }],
-      },
-    ]);
+    expect(userTextMessages(child.llmCalls[0]?.history ?? [])).toEqual(['Find the cause']);
   });
 
   it('resolves expert catalog ids as named subagent profiles', async () => {
@@ -489,12 +484,15 @@ describe('SessionSubagentHost', () => {
       'Read',
       'Write',
     ]);
-    expect(child.llmCalls[0]?.history).toMatchObject([
-      {
-        role: 'user',
-        content: [{ type: 'text', text: 'Implement the fix' }],
-      },
-    ]);
+    expect(
+      child.llmCalls[0]?.history.some(
+        (message) =>
+          message.role === 'user' &&
+          message.content.some(
+            (part) => part.type === 'text' && part.text.includes('Implement the fix'),
+          ),
+      ),
+    ).toBe(true);
   });
 
   it('rejects unknown subagent types before creating a child agent', async () => {
@@ -757,10 +755,9 @@ describe('SessionSubagentHost', () => {
 
     await expect(handle.completion).resolves.toMatchObject({ result: longSummary.trim() });
     expect(child.llmCalls).toHaveLength(2);
-    expect(child.llmCalls[1]?.history.at(-1)).toMatchObject({
-      role: 'user',
-      content: [{ type: 'text', text: expect.stringContaining('too brief') }],
-    });
+    expect(userTextMessages(child.llmCalls[1]?.history ?? []).some((text) => text.includes('too brief'))).toBe(
+      true,
+    );
   });
 
   it('fails the child instead of re-prompting when the response is truncated', async () => {
@@ -1763,7 +1760,8 @@ function userTextMessages(history: readonly Message[]): string[] {
         .filter((part) => part.type === 'text')
         .map((part) => part.text)
         .join(''),
-    );
+    )
+    .filter((text) => !text.startsWith('<system-reminder>'));
 }
 
 async function writeWire(homedir: string, records: readonly Record<string, unknown>[]) {

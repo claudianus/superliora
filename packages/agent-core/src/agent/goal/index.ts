@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ErrorCodes, LioraError } from '#/errors';
 import type { Agent } from '..';
+import { maybeAdvanceUltraworkOnGoalComplete, maybeAdvanceUltraworkStage } from '../../ultrawork';
 import type { AgentRecordOf } from '../records/types';
 import {
   type TelemetryProperties,
@@ -390,6 +391,7 @@ export class GoalMode {
       completionCriterion: state.completionCriterion,
     });
     this.trackGoalCreated(actor, input.replace === true);
+    maybeAdvanceUltraworkStage(this.agent, 'goal', 'UltraGoal created');
     return this.toSnapshot(state);
   }
 
@@ -540,6 +542,7 @@ export class GoalMode {
       stats: this.statsOf(state),
       actor,
     });
+    maybeAdvanceUltraworkOnGoalComplete(this.agent);
     // ...then clear the durable record (emits onGoalUpdated(null) → box clears).
     this.clearInternal(actor);
     return snapshot;

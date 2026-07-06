@@ -21,6 +21,7 @@ export interface StructuredCompactionMemory {
   readonly openQuestions: readonly string[];
   readonly nextActions: readonly string[];
   readonly rawRefs: readonly string[];
+  readonly swarmRuns: readonly string[];
 }
 
 const MAX_FACTS = 50;
@@ -33,7 +34,8 @@ type StructuredListKey =
   | 'failedAttempts'
   | 'openQuestions'
   | 'nextActions'
-  | 'rawRefs';
+  | 'rawRefs'
+  | 'swarmRuns';
 
 export function parseStructuredCompactionMemory(summary: string): StructuredCompactionMemory {
   let currentGoal: string | undefined;
@@ -45,6 +47,7 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
     openQuestions: [],
     nextActions: [],
     rawRefs: [],
+    swarmRuns: [],
   };
 
   let currentSection: StructuredListKey | null = null;
@@ -81,6 +84,7 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
     openQuestions: uniqueList(sections.openQuestions),
     nextActions: uniqueList(sections.nextActions),
     rawRefs: uniqueList(sections.rawRefs),
+    swarmRuns: uniqueList(sections.swarmRuns),
   };
 }
 
@@ -302,6 +306,10 @@ function sectionKeyForLabel(label: string): 'currentGoal' | StructuredListKey | 
     case 'raw_references':
     case 'references':
       return 'rawRefs';
+    case 'swarm_runs':
+    case 'swarm_coordination':
+    case 'ultra_swarm':
+      return 'swarmRuns';
     default:
       return null;
   }

@@ -2,7 +2,13 @@
 import type { Message } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
-import { DefaultCompactionStrategy, splitMessagesIntoTokenBlocks } from '../../../src/agent/compaction';
+import {
+  DEFAULT_COMPACTION_CONFIG,
+  DefaultCompactionStrategy,
+  resolveCompactionBlockRatio,
+  splitMessagesIntoTokenBlocks,
+} from '../../../src/agent/compaction';
+import { CompactionQualityTracker } from '../../../src/agent/compaction/quality';
 import { estimateTokensForMessages } from '../../../src/utils/tokens';
 
 describe('DefaultCompactionStrategy', () => {
@@ -156,18 +162,10 @@ describe('DefaultCompactionStrategy', () => {
 
   it('ignores reserved context when the reserve is not smaller than the model window', () => {
     const strategy = new DefaultCompactionStrategy(() => 32_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
       triggerRatio: 0.85,
       blockRatio: 0.85,
       reservedContextSize: 50_000,
-      maxCompactionPerTurn: 3,
-      maxOverflowCompactionAttempts: 3,
-      maxRecentMessages: 3,
-      maxRecentUserMessages: Infinity,
-      maxRecentSizeRatio: 0.2,
-      minOverflowReductionRatio: 0.05,
-      absoluteTriggerTokens: 200_000,
-      parallelBlockThreshold: 30_000,
-      parallelBlockTarget: 15_000,
     });
 
     expect(strategy.shouldCompact(1)).toBe(false);
@@ -178,18 +176,12 @@ describe('DefaultCompactionStrategy', () => {
 
   it('triggers at absolute token threshold for large-context models', () => {
     const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
       triggerRatio: 0.85,
       blockRatio: 0.85,
       reservedContextSize: 50_000,
-      maxCompactionPerTurn: 3,
-      maxOverflowCompactionAttempts: 3,
       maxRecentMessages: 3,
-      maxRecentUserMessages: Infinity,
-      maxRecentSizeRatio: 0.2,
-      minOverflowReductionRatio: 0.05,
       absoluteTriggerTokens: 200_000,
-      parallelBlockThreshold: 30_000,
-      parallelBlockTarget: 15_000,
     });
 
     expect(strategy.shouldCompact(199_000)).toBe(false);
@@ -201,18 +193,12 @@ describe('DefaultCompactionStrategy', () => {
 
   it('treats the absolute threshold as a soft trigger when v2 separates hard blocking', () => {
     const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
       triggerRatio: 0.85,
       blockRatio: 0.85,
       reservedContextSize: 50_000,
-      maxCompactionPerTurn: 3,
-      maxOverflowCompactionAttempts: 3,
       maxRecentMessages: 3,
-      maxRecentUserMessages: Infinity,
-      maxRecentSizeRatio: 0.2,
-      minOverflowReductionRatio: 0.05,
       absoluteTriggerTokens: 200_000,
-      parallelBlockThreshold: 30_000,
-      parallelBlockTarget: 15_000,
       absoluteTriggerBlocks: false,
     });
 
@@ -224,56 +210,87 @@ describe('DefaultCompactionStrategy', () => {
 
   it('falls back to ratio trigger when the model window is below the large-context threshold', () => {
     const strategy = new DefaultCompactionStrategy(() => 240_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
       triggerRatio: 0.85,
       blockRatio: 0.85,
       reservedContextSize: 0,
-      maxCompactionPerTurn: 3,
-      maxOverflowCompactionAttempts: 3,
       maxRecentMessages: 3,
-      maxRecentUserMessages: Infinity,
-      maxRecentSizeRatio: 0.2,
-      minOverflowReductionRatio: 0.05,
       absoluteTriggerTokens: 200_000,
-      parallelBlockThreshold: 30_000,
-      parallelBlockTarget: 15_000,
     });
 
     expect(strategy.shouldCompact(200_000)).toBe(false);
     expect(strategy.shouldCompact(204_000)).toBe(true);
   });
+
+  it('uses decoupled default trigger and block ratios', () => {
+    const strategy = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+    });
+    expect(strategy.effectiveTriggerRatio).toBe(0.72);
+    expect(strategy.shouldCompact(71_999)).toBe(false);
+    expect(strategy.shouldCompact(72_000)).toBe(true);
+    expect(strategy.shouldBlock(79_999)).toBe(false);
+    expect(strategy.shouldBlock(80_000)).toBe(true);
+    expect(strategy.checkAfterStep).toBe(true);
+  });
+
+  it('resolves block ratio above trigger when only trigger is configured', () => {
+    expect(resolveCompactionBlockRatio(0.7)).toBe(0.8);
+    expect(resolveCompactionBlockRatio(0.9)).toBeCloseTo(0.95);
+    expect(resolveCompactionBlockRatio(0.72, 0.88)).toBe(0.88);
+  });
+
+  it('speculatively compacts when projected usage crosses the trigger threshold', () => {
+    const strategy = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+    });
+    expect(strategy.shouldSpeculativelyCompact(67_999)).toBe(false);
+    expect(strategy.shouldSpeculativelyCompact(72_000)).toBe(true);
+  });
+
+  it('tightens the trigger threshold after low-quality compactions', () => {
+    const strategy = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+    });
+    strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
+    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.72);
+    expect(strategy.shouldCompact(70_000)).toBe(true);
+  });
+});
+
+describe('CompactionQualityTracker', () => {
+  it('tracks rolling averages and low-quality streaks', () => {
+    const tracker = new CompactionQualityTracker();
+    tracker.record({ recallEvalScore: 0.9, usedEmergencyBackstop: false });
+    const afterLow = tracker.record({ recallEvalScore: 0.4, usedEmergencyBackstop: false });
+    expect(afterLow.sampleCount).toBe(2);
+    expect(afterLow.rollingAverage).toBe(0.65);
+    expect(afterLow.lowQualityStreak).toBe(1);
+    const afterBackstop = tracker.record({ usedEmergencyBackstop: true });
+    expect(afterBackstop.emergencyBackstopCount).toBe(1);
+    expect(afterBackstop.lowQualityStreak).toBe(2);
+  });
 });
 
 function testCompactionStrategy(maxSize: number = 1_000): DefaultCompactionStrategy {
   return new DefaultCompactionStrategy(() => maxSize, {
-    triggerRatio: 0.85,
-    blockRatio: 0.85,
+    ...DEFAULT_COMPACTION_CONFIG,
     reservedContextSize: 0,
-    maxCompactionPerTurn: 3,
-    maxOverflowCompactionAttempts: 3,
     maxRecentMessages: 10,
-    maxRecentUserMessages: Infinity,
-    maxRecentSizeRatio: 0.2,
-    minOverflowReductionRatio: 0.05,
-    absoluteTriggerTokens: 200_000,
-    parallelBlockThreshold: 30_000,
-    parallelBlockTarget: 15_000,
   });
 }
 
 function overflowOnlyCompactionStrategy(maxSize: number = 14): DefaultCompactionStrategy {
   return new DefaultCompactionStrategy(() => maxSize, {
+    ...DEFAULT_COMPACTION_CONFIG,
     triggerRatio: Infinity,
     blockRatio: Infinity,
     reservedContextSize: 0,
-    maxCompactionPerTurn: 3,
-    maxOverflowCompactionAttempts: 3,
     maxRecentMessages: 3,
-    maxRecentUserMessages: Infinity,
-    maxRecentSizeRatio: 0.2,
-    minOverflowReductionRatio: 0.05,
     absoluteTriggerTokens: 200_000,
-    parallelBlockThreshold: 30_000,
-    parallelBlockTarget: 15_000,
   });
 }
 

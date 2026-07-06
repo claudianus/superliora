@@ -25,6 +25,7 @@ import {
   restaffSlotsAvailable,
 } from '../../../session/ultra-swarm-restaff';
 import { createUltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
+import { maybeAdvanceUltraworkStage } from '../../../ultrawork';
 import {
   buildSwarmChannelRulesXml,
   buildTeamRosterXml,
@@ -42,6 +43,8 @@ import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
 import type { ExpertAssignment, ExpertSwarmPlan } from '../../../expert-agents/types';
+import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
+import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 import type { ToolStore } from '../../store';
 import { TODO_STORE_KEY } from '../state/todo-list';
@@ -448,11 +451,17 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
       this.finishWorkNodes(workNodeContext.nodes.map((node) => node.id), rendered);
     }
     this.agent.ultraSwarmEngageGate?.clear('ultra-swarm-completed');
-    return renderUltraSwarmResults(
-      rendered,
-      plan,
-      runId,
-    );
+    const rawResult = renderUltraSwarmResults(rendered, plan, runId);
+    const compacted = compactSwarmToolResult(this.store, rawResult, { runId });
+    if (compacted.archiveIds.length > 0) {
+      this.agent.telemetry.track('boundary_compaction_applied', {
+        archive_count: compacted.archiveIds.length,
+        run_id: runId,
+        fallback: compacted.fallback,
+        swarm_archive_ids: compacted.archiveIds.join(','),
+      });
+    }
+    return compacted.output;
   }
 
   private resolveWorkNodeContext(
@@ -840,6 +849,9 @@ ${taskDescription}
     toolCallId: string,
     team: TeamPlan,
   ): void {
+    this.agent.ultrawork.attachTeamPlan(team);
+    maybeAdvanceUltraworkStage(this.agent, 'staff', 'UltraSwarm staffed');
+    maybeAdvanceUltraworkStage(this.agent, 'swarm', 'UltraSwarm engaged');
     this.agent.emitEvent({
       type: 'ultrawork.team.staffed',
       runId,
@@ -1142,11 +1154,6 @@ function buildPhaseHandoff(
     lines.push(busDigest);
   }
   return lines.join('\n');
-}
-
-function collapseForHandoff(text: string): string {
-  const collapsed = text.replaceAll(/\s+/g, ' ').trim();
-  return collapsed.length > 900 ? `${collapsed.slice(0, 897)}...` : collapsed;
 }
 
 function workNodeOutcome(results: readonly UltraSwarmRenderedResult[]): {

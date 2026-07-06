@@ -260,7 +260,10 @@ export class ContextOSManager {
         ? filterByDistinctiveQueryTerms(metadataCandidatePages, query)
         : metadataCandidatePages;
     const scored = candidatePages
-      .map((page, index) => scorePage(page, query, index, this._pages.length))
+      .map((page) => {
+        const pageIndex = this._pages.findIndex((candidate) => candidate.id === page.id);
+        return scorePage(page, query, pageIndex >= 0 ? pageIndex : 0, this._pages.length);
+      })
       .filter((selection) => selection.score > 0);
     const fresh = suppressSupersededSelections(scored, query);
     const ranked = fresh.selections.toSorted(

@@ -86,6 +86,8 @@ export type {
   ToolInfo,
   UltraResearchRun,
   UltraworkRun,
+  UltraworkRecoveryReport,
+  ResumeUltraworkPayloadResult,
   UltraworkTraceEvent,
   VerificationResult,
   VerificationArtifact,
@@ -103,6 +105,23 @@ export type PermissionMode = 'yolo' | 'manual' | 'auto';
 export interface CreateGoalInput {
   readonly objective: string;
   readonly replace?: boolean;
+}
+
+export interface CreateUltraworkRunInput {
+  readonly id: string;
+  readonly objective: string;
+  readonly source: 'manual' | 'auto' | 'shift-tab' | 'goal' | 'headless';
+  readonly replaceGoal: boolean;
+  readonly evidenceRoot: string;
+  readonly workDir: string;
+}
+
+export interface PauseUltraworkInput {
+  readonly reason?: string;
+}
+
+export interface CancelUltraworkInput {
+  readonly reason?: string;
 }
 
 export type TextPromptPart = Extract<ContentPart, { type: 'text' }>;

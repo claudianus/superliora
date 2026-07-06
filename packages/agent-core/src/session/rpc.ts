@@ -11,13 +11,18 @@ import type {
   CancelPayload,
   CancelPlanPayload,
   CancelShellCommandPayload,
+  CancelUltraworkPayload,
   CreateGoalPayload,
+  CreateUltraworkRunPayload,
   DetachBackgroundPayload,
   EmptyPayload,
   EnterPlanPayload,
   EnterSwarmPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
+  PauseUltraworkPayload,
+  ResumeUltraworkPayloadResult,
+  UltraworkRunSnapshot,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
@@ -266,6 +271,26 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async cancelGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).cancelGoal(payload);
+  }
+
+  async createUltraworkRun({ agentId, ...payload }: AgentScopedPayload<CreateUltraworkRunPayload>) {
+    return (await this.getAgent(agentId)).createUltraworkRun(payload);
+  }
+
+  async getUltraworkRun({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getUltraworkRun(payload);
+  }
+
+  async pauseUltrawork({ agentId, ...payload }: AgentScopedPayload<PauseUltraworkPayload>) {
+    return (await this.getAgent(agentId)).pauseUltrawork(payload);
+  }
+
+  async resumeUltrawork({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).resumeUltrawork(payload);
+  }
+
+  async cancelUltrawork({ agentId, ...payload }: AgentScopedPayload<CancelUltraworkPayload>) {
+    return (await this.getAgent(agentId)).cancelUltrawork(payload);
   }
 
   async getBackgroundOutput({

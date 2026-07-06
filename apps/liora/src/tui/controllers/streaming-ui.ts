@@ -729,10 +729,10 @@ export class StreamingUIController {
     requestTUILayoutRender(state);
   }
 
-  endCompaction(tokensBefore?: number, tokensAfter?: number): void {
+  endCompaction(tokensBefore?: number, tokensAfter?: number, detail?: string): void {
     const block = this._activeCompactionBlock;
     if (block === undefined) return;
-    block.markDone(tokensBefore, tokensAfter);
+    block.markDone(tokensBefore, tokensAfter, detail);
     this._activeCompactionBlock = undefined;
     requestTUILayoutRender(this.host.state);
   }

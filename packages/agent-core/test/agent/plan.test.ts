@@ -448,7 +448,7 @@ describe('plan allows safe tool flow', () => {
     await ctx.untilTurnEnd();
 
     expect(files.get(planPath)).toBeUndefined();
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeText.mock.calls.some(([path]) => path === planPath)).toBe(false);
     expect(toolResultText(ctx.agent.context.history)).toContain(
       'Tool "Write" was denied by permission rule. Reason: blocked by test',
     );

@@ -1,5 +1,9 @@
 import { extractText, type Message } from '@superliora/kosong';
 
+import {
+  extractSwarmRunsFromMessages,
+  extractSwarmRunsFromText,
+} from './swarm-memory-extract';
 import type { CompactionPlan } from './planner';
 import type {
   CompactionQualitySignals,
@@ -175,6 +179,10 @@ export function evaluateCompactionQualitySignals(input: {
   const nextActionPreservationScore = expectsNextAction ? (usefulNextActions.length > 0 ? 1 : 0) : 1;
   const expectsFailure = containsFailureMarker(sourceText);
   const failedAttemptRecallScore = expectsFailure ? (usefulFailedAttempts.length > 0 ? 1 : 0) : 1;
+  const swarmRuns = extractSwarmRunsFromMessages(input.compactedMessages);
+  const swarmRecallScore = swarmRuns.length === 0
+    ? 1
+    : computeSwarmRecallScore(swarmRuns, input.summary, memory.swarmRuns);
   const promptInjectionResistanceScore = hasPromptControlInStructuredMemory(memory) ? 0 : 1;
   const tokensSavedRatio =
     input.tokensAfter === undefined || input.tokensBefore <= 0
@@ -185,6 +193,7 @@ export function evaluateCompactionQualitySignals(input: {
     nextActionPreservationScore,
     failedAttemptRecallScore,
     promptInjectionResistanceScore,
+    swarmRecallScore,
   ];
   const recallEvalScore = Number(
     (componentScores.reduce((sum, score) => sum + score, 0) / componentScores.length).toFixed(2),
@@ -210,8 +219,41 @@ export function evaluateCompactionQualitySignals(input: {
     nextActionPreservationScore,
     failedAttemptRecallScore,
     promptInjectionResistanceScore,
+    swarmRecallScore,
     failureSignature,
   };
+}
+
+function computeSwarmRecallScore(
+  expectedRuns: ReturnType<typeof extractSwarmRunsFromMessages>,
+  summary: string,
+  structuredSwarmRuns: readonly string[],
+): number {
+  const summaryRuns = extractSwarmRunsFromText(summary);
+  const structuredText = structuredSwarmRuns.join('\n');
+  let matched = 0;
+  let total = 0;
+  for (const run of expectedRuns) {
+    total += 1;
+    const runPresent =
+      summary.includes(run.runId) ||
+      structuredText.includes(run.runId) ||
+      summaryRuns.some((entry) => entry.runId === run.runId);
+    if (!runPresent) continue;
+    matched += 1;
+    for (const expert of run.experts) {
+      total += 2;
+      if (summary.includes(expert.expertId) || structuredText.includes(expert.expertId)) matched += 1;
+      if (
+        expert.verdict.length === 0 ||
+        summary.includes(expert.verdict) ||
+        structuredText.includes(expert.verdict)
+      ) {
+        matched += 1;
+      }
+    }
+  }
+  return total === 0 ? 1 : Number((matched / total).toFixed(2));
 }
 
 export function mergeCompactionQualityResults(
@@ -395,4 +437,66 @@ function buildFailureSignature(input: {
     failures.push('token_growth');
   }
   return failures.length > 0 ? failures.join(',') : undefined;
+}
+
+const QUALITY_ROLLING_WINDOW = 5;
+const LOW_QUALITY_THRESHOLD = 0.75;
+
+export interface CompactionQualityTrend {
+  readonly sampleCount: number;
+  readonly rollingAverage: number | null;
+  readonly lowQualityStreak: number;
+  readonly emergencyBackstopCount: number;
+}
+
+/**
+ * Rolling compaction-quality feedback used to bias future trigger thresholds.
+ * When recent summaries score poorly or require the emergency backstop, compaction
+ * fires earlier on subsequent turns.
+ */
+export class CompactionQualityTracker {
+  private readonly scores: number[] = [];
+  private lowQualityStreak = 0;
+  private emergencyBackstopCount = 0;
+
+  record(input: {
+    readonly recallEvalScore?: number | undefined;
+    readonly usedEmergencyBackstop: boolean;
+  }): CompactionQualityTrend {
+    if (input.usedEmergencyBackstop) {
+      this.emergencyBackstopCount += 1;
+      this.lowQualityStreak += 1;
+    } else if (input.recallEvalScore !== undefined) {
+      this.scores.push(input.recallEvalScore);
+      if (this.scores.length > QUALITY_ROLLING_WINDOW) {
+        this.scores.shift();
+      }
+      if (input.recallEvalScore < LOW_QUALITY_THRESHOLD) {
+        this.lowQualityStreak += 1;
+      } else {
+        this.lowQualityStreak = 0;
+      }
+    }
+    return this.trend();
+  }
+
+  trend(): CompactionQualityTrend {
+    if (this.scores.length === 0) {
+      return {
+        sampleCount: 0,
+        rollingAverage: null,
+        lowQualityStreak: this.lowQualityStreak,
+        emergencyBackstopCount: this.emergencyBackstopCount,
+      };
+    }
+    const rollingAverage = Number(
+      (this.scores.reduce((sum, score) => sum + score, 0) / this.scores.length).toFixed(3),
+    );
+    return {
+      sampleCount: this.scores.length,
+      rollingAverage,
+      lowQualityStreak: this.lowQualityStreak,
+      emergencyBackstopCount: this.emergencyBackstopCount,
+    };
+  }
 }

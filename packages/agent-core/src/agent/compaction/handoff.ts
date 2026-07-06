@@ -19,6 +19,17 @@ import summaryPrefixTemplate from './compaction-summary-prefix.md?raw';
 
 export const COMPACTION_SUMMARY_PREFIX = summaryPrefixTemplate.trimEnd();
 export const COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000;
+
+/**
+ * Scale the kept-user budget down on small context windows so post-compaction
+ * context stays below the auto-compaction trigger.
+ */
+export function resolveCompactionUserMessageBudget(maxContextTokens?: number): number {
+  if (maxContextTokens === undefined || maxContextTokens <= 0) {
+    return COMPACT_USER_MESSAGE_MAX_TOKENS;
+  }
+  return Math.min(COMPACT_USER_MESSAGE_MAX_TOKENS, Math.floor(maxContextTokens * 0.5));
+}
 /**
  * Of `COMPACT_USER_MESSAGE_MAX_TOKENS`, the slice reserved for the OLDEST user
  * messages once the pool no longer fits the budget. The earliest prompts
@@ -180,9 +191,12 @@ function truncateTextToTokensFromEnd(text: string, maxTokens: number): string {
  * TypeScript cannot prove the spread-then-override still equals T.
  */
 function replaceMessageText<T extends MessageLike>(message: T, text: string): T {
+  const nonTextParts = message.content.filter((part) => part.type !== 'text');
   return {
     ...message,
-    content: [{ type: 'text', text }],
+    content: nonTextParts.length > 0
+      ? [...nonTextParts, { type: 'text', text }]
+      : [{ type: 'text', text }],
     toolCalls: [],
   } as unknown as T;
 }

@@ -111,6 +111,7 @@ export interface CompactionQualitySignals {
   readonly nextActionPreservationScore: number;
   readonly failedAttemptRecallScore: number;
   readonly promptInjectionResistanceScore: number;
+  readonly swarmRecallScore?: number;
   readonly failureSignature?: string;
 }
 
@@ -147,12 +148,7 @@ export type CompactionSource = 'manual' | 'auto';
  * Inputs `ContextMemory.applyCompaction` needs to derive a `CompactionResult`.
  */
 export type CompactionInput = Pick<CompactionResult, 'summary' | 'compactedCount' | 'tokensBefore'> &
-  Partial<
-    Pick<
-      CompactionResult,
-      'contextSummary' | 'tokensAfter' | 'keptUserMessageCount' | 'keptHeadUserMessageCount' | 'droppedCount'
-    >
-  >;
+  Partial<Omit<CompactionResult, 'summary' | 'compactedCount' | 'tokensBefore'>>;
 
 export interface CompactionBeginData {
   instruction?: string;

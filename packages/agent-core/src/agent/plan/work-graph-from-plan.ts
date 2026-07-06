@@ -55,7 +55,7 @@ export function seedUltraworkGraphFromApprovedPlan(
     return { seeded: false, nodeIds: [] };
   }
 
-  const runId = deriveRunId(planPath);
+  const runId = agent.ultrawork.getActiveRunId() ?? deriveRunId(planPath);
   const now = new Date().toISOString();
   const graph: WorkGraph = cloneWorkGraph({
     id: `${runId}:work_graph`,

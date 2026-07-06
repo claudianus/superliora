@@ -30,6 +30,9 @@ import type {
   ExportSessionInput,
   ExportSessionResult,
   CreateGoalInput,
+  CreateUltraworkRunInput,
+  PauseUltraworkInput,
+  CancelUltraworkInput,
   ForkSessionInput,
   GetConfigOptions,
   GoalSnapshot,
@@ -55,6 +58,7 @@ import type {
   PluginSummary,
   ProviderRouteStatus,
   ReloadSummary,
+  ResumeUltraworkPayloadResult,
   CompactOptions,
   SessionPlan,
   SessionStatus,
@@ -66,6 +70,7 @@ import type {
   SessionSummary,
   SkillSearchResult,
   SkillSummary,
+  UltraworkRun,
   Unsubscribe,
 } from '#/types';
 
@@ -683,6 +688,60 @@ export abstract class SDKRpcClientBase {
     return rpc.cancelGoal({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
+    });
+  }
+
+  async createUltraworkRun(
+    input: SessionIdRpcInput & CreateUltraworkRunInput,
+  ): Promise<UltraworkRun> {
+    const rpc = await this.getRpc();
+    return rpc.createUltraworkRun({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      id: input.id,
+      objective: input.objective,
+      source: input.source,
+      replaceGoal: input.replaceGoal,
+      evidenceRoot: input.evidenceRoot,
+      workDir: input.workDir,
+    });
+  }
+
+  async getUltraworkRun(input: SessionIdRpcInput): Promise<UltraworkRun | null> {
+    const rpc = await this.getRpc();
+    return rpc.getUltraworkRun({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+    });
+  }
+
+  async pauseUltrawork(
+    input: SessionIdRpcInput & PauseUltraworkInput,
+  ): Promise<UltraworkRun | null> {
+    const rpc = await this.getRpc();
+    return rpc.pauseUltrawork({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      reason: input.reason,
+    });
+  }
+
+  async resumeUltrawork(input: SessionIdRpcInput): Promise<ResumeUltraworkPayloadResult | null> {
+    const rpc = await this.getRpc();
+    return rpc.resumeUltrawork({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+    });
+  }
+
+  async cancelUltrawork(
+    input: SessionIdRpcInput & CancelUltraworkInput,
+  ): Promise<UltraworkRun | null> {
+    const rpc = await this.getRpc();
+    return rpc.cancelUltrawork({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      reason: input.reason,
     });
   }
 

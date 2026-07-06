@@ -769,10 +769,11 @@ describe('MicroCompaction', () => {
     await ctx.rpc.beginCompaction({});
     await compacted;
 
-    expect(ctx.agent.context.messages).toHaveLength(1);
-    expect(ctx.agent.context.messages[0]?.role).toBe('assistant');
-    expect(textOf(ctx.agent.context.messages[0], { raw: true })).toContain('# SuperLiora Context Compaction v2 Memory');
-    expect(textOf(ctx.agent.context.messages[0], { raw: true })).toContain('Summary.');
+    const summaryMessage = ctx.agent.context.messages.find((message) =>
+      textOf(message, { raw: true }).includes('# SuperLiora Context Compaction v2 Memory'),
+    );
+    expect(summaryMessage?.role).toBe('user');
+    expect(textOf(summaryMessage, { raw: true })).toContain('Summary.');
   });
 
   it('does not apply when context usage is below minContextUsageRatio', () => {

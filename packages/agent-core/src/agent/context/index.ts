@@ -11,6 +11,7 @@ import {
   COMPACTION_ELISION_VARIANT,
   buildCompactionElisionText,
   collectCompactableUserMessages,
+  resolveCompactionUserMessageBudget,
   selectCompactionUserMessages,
   selectRecentUserMessages,
   type CompactionInput,
@@ -50,6 +51,7 @@ export class ContextMemory {
   private tokenCountCoveredMessageCount = 0;
   private openSteps: Map<string, ContextMessage> = new Map();
   private pendingToolResultIds = new Set<string>();
+  private lateAcceptedToolCallIds = new Set<string>();
   private deferredMessages: ContextMessage[] = [];
   private _lastAssistantAt: number | null = null;
   private lastProjectionRepairSignature: string | null = null;
@@ -266,17 +268,27 @@ export class ContextMemory {
   }
 
   applyCompaction(input: CompactionInput): CompactionResult {
-    const compactableUserMessages = collectCompactableUserMessages(this._history);
+    const retainedSuffix = this._history.slice(input.compactedCount);
+    const hasRetainedLiveContext = retainedSuffix.some(
+      (message) => message.origin?.kind !== 'injection',
+    );
+    const compactableUserMessages = collectCompactableUserMessages(
+      this._history.slice(0, input.compactedCount),
+    );
     const restoreTailOnly =
       this.agent.records.restoring !== null && input.keptHeadUserMessageCount === undefined;
-    const selection = restoreTailOnly
-      ? {
-          head: [],
-          tail: selectRecentUserMessages(compactableUserMessages, COMPACT_USER_MESSAGE_MAX_TOKENS),
-          elided: false,
-          omittedTokens: 0,
-        }
-      : selectCompactionUserMessages(compactableUserMessages);
+    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
+    const userMessageBudget = resolveCompactionUserMessageBudget(maxContextTokens);
+    const selection = hasRetainedLiveContext
+      ? { head: [], tail: [], elided: false, omittedTokens: 0 }
+      : restoreTailOnly
+        ? {
+            head: [],
+            tail: selectRecentUserMessages(compactableUserMessages, userMessageBudget),
+            elided: false,
+            omittedTokens: 0,
+          }
+        : selectCompactionUserMessages(compactableUserMessages, userMessageBudget);
     const elisionMessage: ContextMessage | null = selection.elided
       ? {
           role: 'user',
@@ -292,7 +304,8 @@ export class ContextMemory {
     const contextSummary = input.contextSummary ?? input.summary;
     const tokensAfter =
       input.tokensAfter ??
-      estimateTokens(contextSummary) + estimateTokensForMessages(keptMessages);
+      estimateTokens(contextSummary) +
+        estimateTokensForMessages([...keptMessages, ...retainedSuffix]);
     const keptUserMessageCount =
       input.keptUserMessageCount ?? selection.head.length + selection.tail.length;
     const keptHeadUserMessageCount =
@@ -306,6 +319,18 @@ export class ContextMemory {
       keptUserMessageCount,
       keptHeadUserMessageCount,
       droppedCount: input.droppedCount,
+      algorithmVersion: input.algorithmVersion,
+      actions: input.actions,
+      rawRefs: input.rawRefs,
+      summaryTokens: input.summaryTokens,
+      retainedTokens: input.retainedTokens,
+      compactedTokens: input.compactedTokens,
+      qualityWarnings: input.qualityWarnings,
+      qualityWarningCategories: input.qualityWarningCategories,
+      parallelBlockCount: input.parallelBlockCount,
+      mergeInputTokens: input.mergeInputTokens,
+      repairAttempted: input.repairAttempted,
+      contextPack: input.contextPack,
     };
     this.agent.records.logRecord({
       type: 'context.apply_compaction',
@@ -334,12 +359,17 @@ export class ContextMemory {
       input.keptUserMessageCount === undefined &&
       input.compactedCount < this._history.length;
     this._history = isLegacyRestore
-      ? [summaryMessage, ...this._history.slice(input.compactedCount)]
-      : [...keptMessages, summaryMessage];
+      ? [summaryMessage, ...retainedSuffix]
+      : [...keptMessages, summaryMessage, ...retainedSuffix];
     this.openSteps.clear();
-    this.pendingToolResultIds.clear();
-    this.deferredMessages = [];
-    this._tokenCount = result.tokensAfter;
+    const previouslyPending = new Set(this.pendingToolResultIds);
+    this.resyncPendingToolResultIdsFromHistory();
+    for (const toolCallId of this.pendingToolResultIds) {
+      if (previouslyPending.has(toolCallId)) {
+        this.lateAcceptedToolCallIds.add(toolCallId);
+      }
+    }
+    this._tokenCount = estimateTokensForMessages(this._history);
     this.tokenCountCoveredMessageCount = this._history.length;
     this.agent.microCompaction.reset();
     this.agent.contextOS.recordCompaction(result);
@@ -382,7 +412,11 @@ export class ContextMemory {
   }
 
   get messages(): Message[] {
-    return this.project(this.history);
+    const source =
+      this.deferredMessages.length > 0
+        ? [...this._history, ...this.deferredMessages]
+        : this._history;
+    return this.project(source);
   }
 
   get strictMessages(): Message[] {
@@ -509,6 +543,19 @@ export class ContextMemory {
     return this.closePendingToolResults(output).length;
   }
 
+  /**
+   * Manual compaction while tool calls are still awaiting results: preserve the
+   * ids for late-arriving results, then synthesize interrupted tool results so
+   * the prefix can be summarized safely.
+   */
+  prepareManualCompactionWithOpenToolExchange(): boolean {
+    if (this.pendingToolResultIds.size === 0) return false;
+    for (const toolCallId of this.pendingToolResultIds) {
+      this.lateAcceptedToolCallIds.add(toolCallId);
+    }
+    return this.closePendingToolResults().length > 0;
+  }
+
   appendLoopEvent(event: LoopRecordedEvent): void {
     this.agent.records.logRecord({
       type: 'context.append_loop_event',
@@ -591,10 +638,8 @@ export class ContextMemory {
         return;
       }
       case 'tool.result': {
-        // Drop a result for an id that is not awaiting one: it was already
-        // closed in place at a step boundary (a stale duplicate from an older
-        // tail-only finishResume), or its call is gone.
-        if (!this.pendingToolResultIds.has(event.toolCallId)) return;
+        const acceptsLateResult = this.lateAcceptedToolCallIds.has(event.toolCallId);
+        if (!this.pendingToolResultIds.has(event.toolCallId) && !acceptsLateResult) return;
         const message = createToolMessage(event.toolCallId, toolResultOutputForModel(event.result));
         this.pushHistory({
           ...message,
@@ -602,6 +647,7 @@ export class ContextMemory {
           isError: event.result.isError,
         });
         this.pendingToolResultIds.delete(event.toolCallId);
+        this.lateAcceptedToolCallIds.delete(event.toolCallId);
         this.flushDeferredMessagesIfToolExchangeClosed();
         return;
       }
@@ -637,6 +683,20 @@ export class ContextMemory {
     this.pushHistory(message);
   }
 
+  private resyncPendingToolResultIdsFromHistory(): void {
+    this.pendingToolResultIds.clear();
+    for (const message of this._history) {
+      if (message.role === 'assistant') {
+        for (const toolCall of message.toolCalls) {
+          this.pendingToolResultIds.add(toolCall.id);
+        }
+      }
+      if (message.role === 'tool' && message.toolCallId !== undefined) {
+        this.pendingToolResultIds.delete(message.toolCallId);
+      }
+    }
+  }
+
   private flushDeferredMessagesIfToolExchangeClosed(): void {
     if (this.pendingToolResultIds.size > 0 || this.deferredMessages.length === 0) {
       return;
@@ -650,6 +710,14 @@ export class ContextMemory {
   }
 
   private pushHistory(...messages: ContextMessage[]): void {
+    if (messages.length === 0) return;
+    const postCompactionInjections =
+      this.tokenCountCoveredMessageCount >= this._history.length &&
+      messages.every((message) => message.origin?.kind === 'injection');
+    if (postCompactionInjections) {
+      this._tokenCount += estimateTokensForMessages(messages);
+      this.tokenCountCoveredMessageCount = this._history.length + messages.length;
+    }
     this._history.push(...messages);
     for (const message of messages) {
       if (message.role === 'assistant') {

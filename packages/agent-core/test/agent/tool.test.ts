@@ -162,6 +162,7 @@ describe('Agent tools', () => {
         completion,
       }),
       resume: vi.fn(),
+      hasActiveForegroundChildren: vi.fn().mockReturnValue(false),
     } as unknown as SessionSubagentHost;
     const ctx = testAgent({ subagentHost });
     ctx.configure({ tools: ['Agent'] });

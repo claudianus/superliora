@@ -66,6 +66,7 @@ export interface SessionReplayHost {
   readonly sessionEventHandler: SessionEventHandler;
   setAppState(patch: Partial<AppState>): void;
   showError(msg: string): void;
+  showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   mergeAllTurnSteps(): void;
 }
@@ -102,6 +103,7 @@ export class SessionReplayRenderer {
       this.renderRecords(main);
       this.applyTerminalBackgroundAgentStatuses(main);
       this.host.mergeAllTurnSteps();
+      await this.notifyInterruptedUltraworkIfNeeded(session);
       return true;
     } catch (error) {
       const message = formatErrorMessage(error);
@@ -737,6 +739,24 @@ export class SessionReplayRenderer {
       backgroundAgentStatus: status,
     });
     sessionEventHandler.subAgentEventHandler.backgroundAgentMetadata.delete(meta.agentId);
+  }
+
+  private async notifyInterruptedUltraworkIfNeeded(session: Session): Promise<void> {
+    try {
+      const [run, goalResult] = await Promise.all([session.getUltraworkRun(), session.getGoal()]);
+      if (run === null) return;
+      if (run.status !== 'blocked') return;
+      const goal = goalResult.goal;
+      if (goal?.status !== 'paused' && goal?.status !== 'blocked') return;
+      this.host.setAppState({ ultraworkMode: true, planMode: true });
+      this.host.showNotice(
+        'Interrupted Ultrawork detected',
+        `Run ${run.id} is paused at stage ${run.stage}. Use /ultrawork resume to continue.`,
+        { coalesceKey: 'ultrawork-resume-hint' },
+      );
+    } catch {
+      // Best-effort resume hint only.
+    }
   }
 }
 

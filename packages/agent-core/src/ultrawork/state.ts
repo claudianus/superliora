@@ -26,7 +26,7 @@ const STAGE_INDEX = new Map<UltraworkStage, number>(
   ULTRAWORK_STAGE_ORDER.map((stage, index) => [stage, index]),
 );
 
-export interface CreateUltraworkRunInput {
+export interface CreateUltraworkStateMachineInput {
   readonly id: string;
   readonly objective: string;
   readonly now?: string;
@@ -81,7 +81,7 @@ export class UltraworkRunStateMachine {
     this.run = run;
   }
 
-  static create(input: CreateUltraworkRunInput): UltraworkRunStateMachine {
+  static create(input: CreateUltraworkStateMachineInput): UltraworkRunStateMachine {
     const now = input.now ?? new Date().toISOString();
     return new UltraworkRunStateMachine({
       id: input.id,
@@ -142,6 +142,18 @@ export class UltraworkRunStateMachine {
 
   markFailed(reason: string, now = new Date().toISOString()): UltraworkRun {
     return this.markTerminalish('failed', reason, now);
+  }
+
+  resumeFromBlocked(now = new Date().toISOString()): UltraworkRun {
+    if (this.run.status !== 'blocked') {
+      throw new Error(`Cannot resume Ultrawork run from status ${this.run.status}.`);
+    }
+    this.run = {
+      ...this.run,
+      status: 'running',
+      updatedAt: now,
+    };
+    return this.run;
   }
 
   private markTerminalish(

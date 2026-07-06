@@ -9,7 +9,7 @@ description: Update SuperLiora CLI user documentation after meaningful code chan
 
 This repository keeps bilingual reference documentation under `docs/`. `docs/en/` and `docs/zh/` are mirrored pairs for most pages; update both in the same change. **Changelog is the exception** — English is the source, and Chinese is translated from English.
 
-**`docs/` is not the deployed public site.** GitHub Pages serves the hand-built `site/` directory instead (see `docs/AGENTS.md`); `docs/` has no live VitePress build. Treat this skill as reference-maintenance (keep pages factually accurate and bilingually mirrored), not as updating a marketed product surface — see `docs/AGENTS.md` for the current scope.
+**`docs/` is not the deployed public site.** GitHub Pages serves the hand-built `apps/site/` directory instead (see `docs/AGENTS.md`); `docs/` has no live VitePress build. Treat this skill as reference-maintenance (keep pages factually accurate and bilingually mirrored), not as updating a marketed product surface — see `docs/AGENTS.md` for the current scope.
 
 Use this skill to update the corresponding reference pages whenever the codebase has changes that affect product behavior or user experience.
 

@@ -11,6 +11,8 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import AGENT_SWARM_DESCRIPTION from './agent-swarm.md?raw';
+import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
+import type { ToolStore } from '../../store';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 
 const DEFAULT_SUBAGENT_TYPE = 'coder';
@@ -92,6 +94,7 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
   constructor(
     private readonly subagentHost: SessionSubagentHost,
     private readonly swarmMode: SwarmMode,
+    private readonly store: ToolStore,
   ) {}
 
   resolveExecution(args: AgentSwarmToolInput): ToolExecution {
@@ -161,7 +164,11 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
       };
     });
     const results = await this.subagentHost.runQueued(tasks);
-    return renderSwarmResults(results.map(({ task, ...result }) => ({ spec: task.data, ...result })));
+    const rawResult = renderSwarmResults(
+      results.map(({ task, ...result }) => ({ spec: task.data, ...result })),
+    );
+    const compacted = compactSwarmToolResult(this.store, rawResult);
+    return compacted.output;
   }
 }
 

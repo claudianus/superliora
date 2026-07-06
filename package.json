@@ -15,7 +15,7 @@
     "dev:server": "corepack pnpm -C apps/liora run dev:server",
     "build:plugin-marketplace": "corepack pnpm -C apps/liora run build:plugin-marketplace",
     "vis": "corepack pnpm -C apps/vis run dev",
-    "dev:docs": "python3 -m http.server 4173 --directory site",
+    "dev:docs": "corepack pnpm -C apps/site run dev",
     "typecheck": "corepack pnpm run build:packages && corepack pnpm -r --filter './packages/*' run typecheck && corepack pnpm --filter @superliora/liora run typecheck && corepack pnpm --filter @superliora/vis-server run typecheck && corepack pnpm --filter @superliora/vis-web run typecheck",
     "lint": "oxlint --type-aware",
     "lint:fix": "corepack pnpm run lint --fix",

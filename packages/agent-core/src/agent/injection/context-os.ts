@@ -15,6 +15,14 @@ export class ContextOSInjector extends DynamicInjector {
     if (this.agent.type !== 'main') return undefined;
     const latest = latestUserPrompt(this.agent.context.history);
     if (latest === undefined) return undefined;
+    const trailing = this.agent.context.history.slice(latest.index + 1);
+    if (
+      trailing.some(
+        (message) => message.role !== 'user' || message.origin?.kind !== 'injection',
+      )
+    ) {
+      return undefined;
+    }
     const signature = `${String(latest.index)}:${String(this.agent.contextOS.revision)}`;
     if (signature === this.lastAttemptSignature) return undefined;
     this.lastAttemptSignature = signature;

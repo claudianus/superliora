@@ -108,6 +108,11 @@ function makeAgent(
         },
       })),
     },
+    ultrawork: {
+      getActiveRunId: () => undefined,
+      getRun: () => null,
+      syncWorkGraphFromStore: vi.fn(),
+    },
   } as unknown as Agent;
   return { agent, requestApproval, emit, toolStore };
 }

@@ -91,6 +91,17 @@ describe('UltraworkRunStateMachine', () => {
     expect(updated.verification?.status).toBe('passed');
     expect(updated.knowledgePromotions).toHaveLength(1);
   });
+
+  it('resumes from blocked status', () => {
+    const machine = UltraworkRunStateMachine.create({
+      id: 'uw_1',
+      objective: 'Ship the workflow',
+      now: '2026-07-01T00:00:00.000Z',
+    });
+    machine.markBlocked('interrupted');
+    const resumed = machine.resumeFromBlocked('2026-07-01T00:00:05.000Z');
+    expect(resumed.status).toBe('running');
+  });
 });
 
 describe('evaluateUltraworkSwarmGate', () => {

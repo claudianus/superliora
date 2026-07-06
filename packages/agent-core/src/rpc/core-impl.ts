@@ -68,6 +68,11 @@ import type {
   CoreAPI,
   CoreInfo,
   CreateGoalPayload,
+  CreateUltraworkRunPayload,
+  CancelUltraworkPayload,
+  PauseUltraworkPayload,
+  ResumeUltraworkPayloadResult,
+  UltraworkRunSnapshot,
   CreateSessionPayload,
   DetachBackgroundPayload,
   ClientTelemetryInfo,
@@ -922,6 +927,41 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     ...payload
   }: SessionAgentPayload<EmptyPayload>): Promise<GoalSnapshot> {
     return Promise.resolve(this.sessionApi(sessionId).cancelGoal(payload));
+  }
+
+  createUltraworkRun({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<CreateUltraworkRunPayload>): Promise<UltraworkRunSnapshot> {
+    return Promise.resolve(this.sessionApi(sessionId).createUltraworkRun(payload));
+  }
+
+  getUltraworkRun({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<EmptyPayload>): Promise<UltraworkRunSnapshot | null> {
+    return Promise.resolve(this.sessionApi(sessionId).getUltraworkRun(payload));
+  }
+
+  pauseUltrawork({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<PauseUltraworkPayload>): Promise<UltraworkRunSnapshot | null> {
+    return Promise.resolve(this.sessionApi(sessionId).pauseUltrawork(payload));
+  }
+
+  resumeUltrawork({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<EmptyPayload>): Promise<ResumeUltraworkPayloadResult | null> {
+    return Promise.resolve(this.sessionApi(sessionId).resumeUltrawork(payload));
+  }
+
+  cancelUltrawork({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<CancelUltraworkPayload>): Promise<UltraworkRunSnapshot | null> {
+    return Promise.resolve(this.sessionApi(sessionId).cancelUltrawork(payload));
   }
 
   async installPlugin(payload: InstallPluginPayload): Promise<PluginSummary> {

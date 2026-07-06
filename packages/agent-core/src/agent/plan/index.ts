@@ -3,6 +3,7 @@ import { dirname, join } from 'pathe';
 
 import type { Agent } from '..';
 import { generateHeroSlug } from '../../utils/hero-slug';
+import { maybeAdvanceUltraworkStage } from '../../ultrawork';
 import {
   UltraPlanModeEngine,
   type DriftMetrics,
@@ -65,6 +66,7 @@ export class PlanMode {
       if (ultra) {
         this.ultraEngine.startInterview(initialContext);
         await this.writeUltraPlanTemplate(planFilePath);
+        maybeAdvanceUltraworkStage(this.agent, 'research', 'Ultra plan research phase');
       }
     } catch (error) {
       if (enterRecorded) {

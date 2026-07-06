@@ -11,6 +11,7 @@ import {
   formatSeededWorkGraphNotice,
   seedUltraworkGraphFromApprovedPlan,
 } from '#/agent/plan/work-graph-from-plan';
+import { maybeAdvanceUltraworkStage } from '../../../ultrawork';
 import {
   ultraSwarmDecision,
   ultraSwarmEngageNextAction,
@@ -186,6 +187,13 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     const seededWorkGraph = isUltra
       ? seedUltraworkGraphFromApprovedPlan(this.agent, resolvedPlan.plan, resolvedPlan.path)
       : { seeded: false, nodeIds: [] };
+
+    if (isUltra) {
+      maybeAdvanceUltraworkStage(this.agent, 'goal', 'UltraPlan approved');
+      if (seededWorkGraph.seeded) {
+        this.agent.ultrawork.syncWorkGraphFromStore();
+      }
+    }
 
     if (engageUltraSwarm) {
       this.agent.ultraSwarmEngageGate?.engage({

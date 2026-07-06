@@ -7,7 +7,7 @@ export function buildLeanContextGuidance(): string {
     '- Structure path: LioraTree before Bash ls/find; LioraCallgraph for caller/callee impact.',
     '- Compressed output is reversible: use LioraExpand(id=...) when you see [liora-archived ...] markers.',
     '- Parallel work: fire independent LioraContext/LioraSearch/LioraRead calls in the same turn.',
-    '- Ultrawork/UltraSwarm: keep subagent packets compact; archive bulky logs; expand only on failure paths.',
+    '- Ultrawork/UltraSwarm: keep subagent packets compact; archive bulky logs; expand only on failure paths; swarm handoffs are archived with LioraExpand(id=...).',
     '- Memory stays durable facts only — not raw transcripts or archived tool dumps.',
   ].join('\n');
 }

@@ -43,7 +43,13 @@ function makeTool(): {
 } {
   const { store, data } = makeStore();
   const emitEvent = vi.fn();
-  const agent = { emitEvent } as unknown as Agent;
+  const agent = {
+    emitEvent,
+    ultrawork: {
+      getRun: () => null,
+      syncWorkGraphFromStore: vi.fn(),
+    },
+  } as unknown as Agent;
   return { tool: new UltraworkGraphTool(store, agent), data, emitEvent };
 }
 

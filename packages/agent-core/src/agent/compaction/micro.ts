@@ -7,6 +7,7 @@ import {
   estimateTokensForMessages,
 } from '../../utils/tokens';
 import { extractArchiveIdFromToolOutput } from '../../lean-context/postprocess/tool-result';
+import { isSwarmToolResult, maskStaleSwarmToolResult } from './boundary-compaction';
 
 export interface MicroCompactionConfig {
   keepRecentMessages: number;
@@ -116,9 +117,22 @@ export class MicroCompaction {
   compact(messages: readonly ContextMessage[]): readonly ContextMessage[] {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return messages;
 
+    const latestSwarmToolCallId = findLatestSwarmToolCallId(messages);
     const result: ContextMessage[] = [];
     let i = 0;
     for (const msg of messages) {
+      if (
+        i < this.cutoff &&
+        msg.role === 'tool' &&
+        msg.toolCallId !== undefined
+      ) {
+        const swarmMasked = maskSwarmToolResultIfStale(msg, messages, latestSwarmToolCallId);
+        if (swarmMasked !== null) {
+          result.push(swarmMasked);
+          i++;
+          continue;
+        }
+      }
       if (
         i < this.cutoff &&
         msg.role === 'tool' &&
@@ -312,4 +326,48 @@ const KNOWN_MUTATING_TOOLS = new Set([
 
 function isKnownMutatingTool(toolName: string): boolean {
   return KNOWN_MUTATING_TOOLS.has(toolName);
+}
+
+function findLatestSwarmToolCallId(messages: readonly ContextMessage[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
+    const toolName = toolNameForMessage(message.toolCallId, messages);
+    if (toolName === 'UltraSwarm' || toolName === 'AgentSwarm') {
+      return message.toolCallId;
+    }
+  }
+  return undefined;
+}
+
+function toolNameForMessage(
+  toolCallId: string,
+  messages: readonly ContextMessage[],
+): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const match = messages[i]?.toolCalls.find((toolCall) => toolCall.id === toolCallId);
+    if (match !== undefined) return match.name;
+  }
+  return undefined;
+}
+
+function maskSwarmToolResultIfStale(
+  message: ContextMessage,
+  messages: readonly ContextMessage[],
+  latestSwarmToolCallId: string | undefined,
+): ContextMessage | null {
+  if (message.toolCallId === latestSwarmToolCallId) return null;
+  const toolName = toolNameForMessage(message.toolCallId ?? '', messages);
+  if (toolName !== 'UltraSwarm' && toolName !== 'AgentSwarm') return null;
+  const fullText = message.content
+    .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n');
+  if (!isSwarmToolResult(fullText)) return null;
+  const masked = maskStaleSwarmToolResult(fullText);
+  if (masked === fullText) return null;
+  return {
+    ...message,
+    content: [{ type: 'text', text: masked } satisfies ContentPart],
+  };
 }

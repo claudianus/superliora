@@ -2,9 +2,9 @@
 
 `docs/` is **not** the deployed public site and has no live VitePress build
 (`docs/.vitepress/config.ts` no longer exists; only a stale `dist/` cache
-remains). GitHub Pages is served entirely from the hand-built static page
-under `site/` (see `.github/workflows/docs-deploy.yml`, which uploads `site/`
-only). Nothing in `site/` links to `docs/`.
+remains). GitHub Pages is served from the Vite-built static site under
+`apps/site/` (see `.github/workflows/docs-deploy.yml`, which uploads
+`apps/site/dist` only). Nothing in `apps/site/` links to `docs/`.
 
 `docs/en/` and `docs/zh/` are kept as an unpublished, English/Chinese-mirrored
 reference — still readable by browsing the repo on GitHub, and still
@@ -18,7 +18,7 @@ low-priority reference material, not an actively marketed product surface:
   follow a formal editorial style guide to do this — match the tone of the
   surrounding page.
 - Do not invest in comprehensive rewrites or new pages here; that effort
-  belongs in `site/` (the real public surface) instead.
+  belongs in `apps/site/` (the real public surface) instead.
 - The `gen-docs`, `translate-docs`, and `sync-changelog` skills still know how
   to edit this tree (terminology, changelog classification, bilingual sync
   rules); they operate in this same "reference only, keep accurate" mode.

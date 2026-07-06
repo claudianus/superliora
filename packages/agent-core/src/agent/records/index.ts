@@ -142,6 +142,12 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'ultrawork.event':
       agent.replayBuilder.push({ type: 'agent_event', event: input.event as AgentEvent });
       return;
+    case 'ultrawork.run':
+      agent.ultrawork.restoreRun(input);
+      return;
+    case 'ultrawork.mode':
+      agent.ultrawork.restoreMode(input);
+      return;
   }
 }
 

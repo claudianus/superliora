@@ -31,7 +31,7 @@ This is a pnpm monorepo. The most relevant entry points are:
 - `apps/vis` — session replay & debugging visualizer
 - `packages/node-sdk` — public TypeScript SDK (`@superliora/sdk`)
 - `packages/agent-core`, `kosong`, `kaos`, `oauth`, `telemetry` — internal engine packages
-- `site/` — the public landing page (deployed to GitHub Pages)
+- `apps/site/` — the public landing page (deployed to GitHub Pages)
 - `docs/` — unpublished bilingual (`en`/`zh`) reference pages; not the deployed site (see `docs/AGENTS.md`)
 
 For the full project map, see [AGENTS.md](AGENTS.md).

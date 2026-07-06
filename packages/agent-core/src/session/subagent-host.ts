@@ -5,6 +5,11 @@ import {
 } from '@superliora/kosong';
 
 import type { Agent } from '../agent';
+import {
+  DEFAULT_COMPACTION_CONFIG,
+  DefaultCompactionStrategy,
+  resolveCompactionBlockRatio,
+} from '../agent/compaction';
 import type { PromptOrigin } from '../agent/context';
 import { ErrorCodes, type LioraErrorPayload } from '../errors';
 import { DenyAllPermissionPolicy } from '../agent/permission/policies/deny-all';
@@ -129,6 +134,10 @@ export class SessionSubagentHost {
     return this.ownerAgentId;
   }
 
+  hasActiveForegroundChildren(): boolean {
+    return Array.from(this.activeChildren.values()).some((child) => !child.runInBackground);
+  }
+
   startSwarmStandupTimer(
     parent: Agent,
     store: import('../tools/store').ToolStore,
@@ -143,8 +152,20 @@ export class SessionSubagentHost {
 
     const parent = await this.session.ensureAgentResumed(this.ownerAgentId);
     const profile = this.resolveProfile(parent, options.profileName, options.profileBaseName);
+    const subTriggerRatio = 0.65;
     const { id, agent } = await this.session.createAgent(
-      { type: 'sub', generate: parent.rawGenerate },
+      {
+        type: 'sub',
+        generate: parent.rawGenerate,
+        compactionStrategy: new DefaultCompactionStrategy(
+          () => parent.config.modelCapabilities.max_context_tokens,
+          {
+            ...DEFAULT_COMPACTION_CONFIG,
+            triggerRatio: subTriggerRatio,
+            blockRatio: resolveCompactionBlockRatio(subTriggerRatio),
+          },
+        ),
+      },
       { parentAgentId: this.ownerAgentId, swarmItem: options.swarmItem },
     );
     const completion = this.runWithActiveChild(id, options, async (runOptions) => {
@@ -375,6 +396,8 @@ export class SessionSubagentHost {
     options: RunSubagentOptions,
   ): Promise<SubagentCompletion> {
     await runChildTurnToCompletion(child, options.signal);
+
+    await child.fullCompaction.ensureBelowHandoffThreshold(options.signal);
 
     // A subagent that returns an overly terse summary leaves the parent
     // agent under-informed. Give it a bounded number of chances to expand

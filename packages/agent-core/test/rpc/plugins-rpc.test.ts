@@ -97,7 +97,7 @@ describe('LioraCore plugin RPCs', () => {
       await writeFile(
         path.join(home, 'config.toml'),
         `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "https://api.dev.example.test/coding/v1"
 api_key = ""

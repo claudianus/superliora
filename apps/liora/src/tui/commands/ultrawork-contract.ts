@@ -26,6 +26,10 @@ export interface UltraworkEvidenceSeed {
 
 export type ParsedUltraworkCommand =
   | ({ readonly kind: 'create' } & UltraworkCreateRequest)
+  | { readonly kind: 'status' }
+  | { readonly kind: 'pause' }
+  | { readonly kind: 'resume'; readonly runId?: string }
+  | { readonly kind: 'cancel' }
   | { readonly kind: 'error'; readonly message: string; readonly severity?: 'error' | 'hint' };
 
 const ULTRA_WORKFLOW_TERM_PATTERN =
@@ -201,15 +205,18 @@ export function parseUltraworkCommand(rawArgs: string): ParsedUltraworkCommand {
   }
   const tokens = args.split(/\s+/);
   const first = tokens[0];
-  if (
-    first === 'next' ||
-    (first !== undefined && ULTRAWORK_CONTROL_SUBCOMMANDS.has(first) && tokens.length === 1)
-  ) {
+  if (first === 'status') return { kind: 'status' };
+  if (first === 'pause') return { kind: 'pause' };
+  if (first === 'cancel') return { kind: 'cancel' };
+  if (first === 'resume') {
+    const runId = tokens.slice(1).join(' ').trim();
+    return { kind: 'resume', runId: runId.length > 0 ? runId : undefined };
+  }
+  if (first === 'next') {
     return {
       kind: 'error',
       severity: 'hint',
-      message:
-        'Ultrawork starts guided autonomous work. Use `/goal status` for goal controls, or pass an objective after `/ultrawork`.',
+      message: 'Use `/ultrawork resume` to continue an interrupted run, or pass a new objective.',
     };
   }
 

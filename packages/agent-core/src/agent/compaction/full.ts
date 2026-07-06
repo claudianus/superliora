@@ -31,6 +31,7 @@ import {
 } from '../../utils/tokens';
 import {
   applyCompletionBudget,
+  computeCompletionBudgetCap,
   resolveCompletionBudget,
 } from '../../utils/completion-budget';
 import compactionInstructionTemplate from './compaction-instruction.md?raw';
@@ -49,6 +50,7 @@ import type {
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
+  resolveCompactionBlockRatio,
   type CompactionStrategy,
 } from './strategy';
 import {
@@ -60,6 +62,7 @@ import {
   mergeCompactionQualityResults,
   validateInitialCompactionSummary,
   validateRenderedCompactionSummary,
+  CompactionQualityTracker,
   type CompactionQualityResult,
 } from './quality';
 import {
@@ -79,10 +82,16 @@ import {
   mergeIntoAnchor,
   renderAnchor,
 } from './anchor';
+import { buildEmergencyBackstopSummary } from './backstop';
 import { buildCompactionSummaryText } from './handoff';
+import {
+  extractSwarmRunsFromMessages,
+  renderSwarmRunsMemorySection,
+} from './swarm-memory-extract';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
+const COMPACTION_MIN_OUTPUT_TOKENS = 8_192;
 const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 30_000;
 const DEFAULT_PARALLEL_BLOCK_TARGET = 15_000;
 const OVERFLOW_CONTEXT_SAFETY_RATIO = 0.85;
@@ -125,6 +134,7 @@ export class FullCompaction {
   protected extractedFacts: ExtractedFact[] = [];
   protected anchor: AnchorDocument | null = null;
   protected readonly planner = new CompactionPlanner();
+  private readonly qualityTracker = new CompactionQualityTracker();
 
   constructor(
     protected readonly agent: Agent,
@@ -134,6 +144,10 @@ export class FullCompaction {
     const compactionTriggerRatio =
       loopControl?.compactionTriggerRatio ??
       DEFAULT_COMPACTION_CONFIG.triggerRatio;
+    const compactionBlockRatio = resolveCompactionBlockRatio(
+      compactionTriggerRatio,
+      loopControl?.compactionBlockRatio,
+    );
     this.strategy =
       strategy ??
       new DefaultCompactionStrategy(
@@ -141,7 +155,7 @@ export class FullCompaction {
         {
           ...DEFAULT_COMPACTION_CONFIG,
           triggerRatio: compactionTriggerRatio,
-          blockRatio: compactionTriggerRatio,
+          blockRatio: compactionBlockRatio,
           reservedContextSize:
             loopControl?.reservedContextSize ??
             DEFAULT_COMPACTION_CONFIG.reservedContextSize,
@@ -188,7 +202,12 @@ export class FullCompaction {
         'Cannot compact while a turn is active. Wait for it to finish, then retry.',
       );
     }
-    const compactedCount = this.strategy.computeCompactCount(this.agent.context.history, data.source);
+    let compactedCount = this.strategy.computeCompactCount(this.agent.context.history, data.source);
+    if (compactedCount === 0 && data.source === 'manual') {
+      if (this.agent.context.prepareManualCompactionWithOpenToolExchange()) {
+        compactedCount = this.strategy.computeCompactCount(this.agent.context.history, data.source);
+      }
+    }
     if (compactedCount === 0) {
       if (data.source === 'manual') {
         throw new LioraError(ErrorCodes.COMPACTION_UNABLE, 'No prefix that can be compacted in current history.');
@@ -282,6 +301,38 @@ export class FullCompaction {
     );
   }
 
+  private speculativeStepBufferTokens(): number {
+    if (this.strategy instanceof DefaultCompactionStrategy) {
+      return this.strategy.speculativeStepBufferTokens;
+    }
+    return DEFAULT_COMPACTION_CONFIG.speculativeStepBufferTokens;
+  }
+
+  private shouldSpeculativelyCompact(projectedUsedSize: number): boolean {
+    if (this.strategy instanceof DefaultCompactionStrategy) {
+      return this.strategy.shouldSpeculativelyCompact(projectedUsedSize);
+    }
+    return this.strategy.shouldCompact(projectedUsedSize);
+  }
+
+  private recordCompactionQuality(input: {
+    readonly recallEvalScore?: number | undefined;
+    readonly usedEmergencyBackstop: boolean;
+  }): void {
+    const trend = this.qualityTracker.record(input);
+    const qualityTriggerBias =
+      this.strategy instanceof DefaultCompactionStrategy
+        ? this.strategy.applyQualityFeedback(input)
+        : 0;
+    this.agent.telemetry.track('compaction_quality_trend', {
+      sample_count: trend.sampleCount,
+      rolling_average: trend.rollingAverage,
+      low_quality_streak: trend.lowQualityStreak,
+      emergency_backstop_count: trend.emergencyBackstopCount,
+      quality_trigger_bias: qualityTriggerBias,
+    });
+  }
+
   shouldRecoverFromContextOverflow(
     error: unknown,
     estimatedRequestTokens = this.estimateCurrentRequestTokens(),
@@ -324,6 +375,29 @@ export class FullCompaction {
     }
   }
 
+  /**
+   * Speculative compaction before the first step of a turn: project the next
+   * LLM request size plus a typical step buffer and compact early when the next
+   * step would cross the trigger or block threshold.
+   */
+  async prepareForTurn(signal: AbortSignal): Promise<void> {
+    if (this.compacting !== null) {
+      await this.block(signal);
+      return;
+    }
+    const projected = this.estimateCurrentRequestTokens() + this.speculativeStepBufferTokens();
+    if (this.shouldSpeculativelyCompact(projected)) {
+      this.checkAutoCompaction();
+      if (this.compacting !== null) {
+        await this.block(signal);
+        return;
+      }
+    }
+    if (this.strategy.shouldBlock(this.tokenCountWithPending)) {
+      this.canAutoCompact(true);
+    }
+  }
+
   async afterStep(): Promise<void> {
     this.consecutiveOverflowCompactions = 0;
     if (this.strategy.checkAfterStep) {
@@ -334,6 +408,7 @@ export class FullCompaction {
 
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
     if (this.compacting) return true;
+    if (this.shouldDeferAutoCompaction()) return false;
     if (
       this.lastCompactedTokenCount !== null &&
       this.tokenCountWithPending <= this.lastCompactedTokenCount
@@ -342,6 +417,25 @@ export class FullCompaction {
     }
     if (!this.strategy.shouldCompact(this.tokenCountWithPending)) return false;
     return this.beginAutoCompaction(throwOnLimit);
+  }
+
+  private shouldDeferAutoCompaction(): boolean {
+    if (this.agent.ultraSwarmRun !== undefined) return true;
+    return this.agent.subagentHost?.hasActiveForegroundChildren?.() === true;
+  }
+
+  async ensureBelowHandoffThreshold(signal: AbortSignal): Promise<void> {
+    const maxTokens = this.agent.config.modelCapabilities.max_context_tokens;
+    if (maxTokens === undefined || maxTokens <= 0) return;
+    const triggerRatio =
+      this.agent.kimiConfig?.loopControl?.compactionTriggerRatio ??
+      DEFAULT_COMPACTION_CONFIG.triggerRatio;
+    const threshold = Math.floor(maxTokens * triggerRatio);
+    if (this.tokenCountWithPending <= threshold) return;
+    this.checkAutoCompaction(false);
+    if (this.compacting !== null) {
+      await this.block(signal);
+    }
   }
 
   private beginAutoCompaction(throwOnLimit: boolean = true): boolean {
@@ -455,6 +549,8 @@ export class FullCompaction {
         if (result.qualityWarnings !== undefined) {
           finalQualityWarnings.push(...result.qualityWarnings);
         }
+        finalResult.keptUserMessageCount = result.keptUserMessageCount;
+        finalResult.keptHeadUserMessageCount = result.keptHeadUserMessageCount;
 
         if (result.tokensBefore - result.tokensAfter < 1024) break;
         if (!this.strategy.shouldBlock(result.tokensAfter)) break;
@@ -504,69 +600,88 @@ export class FullCompaction {
 
       const model = this.agent.config.model;
       const capability = this.agent.config.modelCapabilities;
-      const maxContextTokens = capability.max_context_tokens;
-      const defaultCompactionCap =
-        maxContextTokens > 0
-          ? Math.min(maxContextTokens, DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS)
-          : undefined;
-      const provider = applyCompletionBudget({
-        provider: this.agent.config.provider,
-        budget: resolveCompletionBudget({
-          maxOutputSize: this.agent.config.maxOutputSize ?? defaultCompactionCap,
-          reservedContextSize: this.agent.kimiConfig?.loopControl?.reservedContextSize,
-        }),
-        capability,
-      });
-
       let summary: string;
       let usage: TokenUsage | null = null;
       let parallelBlockCount = 0;
       let mergeInputTokens: number | undefined;
       let repairAttempted = false;
+      let usedEmergencyBackstop = false;
       let messagesToCompact = originalHistory.slice(0, compactedCount);
       let plan = this.planner.plan(originalHistory, compactedCount);
+      const provider = this.createCompactionProvider(
+        estimateTokensForMessages(messagesToCompact),
+      );
       const compactedTokens = estimateTokensForMessages(messagesToCompact);
 
       const parallelThreshold = this.strategy.parallelBlockThreshold ?? DEFAULT_PARALLEL_BLOCK_THRESHOLD;
       if (compactedTokens > parallelThreshold && messagesToCompact.length > 4) {
         const blocks = this.splitIntoBlocks(messagesToCompact);
         if (blocks.length > 1) {
-          const parallelResult = await this.parallelSummarize(
-            signal,
-            provider,
-            blocks,
-            plan,
-            data.instruction,
-            retryCount,
-          );
-          summary = parallelResult.summary;
-          usage = parallelResult.usage;
-          parallelBlockCount = parallelResult.parallelBlockCount;
-          mergeInputTokens = parallelResult.mergeInputTokens;
+          try {
+            const parallelResult = await this.parallelSummarize(
+              signal,
+              provider,
+              blocks,
+              plan,
+              data.instruction,
+              retryCount,
+            );
+            summary = parallelResult.summary;
+            usage = parallelResult.usage;
+            parallelBlockCount = parallelResult.parallelBlockCount;
+            mergeInputTokens = parallelResult.mergeInputTokens;
+          } catch (error) {
+            if (!isCompactionSummarizerError(error)) throw error;
+            const seqResult = await this.sequentialSummarize(
+              signal,
+              provider,
+              messagesToCompact,
+              plan,
+              this.compactionInstruction(data.instruction, plan),
+              retryCount,
+            );
+            summary = seqResult.summary;
+            usage = seqResult.usage;
+            compactedCount = seqResult.finalCompactedCount;
+            messagesToCompact = originalHistory.slice(0, compactedCount);
+            usedEmergencyBackstop = seqResult.usedEmergencyBackstop;
+          }
         } else {
           const seqResult = await this.sequentialSummarize(
-            signal, provider, messagesToCompact, this.compactionInstruction(data.instruction, plan), retryCount
+            signal,
+            provider,
+            messagesToCompact,
+            plan,
+            this.compactionInstruction(data.instruction, plan),
+            retryCount,
           );
           summary = seqResult.summary;
           usage = seqResult.usage;
           compactedCount = seqResult.finalCompactedCount;
           messagesToCompact = originalHistory.slice(0, compactedCount);
+          usedEmergencyBackstop = seqResult.usedEmergencyBackstop;
         }
       } else {
         const seqResult = await this.sequentialSummarize(
-          signal, provider, messagesToCompact, this.compactionInstruction(data.instruction, plan), retryCount
+          signal,
+          provider,
+          messagesToCompact,
+          plan,
+          this.compactionInstruction(data.instruction, plan),
+          retryCount,
         );
         summary = seqResult.summary;
         usage = seqResult.usage;
         compactedCount = seqResult.finalCompactedCount;
         messagesToCompact = originalHistory.slice(0, compactedCount);
+        usedEmergencyBackstop = seqResult.usedEmergencyBackstop;
       }
 
       plan = this.planner.plan(originalHistory, compactedCount);
 
       const initialQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
       let quality: CompactionQualityResult = initialQuality;
-      if (initialQuality.critical.length > 0) {
+      if (initialQuality.critical.length > 0 && !usedEmergencyBackstop) {
         const repair = await this.repairSummaryForQuality(
           signal,
           provider,
@@ -618,6 +733,13 @@ export class FullCompaction {
         }
       }
 
+      const swarmSection = renderSwarmRunsMemorySection(
+        extractSwarmRunsFromMessages(messagesToCompact),
+      );
+      if (swarmSection.length > 0) {
+        summary = `${summary.trim()}\n\n${swarmSection}`;
+      }
+
       summary = this.renderStructuredV2Summary(summary, plan);
       const contextSummary = buildCompactionSummaryText(summary);
       const summaryTokens = estimateTokens(contextSummary);
@@ -631,9 +753,24 @@ export class FullCompaction {
         tokensAfter,
       );
       quality = mergeCompactionQualityResults(quality, renderedQuality);
-      if (renderedQuality.critical.length > 0) {
+      if (renderedQuality.critical.length > 0 && !usedEmergencyBackstop) {
         throw new CompactionQualityError(renderedQuality.critical);
       }
+
+      const compactionActions = usedEmergencyBackstop
+        ? [
+            ...plan.actions,
+            {
+              type: 'emergency_backstop',
+              reason: 'LLM summarizer failed after retries; applied deterministic extractive snapshot',
+              messageStart: 0,
+              messageEnd: Math.max(0, compactedCount - 1),
+            } satisfies CompactionResultAction,
+          ]
+        : plan.actions;
+      const backstopWarnings = usedEmergencyBackstop
+        ? ['emergency extractive backstop used after LLM summarizer failure']
+        : [];
 
       const resultWithoutContextPack: CompactionResultWithQualityWarnings = {
         summary,
@@ -642,12 +779,15 @@ export class FullCompaction {
         tokensBefore,
         tokensAfter,
         algorithmVersion: plan.algorithmVersion,
-        actions: plan.actions,
+        actions: compactionActions,
         rawRefs: plan.rawRefs,
         summaryTokens,
         retainedTokens,
         compactedTokens: plan.compactedTokens,
-        qualityWarnings: mergeStringLists(plan.qualityWarnings, quality.warnings),
+        qualityWarnings: mergeStringLists(
+          mergeStringLists(plan.qualityWarnings, quality.warnings),
+          backstopWarnings,
+        ),
         qualityWarningCategories:
           quality.warningCategories.length > 0 ? quality.warningCategories : undefined,
         parallelBlockCount: parallelBlockCount > 0 ? parallelBlockCount : undefined,
@@ -682,6 +822,7 @@ export class FullCompaction {
         quality_warning_count: result.qualityWarnings.length,
         quality_warning_categories: qualityWarningCategories.join(','),
         repair_attempted: repairAttempted,
+        emergency_backstop_used: usedEmergencyBackstop,
         merge_input_tokens: mergeInputTokens ?? 0,
         provider_context_management: formatContextManagementCapability(provider),
         context_pack_version: result.contextPack.version,
@@ -717,6 +858,7 @@ export class FullCompaction {
         quality_warning_count: result.qualityWarnings.length,
         quality_warning_category_count: qualityWarningCategories.length,
         repair_attempted: repairAttempted,
+        emergency_backstop_used: usedEmergencyBackstop,
         merge_input_tokens: mergeInputTokens ?? 0,
         provider_context_management: formatContextManagementCapability(provider),
         context_pack_version: result.contextPack.version,
@@ -741,9 +883,13 @@ export class FullCompaction {
         quality_warning_categories: qualityWarningCategories.join(','),
         ...usageTelemetryProperties(usage),
       });
-      this.agent.context.applyCompaction(result);
-      this.lastCompactedTokenCount = result.tokensAfter;
-      return result;
+      this.recordCompactionQuality({
+        recallEvalScore: qualitySignals?.recallEvalScore,
+        usedEmergencyBackstop,
+      });
+      const applied = this.agent.context.applyCompaction(result);
+      this.lastCompactedTokenCount = applied.tokensAfter;
+      return applied;
     } catch (error) {
       if (isAbortError(error)) return;
       this.agent.telemetry.track('compaction_failed', {
@@ -760,13 +906,56 @@ export class FullCompaction {
     }
   }
 
+  private createCompactionProvider(usedContextTokens: number): ChatProvider {
+    const capability = this.agent.config.modelCapabilities;
+    const maxContextTokens = capability.max_context_tokens;
+    const defaultCompactionCap =
+      maxContextTokens > 0
+        ? Math.min(maxContextTokens, DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS)
+        : undefined;
+    const budget = resolveCompletionBudget({
+      maxOutputSize: this.agent.config.maxOutputSize ?? defaultCompactionCap,
+      reservedContextSize: this.agent.kimiConfig?.loopControl?.reservedContextSize,
+    });
+    // Compaction must emit visible summary text. Thinking models can spend the
+    // entire output budget on reasoning alone, which kosong surfaces as
+    // APIEmptyResponseError — the root cause of compaction.failed in production.
+    const withoutThinking = this.agent.config.provider.withThinking('off');
+    let provider = applyCompletionBudget({
+      provider: withoutThinking,
+      budget,
+      capability,
+      usedContextTokens,
+    });
+    if (provider.withMaxCompletionTokens !== undefined) {
+      const configuredCap = computeCompletionBudgetCap({
+        budget: budget ?? { fallback: COMPACTION_MIN_OUTPUT_TOKENS },
+        capability,
+      });
+      provider = provider.withMaxCompletionTokens(
+        Math.max(COMPACTION_MIN_OUTPUT_TOKENS, configuredCap),
+        {
+          usedContextTokens,
+          maxContextTokens,
+        },
+      );
+    }
+    return provider;
+  }
+
   private async sequentialSummarize(
     signal: AbortSignal,
     provider: ChatProvider,
     messagesToCompact: readonly Message[],
+    plan: CompactionPlan,
     instruction: string,
     retryCountRef: { value: number },
-  ): Promise<{ summary: string; usage: TokenUsage | null; finalCompactedCount: number }> {
+  ): Promise<{
+    summary: string;
+    usage: TokenUsage | null;
+    finalCompactedCount: number;
+    usedEmergencyBackstop: boolean;
+  }> {
     const delays = retryBackoffDelays(MAX_COMPACTION_RETRY_ATTEMPTS);
     let compactedCount = messagesToCompact.length;
     let usage: TokenUsage | null = null;
@@ -774,7 +963,7 @@ export class FullCompaction {
     while (true) {
       const currentPrefix = messagesToCompact.slice(0, compactedCount);
       const messages = [
-        ...this.agent.context.project(currentPrefix),
+        ...this.agent.context.project(currentPrefix, { synthesizeMissing: true }),
         createUserMessage(renderPrompt(compactionInstructionTemplate, { customInstruction: instruction })),
       ];
       try {
@@ -790,7 +979,12 @@ export class FullCompaction {
           throw new CompactionTruncatedError();
         }
         usage = response.usage;
-        return { summary: extractCompactionSummary(response), usage, finalCompactedCount: compactedCount };
+        return {
+          summary: extractCompactionSummary(response),
+          usage,
+          finalCompactedCount: compactedCount,
+          usedEmergencyBackstop: false,
+        };
       } catch (error) {
         if (
           error instanceof APIContextOverflowError ||
@@ -798,11 +992,18 @@ export class FullCompaction {
           error instanceof APIEmptyResponseError
         ) {
           compactedCount = this.strategy.reduceCompactOnOverflow(currentPrefix);
-        }
-        else if (!isRetryableGenerateError(error)) {
+        } else if (!isRetryableGenerateError(error)) {
           throw error;
         }
         if (retryCountRef.value + 1 >= MAX_COMPACTION_RETRY_ATTEMPTS) {
+          if (isCompactionSummarizerError(error)) {
+            return {
+              summary: buildEmergencyBackstopSummary(currentPrefix, plan, instruction),
+              usage,
+              finalCompactedCount: compactedCount,
+              usedEmergencyBackstop: true,
+            };
+          }
           throw error;
         }
         await sleepForRetry(delays[retryCountRef.value]!, signal);
@@ -834,7 +1035,7 @@ export class FullCompaction {
     const blockResults = await Promise.all(
       blocks.map(async (block) => {
         const messages = [
-          ...this.agent.context.project(block),
+          ...this.agent.context.project(block, { synthesizeMissing: true }),
           createUserMessage(blockPrompt),
         ];
         const response = await this.agent.generate(
@@ -960,7 +1161,7 @@ export class FullCompaction {
       ),
     });
     const messages = [
-      ...this.agent.context.project(messagesToCompact),
+      ...this.agent.context.project(messagesToCompact, { synthesizeMissing: true }),
       createUserMessage(repairPrompt),
     ];
     const response = await this.agent.generate(
@@ -1178,6 +1379,7 @@ export class FullCompaction {
     const fileItems = mergeStringLists(structuredMemory.filesTouched, factsToDetails(filesTouched));
     const failureItems = mergeStringLists(structuredMemory.failedAttempts, factsToDetails(failures));
     const rawRefItems = mergeStringLists(structuredMemory.rawRefs, plan.rawRefs.map(formatRawRef));
+    const swarmRunItems = mergeStringLists(structuredMemory.swarmRuns, extractSwarmRunLines(summary));
 
     return [
       '# SuperLiora Context Compaction v2 Memory',
@@ -1204,6 +1406,8 @@ export class FullCompaction {
       formatStringList(nextActions),
       'raw_refs:',
       formatStringList(rawRefItems),
+      'swarm_runs:',
+      formatStringList(swarmRunItems),
       '',
       '## Compacted Narrative',
       summary.trim(),
@@ -1270,6 +1474,15 @@ function formatContextManagementCapability(provider: ChatProvider): string {
     capability.thinkingBlockClearing === true ? 'thinking_block_clearing' : undefined,
   ].filter((name): name is string => name !== undefined);
   return names.length === 0 ? 'none' : names.join(',');
+}
+
+function isCompactionSummarizerError(error: unknown): boolean {
+  return (
+    error instanceof APIEmptyResponseError ||
+    error instanceof CompactionTruncatedError ||
+    error instanceof APIContextOverflowError ||
+    error instanceof CompactionQualityError
+  );
 }
 
 function createCompactionRecallMemories(result: CompletedCompactionResult): readonly MemoryCreateInput[] {
@@ -1390,6 +1603,24 @@ function formatStringList(items: readonly string[]): string {
 
 function factsToDetails(facts: readonly ExtractedFact[]): readonly string[] {
   return facts.map((fact) => fact.detail);
+}
+
+function extractSwarmRunLines(summary: string): readonly string[] {
+  const lines = summary.split('\n');
+  const result: string[] = [];
+  let inSection = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^swarm_runs:/i.test(trimmed)) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && /^[a-z_]+:/i.test(trimmed) && !trimmed.startsWith('-')) break;
+    if (!inSection) continue;
+    const item = trimmed.replace(/^[-*]\s+/, '').trim();
+    if (item.length > 0) result.push(item);
+  }
+  return result;
 }
 
 function mergeStringLists(

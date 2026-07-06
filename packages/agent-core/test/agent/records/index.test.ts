@@ -423,12 +423,14 @@ describe('agent replay range build', () => {
       expect.objectContaining({
         type: 'compaction',
         instruction: 'keep facts',
-        result: {
+        result: expect.objectContaining({
           summary: 'Compacted summary.',
+          contextSummary: 'Compacted summary.',
           compactedCount: 0,
           tokensBefore: 10,
           tokensAfter: 3,
-        },
+          keptUserMessageCount: 0,
+        }),
       }),
     ]);
   });

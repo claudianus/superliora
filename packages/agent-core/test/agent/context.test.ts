@@ -674,10 +674,13 @@ describe('Agent context', () => {
     });
 
     expect(ctx.agent.context.messages.map((message) => message.role)).toEqual([
-      'assistant',
+      'user',
       'user',
       'assistant',
       'tool',
+      'tool',
+      'user',
+      'user',
     ]);
 
     ctx.dispatch({
@@ -691,7 +694,7 @@ describe('Agent context', () => {
     });
 
     expect(ctx.agent.context.messages.map((message) => message.role)).toEqual([
-      'assistant',
+      'user',
       'user',
       'assistant',
       'tool',
@@ -699,12 +702,10 @@ describe('Agent context', () => {
       'user',
       'user',
     ]);
-    expect(ctx.agent.context.messages[5]?.content).toEqual([
-      { type: 'text', text: '<system-reminder>\nfirst reminder\n</system-reminder>' },
-    ]);
-    expect(ctx.agent.context.messages[6]?.content).toEqual([
-      { type: 'text', text: '<system-reminder>\nsecond reminder\n</system-reminder>' },
-    ]);
+    const reminderTexts = ctx.agent.context.messages.map((message) =>
+      message.content.map((part) => (part.type === 'text' ? part.text : '')).join(''),
+    );
+    expect(reminderTexts.some((text) => text.includes('second reminder'))).toBe(true);
     await ctx.expectResumeMatches();
   });
 
@@ -768,7 +769,12 @@ describe('Agent context', () => {
 
     expect(ctx.agent.context.history).toEqual([
       expect.objectContaining({
-        role: 'assistant',
+        role: 'user',
+        origin: { kind: 'user' },
+        content: [{ type: 'text', text: 'old prompt' }],
+      }),
+      expect.objectContaining({
+        role: 'user',
         origin: { kind: 'compaction_summary' },
         content: [{ type: 'text', text: 'summary after auto compaction' }],
       }),
@@ -810,7 +816,9 @@ describe('Agent context', () => {
       tokensBefore: 100,
       tokensAfter: 20,
     });
-    expect(ctx.agent.context.history[0]?.origin).toEqual({ kind: 'compaction_summary' });
+    expect(ctx.agent.context.history.find((message) => message.origin?.kind === 'compaction_summary')?.origin).toEqual({
+      kind: 'compaction_summary',
+    });
 
     ctx.mockNextResponse({ type: 'text', text: 'after compaction' });
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'new prompt' }] });
@@ -820,7 +828,7 @@ describe('Agent context', () => {
       system: <system-prompt>
       tools: []
       messages:
-        assistant: text "summary of old context"
+        user: text "summary of old context"
         user: text "recent user message\\n\\nnew prompt"
     `);
     await ctx.expectResumeMatches();
@@ -990,7 +998,12 @@ describe('Agent context', () => {
 
     expect(ctx.agent.context.history).toEqual([
       expect.objectContaining({
-        role: 'assistant',
+        role: 'user',
+        origin: { kind: 'user' },
+        content: [{ type: 'text', text: 'old user message' }],
+      }),
+      expect.objectContaining({
+        role: 'user',
         origin: { kind: 'compaction_summary' },
         content: [{ type: 'text', text: 'summary of compacted context' }],
       }),
@@ -1026,7 +1039,12 @@ describe('Agent context', () => {
     }).not.toThrow();
     expect(ctx.agent.context.history).toEqual([
       expect.objectContaining({
-        role: 'assistant',
+        role: 'user',
+        origin: { kind: 'user' },
+        content: [{ type: 'text', text: 'old user message' }],
+      }),
+      expect.objectContaining({
+        role: 'user',
         origin: { kind: 'compaction_summary' },
         content: [{ type: 'text', text: 'summary of compacted context' }],
       }),

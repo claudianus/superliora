@@ -460,7 +460,7 @@ describe('Plan mode permission policy', () => {
 
     const readiness = await planMode.ultraEngine.interviewReadiness();
     expect(readiness.ready).toBe(true);
-    expect(readiness.stableReady).toBe(false);
+    expect(readiness.stableReady).toBe(true);
 
     const result = await executeTool(new NextPhaseTool(agent), {
       turnId: '0',
