@@ -587,11 +587,16 @@ export class UltraPlanModeEngine {
 
   getPerspectiveDescription(): string {
     const descriptions: Record<InterviewPerspective, string> = {
-      researcher: 'Explore the problem space broadly. Ask about background, context, and what has been tried before.',
-      simplifier: 'Reduce complexity. Challenge assumptions and ask what can be removed or simplified.',
-      architect: 'Think about structure and design. Ask about components, interfaces, and technical decisions.',
-      'breadth-keeper': 'Ensure nothing is missed. Ask about edge cases, non-goals, and scope boundaries.',
-      'seed-closer': 'Focus on precision and closure. Ask for specific, measurable criteria and final details.',
+      researcher:
+        'Explore industry and technical context. Surface benchmarks, best practices, and opportunities the user may not know exist.',
+      simplifier:
+        'Contrast MVP vs premium scope. Show what to cut vs what unlocks disproportionate value with modest extra effort.',
+      architect:
+        'Propose structural and pattern improvements. Focus on interfaces, maintainability, and long-term design quality.',
+      'breadth-keeper':
+        'Balance stretch goals vs non-goals. Catch missed quality dimensions, edge cases, and expansion opportunities.',
+      'seed-closer':
+        'Lock the elevated UltraGoal into measurable acceptance criteria and a verifiable completion test.',
     };
     return descriptions[this._currentPerspective];
   }

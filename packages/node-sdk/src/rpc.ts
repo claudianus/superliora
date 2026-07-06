@@ -111,6 +111,10 @@ export interface SetSessionPermissionRpcInput extends SessionIdRpcInput {
   readonly mode: PermissionMode;
 }
 
+export interface SetSessionPremiumQualityRpcInput extends SessionIdRpcInput {
+  readonly enabled: boolean;
+}
+
 export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
   readonly ultra?: boolean;
@@ -420,6 +424,15 @@ export abstract class SDKRpcClientBase {
     });
   }
 
+  async setPremiumQuality(input: SetSessionPremiumQualityRpcInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.setPremiumQuality({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      enabled: input.enabled,
+    });
+  }
+
   async setPlanMode(input: SetSessionPlanModeRpcInput): Promise<void> {
     const rpc = await this.getRpc();
     if (!input.enabled) {
@@ -534,7 +547,7 @@ export abstract class SDKRpcClientBase {
   async getStatus(input: SessionIdRpcInput): Promise<SessionStatus> {
     const rpc = await this.getRpc();
     const agentId = this.interactiveAgentId;
-    const [config, context, permission, plan, swarmMode, usage, providerRouteStatus] =
+    const [config, context, permission, plan, swarmMode, premiumQualityMode, usage, providerRouteStatus] =
       await Promise.all([
         rpc.getConfig({
           sessionId: input.sessionId,
@@ -553,6 +566,10 @@ export abstract class SDKRpcClientBase {
           agentId,
         }),
         rpc.getSwarmMode({
+          sessionId: input.sessionId,
+          agentId,
+        }),
+        rpc.getPremiumQuality({
           sessionId: input.sessionId,
           agentId,
         }),
@@ -576,6 +593,7 @@ export abstract class SDKRpcClientBase {
       permission: permission.mode,
       planMode: plan !== null,
       swarmMode,
+      premiumQualityMode,
       contextTokens,
       maxContextTokens,
       contextUsage,

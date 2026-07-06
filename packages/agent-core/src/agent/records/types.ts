@@ -139,6 +139,9 @@ export interface AgentRecordEvents {
   'ultrawork.mode': {
     enabled: boolean;
   };
+  'premium-quality.mode': {
+    enabled: boolean;
+  };
 }
 
 export type AgentRecord = {

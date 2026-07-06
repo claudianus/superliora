@@ -56,6 +56,7 @@ export interface StatusReportOptions {
   readonly permissionMode: PermissionMode;
   readonly planMode: boolean;
   readonly ultraworkMode?: boolean;
+  readonly premiumQualityMode?: boolean;
   readonly swarmMode?: boolean;
   readonly goalStatus?: StatusGoalStatus;
   readonly contextUsage: number;
@@ -189,6 +190,12 @@ function formatUltraworkFlow(options: StatusReportOptions): FieldRow {
     label: 'Flow',
     value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 ready to run`,
   };
+}
+
+function formatPremiumQualityStatus(options: StatusReportOptions): string {
+  const enabled =
+    options.status?.premiumQualityMode ?? options.premiumQualityMode === true;
+  return enabled ? 'mode on' : 'mode off';
 }
 
 function formatUltraworkStatus(options: StatusReportOptions): string {
@@ -486,6 +493,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     { label: 'Directory', value: options.workDir },
     { label: 'Permissions', value: permission },
     { label: 'Ultrawork', value: formatUltraworkStatus(options) },
+    { label: 'Premium', value: formatPremiumQualityStatus(options) },
     { label: 'Session', value: sessionId },
   ];
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {

@@ -259,6 +259,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'premium',
+    aliases: ['pq'],
+    description: 'Toggle Premium Quality mode (multi-lens quality elevation)',
+    priority: 100,
+    argumentHint: '[on|off|status]',
+    availability: 'always',
+  },
+  {
     name: 'plan',
     aliases: [],
     description: 'Advanced steering for UltraPlan; Ultrawork auto-enables it',

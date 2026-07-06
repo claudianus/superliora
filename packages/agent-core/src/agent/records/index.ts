@@ -151,6 +151,9 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'ultrawork.mode':
       agent.ultrawork.restoreMode(input);
       return;
+    case 'premium-quality.mode':
+      agent.premiumQuality.restoreMode(input);
+      return;
   }
 }
 

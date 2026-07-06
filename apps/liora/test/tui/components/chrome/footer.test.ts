@@ -44,6 +44,12 @@ describe('FooterComponent', () => {
     chalk.level = previousChalkLevel;
   });
 
+  it('renders the premium badge when premium quality mode is on', () => {
+    const footer = new FooterComponent({ ...appState, premiumQualityMode: true });
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).toContain('premium');
+  });
+
   it('renders the model name in the footer', () => {
     const footer = new FooterComponent(appState);
 

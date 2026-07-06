@@ -275,6 +275,12 @@ function suggestNextActions(
             ? `Continue the UltraPlan interview from round ${String(round + 1)}; do not restart discovery.`
             : 'Continue the UltraPlan interview from the current evidence pack.',
         );
+        actions.push(
+          'Before the next AskUserQuestion, use read-only WebSearch, FetchURL, and codebase read tools when needed so options stay evidence-backed.',
+        );
+        actions.push(
+          'Continue elevating the goal: teach brief insights and offer Baseline + Upgrade choices — not only gap-filling questions.',
+        );
         break;
       }
       case 'design':

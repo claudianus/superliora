@@ -55,6 +55,7 @@ function makeHost(
     tryAutoResumeUltrawork: vi.fn(async () => null),
     cancelUltrawork: vi.fn(async () => null),
     setPlanMode: vi.fn(async () => {}),
+    setPremiumQuality: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
     setSwarmMode: vi.fn(async () => {}),
   };
@@ -309,9 +310,13 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('second-pass rewrite or deterministic cleanup');
     expect(prompt).toContain('reread the result for changed meaning');
     expect(prompt).toContain('use read-only research tools plus TodoList for progress tracking and NextPhase');
-    expect(prompt).toContain('use only AskUserQuestion or NextPhase');
+    expect(prompt).toContain('Premium Quality (default ON in Ultrawork)');
+    expect(prompt).toContain('act as an expert leader');
+    expect(prompt).toContain('Baseline + Upgrade choices');
+    expect(prompt).toContain('Collect improvement levers');
+    expect(prompt).toContain('use read-only WebSearch, FetchURL, and codebase read tools before each AskUserQuestion');
     expect(prompt).toContain('If AskUserQuestion is unavailable or rejected by policy');
-    expect(prompt).toContain('Base discrete options on research evidence when possible');
+    expect(prompt).toContain('Baseline (original scope), 1-3 Upgrades');
     expect(prompt).toContain('omit options for open-ended answers');
     expect(prompt).toContain('Do not cap the interview by an arbitrary question count');
     expect(prompt).toContain('continue the same Ultrawork turn toward a complete plan');
@@ -411,7 +416,12 @@ describe('handleUltraworkCommand', () => {
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
-    expect(host.setAppState).toHaveBeenCalledWith({ planMode: true, ultraworkMode: true });
+    expect(host.setAppState).toHaveBeenCalledWith({
+      planMode: true,
+      ultraworkMode: true,
+      premiumQualityMode: true,
+    });
+    expect(session.setPremiumQuality).toHaveBeenCalledWith(true);
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(session.createUltraworkRun).toHaveBeenCalled();
     expect(host.setAppState).toHaveBeenCalledWith({
@@ -550,7 +560,12 @@ describe('handleUltraworkCommand', () => {
     expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
     expect(session.setPlanMode).toHaveBeenLastCalledWith(true, true, 'Ship feature X');
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(host.setAppState).toHaveBeenCalledWith({ planMode: true, ultraworkMode: true });
+    expect(host.setAppState).toHaveBeenCalledWith({
+      planMode: true,
+      ultraworkMode: true,
+      premiumQualityMode: true,
+    });
+    expect(session.setPremiumQuality).toHaveBeenCalledWith(true);
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
       expect.stringContaining('<ultrawork_flow>'),

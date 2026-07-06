@@ -131,6 +131,7 @@ import type {
   SetPermissionPayload,
   SetPluginEnabledPayload,
   SetPluginMcpServerEnabledPayload,
+  SetPremiumQualityPayload,
   SetThinkingPayload,
   SkillSearchResult,
   SkillSummary,
@@ -752,6 +753,14 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
   getSwarmMode({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getSwarmMode(payload);
+  }
+
+  setPremiumQuality({ sessionId, ...payload }: SessionAgentPayload<SetPremiumQualityPayload>) {
+    return this.sessionApi(sessionId).setPremiumQuality(payload);
+  }
+
+  getPremiumQuality({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).getPremiumQuality(payload);
   }
 
   beginCompaction({ sessionId, ...payload }: SessionAgentPayload<BeginCompactionPayload>) {

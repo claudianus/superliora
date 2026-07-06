@@ -292,6 +292,9 @@ export interface CancelPayload {
   readonly turnId?: number;
   readonly source?: TurnCancelSource;
 }
+export interface SetPremiumQualityPayload {
+  readonly enabled: boolean;
+}
 export interface SetThinkingPayload {
   readonly level: string;
 }
@@ -551,6 +554,8 @@ export interface AgentAPI {
   enterSwarm: (payload: EnterSwarmPayload) => void;
   exitSwarm: (payload: EmptyPayload) => void;
   getSwarmMode: (payload: EmptyPayload) => boolean;
+  setPremiumQuality: (payload: SetPremiumQualityPayload) => void;
+  getPremiumQuality: (payload: EmptyPayload) => boolean;
   beginCompaction: (payload: BeginCompactionPayload) => void;
   cancelCompaction: (payload: EmptyPayload) => void;
   registerTool: (payload: RegisterToolPayload) => void;

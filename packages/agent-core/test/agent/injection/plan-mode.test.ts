@@ -27,6 +27,15 @@ function planAgent(stub: PlanModeStub): Agent {
       get phase() {
         return stub.phase ?? 'interview';
       },
+      ultraEngine: {
+        interviewState: { rounds: [] },
+        currentPerspective: 'architect',
+        getPerspectiveDescription: () =>
+          'Propose structural and pattern improvements. Focus on interfaces, maintainability, and long-term design quality.',
+      },
+    },
+    ultrawork: {
+      getRun: () => null,
     },
     context: {
       history,
@@ -115,7 +124,7 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('Research Phase');
-    expect(text).toContain('gather current, source-backed context before the UltraPlan interview creates question options');
+    expect(text).toContain('improvement levers');
     expect(text).toContain('AskUserQuestion');
     expect(text).toContain('BLOCKED');
     expect(text).toContain("call NextPhase({ phase: 'interview' })");
@@ -133,11 +142,21 @@ describe('PlanModeInjector content', () => {
     await injector.inject();
 
     const text = lastReminder(agent);
+    expect(text).toContain('interview quality drives plan quality');
+    expect(text).toContain('expert leader who teaches');
+    expect(text).toContain('unknown-unknowns');
+    expect(text).toContain('Baseline (original scope)');
     expect(text).toContain('UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail');
     expect(text).toContain('NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass');
     expect(text).toContain('no required gaps remain, and the UltraGoal is verifiable');
-    expect(text).toContain('Ask 1-3 focused questions per AskUserQuestion call');
+    expect(text).toContain('Option shape: Baseline');
+    expect(text).toContain('research-first is strongly encouraged');
+    expect(text).toContain('WebSearch/FetchURL for external facts');
+    expect(text).toContain('Perspective: architect');
+    expect(text).not.toContain('{{perspective}}');
+    expect(text).toContain('long-term design quality');
     expect(text).toContain('Your turn MUST end with AskUserQuestion or NextPhase');
+    expect(text).toContain('Read-only research in the same turn is allowed and encouraged');
     expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');
     expect(text).toContain('Do not advance just because the task feels actionable');
   });

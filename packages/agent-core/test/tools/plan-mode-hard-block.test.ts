@@ -352,7 +352,7 @@ describe('Plan mode permission policy', () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from research phase to interview phase');
-    expect(result.output).toContain('Use AskUserQuestion');
+    expect(result.output).toContain('expert leader');
     expect(planMode.phase).toBe('interview');
   });
 
@@ -580,6 +580,27 @@ describe('Plan mode permission policy', () => {
 
     expect(deny.message ?? '').toContain('call NextPhase');
     expect(deny.message ?? '').not.toContain('at least 3 interview rounds');
+  });
+
+  it('allows read-only research tools during Ultra Plan interview', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+
+    expect(evaluatePlanPolicy(agent, 'WebSearch', { query: 'current library best practices' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com/docs' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'Read', { path: '/workspace/src/main.ts' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'Grep', { pattern: 'interview', path: '/workspace' })).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'LioraContext', { query: 'ultra plan interview' })).toBeUndefined();
+  });
+
+  it('blocks mutating tools during Ultra Plan interview', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+
+    const deny = expectDeny(evaluatePlanPolicy(agent, 'Write', { path: '/workspace/plan.md', content: '# Plan' }));
+
+    expect(deny.message ?? '').toContain('Interview phase');
+    expect(deny.message ?? '').toContain('read-only research tools');
   });
 
   it('explains that EnterPlanMode is not a phase transition tool in ultra interview', async () => {

@@ -212,6 +212,9 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (state.ultraworkMode) {
     return 'Workflow interview -> goal -> research -> swarm decision -> integrate -> verify -> learn';
   }
+  if (state.premiumQualityMode) {
+    return 'Premium Quality ON — elevate visuals, UX, code, and evidence continuously';
+  }
   if (state.streamingPhase !== 'idle') return null;
   if (git?.dirty === true) return 'next: review changes';
   return 'next: Shift-Tab toggles Ultrawork/off, or type normally';
@@ -314,6 +317,9 @@ export class FooterComponent implements Component {
     }
     if (state.swarmMode) {
       modes.push(renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance));
+    }
+    if (state.premiumQualityMode) {
+      modes.push(renderAnimatedGradientText('premium', 'footer:premium', appearance));
     }
     if (modes.length > 0) left.push(modes.join(' '));
 

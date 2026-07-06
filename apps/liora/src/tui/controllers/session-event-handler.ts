@@ -689,6 +689,9 @@ export class SessionEventHandler {
       patch.planMode = event.planMode;
     }
     if (event.swarmMode !== undefined) patch.swarmMode = event.swarmMode;
+    if (event.premiumQualityMode !== undefined) {
+      patch.premiumQualityMode = event.premiumQualityMode;
+    }
     if (event.permission !== undefined) {
       patch.permissionMode = event.permission;
     }

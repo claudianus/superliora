@@ -562,6 +562,26 @@ describe('UltraPlanModeEngine', () => {
     });
   });
 
+  describe('Interview perspectives', () => {
+    it('describes each interview lens as an expert-leader improvement angle', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      const lenses: Array<{ perspective: string; fragment: string }> = [
+        { perspective: 'researcher', fragment: 'benchmarks' },
+        { perspective: 'simplifier', fragment: 'MVP vs premium' },
+        { perspective: 'architect', fragment: 'maintainability' },
+        { perspective: 'breadth-keeper', fragment: 'stretch goals' },
+        { perspective: 'seed-closer', fragment: 'measurable acceptance criteria' },
+      ];
+
+      for (const { perspective, fragment } of lenses) {
+        while (engine.currentPerspective !== perspective) {
+          engine.advancePerspective();
+        }
+        expect(engine.getPerspectiveDescription()).toContain(fragment);
+      }
+    });
+  });
+
   describe('Lateral Thinking', () => {
     it('should generate lateral thinking for each persona', () => {
       const engine = new UltraPlanModeEngine(mockAgent);

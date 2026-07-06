@@ -45,6 +45,7 @@ import { handleMemoryCommand } from './memory';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
 import { handlePreflightCommand } from './preflight';
+import { applyPremiumQuality, handlePremiumQualityCommand } from './premium';
 import { handleProviderCommand } from './provider';
 import {
   handleRendererCommand,
@@ -361,6 +362,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'auto':
       await handleAutoCommand(host, args);
+      return;
+    case 'premium':
+      await handlePremiumQualityCommand(host, args);
       return;
     case 'plan':
       await handlePlanCommand(host, args);

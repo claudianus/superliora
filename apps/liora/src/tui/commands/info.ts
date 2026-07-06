@@ -81,6 +81,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     permissionMode: appState.permissionMode,
     planMode: appState.planMode,
     ultraworkMode: appState.ultraworkMode,
+    premiumQualityMode: appState.premiumQualityMode,
     swarmMode: appState.swarmMode,
     goalStatus: appState.goal?.status,
     contextUsage: appState.contextUsage,

@@ -8,6 +8,7 @@ import { MemoryInjector } from './memory';
 import { PermissionModeInjector } from './permission-mode';
 import { PluginSessionStartInjector } from './plugin-session-start';
 import { PlanModeInjector } from './plan-mode';
+import { PremiumQualityInjector } from './premium-quality';
 import { ResponseLanguageInjector } from './response-language';
 import { TodoListReminderInjector } from './todo-list';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph';
@@ -32,6 +33,7 @@ export class InjectionManager {
       new ContextOSInjector(agent),
       new TodoListReminderInjector(agent),
       new PlanModeInjector(agent),
+      new PremiumQualityInjector(agent),
       new PermissionModeInjector(agent),
       new ResponseLanguageInjector(agent),
     ];

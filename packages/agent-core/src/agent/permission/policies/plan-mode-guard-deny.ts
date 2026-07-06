@@ -5,8 +5,8 @@ import { writeFileAccesses } from './file-access-ask';
 
 /**
  * Tools that are inherently read-only — they never mutate files, runstate,
- * or scheduled work.  In Ultra Plan read-only phases (research, design,
- * review) these are always allowed without per-phase enumeration.
+ * or scheduled work.  In Ultra Plan read-only phases (research, interview,
+ * design, review) these are always allowed without per-phase enumeration.
  *
  * When a new read-only tool is added to the codebase, add its name here and
  * it is automatically permitted in every read-only phase.  This replaces the
@@ -135,6 +135,15 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           return;
         }
         if (toolName === 'NextPhase') return;
+        if (isReadOnlyTool(toolName)) return;
+        if (toolName === 'Bash') {
+          if (isNarrowReadOnlyBash(context) || isReadOnlyReviewBash(context)) return;
+          return {
+            kind: 'deny',
+            message:
+              'Bash is blocked in Interview phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use WebSearch, FetchURL, Read, Grep, Glob, LioraContext, SearchSkill, Skill, SearchExpert, TodoList, AskUserQuestion, or NextPhase.',
+          };
+        }
         if (toolName === 'EnterPlanMode') {
           return {
             kind: 'deny',
@@ -150,7 +159,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Interview phase. Only AskUserQuestion and NextPhase are allowed. NextPhase will remain blocked until the UltraGoal is true/false verifiable and required Seed gaps are closed.`,
+          message: `${toolName} is blocked in Interview phase. Use read-only research tools to sharpen the next question, then AskUserQuestion or NextPhase. NextPhase will remain blocked until the UltraGoal is true/false verifiable and required Seed gaps are closed.`,
         };
       }
       case 'design': {

@@ -40,6 +40,7 @@ import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
 import { UltraworkMode } from '../ultrawork';
+import { PremiumQualityMode } from '../premium-quality';
 import { reconcileUltraworkFromMirror } from '../ultrawork/mirror-reconcile';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
@@ -158,6 +159,7 @@ export class Agent {
   readonly cron: CronManager | null;
   readonly goal: GoalMode;
   readonly ultrawork: UltraworkMode;
+  readonly premiumQuality: PremiumQualityMode;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
 
@@ -230,6 +232,7 @@ export class Agent {
     this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.goal = new GoalMode(this);
     this.ultrawork = new UltraworkMode(this);
+    this.premiumQuality = new PremiumQualityMode(this);
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
   }
@@ -450,6 +453,12 @@ export class Agent {
       getSwarmMode: () => {
         return this.swarmMode.isActive;
       },
+      setPremiumQuality: (payload) => {
+        this.premiumQuality.setEnabled(payload.enabled);
+      },
+      getPremiumQuality: () => {
+        return this.premiumQuality.isEnabled();
+      },
       beginCompaction: (payload) => {
         this.fullCompaction.begin({ source: 'manual', instruction: payload.instruction });
       },
@@ -596,6 +605,7 @@ export class Agent {
       contextUsage,
       planMode: this.planMode.isActive,
       swarmMode: this.swarmMode.isActive,
+      premiumQualityMode: this.premiumQuality.isEnabled(),
       permission: this.permission.mode,
       usage,
       providerRoute,

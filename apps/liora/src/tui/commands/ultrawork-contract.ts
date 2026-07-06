@@ -179,6 +179,13 @@ const ULTRAWORK_XP_DOD_GUIDANCE = [
   '- Do not claim completion until relevant tests pass, available/applicable typecheck/lint/build gates are accounted for, no unrelated files are changed, and public behavior is covered by tests unless the change is cosmetic or docs-only.',
   '- Summarize changed files, behavior, verification results, and remaining risks before finishing.',
 ].join('\n');
+const ULTRAWORK_PREMIUM_QUALITY_GUIDANCE = [
+  'Premium Quality (default ON in Ultrawork):',
+  '- Treat quality elevation as continuous — visuals, UX, microcopy, code structure, performance, accessibility, security, and verification evidence.',
+  '- Rotate quality lenses every meaningful step; do not stop at minimum viable output while premium gaps remain.',
+  '- Use research, rubrics, chain-of-verification, and real-surface evidence before claiming done.',
+  '- Push relentlessly toward the best defensible outcome while preserving user agency on scope trade-offs.',
+].join('\n');
 const ULTRAWORK_HUMAN_WRITING_GUIDANCE = [
   'Human Writing / Anti-Slop:',
   '- Treat no-AI-slop writing as a harness-level output quality gate for user-facing prose: final answers, docs, PR text, changelogs, TUI copy, and benchmark reports.',
@@ -313,12 +320,13 @@ export function buildUltraworkPrompt(
     `- ${ULTRAWORK_BENCH_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_EXPERT_COVERAGE_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_XP_DOD_GUIDANCE.replaceAll('\n', '\n  ')}`,
+    `- ${ULTRAWORK_PREMIUM_QUALITY_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_HUMAN_WRITING_GUIDANCE.replaceAll('\n', '\n  ')}`,
-    '- Interview the user when the future UltraGoal cannot yet be judged true or false, or when a missing decision blocks correctness; otherwise record the safe assumption in the plan.',
-    '- During the Ultra Plan research phase, use read-only research tools plus TodoList for progress tracking and NextPhase. Do not call AskUserQuestion until the research prelude has produced a compact evidence pack and advanced to Interview.',
-    '- During the Ultra Plan interview phase, use only AskUserQuestion or NextPhase; do not call search, read, edit, or shell tools while interviewing.',
+    '- Interview the user when the future UltraGoal cannot yet be judged true or false, when a missing decision blocks correctness, or when evidence-backed upgrade paths would materially improve the plan; otherwise record the safe assumption in the plan.',
+    '- During the Ultra Plan research phase, use read-only research tools plus TodoList for progress tracking and NextPhase. Collect improvement levers (best practices, benchmarks, quality dimensions) for interview options. Do not call AskUserQuestion until the research prelude has produced a compact evidence pack and advanced to Interview.',
+    '- During the Ultra Plan interview phase, act as an expert leader: teach a brief insight, propose Baseline + Upgrade choices with clear payoffs and trade-offs, and use read-only WebSearch, FetchURL, and codebase read tools before each AskUserQuestion when needed. End each turn with AskUserQuestion or NextPhase. Do not edit files or run mutating shell while interviewing.',
     '- If AskUserQuestion is unavailable or rejected by policy, do not fabricate closure; write the unresolved gap into the plan and keep NextPhase blocked until the goal is verifiable.',
-    '- When using AskUserQuestion, ask 1-3 focused questions. Base discrete options on research evidence when possible; prefer 2-4 options for real choices, and omit options for open-ended answers instead of inventing choices.',
+    '- When using AskUserQuestion, ask 1-3 focused questions. Lead with a short insight when helpful. Base discrete options on research evidence: Baseline (original scope), 1-3 Upgrades (payoff + trade-off), and Defer/minimal when relevant. Prefer 2-4 options for real choices, and omit options for open-ended answers instead of inventing choices.',
     '- Do not cap the interview by an arbitrary question count. Continue until the UltraGoal objective, non-goals, acceptance criteria, verification plan, failure modes, and runtime context are resolved or explicitly blocked.',
     '- After an AskUserQuestion response, continue the same Ultrawork turn toward a complete plan; do not implement until the plan is approved and UltraGoal exists.',
     '- After the research prelude evidence pack, call NextPhase({ phase: "interview" }) before asking questions. After the final needed AskUserQuestion response, call NextPhase({ phase: "design" }) before design exploration or plan writing.',

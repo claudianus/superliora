@@ -141,7 +141,16 @@ export async function handleUltraworkModeToggle(
     planMode: enabled,
     ultraworkMode: enabled,
     activityTip: enabled ? ULTRAWORK_ACTIVITY_TIP : null,
+    premiumQualityMode: enabled ? true : host.state.appState.premiumQualityMode,
   });
+  if (enabled) {
+    try {
+      await host.requireSession().setPremiumQuality(true);
+    } catch (error) {
+      host.showError(`Failed to enable Premium Quality mode: ${formatErrorMessage(error)}`);
+      return;
+    }
+  }
   host.showNotice(
     enabled ? 'Ultrawork mode: ON' : 'Ultrawork mode: OFF',
     enabled
@@ -586,7 +595,8 @@ async function prepareUltraworkSetup(
     await resetUltraPlanMode(session, initialContext);
     setup.planChanged = true;
   }
-  host.setAppState({ planMode: true, ultraworkMode: true });
+  host.setAppState({ planMode: true, ultraworkMode: true, premiumQualityMode: true });
+  await session.setPremiumQuality(true);
 }
 
 async function ensureUltraPlanMode(
@@ -716,7 +726,13 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
       host.showError('Ultrawork run cannot be resumed from its current state.');
       return;
     }
-    host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP, ultraworkMode: true, planMode: true });
+    host.setAppState({
+      activityTip: ULTRAWORK_ACTIVITY_TIP,
+      ultraworkMode: true,
+      planMode: true,
+      premiumQualityMode: true,
+    });
+    await session.setPremiumQuality(true);
     host.state.transcriptContainer.addChild(
       new UltraworkModeMarkerComponent('active', current.objective),
     );
@@ -756,7 +772,13 @@ export async function autoResumeUltraworkFromSession(
     const result = await session.tryAutoResumeUltrawork();
     if (result === null) return false;
     const run = result.resumed.run;
-    host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP, ultraworkMode: true, planMode: true });
+    host.setAppState({
+      activityTip: ULTRAWORK_ACTIVITY_TIP,
+      ultraworkMode: true,
+      planMode: true,
+      premiumQualityMode: true,
+    });
+    await session.setPremiumQuality(true);
     host.showNotice(
       'Ultrawork 자동 재개',
       `중단된 실행을 stage ${run.stage}에서 이어갑니다.`,
