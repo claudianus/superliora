@@ -85,6 +85,7 @@ export interface LoopTurnInterruptedEvent {
   readonly attemptedSteps: number;
   readonly activeStep?: number | undefined;
   readonly message?: string | undefined;
+  readonly cancelledByUser?: boolean | undefined;
 }
 
 export interface LoopTextDeltaEvent {

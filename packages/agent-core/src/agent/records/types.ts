@@ -12,6 +12,7 @@ import type { PermissionApprovalResultRecord, PermissionMode } from '../permissi
 import type { UserToolRegistration } from '../tool';
 import type { UsageRecordScope } from '../usage';
 import type { SwarmModeTrigger } from '../swarm';
+import type { TurnCancelSource } from '../../rpc/core-api';
 
 export interface SerializableAgentEvent {
   readonly type: string;
@@ -38,7 +39,7 @@ export interface AgentRecordEvents {
     input: readonly ContentPart[];
     origin: PromptOrigin;
   };
-  'turn.cancel': { turnId?: number };
+  'turn.cancel': { turnId?: number; source?: TurnCancelSource };
 
   'config.update': AgentConfigUpdateData;
 

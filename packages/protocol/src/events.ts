@@ -525,6 +525,7 @@ export interface TurnEndedEvent {
   readonly reason: TurnEndReason;
   readonly error?: LioraErrorPayload;
   readonly durationMs?: number;
+  readonly cancelledByUser?: boolean;
 }
 
 export interface TurnStepStartedEvent {
@@ -573,6 +574,7 @@ export interface TurnStepInterruptedEvent {
   readonly stepId?: string;
   readonly reason: string;
   readonly message?: string;
+  readonly cancelledByUser?: boolean;
 }
 
 export interface AssistantDeltaEvent {
@@ -1299,6 +1301,7 @@ export const turnEndedEventSchema = z.object({
   reason: turnEndReasonSchema,
   error: kimiErrorPayloadSchema.optional(),
   durationMs: z.number().optional(),
+  cancelledByUser: z.boolean().optional(),
 }) satisfies z.ZodType<TurnEndedEvent>;
 
 export const turnStepStartedEventSchema = z.object({
@@ -1347,6 +1350,7 @@ export const turnStepInterruptedEventSchema = z.object({
   stepId: z.string().optional(),
   reason: z.string(),
   message: z.string().optional(),
+  cancelledByUser: z.boolean().optional(),
 }) satisfies z.ZodType<TurnStepInterruptedEvent>;
 
 export const assistantDeltaEventSchema = z.object({

@@ -523,7 +523,7 @@ async function pauseGoal(host: SlashCommandHost): Promise<void> {
   const session = host.requireSession();
   try {
     await session.pauseGoal();
-    if (isStreaming(host)) await session.cancel();
+    if (isStreaming(host)) await session.cancel({ source: 'goal-command' });
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_NOT_FOUND) {
       host.showStatus('No goal to pause.');
@@ -560,7 +560,7 @@ async function cancelGoal(host: SlashCommandHost): Promise<void> {
   const session = host.requireSession();
   try {
     await session.cancelGoal();
-    if (isStreaming(host)) await session.cancel();
+    if (isStreaming(host)) await session.cancel({ source: 'goal-command' });
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_NOT_FOUND) {
       host.showStatus('No goal to cancel.');

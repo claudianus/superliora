@@ -36,6 +36,7 @@ import {
 } from '../../loop/index';
 import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc';
 import type { TelemetryPropertyValue } from '../../telemetry';
+import type { TurnCancelSource } from '../../rpc/core-api';
 import { abortable, isUserCancellation, userCancellationReason } from '../../utils/abort';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../../session/hooks';
@@ -232,18 +233,18 @@ export class TurnFlow {
     this.activeTurn = 'resuming';
   }
 
-  cancel(turnId?: number, reason?: unknown): void {
-    this.agent.records.logRecord({ type: 'turn.cancel', turnId });
+  cancel(turnId?: number, reason?: unknown, source?: TurnCancelSource): void {
+    this.agent.records.logRecord({ type: 'turn.cancel', turnId, source });
     if (turnId !== undefined && turnId !== this.currentId) {
       return; // Ignore cancel for non-active turn
     }
-    // A direct cancel (RPC / replay) is the user pressing stop. When the cancel
-    // is propagated from an aborting signal (e.g. a subagent's deadline via
-    // waitForCurrentTurn), carry that original reason instead so a timeout is
-    // not mislabeled to the model as a deliberate user interruption.
     const cancelReason = reason ?? userCancellationReason();
     this.abortTurn(cancelReason);
     this.agent.subagentHost?.cancelAll(cancelReason);
+    this.agent.telemetry.track('turn_cancel', {
+      source: source ?? (isUserCancellation(cancelReason) ? 'rpc' : 'signal'),
+      user_cancelled: isUserCancellation(cancelReason),
+    });
   }
 
   get currentId() {
@@ -526,11 +527,20 @@ export class TurnFlow {
           turnId,
           reason,
           durationMs: Date.now() - startedAt,
+          ...(reason === 'cancelled'
+            ? { cancelledByUser: isUserCancellation(signal.reason) }
+            : {}),
         };
       }
     } catch (error) {
       if (isAbortError(error)) {
-        ended = { type: 'turn.ended', turnId, reason: 'cancelled', durationMs: Date.now() - startedAt };
+        ended = {
+          type: 'turn.ended',
+          turnId,
+          reason: 'cancelled',
+          durationMs: Date.now() - startedAt,
+          cancelledByUser: isUserCancellation(signal.reason),
+        };
       } else {
         const summary = summarizeTurnError(error, turnId);
         void this.agent.hooks?.fireAndForgetTrigger('StopFailure', {
@@ -1121,6 +1131,7 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         step: event.activeStep,
         reason: event.reason,
         message: event.message,
+        cancelledByUser: event.cancelledByUser,
       };
     case 'text.delta':
       return {

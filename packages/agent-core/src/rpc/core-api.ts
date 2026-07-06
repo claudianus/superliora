@@ -279,8 +279,18 @@ export interface CancelShellCommandPayload {
 export interface SteerPayload {
   readonly input: readonly ContentPart[];
 }
+export type TurnCancelSource =
+  | 'esc'
+  | 'ctrl-c'
+  | 'goal-command'
+  | 'btw-panel'
+  | 'session-close'
+  | 'rpc'
+  | 'replay';
+
 export interface CancelPayload {
   readonly turnId?: number;
+  readonly source?: TurnCancelSource;
 }
 export interface SetThinkingPayload {
   readonly level: string;

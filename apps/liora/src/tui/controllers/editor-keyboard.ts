@@ -114,7 +114,7 @@ export class EditorKeyboardController {
 
         if (this.clearEditorTextIfPresent()) return;
 
-        this.cancelCurrentStream();
+        this.cancelCurrentStream('ctrl-c');
         return;
       }
 
@@ -156,7 +156,7 @@ export class EditorKeyboardController {
         return;
       }
       if (host.state.appState.streamingPhase !== 'idle') {
-        this.cancelCurrentStream();
+        this.cancelCurrentStream('esc');
         this.clearPendingUndoEsc();
         return;
       }
@@ -393,11 +393,11 @@ export class EditorKeyboardController {
     return true;
   }
 
-  private cancelCurrentStream(): void {
+  private cancelCurrentStream(source: 'esc' | 'ctrl-c'): void {
     // Cancel any running `!` shell command (treated as a streaming phase) in
     // addition to the agent turn, so Esc / Ctrl+C interrupts it too.
     this.host.cancelRunningShellCommand();
-    void this.host.session?.cancel();
+    void this.host.session?.cancel({ source });
   }
 
   private cancelCurrentCompaction(): void {

@@ -182,7 +182,7 @@ export class BtwPanelController {
   private async cancelAgent(agentId: string): Promise<void> {
     const session = this.host.session;
     if (session === undefined) return;
-    await this.withInteractiveAgent(agentId, () => session.cancel()).catch((error: unknown) => {
+    await this.withInteractiveAgent(agentId, () => session.cancel({ source: 'btw-panel' })).catch((error: unknown) => {
       this.host.showError(`Failed to cancel /btw: ${formatErrorMessage(error)}`);
     });
   }

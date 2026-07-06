@@ -1683,8 +1683,8 @@ describe('Agent turn flow', () => {
       [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "description": "Running: printf should-not-run", "display": { "kind": "command", "command": "printf should-not-run", "cwd": "<cwd>", "language": "bash" } }
       [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "The user manually interrupted \\"Bash\\" (and anything else running at the same time). This was a deliberate user action, not a system error, timeout, or capacity limit. Do not retry automatically or guess at the cause — wait for the user's next instruction.", "isError": true } }, "time": "<time>" }
       [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "The user manually interrupted \\"Bash\\" (and anything else running at the same time). This was a deliberate user action, not a system error, timeout, or capacity limit. Do not retry automatically or guess at the cause — wait for the user's next instruction.", "isError": true }
-      [emit] turn.step.interrupted       { "turnId": 0, "step": 1, "reason": "aborted" }
-      [emit] turn.ended                  { "turnId": 0, "reason": "cancelled" }
+      [emit] turn.step.interrupted       { "turnId": 0, "step": 1, "reason": "aborted", "cancelledByUser": true }
+      [emit] turn.ended                  { "turnId": 0, "reason": "cancelled", "cancelledByUser": true }
     `);
     expect(records).toContainEqual({
       event: 'tool_call',
@@ -1813,8 +1813,8 @@ describe('Agent turn flow', () => {
       [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "description": "Running: printf should-not-run", "display": { "kind": "command", "command": "printf should-not-run", "cwd": "<cwd>", "language": "bash" } }
       [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "The user manually interrupted \\"Bash\\" (and anything else running at the same time). This was a deliberate user action, not a system error, timeout, or capacity limit. Do not retry automatically or guess at the cause — wait for the user's next instruction.", "isError": true } }, "time": "<time>" }
       [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "The user manually interrupted \\"Bash\\" (and anything else running at the same time). This was a deliberate user action, not a system error, timeout, or capacity limit. Do not retry automatically or guess at the cause — wait for the user's next instruction.", "isError": true }
-      [emit] turn.step.interrupted       { "turnId": 0, "step": 1, "reason": "aborted" }
-      [emit] turn.ended                  { "turnId": 0, "reason": "cancelled" }
+      [emit] turn.step.interrupted       { "turnId": 0, "step": 1, "reason": "aborted", "cancelledByUser": true }
+      [emit] turn.ended                  { "turnId": 0, "reason": "cancelled", "cancelledByUser": true }
     `);
     await ctx.expectResumeMatches();
   });

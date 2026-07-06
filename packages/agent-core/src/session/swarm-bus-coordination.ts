@@ -291,7 +291,7 @@ export function emitCouncilDecisionFromReview(
     readonly runId: string;
     readonly councilExpertIds: readonly string[];
     readonly verdictSummary: string;
-    readonly decision: 'approve' | 'revise' | 'block';
+    readonly decision: 'approve' | 'revise' | 'block' | 'interrupted';
   },
 ): void {
   parent.emitEvent({

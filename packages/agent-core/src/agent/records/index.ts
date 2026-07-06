@@ -44,7 +44,7 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       agent.turn.restoreSteer(input.input, input.origin);
       return;
     case 'turn.cancel':
-      agent.turn.cancel(input.turnId);
+      agent.turn.cancel(input.turnId, undefined, input.source ?? 'replay');
       return;
     case 'config.update':
       agent.config.update(input);

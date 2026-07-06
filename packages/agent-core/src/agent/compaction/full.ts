@@ -420,7 +420,10 @@ export class FullCompaction {
   }
 
   private shouldDeferAutoCompaction(): boolean {
-    if (this.agent.ultraSwarmRun !== undefined) return true;
+    if (this.agent.ultraSwarmRun !== undefined) {
+      if (this.strategy.shouldBlock(this.tokenCountWithPending)) return false;
+      return true;
+    }
     return this.agent.subagentHost?.hasActiveForegroundChildren?.() === true;
   }
 

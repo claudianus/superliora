@@ -481,8 +481,19 @@ export class SessionEventHandler {
     if (reason === 'error') return;
     if (reason === 'aborted' || reason === undefined || reason === '') {
       this.markActiveAgentSwarmsCancelled();
-      void this.notifyUltraworkInterrupted('Paused after interruption');
-      this.host.showStatus('Interrupted by user', 'error');
+      const userCancelled = event.cancelledByUser === true;
+      const programmaticAbort = event.cancelledByUser === false;
+      void this.notifyUltraworkInterrupted(
+        programmaticAbort ? 'Paused after abort' : 'Paused after interruption',
+      );
+      this.host.showStatus(
+        userCancelled
+          ? 'Interrupted by user'
+          : programmaticAbort
+            ? 'Turn aborted'
+            : 'Turn stopped',
+        'error',
+      );
       return;
     }
     this.host.showError(

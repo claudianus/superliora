@@ -174,7 +174,7 @@ interface UltraSwarmRunResult {
 }
 
 interface UltraSwarmRenderedResult extends UltraSwarmRunResult {
-  readonly verdict: 'PASS' | 'BLOCKED' | 'FAIL';
+  readonly verdict: 'PASS' | 'BLOCKED' | 'FAIL' | 'ABORTED' | 'SKIPPED';
   readonly evidenceIds: readonly string[];
 }
 
@@ -282,6 +282,8 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
         `UltraSwarm supports at most ${String(MAX_ULTRA_SWARM_SUBAGENTS)} experts. Requested: ${String(plan.experts.length)}`,
       );
     }
+
+    await this.agent.fullCompaction.ensureBelowHandoffThreshold(signal);
 
     // Build specs from plan
     const specs: UltraSwarmSpec[] = plan.experts.map((assignment, index) => {
@@ -437,11 +439,11 @@ Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, G
     }
     const rendered = phaseResults.map(withRenderedMetadata);
     if (busEnabled) {
+      const reviewResults = rendered.filter((result) => result.spec.phase === 'review');
       emitCouncilDecisionFromReview(this.agent, {
         runId,
         councilExpertIds: team.councilExpertIds ?? [],
-        verdictSummary: rendered
-          .filter((result) => result.spec.phase === 'review')
+        verdictSummary: reviewResults
           .map((result) => `${result.spec.expertId}=${result.verdict}`)
           .join(', '),
         decision: councilDecisionFromReview(rendered),
@@ -973,7 +975,8 @@ function blockingRequiredResult(
   if (phase !== 'plan' && phase !== 'review') return undefined;
   return results.find((result) =>
     result.spec.requiredForCompletion &&
-    (result.status !== 'completed' || result.verdict !== 'PASS')
+    result.status === 'completed' &&
+    result.verdict !== 'PASS'
   );
 }
 
@@ -1056,8 +1059,14 @@ function augmentTeamPlan(
 
 function councilDecisionFromReview(
   results: readonly UltraSwarmRenderedResult[],
-): 'approve' | 'revise' | 'block' {
+): 'approve' | 'revise' | 'block' | 'interrupted' {
   const reviewResults = results.filter((result) => result.spec.phase === 'review');
+  if (
+    reviewResults.length > 0 &&
+    reviewResults.every((result) => result.verdict === 'ABORTED' || result.verdict === 'SKIPPED')
+  ) {
+    return 'interrupted';
+  }
   if (reviewResults.some((result) => result.verdict === 'FAIL')) return 'block';
   if (reviewResults.some((result) => result.verdict === 'BLOCKED')) return 'revise';
   if (reviewResults.some((result) => result.verdict !== 'PASS')) return 'revise';
@@ -1164,9 +1173,7 @@ function workNodeOutcome(results: readonly UltraSwarmRenderedResult[]): {
 } {
   const evidenceIds = uniqueStrings(results.flatMap((result) => result.evidenceIds));
   const failed = results.some((result) => result.status === 'failed' || result.verdict === 'FAIL');
-  const blocked = results.some(
-    (result) => result.status === 'aborted' || result.verdict === 'BLOCKED',
-  );
+  const blocked = results.some((result) => result.verdict === 'BLOCKED');
   const status: WorkGraphNode['status'] = failed ? 'failed' : blocked ? 'blocked' : 'done';
   const verificationStatus: NonNullable<WorkGraphNode['verificationStatus']> =
     status === 'done' ? 'passed' : status === 'failed' ? 'failed' : 'blocked';
@@ -1290,7 +1297,7 @@ function withRenderedMetadata(result: UltraSwarmRunResult): UltraSwarmRenderedRe
   const text = result.status === 'completed' ? (result.result ?? '') : (result.error ?? '');
   return {
     ...result,
-    verdict: inferVerdict(result.status, text),
+    verdict: inferVerdict(result.status, text, result.state),
     evidenceIds: extractEvidenceIds(text),
   };
 }
@@ -1298,9 +1305,10 @@ function withRenderedMetadata(result: UltraSwarmRunResult): UltraSwarmRenderedRe
 function inferVerdict(
   status: UltraSwarmRunResult['status'],
   text: string,
+  state?: UltraSwarmRunResult['state'],
 ): UltraSwarmRenderedResult['verdict'] {
   if (status === 'failed') return 'FAIL';
-  if (status === 'aborted') return 'BLOCKED';
+  if (status === 'aborted') return state === 'not_started' ? 'SKIPPED' : 'ABORTED';
   const verdictMatch = /\bVERDICT:\s*(PASS|BLOCKED|FAIL)\b/i.exec(text);
   if (verdictMatch?.[1] !== undefined) {
     return verdictMatch[1].toUpperCase() as UltraSwarmRenderedResult['verdict'];
