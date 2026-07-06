@@ -13,7 +13,7 @@ import { TodoListReminderInjector } from './todo-list';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
-  "The conversation was compacted, so the earlier messages that started these background tasks are gone, but the tasks are still running from before. Do not start duplicates. Use TaskOutput to fetch a task's result, TaskList to list them, and TaskStop to cancel one.";
+  'Context was compacted but background tasks still run. Do not start duplicates — TaskOutput for results, TaskList to enumerate, TaskStop to cancel.';
 
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];

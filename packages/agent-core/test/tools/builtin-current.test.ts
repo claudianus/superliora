@@ -126,6 +126,7 @@ function mockUltraSwarmAgent(
   return {
     emitEvent: vi.fn(),
     ultraSwarmEngageGate: { clear: vi.fn() },
+    fullCompaction: { ensureBelowHandoffThreshold: vi.fn().mockResolvedValue(undefined) },
     experimentalFlags: flags,
     telemetry: { track: vi.fn() },
     ultrawork: {
@@ -1377,6 +1378,7 @@ describe('current builtin collaboration tools', () => {
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
       telemetry: { track: vi.fn() },
       ultraSwarmEngageGate: { clear: vi.fn() },
+      fullCompaction: { ensureBelowHandoffThreshold: vi.fn().mockResolvedValue(undefined) },
       ultrawork: {
         attachTeamPlan: vi.fn(),
         getRun: vi.fn(() => null),

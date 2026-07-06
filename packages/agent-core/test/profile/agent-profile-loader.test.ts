@@ -264,8 +264,8 @@ describe('default agent profiles', () => {
 
     expect(first).toContain('You are SuperLiora CLI');
     expect(first).toContain('Skill Runtime');
-    expect(first).toContain('Current Research Discipline');
-    expect(first).toContain('actively use WebSearch and FetchURL throughout the work');
+    expect(first).toContain('## Research');
+    expect(first).toContain('use WebSearch and FetchURL throughout');
     expect(first).toContain('/workspace/one');
     expect(second).toContain('/workspace/two');
     expect(second).not.toContain('/workspace/one');
@@ -277,9 +277,7 @@ describe('default agent profiles', () => {
     const plan = DEFAULT_AGENT_PROFILES['plan']?.systemPrompt(promptContext);
 
     for (const prompt of [coder, explore, plan]) {
-      expect(prompt).toContain('You have WebSearch and FetchURL');
-      expect(prompt).toContain('Unless the parent explicitly forbids internet use');
-      expect(prompt).toContain('open-source implementations');
+      expect(prompt).toContain('Use WebSearch/FetchURL when needed unless the parent forbids internet use');
     }
   });
 });

@@ -72,18 +72,11 @@ const TOOL_CALL_DISABLED_MESSAGE =
   'Tool calls are disabled for side questions. Answer with text only.';
 const SUBAGENT_PROMPT_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'subagent' };
 const SIDE_QUESTION_SYSTEM_REMINDER = `
-This is a side-channel conversation with the user. You should answer user questions directly based on what you already know.
+This is a side-channel conversation with the user. Answer from what you already know.
 
-IMPORTANT:
-- You are a separate, lightweight instance.
-- The main agent continues independently; do not reference being interrupted.
-- Do not call any tools. All tool calls are disabled and will be rejected.
-  Even though tool definitions are visible in this request, they exist only
-  for technical reasons (prompt cache). You must not use them.
-- Respond only with text based on what you already know from the conversation
-  and this side-channel conversation.
-- Follow-up turns may happen in this side-channel conversation.
-- If you do not know the answer, say so directly.
+- Lightweight instance; main agent continues independently.
+- All tool calls are disabled and will be rejected. Tool definitions are visible for cache only — do not call them.
+- Text only; say when you do not know.
 `;
 
 export interface RunSubagentOptions {

@@ -263,7 +263,7 @@ describe('Session lifecycle hooks', () => {
 
     await session.close();
 
-    expect(cancelSpy).toHaveBeenCalledWith(undefined, expect.any(Error));
+    expect(cancelSpy).toHaveBeenCalledWith(undefined, expect.any(Error), 'session-close');
     expect(waitSpy).toHaveBeenCalledOnce();
   });
 

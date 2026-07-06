@@ -97,33 +97,41 @@ function withPlanFileFooter(body: string, planFilePath: PlanFilePath): string {
 function withResponseLanguage(body: string, agent: Agent): string {
   const preference = agent.getResponseLanguagePreference?.();
   if (preference === undefined) return body;
-  return `${body}\n\nResponse language: write this plan and every other user-facing artifact in ${preference.label} (${preference.code}). Keep code, commands, file paths, identifiers, and API names in their original language. Do not switch to English as the plan grows.`;
+  return `${body}\n\nResponse language: ${preference.label} (${preference.code}) for all user-facing artifacts; keep code/paths/identifiers in original language.`;
 }
+
+const PLAN_MODE_BLOCKED_TOOLS =
+  'TaskStop, CronCreate, and CronDelete are blocked in plan mode — call ExitPlanMode first if you need them.';
+
+const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. You MUST NOT make any edits (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools. Bash only when needed; Bash follows normal permission rules. This supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
+
+const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. You MUST NOT make any edits or change the system unless a tool request is explicitly approved. Prefer read-only tools. Bash only when needed; Bash follows normal permission rules. This supersedes other instructions.`;
+
+const PLAN_WORKFLOW = `Workflow:
+  1. Understand — Glob, Grep, Read; WebSearch/FetchURL when external evidence affects the plan.
+  2. Design — one best approach; trade-offs only when they matter.
+  3. Review — re-read key files.
+  4. Write Plan — Write or Edit the plan file (Write if missing).
+  5. Exit — ExitPlanMode for approval.`;
+
+const PLAN_MULTI_APPROACH = `## Multiple approaches
+At most 2–3 meaningfully different options; do not pad minor variants. If user preference matters, AskUserQuestion first.
+Multiple approaches in the plan → pass \`options\` to ExitPlanMode so the user can choose.
+NEVER write multiple approaches and call ExitPlanMode without \`options\`.
+
+AskUserQuestion: missing requirements or preferences only — never plan approval (user cannot see the plan until ExitPlanMode).
+End every turn with AskUserQuestion (clarify) or ExitPlanMode (approve).`;
 
 function fullReminder(planFilePath: PlanFilePath): string {
   if (planFilePath === null || planFilePath.length === 0) {
     return inlineFullReminder();
   }
 
-  const body = `Plan mode is active. You MUST NOT make any edits (with the exception of the current plan file) or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received. TaskStop, CronCreate, and CronDelete are also blocked in plan mode — call ExitPlanMode first if you need them.
+  const body = `${PLAN_READ_ONLY_WITH_FILE}
 
-Workflow:
-  1. Understand — explore the codebase with Glob, Grep, Read, and use WebSearch/FetchURL when current external evidence can affect the plan.
-  2. Design — converge on the best approach; consider trade-offs but aim for a single recommendation.
-  3. Review — re-read key files to verify understanding.
-  4. Write Plan — modify the plan file with Write or Edit. Use Write if the plan file does not exist yet.
-  5. Exit — call ExitPlanMode for user approval.
+${PLAN_WORKFLOW}
 
-## Handling multiple approaches
-Keep it focused: at most 2-3 meaningfully different approaches. Do NOT pad with minor variations — if one approach is clearly superior, just propose that one.
-When the best approach depends on user preferences, constraints, or context you don't have, use AskUserQuestion to clarify first. This helps you write a better, more targeted plan rather than dumping multiple options for the user to sort through.
-When you do include multiple approaches in the plan, you MUST pass them as the \`options\` parameter when calling ExitPlanMode, so the user can select which approach to execute at approval time.
-NEVER write multiple approaches in the plan and call ExitPlanMode without the \`options\` parameter — the user will only see the default approval controls with no way to choose a specific approach.
-
-AskUserQuestion is for clarifying missing requirements or user preferences that affect the plan.
-Never ask about plan approval via text or AskUserQuestion.
-Your turn must end with either AskUserQuestion (to clarify requirements or preferences) or ExitPlanMode (to request plan approval). Do NOT end your turn any other way.
-Do NOT use AskUserQuestion to ask about plan approval or reference "the plan" — the user cannot see the plan until you call ExitPlanMode.`;
+${PLAN_MULTI_APPROACH}`;
   return withPlanFileFooter(body, planFilePath);
 }
 
@@ -132,7 +140,7 @@ function sparseReminder(planFilePath: PlanFilePath): string {
     return inlineSparseReminder();
   }
 
-  const body = `Plan mode still active (see full instructions earlier). Prefer read-only tools except the current plan file. Use Write or Edit to modify the plan file. If it does not exist yet, create it with Write first. Use Bash only when needed; Bash follows the normal permission mode and rules. Use AskUserQuestion to clarify user preferences when it helps you write a better plan. If the plan has multiple approaches, pass options to ExitPlanMode so the user can choose. End turns with AskUserQuestion (for clarifications) or ExitPlanMode (for approval). Never ask about plan approval via text or AskUserQuestion.`;
+  const body = `Plan mode still active (see full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for user preferences; pass \`options\` to ExitPlanMode when multiple approaches exist. End with AskUserQuestion or ExitPlanMode — never ask plan approval via text.`;
   return withPlanFileFooter(body, planFilePath);
 }
 
@@ -141,56 +149,37 @@ function reentryReminder(planFilePath: PlanFilePath): string {
     return inlineReentryReminder();
   }
 
-  const body = `Plan mode is active. You MUST NOT make any edits (with the exception of the current plan file) or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received.
+  const body = `${PLAN_READ_ONLY_WITH_FILE}
 
 ## Re-entering Plan Mode
-A plan file from a previous planning session already exists.
-Before proceeding:
-  1. Read the existing plan file to understand what was previously planned.
-  2. Evaluate the user's current request against that plan.
-  3. If different task: replace the old plan with a fresh one. If same task: update the existing plan.
-  4. You may use Write or Edit to modify the plan file. If the file does not exist yet, create it with Write first.
-  5. Use AskUserQuestion to clarify missing requirements or user preferences that affect the plan.
-  6. Always edit the plan file before calling ExitPlanMode.
+A plan file from a prior session exists. Before proceeding:
+  1. Read the existing plan file.
+  2. Compare to the current request — new task: replace; same task: update.
+  3. Write/Edit the plan file (Write if missing).
+  4. AskUserQuestion for missing requirements/preferences.
+  5. Edit the plan file before ExitPlanMode.
 
-Your turn must end with either AskUserQuestion (to clarify requirements) or ExitPlanMode (to request plan approval).`;
+End with AskUserQuestion or ExitPlanMode.`;
   return withPlanFileFooter(body, planFilePath);
 }
 
 function inlineFullReminder(): string {
-  return `Plan mode is active. You MUST NOT make any edits or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received.
+  return `${PLAN_READ_ONLY_NO_FILE}
 
-Workflow:
-  1. Understand — explore the codebase with Glob, Grep, Read, and use WebSearch/FetchURL when current external evidence can affect the plan.
-  2. Design — converge on the best approach; consider trade-offs but aim for a single recommendation.
-  3. Review — re-read key files to verify understanding.
-  4. Wait for the host to provide a plan file path, write the plan there, then call ExitPlanMode.
+${PLAN_WORKFLOW.replace('Write or Edit the plan file (Write if missing).', 'Wait for the host to provide a plan file path, write there, then ExitPlanMode.')}
 
-## Handling multiple approaches
-Keep it focused: at most 2-3 meaningfully different approaches. Do NOT pad with minor variations — if one approach is clearly superior, just propose that one.
-When the best approach depends on user preferences, constraints, or context you don't have, use AskUserQuestion to clarify first.
-When you do include multiple approaches in the plan, you MUST pass them as the \`options\` parameter when calling ExitPlanMode, so the user can select which approach to execute at approval time.
-
-AskUserQuestion is for clarifying missing requirements or user preferences that affect the plan.
-Never ask about plan approval via text or AskUserQuestion.
-Your turn must end with either AskUserQuestion (to clarify requirements or preferences) or ExitPlanMode (to request plan approval). Do NOT end your turn any other way.`;
+${PLAN_MULTI_APPROACH}`;
 }
 
 function inlineSparseReminder(): string {
-  return `Plan mode still active (see full instructions earlier). Read-only; no plan file path is available in this host. Wait for the host to provide a plan file path before calling ExitPlanMode. Use AskUserQuestion to clarify user preferences when it helps you write a better plan. If the plan has multiple approaches, pass options to ExitPlanMode so the user can choose. End turns with AskUserQuestion (for clarifications) or ExitPlanMode (for approval).`;
+  return `Plan mode still active (see full instructions earlier). Read-only; no plan file path in this host — wait for the host to provide a plan file path before ExitPlanMode. AskUserQuestion for preferences; pass \`options\` when multiple approaches exist. End with AskUserQuestion or ExitPlanMode.`;
 }
 
 function inlineReentryReminder(): string {
-  return `Plan mode is active. You MUST NOT make any edits or otherwise make changes to the system unless a tool request is explicitly approved. Prefer read-only tools. Use Bash only when needed; Bash follows the normal permission mode and rules. This supersedes any other instructions you have received.
+  return `${PLAN_READ_ONLY_NO_FILE}
 
 ## Re-entering Plan Mode
-No plan file path is available in this host.
-Before proceeding:
-  1. Re-evaluate the user request and any existing conversation context.
-  2. Use AskUserQuestion to clarify missing requirements or user preferences that affect the plan.
-  3. Wait for the host to provide a plan file path, write the revised plan there, then call ExitPlanMode.
-
-Your turn must end with either AskUserQuestion (to clarify requirements) or ExitPlanMode (to request plan approval).`;
+No plan file path in this host. Re-evaluate the request, AskUserQuestion for gaps, wait for the host path, write the plan, ExitPlanMode. End with AskUserQuestion or ExitPlanMode.`;
 }
 
 function exitReminder(): string {
@@ -201,109 +190,58 @@ function exitReminder(): string {
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
-You are in the Research Phase. Your allowed tools are read-only evidence tools: WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, narrow read-only Bash inspection, TodoList for progress tracking, and NextPhase.
-AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, and ExitPlanMode are BLOCKED.
+Allowed: WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, NextPhase.
+AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode are BLOCKED.
 
 Goal: gather current, source-backed context before the UltraPlan interview creates question options or asks the user to choose.
-- Search current docs, release notes, papers, security advisories, benchmark pages, or OSS examples when they can affect correctness.
-- Use LioraContext (mode=compose), LioraSearch, LioraSymbol, Grep, Glob, and LioraRead before broad Read when gathering local code facts.
-- Use SearchExpert when Ultrawork may need specialist lanes; capture candidate expert IDs before writing the Swarm decision.
-- Fetch primary sources before relying on snippets. Label findings as verified, candidate, stale/offline, or irrelevant.
-- Distill a compact evidence pack: facts learned, source URLs or file paths, remaining unknowns, and which unknowns truly require user input.
-- Do not ask the user anything in this phase; the point is to avoid pretrained-only options.
+Prefer LioraContext (compose), LioraSearch, LioraSymbol, Grep, Glob, LioraRead before broad Read. SearchExpert for specialist lanes. Fetch primary sources; distill an evidence pack. Do not ask the user.
 
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
   interview: `## Interview Phase
-You are in the Interview Phase. Your ONLY allowed tools are AskUserQuestion and NextPhase.
-Write, Edit, Bash, TaskStop, CronCreate, CronDelete, and ExitPlanMode are BLOCKED.
+ONLY AskUserQuestion and NextPhase. Write, Edit, Bash, TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED.
 
-## Current Perspective: {{perspective}}
-{{perspectiveDescription}}
+Perspective: {{perspective}} — {{perspectiveDescription}}
 
-## Multi-Perspective Interview (Ouroboros-style)
-Each round rotates through 5 perspectives:
-1. Researcher — Explore background and context
-2. Simplifier — Challenge assumptions, reduce complexity
-3. Architect — Structure, components, interfaces
-4. Breadth-keeper — Edge cases, non-goals, scope
-5. Seed-closer — Precision, measurable criteria
+Rotate 5 lenses: Researcher, Simplifier, Architect, Breadth-keeper, Seed-closer.
 
-  ## Ambiguity + Seed Gap Gate (real-time)
-  The system evaluates clarity and required Seed sections:
-  - UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
-  - Required sections: goal, actors, inputs, outputs, constraints, non-goals, acceptance criteria, verification plan, failure modes, runtime context.
-  - Required gaps close only from the user's initial context and answers, not from labels you put in your question text.
-  - NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, and the UltraGoal is verifiable.
+UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
+NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, and the UltraGoal is verifiable.
 
-Current interview round: {{round}}
-Current perspective: {{perspective}}
-Current ambiguity score: {{ambiguityScore}}
-Current milestone: {{milestone}}
+Round {{round}} | perspective {{perspective}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
-Next milestone target: {{nextMilestone}}
+Ask 1-3 focused questions per AskUserQuestion call when a missing decision blocks a verifiable UltraGoal or required Seed section.
+Do not advance just because the task feels actionable. If AskUserQuestion is unavailable, surface the gap — do not fake completion.
+Do not call EnterPlanMode while already in Ultra Plan; use NextPhase to advance phases, never EnterPlanMode(phase).
 
-Ask 1-3 focused questions per AskUserQuestion call when a missing decision blocks a true/false-verifiable UltraGoal or a required Seed section.
-Do not advance just because the task feels actionable. If AskUserQuestion is unavailable or rejected by policy, surface the unresolved gap instead of pretending the interview is complete.
-Do not call EnterPlanMode while already in Ultra Plan. EnterPlanMode starts planning; NextPhase advances phases. Do not pass a phase argument to EnterPlanMode.
 Your turn MUST end with AskUserQuestion or NextPhase.`,
 
   design: `## Design Phase
-You are in the Design Phase. Read-only tools plus TodoList progress tracking only (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, and read-only Bash inspection).
-Write and Edit are BLOCKED.
+Read-only tools plus TodoList progress tracking (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, read-only Bash). Write/Edit BLOCKED.
 
-Goal: Explore the codebase and converge on the best approach.
-- Use Read, Grep, Glob to understand relevant code
-- Use TodoList to keep the live design work board current
-- Use SearchSkill and Skill when task-specific skill instructions would improve the design
-- Use SearchExpert to map coverage lanes to concrete UltraSwarm expert candidates before deciding ENGAGE/DEFER
-- Consider trade-offs but aim for a single recommendation
-- Identify key files, architectural decisions, and risks
-- You may use Bash only for read-only inspection: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, and read-only git commands
+Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill for task-specific guidance. SearchExpert for UltraSwarm candidates. Bash: read-only inspection only.
 
-You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
+Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-You are in the Review Phase. Read-only tools plus TodoList progress tracking only (Read, ReadMediaFile, Grep, Glob, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, and read-only Bash inspection).
-Write, Edit, and general Bash execution are BLOCKED.
+Read-only tools plus TodoList progress tracking (Read, ReadMediaFile, Grep, Glob, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, read-only Bash inspection). Write, Edit, general Bash BLOCKED.
 
-Goal: Re-read key files to verify your understanding before writing the plan.
-- Verify your design assumptions against actual code
-- Search and fetch current sources again when an external API, library, paper, security issue, or best-practice claim remains uncertain
-- SearchExpert again if the capability coverage matrix has material lanes but no concrete expert candidates
-- Use TodoList to keep verification gaps and completed checks current
-- Check edge cases and failure modes
-- Confirm file paths and dependencies
-- You may use Bash only for read-only inspection: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, and read-only git commands
+Verify design against code. Search and fetch current sources again when external claims stay uncertain. Use TodoList to keep verification gaps and completed checks current. Bash read-only: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, read-only git.
 
-You CANNOT write to the plan file yet. You CANNOT call ExitPlanMode.
+Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You are in the Write Phase. You may ONLY write to the current plan file.
-All other file edits are BLOCKED. You may read only the current plan file, update TodoList for progress tracking, and use NextPhase or ExitPlanMode when the plan is complete.
+You may ONLY write to the current plan file. All other file edits are BLOCKED. You may read only the current plan file, update TodoList for progress tracking, and use NextPhase or ExitPlanMode when complete.
 
-Goal: Write the complete plan to the plan file with these sections:
-1. Seed Spec — Verifiable UltraGoal, Completion Criterion, Actors, Inputs, Outputs, Constraints, Non-goals, Acceptance Criteria, Verification Plan, Failure Modes, Runtime Context
-2. AC Tree — hierarchical acceptance criteria with statuses
-3. Swarm Decision — Decision, Reason, Specialist value, Verification owner
-4. WorkGraph — node id, AC id, stage, owner/lane, dependencies, and required evidence for each executable unit
-5. Evaluation Plan — how the implementation will be verified
-6. Execution Plan — step-by-step implementation plan
-
-You MUST fill out the Seed Spec template completely.
-You MUST include one auditable line in this exact shape before implementation: Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>.
-Prefer ENGAGE whenever the AC Tree or coverage matrix has more than one material expertise lane, subjective UX/visual quality, external/domain correctness, security/privacy/compliance, performance/reliability, accessibility/i18n, hard-to-observe runtime behavior, or any independent review need.
-DEFER is allowed only for a deterministic single-owner task. If you choose DEFER, include a Swarm DEFER waiver field that explicitly explains why no specialist subagent is needed despite the default-to-ENGAGE rule.
-You can call ExitPlanMode ONLY after the plan file contains a complete Seed Spec.
-
-Use Write or Edit to modify the plan file. If it does not exist, create it first.`,
+Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
+Include: \`Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>\`
+Prefer ENGAGE for multi-lane or review-heavy work. DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
+ExitPlanMode only after a complete Seed Spec. Write/Edit the plan file (Write if missing).`,
 
   exit: `## Exit Phase
-The plan is complete. Call ExitPlanMode to request user approval.
-Make sure the plan file contains a complete Seed Spec, exact Swarm decision audit line, and any required Swarm DEFER waiver before exiting.
-If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file with Write/Edit, and call ExitPlanMode again.`,
+Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver. If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file, and retry.`,
 };
 
 function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): string {

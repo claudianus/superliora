@@ -106,7 +106,7 @@ function isTodoListReminder(message: ContextMessage): boolean {
 
 function renderTodoListReminder(todos: readonly TodoItem[]): string {
   let message =
-    'The TodoList tool has not been updated recently. Treat the board as live Kanban, not a stale outline: add newly discovered work, split vague cards, delete obsolete pending cards, reorder the next executable work, and mark completed cards done immediately after verification. Keep exactly one task in_progress unless real parallel work is active. If the board still matches reality, do nothing. Make sure that you NEVER mention this reminder to the user.';
+    'The TodoList tool has not been updated recently. Treat the board as live Kanban: add discovered work, split vague cards, delete obsolete pending cards, reorder next work, mark done after verification. Keep one in_progress unless real parallel work is active. If the board still matches reality, do nothing. NEVER mention this reminder to the user.';
 
   const items = renderTodoItems(todos);
   if (items.length > 0) {

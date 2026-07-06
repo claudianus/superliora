@@ -180,28 +180,7 @@ interface UltraSwarmRenderedResult extends UltraSwarmRunResult {
 
 export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
   readonly name = 'UltraSwarm' as const;
-  readonly description = ULTRA_SWARM_DESCRIPTION + `
-
- — Summon a team of expert agents to tackle complex tasks collaboratively.
-
-This tool automatically assembles and orchestrates a swarm of specialized expert agents based on your task description. Each expert is selected from a catalog of 217+ professionals across 16 domains (Engineering, Design, Security, Product, Marketing, etc.) and given their specific persona to ensure high-quality, domain-specific output.
-
-## How it works
-1. Analyze your task description to identify required expertise domains
-2. Search the expert catalog using BM25+fuzzy text search to find the best matches
-3. Spawn each expert as a subagent with their full persona injected
-4. Execute all experts in parallel (or sequential if dependencies exist)
-5. Collect and synthesize results
-
-## Usage tips
-- Be specific in your description for better expert matching
-- You can explicitly request experts by ID, or let the system auto-select
-- Each expert receives their full persona + your task description
-- Each call can launch up to 128 expert subagents; cap active concurrency with SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY when needed
-- Results are tagged with expert name and emoji for easy identification
-
-## Available divisions
-Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, Game Development, GIS, Paid Media, Project Management, Sales, Spatial Computing, Specialized, Support`;
+  readonly description = ULTRA_SWARM_DESCRIPTION;
 
   readonly parameters: Record<string, unknown> = toInputJsonSchema(UltraSwarmToolInputSchema);
 
@@ -842,7 +821,7 @@ ${taskDescription}
       ? ''
       : `\n\n${buildCriticAssignmentXml(spec.criticAssignment)}`;
     return appendSwarmResearchAutonomy(
-      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${collaborationLine}${handoffLine}${dependencyLine}${criticLine}\n\nLean context: prefer LioraContext(mode=compose) and LioraSearch before broad Read/Grep; keep handoffs compact and cite file:line evidence.\n\nApply your ${spec.expertName} expertise to this task. Provide a thorough, high-quality response that leverages your specialized knowledge and skills. Subagents must not directly integrate final product-file edits; return a compact handoff for the parent agent to integrate.`,
+      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${collaborationLine}${handoffLine}${dependencyLine}${criticLine}\n\nLean context: LioraContext(compose) + LioraSearch before broad Read/Grep; compact handoffs with file:line evidence.\n\nApply ${spec.expertName} expertise; return a compact handoff for the parent — do not integrate final product-file edits yourself.`,
     );
   }
 

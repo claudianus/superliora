@@ -79,10 +79,9 @@ export function buildResponseLanguageDirective(
   options: { readonly wrapped?: boolean } = {},
 ): string {
   const body = [
-    `Response language is LOCKED to ${preference.label} (${preference.code}). This is a hard requirement that never lapses — not when the conversation grows long, not after context compaction, and not when most of the context is code, tool output, or English-heavy artifacts.`,
-    `Write ALL user-facing text in ${preference.label}: final answers, preambles before tool calls, plans, the LLM Wiki, summaries, status updates, questions to the user, and any other artifact the user will read.`,
-    `Keep code, commands, file paths, identifiers, API names, quoted source text, and tool arguments in their original language.`,
-    `Do NOT drift to English or any other language as the context grows. If the latest user message explicitly asks for a different response language, follow that latest explicit request; otherwise stay in ${preference.label}.`,
+    `Response language LOCKED: ${preference.label} (${preference.code}). Never lapses — not in long chats, after compaction, or amid English-heavy context.`,
+    `Write ALL user-facing text in ${preference.label} (answers, preambles, plans, summaries, status, questions). Keep code, commands, paths, identifiers, APIs, quoted source, and tool args in their original language.`,
+    `Do not drift to English. A later user message may override; otherwise stay in ${preference.label}.`,
   ].join('\n');
   if (options.wrapped === false) return body;
   return `<response_language>\n${body}\n</response_language>`;

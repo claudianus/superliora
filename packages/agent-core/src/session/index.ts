@@ -902,8 +902,7 @@ function initCompletionReminder(agentsMd: string): string {
       ? 'No AGENTS.md content was found after `/init` completed.'
       : agentsMd;
   return [
-    'The user just ran `/init` slash command.',
-    'The system has analyzed the codebase and generated an `AGENTS.md` file.',
+    'The user ran `/init`. The codebase was analyzed and `AGENTS.md` was generated.',
     '',
     'Latest AGENTS.md file content:',
     latest,

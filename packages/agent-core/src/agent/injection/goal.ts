@@ -132,26 +132,11 @@ function buildGoalReminder(goal: GoalSnapshot): string {
 
   lines.push('');
   lines.push(
-    'Before doing any goal work, check the objective and latest request for a clear hard budget ' +
-      'limit. If one is present and the current goal does not already record that limit, call ' +
-      'SetGoalBudget first. Do not invent budgets. If a requested budget is not reasonable, do ' +
-      'not set it; tell the user it is not reasonable.',
+    'Before doing any goal work, check objective/latest request for an explicit hard budget; if present and not recorded, call SetGoalBudget first. Do not invent budgets. If a requested budget is not reasonable, do not set it; tell the user.',
   );
   lines.push('');
   lines.push(
-    'Goal mode is iterative. Keep the self-audit brief each turn. Do not explore unrelated ' +
-      'interpretations once the goal can be decided. If the objective is simple, already answered, ' +
-      'impossible, unsafe, or contradictory, do not run another goal turn. Explain briefly if useful, ' +
-      'then call UpdateGoal with `complete` or `blocked` in the same turn. Otherwise, self-audit ' +
-      'against the objective and any completion criteria above, then do one coherent slice of work ' +
-      'toward the objective. Use multiple turns when the task naturally has multiple phases. Call ' +
-      'UpdateGoal with `complete` only when all required work is done, any stated validation has ' +
-      'passed, and there is no useful next action. Do not mark complete after only producing a plan, ' +
-      'summary, first pass, or partial result. If an external condition or required user input ' +
-      'prevents progress, or the objective cannot be completed as stated, call UpdateGoal with ' +
-      '`blocked`. Otherwise keep working — after your turn ends you will be prompted to continue. ' +
-      "Call UpdateGoal as soon as the goal is genuinely done or cannot proceed; don't keep going " +
-      'once there is nothing left to do.',
+    'Goal mode is iterative. Keep the self-audit brief each turn. Do not explore unrelated interpretations once the goal can be decided. If the objective is simple, already answered, impossible, unsafe, or contradictory, do not run another goal turn — explain if useful, then call UpdateGoal with `complete` or `blocked` in the same turn. Otherwise self-audit, then do one coherent slice of work toward the objective. Use multiple turns for multi-phase tasks. Call UpdateGoal with `complete` only when all required work is done, validation passed, and no useful next action remains. Do not mark complete after only producing a plan, summary, first pass, or partial result. If blocked by external conditions or missing user input, call UpdateGoal with `blocked`. Call UpdateGoal as soon as genuinely done or stuck.',
   );
   return lines.join('\n');
 }
