@@ -84,8 +84,12 @@ export async function handleUltraworkCommand(
       await resumeUltrawork(host);
       return;
     }
-    if (existingRun?.status === 'running' && source === 'auto') {
-      host.sendNormalUserInput(args.trim());
+    if (existingRun?.status === 'running') {
+      if (source === 'auto') {
+        host.sendNormalUserInput(args.trim());
+        return;
+      }
+      host.showError('An Ultrawork run is already active. Continue in chat or use /ultrawork pause.');
       return;
     }
   }
@@ -748,42 +752,20 @@ export async function autoResumeUltraworkFromSession(
   >,
   session: ReturnType<SlashCommandHost['requireSession']>,
 ): Promise<boolean> {
-  const run = await session.getUltraworkRun();
-  if (run === null || run.status === 'done' || run.status === 'failed') return false;
-
-  const setup: UltraworkSetupState = {
-    planModeWasEnabled: host.state.appState.planMode,
-    swarmModeWasEnabled: host.state.appState.swarmMode,
-    ultraworkModeWasEnabled: host.state.appState.ultraworkMode ?? false,
-    previousSwarmModeEntry: host.state.swarmModeEntry,
-    planChanged: false,
-    swarmEnabled: false,
-  };
   try {
-    await prepareUltraworkSetup(
-      host as SlashCommandHost,
-      setup,
-      run.objective,
-      { preservePlan: true },
-    );
-  } catch (error) {
-    host.showError(`Failed to restore Ultrawork setup: ${formatErrorMessage(error)}`);
-    return false;
-  }
-
-  try {
-    const result = await session.resumeUltrawork();
+    const result = await session.tryAutoResumeUltrawork();
     if (result === null) return false;
+    const run = result.resumed.run;
     host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP, ultraworkMode: true, planMode: true });
     host.showNotice(
       'Ultrawork 자동 재개',
-      `중단된 실행을 stage ${result.run.stage}에서 이어갑니다.`,
+      `중단된 실행을 stage ${run.stage}에서 이어갑니다.`,
       { coalesceKey: 'ultrawork-auto-resume' },
     );
-    host.sendNormalUserInput(result.recoveryPrompt, {
+    host.sendNormalUserInput(result.resumed.recoveryPrompt, {
       displayText: `Resume Ultrawork: ${run.objective}`,
     });
-    host.showStatus(`Ultrawork resumed at stage ${result.run.stage}.`);
+    host.showStatus(`Ultrawork resumed at stage ${run.stage}.`);
     return true;
   } catch (error) {
     host.showError(`Failed to resume Ultrawork: ${formatErrorMessage(error)}`);

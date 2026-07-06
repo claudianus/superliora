@@ -22,7 +22,7 @@ import type {
   UltraworkActivation,
   UltraworkPlanRecoveryContext,
 } from './types';
-import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt } from './recovery';
+import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor } from './recovery';
 
 export class UltraworkMode {
   private machine: UltraworkRunStateMachine | undefined;
@@ -52,6 +52,25 @@ export class UltraworkMode {
     return this.activation;
   }
 
+  getInterruptReason(): string | undefined {
+    return this.interruptReason;
+  }
+
+  applyMirrorRunQuiet(input: {
+    readonly run: UltraworkRun;
+    readonly activation?: UltraworkActivation;
+    readonly interruptReason?: string;
+  }): void {
+    if (this.machine === undefined) return;
+    this.machine = new UltraworkRunStateMachine(input.run);
+    if (input.activation !== undefined) {
+      this.activation = input.activation;
+    }
+    if (input.interruptReason !== undefined) {
+      this.interruptReason = input.interruptReason;
+    }
+  }
+
   normalizeAfterReplay(): void {
     const run = this.getRun();
     if (run === undefined || run === null) return;
@@ -74,6 +93,12 @@ export class UltraworkMode {
   }
 
   create(input: CreateUltraworkRunInput): UltraworkRun {
+    const existing = this.getRun();
+    if (existing !== null && existing.status !== 'done' && existing.status !== 'failed') {
+      throw new Error(
+        `Ultrawork run ${existing.id} is already active (${existing.status} at stage ${existing.stage}). Resume or cancel it first.`,
+      );
+    }
     this.machine = UltraworkRunStateMachine.create({
       id: input.id,
       objective: input.objective,
@@ -174,6 +199,8 @@ export class UltraworkMode {
       goalResumed = true;
     }
 
+    const planContext = this.capturePlanRecoveryContext();
+    const resumeCursor = buildUltraworkResumeCursor(this.agent, run, planContext);
     const report = buildUltraworkRecoveryReport({
       run,
       activation: this.activation,
@@ -181,14 +208,15 @@ export class UltraworkMode {
       orphanedWorkNodes: reconciled.orphanedWorkNodes,
       orphanedExperts: reconciled.orphanedExperts,
       lostBackgroundTasks: reconciled.lostBackgroundTasks,
+      planContext,
+      resumeCursor,
     });
 
-    const planContext = this.capturePlanRecoveryContext();
     return {
       run,
       report,
       goalResumed,
-      recoveryPrompt: buildUltraworkRecoveryPrompt(report, planContext),
+      recoveryPrompt: buildUltraworkRecoveryPrompt(report, planContext, resumeCursor),
     };
   }
 
@@ -269,10 +297,12 @@ export class UltraworkMode {
   private capturePlanRecoveryContext(): UltraworkPlanRecoveryContext | undefined {
     const planMode = this.agent.planMode;
     if (!planMode.isActive || !planMode.isUltraMode) return undefined;
+    const checkpoint = planMode.captureStateCheckpoint();
     return {
       planFilePath: planMode.planFilePath ?? undefined,
       phase: planMode.phase,
       interviewRoundCount: planMode.interviewRoundCount,
+      ultraPlan: checkpoint?.ultraPlan,
     };
   }
 

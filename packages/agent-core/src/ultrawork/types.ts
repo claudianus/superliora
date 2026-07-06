@@ -21,6 +21,8 @@ export interface UltraworkRunMirror {
   readonly activation?: UltraworkActivation;
   readonly interruptReason?: string;
   readonly planCheckpoint?: UltraworkPlanRecoveryContext;
+  readonly goalStatus?: string;
+  readonly resumeCursor?: UltraworkResumeCursor;
   readonly lastCheckpointAt: string;
 }
 
@@ -28,6 +30,15 @@ export interface UltraworkPlanRecoveryContext {
   readonly planFilePath?: string;
   readonly phase?: string;
   readonly interviewRoundCount?: number;
+  readonly ultraPlan?: Record<string, unknown>;
+}
+
+export interface UltraworkResumeCursor {
+  readonly stage: UltraworkStage;
+  readonly planPhase?: string;
+  readonly interviewRound?: number;
+  readonly workGraphNodeId?: string;
+  readonly goalStatus?: string;
 }
 
 export interface UltraworkRecoveryReport {

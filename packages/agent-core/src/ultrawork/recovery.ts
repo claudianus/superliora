@@ -10,7 +10,7 @@ import type {
 import type { Agent } from '../agent';
 import { isBackgroundTaskTerminal } from '../agent/background';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
-import type { UltraworkActivation, UltraworkPlanRecoveryContext, UltraworkRecoveryReport } from './types';
+import type { UltraworkActivation, UltraworkPlanRecoveryContext, UltraworkRecoveryReport, UltraworkResumeCursor } from './types';
 
 export interface ReconcileUltraworkRunResult {
   readonly run: UltraworkRun;
@@ -55,6 +55,23 @@ export function reconcileUltraworkRunForResume(
   };
 }
 
+export function buildUltraworkResumeCursor(
+  agent: Agent,
+  run: UltraworkRun,
+  planContext?: UltraworkPlanRecoveryContext,
+): UltraworkResumeCursor {
+  const pendingNodes = run.workGraph?.nodes.filter((node) => node.status !== 'done') ?? [];
+  const nextNode = pendingNodes.find((node) => node.status === 'queued' || node.status === 'blocked');
+  const goal = agent.goal.getGoal().goal;
+  return {
+    stage: run.stage,
+    planPhase: planContext?.phase,
+    interviewRound: planContext?.interviewRoundCount,
+    workGraphNodeId: nextNode?.id,
+    goalStatus: goal?.status,
+  };
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
@@ -62,6 +79,8 @@ export function buildUltraworkRecoveryReport(input: {
   readonly orphanedWorkNodes: readonly string[];
   readonly orphanedExperts: readonly string[];
   readonly lostBackgroundTasks: readonly string[];
+  readonly planContext?: UltraworkPlanRecoveryContext;
+  readonly resumeCursor?: UltraworkResumeCursor;
 }): UltraworkRecoveryReport {
   return {
     run: input.run,
@@ -70,13 +89,19 @@ export function buildUltraworkRecoveryReport(input: {
     orphanedWorkNodes: input.orphanedWorkNodes,
     orphanedExperts: input.orphanedExperts,
     lostBackgroundTasks: input.lostBackgroundTasks,
-    nextActions: suggestNextActions(input.run, input.interruptReason),
+    nextActions: suggestNextActions(
+      input.run,
+      input.interruptReason,
+      input.planContext,
+      input.resumeCursor,
+    ),
   };
 }
 
 export function buildUltraworkRecoveryPrompt(
   report: UltraworkRecoveryReport,
   planContext?: UltraworkPlanRecoveryContext,
+  resumeCursor?: UltraworkResumeCursor,
 ): string {
   const lines = [
     '<ultrawork_recovery>',
@@ -104,6 +129,22 @@ export function buildUltraworkRecoveryPrompt(
   if (planContext?.interviewRoundCount !== undefined && planContext.interviewRoundCount > 0) {
     lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}`);
     lines.push('Do not restart the UltraPlan interview from round 1.');
+  }
+  if (resumeCursor !== undefined) {
+    lines.push('Resume cursor:');
+    lines.push(`- stage: ${resumeCursor.stage}`);
+    if (resumeCursor.planPhase !== undefined) {
+      lines.push(`- plan_phase: ${resumeCursor.planPhase}`);
+    }
+    if (resumeCursor.interviewRound !== undefined && resumeCursor.interviewRound > 0) {
+      lines.push(`- continue_interview_from_round: ${String(resumeCursor.interviewRound + 1)}`);
+    }
+    if (resumeCursor.workGraphNodeId !== undefined) {
+      lines.push(`- work_graph_node: ${resumeCursor.workGraphNodeId}`);
+    }
+    if (resumeCursor.goalStatus !== undefined) {
+      lines.push(`- goal_status: ${resumeCursor.goalStatus}`);
+    }
   }
   if (report.run.workGraph !== undefined && report.run.workGraph.nodes.length > 0) {
     const pending = report.run.workGraph.nodes.filter((node) => node.status !== 'done');
@@ -210,39 +251,73 @@ function collectOrphanedExperts(teamPlan: TeamPlan | undefined): string[] {
   return teamPlan.experts.filter((expert) => expert.status === 'running').map((expert) => expert.id);
 }
 
-function suggestNextActions(run: UltraworkRun, interruptReason?: string): string[] {
+function suggestNextActions(
+  run: UltraworkRun,
+  interruptReason?: string,
+  planContext?: UltraworkPlanRecoveryContext,
+  resumeCursor?: UltraworkResumeCursor,
+): string[] {
   const actions: string[] = [];
   if (interruptReason !== undefined) {
     actions.push(`Acknowledge the interruption (${interruptReason}) and restate the remaining objective.`);
   }
 
-  switch (run.stage) {
-    case 'intake':
-    case 'plan':
-      actions.push('Re-open the active Ultra Plan file and continue the interview or plan gate.');
-      break;
-    case 'research':
-      actions.push('Refresh the evidence pack with current sources before asking blocking questions.');
-      break;
-    case 'goal':
-      actions.push('Verify the UltraGoal contract and resume autonomous pursuit.');
-      break;
-    case 'staff':
-    case 'swarm':
-      actions.push('Reconcile Swarm staffing, rerun UltraSwarm only if ENGAGE is still required.');
-      break;
-    case 'integrate':
-      actions.push('Merge specialist output and resolve conflicts before more product edits.');
-      break;
-    case 'verify':
-      actions.push('Re-run mechanical checks and capture runtime evidence for open acceptance criteria.');
-      break;
-    case 'learn':
-      actions.push('Update the knowledge persistence ledger and promote only verified findings.');
-      break;
-    case 'done':
-      actions.push('Confirm completion criteria and close the run.');
-      break;
+  const planPhase = planContext?.phase ?? resumeCursor?.planPhase;
+  if (run.stage === 'plan' || run.stage === 'research') {
+    switch (planPhase) {
+      case 'research':
+        actions.push('Refresh the evidence pack with current sources before asking blocking questions.');
+        break;
+      case 'interview': {
+        const round = planContext?.interviewRoundCount ?? resumeCursor?.interviewRound ?? 0;
+        actions.push(
+          round > 0
+            ? `Continue the UltraPlan interview from round ${String(round + 1)}; do not restart discovery.`
+            : 'Continue the UltraPlan interview from the current evidence pack.',
+        );
+        break;
+      }
+      case 'design':
+        actions.push('Resume design exploration and map coverage lanes before Review.');
+        break;
+      case 'review':
+        actions.push('Re-verify the plan against code and sources, then advance to Write when ready.');
+        break;
+      case 'write':
+        actions.push('Resume writing the approved plan sections; do not reopen a fresh interview.');
+        break;
+      case 'exit':
+        actions.push('Call ExitPlanMode only after the plan file still satisfies the Seed Spec gate.');
+        break;
+      default:
+        actions.push('Re-open the active Ultra Plan file and continue the interview or plan gate.');
+        break;
+    }
+  } else {
+    switch (run.stage) {
+      case 'intake':
+        actions.push('Re-open the active Ultra Plan file and continue the interview or plan gate.');
+        break;
+      case 'goal':
+        actions.push('Verify the UltraGoal contract and resume autonomous pursuit.');
+        break;
+      case 'staff':
+      case 'swarm':
+        actions.push('Reconcile Swarm staffing, rerun UltraSwarm only if ENGAGE is still required.');
+        break;
+      case 'integrate':
+        actions.push('Merge specialist output and resolve conflicts before more product edits.');
+        break;
+      case 'verify':
+        actions.push('Re-run mechanical checks and capture runtime evidence for open acceptance criteria.');
+        break;
+      case 'learn':
+        actions.push('Update the knowledge persistence ledger and promote only verified findings.');
+        break;
+      case 'done':
+        actions.push('Confirm completion criteria and close the run.');
+        break;
+    }
   }
 
   const pendingNodes = run.workGraph?.nodes.filter((node) => node.status !== 'done') ?? [];

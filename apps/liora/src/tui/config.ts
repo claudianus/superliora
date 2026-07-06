@@ -109,7 +109,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   density: 'spacious',
   particles: 'premium',
   mascot: 'premium',
-  animationFps: 30,
+  animationFps: 20,
   canvasBackground: true,
   terminalBackground: 'off',
   terminalPalette: false,

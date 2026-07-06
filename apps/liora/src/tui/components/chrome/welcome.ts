@@ -4,13 +4,14 @@
  */
 
 import type { Component } from '#/tui/renderer';
-import { renderRendererFrameRows, truncateToWidth, visibleWidth } from '#/tui/renderer';
+import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
+import { renderParticleRail } from '#/tui/utils/appearance-effects';
 import { renderWelcomeBanner } from './welcome-banner';
 
 const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab to toggle Ultrawork/off.';
@@ -46,9 +47,7 @@ export class WelcomeComponent implements Component {
     }
 
     const innerWidth = Math.max(1, safeWidth - 4);
-    const bannerLines = renderWelcomeBanner(layout, appearance, innerWidth).map((line) =>
-      centerLine(line, innerWidth),
-    );
+    const bannerLines = renderWelcomeBanner(layout, appearance, innerWidth);
     const dim = chalk.hex(currentTheme.palette.textDim);
     const labelStyle = chalk.bold.hex(currentTheme.palette.textDim);
     const promptLine = truncateToWidth(
@@ -77,9 +76,13 @@ export class WelcomeComponent implements Component {
     return [
       '',
       ...renderRendererFrameRows({
-        content: contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
+        content: [
+          renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
+          ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
+          renderParticleRail(safeWidth - 2, appearance, 'welcome-bottom'),
+        ],
         width: safeWidth,
-        height: contentLines.length + 2,
+        height: contentLines.length + 4,
         borderKind: 'rounded',
         borderStyle: primary,
         ellipsis: '…',
@@ -87,11 +90,4 @@ export class WelcomeComponent implements Component {
       '',
     ];
   }
-}
-
-function centerLine(line: string, width: number): string {
-  const lineWidth = visibleWidth(line);
-  if (lineWidth >= width) return truncateToWidth(line, width, '…');
-  const pad = Math.floor((width - lineWidth) / 2);
-  return ' '.repeat(pad) + line;
 }

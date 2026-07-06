@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'pathe';
 
 import type { UltraworkRun } from '@superliora/protocol';
@@ -11,6 +11,20 @@ const EVIDENCE_ROOT_SEGMENT = '.superliora/evidence/ultrawork-runs';
 
 export function resolveUltraworkRunStatePath(workDir: string, runId: string): string {
   return join(workDir, EVIDENCE_ROOT_SEGMENT, runId, RUN_STATE_FILENAME);
+}
+
+export function readUltraworkMirrorFromDisk(
+  workDir: string,
+  runId: string,
+): UltraworkRunMirror | null {
+  try {
+    const raw = readFileSync(resolveUltraworkRunStatePath(workDir, runId), 'utf8');
+    const parsed = JSON.parse(raw) as UltraworkRunMirror;
+    if (parsed.schema !== 1 || parsed.run.id !== runId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 export function mirrorUltraworkRunToDisk(input: {

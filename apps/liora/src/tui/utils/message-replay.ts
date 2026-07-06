@@ -60,6 +60,12 @@ export function appStateFromResumeAgent(agent: ResumedAgentState): Partial<AppSt
   const maxContextTokens = agent.config.modelCapabilities?.max_context_tokens ?? 0;
   const contextTokens = agent.context.tokenCount;
   const contextUsage = maxContextTokens > 0 ? contextTokens / maxContextTokens : 0;
+  const ultraworkRun = agent.ultrawork?.run;
+  const resumableUltrawork =
+    ultraworkRun !== undefined &&
+    ultraworkRun !== null &&
+    ultraworkRun.status !== 'done' &&
+    ultraworkRun.status !== 'failed';
   return {
     model: agent.config.modelAlias ?? agent.config.provider?.model ?? '',
     contextTokens,
@@ -68,6 +74,7 @@ export function appStateFromResumeAgent(agent: ResumedAgentState): Partial<AppSt
     planMode: agent.plan !== null,
     swarmMode: agent.swarmMode ?? false,
     permissionMode: agent.permission.mode,
+    ultraworkMode: resumableUltrawork && (agent.ultrawork?.modeEnabled ?? false),
   };
 }
 

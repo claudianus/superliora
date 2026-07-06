@@ -143,7 +143,7 @@ export async function runPrompt(
     for (const warning of (await harness.getConfigDiagnostics()).warnings) {
       stderr.write(`Warning: ${warning}\n`);
     }
-    const { session, restorePermission, telemetryModel, goalModel } =
+    const { session, resumed, restorePermission, telemetryModel, goalModel } =
       await resolvePromptSession(
         harness,
         opts,
@@ -172,6 +172,8 @@ export async function runPrompt(
     // waiter blocks until the goal is terminal; we then emit a summary and set a
     // distinct exit code.
     const goalCreate = parseHeadlessGoalCreate(opts.prompt!);
+    const recoveryPrefix =
+      resumed ? await maybeAutoResumeHeadlessUltrawork(session, stderr) : undefined;
     if (goalCreate !== undefined) {
       await runHeadlessGoal(
         session,
@@ -181,11 +183,13 @@ export async function runPrompt(
         opts.showThinking === true,
         stdout,
         stderr,
+        recoveryPrefix,
       );
     } else {
+      const prompt = mergeRecoveryPrompt(opts.prompt!, recoveryPrefix);
       await runPromptTurn(
         session,
-        opts.prompt!,
+        prompt,
         outputFormat,
         opts.showThinking === true,
         stdout,
@@ -210,10 +214,13 @@ async function runHeadlessGoal(
   showThinking: boolean,
   stdout: PromptOutput,
   stderr: PromptOutput,
+  recoveryPrefix?: string,
 ): Promise<void> {
   requireConfiguredModel(model);
   const setup = goal.ultrawork
-    ? await prepareHeadlessUltrawork(session, goal.objective)
+    ? await prepareHeadlessUltrawork(session, goal.objective, {
+        preservePlan: recoveryPrefix !== undefined,
+      })
     : undefined;
   let goalCreated = false;
   let completedSnapshot: GoalSnapshot | null = null;
@@ -233,7 +240,7 @@ async function runHeadlessGoal(
       replace: goal.replace,
     });
     goalCreated = true;
-    const turnPrompt = goal.prompt ?? goal.objective;
+    const turnPrompt = mergeRecoveryPrompt(goal.prompt ?? goal.objective, recoveryPrefix);
     await runPromptTurn(session, turnPrompt, outputFormat, showThinking, stdout, stderr);
   } catch (error) {
     if (!goalCreated && setup !== undefined) {
@@ -268,6 +275,7 @@ interface HeadlessUltraworkSetup {
 async function prepareHeadlessUltrawork(
   session: Session,
   initialContext = '',
+  options: { readonly preservePlan?: boolean } = {},
 ): Promise<HeadlessUltraworkSetup> {
   const status = await session.getStatus();
   const setup: HeadlessUltraworkSetup = {
@@ -288,12 +296,37 @@ async function prepareHeadlessUltrawork(
       } catch (error) {
         if (!isAlreadyInPlanModeError(error)) throw error;
       }
+    } else if (!options.preservePlan) {
+      try {
+        await session.setPlanMode(false, false);
+        await session.setPlanMode(true, true, initialContext);
+        setup.planChanged = true;
+      } catch (error) {
+        if (!isAlreadyInPlanModeError(error)) throw error;
+      }
     }
   } catch (error) {
     await rollbackHeadlessUltrawork(session, setup);
     throw error;
   }
   return setup;
+}
+
+async function maybeAutoResumeHeadlessUltrawork(
+  session: Session,
+  stderr: PromptOutput,
+): Promise<string | undefined> {
+  const result = await session.tryAutoResumeUltrawork();
+  if (result === null) return undefined;
+  stderr.write(
+    `Ultrawork auto-resumed at stage ${result.resumed.run.stage} (run ${result.resumed.run.id}).\n`,
+  );
+  return result.resumed.recoveryPrompt;
+}
+
+function mergeRecoveryPrompt(prompt: string, recoveryPrefix?: string): string {
+  if (recoveryPrefix === undefined || recoveryPrefix.length === 0) return prompt;
+  return `${recoveryPrefix}\n\n${prompt}`;
 }
 
 function isAlreadyInPlanModeError(error: unknown): boolean {

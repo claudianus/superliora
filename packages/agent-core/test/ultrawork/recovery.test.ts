@@ -111,10 +111,16 @@ describe('Ultrawork recovery', () => {
         phase: 'interview',
         interviewRoundCount: 3,
       },
+      {
+        stage: 'plan',
+        planPhase: 'interview',
+        interviewRound: 3,
+      },
     );
     expect(prompt).toContain('Plan file: /tmp/plans/quasar-archangel-falcon.md');
     expect(prompt).toContain('UltraPlan phase: interview');
     expect(prompt).toContain('Interview rounds completed: 3');
+    expect(prompt).toContain('continue_interview_from_round: 4');
     expect(prompt).toContain('Do not restart the UltraPlan interview from round 1.');
   });
 
