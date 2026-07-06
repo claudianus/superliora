@@ -14,6 +14,9 @@ import AGENT_SWARM_DESCRIPTION from './agent-swarm.md?raw';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
 import type { ToolStore } from '../../store';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
+import {
+  seedSwarmOrchestrationTodos,
+} from '../state/todo-list';
 
 const DEFAULT_SUBAGENT_TYPE = 'coder';
 const PROMPT_TEMPLATE_PLACEHOLDER = '{{item}}';
@@ -136,6 +139,9 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
     toolCallId: string,
   ): Promise<string> {
     const profileName = normalizeOptionalString(args.subagent_type) ?? DEFAULT_SUBAGENT_TYPE;
+    if (args.items !== undefined && args.items.length > 0) {
+      seedSwarmOrchestrationTodos(this.store, args.items);
+    }
     const specs = createAgentSwarmSpecs(args, (agentId) => this.subagentHost.getSwarmItem(agentId));
     const tasks = specs.map((spec): QueuedSubagentTask<AgentSwarmSpec> => {
       const descriptionName = spec.kind === 'resume' ? 'resume' : profileName;

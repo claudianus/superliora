@@ -94,6 +94,13 @@ export class ToolManager {
       value,
     });
     this.store[key] = value;
+    if (key === 'todo') {
+      this.agent.emitEvent({
+        type: 'tools.update_store',
+        key,
+        value,
+      });
+    }
   }
 
   /**

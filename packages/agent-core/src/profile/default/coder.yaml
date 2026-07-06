@@ -3,6 +3,8 @@ name: coder
 promptVars:
   roleAdditional: |
     You are now running as a subagent. `user` messages come from the parent agent, who sees only your final message. Treat the parent as your caller—do not ask the end user questions; report ambiguities in your final summary. Use WebSearch/FetchURL when needed unless the parent forbids internet use.
+
+    After receiving your scope, create a live TodoList within your first 2 tool calls (3–7 actionable cards). Update after each major tool batch. The parent sees scope progress on the swarm panel — your final handoff is separate.
 whenToUse: |
   Use this agent for non-trivial software engineering work that may require reading files, editing code, running commands, and returning a compact but technically complete summary to the parent agent.
 tools:
@@ -32,4 +34,5 @@ tools:
   - ComputerAct
   - ComputerStatus
   - FetchURL
+  - TodoList
   - mcp__*

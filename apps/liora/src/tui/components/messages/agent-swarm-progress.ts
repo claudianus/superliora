@@ -18,6 +18,10 @@ import {
   type AgentSwarmProgressEstimatorPhase,
 } from '#/tui/components/messages/agent-swarm-progress-estimator';
 import { FAILURE_MARK, SUCCESS_MARK } from '#/tui/constant/symbols';
+import {
+  formatSwarmMemberTodoLines,
+  type TodoItem,
+} from '#/tui/components/chrome/todo-panel';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
@@ -182,6 +186,7 @@ interface AgentSwarmMember {
   failedAtMs?: number;
   lastOpsFeedHeartbeatMs?: number;
   lastOpsFeedSnippet?: string;
+  todos: TodoItem[];
 }
 
 interface AgentSwarmSnapshot {
@@ -436,6 +441,13 @@ export class AgentSwarmProgressComponent implements Component {
     this.startAnimationIfNeeded();
   }
 
+  applyMemberTodos(agentId: string, todos: readonly TodoItem[]): void {
+    const member = this.findMemberByAgentId(agentId);
+    if (member === undefined) return;
+    member.todos = todos.map((todo) => ({ title: todo.title, status: todo.status }));
+    this.startAnimationIfNeeded();
+  }
+
   recordToolCall(input: {
     readonly agentId: string;
     readonly toolCallId: string;
@@ -617,6 +629,7 @@ export class AgentSwarmProgressComponent implements Component {
         snapshots,
         nowMs,
       ),
+      ...this.renderMemberTodoSection(innerWidth),
       ...this.renderOpsFeed(innerWidth),
       '',
       this.renderStatusLine(innerWidth),
@@ -667,6 +680,18 @@ export class AgentSwarmProgressComponent implements Component {
 
     const ticker = this.renderControlTowerTicker(width, summary);
     if (ticker.length > 0) lines.push(ticker);
+    return lines;
+  }
+
+  private renderMemberTodoSection(width: number): string[] {
+    const lines: string[] = [];
+    for (const member of this.members) {
+      if (member.todos.length === 0) continue;
+      const memberLines = formatSwarmMemberTodoLines(member.todos, width, this.colors);
+      if (memberLines.length === 0) continue;
+      lines.push(chalk.hex(this.colors.textDim)(`  ${member.id} todo`));
+      lines.push(...memberLines);
+    }
     return lines;
   }
 
@@ -1130,6 +1155,7 @@ function createMembers(count: number, phase: AgentSwarmPhase): AgentSwarmMember[
     ticks: 0,
     itemText: '',
     latestModelText: '',
+    todos: [],
   }));
 }
 

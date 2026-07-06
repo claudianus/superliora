@@ -690,6 +690,25 @@ export interface SubagentFailedEvent {
   readonly error: string;
 }
 
+export interface TodoItemPayload {
+  readonly title: string;
+  readonly status: 'pending' | 'in_progress' | 'done';
+}
+
+export interface SubagentTodoUpdatedEvent {
+  readonly type: 'subagent.todo.updated';
+  readonly subagentId: string;
+  readonly subagentName: string;
+  readonly parentToolCallId: string;
+  readonly todos: readonly TodoItemPayload[];
+}
+
+export interface ToolsUpdateStoreEvent {
+  readonly type: 'tools.update_store';
+  readonly key: string;
+  readonly value: unknown;
+}
+
 export interface CompactionStartedEvent {
   readonly type: 'compaction.started';
   readonly trigger: 'manual' | 'auto';
@@ -804,6 +823,8 @@ export type AgentEvent =
   | SubagentSuspendedEvent
   | SubagentCompletedEvent
   | SubagentFailedEvent
+  | SubagentTodoUpdatedEvent
+  | ToolsUpdateStoreEvent
   | CompactionStartedEvent
   | CompactionBlockedEvent
   | CompactionCancelledEvent
@@ -1456,6 +1477,25 @@ export const subagentFailedEventSchema = z.object({
   error: z.string(),
 }) satisfies z.ZodType<SubagentFailedEvent>;
 
+const todoItemPayloadSchema = z.object({
+  title: z.string(),
+  status: z.enum(['pending', 'in_progress', 'done']),
+}) satisfies z.ZodType<TodoItemPayload>;
+
+export const subagentTodoUpdatedEventSchema = z.object({
+  type: z.literal('subagent.todo.updated'),
+  subagentId: z.string(),
+  subagentName: z.string(),
+  parentToolCallId: z.string(),
+  todos: z.array(todoItemPayloadSchema),
+}) satisfies z.ZodType<SubagentTodoUpdatedEvent>;
+
+export const toolsUpdateStoreEventSchema = z.object({
+  type: z.literal('tools.update_store'),
+  key: z.string(),
+  value: z.unknown(),
+}) satisfies z.ZodType<ToolsUpdateStoreEvent>;
+
 export const compactionStartedEventSchema = z.object({
   type: z.literal('compaction.started'),
   trigger: z.enum(['manual', 'auto']),
@@ -1573,6 +1613,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   subagentSuspendedEventSchema,
   subagentCompletedEventSchema,
   subagentFailedEventSchema,
+  subagentTodoUpdatedEventSchema,
+  toolsUpdateStoreEventSchema,
   compactionStartedEventSchema,
   compactionBlockedEventSchema,
   compactionCancelledEventSchema,
@@ -1610,6 +1652,8 @@ export const VOLATILE_EVENT_TYPES = [
   'shell.output',
   'shell.started',
   'agent.status.updated',
+  'subagent.todo.updated',
+  'tools.update_store',
 ] as const satisfies readonly AgentEvent['type'][];
 
 export type VolatileEventType = (typeof VOLATILE_EVENT_TYPES)[number];

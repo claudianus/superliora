@@ -26,7 +26,7 @@ import DESCRIPTION from './todo-list.md?raw';
 export const TODO_LIST_TOOL_NAME = 'TodoList' as const;
 export const TODO_STORE_KEY = 'todo';
 const TODO_LIST_WRITE_REMINDER =
-  'Keep this as a live Kanban board: add newly discovered work, split vague cards, delete obsolete pending cards, reorder the next executable work, mark done immediately after verification, and keep exactly one task in_progress unless real parallel work is happening.';
+  'Keep this Kanban live: split vague cards, add discovered work, move in_progress after each batch of 3+ tool calls, mark done only after verification, and keep exactly one in_progress unless real parallel tracks exist.';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
 
@@ -218,4 +218,38 @@ function todoListHygieneNote(todos: readonly TodoItem[]): string {
     return 'the board is getting large; prune obsolete cards or group low-value pending work.';
   }
   return '';
+}
+
+const SWARM_ORCHESTRATION_PREFIX = '[swarm] ';
+
+export function swarmOrchestrationCardTitle(item: string): string {
+  return `${SWARM_ORCHESTRATION_PREFIX}${item}`;
+}
+
+export function seedSwarmOrchestrationTodos(
+  store: ToolStore,
+  items: readonly string[],
+): void {
+  const existing = store.get(TODO_STORE_KEY) ?? [];
+  const existingTitles = new Set(existing.map((todo) => todo.title));
+  const newCards = items
+    .filter((item) => !existingTitles.has(swarmOrchestrationCardTitle(item)))
+    .map((item) => ({ title: swarmOrchestrationCardTitle(item), status: 'pending' as const }));
+  if (newCards.length === 0) return;
+  store.set(TODO_STORE_KEY, [...existing, ...newCards]);
+}
+
+export function updateSwarmOrchestrationTodoStatus(
+  store: ToolStore,
+  item: string,
+  status: TodoStatus,
+): void {
+  const title = swarmOrchestrationCardTitle(item);
+  const todos = store.get(TODO_STORE_KEY) ?? [];
+  const index = todos.findIndex((todo) => todo.title === title);
+  if (index === -1) return;
+  store.set(
+    TODO_STORE_KEY,
+    todos.map((todo, i) => (i === index ? { title: todo.title, status } : todo)),
+  );
 }

@@ -198,6 +198,52 @@ describe('SessionSubagentHost', () => {
     );
   });
 
+  it('emits subagent.todo.updated when a child updates its todo store', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const summary =
+      'Completed the subagent task with enough implementation detail and verification context for the parent agent to continue without repeating the work. '.repeat(
+        2,
+      );
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn({
+      profileName: 'coder',
+      parentToolCallId: 'call_swarm',
+      prompt: 'Implement the fix',
+      description: 'Fix bug',
+      runInBackground: false,
+      signal,
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        parent.allEvents.some(
+          (entry) => entry.type === '[rpc]' && entry.event === 'subagent.started',
+        ),
+      ).toBe(true);
+    });
+    child.agent.tools.updateStore('todo', [{ title: 'Inspect files', status: 'in_progress' }]);
+    await handle.completion;
+
+    expect(parent.allEvents).toContainEqual(
+      expect.objectContaining({
+        type: '[rpc]',
+        event: 'subagent.todo.updated',
+        args: expect.objectContaining({
+          subagentId: 'agent-0',
+          parentToolCallId: 'call_swarm',
+          todos: [{ title: 'Inspect files', status: 'in_progress' }],
+        }),
+      }),
+    );
+  });
+
   it('marks a queued child ready when the model emits thinking output', async () => {
     const parent = testAgent();
     parent.configure();
@@ -313,6 +359,7 @@ describe('SessionSubagentHost', () => {
       'LioraSearch',
       'LioraTree',
       'Read',
+      'TodoList',
     ]);
     expect(userTextMessages(child.llmCalls[0]?.history ?? [])).toEqual(['Find the cause']);
   });
@@ -366,6 +413,7 @@ describe('SessionSubagentHost', () => {
       'LioraSearch',
       'LioraTree',
       'Read',
+      'TodoList',
     ]);
     expect(parent.allEvents).toContainEqual(
       expect.objectContaining({
@@ -482,6 +530,7 @@ describe('SessionSubagentHost', () => {
       'LioraSymbol',
       'LioraTree',
       'Read',
+      'TodoList',
       'Write',
     ]);
     expect(

@@ -29,6 +29,11 @@ import {
   SwarmChannelTool,
 } from '../tools/builtin/collaboration/swarm-channel';
 import {
+  TODO_STORE_KEY,
+  type TodoItem,
+  updateSwarmOrchestrationTodoStatus,
+} from '../tools/builtin/state/todo-list';
+import {
   DEFAULT_AGENT_PROFILES,
   prepareSystemPromptContext,
   type ResolvedAgentProfile,
@@ -85,6 +90,7 @@ export interface RunSubagentOptions {
   readonly prompt: string;
   readonly description: string;
   readonly swarmIndex?: number;
+  readonly swarmItem?: string;
   readonly runInBackground: boolean;
   readonly signal: AbortSignal;
   readonly onReady?: () => void;
@@ -94,7 +100,6 @@ export interface RunSubagentOptions {
 export interface SpawnSubagentOptions extends RunSubagentOptions {
   readonly profileName: string;
   readonly profileBaseName?: string;
-  readonly swarmItem?: string;
 }
 
 type SubagentCompletion = {
@@ -203,7 +208,7 @@ export class SessionSubagentHost {
       try {
         runOptions.signal.throwIfAborted();
         child.config.update({ modelAlias: parent.config.modelAlias });
-        this.emitSubagentStarted(parent, agentId);
+        this.emitSubagentStarted(parent, agentId, runOptions);
         const turnId = child.turn.retry('agent-host');
         if (turnId === null) {
           throw new Error(`Agent instance "${agentId}" could not start a retry turn`);
@@ -372,7 +377,7 @@ export class SessionSubagentHost {
       if (gitContext) childPrompt = `${gitContext}\n\n${childPrompt}`;
     }
 
-    this.emitSubagentStarted(parent, childId);
+    this.emitSubagentStarted(parent, childId, options);
     const turnId = child.turn.prompt([{ type: 'text', text: childPrompt }], SUBAGENT_PROMPT_ORIGIN);
     if (turnId === null) {
       throw new Error(`Agent instance "${childId}" could not start a turn`);
@@ -406,6 +411,9 @@ export class SessionSubagentHost {
       result = lastAssistantText(child);
     }
     const usage = child.usage.data().total;
+    if (options.swarmItem !== undefined) {
+      updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'done');
+    }
     parent.emitEvent({
       type: 'subagent.completed',
       subagentId: childId,
@@ -438,7 +446,36 @@ export class SessionSubagentHost {
     );
     child.useProfile(profile, context);
     child.tools.inheritUserTools(parent.tools);
+    this.attachSubagentTodoBridge(parent, child, childId, profile.name, options);
     this.attachUltraSwarmChannelIfNeeded(parent, child, childId, options, profile.name);
+  }
+
+  private attachSubagentTodoBridge(
+    parent: Agent,
+    child: Agent,
+    childId: string,
+    profileName: string,
+    options: RunSubagentOptions,
+  ): void {
+    type ToolManagerLike = {
+      updateStore<K extends keyof import('../tools/store').ToolStoreData>(
+        key: K,
+        value: import('../tools/store').ToolStoreData[K],
+      ): void;
+    };
+    const tools = child.tools as ToolManagerLike;
+    const originalUpdateStore = tools.updateStore.bind(tools);
+    tools.updateStore = (key, value) => {
+      originalUpdateStore(key, value);
+      if (key !== TODO_STORE_KEY) return;
+      parent.emitEvent({
+        type: 'subagent.todo.updated',
+        subagentId: childId,
+        subagentName: profileName,
+        parentToolCallId: options.parentToolCallId,
+        todos: normalizeTodoItems(value),
+      });
+    };
   }
 
   private attachUltraSwarmChannelIfNeeded(
@@ -547,7 +584,11 @@ export class SessionSubagentHost {
   private emitSubagentStarted(
     parent: Agent,
     childId: string,
+    options: RunSubagentOptions,
   ): void {
+    if (options.swarmItem !== undefined) {
+      updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'in_progress');
+    }
     parent.emitEvent({
       type: 'subagent.started',
       subagentId: childId,
@@ -561,6 +602,9 @@ export class SessionSubagentHost {
     error: unknown,
   ): void {
     if (shouldSuppressQueuedAttemptFailureEvent(options, error)) return;
+    if (options.swarmItem !== undefined) {
+      updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'pending');
+    }
     parent.emitEvent({
       type: 'subagent.failed',
       subagentId: childId,
@@ -606,6 +650,25 @@ function lastAssistantText(agent: Agent): string {
     if (text.trim().length > 0) return text.trim();
   }
   return '';
+}
+
+function normalizeTodoItems(value: unknown): readonly TodoItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isTodoItemLike).map((todo) => ({
+    title: todo.title,
+    status: todo.status,
+  }));
+}
+
+function isTodoItemLike(value: unknown): value is TodoItem {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record['title'] === 'string' &&
+    (record['status'] === 'pending' ||
+      record['status'] === 'in_progress' ||
+      record['status'] === 'done')
+  );
 }
 
 function shouldSuppressQueuedAttemptFailureEvent(

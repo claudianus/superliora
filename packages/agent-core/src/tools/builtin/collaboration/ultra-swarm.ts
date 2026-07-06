@@ -821,7 +821,7 @@ ${taskDescription}
       ? ''
       : `\n\n${buildCriticAssignmentXml(spec.criticAssignment)}`;
     return appendSwarmResearchAutonomy(
-      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${collaborationLine}${handoffLine}${dependencyLine}${criticLine}\n\nLean context: LioraContext(compose) + LioraSearch before broad Read/Grep; compact handoffs with file:line evidence.\n\nApply ${spec.expertName} expertise; return a compact handoff for the parent — do not integrate final product-file edits yourself.`,
+      `${briefing}\n\n${task}${laneLine}${reasonLine}${focusLine}${phaseLine}${reviewLine}${workNodeLine}${collaborationLine}${handoffLine}${dependencyLine}${criticLine}\n\nLean context: LioraContext(compose) + LioraSearch before broad Read/Grep; compact handoffs with file:line evidence.\n\nApply ${spec.expertName} expertise; return a compact handoff for the parent — do not integrate final product-file edits yourself.\n\nTodoList: create a live scope board within your first 2 tool calls (3–7 actionable cards). Update after each major tool batch — split vague cards, mark done only after verification. The parent sees your progress on the swarm panel; your final handoff is separate.`,
     );
   }
 

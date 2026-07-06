@@ -292,6 +292,10 @@ export class SessionEventHandler {
       case 'subagent.completed':
       case 'subagent.failed':
         this.subAgentEventHandler.handleLifecycleEvent(event); break;
+      case 'subagent.todo.updated':
+        this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
+      case 'tools.update_store':
+        this.handleToolsUpdateStore(event); break;
       case 'background.task.started':
       case 'background.task.terminated':
         this.handleBackgroundTaskEvent(event); break;
@@ -658,6 +662,18 @@ export class SessionEventHandler {
       }
     }
     this.host.patchLivePane({ mode: 'waiting' });
+  }
+
+  private handleToolsUpdateStore(event: Extract<Event, { type: 'tools.update_store' }>): void {
+    if (event.key !== 'todo') return;
+    const rawTodos = event.value;
+    if (!Array.isArray(rawTodos)) return;
+    const sanitized = rawTodos
+      .filter((todo): todo is { title: string; status: 'pending' | 'in_progress' | 'done' } =>
+        isTodoItemShape(todo),
+      )
+      .map((todo) => ({ title: todo.title, status: todo.status }));
+    this.host.streamingUI.setTodoList(sanitized);
   }
 
   private handleStatusUpdate(event: AgentStatusUpdatedEvent): void {

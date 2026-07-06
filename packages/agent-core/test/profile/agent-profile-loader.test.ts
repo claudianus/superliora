@@ -188,13 +188,13 @@ describe('default agent profiles', () => {
       ]),
     );
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Memory', 'WebSearch', 'FetchURL']),
+      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Memory', 'WebSearch', 'FetchURL', 'TodoList']),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL']),
+      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'TodoList']),
     );
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL']),
+      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'TodoList']),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Write');
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Bash');

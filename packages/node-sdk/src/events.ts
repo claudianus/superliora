@@ -90,6 +90,8 @@ export type {
   SubagentSuspendedEvent,
   SubagentCompletedEvent,
   SubagentFailedEvent,
+  SubagentTodoUpdatedEvent,
+  ToolsUpdateStoreEvent,
 } from '@superliora/agent-core';
 
 // Compaction lifecycle events and compaction result payload.

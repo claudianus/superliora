@@ -3,9 +3,11 @@ import { describe, it, expect } from 'vitest';
 import {
   TodoPanelComponent,
   formatHiddenCounts,
+  formatSwarmMemberTodoLines,
   selectVisibleTodos,
   type TodoItem,
 } from '#/tui/components/chrome/todo-panel';
+import { darkColors } from '#/tui/theme/colors';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -450,5 +452,25 @@ describe('formatHiddenCounts', () => {
 
   it('returns empty string when all counts are zero', () => {
     expect(formatHiddenCounts({ done: 0, in_progress: 0, pending: 0 })).toBe('');
+  });
+});
+
+describe('formatSwarmMemberTodoLines', () => {
+  it('renders compact doing, next, and done counts', () => {
+    const lines = formatSwarmMemberTodoLines(
+      [
+        { title: 'Patch handler', status: 'in_progress' },
+        { title: 'Run tests', status: 'pending' },
+        { title: 'Read docs', status: 'done' },
+      ],
+      80,
+      darkColors,
+    ).map(strip);
+
+    expect(lines).toEqual([
+      '  ▸ doing: Patch handler',
+      '  ○ next: Run tests',
+      '  ✓ done: 1',
+    ]);
   });
 });

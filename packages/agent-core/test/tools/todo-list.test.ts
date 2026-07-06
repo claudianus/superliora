@@ -13,6 +13,8 @@ import {
   TODO_STORE_KEY,
   TodoListInputSchema,
   TodoListTool,
+  seedSwarmOrchestrationTodos,
+  updateSwarmOrchestrationTodoStatus,
   type TodoItem,
 } from '../../src/tools/builtin/state/todo-list';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
@@ -80,7 +82,7 @@ describe('TodoListTool', () => {
     expect(description).toContain('**Avoid churn:**');
     // (1) do not re-call the tool when nothing meaningful changed between calls.
     expect(description).toMatch(/nothing meaningful has changed/i);
-    expect(description).toMatch(/real progress/i);
+    expect(description).toMatch(/scope or priority change/i);
     // (2) when unsure of the current state, use query mode first.
     expect(description).toMatch(/query mode/i);
     // (3) when stuck, tell the user instead of repeatedly re-ordering todos.
@@ -135,8 +137,8 @@ describe('TodoListTool', () => {
     expect(result.output).toContain('[pending] first');
     expect(result.output).toContain('[in_progress] second');
     expect(result.output).toContain('Changes: 2 added.');
-    expect(result.output).toContain('Keep this as a live Kanban board');
-    expect(result.output).toContain('exactly one task in_progress');
+    expect(result.output).toContain('Keep this Kanban live');
+    expect(result.output).toContain('exactly one in_progress');
     expect(getTodos()).toEqual([
       { title: 'first', status: 'pending' },
       { title: 'second', status: 'in_progress' },
@@ -247,5 +249,27 @@ describe('TodoListTool', () => {
     expect(readExecution.description).toBe('Reading todo list');
     expect(clearExecution.description).toBe('Clearing todo list');
     expect(updateExecution.description).toBe('Updating todo list');
+  });
+
+  it('seeds swarm orchestration cards without duplicating existing titles', () => {
+    const { store, getTodos } = makeStore([
+      { title: '[swarm] auth module', status: 'done' },
+    ]);
+    seedSwarmOrchestrationTodos(store, ['auth module', 'ui polish']);
+
+    expect(getTodos()).toEqual([
+      { title: '[swarm] auth module', status: 'done' },
+      { title: '[swarm] ui polish', status: 'pending' },
+    ]);
+  });
+
+  it('updates swarm orchestration card status by item text', () => {
+    const { store, getTodos } = makeStore([
+      { title: '[swarm] auth module', status: 'pending' },
+    ]);
+    updateSwarmOrchestrationTodoStatus(store, 'auth module', 'in_progress');
+    updateSwarmOrchestrationTodoStatus(store, 'auth module', 'done');
+
+    expect(getTodos()).toEqual([{ title: '[swarm] auth module', status: 'done' }]);
   });
 });

@@ -13,6 +13,8 @@ promptVars:
     - If `<git-context>` is present, orient from it first
 
     Be fast: complete efficiently; report findings in a clear structure.
+
+    After receiving your scope, create a live TodoList within your first 2 tool calls (3–7 actionable cards). Update after each major tool batch. The parent sees scope progress on the swarm panel — your final handoff is separate.
 whenToUse: |
   Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (e.g. "src/**/*.yaml"), search code for keywords (e.g. "database connection"), or answer questions about the codebase (e.g. "how does the auth module work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "thorough" for comprehensive analysis across multiple locations and naming conventions. Use this agent for any read-only exploration that will clearly require more than 3 search queries. Prefer launching multiple explore agents concurrently when investigating independent questions.
 tools:
@@ -29,3 +31,4 @@ tools:
   - LioraIndex
   - WebSearch
   - FetchURL
+  - TodoList

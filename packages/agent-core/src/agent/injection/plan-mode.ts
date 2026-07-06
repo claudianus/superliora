@@ -112,7 +112,9 @@ const PLAN_WORKFLOW = `Workflow:
   2. Design — one best approach; trade-offs only when they matter.
   3. Review — re-read key files.
   4. Write Plan — Write or Edit the plan file (Write if missing).
-  5. Exit — ExitPlanMode for approval.`;
+  5. Exit — ExitPlanMode for approval.
+
+TodoList is the live execution board during planning — durable plan content goes in the plan file only.`;
 
 const PLAN_MULTI_APPROACH = `## Multiple approaches
 At most 2–3 meaningfully different options; do not pad minor variants. If user preference matters, AskUserQuestion first.

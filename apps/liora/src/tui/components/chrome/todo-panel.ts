@@ -42,7 +42,7 @@ const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
 const BOARD_SEPARATOR = ' │ ';
-const CHANGE_FLASH_MS = 12_000;
+const CHANGE_FLASH_MS = 18_000;
 const EMPTY_HIGHLIGHTS: ReadonlyMap<string, TodoChangeKind> = new Map();
 
 export interface VisibleTodos {
@@ -410,7 +410,7 @@ function changeBadge(change: TodoChangeKind | undefined, colors: ColorPalette): 
     case 'completed':
       return `${chalk.hex(colors.success)('↘')} `;
     case 'moved':
-      return `${chalk.hex(colors.primary)('↷')} `;
+      return `${chalk.hex(colors.primary)('→')} `;
     case 'reopened':
       return `${chalk.hex(colors.warning)('↟')} `;
   }
@@ -422,7 +422,7 @@ function countTodos(todos: readonly TodoItem[]): Record<TodoStatus, number> {
   return counts;
 }
 
-function diffTodos(
+export function diffTodos(
   previous: readonly TodoItem[],
   next: readonly TodoItem[],
 ): {
@@ -512,4 +512,31 @@ export function formatHiddenCounts(counts: Record<TodoStatus, number>): string {
   return STATUS_LABELS.filter(({ status }) => counts[status] > 0)
     .map(({ status, label }) => `${counts[status]} ${label}`)
     .join(' · ');
+}
+
+export function formatSwarmMemberTodoLines(
+  todos: readonly TodoItem[],
+  width: number,
+  colors: ColorPalette,
+): string[] {
+  if (todos.length === 0) return [];
+  const visible = selectVisibleTodos(todos);
+  const doing = visible.rows.find((todo) => todo.status === 'in_progress');
+  const next = visible.rows.find((todo) => todo.status === 'pending');
+  const doneCount = todos.filter((todo) => todo.status === 'done').length;
+  const lines: string[] = [];
+  if (doing !== undefined) {
+    lines.push(
+      `  ${chalk.hex(colors.primary)('▸')} doing: ${truncateToWidth(doing.title, Math.max(8, width - 12), '…')}`,
+    );
+  }
+  if (next !== undefined) {
+    lines.push(
+      `  ${chalk.hex(colors.textDim)('○')} next: ${truncateToWidth(next.title, Math.max(8, width - 10), '…')}`,
+    );
+  }
+  if (doneCount > 0) {
+    lines.push(`  ${chalk.hex(colors.success)('✓')} done: ${String(doneCount)}`);
+  }
+  return lines.slice(0, 3);
 }

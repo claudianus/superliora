@@ -157,6 +157,18 @@ export class SubAgentEventHandler {
     }
   }
 
+  handleSubagentTodoUpdated(
+    event: Extract<Event, { type: 'subagent.todo.updated' }>,
+  ): void {
+    const progress = this.agentSwarmProgress.get(event.parentToolCallId);
+    if (progress === undefined) return;
+    progress.applyMemberTodos(
+      event.subagentId,
+      event.todos.map((todo) => ({ title: todo.title, status: todo.status })),
+    );
+    this.requestRender();
+  }
+
   clearAgentSwarmProgress(): void {
     for (const progress of this.agentSwarmProgress.values()) {
       progress.dispose();
