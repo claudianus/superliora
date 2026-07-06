@@ -1,31 +1,39 @@
-# SuperLiora CLI
+# SuperLiora
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/en/) <br>
 [Site](https://claudianus.github.io/superliora/en/) · [Issues](https://github.com/claudianus/superliora/issues) · [한국어](README.ko.md)
 
 ![SuperLiora command center](./apps/site/public/assets/hero-command-center.png)
 
-## AI coding work, carried through
+## AI coding harness for sustained software work
 
-SuperLiora is an independent AI coding agent for long software tasks. It connects planning, research, goal control, parallel execution, verification, memory, and project documentation in one terminal-first workflow.
+SuperLiora is an independent AI coding harness for long, complex software tasks. It connects planning, research, goal control, parallel execution, verification, memory, and project documentation in one terminal-first workflow. It is designed for work where context quality, evidence, provider reliability, and release risk all matter at the same time.
 
-The product is built for project work where context quality, provider availability, evidence, and release risk matter at the same time. It keeps decisions traceable, keeps useful knowledge available, and helps the next step begin from verified ground.
+- **Plan before code.** UltraPlan interviews requirements until the goal is true/false-verifiable.
+- **Work with evidence.** UltraResearch checks sources, APIs, papers, and security advisories before decisions are made.
+- **Distribute safely.** UltraSwarm assembles specialist subagents behind a visible ENGAGE/DEFER gate.
+- **Stay coherent.** Context OS, Liora Recall, and LLM Wiki keep long sessions grounded and reusable.
+- **Act beyond the editor.** Browser-use (CloakBrowser + Playwright) and computer-use (CUA/MCP) let the harness interact with real UIs.
+- **Use it anywhere.** Premium TUI, ACP editor support, and provider routing let you run it from a terminal or inside an IDE.
 
 ## Core capabilities
 
-| Capability | What it supports |
+| Capability | What it does |
 | --- | --- |
-| UltraPlan | Interviews requirements, constraints, risks, and missing facts until the future goal is true/false verifiable. |
-| UltraResearch | Checks APIs, papers, release notes, and security issues, then keeps the evidence available. |
-| UltraGoal | Starts after research-backed UltraPlan pins a concrete objective, completion criterion, and verification plan. |
-| UltraSwarm | Engages specialist subagents only after a visible ENGAGE/DEFER Swarm decision. |
-| UltraWork | Routes goal-driven work through research, UltraPlan, UltraGoal, Swarm decision, integration, verification, and learning. |
-| Provider routing | Registers API keys and OAuth accounts, then selects fallback candidates by quota, cooldown, latency, and route health. |
-| Liora Recall | Preserves project facts, decisions, procedures, follow-up work, and governance rules. |
-| LLM Wiki | Turns codebase knowledge, evidence, and verification results into reusable project documentation. |
-| Context OS | Maintains long sessions with structured working memory, repair, and bounded rehydration. |
-| Premium themes | Provides presets, imported terminal palettes, and syntax-aware colors for long terminal sessions. |
-| ACP support | Lets compatible editors continue the same SuperLiora workflow over stdio. |
+| **UltraPlan** | Interviews requirements, constraints, risks, and missing facts until the objective is true/false-verifiable. (`packages/agent-core/src/agent/plan/ultra-plan-mode.ts`) |
+| **UltraResearch** | Checks APIs, papers, release notes, and security issues, then keeps evidence available for the next step. |
+| **UltraGoal** | Pins a concrete objective, completion criterion, and budget after research-backed planning. (`packages/agent-core/src/agent/injection/goal.ts`) |
+| **UltraSwarm** | Assembles up to 128 specialist subagents across phased plan/implement/review waves, with a visible ENGAGE/DEFER gate. (`packages/agent-core/src/tools/builtin/collaboration/ultra-swarm.ts`) |
+| **UltraWork** | Routes goal-driven work through research, UltraPlan, UltraGoal, Swarm decision, integration, verification, and learning. (`packages/agent-core/src/ultrawork/mode.ts`) |
+| **Browser-use** | Drives CloakBrowser + Playwright to observe, act, screenshot, and evaluate web pages as part of the workflow. (`packages/gui-use/src/browser/cloak-browser.ts`) |
+| **Computer-use** | Uses CUA/MCP to capture and act on native desktop windows, enabling GUI automation from the same harness. (`packages/gui-use/src/computer/cua-computer.ts`) |
+| **Provider routing** | Registers API keys and OAuth accounts, then selects fallback candidates by quota, cooldown, latency, and route health. (`packages/agent-core/src/session/provider-manager.ts`) |
+| **Context OS** | Maintains long sessions with structured working memory, repair, and bounded rehydration. (`packages/agent-core/src/agent/context-os/index.ts`) |
+| **Liora Recall** | Preserves semantic, episodic, procedural, prospective, and governance memory across sessions. (`packages/agent-core/src/memory/types.ts`) |
+| **LLM Wiki** | Turns codebase knowledge, evidence, and verification results into a project-local, reviewable wiki. (`apps/liora/src/tui/commands/llm-wiki.ts`) |
+| **Premium TUI** | A configurable terminal surface with Neon Noir / Daylight palettes, ambient effects, and keyboard-first navigation. (`apps/liora/src/tui/config.ts`) |
+| **ACP** | Exposes the same SuperLiora workflow over stdio to ACP-compatible editors and IDEs. (`packages/acp-adapter/src/server.ts`) |
+| **Visual debugging** | Session replay and visual debugging tools in `apps/vis` for inspecting agent traces, context, and decisions. |
 
 ## Install
 
@@ -45,7 +53,7 @@ irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | i
 
 > On Windows, install [Git for Windows](https://gitforwindows.org/) before first launch. SuperLiora uses Git Bash as its shell environment. If Git Bash is installed in a custom location, set `LIORA_SHELL_PATH` to the absolute path of `bash.exe`.
 
-Open a new shell and verify the command:
+Open a new shell and verify:
 
 ```sh
 liora --version
@@ -62,7 +70,7 @@ cd your-project
 liora
 ```
 
-On first launch, use `/login` to connect an OAuth account or API-key based provider. To add more providers and route candidates, use `/provider` in the TUI or the non-interactive commands:
+On first launch, use `/login` to connect an OAuth account or API-key provider. Add more providers and route candidates with `/provider` in the TUI, or use non-interactive commands:
 
 ```sh
 liora provider catalog add anthropic --api-key-env ANTHROPIC_API_KEY
@@ -71,19 +79,33 @@ liora provider route preview <modelAlias>
 liora provider route status <sessionId>
 ```
 
-For larger implementation work, start with UltraWork. In the TUI, press `Shift-Tab` to turn on Ultrawork mode; normal prompts stay lightweight unless the mode is on or you explicitly request UltraWork.
+For larger work, start with UltraWork. In the TUI, press `Shift-Tab` to turn on Ultrawork mode; normal prompts stay lightweight unless the mode is on or you explicitly request UltraWork.
 
 ```sh
 liora -p "/ultrawork Audit this repo, plan the migration, implement it, run verification, and summarize the release risk."
 ```
 
-Or launch the TUI and ask:
+Or in the TUI:
 
 ```text
 Use UltraWork. Analyze this project, identify the safest migration path, implement it, verify it, and preserve the important decisions in memory.
 ```
 
-## Editor and IDE use
+### Browser and computer use
+
+When a task needs a real browser or desktop UI, use the same harness:
+
+```text
+Open the browser, navigate to the staging site, run the login flow, and verify the dashboard renders.
+```
+
+```text
+Capture the current Xcode window, inspect the build error, and propose a fix.
+```
+
+Both paths are gated by the same permission, memory, and verification model as code edits.
+
+## Editor and IDE use (ACP)
 
 SuperLiora speaks the Agent Client Protocol, so ACP-compatible editors and IDEs can drive a session over stdio. Log in once, then point your editor at `liora acp`.
 
@@ -100,6 +122,14 @@ For Zed, add this to `~/.config/zed/settings.json`:
     }
   }
 }
+```
+
+## Visual debugging
+
+SuperLiora includes visual debugging tools in `apps/vis` for inspecting sessions, replays, context projections, and agent traces. Run them locally:
+
+```sh
+pnpm dev:vis
 ```
 
 ## Documentation

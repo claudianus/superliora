@@ -4,6 +4,47 @@
 
 ---
 
+## 0. As-built Implementation Notes
+
+The site was implemented with Vite 6 but uses a custom **vanilla CSS architecture** instead of Tailwind CSS 4. The `@tailwindcss/vite` plugin remains in `vite.config.ts` for future compatibility, but the production styles live in `src/style.css` and are plain CSS with custom properties.
+
+### Actual file structure
+
+```
+apps/site/
+├── index.html                 # Korean landing page (lang="ko")
+├── en/index.html              # English landing page (lang="en")
+├── public/
+│   └── assets/
+│       └── hero-command-center.png   # Open Graph / docs-deploy asset
+├── src/
+│   ├── style.css              # Design tokens, layout, components, keyframes
+│   └── main.js                # Theme, reveals, particles, glow, tilt, typing, copy, nav
+├── package.json
+├── vite.config.ts             # base: '/superliora/', multi-page input
+└── .gitignore
+```
+
+### Deviations from the Tailwind-first plan
+
+- **No Tailwind utility classes** in the shipped pages; CSS is component-based and custom-property driven.
+- **Theme persistence** is enabled via `localStorage('superliora-theme')`; the original spec called for no persistence.
+- **Hero visual** uses a code-drawn SVG harness diagram instead of a static hero image; the remaining section visuals (Ultra workflow, Memory & Wiki, Premium terminal) are inline SVGs. Only `hero-command-center.png` is kept in `public/assets/` for Open Graph and the docs-deploy workflow.
+- **Additional sections** added beyond the original AC4 map: `Problem`, `Solution`, `Ultra workflow`, `Proof`, `Harness capabilities`, `Memory & Wiki`, `Premium operator surface`, `Capabilities`, `Visual debugging`, `Install`, and `CTA`.
+- **Language switcher** uses simple anchor links (`/superliora/` and `/superliora/en/`).
+- **Mouse glow** follows the cursor with a fixed-position element, not CSS variables on the root.
+- **Particle network** uses a canvas with DPR scaling and pauses on `document.hidden`.
+- **Scroll reveals** are driven by `IntersectionObserver` adding `.is-visible`.
+- **3D tilt** is applied via `perspective(1000px) rotateX/Y` on hover, disabled on touch and reduced-motion devices.
+
+### Verified build outputs
+
+- `pnpm -C apps/site run build` produces `dist/` with `index.html`, `en/index.html`, and hashed CSS/JS assets.
+- `dist/assets/` contains the four PNG assets copied from `public/assets/` (un-hashed public files).
+- `base: '/superliora/'` means production URLs are `https://claudianus.github.io/superliora/` and `.../superliora/en/`.
+
+
+
 ## 1. Package & File Structure
 
 New workspace package: `apps/site`
@@ -812,21 +853,22 @@ Key Tailwind breakpoints used: `sm:`, `md:`, `lg:`, `xl:`.
 
 ## 12. Implementation Checklist
 
-- [ ] `apps/site` created with Vite 6 + Tailwind CSS 4 (`@tailwindcss/vite`).
-- [ ] `vite.config.ts` has `base: '/superliora/'` and multi-page `input`.
-- [ ] `package.json` scripts: `dev`, `build`, `preview`.
-- [ ] `public/` contains the 4 existing PNGs.
-- [ ] `src/style.css` uses `@import "tailwindcss"` and `@theme` tokens.
-- [ ] Korean `index.html` + English `en/index.html` follow the section map.
-- [ ] Animated gradient mesh implemented.
-- [ ] Mouse-follow radial glow implemented (desktop only).
-- [ ] Canvas particle network implemented (desktop only, reduced-motion disabled).
-- [ ] 3D card tilt implemented on cards.
-- [ ] Scroll reveals with IntersectionObserver.
-- [ ] Terminal typing mockup in Solution section.
-- [ ] Code copy buttons in Install section.
-- [ ] Manual light/dark toggle without persistence.
-- [ ] Chinese language files removed; no `zh/` links remain.
-- [ ] GitHub Actions workflow updated to build `apps/site` and deploy `dist/`.
-- [ ] `flake.nix` and `pnpm-workspace.yaml` updated.
-- [ ] Screenshots captured in both themes for verification.
+- [x] `apps/site` created with Vite 6. `@tailwindcss/vite` plugin is present in `vite.config.ts`, but the shipped styles are written in vanilla CSS (`src/style.css`) rather than Tailwind utility classes.
+- [x] `vite.config.ts` has `base: '/superliora/'` and multi-page `input` for `index.html` and `en/index.html`.
+- [x] `package.json` scripts: `dev`, `build`, `preview`.
+- [x] `public/assets/` contains the four existing PNGs.
+- [~] `src/style.css` uses custom CSS properties and component classes instead of `@import "tailwindcss"` and `@theme` tokens. The original Tailwind-first design was replaced with a plain-CSS approach to simplify the single-page build and keep the file self-contained.
+- [x] Korean `index.html` and English `en/index.html` follow the section map, with additional sections for visual debugging, premium TUI themes, and harness capabilities.
+- [x] Animated gradient mesh implemented (`#ambient .mesh`).
+- [x] Mouse-follow radial glow implemented (`#mouse-glow`), disabled on touch and reduced-motion devices.
+- [x] Canvas particle network implemented (`#particle-network`), paused on `document.hidden` and disabled on touch/reduced-motion.
+- [x] 3D card tilt implemented on cards with `data-tilt`.
+- [x] Scroll reveals with `IntersectionObserver` adding `.is-visible`.
+- [x] Terminal typing mockup in Solution and Harness sections.
+- [x] Code copy buttons in Install section.
+- [x] Manual light/dark toggle. **Deviation:** theme choice is persisted in `localStorage` so returning visitors keep their preference.
+- [x] Chinese language files removed; no `zh/` links remain in the site.
+- [ ] GitHub Actions workflow updated to build `apps/site` and deploy `dist/` (pending integration owner).
+- [x] `flake.nix` and `pnpm-workspace.yaml` already include `apps/site`.
+- [ ] Screenshots captured in both themes for verification (pending visual review).
+
