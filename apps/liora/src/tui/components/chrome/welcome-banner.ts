@@ -1,7 +1,12 @@
 import type { AppearancePreferences } from '#/tui/config';
 import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
 import { truncateToWidth } from '#/tui/renderer';
-import { renderSpectacularText } from '#/tui/utils/appearance-effects';
+import { currentTheme } from '#/tui/theme';
+import { gradientText } from '#/tui/theme/gradient-text';
+import {
+  motionEffectsAllowed,
+  resolveQualityAdjustedAmbientEffectMode,
+} from '#/tui/utils/appearance-effects';
 
 // figlet Slant "SUPERLIORA". Regenerate via scripts/generate-liora-mascot-art.sh banner.
 const BANNER_LARGE = [
@@ -41,8 +46,17 @@ function paintBannerLine(
   maxWidth: number,
 ): string {
   const plain = truncateToWidth(line, maxWidth, '…');
-  return renderSpectacularText(plain, `welcome:banner:${String(rowIndex)}`, appearance, {
-    rowIndex,
-    intense: true,
-  });
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (motionEffectsAllowed() && mode !== 'off') {
+    // Per-grapheme gradient keeps every figlet cell (including spaces) styled so
+    // canvas-background fills do not paint a solid block behind the ASCII art.
+    return gradientText(
+      plain,
+      currentTheme.color('gradientStart'),
+      currentTheme.color('gradientEnd'),
+      1.2,
+      rowIndex * 2,
+    );
+  }
+  return currentTheme.boldFg('primary', plain);
 }
