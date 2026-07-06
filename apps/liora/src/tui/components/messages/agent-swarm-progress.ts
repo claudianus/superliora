@@ -20,7 +20,7 @@ import {
 import { FAILURE_MARK, SUCCESS_MARK } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { gradientText } from '#/tui/theme/gradient-text';
+import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
 
 const TEXT_CELL_PREFERRED_WIDTH = 30;
 const CELL_GAP = '  ';
@@ -59,7 +59,6 @@ const QUEUED_LABEL = 'Queued...';
 const SUSPENDED_LABEL = 'Rate limited...';
 const RESUMED_ITEM_LABEL = '(resumed)';
 const CANCELLED_LABEL_DARKEN_FACTOR = 0.72;
-const AGENT_SWARM_TITLE_ACCENT_BIAS = 1.3;
 
 const STATUS_BAR_ORDER = [
   'completed',
@@ -651,7 +650,7 @@ export class AgentSwarmProgressComponent implements Component {
       ];
     }
 
-    const title = gradientText(this.title, this.colors.primary, this.colors.accent, AGENT_SWARM_TITLE_ACCENT_BIAS);
+    const title = renderAnimatedGradientText(this.title, `agent-swarm:title:${this.title}`);
     const description =
       this.description.length > 0
         ? chalk.hex(this.colors.primary)(` ${renderRendererDividerRow({ width: 1 })} `) +

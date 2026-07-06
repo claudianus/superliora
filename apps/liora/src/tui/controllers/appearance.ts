@@ -5,7 +5,6 @@ import { ESC, ST } from '#/tui/constant/terminal';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
-  advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
   motionEffectsAllowed,
   resolveAmbientEffectMode,
@@ -39,9 +38,7 @@ export class AppearanceController {
       enabled: shouldAnimate(appearance),
       requestRender: options.requestRender,
       shouldRender: options.shouldRenderAnimation,
-      beforeRender: () => {
-        advanceAppearanceAnimationClock();
-      },
+      beforeRender: undefined,
       resolveIntervalMs: () => appearanceAnimationFrameIntervalMs(this.getAppearance()),
     });
     this.apply(appearance);

@@ -151,8 +151,25 @@ export function appearanceAnimationFrameIntervalMs(
     health: health === 'degraded' ? 'watch' : health,
     maxFps: 30,
     defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
+    premiumMs: 33,
+    subtleMs: 120,
     offMs: 1000,
   });
+}
+
+export function ambientAnimationActive(
+  appearance: AppearancePreferences = activeAppearance,
+): boolean {
+  return motionEffectsAllowed() && resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
+}
+
+export function ambientAnimationRenderTick(
+  appearance: AppearancePreferences = activeAppearance,
+): number {
+  if (!ambientAnimationActive(appearance)) return -1;
+  const intervalMs = appearanceAnimationFrameIntervalMs(appearance);
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return -1;
+  return Math.floor(appearanceAnimationNow() / intervalMs);
 }
 
 export function motionEffectsAllowed(): boolean {
@@ -313,11 +330,13 @@ export function renderSpectacularText(
 
   const rowIndex = options.rowIndex ?? 0;
   const intense = options.intense !== false && mode === 'premium';
-  const pace = options.pace ?? (intense ? 'fast' : 'slow');
-  const intervalMs = pace === 'fast' ? (intense ? 70 : 120) : 160;
-  const tick = Math.floor(appearanceAnimationNow() / intervalMs);
+  const frameMs = Math.max(1, Math.floor(appearanceAnimationFrameIntervalMs(appearance)));
+  const nowMs = appearanceAnimationNow();
+  const tickFloat = nowMs / frameMs;
+  const tick = Math.floor(tickFloat);
   const base = hashRendererEffectSeed(seed) + rowIndex * 37;
   const waveStride = intense ? 2 : 1;
+  const waveSpan = SPECTACULAR_TOKENS.length * 4;
   const runs: RendererStyledTextRun[] = [];
   let clusterIndex = 0;
 
@@ -351,14 +370,12 @@ export function renderSpectacularText(
       continue;
     }
 
-    const wave = rendererPositiveModulo(
-      clusterIndex + tick * waveStride + base,
-      SPECTACULAR_TOKENS.length * 4,
-    );
-    const tokenIndex = Math.floor(wave / 4);
+    const waveFloat = clusterIndex + tickFloat * waveStride + base;
+    const wave = ((waveFloat % waveSpan) + waveSpan) % waveSpan;
+    const tokenIndex = Math.floor(wave);
     const tokenA = SPECTACULAR_TOKENS[tokenIndex % SPECTACULAR_TOKENS.length]!;
     const tokenB = SPECTACULAR_TOKENS[(tokenIndex + 1) % SPECTACULAR_TOKENS.length]!;
-    const blend = (wave % 4) / 4;
+    const blend = wave - tokenIndex;
     runs.push({
       text: char,
       style: {

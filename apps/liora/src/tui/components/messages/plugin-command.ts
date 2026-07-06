@@ -7,6 +7,7 @@ import {
   renderPremiumHeadline,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
 
 const ARGS_PREVIEW_MAX = 200;
 
@@ -15,6 +16,7 @@ export class PluginCommandComponent extends Container {
   private previewText?: Text;
   private readonly commandLabel: string;
   private readonly args?: string;
+  private ambientAnimationEpoch = -1;
 
   constructor(
     pluginId: string,
@@ -37,11 +39,17 @@ export class PluginCommandComponent extends Container {
   }
 
   override invalidate(): void {
+    this.ambientAnimationEpoch = -1;
     this.headText.setText(this.renderHead());
     if (this.previewText !== undefined && this.args !== undefined) {
       this.previewText.setText(`  ${currentTheme.fg('textDim', previewArgs(this.args.trim()))}`);
     }
     super.invalidate();
+  }
+
+  override render(width: number): string[] {
+    syncAmbientAnimatedText(this.headText, () => this.renderHead(), this);
+    return super.render(width);
   }
 
   private renderHead(): string {

@@ -29,7 +29,7 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
-import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
+import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 
 export type ThinkingRenderMode = 'live' | 'finalized';
 
@@ -100,12 +100,11 @@ export class ThinkingComponent implements Component {
   }
 
   render(width: number): string[] {
-    // In live mode the spinner frame advances with the shared animation clock.
-    // Clear the render cache so the spinner glyph is always fresh even when the
-    // thinking text itself hasn't changed between frames.  See PREMIUM.md §7.1.
+    // Live mode advances spinner and elapsed-time suffixes from wall clock.
     if (this.mode === 'live') this.markRenderDirty();
     return this.renderCache.render({
       width,
+      cacheEpoch: renderCacheEpoch(),
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
         const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);

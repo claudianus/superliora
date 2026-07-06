@@ -6,7 +6,7 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
-import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
+import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 
 const TRANSCRIPT_SCROLLBAR_TRACK = '│';
 const TRANSCRIPT_SCROLLBAR_THUMB = '█';
@@ -27,6 +27,7 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       scrollbarThumbChar: TRANSCRIPT_SCROLLBAR_THUMB,
       paintLine: paintCanvasLine,
       isCacheEnabled: isRenderCacheEnabled,
+      getCacheEpoch: renderCacheEpoch,
     });
   }
 

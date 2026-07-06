@@ -9,11 +9,13 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
 
 export class StatusMessageComponent extends Container {
   private textComponent: Text;
   private content: string;
   private color?: ColorToken;
+  private ambientAnimationEpoch = -1;
 
   constructor(content: string, color?: ColorToken) {
     super();
@@ -31,8 +33,14 @@ export class StatusMessageComponent extends Container {
   }
 
   override invalidate(): void {
+    this.ambientAnimationEpoch = -1;
     this.textComponent.setText(this.renderText());
     super.invalidate();
+  }
+
+  override render(width: number): string[] {
+    syncAmbientAnimatedText(this.textComponent, () => this.renderText(), this);
+    return super.render(width);
   }
 
   // Indent every line, not just the first. The `content` may be multi-line
@@ -61,6 +69,7 @@ export class NoticeMessageComponent extends Container {
   private detailText?: Text;
   private title: string;
   private detail?: string;
+  private ambientAnimationEpoch = -1;
 
   constructor(title: string, detail: string | undefined, coalesceKey?: string) {
     super();
@@ -77,11 +86,24 @@ export class NoticeMessageComponent extends Container {
   }
 
   override invalidate(): void {
+    this.ambientAnimationEpoch = -1;
     this.titleText.setText(`  ${renderNoticeTitle(this.title)}`);
     if (this.detailText !== undefined && this.detail !== undefined) {
       this.detailText.setText(`  ${renderNoticeDetail(this.detail)}`);
     }
     super.invalidate();
+  }
+
+  override render(width: number): string[] {
+    syncAmbientAnimatedText(this.titleText, () => `  ${renderNoticeTitle(this.title)}`, this);
+    if (this.detailText !== undefined && this.detail !== undefined) {
+      syncAmbientAnimatedText(
+        this.detailText,
+        () => `  ${renderNoticeDetail(this.detail!)}`,
+        this,
+      );
+    }
+    return super.render(width);
   }
 }
 

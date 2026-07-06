@@ -21,6 +21,7 @@ import {
   renderPremiumHeadline,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
 
 const ARGS_PREVIEW_MAX = 200;
 
@@ -29,6 +30,7 @@ export class SkillActivationComponent extends Container {
   private previewText?: Text;
   private name: string;
   private args?: string;
+  private ambientAnimationEpoch = -1;
 
   constructor(
     name: string,
@@ -51,6 +53,7 @@ export class SkillActivationComponent extends Container {
   }
 
   override invalidate(): void {
+    this.ambientAnimationEpoch = -1;
     this.headText.setText(this.renderHead());
     if (this.previewText !== undefined && this.args !== undefined) {
       const trimmed = this.args.trim();
@@ -59,6 +62,11 @@ export class SkillActivationComponent extends Container {
       this.previewText.setText('  ' + currentTheme.fg('textDim', preview));
     }
     super.invalidate();
+  }
+
+  override render(width: number): string[] {
+    syncAmbientAnimatedText(this.headText, () => this.renderHead(), this);
+    return super.render(width);
   }
 
   private renderHead(): string {

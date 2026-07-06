@@ -371,6 +371,41 @@ describe('AppearanceController', () => {
     expect(codes.size).toBeGreaterThan(2);
     expect(strip(rendered)).toContain('/\\ ABC');
   });
+
+  it('advances spectacular text colors with the shared animation clock', () => {
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    advanceAppearanceAnimationClock(0);
+    const first = renderSpectacularText('thinking complete', 'thinking:test', appearance, {
+      intense: true,
+      pace: 'slow',
+    });
+    advanceAppearanceAnimationClock(500);
+    const second = renderSpectacularText('thinking complete', 'thinking:test', appearance, {
+      intense: true,
+      pace: 'slow',
+    });
+    expect(first).not.toBe(second);
+
+    advanceAppearanceAnimationClock(2_000);
+    const third = renderSpectacularText(
+      'thinking complete',
+      'thinking:thinking complete',
+      appearance,
+      { intense: true, pace: 'slow' },
+    );
+    advanceAppearanceAnimationClock(0);
+    const fourth = renderSpectacularText(
+      'thinking complete',
+      'thinking:thinking complete',
+      appearance,
+      { intense: true, pace: 'slow' },
+    );
+    expect(third).not.toBe(fourth);
+  });
 });
 
 function setStdoutTty(value: boolean): void {

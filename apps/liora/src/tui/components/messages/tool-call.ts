@@ -37,9 +37,9 @@ import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import type { TokenUsage } from '@superliora/sdk';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
-import { renderAnimatedGradientText, renderPulseText, appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import { renderAnimatedGradientText, renderPulseText, appearanceAnimationNow, getActiveAppearancePreferences, shouldRenderAmbientEffects } from '#/tui/utils/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
-import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
+import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 
 import {
   agentSwarmResultSummaryFromOutput,
@@ -615,17 +615,27 @@ export class ToolCallComponent extends Container {
   }
 
   private readonly renderCache = new RendererChildrenRenderCache();
+  private lastHeaderAnimationEpoch = -1;
 
   override render(width: number): string[] {
     // Clock-driven periodic refresh: advance the streaming-progress and
     // subagent-elapsed counters from the shared animation clock instead of
     // private setInterval timers. See PREMIUM.md §7.1.
     this.tickClockDrivenRefresh();
+    this.syncAnimatedHeader();
     return this.renderCache.render({
       width,
+      cacheEpoch: renderCacheEpoch(),
       children: this.children,
       isCacheEnabled: isRenderCacheEnabled,
     });
+  }
+
+  private syncAnimatedHeader(): void {
+    const epoch = renderCacheEpoch();
+    if (epoch < 0 || epoch === this.lastHeaderAnimationEpoch) return;
+    this.lastHeaderAnimationEpoch = epoch;
+    this.headerText.setText(this.buildHeader());
   }
 
   /**
@@ -1386,9 +1396,10 @@ export class ToolCallComponent extends Container {
           ? 'Starting background question'
           : 'Waiting for your input';
       const tone = isError ? 'error' : 'primary';
+      const labelStyled = renderToolActivityLabel(label, `tool:${toolCall.id}:ask`, tone);
       return renderRendererToolActivityHeader({
         marker: bullet,
-        label: currentTheme.boldFg(tone, label),
+        label: labelStyled,
       });
     }
 
@@ -1421,7 +1432,7 @@ export class ToolCallComponent extends Container {
         ? toolCall.name
         : decoded.toolName;
     const toolNameStyled = isFinished
-      ? currentTheme.boldFg('primary', toolNameLabel)
+      ? renderToolActivityLabel(toolNameLabel, `tool:${toolCall.id}:label`)
       : renderAnimatedGradientText(toolNameLabel, `tool:${toolCall.id}:label`);
     const toolLabel =
       decoded === null
@@ -2252,4 +2263,15 @@ function formatActivityLine(
 ): string {
   const keyArg = extractKeyArgument(toolName, args, workspaceDir);
   return keyArg ? `${verb} ${toolName} (${keyArg})` : `${verb} ${toolName}`;
+}
+
+function renderToolActivityLabel(
+  label: string,
+  seed: string,
+  tone: 'primary' | 'error' | 'text' = 'primary',
+): string {
+  if (tone === 'error' || !shouldRenderAmbientEffects(getActiveAppearancePreferences())) {
+    return currentTheme.boldFg(tone, label);
+  }
+  return renderAnimatedGradientText(label, seed);
 }
