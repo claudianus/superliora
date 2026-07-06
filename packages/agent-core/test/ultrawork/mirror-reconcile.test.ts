@@ -83,7 +83,9 @@ Swarm decision: DEFER - single owner; value: none; owner: main
   });
 
   it('embeds an ultrawork envelope into compaction output', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const homedir = join(tmpdir(), `ultrawork-compact-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
     agent.ultrawork.create({
       id: 'run-compact',
       objective: 'Compact me',

@@ -149,7 +149,6 @@
     "coverage/",
     "node_modules/",
     "apps/*/scripts/",
-    "docs/smoke-archive/",
     "*.generated.ts"
   ]
 }
