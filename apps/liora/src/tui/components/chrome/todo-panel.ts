@@ -19,16 +19,13 @@ import chalk from 'chalk';
 
 import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
+import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import {
   appearanceAnimationNow,
-  getActiveAppearancePreferences,
-  renderAnimatedGradientText,
-  renderParticleDivider,
-  renderPremiumHeadline,
   renderPulseGlyph,
   renderShimmerPrefix,
-  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
 
@@ -189,24 +186,33 @@ export class TodoPanelComponent implements Component {
 
   render(width: number): string[] {
     if (this.todos.length === 0) return [];
+    const profile = resolveResponsiveLayout({ width });
+    const content = this.buildTodoContent(width, profile);
+
+    if (profile === 'tiny') {
+      return content.map((line) => truncateToWidth(line, width));
+    }
+
+    return renderRoundedPanel({
+      title: ' Todo Board ',
+      content,
+      width,
+      borderToken: 'border',
+      leftMargin: 2,
+      minBoxWidth: profile === 'compact' ? 60 : BOARD_MIN_WIDTH,
+    });
+  }
+
+  private buildTodoContent(
+    width: number,
+    profile: ReturnType<typeof resolveResponsiveLayout>,
+  ): string[] {
     const c = currentTheme.palette;
-    const appearance = getActiveAppearancePreferences();
-    const animated = shouldRenderAmbientEffects(appearance);
-    const lines: string[] = [
-      animated
-        ? renderParticleDivider(width, 'todo:divider', appearance)
-        : renderRendererDividerRow({
-            width,
-            style: (text) => chalk.hex(c.border)(text),
-          }),
-      animated
-        ? renderPremiumHeadline('  Todo Board', 'todo:title', appearance)
-        : renderAnimatedGradientText('  Todo Board', 'todo:title'),
-      renderBoardMeta(this.todos, c, this.currentChangeSummary()),
-    ];
+    const contentWidth = this.interiorWidth(width, profile);
+    const lines: string[] = [renderBoardMeta(this.todos, c, this.currentChangeSummary())];
 
     if (this.expanded) {
-      lines.push(...renderTodos(this.todos, c, width, this.currentHighlights()));
+      lines.push(...renderTodos(this.todos, c, contentWidth, this.currentHighlights(), profile));
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
           chalk.hex(c.textDim)(`  all ${String(this.todos.length)} items · ctrl+t to collapse`),
@@ -214,7 +220,7 @@ export class TodoPanelComponent implements Component {
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-      lines.push(...renderTodos(rows, c, width, this.currentHighlights()));
+      lines.push(...renderTodos(rows, c, contentWidth, this.currentHighlights(), profile));
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
         const suffix = distribution.length > 0 ? ` (${distribution})` : '';
@@ -224,7 +230,17 @@ export class TodoPanelComponent implements Component {
       }
     }
 
-    return lines.map((line) => truncateToWidth(line, width));
+    return lines;
+  }
+
+  private interiorWidth(
+    width: number,
+    profile: ReturnType<typeof resolveResponsiveLayout>,
+  ): number {
+    if (profile === 'tiny') return width;
+    const leftMargin = 2;
+    const sidePadding = 1;
+    return Math.max(1, width - leftMargin - 2 - 2 * sidePadding);
   }
 
   private currentChangeSummary(): TodoPanelChangeSummary | undefined {
@@ -243,7 +259,11 @@ function renderTodos(
   colors: ColorPalette,
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
+  profile: ReturnType<typeof resolveResponsiveLayout> = 'standard',
 ): string[] {
+  if (profile === 'tiny') {
+    return renderLanes(todos, colors, highlights);
+  }
   return width >= BOARD_MIN_WIDTH
     ? renderBoard(todos, colors, width, highlights)
     : renderLanes(todos, colors, highlights);
@@ -518,6 +538,7 @@ export function formatSwarmMemberTodoLines(
   todos: readonly TodoItem[],
   width: number,
   colors: ColorPalette,
+  _memberLabel?: string,
 ): string[] {
   if (todos.length === 0) return [];
   const visible = selectVisibleTodos(todos);
@@ -527,16 +548,16 @@ export function formatSwarmMemberTodoLines(
   const lines: string[] = [];
   if (doing !== undefined) {
     lines.push(
-      `  ${chalk.hex(colors.primary)('▸')} doing: ${truncateToWidth(doing.title, Math.max(8, width - 12), '…')}`,
+      ` ${chalk.hex(colors.primary)('▸')} doing: ${truncateToWidth(doing.title, Math.max(8, width - 11), '…')}`,
     );
   }
   if (next !== undefined) {
     lines.push(
-      `  ${chalk.hex(colors.textDim)('○')} next: ${truncateToWidth(next.title, Math.max(8, width - 10), '…')}`,
+      ` ${chalk.hex(colors.textDim)('○')} next: ${truncateToWidth(next.title, Math.max(8, width - 9), '…')}`,
     );
   }
   if (doneCount > 0) {
-    lines.push(`  ${chalk.hex(colors.success)('✓')} done: ${String(doneCount)}`);
+    lines.push(` ${chalk.hex(colors.success)('✓')} done: ${String(doneCount)}`);
   }
   return lines.slice(0, 3);
 }

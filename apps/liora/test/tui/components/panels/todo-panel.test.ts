@@ -94,7 +94,7 @@ describe('TodoPanelComponent', () => {
       { title: 'Add panel flow test', status: 'pending' },
     ]);
 
-    const out = strip(panel.render(100).join('\n'));
+    const out = strip(panel.render(120).join('\n'));
 
     expect(out).toMatch(/flow \+1 · 1 done · 1 moved · 1 pruned/);
     expect(out).toMatch(/✓ Inspect TodoList harness/);
@@ -468,9 +468,9 @@ describe('formatSwarmMemberTodoLines', () => {
     ).map(strip);
 
     expect(lines).toEqual([
-      '  ▸ doing: Patch handler',
-      '  ○ next: Run tests',
-      '  ✓ done: 1',
+      ' ▸ doing: Patch handler',
+      ' ○ next: Run tests',
+      ' ✓ done: 1',
     ]);
   });
 });

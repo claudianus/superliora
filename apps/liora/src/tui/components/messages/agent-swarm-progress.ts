@@ -22,9 +22,11 @@ import {
   formatSwarmMemberTodoLines,
   type TodoItem,
 } from '#/tui/components/chrome/todo-panel';
+import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
+import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 
 const TEXT_CELL_PREFERRED_WIDTH = 30;
 const CELL_GAP = '  ';
@@ -44,11 +46,12 @@ const PROMPTING_TEXT_TRAILING_GAP = 1;
 const ACTIVITY_SPINNER_PLACEHOLDER = '  ';
 const AGENT_SWARM_LEFT_INDENT = ' ';
 const AGENT_SWARM_RIGHT_GAP = 1;
-const AGENT_SWARM_NON_GRID_LINES = 6;
-/** Extra transcript rows reserved for the UltraSwarm ops feed (header + feed + padding). */
-export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 8;
+const AGENT_SWARM_NON_GRID_LINES = 14;
+/** Extra transcript rows reserved for the UltraSwarm feed box (border + feed + padding). */
+export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 10;
 const SWARM_OPS_FEED_MAX_ENTRIES = 48;
 const SWARM_OPS_FEED_RENDER_LINES = 6;
+const SWARM_OPS_FEED_RENDER_LINES_TINY = 3;
 const SWARM_OPS_HEARTBEAT_MS = 4_000;
 const SWARM_OPS_FEED_TIME_WIDTH = 8;
 const COMPACT_TERMINAL_MARK_WIDTH = 1;
@@ -600,17 +603,6 @@ export class AgentSwarmProgressComponent implements Component {
       1,
       outerWidth - visibleWidth(AGENT_SWARM_LEFT_INDENT) - AGENT_SWARM_RIGHT_GAP,
     );
-    if (this.members.length === 0) {
-      const lines = [
-        '',
-        ...this.renderHeaderLines(innerWidth, undefined),
-        '',
-        this.renderStatusLine(innerWidth),
-        '',
-      ];
-      return this.indentLines(lines, outerWidth);
-    }
-
     const nowMs = Date.now();
     const snapshots = this.members.map((member): AgentSwarmSnapshot => ({
       phase: member.phase,
@@ -619,24 +611,129 @@ export class AgentSwarmProgressComponent implements Component {
       phaseElapsedMs: terminalPhaseElapsedMs(member, nowMs),
     }));
     const summary = summarizeSnapshots(snapshots);
-    const lines = [
-      '',
-      ...this.renderHeaderLines(innerWidth, summary),
-      '',
-      ...this.renderGrid(
-        innerWidth,
-        this.availableGridHeight?.(),
-        snapshots,
-        nowMs,
-      ),
-      ...this.renderMemberTodoSection(innerWidth),
-      ...this.renderOpsFeed(innerWidth),
-      '',
-      this.renderStatusLine(innerWidth),
-      '',
-    ];
+    const lines = this.members.length === 0
+      ? this.renderEmptyLayout(innerWidth, summary)
+      : this.isUltraSwarmOpsFeedEnabled()
+        ? this.renderUltraSwarmLayout(innerWidth, summary, snapshots, nowMs)
+        : [
+            '',
+            ...this.renderHeaderLines(innerWidth, summary),
+            '',
+            ...this.renderGrid(
+              innerWidth,
+              this.availableGridHeight?.(),
+              snapshots,
+              nowMs,
+            ),
+            ...this.renderMemberTodoSection(innerWidth),
+            ...this.renderOpsFeed(innerWidth),
+            '',
+            this.renderStatusLine(innerWidth),
+            '',
+          ];
     this.startAnimationIfNeeded();
     return this.indentLines(lines, outerWidth);
+  }
+
+  private renderEmptyLayout(width: number, summary: AgentSwarmSummary): string[] {
+    if (this.isUltraSwarmOpsFeedEnabled()) {
+      return this.renderUltraSwarmLayout(width, summary, [], Date.now());
+    }
+    return [
+      '',
+      ...this.renderHeaderLines(width, undefined),
+      '',
+      this.renderStatusLine(width),
+      '',
+    ];
+  }
+
+  private renderUltraSwarmLayout(
+    width: number,
+    summary: AgentSwarmSummary,
+    snapshots: readonly AgentSwarmSnapshot[],
+    nowMs: number,
+  ): string[] {
+    const profile = resolveResponsiveLayout({ width });
+    const missionContent = this.renderMissionContent(width, summary);
+    const teamContent = [
+      ...this.renderGrid(width, this.availableGridHeight?.(), snapshots, nowMs),
+      ...this.renderMemberTodoSection(width),
+    ];
+    const feedLimit = profile === 'tiny' ? SWARM_OPS_FEED_RENDER_LINES_TINY : SWARM_OPS_FEED_RENDER_LINES;
+    const feedContent = this.renderOpsFeedContent(width, feedLimit);
+    const statusFooter = ['', this.renderStatusLine(width), ''];
+
+    if (profile === 'tiny') {
+      return [
+        '',
+        ...missionContent,
+        '',
+        ...(teamContent.length > 0 ? teamContent : [chalk.hex(this.colors.textDim)('awaiting agents…')]),
+        '',
+        ...feedContent,
+        ...statusFooter,
+      ];
+    }
+
+    const teamBody = teamContent.length > 0
+      ? teamContent
+      : [chalk.hex(this.colors.textDim)('awaiting agents…')];
+
+    if (profile === 'compact') {
+      return [
+        '',
+        ...renderRoundedPanel({
+          title: ' UltraSwarm ',
+          content: [...missionContent, '', ...teamBody, '', ...feedContent],
+          width,
+          borderToken: 'primary',
+          minBoxWidth: 60,
+        }),
+        ...statusFooter,
+      ];
+    }
+
+    return [
+      '',
+      ...renderRoundedPanel({
+        title: ' UltraSwarm ',
+        content: missionContent,
+        width,
+        borderToken: 'primary',
+      }),
+      '',
+      ...renderRoundedPanel({
+        title: ' Team ',
+        content: teamBody,
+        width,
+        borderToken: 'accent',
+      }),
+      '',
+      ...renderRoundedPanel({
+        title: ' Swarm Feed ',
+        content: feedContent,
+        width,
+        borderToken: 'primary',
+      }),
+      ...statusFooter,
+    ];
+  }
+
+  private renderMissionContent(width: number, summary: AgentSwarmSummary | undefined): string[] {
+    const title = renderAnimatedGradientText(this.title, `agent-swarm:title:${this.title}`);
+    const description = this.description.length > 0
+      ? chalk.hex(this.colors.text)(this.description)
+      : '';
+    const headline = description.length > 0
+      ? `${title} ${chalk.hex(this.colors.textDim)('·')} ${description}`
+      : title;
+    const lines = [truncateToWidth(headline, width)];
+    if (summary !== undefined) {
+      const ticker = this.renderControlTowerTicker(width, summary, false);
+      if (ticker.length > 0) lines.push(ticker);
+    }
+    return lines;
   }
 
   private indentLines(lines: readonly string[], width: number): string[] {
@@ -687,15 +784,24 @@ export class AgentSwarmProgressComponent implements Component {
     const lines: string[] = [];
     for (const member of this.members) {
       if (member.todos.length === 0) continue;
-      const memberLines = formatSwarmMemberTodoLines(member.todos, width, this.colors);
+      const memberLines = formatSwarmMemberTodoLines(
+        member.todos,
+        width,
+        this.colors,
+        swarmMemberDisplayName(member),
+      );
       if (memberLines.length === 0) continue;
-      lines.push(chalk.hex(this.colors.textDim)(`  ${member.id} todo`));
+      lines.push(chalk.hex(this.colors.textDim)(swarmMemberDisplayName(member)));
       lines.push(...memberLines);
     }
     return lines;
   }
 
-  private renderControlTowerTicker(width: number, summary: AgentSwarmSummary): string {
+  private renderControlTowerTicker(
+    width: number,
+    summary: AgentSwarmSummary,
+    indent = true,
+  ): string {
     const running = this.members.filter((member) => member.phase === 'running').length;
     const queued = this.members.filter((member) =>
       member.phase === 'queued' || member.phase === 'pending' || member.phase === 'suspended',
@@ -716,10 +822,8 @@ export class AgentSwarmProgressComponent implements Component {
         : undefined,
     ].filter((segment): segment is string => segment !== undefined);
     const body = segments.join(` ${chalk.hex(this.colors.textDim)('·')} `);
-    return truncateToWidth(
-      chalk.hex(this.colors.textDim)('  ') + body,
-      width,
-    );
+    const prefix = indent ? chalk.hex(this.colors.textDim)('  ') : '';
+    return truncateToWidth(prefix + body, width);
   }
 
   private renderOpsFeed(width: number): string[] {
@@ -732,24 +836,29 @@ export class AgentSwarmProgressComponent implements Component {
         label: chalk.hex(this.colors.accent)('SWARM FEED'),
         dividerStyle,
       }),
+      ...this.renderOpsFeedContent(width, SWARM_OPS_FEED_RENDER_LINES, true),
     ];
-    const entries = this.opsFeed.slice(-SWARM_OPS_FEED_RENDER_LINES);
-    if (entries.length === 0) {
-      lines.push(
-        truncateToWidth(
-          chalk.hex(this.colors.textDim)('  awaiting operator reports…'),
-          width,
-        ),
-      );
-      return lines;
-    }
-    for (const entry of entries) {
-      lines.push(this.renderOpsFeedLine(entry, width));
-    }
     return lines;
   }
 
-  private renderOpsFeedLine(entry: SwarmOpsFeedEntry, width: number): string {
+  private renderOpsFeedContent(
+    width: number,
+    maxLines = SWARM_OPS_FEED_RENDER_LINES,
+    indent = false,
+  ): string[] {
+    const entries = this.opsFeed.slice(-maxLines);
+    if (entries.length === 0) {
+      return [
+        truncateToWidth(
+          chalk.hex(this.colors.textDim)('awaiting operator reports…'),
+          width,
+        ),
+      ];
+    }
+    return entries.map((entry) => this.renderOpsFeedLine(entry, width, indent));
+  }
+
+  private renderOpsFeedLine(entry: SwarmOpsFeedEntry, width: number, indent = true): string {
     const time = chalk.hex(this.colors.textDim)(formatSwarmOpsFeedTime(entry.atMs));
     const tag = chalk.hex(swarmOpsFeedTagColor(entry.tag, this.colors))(swarmOpsFeedTagLabel(entry.tag));
     const actor = chalk.hex(this.colors.primary)(entry.actor);
@@ -757,7 +866,7 @@ export class AgentSwarmProgressComponent implements Component {
       entry.detail.length > 0
         ? `${chalk.hex(this.colors.textDim)(' · ')}${chalk.hex(this.colors.text)(entry.detail)}`
         : '';
-    const line = `  ${time} ${tag} ${actor}${detail}`;
+    const line = `${indent ? '  ' : ''}${time} ${tag} ${actor}${detail}`;
     return truncateToWidth(line, width);
   }
 

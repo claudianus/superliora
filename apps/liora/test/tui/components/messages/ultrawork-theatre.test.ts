@@ -45,7 +45,9 @@ describe('UltraworkTheatreComponent collaboration scrollback', () => {
     });
 
     const output = theatre.render(100).join('\n');
-    expect(output).toContain('1 message');
+    expect(output).toContain('╭');
+    expect(output).toContain('Ultrawork Theatre');
+    expect(output).toContain('chat 1 msg');
     expect(output).toContain('[overview]');
     expect(output).toContain('AppSec Engineer → @impl-engineer');
     expect(output).toContain('auth middleware missing tests');

@@ -12,14 +12,14 @@ import type {
   WorkGraphNode,
 } from '@superliora/sdk';
 
-import { STATUS_BULLET } from '#/tui/constant/symbols';
+import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme, type ColorToken } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
   renderPremiumAccentLine,
-  renderPremiumHeadline,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 
 const ULTRAWORK_THEATRE_EVENT_TYPES = new Set<Event['type']>([
   'ultrawork.stage.changed',
@@ -153,45 +153,93 @@ export class UltraworkTheatreComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
-    const appearance = getActiveAppearancePreferences();
-    const animated = shouldRenderAmbientEffects(appearance);
-    const bullet = currentTheme.boldFg('success', STATUS_BULLET);
-    const title = animated
-      ? `${bullet}${renderPremiumHeadline('Ultrawork Theatre', 'ultrawork-theatre:title', appearance)}`
-      : `${bullet}${currentTheme.boldFg('success', ' Ultrawork Theatre')}`;
-    const tabBar = this.renderTabBar(safeWidth);
-    if (this.panel === 'team-chat') {
-      return ['', truncateToWidth(title, safeWidth, '…'), tabBar, ...this.renderTeamChatPanel(safeWidth)];
+    const profile = resolveResponsiveLayout({ width: safeWidth });
+    const content = this.panel === 'team-chat'
+      ? this.renderTeamChatContent(safeWidth, profile)
+      : this.renderOverviewContent(safeWidth, profile);
+
+    if (profile === 'tiny') {
+      return ['', ...content];
     }
+
     return [
       '',
-      truncateToWidth(title, safeWidth, '…'),
-      tabBar,
-      this.line(`  goal   ${this.objective ?? this.run?.objective ?? 'pending'}`, safeWidth, 'text'),
-      this.stageLine(safeWidth, appearance, animated),
-      this.line(`  lanes  ${STAGE_LANE}`, safeWidth, 'textDim'),
-      this.line(`  team   ${this.teamSummary()}`, safeWidth, 'text'),
-      this.line(`  search ${this.researchSummary()}`, safeWidth, 'text'),
-      this.line(`  work   ${this.workSummary()}`, safeWidth, 'text'),
-      this.line(`  chat   ${this.collaborationSummary()}`, safeWidth, 'textDim'),
-      ...this.renderCollaborationScrollback(safeWidth),
-      this.line(`  review ${this.reviewSummary()}`, safeWidth, 'textDim'),
+      ...renderRoundedPanel({
+        title: ' Ultrawork Theatre ',
+        content,
+        width: safeWidth,
+        borderToken: 'success',
+        minBoxWidth: profile === 'compact' ? 60 : 24,
+      }),
     ];
   }
 
-  private renderTabBar(width: number): string {
-    const overview = this.panel === 'overview' ? '[overview]' : ' overview ';
-    const teamChat = this.panel === 'team-chat' ? '[team-chat]' : ' team-chat ';
-    const text = `  tabs   ${overview} | ${teamChat}`;
-    return this.line(text, width, this.panel === 'team-chat' ? 'primary' : 'textDim');
+  private renderOverviewContent(
+    width: number,
+    profile: ReturnType<typeof resolveResponsiveLayout>,
+  ): string[] {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const lines = [
+      this.renderTabBar(width, false),
+      this.plainLine(`goal  ${this.objective ?? this.run?.objective ?? 'pending'}`, width, 'text'),
+      this.renderStageLine(width, appearance, animated, false),
+    ];
+
+    if (profile === 'tiny') {
+      lines.push(...this.renderCollaborationScrollback(width, 2, false));
+      lines.push(this.plainLine(`review  ${this.reviewSummary()}`, width, 'textDim'));
+      return lines;
+    }
+
+    lines.push(this.plainLine(`ops   ${this.opsSummary()}`, width, 'text'));
+    if (profile === 'wide' || profile === 'ultrawide') {
+      lines.push(this.plainLine(`lanes ${STAGE_LANE}`, width, 'textDim'));
+    }
+    lines.push(...this.renderCollaborationScrollback(width, undefined, false));
+    lines.push(this.plainLine(`review  ${this.reviewSummary()}`, width, 'textDim'));
+    return lines;
   }
 
-  private stageLine(
+  private renderTeamChatContent(
+    width: number,
+    profile: ReturnType<typeof resolveResponsiveLayout>,
+  ): string[] {
+    const lines = [this.renderTabBar(width, false)];
+    if (this.collaborationMessages.length === 0) {
+      lines.push(this.plainLine('team chat  waiting for SwarmChannel traffic', width, 'textDim'));
+      return lines;
+    }
+    lines.push(this.plainLine(
+      `team chat  ${String(this.collaborationMessages.length)} message${this.collaborationMessages.length === 1 ? '' : 's'} · ${String(this.mentionCount)} mention${this.mentionCount === 1 ? '' : 's'}`,
+      width,
+      'text',
+    ));
+    const messages = profile === 'tiny'
+      ? this.collaborationMessages.slice(-2)
+      : this.collaborationMessages;
+    lines.push(...messages.map((entry) =>
+      this.renderChatLine(entry, width, entry.mentioned ? 'accent' : 'text', false),
+    ));
+    return lines;
+  }
+
+  private renderTabBar(width: number, indent = true): string {
+    const overview = this.panel === 'overview' ? '[overview]' : ' overview ';
+    const teamChat = this.panel === 'team-chat' ? '[team-chat]' : ' team-chat ';
+    const prefix = indent ? '  tabs   ' : 'tabs   ';
+    const text = `${prefix}${overview} | ${teamChat}`;
+    return this.plainLine(text, width, this.panel === 'team-chat' ? 'primary' : 'textDim');
+  }
+
+  private renderStageLine(
     width: number,
     appearance: ReturnType<typeof getActiveAppearancePreferences>,
     animated: boolean,
+    indent = true,
   ): string {
-    const text = `  top    stage ${this.stage ?? this.run?.stage ?? 'intake'} | verify ${this.verification?.status ?? 'pending'} | learn ${this.promotions.size}`;
+    const prefix = indent ? '  top    ' : '';
+    const text = `${prefix}stage ${this.stage ?? this.run?.stage ?? 'intake'} · verify ${this.verification?.status ?? 'pending'} · learn ${String(this.promotions.size)}`;
     if (animated) {
       return truncateToWidth(
         renderPremiumAccentLine(text, 'ultrawork-theatre:stage', appearance),
@@ -199,22 +247,25 @@ export class UltraworkTheatreComponent implements Component {
         '…',
       );
     }
-    return this.line(text, width, 'primary');
+    return this.plainLine(text, width, 'primary');
   }
 
-  private line(text: string, width: number, token: ColorToken): string {
+  private plainLine(text: string, width: number, token: ColorToken): string {
     return currentTheme.fg(token, truncateToWidth(text, width, '…'));
   }
 
-  private teamSummary(): string {
-    if (this.team === undefined) return 'staffing pending';
-    const councilCount = this.team.councilExpertIds?.length ?? 0;
-    const lanes = this.team.experts
-      .slice(0, 4)
-      .map((expert) => `${expert.name}:${expert.coverageLane ?? expert.role}/${expert.status}`)
-      .join(', ');
-    const suffix = lanes.length === 0 ? '' : ` | ${lanes}`;
-    return `${String(this.team.experts.length)}/${String(this.team.maxExperts)} experts | ${this.team.intensity} | council ${String(councilCount)}${suffix}`;
+  private opsSummary(): string {
+    const team = this.team === undefined
+      ? 'team pending'
+      : `team ${String(this.team.experts.length)}/${String(this.team.maxExperts)}`;
+    const search = this.researchSummary();
+    const work = this.tasks.size === 0
+      ? 'work waiting'
+      : `work ${String(this.tasks.size)} task${this.tasks.size === 1 ? '' : 's'}`;
+    const chat = this.collaborationMessageCount === 0
+      ? 'chat idle'
+      : `chat ${String(this.collaborationMessageCount)} msg${this.collaborationMessageCount === 1 ? '' : 's'}`;
+    return `${team} · ${search} · ${work} · ${chat}`;
   }
 
   private researchSummary(): string {
@@ -223,15 +274,7 @@ export class UltraworkTheatreComponent implements Component {
       .map((backend) => backend.label ?? backend.kind)
       .slice(0, 3);
     const backendText = selected.length > 0 ? selected.join(', ') : `${String(this.backends.size)} backends`;
-    return `${backendText} | verified ${String(this.verifiedFindings.size)}`;
-  }
-
-  private workSummary(): string {
-    const tasks = [...this.tasks.values()].slice(-3);
-    if (tasks.length === 0) return 'waiting for assignments';
-    return tasks
-      .map((task) => `${task.title} (${task.status})`)
-      .join('; ');
+    return `search ${backendText} · verified ${String(this.verifiedFindings.size)}`;
   }
 
   private reviewSummary(): string {
@@ -241,13 +284,6 @@ export class UltraworkTheatreComponent implements Component {
       return `interrupted: ${latest.reason}`;
     }
     return `${latest.decision}: ${latest.reason}`;
-  }
-
-  private collaborationSummary(): string {
-    if (this.collaborationMessageCount === 0) return 'no bus traffic yet';
-    const mentionSuffix =
-      this.mentionCount === 0 ? '' : ` | ${String(this.mentionCount)} mention${this.mentionCount === 1 ? '' : 's'}`;
-    return `${String(this.collaborationMessageCount)} message${this.collaborationMessageCount === 1 ? '' : 's'}${mentionSuffix}`;
   }
 
   private rememberCollaborationMessage(
@@ -284,37 +320,26 @@ export class UltraworkTheatreComponent implements Component {
     this.rememberCollaborationMessage(message, true);
   }
 
-  private renderCollaborationScrollback(width: number): string[] {
+  private renderCollaborationScrollback(
+    width: number,
+    maxLines: number | undefined = UltraworkTheatreComponent.COLLABORATION_SCROLLBACK_MAX,
+    indent = true,
+  ): string[] {
     if (this.collaborationMessages.length === 0) return [];
-    const recent = this.collaborationMessages.slice(-UltraworkTheatreComponent.COLLABORATION_SCROLLBACK_MAX);
-    return recent.map((entry) => this.renderChatLine(entry, width, 'textDim'));
-  }
-
-  private renderTeamChatPanel(width: number): string[] {
-    if (this.collaborationMessages.length === 0) {
-      return [this.line('  team chat   waiting for SwarmChannel traffic', width, 'textDim')];
-    }
-    const header = this.line(
-      `  team chat   ${String(this.collaborationMessages.length)} message${this.collaborationMessages.length === 1 ? '' : 's'} · ${String(this.mentionCount)} mention${this.mentionCount === 1 ? '' : 's'}`,
-      width,
-      'text',
-    );
-    return [
-      header,
-      ...this.collaborationMessages.map((entry) =>
-        this.renderChatLine(entry, width, entry.mentioned ? 'accent' : 'text'),
-      ),
-    ];
+    const limit = maxLines ?? UltraworkTheatreComponent.COLLABORATION_SCROLLBACK_MAX;
+    const recent = this.collaborationMessages.slice(-limit);
+    return recent.map((entry) => this.renderChatLine(entry, width, 'textDim', indent));
   }
 
   private renderChatLine(
     entry: CollaborationTimelineEntry,
     width: number,
     token: ColorToken,
+    indent = true,
   ): string {
-    const prefix = entry.mentioned ? '@ ' : '  ';
+    const prefix = entry.mentioned ? '@ ' : indent ? '  ' : '';
     const channel = entry.channel === 'standup' ? 'standup' : entry.channel;
-    return this.line(
+    return this.plainLine(
       `${prefix}${entry.fromName} → ${entry.target} (${channel}): ${entry.body}`,
       width,
       token,

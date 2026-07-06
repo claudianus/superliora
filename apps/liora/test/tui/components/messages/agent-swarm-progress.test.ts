@@ -150,10 +150,10 @@ describe('calculateAgentSwarmGridLayout', () => {
 
   it('derives the grid height left inside the AgentSwarm block', () => {
     expect(agentSwarmGridHeightForTerminalRows(undefined)).toBeUndefined();
-    expect(agentSwarmGridHeightForTerminalRows(10)).toBe(4);
-    expect(agentSwarmGridHeightForTerminalRows(20, 5)).toBe(9);
+    expect(agentSwarmGridHeightForTerminalRows(10)).toBe(0);
+    expect(agentSwarmGridHeightForTerminalRows(20, 5)).toBe(1);
     expect(agentSwarmGridHeightForTerminalRows(4)).toBe(0);
-    expect(agentSwarmGridHeightForTerminalRows(20, 0, { opsFeed: true })).toBe(6);
+    expect(agentSwarmGridHeightForTerminalRows(30, 0, { opsFeed: true })).toBe(6);
   });
 });
 
@@ -248,9 +248,10 @@ describe('AgentSwarmProgressComponent', () => {
     component.markInputComplete();
 
     let output = renderText(component);
-    expect(output).toContain('UltraSwarm');
+    expect(output).toContain('╭');
+    expect(output).toContain('Team');
     expect(output).toContain('AppSec Engineer security_privacy/review');
-    expect(output).toContain('SWARM FEED');
+    expect(output).toContain('Swarm Feed');
     expect(output).toContain('STAFF');
     expect(output).toContain('lanes: security_privacy');
 
@@ -291,7 +292,7 @@ describe('AgentSwarmProgressComponent', () => {
     });
 
     const output = renderText(component, 120);
-    expect(output).toContain('SWARM FEED');
+    expect(output).toContain('Swarm Feed');
     expect(output).toContain('JOIN');
     expect(output).toContain('LIVE');
     expect(output).toContain('TOOL');
@@ -336,7 +337,7 @@ describe('AgentSwarmProgressComponent', () => {
     });
 
     const output = renderText(component, 120);
-    expect(output).toContain('SWARM FEED');
+    expect(output).toContain('Swarm Feed');
     expect(output).toContain('BLOCK');
     expect(output).toContain('MSG');
     expect(output).toContain('STANDUP');
