@@ -1,43 +1,41 @@
 # SuperLiora
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/) <br>
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Version](https://img.shields.io/badge/version-0.20.1-blue)](apps/liora/package.json) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/) <br>
 [사이트](https://claudianus.github.io/superliora/) · [이슈](https://github.com/claudianus/superliora/issues) · [English](README.md)
 
-![SuperLiora command center](./apps/site/public/assets/hero-command-center.png)
+![SuperLiora command center](https://claudianus.github.io/superliora/assets/hero-command-center.png)
 
-## 지속 가능한 소프트웨어 작업을 위한 AI 코딩 하네스
+## 길고 복잡한 작업을 위한 터미널 중심 AI 코딩 하네스
 
-SuperLiora는 길고 복잡한 소프트웨어 작업을 위한 독립 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 프로젝트 문서화를 하나의 터미널 중심 작업 흐름으로 연결합니다. context 품질, 근거, provider 안정성, release risk가 동시에 중요한 작업을 염두에 두고 설계되었습니다.
+SuperLiora는 터미널에서 실행하는 독립 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화를 하나의 흐름으로 연결해 긴 세션에서도 맥락을 유지하고 결정을 추적할 수 있습니다.
 
-- **코드보다 먼저 계획.** UltraPlan은 목표가 true/false로 검증 가능해질 때까지 요구사항을 인터뷰합니다.
-- **근거를 기반으로 작업.** UltraResearch는 결정 전에 API, 논문, 릴리스 노트, 보안 권고를 확인합니다.
-- **안전하게 분산.** UltraSwarm은 보이는 ENGAGE/DEFER gate 뒤에서 specialist subagent를 조립합니다.
-- **일관성 유지.** Context OS, Liora Recall, LLM Wiki는 긴 세션을 끊김 없이 유지하고 재사용 가능하게 만듭니다.
-- **에디터를 넘어서.** browser-use(CloakBrowser + Playwright)와 computer-use(CUA/MCP)로 실제 UI와 상호작용합니다.
-- **어디서나 사용.** Premium TUI, ACP editor 지원, provider routing으로 터미널과 IDE 모두에서 실행할 수 있습니다.
+- **코드보다 먼저 계획합니다.** UltraPlan은 목표가 true/false로 검증 가능해질 때까지 요구사항을 인터뷰합니다.
+- **근거를 먼저 확인합니다.** UltraResearch는 결정 전에 API, 논문, 릴리스 노트, 보안 권고를 확인합니다.
+- **안전하게 분산합니다.** UltraSwarm은 보이는 ENGAGE/DEFER gate 뒤에서 specialist subagent를 조립합니다.
+- **일관성을 유지합니다.** Context OS, Liora Recall, LLM Wiki는 긴 세션을 끊김 없이 유지하고 재사용 가능하게 만듭니다.
+- **에디터를 넘어서 작동합니다.** browser-use(CloakBrowser + Playwright)와 computer-use(CUA/MCP)로 실제 UI와 상호작용합니다.
+- **어디서나 사용합니다.** Premium TUI, ACP editor 지원, provider routing으로 터미널과 IDE 모두에서 실행할 수 있습니다.
 
 ## 핵심 기능
 
-| 기능 | 설명 |
-| --- | --- |
-| **UltraPlan** | 목표가 true/false로 검증 가능해질 때까지 요구사항, 제약, 위험, 누락된 사실을 인터뷰합니다. (`packages/agent-core/src/agent/plan/ultra-plan-mode.ts`) |
-| **UltraResearch** | API, 논문, 릴리스 노트, 보안 이슈를 확인하고 다음 단계에서도 사용할 수 있게 근거를 남깁니다. |
-| **UltraGoal** | 조사 근거를 반영한 UltraPlan 뒤에 구체적 목표, 완료 기준, 예산을 고정합니다. (`packages/agent-core/src/agent/injection/goal.ts`) |
-| **UltraSwarm** | plan/implement/review 단계로 최대 128개의 specialist subagent를 조립하고, visible ENGAGE/DEFER gate를 둡니다. (`packages/agent-core/src/tools/builtin/collaboration/ultra-swarm.ts`) |
-| **UltraWork** | 목표형 작업을 research, UltraPlan, UltraGoal, Swarm decision, integration, verification, learning 순서로 라우팅합니다. (`packages/agent-core/src/ultrawork/mode.ts`) |
-| **Browser-use** | CloakBrowser + Playwright로 웹 페이지를 관찰하고, 조작하고, 스크린샷을 찍고, 평가합니다. (`packages/gui-use/src/browser/cloak-browser.ts`) |
-| **Computer-use** | CUA/MCP로 네이티브 데스크톱 창을 캡처하고 조작해, 같은 하네스 안에서 GUI 자동화를 수행합니다. (`packages/gui-use/src/computer/cua-computer.ts`) |
-| **Provider routing** | API key와 OAuth account를 등록하고 quota, cooldown, latency, route health를 기준으로 fallback 후보를 선택합니다. (`packages/agent-core/src/session/provider-manager.ts`) |
-| **Context OS** | structured working memory, repair, bounded rehydration으로 긴 세션을 관리합니다. (`packages/agent-core/src/agent/context-os/index.ts`) |
-| **Liora Recall** | semantic, episodic, procedural, prospective, governance memory를 세션 간에 보존합니다. (`packages/agent-core/src/memory/types.ts`) |
-| **LLM Wiki** | 코드베이스 지식, 근거, 검증 결과를 프로젝트 로컬에서 검토할 수 있는 wiki로 전환합니다. (`apps/liora/src/tui/commands/llm-wiki.ts`) |
-| **Premium TUI** | Neon Noir / Daylight 팔레트, ambient effect, 키보드 중심 탐색을 제공하는 설정 가능한 터미널 화면입니다. (`apps/liora/src/tui/config.ts`) |
-| **ACP** | 같은 SuperLiora workflow를 stdio로 ACP 호환 editor와 IDE에 노출합니다. (`packages/acp-adapter/src/server.ts`) |
-| **Visual debugging** | `apps/vis`의 세션 replay, context projection, agent trace를 시각적으로 디버깅합니다. |
+| 기능 | 설명 | 진입점 |
+| --- | --- | --- |
+| **UltraPlan** | 목표가 true/false로 검증 가능해질 때까지 요구사항, 제약, 위험, 누락된 사실을 인터뷰합니다. | `packages/agent-core/src/agent/plan/ultra-plan-mode.ts` |
+| **UltraResearch** | API, 논문, 릴리스 노트, 보안 이슈를 확인하고 다음 단계에서도 사용할 수 있게 근거를 남깁니다. | `packages/agent-core/src/ultrawork/mode.ts` |
+| **UltraGoal** | 조사 근거를 반영한 UltraPlan 뒤에 구체적 목표, 완료 기준, 예산을 고정합니다. | `packages/agent-core/src/agent/injection/goal.ts` |
+| **UltraSwarm** | plan/implement/review 단계로 최대 128개의 specialist subagent를 조립하고, visible ENGAGE/DEFER gate를 둡니다. | `packages/agent-core/src/tools/builtin/collaboration/ultra-swarm.ts` |
+| **Context OS** | structured working memory, repair, bounded rehydration으로 긴 세션을 관리합니다. | `packages/agent-core/src/agent/context-os/index.ts` |
+| **Liora Recall** | semantic, episodic, procedural, prospective, governance memory를 세션 간에 보존합니다. | `packages/agent-core/src/memory/types.ts` |
+| **LLM Wiki** | 코드베이스 지식, 근거, 검증 결과를 프로젍트 로컬에서 검토할 수 있는 wiki로 전환합니다. | `apps/liora/src/tui/commands/llm-wiki.ts` |
+| **Browser-use** | CloakBrowser + Playwright로 웹 페이지를 관찰하고, 조작하고, 스크린샷을 찍고, 평가합니다. | `packages/gui-use/src/browser/cloak-browser.ts` |
+| **Computer-use** | CUA/MCP로 네이티브 데스크톱 창을 캡처하고 조작해, 같은 하네스 안에서 GUI 자동화를 수행합니다. | `packages/gui-use/src/computer/cua-computer.ts` |
+| **Provider routing** | API key와 OAuth account를 등록하고 quota, cooldown, latency, route health를 기준으로 fallback 후보를 선택합니다. | `packages/agent-core/src/session/provider-manager.ts` |
+| **Premium TUI** | Neon Noir / Daylight 팔레트와 키보드 중심 탐색을 제공하는 설정 가능한 터미널 화면입니다. | `apps/liora/src/tui/config.ts` |
+| **ACP** | 같은 SuperLiora workflow를 stdio로 ACP 호환 editor와 IDE에 노출합니다. | `packages/acp-adapter/src/server.ts` |
 
 ## 설치
 
-이 GitHub 소스 저장소에서 설치합니다. Git과 Node.js `>=24.15.0`이 필요하며, Corepack이 `package.json`에 고정된 pnpm 버전을 사용합니다.
+이 GitHub 소스 저장소에서 설치합니다. Git과 Node.js `>=24.15.0`이 필요하며, Corepack이 `package.json`에 고정된 pnpm `10.33.0`을 사용합니다.
 
 **macOS 또는 Linux**
 
@@ -129,8 +127,18 @@ Zed 예시:
 SuperLiora는 `apps/vis`에서 세션, replay, context projection, agent trace를 시각적으로 디버깅할 수 있는 도구를 제공합니다. 로컬에서 실행하려면:
 
 ```sh
-pnpm dev:vis
+pnpm vis
 ```
+
+## 테마
+
+Premium TUI는 여러 팔레트와 외부 터미널 색상을 가져오는 기능을 지원합니다. 하네스 안에서 미리 보세요.
+
+```sh
+liora theme preview
+```
+
+테마 설정은 `apps/liora/src/tui/config.ts`에 있습니다.
 
 ## 문서
 

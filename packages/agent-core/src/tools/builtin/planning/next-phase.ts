@@ -81,7 +81,7 @@ You can only advance forward, never backward.`;
     }
 
     if (currentPhase === 'interview' && targetPhase === 'design') {
-      const readiness = await this.agent.planMode.ultraEngine.interviewReadiness();
+      const readiness = await this.agent.planMode.ultraEngine.interviewReadiness({ rescore: true });
       if (!readiness.ready) {
         return {
           isError: true,

@@ -1,13 +1,30 @@
 <!doctype html>
 <html lang="ko">
   <head>
-    <meta charset="utf-8">
+        <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SuperLiora - 지속 가능한 AI 코딩 하네스</title>
-    <meta name="description" content="SuperLiora는 UltraPlan, UltraGoal, UltraResearch, UltraSwarm, UltraWork와 browser-use, computer-use, Context OS, Liora Recall, LLM Wiki, ACP를 하나의 흐름으로 연결하는 AI 코딩 하네스입니다.">
-    <meta property="og:title" content="SuperLiora">
-    <meta property="og:description" content="계획, 조사, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 이어가는 AI 코딩 하네스.">
-    <meta property="og:image" content="/superliora/assets/hero-command-center.png">
+    <title>SuperLiora - 터미널 중심 AI 코딩 하네스</title>
+    <meta name="description" content="SuperLiora는 터미널에서 실행하는 AI 코딩 하네스입니다. UltraPlan, UltraGoal, UltraResearch, UltraSwarm, Context OS, Liora Recall, LLM Wiki, Browser-use, Computer-use, Provider routing, Premium TUI, ACP를 하나의 흐름으로 연결합니다.">
+    <meta name="author" content="SuperLiora Contributors">
+    <meta name="theme-color" content="#060A12" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+    <link rel="canonical" href="https://claudianus.github.io/superliora/">
+    <link rel="alternate" hreflang="ko" href="https://claudianus.github.io/superliora/">
+    <link rel="alternate" hreflang="en" href="https://claudianus.github.io/superliora/en/">
+    <link rel="alternate" hreflang="x-default" href="https://claudianus.github.io/superliora/">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ko_KR">
+    <meta property="og:url" content="https://claudianus.github.io/superliora/">
+    <meta property="og:title" content="SuperLiora - 터미널 중심 AI 코딩 하네스">
+    <meta property="og:description" content="계획, 조사, 목표, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 하나의 흐름으로 이어주는 AI 코딩 하네스.">
+    <meta property="og:image" content="https://claudianus.github.io/superliora/assets/hero-command-center.png">
+    <meta property="og:image:alt" content="SuperLiora harness architecture diagram">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SuperLiora - 터미널 중심 AI 코딩 하네스">
+    <meta name="twitter:description" content="계획, 조사, 목표, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 하나의 흐름으로 이어주는 AI 코딩 하네스.">
+    <meta name="twitter:image" content="https://claudianus.github.io/superliora/assets/hero-command-center.png">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23060A12'/><text x='50' y='68' font-size='52' fill='%2300D5FF' text-anchor='middle' font-family='sans-serif' font-weight='800'>S</text></svg>">
     <link rel="stylesheet" href="/src/style.css">
     <script type="module" src="/src/main.js"></script>
@@ -42,23 +59,20 @@
         .harness-pulse { animation: none; stroke-dasharray: none; opacity: 0.4; }
         .harness-dot { animation: none; }
       }
-      /* Harness section terminal */
-      .harness-terminal { margin-top: 24px; }
-      /* Visual debugging section */
       .visual-debug-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 42px; }
       @media (max-width: 1024px) { .visual-debug-grid { grid-template-columns: 1fr; } }
       .visual-debug-card { padding: 24px; border-radius: 20px; background: var(--color-bg-2); border: 1px solid var(--color-line); }
       .visual-debug-card svg { width: 48px; height: 48px; margin-bottom: 16px; }
       .visual-debug-card h3 { font-size: 18px; font-weight: 700; }
       .visual-debug-card p { margin-top: 10px; color: var(--color-soft); font-size: 15px; line-height: 1.55; }
-      /* Browser / computer terminal */
       .demo-terminal { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
       .demo-terminal .terminal__body { min-height: 72px; }
-      .focus-ring:focus-visible { outline: 2px solid var(--color-cyan); outline-offset: 2px; }
-      .lang a:focus-visible, .nav__links a:focus-visible, .theme-toggle:focus-visible { outline: 2px solid var(--color-cyan); outline-offset: 2px; }
+      .focus-ring:focus-visible { outline: 2.5px solid var(--color-cyan); outline-offset: 3px; }
+      .lang a:focus-visible, .nav__links a:focus-visible, .theme-toggle:focus-visible { outline: 2.5px solid var(--color-cyan); outline-offset: 3px; }
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#main">본문으로 이동</a>
     <div id="ambient" aria-hidden="true">
       <div class="mesh"></div>
     </div>
@@ -71,14 +85,14 @@
           <span class="brand__mark">S</span>
           <span class="brand__name">SuperLiora</span>
         </a>
-        <nav class="nav__links" aria-label="Primary">
+        <nav class="nav__links" aria-label="주 메뉴">
           <a href="#harness">Harness</a>
           <a href="#ultra">Ultra System</a>
           <a href="#memory">Memory &amp; Wiki</a>
           <a href="#themes">Themes</a>
           <a href="#install">Install</a>
         </nav>
-        <div class="lang" aria-label="Language">
+        <div class="lang" aria-label="언어">
           <a href="/superliora/" aria-current="page">KR</a>
           <a href="/superliora/en/">EN</a>
           <button id="theme-toggle" class="theme-toggle" type="button" aria-label="테마 전환" aria-pressed="true">
@@ -89,12 +103,12 @@
       </div>
     </header>
 
-    <main>
+    <main id="main">
       <section class="hero">
         <div class="wrapper hero__grid">
           <div class="hero__copy reveal">
             <div class="eyebrow">AI coding harness</div>
-            <h1>긴 개발 흐름을 끝까지 이어가는 하네스</h1>
+            <h1>길고 복잡한 개발 흐름을 터미널에서 끝까지 이어가는 하네스</h1>
             <p class="hero__lead">SuperLiora는 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 하나의 작업 흐름으로 연결합니다. 긴 세션에서도 맥락을 보존하고, 근거 있는 결정을 남기며, 개발자가 다음 단계에 집중할 수 있도록 돕습니다.</p>
             <div class="hero__actions">
               <a class="btn-primary" href="#install">바로 설치</a>
@@ -103,7 +117,7 @@
           </div>
           <div class="hero__visual reveal" data-tilt>
             <div class="hero-visual">
-              <svg class="harness-stage" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet" aria-label="SuperLiora harness architecture diagram">
+              <svg class="harness-stage" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="SuperLiora harness 구조도">
                 <defs>
                   <linearGradient id="coreGradient" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0%" stop-color="var(--color-bg-2)" />
@@ -114,10 +128,8 @@
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                   </filter>
                 </defs>
-                <!-- outer ring -->
                 <circle class="harness-ring" cx="320" cy="180" r="140" />
                 <circle class="harness-ring" cx="320" cy="180" r="100" opacity="0.6" />
-                <!-- connecting lines -->
                 <g class="harness-lines">
                   <line class="harness-line" x1="320" y1="180" x2="320" y2="60" />
                   <line class="harness-line" x1="320" y1="180" x2="440" y2="120" />
@@ -130,7 +142,6 @@
                   <line class="harness-line" x1="440" y1="120" x2="520" y2="80" />
                   <line class="harness-line" x1="440" y1="240" x2="520" y2="280" />
                 </g>
-                <!-- pulse flows -->
                 <path class="harness-pulse" d="M320,180 L320,60" />
                 <path class="harness-pulse teal" d="M320,180 L440,120" />
                 <path class="harness-pulse amber" d="M320,180 L440,240" />
@@ -141,10 +152,8 @@
                 <path class="harness-pulse teal" d="M200,240 L120,280" />
                 <path class="harness-pulse amber" d="M440,120 L520,80" />
                 <path class="harness-pulse violet" d="M440,240 L520,280" />
-                <!-- core -->
                 <circle class="harness-core" cx="320" cy="180" r="36" />
                 <text class="harness-label-strong" x="320" y="185">SuperLiora</text>
-                <!-- nodes -->
                 <g>
                   <circle class="harness-node accent-cyan" cx="320" cy="60" r="24" />
                   <circle class="harness-dot" cx="320" cy="60" r="3" />
@@ -522,6 +531,21 @@
               <span class="feature-card__index">12</span>
               <h3>ACP ready</h3>
               <p>터미널과 호환 editor에서 같은 SuperLiora workflow를 이어갈 수 있습니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 12">
+              <span class="feature-card__index">13</span>
+              <h3>Visual debugging</h3>
+              <p>세션, replay, context, trace를 시각적으로 추적하고 검토합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 13">
+              <span class="feature-card__index">14</span>
+              <h3>Server API</h3>
+              <p>REST와 WebSocket(`/api/v1`)으로 세션을 노출해 클라이언트와 자동화가 연결합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 14">
+              <span class="feature-card__index">15</span>
+              <h3>Non-interactive</h3>
+              <p>TUI에 들어가지 않고 `liora -p`로 명령을 실행하고 CI/CD에 연결합니다.</p>
             </div>
           </div>
         </div>

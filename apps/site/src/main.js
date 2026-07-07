@@ -17,7 +17,7 @@
   const savedTheme = (() => {
     try { return localStorage.getItem('superliora-theme'); } catch { return null; }
   })();
-  const initialTheme = savedTheme || 'dark';
+  const initialTheme = savedTheme || (prefersDark ? 'dark' : 'dark');
   setTheme(initialTheme);
 
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
@@ -33,12 +33,13 @@
         observer.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
   document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
 
   // Copy buttons
   document.querySelectorAll('.copy-btn').forEach((btn) => {
     btn.setAttribute('aria-label', 'Copy command');
+    btn.setAttribute('type', 'button');
     btn.addEventListener('click', async () => {
       const text = btn.getAttribute('data-copy') || '';
       try {
@@ -76,6 +77,8 @@
     const ctx = canvas.getContext('2d');
     let particles = [];
     let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let running = true;
+    let frame = 0;
 
     function resize() {
       w = window.innerWidth; h = window.innerHeight;
@@ -85,21 +88,29 @@
       canvas.style.width = w + 'px';
       canvas.style.height = h + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = Math.min(Math.floor((w * h) / 28000), 80);
+      const area = w * h;
+      const count = Math.min(Math.floor(area / 32000), 64);
       particles = Array.from({ length: count }, () => ({
         x: Math.random() * w, y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.35, vy: (Math.random() - 0.5) * 0.35,
-        r: Math.random() * 1.4 + 0.6
+        vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+        r: Math.random() * 1.2 + 0.6
       }));
     }
-    resize();
-    window.addEventListener('resize', resize, { passive: true });
 
-    let frame = 0;
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(resize, 150);
+    }, { passive: true });
+    resize();
+
     function draw() {
+      if (!running) return;
       ctx.clearRect(0, 0, w, h);
-      const lineColor = root.getAttribute('data-theme') === 'light' ? '102, 117, 138' : '0, 213, 255';
-      for (let i = 0; i < particles.length; i++) {
+      const isLight = root.getAttribute('data-theme') === 'light';
+      const lineColor = isLight ? '102, 117, 138' : '0, 213, 255';
+      const len = particles.length;
+      for (let i = 0; i < len; i++) {
         const p = particles[i];
         p.x += p.vx; p.y += p.vy;
         if (p.x < 0 || p.x > w) p.vx *= -1;
@@ -108,13 +119,14 @@
         ctx.fillStyle = `rgba(${lineColor}, 0.35)`;
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fill();
-        for (let j = i + 1; j < particles.length; j++) {
+        for (let j = i + 1; j < len; j++) {
           const q = particles[j];
           const dx = p.x - q.x, dy = p.y - q.y;
           const d2 = dx * dx + dy * dy;
-          if (d2 < 11000) {
+          const threshold = 10000;
+          if (d2 < threshold) {
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(${lineColor}, ${0.12 * (1 - d2 / 11000)})`;
+            ctx.strokeStyle = `rgba(${lineColor}, ${0.12 * (1 - d2 / threshold)})`;
             ctx.lineWidth = 0.8;
             ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
           }
@@ -124,7 +136,13 @@
     }
     draw();
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) cancelAnimationFrame(frame); else draw();
+      if (document.hidden) {
+        running = false;
+        cancelAnimationFrame(frame);
+      } else {
+        running = true;
+        draw();
+      }
     });
   }
 
@@ -171,7 +189,7 @@
       if (target) {
         e.preventDefault();
         const y = target.getBoundingClientRect().top + window.scrollY - 80;
-        window.scrollTo({ top: y, behavior: 'smooth' });
+        window.scrollTo({ top: y, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
       }
     });
   });
