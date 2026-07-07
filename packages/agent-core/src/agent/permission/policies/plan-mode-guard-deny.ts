@@ -214,6 +214,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         if (toolName === 'Read' && planFilePath !== null && readsOnlyPlanFile(context, planFilePath)) return;
         if (toolName === 'TodoList') return;
         if (toolName === 'NextPhase' || toolName === 'ExitPlanMode') return;
+        if (toolName === 'SearchSkill' || toolName === 'Skill') return;
 
         if (toolName === 'Bash') {
           return {
@@ -230,7 +231,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         return {
           kind: 'deny',
           message:
-            `${toolName} is blocked in Write phase. Only the current plan file may be read or edited, TodoList may be updated for progress tracking, and NextPhase/ExitPlanMode may be used when the plan is complete.`,
+            `${toolName} is blocked in Write phase. Only the current plan file may be read or edited, TodoList may be updated for progress tracking, SearchSkill/Skill may be used for the no-AI-slop prose gate, and NextPhase/ExitPlanMode may be used when the plan is complete.`,
         };
       }
       case 'exit': {
@@ -240,9 +241,10 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         if (toolName === 'Read' && planFilePath !== null && readsOnlyPlanFile(context, planFilePath)) return;
         if (toolName === 'Write' || toolName === 'Edit') return;
         if (toolName === 'ExitPlanMode') return;
+        if (toolName === 'SearchSkill' || toolName === 'Skill') return;
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Exit phase. Only ExitPlanMode, current plan-file reads, or plan-file edits are allowed.`,
+          message: `${toolName} is blocked in Exit phase. Only ExitPlanMode, current plan-file reads or edits, and SearchSkill/Skill for the no-AI-slop prose gate are allowed.`,
         };
       }
       default:

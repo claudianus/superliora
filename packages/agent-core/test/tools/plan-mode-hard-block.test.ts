@@ -661,6 +661,16 @@ describe('Plan mode permission policy', () => {
   });
 
   it.each([
+    ['SearchSkill', { query: 'avoid ai writing anti slop ko plan text' }],
+    ['Skill', { skill: 'no-ai-slop-korean' }],
+  ] as const)('allows %s in Ultra Plan write phase for no-AI-slop prose gate', async (toolName, args) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('write');
+
+    expect(evaluatePlanPolicy(agent, toolName, args)).toBeUndefined();
+  });
+
+  it.each([
     ['Read', { path: '/workspace/src/main.ts' }],
     ['WebSearch', { query: 'new planning evidence' }],
     ['FetchURL', { url: 'https://example.com/docs' }],
@@ -842,6 +852,10 @@ describe('Plan mode permission policy', () => {
 
     expect(evaluatePlanPolicy(agent, 'Read', { path: planPath })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'Write', { path: planPath, content: '# fixed' })).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'SearchSkill', { query: 'avoid ai writing anti slop ko plan text' }),
+    ).toBeUndefined();
+    expect(evaluatePlanPolicy(agent, 'Skill', { skill: 'no-ai-slop-korean' })).toBeUndefined();
 
     const readDeny = expectDeny(evaluatePlanPolicy(agent, 'Read', { path: '/workspace/src/main.ts' }));
     expect(readDeny.message ?? '').toContain('current plan-file reads');
