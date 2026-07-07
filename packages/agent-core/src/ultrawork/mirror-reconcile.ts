@@ -2,6 +2,7 @@ import type { UltraworkRun } from '@superliora/protocol';
 import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
 import type { Agent } from '../agent';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
+import { resolveApprovedUltraworkPlanPath } from './approved-plan';
 import { readUltraworkMirrorFromDisk } from './run-store';
 import type { UltraworkPlanRecoveryContext, UltraworkRunMirror } from './types';
 
@@ -37,7 +38,7 @@ export async function reconcileUltraworkFromMirror(agent: Agent): Promise<void> 
   }
 
   reconcileUltraworkRunFromMirror(agent, mirror);
-  reconcileUltraworkPlanFromMirror(agent, mirror);
+  await reconcileUltraworkPlanFromMirror(agent, mirror);
 }
 
 async function reconcileUltraworkPlanWithoutMirror(agent: Agent): Promise<void> {
@@ -92,25 +93,41 @@ function reconcileUltraworkRunFromMirror(agent: Agent, mirror: UltraworkRunMirro
   }
 }
 
-function reconcileUltraworkPlanFromMirror(agent: Agent, mirror: UltraworkRunMirror): void {
+async function reconcileUltraworkPlanFromMirror(agent: Agent, mirror: UltraworkRunMirror): Promise<void> {
   const planMode = agent.planMode;
   if (!planMode.isActive || !planMode.isUltraMode) return;
   if (mirror.planCheckpoint !== undefined) {
-    applyPlanCheckpointQuiet(planMode, mirror.planCheckpoint, agent.ultrawork.getRun() ?? undefined);
+    await applyPlanCheckpointQuiet(
+      agent,
+      planMode,
+      mirror.planCheckpoint,
+      agent.ultrawork.getRun() ?? undefined,
+    );
   }
 }
 
-function applyPlanCheckpointQuiet(
+async function applyPlanCheckpointQuiet(
+  agent: Agent,
   planMode: Agent['planMode'],
   checkpoint: UltraworkPlanRecoveryContext,
   run?: UltraworkRun | null,
-): void {
+): Promise<void> {
   const hasStaffedTeam =
     run?.teamPlan !== undefined && (run.teamPlan.experts.length ?? 0) > 0;
-  const resolvedCheckpoint =
+  let resolvedCheckpoint =
     hasStaffedTeam && checkpoint.phase !== 'exit'
       ? { ...checkpoint, phase: 'exit' as const }
       : checkpoint;
+
+  const approvedPlanPath = await resolveApprovedUltraworkPlanPath(agent, [
+    resolvedCheckpoint.planFilePath,
+    agent.ultraSwarmEngageGate.data()?.planPath,
+    planMode.planFilePath ?? undefined,
+  ]);
+  if (approvedPlanPath !== undefined) {
+    planMode.restorePlanFilePathQuiet(approvedPlanPath);
+    resolvedCheckpoint = { ...resolvedCheckpoint, planFilePath: approvedPlanPath };
+  }
 
   const recordRounds = planMode.interviewRoundCount;
   const engineRounds = planMode.ultraEngine.interviewState.rounds.length;

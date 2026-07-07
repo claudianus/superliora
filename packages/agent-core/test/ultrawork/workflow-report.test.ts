@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { Agent } from '../../src/agent';
 import { UltraworkMode } from '../../src/ultrawork/mode';
+import { testKaos } from '../fixtures/test-kaos';
 import {
+  ensureUltraworkWorkflowArtifacts,
   recordUltraworkWorkflowStage,
   seedUltraworkWorkflowReport,
   WORKFLOW_REPORT_FILENAME,
@@ -106,6 +109,39 @@ describe('ultrawork workflow report harness', () => {
       expect(report).toContain('|');
       expect(report).toContain('plan');
       expect(report).toContain('research');
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it('ensures missing workflow artifacts on resume', async () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'uw-workflow-ensure-'));
+    const evidenceRoot = '.superliora/evidence/ultrawork-runs/run-ensure';
+    try {
+      const agent = new Agent({ kaos: testKaos.withCwd(workDir) });
+      agent.ultrawork.restoreRun({
+        type: 'ultrawork.run',
+        run: {
+          id: 'run-ensure',
+          objective: 'Ensure workflow files',
+          status: 'blocked',
+          stage: 'verify',
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:00:00.000Z',
+        },
+        activation: {
+          source: 'manual',
+          replaceGoal: false,
+          evidenceRoot,
+          workDir,
+        },
+        time: Date.now(),
+      });
+
+      ensureUltraworkWorkflowArtifacts(agent);
+
+      expect(existsSync(join(workDir, evidenceRoot, WORKFLOW_REPORT_FILENAME))).toBe(true);
+      expect(existsSync(join(workDir, evidenceRoot, WORKFLOW_STAGES_FILENAME))).toBe(true);
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }

@@ -26,7 +26,7 @@ import type {
 } from './types';
 import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor } from './recovery';
 import { reconcileUltraworkFromMirror } from './mirror-reconcile';
-import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport } from './workflow-report';
+import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport, ensureUltraworkWorkflowArtifacts } from './workflow-report';
 
 export class UltraworkMode {
   private machine: UltraworkRunStateMachine | undefined;
@@ -206,6 +206,7 @@ export class UltraworkMode {
     if (machine === undefined) return null;
 
     await reconcileUltraworkFromMirror(this.agent);
+    ensureUltraworkWorkflowArtifacts(this.agent);
 
     let run = machine.snapshot();
     if (run.status === 'done' || run.status === 'failed') return null;

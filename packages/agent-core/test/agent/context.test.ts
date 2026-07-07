@@ -377,6 +377,23 @@ describe('Agent context', () => {
     ]);
   });
 
+  it('projectForCompaction repairs orphan tool results for summarizer requests', () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'hello' }]);
+    ctx.agent.context.appendMessage({
+      role: 'tool',
+      content: [{ type: 'text', text: 'orphan output' }],
+      toolCalls: [],
+      toolCallId: 'orphan_call',
+    });
+
+    const messages = ctx.agent.context.projectForCompaction(ctx.agent.context.history);
+    expect(messages.map((message) => [message.role, message.toolCallId])).toEqual([
+      ['user', undefined],
+    ]);
+  });
+
   it('projects hook result messages into LLM projection', async () => {
     const ctx = testAgent();
     ctx.configure();

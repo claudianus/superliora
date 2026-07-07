@@ -1036,7 +1036,7 @@ export class FullCompaction {
     while (true) {
       const currentPrefix = messagesToCompact.slice(0, compactedCount);
       const messages = [
-        ...this.agent.context.project(currentPrefix, { synthesizeMissing: true }),
+        ...this.agent.context.projectForCompaction(currentPrefix),
         createUserMessage(renderPrompt(compactionInstructionTemplate, { customInstruction: instruction })),
       ];
       try {
@@ -1108,7 +1108,7 @@ export class FullCompaction {
     const blockResults = await Promise.all(
       blocks.map(async (block) => {
         const messages = [
-          ...this.agent.context.project(block, { synthesizeMissing: true }),
+          ...this.agent.context.projectForCompaction(block),
           createUserMessage(blockPrompt),
         ];
         const response = await this.agent.generate(
@@ -1234,7 +1234,7 @@ export class FullCompaction {
       ),
     });
     const messages = [
-      ...this.agent.context.project(messagesToCompact, { synthesizeMissing: true }),
+      ...this.agent.context.projectForCompaction(messagesToCompact),
       createUserMessage(repairPrompt),
     ];
     const response = await this.agent.generate(

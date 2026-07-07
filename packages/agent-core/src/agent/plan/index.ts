@@ -126,6 +126,12 @@ export class PlanMode {
     this.ultraEngine.deserialize(record.ultraPlan);
   }
 
+  restorePlanFilePathQuiet(planFilePath: string): void {
+    if (!this._isActive || planFilePath.length === 0) return;
+    if (this._planFilePath === planFilePath) return;
+    this._planFilePath = planFilePath;
+  }
+
   captureStateCheckpoint(): PlanModeStateCheckpoint | null {
     if (!this._isActive) return null;
     return {

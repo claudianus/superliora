@@ -20,6 +20,7 @@ import {
   ultraworkStageIndex,
 } from './stage-progress';
 import { readUltraworkMirrorFromDisk } from './run-store';
+import { resolveApprovedUltraworkPlanPath } from './approved-plan';
 
 export interface ReconcileUltraworkRunResult {
   readonly run: UltraworkRun;
@@ -62,7 +63,12 @@ export async function ensureWorkGraphForResume(
   if (existing !== undefined) return existing as WorkGraph;
 
   const mirror = readUltraworkMirrorFromDisk(agent.kaos.getcwd(), run.id);
-  const resolvedPlanPath = planFilePath ?? mirror?.planCheckpoint?.planFilePath;
+  const resolvedPlanPath = await resolveApprovedUltraworkPlanPath(agent, [
+    planFilePath,
+    mirror?.planCheckpoint?.planFilePath,
+    agent.ultraSwarmEngageGate.data()?.planPath,
+    agent.planMode.planFilePath ?? undefined,
+  ]);
   if (resolvedPlanPath === undefined) return undefined;
 
   try {

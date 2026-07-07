@@ -42,6 +42,7 @@ export {
 } from './mirror-reconcile';
 export { readUltraworkMirrorFromDisk } from './run-store';
 export {
+  ensureUltraworkWorkflowArtifacts,
   injectUltraworkWorkflowStageReminder,
   mirrorUltraworkWorkflowStage,
   recordUltraworkWorkflowStage,
