@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'pathe';
+import { join, normalize } from 'pathe';
 
 import type { UltraworkRun, UltraworkStage } from '@superliora/protocol';
 
@@ -57,6 +57,17 @@ export function resolveUltraworkWorkflowReportPaths(evidenceRoot: string): Ultra
     reportPath: join(evidenceRoot, WORKFLOW_REPORT_FILENAME),
     stagesPath: join(evidenceRoot, WORKFLOW_STAGES_FILENAME),
   };
+}
+
+export function isUltraworkWorkflowReportWritePath(
+  path: string,
+  evidenceRoot: string,
+  workDir: string,
+): boolean {
+  const reportPath = resolveUltraworkWorkflowReportPaths(evidenceRoot).reportPath;
+  const normalized = normalize(path);
+  const allowed = [normalize(reportPath), normalize(join(workDir, reportPath))];
+  return allowed.includes(normalized);
 }
 
 export function ensureUltraworkWorkflowArtifacts(agent: Agent): void {

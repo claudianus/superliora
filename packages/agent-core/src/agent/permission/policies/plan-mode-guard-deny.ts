@@ -1,5 +1,6 @@
 import type { Agent } from '../..';
 import type { ToolFileAccess } from '../../../loop/tool-access';
+import { isUltraworkWorkflowReportWritePath } from '../../../ultrawork/workflow-report';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
@@ -52,6 +53,13 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
 
     const toolName = context.toolCall.name;
     const { isUltraMode, phase } = this.agent.planMode;
+
+    if (
+      (toolName === 'Write' || toolName === 'Edit') &&
+      writesOnlyUltraworkWorkflowReport(context, this.agent)
+    ) {
+      return;
+    }
 
     // Ultra Plan Mode: phase-aware tool restrictions
     if (isUltraMode) {
@@ -251,6 +259,26 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         return;
     }
   }
+}
+
+function writesOnlyUltraworkWorkflowReport(
+  context: PermissionPolicyContext,
+  agent: Agent,
+): boolean {
+  const ultrawork = agent.ultrawork;
+  if (ultrawork === undefined) return false;
+
+  const activation = ultrawork.getActivation();
+  if (activation === undefined || ultrawork.getRun() === null) return false;
+
+  const writeAccesses = writeFileAccesses(context);
+  if (writeAccesses.length === 0) return false;
+
+  const workDir =
+    activation.workDir.length > 0 ? activation.workDir : agent.config.cwd;
+  return writeAccesses.every((access) =>
+    isUltraworkWorkflowReportWritePath(access.path, activation.evidenceRoot, workDir),
+  );
 }
 
 function writesOnlyPlanFile(
