@@ -262,7 +262,7 @@ Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You may ONLY write to the current plan file. All other file edits are BLOCKED. You may read only the current plan file, update TodoList for progress tracking, and use NextPhase or ExitPlanMode when complete.
+You may ONLY write to the current plan file. All other file edits are BLOCKED. You may read only the current plan file, update TodoList for progress tracking, use SearchSkill/Skill for the no-AI-slop prose gate, and use NextPhase or ExitPlanMode when complete.
 
 Before writing plan prose that users will read, apply the no-AI-slop prose gate (light pass first; SearchSkill → Skill only if needed):
 ${NO_AI_SLOP_SKILL_ROUTING}

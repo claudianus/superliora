@@ -193,7 +193,7 @@ describe('handleUpgrade', () => {
     expect(deps.refreshUpdateCache).not.toHaveBeenCalled();
     expect(deps.refreshGitCheckoutUpdateTarget).toHaveBeenCalledTimes(1);
     expect(deps.promptForInstallChoice).toHaveBeenCalledWith(expect.objectContaining({
-      installCommand: expect.stringContaining('git -C'),
+      installCommand: expect.stringContaining('bash -lc'),
       installSource: 'github-checkout',
       target: { version: 'origin/main@abcdef123456' },
     }));
@@ -238,7 +238,7 @@ describe('handleUpgrade', () => {
     expect(deps.installUpdate).not.toHaveBeenCalled();
     expect(deps.updateGuiUseAfterUpgrade).not.toHaveBeenCalled();
     expect(stdout.join('')).toContain('Detected install source: GitHub checkout');
-    expect(stdout.join('')).toContain('git -C');
+    expect(stdout.join('')).toContain('bash -lc');
   });
 
   it('returns a failing exit code when the foreground install fails', async () => {
