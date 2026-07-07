@@ -261,7 +261,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'premium',
     aliases: ['pq'],
-    description: 'Toggle Premium Quality mode (multi-lens quality elevation)',
+    description: 'Toggle Premium Quality mode (visual-first premium harness)',
     priority: 100,
     argumentHint: '[on|off|status]',
     availability: 'always',

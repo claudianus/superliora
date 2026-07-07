@@ -204,11 +204,13 @@ const ULTRAWORK_XP_DOD_GUIDANCE = [
   '- Summarize changed files, behavior, verification results, and remaining risks before finishing.',
 ].join('\n');
 const ULTRAWORK_PREMIUM_QUALITY_GUIDANCE = [
-  'Premium Quality (default ON in Ultrawork):',
-  '- Treat quality elevation as continuous — visuals, UX, microcopy, code structure, performance, accessibility, security, and verification evidence.',
-  '- Rotate quality lenses every meaningful step; do not stop at minimum viable output while premium gaps remain.',
-  '- Use research, rubrics, chain-of-verification, and real-surface evidence before claiming done.',
-  '- Push relentlessly toward the best defensible outcome while preserving user agency on scope trade-offs.',
+  'Premium Quality (default ON in Ultrawork — ULTRA SUPER GOD-TIER HYPER-PREMIUM MODE):',
+  '- Visual quality is PRIMARY, supreme, world-#1 for web, app UI, dashboards, and games — jaw-dropping, Awwwards-worthy, portfolio-grade, hyper-modern, trend-forward, anti-generic; flat placeholder art is an embarrassing failure state.',
+  '- Before visual implementation: Art Direction Brief (vibe, palette, typography, layout, motion, assets, screenshot targets). SearchSkill → load frontend-design, design-taste-frontend, redesign-existing-projects, minimalist-ui, develop-web-game, or workspace-imagen as appropriate.',
+  '- Iterate with the Premium Visual rubric + 500% upgrade playbook until BrowserScreenshot/Playwright evidence passes; do not claim done from code alone — screenshot must look insanely premium.',
+  '- Also elevate UX, microcopy, code structure, performance, accessibility, security, and verification evidence on every meaningful step to ultra-luxury standard.',
+  '- Use research, rubrics, chain-of-verification, and real-surface screenshot proof before claiming done — visually transcendent or keep grinding.',
+  '- Push with brutal relentlessness toward the most defensible, god-tier, world-beating outcome while preserving user agency on scope trade-offs.',
 ].join('\n');
 const ULTRAWORK_HUMAN_WRITING_GUIDANCE = [
   'Human Writing / Anti-Slop:',

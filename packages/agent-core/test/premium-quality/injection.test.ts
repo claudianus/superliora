@@ -30,6 +30,11 @@ describe('PremiumQualityInjector', () => {
     const last = agent.context.history.at(-1) as { content: Array<{ text: string }> };
     expect(last.content[0]?.text).toContain('Premium Quality mode is ON');
     expect(last.content[0]?.text).toContain('bulldozer');
+    expect(last.content[0]?.text).toContain('KING-GOD-GENERAL');
+    expect(last.content[0]?.text).toContain('SearchSkill');
+    expect(last.content[0]?.text).toContain('BrowserScreenshot');
+    expect(last.content[0]?.text).toContain('https://godly.website/');
+    expect(last.content[0]?.text).toContain('picsum.photos/seed/');
   });
 
   it('injects exit guidance when premium quality turns off', async () => {
