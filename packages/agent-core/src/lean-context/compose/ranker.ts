@@ -10,6 +10,7 @@ import {
   loadWorkspaceGraph,
   queryIndexedPaths,
 } from '../index/builder';
+import { ensureWorkspaceIndex } from '../index/ensure';
 import { searchBm25 } from '../index/bm25';
 
 export interface ComposeRankInput {
@@ -28,6 +29,7 @@ export interface ComposeRankResult {
 }
 
 export async function composeRankContext(input: ComposeRankInput): Promise<ComposeRankResult> {
+  const ensured = await ensureWorkspaceIndex(input.kaos, input.workspace);
   const indexedPaths = await queryIndexedPaths(input.kaos, input.workspace, input.query, 40);
   const bm25 = await loadWorkspaceBm25(input.kaos, input.workspace);
   const graph = await loadWorkspaceGraph(input.kaos, input.workspace);
@@ -83,8 +85,10 @@ export async function composeRankContext(input: ComposeRankInput): Promise<Compo
     allFiles: files,
     indexUsed,
     indexStaleHint:
-      indexUsed || files.length > 0
-        ? undefined
-        : 'index_empty — run LioraIndex action=build before broad exploration',
+      ensured.ready && (indexUsed || files.length > 0)
+        ? ensured.built
+          ? 'index_auto_built'
+          : undefined
+        : 'index_unavailable — LioraIndex action=build may be required',
   };
 }

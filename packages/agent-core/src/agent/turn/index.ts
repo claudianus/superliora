@@ -44,6 +44,11 @@ import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { ToolCallDeduplicator } from './tool-dedup';
 import { budgetToolResultForModel } from './tool-result-budget';
 import { postprocessLeanToolResult } from '../../lean-context/postprocess/tool-result';
+import {
+  isRetryableProviderFailure,
+  resolveProviderRecovery,
+  type ProviderRecoveryState,
+} from '../provider-failover';
 
 interface ActiveTurn {
   readonly turnId: number;
@@ -402,7 +407,16 @@ export class TurnFlow {
       // Wall-clock is tracked live by the store (anchored while `active`), so the
       // timer is correct even when the model completes mid-turn.
       await this.agent.goal.incrementTurn();
-      const end = await this.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
+      let end = await this.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
+      if (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
+        end = await this.recoverGoalTurnFromProviderFailure(
+          turnId,
+          turnInput,
+          turnOrigin,
+          signal,
+          end,
+        );
+      }
 
       if (end.event.reason === 'cancelled') {
         await this.agent.goal.pauseOnInterrupt({ reason: 'Paused after interruption' });
@@ -443,6 +457,54 @@ export class TurnFlow {
       turnInput = [{ type: 'text', text: GOAL_CONTINUATION_PROMPT }];
       turnOrigin = GOAL_CONTINUATION_ORIGIN;
     }
+  }
+
+  private async recoverGoalTurnFromProviderFailure(
+    turnId: number,
+    turnInput: readonly ContentPart[],
+    turnOrigin: PromptOrigin,
+    signal: AbortSignal,
+    initialEnd: TurnEndResult,
+  ): Promise<TurnEndResult> {
+    let end = initialEnd;
+    let recoveryState: ProviderRecoveryState = { autoRetryCount: 0, userPrompted: false };
+
+    while (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
+      const outcome = await resolveProviderRecovery(this.agent, {
+        error: end.event.error!,
+        turnId,
+        signal,
+        state: recoveryState,
+      });
+
+      if (outcome.type === 'pause') {
+        return end;
+      }
+
+      if (outcome.type === 'switch') {
+        this.agent.config.update({ modelAlias: outcome.modelAlias });
+        recoveryState = { ...recoveryState, userPrompted: true };
+      } else if (outcome.type === 'auto_retry') {
+        recoveryState = {
+          ...recoveryState,
+          autoRetryCount: recoveryState.autoRetryCount + 1,
+        };
+      } else if (outcome.type === 'user_retry') {
+        recoveryState = { ...recoveryState, userPrompted: true };
+      }
+
+      end = await this.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
+
+      if (
+        recoveryState.userPrompted &&
+        end.event.reason === 'failed' &&
+        isRetryableProviderFailure(end.event.error)
+      ) {
+        return end;
+      }
+    }
+
+    return end;
   }
 
   private async markUltraworkInterruptedForTurnEnd(end: TurnEndResult): Promise<void> {

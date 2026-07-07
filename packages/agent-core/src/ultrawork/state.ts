@@ -156,6 +156,26 @@ export class UltraworkRunStateMachine {
     return this.run;
   }
 
+  syncStageForward(to: UltraworkStage, reason?: string, now = new Date().toISOString()): UltraworkRun {
+    assertValidStage(to);
+    if (this.run.status === 'done' || this.run.status === 'failed') {
+      return this.run;
+    }
+    const fromIndex = stageIndex(this.run.stage);
+    const toIndex = stageIndex(to);
+    if (toIndex <= fromIndex) return this.run;
+
+    const stageHistory = [...(this.run.stageHistory ?? [])];
+    stageHistory.push({ stage: to, enteredAt: now, reason });
+    this.run = {
+      ...this.run,
+      stage: to,
+      updatedAt: now,
+      stageHistory,
+    };
+    return this.run;
+  }
+
   private markTerminalish(
     status: Exclude<UltraworkRunStatus, 'running' | 'done'>,
     reason: string,

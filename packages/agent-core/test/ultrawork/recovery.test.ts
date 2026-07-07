@@ -12,6 +12,7 @@ import {
   injectUltraworkPostSwarmContinuation,
   reconcileUltraworkRunForResume,
 } from '../../src/ultrawork/recovery';
+import { inferEffectiveUltraworkStage } from '../../src/ultrawork/stage-progress';
 
 function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
   return {
@@ -128,6 +129,32 @@ describe('Ultrawork recovery', () => {
     expect(prompt).toContain('Do not restart the UltraPlan interview from round 1.');
   });
 
+  it('promotes resume stage from WorkGraph progress when checkpoint lags', () => {
+    const run = sampleRun({
+      stage: 'research',
+      workGraph: {
+        id: 'run-1:work_graph',
+        runId: 'run-1',
+        nodes: [
+          { id: 'wg1', title: 'Scaffold', stage: 'integrate', status: 'done' },
+          { id: 'wg8', title: 'Performance', stage: 'verify', status: 'running' },
+        ],
+      },
+    });
+    expect(inferEffectiveUltraworkStage(run.stage, run.workGraph)).toBe('verify');
+
+    const prompt = buildUltraworkRecoveryPrompt({
+      run,
+      interruptReason: 'Paused after provider API error: 500',
+      orphanedWorkNodes: [],
+      orphanedExperts: [],
+      lostBackgroundTasks: [],
+      nextActions: ['Resume WorkGraph node wg8: Performance'],
+    });
+    expect(prompt).toContain('Effective resume stage: verify');
+    expect(prompt).toContain('Do not restart UltraResearch');
+  });
+
   it('restores ultra plan phase and interview state through records', async () => {
     const homedir = join(tmpdir(), `ultrawork-plan-state-${String(Date.now())}`);
     mkdirSync(homedir, { recursive: true });
@@ -173,6 +200,37 @@ describe('Ultrawork recovery', () => {
     await replayAgent.resume();
     expect(replayAgent.ultrawork.getRun()?.id).toBe('run-checkpoint');
     expect(replayAgent.ultrawork.getRun()?.status).toBe('blocked');
+  });
+
+  it('syncs ultrawork stage forward when work graph progress advances', () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-sync',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-sync',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('plan', 'test');
+    agent.ultrawork.advance('research', 'test');
+    expect(agent.ultrawork.getRun()?.stage).toBe('research');
+
+    const graph = {
+      id: 'run-sync:work_graph',
+      runId: 'run-sync',
+      nodes: [
+        { id: 'wg1', title: 'Scaffold', stage: 'integrate' as const, status: 'done' as const },
+        { id: 'wg8', title: 'Performance', stage: 'verify' as const, status: 'running' as const },
+      ],
+    };
+    agent.tools.updateStore('ultrawork_graph', graph);
+    agent.ultrawork.syncWorkGraphFromStore();
+
+    expect(agent.ultrawork.getRun()?.stage).toBe('verify');
+    expect(agent.ultrawork.getRun()?.workGraph?.nodes).toHaveLength(2);
   });
 
   it('injects post-swarm continuation only when the run reaches integrate', () => {
