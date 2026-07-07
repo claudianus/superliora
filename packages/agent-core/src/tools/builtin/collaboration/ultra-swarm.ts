@@ -25,7 +25,10 @@ import {
   restaffSlotsAvailable,
 } from '../../../session/ultra-swarm-restaff';
 import { createUltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
-import { maybeAdvanceUltraworkStage } from '../../../ultrawork';
+import {
+  injectUltraworkPostSwarmContinuation,
+  maybeAdvanceUltraworkStage,
+} from '../../../ultrawork';
 import {
   buildSwarmChannelRulesXml,
   buildSwarmCollaborationRequiredXml,
@@ -434,6 +437,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       this.finishWorkNodes(workNodeContext.nodes.map((node) => node.id), rendered);
     }
     this.agent.ultraSwarmEngageGate?.clear('ultra-swarm-completed');
+    maybeAdvanceUltraworkStage(this.agent, 'integrate', 'UltraSwarm completed');
+    injectUltraworkPostSwarmContinuation(this.agent);
     const rawResult = renderUltraSwarmResults(rendered, plan, runId);
     const compacted = compactSwarmToolResult(this.store, rawResult, { runId });
     if (compacted.archiveIds.length > 0) {

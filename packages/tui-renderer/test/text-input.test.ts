@@ -498,6 +498,32 @@ describe('RendererEditorTextInput bridge', () => {
     expect(synced.getCursor()).toEqual({ line: 0, col: '한'.length });
   });
 
+  it('preserves controller text when the host editor lags behind during render', () => {
+    const editor = mutableEditor('');
+    const synced = {
+      ...editor,
+      applyNativeTextInputSync: (next: string, cursor: RendererEditorCursor) => {
+        editor.setText(next);
+        editor.setCursorPosition(cursor);
+      },
+    };
+    const controller = new RendererEditorTextInputController();
+    const input = controller.inputForEditor(synced);
+
+    input.handleInput(key('character', { text: '안' }));
+    input.handleInput(key('character', { text: '녕' }));
+    expect(input.getText()).toBe('안녕');
+
+    // Simulate a stale host buffer (for example a render that ran before sync).
+    editor.setText('안');
+
+    const rebound = controller.inputForEditor(synced);
+    expect(rebound).toBe(input);
+    expect(rebound.getText()).toBe('안녕');
+    expect(synced.getText()).toBe('안녕');
+    expect(synced.getCursor()).toEqual({ line: 0, col: '안녕'.length });
+  });
+
   it('handles command-prefix mode transitions before text mutation fallback', () => {
     const editor = mutableEditor('');
     const controller = new RendererEditorTextInputController();

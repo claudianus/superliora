@@ -110,9 +110,9 @@ export class NativeTUIEditor implements TUIEditor {
     if (text !== before) {
       this.input.setText(text);
       this.historyIndex = undefined;
-      this.onChange?.(text);
     }
     this.input.setCursor({ line: cursor.line, column: cursor.col });
+    if (text !== before) this.onChange?.(text);
   }
 
   setText(text: string): void {

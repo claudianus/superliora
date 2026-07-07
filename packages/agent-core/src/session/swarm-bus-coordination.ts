@@ -167,7 +167,7 @@ export function postOrchestratorStandup(
       },
       channel: 'standup',
       kind: 'status',
-      body: `${input.phase} phase started · ${String(input.expertCount)} expert(s) active`,
+      body: standupBodyForPhase(input.phase, input.expertCount),
       orchestratorPost: true,
     });
     emitSwarmCollaborationMessage(parent, message);
@@ -333,4 +333,11 @@ export function emitCouncilDecisionFromReview(
       reviewerExpertIds: [...input.councilExpertIds],
     },
   });
+}
+
+function standupBodyForPhase(phase: string, expertCount: number): string {
+  if (phase === 'restaff') {
+    return `Adaptive restaff · adding ${String(expertCount)} specialist(s) for revision gaps (same UltraSwarm run)`;
+  }
+  return `${phase} phase started · ${String(expertCount)} expert(s) active`;
 }

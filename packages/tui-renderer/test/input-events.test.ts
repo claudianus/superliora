@@ -201,6 +201,31 @@ describe('NativeInputDecoder', () => {
     ]);
   });
 
+  it('buffers incomplete UTF-8 sequences until the next chunk', () => {
+    const decoder = new NativeInputDecoder();
+    const han = Buffer.from('한', 'utf8');
+
+    expect(decoder.decode(han.subarray(0, 1))).toEqual([]);
+    expect(decoder.decode(han.subarray(1, 2))).toEqual([]);
+    expect(decoder.decode(han.subarray(2))).toEqual([
+      { type: 'key', key: 'character', raw: '한', text: '한', ctrl: false, alt: false, shift: false },
+    ]);
+  });
+
+  it('decodes split Hangul syllables without replacement characters', () => {
+    const decoder = new NativeInputDecoder();
+    const bytes = Buffer.from('안녕', 'utf8');
+
+    expect(decoder.decode(bytes.subarray(0, 2))).toEqual([]);
+    expect(decoder.decode(bytes.subarray(2, 3))).toEqual([
+      { type: 'key', key: 'character', raw: '안', text: '안', ctrl: false, alt: false, shift: false },
+    ]);
+    expect(decoder.decode(bytes.subarray(3, 5))).toEqual([]);
+    expect(decoder.decode(bytes.subarray(5, 6))).toEqual([
+      { type: 'key', key: 'character', raw: '녕', text: '녕', ctrl: false, alt: false, shift: false },
+    ]);
+  });
+
   it('buffers an incomplete SGR mouse sequence until the next chunk', () => {
     const decoder = new NativeInputDecoder();
 

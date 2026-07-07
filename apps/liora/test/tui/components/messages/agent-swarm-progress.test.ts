@@ -786,7 +786,7 @@ describe('AgentSwarmProgressComponent', () => {
     expect(promptTextIndex).toBeGreaterThan(0);
     expect(progressBarIndex).toBeGreaterThan(0);
     expect(promptTextIndex).toBe(visibleWidth('  Prompting... '));
-    expect(progressBarIndex).toBe(visibleWidth('  Working...  '));
+    expect(progressBarIndex).toBe(visibleWidth('    0s Working...  '));
   });
 
   it('renders the activity spinner before the total status line', () => {
@@ -800,7 +800,43 @@ describe('AgentSwarmProgressComponent', () => {
       .find((line) => line.includes('Working...'));
 
     expect(statusLine).toBeDefined();
-    expect(statusLine?.startsWith(' 🌗 Working...')).toBe(true);
+    expect(statusLine?.startsWith(' 🌗 0s Working...')).toBe(true);
+  });
+
+  it('shows swarm elapsed time from swarm start instead of a reset spinner clock', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-07T00:00:00.000Z'));
+
+    const component = createComponent();
+    registerSubagents(component, 1);
+    startSubagents(component, 1);
+    component.setActivitySpinnerText(() => '🌗');
+
+    vi.setSystemTime(new Date('2026-07-07T00:01:05.000Z'));
+    const statusLine = renderLines(component, 80)
+      .find((line) => line.includes('Working...'));
+
+    expect(statusLine).toContain('1m05s');
+    expect(statusLine).not.toContain('0s');
+
+    vi.useRealTimers();
+  });
+
+  it('shows a terminal checkmark while the tool call is still open but all members finished', () => {
+    const component = createComponent();
+
+    registerSubagents(component, 1);
+    component.markInputComplete();
+    component.markCompleted('agent-1', 'Imports are stable');
+    component.setActivitySpinnerText(() => '🌗 0s');
+
+    const statusLine = renderLines(component, 80)
+      .find((line) => line.includes('Completed.'));
+
+    expect(statusLine).toBeDefined();
+    expect(statusLine).toContain('✓');
+    expect(statusLine).not.toContain('🌗');
+    expect(statusLine).not.toContain('0s');
   });
 
   it('keeps a two-cell placeholder after the AgentSwarm tool call ends', () => {

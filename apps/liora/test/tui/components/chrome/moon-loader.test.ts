@@ -62,6 +62,17 @@ describe('MoonLoader', () => {
     expect(inline).not.toContain('steer');
   });
 
+  it('renders only the animated glyph for dense swarm embeds', () => {
+    const loader = createLoader('braille', undefined, 'working...');
+    const glyph = strip(loader.renderGlyph());
+    const inline = strip(loader.renderInline());
+
+    expect(glyph.length).toBeGreaterThan(0);
+    expect(inline).toContain('working...');
+    expect(glyph).not.toContain('working...');
+    expect(glyph).not.toContain('0s');
+  });
+
   it('still shows the tip on the activity row when width allows', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-29T00:00:00Z'));

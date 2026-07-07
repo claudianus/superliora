@@ -99,31 +99,32 @@ export class RendererEditorTextInputController {
     options: RendererEditorTextInputOptions = {},
   ): RendererTextInput {
     const text = editor.getText();
-    if (this.input === undefined || this.input.getText() !== text) {
+    const existing = this.input;
+    if (existing === undefined || existing.getText() !== text) {
+      const syncTarget = editor as RendererEditorTextInputTarget;
+      const controllerText = existing?.getText();
+      if (
+        existing !== undefined &&
+        controllerText !== undefined &&
+        controllerText.length > text.length &&
+        controllerText.startsWith(text) &&
+        syncTarget.applyNativeTextInputSync !== undefined
+      ) {
+        const cursor = existing.getCursor();
+        syncTarget.applyNativeTextInputSync(controllerText, {
+          line: cursor.line,
+          col: cursor.column,
+        });
+        this.applyLiveInputOptions(existing, editor, options, controllerText);
+        return existing;
+      }
+
       this.input = createRendererEditorTextInput(editor, this.optionsWithDefaults(options));
       return this.input;
     }
 
-    if (options.focused !== undefined) this.input.setFocused(options.focused);
-    this.input.setLayoutWidth(options.layoutWidth);
-    this.input.setLayoutHeight(options.layoutHeight);
-    this.input.setAtomicRanges(this.atomicRangesForText(options, text));
-
-    if (this.input.getSelection() === undefined) {
-      const editorCursor = editor.getCursor();
-      const inputCursor = this.input.getCursor();
-      if (
-        inputCursor.line !== editorCursor.line ||
-        inputCursor.column !== editorCursor.col
-      ) {
-        this.input.setCursor({
-          line: editorCursor.line,
-          column: editorCursor.col,
-        });
-      }
-    }
-
-    return this.input;
+    this.applyLiveInputOptions(existing, editor, options, text);
+    return existing;
   }
 
   reset(): void {
@@ -143,6 +144,32 @@ export class RendererEditorTextInputController {
   ): readonly RendererTextInputAtomicRange[] {
     const atomicRangesForText = options.atomicRangesForText ?? this.defaults.atomicRangesForText;
     return atomicRangesForText?.(text) ?? [];
+  }
+
+  private applyLiveInputOptions(
+    input: RendererTextInput,
+    editor: RendererEditorTextInputSource,
+    options: RendererEditorTextInputOptions,
+    text: string,
+  ): void {
+    if (options.focused !== undefined) input.setFocused(options.focused);
+    input.setLayoutWidth(options.layoutWidth);
+    input.setLayoutHeight(options.layoutHeight);
+    input.setAtomicRanges(this.atomicRangesForText(options, text));
+
+    if (input.getSelection() === undefined) {
+      const editorCursor = editor.getCursor();
+      const inputCursor = input.getCursor();
+      if (
+        inputCursor.line !== editorCursor.line ||
+        inputCursor.column !== editorCursor.col
+      ) {
+        input.setCursor({
+          line: editorCursor.line,
+          column: editorCursor.col,
+        });
+      }
+    }
   }
 }
 

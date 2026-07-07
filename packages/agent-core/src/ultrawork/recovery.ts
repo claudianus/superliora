@@ -194,9 +194,29 @@ export function maybeAdvanceUltraworkOnGoalComplete(agent: Agent): void {
   if (ultrawork === undefined) return;
   const run = ultrawork.getRun();
   if (run === null || run.status !== 'running') return;
-  if (run.stage === 'goal') {
-    maybeAdvanceUltraworkStage(agent, 'integrate', 'UltraGoal completed');
+  maybeFinishUltraworkRun(agent);
+  const updated = ultrawork.getRun();
+  if (updated !== null && updated.status === 'running') {
+    ultrawork.completeLearnStage('UltraGoal completed');
   }
+}
+
+export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
+  const run = agent.ultrawork?.getRun();
+  if (run === null || run === undefined || run.status !== 'running') return;
+  if (run.stage !== 'integrate') return;
+  agent.context.appendSystemReminder(
+    [
+      '<ultrawork_post_swarm>',
+      'UltraSwarm finished. Continue this Ultrawork run in order:',
+      '1. Integrate — merge specialist output, resolve conflicts, and pick an integration owner before more product edits.',
+      '2. Verify — run mechanical checks and real surface checks for acceptance criteria.',
+      '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
+      'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
+      '</ultrawork_post_swarm>',
+    ].join('\n'),
+    { kind: 'injection', variant: 'ultrawork_post_swarm' },
+  );
 }
 
 export function maybeFinishUltraworkRun(agent: Agent): void {

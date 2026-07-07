@@ -26,6 +26,7 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
+import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 
 const TEXT_CELL_PREFERRED_WIDTH = 30;
@@ -275,6 +276,7 @@ export class AgentSwarmProgressComponent implements Component {
   private toolCallActive = true;
   private promptTemplateText = '';
   private activitySpinnerText: (() => string) | undefined;
+  private swarmStartedAtMs: number | undefined;
   private lastFrameTickMs = 0;
   private readonly opsFeed: SwarmOpsFeedEntry[] = [];
   private readonly expertSlotById = new Map<string, string>();
@@ -402,6 +404,7 @@ export class AgentSwarmProgressComponent implements Component {
   markInputComplete(): void {
     if (!this.inputComplete) {
       this.inputComplete = true;
+      this.ensureSwarmStartedAt(Date.now());
       for (const member of this.members) {
         if (member.phase === 'pending') member.phase = 'queued';
       }
@@ -941,7 +944,19 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   private renderActivityPrefix(status: TotalStatus): string {
-    if (this.toolCallActive) return this.activitySpinnerText?.() ?? '';
+    if (this.toolCallActive && isTerminalTotalStatus(status)) {
+      return activityPrefixForTotalStatus(status, this.colors);
+    }
+    if (this.toolCallActive) {
+      const spinner = this.activitySpinnerText?.();
+      if (status === 'working' && this.swarmStartedAtMs !== undefined) {
+        const elapsed = chalk.hex(this.colors.textDim)(
+          ` ${formatElapsedTime(this.swarmStartedAtMs)}`,
+        );
+        return `${spinner ?? ACTIVITY_SPINNER_PLACEHOLDER}${elapsed}`;
+      }
+      return spinner ?? '';
+    }
     return activityPrefixForTotalStatus(status, this.colors);
   }
 
@@ -1185,10 +1200,17 @@ export class AgentSwarmProgressComponent implements Component {
   private promoteToRunning(member: AgentSwarmMember, nowMs?: number, setTicks = false): void {
     if (member.phase === 'pending' || member.phase === 'queued' || member.phase === 'suspended') {
       member.phase = 'running';
-      if (nowMs !== undefined) this.progressEstimator.markStarted(member.id, nowMs);
+      if (nowMs !== undefined) {
+        this.ensureSwarmStartedAt(nowMs);
+        this.progressEstimator.markStarted(member.id, nowMs);
+      }
       if (setTicks) member.ticks = Math.max(member.ticks, 1);
     }
     delete member.suspendedReason;
+  }
+
+  private ensureSwarmStartedAt(nowMs: number): void {
+    if (this.swarmStartedAtMs === undefined) this.swarmStartedAtMs = nowMs;
   }
 
   private completeMember(member: AgentSwarmMember, nowMs: number, completedText?: string): void {
@@ -1876,6 +1898,10 @@ function totalStatus(
   if (force.failed) return 'failed';
   if (phases.has('suspended') && !phases.has('running')) return 'suspended';
   return 'working';
+}
+
+function isTerminalTotalStatus(status: TotalStatus): boolean {
+  return status === 'completed' || status === 'failed' || status === 'aborted';
 }
 
 function totalStatusLabel(status: TotalStatus): string {

@@ -186,9 +186,14 @@ export class NativeInputDecoder {
   private pasteText: string | undefined;
   private pasteRaw = '';
   private pendingControl = '';
+  private pendingUtf8 = Buffer.alloc(0);
 
   decode(data: string | Buffer): readonly NativeInputEvent[] {
-    const input = `${this.pendingControl}${typeof data === 'string' ? data : data.toString('utf8')}`;
+    const chunk = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+    const combined = Buffer.concat([this.pendingUtf8, chunk]);
+    const decoded = splitDecodableUtf8(combined);
+    this.pendingUtf8 = decoded.pending;
+    const input = `${this.pendingControl}${decoded.text}`;
     this.pendingControl = '';
     const events: NativeInputEvent[] = [];
     let index = 0;
@@ -706,4 +711,20 @@ function consumeUnknownControlSequence(input: string, index: number): string | u
     if (code >= 0x40 && code <= 0x7e) return input.slice(index, cursor + 1);
   }
   return undefined;
+}
+
+function splitDecodableUtf8(buffer: Buffer): { readonly text: string; readonly pending: Buffer } {
+  if (buffer.length === 0) return { text: '', pending: buffer };
+
+  let end = buffer.length;
+  while (end > 0) {
+    const slice = buffer.subarray(0, end);
+    const text = slice.toString('utf8');
+    if (Buffer.from(text, 'utf8').equals(slice)) {
+      return { text, pending: buffer.subarray(end) };
+    }
+    end--;
+  }
+
+  return { text: '', pending: buffer };
 }

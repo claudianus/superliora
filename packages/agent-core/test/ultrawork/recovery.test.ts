@@ -2,12 +2,16 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { UltraworkRun } from '@superliora/protocol';
 import { Agent } from '../../src/agent';
 import { testKaos } from '../fixtures/test-kaos';
-import { buildUltraworkRecoveryPrompt, reconcileUltraworkRunForResume } from '../../src/ultrawork/recovery';
+import {
+  buildUltraworkRecoveryPrompt,
+  injectUltraworkPostSwarmContinuation,
+  reconcileUltraworkRunForResume,
+} from '../../src/ultrawork/recovery';
 
 function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
   return {
@@ -169,5 +173,36 @@ describe('Ultrawork recovery', () => {
     await replayAgent.resume();
     expect(replayAgent.ultrawork.getRun()?.id).toBe('run-checkpoint');
     expect(replayAgent.ultrawork.getRun()?.status).toBe('blocked');
+  });
+
+  it('injects post-swarm continuation only when the run reaches integrate', () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-integrate',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-integrate',
+        workDir: '/tmp',
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+
+    injectUltraworkPostSwarmContinuation(agent);
+    expect(append).not.toHaveBeenCalled();
+
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    append.mockClear();
+
+    injectUltraworkPostSwarmContinuation(agent);
+    expect(append).toHaveBeenCalledWith(
+      expect.stringContaining('<ultrawork_post_swarm>'),
+      expect.objectContaining({ variant: 'ultrawork_post_swarm' }),
+    );
   });
 });
