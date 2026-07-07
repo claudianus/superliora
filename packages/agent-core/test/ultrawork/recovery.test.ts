@@ -14,6 +14,7 @@ import {
   inferResumeStageFloor,
   maybeAdvanceUltraworkStage,
   promoteUltraworkRunStageForResume,
+  releaseUltraworkPlanModeIfComplete,
   reconcileUltraworkRunForResume,
 } from '../../src/ultrawork/recovery';
 import { inferEffectiveUltraworkStage } from '../../src/ultrawork/stage-progress';
@@ -45,6 +46,38 @@ function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
 }
 
 describe('Ultrawork recovery', () => {
+  it('releases ultrawork plan mode after execution has started', () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-exit-plan',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-exit-plan',
+        workDir: '/tmp',
+      },
+    });
+    void agent.planMode.enter('exit-plan', false, true, true, 'Ship feature');
+    agent.planMode.setPhase('exit');
+    agent.ultrawork.attachTeamPlan({
+      id: 'team-1',
+      runId: 'run-exit-plan',
+      intensity: 'balanced',
+      maxExperts: 4,
+      experts: [{ id: 'expert-1', name: 'QA', role: 'reviewer', focus: 'review', status: 'queued' }],
+    });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.advance('verify', 'test');
+
+    expect(releaseUltraworkPlanModeIfComplete(agent, agent.ultrawork.getRun())).toBe(true);
+    expect(agent.planMode.isActive).toBe(false);
+  });
+
   it('promotes resume stage from teamPlan even when checkpoint lags at plan', () => {
     const run = sampleRun({
       stage: 'research',

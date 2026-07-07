@@ -11,6 +11,8 @@ export {
   injectUltraworkPostSwarmContinuation,
   injectUltraworkPostCompactionContinuation,
   reconcileUltraworkRunForResume,
+  releaseUltraworkPlanModeIfComplete,
+  shouldKeepPlanModeForUltraworkRun,
 } from './recovery';
 export {
   CONTINUE_GOAL_INPUT,

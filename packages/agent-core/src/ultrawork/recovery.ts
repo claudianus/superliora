@@ -42,6 +42,22 @@ export function inferResumeStageFloor(run: UltraworkRun): UltraworkStage {
   return floor;
 }
 
+export function shouldKeepPlanModeForUltraworkRun(run: UltraworkRun): boolean {
+  if (run.teamPlan !== undefined && run.teamPlan.experts.length > 0) return false;
+  return ultraworkStageIndex(run.stage) <= ultraworkStageIndex('research');
+}
+
+export function releaseUltraworkPlanModeIfComplete(
+  agent: Agent,
+  run: UltraworkRun | null = agent.ultrawork.getRun(),
+): boolean {
+  if (run === null) return false;
+  if (!agent.planMode.isActive || !agent.planMode.isUltraMode) return false;
+  if (shouldKeepPlanModeForUltraworkRun(run)) return false;
+  agent.planMode.exit();
+  return true;
+}
+
 export function promoteUltraworkRunStageForResume(run: UltraworkRun): UltraworkRun {
   const fromGraph = inferEffectiveUltraworkStage(run.stage, run.workGraph);
   const floor = inferResumeStageFloor(run);
