@@ -328,7 +328,9 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('second-pass rewrite or deterministic cleanup');
     expect(prompt).toContain('reread for changed meaning');
     expect(prompt).toContain('use read-only research tools plus TodoList for progress tracking and NextPhase');
-    expect(prompt).toContain('Premium Quality (default ON in Ultrawork)');
+    expect(prompt).toContain('Premium Quality (default ON in Ultrawork');
+    expect(prompt).toContain('ULTRA SUPER GOD-TIER');
+    expect(prompt).toContain('Art Direction Brief');
     expect(prompt).toContain('act as an expert leader');
     expect(prompt).toContain('Baseline + Upgrade choices');
     expect(prompt).toContain('Collect improvement levers');

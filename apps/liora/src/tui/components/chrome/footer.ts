@@ -213,7 +213,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
     return 'Workflow interview -> goal -> research -> swarm decision -> integrate -> verify -> learn';
   }
   if (state.premiumQualityMode) {
-    return 'Premium Quality ON — elevate visuals, UX, code, and evidence continuously';
+    return 'Premium Quality ON — visual-first harness: art direction, anti-slop, screenshot proof';
   }
   if (state.streamingPhase !== 'idle') return null;
   if (git?.dirty === true) return 'next: review changes';

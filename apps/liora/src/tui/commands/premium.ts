@@ -37,8 +37,8 @@ export async function handlePremiumQualityCommand(
     host.showNotice(
       current ? 'Premium Quality mode: ON' : 'Premium Quality mode: OFF',
       current
-        ? 'Elevating visuals, UX, code, performance, accessibility, and evidence on every step.'
-        : 'Use /premium on to enable continuous premium-quality pursuit.',
+        ? 'Visual-first premium harness active — art direction, anti-slop visuals, skill routing, screenshot proof.'
+        : 'Use /premium on to enable continuous visual-first premium-quality pursuit.',
     );
     return;
   }
@@ -61,7 +61,7 @@ export async function applyPremiumQuality(
     host.showNotice(
       enabled ? 'Premium Quality mode: ON' : 'Premium Quality mode: OFF',
       enabled
-        ? 'Continuous multi-lens quality elevation is active for this session.'
+        ? 'Visual-first premium harness active — art direction, skill routing, rubric, screenshot verification.'
         : undefined,
       { coalesceKey: 'premium-quality-mode' },
     );

@@ -5,8 +5,8 @@ import {
 } from '../../premium-quality';
 import { DynamicInjector } from './injector';
 
-const PREMIUM_QUALITY_DEDUP_MIN_TURNS = 2;
-const PREMIUM_QUALITY_FULL_REFRESH_TURNS = 5;
+const PREMIUM_QUALITY_DEDUP_MIN_TURNS = 1;
+const PREMIUM_QUALITY_FULL_REFRESH_TURNS = 3;
 
 export class PremiumQualityInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'premium_quality';
