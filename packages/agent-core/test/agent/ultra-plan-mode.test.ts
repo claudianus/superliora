@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   UltraPlanModeEngine,
   ULTRA_PLAN_REQUIRED_SECTIONS,
+  MAX_INTERVIEW_ROUNDS,
   combinedDrift,
   formatInterviewReadinessGuide,
   isDriftAcceptable,
@@ -432,13 +433,89 @@ describe('UltraPlanModeEngine', () => {
       engine.startInterview('Design a premium landing page art direction');
 
       const readiness = await engine.interviewReadiness();
-      const guide = formatInterviewReadinessGuide(readiness);
+      const guide = formatInterviewReadinessGuide(readiness, {
+        perspective: engine.currentPerspective,
+        interviewRoundCount: engine.interviewState.rounds.length,
+      });
 
       expect(readiness.ready).toBe(false);
       expect(guide).toContain('verifiable_goal=false');
       expect(guide).toContain('Completion Criterion');
       expect(guide).toContain('Write or Edit the plan file');
-      expect(pickNextInterviewFocus(readiness)).toContain('Completion Criterion');
+      expect(guide).toContain('perspective=researcher');
+      expect(guide).toContain('through the researcher perspective');
+      expect(pickNextInterviewFocus(readiness, 'researcher')).toContain('Researcher lens');
+      expect(pickNextInterviewFocus(readiness, 'architect')).toContain('Architect lens');
+    });
+
+    it('resets interview perspective when a new interview starts', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.advancePerspective();
+      engine.advancePerspective();
+      expect(engine.currentPerspective).toBe('architect');
+
+      engine.startInterview('Fresh task');
+      expect(engine.currentPerspective).toBe('researcher');
+    });
+
+    it('does not force-ready after the interview round cap when blockers remain', async () => {
+      let callCount = 0;
+      const engine = new UltraPlanModeEngine(
+        createMockAgent(() => {
+          callCount++;
+          return ambiguityResponse({
+            present_sections: ['goal'],
+            verifiable_goal: false,
+            goal_clarity_score: 0.4,
+            constraint_clarity_score: 0.4,
+            success_criteria_clarity_score: 0.4,
+            specificity_score: 0.3,
+          });
+        }),
+      );
+      engine.startInterview('Ship a guarded feature');
+
+      for (let round = 1; round <= MAX_INTERVIEW_ROUNDS; round++) {
+        engine.addInterviewRound(`Round ${round}`, `Partial answer ${round}`);
+      }
+
+      const scored = await engine.calculateAmbiguityScore();
+      const readiness = await engine.interviewReadiness();
+
+      expect(engine.interviewState.rounds).toHaveLength(MAX_INTERVIEW_ROUNDS);
+      expect(scored.isReadyForSeed).toBe(false);
+      expect(readiness.ready).toBe(false);
+      expect(
+        formatInterviewReadinessGuide(readiness, {
+          perspective: engine.currentPerspective,
+          interviewRoundCount: engine.interviewState.rounds.length,
+        }),
+      ).toContain(`Round cap: ${MAX_INTERVIEW_ROUNDS}`);
+    });
+
+    it('reuses cached ambiguity scoring for injection-style readiness checks', async () => {
+      let generateCalls = 0;
+      const engine = new UltraPlanModeEngine(
+        createMockAgent(() => {
+          generateCalls++;
+          return ambiguityResponse({
+            present_sections: ['goal'],
+            verifiable_goal: false,
+            goal_clarity_score: 0.5,
+            constraint_clarity_score: 0.5,
+            success_criteria_clarity_score: 0.5,
+            specificity_score: 0.4,
+          });
+        }),
+      );
+      engine.startInterview('Implement a guarded Ultrawork mode');
+      engine.addInterviewRound('What is the goal?', 'Goal: implement a verifiable UltraGoal.');
+
+      await engine.interviewReadiness({ rescore: true });
+      const callsAfterScore = generateCalls;
+
+      await engine.interviewReadiness({ rescore: false });
+      expect(generateCalls).toBe(callsAfterScore);
     });
   });
 

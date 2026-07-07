@@ -283,6 +283,14 @@ ${NO_AI_SLOP_SKILL_ROUTING}
 If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file, and retry.`,
 };
 
+const INTERVIEW_SPARSE_ESSENTIALS = [
+  'Expert-leader interview — keep every round valuable:',
+  '- Teach one brief insight or unknown-unknown when it helps the user decide.',
+  '- AskUserQuestion: Baseline + Upgrades (payoff/trade-off) + Defer; research-first when options need evidence.',
+  '- Close the open gap below through the current perspective lens — not a bare checklist question.',
+  '- Read-only research in the same turn is fine when it improves the next question.',
+].join('\n');
+
 function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): Promise<string> {
   return buildPhaseReminder(planFilePath, phase, agent);
 }
@@ -319,8 +327,12 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
   }
 
   if (phase === 'interview' && agent !== undefined) {
-    const readiness = await agent.planMode.ultraEngine.interviewReadiness();
-    body = `${body}\n\n${formatInterviewReadinessGuide(readiness)}`;
+    const engine = agent.planMode.ultraEngine;
+    const readiness = await engine.interviewReadiness({ rescore: false });
+    body = `${body}\n\n${formatInterviewReadinessGuide(readiness, {
+      perspective: engine.currentPerspective,
+      interviewRoundCount: engine.interviewState.rounds.length,
+    })}`;
   }
 
   return withPlanFileFooter(body, planFilePath);
@@ -371,8 +383,13 @@ async function buildPhaseSparseReminder(
   let body = `Ultra Plan mode — ${phase.toUpperCase()} phase (${scoreText}). ${PHASE_INSTRUCTIONS[phase]?.split('\n')[0] ?? ''}`;
 
   if (phase === 'interview') {
-    const readiness = await engine.interviewReadiness();
-    body = `${body}\n\n${formatInterviewReadinessGuide(readiness)}`;
+    const perspective = engine.currentPerspective;
+    body = `${body}\n\n${INTERVIEW_SPARSE_ESSENTIALS}\nPerspective: ${perspective} — ${engine.getPerspectiveDescription()}`;
+    const readiness = await engine.interviewReadiness({ rescore: false });
+    body = `${body}\n\n${formatInterviewReadinessGuide(readiness, {
+      perspective,
+      interviewRoundCount: engine.interviewState.rounds.length,
+    })}`;
   }
 
   return withPlanFileFooter(body, planFilePath);

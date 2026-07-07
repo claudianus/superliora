@@ -198,6 +198,29 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('live readiness checklist below');
     expect(text).toContain('Do not Write or Edit the plan file during Interview');
     expect(text).toContain('Interview readiness:');
+    expect(text).toContain('through the researcher perspective');
+  });
+
+  it('keeps expert-leader essentials in sparse Ultra Plan interview reminders', async () => {
+    const agent = planAgent({
+      isActive: true,
+      isUltraMode: true,
+      phase: 'interview',
+      planFilePath: '/tmp/ultra-plan.md',
+    });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+    const messages = history(agent);
+    messages.push({ role: 'assistant' }, { role: 'assistant' });
+    await injector.inject();
+
+    const text = lastReminder(agent);
+    expect(text).toContain('Expert-leader interview');
+    expect(text).toContain('Baseline + Upgrades');
+    expect(text).toContain('current perspective lens');
+    expect(text).toContain('Perspective: researcher');
+    expect(text).toContain('Interview readiness:');
   });
 
   it('routes Ultra Plan design to review before write', async () => {

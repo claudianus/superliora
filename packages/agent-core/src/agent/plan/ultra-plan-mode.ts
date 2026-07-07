@@ -192,9 +192,9 @@ const GOAL_CLARITY_FLOOR = 0.75;
 const CONSTRAINT_CLARITY_FLOOR = 0.65;
 const SUCCESS_CRITERIA_CLARITY_FLOOR = 0.70;
 
-/** Maximum interview rounds before the engine force-advances to Design.
- *  Prevents infinite interview loops caused by LLM score oscillation. */
-const MAX_INTERVIEW_ROUNDS = 8;
+/** Soft cap on interview rounds — surfaces a warning in the readiness guide but
+ *  does not bypass the Design gate. */
+export const MAX_INTERVIEW_ROUNDS = 8;
 
 export interface UltraPlanReadiness {
   readonly ready: boolean;
@@ -292,6 +292,7 @@ export class UltraPlanModeEngine {
     this._seedSpec = null;
     this._driftMetrics = metrics;
     this._lastAmbiguityResult = null;
+    this._currentPerspective = 'researcher';
     this._interviewState = {
       ...this._interviewState,
       ambiguityScore: null,
@@ -648,6 +649,7 @@ export class UltraPlanModeEngine {
   }
 
   startInterview(initialContext: string): void {
+    this._currentPerspective = 'researcher';
     this._lastAmbiguityResult = null;
     this._interviewState = {
       rounds: [],
@@ -707,8 +709,8 @@ export class UltraPlanModeEngine {
    * - **Monotonic ready**: once `isReadyForSeed` is true for a given evidence
    *   hash, it stays true until a new interview round changes the evidence.
    *   LLM non-determinism cannot un-ready an already-passed gate.
-   * - **Max rounds**: after MAX_INTERVIEW_ROUNDS the engine force-advances
-   *   even if the LLM keeps producing borderline scores.
+   * - **Max rounds**: after MAX_INTERVIEW_ROUNDS the readiness guide warns
+   *   that the soft cap was hit; the Design gate still requires real closure.
    */
   async calculateAmbiguityScore(
     signal?: AbortSignal,
@@ -764,7 +766,7 @@ export class UltraPlanModeEngine {
     llmResult: LLMAmbiguityResult,
     evidenceHash: string,
     onProgress: ((text: string) => void) | undefined,
-    skipLlm: boolean,
+    _skipLlm: boolean,
   ): AmbiguityScoreResult {
     const totalRounds = this._interviewState.rounds.length;
     const answerRoundClarity = Math.min(totalRounds / 3, 1.0);
@@ -815,13 +817,11 @@ export class UltraPlanModeEngine {
       isReady = true;
     }
 
-    // ── Max-rounds safety: force ready after too many rounds.
     const hitMaxRounds = totalRounds >= MAX_INTERVIEW_ROUNDS;
     if (hitMaxRounds && !isReady) {
-      isReady = true;
       this.emitProgress(
         onProgress,
-        `Reached max interview rounds (${MAX_INTERVIEW_ROUNDS}). Force-advancing to Design.`,
+        `Interview round cap (${MAX_INTERVIEW_ROUNDS}) reached — Design remains blocked until blockers close.`,
       );
     }
 
@@ -926,7 +926,7 @@ export class UltraPlanModeEngine {
   }
 
   /**
-   * Check if interview can auto-complete (2 consecutive ready scores).
+   * Check if interview can auto-complete (ready score with stable streak).
    */
   async canAutoComplete(): Promise<boolean> {
     await this.calculateAmbiguityScore();
@@ -936,9 +936,10 @@ export class UltraPlanModeEngine {
     );
   }
 
-  async interviewReadiness(): Promise<UltraPlanReadiness> {
-    const ambiguityScore = await this.calculateAmbiguityScore();
-    const openGaps = await this.openSeedGaps();
+  async interviewReadiness(options?: { rescore?: boolean }): Promise<UltraPlanReadiness> {
+    const rescore = options?.rescore ?? true;
+    const ambiguityScore = await this.resolveAmbiguityScore(rescore);
+    const openGaps = this.openSeedGapsFromCache();
     const verifiableGoal = this._lastAmbiguityResult?.verifiableGoal ?? false;
     const stableReady =
       ambiguityScore.isReadyForSeed &&
@@ -958,17 +959,43 @@ export class UltraPlanModeEngine {
     if (this._lastAmbiguityResult === null) {
       await this.calculateAmbiguityScore();
     }
+    return this.openSeedGapsFromCache();
+  }
+
+  async readinessBlockerMessage(readiness?: UltraPlanReadiness): Promise<string> {
+    const resolved = readiness ?? (await this.interviewReadiness({ rescore: true }));
+    return formatInterviewReadinessGuide(resolved, {
+      perspective: this._currentPerspective,
+      interviewRoundCount: this._interviewState.rounds.length,
+    });
+  }
+
+  private async resolveAmbiguityScore(rescore: boolean): Promise<AmbiguityScoreResult> {
+    if (!rescore && this.hasFreshAmbiguityCache()) {
+      return this._interviewState.ambiguityScore!;
+    }
+    return this.calculateAmbiguityScore();
+  }
+
+  private hasFreshAmbiguityCache(): boolean {
+    const evidenceHash = this._hash(this.interviewEvidenceText());
+    return (
+      this._interviewState.ambiguityScore !== null &&
+      this._interviewState.lastScoredEvidenceHash === evidenceHash &&
+      this._interviewState.cachedLlmResult !== undefined
+    );
+  }
+
+  private openSeedGapsFromCache(): readonly UltraPlanRequiredSection[] {
+    if (this._lastAmbiguityResult === null) {
+      return [...ULTRA_PLAN_REQUIRED_SECTIONS];
+    }
     const presentSet = new Set(
-      (this._lastAmbiguityResult?.presentSections ?? []).map((section) =>
+      this._lastAmbiguityResult.presentSections.map((section) =>
         this._normalizeSectionName(String(section)),
       ),
     );
     return ULTRA_PLAN_REQUIRED_SECTIONS.filter((section) => !presentSet.has(section));
-  }
-
-  async readinessBlockerMessage(readiness?: UltraPlanReadiness): Promise<string> {
-    const resolved = readiness ?? (await this.interviewReadiness());
-    return formatInterviewReadinessGuide(resolved);
   }
 
   /**
@@ -1344,25 +1371,85 @@ Respond ONLY with valid JSON. No other text before or after.
   }
 }
 
-export function pickNextInterviewFocus(readiness: UltraPlanReadiness): string {
+export interface InterviewReadinessGuideOptions {
+  readonly perspective?: InterviewPerspective;
+  readonly interviewRoundCount?: number;
+}
+
+export function pickNextInterviewFocus(
+  readiness: UltraPlanReadiness,
+  perspective: InterviewPerspective = 'researcher',
+): string {
+  const lens = perspectiveFocusLead(perspective);
   if (!readiness.verifiableGoal) {
-    return [
-      'Completion Criterion — ask how success is judged true/false or pass/fail.',
-      'Example: "true when deliverable X exists and you approve it; false otherwise."',
-    ].join(' ');
+    const completionAsk =
+      perspective === 'seed-closer'
+        ? 'how success is judged true/false or pass/fail with a concrete Completion Criterion'
+        : 'how success is judged true/false or pass/fail — offer Baseline completion vs an Upgrade with a sharper verifiable test';
+    return `${lens} Completion Criterion — ask ${completionAsk}.`;
   }
   const firstGap = readiness.openGaps[0];
   if (firstGap !== undefined) {
     const guidance = ULTRA_PLAN_SECTION_GUIDANCE[firstGap];
-    return `${guidance.label} — ${guidance.askHint}`;
+    return `${lens} ${guidance.label} — ${guidance.askHint}${perspectiveGapSuffix(perspective, firstGap)}`;
   }
   if (readiness.floorFailures.length > 0) {
-    return `Clarify ${readiness.floorFailures[0]} — ask for concrete specifics (files, commands, metrics, deliverables).`;
+    return `${lens} clarify ${readiness.floorFailures[0]} with concrete specifics (files, commands, metrics, deliverables).`;
   }
-  return 'Clarify the vaguest remaining requirement with concrete specifics.';
+  return `${lens} clarify the vaguest remaining requirement with concrete specifics and Baseline/Upgrade options when they help.`;
 }
 
-export function formatInterviewReadinessGuide(readiness: UltraPlanReadiness): string {
+function perspectiveFocusLead(perspective: InterviewPerspective): string {
+  const leads: Record<InterviewPerspective, string> = {
+    researcher: 'Researcher lens — cite context or benchmarks, then',
+    simplifier: 'Simplifier lens — contrast Baseline MVP vs Upgrade scope, then',
+    architect: 'Architect lens — tie to structure, interfaces, or maintainability, then',
+    'breadth-keeper': 'Breadth-keeper lens — balance stretch goals vs non-goals, then',
+    'seed-closer': 'Seed-closer lens — push toward measurable criteria, then',
+  };
+  return leads[perspective];
+}
+
+function perspectiveGapSuffix(
+  perspective: InterviewPerspective,
+  gap: UltraPlanRequiredSection,
+): string {
+  const suffixes: Partial<Record<InterviewPerspective, Partial<Record<UltraPlanRequiredSection, string>>>> = {
+    researcher: {
+      goal: ' Ground options in industry patterns or benchmarks when useful.',
+      constraints: ' Reference comparable projects or standards when useful.',
+      runtime_context: ' Mention stack norms or deployment patterns when useful.',
+    },
+    simplifier: {
+      goal: ' Offer Baseline (minimal) vs Upgrade (higher payoff) scope.',
+      non_goals: ' Show what to defer without losing the core outcome.',
+      acceptance_criteria: ' Separate must-have checks from nice-to-have upgrades.',
+    },
+    architect: {
+      actors: ' Clarify who owns interfaces, reviews, and long-term maintenance.',
+      inputs: ' Name the structural boundaries the work starts from.',
+      outputs: ' Name durable artifacts (modules, APIs, schemas) not just tasks.',
+    },
+    'breadth-keeper': {
+      non_goals: ' Catch scope creep and missing edge cases.',
+      failure_modes: ' Surface regressions and quality dimensions the user skipped.',
+      acceptance_criteria: ' Add stretch checks only when they materially improve outcomes.',
+    },
+    'seed-closer': {
+      acceptance_criteria: ' Make each criterion pass/fail or measurable.',
+      verification_plan: ' Name exact commands, reviews, or demos.',
+      goal: ' Lock a true/false Completion Criterion before advancing.',
+    },
+  };
+  return suffixes[perspective]?.[gap] ?? ' Offer Baseline + Upgrade options when the choice changes outcomes.';
+}
+
+export function formatInterviewReadinessGuide(
+  readiness: UltraPlanReadiness,
+  options?: InterviewReadinessGuideOptions,
+): string {
+  const perspective = options?.perspective ?? 'researcher';
+  const interviewRoundCount = options?.interviewRoundCount ?? 0;
   if (readiness.ready) {
     return [
       'Interview readiness: READY for Design.',
@@ -1413,18 +1500,25 @@ export function formatInterviewReadinessGuide(readiness: UltraPlanReadiness): st
     );
   }
 
+  if (interviewRoundCount >= MAX_INTERVIEW_ROUNDS) {
+    lines.push(
+      '',
+      `Round cap: ${interviewRoundCount} interview rounds completed (soft cap ${MAX_INTERVIEW_ROUNDS}). Design stays blocked until the blockers above close — do not call NextPhase until READY.`,
+    );
+  }
+
   lines.push(
     '',
-    `Status: ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ')}`,
+    `Status: perspective=${perspective} | ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ')}`,
     '',
     'DO NOT (these will not unblock the gate):',
     '- Write or Edit the plan file. Seed Spec is auto-generated on Design transition; the plan file is written in Write phase.',
     '- Call NextPhase again until the blockers above are closed.',
     '- Repeat questions about sections already captured — target only open_gaps listed above.',
-    '- Ask vague or duplicate questions — each round must close at least one open gap or add a Completion Criterion.',
+    '- Ask bare checklist questions — teach briefly and frame Baseline/Upgrade choices through the current perspective.',
     '',
-    'NEXT TURN — AskUserQuestion with one focus only:',
-    pickNextInterviewFocus(readiness),
+    `NEXT TURN — AskUserQuestion: close the focus below through the ${perspective} perspective (one primary gap per round):`,
+    pickNextInterviewFocus(readiness, perspective),
   );
 
   return lines.join('\n');
