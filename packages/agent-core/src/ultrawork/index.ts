@@ -25,7 +25,9 @@ export {
 export {
   applyWorkGraphProgressToRun,
   inferEffectiveUltraworkStage,
+  maxUltraworkStage,
   summarizeWorkGraphProgress,
+  ultraworkStageIndex,
 } from './stage-progress';
 export {
   buildUltraworkCompactionEnvelope,

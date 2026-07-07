@@ -1,5 +1,6 @@
 import type { ResumeUltraworkPayloadResult, SessionStatus, UltraworkRun } from '#/types';
 import type { SwarmModeTrigger } from '@superliora/agent-core';
+import { ultraworkStageIndex } from '@superliora/agent-core';
 
 export interface UltraworkAutoResumeSession {
   getUltraworkRun(): Promise<UltraworkRun | null>;
@@ -22,15 +23,20 @@ export async function tryAutoResumeUltrawork(
     return null;
   }
 
-  const setupChanged = await ensureUltraworkResumeSetup(session, run.objective);
+  const setupChanged = await ensureUltraworkResumeSetup(session, run);
   const resumed = await session.resumeUltrawork();
   if (resumed === null) return null;
   return { resumed, setupChanged };
 }
 
+function shouldEnablePlanModeForResume(run: UltraworkRun): boolean {
+  if (run.teamPlan !== undefined && run.teamPlan.experts.length > 0) return false;
+  return ultraworkStageIndex(run.stage) <= ultraworkStageIndex('research');
+}
+
 export async function ensureUltraworkResumeSetup(
   session: UltraworkAutoResumeSession,
-  objective = '',
+  run: UltraworkRun,
 ): Promise<boolean> {
   const status = await session.getStatus();
   let changed = false;
@@ -38,8 +44,8 @@ export async function ensureUltraworkResumeSetup(
     await session.setSwarmMode(true, 'task');
     changed = true;
   }
-  if (!status.planMode) {
-    await session.setPlanMode(true, true, objective);
+  if (!status.planMode && shouldEnablePlanModeForResume(run)) {
+    await session.setPlanMode(true, true, run.objective);
     changed = true;
   }
   return changed;

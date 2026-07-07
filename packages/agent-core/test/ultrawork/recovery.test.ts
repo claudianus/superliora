@@ -11,6 +11,9 @@ import {
   buildUltraworkRecoveryPrompt,
   injectUltraworkPostCompactionContinuation,
   injectUltraworkPostSwarmContinuation,
+  inferResumeStageFloor,
+  maybeAdvanceUltraworkStage,
+  promoteUltraworkRunStageForResume,
   reconcileUltraworkRunForResume,
 } from '../../src/ultrawork/recovery';
 import { inferEffectiveUltraworkStage } from '../../src/ultrawork/stage-progress';
@@ -42,6 +45,51 @@ function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
 }
 
 describe('Ultrawork recovery', () => {
+  it('promotes resume stage from teamPlan even when checkpoint lags at plan', () => {
+    const run = sampleRun({
+      stage: 'research',
+      teamPlan: {
+        id: 'team-1',
+        runId: 'run-1',
+        intensity: 'balanced',
+        maxExperts: 4,
+        experts: [{ id: 'expert-1', name: 'QA', role: 'reviewer', focus: 'review', status: 'queued' }],
+      },
+    });
+    expect(inferResumeStageFloor(run)).toBe('integrate');
+    expect(promoteUltraworkRunStageForResume(run).stage).toBe('integrate');
+  });
+
+  it('does not regress ultrawork stage during maybeAdvanceUltraworkStage', () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-no-regress',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-no-regress',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('plan', 'test');
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.attachTeamPlan({
+      id: 'team-1',
+      runId: 'run-no-regress',
+      intensity: 'balanced',
+      maxExperts: 4,
+      experts: [{ id: 'expert-1', name: 'QA', role: 'reviewer', focus: 'review', status: 'queued' }],
+    });
+
+    maybeAdvanceUltraworkStage(agent, 'research', 'Ultra plan research phase');
+    expect(agent.ultrawork.getRun()?.stage).toBe('integrate');
+  });
+
   it('reconciles orphaned running graph nodes and experts', () => {
     const agent = new Agent({ kaos: testKaos });
     const graph = sampleRun().workGraph!;

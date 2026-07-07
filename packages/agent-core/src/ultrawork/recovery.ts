@@ -9,13 +9,17 @@ import type {
 
 import type { Agent } from '../agent';
 import { isBackgroundTaskTerminal } from '../agent/background';
+import { seedUltraworkGraphFromApprovedPlan } from '../agent/plan/work-graph-from-plan';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
 import type { UltraworkActivation, UltraworkPlanRecoveryContext, UltraworkRecoveryReport, UltraworkResumeCursor } from './types';
 import {
   applyWorkGraphProgressToRun,
   inferEffectiveUltraworkStage,
+  maxUltraworkStage,
   summarizeWorkGraphProgress,
+  ultraworkStageIndex,
 } from './stage-progress';
+import { readUltraworkMirrorFromDisk } from './run-store';
 
 export interface ReconcileUltraworkRunResult {
   readonly run: UltraworkRun;
@@ -25,6 +29,50 @@ export interface ReconcileUltraworkRunResult {
   readonly orphanedWorkNodes: readonly string[];
   readonly orphanedExperts: readonly string[];
   readonly lostBackgroundTasks: readonly string[];
+}
+
+export function inferResumeStageFloor(run: UltraworkRun): UltraworkStage {
+  let floor = run.stage;
+  if (run.teamPlan !== undefined && run.teamPlan.experts.length > 0) {
+    floor = maxUltraworkStage(floor, 'staff');
+    floor = maxUltraworkStage(floor, 'swarm');
+    floor = maxUltraworkStage(floor, 'integrate');
+  }
+  return floor;
+}
+
+export function promoteUltraworkRunStageForResume(run: UltraworkRun): UltraworkRun {
+  const fromGraph = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  const floor = inferResumeStageFloor(run);
+  const stage = maxUltraworkStage(fromGraph, floor);
+  if (stage === run.stage && run.workGraph === run.workGraph) return run;
+  return {
+    ...run,
+    stage,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function ensureWorkGraphForResume(
+  agent: Agent,
+  run: UltraworkRun,
+  planFilePath?: string,
+): Promise<WorkGraph | undefined> {
+  const existing = agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
+  if (existing !== undefined) return existing as WorkGraph;
+
+  const mirror = readUltraworkMirrorFromDisk(agent.kaos.getcwd(), run.id);
+  const resolvedPlanPath = planFilePath ?? mirror?.planCheckpoint?.planFilePath;
+  if (resolvedPlanPath === undefined) return undefined;
+
+  try {
+    const content = await agent.kaos.readText(resolvedPlanPath);
+    const seeded = seedUltraworkGraphFromApprovedPlan(agent, content, resolvedPlanPath);
+    if (!seeded.seeded) return undefined;
+    return agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY) as WorkGraph | undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function reconcileUltraworkRunForResume(
@@ -42,15 +90,17 @@ export function reconcileUltraworkRunForResume(
     .filter((task) => isBackgroundTaskTerminal(task.status) && (task.status === 'lost' || task.status === 'failed'))
     .map((task) => task.taskId);
 
-  const reconciledRun = applyWorkGraphProgressToRun(
-    {
-      ...run,
-      status: 'running',
-      workGraph: workGraph ?? run.workGraph,
-      teamPlan: teamPlan ?? run.teamPlan,
-      updatedAt: new Date().toISOString(),
-    },
-    workGraph,
+  const reconciledRun = promoteUltraworkRunStageForResume(
+    applyWorkGraphProgressToRun(
+      {
+        ...run,
+        status: 'running',
+        workGraph: workGraph ?? run.workGraph,
+        teamPlan: teamPlan ?? run.teamPlan,
+        updatedAt: new Date().toISOString(),
+      },
+      workGraph,
+    ),
   );
 
   return {
@@ -212,6 +262,13 @@ export function maybeAdvanceUltraworkStage(
   const run = ultrawork.getRun();
   if (run === null || run.status === 'done' || run.status === 'failed') return;
   if (run.stage === to) return;
+
+  const resumeFloor = maxUltraworkStage(
+    inferEffectiveUltraworkStage(run.stage, run.workGraph),
+    inferResumeStageFloor(run),
+  );
+  if (ultraworkStageIndex(to) < ultraworkStageIndex(resumeFloor)) return;
+
   try {
     ultrawork.advance(to, reason);
   } catch {

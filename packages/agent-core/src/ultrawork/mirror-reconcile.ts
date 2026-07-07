@@ -1,3 +1,4 @@
+import type { UltraworkRun } from '@superliora/protocol';
 import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
 import type { Agent } from '../agent';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
@@ -95,34 +96,41 @@ function reconcileUltraworkPlanFromMirror(agent: Agent, mirror: UltraworkRunMirr
   const planMode = agent.planMode;
   if (!planMode.isActive || !planMode.isUltraMode) return;
   if (mirror.planCheckpoint !== undefined) {
-    applyPlanCheckpointQuiet(planMode, mirror.planCheckpoint);
+    applyPlanCheckpointQuiet(planMode, mirror.planCheckpoint, agent.ultrawork.getRun() ?? undefined);
   }
 }
 
 function applyPlanCheckpointQuiet(
   planMode: Agent['planMode'],
   checkpoint: UltraworkPlanRecoveryContext,
+  run?: UltraworkRun | null,
 ): void {
+  const hasStaffedTeam =
+    run?.teamPlan !== undefined && (run.teamPlan.experts.length ?? 0) > 0;
+  const resolvedCheckpoint =
+    hasStaffedTeam && checkpoint.phase !== 'exit'
+      ? { ...checkpoint, phase: 'exit' as const }
+      : checkpoint;
+
   const recordRounds = planMode.interviewRoundCount;
   const engineRounds = planMode.ultraEngine.interviewState.rounds.length;
-  const mirrorRounds = checkpoint.interviewRoundCount ?? 0;
+  const mirrorRounds = resolvedCheckpoint.interviewRoundCount ?? 0;
   const needsMirror =
     mirrorRounds > recordRounds ||
     mirrorRounds > engineRounds ||
-    (checkpoint.phase !== undefined &&
-      checkpoint.phase !== planMode.phase &&
-      recordRounds === 0 &&
-      engineRounds === 0);
+    (resolvedCheckpoint.phase !== undefined &&
+      resolvedCheckpoint.phase !== planMode.phase &&
+      (recordRounds === 0 && engineRounds === 0 || hasStaffedTeam));
 
-  if (!needsMirror || checkpoint.phase === undefined) return;
+  if (!needsMirror || resolvedCheckpoint.phase === undefined) return;
 
   const ultraPlan =
-    checkpoint.ultraPlan ??
+    resolvedCheckpoint.ultraPlan ??
     planMode.captureStateCheckpoint()?.ultraPlan ??
     planMode.ultraEngine.serialize();
 
   planMode.restoreStateQuiet({
-    phase: checkpoint.phase as UltraPlanPhase,
+    phase: resolvedCheckpoint.phase as UltraPlanPhase,
     interviewRoundCount: mirrorRounds,
     ultraPlan,
   });

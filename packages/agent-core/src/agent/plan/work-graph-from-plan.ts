@@ -159,6 +159,7 @@ function parseWorkGraphBullets(section: string): WorkGraphNode[] {
 interface WorkGraphColumnIndex {
   id?: number;
   title?: number;
+  description?: number;
   acceptanceCriterionId?: number;
   stage?: number;
   ownerLane?: number;
@@ -172,6 +173,7 @@ function mapWorkGraphColumns(headerCells: readonly string[]): WorkGraphColumnInd
     const cell = rawCell.trim().toLowerCase();
     if (/^node\s*id$/i.test(cell) || cell === 'id') index.id = cellIndex;
     else if (/\btitle\b/.test(cell)) index.title = cellIndex;
+    else if (/\bdescription\b/.test(cell)) index.description = cellIndex;
     else if (/\b(?:ac(?:\s*id)?|acceptance\s+criterion(?:\s+id)?)\b/.test(cell)) {
       index.acceptanceCriterionId = cellIndex;
     } else if (/\bstage\b/.test(cell)) index.stage = cellIndex;
@@ -191,13 +193,18 @@ function nodeFromTableCells(
   const id = cellValue(cells, columnIndex.id);
   if (id === undefined) return undefined;
 
-  const stage = parseStage(cellValue(cells, columnIndex.stage));
+  const description = normalizeOptional(cellValue(cells, columnIndex.description));
+  const stage = parseStage(cellValue(cells, columnIndex.stage), {
+    id,
+    description,
+  });
   if (stage === undefined) return undefined;
 
   const acceptanceCriterionId = normalizeOptional(cellValue(cells, columnIndex.acceptanceCriterionId));
   const requiredEvidenceRaw = cellValue(cells, columnIndex.requiredEvidence);
   const title =
     normalizeOptional(cellValue(cells, columnIndex.title)) ??
+    description ??
     buildNodeTitle(id, acceptanceCriterionId, requiredEvidenceRaw);
 
   return {
@@ -230,11 +237,26 @@ function cellValue(cells: readonly string[], index: number | undefined): string 
   return value === undefined || value.length === 0 ? undefined : value;
 }
 
-function parseStage(raw: string | undefined): UltraworkStage | undefined {
+function parseStage(
+  raw: string | undefined,
+  context?: { readonly id?: string; readonly description?: string },
+): UltraworkStage | undefined {
   if (raw === undefined) return undefined;
   const normalized = raw.trim().toLowerCase();
-  if (!ULTRAWORK_STAGES.has(normalized as UltraworkStage)) return undefined;
-  return normalized as UltraworkStage;
+  if (ULTRAWORK_STAGES.has(normalized as UltraworkStage)) {
+    return normalized as UltraworkStage;
+  }
+
+  // MVP rollout phase numbers (1, 2, 3) are not Ultrawork stage names.
+  if (/^\d+$/.test(normalized)) {
+    const text = `${context?.description ?? ''} ${context?.id ?? ''}`.toLowerCase();
+    if (/검증|verify|validation|screenshot|rubric|lighthouse|performance/i.test(text)) {
+      return 'verify';
+    }
+    return 'integrate';
+  }
+
+  return undefined;
 }
 
 function parseLaneId(raw: string | undefined): string | undefined {
