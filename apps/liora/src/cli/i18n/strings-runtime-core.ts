@@ -164,6 +164,12 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
     'warning: failed to install {package}@{version}: {reason}',
   'cli.runtime.upgrade.githubInstallFailed':
     'warning: failed to update {product} from GitHub: {reason}',
+  'cli.runtime.upgrade.browserUseUpToDate':
+    'Browser-use runtimes are up to date (Lightpanda primary, CloakBrowser fallback).',
+  'cli.runtime.upgrade.browserUseUpdateFailed':
+    'warning: failed to update browser-use runtimes. Run `liora browser-use update` to retry.',
+  'cli.runtime.upgrade.browserUseUpdateFailedDetail':
+    'warning: failed to update browser-use runtimes. Run `liora browser-use update` to retry. {reason}',
   'cli.runtime.upgrade.cloakBrowserUpToDate': 'CloakBrowser binary cache is up to date.',
   'cli.runtime.upgrade.cloakBrowserUpdateFailed':
     'warning: failed to update the CloakBrowser binary cache. Run `liora browser-use update` to retry.',
@@ -363,6 +369,12 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
     '경고: {package}@{version} 설치 실패: {reason}',
   'cli.runtime.upgrade.githubInstallFailed':
     '경고: GitHub에서 {product} 업데이트 실패: {reason}',
+  'cli.runtime.upgrade.browserUseUpToDate':
+    'Browser-use 런타임이 최신입니다 (Lightpanda 1순위, CloakBrowser 폴백).',
+  'cli.runtime.upgrade.browserUseUpdateFailed':
+    '경고: browser-use 런타임 업데이트 실패. `liora browser-use update`로 다시 시도하세요.',
+  'cli.runtime.upgrade.browserUseUpdateFailedDetail':
+    '경고: browser-use 런타임 업데이트 실패. `liora browser-use update`로 다시 시도하세요. {reason}',
   'cli.runtime.upgrade.cloakBrowserUpToDate':
     'CloakBrowser 바이너리 캐시가 최신입니다.',
   'cli.runtime.upgrade.cloakBrowserUpdateFailed':

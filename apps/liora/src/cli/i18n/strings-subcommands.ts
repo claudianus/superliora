@@ -35,10 +35,10 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
     'Run the device-code login flow then exit (entry point for ACP terminal-auth).',
 
   // browser-use
-  'cli.sub.browserUse.cmd.install.desc': 'Pre-download the CloakBrowser binary cache.',
-  'cli.sub.browserUse.cmd.update.desc': 'Update the CloakBrowser binary cache.',
-  'cli.sub.browserUse.cmd.status.desc': 'Print CloakBrowser runtime status.',
-  'cli.sub.browserUse.cmd.doctor.desc': 'Diagnose the CloakBrowser browser-use runtime.',
+  'cli.sub.browserUse.cmd.install.desc': 'Pre-download Lightpanda (primary) and CloakBrowser (fallback) runtimes.',
+  'cli.sub.browserUse.cmd.update.desc': 'Update Lightpanda and CloakBrowser browser-use runtimes.',
+  'cli.sub.browserUse.cmd.status.desc': 'Print Lightpanda and CloakBrowser runtime status.',
+  'cli.sub.browserUse.cmd.doctor.desc': 'Diagnose the tiered browser-use runtime.',
 
   // computer-use
   'cli.sub.computerUse.cmd.install.desc': 'Install cua-driver using the upstream installer.',
@@ -269,10 +269,10 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
     '디바이스 코드 로그인 흐름을 실행한 뒤 종료합니다(ACP terminal-auth 진입점).',
 
   // browser-use
-  'cli.sub.browserUse.cmd.install.desc': 'CloakBrowser 바이너리 캐시를 미리 다운로드합니다.',
-  'cli.sub.browserUse.cmd.update.desc': 'CloakBrowser 바이너리 캐시를 업데이트합니다.',
-  'cli.sub.browserUse.cmd.status.desc': 'CloakBrowser 런타임 상태를 출력합니다.',
-  'cli.sub.browserUse.cmd.doctor.desc': 'CloakBrowser browser-use 런타임을 진단합니다.',
+  'cli.sub.browserUse.cmd.install.desc': 'Lightpanda(1순위)와 CloakBrowser(폴백) 런타임을 미리 다운로드합니다.',
+  'cli.sub.browserUse.cmd.update.desc': 'Lightpanda와 CloakBrowser browser-use 런타임을 업데이트합니다.',
+  'cli.sub.browserUse.cmd.status.desc': 'Lightpanda와 CloakBrowser 런타임 상태를 출력합니다.',
+  'cli.sub.browserUse.cmd.doctor.desc': '계층형 browser-use 런타임을 진단합니다.',
 
   // computer-use
   'cli.sub.computerUse.cmd.install.desc': '업스트림 설치 프로그램으로 cua-driver를 설치합니다.',
