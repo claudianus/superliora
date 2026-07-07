@@ -256,8 +256,8 @@ export type ServicesConfig = z.infer<typeof ServicesConfigSchema>;
 
 export const BrowserUseConfigSchema = z.object({
   enabled: z.boolean().optional(),
-  provider: z.enum(['lightpanda', 'cloakbrowser']).optional(),
-  fallbackProvider: z.enum(['lightpanda', 'cloakbrowser']).optional(),
+  provider: z.enum(['lightpanda', 'cloakbrowser', 'camoufox']).optional(),
+  fallbackProvider: z.enum(['lightpanda', 'cloakbrowser', 'camoufox']).optional(),
   fallbackEnabled: z.boolean().optional(),
   autoInstall: z.boolean().optional(),
   autoUpdate: z.boolean().optional(),

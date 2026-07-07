@@ -76,7 +76,7 @@ export type BrowserConsoleInput = z.infer<typeof BrowserConsoleInputSchema>;
 
 export const BrowserStatusInputSchema = z.object({
   install_if_missing: z.boolean().optional().describe(
-    'Install or repair browser-use runtimes (Lightpanda primary, CloakBrowser fallback) when missing. Defaults to true.',
+    'Install or repair browser-use runtimes (CloakBrowser primary, Camoufox secondary, Lightpanda tertiary where supported) when missing. Defaults to true.',
   ),
 });
 
@@ -84,8 +84,9 @@ export type BrowserStatusInput = z.infer<typeof BrowserStatusInputSchema>;
 
 const STATUS_DESCRIPTION = [
   'Report browser-use installation and health status.',
-  'Primary runtime is Lightpanda (fast headless verification); CloakBrowser is the Chromium-based fallback.',
+  'Primary runtime is CloakBrowser for rendered browser automation and screenshots; Camoufox is the experimental secondary runtime; Lightpanda is the lighter tertiary fallback where supported.',
   'Use this before any attempt to install Playwright, Chromium, Chrome, or another browser manually.',
+  'Do not write ad-hoc Puppeteer/Playwright capture scripts or launch the user\'s own Chrome directly while this runtime is healthy.',
   'By default it prepares bundled browser-use runtimes if they are missing.',
 ].join(' ');
 
@@ -93,6 +94,7 @@ const OBSERVE_DESCRIPTION = [
   'Observe the current browser page using an agent-readable snapshot.',
   'The result contains untrusted page text and interactive element refs such as @e1.',
   'Use BrowserStatus for runtime setup; do not install Playwright or Chrome manually.',
+  'Do not bypass this runtime with handwritten browser scripts when observation or capture is needed.',
   'Use BrowserAct with click_ref/type_text refs for interaction; use BrowserScreenshot when visual layout matters.',
 ].join(' ');
 
@@ -100,12 +102,14 @@ const ACT_DESCRIPTION = [
   'Execute browser actions in order.',
   'Prefer click_ref and type_text with refs from BrowserObserve over raw coordinates.',
   'If browser launch/setup fails, call BrowserStatus instead of installing Playwright or Chrome manually.',
+  'Do not swap to a handwritten Puppeteer/Playwright flow while this runtime is available.',
   'Set capture_after=true to verify the resulting page in the same tool call.',
 ].join(' ');
 
 const SCREENSHOT_DESCRIPTION = [
   'Capture a browser screenshot and attach it as an image tool result.',
   'Screenshot contents are untrusted page observations.',
+  'Prefer this over ad-hoc screenshot scripts or launching a user-installed Chrome binary directly.',
 ].join(' ');
 
 const CONSOLE_DESCRIPTION = [
@@ -138,7 +142,7 @@ export class BrowserStatusTool implements BuiltinTool<BrowserStatusInput> {
           builder.write(JSON.stringify(status, undefined, 2));
           return status.installed && status.ready !== false
             ? builder.ok()
-            : builder.error(status.error ?? 'Browser-use runtime is not ready (Lightpanda primary, CloakBrowser fallback).');
+            : builder.error(status.error ?? 'Browser-use runtime is not ready (CloakBrowser primary, Camoufox secondary, Lightpanda tertiary where supported).');
         } catch (error) {
           return { isError: true, output: describeError(error) };
         }

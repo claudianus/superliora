@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { CamoufoxBrowserRuntime } from '../src/browser/camoufox-browser';
 import { CloakBrowserRuntime } from '../src/browser/cloak-browser';
 import { createBrowserUseRuntime } from '../src/browser/create-browser-use-runtime';
 import { LightpandaBrowserRuntime } from '../src/browser/lightpanda-browser';
@@ -154,8 +155,30 @@ describe('LightpandaBrowserRuntime', () => {
   });
 });
 
+describe('CamoufoxBrowserRuntime', () => {
+  it('auto-installs the browser-use runtime when status finds it missing', async () => {
+    const info = vi
+      .fn()
+      .mockResolvedValueOnce(setupResult({ ok: false, code: 1, stderr: 'missing\n' }))
+      .mockResolvedValueOnce(setupResult({ stdout: 'camoufox 152.0.4-alpha.25\n' }));
+    const install = vi.fn().mockResolvedValue(setupResult({ stdout: 'installed\n' }));
+    const runtime = new CamoufoxBrowserRuntime({ info, install });
+
+    const status = await runtime.status({ installIfMissing: true });
+
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(info).toHaveBeenCalledTimes(2);
+    expect(status).toMatchObject({
+      provider: 'camoufox',
+      installed: true,
+      ready: true,
+      version: 'camoufox 152.0.4-alpha.25',
+    });
+  });
+});
+
 describe('createBrowserUseRuntime', () => {
-  it('defaults to Lightpanda primary with CloakBrowser fallback', () => {
+  it('defaults to CloakBrowser primary with Camoufox fallback chain', () => {
     const runtime = createBrowserUseRuntime();
     expect(runtime).toBeInstanceOf(TieredBrowserUseRuntime);
   });
@@ -166,6 +189,14 @@ describe('createBrowserUseRuntime', () => {
       fallbackEnabled: false,
     });
     expect(runtime).toBeInstanceOf(CloakBrowserRuntime);
+  });
+
+  it('uses Camoufox only when explicitly configured', () => {
+    const runtime = createBrowserUseRuntime({
+      provider: 'camoufox',
+      fallbackEnabled: false,
+    });
+    expect(runtime).toBeInstanceOf(CamoufoxBrowserRuntime);
   });
 });
 

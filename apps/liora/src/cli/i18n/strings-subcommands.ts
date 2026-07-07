@@ -35,9 +35,9 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
     'Run the device-code login flow then exit (entry point for ACP terminal-auth).',
 
   // browser-use
-  'cli.sub.browserUse.cmd.install.desc': 'Pre-download Lightpanda (primary) and CloakBrowser (fallback) runtimes.',
-  'cli.sub.browserUse.cmd.update.desc': 'Update Lightpanda and CloakBrowser browser-use runtimes.',
-  'cli.sub.browserUse.cmd.status.desc': 'Print Lightpanda and CloakBrowser runtime status.',
+  'cli.sub.browserUse.cmd.install.desc': 'Pre-download CloakBrowser (primary), Camoufox (secondary), and Lightpanda (tertiary) runtimes.',
+  'cli.sub.browserUse.cmd.update.desc': 'Update CloakBrowser, Camoufox, and Lightpanda browser-use runtimes.',
+  'cli.sub.browserUse.cmd.status.desc': 'Print CloakBrowser, Camoufox, and Lightpanda runtime status.',
   'cli.sub.browserUse.cmd.doctor.desc': 'Diagnose the tiered browser-use runtime.',
 
   // computer-use
@@ -269,9 +269,9 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
     '디바이스 코드 로그인 흐름을 실행한 뒤 종료합니다(ACP terminal-auth 진입점).',
 
   // browser-use
-  'cli.sub.browserUse.cmd.install.desc': 'Lightpanda(1순위)와 CloakBrowser(폴백) 런타임을 미리 다운로드합니다.',
-  'cli.sub.browserUse.cmd.update.desc': 'Lightpanda와 CloakBrowser browser-use 런타임을 업데이트합니다.',
-  'cli.sub.browserUse.cmd.status.desc': 'Lightpanda와 CloakBrowser 런타임 상태를 출력합니다.',
+  'cli.sub.browserUse.cmd.install.desc': 'CloakBrowser(1순위), Camoufox(2순위), Lightpanda(지원 시 3순위) 런타임을 미리 다운로드합니다.',
+  'cli.sub.browserUse.cmd.update.desc': 'CloakBrowser, Camoufox, Lightpanda browser-use 런타임을 업데이트합니다.',
+  'cli.sub.browserUse.cmd.status.desc': 'CloakBrowser, Camoufox, Lightpanda 런타임 상태를 출력합니다.',
   'cli.sub.browserUse.cmd.doctor.desc': '계층형 browser-use 런타임을 진단합니다.',
 
   // computer-use
