@@ -8,6 +8,7 @@ export {
   maybeAdvanceUltraworkOnGoalComplete,
   maybeAdvanceUltraworkStage,
   maybeFinishUltraworkRun,
+  injectUltraworkPostSwarmContinuation,
   reconcileUltraworkRunForResume,
 } from './recovery';
 export {

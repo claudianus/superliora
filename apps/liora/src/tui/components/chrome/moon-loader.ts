@@ -79,7 +79,16 @@ export class MoonLoader extends Text {
   }
 
   renderInline(): string {
+    if (!this.stopped) this.computeDisplay();
     return this.inlineText;
+  }
+
+  /** Spinner glyph only — for dense embeds such as the swarm status line. */
+  renderGlyph(): string {
+    const frameIndex =
+      Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
+    const frame = this.frames[frameIndex]!;
+    return this.colorFn ? this.colorFn(frame) : frame;
   }
 
   override render(width: number): string[] {

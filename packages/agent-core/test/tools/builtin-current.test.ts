@@ -1105,6 +1105,10 @@ describe('current builtin collaboration tools', () => {
       }),
     });
     expect(agent.ultraSwarmEngageGate.clear).toHaveBeenCalledWith('ultra-swarm-completed');
+    expect(agent.context.appendSystemReminder).toHaveBeenCalledWith(
+      expect.stringContaining('<ultrawork_post_swarm>'),
+      expect.objectContaining({ variant: 'ultrawork_post_swarm' }),
+    );
   });
 
   it('UltraSwarm runs phased batches and passes bounded handoffs forward', async () => {

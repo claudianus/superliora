@@ -188,11 +188,11 @@ export class SubAgentEventHandler {
   }
 
   syncAgentSwarmActivitySpinner(
-    spinner: { renderInline(): string } | undefined,
+    spinner: { renderGlyph(): string } | undefined,
   ): void {
     for (const progress of this.agentSwarmProgress.values()) {
       progress.setActivitySpinnerText(
-        spinner === undefined ? undefined : () => spinner.renderInline(),
+        spinner === undefined ? undefined : () => spinner.renderGlyph(),
       );
     }
   }
