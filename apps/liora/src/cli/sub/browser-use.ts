@@ -1,7 +1,7 @@
 import {
-  infoCloakBrowser,
-  installCloakBrowser,
-  updateCloakBrowser,
+  infoBrowserUseRuntimes,
+  installBrowserUseRuntimes,
+  updateBrowserUseRuntimes,
   type SetupCommandOptions,
   type SetupCommandResult,
 } from '@superliora/gui-use';
@@ -73,7 +73,10 @@ export async function handleBrowserUseCommand(
     : action === 'update'
       ? resolved.update
       : resolved.info;
-  const result = await runner({ cwd: resolved.packageRoot(), quiet: true });
+  const result = await runner({
+    packageRoot: resolved.packageRoot(),
+    quiet: true,
+  });
   writeResultOutput(resolved, result);
 
   if (result.ok) {
@@ -105,9 +108,9 @@ function resolveDeps(deps: Partial<BrowserUseCommandDeps> | undefined): BrowserU
     stdout: deps?.stdout ?? process.stdout,
     stderr: deps?.stderr ?? process.stderr,
     exit: deps?.exit ?? ((code) => process.exit(code)),
-    install: deps?.install ?? installCloakBrowser,
-    update: deps?.update ?? updateCloakBrowser,
-    info: deps?.info ?? infoCloakBrowser,
+    install: deps?.install ?? installBrowserUseRuntimes,
+    update: deps?.update ?? updateBrowserUseRuntimes,
+    info: deps?.info ?? infoBrowserUseRuntimes,
   };
 }
 

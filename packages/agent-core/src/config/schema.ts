@@ -256,13 +256,19 @@ export type ServicesConfig = z.infer<typeof ServicesConfigSchema>;
 
 export const BrowserUseConfigSchema = z.object({
   enabled: z.boolean().optional(),
-  provider: z.enum(['cloakbrowser']).optional(),
+  provider: z.enum(['lightpanda', 'cloakbrowser']).optional(),
+  fallbackProvider: z.enum(['lightpanda', 'cloakbrowser']).optional(),
+  fallbackEnabled: z.boolean().optional(),
   autoInstall: z.boolean().optional(),
   autoUpdate: z.boolean().optional(),
   cacheDir: z.string().min(1).optional(),
   binaryPath: z.string().min(1).optional(),
   version: z.string().min(1).optional(),
   licenseKeyEnv: z.string().min(1).optional(),
+  host: z.string().min(1).optional(),
+  port: z.number().int().positive().optional(),
+  obeyRobots: z.boolean().optional(),
+  disableHostVerification: z.boolean().optional(),
 });
 
 export type BrowserUseConfig = z.infer<typeof BrowserUseConfigSchema>;

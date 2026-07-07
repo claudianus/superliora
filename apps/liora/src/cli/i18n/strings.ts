@@ -40,7 +40,7 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
 
   'cli.sub.export.description': 'Export a session as a ZIP archive.',
   'cli.sub.provider.description': 'Manage LLM providers non-interactively.',
-  'cli.sub.browserUse.description': 'Manage the local CloakBrowser browser-use runtime.',
+  'cli.sub.browserUse.description': 'Manage the local browser-use runtimes (Lightpanda primary, CloakBrowser fallback).',
   'cli.sub.computerUse.description': 'Manage the local cua-driver computer-use runtime.',
   'cli.sub.acp.description':
     'Run kimi-code as an Agent Client Protocol (ACP) server over stdio.',
@@ -81,7 +81,7 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
 
   'cli.sub.export.description': '세션을 ZIP 아카이브로 내보냅니다.',
   'cli.sub.provider.description': 'LLM 프로바이더를 비대화형으로 관리합니다.',
-  'cli.sub.browserUse.description': '로컬 CloakBrowser browser-use 런타임을 관리합니다.',
+  'cli.sub.browserUse.description': '로컬 browser-use 런타임(Lightpanda 1순위, CloakBrowser 폴백)을 관리합니다.',
   'cli.sub.computerUse.description': '로컬 cua-driver computer-use 런타임을 관리합니다.',
   'cli.sub.acp.description': 'SuperLiora를 stdio 기반 Agent Client Protocol(ACP) 서버로 실행합니다.',
   'cli.sub.server.description': '로컬 SuperLiora 서버(REST + WebSocket API)를 실행합니다.',

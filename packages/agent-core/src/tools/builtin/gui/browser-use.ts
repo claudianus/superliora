@@ -76,16 +76,17 @@ export type BrowserConsoleInput = z.infer<typeof BrowserConsoleInputSchema>;
 
 export const BrowserStatusInputSchema = z.object({
   install_if_missing: z.boolean().optional().describe(
-    'Install or repair the CloakBrowser runtime cache when it is missing. Defaults to true.',
+    'Install or repair browser-use runtimes (Lightpanda primary, CloakBrowser fallback) when missing. Defaults to true.',
   ),
 });
 
 export type BrowserStatusInput = z.infer<typeof BrowserStatusInputSchema>;
 
 const STATUS_DESCRIPTION = [
-  'Report CloakBrowser browser-use installation and health status.',
+  'Report browser-use installation and health status.',
+  'Primary runtime is Lightpanda (fast headless verification); CloakBrowser is the Chromium-based fallback.',
   'Use this before any attempt to install Playwright, Chromium, Chrome, or another browser manually.',
-  'By default it prepares the bundled browser-use runtime if it is missing.',
+  'By default it prepares bundled browser-use runtimes if they are missing.',
 ].join(' ');
 
 const OBSERVE_DESCRIPTION = [
@@ -137,7 +138,7 @@ export class BrowserStatusTool implements BuiltinTool<BrowserStatusInput> {
           builder.write(JSON.stringify(status, undefined, 2));
           return status.installed && status.ready !== false
             ? builder.ok()
-            : builder.error(status.error ?? 'CloakBrowser browser-use runtime is not ready.');
+            : builder.error(status.error ?? 'Browser-use runtime is not ready (Lightpanda primary, CloakBrowser fallback).');
         } catch (error) {
           return { isError: true, output: describeError(error) };
         }

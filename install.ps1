@@ -132,13 +132,30 @@ function Build-Source {
 
 function Install-CloakBrowser {
   param([string]$TargetDir)
-  Write-Step 'Pre-installing CloakBrowser binary cache'
+  Write-Step 'Pre-installing Lightpanda browser-use runtime (primary)'
+  $lightpandaCache = if ($env:LIGHTPANDA_CACHE_DIR) { $env:LIGHTPANDA_CACHE_DIR } else { Join-Path $env:USERPROFILE '.cache\superliora-lightpanda' }
+  $asset = switch ("$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)") {
+    'Arm64' { if ($IsMacOS) { 'lightpanda-aarch64-macos' } elseif ($IsLinux) { 'lightpanda-aarch64-linux' } }
+    'X64' { if ($IsMacOS) { 'lightpanda-x86_64-macos' } elseif ($IsLinux) { 'lightpanda-x86_64-linux' } }
+  }
+  if ($asset) {
+    try {
+      New-Item -ItemType Directory -Force -Path $lightpandaCache | Out-Null
+      $target = Join-Path $lightpandaCache 'lightpanda'
+      Invoke-WebRequest -Uri "https://github.com/lightpanda-io/browser/releases/download/nightly/$asset" -OutFile $target
+    } catch {
+      Write-Warning "Lightpanda pre-install failed; retry with '$CommandName browser-use install'"
+    }
+  } else {
+    Write-Warning 'Lightpanda auto-install is not supported on this platform; CloakBrowser fallback only'
+  }
+  Write-Step 'Pre-installing CloakBrowser fallback cache'
   Push-Location $TargetDir
   try {
     $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
     & corepack pnpm --filter '@superliora/gui-use' exec cloakbrowser install
   } catch {
-    Write-Warning "CloakBrowser binary pre-install failed; retry with '$CommandName browser-use install'"
+    Write-Warning "CloakBrowser fallback pre-install failed; retry with '$CommandName browser-use install'"
   } finally {
     Pop-Location
   }

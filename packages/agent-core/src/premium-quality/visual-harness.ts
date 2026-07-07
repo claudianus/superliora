@@ -61,7 +61,7 @@ export const PREMIUM_VISUAL_VERIFICATION_LOOP = [
   '4. Open and inspect the screenshot — if it still looks like a placeholder, iterate (typography, palette, assets, motion, layout).',
   '5. Run a 10-point visual rubric (below). Any FAIL → another pass. Do not report done with known visual FAILs.',
   '6. Record evidence path or observation in plan/todo/evidence — not only chat.',
-  'Missing optional npm packages do NOT prove browser verification is impossible; use harness BrowserUse/ComputerUse paths first.',
+  'Missing optional npm packages do NOT prove browser verification is impossible; use harness BrowserUse (Lightpanda → CloakBrowser) paths first.',
 ].join('\n');
 
 /** 10-point rubric for self-audit. */

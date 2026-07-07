@@ -234,11 +234,32 @@ if [ "$NO_BUILD" -eq 0 ]; then
   )
 
   if [ "$NO_BROWSER_USE" -eq 0 ] && [ "${SUPERLIORA_SKIP_BROWSER_USE:-0}" != "1" ]; then
-    log "Pre-installing CloakBrowser binary cache"
+    log "Pre-installing Lightpanda browser-use runtime (primary)"
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) LIGHTPANDA_ASSET=lightpanda-aarch64-macos ;;
+    Darwin-x86_64) LIGHTPANDA_ASSET=lightpanda-x86_64-macos ;;
+    Linux-x86_64) LIGHTPANDA_ASSET=lightpanda-x86_64-linux ;;
+    Linux-aarch64) LIGHTPANDA_ASSET=lightpanda-aarch64-linux ;;
+    *) LIGHTPANDA_ASSET= ;;
+  esac
+  if [ -n "$LIGHTPANDA_ASSET" ]; then
+    LIGHTPANDA_CACHE="${LIGHTPANDA_CACHE_DIR:-$HOME/.cache/superliora-lightpanda}"
+    mkdir -p "$LIGHTPANDA_CACHE"
+    if ! curl -fsSL "https://github.com/lightpanda-io/browser/releases/download/nightly/$LIGHTPANDA_ASSET" \
+      -o "$LIGHTPANDA_CACHE/lightpanda"; then
+      log "warning: Lightpanda pre-install failed; retry with '$COMMAND_NAME browser-use install'"
+    else
+      chmod +x "$LIGHTPANDA_CACHE/lightpanda"
+    fi
+  else
+    log "warning: Lightpanda auto-install is not supported on this platform; CloakBrowser fallback only"
+  fi
+
+    log "Pre-installing CloakBrowser fallback cache"
     (
       cd "$INSTALL_DIR"
       COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter @superliora/gui-use exec cloakbrowser install
-    ) || log "warning: CloakBrowser binary pre-install failed; retry with '$COMMAND_NAME browser-use install'"
+    ) || log "warning: CloakBrowser fallback pre-install failed; retry with '$COMMAND_NAME browser-use install'"
   fi
 
   if [ "$NO_COMPUTER_USE" -eq 0 ] && [ "${SUPERLIORA_SKIP_COMPUTER_USE:-0}" != "1" ]; then

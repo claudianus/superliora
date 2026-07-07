@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { CloakBrowserRuntime, CuaComputerRuntime } from '@superliora/gui-use';
+import { createBrowserUseRuntime, CuaComputerRuntime } from '@superliora/gui-use';
 import { join } from 'pathe';
 
 import { ErrorCodes, LioraError } from '#/errors';
@@ -1324,13 +1324,20 @@ async function createRuntimeConfig(input: {
     browserUse:
       input.config.browserUse?.enabled === false
         ? undefined
-        : new CloakBrowserRuntime({
+        : createBrowserUseRuntime({
+            provider: input.config.browserUse?.provider,
+            fallbackProvider: input.config.browserUse?.fallbackProvider,
+            fallbackEnabled: input.config.browserUse?.fallbackEnabled,
             autoInstall: input.config.browserUse?.autoInstall,
             autoUpdate: input.config.browserUse?.autoUpdate,
             cacheDir: input.config.browserUse?.cacheDir,
             binaryPath: input.config.browserUse?.binaryPath,
             version: input.config.browserUse?.version,
             licenseKeyEnv: input.config.browserUse?.licenseKeyEnv,
+            host: input.config.browserUse?.host,
+            port: input.config.browserUse?.port,
+            obeyRobots: input.config.browserUse?.obeyRobots,
+            disableHostVerification: input.config.browserUse?.disableHostVerification,
           }),
     computerUse:
       input.config.computerUse?.enabled === false

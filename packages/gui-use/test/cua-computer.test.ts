@@ -6,6 +6,9 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CloakBrowserRuntime } from '../src/browser/cloak-browser';
+import { createBrowserUseRuntime } from '../src/browser/create-browser-use-runtime';
+import { LightpandaBrowserRuntime } from '../src/browser/lightpanda-browser';
+import { TieredBrowserUseRuntime } from '../src/browser/tiered-browser-use';
 import { CuaComputerRuntime } from '../src/computer/cua-computer';
 import type { SetupCommandResult } from '../src/install';
 
@@ -127,6 +130,42 @@ describe('CloakBrowserRuntime', () => {
       ready: false,
       error: 'missing',
     });
+  });
+});
+
+describe('LightpandaBrowserRuntime', () => {
+  it('reports unsupported platform without attempting install', async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const install = vi.fn();
+    const runtime = new LightpandaBrowserRuntime({ install });
+
+    try {
+      const status = await runtime.status({ installIfMissing: true });
+      expect(install).not.toHaveBeenCalled();
+      expect(status).toMatchObject({
+        provider: 'lightpanda',
+        installed: false,
+        ready: false,
+      });
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
+  });
+});
+
+describe('createBrowserUseRuntime', () => {
+  it('defaults to Lightpanda primary with CloakBrowser fallback', () => {
+    const runtime = createBrowserUseRuntime();
+    expect(runtime).toBeInstanceOf(TieredBrowserUseRuntime);
+  });
+
+  it('uses CloakBrowser only when explicitly configured', () => {
+    const runtime = createBrowserUseRuntime({
+      provider: 'cloakbrowser',
+      fallbackEnabled: false,
+    });
+    expect(runtime).toBeInstanceOf(CloakBrowserRuntime);
   });
 });
 

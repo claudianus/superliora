@@ -110,13 +110,16 @@ refresh_on_start = false
 
 [browser_use]
 enabled = true
-provider = "cloakbrowser"
+provider = "lightpanda"
+fallback_provider = "cloakbrowser"
+fallback_enabled = true
 auto_install = true
 auto_update = true
 cache_dir = "/tmp/kimi-cloak"
 binary_path = "/opt/cloakbrowser"
 version = "0.4.5"
 license_key_env = "CLOAKBROWSER_LICENSE_KEY"
+obey_robots = true
 
 [computer_use]
 enabled = true
@@ -228,13 +231,16 @@ describe('harness config TOML loader', () => {
     });
     expect(config.browserUse).toEqual({
       enabled: true,
-      provider: 'cloakbrowser',
+      provider: 'lightpanda',
+      fallbackProvider: 'cloakbrowser',
+      fallbackEnabled: true,
       autoInstall: true,
       autoUpdate: true,
       cacheDir: '/tmp/kimi-cloak',
       binaryPath: '/opt/cloakbrowser',
       version: '0.4.5',
       licenseKeyEnv: 'CLOAKBROWSER_LICENSE_KEY',
+      obeyRobots: true,
     });
     expect(config.computerUse).toEqual({
       enabled: true,

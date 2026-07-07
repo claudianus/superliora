@@ -1,6 +1,6 @@
 import { log, type Logger } from '@superliora/sdk';
 import { track as trackTelemetry, type TelemetryProperties } from '@superliora/telemetry';
-import { updateCloakBrowser, updateCuaDriver } from '@superliora/gui-use';
+import { updateBrowserUseRuntimes, updateCuaDriver } from '@superliora/gui-use';
 
 import { getHostPackageRoot } from '#/cli/version';
 import { t, tln } from '#/cli/i18n';
@@ -349,17 +349,17 @@ async function updateBrowserUseAfterUpgrade(deps: {
   readonly stderr: WritableLike;
 }): Promise<void> {
   try {
-    const result = await updateCloakBrowser({ cwd: getHostPackageRoot(), quiet: true });
+    const result = await updateBrowserUseRuntimes({ packageRoot: getHostPackageRoot(), quiet: true });
     if (result.ok) {
-      deps.stdout.write(tln('cli.runtime.upgrade.cloakBrowserUpToDate'));
+      deps.stdout.write(tln('cli.runtime.upgrade.browserUseUpToDate'));
       return;
     }
     const detail = result.error ?? firstNonEmpty(result.stderr, result.stdout);
-    deps.stderr.write(tln('cli.runtime.upgrade.cloakBrowserUpdateFailed'));
+    deps.stderr.write(tln('cli.runtime.upgrade.browserUseUpdateFailed'));
     if (detail.length > 0) deps.stderr.write(`${detail}\n`);
   } catch (error) {
     deps.stderr.write(
-      tln('cli.runtime.upgrade.cloakBrowserUpdateFailedDetail', {
+      tln('cli.runtime.upgrade.browserUseUpdateFailedDetail', {
         reason: formatErrorMessage(error),
       }),
     );

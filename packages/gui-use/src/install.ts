@@ -2,8 +2,15 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
+import {
+  infoLightpandaBinary,
+  installLightpandaBinary,
+  type LightpandaBinaryOptions,
+} from './browser/lightpanda-binary';
+
 export interface SetupCommandOptions {
   readonly cwd?: string | undefined;
+  readonly packageRoot?: string | undefined;
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly timeoutMs?: number | undefined;
   readonly quiet?: boolean | undefined;
@@ -21,6 +28,24 @@ export interface SetupCommandResult {
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const CLOAKBROWSER_NPM_VERSION = '0.4.5';
 
+export async function installLightpanda(
+  options: SetupCommandOptions & LightpandaBinaryOptions = {},
+): Promise<SetupCommandResult> {
+  return installLightpandaBinary(options);
+}
+
+export async function updateLightpanda(
+  options: SetupCommandOptions & LightpandaBinaryOptions = {},
+): Promise<SetupCommandResult> {
+  return installLightpanda(options);
+}
+
+export async function infoLightpanda(
+  options: SetupCommandOptions & LightpandaBinaryOptions = {},
+): Promise<SetupCommandResult> {
+  return infoLightpandaBinary(options);
+}
+
 export async function installCloakBrowser(options: SetupCommandOptions = {}): Promise<SetupCommandResult> {
   return runPnpmCloak(['install'], options);
 }
@@ -31,6 +56,30 @@ export async function updateCloakBrowser(options: SetupCommandOptions = {}): Pro
 
 export async function infoCloakBrowser(options: SetupCommandOptions = {}): Promise<SetupCommandResult> {
   return runPnpmCloak(['info'], options);
+}
+
+export async function installBrowserUseRuntimes(
+  options: SetupCommandOptions & LightpandaBinaryOptions = {},
+): Promise<SetupCommandResult> {
+  const primary = await installLightpanda(options);
+  const fallback = await installCloakBrowser(options);
+  return mergeSetupResults('installBrowserUseRuntimes', primary, fallback);
+}
+
+export async function updateBrowserUseRuntimes(
+  options: SetupCommandOptions & LightpandaBinaryOptions = {},
+): Promise<SetupCommandResult> {
+  const primary = await updateLightpanda(options);
+  const fallback = await updateCloakBrowser(options);
+  return mergeSetupResults('updateBrowserUseRuntimes', primary, fallback);
+}
+
+export async function infoBrowserUseRuntimes(
+  options: SetupCommandOptions & LightpandaBinaryOptions = {},
+): Promise<SetupCommandResult> {
+  const primary = await infoLightpanda(options);
+  const fallback = await infoCloakBrowser(options);
+  return mergeSetupResults('infoBrowserUseRuntimes', primary, fallback);
 }
 
 export async function installCuaDriver(
@@ -90,7 +139,7 @@ function runPnpmCloak(
   args: readonly string[],
   options: SetupCommandOptions,
 ): Promise<SetupCommandResult> {
-  const workspaceRoot = findWorkspaceRoot(options.cwd ?? process.cwd());
+  const workspaceRoot = findWorkspaceRoot(resolveInstallCwd(options));
   if (workspaceRoot !== undefined && isGuiUseWorkspace(workspaceRoot)) {
     return runCommand('corepack', [
       'pnpm',
@@ -107,6 +156,47 @@ function runPnpmCloak(
     `cloakbrowser@${CLOAKBROWSER_NPM_VERSION}`,
     ...args,
   ], options);
+}
+
+function mergeSetupResults(
+  label: string,
+  primary: SetupCommandResult,
+  fallback: SetupCommandResult,
+): SetupCommandResult {
+  const ok = primary.ok || fallback.ok;
+  return {
+    ok,
+    code: ok ? 0 : primary.code ?? fallback.code,
+    stdout: [
+      'primary (lightpanda):',
+      primary.stdout.trim(),
+      'fallback (cloakbrowser):',
+      fallback.stdout.trim(),
+    ].filter((line) => line.length > 0).join('\n'),
+    stderr: [
+      primary.stderr.trim(),
+      fallback.stderr.trim(),
+      primary.error,
+      fallback.error,
+    ].filter((line) => line !== undefined && line.length > 0).join('\n'),
+    command: [label, ...primary.command, ...fallback.command],
+    error: ok ? undefined : firstSetupError(primary, fallback),
+  };
+}
+
+function firstSetupError(
+  primary: SetupCommandResult,
+  fallback: SetupCommandResult,
+): string | undefined {
+  if (primary.error !== undefined && primary.error.length > 0) return primary.error;
+  if (fallback.error !== undefined && fallback.error.length > 0) return fallback.error;
+  if (primary.stderr.trim().length > 0) return primary.stderr.trim();
+  if (fallback.stderr.trim().length > 0) return fallback.stderr.trim();
+  return 'browser-use runtimes are not ready';
+}
+
+function resolveInstallCwd(options: SetupCommandOptions): string {
+  return options.packageRoot ?? options.cwd ?? process.cwd();
 }
 
 function isGuiUseWorkspace(workspaceRoot: string): boolean {

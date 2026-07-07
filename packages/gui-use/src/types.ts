@@ -52,6 +52,8 @@ export interface BrowserStatusInput {
 
 export interface BrowserStatus {
   readonly platform: NodeJS.Platform;
+  readonly provider?: string | undefined;
+  readonly fallbackProvider?: string | undefined;
   readonly installed: boolean;
   readonly ready?: boolean | undefined;
   readonly version?: string | undefined;

@@ -36,7 +36,7 @@ function setupResult(overrides: Partial<SetupCommandResult> = {}): SetupCommandR
 }
 
 describe('browser-use CLI commands', () => {
-  it('runs CloakBrowser install from the host package root', async () => {
+  it('runs browser-use install from the host package root', async () => {
     const { stdout, stderr, writable } = captureOutput();
     const install = vi.fn().mockResolvedValue(setupResult({ stdout: 'installed\n' }));
 
@@ -46,7 +46,7 @@ describe('browser-use CLI commands', () => {
       install,
     })).resolves.toBe(0);
 
-    expect(install).toHaveBeenCalledWith({ cwd: '/repo/apps/liora', quiet: true });
+    expect(install).toHaveBeenCalledWith({ packageRoot: '/repo/apps/liora', quiet: true });
     expect(stdout.join('')).toBe('installed\n');
     expect(stderr.join('')).toBe('');
   });
