@@ -471,7 +471,7 @@ async function prepareGoalUltraworkSetup(
       await session.setSwarmMode(true, 'task');
       setup.swarmEnabled = true;
       host.setAppState({ swarmMode: true });
-      host.state.swarmModeEntry = 'task';
+      host.state.swarmModeEntry = 'ultrawork';
     }
     await forceGoalUltraPlanMode(session, initialContext);
     setup.planChanged = true;

@@ -188,16 +188,16 @@ const ULTRAWORK_PREMIUM_QUALITY_GUIDANCE = [
 ].join('\n');
 const ULTRAWORK_HUMAN_WRITING_GUIDANCE = [
   'Human Writing / Anti-Slop:',
-  '- Treat no-AI-slop writing as a harness-level output quality gate for user-facing prose: final answers, docs, PR text, changelogs, TUI copy, and benchmark reports.',
-  '- Before rewriting Korean prose, choose a surface-specific voice lane instead of blending tones blindly.',
-  '- Korean product UX microcopy uses friendly 해요체, active wording, positive-first recovery, specific CTAs, concrete next steps, and exception-aware legal, policy, privacy, and destructive-action wording.',
-  '- Korean institutional corporate copy uses formal 합니다/습니다 endings, proof before emotion, concrete domain to wider public meaning, future-facing continuity, and public-interest credibility.',
-  '- Treat JoongAng/Toss-inspired sources as style-analysis inputs only; do not copy source passages, claim official affiliation, or hide trademark/legal/publication risk.',
+  '- Treat no-AI-slop as a quality gate for user-facing prose — not a bottleneck on code, tools, or short confirmations.',
+  '- Default: light pass (system.md rules + inline buzzword scan). SearchSkill → Skill only when shipping docs, PR/changelog, TUI copy, plan text, benchmark reports, or UI/copy briefs.',
+  '- Dynamic routing: combine surface + locked response language in SearchSkill keywords (e.g. "anti slop locale voice" + language, "avoid ai writing changelog"). Load the best hit; prefer avoid-ai-writing for language-agnostic audit.',
+  '- Locale-specific skills are discovered via SearchSkill — never assume a default language or hardcode a locale skill in prompts.',
+  '- Choose a surface-specific voice lane for the response language (product UX vs institutional/formal vs technical docs) instead of blending tones.',
   '- Prefer plain specific claims, concrete nouns and verbs, source-backed details, and the user context over generic hype, filler, or polished vagueness.',
   '- Before publishing prose, self-audit for template openings, hollow intensifiers, forced rule-of-three phrasing, overused bold or emoji structure, vague attribution, filler transitions, generic conclusions, and chatbot artifacts.',
-  '- Use avoid-ai-writing style checks as pattern checks, then rewrite toward the user context instead of flattening everything into a generic brand voice.',
+  '- Use avoid-ai-writing style checks as pattern checks, then rewrite toward the user context instead of flattening voice.',
   '- Do not treat AI-writing detectors as truth; never use detector signals to accuse an author; use detector signals, avoid-ai-writing style checks, or deterministic unslop cleanup only as advisory pattern checks.',
-  '- When generated prose matters, run a second-pass rewrite or deterministic cleanup when available, preserve meaning and voice, then reread the result for changed meaning before shipping.',
+  '- When generated prose matters and the light pass is insufficient, run a second-pass rewrite or deterministic cleanup when available, preserve meaning and voice, then reread for changed meaning before shipping.',
 ].join('\n');
 
 export function parseUltraworkCommand(rawArgs: string): ParsedUltraworkCommand {

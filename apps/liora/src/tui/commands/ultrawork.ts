@@ -587,7 +587,7 @@ async function prepareUltraworkSetup(
     await session.setSwarmMode(true, 'task');
     setup.swarmEnabled = true;
     host.setAppState({ swarmMode: true });
-    host.state.swarmModeEntry = 'task';
+    host.state.swarmModeEntry = 'ultrawork';
   }
   if (options.preservePlan) {
     setup.planChanged = await ensureUltraPlanMode(session, initialContext);

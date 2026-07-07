@@ -239,6 +239,7 @@ Structural fidelity does not mean literal translation. The Chinese entries shoul
 
 Guidelines:
 
+- **Absolutely no AI slop or AI-isms.** Avoid terms like *leverage, utilize, robust, streamline, pivotal, testament, foster, cutting-edge, seamless, comprehensive, delve*. Ensure translations do not contain machine-translated styles (e.g., literal mapping of "leverage" to "~을 활용하여", "utilize" to "~을 활용하다/이용하다"). Use direct, active, and plain verbs.
 - **One entry, one sentence.** Avoid chaining multiple effects with commas or semicolons. If the English entry is long, split it into shorter sentences or keep only the most important effect.
 - **Prefer common changelog verbs**: 新增、支持、修复、优化、改进、调整.
 - **Avoid indirect "through... make..." structures**. Do not write "通过 X，使 Y"; prefer direct cause-effect or just state the result.

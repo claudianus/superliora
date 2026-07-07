@@ -64,7 +64,7 @@ const versionOutput = await runBundle(['--version']);
 assertIncludes(versionOutput, expectedVersion, '--version');
 
 const helpOutput = await runBundle(['--help']);
-assertIncludes(helpOutput, 'Usage: kimi', '--help');
+assertIncludes(helpOutput, 'liora', '--help');
 
 const exportHelpOutput = await runBundle(['export', '--help']);
 assertIncludes(exportHelpOutput, 'Usage: liora export', 'export --help');

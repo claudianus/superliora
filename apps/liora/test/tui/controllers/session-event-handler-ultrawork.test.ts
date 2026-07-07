@@ -200,4 +200,71 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(renderedTheatre(host)).toContain('verify passed');
     expect(renderedTheatre(host)).toContain('1 saved');
   });
+
+  it('turns off Ultrawork mode and shows a completion marker when the run reaches done', () => {
+    const setPlanMode = vi.fn(async () => {});
+    const host = makeHost();
+    host.requireSession = vi.fn(() => ({ setPlanMode }));
+    host.state.appState.ultraworkMode = true;
+    host.state.appState.planMode = true;
+    host.state.appState.swarmMode = true;
+    host.state.swarmModeEntry = 'ultrawork';
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent({
+      type: 'ultrawork.stage.changed',
+      agentId: 'main',
+      sessionId: 's1',
+      from: 'learn',
+      to: 'done',
+      reason: 'Ultrawork completed',
+      run: {
+        id: 'uw_done',
+        objective: 'Ship feature X',
+        status: 'done',
+        stage: 'done',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        updatedAt: '2026-07-01T00:00:04.000Z',
+      },
+    } satisfies Event, vi.fn());
+
+    expect(host.setAppState).toHaveBeenCalledWith({
+      ultraworkMode: false,
+      planMode: false,
+      activityTip: null,
+      swarmMode: false,
+    });
+    expect(setPlanMode).toHaveBeenCalledWith(false, false);
+    expect(host.state.swarmModeEntry).toBeUndefined();
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Ultrawork completed',
+      expect.stringContaining('Ship feature X'),
+      expect.objectContaining({ coalesceKey: 'ultrawork-completed:uw_done' }),
+    );
+    const markerText = host.state.transcriptContainer.addChild.mock.calls
+      .map((call) => stripAnsi((call[0] as TestComponent | undefined)?.render(100).join('\n') ?? ''))
+      .join('\n');
+    expect(markerText).toContain('Ultrawork completed');
+  });
+
+  it('does not render Swarm ended when Ultrawork-owned swarm mode turns off', () => {
+    const host = makeHost();
+    host.state.appState.swarmMode = true;
+    host.state.appState.ultraworkMode = true;
+    host.state.swarmModeEntry = 'ultrawork';
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(
+      {
+        type: 'agent.status.updated',
+        agentId: 'main',
+        sessionId: 's1',
+        swarmMode: false,
+      } as Event,
+      vi.fn(),
+    );
+
+    expect(host.state.transcriptContainer.addChild).not.toHaveBeenCalled();
+    expect(host.state.swarmModeEntry).toBeUndefined();
+  });
 });

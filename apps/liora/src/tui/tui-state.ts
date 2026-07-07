@@ -71,7 +71,7 @@ export interface TUIState {
   tasksBrowser: TasksBrowserState | undefined;
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];
-  swarmModeEntry: 'manual' | 'task' | undefined;
+  swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
 }
 
 export function createTUIState(options: LioraTUIOptions): TUIState {

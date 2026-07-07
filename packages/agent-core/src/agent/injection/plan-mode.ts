@@ -3,6 +3,10 @@ import type { Agent } from '..';
 import { buildResponseLanguageDirective } from './response-language';
 import { DynamicInjector } from './injector';
 import { LIBRARY_DOCS_RESEARCH_GUIDANCE } from '../../research/library-docs';
+import {
+  NO_AI_SLOP_SKILL_MANDATE_COMPACT,
+  NO_AI_SLOP_SKILL_ROUTING,
+} from '../../anti-slop/contract';
 
 const PLAN_MODE_DEDUP_MIN_TURNS = 2;
 const PLAN_MODE_FULL_REFRESH_TURNS = 5;
@@ -113,7 +117,7 @@ const PLAN_WORKFLOW = `Workflow:
   1. Understand — Glob, Grep, Read; Context7Resolve/Context7Docs for library docs; WebSearch/FetchURL when external evidence affects the plan.
   2. Design — one best approach; trade-offs only when they matter.
   3. Review — re-read key files.
-  4. Write Plan — Write or Edit the plan file (Write if missing).
+  4. Write Plan — Write or Edit the plan file (Write if missing). ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
   5. Exit — ExitPlanMode for approval.
 
 TodoList is the live execution board during planning — durable plan content goes in the plan file only.`;
@@ -243,7 +247,7 @@ Your turn MUST end with AskUserQuestion or NextPhase. Read-only research in the 
   design: `## Design Phase
 Read-only tools plus TodoList progress tracking (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, read-only Bash). Write/Edit BLOCKED.
 
-Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill for task-specific guidance. SearchExpert for UltraSwarm candidates. Bash: read-only inspection only.
+Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill for task-specific guidance when it improves the design. SearchExpert for UltraSwarm candidates. Bash: read-only inspection only.
 
 Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
@@ -251,7 +255,8 @@ Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' 
   review: `## Review Phase
 Read-only tools plus TodoList progress tracking (Read, ReadMediaFile, Grep, Glob, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, read-only Bash inspection). Write, Edit, general Bash BLOCKED.
 
-Verify design against code. Search and fetch current sources again when external claims stay uncertain. Use TodoList to keep verification gaps and completed checks current. Bash read-only: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, read-only git.
+Verify design against code. Search and fetch current sources again when external claims stay uncertain. Use TodoList to keep verification gaps and completed checks current.
+Bash read-only: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, read-only git.
 
 Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
@@ -259,13 +264,18 @@ Your turn MUST end with a verification summary, then call NextPhase({ phase: 'wr
   write: `## Write Phase
 You may ONLY write to the current plan file. All other file edits are BLOCKED. You may read only the current plan file, update TodoList for progress tracking, and use NextPhase or ExitPlanMode when complete.
 
+Before writing plan prose that users will read, apply the no-AI-slop prose gate (light pass first; SearchSkill → Skill only if needed):
+${NO_AI_SLOP_SKILL_ROUTING}
+
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
 Include: \`Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>\`
 Prefer ENGAGE for multi-lane or review-heavy work. DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
 ExitPlanMode only after a complete Seed Spec. Write/Edit the plan file (Write if missing).`,
 
   exit: `## Exit Phase
-Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver. If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file, and retry.`,
+Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver. Quick anti-slop light pass on user-visible plan text before ExitPlanMode; SearchSkill → Skill only if prose still reads generic.
+${NO_AI_SLOP_SKILL_ROUTING}
+If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file, and retry.`,
 };
 
 function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): string {

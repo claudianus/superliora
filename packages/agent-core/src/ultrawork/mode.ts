@@ -243,6 +243,9 @@ export class UltraworkMode {
     this.emitStageChanged(run, from, 'done', reason);
     this.modeEnabled = false;
     this.agent.records.logRecord({ type: 'ultrawork.mode', enabled: false });
+    if (this.agent.swarmMode.isActive) {
+      this.agent.swarmMode.exit();
+    }
     this.writeCheckpoint({ flush: true });
     return run;
   }

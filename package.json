@@ -12,6 +12,7 @@
     "dev:cli:marketplace": "SUPERLIORA_DEV_MARKETPLACE_URL=https://raw.githubusercontent.com/claudianus/superliora/main/plugins/marketplace.json corepack pnpm -C apps/liora run dev",
     "install:liora": "node scripts/install-liora.mjs",
     "check:imports": "node scripts/check-workspace-imports.mjs",
+    "check:slop": "node scripts/check-ai-slop.mjs",
     "dev:server": "corepack pnpm -C apps/liora run dev:server",
     "build:plugin-marketplace": "corepack pnpm -C apps/liora run build:plugin-marketplace",
     "build:expert-catalog": "node scripts/build-expert-catalog.mjs",

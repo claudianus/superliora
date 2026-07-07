@@ -17,6 +17,9 @@ const ULTRAWORK_COMPACT_PIPELINE = 'Research>UltraPlan>UltraGoal>Swarm?>Integrat
 const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: source-backed questions, verifiable goal, decide team, verify';
 const ULTRAWORK_RESEARCH_STATUS = 'Research: local fallback + provider/MCP accelerators; verified sources only';
 const ULTRAWORK_NEXT_ACTION = 'Next: research evidence pack before UltraPlan questions';
+const ULTRAWORK_COMPLETION_STATUS =
+  'Goal complete — Research, UltraPlan, Swarm, Integrate, Verify, and Learn finished.';
+const ULTRAWORK_COMPLETION_NEXT = 'Ultrawork mode is off. Continue with normal prompts or Shift-Tab for a new run.';
 
 export class UltraworkModeMarkerComponent implements Component {
   constructor(
@@ -48,25 +51,36 @@ export class UltraworkModeMarkerComponent implements Component {
       ? renderPremiumAccentLine(pipelineText, 'ultrawork:pipeline', appearance)
       : currentTheme.fg(active ? 'primary' : 'textDim', truncateToWidth(pipelineText, safeWidth, '…'));
     const stageStatusToken = active ? 'text' : 'textDim';
-    const stageStatusLine = currentTheme.fg(
-      stageStatusToken,
-      truncateToWidth(`  ${ULTRAWORK_STAGE_STATUS}`, safeWidth, '…'),
-    );
+    const stageStatusLine = active
+      ? currentTheme.fg(
+          stageStatusToken,
+          truncateToWidth(`  ${ULTRAWORK_STAGE_STATUS}`, safeWidth, '…'),
+        )
+      : currentTheme.fg(
+          stageStatusToken,
+          truncateToWidth(`  ${ULTRAWORK_COMPLETION_STATUS}`, safeWidth, '…'),
+        );
     const nextActionLine = currentTheme.fg(
       stageStatusToken,
-      truncateToWidth(`  ${ULTRAWORK_NEXT_ACTION}`, safeWidth, '…'),
+      truncateToWidth(
+        `  ${active ? ULTRAWORK_NEXT_ACTION : ULTRAWORK_COMPLETION_NEXT}`,
+        safeWidth,
+        '…',
+      ),
     );
-    const researchLine = currentTheme.fg(
-      stageStatusToken,
-      truncateToWidth(`  ${ULTRAWORK_RESEARCH_STATUS}`, safeWidth, '…'),
-    );
+    const researchLine = active
+      ? currentTheme.fg(
+          stageStatusToken,
+          truncateToWidth(`  ${ULTRAWORK_RESEARCH_STATUS}`, safeWidth, '…'),
+        )
+      : undefined;
     const taskLine = currentTheme.fg('textDim', truncateToWidth(`  ${this.taskDescription}`, safeWidth, '…'));
     return [
       '',
       truncateToWidth(marker + label, safeWidth, '…'),
       truncateToWidth(pipelineLine, safeWidth, '…'),
       stageStatusLine,
-      researchLine,
+      ...(researchLine !== undefined ? [researchLine] : []),
       nextActionLine,
       taskLine,
     ];
@@ -78,6 +92,6 @@ function ultraworkMarkerLabel(state: UltraworkModeMarkerState): string {
     case 'active':
       return 'Ultrawork activated';
     case 'ended':
-      return 'Ultrawork ended';
+      return 'Ultrawork completed';
   }
 }

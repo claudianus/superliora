@@ -44,6 +44,7 @@ import {
   ultraworkTheatreRunId,
   type UltraworkTheatreEvent,
 } from '../components/messages/ultrawork-theatre';
+import { UltraworkModeMarkerComponent } from '../components/messages/ultrawork-markers';
 import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
@@ -152,6 +153,7 @@ export class SessionEventHandler {
   renderedMcpServerStatusKeys: Map<string, string> = new Map();
   mcpServerStatusSpinners: Map<string, MoonLoader> = new Map();
   ultraworkTheatres: Map<string, UltraworkTheatreComponent> = new Map();
+  private ultraworkCompletionHandledRuns: Set<string> = new Set();
   mcpServers: Map<string, McpServerStatusSnapshot> = new Map();
   private goalCompletionAwaitingClear = false;
   private goalCompletionTurnEnded = false;
@@ -165,6 +167,7 @@ export class SessionEventHandler {
     this.backgroundTasks.clear();
     this.backgroundTaskTranscriptedTerminal.clear();
     this.ultraworkTheatres.clear();
+    this.ultraworkCompletionHandledRuns.clear();
     this.subAgentEventHandler.resetRuntimeState();
     this.renderedSkillActivationIds.clear();
     this.renderedPluginCommandActivationIds.clear();
@@ -307,6 +310,9 @@ export class SessionEventHandler {
   }
 
   private handleUltraworkEvent(event: UltraworkTheatreEvent): void {
+    if (event.type === 'ultrawork.stage.changed' && event.to === 'done') {
+      this.finishUltraworkRun(event);
+    }
     if (event.type === 'ultrawork.team.staffed') {
       this.subAgentEventHandler.handleUltraworkTeamStaffed(event);
     }
@@ -325,6 +331,37 @@ export class SessionEventHandler {
     } else {
       existing.applyEvent(event);
     }
+    requestTUILayoutRender(this.host.state);
+  }
+
+  private finishUltraworkRun(event: Extract<UltraworkTheatreEvent, { type: 'ultrawork.stage.changed' }>): void {
+    const runId = event.run.id;
+    if (this.ultraworkCompletionHandledRuns.has(runId)) return;
+    this.ultraworkCompletionHandledRuns.add(runId);
+
+    this.host.state.swarmModeEntry = undefined;
+    this.host.setAppState({
+      ultraworkMode: false,
+      planMode: false,
+      activityTip: null,
+      swarmMode: false,
+    });
+    void this.host.requireSession().setPlanMode(false, false).catch(() => {});
+
+    const reason = event.reason?.trim();
+    const objective = event.run.objective.trim();
+    this.host.state.transcriptContainer.addChild(
+      new UltraworkModeMarkerComponent('ended', objective),
+    );
+    this.host.showNotice(
+      'Ultrawork completed',
+      [
+        objective,
+        reason !== undefined && reason.length > 0 ? reason : 'All stages finished successfully.',
+        'Ultrawork mode is off. Use Shift-Tab or /ultrawork to start another run.',
+      ].join('\n'),
+      { coalesceKey: `ultrawork-completed:${runId}` },
+    );
     requestTUILayoutRender(this.host.state);
   }
 

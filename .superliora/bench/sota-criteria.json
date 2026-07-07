@@ -65,15 +65,15 @@
       "Finish with changed files, behavior changed, tests run, and remaining risks."
     ],
     "humanWriting": [
-      "Treat no-AI-slop writing as a harness-level output quality gate for final answers, docs, PR text, changelogs, TUI copy, and benchmark reports.",
-      "Classify Korean prose into a surface-specific voice lane before rewriting: product UX microcopy uses friendly 해요체, active wording, positive-first recovery, specific CTAs, and exception-aware legal, policy, privacy, and destructive-action wording.",
-      "Institutional corporate copy uses formal 합니다/습니다 endings, proof before emotion, concrete domain to wider public meaning, future-facing continuity, and public-interest credibility.",
-      "Treat JoongAng/Toss-inspired sources as style-analysis inputs only; do not copy source passages, claim official affiliation, or hide trademark/legal/publication risk.",
+      "Treat no-AI-slop as a quality gate for user-facing prose — not a bottleneck on code, tools, or short confirmations.",
+      "Default to a light pass (system.md rules + inline scan). SearchSkill → Skill only when shipping docs, PR/changelog, TUI copy, plan text, or long user-facing prose.",
+      "Dynamic routing: combine surface + locked response language in SearchSkill keywords. Load the best hit; Locale-specific skills are discovered, not hardcoded.",
+      "Choose a surface-specific voice lane for the response language instead of blending tones.",
       "Prefer plain specific claims, concrete nouns and verbs, source-backed details, and the user's context over generic hype or polished vagueness.",
       "Self-audit for template openings, hollow intensifiers, forced rule-of-three phrasing, overused formatting, vague attribution, filler transitions, generic conclusions, and chatbot artifacts.",
       "Use avoid-ai-writing checks as advisory pattern checks before rewriting toward the user's context and concrete evidence.",
       "Do not treat AI-writing detectors as truth or use detector signals to accuse an author; use detector signals, avoid-ai-writing checks, and deterministic unslop cleanup only as advisory pattern checks.",
-      "When generated prose matters, run a second-pass rewrite or deterministic cleanup when available, preserve meaning and voice, then reread the result for changed meaning before shipping."
+      "When generated prose matters and the light pass is insufficient, run a second-pass rewrite or deterministic cleanup when available, preserve meaning and voice, then reread for changed meaning before shipping."
     ]
   },
   "requiredTuiScenarios": [

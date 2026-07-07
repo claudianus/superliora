@@ -48,6 +48,15 @@ API key/API 密钥, tool call/工具调用. Keep `JSON`, `JSONL`, `OAuth`, `macO
 Chinese typography: full-width punctuation (`，。；：？！（）`), a space
 between Chinese characters and adjacent English/numbers/inline code/links.
 
+## AI Slop Elimination & Writing Style
+
+Strictly avoid generic, machine-like, or overly polished LLM prose ("AI slop") in all documentation:
+
+- **Ban AI Buzzwords:** Do not use words like *leverage, utilize, robust, streamline, pivotal, testament, foster, cutting-edge, seamless, comprehensive, delve*. Use plain verbs like *use, apply, simplify, support, make, design*.
+- **Vary Sentence Structure:** Avoid monotonic rhythms. Combine short sentences with longer ones.
+- **Immediate Value:** Eliminate fluff intros like "In today's development environment..." or outros like "In conclusion...". Start with the immediate feature or behavior.
+- **Natural Translation:** When translating or writing in Chinese or Korean, do not translate English idioms literally. Write as a native developer would (e.g. avoid "~을 활용하여", "~의 역할을 합니다" -> 대신 "~하여", "~합니다" 등 간결하고 명확한 서술 사용).
+
 ## Changelog
 
 `docs/en/release-notes/changelog.md` is the English source; the Chinese

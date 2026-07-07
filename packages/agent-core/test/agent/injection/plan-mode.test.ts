@@ -131,6 +131,23 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('AskUserQuestion');
     expect(text).toContain('BLOCKED');
     expect(text).toContain("call NextPhase({ phase: 'interview' })");
+    expect(text).not.toContain('No-AI-Slop skill mandate (MANDATORY)');
+  });
+
+  it('requires dynamic anti-slop routing in the write phase', async () => {
+    const agent = planAgent({
+      isActive: true,
+      isUltraMode: true,
+      phase: 'write',
+      planFilePath: '/tmp/ultra-plan.md',
+    });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+
+    const text = lastReminder(agent);
+    expect(text).toContain('No-AI-Slop skill routing');
+    expect(text).toContain('response language');
   });
 
   it('keeps Ultra Plan interview gated on seed gaps even when the task is actionable', async () => {

@@ -605,7 +605,7 @@ export class TurnFlow {
     ) {
       this.activeTurn = null;
     }
-    if (this.agent.swarmMode.shouldAutoExit) {
+    if (this.agent.swarmMode.shouldAutoExit && !this.isUltraworkSwarmSession()) {
       this.agent.swarmMode.exit();
     }
     if (errorEvent !== undefined) {
@@ -620,6 +620,13 @@ export class TurnFlow {
     this.interruptedTelemetryTurnIds.delete(turnId);
     this.stepFailureByTurn.delete(turnId);
     return { event: ended, stopReason: completedStopReason, blockedByUserPromptHook };
+  }
+
+  private isUltraworkSwarmSession(): boolean {
+    const ultrawork = this.agent.ultrawork;
+    if (ultrawork === undefined) return false;
+    const run = ultrawork.getRun();
+    return ultrawork.isModeEnabled() && run !== null && run.status === 'running';
   }
 
   private async recordTurnMemory(

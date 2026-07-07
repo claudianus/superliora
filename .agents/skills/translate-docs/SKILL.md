@@ -56,6 +56,7 @@ When non-changelog pages change in either locale, sync the mirror before release
 
 - **Do not one-sided fixes**: if the changed locale has an unclear or incorrect statement, fix it there first; do not patch only the mirror.
 - **Match style, not just words**: Chinese docs use a narrative tone (see `docs/AGENTS.md` writing-style examples); preserve that tone in Chinese; preserve sentence-case headings and concise English style in English.
+- **Eliminate Translation Slop**: Avoid literal translations of common LLM writing habits (e.g. mapping "leverage" to "~을 활용하여" or "pivotal" to "중추적인"). Use standard developer terminology and direct, active phrasing. Maintain a concise, professional, and natural voice in the target language.
 - **Code blocks and identifiers stay as-is**: do not translate code, command names, flag names, or file paths.
 - **Public examples**: Do not introduce real internal endpoints, key names, account names, or service names while translating. Keep or replace them with neutral placeholders such as `example.com`, `example.test`, and `YOUR_API_KEY` in both locales.
 

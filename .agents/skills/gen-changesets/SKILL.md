@@ -59,6 +59,7 @@ If you believe a change qualifies as major, stop first, explain why, and ask the
 ## Wording Rules
 
 - Changelog entries **must be written in English**.
+- **Absolutely no AI slop or AI-isms.** Do not use terms like *leverage, utilize, robust, streamline, pivotal, testament, foster, cutting-edge, seamless, comprehensive, enhance*. Write in natural, plain, and direct English (e.g. *use* instead of *leverage/utilize*, *reliable* instead of *robust*, *simplify* instead of *streamline*).
 - **Keep the whole entry concise.** Aim for one short sentence that states what was done; at most a short sentence plus a one-line usage hint. Do not write a paragraph, do not pile on technical detail, and do not enumerate every sub-change.
 - **For new user-facing features, append a brief usage hint** so users know how to try it. Keep it to a single short line — a command name, a subcommand, a flag, or a one-line "how to use". Do not explain design rationale or list edge cases. Skip the hint for bug fixes, internal changes, and refactors.
   - Slash command: `Add the /foo slash command to list active sessions. Run /foo to see them.`

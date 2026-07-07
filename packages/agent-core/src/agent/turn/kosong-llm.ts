@@ -53,6 +53,7 @@ import type {
   ProviderRouteStatus,
 } from '#/rpc';
 import type { GenerateOptionsWithRequestLogFields } from '../llm-request-logger';
+import { unslopText } from '../../utils/unslop';
 
 export type GenerateFn = typeof kosongGenerate;
 
@@ -345,6 +346,15 @@ export class KosongLLM implements LLM {
       callbacks,
       options,
     );
+
+    // Apply unslop post-processing on the generated message content text parts to filter out AI slop
+    if (result.message?.content) {
+      for (const part of result.message.content) {
+        if (part.type === 'text') {
+          part.text = unslopText(part.text);
+        }
+      }
+    }
 
     // Replay merged content parts onto loop per-block callbacks after the
     // stream drained. This preserves WAL append order and stops partial
