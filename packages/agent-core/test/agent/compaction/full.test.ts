@@ -184,6 +184,31 @@ describe('FullCompaction', () => {
     expect(strategy.shouldBlock(28_000)).toBe(true);
   });
 
+  it('compacts history with orphan tool results without provider repair errors', async () => {
+    const ctx = testAgent();
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+    ctx.appendExchange(2, 'old user two', 'old assistant two', 40);
+    ctx.appendExchange(3, 'recent user three', 'recent assistant three', 120);
+    ctx.agent.context.appendMessage({
+      role: 'tool',
+      content: [{ type: 'text', text: 'orphan output' }],
+      toolCalls: [],
+      toolCallId: 'orphan_call',
+    });
+
+    const completed = ctx.once('compaction.completed');
+    ctx.mockNextResponse({ type: 'text', text: 'Compacted summary.' });
+    await ctx.rpc.beginCompaction({ instruction: 'Keep the important test facts.' });
+    await completed;
+
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
+    expect(ctx.compactHistory().some((entry) => entry.text.includes('Compacted summary'))).toBe(true);
+  });
+
   it('runs manual compaction and applies the compacted context', async () => {
     const records: TelemetryRecord[] = [];
     const ctx = testAgent({ telemetry: recordingTelemetry(records) });

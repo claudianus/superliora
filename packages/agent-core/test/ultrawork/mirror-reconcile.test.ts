@@ -35,6 +35,78 @@ Swarm decision: DEFER - single owner; value: none; owner: main
     expect(phase).toBe('exit');
   });
 
+  it('restores approved plan file path from mirror checkpoint', async () => {
+    const homedir = join(tmpdir(), `ultrawork-plan-path-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+    const plansDir = join(homedir, 'plans');
+    mkdirSync(plansDir, { recursive: true });
+    const approvedPath = join(plansDir, 'spoiler-storm-cannonball.md');
+    const stalePath = join(plansDir, 'vision-hal-jordan-thunder.md');
+    writeFileSync(
+      approvedPath,
+      `# Ultra Plan
+
+## Seed Spec
+- Verifiable UltraGoal: Ship feature
+- Acceptance Criteria: build passes
+- Verification Plan: pnpm test
+
+## WorkGraph
+| node id | stage | description |
+| WG-1 | integrate | scaffold |
+
+Swarm decision: ENGAGE
+
+## Execution Plan
+1. Build
+`,
+      'utf8',
+    );
+    writeFileSync(stalePath, '# Draft only\n', 'utf8');
+
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    await agent.planMode.enter('vision-hal-jordan-thunder', false, false, true, 'Resume');
+    agent.ultrawork.create({
+      id: 'run-plan-path',
+      objective: 'Resume plan path',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-plan-path',
+        workDir: homedir,
+      },
+    });
+    const run = agent.ultrawork.getRun()!;
+    agent.ultrawork.attachTeamPlan({
+      id: 'team-1',
+      runId: run.id,
+      intensity: 'balanced',
+      maxExperts: 4,
+      experts: [{ id: 'expert-1', name: 'QA', role: 'reviewer', focus: 'review', status: 'queued' }],
+    });
+    mirrorUltraworkRunToDisk({
+      workDir: homedir,
+      run: agent.ultrawork.getRun()!,
+      planCheckpoint: {
+        planFilePath: stalePath,
+        phase: 'interview',
+        interviewRoundCount: 1,
+      },
+    });
+
+    const replayAgent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    await replayAgent.planMode.enter('vision-hal-jordan-thunder', false, false, true, 'Resume');
+    replayAgent.ultrawork.restoreRun({
+      type: 'ultrawork.run',
+      run: agent.ultrawork.getRun()!,
+      time: Date.now(),
+    });
+    await reconcileUltraworkFromMirror(replayAgent);
+
+    expect(replayAgent.planMode.planFilePath).toBe(approvedPath);
+    expect(replayAgent.planMode.phase).toBe('exit');
+  });
+
   it('restores plan checkpoint from run-state mirror when records lack interview state', async () => {
     const homedir = join(tmpdir(), `ultrawork-mirror-${String(Date.now())}`);
     mkdirSync(homedir, { recursive: true });

@@ -59,6 +59,31 @@ export function resolveUltraworkWorkflowReportPaths(evidenceRoot: string): Ultra
   };
 }
 
+export function ensureUltraworkWorkflowArtifacts(agent: Agent): void {
+  const run = agent.ultrawork.getRun();
+  const activation = agent.ultrawork.getActivation();
+  if (run === null || activation === undefined) return;
+
+  const workDir = activation.workDir || agent.kaos.getcwd();
+  const absoluteRoot = join(workDir, activation.evidenceRoot);
+  const reportPath = join(absoluteRoot, WORKFLOW_REPORT_FILENAME);
+  const stagesPath = join(absoluteRoot, WORKFLOW_STAGES_FILENAME);
+  if (existsSync(reportPath) && existsSync(stagesPath)) return;
+
+  try {
+    seedUltraworkWorkflowReport({
+      workDir,
+      evidenceRoot: activation.evidenceRoot,
+      runId: run.id,
+      objective: run.objective,
+      createdAt: run.createdAt,
+      source: activation.source,
+    });
+  } catch (error) {
+    agent.log.warn('ultrawork workflow report ensure failed', { runId: run.id, error });
+  }
+}
+
 export function seedUltraworkWorkflowReport(input: SeedUltraworkWorkflowReportInput): UltraworkWorkflowReportPaths {
   const paths = resolveUltraworkWorkflowReportPaths(input.evidenceRoot);
   const absoluteRoot = join(input.workDir, input.evidenceRoot);

@@ -33,6 +33,14 @@ import {
 
 export * from './types';
 
+export const COMPACTION_PROJECTION_OPTIONS: ProjectOptions = {
+  synthesizeMissing: true,
+  dropOrphanResults: true,
+  dedupeDuplicateToolCalls: true,
+  dropLeadingNonUser: true,
+  mergeConsecutiveAssistants: true,
+};
+
 const TOOL_ERROR_STATUS = '<system>ERROR: Tool execution failed.</system>';
 const TOOL_EMPTY_STATUS = '<system>Tool output is empty.</system>';
 const TOOL_EMPTY_ERROR_STATUS =
@@ -420,13 +428,11 @@ export class ContextMemory {
   }
 
   get strictMessages(): Message[] {
-    return this.project(this.history, {
-      synthesizeMissing: true,
-      dropOrphanResults: true,
-      dedupeDuplicateToolCalls: true,
-      dropLeadingNonUser: true,
-      mergeConsecutiveAssistants: true,
-    });
+    return this.project(this.history, COMPACTION_PROJECTION_OPTIONS);
+  }
+
+  projectForCompaction(messages: readonly ContextMessage[]): Message[] {
+    return this.project(messages, COMPACTION_PROJECTION_OPTIONS);
   }
 
   private reportProjectionRepairs(anomalies: readonly ProjectionAnomaly[]): void {
