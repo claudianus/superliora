@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 
 import type { Kaos } from '@superliora/kaos';
 
 import { buildBm25Index, searchBm25 } from '../../src/lean-context/index/bm25';
 import { chunkFileContent } from '../../src/lean-context/index/chunk';
 import { composeRankContext } from '../../src/lean-context/compose/ranker';
-import { buildWorkspaceIndex } from '../../src/lean-context/index/builder';
-import { ensureWorkspaceIndex } from '../../src/lean-context/index/ensure';
+import * as builder from '../../src/lean-context/index/builder';
+import { ensureWorkspaceIndex, resetBuildFailureCooldownForTests } from '../../src/lean-context/index/ensure';
 import { tokenize } from '../../src/lean-context/index/tokenize';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
@@ -58,6 +58,11 @@ function makeKaos(files: Readonly<Record<string, string>>): Kaos {
 }
 
 describe('lean context benchmark harness', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    resetBuildFailureCooldownForTests();
+  });
+
   it('tokenizes and ranks BM25 chunks for fixture files', () => {
     const content = [
       'export function UltraworkGraphTool() {',
@@ -78,6 +83,17 @@ describe('lean context benchmark harness', () => {
     expect(hits[0]?.chunk.displayPath).toContain('packages/agent-core/src/foo.ts');
   });
 
+  it('indexes TypeScript constructor tokens without prototype collisions', () => {
+    const chunks = chunkFileContent(
+      '/workspace/apps/liora/src/widget.ts',
+      'apps/liora/src/widget.ts',
+      'export class Widget { constructor(private readonly id: string) {} }',
+    );
+    const index = buildBm25Index(chunks);
+    expect(index.chunkCount).toBeGreaterThan(0);
+    expect(searchBm25(index, 'constructor', 5).length).toBeGreaterThan(0);
+  });
+
   it('builds workspace index artifacts under .superliora/index', async () => {
     const files = {
       '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts': [
@@ -87,7 +103,7 @@ describe('lean context benchmark harness', () => {
       ].join('\n'),
     };
     const kaos = makeKaos(files);
-    const stats = await buildWorkspaceIndex({ kaos, workspace, incremental: false });
+    const stats = await builder.buildWorkspaceIndex({ kaos, workspace, incremental: false });
     expect(stats.filesIndexed).toBe(1);
     expect(stats.chunksIndexed).toBeGreaterThan(0);
     expect(kaos.writeText).toHaveBeenCalled();
@@ -101,7 +117,7 @@ describe('lean context benchmark harness', () => {
         'export class TodoListTool { readonly name = "TodoList"; }',
     };
     const kaos = makeKaos(files);
-    await buildWorkspaceIndex({ kaos, workspace, incremental: false });
+    await builder.buildWorkspaceIndex({ kaos, workspace, incremental: false });
     const composed = await composeRankContext({
       kaos,
       workspace,
@@ -143,5 +159,31 @@ describe('lean context benchmark harness', () => {
     expect(first.ready).toBe(true);
     expect(second.ready).toBe(true);
     expect(kaos.writeText).toHaveBeenCalled();
+  });
+
+  it('ensureWorkspaceIndex backs off after a failed build for the same workspace', async () => {
+    vi.useFakeTimers();
+    const kaos = makeKaos({
+      '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts':
+        'export class LioraContextTool { readonly name = "LioraContext"; }',
+    });
+    const buildSpy = vi.spyOn(builder, 'buildWorkspaceIndex');
+    buildSpy.mockRejectedValue(new Error('index build failed'));
+
+    const first = await ensureWorkspaceIndex(kaos, workspace);
+    expect(first.ready).toBe(false);
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+
+    buildSpy.mockClear();
+    const second = await ensureWorkspaceIndex(kaos, workspace);
+    expect(second.ready).toBe(false);
+    expect(buildSpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1);
+    const third = await ensureWorkspaceIndex(kaos, workspace);
+    expect(third.ready).toBe(false);
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+
+    buildSpy.mockRestore();
   });
 });

@@ -6,7 +6,8 @@ const B = 0.75;
 
 export function buildBm25Index(chunks: readonly Bm25ChunkRecord[]): Bm25IndexData {
   const chunkTerms: Record<string, number>[] = [];
-  const inverted: Record<string, number[]> = {};
+  // Null-prototype map: tokens like "constructor" must not collide with Object.prototype.
+  const inverted: Record<string, number[]> = Object.create(null) as Record<string, number[]>;
   let totalLength = 0;
 
   for (const [index, chunk] of chunks.entries()) {
@@ -39,6 +40,7 @@ export function searchBm25(index: Bm25IndexData, query: string, limit = 20): rea
   const avgdl = index.avgChunkLength || 1;
 
   for (const term of terms) {
+    if (!Object.hasOwn(index.inverted, term)) continue;
     const postings = index.inverted[term];
     if (postings === undefined) continue;
     const df = postings.length;

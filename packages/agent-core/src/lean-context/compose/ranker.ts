@@ -8,7 +8,7 @@ import {
   graphNeighbors,
   loadWorkspaceBm25,
   loadWorkspaceGraph,
-  queryIndexedPaths,
+  queryIndexedPathsFromBm25,
 } from '../index/builder';
 import { ensureWorkspaceIndex } from '../index/ensure';
 import { searchBm25 } from '../index/bm25';
@@ -30,9 +30,9 @@ export interface ComposeRankResult {
 
 export async function composeRankContext(input: ComposeRankInput): Promise<ComposeRankResult> {
   const ensured = await ensureWorkspaceIndex(input.kaos, input.workspace);
-  const indexedPaths = await queryIndexedPaths(input.kaos, input.workspace, input.query, 40);
   const bm25 = await loadWorkspaceBm25(input.kaos, input.workspace);
   const graph = await loadWorkspaceGraph(input.kaos, input.workspace);
+  const indexedPaths = queryIndexedPathsFromBm25(bm25, input.query, 40);
   const indexUsed = indexedPaths.length > 0;
 
   const files =
