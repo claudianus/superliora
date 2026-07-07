@@ -21,7 +21,7 @@ export async function readApprovedUltraworkPlanPath(
   }
 }
 
-function resolvePlansDirectory(agent: Agent): string | undefined {
+function resolvePlansDirectory(agent: Agent): string {
   const current = agent.planMode.planFilePath;
   if (current !== null) return dirname(current);
   if (agent.homedir !== undefined) return join(agent.homedir, 'plans');
