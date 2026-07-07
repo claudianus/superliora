@@ -2,7 +2,7 @@ import type { Agent } from '.';
 import { ErrorCodes, type LioraErrorPayload } from '../errors';
 import { isAbortError } from '../loop/errors';
 import { retryBackoffDelays, sleepForRetry } from '../loop/retry';
-import type { QuestionOption, QuestionResult } from '../rpc';
+import { normalizeQuestionAnswers, type QuestionOption, type QuestionResult } from '../rpc';
 
 export const GOAL_PROVIDER_AUTO_RETRIES = 2;
 
@@ -176,12 +176,3 @@ function parseFailoverAnswer(
   return choiceByLabel.get(selected) ?? { type: 'pause' };
 }
 
-function normalizeQuestionAnswers(
-  result: QuestionResult,
-): Record<string, string | true> | undefined {
-  if (result === null) return undefined;
-  if (typeof result === 'object' && Object.hasOwn(result, 'answers')) {
-    return (result as { readonly answers: Record<string, string | true> }).answers;
-  }
-  return result;
-}

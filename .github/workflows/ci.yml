@@ -24,9 +24,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
-      - name: Smoke test CLI bundle
-        run: pnpm -C apps/liora run smoke
+      - run: pnpm run check:source-install
 
   test:
     runs-on: ubuntu-latest
@@ -101,9 +99,14 @@ jobs:
         run: |
           pnpm dlx --package @typescript/native-preview@beta tsgo --version
           for config in packages/*/tsconfig.json apps/liora/tsconfig.json; do
+            if [ "${config}" = "packages/agent-core/tsconfig.json" ]; then
+              continue
+            fi
             echo "Typechecking ${config}"
             pnpm dlx --package @typescript/native-preview@beta tsgo -p "${config}" --noEmit
           done
+          echo "Typechecking packages/agent-core/tsconfig.src.json"
+          pnpm dlx --package @typescript/native-preview@beta tsgo -p packages/agent-core/tsconfig.src.json --noEmit
       - name: Typecheck vis-server
         run: pnpm --filter @superliora/vis-server run typecheck
       - name: Typecheck vis-web
