@@ -280,7 +280,7 @@ describe('Agent tools', () => {
       tools: Bash, Write
       messages:
         user: text "Which tools are active?"
-        user: text "<system-reminder>\\n<current_time>\\nAuthoritative host clock (do not guess the date from pretrained knowledge):\\n- Today: Tuesday, July 7, 2026\\n- Local: Tuesday, July 7, 2026 at 7:36 PM (Asia/Seoul, UTC+09:00)\\n- ISO: 2026-07-07T19:36:51.222+09:00\\nBefore WebSearch/FetchURL on time-sensitive topics, include the correct year in queries. Call GetCurrentTime if this reminder may be stale.\\n</current_time>\\n</system-reminder>"
+        user: text <current-time-reminder>
     `);
     await ctx.expectResumeMatches();
   });
@@ -373,7 +373,7 @@ describe('Agent tools', () => {
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Look up moon" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Look up moon" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<system-reminder>\\n<current_time>\\nAuthoritative host clock (do not guess the date from pretrained knowledge):\\n- Today: Tuesday, July 7, 2026\\n- Local: Tuesday, July 7, 2026 at 7:36 PM (Asia/Seoul, UTC+09:00)\\n- ISO: 2026-07-07T19:36:51.236+09:00\\nBefore WebSearch/FetchURL on time-sensitive topics, include the correct year in queries. Call GetCurrentTime if this reminder may be stale.\\n</current_time>\\n</system-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "current_time" } }, "time": "<time>" }
+      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<current-time-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "current_time" } }, "time": "<time>" }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<auto-mode-enter-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "permission_mode" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 1, "stepId": "<uuid-1>" }
@@ -389,7 +389,7 @@ describe('Agent tools', () => {
       tools: Lookup
       messages:
         user: text "Look up moon"
-        user: text "<system-reminder>\\n<current_time>\\nAuthoritative host clock (do not guess the date from pretrained knowledge):\\n- Today: Tuesday, July 7, 2026\\n- Local: Tuesday, July 7, 2026 at 7:36 PM (Asia/Seoul, UTC+09:00)\\n- ISO: 2026-07-07T19:36:51.236+09:00\\nBefore WebSearch/FetchURL on time-sensitive topics, include the correct year in queries. Call GetCurrentTime if this reminder may be stale.\\n</current_time>\\n</system-reminder>"
+        user: text <current-time-reminder>
         user: text <auto-mode-enter-reminder>
     `);
 
@@ -427,7 +427,7 @@ describe('Agent tools', () => {
       [wire] turn.prompt                  { "input": [ { "type": "text", "text": "Can you still use Lookup?" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                 { "turnId": 1, "origin": { "kind": "user" } }
       [wire] context.append_message       { "message": { "role": "user", "content": [ { "type": "text", "text": "Can you still use Lookup?" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [wire] context.append_message       { "message": { "role": "user", "content": [ { "type": "text", "text": "<system-reminder>\\n<current_time>\\nAuthoritative host clock (do not guess the date from pretrained knowledge):\\n- Today: Tuesday, July 7, 2026\\n- Local: Tuesday, July 7, 2026 at 7:36 PM (Asia/Seoul, UTC+09:00)\\n- ISO: 2026-07-07T19:36:51.238+09:00\\nBefore WebSearch/FetchURL on time-sensitive topics, include the correct year in queries. Call GetCurrentTime if this reminder may be stale.\\n</current_time>\\n</system-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "current_time" } }, "time": "<time>" }
+      [wire] context.append_message       { "message": { "role": "user", "content": [ { "type": "text", "text": "<current-time-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "current_time" } }, "time": "<time>" }
       [wire] context.append_loop_event    { "event": { "type": "step.begin", "uuid": "<uuid-5>", "turnId": "1", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started            { "turnId": 1, "step": 1, "stepId": "<uuid-5>" }
       [emit] assistant.delta              { "turnId": 1, "delta": "No lookup tool is available." }
@@ -444,7 +444,7 @@ describe('Agent tools', () => {
         <last>
         assistant: text "The lookup result is moon-result."
         user: text "Can you still use Lookup?"
-        user: text "<system-reminder>\\n<current_time>\\nAuthoritative host clock (do not guess the date from pretrained knowledge):\\n- Today: Tuesday, July 7, 2026\\n- Local: Tuesday, July 7, 2026 at 7:36 PM (Asia/Seoul, UTC+09:00)\\n- ISO: 2026-07-07T19:36:51.238+09:00\\nBefore WebSearch/FetchURL on time-sensitive topics, include the correct year in queries. Call GetCurrentTime if this reminder may be stale.\\n</current_time>\\n</system-reminder>"
+        user: text <current-time-reminder>
     `);
     await ctx.expectResumeMatches();
   });
