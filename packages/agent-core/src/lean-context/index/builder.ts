@@ -21,6 +21,37 @@ import { chunkFileContent, extractImportEdges } from './chunk';
 const S_IFMT = 0o170000;
 const S_IFREG = 0o100000;
 
+interface WorkspaceIndexMemoryCache {
+  readonly builtAt: number;
+  readonly bm25: Bm25IndexData | undefined;
+  readonly graph: GraphIndexData | undefined;
+}
+
+const memoryIndexCache = new Map<string, WorkspaceIndexMemoryCache>();
+
+export function clearWorkspaceIndexMemoryCacheForTests(): void {
+  memoryIndexCache.clear();
+}
+
+async function loadMemoryIndex(
+  kaos: Kaos,
+  workspace: WorkspaceConfig,
+): Promise<WorkspaceIndexMemoryCache | undefined> {
+  const key = workspace.workspaceDir;
+  const indexDir = workspaceIndexDir(workspace);
+  const manifest = await loadManifest(kaos, indexDir);
+  if (manifest === undefined) return undefined;
+  const cached = memoryIndexCache.get(key);
+  if (cached !== undefined && cached.builtAt === manifest.builtAt) return cached;
+  const [bm25, graph] = await Promise.all([
+    loadBm25Index(kaos, indexDir),
+    loadGraphIndex(kaos, indexDir),
+  ]);
+  const entry: WorkspaceIndexMemoryCache = { builtAt: manifest.builtAt, bm25, graph };
+  memoryIndexCache.set(key, entry);
+  return entry;
+}
+
 interface BuildWorkspaceIndexOptions {
   readonly kaos: Kaos;
   readonly workspace: WorkspaceConfig;
@@ -119,6 +150,11 @@ export async function getIndexStatus(kaos: Kaos, workspace: WorkspaceConfig): Pr
   };
 }
 
+export async function getIndexBuiltAt(kaos: Kaos, workspace: WorkspaceConfig): Promise<number> {
+  const manifest = await loadManifest(kaos, workspaceIndexDir(workspace));
+  return manifest?.builtAt ?? 0;
+}
+
 async function isManifestStale(
   kaos: Kaos,
   workspace: WorkspaceConfig,
@@ -163,6 +199,8 @@ export async function loadWorkspaceGraph(
   kaos: Kaos,
   workspace: WorkspaceConfig,
 ): Promise<GraphIndexData | undefined> {
+  const cached = await loadMemoryIndex(kaos, workspace);
+  if (cached !== undefined) return cached.graph;
   return loadGraphIndex(kaos, workspaceIndexDir(workspace));
 }
 
@@ -170,6 +208,8 @@ export async function loadWorkspaceBm25(
   kaos: Kaos,
   workspace: WorkspaceConfig,
 ): Promise<Bm25IndexData | undefined> {
+  const cached = await loadMemoryIndex(kaos, workspace);
+  if (cached !== undefined) return cached.bm25;
   return loadBm25Index(kaos, workspaceIndexDir(workspace));
 }
 

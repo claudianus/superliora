@@ -535,7 +535,7 @@ export class ToolManager {
       new b.EditTool(kaos, workspace),
       new b.GrepTool(kaos, workspace, this.agent.telemetry),
       new b.GlobTool(kaos, workspace, this.agent.telemetry),
-      new b.LioraContextTool(kaos, workspace),
+      new b.LioraContextTool(kaos, workspace, this.toolStore),
       new b.LioraIndexTool(kaos, workspace, this.agent.telemetry),
       new b.LioraReadTool(kaos, workspace, this.toolStore),
       new b.LioraSearchTool(kaos, workspace, this.toolStore),

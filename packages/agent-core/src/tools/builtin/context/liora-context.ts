@@ -2,13 +2,17 @@ import type { Kaos } from '@superliora/kaos';
 import { z } from 'zod';
 
 import { composeRankContext } from '../../../lean-context/compose/ranker';
+import { getIndexBuiltAt } from '../../../lean-context/index/builder';
+import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
+import type { ToolStore } from '../../store';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { collectContextFiles } from './context-discovery';
+import { persistComposeCache, resolveComposeCache } from './context-compose-cache';
 import { renderContextPacket } from './context-render';
 import { rankContextFiles } from './context-symbols';
 
@@ -55,6 +59,7 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
   constructor(
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,
+    private readonly store?: ToolStore,
   ) {}
 
   resolveExecution(args: LioraContextInput): ToolExecution {
@@ -88,6 +93,21 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
     try {
       const mode = input.mode ?? (input.query !== undefined ? 'compose' : 'pack');
       if (input.query !== undefined && explicitPaths === undefined) {
+        const indexBuiltAt = await getIndexBuiltAt(this.kaos, this.workspace);
+        const cacheInput = {
+          query: input.query,
+          mode,
+          maxFiles: input.max_files,
+          maxSymbolsPerFile: input.max_symbols_per_file,
+          indexBuiltAt,
+        };
+        const cached = await resolveComposeCache(this.kaos, this.workspace, this.store, cacheInput);
+        if (cached !== undefined) {
+          return { output: `${cached}\nstatus: compose_cache_hit` };
+        }
+        await ensureWorkspaceIndex(this.kaos, this.workspace);
+        const freshIndexBuiltAt = await getIndexBuiltAt(this.kaos, this.workspace);
+        const freshCacheInput = { ...cacheInput, indexBuiltAt: freshIndexBuiltAt };
         const composed = await composeRankContext({
           kaos: this.kaos,
           workspace: this.workspace,
@@ -97,7 +117,9 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
         });
         const body = renderContextPacket(composed.ranked, { ...input, mode }, composed.allFiles);
         const hint = composed.indexStaleHint === undefined ? '' : `\nstatus: ${composed.indexStaleHint}`;
-        return { output: `${body}${hint}` };
+        const output = `${body}${hint}`;
+        await persistComposeCache(this.kaos, this.workspace, this.store, freshCacheInput, output);
+        return { output };
       }
       const files = await collectContextFiles({
         kaos: this.kaos,
