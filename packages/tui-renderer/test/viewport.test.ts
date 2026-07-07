@@ -364,11 +364,11 @@ describe('RendererViewport', () => {
     // Viewport at bottom: lines 17,18,19 → child-8-b, child-9-a, child-9-b.
     expect(lines).toEqual(['child-8-b', 'child-9-a', 'child-9-b']);
 
-    // Second render at the same width — line-count cache hit, only the 2
-    // visible children are rendered.
+    // Second render at the same width — line-count cache hit, and overflow
+    // child-render cache serves the visible slice without re-rendering.
     renderCount = 0;
     component.render(80);
-    expect(renderCount).toBe(2);
+    expect(renderCount).toBe(0);
   });
 
   it('virtualizes: renders only visible children when scrolled to the top', () => {
@@ -429,6 +429,31 @@ describe('RendererViewport', () => {
     // contentRowCount must use the cache — no additional renders.
     expect(component.contentRowCount(80)).toBe(10);
     expect(renderCount).toBe(countAfterRender);
+  });
+
+  it('reuses overflow child render output when scrolling inside the same child', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 3,
+    });
+    let renderCount = 0;
+    component.addChild({
+      invalidate: () => {},
+      render: () => {
+        renderCount++;
+        return Array.from({ length: 20 }, (_, index) => `line-${index}`);
+      },
+    });
+
+    component.render(80);
+    expect(renderCount).toBe(2);
+
+    viewport.scroll('line-up');
+    renderCount = 0;
+    const lines = component.render(80);
+    expect(renderCount).toBe(0);
+    expect(lines).toEqual(['line-15', 'line-16', 'line-17']);
   });
 
   it('projects scrollable line windows with tail-follow and padding', () => {

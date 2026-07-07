@@ -24,7 +24,7 @@ import type {
   UltraworkActivation,
   UltraworkPlanRecoveryContext,
 } from './types';
-import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor, releaseUltraworkPlanModeIfComplete } from './recovery';
+import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor, releaseUltraworkPlanModeIfComplete, applyUltraworkResumeSkipInterview } from './recovery';
 import { reconcileUltraworkFromMirror } from './mirror-reconcile';
 import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport, ensureUltraworkWorkflowArtifacts } from './workflow-report';
 
@@ -211,7 +211,7 @@ export class UltraworkMode {
     let run = machine.snapshot();
     if (run.status === 'done' || run.status === 'failed') return null;
 
-    const planContext = this.capturePlanRecoveryContext();
+    let planContext = this.capturePlanRecoveryContext();
     const seededGraph = await ensureWorkGraphForResume(
       this.agent,
       run,
@@ -239,6 +239,11 @@ export class UltraworkMode {
 
     releaseUltraworkPlanModeIfComplete(this.agent, run);
 
+    const skipInterviewResult = applyUltraworkResumeSkipInterview(this.agent, run, planContext);
+    run = skipInterviewResult.run;
+    planContext = skipInterviewResult.planContext;
+    this.machine = new UltraworkRunStateMachine(run);
+
     const savedInterruptReason = this.interruptReason;
     this.interruptReason = undefined;
     this.writeCheckpoint({ flush: true });
@@ -260,6 +265,7 @@ export class UltraworkMode {
       lostBackgroundTasks: reconciled.lostBackgroundTasks,
       planContext,
       resumeCursor,
+      skippedInterview: skipInterviewResult.skippedInterview,
     });
 
     return {

@@ -51,6 +51,7 @@ export interface UltraworkRecoveryReport {
   readonly orphanedExperts: readonly string[];
   readonly lostBackgroundTasks: readonly string[];
   readonly nextActions: readonly string[];
+  readonly skippedInterview?: boolean;
 }
 
 export interface MarkUltraworkInterruptedInput {

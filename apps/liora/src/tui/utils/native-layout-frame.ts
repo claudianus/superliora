@@ -64,6 +64,7 @@ import {
 
 export {
   frameInvalidationIntentToCause,
+  isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
@@ -204,11 +205,18 @@ interface TUIStateNativeLayoutTracking {
   editorLayoutRows?: number;
 }
 
+export interface TUIStateNativeLayoutShift {
+  readonly shifted: boolean;
+  readonly viewportScrolled: boolean;
+  readonly structuralShift: boolean;
+  readonly next: TUIStateNativeLayoutTracking;
+}
+
 export function detectTUIStateNativeLayoutShift(
   state: TUIState,
   frameWidth: number,
   prior: TUIStateNativeLayoutTracking,
-): { readonly shifted: boolean; readonly next: TUIStateNativeLayoutTracking } {
+): TUIStateNativeLayoutShift {
   const transcriptStart = state.transcriptViewport.start();
   const transcriptContentRows = state.transcriptContainer.contentRowCount(frameWidth);
   const transcriptChildCount = state.transcriptContainer.children.length;
@@ -217,8 +225,9 @@ export function detectTUIStateNativeLayoutShift(
     state.editor.getNativeLayoutRowCount !== undefined
       ? state.editor.getNativeLayoutRowCount(frameWidth)
       : undefined;
-  const shifted =
-    (prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart) ||
+  const viewportScrolled =
+    prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart;
+  const structuralShift =
     (prior.transcriptContentRows !== undefined &&
       prior.transcriptContentRows !== transcriptContentRows) ||
     (prior.transcriptChildCount !== undefined &&
@@ -232,7 +241,12 @@ export function detectTUIStateNativeLayoutShift(
     transcriptChildCount,
   };
   if (editorLayoutRows !== undefined) next.editorLayoutRows = editorLayoutRows;
-  return { shifted, next };
+  return {
+    shifted: viewportScrolled || structuralShift,
+    viewportScrolled,
+    structuralShift,
+    next,
+  };
 }
 
 export function createTUIStateNativeRenderCallback(
@@ -259,7 +273,8 @@ export function createTUIStateNativeRenderCallback(
       );
     const policy = resolveTUIStateNativeFramePolicy({
       causes: frame.causes,
-      layoutShifted: layoutShift.shifted,
+      viewportScrolled: layoutShift.viewportScrolled,
+      structuralShift: layoutShift.structuralShift,
       priorTranscriptStart: priorStart,
       nextTranscriptStart: layoutShift.next.transcriptStart ?? 0,
       ambientAnimationAllowed,
