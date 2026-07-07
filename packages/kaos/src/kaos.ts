@@ -87,6 +87,8 @@ export interface Kaos {
   ): Promise<number>;
   /** Create a directory at `path`. */
   mkdir(path: string, options?: { parents?: boolean; existOk?: boolean }): Promise<void>;
+  /** Delete the file at `path`. */
+  unlink(path: string): Promise<void>;
 
   // ── Process execution ───────────────────────────────────────────────
 

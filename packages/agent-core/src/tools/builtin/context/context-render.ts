@@ -6,14 +6,19 @@ interface RenderContextInput {
   readonly mode?: 'pack' | 'search' | 'map' | 'compose' | undefined;
 }
 
+interface RenderContextOptions {
+  readonly strategy?: string | undefined;
+}
+
 export function renderContextPacket(
   ranked: readonly RankedFile[],
   input: RenderContextInput,
   allFiles: readonly ContextFile[],
+  options?: RenderContextOptions,
 ): string {
   const mode = input.mode ?? 'pack';
   const rawChars = ranked.reduce((sum, item) => sum + item.file.content.length, 0);
-  const body = buildPacketBody(ranked, input, allFiles, mode);
+  const body = buildPacketBody(ranked, input, allFiles, mode, options?.strategy);
   const stats = computeStats(body, rawChars);
   body.splice(5, 0, `raw_chars_indexed: ${rawChars}`);
   body.splice(6, 0, `packet_chars: ${stats.packetChars}`);
@@ -41,10 +46,11 @@ function buildPacketBody(
   input: RenderContextInput,
   allFiles: readonly ContextFile[],
   mode: 'pack' | 'search' | 'map' | 'compose',
+  strategy = 'lean-codegraph',
 ): string[] {
   const body: string[] = [
     `<liora_context_packet version="1" mode="${mode}">`,
-    'strategy: lean-codegraph',
+    `strategy: ${strategy}`,
     'knowledge_map: compact-project-map',
     'relationship_confidence: EXTRACTED | INFERRED | AMBIGUOUS',
     'path_affected_questions: files -> symbols -> tests -> tools -> UX surfaces',

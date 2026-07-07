@@ -9,6 +9,10 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { collectContextFiles } from './context-discovery';
 import { buildCallgraph, renderCallgraph } from './context-callgraph';
+import { isLeanCodegraphV2Enabled } from '../../../lean-context/graph/enabled';
+import { buildIndexedCallgraph } from '../../../lean-context/graph/callgraph';
+import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
+import { getGraphDatabase } from '../../../lean-context/graph/pipeline';
 
 export const LIORA_CALLGRAPH_TOOL_NAME = 'LioraCallgraph';
 
@@ -68,6 +72,15 @@ export class LioraCallgraphTool implements BuiltinTool<LioraCallgraphInput> {
     explicitPaths: readonly string[] | undefined,
   ): Promise<ExecutableToolResult> {
     try {
+      if (isLeanCodegraphV2Enabled() && explicitPaths === undefined) {
+        await ensureWorkspaceIndex(this.kaos, this.workspace);
+        const graph = buildIndexedCallgraph(
+          getGraphDatabase(this.workspace),
+          input.symbol,
+          input.direction ?? 'both',
+        );
+        return { output: renderCallgraph(graph) };
+      }
       const files = await collectContextFiles({
         kaos: this.kaos,
         workspace: this.workspace,

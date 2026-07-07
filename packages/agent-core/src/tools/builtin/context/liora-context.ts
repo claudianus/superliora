@@ -115,7 +115,9 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
           maxFiles: input.max_files,
           maxSymbolsPerFile: input.max_symbols_per_file,
         });
-        const body = renderContextPacket(composed.ranked, { ...input, mode }, composed.allFiles);
+        const body = renderContextPacket(composed.ranked, { ...input, mode }, composed.allFiles, {
+          strategy: composed.strategy,
+        });
         const hint = composed.indexStaleHint === undefined ? '' : `\nstatus: ${composed.indexStaleHint}`;
         const output = `${body}${hint}`;
         await persistComposeCache(this.kaos, this.workspace, this.store, freshCacheInput, output);

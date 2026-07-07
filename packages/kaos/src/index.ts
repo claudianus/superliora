@@ -33,6 +33,7 @@ export {
   runWithKaos,
   setCurrentKaos,
   stat,
+  unlink,
   writeBytes,
   writeText,
 } from './current';

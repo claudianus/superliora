@@ -415,6 +415,18 @@ function sftpAppendFile(sftp: SFTPWrapper, path: string, data: string | Buffer):
   });
 }
 
+function sftpUnlink(sftp: SFTPWrapper, path: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    sftp.unlink(path, (err) => {
+      if (err) {
+        reject(mapSftpError('unlink', err));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
 function clientExec(client: Client, command: string): Promise<ClientChannel> {
   return new Promise<ClientChannel>((resolve, reject) => {
     client.exec(command, (err: Error | undefined, channel: ClientChannel) => {
@@ -845,6 +857,10 @@ export class SSHKaos implements Kaos {
         }
       }
     }
+  }
+
+  async unlink(path: string): Promise<void> {
+    await sftpUnlink(this._sftp, this._resolvePath(path));
   }
 
   // ── Process execution ──────────────────────────────────────────────
