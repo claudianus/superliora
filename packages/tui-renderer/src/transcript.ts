@@ -59,6 +59,13 @@ interface RendererTranscriptViewportRenderCache {
   out: RendererRegionLine[];
 }
 
+interface RendererTranscriptOverflowRenderCache {
+  inner: number;
+  cacheEpoch: number;
+  childRefs: (Component | undefined)[];
+  childRenderRefs: (string[] | undefined)[];
+}
+
 export interface RendererTranscriptLineBlockOptions {
   readonly width: number;
   readonly lines: readonly string[];
@@ -182,6 +189,7 @@ export class RendererTranscriptViewportComponent extends Container {
   private lineCountCacheWidth = -1;
   private lineCountCacheEpoch = -1;
   private lineCountCache: number[] = [];
+  private overflowRenderCache: RendererTranscriptOverflowRenderCache | undefined;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -203,6 +211,7 @@ export class RendererTranscriptViewportComponent extends Container {
 
   override invalidate(): void {
     this.renderCache = undefined;
+    this.overflowRenderCache = undefined;
     this.lineCountCacheWidth = -1;
     this.lineCountCacheEpoch = -1;
     this.lineCountCache = [];
@@ -372,7 +381,7 @@ export class RendererTranscriptViewportComponent extends Container {
       if (childStart >= endLine) break;
 
       if (childEnd > startLine) {
-        const lines = this.children[i]!.render(inner);
+        const lines = this.resolveOverflowChildRenderLines(i, inner);
         const sliceStart = Math.max(0, startLine - childStart);
         const sliceEnd = Math.min(lines.length, endLine - childStart);
         for (let j = sliceStart; j < sliceEnd; j++) {
@@ -384,6 +393,37 @@ export class RendererTranscriptViewportComponent extends Container {
     }
 
     return out;
+  }
+
+  private resolveOverflowChildRenderLines(childIndex: number, inner: number): string[] {
+    const child = this.children[childIndex]!;
+    if (!this.isCacheEnabled()) return child.render(inner);
+
+    const cacheEpoch = this.getCacheEpoch();
+    const childCount = this.children.length;
+    if (
+      this.overflowRenderCache === undefined ||
+      this.overflowRenderCache.inner !== inner ||
+      this.overflowRenderCache.cacheEpoch !== cacheEpoch ||
+      this.overflowRenderCache.childRefs.length !== childCount
+    ) {
+      this.overflowRenderCache = {
+        inner,
+        cacheEpoch,
+        childRefs: Array.from({ length: childCount }),
+        childRenderRefs: Array.from({ length: childCount }),
+      };
+    }
+
+    const cache = this.overflowRenderCache;
+    if (cache.childRefs[childIndex] === child && cache.childRenderRefs[childIndex] !== undefined) {
+      return cache.childRenderRefs[childIndex]!;
+    }
+
+    const lines = child.render(inner);
+    cache.childRefs[childIndex] = child;
+    cache.childRenderRefs[childIndex] = lines;
+    return lines;
   }
 
   private renderScrollbar(

@@ -13,6 +13,8 @@ export {
   reconcileUltraworkRunForResume,
   releaseUltraworkPlanModeIfComplete,
   shouldKeepPlanModeForUltraworkRun,
+  shouldSkipInterviewOnUltraworkResume,
+  applyUltraworkResumeSkipInterview,
 } from './recovery';
 export {
   CONTINUE_GOAL_INPUT,

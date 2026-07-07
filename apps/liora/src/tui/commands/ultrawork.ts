@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { PermissionMode } from '@superliora/sdk';
+import {
+  ensureUltraworkResumeSetup,
+  type PermissionMode,
+} from '@superliora/sdk';
 
 import {
   SwarmStartPermissionPromptComponent,
@@ -739,7 +742,24 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
     swarmEnabled: false,
   };
   try {
-    await prepareUltraworkSetup(host, setup, current.objective, { preservePlan: true });
+    const setupChanged = await ensureUltraworkResumeSetup(session, current);
+    if (setupChanged) {
+      const status = await session.getStatus();
+      if (!setup.swarmModeWasEnabled && status.swarmMode) {
+        setup.swarmEnabled = true;
+      }
+      if (setup.planModeWasEnabled !== status.planMode) {
+        setup.planChanged = true;
+      }
+      host.setAppState({
+        swarmMode: status.swarmMode,
+        planMode: status.planMode,
+        ultraworkMode: true,
+      });
+      if (status.swarmMode) {
+        host.state.swarmModeEntry = 'ultrawork';
+      }
+    }
   } catch (error) {
     await rollbackUltraworkSetup(host, setup);
     host.showError(`Failed to restore Ultrawork setup: ${formatErrorMessage(error)}`);

@@ -12,6 +12,7 @@ import { isBackgroundTaskTerminal } from '../agent/background';
 import { seedUltraworkGraphFromApprovedPlan } from '../agent/plan/work-graph-from-plan';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
 import type { UltraworkActivation, UltraworkPlanRecoveryContext, UltraworkRecoveryReport, UltraworkResumeCursor } from './types';
+import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
 import {
   applyWorkGraphProgressToRun,
   inferEffectiveUltraworkStage,
@@ -44,7 +45,75 @@ export function inferResumeStageFloor(run: UltraworkRun): UltraworkStage {
 
 export function shouldKeepPlanModeForUltraworkRun(run: UltraworkRun): boolean {
   if (run.teamPlan !== undefined && run.teamPlan.experts.length > 0) return false;
-  return ultraworkStageIndex(run.stage) <= ultraworkStageIndex('research');
+  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  return ultraworkStageIndex(effectiveStage) <= ultraworkStageIndex('research');
+}
+
+export function shouldSkipInterviewOnUltraworkResume(
+  agent: Agent,
+  run: UltraworkRun,
+  planContext?: UltraworkPlanRecoveryContext,
+): boolean {
+  const planMode = agent.planMode;
+  if (!planMode.isActive || !planMode.isUltraMode) return false;
+
+  const phase = (planContext?.phase ?? planMode.phase) as UltraPlanPhase;
+  const interviewRounds = planContext?.interviewRoundCount ?? planMode.interviewRoundCount;
+  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  const progress = summarizeWorkGraphProgress(run.workGraph);
+  const goal = agent.goal.getGoal().goal;
+
+  if (phase === 'design' || phase === 'review' || phase === 'write' || phase === 'exit') return true;
+  if (interviewRounds > 0) return true;
+  if (progress.doneCount > 0 || progress.pendingCount > 0) return true;
+  if (goal !== null) return true;
+  if (ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('plan')) return true;
+  if (phase === 'interview') return true;
+  return false;
+}
+
+export function applyUltraworkResumeSkipInterview(
+  agent: Agent,
+  run: UltraworkRun,
+  planContext?: UltraworkPlanRecoveryContext,
+): {
+  readonly run: UltraworkRun;
+  readonly planContext?: UltraworkPlanRecoveryContext;
+  readonly skippedInterview: boolean;
+} {
+  if (!shouldSkipInterviewOnUltraworkResume(agent, run, planContext)) {
+    return { run, planContext, skippedInterview: false };
+  }
+
+  const planMode = agent.planMode;
+  if (planMode.isActive && planMode.isUltraMode) {
+    const phase = (planContext?.phase ?? planMode.phase) as UltraPlanPhase;
+    if (phase === 'research' || phase === 'interview') {
+      planMode.setPhase('design');
+    }
+  }
+
+  const promotedRun = promoteUltraworkRunStageForResume(run);
+  releaseUltraworkPlanModeIfComplete(agent, promotedRun);
+
+  const updatedPlanContext =
+    planMode.isActive && planMode.isUltraMode
+      ? {
+          planFilePath: planContext?.planFilePath ?? planMode.planFilePath ?? undefined,
+          phase: planMode.phase,
+          interviewRoundCount: planContext?.interviewRoundCount ?? planMode.interviewRoundCount,
+          ultraPlan:
+            planContext?.ultraPlan ??
+            planMode.captureStateCheckpoint()?.ultraPlan ??
+            planMode.ultraEngine.serialize(),
+        }
+      : planContext;
+
+  return {
+    run: agent.ultrawork.getRun() ?? promotedRun,
+    planContext: updatedPlanContext,
+    skippedInterview: true,
+  };
 }
 
 export function releaseUltraworkPlanModeIfComplete(
@@ -162,6 +231,7 @@ export function buildUltraworkRecoveryReport(input: {
   readonly lostBackgroundTasks: readonly string[];
   readonly planContext?: UltraworkPlanRecoveryContext;
   readonly resumeCursor?: UltraworkResumeCursor;
+  readonly skippedInterview?: boolean;
 }): UltraworkRecoveryReport {
   return {
     run: input.run,
@@ -170,11 +240,13 @@ export function buildUltraworkRecoveryReport(input: {
     orphanedWorkNodes: input.orphanedWorkNodes,
     orphanedExperts: input.orphanedExperts,
     lostBackgroundTasks: input.lostBackgroundTasks,
+    skippedInterview: input.skippedInterview,
     nextActions: suggestNextActions(
       input.run,
       input.interruptReason,
       input.planContext,
       input.resumeCursor,
+      input.skippedInterview,
     ),
   };
 }
@@ -210,6 +282,14 @@ export function buildUltraworkRecoveryPrompt(
   if (planContext?.interviewRoundCount !== undefined && planContext.interviewRoundCount > 0) {
     lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}`);
     lines.push('Do not restart the UltraPlan interview from round 1.');
+  }
+  if (report.skippedInterview === true) {
+    lines.push(
+      'Resume policy: Skip UltraPlan interview on resume. Continue design, implementation, or verification from the saved checkpoint.',
+    );
+    lines.push(
+      'Do not ask blocking interview questions unless a critical missing blocker prevents progress.',
+    );
   }
   const progress = summarizeWorkGraphProgress(report.run.workGraph);
   if (progress.doneCount > 0 || progress.pendingCount > 0) {
@@ -464,6 +544,7 @@ function suggestNextActions(
   interruptReason?: string,
   planContext?: UltraworkPlanRecoveryContext,
   resumeCursor?: UltraworkResumeCursor,
+  skippedInterview = false,
 ): string[] {
   const actions: string[] = [];
   if (interruptReason !== undefined) {
@@ -488,7 +569,25 @@ function suggestNextActions(
   }
 
   const planPhase = planContext?.phase ?? resumeCursor?.planPhase;
-  if (effectiveStage === 'plan' || effectiveStage === 'research') {
+  if (skippedInterview) {
+    if (progress.nextPendingNode !== undefined) {
+      actions.push(
+        `Continue implementation from WorkGraph node ${progress.nextPendingNode.id}; do not reopen UltraPlan interview.`,
+      );
+    } else if (planPhase === 'design' || planPhase === 'review' || planPhase === 'write') {
+      actions.push(`Resume UltraPlan ${planPhase} and advance toward ExitPlanMode without new interview rounds.`);
+    } else if (effectiveStage === 'goal' || effectiveStage === 'staff' || effectiveStage === 'swarm') {
+      actions.push('Verify the UltraGoal contract and resume autonomous pursuit without interview questions.');
+    } else if (
+      effectiveStage === 'integrate' ||
+      effectiveStage === 'verify' ||
+      effectiveStage === 'learn'
+    ) {
+      actions.push(`Continue the ${effectiveStage} stage from the checkpoint; do not reopen UltraPlan interview.`);
+    } else {
+      actions.push('Continue design and implementation from the saved checkpoint; do not reopen UltraPlan interview.');
+    }
+  } else if (effectiveStage === 'plan' || effectiveStage === 'research') {
     switch (planPhase) {
       case 'research':
         actions.push('Refresh the evidence pack with current sources before asking blocking questions.');

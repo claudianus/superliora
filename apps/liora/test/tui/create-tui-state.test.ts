@@ -321,6 +321,8 @@ describe('createTUIState', () => {
     let tracking = {};
     const first = detectTUIStateNativeLayoutShift(state, width, tracking);
     expect(first.shifted).toBe(false);
+    expect(first.viewportScrolled).toBe(false);
+    expect(first.structuralShift).toBe(false);
 
     state.transcriptContainer.addChild(
       new NoticeMessageComponent(
@@ -330,7 +332,39 @@ describe('createTUIState', () => {
     );
     const second = detectTUIStateNativeLayoutShift(state, width, first.next);
     expect(second.shifted).toBe(true);
-    expect(shouldForceTUIStateNativeLayoutFrame(['request'], second.shifted)).toBe(true);
+    expect(second.viewportScrolled).toBe(false);
+    expect(second.structuralShift).toBe(true);
+    expect(shouldForceTUIStateNativeLayoutFrame(['request'], second.structuralShift)).toBe(true);
+  });
+
+  it('detects viewport scroll without structural layout shift', () => {
+    const width = 80;
+    const height = 24;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.transcriptContainer.addChild(
+      fixedLines(
+        Array.from({ length: 40 }, (_, index) => `transcript-line-${String(index).padStart(2, '0')}`),
+      ),
+    );
+    state.editorContainer.addChild(state.editor);
+
+    const first = detectTUIStateNativeLayoutShift(state, width, {});
+    renderTUIStateNativeFrame(state, { force: true, width, height });
+    state.transcriptViewport.scroll('line-up');
+    const second = detectTUIStateNativeLayoutShift(state, width, first.next);
+
+    expect(second.viewportScrolled).toBe(true);
+    expect(second.structuralShift).toBe(false);
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll'], second.structuralShift, {
+        viewportScrolled: second.viewportScrolled,
+      }),
+    ).toBe(false);
   });
 
   it('keeps incremental native frames consistent after spamming transcript notices', () => {
@@ -399,7 +433,8 @@ describe('createTUIState', () => {
 
     const animationPolicy = resolveTUIStateNativeFramePolicy({
       causes: ['animation'],
-      layoutShifted: false,
+      viewportScrolled: false,
+      structuralShift: false,
       nextTranscriptStart: state.transcriptViewport.start(),
       ambientAnimationAllowed: true,
     });

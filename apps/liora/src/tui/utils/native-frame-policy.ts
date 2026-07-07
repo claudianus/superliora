@@ -21,27 +21,64 @@ export function frameInvalidationIntentToCause(intent: FrameInvalidationIntent):
   }
 }
 
+export function isPureTranscriptScrollFrame(
+  causes: readonly NativeRenderCause[],
+  viewportScrolled: boolean,
+  structuralShift: boolean,
+): boolean {
+  return (
+    viewportScrolled &&
+    !structuralShift &&
+    causes.length === 1 &&
+    causes[0] === 'transcript-scroll'
+  );
+}
+
 export function shouldForceTUIStateNativeLayoutFrame(
   causes: readonly NativeRenderCause[],
-  layoutShifted: boolean,
-  options: { readonly ambientAnimation?: boolean } = {},
+  structuralShift: boolean,
+  options: {
+    readonly ambientAnimation?: boolean;
+    readonly viewportScrolled?: boolean;
+  } = {},
 ): boolean {
+  if (
+    isPureTranscriptScrollFrame(
+      causes,
+      options.viewportScrolled === true,
+      structuralShift,
+    )
+  ) {
+    return false;
+  }
+
   return (
     causes.includes('start') ||
     causes.includes('resize') ||
     causes.includes('manual') ||
     causes.includes('transcript-scroll') ||
-    layoutShifted ||
+    structuralShift ||
     options.ambientAnimation === true
   );
 }
 
 export function shouldRefreshNativeTerminalPalette(
   causes: readonly NativeRenderCause[],
-  layoutShifted: boolean,
+  structuralShift: boolean,
+  options: { readonly viewportScrolled?: boolean } = {},
 ): boolean {
+  if (
+    isPureTranscriptScrollFrame(
+      causes,
+      options.viewportScrolled === true,
+      structuralShift,
+    )
+  ) {
+    return false;
+  }
+
   return (
-    layoutShifted ||
+    structuralShift ||
     causes.includes('start') ||
     causes.includes('resize') ||
     causes.includes('manual') ||
@@ -51,7 +88,8 @@ export function shouldRefreshNativeTerminalPalette(
 
 export interface TUIStateNativeFramePolicyInput {
   readonly causes: readonly NativeRenderCause[];
-  readonly layoutShifted: boolean;
+  readonly viewportScrolled: boolean;
+  readonly structuralShift: boolean;
   readonly priorTranscriptStart?: number;
   readonly nextTranscriptStart: number;
   readonly ambientAnimationAllowed: boolean;
@@ -69,8 +107,9 @@ export function resolveTUIStateNativeFramePolicy(
 ): TUIStateNativeFramePolicy {
   const ambientAnimationFrame =
     input.causes.includes('animation') && input.ambientAnimationAllowed;
-  const force = shouldForceTUIStateNativeLayoutFrame(input.causes, input.layoutShifted, {
+  const force = shouldForceTUIStateNativeLayoutFrame(input.causes, input.structuralShift, {
     ambientAnimation: ambientAnimationFrame,
+    viewportScrolled: input.viewportScrolled,
   });
   // Any authoritative redraw clears the terminal surface; re-apply OSC palette
   // colors first so default-fg cells and indexed colors stay on-theme. Animation

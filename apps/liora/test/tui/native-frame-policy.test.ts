@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   frameInvalidationIntentToCause,
+  isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
@@ -16,10 +17,11 @@ describe('native-frame-policy', () => {
     expect(frameInvalidationIntentToCause('scroll')).toBe('transcript-scroll');
   });
 
-  it('forces authoritative redraw and palette refresh on layout shifts', () => {
+  it('forces authoritative redraw and palette refresh on structural layout shifts', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['request'],
-      layoutShifted: true,
+      viewportScrolled: false,
+      structuralShift: true,
       nextTranscriptStart: 12,
       ambientAnimationAllowed: true,
     });
@@ -30,10 +32,52 @@ describe('native-frame-policy', () => {
     expect(policy.clearTranscriptSelection).toBe(false);
   });
 
+  it('uses incremental frames for pure transcript scroll', () => {
+    expect(
+      isPureTranscriptScrollFrame(['transcript-scroll'], true, false),
+    ).toBe(true);
+
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['transcript-scroll'],
+      viewportScrolled: true,
+      structuralShift: false,
+      priorTranscriptStart: 4,
+      nextTranscriptStart: 7,
+      ambientAnimationAllowed: false,
+    });
+
+    expect(policy.force).toBe(false);
+    expect(policy.clear).toBe(false);
+    expect(policy.refreshTerminalPalette).toBe(false);
+    expect(policy.clearTranscriptSelection).toBe(true);
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll'], false, {
+        viewportScrolled: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRefreshNativeTerminalPalette(['transcript-scroll'], false, {
+        viewportScrolled: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('forces authoritative redraw when scroll is combined with content updates', () => {
+    expect(
+      isPureTranscriptScrollFrame(['transcript-scroll', 'request'], true, false),
+    ).toBe(false);
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll', 'request'], false, {
+        viewportScrolled: true,
+      }),
+    ).toBe(true);
+  });
+
   it('refreshes terminal palette on ambient animation authoritative frames', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['animation'],
-      layoutShifted: false,
+      viewportScrolled: false,
+      structuralShift: false,
       priorTranscriptStart: 4,
       nextTranscriptStart: 4,
       ambientAnimationAllowed: true,
@@ -51,7 +95,8 @@ describe('native-frame-policy', () => {
   it('clears transcript selection when the viewport start moves', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['request'],
-      layoutShifted: false,
+      viewportScrolled: true,
+      structuralShift: false,
       priorTranscriptStart: 2,
       nextTranscriptStart: 8,
       ambientAnimationAllowed: false,

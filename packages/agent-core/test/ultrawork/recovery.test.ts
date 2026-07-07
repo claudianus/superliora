@@ -8,6 +8,7 @@ import type { UltraworkRun } from '@superliora/protocol';
 import { Agent } from '../../src/agent';
 import { testKaos } from '../fixtures/test-kaos';
 import {
+  applyUltraworkResumeSkipInterview,
   buildUltraworkRecoveryPrompt,
   injectUltraworkPostCompactionContinuation,
   injectUltraworkPostSwarmContinuation,
@@ -16,6 +17,8 @@ import {
   promoteUltraworkRunStageForResume,
   releaseUltraworkPlanModeIfComplete,
   reconcileUltraworkRunForResume,
+  shouldKeepPlanModeForUltraworkRun,
+  shouldSkipInterviewOnUltraworkResume,
 } from '../../src/ultrawork/recovery';
 import { inferEffectiveUltraworkStage } from '../../src/ultrawork/stage-progress';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
@@ -46,6 +49,77 @@ function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
 }
 
 describe('Ultrawork recovery', () => {
+  it('keeps plan mode only while the effective stage is still plan or research', () => {
+    const run = sampleRun({
+      stage: 'research',
+      workGraph: {
+        id: 'run-1:work_graph',
+        runId: 'run-1',
+        nodes: [
+          { id: 'wg1', title: 'Scaffold', stage: 'integrate', status: 'done' },
+          { id: 'wg8', title: 'Performance', stage: 'verify', status: 'running' },
+        ],
+      },
+    });
+    expect(shouldKeepPlanModeForUltraworkRun(run)).toBe(false);
+  });
+
+  it('skips interview on resume when the plan phase is already interview', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-skip-interview',
+      objective: 'Ship landing page',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-skip-interview',
+        workDir: '/tmp',
+      },
+    });
+    await agent.planMode.enter('resume-plan', false, true, true, 'Ship landing page');
+    agent.planMode.setPhase('interview');
+
+    expect(
+      shouldSkipInterviewOnUltraworkResume(agent, agent.ultrawork.getRun()!, {
+        phase: 'interview',
+        interviewRoundCount: 0,
+      }),
+    ).toBe(true);
+
+    const result = applyUltraworkResumeSkipInterview(agent, agent.ultrawork.getRun()!, {
+      phase: 'interview',
+      interviewRoundCount: 0,
+    });
+    expect(result.skippedInterview).toBe(true);
+    expect(agent.planMode.phase).toBe('design');
+  });
+
+  it('builds a recovery prompt that skips interview on resume', () => {
+    const prompt = buildUltraworkRecoveryPrompt(
+      {
+        run: sampleRun({ stage: 'research' }),
+        interruptReason: 'Paused after interruption',
+        orphanedWorkNodes: [],
+        orphanedExperts: [],
+        lostBackgroundTasks: [],
+        nextActions: ['Continue design and implementation from the saved checkpoint'],
+        skippedInterview: true,
+      },
+      {
+        planFilePath: '/tmp/plans/quasar-archangel-falcon.md',
+        phase: 'design',
+        interviewRoundCount: 2,
+      },
+      {
+        stage: 'research',
+        planPhase: 'design',
+        interviewRound: 2,
+      },
+    );
+    expect(prompt).toContain('Skip UltraPlan interview on resume');
+    expect(prompt).toContain('Do not ask blocking interview questions');
+  });
+
   it('releases ultrawork plan mode after execution has started', () => {
     const agent = new Agent({ kaos: testKaos });
     agent.ultrawork.create({
