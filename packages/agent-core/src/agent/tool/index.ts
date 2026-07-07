@@ -501,85 +501,133 @@ export class ToolManager {
     const goalToolsEnabled = this.agent.type === 'main';
     this.builtinTools = new Map(
       [
-        new b.ReadTool(kaos, workspace),
-        new b.WriteTool(kaos, workspace),
-        new b.EditTool(kaos, workspace),
-        new b.GrepTool(kaos, workspace, this.agent.telemetry),
-        new b.GlobTool(kaos, workspace, this.agent.telemetry),
-        new b.LioraContextTool(kaos, workspace),
-        new b.LioraIndexTool(kaos, workspace, this.agent.telemetry),
-        new b.LioraReadTool(kaos, workspace, this.toolStore),
-        new b.LioraSearchTool(kaos, workspace, this.toolStore),
-        new b.LioraTreeTool(kaos, workspace),
-        new b.LioraSymbolTool(kaos, workspace),
-        new b.LioraCallgraphTool(kaos, workspace),
-        new b.LioraExpandTool(this.toolStore),
-        new b.BashTool(kaos, cwd, background, {
+        ...this.createFileAndContextTools(
+          kaos,
+          workspace,
+          cwd,
+          background,
           allowBackground,
-          store: this.toolStore,
-        }),
-        (modelCapabilities.image_in || modelCapabilities.video_in) &&
-          new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
-        new b.EnterPlanModeTool(this.agent),
-        new b.ExitPlanModeTool(this.agent),
-        new b.NextPhaseTool(this.agent),
-        // Goal tools are main-agent-only.
-        goalToolsEnabled && new b.CreateGoalTool(this.agent),
-        goalToolsEnabled && new b.GetGoalTool(this.agent),
-        goalToolsEnabled && new b.SetGoalBudgetTool(this.agent),
-        goalToolsEnabled && new b.UpdateGoalTool(this.agent),
-        new b.GetCurrentTimeTool(),
-        this.agent.rpc?.requestQuestion && new b.AskUserQuestionTool(this.agent),
-        new b.TodoListTool(this.toolStore),
-        new b.UltraworkGraphTool(this.toolStore, this.agent),
-        this.agent.memory?.isEnabled() === true && new b.MemoryTool(this.agent.memory),
-        new b.TaskListTool(background),
-        new b.TaskOutputTool(background),
-        new b.TaskStopTool(background),
-        this.agent.cron && new b.CronCreateTool(this.agent.cron),
-        this.agent.cron && new b.CronListTool(this.agent.cron),
-        this.agent.cron && new b.CronDeleteTool(this.agent.cron),
-        this.agent.skills?.registry.listInvocableSkills().length &&
-          new b.SkillTool(this.agent),
-        this.agent.skills?.registry.listInvocableSkills().length &&
-          new b.SearchSkillTool(this.agent),
-        this.agent.subagentHost &&
-          new b.AgentTool(
-            this.agent.subagentHost,
-            background,
-            DEFAULT_AGENT_PROFILES['agent']?.subagents,
-            {
-              allowBackground,
-              log: this.agent.log,
-            },
-          ),
-        this.agent.subagentHost && new b.SearchExpertTool(),
-        this.agent.subagentHost &&
-          new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode, this.toolStore),
-        this.agent.subagentHost &&
-          new b.UltraSwarmTool(
-            this.agent.subagentHost,
-            this.agent.swarmMode,
-            this.toolStore,
-            this.agent,
-          ),
-        toolServices?.browserUse && new b.BrowserStatusTool(toolServices.browserUse),
-        toolServices?.browserUse && new b.BrowserObserveTool(toolServices.browserUse),
-        toolServices?.browserUse && new b.BrowserScreenshotTool(toolServices.browserUse),
-        toolServices?.browserUse && new b.BrowserActTool(toolServices.browserUse),
-        toolServices?.browserUse && new b.BrowserConsoleTool(toolServices.browserUse),
-        toolServices?.computerUse && new b.ComputerCaptureTool(toolServices.computerUse),
-        toolServices?.computerUse && new b.ComputerActTool(toolServices.computerUse),
-        toolServices?.computerUse && new b.ComputerStatusTool(toolServices.computerUse),
-        toolServices?.webSearcher && new b.WebSearchTool(toolServices.webSearcher),
-        toolServices?.urlFetcher && new b.FetchURLTool(toolServices.urlFetcher),
-        toolServices?.context7 && new b.Context7ResolveTool(toolServices.context7),
-        toolServices?.context7 && new b.Context7DocsTool(toolServices.context7),
+          modelCapabilities,
+          videoUploader,
+        ),
+        ...this.createPlanningGoalAndStateTools(background, goalToolsEnabled),
+        ...this.createSkillAndSubagentTools(background, allowBackground),
+        ...this.createGuiAndWebTools(toolServices),
       ]
         .filter((tool) => !!tool)
         .map((tool) => [tool.name, tool] as const),
     );
     void warmWorkspaceIndex(kaos, workspace).catch(() => undefined);
+  }
+
+  private createFileAndContextTools(
+    kaos: Agent['kaos'],
+    workspace: { workspaceDir: string; additionalDirs: readonly string[] },
+    cwd: string,
+    background: Agent['background'],
+    allowBackground: boolean,
+    modelCapabilities: Agent['config']['modelCapabilities'],
+    videoUploader: b.VideoUploader | undefined,
+  ): Array<BuiltinTool | false | undefined> {
+    return [
+      new b.ReadTool(kaos, workspace),
+      new b.WriteTool(kaos, workspace),
+      new b.EditTool(kaos, workspace),
+      new b.GrepTool(kaos, workspace, this.agent.telemetry),
+      new b.GlobTool(kaos, workspace, this.agent.telemetry),
+      new b.LioraContextTool(kaos, workspace),
+      new b.LioraIndexTool(kaos, workspace, this.agent.telemetry),
+      new b.LioraReadTool(kaos, workspace, this.toolStore),
+      new b.LioraSearchTool(kaos, workspace, this.toolStore),
+      new b.LioraTreeTool(kaos, workspace),
+      new b.LioraSymbolTool(kaos, workspace),
+      new b.LioraCallgraphTool(kaos, workspace),
+      new b.LioraExpandTool(this.toolStore),
+      new b.BashTool(kaos, cwd, background, {
+        allowBackground,
+        store: this.toolStore,
+      }),
+      (modelCapabilities.image_in || modelCapabilities.video_in) &&
+        new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
+    ];
+  }
+
+  private createPlanningGoalAndStateTools(
+    background: Agent['background'],
+    goalToolsEnabled: boolean,
+  ): Array<BuiltinTool | false | undefined> {
+    const hasQuestionTool = this.agent.rpc?.requestQuestion !== undefined;
+    const hasMemoryTool = this.agent.memory?.isEnabled() === true;
+    return [
+      new b.EnterPlanModeTool(this.agent),
+      new b.ExitPlanModeTool(this.agent),
+      new b.NextPhaseTool(this.agent),
+      goalToolsEnabled && new b.CreateGoalTool(this.agent),
+      goalToolsEnabled && new b.GetGoalTool(this.agent),
+      goalToolsEnabled && new b.SetGoalBudgetTool(this.agent),
+      goalToolsEnabled && new b.UpdateGoalTool(this.agent),
+      new b.GetCurrentTimeTool(),
+      hasQuestionTool && new b.AskUserQuestionTool(this.agent),
+      new b.TodoListTool(this.toolStore),
+      new b.UltraworkGraphTool(this.toolStore, this.agent),
+      hasMemoryTool && new b.MemoryTool(this.agent.memory!),
+      new b.TaskListTool(background),
+      new b.TaskOutputTool(background),
+      new b.TaskStopTool(background),
+      this.agent.cron !== null && this.agent.cron !== undefined && new b.CronCreateTool(this.agent.cron),
+      this.agent.cron !== null && this.agent.cron !== undefined && new b.CronListTool(this.agent.cron),
+      this.agent.cron !== null && this.agent.cron !== undefined && new b.CronDeleteTool(this.agent.cron),
+    ];
+  }
+
+  private createSkillAndSubagentTools(
+    background: Agent['background'],
+    allowBackground: boolean,
+  ): Array<BuiltinTool | false | undefined> {
+    const hasInvocableSkills = (this.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
+    return [
+      hasInvocableSkills && new b.SkillTool(this.agent),
+      hasInvocableSkills && new b.SearchSkillTool(this.agent),
+      this.agent.subagentHost &&
+        new b.AgentTool(
+          this.agent.subagentHost,
+          background,
+          DEFAULT_AGENT_PROFILES['agent']?.subagents,
+          {
+            allowBackground,
+            log: this.agent.log,
+          },
+        ),
+      this.agent.subagentHost && new b.SearchExpertTool(),
+      this.agent.subagentHost &&
+        new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode, this.toolStore),
+      this.agent.subagentHost &&
+        new b.UltraSwarmTool(
+          this.agent.subagentHost,
+          this.agent.swarmMode,
+          this.toolStore,
+          this.agent,
+        ),
+    ];
+  }
+
+  private createGuiAndWebTools(
+    toolServices: Agent['toolServices'],
+  ): Array<BuiltinTool | false | undefined> {
+    return [
+      toolServices?.browserUse && new b.BrowserStatusTool(toolServices.browserUse),
+      toolServices?.browserUse && new b.BrowserObserveTool(toolServices.browserUse),
+      toolServices?.browserUse && new b.BrowserScreenshotTool(toolServices.browserUse),
+      toolServices?.browserUse && new b.BrowserActTool(toolServices.browserUse),
+      toolServices?.browserUse && new b.BrowserConsoleTool(toolServices.browserUse),
+      toolServices?.computerUse && new b.ComputerCaptureTool(toolServices.computerUse),
+      toolServices?.computerUse && new b.ComputerActTool(toolServices.computerUse),
+      toolServices?.computerUse && new b.ComputerStatusTool(toolServices.computerUse),
+      toolServices?.webSearcher && new b.WebSearchTool(toolServices.webSearcher),
+      toolServices?.urlFetcher && new b.FetchURLTool(toolServices.urlFetcher),
+      toolServices?.context7 && new b.Context7ResolveTool(toolServices.context7),
+      toolServices?.context7 && new b.Context7DocsTool(toolServices.context7),
+    ];
   }
 
   refreshBuiltinTools(): void {

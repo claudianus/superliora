@@ -7,6 +7,7 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
+import { appendTextToolMeta } from '../../support/text-result-meta';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { archiveContent } from './context-archive';
 import { renderTerseRead } from './context-terse';
@@ -23,6 +24,8 @@ export const LioraReadInputSchema = z.object({
     ),
   start_line: z.number().int().min(1).optional(),
   limit: z.number().int().min(1).max(400).optional(),
+  line_offset: z.number().int().min(1).optional().describe('Alias for start_line; accepted for consistency with Read.'),
+  n_lines: z.number().int().min(1).max(400).optional().describe('Alias for limit; accepted for consistency with Read.'),
   raw: z.boolean().optional().describe('When true, skip compression and return full content.'),
 });
 
@@ -50,16 +53,17 @@ export class LioraReadTool implements BuiltinTool<LioraReadInput> {
     if (!parsed.success) {
       return { isError: true, output: parsed.error.issues.map((issue) => issue.message).join('\n') };
     }
-    const path = resolvePathAccessPath(parsed.data.path, {
+    const normalized = normalizeLioraReadInput(parsed.data);
+    const path = resolvePathAccessPath(normalized.path, {
       kaos: this.kaos,
       workspace: this.workspace,
       operation: 'read',
     });
     return {
       accesses: ToolAccesses.readFile(path),
-      description: `LioraRead ${parsed.data.path}`,
+      description: `LioraRead ${normalized.path}`,
       approvalRule: this.name,
-      execute: () => this.execution(parsed.data, path),
+      execute: () => this.execution(normalized, path),
     };
   }
 
@@ -73,7 +77,13 @@ export class LioraReadTool implements BuiltinTool<LioraReadInput> {
           displayPath,
           mode: 'full',
         });
-        return finalize(rendered.text, rendered.overflow, this.store, displayPath);
+        return finalize(rendered.text, rendered.overflow, this.store, displayPath, {
+          mode: rendered.modeUsed,
+          partial: rendered.renderedLines < rendered.lineCount,
+          truncated: rendered.overflow !== undefined,
+          lineCount: rendered.lineCount,
+          renderedLines: rendered.renderedLines,
+        });
       }
       const rendered = renderTerseRead({
         content,
@@ -82,7 +92,13 @@ export class LioraReadTool implements BuiltinTool<LioraReadInput> {
         startLine: input.start_line,
         limit: input.limit,
       });
-      return finalize(rendered.text, rendered.overflow, this.store, displayPath);
+      return finalize(rendered.text, rendered.overflow, this.store, displayPath, {
+        mode: rendered.modeUsed,
+        partial: rendered.renderedLines < rendered.lineCount,
+        truncated: rendered.overflow !== undefined,
+        lineCount: rendered.lineCount,
+        renderedLines: rendered.renderedLines,
+      });
     } catch (error) {
       return { isError: true, output: error instanceof Error ? error.message : String(error) };
     }
@@ -94,8 +110,28 @@ function finalize(
   overflow: string | undefined,
   store: ToolStore,
   displayPath: string,
+  meta: {
+    readonly mode: string;
+    readonly partial: boolean;
+    readonly truncated: boolean;
+    readonly lineCount: number;
+    readonly renderedLines: number;
+  },
 ): ExecutableToolResult {
-  if (overflow === undefined || overflow.length === 0) return { output: text };
+  const summary = `Rendered ${String(meta.renderedLines)} of ${String(meta.lineCount)} lines for ${displayPath}.`;
+  if (overflow === undefined || overflow.length === 0) {
+    return {
+      output: appendTextToolMeta(text, {
+        tool: LIORA_READ_TOOL_NAME,
+        mode: meta.mode,
+        partial: meta.partial,
+        truncated: meta.truncated,
+        summary,
+        stats: { total_lines: meta.lineCount, rendered_lines: meta.renderedLines },
+        nextStep: 'Use Read for exact edit bytes or LioraRead mode=lines to page a focused window.',
+      }),
+    };
+  }
   const archived = archiveContent({
     store,
     content: overflow,
@@ -103,7 +139,26 @@ function finalize(
     path: displayPath,
   });
   return {
-    output: `${text}\n${archived.marker}\narchived_summary: ${archived.summary}\nrecover: LioraExpand(id="${archived.id}")`,
+    output: appendTextToolMeta(
+      `${text}\n${archived.marker}\narchived_summary: ${archived.summary}\nrecover: LioraExpand(id="${archived.id}")`,
+      {
+        tool: LIORA_READ_TOOL_NAME,
+        mode: meta.mode,
+        partial: true,
+        truncated: true,
+        summary,
+        stats: { total_lines: meta.lineCount, rendered_lines: meta.renderedLines },
+        nextStep: 'Call LioraExpand for archived overflow, or use Read for exact edit-ready bytes.',
+      },
+    ),
+  };
+}
+
+function normalizeLioraReadInput(input: LioraReadInput): LioraReadInput {
+  return {
+    ...input,
+    start_line: input.start_line ?? input.line_offset,
+    limit: input.limit ?? input.n_lines,
   };
 }
 

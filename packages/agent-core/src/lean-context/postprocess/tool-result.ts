@@ -138,9 +138,11 @@ function postprocessBash(
 }
 
 function stripSystemSuffix(output: string): string {
-  const marker = '\n<system>';
-  const index = output.indexOf(marker);
-  return index >= 0 ? output.slice(0, index) : output;
+  for (const marker of ['\n<system>', '\n<tool_meta']) {
+    const index = output.indexOf(marker);
+    if (index >= 0) return output.slice(0, index);
+  }
+  return output;
 }
 
 function finalizeCompressed(

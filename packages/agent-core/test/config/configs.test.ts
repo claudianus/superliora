@@ -110,8 +110,8 @@ refresh_on_start = false
 
 [browser_use]
 enabled = true
-provider = "lightpanda"
-fallback_provider = "cloakbrowser"
+provider = "cloakbrowser"
+fallback_provider = "camoufox"
 fallback_enabled = true
 auto_install = true
 auto_update = true
@@ -231,8 +231,8 @@ describe('harness config TOML loader', () => {
     });
     expect(config.browserUse).toEqual({
       enabled: true,
-      provider: 'lightpanda',
-      fallbackProvider: 'cloakbrowser',
+      provider: 'cloakbrowser',
+      fallbackProvider: 'camoufox',
       fallbackEnabled: true,
       autoInstall: true,
       autoUpdate: true,

@@ -9,6 +9,7 @@ import { resolvePathAccessPath } from '../../policies/path-access';
 import { MEDIA_SNIFF_BYTES, detectFileType } from '../../support/file-type';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
+import { appendTextToolMeta } from '../../support/text-result-meta';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { makeCarriageReturnsVisible, type LineEndingStyle } from './line-endings';
 import readDescriptionTemplate from './read.md?raw';
@@ -45,8 +46,10 @@ export const ReadInputSchema = z.object({
 });
 
 export const ReadOutputSchema = z.object({
-  content: z.string(),
-  lineCount: z.number().int().nonnegative(),
+  content: z.string().describe('Rendered file content with one-based line numbers.'),
+  lineCount: z.number().int().nonnegative().describe('Number of rendered lines in content.'),
+  truncated: z.boolean().describe('Whether line or byte limits truncated the visible output.'),
+  partial: z.boolean().describe('Whether only part of the file is shown.'),
 });
 
 export type ReadInput = z.Infer<typeof ReadInputSchema>;
@@ -528,14 +531,29 @@ export class ReadTool implements BuiltinTool<ReadInput> {
 
   private finishReadResult(input: FinishReadResultInput): ExecutableToolResult {
     return {
-      output: this.finishOutput(input.renderedLines, this.finishMessage(input)),
+      output: this.finishOutput(input),
     };
   }
 
-  private finishOutput(renderedLines: readonly string[], message: string): string {
-    const rendered = renderedLines.join('\n');
-    const status = `<system>${message}</system>`;
-    return rendered.length > 0 ? `${rendered}\n${status}` : status;
+  private finishOutput(input: FinishReadResultInput): string {
+    const rendered = input.renderedLines.join('\n');
+    return appendTextToolMeta(rendered, {
+      tool: this.name,
+      mode: input.startLine > 0 ? 'lines' : 'empty',
+      truncated: input.maxLinesReached || input.maxBytesReached || input.truncatedLineNumbers.length > 0,
+      partial:
+        input.startLine > 1 ||
+        input.maxLinesReached ||
+        input.maxBytesReached ||
+        input.renderedLines.length < input.totalLines,
+      summary: this.finishMessage(input),
+      stats: {
+        rendered_lines: input.renderedLines.length,
+        start_line: input.startLine,
+        total_lines: input.totalLines,
+      },
+      nextStep: 'Use Edit with exact visible bytes, or call Read again with line_offset/n_lines to page.',
+    });
   }
 
   private finishMessage(input: FinishReadResultInput): string {

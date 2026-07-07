@@ -1,4 +1,5 @@
 import type { ContextFile, RankedFile } from './context-types';
+import { appendTextToolMeta } from '../../support/text-result-meta';
 
 interface RenderContextInput {
   readonly query?: string | undefined;
@@ -17,8 +18,22 @@ export function renderContextPacket(
   body.splice(5, 0, `raw_chars_indexed: ${rawChars}`);
   body.splice(6, 0, `packet_chars: ${stats.packetChars}`);
   body.splice(7, 0, `estimated_saved_percent: ${stats.estimatedSavedPercent}`);
-  body.push('</kimi_context_packet>');
-  return body.join('\n');
+  body.push('</liora_context_packet>');
+  return appendTextToolMeta(body.join('\n'), {
+    tool: 'LioraContext',
+    mode,
+    partial: ranked.length < allFiles.length,
+    truncated: ranked.length < allFiles.length,
+    summary: `Returned ${String(ranked.length)} ranked file(s) from ${String(allFiles.length)} candidates.`,
+    stats: {
+      files_considered: allFiles.length,
+      files_returned: ranked.length,
+      raw_chars_indexed: rawChars,
+      packet_chars: stats.packetChars,
+      estimated_saved_percent: stats.estimatedSavedPercent,
+    },
+    nextStep: 'Use LioraRead or Read for exact bytes, or LioraSearch/Grep to expand around a specific hit.',
+  });
 }
 
 function buildPacketBody(
@@ -28,7 +43,7 @@ function buildPacketBody(
   mode: 'pack' | 'search' | 'map' | 'compose',
 ): string[] {
   const body: string[] = [
-    `<kimi_context_packet version="1" mode="${mode}">`,
+    `<liora_context_packet version="1" mode="${mode}">`,
     'strategy: lean-codegraph',
     'knowledge_map: compact-project-map',
     'relationship_confidence: EXTRACTED | INFERRED | AMBIGUOUS',
@@ -134,7 +149,7 @@ function computeStats(body: readonly string[], rawChars: number): {
   readonly packetChars: number;
   readonly estimatedSavedPercent: number;
 } {
-  const packetChars = [...body, '</kimi_context_packet>'].join('\n').length;
+  const packetChars = [...body, '</liora_context_packet>'].join('\n').length;
   const estimatedSavedPercent =
     rawChars === 0 ? 0 : Math.max(0, Math.round((1 - packetChars / rawChars) * 100));
   return { packetChars, estimatedSavedPercent };

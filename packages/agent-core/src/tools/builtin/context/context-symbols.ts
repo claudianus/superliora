@@ -24,20 +24,18 @@ export function rankContextFiles(
   input: RankContextInput,
 ): RankedFile[] {
   const query = input.query?.toLowerCase();
-  const normalizedQuery = query === undefined ? undefined : normalizeToken(query);
   const maxFiles = input.max_files ?? DEFAULT_MAX_FILES;
   const maxSymbols = input.max_symbols_per_file ?? DEFAULT_MAX_SYMBOLS;
   return files
     .map((file) => {
-      const symbols = extractSymbols(file.content).slice(0, maxSymbols);
-      const matches = query === undefined ? [] : findMatches(file.content, query);
+      const analysis = analyzeFile(file.content, query, maxSymbols);
       return {
         file,
-        symbols,
-        matches,
-        relationships: extractRelationships(file.content),
+        symbols: analysis.symbols,
+        matches: analysis.matches,
+        relationships: analysis.relationships,
         testHints: buildTestHints(file.displayPath),
-        score: scoreFile(file, symbols, matches, query, normalizedQuery),
+        score: scoreFile(file, analysis.symbols, analysis.matches, query),
       };
     })
     .filter((ranked) => input.paths !== undefined || ranked.score > 0)
@@ -50,9 +48,9 @@ function scoreFile(
   symbols: readonly SymbolEntry[],
   matches: readonly MatchEntry[],
   query: string | undefined,
-  normalizedQuery: string | undefined,
 ): number {
   if (query === undefined) return 1;
+  const normalizedQuery = normalizeToken(query);
   let score = matches.length * 10;
   const normalizedPath = normalizeToken(file.displayPath);
   if (normalizedQuery !== undefined && normalizedQuery.length > 0 && normalizedPath.includes(normalizedQuery)) {
@@ -75,13 +73,6 @@ function sourcePathBoost(displayPath: string): number {
   if (displayPath.startsWith('src/')) return 6;
   if (/^(?:packages|apps)\//.test(displayPath)) return 3;
   return 0;
-}
-
-function extractSymbols(content: string): SymbolEntry[] {
-  return content
-    .split(/\r?\n/)
-    .map((line, index) => extractSymbol(line, index + 1))
-    .filter((symbol): symbol is SymbolEntry => symbol !== undefined);
 }
 
 function extractSymbol(line: string, lineNumber: number): SymbolEntry | undefined {
@@ -110,28 +101,6 @@ function extractSymbol(line: string, lineNumber: number): SymbolEntry | undefine
     }
   }
   return undefined;
-}
-
-function findMatches(content: string, query: string): MatchEntry[] {
-  const matches: MatchEntry[] = [];
-  const lines = content.split(/\r?\n/);
-  for (const [index, line] of lines.entries()) {
-    if (!line.toLowerCase().includes(query)) continue;
-    matches.push({ line: index + 1, text: truncate(line.trim(), MAX_SNIPPET_LENGTH) });
-    if (matches.length >= MAX_MATCHES_PER_FILE) break;
-  }
-  return matches;
-}
-
-function extractRelationships(content: string): RelationshipEntry[] {
-  const relationships: RelationshipEntry[] = [];
-  const lines = content.split(/\r?\n/);
-  for (const [index, line] of lines.entries()) {
-    const relationship = extractRelationship(line, index + 1);
-    if (relationship !== undefined) relationships.push(relationship);
-    if (relationships.length >= 12) break;
-  }
-  return relationships;
 }
 
 function extractRelationship(line: string, lineNumber: number): RelationshipEntry | undefined {
@@ -207,6 +176,43 @@ function buildTestHints(displayPath: string): TestHintEntry[] {
       reason: 'nearest existing test with matching module name',
     },
   ];
+}
+
+function analyzeFile(
+  content: string,
+  query: string | undefined,
+  maxSymbols: number,
+): {
+  symbols: SymbolEntry[];
+  matches: MatchEntry[];
+  relationships: RelationshipEntry[];
+} {
+  const symbols: SymbolEntry[] = [];
+  const matches: MatchEntry[] = [];
+  const relationships: RelationshipEntry[] = [];
+  const lines = content.split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    const lineNumber = index + 1;
+    if (symbols.length < maxSymbols) {
+      const symbol = extractSymbol(line, lineNumber);
+      if (symbol !== undefined) symbols.push(symbol);
+    }
+    if (query !== undefined && matches.length < MAX_MATCHES_PER_FILE && line.toLowerCase().includes(query)) {
+      matches.push({ line: lineNumber, text: truncate(line.trim(), MAX_SNIPPET_LENGTH) });
+    }
+    if (relationships.length < 12) {
+      const relationship = extractRelationship(line, lineNumber);
+      if (relationship !== undefined) relationships.push(relationship);
+    }
+    if (
+      symbols.length >= maxSymbols &&
+      matches.length >= MAX_MATCHES_PER_FILE &&
+      relationships.length >= 12
+    ) {
+      break;
+    }
+  }
+  return { symbols, matches, relationships };
 }
 
 function normalizeToken(text: string): string {
