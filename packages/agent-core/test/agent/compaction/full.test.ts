@@ -23,6 +23,7 @@ import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
   evaluateCompactionQualitySignals,
+  validateInitialCompactionSummary,
   validateRenderedCompactionSummary,
   type CompactionPlan,
   type CompactionStrategy,
@@ -1196,6 +1197,30 @@ describe('FullCompaction', () => {
     });
     expect(repairedSignals.failureSignature).toBeUndefined();
     expect(repairedSignals.recallEvalScore).toBe(1);
+  });
+
+  it('does not treat missing raw_refs as a critical pre-render compaction failure', () => {
+    const plan: CompactionPlan = {
+      ...emptyCompactionPlan(100),
+      rawRefs: [
+        {
+          kind: 'user',
+          messageStart: 0,
+          messageEnd: 0,
+          tokens: 4,
+        },
+      ],
+    };
+    const summary = [
+      'current_goal: Continue the active user task.',
+      'next_actions:',
+      '- Capture the next screenshot.',
+      'last_known_state:',
+      '- Dev server is running on port 4173.',
+    ].join('\n');
+
+    const validation = validateInitialCompactionSummary(summary, plan, []);
+    expect(validation.critical).not.toContain('v2 summary is missing raw_refs');
   });
 
   it('compacts an oversized single Context OS page instead of dropping recall', async () => {
@@ -2915,6 +2940,46 @@ describe('FullCompaction', () => {
         repair_attempted: true,
       }),
     });
+    await ctx.expectResumeMatches();
+  });
+
+  it('injects planner raw_refs when the LLM omits them from a v2 summary', async () => {
+    let attempts = 0;
+    const generate: GenerateFn = async () => {
+      attempts += 1;
+      return textResult([
+        'current_goal: Continue capturing screenshots for WG-11.',
+        'next_actions:',
+        '- Capture the landing page screenshot next.',
+        'last_known_state:',
+        '- Dev server is running on port 4173.',
+      ].join('\n'));
+    };
+    const ctx = testAgent({ generate });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+    ctx.appendExchange(2, 'recent user two', 'recent assistant two', 80);
+    const compacted = ctx.once('context.apply_compaction');
+    const completed = ctx.once('compaction.completed');
+
+    await ctx.rpc.beginCompaction({});
+    await compacted;
+    await completed;
+
+    expect(attempts).toBe(1);
+    expect(compactionSummaryEntry(ctx.compactHistory())?.text).toContain('raw_refs:');
+    expect(compactionSummaryEntry(ctx.compactHistory())?.text).toMatch(/user\[0-0\]/);
+    expect(ctx.newEvents()).toContainEqual(
+      expect.objectContaining({
+        event: 'compaction.completed',
+        args: expect.objectContaining({
+          result: expect.not.objectContaining({ repairAttempted: true }),
+        }),
+      }),
+    );
     await ctx.expectResumeMatches();
   });
 

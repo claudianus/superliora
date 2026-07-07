@@ -61,9 +61,8 @@ export function validateInitialCompactionSummary(
     if (usefulItems(memory.nextActions).length === 0) {
       critical.push('v2 summary is missing next_actions');
     }
-    if (plan.rawRefs.length > 0 && memory.rawRefs.length === 0) {
-      critical.push('v2 summary is missing raw_refs');
-    }
+    // raw_refs are planner-derived and injected during renderStructuredV2Summary;
+    // do not fail the pre-render LLM summary when the model omits them.
   }
 
   const latestUserRequest = latestUserText(compactedMessages);
