@@ -95,8 +95,12 @@ function maxStageFromNodes(nodes: readonly WorkGraphNode[]): UltraworkStage | un
   return best;
 }
 
-function stageIndex(stage: UltraworkStage): number {
+export function ultraworkStageIndex(stage: UltraworkStage): number {
   const index = STAGE_INDEX.get(stage);
   if (index === undefined) throw new Error(`Unknown Ultrawork stage: ${stage}`);
   return index;
+}
+
+function stageIndex(stage: UltraworkStage): number {
+  return ultraworkStageIndex(stage);
 }

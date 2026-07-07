@@ -9,6 +9,7 @@ import type {
 import type { Agent } from '../agent';
 import type { AgentRecordOf } from '../agent/records';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
+import { ensureWorkGraphForResume } from './recovery';
 import { checkpointUltraworkRun } from './run-store';
 import {
   UltraworkRunStateMachine,
@@ -209,6 +210,17 @@ export class UltraworkMode {
     let run = machine.snapshot();
     if (run.status === 'done' || run.status === 'failed') return null;
 
+    const planContext = this.capturePlanRecoveryContext();
+    const seededGraph = await ensureWorkGraphForResume(
+      this.agent,
+      run,
+      planContext?.planFilePath,
+    );
+    if (seededGraph !== undefined) {
+      this.agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, seededGraph);
+      run = { ...run, workGraph: seededGraph };
+    }
+
     const reconciled = reconcileUltraworkRunForResume(this.agent, run);
     run = reconciled.run;
     this.machine = new UltraworkRunStateMachine(run);
@@ -235,7 +247,6 @@ export class UltraworkMode {
       goalResumed = true;
     }
 
-    const planContext = this.capturePlanRecoveryContext();
     const resumeCursor = buildUltraworkResumeCursor(this.agent, run, planContext);
     const report = buildUltraworkRecoveryReport({
       run,
@@ -340,6 +351,7 @@ export class UltraworkMode {
 
   private writeCheckpoint(options: { flush?: boolean } = {}): void {
     if (this.machine === undefined) return;
+    this.syncWorkGraphFromStore();
     const run = this.machine.snapshot();
     const planCheckpoint = this.capturePlanRecoveryContext();
     checkpointUltraworkRun(this.agent, run, {

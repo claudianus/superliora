@@ -1625,6 +1625,12 @@ export class LioraTUI {
   }
 
   async setSession(session: Session): Promise<void> {
+    if (this.session === session) {
+      this.harness.setTelemetryContext({ sessionId: session.id });
+      this.registerSessionHandlers(session);
+      this.syncAdditionalDirs(session);
+      return;
+    }
     const previous = this.unloadCurrentSession('switching session');
     await previous?.close();
     this.session = session;
@@ -1795,9 +1801,14 @@ export class LioraTUI {
   }
 
   private async resumeSession(targetSessionId: string): Promise<boolean> {
-    if (targetSessionId === this.state.appState.sessionId) {
-      this.showStatus('Already on this session.');
-      return true;
+    if (targetSessionId === this.state.appState.sessionId && this.session !== undefined) {
+      try {
+        await this.session.getStatus();
+        this.showStatus('Already on this session.');
+        return true;
+      } catch {
+        // Session was closed — fall through and re-acquire it.
+      }
     }
     if (this.state.appState.streamingPhase !== 'idle') {
       this.showError('Cannot switch sessions while streaming — press Esc or Ctrl-C first.');

@@ -220,6 +220,21 @@ describe('parseWorkGraphNodesFromPlan', () => {
     ]);
   });
 
+  it('maps numeric MVP rollout phases to ultrawork stages', () => {
+    const plan = [
+      '## WorkGraph',
+      '| node id | AC id | stage | owner/lane | description | dependencies | required evidence |',
+      '| WG-1 | AC-1 | 1 | scaffolding | 프로젝트 스캐폴드 | - | package.json |',
+      '| WG-10 | AC-7 | 1 | main | 시각 폴리시 및 스크린샷 검증 | WG-1 | rubric |',
+    ].join('\n');
+
+    const nodes = parseWorkGraphNodesFromPlan(plan);
+    expect(nodes).toEqual([
+      expect.objectContaining({ id: 'WG-1', stage: 'integrate', title: '프로젝트 스캐폴드' }),
+      expect.objectContaining({ id: 'WG-10', stage: 'verify', title: '시각 폴리시 및 스크린샷 검증' }),
+    ]);
+  });
+
   it('returns undefined when the WorkGraph section has no parseable nodes', () => {
     expect(parseWorkGraphNodesFromPlan('## WorkGraph\nNo nodes yet.')).toBeUndefined();
   });
