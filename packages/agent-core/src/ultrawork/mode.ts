@@ -24,7 +24,7 @@ import type {
   UltraworkActivation,
   UltraworkPlanRecoveryContext,
 } from './types';
-import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor } from './recovery';
+import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor, releaseUltraworkPlanModeIfComplete } from './recovery';
 import { reconcileUltraworkFromMirror } from './mirror-reconcile';
 import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport, ensureUltraworkWorkflowArtifacts } from './workflow-report';
 
@@ -236,6 +236,8 @@ export class UltraworkMode {
     if (run.status === 'blocked') {
       run = this.machine.resumeFromBlocked();
     }
+
+    releaseUltraworkPlanModeIfComplete(this.agent, run);
 
     const savedInterruptReason = this.interruptReason;
     this.interruptReason = undefined;

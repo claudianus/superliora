@@ -23,6 +23,24 @@ function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
 }
 
 describe('ultrawork auto resume', () => {
+  it('exits plan mode when the run is past planning but plan mode is still active', async () => {
+    const setPlanMode = vi.fn(async () => {});
+    const session = {
+      getUltraworkRun: vi.fn(async () => sampleRun()),
+      resumeUltrawork: vi.fn(async () => ({ run: sampleRun(), recoveryPrompt: 'resume' })),
+      getStatus: vi.fn(async () => ({
+        swarmMode: true,
+        planMode: true,
+      })),
+      setSwarmMode: vi.fn(async () => {}),
+      setPlanMode,
+    };
+
+    const changed = await ensureUltraworkResumeSetup(session, sampleRun());
+    expect(changed).toBe(true);
+    expect(setPlanMode).toHaveBeenCalledWith(false);
+  });
+
   it('does not re-enable plan mode when the run is past planning', async () => {
     const setPlanMode = vi.fn(async () => {});
     const session = {

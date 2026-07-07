@@ -3,6 +3,7 @@ import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
 import type { Agent } from '../agent';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
 import { resolveApprovedUltraworkPlanPath } from './approved-plan';
+import { releaseUltraworkPlanModeIfComplete, shouldKeepPlanModeForUltraworkRun } from './recovery';
 import { readUltraworkMirrorFromDisk } from './run-store';
 import type { UltraworkPlanRecoveryContext, UltraworkRunMirror } from './types';
 
@@ -112,42 +113,40 @@ async function applyPlanCheckpointQuiet(
   checkpoint: UltraworkPlanRecoveryContext,
   run?: UltraworkRun | null,
 ): Promise<void> {
-  const hasStaffedTeam =
-    run?.teamPlan !== undefined && (run.teamPlan.experts.length ?? 0) > 0;
-  let resolvedCheckpoint =
-    hasStaffedTeam && checkpoint.phase !== 'exit'
-      ? { ...checkpoint, phase: 'exit' as const }
-      : checkpoint;
-
   const approvedPlanPath = await resolveApprovedUltraworkPlanPath(agent, [
-    resolvedCheckpoint.planFilePath,
+    checkpoint.planFilePath,
     agent.ultraSwarmEngageGate.data()?.planPath,
     planMode.planFilePath ?? undefined,
   ]);
   if (approvedPlanPath !== undefined) {
     planMode.restorePlanFilePathQuiet(approvedPlanPath);
-    resolvedCheckpoint = { ...resolvedCheckpoint, planFilePath: approvedPlanPath };
+  }
+
+  if (run !== null && run !== undefined && !shouldKeepPlanModeForUltraworkRun(run)) {
+    releaseUltraworkPlanModeIfComplete(agent, run);
+    return;
   }
 
   const recordRounds = planMode.interviewRoundCount;
   const engineRounds = planMode.ultraEngine.interviewState.rounds.length;
-  const mirrorRounds = resolvedCheckpoint.interviewRoundCount ?? 0;
+  const mirrorRounds = checkpoint.interviewRoundCount ?? 0;
   const needsMirror =
     mirrorRounds > recordRounds ||
     mirrorRounds > engineRounds ||
-    (resolvedCheckpoint.phase !== undefined &&
-      resolvedCheckpoint.phase !== planMode.phase &&
-      (recordRounds === 0 && engineRounds === 0 || hasStaffedTeam));
+    (checkpoint.phase !== undefined &&
+      checkpoint.phase !== planMode.phase &&
+      recordRounds === 0 &&
+      engineRounds === 0);
 
-  if (!needsMirror || resolvedCheckpoint.phase === undefined) return;
+  if (!needsMirror || checkpoint.phase === undefined) return;
 
   const ultraPlan =
-    resolvedCheckpoint.ultraPlan ??
+    checkpoint.ultraPlan ??
     planMode.captureStateCheckpoint()?.ultraPlan ??
     planMode.ultraEngine.serialize();
 
   planMode.restoreStateQuiet({
-    phase: resolvedCheckpoint.phase as UltraPlanPhase,
+    phase: checkpoint.phase as UltraPlanPhase,
     interviewRoundCount: mirrorRounds,
     ultraPlan,
   });

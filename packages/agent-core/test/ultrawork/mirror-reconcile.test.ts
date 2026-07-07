@@ -103,8 +103,7 @@ Swarm decision: ENGAGE
     });
     await reconcileUltraworkFromMirror(replayAgent);
 
-    expect(replayAgent.planMode.planFilePath).toBe(approvedPath);
-    expect(replayAgent.planMode.phase).toBe('exit');
+    expect(replayAgent.planMode.isActive).toBe(false);
   });
 
   it('restores plan checkpoint from run-state mirror when records lack interview state', async () => {
