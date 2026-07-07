@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../../src/agent';
 import { PlanModeInjector } from '../../../src/agent/injection/plan-mode';
+import { UltraPlanModeEngine } from '../../../src/agent/plan/ultra-plan-mode';
 
 interface PlanModeStub {
   isActive: boolean;
@@ -12,6 +13,25 @@ interface PlanModeStub {
 
 function planAgent(stub: PlanModeStub): Agent {
   const history: unknown[] = [];
+  const ultraEngine = new UltraPlanModeEngine({
+    context: { history: [] },
+    config: { provider: undefined },
+  } as unknown as Agent);
+  ultraEngine.interviewReadiness = async () => ({
+    ready: false,
+    stableReady: false,
+    openGaps: ['actors', 'inputs', 'outputs'],
+    ambiguityScore: {
+      overallScore: 0.45,
+      milestone: 'initial',
+      floorFailures: [],
+      isReadyForSeed: false,
+      breakdown: [],
+    },
+    verifiableGoal: false,
+    completionCandidateStreak: 0,
+    floorFailures: [],
+  });
   return {
     type: 'main',
     planMode: {
@@ -27,12 +47,7 @@ function planAgent(stub: PlanModeStub): Agent {
       get phase() {
         return stub.phase ?? 'interview';
       },
-      ultraEngine: {
-        interviewState: { rounds: [] },
-        currentPerspective: 'architect',
-        getPerspectiveDescription: () =>
-          'Propose structural and pattern improvements. Focus on interfaces, maintainability, and long-term design quality.',
-      },
+      ultraEngine,
     },
     ultrawork: {
       getRun: () => null,
@@ -173,13 +188,16 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('research-first is strongly encouraged');
     expect(text).toContain('Context7Resolve/Context7Docs for library APIs');
     expect(text).toContain('WebSearch/FetchURL for external facts');
-    expect(text).toContain('Perspective: architect');
+    expect(text).toContain('Perspective: researcher');
     expect(text).not.toContain('{{perspective}}');
-    expect(text).toContain('long-term design quality');
+    expect(text).toContain('benchmarks, best practices');
     expect(text).toContain('Your turn MUST end with AskUserQuestion or NextPhase');
     expect(text).toContain('Read-only research in the same turn is allowed and encouraged');
     expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');
     expect(text).toContain('Do not advance just because the task feels actionable');
+    expect(text).toContain('live readiness checklist below');
+    expect(text).toContain('Do not Write or Edit the plan file during Interview');
+    expect(text).toContain('Interview readiness:');
   });
 
   it('routes Ultra Plan design to review before write', async () => {

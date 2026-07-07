@@ -403,8 +403,9 @@ describe('Plan mode permission policy', () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.output).toContain('UltraPlan interview is not ready for Design.');
-    expect(result.output).toContain('open_gaps=');
+    expect(result.output).toContain('NOT READY for Design');
+    expect(result.output).toContain('open_gaps');
+    expect(result.output).toContain('NEXT TURN');
     expect(planMode.phase).toBe('interview');
     expect(planMode.interviewRoundCount).toBe(0);
   });

@@ -140,6 +140,52 @@ export const ULTRA_PLAN_REQUIRED_SECTIONS = [
 
 export type UltraPlanRequiredSection = typeof ULTRA_PLAN_REQUIRED_SECTIONS[number];
 
+export const ULTRA_PLAN_SECTION_GUIDANCE: Record<
+  UltraPlanRequiredSection,
+  { readonly label: string; readonly askHint: string }
+> = {
+  goal: {
+    label: 'Goal / UltraGoal',
+    askHint: 'State the single deliverable or outcome in one concrete sentence.',
+  },
+  actors: {
+    label: 'Actors',
+    askHint: 'Who is involved (user, agent, reviewer, end-user)?',
+  },
+  inputs: {
+    label: 'Inputs',
+    askHint: 'What artifacts, files, APIs, or context does the work start from?',
+  },
+  outputs: {
+    label: 'Outputs',
+    askHint: 'What concrete deliverables will exist when done (files, docs, UI, decisions)?',
+  },
+  constraints: {
+    label: 'Constraints',
+    askHint: 'What limits apply (time, tech stack, budget, brand, must-not-change rules)?',
+  },
+  non_goals: {
+    label: 'Non-goals',
+    askHint: 'What is explicitly out of scope?',
+  },
+  acceptance_criteria: {
+    label: 'Acceptance Criteria',
+    askHint: 'What checks must pass for the work to be accepted?',
+  },
+  verification_plan: {
+    label: 'Verification Plan',
+    askHint: 'How will you verify success (tests, review, demo, metrics)?',
+  },
+  failure_modes: {
+    label: 'Failure Modes',
+    askHint: 'What could go wrong or what regressions must be avoided?',
+  },
+  runtime_context: {
+    label: 'Runtime Context',
+    askHint: 'Where does this run (repo, stack, environment, audience)?',
+  },
+};
+
 const AMBIGUITY_THRESHOLD = 0.2;
 const COMPLETION_STREAK_REQUIRED = 1;
 const GOAL_CLARITY_FLOOR = 0.75;
@@ -922,16 +968,7 @@ export class UltraPlanModeEngine {
 
   async readinessBlockerMessage(readiness?: UltraPlanReadiness): Promise<string> {
     const resolved = readiness ?? (await this.interviewReadiness());
-    const gaps = resolved.openGaps.length === 0 ? 'none' : resolved.openGaps.join(', ');
-    const floorFailures = resolved.floorFailures.length === 0 ? 'none' : resolved.floorFailures.join('; ');
-    return [
-      'UltraPlan interview is not ready for Design.',
-      `ambiguity=${resolved.ambiguityScore.overallScore.toFixed(3)}`,
-      `verifiable_goal=${resolved.verifiableGoal ? 'true' : 'false'}`,
-      `dimension_floor_failures=${floorFailures}`,
-      `open_gaps=${gaps}`,
-      'Continue AskUserQuestion until the UltraGoal is true/false-verifiable, every clarity floor is met, and every required Seed section is resolved.',
-    ].join('\n');
+    return formatInterviewReadinessGuide(resolved);
   }
 
   /**
@@ -1305,4 +1342,90 @@ Respond ONLY with valid JSON. No other text before or after.
       this._currentPerspective = data['currentPerspective'] as InterviewPerspective;
     }
   }
+}
+
+export function pickNextInterviewFocus(readiness: UltraPlanReadiness): string {
+  if (!readiness.verifiableGoal) {
+    return [
+      'Completion Criterion — ask how success is judged true/false or pass/fail.',
+      'Example: "true when deliverable X exists and you approve it; false otherwise."',
+    ].join(' ');
+  }
+  const firstGap = readiness.openGaps[0];
+  if (firstGap !== undefined) {
+    const guidance = ULTRA_PLAN_SECTION_GUIDANCE[firstGap];
+    return `${guidance.label} — ${guidance.askHint}`;
+  }
+  if (readiness.floorFailures.length > 0) {
+    return `Clarify ${readiness.floorFailures[0]} — ask for concrete specifics (files, commands, metrics, deliverables).`;
+  }
+  return 'Clarify the vaguest remaining requirement with concrete specifics.';
+}
+
+export function formatInterviewReadinessGuide(readiness: UltraPlanReadiness): string {
+  if (readiness.ready) {
+    return [
+      'Interview readiness: READY for Design.',
+      'Call NextPhase({ phase: "design" }). Seed Spec will be auto-extracted from interview evidence.',
+      'Do not Write or Edit the plan file yet — that happens in Write phase.',
+    ].join('\n');
+  }
+
+  const lines: string[] = [
+    'Interview readiness: NOT READY for Design.',
+    '',
+    'WHY NextPhase is blocked (close these before retrying):',
+  ];
+
+  let blockerNum = 1;
+
+  if (!readiness.verifiableGoal) {
+    lines.push(
+      `${blockerNum++}. verifiable_goal=false — no true/false Completion Criterion yet.`,
+      '   The UltraGoal must be judgeable as complete/incomplete.',
+      '   ambiguity stays >= 0.45 until a Completion Criterion is captured in interview answers.',
+    );
+  }
+
+  if (readiness.openGaps.length > 0) {
+    lines.push(
+      `${blockerNum++}. open_gaps — ${readiness.openGaps.length} missing Seed section(s): ${readiness.openGaps.join(', ')}`,
+    );
+    for (const gap of readiness.openGaps.slice(0, 3)) {
+      const guidance = ULTRA_PLAN_SECTION_GUIDANCE[gap];
+      lines.push(`   - ${guidance.label}: ${guidance.askHint}`);
+    }
+    if (readiness.openGaps.length > 3) {
+      lines.push(`   - ...then the remaining ${readiness.openGaps.length - 3} gap(s).`);
+    }
+  }
+
+  if (readiness.floorFailures.length > 0) {
+    lines.push(
+      `${blockerNum++}. clarity floors not met: ${readiness.floorFailures.join('; ')}`,
+      '   Existing answers are too vague — ask for specifics (files, commands, metrics, concrete deliverables).',
+    );
+  }
+
+  if (readiness.ambiguityScore.overallScore > AMBIGUITY_THRESHOLD) {
+    lines.push(
+      `${blockerNum++}. ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} (must be <= ${AMBIGUITY_THRESHOLD.toFixed(1)})`,
+    );
+  }
+
+  lines.push(
+    '',
+    `Status: ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ')}`,
+    '',
+    'DO NOT (these will not unblock the gate):',
+    '- Write or Edit the plan file. Seed Spec is auto-generated on Design transition; the plan file is written in Write phase.',
+    '- Call NextPhase again until the blockers above are closed.',
+    '- Repeat questions about sections already captured — target only open_gaps listed above.',
+    '- Ask vague or duplicate questions — each round must close at least one open gap or add a Completion Criterion.',
+    '',
+    'NEXT TURN — AskUserQuestion with one focus only:',
+    pickNextInterviewFocus(readiness),
+  );
+
+  return lines.join('\n');
 }

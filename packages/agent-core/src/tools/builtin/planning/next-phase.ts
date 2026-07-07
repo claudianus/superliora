@@ -26,7 +26,7 @@ export class NextPhaseTool implements BuiltinTool<NextPhaseInput> {
 
 Usage: call this tool when you have completed the current phase.
 - From research: call NextPhase({ phase: 'interview' }) after you have a compact evidence pack for the questions you may ask
-- From interview: call NextPhase({ phase: 'design' }) only after UltraPlan reports ambiguity <= 0.2, all clarity floors pass, the future UltraGoal is true/false verifiable, and all required Seed gaps are closed
+- From interview: call NextPhase({ phase: 'design' }) only after the readiness checklist reports READY (ambiguity <= 0.2, clarity floors pass, no open_gaps, verifiable_goal=true). If blocked, read the blocker output and AskUserQuestion about the listed NEXT TURN focus — do not Write the plan file or repeat resolved questions.
 - From design: call NextPhase({ phase: 'review' })
 - From review: call NextPhase({ phase: 'write' })
 - From write: call NextPhase({ phase: 'exit' })

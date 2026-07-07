@@ -3,7 +3,9 @@ import {
   UltraPlanModeEngine,
   ULTRA_PLAN_REQUIRED_SECTIONS,
   combinedDrift,
+  formatInterviewReadinessGuide,
   isDriftAcceptable,
+  pickNextInterviewFocus,
 } from '../../src/agent/plan/ultra-plan-mode';
 
 // Minimal mock agent
@@ -322,7 +324,11 @@ describe('UltraPlanModeEngine', () => {
       expect(readiness.openGaps).toContain('inputs');
       expect(readiness.openGaps).toContain('runtime_context');
       expect(readiness.ambiguityScore.overallScore).toBeGreaterThan(0.2);
-      expect(await engine.readinessBlockerMessage()).toContain('open_gaps=');
+      const blocker = await engine.readinessBlockerMessage();
+      expect(blocker).toContain('NOT READY for Design');
+      expect(blocker).toContain('open_gaps');
+      expect(blocker).toContain('NEXT TURN');
+      expect(blocker).toContain('Write or Edit the plan file');
     });
 
     it('does not close seed gaps from section labels in the question text alone', async () => {
@@ -408,6 +414,31 @@ describe('UltraPlanModeEngine', () => {
       expect(readiness.ambiguityScore.overallScore).toBeLessThanOrEqual(0.2);
       expect(readiness.stableReady).toBe(true);
       expect(readiness.completionCandidateStreak).toBe(1);
+    });
+
+    it('explains blockers and the next interview focus in readinessBlockerMessage', async () => {
+      const engine = new UltraPlanModeEngine(
+        createMockAgent(
+          ambiguityResponse({
+            present_sections: ['goal'],
+            verifiable_goal: false,
+            goal_clarity_score: 0.5,
+            constraint_clarity_score: 0.5,
+            success_criteria_clarity_score: 0.5,
+            specificity_score: 0.4,
+          }),
+        ),
+      );
+      engine.startInterview('Design a premium landing page art direction');
+
+      const readiness = await engine.interviewReadiness();
+      const guide = formatInterviewReadinessGuide(readiness);
+
+      expect(readiness.ready).toBe(false);
+      expect(guide).toContain('verifiable_goal=false');
+      expect(guide).toContain('Completion Criterion');
+      expect(guide).toContain('Write or Edit the plan file');
+      expect(pickNextInterviewFocus(readiness)).toContain('Completion Criterion');
     });
   });
 

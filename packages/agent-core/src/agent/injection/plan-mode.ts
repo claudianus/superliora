@@ -7,6 +7,7 @@ import {
   NO_AI_SLOP_SKILL_MANDATE_COMPACT,
   NO_AI_SLOP_SKILL_ROUTING,
 } from '../../anti-slop/contract';
+import { formatInterviewReadinessGuide } from '../plan/ultra-plan-mode';
 
 const PLAN_MODE_DEDUP_MIN_TURNS = 2;
 const PLAN_MODE_FULL_REFRESH_TURNS = 5;
@@ -44,7 +45,7 @@ export class PlanModeInjector extends DynamicInjector {
       this.injectedAt = null;
       this.wasActive = true;
       if (isUltraMode) {
-        return withResponseLanguage(phaseReminder(planFilePath, phase, this.agent), this.agent);
+        return withResponseLanguage(await phaseReminder(planFilePath, phase, this.agent), this.agent);
       }
       if (await this.hasCurrentPlanContent()) {
         return withResponseLanguage(reentryReminder(planFilePath), this.agent);
@@ -55,8 +56,8 @@ export class PlanModeInjector extends DynamicInjector {
 
     if (isUltraMode) {
       return variant === 'full' || variant === 'reentry'
-        ? withResponseLanguage(phaseReminder(planFilePath, phase, this.agent), this.agent)
-        : withResponseLanguage(phaseSparseReminder(planFilePath, phase, this.agent), this.agent);
+        ? withResponseLanguage(await phaseReminder(planFilePath, phase, this.agent), this.agent)
+        : withResponseLanguage(await phaseSparseReminder(planFilePath, phase, this.agent), this.agent);
     }
 
     return variant === 'full'
@@ -230,11 +231,15 @@ Rotate 5 lenses each round for a distinct improvement angle: Researcher, Simplif
 
 UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
 NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, and the UltraGoal is verifiable.
+The live readiness checklist below lists exact blockers and the one question to ask next — follow it; do not guess or repeat resolved topics.
+Seed Spec is auto-extracted from interview answers on Design transition. Do not Write or Edit the plan file during Interview.
 
 Round {{round}} | perspective {{perspective}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
 AskUserQuestion design:
+- Before calling NextPhase, read the readiness checklist — if NOT READY, ask only about the listed NEXT TURN focus.
 - Ask 1-3 focused questions per call when a missing decision blocks a verifiable UltraGoal or required Seed section, or when an upgrade choice materially changes the plan.
+- Each round must close at least one open gap or add a Completion Criterion — never repeat a question about a section already captured.
 - Option shape: Baseline (user's original intent) + 1-3 Upgrades (named payoff + trade-off in description) + Defer/minimal scope when relevant.
 - Append "(Recommended)" only when evidence strongly favors one upgrade; never recommend without a reason.
 - Lead with a short insight when it helps the user learn ("adding X typically improves Y because …").
@@ -278,7 +283,15 @@ ${NO_AI_SLOP_SKILL_ROUTING}
 If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file, and retry.`,
 };
 
-function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): string {
+function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): Promise<string> {
+  return buildPhaseReminder(planFilePath, phase, agent);
+}
+
+async function buildPhaseReminder(
+  planFilePath: PlanFilePath,
+  phase: string,
+  agent?: Agent,
+): Promise<string> {
   const base = `Ultra Plan mode is active. Phase: ${phase.toUpperCase()}.
 
 ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
@@ -303,6 +316,11 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
   const ultraworkGate = ultraworkResumeGate(agent, phase, interviewState?.rounds.length ?? 0);
   if (ultraworkGate !== undefined) {
     body = `${ultraworkGate}\n\n${body}`;
+  }
+
+  if (phase === 'interview' && agent !== undefined) {
+    const readiness = await agent.planMode.ultraEngine.interviewReadiness();
+    body = `${body}\n\n${formatInterviewReadinessGuide(readiness)}`;
   }
 
   return withPlanFileFooter(body, planFilePath);
@@ -334,10 +352,28 @@ function nextMilestone(milestone: string | undefined): string {
   return 'keep asking questions';
 }
 
-function phaseSparseReminder(planFilePath: PlanFilePath, phase: string, agent: Agent): string {
+function phaseSparseReminder(
+  planFilePath: PlanFilePath,
+  phase: string,
+  agent: Agent,
+): Promise<string> {
+  return buildPhaseSparseReminder(planFilePath, phase, agent);
+}
+
+async function buildPhaseSparseReminder(
+  planFilePath: PlanFilePath,
+  phase: string,
+  agent: Agent,
+): Promise<string> {
   const engine = agent.planMode.ultraEngine;
   const score = engine.interviewState.ambiguityScore;
   const scoreText = score ? `score=${score.overallScore.toFixed(2)}` : 'scoring pending';
-  const body = `Ultra Plan mode — ${phase.toUpperCase()} phase (${scoreText}). ${PHASE_INSTRUCTIONS[phase]?.split('\n')[0] ?? ''}`;
+  let body = `Ultra Plan mode — ${phase.toUpperCase()} phase (${scoreText}). ${PHASE_INSTRUCTIONS[phase]?.split('\n')[0] ?? ''}`;
+
+  if (phase === 'interview') {
+    const readiness = await engine.interviewReadiness();
+    body = `${body}\n\n${formatInterviewReadinessGuide(readiness)}`;
+  }
+
   return withPlanFileFooter(body, planFilePath);
 }
