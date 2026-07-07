@@ -24,6 +24,8 @@ export interface UltraworkEvidenceSeed {
   readonly coverageMatrixPath: string;
   readonly reviewLoopPath: string;
   readonly learnLedgerPath: string;
+  readonly workflowReportPath: string;
+  readonly workflowStagesPath: string;
 }
 
 export type ParsedUltraworkCommand =
@@ -119,6 +121,14 @@ const ULTRAWORK_KNOWLEDGE_MAP_GUIDANCE = [
   '- Attach non-code context such as docs, papers, screenshots, transcripts, MCP/plugin manifests, and prior QA evidence as linked evidence nodes instead of dumping raw files into the turn.',
   '- Label important relationships as EXTRACTED, INFERRED, or AMBIGUOUS, and resolve AMBIGUOUS edges with targeted reads, tests, or TUI observation before making architectural claims.',
   '- Prefer path/affected-style questions first: what files, tests, tools, and UX surfaces are connected to this change, and what minimal evidence proves those edges?',
+].join('\n');
+const ULTRAWORK_WORKFLOW_REPORT_GUIDANCE = [
+  'Ultrawork workflow transparency harness:',
+  '- Every Ultrawork run must leave a project-local workflow report under the evidence root: `workflow-report.md` plus machine ledger `workflow-stages.json`.',
+  '- The harness records stage transitions automatically. The agent must fill each stage narrative before leaving that stage — never keep the only proof in chat.',
+  '- Each stage section must cover: what happened, artifacts/paths, decisions, and open gaps.',
+  '- Link the workflow report to the LLM Wiki run page (`.superliora/wiki/runs/<runId>.md`) and update both during Learn with verified durable findings.',
+  '- The final chat report must match the workflow report and knowledge persistence ledger; contradictions are audit failures.',
 ].join('\n');
 const ULTRAWORK_MEMORY_WIKI_LEDGER_GUIDANCE = [
   'Memory / LLM Wiki observability:',
@@ -328,6 +338,7 @@ export function buildUltraworkPrompt(
       : []),
     `- ${ULTRAWORK_LEAN_CONTEXT_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_KNOWLEDGE_MAP_GUIDANCE.replaceAll('\n', '\n  ')}`,
+    `- ${ULTRAWORK_WORKFLOW_REPORT_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_MEMORY_WIKI_LEDGER_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_WEB_RESEARCH_GUIDANCE.replaceAll('\n', '\n  ')}`,
     `- ${ULTRAWORK_GUI_USE_GUIDANCE.replaceAll('\n', '\n  ')}`,
@@ -365,6 +376,9 @@ function ultraworkEvidenceSeedPromptLines(options: UltraworkPromptOptions): stri
       `  - coverage_matrix_seed: ${options.evidenceSeed.coverageMatrixPath}`,
       `  - expert_review_loop_seed: ${options.evidenceSeed.reviewLoopPath}`,
       `  - knowledge_persistence_ledger: ${options.evidenceSeed.learnLedgerPath}`,
+      `  - workflow_report: ${options.evidenceSeed.workflowReportPath}`,
+      `  - workflow_stages: ${options.evidenceSeed.workflowStagesPath}`,
+      '- The harness appends stage transitions to workflow-stages.json and the timeline in workflow-report.md. Fill each stage narrative before leaving that stage.',
       '- During Learn, update the ledger with liora_recall and llm_wiki actions: wrote, skipped, or blocked, including path/id/evidence.',
     ];
   }

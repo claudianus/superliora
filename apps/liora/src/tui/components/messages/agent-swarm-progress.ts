@@ -215,6 +215,25 @@ interface AgentSwarmResultStatus {
   readonly failureText?: string;
 }
 
+interface UltraSwarmIntegrationReportAgent {
+  readonly expertId: string;
+  readonly name: string;
+  readonly emoji?: string;
+  readonly phase: string;
+  readonly focus?: string;
+  readonly outcome: string;
+  readonly verdict: string;
+  readonly summary?: string;
+  readonly findings?: string;
+  readonly risksAndGaps?: string;
+}
+
+interface UltraSwarmIntegrationReport {
+  readonly headline: string;
+  readonly agents: readonly UltraSwarmIntegrationReportAgent[];
+  readonly openGaps?: string;
+}
+
 export interface AgentSwarmResultSummary {
   readonly completed: number;
   readonly failed: number;
@@ -280,6 +299,7 @@ export class AgentSwarmProgressComponent implements Component {
   private lastFrameTickMs = 0;
   private readonly opsFeed: SwarmOpsFeedEntry[] = [];
   private readonly expertSlotById = new Map<string, string>();
+  private integrationReport: UltraSwarmIntegrationReport | undefined;
 
   constructor(options: AgentSwarmProgressOptions) {
     this.description = options.description;
@@ -557,6 +577,10 @@ export class AgentSwarmProgressComponent implements Component {
         this.cancelMember(member, nowMs);
       }
     }
+    const integrationReport = parseUltraSwarmIntegrationReport(output);
+    if (integrationReport !== undefined) {
+      this.integrationReport = integrationReport;
+    }
     this.startAnimationIfNeeded();
     return true;
   }
@@ -627,6 +651,7 @@ export class AgentSwarmProgressComponent implements Component {
     const teamContent = this.renderGrid(width, this.availableGridHeight?.(), snapshots, nowMs);
     const feedLimit = profile === 'tiny' ? SWARM_OPS_FEED_RENDER_LINES_TINY : SWARM_OPS_FEED_RENDER_LINES;
     const feedContent = this.renderOpsFeedContent(width, feedLimit);
+    const reportContent = this.renderIntegrationReportContent(width);
     const statusFooter = ['', this.renderStatusLine(width), ''];
 
     const teamBody = teamContent.length > 0
@@ -637,6 +662,7 @@ export class AgentSwarmProgressComponent implements Component {
       ...missionContent,
       '',
       ...teamBody,
+      ...(reportContent.length > 0 ? ['', ...reportContent] : []),
       '',
       feedHeader,
       ...feedContent,
@@ -680,6 +706,37 @@ export class AgentSwarmProgressComponent implements Component {
       summary.failed > 0 ? `${String(summary.failed)} failed` : undefined,
     ].filter((segment): segment is string => segment !== undefined);
     return segments.length > 0 ? segments.join(' · ') : `${String(total)} agents`;
+  }
+
+  private renderIntegrationReportContent(width: number): string[] {
+    const report = this.integrationReport;
+    if (report === undefined) return [];
+
+    const lines: string[] = [chalk.hex(this.colors.textDim)('report')];
+    if (report.headline.length > 0) {
+      lines.push(chalk.hex(this.colors.textDim)(truncateToWidth(report.headline, width)));
+    }
+
+    for (const agent of report.agents) {
+      const emojiPrefix = agent.emoji === undefined || agent.emoji.length === 0 ? '' : `${agent.emoji} `;
+      const header = `${emojiPrefix}${agent.name} · ${agent.phase} · ${agent.verdict}`;
+      lines.push(chalk.hex(this.colors.text)(truncateToWidth(header, width)));
+      const detail = agent.summary ?? agent.findings ?? agent.risksAndGaps;
+      if (detail !== undefined && detail.length > 0) {
+        lines.push(chalk.hex(this.colors.textDim)(truncateToWidth(`  ${detail}`, width)));
+      }
+    }
+
+    if (report.openGaps !== undefined && report.openGaps.length > 0) {
+      lines.push(chalk.hex(this.colors.textDim)(truncateToWidth('open gaps', width)));
+      for (const gapLine of report.openGaps.split('\n')) {
+        const trimmed = gapLine.trim();
+        if (trimmed.length === 0) continue;
+        lines.push(chalk.hex(this.colors.textDim)(truncateToWidth(`  ${trimmed}`, width)));
+      }
+    }
+
+    return lines;
   }
 
   private indentLines(lines: readonly string[], width: number): string[] {
@@ -1510,6 +1567,46 @@ function parseUltraSwarmXmlResultStatuses(output: string): AgentSwarmResultStatu
     tagPattern.lastIndex = closeIndex + '</expert>'.length;
   }
   return result;
+}
+
+function parseUltraSwarmIntegrationReport(output: string): UltraSwarmIntegrationReport | undefined {
+  const reportMatch = /<integration_report\b([^>]*)>([\s\S]*?)<\/integration_report>/i.exec(output);
+  if (reportMatch === null) return undefined;
+
+  const inner = reportMatch[2] ?? '';
+  const headline = xmlElementText(inner, 'headline') ?? '';
+  const openGaps = xmlElementText(inner, 'open_gaps');
+  const agents: UltraSwarmIntegrationReportAgent[] = [];
+  const agentPattern = /<agent\b([^>]*)>([\s\S]*?)<\/agent>/gi;
+  let agentMatch: RegExpExecArray | null;
+  while ((agentMatch = agentPattern.exec(inner)) !== null) {
+    const attrs = agentMatch[1] ?? '';
+    const body = agentMatch[2] ?? '';
+    const expertId = xmlAttribute(attrs, 'expert_id');
+    const name = xmlAttribute(attrs, 'name');
+    if (expertId === undefined || name === undefined) continue;
+    agents.push({
+      expertId,
+      name,
+      emoji: xmlAttribute(attrs, 'emoji'),
+      phase: xmlAttribute(attrs, 'phase') ?? 'unknown',
+      focus: xmlAttribute(attrs, 'focus'),
+      outcome: xmlAttribute(attrs, 'outcome') ?? 'unknown',
+      verdict: xmlAttribute(attrs, 'verdict') ?? 'UNKNOWN',
+      summary: xmlElementText(body, 'summary'),
+      findings: xmlElementText(body, 'findings'),
+      risksAndGaps: xmlElementText(body, 'risks_and_gaps'),
+    });
+  }
+
+  if (agents.length === 0 && headline.length === 0) return undefined;
+  return { headline, agents, openGaps };
+}
+
+function xmlElementText(xml: string, tag: string): string | undefined {
+  const match = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(xml);
+  const value = match?.[1]?.trim();
+  return value === undefined || value.length === 0 ? undefined : value;
 }
 
 function stripUltraSwarmMetadata(body: string): string {

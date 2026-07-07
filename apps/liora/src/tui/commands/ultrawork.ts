@@ -444,6 +444,8 @@ export function createUltraworkEvidenceSeed(
     coverageMatrix,
     evidenceFiles: { root, ...files },
   });
+  const workflowReportPath = join(root, 'workflow-report.md');
+  const workflowStagesPath = join(root, 'workflow-stages.json');
   writeFileSync(
     join(workDir, files.knowledgeMapPath),
     `${JSON.stringify({
@@ -516,12 +518,25 @@ export function createUltraworkEvidenceSeed(
           path: wikiArtifacts.wikiRunPath,
           evidence: wikiArtifacts.wikiRunPath,
         },
+        {
+          target: 'workflow_report',
+          action: 'wrote',
+          reason: 'Workflow transparency harness seeds workflow-report.md and workflow-stages.json at run start.',
+          path: workflowReportPath,
+          evidence: workflowReportPath,
+        },
       ],
     }, null, 2)}\n`,
     'utf8',
   );
 
-  return { root, ...wikiArtifacts, ...files };
+  return {
+    root,
+    ...wikiArtifacts,
+    ...files,
+    workflowReportPath,
+    workflowStagesPath,
+  };
 }
 
 function renderExpertReviewLoopSeed(

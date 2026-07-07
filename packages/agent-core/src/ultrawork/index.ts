@@ -21,3 +21,12 @@ export {
   reconcileUltraworkPlanAfterResume,
 } from './mirror-reconcile';
 export { readUltraworkMirrorFromDisk } from './run-store';
+export {
+  injectUltraworkWorkflowStageReminder,
+  mirrorUltraworkWorkflowStage,
+  recordUltraworkWorkflowStage,
+  resolveUltraworkWorkflowReportPaths,
+  seedUltraworkWorkflowReport,
+  WORKFLOW_REPORT_FILENAME,
+  WORKFLOW_STAGES_FILENAME,
+} from './workflow-report';

@@ -1150,6 +1150,7 @@ describe('current builtin collaboration tools', () => {
     expect(result.output).toContain('phase="implement"');
     expect(result.output).toContain('phase="review"');
     expect(result.output).toContain('<integration_handoff>');
+    expect(result.output).toContain('<integration_report');
   });
 
   it('UltraSwarm attaches critic edges to review experts and retries blocked reviews once', async () => {

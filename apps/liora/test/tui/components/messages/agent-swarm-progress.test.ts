@@ -259,11 +259,20 @@ describe('AgentSwarmProgressComponent', () => {
     component.applyResult([
       '<ultra_swarm_result run_id="uw_1">',
       '<expert expert_id="security-appsec-engineer" name="AppSec Engineer" division="security" phase="review" focus="review" outcome="completed" verdict="PASS" evidence_ids="ev_1,ev_2">VERDICT: PASS</expert>',
+      '<integration_report run_id="uw_1">',
+      '<headline>1 completed · 1 PASS</headline>',
+      '<agent expert_id="security-appsec-engineer" name="AppSec Engineer" emoji="🔒" phase="review" focus="review" outcome="completed" verdict="PASS">',
+      '<summary>Reviewed auth middleware; no critical issues.</summary>',
+      '</agent>',
+      '</integration_report>',
       '</ultra_swarm_result>',
     ].join('\n'));
 
     output = renderText(component);
     expect(output).toContain('AppSec Engineer: PASS');
+    expect(output).toContain('report');
+    expect(output).toContain('AppSec Engineer · review · PASS');
+    expect(output).toContain('Reviewed auth middleware');
     expect(output).not.toContain('ev_1');
     expect(output).not.toContain('DONE');
   });

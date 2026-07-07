@@ -23,6 +23,7 @@ import type {
   UltraworkPlanRecoveryContext,
 } from './types';
 import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor } from './recovery';
+import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport } from './workflow-report';
 
 export class UltraworkMode {
   private machine: UltraworkRunStateMachine | undefined;
@@ -107,6 +108,18 @@ export class UltraworkMode {
     this.interruptReason = undefined;
     this.modeEnabled = true;
     this.agent.records.logRecord({ type: 'ultrawork.mode', enabled: true });
+    try {
+      seedUltraworkWorkflowReport({
+        workDir: input.activation.workDir,
+        evidenceRoot: input.activation.evidenceRoot,
+        runId: input.id,
+        objective: input.objective,
+        createdAt: this.machine.snapshot().createdAt,
+        source: input.activation.source,
+      });
+    } catch (error) {
+      this.agent.log.warn('ultrawork workflow report seed failed', { runId: input.id, error });
+    }
     const run = this.advance('plan', 'Ultrawork started');
     this.writeCheckpoint({ flush: true });
     return run;
@@ -280,6 +293,17 @@ export class UltraworkMode {
       to,
       reason,
     });
+    if (this.activation !== undefined && from !== to) {
+      const input = {
+        workDir: this.activation.workDir,
+        evidenceRoot: this.activation.evidenceRoot,
+        run,
+        from,
+        to,
+        reason,
+      };
+      mirrorUltraworkWorkflowStage(this.agent, input);
+    }
   }
 
   private writeCheckpoint(options: { flush?: boolean } = {}): void {

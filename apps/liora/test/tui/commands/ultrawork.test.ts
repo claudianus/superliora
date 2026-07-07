@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { seedUltraworkWorkflowReport } from '../../../../../packages/agent-core/src/ultrawork/workflow-report';
 import {
   buildUltraworkCoverageMatrix,
   buildUltraworkPrompt,
@@ -36,14 +37,31 @@ function makeHost(
 ) {
   const session = {
     createGoal: vi.fn(async () => ({})),
-    createUltraworkRun: vi.fn(async () => ({
-      id: 'run-test',
-      objective: 'test',
-      status: 'running',
-      stage: 'plan',
-      createdAt: '2026-07-06T00:00:00.000Z',
-      updatedAt: '2026-07-06T00:00:00.000Z',
-    })),
+    createUltraworkRun: vi.fn(async (payload: {
+      id: string;
+      objective: string;
+      evidenceRoot: string;
+      workDir: string;
+      source: string;
+      replaceGoal: boolean;
+    }) => {
+      seedUltraworkWorkflowReport({
+        workDir: payload.workDir,
+        evidenceRoot: payload.evidenceRoot,
+        runId: payload.id,
+        objective: payload.objective,
+        createdAt: new Date().toISOString(),
+        source: payload.source,
+      });
+      return {
+        id: payload.id,
+        objective: payload.objective,
+        status: 'running',
+        stage: 'plan',
+        createdAt: '2026-07-06T00:00:00.000Z',
+        updatedAt: '2026-07-06T00:00:00.000Z',
+      };
+    }),
     getUltraworkRun: vi.fn(async () => null),
     getStatus: vi.fn(async () => ({
       planMode: overrides.planMode ?? false,
@@ -228,7 +246,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('compact project knowledge map');
     expect(prompt).toContain('EXTRACTED, INFERRED, or AMBIGUOUS');
     expect(prompt).toContain('path/affected-style questions');
-    expect(prompt).toContain('Memory / LLM Wiki observability');
+    expect(prompt).toContain('Ultrawork workflow transparency harness');
+    expect(prompt).toContain('workflow-report.md');
     expect(prompt).toContain('Do not silently claim Learn');
     expect(prompt).toContain('Knowledge persistence ledger');
     expect(prompt).toContain('liora_recall');
@@ -350,6 +369,8 @@ describe('buildUltraworkPrompt', () => {
         coverageMatrixPath: '.superliora/evidence/ultrawork-runs/run-1/capability-coverage-matrix.json',
         reviewLoopPath: '.superliora/evidence/ultrawork-runs/run-1/expert-review-loop.md',
         learnLedgerPath: '.superliora/evidence/ultrawork-runs/run-1/knowledge-persistence-ledger.json',
+        workflowReportPath: '.superliora/evidence/ultrawork-runs/run-1/workflow-report.md',
+        workflowStagesPath: '.superliora/evidence/ultrawork-runs/run-1/workflow-stages.json',
       },
     });
 
@@ -365,6 +386,9 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain(
       'knowledge_persistence_ledger: .superliora/evidence/ultrawork-runs/run-1/knowledge-persistence-ledger.json',
     );
+    expect(prompt).toContain('workflow_report: .superliora/evidence/ultrawork-runs/run-1/workflow-report.md');
+    expect(prompt).toContain('workflow_stages: .superliora/evidence/ultrawork-runs/run-1/workflow-stages.json');
+    expect(prompt).toContain('Fill each stage narrative before leaving that stage');
   });
 
   it('records blocked evidence persistence when the seed cannot be written', () => {
@@ -470,6 +494,8 @@ describe('handleUltraworkCommand', () => {
       const coverageMatrixPath = join(runRoot, 'capability-coverage-matrix.json');
       const reviewLoopPath = join(runRoot, 'expert-review-loop.md');
       const learnLedgerPath = join(runRoot, 'knowledge-persistence-ledger.json');
+      const workflowReportPath = join(runRoot, 'workflow-report.md');
+      const workflowStagesPath = join(runRoot, 'workflow-stages.json');
 
       for (const path of [
         wikiIndexPath,
@@ -479,12 +505,16 @@ describe('handleUltraworkCommand', () => {
         coverageMatrixPath,
         reviewLoopPath,
         learnLedgerPath,
+        workflowReportPath,
+        workflowStagesPath,
       ]) {
         expect(existsSync(path)).toBe(true);
       }
 
       expect(existsSync(join(runRoot, 'llm-wiki.md'))).toBe(false);
-      expect(readFileSync(wikiRunPath, 'utf8')).toContain('Current Understanding');
+      expect(readFileSync(workflowReportPath, 'utf8')).toContain('mandatory transparency ledger');
+      expect(readFileSync(workflowStagesPath, 'utf8')).toContain('ultrawork-workflow-stages');
+      expect(readFileSync(wikiRunPath, 'utf8')).toContain('workflow-report.md');
       expect(readFileSync(wikiRunPath, 'utf8')).toContain('.superliora/wiki/index.md');
       expect(readFileSync(wikiIndexPath, 'utf8')).toContain('This project-local wiki stores human-reviewable');
       expect(readFileSync(wikiRunPath, 'utf8')).toContain('Next Retrieval Hints');

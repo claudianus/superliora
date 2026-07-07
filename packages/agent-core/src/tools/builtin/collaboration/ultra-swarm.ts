@@ -48,6 +48,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
 import type { ExpertAssignment, ExpertSwarmPlan } from '../../../expert-agents/types';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
+import { buildUltraSwarmIntegrationReportXml } from './ultra-swarm-integration-report';
 import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 import { buildExpertSwarmExecutionFooter } from '../../../expert-agents/expert-persona';
@@ -1282,7 +1283,10 @@ function renderUltraSwarmResults(
     );
   }
 
-  lines.push('<integration_handoff>Parent agent must integrate the accepted specialist handoffs into product-file changes and verification evidence.</integration_handoff>');
+  lines.push(buildUltraSwarmIntegrationReportXml(rendered, runId));
+  lines.push(
+    '<integration_handoff>Read integration_report for per-agent work summaries. Parent agent must integrate accepted specialist handoffs into product-file changes and verification evidence.</integration_handoff>',
+  );
   lines.push('</ultra_swarm_result>');
   return lines.join('\n');
 }

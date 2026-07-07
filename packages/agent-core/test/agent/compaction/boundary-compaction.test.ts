@@ -41,6 +41,7 @@ function buildUltraSwarmXml(expertCount: number, bodySize: number): string {
     );
   }
   lines.push(
+    '<integration_report run_id="run-test-1"><headline>summary</headline></integration_report>',
     '<integration_handoff>Parent agent must integrate the accepted specialist handoffs into product-file changes and verification evidence.</integration_handoff>',
     '</ultra_swarm_result>',
   );

@@ -436,6 +436,8 @@ ${input.objective}
 - Capability Coverage Matrix: ${input.evidenceFiles.coverageMatrixPath}
 - Expert Review Loop: ${input.evidenceFiles.reviewLoopPath}
 - Knowledge persistence ledger: ${input.evidenceFiles.learnLedgerPath}
+- Workflow report: ${input.evidenceFiles.root}/workflow-report.md
+- Workflow stages ledger: ${input.evidenceFiles.root}/workflow-stages.json
 
 ## Capability Coverage
 
