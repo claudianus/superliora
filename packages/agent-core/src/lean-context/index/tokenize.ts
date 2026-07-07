@@ -37,7 +37,7 @@ export function tokenize(text: string): string[] {
 }
 
 export function termFrequency(tokens: readonly string[]): Record<string, number> {
-  const tf: Record<string, number> = {};
+  const tf: Record<string, number> = Object.create(null) as Record<string, number>;
   for (const token of tokens) {
     tf[token] = (tf[token] ?? 0) + 1;
   }

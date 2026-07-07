@@ -15,7 +15,7 @@ export async function readJsonFile<T>(kaos: Kaos, path: string): Promise<T | und
 export async function writeJsonFile(kaos: Kaos, path: string, value: unknown): Promise<void> {
   const slash = path.lastIndexOf('/');
   if (slash > 0) {
-    await kaos.mkdir(path.slice(0, slash), { parents: true });
+    await kaos.mkdir(path.slice(0, slash), { parents: true, existOk: true });
   }
   await kaos.writeText(path, `${JSON.stringify(value, null, 2)}\n`);
 }
@@ -39,7 +39,7 @@ export async function saveIndexArtifacts(
   bm25: Bm25IndexData,
   graph: GraphIndexData,
 ): Promise<void> {
-  await kaos.mkdir(indexDir, { parents: true });
+  await kaos.mkdir(indexDir, { parents: true, existOk: true });
   await writeJsonFile(kaos, manifestPath(indexDir), manifest);
   await writeJsonFile(kaos, bm25Path(indexDir), bm25);
   await writeJsonFile(kaos, graphPath(indexDir), graph);

@@ -78,6 +78,17 @@ describe('lean context benchmark harness', () => {
     expect(hits[0]?.chunk.displayPath).toContain('packages/agent-core/src/foo.ts');
   });
 
+  it('indexes TypeScript constructor tokens without prototype collisions', () => {
+    const chunks = chunkFileContent(
+      '/workspace/apps/liora/src/widget.ts',
+      'apps/liora/src/widget.ts',
+      'export class Widget { constructor(private readonly id: string) {} }',
+    );
+    const index = buildBm25Index(chunks);
+    expect(index.chunkCount).toBeGreaterThan(0);
+    expect(searchBm25(index, 'constructor', 5).length).toBeGreaterThan(0);
+  });
+
   it('builds workspace index artifacts under .superliora/index', async () => {
     const files = {
       '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts': [

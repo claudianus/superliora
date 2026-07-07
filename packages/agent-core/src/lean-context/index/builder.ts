@@ -146,8 +146,15 @@ export async function queryIndexedPaths(
   query: string,
   limit = 20,
 ): Promise<readonly string[]> {
-  const indexDir = workspaceIndexDir(workspace);
-  const bm25 = await loadBm25Index(kaos, indexDir);
+  const bm25 = await loadBm25Index(kaos, workspaceIndexDir(workspace));
+  return queryIndexedPathsFromBm25(bm25, query, limit);
+}
+
+export function queryIndexedPathsFromBm25(
+  bm25: Bm25IndexData | undefined,
+  query: string,
+  limit = 20,
+): readonly string[] {
   if (bm25 === undefined || bm25.chunkCount === 0) return [];
   return topPathsFromHits(searchBm25(bm25, query, limit * 3), limit);
 }
