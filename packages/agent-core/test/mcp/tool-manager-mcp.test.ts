@@ -21,6 +21,9 @@ function fakeAgent(calls: unknown[] = []): Agent {
     config: {
       data: () => ({ provider: undefined }),
     },
+    emitEvent(event: unknown) {
+      calls.push(event);
+    },
     goal: {
       getGoal: () => ({ goal: null }),
     },
@@ -256,6 +259,45 @@ describe('ToolManager MCP integration', () => {
       { name: 'mcp__s__noop', active: true },
     ]);
     expect(tm.loopTools.map((t) => t.name)).toEqual(['mcp__s__echo', 'mcp__s__noop']);
+  });
+
+  it('registers a synthetic auth tool when a server enters needs-auth', async () => {
+    const calls: unknown[] = [];
+    const tm = new ToolManager(fakeAgent(calls));
+    tm.setActiveTools(['mcp__*']);
+    const mcp = {
+      oauthService: { authorize: async () => ({}) },
+      getRemoteServerUrl: () => 'https://example.test/mcp',
+      reconnect: async () => undefined,
+      resolved: () => undefined,
+    };
+
+    (tm as any).registerNeedsAuthMcpServer(mcp, { name: 'github', status: 'needs-auth' });
+
+    expect(tm.loopTools.map((tool) => tool.name)).toContain('mcp__github__authenticate');
+    expect(calls).toContainEqual(
+      expect.objectContaining({ type: 'tool.list.updated', reason: 'mcp.connected', serverName: 'github' }),
+    );
+  });
+
+  it('emits disconnect and failure events when MCP server status changes', async () => {
+    const calls: unknown[] = [];
+    const tm = new ToolManager(fakeAgent(calls));
+    tm.setActiveTools(['mcp__*']);
+    const client = fakeClient();
+    tm.registerMcpServer('srv', client, await discoverTools(client));
+    const tools = await discoverTools(client);
+    const mcp = { resolved: () => ({ client, tools, enabledNames: undefined }) };
+
+    (tm as any).handleMcpServerStatusChange(mcp, { name: 'srv', status: 'disabled' });
+    (tm as any).handleMcpServerStatusChange(mcp, { name: 'srv', status: 'failed' });
+
+    expect(calls).toContainEqual(
+      expect.objectContaining({ type: 'tool.list.updated', reason: 'mcp.disconnected', serverName: 'srv' }),
+    );
+    expect(calls).toContainEqual(
+      expect.objectContaining({ type: 'tool.list.updated', reason: 'mcp.failed', serverName: 'srv' }),
+    );
   });
 
   it('executing a wrapped MCP tool dispatches to client.callTool', async () => {

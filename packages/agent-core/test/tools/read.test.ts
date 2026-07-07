@@ -60,7 +60,26 @@ function readLinesFromContent(content: string): Kaos['readLines'] {
 }
 
 function withReadStatus(output: string, status: string): string {
-  const note = `<system>${status}</system>`;
+  const renderedLines = output.length === 0 ? 0 : output.split('\n').length;
+  const totalLines = Number(/\bTotal lines in file: (\d+)\./.exec(status)?.[1] ?? '0');
+  const startLine = Number(output.split('\n')[0]?.split('\t')[0] ?? '0');
+  const partial =
+    startLine > 1 ||
+    /Max \d+ lines reached\.|Max \d+ bytes reached\./.test(status) ||
+    renderedLines < totalLines;
+  const truncated =
+    /Max \d+ lines reached\.|Max \d+ bytes reached\.|Lines \[[^\]]+\] were truncated\./.test(status);
+  const note = [
+    `<tool_meta tool="Read" mode="${renderedLines === 0 ? 'empty' : 'lines'}">`,
+    `truncated: ${String(truncated)}`,
+    `partial: ${String(partial)}`,
+    `summary: ${status}`,
+    `rendered_lines: ${String(renderedLines)}`,
+    `start_line: ${String(startLine)}`,
+    `total_lines: ${String(totalLines)}`,
+    'next_step: Use Edit with exact visible bytes, or call Read again with line_offset/n_lines to page.',
+    '</tool_meta>',
+  ].join('\n');
   return output.length > 0 ? `${output}\n${note}` : note;
 }
 
@@ -562,7 +581,7 @@ describe('ReadTool', () => {
     const result = await executeTool(tool, context({ path: '/tmp/bytes.txt' }));
     const output = toolContentString(result);
 
-    const marker = '\n<system>';
+    const marker = '\n<tool_meta';
     const markerIndex = output.indexOf(marker);
     expect(markerIndex).toBeGreaterThan(0);
     const body = output.slice(0, markerIndex);
@@ -767,7 +786,7 @@ describe('ReadTool', () => {
     const output = toolContentString(result);
     const outputLines = output
       .split('\n')
-      .filter((line) => line.includes('\t') && !line.startsWith('<system>'));
+      .filter((line) => line.includes('\t') && !line.startsWith('<tool_meta'));
 
     expect(output).toContain(`Max ${String(MAX_BYTES)} bytes reached.`);
     expect(outputLines.at(-1)).toContain(String(numLines).padStart(4, '0'));
@@ -949,10 +968,10 @@ describe('ReadTool description and schema parity', () => {
     expect(tool.description).toMatch(/multiple `Read` calls in a single response/i);
   });
 
-  it('explains the trailing <system> status block', () => {
+  it('explains the trailing tool_meta status block', () => {
     const tool = toolWithContent('');
 
-    expect(tool.description).toContain('<system>');
+    expect(tool.description).toContain('<tool_meta');
     // The TS implementation appends the status block after the content.
     expect(tool.description).toMatch(/after the file content/i);
   });

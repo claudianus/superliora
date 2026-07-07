@@ -4,14 +4,17 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BrowserActInputSchema,
   BrowserActTool,
+  BrowserConsoleTool,
   BrowserObserveInputSchema,
   BrowserObserveTool,
+  BrowserScreenshotTool,
   BrowserStatusInputSchema,
   BrowserStatusTool,
   ComputerActInputSchema,
   ComputerActTool,
   ComputerCaptureInputSchema,
   ComputerCaptureTool,
+  ComputerStatusTool,
 } from '../../src/tools/builtin';
 import { executeTool } from './fixtures/execute-tool';
 
@@ -61,6 +64,14 @@ function fakeComputerRuntime(overrides: Partial<ComputerUseRuntime> = {}): Compu
 }
 
 describe('browser-use builtin tools', () => {
+  it('discourages ad-hoc browser script fallbacks in tool descriptions', () => {
+    const runtime = fakeBrowserRuntime();
+    expect(new BrowserStatusTool(runtime).description).toContain('Do not write ad-hoc Puppeteer/Playwright capture scripts');
+    expect(new BrowserObserveTool(runtime).description).toContain('Do not bypass this runtime with handwritten browser scripts');
+    expect(new BrowserActTool(runtime).description).toContain('Do not swap to a handwritten Puppeteer/Playwright flow');
+    expect(new BrowserScreenshotTool(runtime).description).toContain('Prefer this over ad-hoc screenshot scripts');
+  });
+
   it('checks and prepares the bundled browser runtime before manual installs', async () => {
     const status = vi.fn().mockResolvedValue({
       platform: 'darwin',
@@ -123,6 +134,30 @@ describe('browser-use builtin tools', () => {
     }, signal);
     expect(result.isError).toBeFalsy();
   });
+
+  it('returns screenshot content parts with a short label', async () => {
+    const screenshot = vi.fn().mockResolvedValue({ mimeType: 'image/png', base64: 'iVBORw0KGgo=' });
+    const runtime = fakeBrowserRuntime({ screenshot });
+    const tool = new BrowserScreenshotTool(runtime);
+
+    const result = await executeTool(tool, context({ full_page: true }));
+
+    expect(screenshot).toHaveBeenCalledWith({ fullPage: true }, signal);
+    expect(Array.isArray(result.output)).toBe(true);
+    expect(JSON.stringify(result.output)).toContain('Browser screenshot.');
+  });
+
+  it('returns console output with structured JSON text', async () => {
+    const runtime = fakeBrowserRuntime({
+      console: vi.fn().mockResolvedValue({ ok: true, logs: [{ level: 'info', text: 'loaded' }] }),
+    });
+    const tool = new BrowserConsoleTool(runtime);
+
+    const result = await executeTool(tool, context({}));
+
+    expect(result.isError).toBeFalsy();
+    expect(JSON.stringify(result.output)).toContain('\\"logs\\"');
+  });
 });
 
 describe('computer-use builtin tools', () => {
@@ -175,5 +210,18 @@ describe('computer-use builtin tools', () => {
       actions: [{ type: 'press_keys', keys: 'Cmd+Q' }],
       captureAfter: undefined,
     }, signal);
+  });
+
+  it('returns computer runtime status as JSON text', async () => {
+    const runtime = fakeComputerRuntime({
+      status: vi.fn().mockResolvedValue({ installed: true, ready: true, version: 'cua-driver 1.0.0' }),
+    });
+    const tool = new ComputerStatusTool(runtime);
+
+    const result = await executeTool(tool, context({}));
+
+    expect(runtime.status).toHaveBeenCalledWith(signal);
+    expect(result.isError).toBeFalsy();
+    expect(JSON.stringify(result.output)).toContain('cua-driver 1.0.0');
   });
 });

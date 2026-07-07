@@ -234,7 +234,15 @@ describe('current builtin file and shell tools', () => {
       [
         '1\talpha',
         '2\tbeta',
-        '<system>2 lines read from file starting from line 1. Total lines in file: 2. End of file reached.</system>',
+        '<tool_meta tool="Read" mode="lines">',
+        'truncated: false',
+        'partial: false',
+        'summary: 2 lines read from file starting from line 1. Total lines in file: 2. End of file reached.',
+        'rendered_lines: 2',
+        'start_line: 1',
+        'total_lines: 2',
+        'next_step: Use Edit with exact visible bytes, or call Read again with line_offset/n_lines to page.',
+        '</tool_meta>',
       ].join('\n'),
     );
   });

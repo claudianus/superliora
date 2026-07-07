@@ -36,6 +36,7 @@ import { ensureRgPath, rgUnavailableMessage } from '../../support/rg-locator';
 import { literalRulePattern, matchesGlobRuleSubject } from '../../support/rule-match';
 import { ToolResultBuilder } from '../../support/result-builder';
 import { isPrematureCloseError } from '../../support/stream';
+import { appendTextToolMeta } from '../../support/text-result-meta';
 import type { WorkspaceConfig } from '../../support/workspace';
 import GREP_DESCRIPTION from './grep.md?raw';
 
@@ -119,16 +120,18 @@ export const GrepInputSchema = z.object({
     .describe(
       'Also search files excluded by ignore files such as `.gitignore`, `.ignore`, and `.rgignore` (for example `node_modules` or build outputs). Sensitive files (such as `.env`) remain filtered out for safety. Defaults to false.',
     ),
+  sort: z
+    .enum(['path', 'modified_desc'])
+    .optional()
+    .describe(
+      'Ordering for files_with_matches output. path avoids extra stat calls; modified_desc preserves the older newest-first ordering.',
+    ),
 });
 
 export const GrepOutputSchema = z.object({
-  mode: z.enum(['content', 'files_with_matches', 'count_matches']),
-  numFiles: z.number().int().nonnegative(),
-  filenames: z.array(z.string()),
-  content: z.string().optional(),
-  numLines: z.number().int().nonnegative().optional(),
-  numMatches: z.number().int().nonnegative().optional(),
-  appliedLimit: z.number().int().nonnegative().optional(),
+  content: z.string(),
+  truncated: z.boolean(),
+  partial: z.boolean(),
 });
 
 export type GrepInput = z.Infer<typeof GrepInputSchema>;
@@ -286,7 +289,7 @@ export class GrepTool implements BuiltinTool<GrepInput> {
     let orderedLines: ParsedGrepLine[];
     try {
       orderedLines =
-        mode === 'files_with_matches' && !timedOut
+        mode === 'files_with_matches' && !timedOut && (args.sort ?? 'path') === 'modified_desc'
           ? await sortFilesWithMatchesByMtime(keptLines, this.kaos, signal)
           : keptLines;
     } catch (error) {
@@ -368,7 +371,28 @@ export class GrepTool implements BuiltinTool<GrepInput> {
 
     const builder = new ToolResultBuilder();
     builder.write(combined);
-    return builder.ok();
+    const result = builder.ok();
+    return {
+      ...result,
+      output: appendTextToolMeta(result.output, {
+        tool: this.name,
+        mode,
+        truncated: result.truncated || paginationTruncated || bufferTruncated,
+        partial: timedOut || paginationTruncated || bufferTruncated,
+        summary: `Grep returned ${String(orderedLines.length)} record(s) in mode=${mode}.`,
+        stats: {
+          results: orderedLines.length,
+          filtered_sensitive: filteredSensitive.size,
+          offset,
+          head_limit: headLimit,
+          sort: args.sort ?? 'path',
+        },
+        nextStep:
+          mode === 'content'
+            ? 'Use Read for exact file bytes or increase offset/head_limit to continue.'
+            : 'Switch to output_mode=content to inspect exact matching lines.',
+      }),
+    };
   }
 
 }

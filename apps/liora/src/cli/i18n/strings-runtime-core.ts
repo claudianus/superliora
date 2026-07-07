@@ -165,7 +165,7 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.upgrade.githubInstallFailed':
     'warning: failed to update {product} from GitHub: {reason}',
   'cli.runtime.upgrade.browserUseUpToDate':
-    'Browser-use runtimes are up to date (Lightpanda primary, CloakBrowser fallback).',
+    'Browser-use runtimes are up to date (CloakBrowser primary, Camoufox secondary, Lightpanda tertiary where supported).',
   'cli.runtime.upgrade.browserUseUpdateFailed':
     'warning: failed to update browser-use runtimes. Run `liora browser-use update` to retry.',
   'cli.runtime.upgrade.browserUseUpdateFailedDetail':
@@ -370,7 +370,7 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.upgrade.githubInstallFailed':
     '경고: GitHub에서 {product} 업데이트 실패: {reason}',
   'cli.runtime.upgrade.browserUseUpToDate':
-    'Browser-use 런타임이 최신입니다 (Lightpanda 1순위, CloakBrowser 폴백).',
+    'Browser-use 런타임이 최신입니다 (CloakBrowser 1순위, Camoufox 2순위, Lightpanda 지원 시 3순위).',
   'cli.runtime.upgrade.browserUseUpdateFailed':
     '경고: browser-use 런타임 업데이트 실패. `liora browser-use update`로 다시 시도하세요.',
   'cli.runtime.upgrade.browserUseUpdateFailedDetail':

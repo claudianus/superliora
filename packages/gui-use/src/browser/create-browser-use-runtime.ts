@@ -1,10 +1,11 @@
 import type { BrowserUseRuntime } from '../types';
 import { isLightpandaPlatformSupported } from './browser-support';
+import { CamoufoxBrowserRuntime, type CamoufoxBrowserRuntimeOptions } from './camoufox-browser';
 import { CloakBrowserRuntime, type CloakBrowserRuntimeOptions } from './cloak-browser';
 import { LightpandaBrowserRuntime, type LightpandaBrowserRuntimeOptions } from './lightpanda-browser';
 import { TieredBrowserUseRuntime } from './tiered-browser-use';
 
-export type BrowserUseProvider = 'lightpanda' | 'cloakbrowser';
+export type BrowserUseProvider = 'lightpanda' | 'cloakbrowser' | 'camoufox';
 
 export interface BrowserUseRuntimeOptions {
   readonly provider?: BrowserUseProvider | undefined;
@@ -32,8 +33,7 @@ export interface BrowserUseRuntimeOptions {
 export function createBrowserUseRuntime(
   options: BrowserUseRuntimeOptions = {},
 ): BrowserUseRuntime {
-  const provider = resolvePrimaryProvider(options);
-  const fallbackProvider = resolveFallbackProvider(options, provider);
+  const providers = resolveProviderChain(options);
   const shared = {
     installRoot: options.installRoot,
     autoInstall: options.autoInstall,
@@ -42,36 +42,58 @@ export function createBrowserUseRuntime(
     inactiveCleanupMs: options.inactiveCleanupMs,
   };
 
-  const primary = createProviderRuntime(provider, options, shared);
-  if (fallbackProvider === undefined || options.fallbackEnabled === false) {
-    return primary;
-  }
-
-  const fallback = createProviderRuntime(fallbackProvider, options, shared);
-  return new TieredBrowserUseRuntime(primary, fallback, provider, fallbackProvider);
+  return createRuntimeChain(providers, options, shared);
 }
 
 function resolvePrimaryProvider(options: BrowserUseRuntimeOptions): BrowserUseProvider {
   if (options.provider === 'cloakbrowser') return 'cloakbrowser';
+  if (options.provider === 'camoufox') return 'camoufox';
   if (options.provider === 'lightpanda' && !isLightpandaPlatformSupported()) {
     return 'cloakbrowser';
   }
-  return options.provider ?? 'lightpanda';
+  return options.provider ?? 'cloakbrowser';
 }
 
-function resolveFallbackProvider(
+function resolveProviderChain(
   options: BrowserUseRuntimeOptions,
-  provider: BrowserUseProvider,
-): BrowserUseProvider | undefined {
-  if (options.fallbackEnabled === false) return undefined;
+): readonly BrowserUseProvider[] {
+  const primary = resolvePrimaryProvider(options);
+  if (options.fallbackEnabled === false) return [primary];
   if (options.fallbackProvider !== undefined) {
-    if (options.fallbackProvider === provider) return undefined;
+    if (options.fallbackProvider === primary) return [primary];
     if (options.fallbackProvider === 'lightpanda' && !isLightpandaPlatformSupported()) {
-      return provider === 'cloakbrowser' ? undefined : 'cloakbrowser';
+      return [primary];
     }
-    return options.fallbackProvider;
+    return [primary, options.fallbackProvider];
   }
-  return provider === 'lightpanda' ? 'cloakbrowser' : undefined;
+
+  if (primary === 'cloakbrowser') {
+    return isLightpandaPlatformSupported()
+      ? ['cloakbrowser', 'camoufox', 'lightpanda']
+      : ['cloakbrowser', 'camoufox'];
+  }
+  if (primary === 'camoufox') {
+    return ['camoufox', 'cloakbrowser'];
+  }
+  return ['lightpanda', 'cloakbrowser', 'camoufox'];
+}
+
+function createRuntimeChain(
+  providers: readonly BrowserUseProvider[],
+  options: BrowserUseRuntimeOptions,
+  shared: Pick<
+    BrowserUseRuntimeOptions,
+    'installRoot' | 'autoInstall' | 'viewport' | 'allowUnsafeEval' | 'inactiveCleanupMs'
+  >,
+): BrowserUseRuntime {
+  const [provider, fallbackProvider, ...rest] = providers;
+  if (provider === undefined) {
+    return createProviderRuntime('cloakbrowser', options, shared);
+  }
+  const primary = createProviderRuntime(provider, options, shared);
+  if (fallbackProvider === undefined) return primary;
+  const fallback = createRuntimeChain([fallbackProvider, ...rest], options, shared);
+  return new TieredBrowserUseRuntime(primary, fallback, provider, fallbackProvider);
 }
 
 function createProviderRuntime(
@@ -92,6 +114,16 @@ function createProviderRuntime(
       cacheDir: options.cacheDir,
     };
     return new LightpandaBrowserRuntime(lightpandaOptions);
+  }
+
+  if (provider === 'camoufox') {
+    const camoufoxOptions: CamoufoxBrowserRuntimeOptions = {
+      ...shared,
+      headless: options.headless,
+      cacheDir: options.cacheDir,
+      binaryPath: options.binaryPath,
+    };
+    return new CamoufoxBrowserRuntime(camoufoxOptions);
   }
 
   const cloakOptions: CloakBrowserRuntimeOptions = {

@@ -215,6 +215,9 @@ function formatContent(content: Message['content']): string {
 }
 
 function formatText(text: string): string {
+  if (isCurrentTimeReminder(text)) {
+    return '<current-time-reminder>';
+  }
   if (isAutoModeEnterReminder(text)) {
     return '<auto-mode-enter-reminder>';
   }
@@ -253,6 +256,7 @@ function isDeepEqual(left: unknown, right: unknown): boolean {
 
 function normalizeValue(value: unknown, uuidLabels: Map<string, string>): unknown {
   if (typeof value === 'string') {
+    if (isCurrentTimeReminder(value)) return '<current-time-reminder>';
     if (isAutoModeEnterReminder(value)) return '<auto-mode-enter-reminder>';
     if (isAutoModeExitReminder(value)) return '<auto-mode-exit-reminder>';
     if (isPlanModeReminder(value)) return '<plan-mode-reminder>';
@@ -325,6 +329,10 @@ function isPlanModeReminder(value: string): boolean {
     value.includes('Plan mode is active. You MUST NOT make any edits') &&
     value.includes('Plan file:')
   );
+}
+
+function isCurrentTimeReminder(value: string): boolean {
+  return value.includes('<current_time>') && value.includes('Authoritative host clock');
 }
 
 function isAutoModeEnterReminder(value: string): boolean {

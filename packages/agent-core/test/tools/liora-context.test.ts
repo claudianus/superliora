@@ -85,7 +85,7 @@ describe('LioraContextTool', () => {
     const output = toolContentString(result);
 
     expect(result.isError).toBeFalsy();
-    expect(output).toContain('<kimi_context_packet');
+    expect(output).toContain('<liora_context_packet');
     expect(output).toContain('strategy: lean-codegraph');
     expect(output).toContain('knowledge_map: compact-project-map');
     expect(output).toContain('relationship_confidence: EXTRACTED | INFERRED | AMBIGUOUS');

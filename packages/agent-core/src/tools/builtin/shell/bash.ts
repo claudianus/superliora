@@ -35,6 +35,7 @@ import {
   type ExecutableToolResultBuilderResult,
   ToolResultBuilder,
 } from '../../support/result-builder';
+import { appendTextToolMeta } from '../../support/text-result-meta';
 import type { ToolStore } from '../../store';
 import { archiveContent } from '../context/context-archive';
 import { compressShellOutput } from '../context/context-terse';
@@ -402,7 +403,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     args: BashInput,
     result: ExecutableToolResultBuilderResult,
   ): ExecutableToolResultBuilderResult {
-    if (args.compress_output !== true || result.output.length === 0) return result;
+    if (!shouldCompressOutput(args, result.output) || result.output.length === 0) return result;
     const compressed = compressShellOutput({
       stdout: result.output,
       stderr: '',
@@ -413,7 +414,14 @@ export class BashTool implements BuiltinTool<BashInput> {
         ...result,
         output:
           compressed.savedPercent > 0
-            ? `${compressed.text}\n<system>shell output compressed (~${String(compressed.savedPercent)}% saved). Use compress_output=false or LioraExpand after archive for full bytes.</system>`
+            ? appendTextToolMeta(compressed.text, {
+                tool: this.name,
+                mode: 'foreground',
+                truncated: result.truncated,
+                partial: true,
+                summary: `Shell output compressed (~${String(compressed.savedPercent)}% saved).`,
+                nextStep: 'Use compress_output=false to keep raw output next time.',
+              })
             : result.output,
       };
     }
@@ -424,7 +432,17 @@ export class BashTool implements BuiltinTool<BashInput> {
     });
     return {
       ...result,
-      output: `${compressed.text}\n${archived.marker}\nrecover: LioraExpand(id="${archived.id}")`,
+      output: appendTextToolMeta(
+        `${compressed.text}\n${archived.marker}\nrecover: LioraExpand(id="${archived.id}")`,
+        {
+          tool: this.name,
+          mode: 'foreground',
+          truncated: result.truncated,
+          partial: true,
+          summary: `Shell output compressed and archived (~${String(compressed.savedPercent)}% saved).`,
+          nextStep: 'Use LioraExpand to inspect archived overflow, or compress_output=false for raw output.',
+        },
+      ),
     };
   }
 
@@ -445,7 +463,17 @@ export class BashTool implements BuiltinTool<BashInput> {
       `output_path: ${output.outputPath}\n` +
       `output_size_bytes: ${String(output.outputSizeBytes)}\n` +
       `next_step: Use Read with output_path to page through the full log${taskOutputHint}.`;
-    return { ...result, output: `${result.output}${reference}` };
+    return {
+      ...result,
+      output: appendTextToolMeta(`${result.output}${reference}`, {
+        tool: this.name,
+        mode: 'foreground',
+        truncated: result.truncated,
+        partial: result.truncated,
+        summary: result.message,
+        nextStep: 'Use Read with output_path or TaskOutput to inspect saved output.',
+      }),
+    };
   }
 
   private backgroundStartedResult(
@@ -483,7 +511,17 @@ export class BashTool implements BuiltinTool<BashInput> {
       brief: labels.brief,
       truncated: foregroundResult.truncated,
     };
-    return result;
+    return {
+      ...result,
+      output: appendTextToolMeta(result.output as string, {
+        tool: this.name,
+        mode: 'background',
+        truncated: foregroundResult.truncated,
+        partial: foregroundOutput.length > 0,
+        summary: message,
+        nextStep: 'Do not wait on the task; continue working until the completion notification arrives.',
+      }),
+    };
   }
 
   private nextStepLines(
@@ -528,6 +566,13 @@ function foregroundDescription(args: BashInput): string {
   if (explicit !== undefined && explicit.length > 0) return explicit;
   const preview = args.command.length > 60 ? `${args.command.slice(0, 60)}…` : args.command;
   return `Bash: ${preview}`;
+}
+
+function shouldCompressOutput(args: BashInput, output: string): boolean {
+  if (args.compress_output === false) return false;
+  if (args.compress_output === true) return true;
+  if (output.length < 4_000) return false;
+  return /\b(?:pnpm|npm|yarn|vitest|jest|pytest|cargo|go\s+test|docker|git)\b/u.test(args.command);
 }
 
 function closeProcessStdin(proc: KaosProcess): void {

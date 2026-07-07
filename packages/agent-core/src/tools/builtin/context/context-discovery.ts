@@ -8,6 +8,7 @@ import type { ContextFile } from './context-types';
 const MAX_CANDIDATE_FILES = 250;
 const MAX_DISCOVERED_PATHS = 5_000;
 const MAX_FILE_BYTES = 256 * 1024;
+const FILE_READ_CONCURRENCY = 24;
 const S_IFMT = 0o170000;
 const S_IFDIR = 0o040000;
 const S_IFREG = 0o100000;
@@ -57,21 +58,19 @@ export async function collectContextFiles({
   query,
 }: CollectContextFilesOptions): Promise<ContextFile[]> {
   const paths = explicitPaths ?? (await discoverWorkspaceFiles(kaos, workspace, query));
-  const files: ContextFile[] = [];
-  for (const path of paths) {
-    if (files.length >= MAX_CANDIDATE_FILES) break;
-    if (!isCollectablePath(path, explicitPaths !== undefined)) continue;
+  const files = await mapWithConcurrency(paths, FILE_READ_CONCURRENCY, async (path) => {
+    if (!isCollectablePath(path, explicitPaths !== undefined)) return undefined;
     const stat = await kaos.stat(path);
-    if (!isRegularFile(stat.stMode) || stat.stSize > MAX_FILE_BYTES) continue;
+    if (!isRegularFile(stat.stMode) || stat.stSize > MAX_FILE_BYTES) return undefined;
     const content = await kaos.readText(path, { errors: 'strict' });
-    files.push({
+    return {
       path,
       displayPath: relativeDisplayPath(path, workspace),
       content,
       lineCount: countLines(content),
-    });
-  }
-  return files;
+    } satisfies ContextFile;
+  });
+  return files.filter((file): file is ContextFile => file !== undefined).slice(0, MAX_CANDIDATE_FILES);
 }
 
 async function discoverWorkspaceFiles(
@@ -79,33 +78,52 @@ async function discoverWorkspaceFiles(
   workspace: WorkspaceConfig,
   query: string | undefined,
 ): Promise<string[]> {
+  const queryTokens = buildQueryTokens(query);
   const paths: string[] = [];
-  for (const root of [workspace.workspaceDir, ...workspace.additionalDirs]) {
-    if (paths.length >= MAX_DISCOVERED_PATHS) break;
-    await walkDirectory(kaos, root, paths);
+  const queue = [workspace.workspaceDir, ...workspace.additionalDirs].toSorted(
+    (a, b) => directoryPriority(a, workspace, queryTokens) - directoryPriority(b, workspace, queryTokens),
+  );
+  while (queue.length > 0 && paths.length < MAX_DISCOVERED_PATHS) {
+    const dir = queue.shift();
+    if (dir === undefined) break;
+    const discovered = await walkDirectory(kaos, dir, queryTokens);
+    for (const subdir of discovered.directories) {
+      insertDirectoryByPriority(queue, subdir, workspace, queryTokens);
+    }
+    for (const path of discovered.files) {
+      paths.push(path);
+      if (paths.length >= MAX_DISCOVERED_PATHS) break;
+    }
   }
   return paths
     .toSorted(
       (a, b) =>
-        discoveryPriority(a, workspace, query) - discoveryPriority(b, workspace, query) ||
+        discoveryPriority(a, workspace, queryTokens) - discoveryPriority(b, workspace, queryTokens) ||
         a.localeCompare(b),
     )
     .slice(0, MAX_CANDIDATE_FILES);
 }
 
-async function walkDirectory(kaos: Kaos, dir: string, paths: string[]): Promise<void> {
+async function walkDirectory(
+  kaos: Kaos,
+  dir: string,
+  queryTokens: readonly string[],
+): Promise<{ directories: string[]; files: string[] }> {
   let entries: string[] = [];
   try {
     for await (const entry of kaos.iterdir(dir)) {
       entries.push(entry);
     }
   } catch {
-    return;
+    return { directories: [], files: [] };
   }
 
-  entries = entries.toSorted((a, b) => a.localeCompare(b));
+  entries = entries.toSorted(
+    (a, b) => entryPriority(pathe.join(dir, a), queryTokens) - entryPriority(pathe.join(dir, b), queryTokens),
+  );
+  const directories: string[] = [];
+  const files: string[] = [];
   for (const entry of entries) {
-    if (paths.length >= MAX_DISCOVERED_PATHS) return;
     const path = pathe.isAbsolute(entry) ? entry : pathe.join(dir, entry);
     if (EXCLUDED_SEGMENTS.has(pathe.basename(path))) continue;
     let stat;
@@ -115,13 +133,14 @@ async function walkDirectory(kaos: Kaos, dir: string, paths: string[]): Promise<
       continue;
     }
     if (isDirectory(stat.stMode)) {
-      await walkDirectory(kaos, path, paths);
+      directories.push(path);
       continue;
     }
     if (isRegularFile(stat.stMode) && isAutoDiscoverablePath(path)) {
-      paths.push(path);
+      files.push(path);
     }
   }
+  return { directories, files };
 }
 
 function isCollectablePath(path: string, explicit: boolean): boolean {
@@ -151,13 +170,10 @@ function sourcePathPriority(path: string, workspace: WorkspaceConfig): number {
 function discoveryPriority(
   path: string,
   workspace: WorkspaceConfig,
-  query: string | undefined,
+  queryTokens: readonly string[],
 ): number {
   const displayPath = relativeDisplayPath(path, workspace);
-  const normalizedQuery = query === undefined ? '' : normalizeToken(query);
-  const queryMatch =
-    normalizedQuery.length > 0 && normalizeToken(displayPath).includes(normalizedQuery) ? -20 : 0;
-  return queryMatch + sourcePathPriority(path, workspace);
+  return entryPriority(displayPath, queryTokens) + sourcePathPriority(path, workspace);
 }
 
 function shouldSkipPath(path: string): boolean {
@@ -191,4 +207,70 @@ function relativeDisplayPath(path: string, workspace: WorkspaceConfig): string {
 
 function normalizeToken(text: string): string {
   return text.toLowerCase().replaceAll(/[^a-z0-9]+/g, '');
+}
+
+function buildQueryTokens(query: string | undefined): string[] {
+  if (query === undefined) return [];
+  const rawTokens = query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter((token) => token.length >= 2);
+  const normalized = normalizeToken(query);
+  return [...new Set(normalized.length >= 2 ? [...rawTokens, normalized] : rawTokens)];
+}
+
+function directoryPriority(
+  path: string,
+  workspace: WorkspaceConfig,
+  queryTokens: readonly string[],
+): number {
+  return entryPriority(relativeDisplayPath(path, workspace), queryTokens) + sourcePathPriority(path, workspace);
+}
+
+function entryPriority(path: string, queryTokens: readonly string[]): number {
+  const normalizedPath = normalizeToken(path);
+  let score = 0;
+  for (const token of queryTokens) {
+    if (!normalizedPath.includes(token)) continue;
+    score -= token.length >= 6 ? 12 : 7;
+  }
+  const basename = pathe.basename(path).toLowerCase();
+  if (basename === 'src') score -= 10;
+  else if (basename.endsWith('.ts') || basename.endsWith('.tsx')) score -= 4;
+  return score;
+}
+
+function insertDirectoryByPriority(
+  queue: string[],
+  directory: string,
+  workspace: WorkspaceConfig,
+  queryTokens: readonly string[],
+): void {
+  const priority = directoryPriority(directory, workspace, queryTokens);
+  let index = 0;
+  while (
+    index < queue.length &&
+    directoryPriority(queue[index]!, workspace, queryTokens) <= priority
+  ) {
+    index += 1;
+  }
+  queue.splice(index, 0, directory);
+}
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index]!, index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
