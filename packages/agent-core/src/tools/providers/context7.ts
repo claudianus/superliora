@@ -103,12 +103,30 @@ export class SdkContext7Provider implements Context7Provider {
   }
 }
 
+const BRACKETED_PASTE_START = '\u001B[200~';
+const BRACKETED_PASTE_END = '\u001B[201~';
+// oxlint-disable-next-line no-control-regex -- ESC (\x1b) strips pasted terminal control sequences
+const ANSI_CSI = /\u001B\[[0-?]*[ -/]*[@-~]/g;
+
+export function sanitizeApiKeyValue(value: string): string {
+  return value
+    .replaceAll(BRACKETED_PASTE_START, '')
+    .replaceAll(BRACKETED_PASTE_END, '')
+    .replace(ANSI_CSI, '')
+    .trim();
+}
+
 export function resolveContext7ApiKey(input: {
   readonly apiKey?: string | undefined;
   readonly apiKeyEnv?: string | undefined;
 }): string | undefined {
-  if (input.apiKey !== undefined && input.apiKey.length > 0) return input.apiKey;
+  if (input.apiKey !== undefined) {
+    const sanitized = sanitizeApiKeyValue(input.apiKey);
+    if (sanitized.length > 0) return sanitized;
+  }
   const envName = input.apiKeyEnv ?? 'CONTEXT7_API_KEY';
   const fromEnv = process.env[envName];
-  return fromEnv !== undefined && fromEnv.length > 0 ? fromEnv : undefined;
+  if (fromEnv === undefined) return undefined;
+  const sanitized = sanitizeApiKeyValue(fromEnv);
+  return sanitized.length > 0 ? sanitized : undefined;
 }

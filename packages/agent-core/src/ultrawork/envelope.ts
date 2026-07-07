@@ -1,13 +1,25 @@
 import type { Agent } from '../agent';
+import { buildUltraworkResumeCursor } from './recovery';
+import { inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
 import type { UltraworkRunMirror } from './types';
 
-export function buildUltraworkCompactionEnvelope(agent: Agent): string | undefined {
-  const snapshot = captureUltraworkEnvelopeSnapshot(agent);
+export interface UltraworkEnvelopeOptions {
+  readonly compactionBoundary?: boolean;
+}
+
+export function buildUltraworkCompactionEnvelope(
+  agent: Agent,
+  options: UltraworkEnvelopeOptions = {},
+): string | undefined {
+  const snapshot = captureUltraworkEnvelopeSnapshot(agent, options);
   if (snapshot === undefined) return undefined;
   return renderUltraworkCompactionEnvelope(snapshot);
 }
 
-export function captureUltraworkEnvelopeSnapshot(agent: Agent): UltraworkRunMirror | undefined {
+export function captureUltraworkEnvelopeSnapshot(
+  agent: Agent,
+  options: UltraworkEnvelopeOptions = {},
+): UltraworkRunMirror | undefined {
   const ultrawork = agent.ultrawork;
   const run = ultrawork.getRun();
   if (run === null || run.status === 'done' || run.status === 'failed') return undefined;
@@ -24,24 +36,29 @@ export function captureUltraworkEnvelopeSnapshot(agent: Agent): UltraworkRunMirr
       : undefined;
 
   const goal = agent.goal.getGoal().goal;
+  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  const resumeCursor = buildUltraworkResumeCursor(agent, run, planCheckpoint);
+
   return {
     schema: 1,
     run,
     activation: ultrawork.getActivation(),
-    interruptReason: run.status === 'blocked' ? 'Paused during compaction' : undefined,
+    interruptReason:
+      run.status === 'blocked'
+        ? 'Paused during compaction'
+        : options.compactionBoundary === true
+          ? 'Context compacted; continue from checkpoint'
+          : undefined,
     planCheckpoint,
     lastCheckpointAt: run.updatedAt,
     goalStatus: goal?.status,
-    resumeCursor: {
-      stage: run.stage,
-      planPhase: planCheckpoint?.phase,
-      interviewRound: planCheckpoint?.interviewRoundCount,
-      goalStatus: goal?.status,
-    },
+    effectiveStage,
+    compactionBoundary: options.compactionBoundary,
+    resumeCursor,
   };
 }
 
-function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror): string {
+export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror): string {
   const lines = [
     '## Ultrawork Run Envelope',
     'ultrawork_envelope:',
@@ -52,6 +69,12 @@ function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror): string
     `last_updated: ${snapshot.run.updatedAt}`,
   ];
 
+  if (snapshot.compactionBoundary === true) {
+    lines.push('compaction_boundary: true');
+  }
+  if (snapshot.effectiveStage !== undefined && snapshot.effectiveStage !== snapshot.run.stage) {
+    lines.push(`effective_stage: ${snapshot.effectiveStage}`);
+  }
   if (snapshot.interruptReason !== undefined) {
     lines.push(`interrupt_reason: ${snapshot.interruptReason}`);
   }
@@ -74,11 +97,52 @@ function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror): string
     lines.push(`goal_status: ${snapshot.goalStatus}`);
   }
 
+  const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
+  if (progress.doneCount > 0 || progress.pendingCount > 0) {
+    lines.push(
+      `workgraph_progress: ${String(progress.doneCount)} done, ${String(progress.pendingCount)} pending`,
+    );
+  }
+
+  const researchPackCount = snapshot.run.researchRun?.evidencePack !== undefined ? 1 : 0;
+  if (researchPackCount > 0) {
+    lines.push(`research_evidence_packs: ${String(researchPackCount)}`);
+  }
+
+  const teamExperts = snapshot.run.teamPlan?.experts ?? [];
+  if (teamExperts.length > 0) {
+    const activeExperts = teamExperts.filter((expert) => expert.status !== 'done');
+    lines.push(`team_plan_experts: ${String(teamExperts.length)} total, ${String(activeExperts.length)} active`);
+    for (const expert of activeExperts.slice(0, 6)) {
+      lines.push(`- expert ${expert.id}: ${expert.status}`);
+    }
+  }
+
+  if (snapshot.resumeCursor !== undefined) {
+    lines.push('resume_cursor:');
+    lines.push(`- stage: ${snapshot.resumeCursor.stage}`);
+    if (snapshot.resumeCursor.planPhase !== undefined) {
+      lines.push(`- plan_phase: ${snapshot.resumeCursor.planPhase}`);
+    }
+    if (
+      snapshot.resumeCursor.interviewRound !== undefined &&
+      snapshot.resumeCursor.interviewRound > 0
+    ) {
+      lines.push(`- continue_interview_from_round: ${String(snapshot.resumeCursor.interviewRound + 1)}`);
+    }
+    if (snapshot.resumeCursor.workGraphNodeId !== undefined) {
+      lines.push(`- work_graph_node: ${snapshot.resumeCursor.workGraphNodeId}`);
+    }
+    if (snapshot.resumeCursor.goalStatus !== undefined) {
+      lines.push(`- goal_status: ${snapshot.resumeCursor.goalStatus}`);
+    }
+  }
+
   const pendingNodes = snapshot.run.workGraph?.nodes.filter((node) => node.status !== 'done') ?? [];
   if (pendingNodes.length > 0) {
     lines.push(`pending_workgraph_nodes: ${String(pendingNodes.length)}`);
-    for (const node of pendingNodes.slice(0, 6)) {
-      lines.push(`- [${node.status}] ${node.id}: ${node.title}`);
+    for (const node of pendingNodes.slice(0, 12)) {
+      lines.push(`- [${node.status}] ${node.id}: ${node.title} (stage=${node.stage})`);
     }
   }
 
@@ -86,4 +150,42 @@ function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror): string
     'resume_policy: Continue the active Ultrawork run from this checkpoint. Do not restart UltraPlan interview, create a new plan file, or open a fresh Ultrawork run unless the checkpoint is unusable.',
   );
   return lines.join('\n');
+}
+
+export function renderUltraworkRunsMemorySection(snapshot: UltraworkRunMirror): string {
+  const lines = [
+    'ultrawork_runs:',
+    `- run_id=${snapshot.run.id} stage=${snapshot.run.stage} status=${snapshot.run.status}`,
+  ];
+  if (snapshot.effectiveStage !== undefined && snapshot.effectiveStage !== snapshot.run.stage) {
+    lines.push(`  effective_stage=${snapshot.effectiveStage}`);
+  }
+  if (snapshot.resumeCursor?.workGraphNodeId !== undefined) {
+    lines.push(`  resume_node=${snapshot.resumeCursor.workGraphNodeId}`);
+  }
+  const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
+  if (progress.pendingCount > 0) {
+    lines.push(`  pending_nodes=${String(progress.pendingCount)}`);
+  }
+  return lines.join('\n');
+}
+
+export function extractUltraworkRunLines(summary: string): readonly string[] {
+  const lines: string[] = [];
+  let inSection = false;
+  for (const line of summary.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === 'ultrawork_runs:') {
+      inSection = true;
+      continue;
+    }
+    if (inSection) {
+      if (trimmed.length === 0) break;
+      if (/^[a-z_]+:/.test(trimmed) && !trimmed.startsWith('-')) break;
+      if (trimmed.startsWith('-')) {
+        lines.push(trimmed.slice(1).trim());
+      }
+    }
+  }
+  return lines;
 }

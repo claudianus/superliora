@@ -329,6 +329,15 @@ export class UltraworkMode {
     }
   }
 
+  /** Flush the durable mirror immediately (e.g. before context compaction). */
+  flushCheckpoint(): void {
+    if (this.checkpointTimer !== undefined) {
+      clearTimeout(this.checkpointTimer);
+      this.checkpointTimer = undefined;
+    }
+    this.writeCheckpoint({ flush: true });
+  }
+
   private writeCheckpoint(options: { flush?: boolean } = {}): void {
     if (this.machine === undefined) return;
     const run = this.machine.snapshot();

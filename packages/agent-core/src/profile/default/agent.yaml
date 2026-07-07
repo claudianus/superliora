@@ -53,6 +53,7 @@ tools:
   - ExitPlanMode
   - CreateGoal
   - GetGoal
+  - GetCurrentTime
   - SetGoalBudget
   - UpdateGoal
   - mcp__*

@@ -98,6 +98,7 @@ export type CompactionQualityWarningCategory =
   | 'missing_next_actions'
   | 'missing_file_hints'
   | 'missing_failed_attempts'
+  | 'missing_ultrawork_checkpoint'
   | 'placeholder_only_memory'
   | 'prompt_control_recalled'
   | 'token_growth';

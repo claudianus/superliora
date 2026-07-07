@@ -51,6 +51,7 @@ import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
   resolveCompactionBlockRatio,
+  SWARM_MICRO_PRESSURE_RATIO,
   type CompactionStrategy,
 } from './strategy';
 import {
@@ -59,9 +60,16 @@ import {
   type CompactionPlan,
 } from './planner';
 import {
+  buildUltraworkCompactionEnvelope,
+  captureUltraworkEnvelopeSnapshot,
+  extractUltraworkRunLines,
+  renderUltraworkRunsMemorySection,
+} from '../../ultrawork/envelope';
+import {
   mergeCompactionQualityResults,
   validateInitialCompactionSummary,
   validateRenderedCompactionSummary,
+  validateUltraworkCompactionContinuity,
   CompactionQualityTracker,
   type CompactionQualityResult,
 } from './quality';
@@ -88,7 +96,6 @@ import {
   extractSwarmRunsFromMessages,
   renderSwarmRunsMemorySection,
 } from './swarm-memory-extract';
-import { buildUltraworkCompactionEnvelope } from '../../ultrawork/envelope';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
@@ -214,6 +221,10 @@ export class FullCompaction {
         throw new LioraError(ErrorCodes.COMPACTION_UNABLE, 'No prefix that can be compacted in current history.');
       }
       return;
+    }
+    const ultraworkRun = this.agent.ultrawork?.getRun();
+    if (ultraworkRun?.status === 'running') {
+      this.agent.ultrawork.flushCheckpoint();
     }
     this.agent.records.logRecord({
       type: 'full_compaction.begin',
@@ -409,15 +420,33 @@ export class FullCompaction {
 
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
     if (this.compacting) return true;
-    if (this.shouldDeferAutoCompaction()) return false;
-    if (
-      this.lastCompactedTokenCount !== null &&
-      this.tokenCountWithPending <= this.lastCompactedTokenCount
-    ) {
+    if (this.shouldDeferAutoCompaction()) {
+      this.maybeRunSwarmMicroCompaction();
       return false;
     }
-    if (!this.strategy.shouldCompact(this.tokenCountWithPending)) return false;
+    if (this.shouldSkipRecompactUntilGrowth()) return false;
+    const needsCompaction =
+      this.strategy.shouldCompact(this.tokenCountWithPending) ||
+      this.strategy.shouldBlock(this.tokenCountWithPending);
+    if (!needsCompaction) return false;
     return this.beginAutoCompaction(throwOnLimit);
+  }
+
+  private shouldSkipRecompactUntilGrowth(): boolean {
+    if (this.lastCompactedTokenCount === null) return false;
+    if (this.tokenCountWithPending <= this.lastCompactedTokenCount) {
+      return true;
+    }
+    const minGrowthRatio =
+      this.strategy instanceof DefaultCompactionStrategy
+        ? this.strategy.minRecompactGrowthRatio
+        : DEFAULT_COMPACTION_CONFIG.minRecompactGrowthRatio;
+    const maxContextTokens = this.getEffectiveMaxContextTokens();
+    if (minGrowthRatio <= 0 || maxContextTokens <= 0) {
+      return false;
+    }
+    const minGrowth = Math.floor(maxContextTokens * minGrowthRatio);
+    return this.tokenCountWithPending - this.lastCompactedTokenCount < minGrowth;
   }
 
   private shouldDeferAutoCompaction(): boolean {
@@ -428,10 +457,20 @@ export class FullCompaction {
     return this.agent.subagentHost?.hasActiveForegroundChildren?.() === true;
   }
 
-  async ensureBelowHandoffThreshold(signal: AbortSignal): Promise<void> {
+  private maybeRunSwarmMicroCompaction(): void {
+    if (this.agent.ultraSwarmRun === undefined) return;
+    if (this.strategy.shouldBlock(this.tokenCountWithPending)) return;
+    this.agent.microCompaction.detectUnderSwarmPressure(SWARM_MICRO_PRESSURE_RATIO);
+  }
+
+  async ensureBelowHandoffThreshold(
+    signal: AbortSignal,
+    handoffRatio?: number,
+  ): Promise<void> {
     const maxTokens = this.agent.config.modelCapabilities.max_context_tokens;
     if (maxTokens === undefined || maxTokens <= 0) return;
     const triggerRatio =
+      handoffRatio ??
       this.agent.kimiConfig?.loopControl?.compactionTriggerRatio ??
       DEFAULT_COMPACTION_CONFIG.triggerRatio;
     const threshold = Math.floor(maxTokens * triggerRatio);
@@ -744,9 +783,30 @@ export class FullCompaction {
         summary = `${summary.trim()}\n\n${swarmSection}`;
       }
 
-      const ultraworkEnvelope = buildUltraworkCompactionEnvelope(this.agent);
+      const ultraworkSnapshot = captureUltraworkEnvelopeSnapshot(this.agent, {
+        compactionBoundary: true,
+      });
+      const ultraworkEnvelope =
+        ultraworkSnapshot === undefined
+          ? undefined
+          : buildUltraworkCompactionEnvelope(this.agent, { compactionBoundary: true });
       if (ultraworkEnvelope !== undefined) {
         summary = `${summary.trim()}\n\n${ultraworkEnvelope}`;
+        const ultraworkRunsSection = renderUltraworkRunsMemorySection(ultraworkSnapshot!);
+        if (ultraworkRunsSection.length > 0) {
+          summary = `${summary.trim()}\n\n${ultraworkRunsSection}`;
+        }
+        this.agent.telemetry.track('compaction.ultrawork_checkpoint', {
+          run_id: ultraworkSnapshot!.run.id,
+          stage: ultraworkSnapshot!.run.stage,
+          effective_stage: ultraworkSnapshot!.effectiveStage ?? ultraworkSnapshot!.run.stage,
+          pending_nodes: String(
+            ultraworkSnapshot!.run.workGraph?.nodes.filter((node) => node.status !== 'done')
+              .length ?? 0,
+          ),
+          deferred_reason: this.agent.ultraSwarmRun !== undefined ? 'ultra_swarm_active' : 'none',
+          envelope_token_estimate: String(estimateTokens(ultraworkEnvelope)),
+        });
       }
 
       summary = this.renderStructuredV2Summary(summary, plan);
@@ -762,8 +822,12 @@ export class FullCompaction {
         tokensAfter,
       );
       quality = mergeCompactionQualityResults(quality, renderedQuality);
-      if (renderedQuality.critical.length > 0 && !usedEmergencyBackstop) {
-        throw new CompactionQualityError(renderedQuality.critical);
+      if (ultraworkSnapshot !== undefined) {
+        const ultraworkQuality = validateUltraworkCompactionContinuity(summary, ultraworkSnapshot);
+        quality = mergeCompactionQualityResults(quality, ultraworkQuality);
+      }
+      if (quality.critical.length > 0 && !usedEmergencyBackstop) {
+        throw new CompactionQualityError(quality.critical);
       }
 
       const compactionActions = usedEmergencyBackstop
@@ -1389,6 +1453,10 @@ export class FullCompaction {
     const failureItems = mergeStringLists(structuredMemory.failedAttempts, factsToDetails(failures));
     const rawRefItems = mergeStringLists(structuredMemory.rawRefs, plan.rawRefs.map(formatRawRef));
     const swarmRunItems = mergeStringLists(structuredMemory.swarmRuns, extractSwarmRunLines(summary));
+    const ultraworkRunItems = mergeStringLists(
+      structuredMemory.ultraworkRuns,
+      extractUltraworkRunLines(summary),
+    );
 
     return [
       '# SuperLiora Context Compaction v2 Memory',
@@ -1417,6 +1485,8 @@ export class FullCompaction {
       formatStringList(rawRefItems),
       'swarm_runs:',
       formatStringList(swarmRunItems),
+      'ultrawork_runs:',
+      formatStringList(ultraworkRunItems),
       '',
       '## Compacted Narrative',
       summary.trim(),

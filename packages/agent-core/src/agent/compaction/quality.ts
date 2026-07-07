@@ -9,6 +9,7 @@ import type {
   CompactionQualitySignals,
   CompactionQualityWarningCategory,
 } from './types';
+import type { UltraworkRunMirror } from '../../ultrawork/types';
 import {
   isPlaceholderCompactionMemoryItem,
   isPromptControlCompactionMemoryItem,
@@ -134,6 +135,42 @@ export function validateRenderedCompactionSummary(
     warnings: uniqueList(warnings),
     warningCategories: uniqueCategories(warningCategories),
     signals,
+  };
+}
+
+export function validateUltraworkCompactionContinuity(
+  summary: string,
+  snapshot: UltraworkRunMirror,
+): CompactionQualityResult {
+  const critical: string[] = [];
+  const warnings: string[] = [];
+  const warningCategories: CompactionQualityWarningCategory[] = [];
+  const trimmed = summary.trim();
+
+  if (!trimmed.includes(snapshot.run.id)) {
+    critical.push(`summary is missing ultrawork run_id ${snapshot.run.id}`);
+  }
+  if (!trimmed.includes(snapshot.run.stage)) {
+    critical.push(`summary is missing ultrawork stage ${snapshot.run.stage}`);
+  }
+  if (!trimmed.includes('ultrawork_runs:') && !trimmed.includes('ultrawork_envelope:')) {
+    critical.push('summary is missing ultrawork checkpoint section');
+  }
+
+  const memory = parseStructuredCompactionMemory(trimmed);
+  if (usefulItems(memory.nextActions).length === 0) {
+    warnings.push('summary did not preserve next_actions for the active Ultrawork run');
+    warningCategories.push('missing_next_actions');
+  }
+  if (usefulItems(memory.ultraworkRuns).length === 0) {
+    warnings.push('summary is missing structured ultrawork_runs entries');
+    warningCategories.push('missing_ultrawork_checkpoint');
+  }
+
+  return {
+    critical: uniqueList(critical),
+    warnings: uniqueList(warnings),
+    warningCategories: uniqueCategories(warningCategories),
   };
 }
 

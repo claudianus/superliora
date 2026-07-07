@@ -249,6 +249,85 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   );
 }
 
+export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
+  const ultrawork = agent.ultrawork;
+  if (ultrawork === undefined) return;
+  const run = ultrawork.getRun();
+  if (run === null || run.status !== 'running') return;
+
+  const planContext = ultrawork.isModeEnabled()
+    ? capturePlanRecoveryContextFromAgent(agent)
+    : undefined;
+  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
+  const nextActions = suggestNextActions(run, 'Context compacted', planContext, resumeCursor);
+
+  const lines = [
+    '<ultrawork_post_compaction>',
+    'Context was compacted during an active Ultrawork run. Continue from the durable checkpoint — do not restart UltraPlan, UltraResearch, or open a new Ultrawork run.',
+    `Run id: ${run.id}`,
+    `Stage: ${run.stage}`,
+  ];
+  if (effectiveStage !== run.stage) {
+    lines.push(`Effective stage: ${effectiveStage}`);
+  }
+  if (resumeCursor.workGraphNodeId !== undefined) {
+    lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
+
+  const stageGuidance = stageContinuationGuidance(effectiveStage, agent.ultraSwarmRun !== undefined);
+  if (stageGuidance !== undefined) {
+    lines.push(stageGuidance);
+  }
+
+  if (nextActions.length > 0) {
+    lines.push('Next actions:');
+    for (const action of nextActions.slice(0, 3)) {
+      lines.push(`- ${action}`);
+    }
+  }
+  lines.push('</ultrawork_post_compaction>');
+
+  agent.context.appendSystemReminder(lines.join('\n'), {
+    kind: 'injection',
+    variant: 'ultrawork_post_compaction',
+  });
+}
+
+function capturePlanRecoveryContextFromAgent(agent: Agent): UltraworkPlanRecoveryContext | undefined {
+  const planMode = agent.planMode;
+  if (!planMode.isActive || !planMode.isUltraMode) return undefined;
+  return {
+    planFilePath: planMode.planFilePath ?? undefined,
+    phase: planMode.phase,
+    interviewRoundCount: planMode.interviewRoundCount,
+    ultraPlan: planMode.captureStateCheckpoint()?.ultraPlan,
+  };
+}
+
+function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean): string | undefined {
+  if (duringSwarm) {
+    return 'UltraSwarm is active. Let the current wave finish; use integrate/verify after swarm completes.';
+  }
+  switch (stage) {
+    case 'plan':
+      return 'Continue the UltraPlan interview or plan gate from the saved checkpoint. Do not create a new plan file.';
+    case 'research':
+      return 'Refresh or extend the evidence pack as needed. Do not restart UltraResearch from scratch.';
+    case 'staff':
+    case 'swarm':
+      return 'Reconcile team staffing and call UltraSwarm only when ENGAGE is still required.';
+    case 'integrate':
+      return 'Merge specialist output and resolve conflicts before more product edits.';
+    case 'verify':
+      return 'Re-run mechanical checks and capture runtime evidence for open acceptance criteria.';
+    case 'learn':
+      return 'Promote only verified findings to Liora Recall or LLM Wiki.';
+    default:
+      return undefined;
+  }
+}
+
 export function maybeFinishUltraworkRun(agent: Agent): void {
   const ultrawork = agent.ultrawork;
   if (ultrawork === undefined) return;

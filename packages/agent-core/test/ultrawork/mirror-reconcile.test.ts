@@ -1,11 +1,12 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { describe, expect, it } from 'vitest';
 
 import { Agent } from '../../src/agent';
-import { buildUltraworkCompactionEnvelope } from '../../src/ultrawork/envelope';
+import { validateUltraworkCompactionContinuity } from '../../src/agent/compaction/quality';
+import { buildUltraworkCompactionEnvelope, renderUltraworkRunsMemorySection, captureUltraworkEnvelopeSnapshot } from '../../src/ultrawork/envelope';
 import {
   inferUltraPlanPhaseFromPlanContent,
   reconcileUltraworkFromMirror,
@@ -100,11 +101,49 @@ Swarm decision: DEFER - single owner; value: none; owner: main
     agent.planMode.setPhase('interview');
     agent.planMode.ultraEngine.addInterviewRound('Scope?', 'README');
 
-    const envelope = buildUltraworkCompactionEnvelope(agent);
+    const envelope = buildUltraworkCompactionEnvelope(agent, { compactionBoundary: true });
     expect(envelope).toContain('## Ultrawork Run Envelope');
     expect(envelope).toContain('run_id: run-compact');
     expect(envelope).toContain('ultraplan_phase: interview');
+    expect(envelope).toContain('compaction_boundary: true');
+    expect(envelope).toContain('resume_cursor:');
     expect(envelope).toContain('resume_policy:');
+
+    const snapshot = captureUltraworkEnvelopeSnapshot(agent, { compactionBoundary: true });
+    expect(snapshot).not.toBeUndefined();
+    const runsSection = renderUltraworkRunsMemorySection(snapshot!);
+    expect(runsSection).toContain('ultrawork_runs:');
+    expect(runsSection).toContain('run_id=run-compact');
+
+    const quality = validateUltraworkCompactionContinuity(
+      `${envelope}\n\n${runsSection}\nnext_actions:\n- Continue Ultrawork`,
+      snapshot!,
+    );
+    expect(quality.critical).toHaveLength(0);
+  });
+
+  it('flushes ultrawork checkpoint before compaction begins', async () => {
+    const homedir = join(tmpdir(), `ultrawork-flush-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    agent.ultrawork.create({
+      id: 'run-flush',
+      objective: 'Flush checkpoint',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-flush',
+        workDir: homedir,
+      },
+    });
+
+    const mirrorPath = join(
+      homedir,
+      '.superliora/evidence/ultrawork-runs/run-flush/run-state.json',
+    );
+    agent.ultrawork.flushCheckpoint();
+    const mirror = JSON.parse(readFileSync(mirrorPath, 'utf8')) as { run: { id: string } };
+    expect(mirror.run.id).toBe('run-flush');
   });
 
   it('rejects creating a second active ultrawork run', () => {

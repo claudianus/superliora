@@ -66,6 +66,30 @@ describe('MicroCompaction', () => {
     expect(textOf(messages[8])).toBe('lookup result 3');
   });
 
+  it('applies projection cutoff under swarm pressure without cache miss', () => {
+    const ctx = testAgent({
+      microCompaction: {
+        keepRecentMessages: 4,
+        minContentTokens: 1,
+        cacheMissedThresholdMs: 60 * 60 * 1000,
+        minContextUsageRatio: 0.5,
+      },
+    });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+
+    appendMicroToolExchange(ctx, 1);
+    appendMicroToolExchange(ctx, 2);
+    appendMicroToolExchange(ctx, 3);
+
+    vi.spyOn(ctx.agent.context, 'tokenCountWithPending', 'get').mockReturnValue(220_000);
+    ctx.agent.microCompaction.detectUnderSwarmPressure(0.85);
+
+    expect(ctx.agent.microCompaction.compact(ctx.agent.context.messages).length).toBeGreaterThan(0);
+  });
+
   it('does nothing before cache miss threshold', () => {
     vi.useFakeTimers();
     const ctx = testAgent({

@@ -9,6 +9,7 @@ export {
   maybeAdvanceUltraworkStage,
   maybeFinishUltraworkRun,
   injectUltraworkPostSwarmContinuation,
+  injectUltraworkPostCompactionContinuation,
   reconcileUltraworkRunForResume,
 } from './recovery';
 export {
@@ -29,6 +30,8 @@ export {
 export {
   buildUltraworkCompactionEnvelope,
   captureUltraworkEnvelopeSnapshot,
+  extractUltraworkRunLines,
+  renderUltraworkRunsMemorySection,
 } from './envelope';
 export {
   inferUltraPlanPhaseFromPlanContent,

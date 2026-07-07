@@ -23,6 +23,7 @@ const DEFAULT_APPROVE_TOOLS = new Set([
   // Goal control tools have no side effects on the world: GetGoal reads, and
   // mutation tools only record the goal's own runtime state.
   'GetGoal',
+  'GetCurrentTime',
   'SetGoalBudget',
   'UpdateGoal',
 ]);

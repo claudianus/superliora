@@ -9,10 +9,13 @@ import { Agent } from '../../src/agent';
 import { testKaos } from '../fixtures/test-kaos';
 import {
   buildUltraworkRecoveryPrompt,
+  injectUltraworkPostCompactionContinuation,
   injectUltraworkPostSwarmContinuation,
   reconcileUltraworkRunForResume,
 } from '../../src/ultrawork/recovery';
 import { inferEffectiveUltraworkStage } from '../../src/ultrawork/stage-progress';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
+import type { WorkGraph } from '@superliora/protocol';
 
 function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
   return {
@@ -261,6 +264,86 @@ describe('Ultrawork recovery', () => {
     expect(append).toHaveBeenCalledWith(
       expect.stringContaining('<ultrawork_post_swarm>'),
       expect.objectContaining({ variant: 'ultrawork_post_swarm' }),
+    );
+  });
+
+  it('injects post-compaction continuation for an active ultrawork run', () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-compact-cont',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-compact-cont',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('research', 'test');
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+
+    injectUltraworkPostCompactionContinuation(agent);
+    expect(append).toHaveBeenCalledWith(
+      expect.stringContaining('<ultrawork_post_compaction>'),
+      expect.objectContaining({ variant: 'ultrawork_post_compaction' }),
+    );
+    const compactionCall = append.mock.calls.find((call) =>
+      String(call[0]).includes('<ultrawork_post_compaction>'),
+    );
+    const text = String(compactionCall?.[0] ?? '');
+    expect(text).toContain('run-compact-cont');
+    expect(text).toContain('do not restart UltraPlan');
+  });
+
+  it('reinjects ultrawork graph status after compaction even during swarm', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-graph-inject',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-graph-inject',
+        workDir: '/tmp',
+      },
+    });
+    const graph: WorkGraph = {
+      id: 'run-graph-inject:work_graph',
+      runId: 'run-graph-inject',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      nodes: [
+        {
+          id: 'node-1',
+          title: 'Implement API',
+          status: 'running',
+          stage: 'swarm',
+        },
+        {
+          id: 'node-2',
+          title: 'Verify docs',
+          status: 'queued',
+          stage: 'verify',
+        },
+      ],
+    };
+    agent.tools.getStore().set(ULTRAWORK_GRAPH_STORE_KEY, graph);
+    Object.defineProperty(agent, 'ultraSwarmRun', { value: { runId: 'swarm-1' }, configurable: true });
+
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    await agent.injection.injectAfterCompaction();
+
+    expect(append).toHaveBeenCalledWith(
+      expect.stringContaining('<ultrawork_graph_status>'),
+      expect.objectContaining({ variant: 'ultrawork_graph_status' }),
+    );
+    const graphText = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_graph_status>'))?.[0] ?? '',
+    );
+    expect(graphText).toContain('run_id: run-graph-inject');
+    expect(graphText).toContain('node-1');
+    expect(append).toHaveBeenCalledWith(
+      expect.stringContaining('<ultrawork_post_compaction>'),
+      expect.objectContaining({ variant: 'ultrawork_post_compaction' }),
     );
   });
 });

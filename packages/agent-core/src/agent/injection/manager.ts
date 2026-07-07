@@ -1,6 +1,7 @@
 import type { Agent } from '..';
 import { formatTaskList } from '#/tools/background/task-list';
 import { ContextOSInjector } from './context-os';
+import { CurrentTimeInjector } from './current-time';
 import { GoalInjector } from './goal';
 import type { DynamicInjector } from './injector';
 import { LeanContextInjector } from './lean-context-injector';
@@ -12,9 +13,12 @@ import { PremiumQualityInjector } from './premium-quality';
 import { ResponseLanguageInjector } from './response-language';
 import { TodoListReminderInjector } from './todo-list';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph';
+import { injectUltraworkPostCompactionContinuation } from '../../ultrawork/recovery';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
   'Context was compacted but background tasks still run. Do not start duplicates — TaskOutput for results, TaskList to enumerate, TaskStop to cancel.';
+
+const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 6_000;
 
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];
@@ -27,6 +31,7 @@ export class InjectionManager {
 
   constructor(protected readonly agent: Agent) {
     this.injectors = [
+      new CurrentTimeInjector(agent),
       new PluginSessionStartInjector(agent),
       new MemoryInjector(agent),
       new LeanContextInjector(agent),
@@ -59,6 +64,7 @@ export class InjectionManager {
     await this.injectGoal();
     this.injectActiveBackgroundTasks();
     this.injectUltraworkGraphStatus();
+    injectUltraworkPostCompactionContinuation(this.agent);
     await this.inject();
   }
 
@@ -105,18 +111,51 @@ export class InjectionManager {
 
   private injectUltraworkGraphStatus(): void {
     if (this.agent.type !== 'main') return;
-    if (this.agent.ultraSwarmRun !== undefined) return;
     const graph = this.agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
-    if (graph === undefined || graph.nodes.length === 0) return;
+    const run = this.agent.ultrawork?.getRun();
+    const duringSwarm = this.agent.ultraSwarmRun !== undefined;
+    if (graph === undefined || graph.nodes.length === 0) {
+      if (run === null || run === undefined || run.status !== 'running') return;
+    }
+
     const lines = [
       '<ultrawork_graph_status>',
-      'Post-compaction UltraworkGraph node status (continue assigned nodes from here):',
+      duringSwarm
+        ? 'Post-compaction UltraworkGraph status (UltraSwarm active — continue assigned nodes):'
+        : 'Post-compaction UltraworkGraph node status (continue assigned nodes from here):',
     ];
-    for (const node of graph.nodes.slice(0, 32)) {
-      lines.push(`- ${node.id}: ${node.status} — ${node.title}`);
+
+    if (run !== null && run !== undefined) {
+      lines.push(`run_id: ${run.id} | stage: ${run.stage} | status: ${run.status}`);
+      const activation = this.agent.ultrawork.getActivation();
+      if (activation !== undefined) {
+        lines.push(`evidence_root: ${activation.evidenceRoot}`);
+      }
     }
+
+    if (graph !== undefined && graph.nodes.length > 0) {
+      const nodes = duringSwarm
+        ? graph.nodes.filter(
+            (node) =>
+              node.status === 'running' ||
+              node.status === 'blocked' ||
+              node.status === 'queued',
+          )
+        : graph.nodes;
+      const limit = duringSwarm ? 8 : 32;
+      for (const node of nodes.slice(0, limit)) {
+        lines.push(`- ${node.id}: ${node.status} — ${node.title}`);
+      }
+    }
+
     lines.push('</ultrawork_graph_status>');
-    this.agent.context.appendSystemReminder(lines.join('\n'), {
+
+    let text = lines.join('\n');
+    if (text.length > ULTRAWORK_GRAPH_INJECTION_MAX_CHARS) {
+      text = `${text.slice(0, ULTRAWORK_GRAPH_INJECTION_MAX_CHARS - 24)}\n… [truncated]\n</ultrawork_graph_status>`;
+    }
+
+    this.agent.context.appendSystemReminder(text, {
       kind: 'injection',
       variant: 'ultrawork_graph_status',
     });

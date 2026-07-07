@@ -120,6 +120,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     getGoal: vi.fn(async () => ({ goal: null })),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
+    setCredentialHandler: vi.fn(),
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
@@ -3162,6 +3163,96 @@ command = "vim"
     transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain('✓ play loop passes');
     expect(transcript).not.toContain('<ultra_swarm_result>');
+  });
+
+  it('keeps UltraSwarm progress unified when expert subagents spawn in background', async () => {
+    const { driver } = await makeDriver();
+    const sendQueued = vi.fn();
+
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'tool.call.started',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        turnId: 1,
+        toolCallId: 'call_ultra_swarm_bg',
+        name: 'UltraSwarm',
+        args: {
+          description: 'Staff experts for launch review',
+          experts: ['gameplay-engineer', 'visual-qa'],
+          auto_select: false,
+        },
+      } as Event,
+      sendQueued,
+    );
+
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'ultrawork.team.staffed',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        runId: 'uw_bg',
+        toolCallId: 'call_ultra_swarm_bg',
+        team: {
+          id: 'team_bg',
+          runId: 'uw_bg',
+          intensity: 'premium',
+          maxExperts: 24,
+          experts: [
+            {
+              id: 'gameplay-engineer',
+              name: 'Gameplay Engineer',
+              role: 'gameplay',
+              focus: 'implement',
+              status: 'queued',
+              division: 'game',
+              coverageLane: 'architecture_implementation',
+            },
+            {
+              id: 'visual-qa',
+              name: 'Visual QA',
+              role: 'qa',
+              focus: 'review',
+              status: 'queued',
+              division: 'testing',
+              coverageLane: 'testing_evidence',
+            },
+          ],
+        },
+      } as Event,
+      sendQueued,
+    );
+
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'subagent.spawned',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        parentToolCallId: 'call_ultra_swarm_bg',
+        subagentId: 'agent-gameplay-bg',
+        subagentName: 'gameplay-engineer',
+        description: 'Staff experts for launch review #1',
+        swarmIndex: 1,
+        runInBackground: true,
+      } as Event,
+      sendQueued,
+    );
+    driver.sessionEventHandler.handleEvent(
+      {
+        type: 'subagent.started',
+        agentId: 'main',
+        sessionId: 'ses-1',
+        subagentId: 'agent-gameplay-bg',
+      } as Event,
+      sendQueued,
+    );
+
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('UltraSwarm');
+    expect(transcript).toContain('Working...');
+    expect(transcript).toContain('1 working');
+    expect(transcript).toContain('001');
+    expect(transcript).not.toContain('gameplay-engineer agent started in background');
   });
 
   it('renders AgentSwarm progress while tool args are still streaming', async () => {

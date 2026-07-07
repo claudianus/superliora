@@ -153,11 +153,24 @@ describe('DefaultCompactionStrategy', () => {
     expect(estimateTokensForMessages(messages.slice(0, count + 1))).toBeGreaterThan(maxSize);
   });
 
-  it('reserves response context by default before the ratio threshold is reached', () => {
+  it('reserves response context for blocking but not for the soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 256_000);
 
     expect(strategy.shouldCompact(210_000)).toBe(true);
     expect(strategy.shouldBlock(210_000)).toBe(true);
+  });
+
+  it('uses reserved context only for hard blocking on smaller windows', () => {
+    const strategy = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 50_000,
+    });
+
+    expect(strategy.shouldCompact(55_000)).toBe(false);
+    expect(strategy.shouldBlock(55_000)).toBe(false);
+    expect(strategy.shouldCompact(81_000)).toBe(true);
+    expect(strategy.shouldBlock(91_999)).toBe(false);
+    expect(strategy.shouldBlock(92_000)).toBe(true);
   });
 
   it('ignores reserved context when the reserve is not smaller than the model window', () => {
@@ -175,37 +188,51 @@ describe('DefaultCompactionStrategy', () => {
   });
 
   it('triggers at absolute token threshold for large-context models', () => {
+    const strategy = new DefaultCompactionStrategy(() => 500_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.4,
+      blockRatio: 0.92,
+      reservedContextSize: 50_000,
+      maxRecentMessages: 3,
+      absoluteTriggerTokens: 251_000,
+    });
+
+    expect(strategy.shouldCompact(250_999)).toBe(false);
+    expect(strategy.shouldBlock(250_999)).toBe(false);
+
+    expect(strategy.shouldCompact(251_000)).toBe(true);
+    expect(strategy.shouldBlock(251_000)).toBe(true);
+  });
+
+  it('defers to the ratio floor when absolute threshold is below it on large windows', () => {
     const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
       ...DEFAULT_COMPACTION_CONFIG,
       triggerRatio: 0.85,
-      blockRatio: 0.85,
+      blockRatio: 0.92,
       reservedContextSize: 50_000,
       maxRecentMessages: 3,
       absoluteTriggerTokens: 200_000,
     });
 
-    expect(strategy.shouldCompact(199_000)).toBe(false);
-    expect(strategy.shouldBlock(199_000)).toBe(false);
-
-    expect(strategy.shouldCompact(200_000)).toBe(true);
-    expect(strategy.shouldBlock(200_000)).toBe(true);
+    expect(strategy.shouldCompact(849_999)).toBe(false);
+    expect(strategy.shouldCompact(850_000)).toBe(true);
   });
 
   it('treats the absolute threshold as a soft trigger when v2 separates hard blocking', () => {
     const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
       ...DEFAULT_COMPACTION_CONFIG,
       triggerRatio: 0.85,
-      blockRatio: 0.85,
+      blockRatio: 0.92,
       reservedContextSize: 50_000,
       maxRecentMessages: 3,
       absoluteTriggerTokens: 200_000,
       absoluteTriggerBlocks: false,
     });
 
-    expect(strategy.shouldCompact(199_999)).toBe(false);
-    expect(strategy.shouldCompact(200_000)).toBe(true);
-    expect(strategy.shouldBlock(200_000)).toBe(false);
-    expect(strategy.shouldBlock(850_000)).toBe(true);
+    expect(strategy.shouldCompact(849_999)).toBe(false);
+    expect(strategy.shouldCompact(850_000)).toBe(true);
+    expect(strategy.shouldBlock(850_000)).toBe(false);
+    expect(strategy.shouldBlock(920_000)).toBe(true);
   });
 
   it('falls back to ratio trigger when the model window is below the large-context threshold', () => {
@@ -227,37 +254,49 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.effectiveTriggerRatio).toBe(0.72);
-    expect(strategy.shouldCompact(71_999)).toBe(false);
-    expect(strategy.shouldCompact(72_000)).toBe(true);
-    expect(strategy.shouldBlock(79_999)).toBe(false);
-    expect(strategy.shouldBlock(80_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBe(0.8);
+    expect(strategy.shouldCompact(79_999)).toBe(false);
+    expect(strategy.shouldCompact(80_000)).toBe(true);
+    expect(strategy.shouldBlock(91_999)).toBe(false);
+    expect(strategy.shouldBlock(92_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
   });
 
   it('resolves block ratio above trigger when only trigger is configured', () => {
-    expect(resolveCompactionBlockRatio(0.7)).toBe(0.8);
+    expect(resolveCompactionBlockRatio(0.7)).toBe(0.92);
     expect(resolveCompactionBlockRatio(0.9)).toBeCloseTo(0.95);
-    expect(resolveCompactionBlockRatio(0.72, 0.88)).toBe(0.88);
+    expect(resolveCompactionBlockRatio(0.8, 0.88)).toBe(0.88);
   });
 
-  it('speculatively compacts when projected usage crosses the trigger threshold', () => {
+  it('speculatively compacts only when projected usage crosses the soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000, {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.shouldSpeculativelyCompact(67_999)).toBe(false);
-    expect(strategy.shouldSpeculativelyCompact(72_000)).toBe(true);
+    expect(strategy.shouldSpeculativelyCompact(79_999)).toBe(false);
+    expect(strategy.shouldSpeculativelyCompact(80_000)).toBe(true);
+
+    const lateTrigger = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.95,
+      blockRatio: 0.92,
+      reservedContextSize: 0,
+      absoluteTriggerTokens: 0,
+    });
+    expect(lateTrigger.shouldCompact(93_000)).toBe(false);
+    expect(lateTrigger.shouldSpeculativelyCompact(93_000)).toBe(false);
   });
 
-  it('tightens the trigger threshold after low-quality compactions', () => {
+  it('tightens the trigger threshold only after emergency backstop compactions', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000, {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
     strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
-    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.72);
-    expect(strategy.shouldCompact(70_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBe(0.8);
+    strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
+    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.8);
+    expect(strategy.shouldCompact(78_000)).toBe(true);
   });
 });
 

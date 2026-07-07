@@ -528,6 +528,7 @@ export class ToolManager {
         goalToolsEnabled && new b.GetGoalTool(this.agent),
         goalToolsEnabled && new b.SetGoalBudgetTool(this.agent),
         goalToolsEnabled && new b.UpdateGoalTool(this.agent),
+        new b.GetCurrentTimeTool(),
         this.agent.rpc?.requestQuestion && new b.AskUserQuestionTool(this.agent),
         new b.TodoListTool(this.toolStore),
         new b.UltraworkGraphTool(this.toolStore, this.agent),

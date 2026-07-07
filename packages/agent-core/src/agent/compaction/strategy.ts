@@ -18,6 +18,7 @@ export interface CompactionConfig {
   parallelBlockTarget: number;
   absoluteTriggerBlocks?: boolean;
   speculativeStepBufferTokens: number;
+  minRecompactGrowthRatio: number;
 }
 
 export function resolveCompactionBlockRatio(
@@ -30,13 +31,22 @@ export function resolveCompactionBlockRatio(
 
 const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
-/** Zylos / Factory-style early trigger: compact with headroom for summary output. */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.72;
-/** Block the turn only once context is closer to the hard window. */
-export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.8;
-/** Estimated tokens the next agent step may add (tool call + result) for speculative compaction. */
-export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 12_000;
-const MAX_QUALITY_TRIGGER_BIAS = 0.1;
+/**
+ * Soft trigger aligned with production guidance (warning ~70%, compact ~80%):
+ * compress late enough to avoid ACON-style accuracy loss from premature summarization.
+ */
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.8;
+/** Hard block near the window; leaves headroom for compaction summary output. */
+export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.92;
+/** Estimated tokens the next agent step may add for speculative pre-turn compaction. */
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 8_000;
+/** Minimum context growth since the last compaction before auto may fire again. */
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.05;
+/** Pre-swarm handoff compaction target (below the default 80% soft trigger). */
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.7;
+/** During UltraSwarm, allow micro compaction from this context usage ratio upward. */
+export const SWARM_MICRO_PRESSURE_RATIO = 0.85;
+const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
@@ -48,11 +58,12 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.2,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 180_000,
+  absoluteTriggerTokens: 200_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 30_000,
   parallelBlockTarget: 15_000,
   speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
+  minRecompactGrowthRatio: DEFAULT_MIN_RECOMPACT_GROWTH_RATIO,
 };
 
 export interface CompactionStrategy {
@@ -65,6 +76,7 @@ export interface CompactionStrategy {
   readonly maxOverflowCompactionAttempts: number;
   readonly parallelBlockThreshold?: number;
   readonly parallelBlockTarget?: number;
+  readonly minRecompactGrowthRatio?: number;
 }
 
 export class DefaultCompactionStrategy implements CompactionStrategy {
@@ -87,16 +99,15 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
     return this.config.speculativeStepBufferTokens;
   }
 
+  get minRecompactGrowthRatio(): number {
+    return this.config.minRecompactGrowthRatio;
+  }
+
   applyQualityFeedback(input: {
     readonly recallEvalScore?: number | undefined;
     readonly usedEmergencyBackstop: boolean;
   }): number {
     if (input.usedEmergencyBackstop) {
-      this.qualityTriggerBias = Math.min(MAX_QUALITY_TRIGGER_BIAS, this.qualityTriggerBias + 0.03);
-    } else if (
-      input.recallEvalScore !== undefined &&
-      input.recallEvalScore < 0.75
-    ) {
       this.qualityTriggerBias = Math.min(MAX_QUALITY_TRIGGER_BIAS, this.qualityTriggerBias + 0.02);
     } else if (
       input.recallEvalScore !== undefined &&
@@ -109,17 +120,12 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
 
   shouldCompact(usedSize: number): boolean {
     if (this.maxSize <= 0) return false;
-    return (
-      this.shouldTriggerAbsolute(usedSize) ||
-      usedSize >= this.maxSize * this.effectiveTriggerRatio ||
-      this.shouldUseReservedContext(usedSize)
-    );
+    return usedSize >= this.compactThreshold();
   }
 
   shouldSpeculativelyCompact(projectedUsedSize: number): boolean {
     if (this.maxSize <= 0) return false;
-    if (this.shouldCompact(projectedUsedSize)) return true;
-    return projectedUsedSize >= this.maxSize * this.config.blockRatio;
+    return this.shouldCompact(projectedUsedSize);
   }
 
   shouldBlock(usedSize: number): boolean {
@@ -127,20 +133,37 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
     return (
       (this.config.absoluteTriggerBlocks !== false && this.shouldTriggerAbsolute(usedSize)) ||
       usedSize >= this.maxSize * this.config.blockRatio ||
-      this.shouldUseReservedContext(usedSize)
+      this.shouldBlockForReservedContext(usedSize)
     );
   }
 
-  private shouldTriggerAbsolute(usedSize: number): boolean {
+  private compactThreshold(): number {
+    const ratioThreshold = Math.floor(this.maxSize * this.effectiveTriggerRatio);
+    const absoluteThreshold = this.resolveAbsoluteCompactThreshold();
+    if (absoluteThreshold === null) return ratioThreshold;
+    return Math.max(ratioThreshold, absoluteThreshold);
+  }
+
+  private resolveAbsoluteCompactThreshold(): number | null {
     const absolute = this.config.absoluteTriggerTokens;
     const minContext =
       this.config.absoluteTriggerMinContextTokens ?? DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS;
-    return absolute > 0 && this.maxSize >= minContext && usedSize >= absolute;
+    if (absolute <= 0 || this.maxSize < minContext || absolute > this.maxSize) return null;
+    return absolute;
   }
 
-  private shouldUseReservedContext(usedSize: number): boolean {
+  private shouldBlockForReservedContext(usedSize: number): boolean {
     const reservedSize = this.config.reservedContextSize;
-    return reservedSize > 0 && reservedSize < this.maxSize && usedSize + reservedSize >= this.maxSize;
+    if (reservedSize <= 0 || reservedSize >= this.maxSize) return false;
+    const reservedThreshold = this.maxSize - reservedSize;
+    const blockRatioThreshold = Math.floor(this.maxSize * this.config.blockRatio);
+    return usedSize >= Math.max(reservedThreshold, blockRatioThreshold);
+  }
+
+  private shouldTriggerAbsolute(usedSize: number): boolean {
+    const absoluteThreshold = this.resolveAbsoluteCompactThreshold();
+    if (absoluteThreshold === null) return false;
+    return usedSize >= this.compactThreshold();
   }
 
   computeCompactCount(messages: readonly Message[], source: CompactionSource): number {

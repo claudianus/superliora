@@ -25,6 +25,7 @@ tools:
   - Edit
   - Memory
   - WebSearch
+  - GetCurrentTime
   - BrowserStatus
   - BrowserObserve
   - BrowserScreenshot

@@ -42,12 +42,17 @@ describe('default agent profiles', () => {
 
   it('lists the goal tools on the agent profile but not on subagent profiles', () => {
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
-    expect(agentTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal']));
+    expect(agentTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal', 'GetCurrentTime']));
     for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).not.toContain('CreateGoal');
       expect(tools).not.toContain('GetGoal');
     }
+  });
+
+  it('exposes GetCurrentTime on explore for time-sensitive web research', () => {
+    const exploreTools = DEFAULT_AGENT_PROFILES['explore']?.tools ?? [];
+    expect(exploreTools).toEqual(expect.arrayContaining(['GetCurrentTime', 'WebSearch']));
   });
 
   it('exposes Ultrawork orchestration tools on the root agent profile', () => {

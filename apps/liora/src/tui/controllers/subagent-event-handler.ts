@@ -292,15 +292,15 @@ export class SubAgentEventHandler {
   ): void {
     this.rememberSubagent(event);
 
-    if (event.runInBackground) {
-      const meta = this.buildBackgroundAgentMetadata(event);
-      this.backgroundAgentMetadata.set(event.subagentId, meta);
-      this.appendBackgroundAgentEntry('started', meta);
-      this.deps.syncBackgroundAgentBadge();
+    if (this.shouldUseSwarmProgressUi(event.parentToolCallId, event.runInBackground)) {
+      this.handleForegroundSubagentSpawned(event);
       return;
     }
 
-    this.handleForegroundSubagentSpawned(event);
+    const meta = this.buildBackgroundAgentMetadata(event);
+    this.backgroundAgentMetadata.set(event.subagentId, meta);
+    this.appendBackgroundAgentEntry('started', meta);
+    this.deps.syncBackgroundAgentBadge();
   }
 
   private handleSubagentStarted(
@@ -308,7 +308,9 @@ export class SubAgentEventHandler {
   ): void {
     const info = this.subagentInfo.get(event.subagentId);
     if (info === undefined) return;
-    if (!info.runInBackground) this.handleForegroundSubagentStarted(event, info);
+    if (this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)) {
+      this.handleForegroundSubagentStarted(event, info);
+    }
   }
 
   private handleSubagentSuspended(
@@ -316,12 +318,23 @@ export class SubAgentEventHandler {
   ): void {
     const info = this.subagentInfo.get(event.subagentId);
     if (info === undefined) return;
-    if (!info.runInBackground) this.handleForegroundSubagentSuspended(event, info);
+    if (this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)) {
+      this.handleForegroundSubagentSuspended(event, info);
+    }
   }
 
   private handleSubagentCompleted(
     event: SubagentLifecycleEventOf<'subagent.completed'>,
   ): void {
+    const info = this.subagentInfo.get(event.subagentId);
+    if (
+      info !== undefined &&
+      this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
+    ) {
+      this.handleForegroundSubagentCompleted(event, info);
+      return;
+    }
+
     const backgroundMeta = this.backgroundAgentMetadata.get(event.subagentId);
     if (backgroundMeta !== undefined) {
       const taskId = this.findAgentTaskId(
@@ -342,15 +355,20 @@ export class SubAgentEventHandler {
       this.appendBackgroundAgentEntry('completed', backgroundMeta, extras);
       return;
     }
-
-    const info = this.subagentInfo.get(event.subagentId);
-    if (info === undefined || info.runInBackground) return;
-    this.handleForegroundSubagentCompleted(event, info);
   }
 
   private handleSubagentFailed(
     event: SubagentLifecycleEventOf<'subagent.failed'>,
   ): void {
+    const info = this.subagentInfo.get(event.subagentId);
+    if (
+      info !== undefined &&
+      this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
+    ) {
+      this.handleForegroundSubagentFailed(event, info);
+      return;
+    }
+
     const backgroundMeta = this.backgroundAgentMetadata.get(event.subagentId);
     if (backgroundMeta !== undefined) {
       const taskId = this.findAgentTaskId(
@@ -379,10 +397,20 @@ export class SubAgentEventHandler {
       this.appendBackgroundAgentEntry('failed', backgroundMeta, { error: event.error });
       return;
     }
+  }
 
-    const info = this.subagentInfo.get(event.subagentId);
-    if (info === undefined || info.runInBackground) return;
-    this.handleForegroundSubagentFailed(event, info);
+  private isSwarmOrchestratedSubagent(parentToolCallId: string): boolean {
+    return (
+      this.agentSwarmProgress.has(parentToolCallId) ||
+      this.ultraSwarmTeamsByToolCallId.has(parentToolCallId)
+    );
+  }
+
+  private shouldUseSwarmProgressUi(
+    parentToolCallId: string,
+    runInBackground: boolean,
+  ): boolean {
+    return !runInBackground || this.isSwarmOrchestratedSubagent(parentToolCallId);
   }
 
   private findAgentTaskId(

@@ -30,6 +30,7 @@ tools:
   - LioraExpand
   - LioraIndex
   - WebSearch
+  - GetCurrentTime
   - FetchURL
   - Context7Resolve
   - Context7Docs

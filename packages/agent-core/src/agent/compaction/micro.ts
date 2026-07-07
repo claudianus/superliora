@@ -67,6 +67,30 @@ export class MicroCompaction {
     const cacheMissed = cacheAgeMs !== null && cacheAgeMs >= config.cacheMissedThresholdMs;
     if (!cacheMissed) return;
 
+    this.applyPressureCutoff(history.length);
+  }
+
+  /**
+   * Projection-time trimming under context pressure (e.g. during UltraSwarm).
+   * Skips the cache-miss gate so high usage can be relieved without full compaction.
+   */
+  detectUnderSwarmPressure(minUsageRatio: number): void {
+    if (!this.agent.experimentalFlags.enabled('micro_compaction')) return;
+
+    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
+    const contextTokens = this.agent.context.tokenCountWithPending;
+    const contextUsageRatio =
+      maxContextTokens !== undefined && maxContextTokens > 0
+        ? contextTokens / maxContextTokens
+        : 1;
+    if (contextUsageRatio < minUsageRatio) return;
+
+    this.applyPressureCutoff(this.agent.context.history.length);
+  }
+
+  private applyPressureCutoff(historyLength: number): void {
+    const config = this.config;
+    const { history, lastAssistantAt } = this.agent.context;
     const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
     const contextTokens = this.agent.context.tokenCountWithPending;
     const contextUsageRatio =
@@ -76,9 +100,10 @@ export class MicroCompaction {
     if (contextUsageRatio < config.minContextUsageRatio) return;
 
     const previousCutoff = this.cutoff;
-    const nextCutoff = Math.max(0, history.length - config.keepRecentMessages);
+    const nextCutoff = Math.max(0, historyLength - config.keepRecentMessages);
     this.apply(nextCutoff);
     if (previousCutoff !== nextCutoff) {
+      const cacheAgeMs = lastAssistantAt === null ? null : Date.now() - lastAssistantAt;
       const effect = this.measureEffect(history, nextCutoff);
       const previousEffect = this.measureEffect(history, previousCutoff);
       const rawContextTokens = estimateTokensForMessages(history);

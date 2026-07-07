@@ -48,6 +48,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
 import type { ExpertAssignment, ExpertSwarmPlan } from '../../../expert-agents/types';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
+import { SWARM_HANDOFF_COMPACTION_RATIO } from '../../../agent/compaction/strategy';
 import { buildUltraSwarmIntegrationReportXml } from './ultra-swarm-integration-report';
 import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
@@ -144,7 +145,7 @@ export const UltraSwarmToolInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'If true, return immediately without waiting for completion. Prefer false unless the task can run independently.',
+        'Ignored. UltraSwarm always runs experts in the foreground swarm panel so orchestration, handoffs, and progress stay unified. Use the Agent tool for detached background work.',
       ),
   })
   .strict();
@@ -268,7 +269,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       );
     }
 
-    await this.agent.fullCompaction.ensureBelowHandoffThreshold(signal);
+    await this.agent.fullCompaction.ensureBelowHandoffThreshold(signal, SWARM_HANDOFF_COMPACTION_RATIO);
 
     // Build specs from plan
     const specs: UltraSwarmSpec[] = plan.experts.map((assignment, index) => {
@@ -599,7 +600,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         ),
         description: `${input.args.description} #${String(spec.index)} (${spec.expertName} ${spec.emoji})`,
         swarmIndex: spec.index,
-        runInBackground: input.args.run_in_background === true,
+        runInBackground: false,
         swarmItem: spec.workNodeIds.length === 1 ? spec.workNodeIds[0] : spec.expertId,
         signal: input.signal,
         timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,

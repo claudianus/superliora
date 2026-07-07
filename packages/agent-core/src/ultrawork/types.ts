@@ -23,6 +23,8 @@ export interface UltraworkRunMirror {
   readonly planCheckpoint?: UltraworkPlanRecoveryContext;
   readonly goalStatus?: string;
   readonly resumeCursor?: UltraworkResumeCursor;
+  readonly effectiveStage?: UltraworkStage;
+  readonly compactionBoundary?: boolean;
   readonly lastCheckpointAt: string;
 }
 

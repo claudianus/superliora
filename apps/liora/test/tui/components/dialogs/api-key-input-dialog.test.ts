@@ -1,5 +1,5 @@
 import { visibleWidth } from '#/tui/renderer';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ApiKeyInputDialogComponent } from '#/tui/components/dialogs/api-key-input-dialog';
 
@@ -17,5 +17,13 @@ describe('ApiKeyInputDialogComponent', () => {
         expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
     }
+  });
+
+  it('strips bracketed-paste escape sequences before submitting', () => {
+    const onDone = vi.fn();
+    const dialog = new ApiKeyInputDialogComponent('Context7', [], onDone);
+    dialog.handleInput('\u001B[200~ctx7sk_test\u001B[201~');
+    dialog.handleInput('\r');
+    expect(onDone).toHaveBeenCalledWith({ kind: 'ok', value: 'ctx7sk_test' });
   });
 });

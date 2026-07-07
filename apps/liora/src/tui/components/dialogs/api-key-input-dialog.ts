@@ -8,6 +8,7 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import { sanitizeApiKeyValue } from '#/tui/utils/sanitize-api-key';
 import { Input } from './input';
 
 export type ApiKeyInputResult =
@@ -138,13 +139,13 @@ export class ApiKeyInputDialogComponent extends Container implements Focusable {
 
   private submit(value: string): void {
     if (this.done) return;
-    const trimmed = value.trim();
-    if (trimmed.length === 0) {
+    const sanitized = sanitizeApiKeyValue(value);
+    if (sanitized.length === 0) {
       this.emptyHinted = true;
       return;
     }
     this.done = true;
-    this.onDone({ kind: 'ok', value: trimmed });
+    this.onDone({ kind: 'ok', value: sanitized });
   }
 
   private cancel(): void {
