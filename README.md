@@ -7,7 +7,7 @@
 
 ## A terminal-first AI coding harness for long, complex tasks
 
-SuperLiora is an independent AI coding harness that runs in your terminal. It connects planning, research, goal control, parallel execution, verification, memory, and documentation so long sessions stay coherent and decisions stay traceable.
+SuperLiora is an independent AI coding harness that runs in your terminal. It connects planning, research, goal control, parallel execution, verification, memory, documentation, browser use, and computer use into one workflow so long sessions stay coherent and decisions stay traceable.
 
 - **Plan before code.** UltraPlan interviews requirements until the goal is true/false-verifiable.
 - **Work with evidence.** UltraResearch checks sources, APIs, papers, and security advisories before decisions are made.
