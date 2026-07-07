@@ -29,6 +29,7 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { showUsage } from './info';
 import { setExperimentalFeatures } from './experimental-flags';
 import type { SlashCommandHost } from './dispatch';
+import { isActiveUltraworkRun, ultraworkModeDisableBlockedMessage } from './ultrawork-contract';
 
 // ---------------------------------------------------------------------------
 // Plan / Config commands
@@ -174,6 +175,13 @@ function formatThinkingStatus(host: SlashCommandHost): string {
 }
 
 async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {
+  if (!enabled) {
+    const run = await session.getUltraworkRun();
+    if (isActiveUltraworkRun(run)) {
+      host.showError(ultraworkModeDisableBlockedMessage(run));
+      return;
+    }
+  }
   try {
     await session.setPlanMode(enabled, ultra);
     host.setAppState({ planMode: enabled, ultraworkMode: false, activityTip: null });

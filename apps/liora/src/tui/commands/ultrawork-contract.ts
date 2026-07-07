@@ -1,3 +1,5 @@
+import type { UltraworkRun } from '@superliora/protocol';
+
 export type UltraworkActivationSource = 'manual' | 'auto' | 'headless' | 'goal';
 
 export interface UltraworkCreateRequest {
@@ -31,6 +33,18 @@ export type ParsedUltraworkCommand =
   | { readonly kind: 'resume'; readonly runId?: string }
   | { readonly kind: 'cancel' }
   | { readonly kind: 'error'; readonly message: string; readonly severity?: 'error' | 'hint' };
+
+export function isActiveUltraworkRun(run: UltraworkRun | null | undefined): run is UltraworkRun {
+  return run !== null && run !== undefined && run.status !== 'done' && run.status !== 'failed';
+}
+
+export function ultraworkModeDisableBlockedMessage(run: UltraworkRun): string {
+  return [
+    'Ultrawork mode stays on while a workflow run is active.',
+    `Run ${run.id} is ${run.status} at stage ${run.stage}.`,
+    'Finish the workflow, use /ultrawork pause, or /ultrawork cancel before turning mode off.',
+  ].join(' ');
+}
 
 const ULTRA_WORKFLOW_TERM_PATTERN =
   String.raw`(?:ultrawork|ultra[-\s]?work|ultragoal|ultra[-\s]?goal|ultraplan|ultra[-\s]?plan|ultraresearch|ultra[-\s]?research|ultraswarm|ultra[-\s]?swarm|울트라\s?워크|울트라\s?골|울트라\s?플랜|울트라\s?리서치|울트라\s?스웜)`;
@@ -66,7 +80,7 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   '- Ultrawork is the product workflow; UltraPlan, UltraGoal, Research, and Swarm decision are internal stages with enforced order, not separate badges or user-facing modes.',
   '- Workflow spine: UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn.',
   '- Activation sequence: force Ultra Plan mode into Research phase first; gather current source-backed evidence before any user question options; then advance to UltraPlan interview to define one true/false-verifiable UltraGoal objective and completion criterion; create or replace UltraGoal only after the plan is approved, unless the /goal driver already created it; then decide Swarm ENGAGE/DEFER, integrate, verify, and learn.',
-  '- Shift-Tab toggles Ultrawork and off; the Ultrawork state is the normal task entry point for goal-driven work, and /ultrawork is an explicit steering override for operators who want to start the same workflow from text. General /plan remains explicit steering, not the default Shift-Tab state.',
+  '- Shift-Tab turns Ultrawork mode on; it cannot turn mode off while an Ultrawork run is active. The Ultrawork state is the normal task entry point for goal-driven work, and /ultrawork is an explicit steering override for operators who want to start the same workflow from text. General /plan remains explicit steering, not the default Shift-Tab state.',
   '- UltraResearch prelude: before asking the user anything, search/fetch/read enough current evidence to avoid pretrained-only options. Produce a compact evidence pack with verified facts, source URLs or file paths, candidate findings, stale/offline labels, and remaining unknowns.',
   '- Ongoing research discipline: do not stop researching after the prelude. During Design, Review, Swarm, Integrate, Verify, and Learn, search and fetch again whenever a current paper, best practice, library, API, security note, benchmark, or maintained OSS implementation could change the outcome.',
   '- UltraPlan: clarify the request until the future UltraGoal can be judged complete or incomplete as 1 or 0. Ask blocking questions, reduce ambiguity, identify knowledge gaps, and turn the request into a concrete verified goal.',

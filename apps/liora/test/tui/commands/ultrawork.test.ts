@@ -8,6 +8,8 @@ import {
   buildUltraworkCoverageMatrix,
   buildUltraworkPrompt,
   handleUltraworkCommand,
+  handleUltraworkModeToggle,
+  isActiveUltraworkRun,
   parseUltraworkCommand,
   shouldAutoActivateUltrawork,
 } from '#/tui/commands/ultrawork';
@@ -187,7 +189,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('force Ultra Plan mode into Research phase first');
     expect(prompt).toContain('gather current source-backed evidence before any user question options');
     expect(prompt).toContain('active_goal_already_created: false');
-    expect(prompt).toContain('Shift-Tab toggles Ultrawork and off');
+    expect(prompt).toContain('Shift-Tab turns Ultrawork mode on');
+    expect(prompt).toContain('cannot turn mode off while an Ultrawork run is active');
     expect(prompt).toContain('General /plan remains explicit steering');
     expect(prompt).toContain('/ultrawork is an explicit steering override');
     expect(prompt).toContain('UltraPlan: clarify the request until the future UltraGoal can be judged complete or incomplete as 1 or 0');
@@ -683,5 +686,112 @@ describe('handleUltraworkCommand', () => {
 
     expect(session.createUltraworkRun).not.toHaveBeenCalled();
     expect(session.resumeUltrawork).toHaveBeenCalled();
+  });
+});
+
+describe('handleUltraworkModeToggle', () => {
+  it('blocks turning Ultrawork mode off while a run is active', async () => {
+    const { host, session } = makeHost();
+    host.state.appState.ultraworkMode = true;
+    host.state.appState.planMode = true;
+    session.getUltraworkRun.mockResolvedValue({
+      id: 'run-active',
+      objective: 'Ship feature X',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+    });
+
+    await handleUltraworkModeToggle(host, false);
+
+    expect(session.setPlanMode).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalledWith(
+      expect.stringContaining('Ultrawork mode stays on while a workflow run is active.'),
+    );
+    expect(host.state.appState.ultraworkMode).toBe(true);
+  });
+
+  it('blocks turning Ultrawork mode off while a run is paused', async () => {
+    const { host, session } = makeHost();
+    host.state.appState.ultraworkMode = true;
+    session.getUltraworkRun.mockResolvedValue({
+      id: 'run-paused',
+      objective: 'Ship feature X',
+      status: 'blocked',
+      stage: 'verify',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+    });
+
+    await handleUltraworkModeToggle(host, false);
+
+    expect(session.setPlanMode).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalledWith(expect.stringContaining('run-paused'));
+    expect(host.state.appState.ultraworkMode).toBe(true);
+  });
+
+  it('allows turning Ultrawork mode off when no active run exists', async () => {
+    const { host, session } = makeHost();
+    host.state.appState.ultraworkMode = true;
+    host.state.appState.planMode = true;
+    session.getUltraworkRun.mockResolvedValue(null);
+
+    await handleUltraworkModeToggle(host, false);
+
+    expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
+    expect(host.state.appState.ultraworkMode).toBe(false);
+    expect(host.showNotice).toHaveBeenCalledWith('Ultrawork mode: OFF', undefined, {
+      coalesceKey: 'ultrawork-mode',
+    });
+  });
+});
+
+describe('isActiveUltraworkRun', () => {
+  it('treats running and blocked runs as active', () => {
+    expect(
+      isActiveUltraworkRun({
+        id: 'run-1',
+        objective: 'test',
+        status: 'running',
+        stage: 'plan',
+        createdAt: '2026-07-06T00:00:00.000Z',
+        updatedAt: '2026-07-06T00:00:00.000Z',
+      }),
+    ).toBe(true);
+    expect(
+      isActiveUltraworkRun({
+        id: 'run-2',
+        objective: 'test',
+        status: 'blocked',
+        stage: 'verify',
+        createdAt: '2026-07-06T00:00:00.000Z',
+        updatedAt: '2026-07-06T00:00:00.000Z',
+      }),
+    ).toBe(true);
+  });
+
+  it('treats done, failed, and missing runs as inactive', () => {
+    expect(
+      isActiveUltraworkRun({
+        id: 'run-3',
+        objective: 'test',
+        status: 'done',
+        stage: 'done',
+        createdAt: '2026-07-06T00:00:00.000Z',
+        updatedAt: '2026-07-06T00:00:00.000Z',
+      }),
+    ).toBe(false);
+    expect(
+      isActiveUltraworkRun({
+        id: 'run-4',
+        objective: 'test',
+        status: 'failed',
+        stage: 'verify',
+        createdAt: '2026-07-06T00:00:00.000Z',
+        updatedAt: '2026-07-06T00:00:00.000Z',
+      }),
+    ).toBe(false);
+    expect(isActiveUltraworkRun(null)).toBe(false);
   });
 });

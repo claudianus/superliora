@@ -17,8 +17,10 @@ import type { SlashCommandHost } from './dispatch';
 import { writeProjectLlmWikiSeed } from './llm-wiki';
 import {
   buildUltraworkPrompt,
+  isActiveUltraworkRun,
   parseUltraworkCommand,
   shouldAutoActivateUltrawork,
+  ultraworkModeDisableBlockedMessage,
   type UltraworkEvidenceSeed,
   type UltraworkActivationSource,
   type UltraworkCreateRequest,
@@ -38,8 +40,10 @@ const ULTRAWORK_ACTIVITY_TIP =
 
 export {
   buildUltraworkPrompt,
+  isActiveUltraworkRun,
   parseUltraworkCommand,
   shouldAutoActivateUltrawork,
+  ultraworkModeDisableBlockedMessage,
   type UltraworkEvidenceSeed,
   type UltraworkActivationSource,
 };
@@ -126,6 +130,13 @@ export async function handleUltraworkModeToggle(
   if (host.state.appState.model.trim().length === 0) {
     host.showError(LLM_NOT_SET_MESSAGE);
     return;
+  }
+  if (!enabled) {
+    const run = await host.requireSession().getUltraworkRun();
+    if (isActiveUltraworkRun(run)) {
+      host.showError(ultraworkModeDisableBlockedMessage(run));
+      return;
+    }
   }
   try {
     if (enabled) {
