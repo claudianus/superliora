@@ -8,6 +8,7 @@ import { UltraworkMode } from '../../src/ultrawork/mode';
 import { testKaos } from '../fixtures/test-kaos';
 import {
   ensureUltraworkWorkflowArtifacts,
+  isUltraworkWorkflowReportWritePath,
   recordUltraworkWorkflowStage,
   seedUltraworkWorkflowReport,
   WORKFLOW_REPORT_FILENAME,
@@ -145,5 +146,30 @@ describe('ultrawork workflow report harness', () => {
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
+  });
+
+  it('matches workflow-report.md write paths relative to the evidence root', () => {
+    const evidenceRoot = '.superliora/evidence/ultrawork-runs/run-1';
+    const workDir = '/workspace/project';
+    const reportPath = `${evidenceRoot}/workflow-report.md`;
+
+    expect(isUltraworkWorkflowReportWritePath(reportPath, evidenceRoot, workDir)).toBe(true);
+    expect(
+      isUltraworkWorkflowReportWritePath(
+        `${workDir}/${reportPath}`,
+        evidenceRoot,
+        workDir,
+      ),
+    ).toBe(true);
+    expect(
+      isUltraworkWorkflowReportWritePath(
+        `${evidenceRoot}/workflow-stages.json`,
+        evidenceRoot,
+        workDir,
+      ),
+    ).toBe(false);
+    expect(
+      isUltraworkWorkflowReportWritePath('/workspace/project/src/main.ts', evidenceRoot, workDir),
+    ).toBe(false);
   });
 });

@@ -48,6 +48,7 @@ export { readUltraworkMirrorFromDisk } from './run-store';
 export {
   ensureUltraworkWorkflowArtifacts,
   injectUltraworkWorkflowStageReminder,
+  isUltraworkWorkflowReportWritePath,
   mirrorUltraworkWorkflowStage,
   recordUltraworkWorkflowStage,
   resolveUltraworkWorkflowReportPaths,

@@ -352,6 +352,48 @@ describe('Plan mode permission policy', () => {
     expect(questionDeny.message ?? '').toContain('NextPhase({ phase: "interview" })');
   });
 
+  it('allows workflow-report.md edits during Ultra Plan research when Ultrawork is active', async () => {
+    const { agent } = await activePlanAgent({ ultra: true });
+    const evidenceRoot = '.superliora/evidence/ultrawork-runs/run-1';
+    const reportPath = `${evidenceRoot}/workflow-report.md`;
+
+    Object.assign(agent, {
+      config: { cwd: '/workspace/project', provider: { modelName: 'mock' } },
+      ultrawork: {
+        getRun: () => ({ id: 'run-1' }),
+        getActivation: () => ({
+          source: 'shift-tab',
+          replaceGoal: false,
+          evidenceRoot,
+          workDir: '/workspace/project',
+        }),
+      },
+    });
+
+    expect(
+      evaluatePlanPolicy(agent, 'Edit', {
+        path: reportPath,
+        old_string: 'pending',
+        new_string: 'complete',
+      }),
+    ).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'Write', {
+        path: reportPath,
+        content: '# report',
+      }),
+    ).toBeUndefined();
+
+    const deny = expectDeny(
+      evaluatePlanPolicy(agent, 'Edit', {
+        path: '/workspace/project/src/main.ts',
+        old_string: 'a',
+        new_string: 'b',
+      }),
+    );
+    expect(deny.message ?? '').toContain('blocked in Research phase');
+  });
+
   it('advances Ultra Plan from research to interview after evidence collection', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
 
