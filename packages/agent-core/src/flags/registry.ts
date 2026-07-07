@@ -20,6 +20,15 @@ export const FLAG_DEFINITIONS = [
     default: true,
     surface: 'core',
   },
+  {
+    id: 'lean_codegraph_v2',
+    title: 'Lean CodeGraph v2',
+    description:
+      'SQLite + tree-sitter code graph index for LioraIndex/LioraContext. Replaces JSON BM25 with FTS5 and call-graph traversal.',
+    env: 'SUPERLIORA_EXPERIMENTAL_LEAN_CODEGRAPH_V2',
+    default: true,
+    surface: 'core',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

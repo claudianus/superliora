@@ -1,8 +1,11 @@
 import type { Kaos } from '@superliora/kaos';
-import * as pathe from 'pathe';
 
 import { collectContextFiles } from '../../tools/builtin/context/context-discovery';
 import type { WorkspaceConfig } from '../../tools/support/workspace';
+import { isLeanCodegraphV2Enabled } from '../graph/enabled';
+import { buildGraphIndex, getGraphBuiltAt, getGraphDatabase, getGraphIndexStatus, isGraphIndexStale } from '../graph/pipeline';
+import { topIndexedPaths } from '../graph/search';
+import { relativeDisplayPath } from '../shared/display-path';
 import { workspaceIndexDir } from '../persist/paths';
 import { loadBm25Index, loadGraphIndex, loadManifest, saveIndexArtifacts } from '../persist/store';
 import type {
@@ -59,6 +62,24 @@ interface BuildWorkspaceIndexOptions {
 }
 
 export async function buildWorkspaceIndex({
+  kaos,
+  workspace,
+  incremental = true,
+}: BuildWorkspaceIndexOptions): Promise<IndexBuildStats> {
+  if (isLeanCodegraphV2Enabled()) {
+    const stats = await buildGraphIndex({ kaos, workspace, incremental, full: !incremental });
+    return {
+      filesIndexed: stats.filesIndexed,
+      chunksIndexed: stats.nodesIndexed,
+      edgesIndexed: stats.edgesIndexed,
+      incremental: stats.incremental,
+      durationMs: stats.durationMs,
+    };
+  }
+  return buildWorkspaceIndexV1({ kaos, workspace, incremental });
+}
+
+async function buildWorkspaceIndexV1({
   kaos,
   workspace,
   incremental = true,
@@ -135,6 +156,18 @@ export async function buildWorkspaceIndex({
 }
 
 export async function getIndexStatus(kaos: Kaos, workspace: WorkspaceConfig): Promise<IndexStatus> {
+  if (isLeanCodegraphV2Enabled()) {
+    const stale = await isGraphIndexStale(kaos, workspace);
+    const status = getGraphIndexStatus(workspace, stale);
+    return {
+      ready: status.ready,
+      stale: status.stale,
+      manifest: undefined,
+      chunkCount: status.nodes,
+      edgeCount: status.edges,
+      indexDir: workspaceIndexDir(workspace),
+    };
+  }
   const indexDir = workspaceIndexDir(workspace);
   const manifest = await loadManifest(kaos, indexDir);
   const bm25 = await loadBm25Index(kaos, indexDir);
@@ -151,6 +184,9 @@ export async function getIndexStatus(kaos: Kaos, workspace: WorkspaceConfig): Pr
 }
 
 export async function getIndexBuiltAt(kaos: Kaos, workspace: WorkspaceConfig): Promise<number> {
+  if (isLeanCodegraphV2Enabled()) {
+    return getGraphBuiltAt(workspace);
+  }
   const manifest = await loadManifest(kaos, workspaceIndexDir(workspace));
   return manifest?.builtAt ?? 0;
 }
@@ -182,6 +218,9 @@ export async function queryIndexedPaths(
   query: string,
   limit = 20,
 ): Promise<readonly string[]> {
+  if (isLeanCodegraphV2Enabled()) {
+    return topIndexedPaths(getGraphDatabase(workspace), query, limit);
+  }
   const bm25 = await loadBm25Index(kaos, workspaceIndexDir(workspace));
   return queryIndexedPathsFromBm25(bm25, query, limit);
 }
@@ -229,12 +268,4 @@ function isRegularFile(stMode: number): boolean {
   return (stMode & S_IFMT) === S_IFREG;
 }
 
-export function relativeDisplayPath(path: string, workspace: WorkspaceConfig): string {
-  if (path === workspace.workspaceDir) return '.';
-  if (path.startsWith(workspace.workspaceDir + '/')) return path.slice(workspace.workspaceDir.length + 1);
-  for (const dir of workspace.additionalDirs) {
-    if (path === dir) return pathe.basename(dir);
-    if (path.startsWith(dir + '/')) return path.slice(dir.length + 1);
-  }
-  return path;
-}
+export { relativeDisplayPath } from '../shared/display-path';

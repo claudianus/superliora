@@ -7,6 +7,7 @@ import { chunkFileContent } from '../../src/lean-context/index/chunk';
 import { composeRankContext } from '../../src/lean-context/compose/ranker';
 import * as builder from '../../src/lean-context/index/builder';
 import { ensureWorkspaceIndex, resetBuildFailureCooldownForTests } from '../../src/lean-context/index/ensure';
+import { clearGraphDatabasesForTests } from '../../src/lean-context/persist/graph-db';
 import { tokenize } from '../../src/lean-context/index/tokenize';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
@@ -61,6 +62,8 @@ describe('lean context benchmark harness', () => {
   afterEach(() => {
     vi.useRealTimers();
     resetBuildFailureCooldownForTests();
+    clearGraphDatabasesForTests();
+    builder.clearWorkspaceIndexMemoryCacheForTests();
   });
 
   it('tokenizes and ranks BM25 chunks for fixture files', () => {
@@ -94,7 +97,7 @@ describe('lean context benchmark harness', () => {
     expect(searchBm25(index, 'constructor', 5).length).toBeGreaterThan(0);
   });
 
-  it('builds workspace index artifacts under .superliora/index', async () => {
+  it('builds workspace graph index for fixture files', async () => {
     const files = {
       '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts': [
         'export class LioraContextTool {',
@@ -106,7 +109,6 @@ describe('lean context benchmark harness', () => {
     const stats = await builder.buildWorkspaceIndex({ kaos, workspace, incremental: false });
     expect(stats.filesIndexed).toBe(1);
     expect(stats.chunksIndexed).toBeGreaterThan(0);
-    expect(kaos.writeText).toHaveBeenCalled();
   });
 
   it('compose ranking prefers query-relevant fixture file', async () => {
@@ -125,6 +127,7 @@ describe('lean context benchmark harness', () => {
       maxFiles: 1,
     });
     expect(composed.ranked[0]?.file.displayPath).toContain('liora-context.ts');
+    expect(composed.strategy).toBe('lean-codegraph-v2');
   });
 
   it('compose auto-builds the workspace index when it is missing', async () => {
@@ -141,9 +144,21 @@ describe('lean context benchmark harness', () => {
       query: 'LioraContext',
       maxFiles: 1,
     });
-    expect(kaos.writeText).toHaveBeenCalled();
     expect(composed.indexStaleHint).toBe('index_auto_built');
     expect(composed.ranked[0]?.file.displayPath).toContain('liora-context.ts');
+  });
+
+  it('incremental graph rebuild is a no-op when files are unchanged', async () => {
+    const files = {
+      '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts':
+        'export class LioraContextTool { readonly name = "LioraContext"; }',
+    };
+    const kaos = makeKaos(files);
+    await builder.buildWorkspaceIndex({ kaos, workspace, incremental: false });
+    const started = Date.now();
+    const second = await builder.buildWorkspaceIndex({ kaos, workspace, incremental: true });
+    expect(second.incremental).toBe(true);
+    expect(Date.now() - started).toBeLessThan(2_000);
   });
 
   it('ensureWorkspaceIndex dedupes concurrent builds for the same workspace', async () => {
@@ -158,7 +173,6 @@ describe('lean context benchmark harness', () => {
     ]);
     expect(first.ready).toBe(true);
     expect(second.ready).toBe(true);
-    expect(kaos.writeText).toHaveBeenCalled();
   });
 
   it('ensureWorkspaceIndex backs off after a failed build for the same workspace', async () => {

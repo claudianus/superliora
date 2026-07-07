@@ -8,6 +8,7 @@ import {
   readdir,
   readFile,
   stat,
+  unlink,
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -720,6 +721,10 @@ export class LocalKaos implements Kaos {
       }
       throw error;
     }
+  }
+
+  async unlink(path: string): Promise<void> {
+    await unlink(this._resolvePath(path));
   }
 
   async exec(...args: string[]): Promise<KaosProcess> {

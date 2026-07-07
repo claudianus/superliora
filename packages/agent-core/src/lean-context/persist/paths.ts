@@ -24,3 +24,7 @@ export function bm25Path(indexDir: string): string {
 export function graphPath(indexDir: string): string {
   return join(indexDir, 'graph.json');
 }
+
+export function codegraphSqlitePath(indexDir: string): string {
+  return join(indexDir, 'codegraph.sqlite');
+}

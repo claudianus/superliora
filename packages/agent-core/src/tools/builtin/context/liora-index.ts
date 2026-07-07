@@ -9,6 +9,8 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { buildWorkspaceIndex, getIndexStatus } from '../../../lean-context/index/builder';
 import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
+import { isLeanCodegraphV2Enabled } from '../../../lean-context/graph/enabled';
+import { getGraphIndexStatus } from '../../../lean-context/graph/pipeline';
 
 export const LIORA_INDEX_TOOL_NAME = 'LioraIndex';
 
@@ -54,13 +56,18 @@ export class LioraIndexTool implements BuiltinTool<LioraIndexInput> {
     try {
       if (input.action === 'status') {
         const status = await getIndexStatus(this.kaos, this.workspace);
+        const v2 = isLeanCodegraphV2Enabled();
+        const graphStatus = v2 ? getGraphIndexStatus(this.workspace) : undefined;
         return {
           output: [
             '<liora_index status>',
             `ready: ${String(status.ready)}`,
             `stale: ${String(status.stale)}`,
+            `engine: ${v2 ? 'lean-codegraph-v2' : 'lean-codegraph-v1'}`,
             `index_dir: ${status.indexDir}`,
-            `chunks: ${String(status.chunkCount)}`,
+            v2
+              ? `nodes: ${String(graphStatus?.nodes ?? status.chunkCount)}`
+              : `chunks: ${String(status.chunkCount)}`,
             `edges: ${String(status.edgeCount)}`,
             status.stale ? 'hint: run LioraIndex action=build' : 'hint: index ready for LioraContext/LioraSearch',
             '</liora_index>',

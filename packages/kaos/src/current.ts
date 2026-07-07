@@ -90,6 +90,10 @@ export function mkdir(
   return getCurrentKaos().mkdir(path, options);
 }
 
+export function unlink(path: string): Promise<void> {
+  return getCurrentKaos().unlink(path);
+}
+
 export function iterdir(path: string): AsyncGenerator<string> {
   return getCurrentKaos().iterdir(path);
 }

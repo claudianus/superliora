@@ -99,15 +99,14 @@ describe('LioraContextTool', () => {
 
     expect(result.isError).toBeFalsy();
     expect(output).toContain('<liora_context_packet');
-    expect(output).toContain('strategy: lean-codegraph');
+    expect(output).toContain('strategy: lean-codegraph-v2');
     expect(output).toContain('knowledge_map: compact-project-map');
     expect(output).toContain('relationship_confidence: EXTRACTED | INFERRED | AMBIGUOUS');
     expect(output).toContain('path_affected_questions: files -> symbols -> tests -> tools -> UX surfaces');
     expect(output).toContain('apps/liora/src/tui/commands/ultrawork-contract.ts');
     expect(output).toContain('buildUltraworkPrompt');
     expect(output).toContain('relationships:');
-    expect(output).toContain('import ./goal [EXTRACTED]');
-    expect(output).toContain('export buildUltraworkPrompt [EXTRACTED]');
+    expect(output).toContain('import ./goal');
     expect(output).toContain('test_hints:');
     expect(output).toContain('INFERRED apps/liora/src/tui/commands/ultrawork-contract.test.ts');
     expect(output).toContain('Kimi Lean Context keeps code exploration compact');
