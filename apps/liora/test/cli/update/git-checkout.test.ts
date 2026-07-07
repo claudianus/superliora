@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { refreshGitCheckoutUpdateTarget } from '#/cli/update/git-checkout';
+import { refreshGitCheckoutUpdateTarget, gitCheckoutUpdateScript } from '#/cli/update/git-checkout';
 
 const tempDirs: string[] = [];
 
@@ -40,6 +40,22 @@ function initCheckout(remoteUrl: string): string {
   runGit(repoRoot, ['push', '-u', 'origin', 'main']);
   return repoRoot;
 }
+
+describe('gitCheckoutUpdateScript', () => {
+  it('matches install.sh fetch, build, and wrapper refresh steps', () => {
+    const script = gitCheckoutUpdateScript('/tmp/superliora');
+
+    expect(script).toContain("repo='/tmp/superliora'");
+    expect(script).toContain('COREPACK_ENABLE_DOWNLOAD_PROMPT=0');
+    expect(script).toContain('fetch --depth 1 origin "$ref"');
+    expect(script).toContain('checkout --force FETCH_HEAD');
+    expect(script).toContain('reset --hard FETCH_HEAD');
+    expect(script).toContain('install --frozen-lockfile');
+    expect(script).toContain('run build:packages');
+    expect(script).toContain('apps/liora run build');
+    expect(script).toContain('scripts/install-liora.mjs --bin-dir "$bin_dir" --name "$command_name" --no-shell-rc --force');
+  });
+});
 
 describe('refreshGitCheckoutUpdateTarget', () => {
   it('detects updates when HEAD is detached but behind origin/main', () => {

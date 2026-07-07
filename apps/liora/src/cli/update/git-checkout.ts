@@ -53,26 +53,37 @@ export async function detectSuperLioraGithubCheckout(
   return isSuperLioraGithubRemote(origin) ? repoRoot : null;
 }
 
-export function gitCheckoutUpdateCommand(repoRoot: string = findGitCheckoutRoot() ?? '.'): string {
-  const quotedRoot = shellQuote(repoRoot);
+function buildGitCheckoutUpdateShellLines(repoExpr: string): readonly string[] {
   return [
-    `git -C ${quotedRoot} pull --ff-only`,
-    `corepack pnpm -C ${quotedRoot} install`,
-    `corepack pnpm -C ${quotedRoot} --filter @superliora/liora run build`,
-  ].join(' && ');
+    `upstream="$(git -C ${repoExpr} rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"`,
+    `if [ -z "$upstream" ]; then upstream="$(git -C ${repoExpr} symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo 'origin/main')"; fi`,
+    'ref="${upstream#origin/}"',
+    `git -C ${repoExpr} diff --quiet`,
+    `git -C ${repoExpr} diff --cached --quiet`,
+    `git -C ${repoExpr} fetch --depth 1 origin "$ref"`,
+    `git -C ${repoExpr} checkout --force FETCH_HEAD`,
+    `git -C ${repoExpr} reset --hard FETCH_HEAD`,
+    `corepack pnpm -C ${repoExpr} install --frozen-lockfile`,
+    `corepack pnpm -C ${repoExpr} run build:packages`,
+    `corepack pnpm -C ${repoExpr}/apps/liora run build`,
+    'liora_path="$(command -v liora 2>/dev/null || true)"',
+    'if [ -n "$liora_path" ]; then bin_dir="$(dirname "$liora_path")"; command_name="$(basename "$liora_path")"; else bin_dir="${HOME}/.local/bin"; command_name="liora"; fi',
+    `node ${repoExpr}/scripts/install-liora.mjs --bin-dir "$bin_dir" --name "$command_name" --no-shell-rc --force`,
+  ];
+}
+
+export function gitCheckoutUpdateCommand(repoRoot: string = findGitCheckoutRoot() ?? '.'): string {
+  return `bash -lc ${shellQuote(gitCheckoutUpdateScript(repoRoot))}`;
 }
 
 export function gitCheckoutUpdateScript(repoRoot: string = findGitCheckoutRoot() ?? '.'): string {
   const quotedRoot = shellQuote(repoRoot);
   return [
     'set -e',
+    'export COREPACK_ENABLE_DOWNLOAD_PROMPT=0',
     `repo=${quotedRoot}`,
-    'git -C "$repo" diff --quiet',
-    'git -C "$repo" diff --cached --quiet',
-    'git -C "$repo" pull --ff-only',
-    'corepack pnpm -C "$repo" install',
-    'corepack pnpm -C "$repo" --filter @superliora/liora run build',
-  ].join('; ');
+    ...buildGitCheckoutUpdateShellLines('"$repo"'),
+  ].join('\n');
 }
 
 export async function refreshGitCheckoutUpdateTarget(
