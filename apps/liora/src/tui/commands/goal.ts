@@ -30,7 +30,8 @@ import type { SlashCommandHost } from './dispatch';
 import { buildUltraworkPrompt } from './ultrawork-contract';
 
 const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
-const RESUME_GOAL_INPUT = 'Resume the active goal.';
+const RESUME_GOAL_INPUT =
+  'Continue from where you left off. Resume the active goal without restarting earlier Ultrawork stages or redoing completed work.';
 const START_NEXT_GOAL_NOW_MESSAGE = 'No active goal. Starting this goal now.';
 const GOAL_ULTRAWORK_ACTIVITY_TIP =
   'Goal mode: research first, then UltraPlan interview, verifiable acceptance criteria, Swarm decision, verify';

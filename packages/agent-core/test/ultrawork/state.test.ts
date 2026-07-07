@@ -48,6 +48,39 @@ describe('UltraworkRunStateMachine', () => {
     expect(() => machine.advance('intake')).toThrow('Cannot move Ultrawork run backward');
   });
 
+  it('syncs stage forward from work graph progress without formal gates', () => {
+    const machine = UltraworkRunStateMachine.create({
+      id: 'uw_1',
+      objective: 'Ship the workflow',
+      now: '2026-07-01T00:00:00.000Z',
+    });
+
+    machine.advance('plan', 'planned', '2026-07-01T00:00:01.000Z');
+    machine.advance('research', 'researching', '2026-07-01T00:00:02.000Z');
+    expect(machine.snapshot().stage).toBe('research');
+
+    const synced = machine.syncStageForward('integrate', 'Synced from WorkGraph progress');
+    expect(synced.stage).toBe('integrate');
+    expect(machine.snapshot().stageHistory?.at(-1)).toMatchObject({
+      stage: 'integrate',
+      reason: 'Synced from WorkGraph progress',
+    });
+  });
+
+  it('does not move stage backward when syncing from work graph', () => {
+    const machine = UltraworkRunStateMachine.create({
+      id: 'uw_1',
+      objective: 'Ship the workflow',
+      now: '2026-07-01T00:00:00.000Z',
+    });
+    machine.advance('plan');
+    machine.advance('research');
+    machine.advance('goal');
+    const before = machine.snapshot();
+    machine.syncStageForward('research');
+    expect(machine.snapshot()).toEqual(before);
+  });
+
   it('attaches team, verification, and knowledge state without changing stage', () => {
     const machine = UltraworkRunStateMachine.create({
       id: 'uw_1',

@@ -61,6 +61,7 @@ import {
   responseLanguagePreferenceFromUnknown,
 } from './response-language';
 import { detectResponseLanguageWithLlm } from './response-language-llm';
+import { maybeTransformPromptForInterruptedWorkResume } from '../ultrawork/interrupted-work-resume';
 
 type AgentScopedPayload<T> = T & { agentId: string };
 
@@ -135,6 +136,7 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     if (agentId === 'main') {
       await this.updatePromptMetadata(promptMetadataTextFromPayload(payload));
       await this.updateResponseLanguagePreference(payload.input);
+      payload = await this.maybeResumeInterruptedWorkPrompt(agentId, payload);
     }
     return (await this.getAgent(agentId)).prompt(payload);
   }
@@ -142,6 +144,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   async steer({ agentId, ...payload }: AgentScopedPayload<SteerPayload>) {
     if (agentId === 'main') {
       await this.updateResponseLanguagePreference(payload.input);
+      const transformed = await this.maybeResumeInterruptedWorkInput(agentId, payload.input);
+      if (transformed !== undefined) {
+        payload = { ...payload, input: transformed };
+      }
     }
     return (await this.getAgent(agentId)).steer(payload);
   }
@@ -403,6 +409,29 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
         lastPrompt,
       },
     });
+  }
+
+  private async maybeResumeInterruptedWorkPrompt(
+    agentId: string,
+    payload: PromptPayload,
+  ): Promise<PromptPayload> {
+    const transformed = await this.maybeResumeInterruptedWorkInput(agentId, payload.input);
+    if (transformed === undefined) return payload;
+    return { input: transformed };
+  }
+
+  private async maybeResumeInterruptedWorkInput(
+    agentId: string,
+    input: PromptPayload['input'],
+  ): Promise<PromptPayload['input'] | undefined> {
+    const text = promptMetadataTextFromPayload({ input });
+    if (text === undefined) return undefined;
+    const agent = await this.session.ensureAgentResumed(agentId);
+    const resumed = await maybeTransformPromptForInterruptedWorkResume(agent, text, {
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (resumed === undefined) return undefined;
+    return [{ type: 'text', text: resumed.promptText }];
   }
 
   private async updateResponseLanguagePreference(input: PromptPayload['input']): Promise<void> {

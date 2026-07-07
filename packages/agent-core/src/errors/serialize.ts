@@ -82,6 +82,10 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
         : error.statusCode === 401
           ? ErrorCodes.PROVIDER_AUTH_ERROR
           : ErrorCodes.PROVIDER_API_ERROR;
+    const retryable =
+      code === ErrorCodes.PROVIDER_API_ERROR && error.statusCode >= 500
+        ? true
+        : KIMI_ERROR_INFO[code].retryable;
     return {
       code,
       message: sanitizeStatusErrorMessage(error.message),
@@ -90,7 +94,7 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
         statusCode: error.statusCode,
         requestId: error.requestId,
       },
-      retryable: KIMI_ERROR_INFO[code].retryable,
+      retryable,
     };
   }
 

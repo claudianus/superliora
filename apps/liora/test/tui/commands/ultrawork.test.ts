@@ -675,7 +675,7 @@ describe('handleUltraworkCommand', () => {
     );
   });
 
-  it('routes auto activation to resume when a blocked run exists', async () => {
+  it('routes blocked ultrawork auto activation through normal user input', async () => {
     const { host, session } = makeHost({ planMode: true });
     session.getUltraworkRun.mockResolvedValue({
       id: 'run-blocked',
@@ -685,37 +685,12 @@ describe('handleUltraworkCommand', () => {
       createdAt: '2026-07-06T00:00:00.000Z',
       updatedAt: '2026-07-06T00:05:00.000Z',
     });
-    session.resumeUltrawork.mockResolvedValue({
-      run: {
-        id: 'run-blocked',
-        objective: 'Resume me',
-        status: 'running',
-        stage: 'research',
-        createdAt: '2026-07-06T00:00:00.000Z',
-        updatedAt: '2026-07-06T00:06:00.000Z',
-      },
-      recoveryPrompt: '<ultrawork_recovery>',
-      goalResumed: false,
-      report: {
-        run: {
-          id: 'run-blocked',
-          objective: 'Resume me',
-          status: 'running',
-          stage: 'research',
-          createdAt: '2026-07-06T00:00:00.000Z',
-          updatedAt: '2026-07-06T00:06:00.000Z',
-        },
-        orphanedWorkNodes: [],
-        orphanedExperts: [],
-        lostBackgroundTasks: [],
-        nextActions: [],
-      },
-    });
 
     await handleUltraworkCommand(host, '울트라워크로 readme 작업 재개해줘', 'auto');
 
     expect(session.createUltraworkRun).not.toHaveBeenCalled();
-    expect(session.resumeUltrawork).toHaveBeenCalled();
+    expect(session.resumeUltrawork).not.toHaveBeenCalled();
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith('울트라워크로 readme 작업 재개해줘');
   });
 });
 

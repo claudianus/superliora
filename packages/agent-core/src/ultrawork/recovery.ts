@@ -11,6 +11,11 @@ import type { Agent } from '../agent';
 import { isBackgroundTaskTerminal } from '../agent/background';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
 import type { UltraworkActivation, UltraworkPlanRecoveryContext, UltraworkRecoveryReport, UltraworkResumeCursor } from './types';
+import {
+  applyWorkGraphProgressToRun,
+  inferEffectiveUltraworkStage,
+  summarizeWorkGraphProgress,
+} from './stage-progress';
 
 export interface ReconcileUltraworkRunResult {
   readonly run: UltraworkRun;
@@ -37,13 +42,16 @@ export function reconcileUltraworkRunForResume(
     .filter((task) => isBackgroundTaskTerminal(task.status) && (task.status === 'lost' || task.status === 'failed'))
     .map((task) => task.taskId);
 
-  const reconciledRun: UltraworkRun = {
-    ...run,
-    status: 'running',
-    workGraph: workGraph ?? run.workGraph,
-    teamPlan: teamPlan ?? run.teamPlan,
-    updatedAt: new Date().toISOString(),
-  };
+  const reconciledRun = applyWorkGraphProgressToRun(
+    {
+      ...run,
+      status: 'running',
+      workGraph: workGraph ?? run.workGraph,
+      teamPlan: teamPlan ?? run.teamPlan,
+      updatedAt: new Date().toISOString(),
+    },
+    workGraph,
+  );
 
   return {
     run: reconciledRun,
@@ -60,11 +68,12 @@ export function buildUltraworkResumeCursor(
   run: UltraworkRun,
   planContext?: UltraworkPlanRecoveryContext,
 ): UltraworkResumeCursor {
-  const pendingNodes = run.workGraph?.nodes.filter((node) => node.status !== 'done') ?? [];
-  const nextNode = pendingNodes.find((node) => node.status === 'queued' || node.status === 'blocked');
+  const progress = summarizeWorkGraphProgress(run.workGraph);
+  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  const nextNode = progress.nextPendingNode;
   const goal = agent.goal.getGoal().goal;
   return {
-    stage: run.stage,
+    stage: effectiveStage,
     planPhase: planContext?.phase,
     interviewRound: planContext?.interviewRoundCount,
     workGraphNodeId: nextNode?.id,
@@ -130,6 +139,27 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}`);
     lines.push('Do not restart the UltraPlan interview from round 1.');
   }
+  const progress = summarizeWorkGraphProgress(report.run.workGraph);
+  if (progress.doneCount > 0 || progress.pendingCount > 0) {
+    lines.push(
+      `WorkGraph progress: ${String(progress.doneCount)} done, ${String(progress.pendingCount)} pending.`,
+    );
+    if (progress.inProgressNodes.length > 0) {
+      for (const node of progress.inProgressNodes.slice(0, 6)) {
+        lines.push(`- [${node.status}] ${node.id}: ${node.title} (stage=${node.stage})`);
+      }
+    }
+  }
+  const effectiveStage = inferEffectiveUltraworkStage(report.run.stage, report.run.workGraph);
+  if (effectiveStage !== report.run.stage) {
+    lines.push(
+      `Effective resume stage: ${effectiveStage} (checkpoint stage ${report.run.stage} is behind WorkGraph progress).`,
+    );
+    lines.push(
+      'Do not restart UltraResearch, UltraPlan interview, or other completed stages unless the checkpoint is unusable.',
+    );
+  }
+
   if (resumeCursor !== undefined) {
     lines.push('Resume cursor:');
     lines.push(`- stage: ${resumeCursor.stage}`);
@@ -282,8 +312,25 @@ function suggestNextActions(
     actions.push(`Acknowledge the interruption (${interruptReason}) and restate the remaining objective.`);
   }
 
+  const progress = summarizeWorkGraphProgress(run.workGraph);
+  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  if (
+    progress.doneCount > 0 &&
+    stageIndex(effectiveStage) > stageIndex('research') &&
+    run.stage === 'research'
+  ) {
+    actions.push(
+      'The WorkGraph shows completed work beyond the checkpoint stage. Continue implementation/verification from the current in-progress node; do not restart research.',
+    );
+  }
+  if (progress.nextPendingNode !== undefined) {
+    actions.push(
+      `Resume WorkGraph node ${progress.nextPendingNode.id}: ${progress.nextPendingNode.title}.`,
+    );
+  }
+
   const planPhase = planContext?.phase ?? resumeCursor?.planPhase;
-  if (run.stage === 'plan' || run.stage === 'research') {
+  if (effectiveStage === 'plan' || effectiveStage === 'research') {
     switch (planPhase) {
       case 'research':
         actions.push('Refresh the evidence pack with current sources before asking blocking questions.');
@@ -320,7 +367,7 @@ function suggestNextActions(
         break;
     }
   } else {
-    switch (run.stage) {
+    switch (effectiveStage) {
       case 'intake':
         actions.push('Re-open the active Ultra Plan file and continue the interview or plan gate.');
         break;
@@ -346,13 +393,23 @@ function suggestNextActions(
     }
   }
 
-  const pendingNodes = run.workGraph?.nodes.filter((node) => node.status !== 'done') ?? [];
-  if (pendingNodes.length > 0) {
-    const nextNode = pendingNodes.find((node) => node.status === 'queued' || node.status === 'blocked');
-    if (nextNode !== undefined) {
-      actions.push(`Pick up WorkGraph node ${nextNode.id}: ${nextNode.title}.`);
-    }
-  }
+  return actions.slice(0, 4);
+}
 
-  return actions.slice(0, 3);
+function stageIndex(stage: UltraworkStage): number {
+  const order: readonly UltraworkStage[] = [
+    'intake',
+    'plan',
+    'research',
+    'goal',
+    'staff',
+    'swarm',
+    'integrate',
+    'verify',
+    'learn',
+    'done',
+  ];
+  const index = order.indexOf(stage);
+  if (index < 0) throw new Error(`Unknown Ultrawork stage: ${stage}`);
+  return index;
 }

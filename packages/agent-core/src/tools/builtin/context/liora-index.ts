@@ -8,6 +8,7 @@ import { noopTelemetryClient } from '../../../telemetry';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { buildWorkspaceIndex, getIndexStatus } from '../../../lean-context/index/builder';
+import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
 
 export const LIORA_INDEX_TOOL_NAME = 'LioraIndex';
 
@@ -96,7 +97,5 @@ export class LioraIndexTool implements BuiltinTool<LioraIndexInput> {
 }
 
 export async function warmWorkspaceIndex(kaos: Kaos, workspace: WorkspaceConfig): Promise<void> {
-  const status = await getIndexStatus(kaos, workspace);
-  if (status.ready && !status.stale) return;
-  await buildWorkspaceIndex({ kaos, workspace, incremental: status.ready });
+  await ensureWorkspaceIndex(kaos, workspace);
 }

@@ -85,7 +85,7 @@ export async function handleUltraworkCommand(
   if (parsed.kind === 'create') {
     const existingRun = await host.requireSession().getUltraworkRun();
     if (existingRun?.status === 'blocked') {
-      await resumeUltrawork(host);
+      host.sendNormalUserInput(args.trim());
       return;
     }
     if (existingRun?.status === 'running') {

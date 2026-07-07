@@ -14,6 +14,7 @@ import {
   UltraworkRunStateMachine,
   type UltraworkRunUpdate,
 } from './state';
+import { maybeSyncUltraworkStageFromWorkGraph } from './stage-progress';
 import type {
   CreateUltraworkRunInput,
   MarkUltraworkInterruptedInput,
@@ -23,6 +24,7 @@ import type {
   UltraworkPlanRecoveryContext,
 } from './types';
 import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor } from './recovery';
+import { reconcileUltraworkFromMirror } from './mirror-reconcile';
 import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport } from './workflow-report';
 
 export class UltraworkMode {
@@ -150,7 +152,26 @@ export class UltraworkMode {
   syncWorkGraphFromStore(): UltraworkRun | undefined {
     const graph = this.agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
     if (graph === undefined || this.machine === undefined) return undefined;
-    return this.update({ workGraph: graph });
+    const updated = this.update({ workGraph: graph });
+    return this.syncStageFromWorkGraph(graph) ?? updated;
+  }
+
+  syncStageFromWorkGraph(graph?: WorkGraph): UltraworkRun | undefined {
+    const machine = this.machine;
+    if (machine === undefined) return undefined;
+    const run = machine.snapshot();
+    const sourceGraph = graph ?? run.workGraph;
+    if (sourceGraph === undefined || run.status !== 'running') return run;
+    const from = run.stage;
+    const synced = maybeSyncUltraworkStageFromWorkGraph(
+      (stage, reason) => machine.syncStageForward(stage, reason),
+      run,
+      sourceGraph,
+    );
+    if (synced.stage === from) return synced;
+    this.emitStageChanged(synced, from, synced.stage, 'Synced from WorkGraph progress');
+    this.scheduleCheckpoint();
+    return synced;
   }
 
   async pause(input: PauseUltraworkInput = {}): Promise<UltraworkRun | null> {
@@ -182,6 +203,8 @@ export class UltraworkMode {
   async resume(): Promise<ResumeUltraworkResult | null> {
     const machine = this.machine;
     if (machine === undefined) return null;
+
+    await reconcileUltraworkFromMirror(this.agent);
 
     let run = machine.snapshot();
     if (run.status === 'done' || run.status === 'failed') return null;

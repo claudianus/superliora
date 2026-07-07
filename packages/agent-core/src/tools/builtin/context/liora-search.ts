@@ -2,6 +2,7 @@ import type { Kaos } from '@superliora/kaos';
 import { z } from 'zod';
 
 import { queryIndexedPaths } from '../../../lean-context/index/builder';
+import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
@@ -71,6 +72,7 @@ export class LioraSearchTool implements BuiltinTool<LioraSearchInput> {
     try {
       let scopedPaths = explicitPaths;
       if (scopedPaths === undefined) {
+        await ensureWorkspaceIndex(this.kaos, this.workspace);
         const indexed = await queryIndexedPaths(this.kaos, this.workspace, input.pattern, 40);
         if (indexed.length > 0) scopedPaths = indexed;
       }
