@@ -19,11 +19,11 @@ import type { BuiltinTool } from '../../../agent/tool';
 import { ErrorCodes, LioraError } from '../../../errors';
 import { errorMessage, isAbortError } from '../../../loop/errors';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import type {
-  QuestionAnswers,
-  QuestionAnswerMethod,
-  QuestionResponse,
-  QuestionResult,
+import {
+  isQuestionResponse,
+  type QuestionAnswers,
+  type QuestionAnswerMethod,
+  type QuestionResult,
 } from '../../../rpc';
 import type { TelemetryPropertyValue } from '../../../telemetry';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -314,9 +314,3 @@ function normalizeQuestionResult(
   return { answers: result };
 }
 
-function isQuestionResponse(result: Exclude<QuestionResult, null>): result is QuestionResponse {
-  if (typeof result !== 'object' || result === null) return false;
-  if (!Object.hasOwn(result, 'answers')) return false;
-  const answers = (result as { readonly answers?: unknown }).answers;
-  return typeof answers === 'object' && answers !== null && !Array.isArray(answers);
-}

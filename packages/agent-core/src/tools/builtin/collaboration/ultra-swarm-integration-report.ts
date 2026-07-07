@@ -44,7 +44,13 @@ export function extractHandoffDigest(body: string): UltraSwarmHandoffDigest {
   const trimmed = body.trim();
   if (trimmed.length === 0) return {};
 
-  const digest: Partial<UltraSwarmHandoffDigest> = {};
+  const digest: {
+    summary?: string;
+    findings?: string;
+    recommendations?: string;
+    risksAndGaps?: string;
+    verification?: string;
+  } = {};
   for (const section of HANDOFF_SECTIONS) {
     const value = extractMarkdownSection(trimmed, section.pattern);
     if (value !== undefined) {
