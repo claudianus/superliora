@@ -766,7 +766,7 @@ export class UltraPlanModeEngine {
     llmResult: LLMAmbiguityResult,
     evidenceHash: string,
     onProgress: ((text: string) => void) | undefined,
-    skipLlm: boolean,
+    _skipLlm: boolean,
   ): AmbiguityScoreResult {
     const totalRounds = this._interviewState.rounds.length;
     const answerRoundClarity = Math.min(totalRounds / 3, 1.0);
