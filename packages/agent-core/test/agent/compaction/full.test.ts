@@ -33,6 +33,7 @@ import { FLAG_DEFINITIONS, MASTER_ENV } from '../../../src/flags';
 import type { AgentMemoryRuntime, MemoryCreateInput, MemoryRecord } from '../../../src/memory';
 import { HookEngine, type HookEngineTriggerArgs } from '../../../src/session/hooks';
 import { estimateTokensForMessages } from '../../../src/utils/tokens';
+import { expandArchivedContent } from '../../../src/tools/builtin/context/context-archive';
 import { recordingTelemetry, type TelemetryRecord } from '../../fixtures/telemetry';
 import { agentTask, waitForTerminal } from '../background/helpers';
 import type { TestAgentContext, TestAgentOptions } from '../harness/agent';
@@ -56,6 +57,39 @@ const CATALOGUED_MODEL_CAPABILITIES = {
 const MICRO_COMPACTION_FLAG_ENV = getMicroCompactionFlagEnv();
 
 describe('FullCompaction', () => {
+  it('archives compacted tool exchanges so they are recoverable via liora-expand', async () => {
+    const ctx = testAgent();
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    // An old exchange plus a tool exchange; manual compaction summarizes the
+    // whole prefix, so the tool exchange lands in the compacted region and is
+    // archived for later recovery.
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+    ctx.appendToolExchange();
+
+    const completed = ctx.once('compaction.completed');
+    ctx.mockNextResponse({ type: 'text', text: 'Compacted summary.' });
+    await ctx.rpc.beginCompaction({ instruction: 'Keep the important test facts.' });
+    await completed;
+
+    const summary = compactionSummaryEntry(ctx.compactHistory())?.text ?? '';
+    // The summary points the model at archive ids it can expand.
+    expect(summary).toMatch(/compaction-archives/);
+    const archiveIdMatch = /archive_ids="([a-f0-9]+)"/.exec(summary);
+    expect(archiveIdMatch).not.toBeNull();
+    const archiveId = archiveIdMatch![1]!;
+
+    // The original tool exchange survives in the context-archive store.
+    const store = ctx.agent.tools.getStore();
+    const expanded = expandArchivedContent(store, archiveId);
+    expect(expanded.found).toBe(true);
+    if (expanded.found) {
+      expect(expanded.entry.content).toContain('lookup result');
+    }
+  });
+
   it('keeps an oversized trailing user message as recent', () => {
     const strategy = testCompactionStrategy();
     const messages = [

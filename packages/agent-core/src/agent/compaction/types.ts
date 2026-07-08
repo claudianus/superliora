@@ -141,6 +141,12 @@ export interface CompactionResultRawRef {
   readonly tokens: number;
   readonly toolCallIds?: readonly string[];
   readonly toolNames?: readonly string[];
+  /**
+   * When the compacted group was archived to the context-archive store before
+   * being summarized away, this is the id `liora-expand` can recover the
+   * original content with. Absent for groups that were not archived.
+   */
+  readonly archiveId?: string;
 }
 
 export type CompactionSource = 'manual' | 'auto';
