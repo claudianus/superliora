@@ -304,10 +304,12 @@ describe('compaction — probe tests (high-risk scenarios)', () => {
     expect(ctx.agent.context.tokenCount).toBeLessThan(SMALL_WINDOW * 0.85);
   });
 
-  // PROBE #4 / CMP-01 — compaction started while a tool exchange is still open
-  // (SDK/REST caller mid-tool) clears pendingToolResultIds, so the tool.result
-  // that arrives afterwards is treated as an orphan and silently dropped.
-  it.fails('does not drop a tool result that arrives after a compaction started mid-exchange', async () => {
+  // CMP-01 (was PROBE #4) — compaction started while a tool exchange is still
+  // open (SDK/REST caller mid-tool) used to clear pendingToolResultIds, so a
+  // tool.result arriving afterwards was treated as an orphan and silently
+  // dropped. applyCompaction now preserves previously-pending ids in
+  // lateAcceptedToolCallIds so the late result lands in history.
+  it('does not drop a tool result that arrives after a compaction started mid-exchange', async () => {
     const ctx = testAgent();
     ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
     ctx.appendUnresolvedToolExchange(0); // assistant with 2 tool calls, no results yet
