@@ -18,7 +18,16 @@ import { MESSAGE_INDENT } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
-import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
+import {
+  isRenderCacheEnabled,
+  renderCacheEpoch,
+} from '#/tui/utils/render-cache';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  motionEffectsAllowed,
+  resolveQualityAdjustedAmbientEffectMode,
+} from '#/tui/utils/appearance-effects';
 
 type AssistantMarkdownOptions = {
   transient?: boolean;
@@ -103,23 +112,68 @@ export class AssistantMessageComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
+    // While streaming (transient), the caret pulses on the animation clock, so
+    // the cache must repaint each ambient tick. When finalized, drop the epoch
+    // so an unchanged message returns to O(1) cached renders.
+    const streaming = this.lastTransient && caretActive();
     return this.renderCache.render({
       width: safeWidth,
+      cacheEpoch: streaming ? renderCacheEpoch() : undefined,
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
         const prefix = this.showBullet ? currentTheme.fg('text', STATUS_BULLET) : MESSAGE_INDENT;
-        const contentWidth = measureRendererTranscriptContentWidth({ width: safeWidth, prefix });
+        // Reserve a column for the pulsing caret while streaming so it does not
+        // get truncated off the end of the last content line.
+        const caretReserve = streaming ? 1 : 0;
+        const contentWidth = Math.max(
+          1,
+          measureRendererTranscriptContentWidth({ width: safeWidth, prefix }) - caretReserve,
+        );
         const contentLines = this.contentContainer.render(contentWidth);
+
+        const lines = streaming
+          ? appendStreamingCaret(contentLines, contentWidth)
+          : contentLines;
 
         return renderRendererTranscriptLineBlock({
           width: safeWidth,
           prefix,
           continuationPrefix: MESSAGE_INDENT,
-          lines: contentLines,
+          lines,
           leadingBlank: true,
           truncateMark: '…',
         });
       },
     });
   }
+}
+
+/** Whether the streaming caret should render in the current environment. */
+function caretActive(): boolean {
+  if (!motionEffectsAllowed()) return false;
+  return resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences()) !== 'off';
+}
+
+/** A pulsing caret block appended to the last content line while streaming. */
+const STREAMING_CARET = '▍';
+const CARET_PULSE_INTERVAL_MS = 560;
+
+/**
+ * Append a pulsing caret to the last non-empty content line. The caret fades
+ * in and out via a triangle wave on the shared animation clock, signalling
+ * that the assistant is actively composing.
+ */
+function appendStreamingCaret(lines: readonly string[], contentWidth: number): readonly string[] {
+  if (lines.length === 0) return lines;
+  // Find the last line with visible content.
+  let lastIndex = lines.length - 1;
+  while (lastIndex > 0 && lines[lastIndex]!.trim().length === 0) {
+    lastIndex--;
+  }
+  const phase = (Math.sin(appearanceAnimationNow() / CARET_PULSE_INTERVAL_MS * Math.PI) + 1) / 2;
+  const token = phase > 0.5 ? 'gradientStart' : 'textDim';
+  const caret = currentTheme.boldFg(token, STREAMING_CARET);
+  const next = [...lines];
+  next[lastIndex] = `${lines[lastIndex]}${caret}`;
+  return next;
 }

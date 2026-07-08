@@ -38,6 +38,9 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 | `particle` | `#B784FF` | `#7C3AED` | Particle accent for event bursts and ambient effects |
 | `gradientStart` | `#00D5FF` | `#075985` | Start of premium gradient treatments |
 | `gradientEnd` | `#B784FF` | `#0F766E` | End of premium gradient treatments |
+| `auroraA` | `#0B3D5C` | `#DCEEF7` | Ambient aurora background anchor 1 (deep cyan/teal wash) |
+| `auroraB` | `#2A1B5C` | `#E5E0F4` | Ambient aurora background anchor 2 (deep indigo wash) |
+| `auroraC` | `#3D1452` | `#F0E0EF` | Ambient aurora background anchor 3 (deep violet wash) |
 | `syntaxText` | `#E0E0E0` | `#1A1A1A` | Code highlight default / identifiers |
 | `syntaxKeyword` | `#C792EA` | `#6D28D9` | Code highlight keywords, constants, and built-ins |
 | `syntaxFunction` | `#82AAFF` | `#075985` | Code highlight function and method names |

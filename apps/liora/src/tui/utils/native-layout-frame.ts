@@ -55,6 +55,7 @@ import {
 } from '#/tui/utils/appearance-effects';
 
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers/appearance';
+import { buildAuroraBackground } from '#/tui/utils/aurora-background';
 import type { TUIState } from '../tui-state';
 import {
   resolveTUIStateNativeFramePolicy,
@@ -369,6 +370,7 @@ export function getTUIStateNativeEditorRect(
   if (!state.editorContainer.children.includes(state.editor)) return undefined;
   const frameWidth = normalizeFrameSize(width, DEFAULT_NATIVE_FRAME_COLUMNS);
   const frameHeight = normalizeFrameSize(height, DEFAULT_NATIVE_FRAME_ROWS);
+  const headerRows = state.headerContainer.render(frameWidth).length;
   const activityRows = state.activityContainer.render(frameWidth).length;
   const todoRows = state.todoPanelContainer.render(frameWidth).length;
   const queueRows = state.queueContainer.render(frameWidth).length;
@@ -379,6 +381,7 @@ export function getTUIStateNativeEditorRect(
     terminalRows: frameHeight,
     terminalColumns: frameWidth,
     heights: {
+      header: headerRows,
       activity: activityRows,
       todo: todoRows,
       queue: queueRows,
@@ -387,7 +390,7 @@ export function getTUIStateNativeEditorRect(
         state,
         editorRows,
         frameHeight,
-        activityRows + todoRows + queueRows + btwRows + footerRows,
+        headerRows + activityRows + todoRows + queueRows + btwRows + footerRows,
         frameWidth,
       ),
       footer: footerRows,
@@ -409,13 +412,14 @@ export function measureTUIStateNativeFrameHeight(
 ): number {
   if (!Number.isFinite(terminalRows) || terminalRows <= 0) return terminalRows;
   const frameWidth = normalizeFrameSize(width, DEFAULT_NATIVE_FRAME_COLUMNS);
+  const headerRows = state.headerContainer.render(frameWidth).length;
   const activityRows = state.activityContainer.render(frameWidth).length;
   const todoRows = state.todoPanelContainer.render(frameWidth).length;
   const queueRows = state.queueContainer.render(frameWidth).length;
   const btwRows = state.btwPanelContainer.render(frameWidth).length;
   const editorLineCount = nativeEditorFallbackLineCount(state, frameWidth);
   const footerRows = state.footerContainer.render(frameWidth).length;
-  const fixedRowsWithoutEditor = activityRows + todoRows + queueRows + btwRows + footerRows;
+  const fixedRowsWithoutEditor = headerRows + activityRows + todoRows + queueRows + btwRows + footerRows;
   const editorRows = nativeEditorRegionRowsForLayout(
     state,
     editorLineCount,
@@ -427,6 +431,7 @@ export function measureTUIStateNativeFrameHeight(
     terminalRows,
     terminalColumns: frameWidth,
     heights: {
+      header: headerRows,
       activity: activityRows,
       todo: todoRows,
       queue: queueRows,
@@ -458,6 +463,7 @@ function buildTUIStateNativeFrame(
     readonly diagnostics?: RendererDiagnosticsSnapshot;
   } = {},
 ): TUIStateNativeFrame {
+  const headerLines = state.headerContainer.render(width);
   const activityLines = state.activityContainer.render(width);
   const todoLines = state.todoPanelContainer.render(width);
   const queueLines = state.queueContainer.render(width);
@@ -465,6 +471,7 @@ function buildTUIStateNativeFrame(
   const editorLines = nativeEditorFallbackRegionLines(state, width);
   const footerLines = state.footerContainer.render(width);
   const fixedRowsWithoutEditor =
+    headerLines.length +
     activityLines.length +
     todoLines.length +
     queueLines.length +
@@ -481,6 +488,7 @@ function buildTUIStateNativeFrame(
     terminalRows: height,
     terminalColumns: width,
     heights: {
+      header: headerLines.length,
       activity: activityLines.length,
       todo: todoLines.length,
       queue: queueLines.length,
@@ -491,6 +499,7 @@ function buildTUIStateNativeFrame(
   });
   const linesByRegion = {
     transcript: nativeTranscriptRegionLines(state, width, layout.transcriptRows),
+    header: headerLines,
     activity: activityLines,
     todo: todoLines,
     queue: queueLines,
@@ -501,6 +510,26 @@ function buildTUIStateNativeFrame(
 
   let cursor = hiddenNativeCursor();
   const canvasBackground = currentTheme.canvasBackgroundCell();
+  const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
+  const auroraRows = buildAuroraBackground({
+    width,
+    height,
+    nowMs: appearanceAnimationNow(),
+    appearance,
+  });
+  // When the aurora is active it becomes the bottom-most layer, so upper regions
+  // must neither `clear` nor set a `background`: both would fill the rect with
+  // an empty/base cell and erase the aurora beneath. Content cells keep their
+  // own styles; empty cells fall through to the aurora wash.
+  const auroraActive = auroraRows.length > 0;
+  const auroraRegion: RendererFrameRegion | undefined = auroraActive
+    ? {
+        id: 'aurora-background',
+        rect: { x: 0, y: 0, width, height },
+        content: auroraRows,
+        zIndex: -1,
+      }
+    : undefined;
   const regions = createRendererStackFrameRegions(
     layout,
     layout.regions.flatMap((region) => {
@@ -528,7 +557,13 @@ function buildTUIStateNativeFrame(
             seed: 'native-editor-focus',
           })
         : undefined;
-      return [{ id: region.id, content, clear: true, background: canvasBackground, vfx }];
+      return [{
+        id: region.id,
+        content,
+        clear: !auroraActive,
+        background: auroraActive ? undefined : canvasBackground,
+        vfx,
+      }];
     }),
   );
   const diagnosticsOverlay = createTUIStateDiagnosticsOverlayRegion(
@@ -538,8 +573,11 @@ function buildTUIStateNativeFrame(
     width,
     height,
   );
+  const layeredRegions: readonly RendererFrameRegion[] = auroraRegion === undefined
+    ? regions
+    : [auroraRegion, ...regions];
   return {
-    regions: diagnosticsOverlay === undefined ? regions : [...regions, diagnosticsOverlay],
+    regions: diagnosticsOverlay === undefined ? layeredRegions : [...layeredRegions, diagnosticsOverlay],
     cursor,
   };
 }
