@@ -570,6 +570,7 @@ export class ToolCallComponent extends Container {
   private progressLines: string[] = [];
   private static readonly MAX_PROGRESS_LINES = 24;
   private liveOutput = '';
+  private liveOutputTruncated = false;
 
   /**
    * Advertises `Ctrl+B` on a foreground Bash/Agent card that has been running
@@ -751,9 +752,16 @@ export class ToolCallComponent extends Container {
     if (this.result !== undefined || text.length === 0) return;
     this.liveOutput += text;
     if (this.liveOutput.length > MAX_LIVE_OUTPUT_CHARS) {
-      this.liveOutput = `[...truncated]\n${this.liveOutput.slice(
-        this.liveOutput.length - MAX_LIVE_OUTPUT_CHARS,
-      )}`;
+      if (this.liveOutputTruncated) {
+        // Already truncated once — keep only the tail to avoid re-concatenating
+        // the prefix marker and re-slicing ~50KB on every stdout chunk.
+        this.liveOutput = this.liveOutput.slice(this.liveOutput.length - MAX_LIVE_OUTPUT_CHARS);
+      } else {
+        this.liveOutput = `[...truncated]\n${this.liveOutput.slice(
+          this.liveOutput.length - MAX_LIVE_OUTPUT_CHARS,
+        )}`;
+        this.liveOutputTruncated = true;
+      }
     }
     this.rebuildContent();
     this.notifySnapshotChange();
@@ -1305,9 +1313,16 @@ export class ToolCallComponent extends Container {
     const name = activity?.name ?? ongoing?.name ?? 'Tool';
     const args = activity?.args ?? ongoing?.args ?? {};
     const existingOutput = activity?.output ?? '';
-    let output = existingOutput + text;
+    const alreadyTruncated = existingOutput.startsWith('[...truncated]\n');
+    let output = (alreadyTruncated ? existingOutput : existingOutput + text);
     if (output.length > MAX_LIVE_OUTPUT_CHARS) {
-      output = `[...truncated]\n${output.slice(output.length - MAX_LIVE_OUTPUT_CHARS)}`;
+      if (alreadyTruncated) {
+        // Already truncated — keep only the tail, avoiding re-concatenating the
+        // prefix marker and re-slicing on every chunk.
+        output = output.slice(output.length - MAX_LIVE_OUTPUT_CHARS);
+      } else {
+        output = `[...truncated]\n${output.slice(output.length - MAX_LIVE_OUTPUT_CHARS)}`;
+      }
     }
     this.upsertSubToolActivity(id, name, args, activity?.phase ?? 'ongoing', output);
     this.rebuildContent();

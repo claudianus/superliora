@@ -32,6 +32,9 @@ reports/
 /kimi-code/
 /plan/
 kimi-export-*.md
+lighthouse-*.json
+apps/site/evidence/
+apps/site/axe-*.json
 # Workspace-local data dirs (`.superliora/` canonical, `.super-kimi/` legacy).
 # The `**/` prefix also matches nested package/app directories (e.g. `apps/liora/.superliora/`).
 **/.superliora/evidence/
@@ -58,3 +61,4 @@ kimi-export-*.md
 **/.super-kimi/scripts/
 **/.super-kimi/start-work/
 **/.super-kimi/ulw-loop/
+.superliora/compose-cache/

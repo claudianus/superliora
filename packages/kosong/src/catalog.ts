@@ -31,6 +31,8 @@ export interface CatalogProviderEntry {
   readonly npm?: string;
   /** Explicit wire type extension; inferred from `npm`/`id` when absent. */
   readonly type?: string;
+  /** Documentation / console URL where an API key can be obtained. */
+  readonly doc?: string;
   readonly models?: Record<string, CatalogModelEntry>;
 }
 

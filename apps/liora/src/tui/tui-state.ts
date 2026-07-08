@@ -67,7 +67,11 @@ export interface TUIState {
   sessions: SessionRow[];
   loadingSessions: boolean;
   sessionsScope: 'cwd' | 'all';
-  activeDialog: 'session-picker' | 'help' | null;
+  activeDialog:
+    | 'session-picker'
+    | 'help'
+    | 'command' // any command-driven editor-replacement dialog (api-key, provider picker, etc.)
+    | null;
   tasksBrowser: TasksBrowserState | undefined;
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];

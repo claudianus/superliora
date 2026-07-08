@@ -7,7 +7,7 @@ import type { WorkspaceConfig } from '../../tools/support/workspace';
 import { isLeanCodegraphV2Enabled } from '../graph/enabled';
 import { getGraphDatabase } from '../graph/pipeline';
 import { topIndexedPaths } from '../graph/search';
-import { ensureWorkspaceIndex } from '../index/ensure';
+import { ensureWorkspaceIndexBudgeted } from '../index/ensure';
 import { searchBm25 } from '../index/bm25';
 import {
   graphNeighbors,
@@ -23,6 +23,7 @@ export interface ComposeRankInput {
   readonly query: string;
   readonly maxFiles?: number | undefined;
   readonly maxSymbolsPerFile?: number | undefined;
+  readonly buildBudgetMs?: number | undefined;
 }
 
 export interface ComposeRankResult {
@@ -41,7 +42,18 @@ export async function composeRankContext(input: ComposeRankInput): Promise<Compo
 }
 
 async function composeRankContextV2(input: ComposeRankInput): Promise<ComposeRankResult> {
-  const ensured = await ensureWorkspaceIndex(input.kaos, input.workspace);
+  const ensured = await ensureWorkspaceIndexBudgeted(
+    input.kaos,
+    input.workspace,
+    input.buildBudgetMs,
+  );
+  // If the build isn't ready (cold index, timed out, or in failure cooldown),
+  // don't make the agent wait for it: fall straight back to direct workspace
+  // discovery. The build keeps running in the background, so the next call
+  // will use the warm index.
+  if (!ensured.ready || ensured.timedOut === true) {
+    return composeDirectFallback(input, ensured.timedOut === true);
+  }
   const db = getGraphDatabase(input.workspace);
   const assembled = await assembleContextPacket({
     kaos: input.kaos,
@@ -52,24 +64,58 @@ async function composeRankContextV2(input: ComposeRankInput): Promise<ComposeRan
     maxSymbolsPerFile: input.maxSymbolsPerFile,
   });
   if (assembled.ranked.length === 0) {
-    return composeRankContextV1(input);
+    return composeDirectFallback(input, false);
   }
   return {
     ranked: assembled.ranked,
     allFiles: assembled.allFiles,
     indexUsed: assembled.indexUsed,
-    indexStaleHint:
-      ensured.ready || assembled.ranked.length > 0
-        ? ensured.built
-          ? 'index_auto_built'
-          : undefined
-        : 'index_unavailable — LioraIndex action=build may be required',
+    indexStaleHint: ensured.built ? 'index_auto_built' : undefined,
     strategy: 'lean-codegraph-v2',
   };
 }
 
+/**
+ * Direct workspace discovery fallback used when the graph index is missing,
+ * stale, or still building. Walks the tree with query-token prioritization
+ * (no ripgrep dependency) and ranks with the same symbol logic the V1 path
+ * uses, so the agent still gets a usable context packet without blocking on
+ * a long index build.
+ */
+async function composeDirectFallback(
+  input: ComposeRankInput,
+  timedOut: boolean,
+): Promise<ComposeRankResult> {
+  const files = await collectContextFiles({
+    kaos: input.kaos,
+    workspace: input.workspace,
+    query: input.query,
+  });
+  const ranked = rankContextFiles(files, {
+    query: input.query,
+    max_files: input.maxFiles,
+    max_symbols_per_file: input.maxSymbolsPerFile,
+  });
+  return {
+    ranked,
+    allFiles: files,
+    indexUsed: false,
+    indexStaleHint: timedOut
+      ? 'index_building_in_background — used direct discovery fallback'
+      : 'index_unavailable — used direct discovery fallback',
+    strategy: 'direct-discovery-fallback',
+  };
+}
+
 async function composeRankContextV1(input: ComposeRankInput): Promise<ComposeRankResult> {
-  const ensured = await ensureWorkspaceIndex(input.kaos, input.workspace);
+  const ensured = await ensureWorkspaceIndexBudgeted(
+    input.kaos,
+    input.workspace,
+    input.buildBudgetMs,
+  );
+  if (!ensured.ready || ensured.timedOut === true) {
+    return composeDirectFallback(input, ensured.timedOut === true);
+  }
   const bm25 = await loadWorkspaceBm25(input.kaos, input.workspace);
   const graph = await loadWorkspaceGraph(input.kaos, input.workspace);
   const indexedPaths = queryIndexedPathsFromBm25(bm25, input.query, 40);

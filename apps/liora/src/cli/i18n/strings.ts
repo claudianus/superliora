@@ -7,6 +7,7 @@ import {
   STRINGS_RUNTIME_PROVIDER_KO,
 } from './strings-runtime-provider';
 import { SUBCOMMAND_STRINGS_EN, SUBCOMMAND_STRINGS_KO } from './strings-subcommands';
+import { STRINGS_TUI_EN, STRINGS_TUI_KO } from './strings-tui';
 
 export type CliLocale = 'en' | 'ko';
 
@@ -51,6 +52,7 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   ...SUBCOMMAND_STRINGS_EN,
   ...STRINGS_RUNTIME_CORE_EN,
   ...STRINGS_RUNTIME_PROVIDER_EN,
+  ...STRINGS_TUI_EN,
 };
 
 /**
@@ -91,4 +93,5 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   ...SUBCOMMAND_STRINGS_KO,
   ...STRINGS_RUNTIME_CORE_KO,
   ...STRINGS_RUNTIME_PROVIDER_KO,
+  ...STRINGS_TUI_KO,
 };

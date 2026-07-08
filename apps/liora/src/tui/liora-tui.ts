@@ -5,6 +5,7 @@ import {
   detectNativeTerminalImageProtocol,
   encodeRendererClearInlineImages,
   LioraNativeRootUI,
+  NativeTerminalSession,
   type Component,
   type Focusable,
   Spacer,
@@ -29,6 +30,7 @@ import { openUrl } from '#/utils/open-url';
 import { getInputHistoryFile } from '#/utils/paths';
 import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
 import { quoteShellArg } from '#/utils/shell-quote';
+import { ttui } from './utils/tui-i18n';
 
 import { BannerProvider } from './banner/banner-provider';
 import { readBannerDisplayState, writeBannerDisplayState } from './banner/state';
@@ -64,6 +66,9 @@ import {
   type ApprovalPreviewBlock,
 } from './components/dialogs/approval-preview';
 import { CompactionComponent } from './components/dialogs/compaction';
+import { CommandPaletteComponent, type PaletteEntry } from './components/dialogs/command-palette';
+import { HistorySearchDialogComponent } from './components/dialogs/history-search-dialog';
+import { TranscriptSearchDialogComponent } from './components/dialogs/transcript-search';
 import {
   ADVANCED_HELP_INTRO,
   ADVANCED_KEYBOARD_SHORTCUTS,
@@ -145,6 +150,7 @@ import {
 } from './types';
 import { hasDispose, isExpandable } from './utils/component-capabilities';
 import { isDeadTerminalError } from './utils/dead-terminal';
+import { DisposableRegistry } from './utils/disposables';
 import { formatErrorMessage } from './utils/event-payload';
 import {
   requestTUIContentRender,
@@ -290,6 +296,8 @@ export class LioraTUI {
   private clipboardImageHintController: ClipboardImageHintController | undefined;
   private signalCleanupHandlers: Array<() => void> = [];
   private isShuttingDown = false;
+  /** Central registry for timers, intervals, listeners, and watchers. */
+  private readonly disposables = new DisposableRegistry();
   private eventLoopStarted = false;
   private startupNotice: string | undefined;
   private lastActivityMode: string | undefined;
@@ -320,10 +328,20 @@ export class LioraTUI {
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Last user-submitted text, for `/retry` (Ctrl-Y). */
+  private lastUserInput: string | undefined;
+  /** True when the most recent turn ended in an error; cleared on a clean turn. */
+  private lastTurnFailed = false;
+
   // The currently-mounted approval panel, if any. Kept so the full-screen
   // preview viewer can restore focus to the exact same instance (and its
   // selection / feedback state) when it closes.
   private activeApprovalPanel: ApprovalPanelComponent | undefined;
+  // Deferred reverse-RPC payloads that arrived while a command-driven dialog
+  // owned the editor area. Once the dialog closes (restoreEditor), the pending
+  // approval/question is shown — preventing mid-flow clobbering (BUG-7).
+  private deferredApproval: ApprovalPanelData | undefined;
+  private deferredQuestion: QuestionPanelData | undefined;
   // Active full-screen approval preview. While set, the root UI's normal
   // children are stashed in `savedChildren`; closing restores them.
   private approvalPreview:
@@ -608,7 +626,26 @@ export class LioraTUI {
     this.state.ui.setFocus(this.state.editor);
     this.ensureNativeInputRouter();
     this.attachNativeRendererCallback();
+
+    // First-run onboarding: when no model is configured and no provider exists
+    // yet, surface the unified provider picker so the user can connect in one
+    // step instead of having to discover /login on their own.
+    void this.maybeStartOnboarding().catch(() => {
+      // Onboarding is best-effort; a failure here must not block startup.
+    });
+
     return shouldReplayHistory;
+  }
+
+  private async maybeStartOnboarding(): Promise<void> {
+    const config = await this.harness.getConfig({ reload: true });
+    const hasProvider =
+      config.defaultModel !== undefined ||
+      Object.keys(config.providers ?? {}).length > 0;
+    if (hasProvider) return;
+    // Route through the normal slash-command dispatch so /login's unified
+    // provider picker opens on first run.
+    slashCommands.dispatchInput(this, '/login');
   }
 
   private attachNativeRendererCallback(): void {
@@ -855,9 +892,13 @@ export class LioraTUI {
   }
 
   private async showTmuxKeyboardWarningIfNeeded(): Promise<void> {
-    const warning = await detectTmuxKeyboardWarning();
-    if (warning === undefined || this.aborted) return;
-    this.showStatus(warning, 'warning');
+    try {
+      const warning = await detectTmuxKeyboardWarning();
+      if (warning === undefined || this.aborted) return;
+      this.showStatus(warning, 'warning');
+    } catch {
+      // Best-effort: startup must not block on warning retrieval.
+    }
   }
 
   private async init(): Promise<boolean> {
@@ -964,15 +1005,30 @@ export class LioraTUI {
     this.aborted = true;
     this.streamingUI.discardPending();
     this.editorKeyboard.clearPendingExit();
+    // BUG-5: clear the detach-hint timer so it does not fire into a stopped
+    // renderer after exit.
+    if (this.detachHintClearTimer !== undefined) {
+      clearTimeout(this.detachHintClearTimer);
+      this.detachHintClearTimer = undefined;
+    }
     for (const dispose of this.reverseRpcDisposers) {
       dispose();
     }
     this.reverseRpcDisposers.length = 0;
     this.disposeTerminalTracking();
     this.appearanceController.dispose();
+    // BUG-2: dispose the footer's goal-timer interval.
+    this.state.footer.dispose();
     await this.closeSession('shutting down');
     await this.harness.close();
-    this.sessionEventHandler.stopAllMcpServerStatusSpinners();
+    // BUG-3: clear any queued goal-promotion timer (and MCP spinners).
+    this.sessionEventHandler.resetRuntimeState();
+    // BUG-4: close the tasks browser so its 1s poll timer does not keep
+    // firing into a closed session.
+    this.tasksBrowserController.close();
+    // Central teardown: any resource registered with the disposable registry
+    // (timers, intervals, listeners, watchers) is cleaned up here.
+    this.disposables.disposeAll();
     await this.state.renderer.drainInput();
     this.state.ui.stop();
     if (this.onExit) {
@@ -984,6 +1040,22 @@ export class LioraTUI {
   // EIO write-loop that can pin a CPU core). SIGTERM → normal stop().
   private registerSignalHandlers(): void {
     this.unregisterSignalHandlers();
+
+    // Register a synchronous exit handler so the terminal is always restored —
+    // normal stop(), SIGHUP emergency exit, and even a mid-stop throw all run
+    // this. The restore sequences are written best-effort (EIO on a dead pty
+    // is swallowed) so this never throws at process exit.
+    const exitHandler = (): void => {
+      try {
+        NativeTerminalSession.writeRestoreSequencesSync(process.stdout);
+      } catch {
+        // Swallow — must never throw at process exit.
+      }
+    };
+    process.on('exit', exitHandler);
+    this.signalCleanupHandlers.push(() => {
+      process.off('exit', exitHandler);
+    });
 
     const signals: NodeJS.Signals[] = ['SIGTERM'];
     if (process.platform !== 'win32') {
@@ -1422,6 +1494,9 @@ export class LioraTUI {
       imageAttachmentIds,
     });
 
+    // Track the last user input for `/retry` (Ctrl-Y).
+    if (options?.displayText === undefined) this.lastUserInput = input;
+
     this.beginSessionRequest();
 
     const sdkInput = options?.parts ?? input;
@@ -1753,7 +1828,10 @@ export class LioraTUI {
         this.hasSessionContent(),
       );
     } catch {
-      /* silently ignore */
+      // Surface a warning instead of leaving the picker silently empty — the
+      // user cannot tell a genuine "no sessions" from a server/network failure.
+      this.state.sessions = [];
+      this.showStatus(ttui('tui.sessions.fetchFailed'), 'warning');
     } finally {
       this.state.loadingSessions = false;
     }
@@ -2607,7 +2685,7 @@ export class LioraTUI {
     // The backgrounded command's notification turn (started by agent-core via
     // appendSystemReminderAndNotify) owns the streaming phase and drains the
     // queue when it completes, so we intentionally leave both untouched here.
-    this.showDetachHint('Moved to background. /tasks to view.');
+    this.showDetachHint(ttui('tui.footer.detachHint'));
   }
 
   async detachCurrentForegroundTask(): Promise<void> {
@@ -2670,7 +2748,7 @@ export class LioraTUI {
       this.detachHintClearTimer = undefined;
     }
     this.state.footer.setTransientHint(hint);
-    this.detachHintClearTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
       this.detachHintClearTimer = undefined;
       // Don't clobber a newer transient hint (e.g. the exit-confirmation
       // prompt) that took over while this timer was pending.
@@ -2678,6 +2756,8 @@ export class LioraTUI {
       this.state.footer.setTransientHint(null);
       requestTUIContentRender(this.state);
     }, DETACH_HINT_DISPLAY_MS);
+    timer.unref?.();
+    this.detachHintClearTimer = timer;
     requestTUIContentRender(this.state);
   }
 
@@ -2804,6 +2884,10 @@ export class LioraTUI {
     this.state.editorContainer.addChild(panel);
     this.state.ui.setFocus(panel);
     this.mountNativeInputModal(panel);
+    // Track that a command-driven dialog owns the editor area so background
+    // approval/question events do not clobber it mid-flow (BUG-7). Help and
+    // session-picker set their own specific dialog id after this call.
+    if (this.state.activeDialog === null) this.state.activeDialog = 'command';
     requestTUIContentRender(this.state);
   }
 
@@ -2814,7 +2898,23 @@ export class LioraTUI {
     this.nativeInputModalDispose?.();
     this.nativeInputModalDispose = undefined;
     this.nativeInputRouter?.focusEditor();
+    // Only clear a generic command-dialog marker. Help/session-picker manage
+    // their own `activeDialog` lifecycle and may already be null here.
+    if (this.state.activeDialog === 'command') this.state.activeDialog = null;
     requestTUIContentRender(this.state);
+    // Flush any reverse-RPC panel that was deferred while a command dialog was
+    // open (BUG-7). Approval takes priority, then question.
+    const approval = this.deferredApproval;
+    if (approval !== undefined) {
+      this.deferredApproval = undefined;
+      this.showApprovalPanel(approval);
+      return;
+    }
+    const question = this.deferredQuestion;
+    if (question !== undefined) {
+      this.deferredQuestion = undefined;
+      this.showQuestionDialog(question);
+    }
   }
 
   private mountNativeInputModal(panel: Component & Focusable): void {
@@ -2836,6 +2936,128 @@ export class LioraTUI {
     this.state.editor.setText(text);
     this.updateEditorBorderHighlight(text);
     requestTUIContentRender(this.state);
+  }
+
+  // =========================================================================
+  // History search (Ctrl-R), command palette (Ctrl-Space),
+  // transcript search (Ctrl-F), retry last turn (Ctrl-Y)
+  // =========================================================================
+
+  showHistorySearch(): void {
+    if (this.state.activeDialog !== null) return;
+    void this.openHistorySearch();
+  }
+
+  private async openHistorySearch(): Promise<void> {
+    let entries: { content: string }[] = [];
+    try {
+      entries = await loadInputHistory(getInputHistoryFile(this.state.appState.workDir));
+    } catch {
+      entries = [];
+    }
+    // Most-recent-first ordering for search UX.
+    const items = [...new Set(entries.map((e) => e.content))].reverse();
+    const dialog = new HistorySearchDialogComponent({
+      items,
+      onSelect: (text) => {
+        this.restoreEditor();
+        this.state.editor.setText(text);
+        this.updateEditorBorderHighlight(text);
+        requestTUIContentRender(this.state);
+      },
+      onCancel: () => {
+        this.restoreEditor();
+      },
+    });
+    this.mountEditorReplacement(dialog);
+  }
+
+  showCommandPalette(): void {
+    if (this.state.activeDialog !== null) return;
+    const commands = this.getSlashCommands('primary');
+    const entries: PaletteEntry[] = commands
+      .filter((cmd) => cmd.visibility !== 'hidden')
+      .map((cmd) => ({
+        kind: 'command' as const,
+        value: cmd.name,
+        label: `/${cmd.name}`,
+        description: cmd.description,
+      }));
+    // A few high-value session actions.
+    const actions: PaletteEntry[] = [
+      { kind: 'action', value: 'new', label: '/new', description: 'Start a new session' },
+      { kind: 'action', value: 'sessions', label: '/sessions', description: 'Switch session' },
+      { kind: 'action', value: 'model', label: '/model', description: 'Switch model' },
+      { kind: 'action', value: 'help', label: '/help', description: 'Show help' },
+    ];
+    const palette = new CommandPaletteComponent({
+      entries: [...entries, ...actions],
+      onSelect: (entry) => {
+        this.restoreEditor();
+        const text = entry.kind === 'action' ? `/${entry.value}` : `/${entry.value}`;
+        // Run the command through the normal dispatch path.
+        slashCommands.dispatchInput(this, text);
+      },
+      onCancel: () => {
+        this.restoreEditor();
+      },
+    });
+    this.mountEditorReplacement(palette);
+  }
+
+  showTranscriptSearch(): void {
+    if (this.state.activeDialog !== null) return;
+    const entries = this.state.transcriptEntries
+      .map((entry, index) => {
+        // Strip ANSI/control noise from searchable text.
+        const text = entry.content.replace(/\u001B\[[0-9;]*m/g, '').trim();
+        return { index, text };
+      })
+      .filter((entry) => entry.text.length > 0);
+    const dialog = new TranscriptSearchDialogComponent({
+      entries,
+      onSelect: (index) => {
+        // Keep the dialog open so the user can jump to more matches; just
+        // scroll the matching entry into view.
+        this.scrollToTranscriptIndex(index);
+      },
+      onCancel: () => {
+        this.restoreEditor();
+      },
+    });
+    this.mountEditorReplacement(dialog);
+  }
+
+  private scrollToTranscriptIndex(index: number): void {
+    // Roughly map a transcript entry index to a scroll position. The viewport
+    // is line-based; we approximate by scrolling to the entry proportionally.
+    const total = this.state.transcriptEntries.length;
+    if (total === 0) return;
+    // Jump to bottom first, then up by the offset of entries after the target.
+    this.state.transcriptViewport.scroll('bottom');
+    const entriesAfter = total - 1 - index;
+    // Each entry is at least one rendered line; scroll up by a few lines per
+    // entry as a heuristic. The viewport clamps automatically.
+    for (let i = 0; i < entriesAfter * 3; i++) {
+      this.state.transcriptViewport.scroll('line-up');
+    }
+    requestTUIContentRender(this.state);
+  }
+
+  async retryLastTurn(): Promise<void> {
+    const session = this.session;
+    if (session === undefined || this.lastUserInput === undefined) {
+      this.showError(ttui('tui.retry.none'));
+      return;
+    }
+    if (this.state.appState.streamingPhase !== 'idle') return;
+    this.lastTurnFailed = false;
+    this.showStatus(ttui('tui.retry.resending'), 'primary');
+    this.sendMessageInternal(session, this.lastUserInput);
+  }
+
+  setLastTurnFailed(failed: boolean): void {
+    this.lastTurnFailed = failed;
   }
 
   showHelpPanel(args = ''): void {
@@ -3021,6 +3243,13 @@ export class LioraTUI {
   }
 
   private showApprovalPanel(payload: ApprovalPanelData): void {
+    // If a command-driven dialog (API-key input, provider picker, …) owns the
+    // editor area, defer the approval so we don't clobber the in-flight command
+    // flow (BUG-7). It is shown once the dialog closes via restoreEditor().
+    if (this.state.activeDialog === 'command') {
+      this.deferredApproval = payload;
+      return;
+    }
     this.patchLivePane({ pendingApproval: { data: payload } });
     notifyUserAttentionOnce(this.state, `approval:${payload.id}`, {
       title: 'SuperLiora approval required',
@@ -3088,6 +3317,11 @@ export class LioraTUI {
   }
 
   private showQuestionDialog(payload: QuestionPanelData): void {
+    // Defer while a command-driven dialog is open (BUG-7, same as approval).
+    if (this.state.activeDialog === 'command') {
+      this.deferredQuestion = payload;
+      return;
+    }
     this.patchLivePane({ pendingQuestion: { data: payload } });
     notifyUserAttentionOnce(this.state, `question:${payload.id}`, {
       title: 'SuperLiora needs your answer',

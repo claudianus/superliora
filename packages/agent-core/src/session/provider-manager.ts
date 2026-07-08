@@ -524,6 +524,28 @@ function toKosongProviderConfig(
         location: vertexAILocation(provider),
       };
     }
+    case 'bedrock':
+      return {
+        type: 'bedrock',
+        model,
+        // No apiKey — the Bedrock SDK resolves AWS credentials from its chain.
+        apiKey: '',
+        ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
+        ...(adaptiveThinking !== undefined ? { adaptiveThinking } : {}),
+        ...(betaApi !== undefined ? { betaApi } : {}),
+        ...defaultHeadersField(provider.customHeaders),
+      };
+    case 'vertex_claude':
+      return {
+        type: 'vertex_claude',
+        model,
+        // No apiKey — the Vertex SDK resolves GCP ADC from its chain.
+        apiKey: '',
+        ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
+        ...(adaptiveThinking !== undefined ? { adaptiveThinking } : {}),
+        ...(betaApi !== undefined ? { betaApi } : {}),
+        ...defaultHeadersField(provider.customHeaders),
+      };
     default: {
       const exhaustive: never = effectiveType;
       throw new LioraError(
@@ -587,6 +609,11 @@ function providerApiKeyCredentials(provider: ProviderConfig): ApiKeyCredential[]
         ),
         ...credentials,
       ]);
+    case 'bedrock':
+    case 'vertex_claude':
+      // Cloud-hosted Claude authenticates via the platform credential chain
+      // (AWS IAM / GCP ADC), not API keys. No credential pool to build.
+      return [];
     default: {
       const exhaustive: never = provider.type;
       throw new LioraError(
@@ -672,6 +699,9 @@ function hasLegacyApiKeySource(provider: ProviderConfig): boolean {
         nonEmptyString(provider.env?.['VERTEXAI_API_KEY']) !== undefined ||
         nonEmptyString(provider.env?.['GOOGLE_API_KEY']) !== undefined
       );
+    case 'bedrock':
+    case 'vertex_claude':
+      return false;
     default: {
       const exhaustive: never = provider.type;
       return exhaustive;
@@ -765,6 +795,11 @@ function hasConfiguredApiKeySource(provider: ProviderConfig): boolean {
         nonEmptyString(provider.env?.['VERTEXAI_API_KEY']) !== undefined ||
         nonEmptyString(provider.env?.['GOOGLE_API_KEY']) !== undefined
       );
+    case 'bedrock':
+    case 'vertex_claude':
+      // Cloud-hosted Claude is always considered "configured" — the credential
+      // chain (AWS IAM / GCP ADC) is resolved at request time, not in config.
+      return true;
     default: {
       const exhaustive: never = provider.type;
       throw new LioraError(

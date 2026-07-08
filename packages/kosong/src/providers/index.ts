@@ -1,6 +1,7 @@
 import { UNKNOWN_CAPABILITY, type ModelCapability } from '../capability';
 import type { ChatProvider } from '../provider';
 import { AnthropicChatProvider, type AnthropicOptions } from './anthropic';
+import { BedrockChatProvider, type BedrockOptions } from './bedrock';
 import {
   getAnthropicModelCapability,
   getGoogleGenAIModelCapability,
@@ -11,6 +12,7 @@ import { GoogleGenAIChatProvider, type GoogleGenAIOptions } from './google-genai
 import { KimiChatProvider, type LioraOptions } from './kimi';
 import { OpenAILegacyChatProvider, type OpenAILegacyOptions } from './openai-legacy';
 import { OpenAIResponsesChatProvider, type OpenAIResponsesOptions } from './openai-responses';
+import { VertexClaudeChatProvider, type VertexClaudeOptions } from './vertex-claude';
 
 export type ProviderConfig =
   | ({ type: 'anthropic' } & AnthropicOptions)
@@ -18,7 +20,9 @@ export type ProviderConfig =
   | ({ type: 'kimi' } & LioraOptions)
   | ({ type: 'google-genai' } & GoogleGenAIOptions)
   | ({ type: 'openai_responses' } & OpenAIResponsesOptions)
-  | ({ type: 'vertexai' } & GoogleGenAIOptions);
+  | ({ type: 'vertexai' } & GoogleGenAIOptions)
+  | ({ type: 'bedrock' } & BedrockOptions)
+  | ({ type: 'vertex_claude' } & VertexClaudeOptions);
 
 export type ProviderType = ProviderConfig['type'];
 
@@ -36,6 +40,10 @@ export function createProvider(config: ProviderConfig): ChatProvider {
       return new OpenAIResponsesChatProvider(config);
     case 'vertexai':
       return new GoogleGenAIChatProvider(config);
+    case 'bedrock':
+      return new BedrockChatProvider(config);
+    case 'vertex_claude':
+      return new VertexClaudeChatProvider(config);
     default: {
       const exhaustive: never = config;
       throw new Error(`Unknown provider type: ${String(exhaustive)}`);
@@ -54,6 +62,8 @@ export function createProvider(config: ProviderConfig): ChatProvider {
 export function getModelCapability(wire: ProviderType, modelName: string): ModelCapability {
   switch (wire) {
     case 'anthropic':
+    case 'bedrock':
+    case 'vertex_claude':
       return getAnthropicModelCapability(modelName);
     case 'openai':
       return getOpenAILegacyModelCapability(modelName);

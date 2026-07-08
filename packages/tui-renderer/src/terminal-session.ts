@@ -163,6 +163,32 @@ export class NativeTerminalSession {
     for (const cleanup of this.cleanup.splice(0).toReversed()) cleanup();
   }
 
+  /**
+   * Synchronously writes the full set of terminal disable/restore sequences
+   * to the given output, swallowing any write errors. Intended for use from a
+   * `process.on('exit')` handler so the user's terminal is restored even when
+   * the normal `stop()` path is skipped (SIGHUP, dead-terminal EIO, mid-stop
+   * throw). Writes are best-effort: an EIO on a dead pty is ignored so we never
+   * enter a throw loop at process exit.
+   */
+  static writeRestoreSequencesSync(output: { write(chunk: string): unknown }): void {
+    const sequence =
+      ANSI_SHOW_CURSOR +
+      ANSI_POP_KITTY_KEYBOARD_PROTOCOL +
+      ANSI_DISABLE_SGR_MOUSE_MODE +
+      ANSI_DISABLE_MOUSE_TRACKING +
+      ANSI_DISABLE_FOCUS_EVENTS +
+      ANSI_DISABLE_BRACKETED_PASTE +
+      ANSI_ENABLE_AUTO_WRAP +
+      ANSI_EXIT_ALTERNATE_SCREEN;
+    try {
+      output.write(sequence);
+    } catch {
+      // Best-effort: a dead pty (EIO) will reject the write. Swallow so a
+      // process-exit handler never throws.
+    }
+  }
+
   write(chunk: string): unknown {
     return this.options.output.write(chunk);
   }

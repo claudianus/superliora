@@ -7,6 +7,7 @@ import { relativeDisplayPath } from '../shared/display-path';
 
 const MAX_DISCOVERED_PATHS = 8_000;
 const FILE_READ_CONCURRENCY = 16;
+const DIRECTORY_WALK_CONCURRENCY = 16;
 const MAX_FILE_BYTES = 512 * 1024;
 const S_IFMT = 0o170000;
 const S_IFDIR = 0o040000;
@@ -76,6 +77,7 @@ async function walkDirectory(
     return;
   }
   entries = entries.toSorted((a, b) => a.localeCompare(b));
+  const subdirs: string[] = [];
   for (const entry of entries) {
     if (discovered.length >= MAX_DISCOVERED_PATHS) return;
     const path = pathe.join(dir, entry);
@@ -88,7 +90,7 @@ async function walkDirectory(
     }
     if (isDirectory(stat.stMode)) {
       if (EXCLUDED_SEGMENTS.has(entry)) continue;
-      await walkDirectory(kaos, workspace, path, discovered);
+      subdirs.push(path);
       continue;
     }
     if (!isRegularFile(stat.stMode) || stat.stSize > MAX_FILE_BYTES) continue;
@@ -101,6 +103,14 @@ async function walkDirectory(
       size: stat.stSize,
     });
   }
+  // Sibling subtrees are independent, so walk them in parallel instead of
+  // serially awaiting each one. The shared `discovered` array is pushed to
+  // under the MAX_DISCOVERED_PATHS cap; ordering within the cap is
+  // best-effort, and the caller sorts the final slice.
+  if (subdirs.length === 0) return;
+  await mapWithConcurrency(subdirs, DIRECTORY_WALK_CONCURRENCY, (subdir) =>
+    walkDirectory(kaos, workspace, subdir, discovered),
+  );
 }
 
 function isIndexableExtension(displayPath: string): boolean {

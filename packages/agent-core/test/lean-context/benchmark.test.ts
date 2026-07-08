@@ -6,8 +6,13 @@ import { buildBm25Index, searchBm25 } from '../../src/lean-context/index/bm25';
 import { chunkFileContent } from '../../src/lean-context/index/chunk';
 import { composeRankContext } from '../../src/lean-context/compose/ranker';
 import * as builder from '../../src/lean-context/index/builder';
-import { ensureWorkspaceIndex, resetBuildFailureCooldownForTests } from '../../src/lean-context/index/ensure';
+import {
+  ensureWorkspaceIndex,
+  ensureWorkspaceIndexBudgeted,
+  resetBuildFailureCooldownForTests,
+} from '../../src/lean-context/index/ensure';
 import { clearGraphDatabasesForTests } from '../../src/lean-context/persist/graph-db';
+import { getGraphDatabase } from '../../src/lean-context/graph/pipeline';
 import { tokenize } from '../../src/lean-context/index/tokenize';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
@@ -54,6 +59,9 @@ function makeKaos(files: Readonly<Record<string, string>>): Kaos {
     writeText: vi.fn<Kaos['writeText']>().mockImplementation(async (path, content) => {
       persisted[path] = content;
       return Buffer.byteLength(content, 'utf8');
+    }),
+    unlink: vi.fn<Kaos['unlink']>().mockImplementation(async (path) => {
+      delete persisted[path];
     }),
   });
 }
@@ -199,5 +207,82 @@ describe('lean context benchmark harness', () => {
     expect(buildSpy).toHaveBeenCalledTimes(1);
 
     buildSpy.mockRestore();
+  });
+
+  it('finishBuild does not refresh built_at when the index is empty', async () => {
+    const kaos = makeKaos({
+      '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts':
+        'export class LioraContextTool { readonly name = "LioraContext"; }',
+    });
+    await builder.buildWorkspaceIndex({ kaos, workspace, incremental: false });
+    const db = getGraphDatabase(workspace);
+    const populatedBuiltAt = db.getBuiltAt();
+    expect(populatedBuiltAt).toBeGreaterThan(0);
+
+    // Simulate the "interrupted full rebuild" state: wipe rows then run a
+    // build against an empty fixture set. finishBuild must NOT refresh
+    // built_at on a 0-row result, otherwise the empty index would masquerade
+    // as fresh and skip the next build.
+    const emptyKaos = makeKaos({});
+    await builder.buildWorkspaceIndex({ kaos: emptyKaos, workspace, incremental: false });
+    expect(db.getStats().files).toBe(0);
+    expect(db.getBuiltAt()).toBe(populatedBuiltAt);
+  });
+
+  it('composeRankContext falls back to direct discovery when the build budget times out', async () => {
+    vi.useFakeTimers();
+    const kaos = makeKaos({
+      '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts':
+        'export class LioraContextTool { readonly name = "LioraContext"; }',
+    });
+    // Make the first build hang so the budget elapses; subsequent readiness
+    // checks still see a missing index, which is what we want to exercise.
+    const buildSpy = vi.spyOn(builder, 'buildWorkspaceIndex');
+    let resolveHanging: ((v: Awaited<ReturnType<typeof builder.buildWorkspaceIndex>>) => void) | undefined;
+    buildSpy.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveHanging = resolve;
+        }),
+    );
+
+    const composedPromise = composeRankContext({
+      kaos,
+      workspace,
+      query: 'LioraContext',
+      maxFiles: 1,
+      buildBudgetMs: 50,
+    });
+    await vi.advanceTimersByTimeAsync(60);
+    const composed = await composedPromise;
+    // The agent must still get a usable packet instead of blocking.
+    expect(composed.strategy).toBe('direct-discovery-fallback');
+    expect(composed.ranked[0]?.file.displayPath).toContain('liora-context.ts');
+
+    if (resolveHanging !== undefined) {
+      buildSpy.mockRestore();
+    }
+  });
+
+  it('a failed build leaves the previously committed index intact', async () => {
+    const kaos = makeKaos({
+      '/workspace/packages/agent-core/src/tools/builtin/context/liora-context.ts':
+        'export class LioraContextTool { readonly name = "LioraContext"; }',
+    });
+    await builder.buildWorkspaceIndex({ kaos, workspace, incremental: false });
+    const db = getGraphDatabase(workspace);
+    const beforeFail = db.getStats();
+
+    // Corrupt the next build by making readText throw mid-pipeline. Because
+    // all writes are wrapped in a single transaction, the partially applied
+    // changes roll back and the prior index survives.
+    const readSpy = vi.spyOn(kaos, 'readText');
+    readSpy.mockRejectedValueOnce(new Error('disk read failed'));
+    await expect(
+      builder.buildWorkspaceIndex({ kaos, workspace, incremental: false }),
+    ).rejects.toThrow('disk read failed');
+
+    expect(db.getStats()).toEqual(beforeFail);
+    readSpy.mockRestore();
   });
 });

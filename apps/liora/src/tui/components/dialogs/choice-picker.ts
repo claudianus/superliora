@@ -113,7 +113,7 @@ export class ChoicePickerComponent extends Container implements Focusable {
   }
 
   handleInput(data: string): void {
-    if (matchesKey(data, Key.escape)) {
+    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl('c'))) {
       if (this.list.clearQuery()) {
         this.syncHighlight();
         return;
@@ -214,7 +214,7 @@ export class ChoicePickerComponent extends Container implements Focusable {
         const descriptionColor =
           isSelected && opt.descriptionTone !== undefined
             ? opt.descriptionTone
-            : premium && isSelected
+            : animated && isSelected
               ? 'accent'
               : 'textMuted';
         for (const descLine of wrapDescription(opt.description, descriptionWidth)) {

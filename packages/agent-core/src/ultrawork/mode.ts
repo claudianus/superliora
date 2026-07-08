@@ -294,7 +294,15 @@ export class UltraworkMode {
   completeLearnStage(reason = 'Ultrawork completed'): UltraworkRun | null {
     const machine = this.machine;
     if (machine === undefined) return null;
-    const from = machine.snapshot().stage;
+    let from = machine.snapshot().stage;
+    if (from !== 'learn') {
+      const synced = machine.syncStageForward('learn', reason);
+      if (synced.stage !== from) {
+        this.emitStageChanged(synced, from, synced.stage, reason);
+        this.scheduleCheckpoint();
+        from = synced.stage;
+      }
+    }
     const run = machine.advance('done', reason);
     this.emitStageChanged(run, from, 'done', reason);
     this.modeEnabled = false;

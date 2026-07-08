@@ -102,7 +102,7 @@ export function loadBuiltInCatalog(text?: string): Catalog | undefined {
 export function applyCatalogProvider(
   config: LioraConfig,
   options: ApplyCatalogProviderOptions,
-): { defaultModel: string } {
+): { defaultModel: string | undefined } {
   config.providers[options.providerId] = {
     type: options.wire,
     baseUrl: options.baseUrl,
@@ -118,8 +118,16 @@ export function applyCatalogProvider(
   }
   config.models = models;
 
-  const defaultModel = `${options.providerId}/${options.selectedModelId}`;
-  config.defaultModel = defaultModel;
-  config.defaultThinking = options.thinking;
+  // Only set a default model when a concrete model id was selected. An empty
+  // `selectedModelId` would otherwise produce a malformed `providerId/` alias
+  // that no real model matches.
+  const defaultModel =
+    options.selectedModelId.length > 0
+      ? `${options.providerId}/${options.selectedModelId}`
+      : undefined;
+  if (defaultModel !== undefined) {
+    config.defaultModel = defaultModel;
+    config.defaultThinking = options.thinking;
+  }
   return { defaultModel };
 }

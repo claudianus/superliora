@@ -64,9 +64,6 @@ export class Input {
       this.cursor = this.value.length;
       return;
     }
-    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl('c'))) {
-      return;
-    }
 
     const char = printableChar(data);
     if (char === undefined) return;

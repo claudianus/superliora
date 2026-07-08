@@ -159,6 +159,7 @@ export interface SlashCommandHost {
   // Dispatch
   stop(exitCode?: number): Promise<void>;
   setExitOpenUrl(url: string): void;
+  retryLastTurn(): Promise<void>;
   showHelpPanel(args?: string): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
@@ -401,6 +402,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'undo':
       await handleUndoCommand(host, args);
+      return;
+    case 'retry':
+      await host.retryLastTurn();
       return;
     default:
       host.showError(`Unknown slash command: /${String(name)}`);

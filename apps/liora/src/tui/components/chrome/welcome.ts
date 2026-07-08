@@ -36,10 +36,10 @@ export class WelcomeComponent implements Component {
     if (safeWidth < 24 || layout === 'tiny') {
       const banner = renderWelcomeBanner(layout, appearance, safeWidth);
       const prompt = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)('Run /login or /provider to get started.')
+        ? chalk.hex(currentTheme.palette.warning)('Run /login to connect a provider.')
         : chalk.hex(currentTheme.palette.textDim)(LOGGED_IN_PROMPT);
       const model = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)('not set, run /login or /provider')
+        ? chalk.hex(currentTheme.palette.warning)('not set, run /login')
         : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
       return ['', ...banner, prompt, `Model: ${model}`].map((line) =>
         truncateToWidth(line, safeWidth, '…'),
@@ -51,13 +51,13 @@ export class WelcomeComponent implements Component {
     const dim = chalk.hex(currentTheme.palette.textDim);
     const labelStyle = chalk.bold.hex(currentTheme.palette.textDim);
     const promptLine = truncateToWidth(
-      dim(isLoggedOut ? 'Run /login or /provider to get started.' : LOGGED_IN_PROMPT),
+      dim(isLoggedOut ? 'Run /login to connect a provider.' : LOGGED_IN_PROMPT),
       innerWidth,
       '…',
     );
 
     const modelValue = isLoggedOut
-      ? chalk.hex(currentTheme.palette.warning)('not set, run /login or /provider')
+      ? chalk.hex(currentTheme.palette.warning)('not set, run /login')
       : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
 
     const infoLines = [

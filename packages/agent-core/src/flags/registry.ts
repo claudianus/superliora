@@ -29,6 +29,15 @@ export const FLAG_DEFINITIONS = [
     default: true,
     surface: 'core',
   },
+  {
+    id: 'anthropic_oauth',
+    title: 'Anthropic OAuth login',
+    description:
+      'Show an Anthropic OAuth login option in the provider picker. Disabled by default because Anthropic does not currently authorize third-party CLIs to use its subscription OAuth. Implemented ahead of time so it can be enabled by flipping this flag if the policy changes.',
+    env: 'SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH',
+    default: false,
+    surface: 'core',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

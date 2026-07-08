@@ -46,7 +46,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.32.0",
     "@anthropic-ai/sdk": "^0.95.2",
+    "@anthropic-ai/vertex-sdk": "^0.19.0",
     "@google/genai": "^1.49.0",
     "openai": "^6.34.0",
     "zod": "^4.3.6",

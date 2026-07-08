@@ -43,6 +43,18 @@ export interface TUIEditor
   onShiftTabUltra?: () => void;
   onInputModeChange?: (mode: TUIEditorInputMode) => void;
   onPasteImage?: () => Promise<boolean>;
+  /** History recall adapter (used by the native editor's history browse). */
+  onRecall?: (entry: string) => string | undefined;
+  onHistoryDraftSave?: () => unknown;
+  onHistoryDraftRestore?: (state: unknown) => void;
+  /** Opens the input-history fuzzy-search dialog (Ctrl-R). */
+  onHistorySearch?: () => void;
+  /** Opens the command palette (Ctrl-Space). */
+  onCommandPalette?: () => void;
+  /** Opens the transcript search overlay (Ctrl-F). */
+  onTranscriptSearch?: () => void;
+  /** Re-sends the last failed user turn (Ctrl-Y when idle + last turn failed). */
+  onRetryLastTurn?: () => void;
 
   getLines(): string[];
   getExpandedText(): string;

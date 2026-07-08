@@ -503,6 +503,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'idle-only',
   },
   {
+    name: 'retry',
+    aliases: [],
+    description: 'Resend your last message (same as Ctrl-Y)',
+    priority: 80,
+    availability: 'idle-only',
+  },
+  {
     name: 'editor',
     aliases: [],
     description: 'Set the external editor for Ctrl-G',

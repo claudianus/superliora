@@ -386,7 +386,11 @@ export function maybeAdvanceUltraworkOnGoalComplete(agent: Agent): void {
   maybeFinishUltraworkRun(agent);
   const updated = ultrawork.getRun();
   if (updated !== null && updated.status === 'running') {
-    ultrawork.completeLearnStage('UltraGoal completed');
+    try {
+      ultrawork.completeLearnStage('UltraGoal completed');
+    } catch (error) {
+      agent.log.warn('ultrawork goal-complete finish failed', { error });
+    }
   }
 }
 

@@ -32,6 +32,7 @@ import {
   type GitStatusCache,
 } from '#/utils/git/git-status';
 import { safeUsageRatio } from '#/utils/usage/usage-format';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 const MAX_CWD_SEGMENTS = 3;
 const GOAL_TIMER_INTERVAL_MS = 1_000;
@@ -205,19 +206,19 @@ function formatTranscriptViewportBadge(
 }
 
 function footerNextAction(state: AppState, git: GitStatus | null): string | null {
-  if (state.isCompacting) return 'compacting context';
-  if (state.isReplaying) return 'replaying session';
-  if (state.model.trim().length === 0) return 'next: /login or /provider, then /model';
-  if (safeUsage(state.contextUsage) >= 0.85) return 'next: /compact before long work';
+  if (state.isCompacting) return ttui('tui.footer.compacting');
+  if (state.isReplaying) return ttui('tui.footer.replaying');
+  if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
+  if (safeUsage(state.contextUsage) >= 0.85) return ttui('tui.footer.next.compact');
   if (state.ultraworkMode) {
-    return 'Workflow interview -> goal -> research -> swarm decision -> integrate -> verify -> learn';
+    return ttui('tui.footer.ultrawork');
   }
   if (state.premiumQualityMode) {
-    return 'Premium Quality ON — visual-first harness: art direction, anti-slop, screenshot proof';
+    return ttui('tui.footer.premium');
   }
   if (state.streamingPhase !== 'idle') return null;
-  if (git?.dirty === true) return 'next: review changes';
-  return 'next: Shift-Tab toggles Ultrawork/off, or type normally';
+  if (git?.dirty === true) return ttui('tui.footer.next.review');
+  return ttui('tui.footer.next.default');
 }
 
 export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): string {
@@ -436,6 +437,18 @@ export class FooterComponent implements Component {
     }
 
     return [truncateToWidth(line1, width), truncateToWidth(line2, width)];
+  }
+
+  /**
+   * Tear down owned resources (goal timer). Called from the TUI shutdown path
+   * so the refresh interval does not keep firing into a stopped renderer.
+   * Idempotent.
+   */
+  dispose(): void {
+    if (this.goalTimer !== null) {
+      clearInterval(this.goalTimer);
+      this.goalTimer = null;
+    }
   }
 
   private syncGoalClock(goal: AppState['goal']): void {
