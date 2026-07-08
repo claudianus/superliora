@@ -467,10 +467,16 @@ export class GraphDatabase {
            WHERE walk.depth < ? AND e.type = ?
          )
          SELECT n.id, n.name, n.qualified_name, n.file_path, walk.edge_kind, walk.depth, walk.line
-         FROM walk
-         JOIN nodes n ON n.id = walk.node_id
-         WHERE walk.depth > 0
-         LIMIT ?`,
+         FROM (
+           SELECT node_id, MIN(depth) AS depth, line, edge_kind
+           FROM walk
+           WHERE depth > 0
+           GROUP BY node_id
+           -- Cycle-safe: each node appears once at its shallowest depth, so a
+           -- cyclic subgraph can't inflate the result with duplicate visits.
+           LIMIT ?
+         ) AS walk
+         JOIN nodes n ON n.id = walk.node_id`,
       )
       .all(anchor.nodeId, depth, edgeType, limit) as Array<{
       id: string;

@@ -167,10 +167,7 @@ export async function isGraphIndexStale(kaos: Kaos, workspace: WorkspaceConfig):
   if (previous.length === 0) return true;
   const sample = previous.length <= STALENESS_SAMPLE_LIMIT
     ? previous
-    : previous
-        .slice()
-        .sort(() => Math.random() - 0.5)
-        .slice(0, STALENESS_SAMPLE_LIMIT);
+    : sampleSubset(previous, STALENESS_SAMPLE_LIMIT);
   for (const file of sample) {
     try {
       const stat = await kaos.stat(file.path);
@@ -188,4 +185,23 @@ export function getGraphBuiltAt(workspace: WorkspaceConfig): number {
 
 export function getGraphDatabase(workspace: WorkspaceConfig): GraphDatabase {
   return openGraphDatabase(workspace);
+}
+
+/**
+ * Pick `count` items from `items` via a partial Fisher-Yates shuffle. Unlike
+ * `.sort(() => Math.random() - 0.5)` (which is engine-dependent and biased),
+ * this yields a uniformly random subset without shuffling the whole array.
+ */
+function sampleSubset<T>(items: readonly T[], count: number): T[] {
+  const pool = items.slice();
+  const n = Math.min(count, pool.length);
+  for (let i = 0; i < n; i += 1) {
+    const j = i + Math.floor(Math.random() * (pool.length - i));
+    const picked = pool[j];
+    if (picked !== undefined) {
+      pool[j] = pool[i];
+      pool[i] = picked;
+    }
+  }
+  return pool.slice(0, n);
 }

@@ -68,7 +68,7 @@ const QUESTION_ONLY_ULTRAWORK_PATTERN =
   );
 const QUESTION_MARK_PATTERN = /[?？]/;
 const QUESTION_WORD_PATTERN =
-  /\b(?:what|how|why|explain|describe|tell me)\b|(?:뭐|무엇|설명|알려)/i;
+  /\b(?:what|how|why|explain|describe|tell me)\b|(?:뭐|무엇|어떻게|설명|알려)/i;
 const ULTRAWORK_OPT_OUT_PATTERN =
   new RegExp(
     String.raw`\b(?:do\s+not|don't|dont|without|no)\s+(?:use|activate|start|run)?\s*${ULTRA_WORKFLOW_TERM_PATTERN}\b`,
