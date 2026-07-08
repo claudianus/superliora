@@ -39,6 +39,12 @@ export interface ProviderFlowConfig extends OAuthFlowConfig {
   readonly scope?: string;
   /** Loopback callback port for `pkce_browser` flows. */
   readonly callbackPort?: number;
+  /**
+   * Host used in the `redirect_uri` for `pkce_browser` flows. The callback
+   * server always binds to `127.0.0.1`, but providers match redirect URIs by
+   * exact string, so some require `127.0.0.1` here. Defaults to `localhost`.
+   */
+  readonly callbackHost?: string;
   /** Override the authorize URL path (defaults to the OIDC discovery result). */
   readonly authorizeUrl?: string;
   /** Token exchange URL. */

@@ -15,6 +15,10 @@ import type { ProviderProfile } from './provider-profile';
 const XAI_OAUTH_HOST = 'https://auth.x.ai';
 const XAI_CLIENT_ID = 'b1a00492-073a-47ea-816f-4c329264a828';
 const XAI_CALLBACK_PORT = 56121;
+// The official Grok CLI OAuth app registers `127.0.0.1` (not `localhost`) as
+// the redirect host. xAI matches redirect URIs by exact string, so this must
+// agree with the registered value.
+const XAI_CALLBACK_HOST = '127.0.0.1';
 const XAI_SCOPE = 'openid profile email offline_access grok-cli:access api:access';
 
 export const XAI_PROFILE: ProviderProfile = {
@@ -29,6 +33,7 @@ export const XAI_PROFILE: ProviderProfile = {
     kind: 'pkce_browser',
     scope: XAI_SCOPE,
     callbackPort: XAI_CALLBACK_PORT,
+    callbackHost: XAI_CALLBACK_HOST,
     discoveryUrl: `${XAI_OAUTH_HOST}/.well-known/openid-configuration`,
     tokenUrl: `${XAI_OAUTH_HOST}/oauth2/token`,
     authorizeUrl: `${XAI_OAUTH_HOST}/oauth/authorize`,

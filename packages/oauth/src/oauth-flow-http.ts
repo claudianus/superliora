@@ -179,9 +179,16 @@ export interface CallbackServer {
  * Starts a loopback HTTP server that receives the OAuth authorization-code
  * callback. The server responds to the browser with a simple success page and
  * resolves {@link CallbackServer.waitForCallback} with `code` + `state`.
+ *
+ * The server always binds to `127.0.0.1`, but the `redirectHost` controls the
+ * host that appears in the `redirect_uri` sent to the provider. Providers
+ * match redirect URIs by exact string, so `localhost` and `127.0.0.1` are not
+ * interchangeable — xAI registers `127.0.0.1`, while others register
+ * `localhost`.
  */
 export async function startCallbackServer(
   preferredPort: number,
+  redirectHost: string = 'localhost',
 ): Promise<CallbackServer> {
   const server: Server = createServer((req, res) => {
     if (req.url === undefined) {
@@ -220,7 +227,7 @@ export async function startCallbackServer(
   });
 
   return {
-    redirectUri: `http://localhost:${String(port)}/callback`,
+    redirectUri: `http://${redirectHost}:${String(port)}/callback`,
     waitForCallback: (signal) => {
       if (signal?.aborted === true) {
         return Promise.reject(new OAuthError('Authorization aborted'));
