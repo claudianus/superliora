@@ -8,7 +8,7 @@ import { SENSITIVE_DOT_VARIANT_SUFFIXES } from '../../src/tools/policies/sensiti
 import { ensureRgPath } from '../../src/tools/support/rg-locator';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
-import { createFakeKaos, toolContentString } from './fixtures/fake-kaos';
+import { createFakeKaos, toolContentBody } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 
 vi.mock('../../src/tools/support/rg-locator', () => ({
@@ -309,7 +309,7 @@ describe('GrepTool', () => {
       'hit',
       '/workspace',
     );
-    expect(result.output).toBe('src/a.ts');
+    expect(toolContentBody(result)).toBe('src/a.ts');
   });
 
   it('can search an additional directory when path is explicit', async () => {
@@ -327,7 +327,7 @@ describe('GrepTool', () => {
       'hit',
       '/extra',
     );
-    expect(result.output).toBe('/extra/pkg/b.ts');
+    expect(toolContentBody(result)).toBe('/extra/pkg/b.ts');
   });
 
   it('keeps non-workspace grep result paths absolute in content and count modes', async () => {
@@ -344,8 +344,8 @@ describe('GrepTool', () => {
       context({ pattern: 'hit', path: '/extra', output_mode: 'count_matches' }),
     );
 
-    expect(toolContentString(contentResult)).toBe('/extra/pkg/b.ts:10:hit');
-    expect(toolContentString(countResult)).toBe(
+    expect(toolContentBody(contentResult)).toBe('/extra/pkg/b.ts:10:hit');
+    expect(toolContentBody(countResult)).toBe(
       ['Found 2 total occurrences across 1 file.', '/extra/pkg/b.ts:2'].join('\n'),
     );
   });
@@ -356,7 +356,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'missing' }));
 
-    expect(result.output).toBe('No non-sensitive matches found');
+    expect(toolContentBody(result)).toBe('No non-sensitive matches found');
   });
 
   it('sorts files_with_matches by mtime before pagination after sensitive filtering', async () => {
@@ -373,9 +373,12 @@ describe('GrepTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'hit', head_limit: 1 }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'hit', head_limit: 1, sort: 'modified_desc' }),
+    );
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'src/new.ts',
         'Filtered 1 sensitive file(s): .env',
@@ -412,8 +415,11 @@ describe('GrepTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'hit', head_limit: 0 }));
-    const lines = toolContentString(result).split('\n');
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'hit', head_limit: 0, sort: 'modified_desc' }),
+    );
+    const lines = toolContentBody(result).split('\n');
 
     expect(stat).toHaveBeenCalledTimes(filePaths.length);
     expect(maxActiveStats).toBeLessThanOrEqual(32);
@@ -443,7 +449,7 @@ describe('GrepTool', () => {
     );
 
     const result = await executeTool(tool,
-      context({ pattern: 'hit', head_limit: 0 }, abortController.signal),
+      context({ pattern: 'hit', head_limit: 0, sort: 'modified_desc' }, abortController.signal),
     );
 
     expect(result).toMatchObject({ isError: true, output: 'Grep aborted' });
@@ -467,9 +473,12 @@ describe('GrepTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'hit', head_limit: 0 }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'hit', head_limit: 0, sort: 'modified_desc' }),
+    );
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/new.ts', 'src/old.ts', 'src/missing.ts'].join('\n'),
     );
   });
@@ -505,7 +514,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit' }));
 
-    expect(toolContentString(result)).toBe('src/a.ts');
+    expect(toolContentBody(result)).toBe('src/a.ts');
     expect(exec).toHaveBeenCalledTimes(2);
     expect(exec.mock.calls[0]).not.toContain('-j');
     expect(exec).toHaveBeenNthCalledWith(
@@ -638,7 +647,7 @@ describe('GrepTool', () => {
       'hit',
       '/workspace',
     );
-    expect(toolContentString(result)).toBe('src/main.ts');
+    expect(toolContentBody(result)).toBe('src/main.ts');
   });
 
   it('does not prefilter public key files that the sensitive policy allows', async () => {
@@ -661,10 +670,10 @@ describe('GrepTool', () => {
     expect(args).not.toContain('!**/id_rsa.pub');
     expect(args).not.toContain('!**/id_ed25519.pub');
     expect(args).not.toContain('!**/id_ecdsa.pub');
-    expect(toolContentString(result)).toContain('id_rsa.pub:1:ssh-rsa hit');
-    expect(toolContentString(result)).toContain('id_ed25519.pub:1:ssh-ed25519 hit');
-    expect(toolContentString(result)).toContain('id_ecdsa.pub:1:ecdsa-sha2 hit');
-    expect(toolContentString(result)).not.toContain('Filtered ');
+    expect(toolContentBody(result)).toContain('id_rsa.pub:1:ssh-rsa hit');
+    expect(toolContentBody(result)).toContain('id_ed25519.pub:1:ssh-ed25519 hit');
+    expect(toolContentBody(result)).toContain('id_ecdsa.pub:1:ecdsa-sha2 hit');
+    expect(toolContentBody(result)).not.toContain('Filtered ');
   });
 
   it('filters sensitive files from content output and appends a warning', async () => {
@@ -701,7 +710,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'src/main.ts:1:hit',
         'Filtered 2 sensitive file(s): foo-10-/.aws/credentials, foo:10:/.aws/credentials',
@@ -721,7 +730,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content', '-C': 1 }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/main.ts-1-before', 'src/main.ts:2:hit', 'src/main.ts-3-after'].join('\n'),
     );
   });
@@ -735,7 +744,7 @@ describe('GrepTool', () => {
       context({ pattern: '123', output_mode: 'content', '-n': false }),
     );
 
-    expect(toolContentString(result)).toBe('src/main.ts:123-hello');
+    expect(toolContentBody(result)).toBe('src/main.ts:123-hello');
   });
 
   it('passes through bracketed payload text in content and context lines unchanged', async () => {
@@ -761,7 +770,7 @@ describe('GrepTool', () => {
       'hit',
       '/workspace',
     );
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'src/main.ts:1:[a bracketed payload]',
         'src/main.ts-2-[a bracketed context payload]',
@@ -782,7 +791,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content', '-C': 1 }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/main.ts:1:hit', 'Filtered 1 sensitive file(s): .env'].join('\n'),
     );
   });
@@ -803,7 +812,7 @@ describe('GrepTool', () => {
       'workspace',
       '/workspace',
     );
-    expect(result.output).toBe('/workspace/not-a-path');
+    expect(toolContentBody(result)).toBe('/workspace/not-a-path');
   });
 
   it('uses the backend path class when filtering sensitive grep results', async () => {
@@ -852,7 +861,7 @@ describe('GrepTool', () => {
       'hit',
       'C:\\workspace',
     );
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/main.ts:hit', 'Filtered 1 sensitive file(s): .aws/credentials'].join('\n'),
     );
   });
@@ -871,7 +880,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/main.ts:1:hit', 'Filtered 1 sensitive file(s): foo-10-/.aws/credentials'].join('\n'),
     );
   });
@@ -907,7 +916,7 @@ describe('GrepTool', () => {
       'hit',
       '/workspace',
     );
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'src/main.ts:before',
         'src/main.ts:hit',
@@ -951,7 +960,7 @@ describe('GrepTool', () => {
       'hit',
       'C:\\workspace',
     );
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'src/main.ts:before',
         'src/main.ts:hit',
@@ -973,7 +982,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'No non-sensitive matches found',
         'Filtered 2 sensitive file(s): .env, .aws/credentials',
@@ -1002,7 +1011,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content' }));
 
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     const content = output.split('\nFiltered ')[0] ?? output;
     expect(content).toBe(['src/main.ts:10:hit', '--', 'src/other.ts:7:hit'].join('\n'));
     expect(output).not.toContain('SECRET=hit');
@@ -1036,7 +1045,7 @@ describe('GrepTool', () => {
     );
 
     const result = await executeTool(tool, context({ pattern: 'hit' }));
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     const lines = output.split('\n');
 
     expect(lines.slice(0, 250)).toEqual(displayPaths.slice(0, 250));
@@ -1056,7 +1065,7 @@ describe('GrepTool', () => {
     );
 
     const result = await executeTool(tool, context({ pattern: 'hit', head_limit: 0 }));
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
 
     expect(output.split('\n')).toEqual(displayPaths);
     expect(output).not.toContain('Results truncated');
@@ -1071,7 +1080,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/main.ts', 'Filtered 1 sensitive file(s): .env'].join('\n'),
     );
   });
@@ -1103,7 +1112,7 @@ describe('GrepTool', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     const result = await resultPromise;
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/a.ts', 'Grep timed out after 20s; partial results returned'].join('\n'),
     );
     expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
@@ -1119,7 +1128,7 @@ describe('GrepTool', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     const result = await resultPromise;
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/a.ts', 'Grep timed out after 20s; partial results returned'].join('\n'),
     );
   });
@@ -1135,7 +1144,7 @@ describe('GrepTool', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     const result = await resultPromise;
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/a.ts', 'Grep timed out after 20s; partial results returned'].join('\n'),
     );
   });
@@ -1154,7 +1163,7 @@ describe('GrepTool', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     const result = await resultPromise;
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['src/a.ts:1:hit', 'Grep timed out after 20s; partial results returned'].join('\n'),
     );
   });
@@ -1178,7 +1187,7 @@ describe('GrepTool', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     const result = await resultPromise;
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'src/a.ts:1:hit',
         '--',
@@ -1203,7 +1212,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         displayedCompleteLine,
         '[stdout truncated at 10485760 bytes; incomplete trailing line omitted]',
@@ -1220,7 +1229,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['Found 10 total occurrences across 2 files.', 'src/a.ts:3', 'src/b.ts:7'].join('\n'),
     );
   });
@@ -1236,7 +1245,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'Found 3 total non-sensitive occurrences across 1 file.',
         'src/a.ts:3',
@@ -1262,7 +1271,7 @@ describe('GrepTool', () => {
       context({ pattern: 'hit', output_mode: 'count_matches', head_limit: 2 }),
     );
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'Found 11 total non-sensitive occurrences across 3 files.',
         'Results truncated to 2 lines (total: 3). Use offset=2 to see more.',
@@ -1289,7 +1298,7 @@ describe('GrepTool', () => {
       context({ pattern: 'hit', output_mode: 'count_matches', head_limit: 0 }),
     );
 
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     const summary = `Found ${String(fileCount * 3)} total occurrences across ${String(fileCount)} files.`;
     expect(output).toContain(summary);
     // The body was large enough to truncate; the summary survives because it leads it.
@@ -1306,7 +1315,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches' }));
 
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       [
         'No non-sensitive matches found',
         'Filtered 2 sensitive file(s): .env, .aws/credentials',
@@ -1341,7 +1350,7 @@ describe('GrepTool', () => {
       'yyyy',
       '/workspace/src/only.ts',
     );
-    expect(toolContentString(result)).toBe(
+    expect(toolContentBody(result)).toBe(
       ['Found 25850 total occurrences across 1 file.', 'src/only.ts:25850'].join('\n'),
     );
   });
@@ -1495,9 +1504,9 @@ describe('GrepTool', () => {
       'TestClass',
       '/workspace',
     );
-    expect(toolContentString(result)).toContain('TestClass');
-    expect(toolContentString(result)).toContain('pre1');
-    expect(toolContentString(result)).toContain('pre2');
+    expect(toolContentBody(result)).toContain('TestClass');
+    expect(toolContentBody(result)).toContain('pre1');
+    expect(toolContentBody(result)).toContain('pre2');
   });
 
   it('includes lines after the match for -A without -C', async () => {
@@ -1526,8 +1535,8 @@ describe('GrepTool', () => {
       'TestClass',
       '/workspace',
     );
-    expect(toolContentString(result)).toContain('post1');
-    expect(toolContentString(result)).toContain('post2');
+    expect(toolContentBody(result)).toContain('post1');
+    expect(toolContentBody(result)).toContain('post2');
   });
 
   it('appends the count-mode summary and pagination to the model-visible output', async () => {
@@ -1549,7 +1558,7 @@ describe('GrepTool', () => {
       context({ pattern: 'word', output_mode: 'count_matches', head_limit: 3 }),
     );
 
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     const dataLines = output.split('\n').filter((line) => /^f\d+\.txt:3$/.test(line));
     expect(dataLines).toHaveLength(3); // head_limit=3 path:count lines
     expect(output).toContain('Found 30 total occurrences across 10 files.');
@@ -1604,8 +1613,8 @@ describe('GrepTool', () => {
       String.raw`This is a\n    multiline`,
       '/workspace',
     );
-    expect(toolContentString(result)).toContain('This is a');
-    expect(toolContentString(result)).toContain('multiline');
+    expect(toolContentBody(result)).toContain('This is a');
+    expect(toolContentBody(result)).toContain('multiline');
   });
 
   it('reports a descriptive failure when the regex is unparseable', async () => {
@@ -1642,8 +1651,8 @@ describe('GrepTool', () => {
       'hello',
       '/workspace/target.py',
     );
-    expect(toolContentString(result)).toContain('hello');
-    expect(toolContentString(result).trim().length).toBeGreaterThan(0);
+    expect(toolContentBody(result)).toContain('hello');
+    expect(toolContentBody(result).trim().length).toBeGreaterThan(0);
   });
 
   it('returns a clean no-match result when offset exceeds total entries', async () => {
@@ -1655,8 +1664,8 @@ describe('GrepTool', () => {
     );
 
     expect(result.isError).toBeFalsy();
-    expect(toolContentString(result)).toContain('No');
-    expect(toolContentString(result)).toContain('matches found');
+    expect(toolContentBody(result)).toContain('No');
+    expect(toolContentBody(result)).toContain('matches found');
   });
 
   it('emits line numbers by default in content mode', async () => {
@@ -1679,7 +1688,7 @@ describe('GrepTool', () => {
 
     const flags = exec.mock.calls[0] as string[];
     expect(flags).not.toContain('-n');
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     for (const line of output.split('\n')) {
       if (line.trim() === '' || line.startsWith('--')) continue;
       expect(line.split(':')).toHaveLength(2);
@@ -1747,7 +1756,7 @@ describe('GrepTool', () => {
       context({ pattern: 'ONLY_IN_ENV', output_mode: 'files_with_matches' }),
     );
 
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     expect(output).toContain('No non-sensitive matches found');
     expect(output).toContain('Filtered 1 sensitive file(s): .env');
   });
@@ -1765,7 +1774,7 @@ describe('GrepTool', () => {
       context({ pattern: 'API_KEY', output_mode: 'files_with_matches' }),
     );
 
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     expect(output).toContain('.env.example');
     expect(output).not.toContain('Filtered');
   });
@@ -1785,7 +1794,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'code', output_mode: 'content' }));
 
-    const lines = toolContentString(result).split('\n');
+    const lines = toolContentBody(result).split('\n');
     expect(lines[0]).toBe('src/a.py:42:code');
     expect(lines[1]).toBe('src/b.py-41-context');
   });
@@ -1805,7 +1814,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'code', output_mode: 'content' }));
 
-    const lines = toolContentString(result).split('\n');
+    const lines = toolContentBody(result).split('\n');
     expect(lines[0]).toBe('src/a.py:42:code');
     expect(lines[1]).toBe('src/b.py-41-context');
   });
@@ -1820,7 +1829,7 @@ describe('GrepTool', () => {
 
     const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'content' }));
 
-    const lines = toolContentString(result).split('\n');
+    const lines = toolContentBody(result).split('\n');
     expect(lines[0]).toBe('/other/path/file.py:1:hit');
   });
 
@@ -1841,10 +1850,10 @@ describe('GrepTool', () => {
       context({ pattern: 'x', output_mode: 'files_with_matches' }),
     );
 
-    expect(toolContentString(withSepResult)).toContain('file.py');
-    expect(toolContentString(noSepResult)).toContain('file.py');
-    expect(toolContentString(withSepResult)).not.toContain('/tmp/dir/file.py');
-    expect(toolContentString(noSepResult)).not.toContain('/tmp/dir/file.py');
+    expect(toolContentBody(withSepResult)).toContain('file.py');
+    expect(toolContentBody(noSepResult)).toContain('file.py');
+    expect(toolContentBody(withSepResult)).not.toContain('/tmp/dir/file.py');
+    expect(toolContentBody(noSepResult)).not.toContain('/tmp/dir/file.py');
   });
 
   it('does not strip a workspace dir prefix when it would match a sibling name', async () => {
@@ -1858,7 +1867,7 @@ describe('GrepTool', () => {
     const result = await executeTool(tool,
       context({ pattern: 'x', output_mode: 'files_with_matches' }),
     );
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     expect(output).toContain('/tmp/abc/file.py');
     expect(output).toContain('file.py');
     // The /tmp/a entry should be relativized to "file.py"; the /tmp/abc
@@ -1879,7 +1888,7 @@ describe('GrepTool', () => {
       context({ pattern: 'foo', path: '/workspace/target.py', output_mode: 'content' }),
     );
 
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     for (const line of output.split('\n')) {
       if (line.trim() === '' || line.startsWith('--')) continue;
       expect(line.startsWith('/')).toBe(false);
@@ -1905,7 +1914,7 @@ describe('GrepTool', () => {
       context({ pattern: 'SECRET', output_mode: 'content', '-C': 1 }),
     );
 
-    const output = toolContentString(result);
+    const output = toolContentBody(result);
     expect(output).toContain('safe.txt');
     expect(output).not.toContain('leaked');
     expect(output).toContain('Filtered');

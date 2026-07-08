@@ -82,6 +82,7 @@ describe('Agent resume', () => {
           user: text "Historical prompt"
           user: text "Historical compacted summary."
           user: text "Fresh prompt after resume"
+          user: text <current-time-reminder>
           user: text <plan-mode-reminder>
     `);
   });
@@ -199,6 +200,7 @@ describe('Agent resume', () => {
           tool[call_resume_skill]: text "skill loaded"
           user: text "<system-reminder>\\nresume skill body\\n</system-reminder>"
           user: text "Fresh prompt after deferred resume"
+          user: text <current-time-reminder>
     `);
     await ctx.expectResumeMatches();
   });
@@ -662,6 +664,7 @@ describe('Agent resume', () => {
       'tool',
       'tool',
       'user',
+      'user',
     ]);
     expect(textContent(llmHistory[3])).toContain(
       '<system>ERROR: Tool execution failed.</system>',
@@ -684,6 +687,7 @@ describe('Agent resume', () => {
       'assistant',
       'tool',
       'tool',
+      'user',
       'user',
       'assistant',
     ]);

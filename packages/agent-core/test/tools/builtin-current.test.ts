@@ -1016,7 +1016,19 @@ describe('current builtin collaboration tools', () => {
     });
     const swarmMode = mockSwarmMode();
     const { store } = mockToolStore();
+    // UltraSwarm injects the post-swarm continuation reminder only while an
+    // Ultrawork run is active in the integrate stage (see
+    // injectUltraworkPostSwarmContinuation in ultrawork/recovery.ts), so the
+    // mock run must already report status 'running' and stage 'integrate'.
     const agent = mockUltraSwarmAgent();
+    (agent.ultrawork.getRun as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 'uw_1',
+      objective: 'Review the product launch plan',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T00:00:00.000Z',
+    });
     const tool = new UltraSwarmTool(host, swarmMode, store, agent);
     const input = {
       description: 'Review the product launch plan',

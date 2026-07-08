@@ -18,11 +18,38 @@ vi.mock('@superliora/kosong', async (importOriginal) => {
       modelName: 'fake-model',
       thinkingEffort: null,
       async generate(
-        _systemPrompt: string,
+        systemPrompt: string,
         _tools: unknown,
         _history: unknown,
         options?: { readonly signal?: AbortSignal },
       ) {
+        // Response-language detection runs a dedicated generate call before the
+        // main turn; let it complete immediately so the turn can start (and
+        // then block on the abort signal the test cancels).
+        if (systemPrompt.startsWith('You detect the response language')) {
+          return {
+            id: 'fake-detection',
+            usage: {
+              inputOther: 0,
+              output: 1,
+              inputCacheRead: 0,
+              inputCacheCreation: 0,
+            },
+            finishReason: 'completed',
+            rawFinishReason: 'stop',
+            async *[Symbol.asyncIterator]() {
+              yield {
+                type: 'text',
+                text: JSON.stringify({
+                  language_code: 'en',
+                  language_name: 'English',
+                  explicit_override: false,
+                  confidence: 0.9,
+                }),
+              };
+            },
+          };
+        }
         await waitForAbort(options?.signal);
         throwAbortError();
       },

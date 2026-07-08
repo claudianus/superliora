@@ -1,7 +1,7 @@
 import type * as KosongModule from '@superliora/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createLioraHarness, type LioraError } from '#/index';
+import { createLioraHarness, type LioraError, type LioraHarness } from '#/index';
 
 import { makeTempDir, removeTempDirs, waitForAgentWireEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
@@ -58,6 +58,7 @@ describe('Session.steer', () => {
     const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
+      await configureFakeProvider(harness);
       const session = await harness.createSession({ id: 'ses_steer_wire', workDir });
 
       await session.steer('also do this');
@@ -110,3 +111,22 @@ describe('Session.steer', () => {
     }
   });
 });
+
+async function configureFakeProvider(harness: LioraHarness): Promise<void> {
+  await harness.setConfig({
+    providers: {
+      local: {
+        type: 'kimi',
+        apiKey: 'sk-test',
+      },
+    },
+    models: {
+      'fake-model': {
+        provider: 'local',
+        model: 'fake-model',
+        maxContextSize: 262144,
+      },
+    },
+    defaultModel: 'fake-model',
+  });
+}

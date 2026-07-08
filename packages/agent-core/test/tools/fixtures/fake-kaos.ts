@@ -104,3 +104,18 @@ export function toolContentString(result: ExecutableToolResult): string {
   }
   return c;
 }
+
+/**
+ * Returns the model-visible content of a tool result with the trailing
+ * `<tool_meta>` block stripped. Use this when a test asserts on the content
+ * body (matches, summaries) and does not care about the structured meta block
+ * appended by `appendTextToolMeta`.
+ */
+export function toolContentBody(result: ExecutableToolResult): string {
+  const c = result.output;
+  if (typeof c !== 'string') {
+    throw new TypeError(`expected string content, got ${typeof c}`);
+  }
+  const metaStart = c.indexOf('\n<tool_meta');
+  return metaStart === -1 ? c : c.slice(0, metaStart);
+}

@@ -350,6 +350,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'Bash',
+      'GetCurrentTime',
       'Glob',
       'Grep',
       'LioraContext',
@@ -403,6 +404,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'Bash',
+      'GetCurrentTime',
       'Glob',
       'Grep',
       'LioraContext',
@@ -518,6 +520,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'Bash',
       'Edit',
+      'GetCurrentTime',
       'Glob',
       'Grep',
       'LioraCallgraph',
@@ -877,7 +880,11 @@ describe('SessionSubagentHost', () => {
       signal,
     });
 
-    await expect(handle.completion).resolves.toMatchObject({ result: longSummary.trim() });
+    // The unslop filter rewrites the slop word "comprehensive" to "complete"
+    // in the child agent's final summary before it reaches the parent.
+    await expect(handle.completion).resolves.toMatchObject({
+      result: 'Complete technical summary. '.repeat(10).trim(),
+    });
     expect(child.llmCalls).toHaveLength(1);
   });
 
@@ -999,6 +1006,7 @@ describe('SessionSubagentHost', () => {
       messages:
         user: text "Earlier context"
         user: text "Continue from context"
+        user: text <current-time-reminder>
     `);
     expect(parent.allEvents).toContainEqual(
       expect.objectContaining({

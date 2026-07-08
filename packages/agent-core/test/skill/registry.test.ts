@@ -111,10 +111,10 @@ describe('model skill runtime prompt', () => {
     expect(rendered).toContain('SearchSkill');
     expect(rendered).toContain('English task keywords');
     expect(rendered).toContain('Translate non-English user requests');
-    expect(rendered).toContain('Skill tool');
+    expect(rendered).toContain('<kimi-skill-loaded>');
     expect(rendered).not.toContain('skill-1499');
     expect(rendered).not.toContain('description 1499');
-    expect(rendered.length).toBeLessThan(1000);
+    expect(rendered.length).toBeLessThan(1500);
   });
 
   it('returns an empty model prompt when no skills are invocable', () => {
