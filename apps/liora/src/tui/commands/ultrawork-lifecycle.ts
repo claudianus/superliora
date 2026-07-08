@@ -110,8 +110,11 @@ export async function prepareUltraworkSession(
         snapshot.planChanged = true;
       }
     } else {
-      await resetUltraPlanMode(session, initialContext);
+      // Mark planChanged before the async call so rollback restores the
+      // original plan state even if resetUltraPlanMode partially fails
+      // (e.g. exit succeeds but re-enter throws).
       snapshot.planChanged = true;
+      await resetUltraPlanMode(session, initialContext);
     }
     if (!snapshot.premiumQualityWasEnabled) {
       await session.setPremiumQuality(true);

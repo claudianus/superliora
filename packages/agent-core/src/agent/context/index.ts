@@ -393,7 +393,7 @@ export class ContextMemory {
     // land in the retained suffix.
     const stillPending = this.pendingToolResultIds;
     for (const [id, registeredAt] of this.lateAcceptedToolCallIds) {
-      if (registeredAt < compactionHistoryLength && !stillPending.has(id)) {
+      if (registeredAt <= input.compactedCount && !stillPending.has(id)) {
         this.lateAcceptedToolCallIds.delete(id);
       }
     }

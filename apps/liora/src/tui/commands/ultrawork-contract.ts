@@ -63,7 +63,7 @@ const SIMPLE_COPY_EDIT_PATTERN =
   /\b(?:typo|spelling|sentence|wording|copy)\b|(?:오타|맞춤법|문장|문구만|표현만)/i;
 const QUESTION_ONLY_ULTRAWORK_PATTERN =
   new RegExp(
-    String.raw`^(?:what|how|why|explain|describe|tell me|뭐|무엇|설명|알려)\b.*${ULTRA_WORKFLOW_TERM_PATTERN}`,
+    String.raw`^(?:what|how|why|explain|describe|tell me|뭐|무엇|어떻게|설명|알려)\b.*${ULTRA_WORKFLOW_TERM_PATTERN}`,
     'i',
   );
 const QUESTION_MARK_PATTERN = /[?？]/;

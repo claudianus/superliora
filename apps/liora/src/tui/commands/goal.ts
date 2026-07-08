@@ -70,6 +70,8 @@ export interface GoalStartOptions {
 interface GoalUltraworkSetupState extends UltraworkSessionSnapshot {
   /** Prior `swarmModeEntry` so rollback can restore the TUI-only value. */
   readonly previousSwarmModeEntry: 'manual' | 'task' | undefined;
+  /** Prior `ultraworkMode` so rollback restores it instead of forcing off. */
+  readonly ultraworkModeWasEnabled: boolean;
 }
 
 export type ParsedGoalCommand =
@@ -468,6 +470,7 @@ async function prepareGoalUltraworkSetup(
       host.state.appState.premiumQualityMode ?? false,
     ),
     previousSwarmModeEntry: host.state.swarmModeEntry,
+    ultraworkModeWasEnabled: host.state.appState.ultraworkMode === true,
   };
   try {
     const session = host.requireSession();
@@ -497,7 +500,7 @@ async function rollbackGoalUltraworkSetup(
   await rollbackUltraworkSession(session, setup);
   host.setAppState({
     planMode: setup.planModeWasEnabled,
-    ultraworkMode: false,
+    ultraworkMode: setup.ultraworkModeWasEnabled,
     ...(setup.swarmEnabled ? { swarmMode: setup.swarmModeWasEnabled } : {}),
     ...(setup.premiumQualityChanged
       ? { premiumQualityMode: setup.premiumQualityWasEnabled }

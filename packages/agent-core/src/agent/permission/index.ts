@@ -236,19 +236,23 @@ export class PermissionManager {
       sessionApprovalRule,
       result: response,
     });
-    this.agent.telemetry.track('permission_approval_result', {
-      policy_name: policyName ?? null,
-      tool_name: name,
-      permission_mode: this.mode,
-      result:
-        response.decision === 'approved' && response.scope === 'session'
-          ? 'approved_for_session'
-          : response.decision,
-      approval_surface: display.kind,
-      duration_ms: Date.now() - startedAt,
-      session_cache_written: sessionApprovalRule !== undefined,
-      has_feedback: response.feedback !== undefined && response.feedback.length > 0,
-    });
+    // Skip the common telemetry when we already emitted the specific
+    // auto-approved-no-rpc event above, so it is not double-counted.
+    if (requestedApproval) {
+      this.agent.telemetry.track('permission_approval_result', {
+        policy_name: policyName ?? null,
+        tool_name: name,
+        permission_mode: this.mode,
+        result:
+          response.decision === 'approved' && response.scope === 'session'
+            ? 'approved_for_session'
+            : response.decision,
+        approval_surface: display.kind,
+        duration_ms: Date.now() - startedAt,
+        session_cache_written: sessionApprovalRule !== undefined,
+        has_feedback: response.feedback !== undefined && response.feedback.length > 0,
+      });
+    }
 
     const resolved = result.resolveApproval?.(response);
     if (resolved !== undefined) {

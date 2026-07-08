@@ -434,12 +434,20 @@ export class Session {
     // stopped too, instead of leaking past session close.
     const entries = Array.from(this.agents.values());
     const resolved = await Promise.all(
-      entries.map(async (entry) => {
+      entries.map(async (entry): Promise<Agent | undefined> => {
         if (entry instanceof Agent) return entry;
+        // Race the actual entry promise against a timeout — we need the
+        // resolved Agent (not just whether it settled), so extract `.agent`
+        // from the promise result directly rather than using
+        // waitForSettlementOrTimeout which only returns a boolean.
         try {
-          return await waitForSettlementOrTimeout(entry, 2_000)
-            .then((r) => r.agent)
-            .catch(() => undefined);
+          return await Promise.race([
+            entry.then((r) => r.agent),
+            new Promise<undefined>((resolve) => {
+              const t = setTimeout(() => resolve(undefined), 2_000);
+              t.unref?.();
+            }),
+          ]);
         } catch {
           return undefined;
         }
@@ -703,26 +711,34 @@ export class Session {
       // A truncated/empty `state.json` (crash mid-write) must not abort
       // resume. Fall back to the rotated backup first; only if that is
       // also unreadable do we start fresh with the default metadata.
-      if (!isNotFoundError(error)) {
+      // Also try the backup when `state.json` is missing entirely — a crash
+      // after rotating to `.bak` but before renaming the temp file leaves
+      // the backup as the only copy of the prior metadata.
+      const isMissing = isNotFoundError(error);
+      if (isMissing || !isNotFoundError(error)) {
         try {
           const backupText = await kaos.readText(backup);
           this.metadata = parse(backupText);
-          this.log.warn('state.json was corrupt; recovered session metadata from state.json.bak', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return this.metadata;
-        } catch (backupError) {
-          this.log.warn(
-            'state.json and state.json.bak are both unreadable; starting with default session metadata',
-            {
+          if (!isMissing) {
+            this.log.warn('state.json was corrupt; recovered session metadata from state.json.bak', {
               error: error instanceof Error ? error.message : String(error),
-              backupError: backupError instanceof Error ? backupError.message : String(backupError),
-            },
-          );
+            });
+          } else {
+            this.log.warn('state.json missing; recovered session metadata from state.json.bak');
+          }
+          return this.metadata;
+        } catch {
+          // Backup also missing/unreadable — fall through to default below.
         }
       }
-      // ENOENT (first run) or unrecoverable corruption: keep the default
-      // metadata initialized in the constructor.
+      if (!isMissing) {
+        this.log.warn(
+          'state.json and state.json.bak are both unreadable; starting with default session metadata',
+          { error: error instanceof Error ? error.message : String(error) },
+        );
+      }
+      // ENOENT (first run, no backup) or unrecoverable corruption: keep the
+      // default metadata initialized in the constructor.
       return this.metadata;
     }
   }
