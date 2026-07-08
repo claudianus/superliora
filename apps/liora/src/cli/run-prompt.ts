@@ -21,6 +21,12 @@ import { resolve } from 'pathe';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, PROMPT_CLEANUP_TIMEOUT_MS } from '#/constant/app';
 
+import {
+  captureUltraworkSnapshot,
+  prepareUltraworkSession,
+  rollbackUltraworkSession,
+  type UltraworkSessionSnapshot,
+} from '#/tui/commands/ultrawork-lifecycle';
 import { tln } from '#/cli/i18n';
 import type { CLIOptions, PromptOutputFormat } from './options';
 import {
@@ -244,7 +250,7 @@ async function runHeadlessGoal(
     await runPromptTurn(session, turnPrompt, outputFormat, showThinking, stdout, stderr);
   } catch (error) {
     if (!goalCreated && setup !== undefined) {
-      await rollbackHeadlessUltrawork(session, setup);
+      await rollbackUltraworkSession(session, setup);
     }
     throw error;
   } finally {
@@ -265,12 +271,7 @@ async function runHeadlessGoal(
   }
 }
 
-interface HeadlessUltraworkSetup {
-  readonly planModeWasEnabled: boolean;
-  readonly swarmModeWasEnabled: boolean;
-  planChanged: boolean;
-  swarmEnabled: boolean;
-}
+type HeadlessUltraworkSetup = UltraworkSessionSnapshot;
 
 async function prepareHeadlessUltrawork(
   session: Session,
@@ -278,37 +279,12 @@ async function prepareHeadlessUltrawork(
   options: { readonly preservePlan?: boolean } = {},
 ): Promise<HeadlessUltraworkSetup> {
   const status = await session.getStatus();
-  const setup: HeadlessUltraworkSetup = {
-    planModeWasEnabled: status.planMode,
-    swarmModeWasEnabled: status.swarmMode === true,
-    planChanged: false,
-    swarmEnabled: false,
-  };
-  try {
-    if (!setup.swarmModeWasEnabled) {
-      await session.setSwarmMode(true, 'task');
-      setup.swarmEnabled = true;
-    }
-    if (!setup.planModeWasEnabled) {
-      try {
-        await session.setPlanMode(true, true, initialContext);
-        setup.planChanged = true;
-      } catch (error) {
-        if (!isAlreadyInPlanModeError(error)) throw error;
-      }
-    } else if (!options.preservePlan) {
-      try {
-        await session.setPlanMode(false, false);
-        await session.setPlanMode(true, true, initialContext);
-        setup.planChanged = true;
-      } catch (error) {
-        if (!isAlreadyInPlanModeError(error)) throw error;
-      }
-    }
-  } catch (error) {
-    await rollbackHeadlessUltrawork(session, setup);
-    throw error;
-  }
+  const setup = captureUltraworkSnapshot(
+    status.planMode,
+    status.swarmMode === true,
+    status.premiumQualityMode === true,
+  );
+  await prepareUltraworkSession(session, setup, initialContext, options);
   return setup;
 }
 
@@ -327,22 +303,6 @@ async function maybeAutoResumeHeadlessUltrawork(
 function mergeRecoveryPrompt(prompt: string, recoveryPrefix?: string): string {
   if (recoveryPrefix === undefined || recoveryPrefix.length === 0) return prompt;
   return `${recoveryPrefix}\n\n${prompt}`;
-}
-
-function isAlreadyInPlanModeError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('Already in plan mode');
-}
-
-async function rollbackHeadlessUltrawork(
-  session: Session,
-  setup: HeadlessUltraworkSetup,
-): Promise<void> {
-  if (setup.planChanged) {
-    await session.setPlanMode(setup.planModeWasEnabled, false).catch(() => {});
-  }
-  if (setup.swarmEnabled) {
-    await session.setSwarmMode(false, 'task').catch(() => {});
-  }
 }
 
 interface ResolvedPromptSession {

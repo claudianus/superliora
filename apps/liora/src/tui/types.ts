@@ -35,6 +35,17 @@ export interface AppState {
   planMode: boolean;
   /** Local TUI mode: normal prompts are routed into the Ultrawork workflow. */
   ultraworkMode?: boolean;
+  /**
+   * Snapshot of the session flags an active Ultrawork run took over (plan /
+   * swarm / premium), captured when the run started so the finish handler can
+   * restore them. Cleared on completion. Null/undefined means no run is active.
+   */
+  ultraworkPriorState?: {
+    readonly planMode: boolean;
+    readonly swarmMode: boolean;
+    readonly swarmModeEntry: 'manual' | 'task' | undefined;
+    readonly premiumQualityMode: boolean;
+  } | null;
   /** Visual-first premium harness: art direction, anti-slop visuals, skill routing, screenshot proof. */
   premiumQualityMode?: boolean;
   /** 'bash' when the editor is in `!` shell-command mode. */

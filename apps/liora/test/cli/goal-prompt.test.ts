@@ -103,10 +103,17 @@ const mocks = vi.hoisted(() => {
     setPermission: vi.fn(),
     setPlanMode: vi.fn(async () => {}),
     setSwarmMode: vi.fn(async () => {}),
+    setPremiumQuality: vi.fn(async () => {}),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
     setCredentialHandler: vi.fn(),
-    getStatus: vi.fn(async () => ({ permission: 'auto', model: 'k2' })),
+    getStatus: vi.fn(async () => ({
+      permission: 'auto',
+      model: 'k2',
+      planMode: false,
+      swarmMode: false,
+      premiumQualityMode: false,
+    })),
     createGoal: vi.fn(async () => snapshot({ status: 'active' })),
     getGoal: vi.fn(async () => ({ goal: snapshot({ status: 'complete' }) })),
     tryAutoResumeUltrawork: vi.fn(async () => null),
@@ -192,7 +199,14 @@ describe('runPrompt headless goal mode', () => {
     mocks.session.prompt.mockClear();
     mocks.session.setPlanMode.mockClear();
     mocks.session.setSwarmMode.mockClear();
-    mocks.session.getStatus.mockResolvedValue({ permission: 'auto', model: 'k2' } as never);
+    mocks.session.setPremiumQuality.mockClear();
+    mocks.session.getStatus.mockResolvedValue({
+      permission: 'auto',
+      model: 'k2',
+      planMode: false,
+      swarmMode: false,
+      premiumQualityMode: false,
+    } as never);
     mocks.session.getGoal.mockResolvedValue({ goal: snapshot({ status: 'complete' }) } as never);
   });
 
@@ -251,6 +265,7 @@ describe('runPrompt headless goal mode', () => {
       model: 'k2',
       planMode: true,
       swarmMode: true,
+      premiumQualityMode: true,
     } as never);
     const stdout = writer();
     const stderr = writer();
@@ -265,10 +280,12 @@ describe('runPrompt headless goal mode', () => {
       },
     );
 
-    // Swarm is already enabled, so it is not toggled again. Plan mode is
-    // re-established with the new objective context even when already enabled.
+    // Swarm and premium are already enabled, so they are not toggled again.
+    // Plan is re-entered with the new objective context so the interview
+    // restarts cleanly (the mock succeeds without throwing, so no toggle-out
+    // is needed).
     expect(mocks.session.setSwarmMode).not.toHaveBeenCalled();
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(false, false);
+    expect(mocks.session.setPremiumQuality).not.toHaveBeenCalled();
     expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(mocks.session.createGoal).toHaveBeenCalledWith({
       objective: 'Ship feature X',
@@ -284,6 +301,7 @@ describe('runPrompt headless goal mode', () => {
       model: 'k2',
       planMode: false,
       swarmMode: false,
+      premiumQualityMode: false,
     } as never);
     mocks.session.setPlanMode.mockRejectedValueOnce(new Error('Already in plan mode'));
     const stdout = writer();

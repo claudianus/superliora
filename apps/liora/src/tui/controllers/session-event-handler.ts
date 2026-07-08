@@ -341,14 +341,28 @@ export class SessionEventHandler {
     if (this.ultraworkCompletionHandledRuns.has(runId)) return;
     this.ultraworkCompletionHandledRuns.add(runId);
 
-    this.host.state.swarmModeEntry = undefined;
+    // Restore the session flags the run took over, if we captured them at
+    // start. Without a snapshot (e.g. a run resumed from a prior session) we
+    // fall back to turning everything off, matching the prior behaviour.
+    const prior = this.host.state.appState.ultraworkPriorState ?? null;
+    const restorePlanMode = prior?.planMode ?? false;
+    const restoreSwarmMode = prior?.swarmMode ?? false;
+    const restorePremiumQuality = prior?.premiumQualityMode ?? false;
+    this.host.state.swarmModeEntry = prior?.swarmModeEntry;
     this.host.setAppState({
       ultraworkMode: false,
-      planMode: false,
+      planMode: restorePlanMode,
+      swarmMode: restoreSwarmMode,
+      premiumQualityMode: restorePremiumQuality,
       activityTip: null,
-      swarmMode: false,
+      ultraworkPriorState: null,
     });
-    void this.host.requireSession().setPlanMode(false, false).catch(() => {});
+    const session = this.host.requireSession();
+    void session.setPlanMode(restorePlanMode, false).catch(() => {});
+    if (prior === null || prior.swarmMode !== restoreSwarmMode) {
+      void session.setSwarmMode(restoreSwarmMode, 'task').catch(() => {});
+    }
+    void session.setPremiumQuality(restorePremiumQuality).catch(() => {});
 
     const reason = event.reason?.trim();
     const objective = event.run.objective.trim();
