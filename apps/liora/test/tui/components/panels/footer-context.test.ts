@@ -195,7 +195,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
     const [, line2] = footer.render(120);
 
-    expect(strip(line2 ?? '')).toContain('next: /login or /provider, then /model');
+    expect(strip(line2 ?? '')).toContain('next: /login to add a provider, then /model');
     expect(strip(line2 ?? '')).not.toContain('next: describe task');
   });
 

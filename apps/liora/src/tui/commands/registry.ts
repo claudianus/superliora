@@ -314,13 +314,6 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'idle-only',
   },
   {
-    name: 'provider',
-    aliases: ['providers'],
-    description: 'Manage AI providers (add / delete / refresh)',
-    priority: 95,
-    availability: 'always',
-  },
-  {
     name: 'btw',
     aliases: [],
     description: 'Ask a forked side agent a question',

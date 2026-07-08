@@ -11,7 +11,8 @@ export type RendererRegionId =
   | 'queue'
   | 'btw'
   | 'editor'
-  | 'footer';
+  | 'footer'
+  | 'header';
 
 export type RendererFixedRegionId = Exclude<RendererRegionId, 'transcript'>;
 
@@ -41,12 +42,19 @@ const FIXED_REGION_IDS: readonly RendererFixedRegionId[] = [
   'footer',
 ];
 
+/** Region IDs pinned above the transcript (top-to-bottom order). */
+const TOP_FIXED_REGION_IDS: readonly RendererFixedRegionId[] = ['header'];
+
 export function measureRendererRegions(options: {
   readonly terminalRows: number;
   readonly terminalColumns?: number;
   readonly heights: RendererRegionHeights;
   readonly minTranscriptRows?: number;
 }): RendererRegionLayout {
+  const topRegions: Array<RendererStackFixedRegion<RendererRegionId>> = TOP_FIXED_REGION_IDS.map((id) => ({
+    id,
+    rows: options.heights[id],
+  }));
   const fixedRegions: Array<RendererStackFixedRegion<RendererRegionId>> = FIXED_REGION_IDS.map((id) => ({
     id,
     rows: options.heights[id],
@@ -55,6 +63,7 @@ export function measureRendererRegions(options: {
     terminalRows: options.terminalRows,
     terminalColumns: options.terminalColumns,
     primaryRegionId: 'transcript',
+    topFixedRegions: topRegions,
     fixedRegions,
     minPrimaryRows: options.minTranscriptRows,
   });

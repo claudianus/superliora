@@ -615,8 +615,9 @@ export class LioraTUI {
   private async initMainTui(): Promise<boolean> {
     const shouldReplayHistory = await this.init();
 
-    // Mount only after init() succeeds; see mountFooter().
+    // Mount only after init() succeeds; see mountFooter() / mountHeader().
     this.mountFooter();
+    this.mountHeader();
     this.renderWelcome();
     void this.loadBanner();
     this.setupAutocomplete();
@@ -1158,8 +1159,20 @@ export class LioraTUI {
     if (!this.state.footerContainer.children.includes(this.state.footer)) {
       this.state.footerContainer.addChild(this.state.footer);
     }
-    if (this.state.ui.children.includes(this.state.footerContainer)) return;
-    this.state.ui.addChild(this.state.footerContainer);
+    if (!this.state.ui.children.includes(this.state.footerContainer)) {
+      this.state.ui.addChild(this.state.footerContainer);
+    }
+  }
+
+  // Header mirrors footer: mount after init() so its model label does not leak
+  // before the session is ready.
+  private mountHeader(): void {
+    if (!this.state.headerContainer.children.includes(this.state.header)) {
+      this.state.headerContainer.addChild(this.state.header);
+    }
+    if (!this.state.ui.children.includes(this.state.headerContainer)) {
+      this.state.ui.addChild(this.state.headerContainer);
+    }
   }
 
   // =========================================================================

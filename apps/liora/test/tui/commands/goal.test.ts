@@ -49,7 +49,7 @@ const ENTER = '\r';
 const ESCAPE = '\u001B';
 const UP = '\u001B[A';
 const DOWN = '\u001B[B';
-const MODEL_SETUP_MESSAGE = 'Model not set. Run /login or /provider first; use /model after sign-in.';
+const MODEL_SETUP_MESSAGE = 'Model not set. Run /login to add a provider, then /model to pick one.';
 
 function fakeSnapshot() {
   return {

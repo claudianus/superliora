@@ -144,4 +144,29 @@ describe('WelcomeComponent', () => {
       }
     }
   });
+
+  it('renders the mascot art under the banner on wide terminals', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+
+    try {
+      const output = strip(new WelcomeComponent(appState).render(140).join('\n'));
+      // The compact mascot art uses glyphs from the " .:-=+*#@" ramp.
+      expect(output).toMatch(/[-=+*#@]/);
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
 });

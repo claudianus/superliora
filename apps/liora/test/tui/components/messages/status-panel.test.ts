@@ -190,7 +190,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
-    expect(output).toMatch(/Next\s+Run \/login or \/provider first; use \/model after sign-in\./);
+    expect(output).toMatch(/Next\s+Run \/login to add a provider, then \/model to pick one\./);
     expect(output).toMatch(/Ultrawork\s+needs readiness/);
     expect(output).not.toMatch(/Planning\s+Ultrawork/);
   });

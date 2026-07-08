@@ -91,6 +91,9 @@ Only set tokens from this set — unknown keys are silently ignored at load. If 
 | `particle` | Particle accent for event bursts and ambient effects |
 | `gradientStart` | Start of premium gradient treatments |
 | `gradientEnd` | End of premium gradient treatments |
+| `auroraA` | Ambient aurora background anchor 1 (deep cyan/teal wash) |
+| `auroraB` | Ambient aurora background anchor 2 (deep indigo wash) |
+| `auroraC` | Ambient aurora background anchor 3 (deep violet wash) |
 | `syntaxText` | Code highlight default / identifiers |
 | `syntaxKeyword` | Code highlight keywords, constants, and built-ins |
 | `syntaxFunction` | Code highlight function and method names |

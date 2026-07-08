@@ -9,6 +9,7 @@ import {
 
 import { FooterComponent } from './components/chrome/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
+import { HeaderComponent } from './components/chrome/header';
 import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo-panel';
 import type { SessionRow } from './components/dialogs/session-picker';
@@ -54,6 +55,8 @@ export interface TUIState {
   editorContainer: Container;
   footerContainer: Container;
   footer: FooterComponent;
+  headerContainer: Container;
+  header: HeaderComponent;
   editor: TUIEditor;
   nativeEditorTextInput: NativeEditorTextInputController;
   theme: Theme;
@@ -97,6 +100,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   const btwPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editorContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const footerContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
+  const headerContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const transcriptContainer = new TranscriptViewportComponent(
     CHROME_GUTTER,
     CHROME_GUTTER,
@@ -105,6 +109,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
       measureRendererRegions({
         terminalRows: terminal.rows,
         heights: {
+          header: measureContainerRows(headerContainer, width),
           activity: measureContainerRows(activityContainer, width),
           todo: measureContainerRows(todoPanelContainer, width),
           queue: measureContainerRows(queueContainer, width),
@@ -128,6 +133,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     },
     () => transcriptViewport.snapshot(),
   );
+  const header = new HeaderComponent({ ...initialAppState });
 
   return {
     renderer,
@@ -146,6 +152,8 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     editor,
     nativeEditorTextInput,
     footer,
+    headerContainer,
+    header,
     theme,
     appState: { ...initialAppState },
     startupState: 'pending',

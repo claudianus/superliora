@@ -426,7 +426,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
     return [
       { label: 'State', value: 'Model needed', severity: 'error' },
       ...gateRows,
-      { label: 'Next', value: 'Run /login or /provider first; use /model after sign-in.' },
+      { label: 'Next', value: 'Run /login to add a provider, then /model to pick one.' },
     ];
   }
 

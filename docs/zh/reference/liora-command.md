@@ -300,7 +300,7 @@ liora vis --host 0.0.0.0 --port 8123 --no-open
 
 ### `liora provider`
 
-在 shell 中管理供应商，相当于 TUI 中 `/provider` 的非交互版本。适合脚本化部署、CI 初始化、账号池设置，以及在新机器上检查 route 状态。
+在 shell 中管理供应商，相当于 TUI 中 `/login` 的非交互版本。适合脚本化部署、CI 初始化、账号池设置，以及在新机器上检查 route 状态。
 
 ```sh
 liora provider <action> [options]

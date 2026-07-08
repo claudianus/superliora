@@ -11,6 +11,14 @@ export interface RendererStackLayoutOptions<Id extends string = string> {
   readonly terminalColumns?: number;
   readonly primaryRegionId: Id;
   readonly fixedRegions: readonly RendererStackFixedRegion<Id>[];
+  /**
+   * Fixed regions pinned ABOVE the primary region (e.g. a header bar). They are
+   * stacked top-to-bottom starting at y=0, then the primary region follows, then
+   * the regular `fixedRegions` below it. Rows are reserved from the same budget
+   * as `fixedRegions`. Omit (or pass an empty array) for the original behavior
+   * where the primary region starts at y=0.
+   */
+  readonly topFixedRegions?: readonly RendererStackFixedRegion<Id>[];
   readonly minPrimaryRows?: number;
 }
 
@@ -59,21 +67,40 @@ export function measureRendererStackLayout<Id extends string>(
   }
 
   const minPrimaryRows = normalizeMinPrimaryRows(options.minPrimaryRows);
+  const topFixedRegions = (options.topFixedRegions ?? [])
+    .map((region) => ({ id: region.id, rows: normalizeRegionRows(region.rows) }))
+    .filter((region) => region.rows > 0);
   const fixedRegions = options.fixedRegions
     .map((region) => ({ id: region.id, rows: normalizeRegionRows(region.rows) }))
     .filter((region) => region.rows > 0);
+  const topReservedRows = topFixedRegions.reduce((sum, region) => sum + region.rows, 0);
   const reservedRows = fixedRegions.reduce((sum, region) => sum + region.rows, 0);
-  const primaryRows = Math.max(minPrimaryRows, terminalRows - reservedRows);
-  const regions: RendererStackLayoutRegion<Id>[] = [
-    createRegion({
-      id: options.primaryRegionId,
-      y: 0,
-      rows: primaryRows,
-      columns: terminalColumns,
-    }),
-  ];
+  const primaryRows = Math.max(minPrimaryRows, terminalRows - topReservedRows - reservedRows);
 
-  let y = primaryRows;
+  const regions: RendererStackLayoutRegion<Id>[] = [];
+
+  // Top-pinned fixed regions (header) start at y=0.
+  let y = 0;
+  for (const top of topFixedRegions) {
+    regions.push(createRegion({
+      id: top.id,
+      y,
+      rows: top.rows,
+      columns: terminalColumns,
+    }));
+    y += top.rows;
+  }
+
+  // Primary region follows the top regions.
+  regions.push(createRegion({
+    id: options.primaryRegionId,
+    y,
+    rows: primaryRows,
+    columns: terminalColumns,
+  }));
+  y += primaryRows;
+
+  // Bottom-pinned fixed regions follow the primary region.
   for (const fixed of fixedRegions) {
     regions.push(createRegion({
       id: fixed.id,
@@ -88,7 +115,7 @@ export function measureRendererStackLayout<Id extends string>(
     terminalRows,
     terminalColumns,
     primaryRows,
-    reservedRows,
+    reservedRows: topReservedRows + reservedRows,
     regions,
   };
 }

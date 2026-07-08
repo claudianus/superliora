@@ -96,7 +96,7 @@ On first launch you need to configure an API source. In the interactive UI, ente
 To sign out, enter `/logout` to clear the current credentials.
 
 ::: tip Using other AI providers
-If you want to connect Anthropic, OpenAI, Google, or other providers, open `/provider` in the TUI or use `liora provider catalog add` / `liora provider custom add` from the shell. For teams with multiple accounts or API keys, `liora provider key add`, `liora provider oauth add`, and `liora provider route auto` can create quota-aware fallback routes without exposing secrets. See [Providers and models](../configuration/providers.md) for details.
+If you want to connect Anthropic, OpenAI, Google, or other providers, use `/login` in the TUI or `liora provider catalog add` / `liora provider custom add` from the shell. For teams with multiple accounts or API keys, `liora provider key add`, `liora provider oauth add`, and `liora provider route auto` can create quota-aware fallback routes without exposing secrets. See [Providers and models](../configuration/providers.md) for details.
 :::
 
 ## Your first conversation

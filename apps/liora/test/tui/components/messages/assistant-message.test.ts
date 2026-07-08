@@ -138,4 +138,52 @@ describe('AssistantMessageComponent', () => {
     finalTheme.highlightCode?.(code, 'typescript');
     expect(highlightSpy).toHaveBeenCalled();
   });
+
+  it('shows a pulsing caret at the end of the content while streaming', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+
+    try {
+      const component = new AssistantMessageComponent();
+      component.updateContent('hello world', { transient: true });
+      const lines = component.render(40).map(strip);
+      const lastContent = lines.filter((line) => line.trim().length > 0).at(-1) ?? '';
+      expect(lastContent).toContain('▍');
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('hides the caret once the message is finalized', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+
+    try {
+      const component = new AssistantMessageComponent();
+      component.updateContent('hello world', { transient: false });
+      const lines = component.render(40).map(strip);
+      const lastContent = lines.filter((line) => line.trim().length > 0).at(-1) ?? '';
+      expect(lastContent).not.toContain('▍');
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
 });

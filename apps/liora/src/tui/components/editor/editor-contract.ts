@@ -2,6 +2,7 @@ import type {
   AutocompleteProvider,
   Component,
   Focusable,
+  NativeInputKeyEvent,
   RendererEditorAutocompleteLineStyles,
   RendererEditorCursor,
   RendererEditorTextInputTarget,
@@ -75,4 +76,11 @@ export interface TUIEditor
   recordNativeInputInteraction(): void;
   reopenAutocompleteAfterNativeInput(): void;
   applyNativeTextInputSync?(text: string, cursor: RendererEditorCursor): void;
+  /**
+   * Handle a structured native key event for autocomplete navigation (up/down/
+   * enter/tab/escape). Returns true when the autocomplete menu consumed the
+   * event, so the input router can skip the cursor-key fallback that would
+   * otherwise swallow up/down as vertical cursor movement.
+   */
+  handleAutocompleteNavigation?(event: NativeInputKeyEvent): boolean;
 }

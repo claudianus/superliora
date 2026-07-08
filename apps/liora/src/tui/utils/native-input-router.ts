@@ -155,6 +155,10 @@ function handleTUIStateNativeEditorInput(
   event: NativeInputEvent,
 ): boolean {
   if (event.type === 'key') {
+    // When the autocomplete menu is open, navigation keys (up/down/enter/tab/
+    // escape) must reach the menu before the cursor-key handler, which would
+    // otherwise swallow up/down as vertical cursor movement and starve the menu.
+    if (state.editor.handleAutocompleteNavigation?.(event) === true) return true;
     if (handleNativeEditorKeyInput(
       state.nativeEditorTextInput,
       state.editor,
