@@ -20,6 +20,7 @@ function makeHost(options: { planMode?: boolean; planPath?: string | undefined }
       options.planPath === undefined ? null : { path: options.planPath }
     )),
     setPlanMode: vi.fn(async () => {}),
+    getUltraworkRun: vi.fn(async () => null),
   };
   const host = {
     session,

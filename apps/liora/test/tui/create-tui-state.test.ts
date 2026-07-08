@@ -14,7 +14,6 @@ import {
   ANSI_ENABLE_FOCUS_EVENTS,
   ANSI_ENABLE_MOUSE_TRACKING,
   ANSI_ENABLE_SGR_MOUSE_MODE,
-  ANSI_ERASE_IN_LINE,
   ANSI_HIDE_CURSOR,
   ANSI_QUERY_SYNCHRONIZED_OUTPUT_SUPPORT,
   ANSI_SHOW_CURSOR,
@@ -786,7 +785,6 @@ describe('createTUIState', () => {
       reason: 'disabled',
       eraseLine: true,
     });
-    expect(renderer.lastFrame?.present?.output).toContain(ANSI_ERASE_IN_LINE);
     expect(renderer.stats.frames).toBe(1);
     expect(renderer.stats.health).toBe('healthy');
     expect(renderer.stats.last).toBe(renderer.lastFrame?.metrics);

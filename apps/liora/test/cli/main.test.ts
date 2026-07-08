@@ -336,7 +336,7 @@ describe('main entry command handling', () => {
       process.title = 'kimi-test-runner';
       main();
 
-      expect(process.title).toBe('kimi-code');
+      expect(process.title).toBe('liora');
     } finally {
       process.title = originalTitle;
     }

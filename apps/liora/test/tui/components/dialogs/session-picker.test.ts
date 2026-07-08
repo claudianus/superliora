@@ -96,7 +96,7 @@ describe('SessionPickerComponent', () => {
     expect(output).toContain('Refactor sessions list');
     // Session id is rendered in full, never abbreviated with an ellipsis.
     expect(output).toContain('ses_01HXYABCDEFGHIJK');
-    expect(output).not.toMatch(/ses_01\S*?/);
+    expect(output).not.toMatch(/ses_01\S*…/);
     expect(output).toContain('/tmp/project');
     expect(output).toContain('please redesign the picker UI');
   });
@@ -122,7 +122,8 @@ describe('SessionPickerComponent', () => {
 
     const output = renderPlain(component);
 
-    expect(output).not.toMatch(/^\s*?/m);
+    // The `›`-prefixed last-prompt row must not appear when there is no prompt.
+    expect(output).not.toMatch(/^\s*› /m);
   });
 
   it('truncates overly long last_prompt content', () => {
@@ -147,10 +148,10 @@ describe('SessionPickerComponent', () => {
     });
 
     const lines = component.render(60).map((line) => stripAnsi(line));
-    const promptLine = lines.find((line) => line.trimStart().startsWith('?'));
+    const promptLine = lines.find((line) => line.trimStart().startsWith('›'));
     expect(promptLine).toBeDefined();
     expect(promptLine!.length).toBeLessThanOrEqual(60);
-    expect(promptLine!.endsWith('?')).toBe(true);
+    expect(promptLine!.endsWith('…')).toBe(true);
     expect(promptLine).not.toContain(longPrompt);
   });
 
@@ -182,8 +183,8 @@ describe('SessionPickerComponent', () => {
     const lines = component.render(120).map((line) => stripAnsi(line));
     const currentLine = lines.find((line) => line.includes('this is current'));
     const otherLine = lines.find((line) => line.includes('not current'));
-    expect(currentLine).toContain('? current');
-    expect(otherLine).not.toContain('? current');
+    expect(currentLine).toContain('← current');
+    expect(otherLine).not.toContain('← current');
   });
 
   it('places the relative time on the same line as the title, not right-aligned', () => {
@@ -243,8 +244,9 @@ describe('SessionPickerComponent', () => {
     const lines = component.render(120).map((line) => stripAnsi(line));
     const importedLine = lines.find((line) => line.includes('Migrated session'));
     const nativeLine = lines.find((line) => line.includes('Fresh session'));
-    expect(importedLine).toContain('Migrated session');
-    expect(nativeLine).toContain('Fresh session');
+    expect(importedLine).toBeDefined();
+    expect(nativeLine).toBeDefined();
+    // Imported sessions render without a legacy "[imported]" badge.
     expect(importedLine).not.toContain('[imported]');
   });
 
@@ -401,7 +403,7 @@ describe('SessionPickerComponent', () => {
     const output = renderPlain(component);
 
     expect(output).toContain('All sessions');
-    expect(output).toContain('?? navigate ? Ctrl+A current cwd ? Enter select ? Esc cancel');
+    expect(output).toContain('↑↓ navigate · Ctrl+A current cwd · Enter select · Esc cancel');
   });
 
   it('selects the full session row on Enter', () => {

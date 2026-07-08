@@ -70,8 +70,11 @@ describe('NoticeComponent', () => {
       const rendered = component.render(120).join('\n');
       const codes = rendered.match(ANSI_SGR) ?? [];
       expect(codes.length).toBeGreaterThan(2);
-      expect(strip(rendered)).toContain('Ultrawork mode: ON');
-      expect(strip(rendered)).toContain('Shift-Tab routes the next task through UltraPlan');
+      // Premium ambient effects substitute some spaces with particle glyphs
+      // (✦ ✧ ✺ ∙ •); normalize them back to spaces before checking the title.
+      const normalized = strip(rendered).replaceAll(/[✦✧✺∙•]/g, ' ');
+      expect(normalized).toContain('Ultrawork mode: ON');
+      expect(normalized).toContain('Shift-Tab routes the next task through UltraPlan');
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];

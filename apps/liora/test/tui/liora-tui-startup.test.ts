@@ -212,6 +212,7 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
 function makeDriver(harness: ReturnType<typeof makeHarness>, input: LioraTUIStartupInput) {
   const driver = new LioraTUI(harness as never, input) as unknown as StartupDriver;
   vi.spyOn(driver.state.ui, 'requestRender').mockImplementation(() => {});
+  vi.spyOn(driver.state.renderer, 'invalidateFrame').mockImplementation(() => {});
   vi.spyOn(driver.state.terminal, 'setProgress').mockImplementation(() => {});
   return driver;
 }
@@ -1062,7 +1063,7 @@ describe('LioraTUI startup', () => {
 
     expect(listeners[0]?.(LIGHT_OSC11_REPORT)).toEqual({ consume: true });
     expect(driver.state.appState.theme).toBe('auto');
-    expect(driver.state.ui.requestRender).toHaveBeenCalled();
+    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
   });
 
   it('does not track terminal theme reports for explicit themes', () => {

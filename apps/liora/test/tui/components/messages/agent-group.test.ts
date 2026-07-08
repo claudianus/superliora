@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { advanceAppearanceAnimationClock } from '#/tui/utils/appearance-effects';
 
 const ESC = String.fromCodePoint(0x1b);
 const BEL = String.fromCodePoint(0x07);
@@ -154,6 +155,14 @@ describe('AgentGroupComponent', () => {
     vi.mocked(ui.requestRender).mockClear();
 
     vi.advanceTimersByTime(1_200);
+    advanceAppearanceAnimationClock(1_200);
+    // The subagent-elapsed counter ticks off the shared appearance animation
+    // clock during the child's own render() (the native loop renders each
+    // borrowed tool call once per frame). Driving that tick notifies the group,
+    // which throttles a re-flush; flushing the pending timer rebuilds the
+    // header from the now-advanced child snapshot and requests a render.
+    running.render(120);
+    vi.runOnlyPendingTimers();
 
     expect(ui.requestRender).toHaveBeenCalled();
     expect(renderText(group)).toContain('Running 2 agents (1 running, 1 waiting) · 1s');

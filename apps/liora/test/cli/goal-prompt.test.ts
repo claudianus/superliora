@@ -108,6 +108,7 @@ const mocks = vi.hoisted(() => {
     getStatus: vi.fn(async () => ({ permission: 'auto', model: 'k2' })),
     createGoal: vi.fn(async () => snapshot({ status: 'active' })),
     getGoal: vi.fn(async () => ({ goal: snapshot({ status: 'complete' }) })),
+    tryAutoResumeUltrawork: vi.fn(async () => null),
     onEvent: vi.fn((handler: (event: any) => void) => {
       eventHandlers.add(handler);
       return () => eventHandlers.delete(handler);
@@ -243,7 +244,7 @@ describe('runPrompt headless goal mode', () => {
     expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('Ship feature X'));
   });
 
-  it('does not re-enter plan or swarm mode for an already-prepared headless ultrawork session', async () => {
+  it('refreshes plan context without re-enabling swarm mode for an already-prepared headless ultrawork session', async () => {
     mocks.session.getStatus.mockResolvedValueOnce({
       permission: 'auto',
       model: 'k2',
@@ -263,8 +264,11 @@ describe('runPrompt headless goal mode', () => {
       },
     );
 
-    expect(mocks.session.setPlanMode).not.toHaveBeenCalled();
+    // Swarm is already enabled, so it is not toggled again. Plan mode is
+    // re-established with the new objective context even when already enabled.
     expect(mocks.session.setSwarmMode).not.toHaveBeenCalled();
+    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(false, false);
+    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(mocks.session.createGoal).toHaveBeenCalledWith({
       objective: 'Ship feature X',
       replace: false,

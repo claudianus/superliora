@@ -42,6 +42,7 @@ describe('update preference commands', () => {
 
     expect(mocks.saveTuiConfig).toHaveBeenCalledWith({
       theme: 'auto',
+      disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: false },

@@ -39,6 +39,7 @@ function makeHost(
       theme: currentTheme,
       transcriptContainer: { addChild: vi.fn() },
       ui: { requestRender: vi.fn() },
+      renderer: { invalidateFrame: vi.fn() },
     },
     session: hasSession ? session : undefined,
     requireSession: () => session,
