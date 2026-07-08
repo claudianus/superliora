@@ -185,6 +185,30 @@ describe('FullCompaction', () => {
     expect(strategy.shouldBlock(28_000)).toBe(true);
   });
 
+  it('compacts using a dedicated compaction model when loopControl.compactionModel is set', async () => {
+    const ctx = testAgent();
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    // Route compaction through the configured alias. The alias resolves to the
+    // same provider here, but the point is that the compactionModel branch in
+    // createCompactionProvider resolves and builds a provider without throwing.
+    ctx.configureLoopControl({ compactionModel: CATALOGUED_PROVIDER.model });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+    ctx.appendExchange(2, 'old user two', 'old assistant two', 40);
+
+    const completed = ctx.once('compaction.completed');
+    ctx.mockNextResponse({ type: 'text', text: 'Compacted with dedicated model.' });
+    await ctx.rpc.beginCompaction({});
+    await completed;
+
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
+    expect(
+      ctx.compactHistory().some((entry) => entry.text.includes('Compacted with dedicated model')),
+    ).toBe(true);
+  });
+
   it('compacts history with orphan tool results without provider repair errors', async () => {
     const ctx = testAgent();
     ctx.configure({
