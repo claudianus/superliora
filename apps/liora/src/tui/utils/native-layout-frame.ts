@@ -291,6 +291,7 @@ export function createTUIStateNativeRenderCallback(
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
+      skipAuroraAnimation: frame.causes.includes('input'),
     });
     const result = runtime.renderLayoutFrame(nativeFrame.regions, {
       fill: options.fill ?? currentTheme.canvasBackgroundCell(),
@@ -461,6 +462,7 @@ function buildTUIStateNativeFrame(
   options: {
     readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
     readonly diagnostics?: RendererDiagnosticsSnapshot;
+    readonly skipAuroraAnimation?: boolean;
   } = {},
 ): TUIStateNativeFrame {
   const headerLines = state.headerContainer.render(width);
@@ -511,12 +513,17 @@ function buildTUIStateNativeFrame(
   let cursor = hiddenNativeCursor();
   const canvasBackground = currentTheme.canvasBackgroundCell();
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
-  const auroraRows = buildAuroraBackground({
-    width,
-    height,
-    nowMs: appearanceAnimationNow(),
-    appearance,
-  });
+  // On input-driven frames (typing), skip the per-cell aurora computation —
+  // it is O(width × height) and taxes every keystroke. The animation clock
+  // repaints it on the next ambient frame.
+  const auroraRows = options.skipAuroraAnimation === true
+    ? []
+    : buildAuroraBackground({
+        width,
+        height,
+        nowMs: appearanceAnimationNow(),
+        appearance,
+      });
   // When the aurora is active it becomes the bottom-most layer, so upper regions
   // must neither `clear` nor set a `background`: both would fill the rect with
   // an empty/base cell and erase the aurora beneath. Content cells keep their

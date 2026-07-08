@@ -154,6 +154,10 @@ function handleTUIStateNativeEditorInput(
   state: TUIState,
   event: NativeInputEvent,
 ): boolean {
+  // The editor rect forces a full chrome measurement pass (every container's
+  // render()), so compute it at most once per input event instead of once per
+  // handler branch. This is the dominant per-keystroke cost for IME input.
+  const rect = getTUIStateNativeEditorRect(state);
   if (event.type === 'key') {
     // When the autocomplete menu is open, navigation keys (up/down/enter/tab/
     // escape) must reach the menu before the cursor-key handler, which would
@@ -163,13 +167,13 @@ function handleTUIStateNativeEditorInput(
       state.nativeEditorTextInput,
       state.editor,
       event,
-      getTUIStateNativeEditorRect(state),
+      rect,
     )) return true;
     return handleNativeEditorTextInput(
       state.nativeEditorTextInput,
       state.editor,
       event,
-      getTUIStateNativeEditorRect(state),
+      rect,
     );
   }
   if (event.type === 'paste') {
@@ -177,7 +181,7 @@ function handleTUIStateNativeEditorInput(
       state.nativeEditorTextInput,
       state.editor,
       event,
-      getTUIStateNativeEditorRect(state),
+      rect,
     );
   }
   if (event.type !== 'mouse') return false;
@@ -185,6 +189,6 @@ function handleTUIStateNativeEditorInput(
     state.nativeEditorTextInput,
     state.editor,
     event,
-    getTUIStateNativeEditorRect(state),
+    rect,
   );
 }

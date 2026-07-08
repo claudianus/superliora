@@ -85,6 +85,7 @@ export class NativeTUIEditor implements TUIEditor {
   private readonly history: string[] = [];
   private historyIndex: number | undefined;
   private argumentHints: ReadonlyMap<string, string> = new Map();
+  private layoutRowCountCache: { width: number; text: string; rows: number } | undefined;
 
   constructor(private readonly options: NativeTUIEditorOptions = {}) {
     this.autocomplete = new RendererEditorAutocompleteController({
@@ -293,6 +294,14 @@ export class NativeTUIEditor implements TUIEditor {
 
   getNativeLayoutRowCount(width: number): number {
     const safeWidth = Math.max(1, Math.floor(width));
+    const text = this.getText();
+    // Memoize on (width, text) — this is called from the layout measurement
+    // path on every keystroke, and input.render() re-segments the full text
+    // with Intl.Segmenter which is expensive for Korean grapheme clusters.
+    const cached = this.layoutRowCountCache;
+    if (cached !== undefined && cached.width === safeWidth && cached.text === text) {
+      return cached.rows;
+    }
     const overlayLines = this.getNativeOverlayLines(safeWidth);
     const contentWidth = Math.max(
       1,
@@ -303,7 +312,9 @@ export class NativeTUIEditor implements TUIEditor {
       height: 1,
       focused: this.focused,
     });
-    return measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows);
+    const rows = measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows);
+    this.layoutRowCountCache = { width: safeWidth, text, rows };
+    return rows;
   }
 
   getNativeOverlayLines(
