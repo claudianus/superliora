@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="ko" class="no-js">
+<html lang="ko">
   <head>
-    <meta charset="utf-8">
+        <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SuperLiora - 터미널 중심 AI 코딩 하네스</title>
     <meta name="description" content="SuperLiora는 터미널에서 실행하는 독립형 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화를 하나로 연결하여 긴 세션이 일관되고 결정을 추적할 수 있도록 합니다.">
@@ -14,22 +14,62 @@
     <link rel="alternate" hreflang="x-default" href="https://claudianus.github.io/superliora/">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" href="/assets/hero-command-center.png" as="image" fetchpriority="high">
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"></noscript>
     <meta property="og:type" content="website">
     <meta property="og:locale" content="ko_KR">
     <meta property="og:url" content="https://claudianus.github.io/superliora/">
     <meta property="og:title" content="SuperLiora - 터미널 중심 AI 코딩 하네스">
     <meta property="og:description" content="SuperLiora는 터미널에서 실행하는 독립형 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화를 하나로 연결하여 긴 세션이 일관되고 결정을 추적할 수 있도록 합니다.">
     <meta property="og:image" content="https://claudianus.github.io/superliora/assets/hero-command-center.png">
-    <meta property="og:image:alt" content="SuperLiora Bento command center">
+    <meta property="og:image:alt" content="SuperLiora harness architecture diagram">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="SuperLiora - 터미널 중심 AI 코딩 하네스">
     <meta name="twitter:description" content="SuperLiora는 터미널에서 실행하는 독립형 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화를 하나로 연결하여 긴 세션이 일관되고 결정을 추적할 수 있도록 합니다.">
     <meta name="twitter:image" content="https://claudianus.github.io/superliora/assets/hero-command-center.png">
-    <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;rect width='100' height='100' rx='20' fill='%23060A12'/&gt;&lt;text x='50' y='68' font-size='52' fill='%2300D5FF' text-anchor='middle' font-family='sans-serif' font-weight='800'&gt;S&lt;/text&gt;&lt;/svg&gt;">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23060A12'/><text x='50' y='68' font-size='52' fill='%2300D5FF' text-anchor='middle' font-family='sans-serif' font-weight='800'>S</text></svg>">
     <link rel="stylesheet" href="/src/style.css">
+    <script type="module" src="/src/main.js"></script>
+    <style>
+      /* Code-based hero harness */
+      .harness-stage { width: 100%; height: 100%; }
+      .harness-node { fill: var(--color-bg-3); stroke: var(--color-cyan); stroke-width: 1.5; }
+      .harness-node.accent-cyan { stroke: var(--color-cyan); }
+      .harness-node.accent-teal { stroke: var(--color-teal); }
+      .harness-node.accent-amber { stroke: var(--color-amber); }
+      .harness-node.accent-violet { stroke: var(--color-violet); }
+      .harness-node.accent-emerald { stroke: var(--color-emerald); }
+      .harness-node.accent-rose { stroke: var(--color-rose); }
+      .harness-core { fill: url(#coreGradient); stroke: var(--color-cyan); stroke-width: 2; }
+      .harness-line { fill: none; stroke: var(--color-line); stroke-width: 1.5; }
+      .harness-pulse { fill: none; stroke: var(--color-cyan); stroke-width: 2; stroke-dasharray: 8 24; stroke-linecap: round; opacity: 0.8; }
+      .harness-pulse.teal { stroke: var(--color-teal); }
+      .harness-pulse.amber { stroke: var(--color-amber); }
+      .harness-pulse.violet { stroke: var(--color-violet); }
+      .harness-pulse.emerald { stroke: var(--color-emerald); }
+      .harness-pulse.rose { stroke: var(--color-rose); }
+      .harness-label { fill: var(--color-soft); font-family: var(--font-mono); font-size: 10px; font-weight: 500; text-anchor: middle; }
+      .harness-label-strong { fill: var(--color-text); font-family: var(--font-sans); font-size: 12px; font-weight: 700; text-anchor: middle; }
+      .harness-dot { fill: var(--color-cyan); }
+      .harness-ring { fill: none; stroke: var(--color-cyan); stroke-width: 1; opacity: 0.4; }
+      .harness-node:hover { filter: drop-shadow(0 0 8px var(--color-cyan)); }
+      @keyframes pulseFlow { to { stroke-dashoffset: -128; } }
+      .harness-pulse { animation: pulseFlow 2.4s linear infinite; }
+      @keyframes breatheNode { 0%, 100% { opacity: 1; } 50% { opacity: 0.65; } }
+      .harness-dot { animation: breatheNode 2.8s ease-in-out infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .harness-pulse { animation: none; stroke-dasharray: none; opacity: 0.4; }
+        .harness-dot { animation: none; }
+      }
+      .visual-debug-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 42px; }
+      @media (max-width: 1024px) { .visual-debug-grid { grid-template-columns: 1fr; } }
+      .visual-debug-card { padding: 24px; border-radius: 20px; background: var(--color-bg-2); border: 1px solid var(--color-line); }
+      .visual-debug-card svg { width: 48px; height: 48px; margin-bottom: 16px; }
+      .visual-debug-card h3 { font-size: 18px; font-weight: 700; }
+      .visual-debug-card p { margin-top: 10px; color: var(--color-soft); font-size: 15px; line-height: 1.55; }
+      .demo-terminal { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+      .demo-terminal .terminal__body { min-height: 72px; }
+      .focus-ring:focus-visible { outline: 2.5px solid var(--color-cyan); outline-offset: 3px; }
+      .lang a:focus-visible, .nav__links a:focus-visible, .theme-toggle:focus-visible { outline: 2.5px solid var(--color-cyan); outline-offset: 3px; }
+    </style>
   </head>
   <body>
     <a class="skip-link" href="#main">본문으로 이동</a>
@@ -65,8 +105,8 @@
 
     <main id="main">
       <section class="hero">
-        <div class="wrapper hero-bento">
-          <div class="hero-bento__copy reveal">
+        <div class="wrapper hero__grid">
+          <div class="hero__copy reveal">
             <div class="eyebrow">AI coding harness</div>
             <h1>길고 복잡한 개발 흐름을 터미널에서 끝까지 이어가는 하네스</h1>
             <p class="hero__lead">SuperLiora는 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 하나의 작업 흐름으로 연결합니다. 긴 세션에서도 맥락을 보존하고, 근거 있는 결정을 남기며, 개발자가 다음 단계에 집중할 수 있도록 돕습니다.</p>
@@ -75,28 +115,101 @@
               <a class="btn-secondary" href="https://github.com/claudianus/superliora">GitHub 보기</a>
             </div>
           </div>
-
-          <div class="hero-bento__visual reveal" data-tilt>
-            <div class="narrative-media">
-              <picture>
-                <source srcset="/assets/hero-command-center.webp" type="image/webp">
-                <img src="/assets/hero-command-center.png" alt="SuperLiora Bento command center: Harness, Terminal, Capabilities, Status" width="1672" height="941" loading="eager" decoding="async" fetchpriority="high">
-              </picture>
-            </div>
-          </div>
-
-          <div class="hero-bento__chips reveal">
-            <div class="bento-card" data-tilt>
-              <div class="bento-card__label"><span class="bento-card__dot" style="background:var(--color-cyan)"></span>UltraPlan</div>
-              <p>true/false로 검증 가능해질 때까지 요구사항을 인터뷰합니다.</p>
-            </div>
-            <div class="bento-card" data-tilt>
-              <div class="bento-card__label"><span class="bento-card__dot" style="background:var(--color-teal)"></span>UltraSwarm</div>
-              <p>ENGAGE/DEFER gate 뒤에서 전문가 subagent를 투입합니다.</p>
-            </div>
-            <div class="bento-card" data-tilt>
-              <div class="bento-card__label"><span class="bento-card__dot" style="background:var(--color-amber)"></span>Liora Recall</div>
-              <p>결정과 절차를 기억해 다음 세션이 같은 출발선을 공유합니다.</p>
+          <div class="hero__visual reveal" data-tilt>
+            <div class="hero-visual">
+              <svg class="harness-stage" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="SuperLiora harness 구조도">
+                <defs>
+                  <linearGradient id="coreGradient" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="var(--color-bg-2)" />
+                    <stop offset="100%" stop-color="var(--color-bg-3)" />
+                  </linearGradient>
+                  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="2.5" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+                <circle class="harness-ring" cx="320" cy="180" r="140" />
+                <circle class="harness-ring" cx="320" cy="180" r="100" opacity="0.6" />
+                <g class="harness-lines">
+                  <line class="harness-line" x1="320" y1="180" x2="320" y2="60" />
+                  <line class="harness-line" x1="320" y1="180" x2="440" y2="120" />
+                  <line class="harness-line" x1="320" y1="180" x2="440" y2="240" />
+                  <line class="harness-line" x1="320" y1="180" x2="320" y2="300" />
+                  <line class="harness-line" x1="320" y1="180" x2="200" y2="240" />
+                  <line class="harness-line" x1="320" y1="180" x2="200" y2="120" />
+                  <line class="harness-line" x1="200" y1="120" x2="120" y2="80" />
+                  <line class="harness-line" x1="200" y1="240" x2="120" y2="280" />
+                  <line class="harness-line" x1="440" y1="120" x2="520" y2="80" />
+                  <line class="harness-line" x1="440" y1="240" x2="520" y2="280" />
+                </g>
+                <path class="harness-pulse" d="M320,180 L320,60" />
+                <path class="harness-pulse teal" d="M320,180 L440,120" />
+                <path class="harness-pulse amber" d="M320,180 L440,240" />
+                <path class="harness-pulse violet" d="M320,180 L320,300" />
+                <path class="harness-pulse emerald" d="M320,180 L200,240" />
+                <path class="harness-pulse rose" d="M320,180 L200,120" />
+                <path class="harness-pulse cyan" d="M200,120 L120,80" />
+                <path class="harness-pulse teal" d="M200,240 L120,280" />
+                <path class="harness-pulse amber" d="M440,120 L520,80" />
+                <path class="harness-pulse violet" d="M440,240 L520,280" />
+                <circle class="harness-core" cx="320" cy="180" r="36" />
+                <text class="harness-label-strong" x="320" y="185">SuperLiora</text>
+                <g>
+                  <circle class="harness-node accent-cyan" cx="320" cy="60" r="24" />
+                  <circle class="harness-dot" cx="320" cy="60" r="3" />
+                  <text class="harness-label" x="320" y="64">UltraPlan</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-teal" cx="440" cy="120" r="24" />
+                  <circle class="harness-dot" cx="440" cy="120" r="3" />
+                  <text class="harness-label" x="440" y="124">UltraWork</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-amber" cx="440" cy="240" r="24" />
+                  <circle class="harness-dot" cx="440" cy="240" r="3" />
+                  <text class="harness-label" x="440" y="244">UltraSwarm</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-violet" cx="320" cy="300" r="24" />
+                  <circle class="harness-dot" cx="320" cy="300" r="3" />
+                  <text class="harness-label" x="320" y="304">Context OS</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-emerald" cx="200" cy="240" r="24" />
+                  <circle class="harness-dot" cx="200" cy="240" r="3" />
+                  <text class="harness-label" x="200" y="244">Recall</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-rose" cx="200" cy="120" r="24" />
+                  <circle class="harness-dot" cx="200" cy="120" r="3" />
+                  <text class="harness-label" x="200" y="124">LLM Wiki</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-cyan" cx="120" cy="80" r="20" />
+                  <circle class="harness-dot" cx="120" cy="80" r="2.5" />
+                  <text class="harness-label" x="120" y="84">Browser</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-teal" cx="120" cy="280" r="20" />
+                  <circle class="harness-dot" cx="120" cy="280" r="2.5" />
+                  <text class="harness-label" x="120" y="284">Computer</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-amber" cx="520" cy="80" r="20" />
+                  <circle class="harness-dot" cx="520" cy="80" r="2.5" />
+                  <text class="harness-label" x="520" y="84">Research</text>
+                </g>
+                <g>
+                  <circle class="harness-node accent-violet" cx="520" cy="280" r="20" />
+                  <circle class="harness-dot" cx="520" cy="280" r="2.5" />
+                  <text class="harness-label" x="520" y="284">ACP</text>
+                </g>
+              </svg>
+              <div class="hero__status">
+                <div class="status-chip"><b>UltraWork</b><span>Plan → Goal → Research → Swarm → Verify</span></div>
+                <div class="status-chip"><b>Browser / Computer</b><span>CloakBrowser + Playwright, CUA/MCP</span></div>
+                <div class="status-chip"><b>Liora Recall</b><span>Memory, decisions, procedures</span></div>
+              </div>
             </div>
           </div>
         </div>
@@ -153,36 +266,53 @@
       <section class="section" id="ultra">
         <div class="wrapper">
           <div class="section-head reveal">
-            <div class="section-kicker section-kicker--cyan">Ultra workflow</div>
+            <div class="section-kicker">Ultra workflow</div>
             <h2>계획부터 검증까지 이어지는 실행 구조</h2>
             <p class="section-body">Shift-Tab Ultrawork mode는 복잡한 요청을 UltraPlan interview로 먼저 좁히고, true/false로 검증 가능한 UltraGoal을 만든 뒤 research, Swarm decision, integration, verification 순서로 진행합니다.</p>
           </div>
-
-          <div class="split-narrative reveal">
-            <div class="split-narrative__copy">
-              <h3>Plan → Goal → Research → Swarm → Verify → Learn</h3>
-              <p>각 단계는 이전 단계의 결과를 근거로 시작하며, 완료 여부를 명확히 기록합니다. 모호한 목표는 UltraPlan interview로 구체화되고, 리스크가 큰 결정은 Swarm gate를 통과합니다.</p>
-              <ul class="split-narrative__list">
-                <li>UltraPlan interview로 요구사항, 제약, 위험을 끝까지 좁힙니다.</li>
-                <li>UltraGoal로 구체적 목표와 검증 기준을 고정합니다.</li>
-                <li>UltraSwarm에서 ENGAGE/DEFER 결정을 먼저 기록합니다.</li>
-              </ul>
+          <div class="split">
+            <div class="rail reveal">
+              <div class="rail__item" data-tilt style="--reveal-index: 0">
+                <h3>UltraPlan <span>01</span></h3>
+                <p>완료 여부가 명백해질 때까지 요구사항, 제약, 위험을 인터뷰합니다.</p>
+              </div>
+              <div class="rail__item" data-tilt style="--reveal-index: 1">
+                <h3>UltraGoal <span>02</span></h3>
+                <p>계획이 승인된 뒤 구체적 목표와 검증 기준을 고정합니다.</p>
+              </div>
+              <div class="rail__item" data-tilt style="--reveal-index: 2">
+                <h3>UltraSwarm <span>03</span></h3>
+                <p>ENGAGE 또는 DEFER를 먼저 기록한 뒤 필요한 specialist subagent만 투입합니다.</p>
+              </div>
             </div>
-            <div class="narrative-media" data-tilt>
-              <picture>
-                <source srcset="/assets/ultra-orchestration.webp" type="image/webp">
-                <img src="/assets/ultra-orchestration.png" alt="Ultra workflow orchestration: Plan, Goal, Research, Swarm, Verify, Learn" width="1672" height="941" loading="lazy" decoding="async">
-              </picture>
+            <div class="media reveal">
+              <svg viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ultra workflow orchestration diagram">
+  <rect width="640" height="360" fill="var(--color-bg-2)" rx="24"/>
+  <g fill="none" stroke="var(--color-line)" stroke-width="1.5">
+    <line x1="320" y1="80" x2="160" y2="180"/>
+    <line x1="320" y1="80" x2="480" y2="180"/>
+    <line x1="160" y1="180" x2="320" y2="280"/>
+    <line x1="480" y1="180" x2="320" y2="280"/>
+    <line x1="160" y1="180" x2="480" y2="180"/>
+  </g>
+  <circle cx="320" cy="80" r="22" fill="var(--color-bg-3)" stroke="var(--color-cyan)" stroke-width="2"/>
+  <circle cx="160" cy="180" r="18" fill="var(--color-bg-3)" stroke="var(--color-violet)" stroke-width="2"/>
+  <circle cx="480" cy="180" r="18" fill="var(--color-bg-3)" stroke="var(--color-teal)" stroke-width="2"/>
+  <circle cx="320" cy="280" r="18" fill="var(--color-bg-3)" stroke="var(--color-amber)" stroke-width="2"/>
+  <text x="320" y="85" fill="var(--color-cyan)" font-size="12" text-anchor="middle" font-family="var(--font-mono)">Goal</text>
+  <text x="160" y="185" fill="var(--color-violet)" font-size="11" text-anchor="middle" font-family="var(--font-mono)">Plan</text>
+  <text x="480" y="185" fill="var(--color-teal)" font-size="11" text-anchor="middle" font-family="var(--font-mono)">Swarm</text>
+  <text x="320" y="285" fill="var(--color-amber)" font-size="11" text-anchor="middle" font-family="var(--font-mono)">Learn</text>
+</svg>
             </div>
           </div>
-
-          <div class="workflow-compact reveal">
-            <div class="workflow-compact__step" data-tilt style="--reveal-index: 0"><span>01</span><b>Plan</b><p>요구를 정리합니다.</p></div>
-            <div class="workflow-compact__step" data-tilt style="--reveal-index: 1"><span>02</span><b>Goal</b><p>완료 기준을 고정합니다.</p></div>
-            <div class="workflow-compact__step" data-tilt style="--reveal-index: 2"><span>03</span><b>Research</b><p>근거를 확인합니다.</p></div>
-            <div class="workflow-compact__step" data-tilt style="--reveal-index: 3"><span>04</span><b>Swarm</b><p>전문가를 투입합니다.</p></div>
-            <div class="workflow-compact__step" data-tilt style="--reveal-index: 4"><span>05</span><b>Verify</b><p>테스트와 위험을 점검합니다.</p></div>
-            <div class="workflow-compact__step" data-tilt style="--reveal-index: 5"><span>06</span><b>Learn</b><p>검증된 지식을 남깁니다.</p></div>
+          <div class="workflow reveal">
+            <div class="workflow__step" data-tilt style="--reveal-index: 0"><b>Plan</b><p>요구를 정리합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 1"><b>Goal</b><p>완료 기준을 고정합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 2"><b>Research</b><p>근거를 확인합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 3"><b>Swarm</b><p>전문가를 투입합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 4"><b>Verify</b><p>테스트와 위험을 점검합니다.</p></div>
+            <div class="workflow__step" data-tilt style="--reveal-index: 5"><b>Learn</b><p>검증된 지식을 남깁니다.</p></div>
           </div>
         </div>
       </section>
@@ -201,26 +331,38 @@
       <section class="section" id="harness">
         <div class="wrapper">
           <div class="section-head reveal">
-            <div class="section-kicker section-kicker--violet">Harness capabilities</div>
+            <div class="section-kicker">Harness capabilities</div>
             <h2>브라우저와 데스크톱까지 같은 흐름에 담습니다</h2>
             <p class="section-body">SuperLiora는 에디터 안에서 끝나지 않습니다. CloakBrowser + Playwright로 웹을 탐색하고, CUA/MCP로 네이티브 데스크톱을 조작하며, provider routing, context, memory, ACP를 같은 하네스에서 다룹니다.</p>
           </div>
-
-          <div class="split-narrative split-narrative--reverse reveal">
-            <div class="narrative-media" data-tilt>
-              <picture>
-                <source srcset="/assets/agent-cockpit.webp" type="image/webp">
-                <img src="/assets/agent-cockpit.png" alt="SuperLiora agent cockpit with session list, command log, and live status" width="1672" height="941" loading="lazy" decoding="async">
-              </picture>
+          <div class="split">
+            <div class="reveal">
+              <div class="rail">
+                <div class="rail__item" data-tilt>
+                  <h3>Browser-use <span>CloakBrowser + Playwright</span></h3>
+                  <p>observe, act, screenshot, console을 하나의 흐름에서 사용해 웹 기반 작업을 검증합니다.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Computer-use <span>CUA / MCP</span></h3>
+                  <p>네이티브 창을 캡처하고 클릭, 입력, 스크롤, 드래그까지 수행해 GUI 디버깅과 자동화를 이어갑니다.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Provider routing <span>quota, cooldown, latency</span></h3>
+                  <p>여러 API key와 OAuth account를 등록하고 상태를 기준으로 fallback 후보를 선택합니다.</p>
+                </div>
+              </div>
             </div>
-            <div class="split-narrative__copy">
-              <h3>하나의 터미널에서 웹, 데스크톱, 코드 모두 다루기</h3>
-              <p>Browser-use와 computer-use는 별도 도구가 아니라 동일한 harness의 일부입니다. 권한, 기억, 검증 모델을 공유하며 작업 맥락을 유지합니다.</p>
-              <ul class="split-narrative__list">
-                <li>CloakBrowser + Playwright로 웹 기반 흐름을 관찰하고 조작합니다.</li>
-                <li>CUA/MCP로 네이티브 창을 캡처하고 클릭, 입력, 드래그를 수행합니다.</li>
-                <li>Provider routing으로 quota, cooldown, latency를 기준으로 fallback합니다.</li>
-              </ul>
+            <div class="media reveal">
+              <div class="terminal glass demo-terminal" data-tilt>
+                <div class="terminal__bar">
+                  <span class="terminal__dot" style="background:var(--color-rose)"></span>
+                  <span class="terminal__dot" style="background:var(--color-amber)"></span>
+                  <span class="terminal__dot" style="background:var(--color-emerald)"></span>
+                </div>
+                <div class="terminal__body">
+                  <span style="color:var(--color-amber)">$</span> <span data-typing-harness></span><span class="terminal__cursor">|</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -228,22 +370,46 @@
 
       <section class="section" id="memory">
         <div class="wrapper">
-          <div class="split-narrative reveal">
-            <div class="split-narrative__copy">
-              <div class="section-kicker section-kicker--emerald" style="margin-bottom:14px">Memory &amp; LLM Wiki</div>
-              <h2>작업의 맥락을 기록하고 다시 활용합니다</h2>
-              <p>Liora Recall은 프로젝트 사실, 결정, 절차, 후속 작업을 기억합니다. LLM Wiki는 코드베이스와 검증 근거를 문서화해 다음 작업이 같은 출발점을 공유하도록 돕습니다.</p>
-              <ul class="split-narrative__list">
-                <li>Semantic memory: 프로젝트 구조, API 제약, 운영 규칙.</li>
-                <li>Procedural memory: 빌드, 배포, 검증 루틴.</li>
-                <li>Governance memory: 정책, 하드 제약, 의사결정 기록.</li>
-              </ul>
+          <div class="split split--reverse">
+            <div class="media reveal">
+              <svg viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Memory and LLM Wiki vault diagram">
+  <rect width="640" height="360" fill="var(--color-bg-2)" rx="24"/>
+  <g transform="translate(80, 80)">
+    <rect width="480" height="56" fill="var(--color-bg-3)" stroke="var(--color-violet)" stroke-width="2" rx="12"/>
+    <text x="24" y="34" fill="var(--color-violet)" font-size="14" font-family="var(--font-mono)" font-weight="600">LLM Wiki</text>
+  </g>
+  <g transform="translate(80, 160)">
+    <rect width="148" height="120" fill="var(--color-bg-3)" stroke="var(--color-cyan)" stroke-width="2" rx="12"/>
+    <text x="74" y="60" fill="var(--color-cyan)" font-size="12" font-family="var(--font-mono)" text-anchor="middle">Semantic</text>
+  </g>
+  <g transform="translate(246, 160)">
+    <rect width="148" height="120" fill="var(--color-bg-3)" stroke="var(--color-emerald)" stroke-width="2" rx="12"/>
+    <text x="74" y="60" fill="var(--color-emerald)" font-size="12" font-family="var(--font-mono)" text-anchor="middle">Procedural</text>
+  </g>
+  <g transform="translate(412, 160)">
+    <rect width="148" height="120" fill="var(--color-bg-3)" stroke="var(--color-amber)" stroke-width="2" rx="12"/>
+    <text x="74" y="60" fill="var(--color-amber)" font-size="12" font-family="var(--font-mono)" text-anchor="middle">Governance</text>
+  </g>
+</svg>
             </div>
-            <div class="narrative-media" data-tilt>
-              <picture>
-                <source srcset="/assets/memory-wiki-themes.webp" type="image/webp">
-                <img src="/assets/memory-wiki-themes.png" alt="Memory and LLM Wiki vault with semantic, procedural, and governance columns" width="1672" height="941" loading="lazy" decoding="async">
-              </picture>
+            <div class="section-head reveal">
+              <div class="section-kicker">Memory and LLM Wiki</div>
+              <h2>작업의 맥락을 기록하고 다시 활용합니다</h2>
+              <p class="section-body">Liora Recall은 프로젝트 사실, 결정, 절차, 후속 작업을 기억합니다. LLM Wiki는 코드베이스와 검증 근거를 문서화해 다음 작업이 같은 출발점을 공유하도록 돕습니다.</p>
+              <div class="rail" style="margin-top:24px">
+                <div class="rail__item" data-tilt>
+                  <h3>Semantic memory <span>facts</span></h3>
+                  <p>프로젝트 구조, API 제약, 팀 규칙을 보존합니다.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Procedural memory <span>how-to</span></h3>
+                  <p>반복되는 빌드, 배포, 검증 절차를 다시 사용할 수 있게 정리합니다.</p>
+                </div>
+                <div class="rail__item" data-tilt>
+                  <h3>Governance memory <span>rules</span></h3>
+                  <p>중요한 정책과 금지 사항을 이후 작업에서도 확인할 수 있게 유지합니다.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -252,95 +418,166 @@
       <section class="section" id="themes">
         <div class="wrapper">
           <div class="section-head reveal">
-            <div class="section-kicker section-kicker--amber">Premium TUI</div>
-            <h2>터미널도 개발자에게 맞춘 조종석이 됩니다</h2>
-            <p class="section-body">Neon Noir, Daylight, Prism Syntax, Recall Green, Executive Gold 등 팔레트를 바꾸고 외부 터미널 색상을 가져올 수 있습니다. 키보드 중심 탐색과 세션별 시각 디버깅을 지원합니다.</p>
+            <div class="section-kicker">Premium operator surface</div>
+            <h2>오래 머무는 터미널을 더 읽기 쉽게</h2>
+            <p class="section-body">긴 세션에서는 시각 피로, 코드 가독성, 상태 인지가 작업 품질에 영향을 줍니다. SuperLiora는 preset, 외부 terminal palette, syntax-aware color를 정제된 TUI 경험으로 제공합니다.</p>
           </div>
-
-          <div class="showcase reveal">
-            <div class="theme-board">
-              <div class="theme-card" data-tilt>
-                <div class="theme-card__bar"><i style="background:var(--color-cyan)"></i><i style="background:var(--color-violet)"></i><i style="background:var(--color-amber)"></i></div>
-                <h3>Neon Operator</h3>
-                <p>기본 다크 팔레트. 높은 대비와 시네마틱한 강조색.</p>
-              </div>
-              <div class="theme-card" data-tilt>
-                <div class="theme-card__bar"><i style="background:var(--color-teal)"></i><i style="background:var(--color-emerald)"></i><i style="background:var(--color-amber)"></i></div>
-                <h3>Prism Syntax</h3>
-                <p>코드 중심 작업에 최적화된 구문 강조 팔레트.</p>
-              </div>
-              <div class="theme-card" data-tilt>
-                <div class="theme-card__bar"><i style="background:var(--color-emerald)"></i><i style="background:var(--color-cyan)"></i><i style="background:var(--color-amber)"></i></div>
-                <h3>Recall Green</h3>
-                <p>장시간 세션에서 눈의 피로를 줄이는 녹색 계열.</p>
-              </div>
-              <div class="theme-card" data-tilt>
-                <div class="theme-card__bar"><i style="background:var(--color-amber)"></i><i style="background:var(--color-violet)"></i><i style="background:var(--color-rose)"></i></div>
-                <h3>Executive Gold</h3>
-                <p>덜 붉은 앰버 계열로 전환한 고급스러운 라이트 팔레트.</p>
-              </div>
+          <div class="showcase">
+            <div class="media reveal">
+              <svg viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Premium terminal theme preview">
+  <rect width="640" height="360" fill="var(--color-bg-2)" rx="24"/>
+  <rect x="24" y="24" width="592" height="312" fill="var(--color-bg-3)" stroke="var(--color-line)" stroke-width="2" rx="14"/>
+  <circle cx="60" cy="54" r="8" fill="var(--color-rose)"/>
+  <circle cx="88" cy="54" r="8" fill="var(--color-amber)"/>
+  <circle cx="116" cy="54" r="8" fill="var(--color-emerald)"/>
+  <text x="48" y="96" fill="var(--color-cyan)" font-size="14" font-family="var(--font-mono)">$ liora theme preview</text>
+  <text x="48" y="130" fill="var(--color-text)" font-size="14" font-family="var(--font-mono)">Loaded: Neon Noir</text>
+  <rect x="48" y="156" width="320" height="8" rx="4" fill="var(--color-line)"/>
+  <rect x="48" y="176" width="240" height="8" rx="4" fill="var(--color-violet)"/>
+  <rect x="48" y="196" width="280" height="8" rx="4" fill="var(--color-cyan)"/>
+  <rect x="48" y="216" width="200" height="8" rx="4" fill="var(--color-emerald)"/>
+</svg>
             </div>
-            <div class="narrative-media" data-tilt>
-              <picture>
-                <source srcset="/assets/agent-cockpit.webp" type="image/webp">
-                <img src="/assets/agent-cockpit.png" alt="SuperLiora premium terminal cockpit" width="1672" height="941" loading="lazy" decoding="async">
-              </picture>
+            <div class="theme-board reveal">
+              <div class="theme-card" data-tilt style="--reveal-index: 0">
+                <div class="theme-card__bar"><i style="background:#00D5FF"></i><i style="background:#B784FF"></i><i style="background:#FFE082"></i></div>
+                <h3>Neon Operator</h3>
+                <p>명령, 상태, diff를 선명하게 구분합니다.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 1">
+                <div class="theme-card__bar"><i style="background:#7DD3FC"></i><i style="background:#2DD4BF"></i><i style="background:#FBBF24"></i></div>
+                <h3>Prism Syntax</h3>
+                <p>긴 코드 블록과 reasoning 로그의 가독성을 높입니다.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 2">
+                <div class="theme-card__bar"><i style="background:#FFB86C"></i><i style="background:#8BE9FD"></i><i style="background:#FFD166"></i></div>
+                <h3>Recall Green</h3>
+                <p>memory, wiki, evidence 흐름을 쉽게 구분합니다.</p>
+              </div>
+              <div class="theme-card" data-tilt style="--reveal-index: 3">
+                <div class="theme-card__bar"><i style="background:#075985"></i><i style="background:#0F766E"></i><i style="background:#B45309"></i></div>
+                <h3>Executive Gold</h3>
+                <p>review, verify, release gate에 필요한 대비를 제공합니다.</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="section" id="capabilities">
+      <section class="section">
         <div class="wrapper">
           <div class="section-head reveal">
-            <div class="section-kicker">Capabilities</div>
-            <h2>긴 세션을 일관되게 만드는 핵심 기능</h2>
+            <div class="section-kicker">Premium capabilities</div>
+            <h2>현장에서 필요한 기능을 한 흐름에 담았습니다</h2>
+            <p class="section-body">SuperLiora는 계정과 API, context, research, memory, theme, workflow를 따로 관리하지 않고 같은 에이전트 흐름에서 다룹니다.</p>
           </div>
           <div class="feature-grid">
             <div class="feature-card reveal" data-tilt style="--reveal-index: 0">
               <span class="feature-card__index">01</span>
               <h3>UltraPlan</h3>
-              <p>목표가 true/false로 검증 가능해질 때까지 요구사항을 인터뷰합니다.</p>
+              <p>목표가 true/false로 검증 가능해질 때까지 요구사항과 제약을 인터뷰합니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 1">
               <span class="feature-card__index">02</span>
               <h3>UltraResearch</h3>
-              <p>API, 논문, 릴리스 노트, 보안 권고를 확인하고 근거를 남깁니다.</p>
+              <p>API, 논문, 릴리스 노트, 보안 이슈를 확인하고 근거를 남깁니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 2">
               <span class="feature-card__index">03</span>
               <h3>UltraGoal</h3>
-              <p>조사 근거를 반영한 계획 뒤에 목표와 예산을 고정합니다.</p>
+              <p>목표, 예산, 완료 조건을 명확히 두어 장기 작업의 방향을 유지합니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 3">
               <span class="feature-card__index">04</span>
               <h3>UltraSwarm</h3>
-              <p>최대 128개의 specialist subagent를 ENGAGE/DEFER gate와 함께 운용합니다.</p>
+              <p>최대 128개의 specialist subagent를 ENGAGE/DEFER gate 뒤에서 투입합니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 4">
               <span class="feature-card__index">05</span>
               <h3>Context OS</h3>
-              <p>structured working memory, repair, bounded rehydration으로 세션을 관리합니다.</p>
+              <p>긴 세션을 structured working memory, repair, bounded rehydration으로 관리합니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 5">
               <span class="feature-card__index">06</span>
               <h3>Liora Recall</h3>
-              <p>semantic, episodic, procedural, prospective, governance memory를 보존합니다.</p>
+              <p>프로젝트 사실, 결정, 절차, governance rule을 세션 간에 보존합니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 6">
               <span class="feature-card__index">07</span>
-              <h3>Browser-use</h3>
-              <p>CloakBrowser + Playwright로 웹 페이지를 관찰하고 조작합니다.</p>
+              <h3>LLM Wiki</h3>
+              <p>코드베이스 지식, 조사 근거, 검증 결과를 프로젝트 로컬 wiki로 정리합니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 7">
               <span class="feature-card__index">08</span>
-              <h3>Computer-use</h3>
-              <p>CUA/MCP로 네이티브 데스크톱을 캡처하고 조작합니다.</p>
+              <h3>Browser-use</h3>
+              <p>CloakBrowser + Playwright로 웹 페이지를 탐색하고 검증합니다.</p>
             </div>
             <div class="feature-card reveal" data-tilt style="--reveal-index: 8">
               <span class="feature-card__index">09</span>
+              <h3>Computer-use</h3>
+              <p>CUA/MCP로 네이티브 데스크톱 창을 캡처하고 조작합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 9">
+              <span class="feature-card__index">10</span>
               <h3>Provider routing</h3>
               <p>quota, cooldown, latency, route health를 기준으로 fallback 후보를 선택합니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 10">
+              <span class="feature-card__index">11</span>
+              <h3>Premium TUI</h3>
+              <p>Neon Noir / Daylight 팔레트와 ambient effect로 긴 터미널 세션을 돕습니다.</p>
+            </div>
+            <div class="feature-card reveal" data-tilt style="--reveal-index: 11">
+              <span class="feature-card__index">12</span>
+              <h3>ACP ready</h3>
+              <p>터미널과 호환 editor에서 같은 SuperLiora workflow를 이어갈 수 있습니다.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="visuals">
+        <div class="wrapper">
+          <div class="section-head reveal">
+            <div class="section-kicker">Visual debugging</div>
+            <h2>세션과 결정을 눈으로 추적합니다</h2>
+            <p class="section-body">`apps/vis`는 에이전트 실행의 흔적을 세션, replay, context, trace 단위로 시각화합니다. 긴 작업이 어디서 꺾였는지, 어떤 근거가 쌓였는지 확인할 수 있습니다.</p>
+          </div>
+          <div class="visual-debug-grid">
+            <div class="visual-debug-card reveal" data-tilt style="--reveal-index: 0">
+              <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <rect x="4" y="6" width="40" height="36" rx="4" stroke="var(--color-cyan)" stroke-width="2" />
+                <line x1="4" y1="16" x2="44" y2="16" stroke="var(--color-line)" stroke-width="1" />
+                <circle cx="12" cy="11" r="2" fill="var(--color-rose)" />
+                <circle cx="20" cy="11" r="2" fill="var(--color-amber)" />
+                <circle cx="28" cy="11" r="2" fill="var(--color-emerald)" />
+                <rect x="10" y="22" width="28" height="4" rx="2" fill="var(--color-bg-3)" />
+                <rect x="10" y="30" width="20" height="4" rx="2" fill="var(--color-bg-3)" />
+              </svg>
+              <h3>Session list</h3>
+              <p>실행 중이거나 저장된 세션을 한눈에 보고, 원하는 시점으로 재개합니다.</p>
+            </div>
+            <div class="visual-debug-card reveal" data-tilt style="--reveal-index: 1">
+              <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <path d="M8 38 L16 30 L24 34 L32 22 L40 14" stroke="var(--color-teal)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="8" cy="38" r="2" fill="var(--color-teal)" />
+                <circle cx="16" cy="30" r="2" fill="var(--color-teal)" />
+                <circle cx="24" cy="34" r="2" fill="var(--color-teal)" />
+                <circle cx="32" cy="22" r="2" fill="var(--color-teal)" />
+                <circle cx="40" cy="14" r="2" fill="var(--color-teal)" />
+              </svg>
+              <h3>Trace replay</h3>
+              <p>턴과 도구 호출, 결정의 흐름을 다시 재생해 루트 원인을 찾습니다.</p>
+            </div>
+            <div class="visual-debug-card reveal" data-tilt style="--reveal-index: 2">
+              <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <ellipse cx="24" cy="24" rx="18" ry="14" stroke="var(--color-violet)" stroke-width="2" />
+                <circle cx="24" cy="24" r="6" fill="var(--color-violet)" opacity="0.3" />
+                <circle cx="24" cy="24" r="2" fill="var(--color-violet)" />
+                <path d="M32 12 L36 8 M16 12 L12 8 M36 28 L40 30 M12 28 L8 30" stroke="var(--color-violet)" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+              <h3>Context projection</h3>
+              <p>Context OS가 선택한 메모리 페이지와 연속성 상태를 시각적으로 확인합니다.</p>
             </div>
           </div>
         </div>
@@ -348,28 +585,25 @@
 
       <section class="section" id="install">
         <div class="wrapper">
-          <div class="install" data-tilt>
+          <div class="install glass" data-tilt>
             <div class="install__grid">
-              <div class="install-copy">
+              <div>
                 <div class="section-kicker">Install</div>
-                <h2>소스에서 설치</h2>
-                <p>GitHub 저장소를 clone하고 빌드합니다. Node.js <code>&gt;=24.15.0</code>과 Corepack이 설치된 pnpm <code>10.33.0</code>이 필요합니다.</p>
-                <div class="hero__actions" style="margin-top:18px">
-                  <a class="btn-primary" href="https://github.com/claudianus/superliora">GitHub 보기</a>
-                </div>
+                <h2>소스에서 설치하고 liora로 시작하세요</h2>
+                <p class="section-body">설치 스크립트는 SuperLiora를 독립 명령으로 빌드하고 실행 경로를 설정합니다. macOS/Linux는 curl, Windows는 PowerShell one-liner로 시작할 수 있습니다.</p>
               </div>
               <div class="install__code-list">
                 <div class="code-block">
-                  <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash" aria-label="복사"></button>
+                  <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash" type="button"></button>
                   <code><span style="color:var(--color-amber)">$</span> curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash</code>
                 </div>
                 <div class="code-block">
-                  <button class="copy-btn" data-copy="irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex" aria-label="복사"></button>
-                  <code><span style="color:var(--color-amber)">$</span> irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex</code>
+                  <button class="copy-btn" data-copy="irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex" type="button"></button>
+                  <code><span style="color:var(--color-amber)">PS&gt;</span> irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex</code>
                 </div>
                 <div class="code-block">
-                  <button class="copy-btn" data-copy="liora --version" aria-label="복사"></button>
-                  <code><span style="color:var(--color-amber)">$</span> liora --version</code>
+                  <button class="copy-btn" data-copy="liora" type="button"></button>
+                  <code><span style="color:var(--color-amber)">$</span> liora</code>
                 </div>
               </div>
             </div>
@@ -379,11 +613,11 @@
 
       <section class="cta">
         <div class="wrapper">
-          <div class="section-head reveal">
-            <h2>복잡한 작업도 한 흐름으로 끝까지</h2>
-            <p>SuperLiora를 설치하고 첫 UltraWork를 시작해 보세요.</p>
+          <div class="reveal">
+            <h2>Shift-Tab로 Ultrawork를 시작해 보세요</h2>
+            <p>복잡한 작업도 계획, 목표, 근거, 검증을 하나의 흐름으로 이어갑니다.</p>
             <div class="cta__actions">
-              <a class="btn-primary" href="#install">지금 설치</a>
+              <a class="btn-primary" href="#install">설치하기</a>
               <a class="btn-secondary" href="https://github.com/claudianus/superliora">GitHub 보기</a>
             </div>
           </div>
@@ -393,15 +627,40 @@
 
     <footer class="footer">
       <div class="wrapper footer__inner">
-        <div class="footer__copy">© SuperLiora Contributors. MIT License.</div>
-        <nav class="footer__links" aria-label="푸터 메뉴">
+        <span class="footer__copy">SuperLiora. 장기 개발 작업을 위한 AI 코딩 하네스.</span>
+        <nav class="footer__links" aria-label="Footer">
           <a href="https://github.com/claudianus/superliora">GitHub</a>
-          <a href="/superliora/en/">English</a>
           <a href="https://github.com/claudianus/superliora/issues">Issues</a>
-          <a href="https://github.com/claudianus/superliora/blob/main/SECURITY.md">Security</a>
+          <a href="/superliora/en/">English</a>
         </nav>
       </div>
     </footer>
-    <script type="module" src="/src/main.js"></script>
+
+    <script type="module">
+      const harnessCommands = {
+        ko: 'liora -p "/ultrawork staging 사이트에서 로그인 플로우를 실행하고, Xcode 빌드 오류를 캡처해줘."',
+        en: 'liora -p "/ultrawork run the login flow on the staging site and capture the Xcode build error."'
+      };
+      document.querySelectorAll('[data-typing-harness]').forEach((el) => {
+        const lang = document.documentElement.lang || 'en';
+        const text = harnessCommands[lang] || harnessCommands.en;
+        let i = 0;
+        el.textContent = '';
+        const step = () => {
+          if (i <= text.length) {
+            el.textContent = text.slice(0, i);
+            i++;
+            setTimeout(step, 45 + Math.random() * 30);
+          }
+        };
+        const obs = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            step();
+            obs.disconnect();
+          }
+        }, { threshold: 0.5 });
+        obs.observe(el);
+      });
+    </script>
   </body>
 </html>
