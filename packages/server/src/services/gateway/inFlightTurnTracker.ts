@@ -14,6 +14,12 @@
  *
  * Only main-agent activity is tracked: subagent deltas share the session id
  * but describe a different stream and would corrupt the accumulation.
+ *
+ * INVARIANT: the set of event types this tracker accumulates MUST stay in
+ * lockstep with `VOLATILE_EVENT_TYPES` in `@superliora/protocol`. Volatile
+ * frames are never journaled, so a reconnecting client rebuilds from the
+ * snapshot — if a delta type is volatile but not accumulated here, a
+ * mid-turn reconnect silently loses that stream.
  */
 
 import type { Event, InFlightToolCall, InFlightTurn } from '@superliora/protocol';

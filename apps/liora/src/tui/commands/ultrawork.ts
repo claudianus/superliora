@@ -16,6 +16,7 @@ import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/lior
 import { KNOWLEDGE_MAP_FILENAME, resolveLlmWikiPaths, resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
+import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 import { writeProjectLlmWikiSeed } from './llm-wiki';
 import {
@@ -588,7 +589,10 @@ function redactEvidenceText(value: string): string {
   return value
     .replaceAll(/\b[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY)[A-Z0-9_]*\b/gu, '[REDACTED_ENV]')
     .replaceAll(/\b([A-Za-z0-9_-]*(?:api[_-]?key|token|secret|password|credential)[A-Za-z0-9_-]*)=([^\s,;]+)/giu, '$1=[REDACTED_SECRET]')
-    .replaceAll(/\b(?:sk|sk-proj|ghp|xoxb)-[A-Za-z0-9_-]{8,}\b/gu, '[REDACTED_SECRET]');
+    .replaceAll(/\b(?:sk|sk-proj|ghp|xoxb)-[A-Za-z0-9_-]{8,}\b/gu, '[REDACTED_SECRET]')
+    .replaceAll(/\bAKIA[0-9A-Z]{16}\b/gu, '[REDACTED_AWS_KEY]')
+    .replaceAll(/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b/gu, '[REDACTED_JWT]')
+    .replaceAll(/\b(?:Bearer|bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gu, 'Bearer [REDACTED_TOKEN]');
 }
 
 async function setPermissionForUltrawork(
@@ -826,8 +830,8 @@ export async function autoResumeUltraworkFromSession(
     });
     await session.setPremiumQuality(true);
     host.showNotice(
-      'Ultrawork 자동 재개',
-      `중단된 실행을 stage ${run.stage}에서 이어갑니다.`,
+      ttui('tui.ultrawork.autoResume.title'),
+      ttui('tui.ultrawork.autoResume.detail', { stage: run.stage }),
       { coalesceKey: 'ultrawork-auto-resume' },
     );
     host.sendNormalUserInput(result.resumed.recoveryPrompt, {

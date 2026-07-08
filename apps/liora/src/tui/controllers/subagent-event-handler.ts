@@ -424,11 +424,16 @@ export class SubAgentEventHandler {
     }
     const description = meta.description ?? meta.agentName;
     if (description === undefined) return undefined;
+    // Fallback by description when the agent id is not present (e.g. a
+    // background task spawned without tracking the subagent id). Multiple
+    // concurrent agents can share the same generic description; returning
+    // undefined here would skip terminal-status dedup and produce duplicate
+    // "completed"/"failed" transcript entries, so prefer the most recently
+    // registered match instead of bailing out.
     let match: string | undefined;
     for (const info of backgroundTasks.values()) {
       if (info.kind !== 'agent') continue;
       if (info.description !== description) continue;
-      if (match !== undefined) return undefined;
       match = info.taskId;
     }
     return match;
