@@ -59,6 +59,7 @@ export function createFakeKaos(
     writeText: () => notImplemented('writeText'),
     mkdir: () => notImplemented('mkdir'),
     unlink: () => notImplemented('unlink'),
+    rename: () => notImplemented('rename'),
     exec: () => notImplemented('exec'),
     execWithEnv: (args, invocationEnv) => {
       const mergedEnv = mergeEnvLayers(invocationEnv, envLayers);

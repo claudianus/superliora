@@ -113,6 +113,14 @@ export class AcpKaos implements Kaos {
     return this.inner.mkdir(path, options);
   }
 
+  unlink(path: string): Promise<void> {
+    return this.inner.unlink(path);
+  }
+
+  rename(source: string, destination: string): Promise<void> {
+    return this.inner.rename(source, destination);
+  }
+
   // ── reads: route through ACP `fs/readTextFile` ─────────────────────
 
   /**

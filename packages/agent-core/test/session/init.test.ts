@@ -605,6 +605,73 @@ describe('AgentAPI.startBtw', () => {
   });
 });
 
+describe('Session.metadata persistence', () => {
+  it('writes state.json atomically and recovers from a corrupt file via the backup', async () => {
+    const workDir = await makeTempDir();
+    const sessionDir = await makeTempDir();
+    const session = new Session({
+      id: 'test-meta-atomic',
+      kaos: testKaos.withCwd(workDir),
+      homedir: sessionDir,
+      rpc: createSessionRpc([]),
+    });
+
+    session.metadata.title = 'atomic-title';
+    await session.writeMetadata();
+
+    // After a successful write, state.json exists and parses.
+    const first = await session.readMetadata();
+    expect(first.title).toBe('atomic-title');
+
+    // Simulate a crash mid-write: truncate state.json. The prior good
+    // content was rotated to state.json.bak by writeMetadata.
+    await writeFile(join(sessionDir, 'state.json'), '{ "truncated', 'utf-8');
+
+    const recovered = await session.readMetadata();
+    expect(recovered.title).toBe('atomic-title');
+
+    await session.close();
+  });
+
+  it('starts with default metadata when both state.json and backup are unreadable', async () => {
+    const workDir = await makeTempDir();
+    const sessionDir = await makeTempDir();
+    // Both files corrupt.
+    await writeFile(join(sessionDir, 'state.json'), '{ "broken', 'utf-8');
+    await writeFile(join(sessionDir, 'state.json.bak'), 'also broken', 'utf-8');
+
+    const session = new Session({
+      id: 'test-meta-corrupt',
+      kaos: testKaos.withCwd(workDir),
+      homedir: sessionDir,
+      rpc: createSessionRpc([]),
+    });
+
+    const meta = await session.readMetadata();
+    // Falls back to the constructor default, not a throw.
+    expect(meta.title).toBe('New Session');
+    expect(meta.agents).toEqual({});
+
+    await session.close();
+  });
+
+  it('returns default metadata on first run with no state.json (ENOENT)', async () => {
+    const workDir = await makeTempDir();
+    const sessionDir = await makeTempDir();
+    const session = new Session({
+      id: 'test-meta-missing',
+      kaos: testKaos.withCwd(workDir),
+      homedir: sessionDir,
+      rpc: createSessionRpc([]),
+    });
+
+    const meta = await session.readMetadata();
+    expect(meta.title).toBe('New Session');
+
+    await session.close();
+  });
+});
+
 async function makeTempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'kimi-core-init-'));
   tempDirs.push(dir);

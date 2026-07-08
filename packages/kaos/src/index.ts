@@ -14,6 +14,7 @@ export {
   KaosFileExistsError,
   KaosShellNotFoundError,
 } from './errors';
+export { KaosFileNotFoundError, KaosSSHError } from './ssh';
 export { LocalKaos } from './local';
 export {
   chdir,
@@ -30,6 +31,7 @@ export {
   readBytes,
   readLines,
   readText,
+  rename,
   runWithKaos,
   setCurrentKaos,
   stat,

@@ -94,6 +94,10 @@ export function unlink(path: string): Promise<void> {
   return getCurrentKaos().unlink(path);
 }
 
+export function rename(source: string, destination: string): Promise<void> {
+  return getCurrentKaos().rename(source, destination);
+}
+
 export function iterdir(path: string): AsyncGenerator<string> {
   return getCurrentKaos().iterdir(path);
 }

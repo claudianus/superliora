@@ -132,8 +132,10 @@ export function buildEventEnvelope(
  * WS.md §3.6: `resync_required` system message (S→C). Sent when the
  * client's cursor cannot be served incrementally: the gap exceeds the replay
  * cap (`buffer_overflow`), the cursor's journal epoch does not match
- * (`epoch_changed`), or the session was recreated (`session_recreated`).
- * The client should rebuild via `GET /sessions/{id}/snapshot` and
+ * (`epoch_changed`), the session was recreated (`session_recreated`), or the
+ * client is draining its socket too slowly and volatile frames are being
+ * dropped to keep the server's send buffer bounded (`slow_consumer`). The
+ * client should rebuild via `GET /sessions/{id}/snapshot` and
  * re-`subscribe` with `cursors[sid] = { seq: as_of_seq, epoch }`.
  */
 export interface ResyncRequiredFrame {
@@ -141,7 +143,7 @@ export interface ResyncRequiredFrame {
   timestamp: string;
   payload: {
     session_id: string;
-    reason: 'buffer_overflow' | 'session_recreated' | 'epoch_changed';
+    reason: 'buffer_overflow' | 'session_recreated' | 'epoch_changed' | 'slow_consumer';
     current_seq: number;
     epoch?: string;
   };
@@ -149,7 +151,7 @@ export interface ResyncRequiredFrame {
 
 export function buildResyncRequired(
   sessionId: string,
-  reason: 'buffer_overflow' | 'session_recreated' | 'epoch_changed',
+  reason: 'buffer_overflow' | 'session_recreated' | 'epoch_changed' | 'slow_consumer',
   currentSeq: number,
   epoch?: string,
 ): ResyncRequiredFrame {

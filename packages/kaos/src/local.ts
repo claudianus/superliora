@@ -6,6 +6,7 @@ import {
   mkdir,
   open,
   readdir,
+  rename,
   readFile,
   stat,
   unlink,
@@ -725,6 +726,10 @@ export class LocalKaos implements Kaos {
 
   async unlink(path: string): Promise<void> {
     await unlink(this._resolvePath(path));
+  }
+
+  async rename(source: string, destination: string): Promise<void> {
+    await rename(this._resolvePath(source), this._resolvePath(destination));
   }
 
   async exec(...args: string[]): Promise<KaosProcess> {
