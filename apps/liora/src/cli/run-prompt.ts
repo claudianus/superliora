@@ -528,6 +528,17 @@ function runPromptTurn(
         outputWriter.startProgress();
         return;
       }
+      // Surface subagent (UltraSwarm specialist) lifecycle in headless mode.
+      // Without this, a swarm run produces no specialist output in the
+      // transcript — only the main-agent integration is visible.
+      if (event.type === 'subagent.completed') {
+        stderr.write(`[subagent ${event.subagentId}] completed: ${event.resultSummary}\n`);
+        return;
+      }
+      if (event.type === 'subagent.failed') {
+        stderr.write(`[subagent ${event.subagentId}] failed: ${event.error}\n`);
+        return;
+      }
       if (
         activeTurnId === undefined ||
         activeAgentId === undefined ||

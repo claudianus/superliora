@@ -596,6 +596,17 @@ export class SubAgentEventHandler {
         toolName: event.name,
         toolDescription: event.description,
       });
+    } else if (event.type === 'tool.result') {
+      const summary =
+        typeof event.result.output === 'string'
+          ? event.result.output.slice(0, 80)
+          : undefined;
+      progress.recordToolResult({
+        agentId: subagentId,
+        toolCallId: event.toolCallId,
+        isError: event.result.isError,
+        summary,
+      });
     }
   }
 

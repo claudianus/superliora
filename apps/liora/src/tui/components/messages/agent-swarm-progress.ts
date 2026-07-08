@@ -480,6 +480,31 @@ export class AgentSwarmProgressComponent implements Component {
     this.startAnimationIfNeeded();
   }
 
+  /**
+   * Record that a tool call finished for this swarm member. The progress
+   * estimator counts tool starts as activity pulses; a completion is surfaced
+   * as another pulse so the grid reflects ongoing work rather than freezing
+   * after the tool call started. An optional short summary is appended to the
+   * member's latest text so the result is observable in the swarm grid.
+   */
+  recordToolResult(input: {
+    readonly agentId: string;
+    readonly toolCallId: string;
+    readonly isError?: boolean;
+    readonly summary?: string;
+  }): void {
+    const member = this.findMemberByAgentId(input.agentId);
+    if (member === undefined) return;
+    member.ticks += 1;
+    if (input.summary !== undefined && input.summary.length > 0) {
+      const prefix = input.isError === true ? '⚠ ' : '';
+      const line = `${prefix}${input.summary}`.slice(0, MAX_LATEST_MODEL_CHARS);
+      member.latestModelText = line;
+    }
+    this.promoteToRunning(member);
+    this.startAnimationIfNeeded();
+  }
+
   appendModelDelta(input: {
     readonly agentId: string;
     readonly delta: string;
