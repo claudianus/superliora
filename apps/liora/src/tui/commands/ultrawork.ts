@@ -20,6 +20,13 @@ import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 import { writeProjectLlmWikiSeed } from './llm-wiki';
 import {
+  captureUltraworkSnapshot,
+  prepareUltraworkSession,
+  resetUltraPlanMode,
+  rollbackUltraworkSession,
+  type UltraworkSessionSnapshot,
+} from './ultrawork-lifecycle';
+import {
   buildUltraworkPrompt,
   isActiveUltraworkRun,
   parseUltraworkCommand,
@@ -30,13 +37,25 @@ import {
   type UltraworkCreateRequest,
 } from './ultrawork-contract';
 
-interface UltraworkSetupState {
-  readonly planModeWasEnabled: boolean;
-  readonly swarmModeWasEnabled: boolean;
-  readonly ultraworkModeWasEnabled: boolean;
+interface UltraworkSetupState extends UltraworkSessionSnapshot {
+  /** Prior `swarmModeEntry` so rollback can restore the TUI-only value. */
   readonly previousSwarmModeEntry: 'manual' | 'task' | undefined;
-  planChanged: boolean;
-  swarmEnabled: boolean;
+}
+
+/**
+ * Capture the TUI-visible session flags (plan / swarm / premium) plus the
+ * `swarmModeEntry` field that only the TUI tracks. Returns a snapshot in the
+ * "nothing changed yet" state; {@link prepareUltraworkSetup} fills it in.
+ */
+function captureTuiUltraworkSetup(host: SlashCommandHost): UltraworkSetupState {
+  return {
+    ...captureUltraworkSnapshot(
+      host.state.appState.planMode,
+      host.state.appState.swarmMode,
+      host.state.appState.premiumQualityMode ?? false,
+    ),
+    previousSwarmModeEntry: host.state.swarmModeEntry,
+  };
 }
 
 const ULTRAWORK_ACTIVITY_TIP =
@@ -144,7 +163,7 @@ export async function handleUltraworkModeToggle(
   }
   try {
     if (enabled) {
-      await forceUltraPlanMode(host.requireSession());
+      await resetUltraPlanMode(host.requireSession());
     } else {
       await host.requireSession().setPlanMode(false, false);
     }
@@ -213,14 +232,7 @@ async function startUltrawork(
   request: UltraworkCreateRequest,
   source: UltraworkActivationSource,
 ): Promise<void> {
-  const setup: UltraworkSetupState = {
-    planModeWasEnabled: host.state.appState.planMode,
-    swarmModeWasEnabled: host.state.appState.swarmMode,
-    ultraworkModeWasEnabled: host.state.appState.ultraworkMode ?? false,
-    previousSwarmModeEntry: host.state.swarmModeEntry,
-    planChanged: false,
-    swarmEnabled: false,
-  };
+  const setup = captureTuiUltraworkSetup(host);
   try {
     await prepareUltraworkSetup(host, setup, request.objective);
   } catch (error) {
@@ -616,50 +628,26 @@ async function prepareUltraworkSetup(
   options: { readonly preservePlan?: boolean } = {},
 ): Promise<void> {
   const session = host.requireSession();
-  if (!setup.swarmModeWasEnabled) {
-    await session.setSwarmMode(true, 'task');
-    setup.swarmEnabled = true;
-    host.setAppState({ swarmMode: true });
+  await prepareUltraworkSession(session, setup, initialContext, options);
+  // Mirror the SDK state into AppState so the editor border, footer, and
+  // activity tip reflect swarm + plan + premium being on. Also stash the
+  // prior flag values so the completion handler can restore them instead of
+  // blindly forcing everything off.
+  host.setAppState({
+    planMode: true,
+    ultraworkMode: true,
+    premiumQualityMode: true,
+    ...(setup.swarmEnabled ? { swarmMode: true } : {}),
+    ultraworkPriorState: {
+      planMode: setup.planModeWasEnabled,
+      swarmMode: setup.swarmModeWasEnabled,
+      swarmModeEntry: setup.previousSwarmModeEntry,
+      premiumQualityMode: setup.premiumQualityWasEnabled,
+    },
+  });
+  if (setup.swarmEnabled) {
     host.state.swarmModeEntry = 'ultrawork';
   }
-  if (options.preservePlan) {
-    setup.planChanged = await ensureUltraPlanMode(session, initialContext);
-  } else {
-    await resetUltraPlanMode(session, initialContext);
-    setup.planChanged = true;
-  }
-  host.setAppState({ planMode: true, ultraworkMode: true, premiumQualityMode: true });
-  await session.setPremiumQuality(true);
-}
-
-async function ensureUltraPlanMode(
-  session: ReturnType<SlashCommandHost['requireSession']>,
-  initialContext = '',
-): Promise<boolean> {
-  const status = await session.getStatus();
-  if (status.planMode) return false;
-  await session.setPlanMode(true, true, initialContext);
-  return true;
-}
-
-async function resetUltraPlanMode(
-  session: ReturnType<SlashCommandHost['requireSession']>,
-  initialContext = '',
-): Promise<void> {
-  try {
-    await session.setPlanMode(true, true, initialContext);
-  } catch (error) {
-    if (!formatErrorMessage(error).includes('Already in plan mode')) throw error;
-    await session.setPlanMode(false, false);
-    await session.setPlanMode(true, true, initialContext);
-  }
-}
-
-async function forceUltraPlanMode(
-  session: ReturnType<SlashCommandHost['requireSession']>,
-  initialContext = '',
-): Promise<void> {
-  await resetUltraPlanMode(session, initialContext);
 }
 
 async function rollbackUltraworkSetup(
@@ -667,16 +655,17 @@ async function rollbackUltraworkSetup(
   setup: UltraworkSetupState,
 ): Promise<void> {
   const session = host.requireSession();
-  if (setup.planChanged) {
-    await session.setPlanMode(setup.planModeWasEnabled, false).catch(() => {});
-    host.setAppState({
-      planMode: setup.planModeWasEnabled,
-      ultraworkMode: setup.ultraworkModeWasEnabled,
-    });
-  }
+  await rollbackUltraworkSession(session, setup);
+  host.setAppState({
+    planMode: setup.planModeWasEnabled,
+    ultraworkMode: false,
+    ultraworkPriorState: null,
+    ...(setup.swarmEnabled ? { swarmMode: setup.swarmModeWasEnabled } : {}),
+    ...(setup.premiumQualityChanged
+      ? { premiumQualityMode: setup.premiumQualityWasEnabled }
+      : {}),
+  });
   if (setup.swarmEnabled) {
-    await session.setSwarmMode(false, 'task').catch(() => {});
-    host.setAppState({ swarmMode: setup.swarmModeWasEnabled });
     host.state.swarmModeEntry = setup.previousSwarmModeEntry;
   }
 }
@@ -737,14 +726,7 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
     return;
   }
 
-  const setup: UltraworkSetupState = {
-    planModeWasEnabled: host.state.appState.planMode,
-    swarmModeWasEnabled: host.state.appState.swarmMode,
-    ultraworkModeWasEnabled: host.state.appState.ultraworkMode ?? false,
-    previousSwarmModeEntry: host.state.swarmModeEntry,
-    planChanged: false,
-    swarmEnabled: false,
-  };
+  const setup = captureTuiUltraworkSetup(host);
   try {
     const setupChanged = await ensureUltraworkResumeSetup(session, current);
     if (setupChanged) {
@@ -754,6 +736,11 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
       }
       if (setup.planModeWasEnabled !== status.planMode) {
         setup.planChanged = true;
+      }
+      // Resume re-asserts premium quality just like start does; record it so
+      // rollback / finish can restore the prior value.
+      if (!setup.premiumQualityWasEnabled) {
+        setup.premiumQualityChanged = true;
       }
       host.setAppState({
         swarmMode: status.swarmMode,
