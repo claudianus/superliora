@@ -184,6 +184,24 @@ export class PermissionManager {
           : this.permissionPolicyResolutionToPrepare(resolved, context, policyName);
       }
     } else {
+      // No RPC approval channel is wired (e.g. a non-interactive host). The
+      // safest default is to allow the call so the agent isn't deadlocked,
+      // but surface it via telemetry + a debug log so a misconfigured host
+      // doesn't silently run in yolo for every `ask` policy.
+      this.agent.telemetry.track('permission_approval_result', {
+        policy_name: policyName ?? null,
+        tool_name: name,
+        permission_mode: this.mode,
+        result: 'auto_approved_no_rpc',
+        approval_surface: display.kind,
+        duration_ms: Date.now() - startedAt,
+        session_cache_written: false,
+        has_feedback: false,
+      });
+      this.agent.log?.warn(
+        'permission ask auto-approved: no approval RPC channel is connected',
+        { toolName: name, policyName: policyName ?? null, permissionMode: this.mode },
+      );
       response = {
         decision: 'approved',
       };

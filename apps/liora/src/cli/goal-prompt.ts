@@ -37,12 +37,17 @@ export const GOAL_EXIT_CODES = {
 
 export function goalExitCode(status: string | undefined): number {
   switch (status) {
+    case 'complete':
+      return GOAL_EXIT_CODES.complete;
     case 'blocked':
       return GOAL_EXIT_CODES.blocked;
     case 'paused':
       return GOAL_EXIT_CODES.paused;
     default:
-      return GOAL_EXIT_CODES.complete;
+      // An unrecognized or missing status is not a success — treat it as a
+      // generic failure so a future terminal status (e.g. `failed`,
+      // `cancelled`) does not silently exit 0.
+      return 1;
   }
 }
 
