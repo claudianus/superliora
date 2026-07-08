@@ -198,8 +198,9 @@ function sampleSubset<T>(items: readonly T[], count: number): T[] {
   for (let i = 0; i < n; i += 1) {
     const j = i + Math.floor(Math.random() * (pool.length - i));
     const picked = pool[j];
-    if (picked !== undefined) {
-      pool[j] = pool[i];
+    const current = pool[i];
+    if (picked !== undefined && current !== undefined) {
+      pool[j] = current;
       pool[i] = picked;
     }
   }

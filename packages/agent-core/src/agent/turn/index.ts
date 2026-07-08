@@ -197,8 +197,13 @@ export class TurnFlow {
     void firstRequest.catch(() => undefined);
     // Resolve the first-request gate when the turn ends cleanly so callers
     // can treat rejection strictly as an error. If a stream event already
-    // resolved it, the second resolve is a harmless no-op.
-    void promise.then(firstRequest.resolve, firstRequest.reject);
+    // resolved it, the second resolve is a harmless no-op. The turn promise
+    // resolves with a TurnEndResult; we discard it so the void-typed
+    // first-request gate stays type-clean.
+    void promise.then(
+      () => firstRequest.resolve(),
+      firstRequest.reject,
+    );
 
     return turnId;
   }
