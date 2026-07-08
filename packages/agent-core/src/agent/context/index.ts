@@ -380,20 +380,23 @@ export class ContextMemory {
     const previouslyPending = new Set(this.pendingToolResultIds);
     const compactionHistoryLength = this._history.length;
     this.resyncPendingToolResultIdsFromHistory();
-    for (const toolCallId of this.pendingToolResultIds) {
-      if (previouslyPending.has(toolCallId)) {
-        this.lateAcceptedToolCallIds.set(toolCallId, compactionHistoryLength);
-      }
+    // Any tool call awaiting a result before compaction must remain acceptable
+    // afterwards, whether its owning assistant survived in the retained tail
+    // (still pending) or was summarized away and is now gone from history. The
+    // latter case happens when a manual compaction compacts the whole prefix
+    // including an open tool exchange (PROBE #4) — without this, a result
+    // arriving afterwards is treated as an orphan and silently dropped.
+    for (const toolCallId of previouslyPending) {
+      this.lateAcceptedToolCallIds.set(toolCallId, compactionHistoryLength);
     }
     // Expire late-accept ids registered before the prefix this compaction
     // just summarized. A result for one of those ids can no longer attach to
     // a visible tool-call message, so keeping it only risks accepting a
-    // genuinely stale result later. The newly-registered ids above (still in
-    // `pendingToolResultIds`) are preserved because their results can still
-    // land in the retained suffix.
+    // genuinely stale result later. The newly-registered ids above are
+    // preserved because they were just re-registered at the current length.
     const stillPending = this.pendingToolResultIds;
     for (const [id, registeredAt] of this.lateAcceptedToolCallIds) {
-      if (registeredAt <= input.compactedCount && !stillPending.has(id)) {
+      if (registeredAt < compactionHistoryLength && !stillPending.has(id) && !previouslyPending.has(id)) {
         this.lateAcceptedToolCallIds.delete(id);
       }
     }
