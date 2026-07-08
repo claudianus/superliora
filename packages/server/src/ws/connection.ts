@@ -35,6 +35,7 @@ import {
   buildPing,
   buildResyncRequired,
   buildServerHello,
+  buildWsError,
   type EventEnvelope,
 } from './protocol';
 import { rawDataToString } from './rawData';
@@ -236,21 +237,29 @@ export class WsConnection {
       parsed = JSON.parse(rawDataToString(data));
     } catch {
       this.logger.warn('non-json ws frame; ignoring');
+      this.send(buildWsError(ErrorCode.VALIDATION_FAILED, 'non-json ws frame'));
       return;
     }
     const type = frameType(parsed);
     if (type === undefined) {
       this.logger.warn('invalid control message type');
+      this.send(buildWsError(ErrorCode.VALIDATION_FAILED, 'invalid control message type'));
       return;
     }
     const operation = getClientControlOperation(type);
     if (operation === undefined) {
       this.logger.warn({ type }, 'unknown control message type');
+      this.send(buildWsError(ErrorCode.VALIDATION_FAILED, `unknown control message type: ${type}`));
       return;
     }
     const result = operation.messageSchema.safeParse(parsed);
     if (!result.success) {
       this.logger.warn({ issues: result.error.issues.length }, 'invalid control message');
+      this.send(
+        buildWsError(ErrorCode.VALIDATION_FAILED, 'invalid control message', {
+          details: result.error.issues,
+        }),
+      );
       return;
     }
     const msg = result.data as ClientControlMessage;

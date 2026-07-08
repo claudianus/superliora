@@ -166,3 +166,39 @@ export function buildResyncRequired(
     },
   };
 }
+
+/**
+ * WS error frame (S→C) for protocol-level errors that do not map to a
+ * `resync_required` — unparseable control frames, unknown message types,
+ * validation failures. `fatal: true` signals the server will close the
+ * connection after sending.
+ */
+export interface WsErrorFrame {
+  type: 'error';
+  timestamp: string;
+  payload: {
+    code: number;
+    msg: string;
+    fatal: boolean;
+    request_id?: string;
+    details?: unknown;
+  };
+}
+
+export function buildWsError(
+  code: number,
+  msg: string,
+  options: { fatal?: boolean; requestId?: string; details?: unknown } = {},
+): WsErrorFrame {
+  return {
+    type: 'error',
+    timestamp: new Date().toISOString(),
+    payload: {
+      code,
+      msg,
+      fatal: options.fatal ?? false,
+      ...(options.requestId !== undefined ? { request_id: options.requestId } : {}),
+      ...(options.details !== undefined ? { details: options.details } : {}),
+    },
+  };
+}
