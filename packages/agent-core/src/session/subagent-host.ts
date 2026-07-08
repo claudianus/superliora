@@ -548,7 +548,10 @@ export class SessionSubagentHost {
       .then(() => {
         options.onReady?.();
       })
-      .catch(() => {});
+      .catch(() => {
+        // Turn failed before the first request — onReady is skipped since the
+        // subagent never became ready.
+      });
   }
 
   private emitSubagentSpawned(

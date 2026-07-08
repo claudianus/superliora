@@ -104,6 +104,13 @@ const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 30_000;
 const DEFAULT_PARALLEL_BLOCK_TARGET = 15_000;
 const OVERFLOW_CONTEXT_SAFETY_RATIO = 0.85;
 const OVERFLOW_STATUS_RECOVERY_RATIO = 0.5;
+/**
+ * Each successful turn (no overflow) relaxes the observed max context by
+ * this fraction of the gap toward the configured maximum, so a transient
+ * false-positive overflow (e.g. one huge tool result) does not bias the
+ * whole session toward premature compaction forever.
+ */
+const OBSERVED_MAX_DECAY_PER_TURN = 0.1;
 const MAX_COMPACTION_MERGE_RETRY_ATTEMPTS = 2;
 
 type CompactionResultWithQualityWarnings = CompactionResult & {
@@ -362,6 +369,26 @@ export class FullCompaction {
     this.compactionCountInTurn = 0;
     this.consecutiveOverflowCompactions = 0;
     this.lastCompactedTokenCount = null;
+    this.relaxObservedMaxContext();
+  }
+
+  /**
+   * Nudge the observed max context back toward the configured maximum so a
+   * single transient overflow does not permanently tighten compaction for the
+   * rest of the session. Only applies when no overflow happened this turn
+   * (`consecutiveOverflowCompactions` was just reset to 0 above). The nudge
+   * is bounded — it never exceeds the configured max.
+   */
+  private relaxObservedMaxContext(): void {
+    const modelAlias = this.agent.config.modelAlias;
+    if (modelAlias === undefined) return;
+    const observed = this.observedMaxContextTokensByModel.get(modelAlias);
+    if (observed === undefined) return;
+    const configured = this.agent.config.modelCapabilities.max_context_tokens;
+    if (configured <= 0 || observed >= configured) return;
+    const gap = configured - observed;
+    const relaxed = observed + Math.ceil(gap * OBSERVED_MAX_DECAY_PER_TURN);
+    this.observedMaxContextTokensByModel.set(modelAlias, Math.min(configured, relaxed));
   }
 
   async handleOverflowError(signal: AbortSignal, error: unknown) {
@@ -742,11 +769,11 @@ export class FullCompaction {
         // The initial summary was replaced by the repair, so its critical errors no longer
         // apply to the current artifact. Carry forward only warnings (for telemetry) and
         // treat the repaired summary as the source of truth for critical checks.
+        const merged = mergeCompactionQualityResults(initialQuality, repairedQuality);
         quality = {
           critical: repairedQuality.critical,
-          warnings: mergeCompactionQualityResults(initialQuality, repairedQuality).warnings,
-          warningCategories: mergeCompactionQualityResults(initialQuality, repairedQuality)
-            .warningCategories,
+          warnings: merged.warnings,
+          warningCategories: merged.warningCategories,
           signals: repairedQuality.signals ?? initialQuality.signals,
         };
         if (repairedQuality.critical.length > 0) {
