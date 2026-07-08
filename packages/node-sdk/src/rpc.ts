@@ -949,7 +949,7 @@ export abstract class SDKRpcClientBase {
         type: 'error',
         sessionId: request.sessionId,
         agentId: request.agentId,
-        ...makeErrorPayload(ErrorCodes.SESSION_QUESTION_HANDLER_ERROR, errorMessage(error)),
+        ...makeErrorPayload(ErrorCodes.SESSION_CREDENTIAL_HANDLER_ERROR, errorMessage(error)),
       });
       return null;
     }

@@ -27,9 +27,10 @@ describe('goalExitCode', () => {
     expect(goalExitCode('complete')).toBe(GOAL_EXIT_CODES.complete);
     expect(goalExitCode('blocked')).toBe(GOAL_EXIT_CODES.blocked);
     expect(goalExitCode('paused')).toBe(GOAL_EXIT_CODES.paused);
-    expect(goalExitCode(undefined)).toBe(0);
-    // Folded-away statuses map to success (treated as complete/absent).
-    expect(goalExitCode('impossible')).toBe(0);
+    // An unrecognized or missing status is a failure, not a silent success —
+    // a future terminal status (e.g. `failed`, `cancelled`) must not exit 0.
+    expect(goalExitCode(undefined)).toBe(1);
+    expect(goalExitCode('impossible')).toBe(1);
     // The distinct codes are unique across the statuses.
     expect(new Set(Object.values(GOAL_EXIT_CODES)).size).toBe(Object.values(GOAL_EXIT_CODES).length);
   });
