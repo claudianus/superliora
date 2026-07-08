@@ -3,11 +3,11 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Version](https://img.shields.io/badge/version-0.20.1-blue)](apps/liora/package.json) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/en/) <br>
 [Site](https://claudianus.github.io/superliora/en/) · [Issues](https://github.com/claudianus/superliora/issues) · [한국어](README.ko.md)
 
-![SuperLiora command center](https://claudianus.github.io/superliora/assets/hero-command-center.png)
+![SuperLiora Bento command center](https://claudianus.github.io/superliora/assets/hero-command-center.png)
 
 ## A terminal-first AI coding harness for long, complex tasks
 
-SuperLiora is an independent AI coding harness that runs in your terminal. It connects planning, research, goal control, parallel execution, verification, memory, documentation, browser use, and computer use into one workflow so long sessions stay coherent and decisions stay traceable.
+SuperLiora is an independent AI coding harness that runs in your terminal. It connects planning, research, goal control, parallel execution, verification, memory, documentation, browser use, and computer use in one continuous workflow so long sessions stay coherent and decisions stay traceable.
 
 - **Plan before code.** UltraPlan interviews requirements until the goal is true/false-verifiable.
 - **Work with evidence.** UltraResearch checks sources, APIs, papers, and security advisories before decisions are made.
@@ -15,6 +15,10 @@ SuperLiora is an independent AI coding harness that runs in your terminal. It co
 - **Stay coherent.** Context OS, Liora Recall, and LLM Wiki keep long sessions grounded and reusable.
 - **Act beyond the editor.** Browser-use (CloakBrowser + Playwright) and computer-use (CUA/MCP) interact with real UIs.
 - **Use it anywhere.** Premium TUI, ACP editor support, and provider routing let you run from a terminal or inside an IDE.
+
+## Landing page
+
+The [Korean](https://claudianus.github.io/superliora/) and [English](https://claudianus.github.io/superliora/en/) landing pages share the same Bento Hero + Split Narrative structure and use the generated assets in `apps/site/public/assets/`.
 
 ## Core capabilities
 

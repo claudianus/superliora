@@ -3,11 +3,13 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Version](https://img.shields.io/badge/version-0.20.1-blue)](apps/liora/package.json) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/) <br>
 [사이트](https://claudianus.github.io/superliora/) · [이슈](https://github.com/claudianus/superliora/issues) · [English](README.md)
 
-![SuperLiora command center](https://claudianus.github.io/superliora/assets/hero-command-center.png)
+![SuperLiora Bento command center](https://claudianus.github.io/superliora/assets/hero-command-center.png)
 
-## 길고 복잡한 작업을 위한 터미널 중심 AI 코딩 하네스
+## 길고 복잡한 개발 흐름을 터미널에서 끝까지 이어가는 하네스
 
-SuperLiora는 터미널에서 실행하는 독립 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저와 컴퓨터 사용을 하나의 작업 흐름으로 연결해 긴 세션에서도 맥락을 유지하고 결정을 추적할 수 있습니다.
+SuperLiora는 터미널에서 실행하는 독립 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저와 컴퓨터 사용을 하나의 작업 흐름으로 연결합니다. 긴 세션에서도 맥락을 보존하고, 근거 있는 결정을 남기며, 개발자가 다음 단계에 집중할 수 있도록 돕습니다.
+
+한국어와 영문 랜딩 페이지는 동일한 Bento Hero + Split Narrative 구조를 사용하며, `apps/site/public/assets/`에 생성된 PNG 에셋을 활용합니다.
 
 - **코드보다 먼저 계획합니다.** UltraPlan은 목표가 true/false로 검증 가능해질 때까지 요구사항을 인터뷰합니다.
 - **근거를 먼저 확인합니다.** UltraResearch는 결정 전에 API, 논문, 릴리스 노트, 보안 권고를 확인합니다.
@@ -21,7 +23,7 @@ SuperLiora는 터미널에서 실행하는 독립 AI 코딩 하네스입니다. 
 | 기능 | 설명 | 진입점 |
 | --- | --- | --- |
 | **UltraPlan** | 목표가 true/false로 검증 가능해질 때까지 요구사항, 제약, 위험, 누락된 사실을 인터뷰합니다. | `packages/agent-core/src/agent/plan/ultra-plan-mode.ts` |
-| **UltraResearch** | API, 논문, 릴리스 노트, 보안 이슈를 확인하고 다음 단계에서도 사용할 수 있게 근거를 남깁니다. | `packages/agent-core/src/ultrawork/mode.ts` |
+| **UltraResearch** | API, 논문, 릴리스 노트, 보안 권고를 결정 전에 확인합니다. | `packages/agent-core/src/ultrawork/mode.ts` |
 | **UltraGoal** | 조사 근거를 반영한 UltraPlan 뒤에 구체적 목표, 완료 기준, 예산을 고정합니다. | `packages/agent-core/src/agent/injection/goal.ts` |
 | **UltraSwarm** | plan/implement/review 단계로 최대 128개의 specialist subagent를 조립하고, visible ENGAGE/DEFER gate를 둡니다. | `packages/agent-core/src/tools/builtin/collaboration/ultra-swarm.ts` |
 | **Context OS** | structured working memory, repair, bounded rehydration으로 긴 세션을 관리합니다. | `packages/agent-core/src/agent/context-os/index.ts` |
