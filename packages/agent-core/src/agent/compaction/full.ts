@@ -739,7 +739,16 @@ export class FullCompaction {
           usage = mergeTokenUsage(usage, repair.usage);
         }
         const repairedQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
-        quality = mergeCompactionQualityResults(initialQuality, repairedQuality);
+        // The initial summary was replaced by the repair, so its critical errors no longer
+        // apply to the current artifact. Carry forward only warnings (for telemetry) and
+        // treat the repaired summary as the source of truth for critical checks.
+        quality = {
+          critical: repairedQuality.critical,
+          warnings: mergeCompactionQualityResults(initialQuality, repairedQuality).warnings,
+          warningCategories: mergeCompactionQualityResults(initialQuality, repairedQuality)
+            .warningCategories,
+          signals: repairedQuality.signals ?? initialQuality.signals,
+        };
         if (repairedQuality.critical.length > 0) {
           throw new CompactionQualityError(repairedQuality.critical);
         }
