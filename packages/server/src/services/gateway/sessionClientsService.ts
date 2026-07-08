@@ -22,14 +22,6 @@ export class SessionClientsService extends Disposable implements ISessionClients
       this._bySession.set(sessionId, set);
     }
     set.add(connection);
-    this._logger.debug(
-      {
-        sessionId,
-        subscriberCount: set.size,
-        allSessions: Array.from(this._bySession.keys()),
-      },
-      '[DBG session-clients.subscribe] added',
-    );
   }
 
   unsubscribe(connection: WsConnection, sessionId: string): void {
@@ -42,14 +34,6 @@ export class SessionClientsService extends Disposable implements ISessionClients
 
   getConnections(sessionId: string): Iterable<WsConnection> {
     const set = this._bySession.get(sessionId);
-    this._logger.debug(
-      {
-        sessionId,
-        found: set ? set.size : 0,
-        allSessions: Array.from(this._bySession.keys()),
-      },
-      '[DBG session-clients.getConnections] lookup',
-    );
     if (!set) return EMPTY_ITERABLE;
     return set.values();
   }
