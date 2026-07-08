@@ -26,4 +26,17 @@ describe('ApiKeyInputDialogComponent', () => {
     dialog.handleInput('\r');
     expect(onDone).toHaveBeenCalledWith({ kind: 'ok', value: 'ctx7sk_test' });
   });
+
+  it('pre-fills the input when a prefill value is provided', () => {
+    const onDone = vi.fn();
+    const dialog = new ApiKeyInputDialogComponent(
+      'Anthropic',
+      ['Detected $ANTHROPIC_API_KEY — press Enter to use it.'],
+      onDone,
+      { prefill: 'sk-detected' },
+    );
+    // Submitting immediately (without typing) should yield the pre-filled value.
+    dialog.handleInput('\r');
+    expect(onDone).toHaveBeenCalledWith({ kind: 'ok', value: 'sk-detected' });
+  });
 });

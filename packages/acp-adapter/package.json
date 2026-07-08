@@ -44,5 +44,8 @@
     "@superliora/agent-core": "workspace:^",
     "@superliora/kaos": "workspace:^",
     "@superliora/sdk": "workspace:^"
+  },
+  "devDependencies": {
+    "jimp": "^1.6.1"
   }
 }

@@ -42,6 +42,11 @@ function maskInputLine(raw: string): string {
   return prefix + maskedContent + padding;
 }
 
+export interface ApiKeyInputDialogOptions {
+  /** Pre-fill the input with this value (e.g. a detected env-var value). */
+  readonly prefill?: string;
+}
+
 export class ApiKeyInputDialogComponent extends Container implements Focusable {
   focused = false;
 
@@ -56,11 +61,15 @@ export class ApiKeyInputDialogComponent extends Container implements Focusable {
     platformName: string,
     subtitleLines: readonly string[],
     onDone: (result: ApiKeyInputResult) => void,
+    options: ApiKeyInputDialogOptions = {},
   ) {
     super();
     this.onDone = onDone;
     this.title = `Enter API key for ${platformName}`;
     this.subtitleLines = subtitleLines;
+    if (options.prefill !== undefined && options.prefill.length > 0) {
+      this.input.setValue(options.prefill);
+    }
     this.input.onSubmit = (value) => {
       this.submit(value);
     };

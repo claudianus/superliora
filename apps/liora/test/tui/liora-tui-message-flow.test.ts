@@ -240,6 +240,7 @@ async function makeDriver(
   const harness = makeHarness(session, harnessOverrides);
   const driver = new LioraTUI(harness as never, makeStartupInput()) as unknown as MessageDriver;
   vi.spyOn(driver.state.ui, 'requestRender').mockImplementation(() => {});
+  vi.spyOn(driver.state.renderer, 'invalidateFrame').mockImplementation(() => {});
   vi.spyOn(driver.state.terminal, 'setProgress').mockImplementation(() => {});
   driver.persistInputHistory = vi.fn(async () => {});
   await driver.init();
@@ -798,7 +799,9 @@ command = "vim"
     driver.handleUserInput('/auto on');
 
     await vi.waitFor(() => {
-      expect(stripSgr(renderTranscript(driver))).toContain('Auto mode: ON');
+      expect(stripSgr(renderTranscript(driver))).toContain(
+        'Tools auto-approved. Agent will not ask questions.',
+      );
     });
 
     driver.handleUserInput('/undo 10');
@@ -818,7 +821,7 @@ command = "vim"
     const transcript = stripSgr(renderTranscript(driver));
     expect(transcript).not.toContain('hello');
     expect(transcript).not.toContain('Cannot undo 10 prompts');
-    expect(transcript).toContain('Auto mode: ON');
+    expect(transcript).toContain('Tools auto-approved. Agent will not ask questions.');
     expect(driver.state.appState.permissionMode).toBe('auto');
   });
 
@@ -1284,7 +1287,7 @@ command = "vim"
     ]);
   });
 
-  it('does not persist bash input to input history', async () => {
+  it('persists bash input to input history with a leading `!` for bash-mode recall', async () => {
     const { driver } = await makeDriver();
     driver.state.appState.streamingPhase = 'waiting';
     driver.state.appState.inputMode = 'bash';
@@ -1292,7 +1295,7 @@ command = "vim"
 
     driver.handleUserInput('ls');
 
-    expect(driver.persistInputHistory).not.toHaveBeenCalled();
+    expect(driver.persistInputHistory).toHaveBeenCalledWith('!ls');
   });
 
   it('persists normal input to input history', async () => {
@@ -1993,7 +1996,7 @@ command = "vim"
     expect(collapsedWithInput.join('\n')).not.toContain('↑↓ scroll');
     driver.state.editor.setText('');
 
-    const requestRender = vi.mocked(driver.state.ui.requestRender);
+    const requestRender = vi.mocked(driver.state.renderer.invalidateFrame);
     requestRender.mockClear();
     for (let i = 0; i < 20; i++) {
       driver.state.editor.handleInput('\u001B[A');
@@ -2037,13 +2040,13 @@ command = "vim"
     expect(panel.isRunning()).toBe(true);
     expect(driver.state.editor.focused).toBe(true);
 
-    const requestRender = vi.mocked(driver.state.ui.requestRender);
+    const requestRender = vi.mocked(driver.state.renderer.invalidateFrame);
     requestRender.mockClear();
     driver.state.editor.onEscape?.();
 
     expect(session.cancel).toHaveBeenCalledOnce();
     expect(driver.state.btwPanelContainer.children).toHaveLength(0);
-    expect(requestRender.mock.calls.at(-1)).toEqual([true]);
+    expect(requestRender).toHaveBeenCalled();
     const editorTopBorder = stripSgr(driver.state.editor.render(80)[0] ?? '');
     expect(editorTopBorder.startsWith('╭')).toBe(true);
     expect(editorTopBorder.endsWith('╮')).toBe(true);
@@ -2761,7 +2764,7 @@ command = "vim"
       sendQueued,
     );
 
-    vi.mocked(driver.state.ui.requestRender).mockClear();
+    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
     driver.sessionEventHandler.handleEvent(
       {
         type: 'tool.call.started',
@@ -2774,7 +2777,7 @@ command = "vim"
       } as Event,
       sendQueued,
     );
-    expect(driver.state.ui.requestRender).toHaveBeenCalled();
+    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
 
     driver.sessionEventHandler.handleEvent(
       {
@@ -2790,7 +2793,7 @@ command = "vim"
     expect(transcript).toContain('01 [');
     expect(transcript).toContain('Reviewing src/a.ts');
 
-    vi.mocked(driver.state.ui.requestRender).mockClear();
+    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
     driver.sessionEventHandler.handleEvent(
       {
         type: 'subagent.suspended',
@@ -2801,7 +2804,7 @@ command = "vim"
       } as Event,
       sendQueued,
     );
-    expect(driver.state.ui.requestRender).toHaveBeenCalled();
+    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
 
     transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain('001 [');
@@ -2809,7 +2812,7 @@ command = "vim"
     expect(transcript).not.toContain('Provider rate limit');
     expect(transcript).not.toContain('Failed');
 
-    vi.mocked(driver.state.ui.requestRender).mockClear();
+    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
     driver.sessionEventHandler.handleEvent(
       {
         type: 'subagent.started',
@@ -2819,13 +2822,13 @@ command = "vim"
       } as Event,
       sendQueued,
     );
-    expect(driver.state.ui.requestRender).toHaveBeenCalled();
+    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
 
     transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain('01 [');
     expect(transcript).not.toContain('Suspended');
 
-    vi.mocked(driver.state.ui.requestRender).mockClear();
+    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
     driver.sessionEventHandler.handleEvent(
       {
         type: 'turn.ended',
@@ -2836,7 +2839,7 @@ command = "vim"
       } as Event,
       sendQueued,
     );
-    expect(driver.state.ui.requestRender).toHaveBeenCalled();
+    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
 
     transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain('Agent Swarm');
@@ -3049,6 +3052,8 @@ command = "vim"
   it('renders UltraSwarm with the dedicated swarm progress panel', async () => {
     const { driver } = await makeDriver();
     const sendQueued = vi.fn();
+    setTerminalColumns(driver, 120);
+    setTerminalRows(driver, 40);
 
     driver.sessionEventHandler.handleEvent(
       {
@@ -3111,8 +3116,8 @@ command = "vim"
     );
 
     transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Gameplay Engineer architecture_implementation/implem');
-    expect(transcript).toContain('Visual QA testing_evidence/review');
+    expect(transcript).toContain('001 Gameplay Engineer');
+    expect(transcript).toContain('002 Visual QA');
 
     driver.sessionEventHandler.handleEvent(
       {

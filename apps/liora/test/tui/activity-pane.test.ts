@@ -176,7 +176,13 @@ describe('updateActivityPane terminal progress', () => {
       expect(setProgress).toHaveBeenLastCalledWith(true);
       expect(state.activitySpinner).not.toBeNull();
       expect(state.activityContainer.children).toHaveLength(0);
-      expect(strip(progress.render(80).join('\n'))).toMatch(/🌑\s+0s Working\.\.\./);
+      // The moon spinner cycles through phases (🌑🌒🌓🌔🌕🌖🌗🌘) from the
+      // shared animation clock, so the glyph at render time is nondeterministic.
+      // Assert any moon-phase glyph leads the swarm progress row with the
+      // elapsed-time + working label, keeping the intent (spinner in the row).
+      expect(strip(progress.render(80).join('\n'))).toMatch(
+        /[🌑🌒🌓🌔🌕🌖🌗🌘]\s+0s Working\.\.\./,
+      );
 
       state.activitySpinner?.instance.stop();
       driver.sessionEventHandler.clearAgentSwarmProgress();

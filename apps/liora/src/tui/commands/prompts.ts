@@ -1,35 +1,45 @@
 import {
-  catalogModelToAlias,
-  inferWireType,
   type Catalog,
-  type CatalogModel,
   type ModelAlias,
 } from '@superliora/sdk';
-import { capabilitiesForModel } from '@superliora/oauth';
-import type {
-  ManagedKimiCodeModelInfo,
-  OpenPlatformDefinition,
-} from '@superliora/oauth';
 
 import { ApiKeyInputDialogComponent, type ApiKeyInputResult } from '../components/dialogs/api-key-input-dialog';
 import { ChoicePickerComponent, type ChoiceOption } from '../components/dialogs/choice-picker';
 import { ModelSelectorComponent } from '../components/dialogs/model-selector';
-import { PlatformSelectorComponent } from '../components/dialogs/platform-selector';
+import { ProviderCatalogPickerComponent } from '../components/dialogs/provider-catalog-picker';
+import {
+  buildProviderCatalogOptions,
+  type ProviderCatalogOption,
+  type ProviderCatalogSelection,
+} from '#/tui/utils/provider-catalog-options';
 import type { SlashCommandHost } from './dispatch';
 
-export function promptPlatformSelection(host: SlashCommandHost): Promise<string | undefined> {
+/**
+ * Opens the unified provider picker built from the models.dev catalog and the
+ * managed Kimi account. Resolves the structured selection, or `undefined`
+ * when the user cancels. The caller dispatches the matching login flow
+ * (Kimi OAuth, catalog API-key, custom endpoint/registry).
+ */
+export function promptProviderCatalog(
+  host: SlashCommandHost,
+  catalog: Catalog,
+  currentValue?: string,
+): Promise<ProviderCatalogSelection | undefined> {
   return new Promise((resolve) => {
-    const selector = new PlatformSelectorComponent({
-      onSelect: (platformId) => {
+    const options = buildProviderCatalogOptions(catalog);
+    const picker = new ProviderCatalogPickerComponent({
+      options,
+      currentValue,
+      onSelect: ({ selection }) => {
         host.restoreEditor();
-        resolve(platformId);
+        resolve(selection);
       },
       onCancel: () => {
         host.restoreEditor();
         resolve(undefined);
       },
     });
-    host.mountEditorReplacement(selector);
+    host.mountEditorReplacement(picker);
   });
 }
 
@@ -60,6 +70,7 @@ export function promptApiKey(
   host: SlashCommandHost,
   platformName: string,
   subtitleLines: readonly string[] = ['Your key will be saved to ~/.superliora/config.toml'],
+  options: { readonly prefill?: string } = {},
 ): Promise<string | undefined> {
   return new Promise((resolve) => {
     const dialog = new ApiKeyInputDialogComponent(
@@ -69,82 +80,40 @@ export function promptApiKey(
         host.restoreEditor();
         resolve(result.kind === 'ok' ? result.value : undefined);
       },
+      { prefill: options.prefill },
     );
     host.mountEditorReplacement(dialog);
   });
 }
 
-export function promptCatalogProviderSelection(host: SlashCommandHost, catalog: Catalog): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    const options: ChoiceOption[] = Object.entries(catalog)
-      .filter(([, entry]) => inferWireType(entry) !== undefined)
-      .map(([id, entry]) => ({
-        value: id,
-        label: entry.name ?? id,
-        description:
-          typeof entry.api === 'string' && entry.api.length > 0 ? entry.api : undefined,
-      }))
-      .toSorted((a, b) => a.label.localeCompare(b.label));
-
-    if (options.length === 0) {
-      host.showError('Catalog has no providers with supported wire types.');
-      resolve(undefined);
-      return;
-    }
-
-    const picker = new ChoicePickerComponent({
-      title: 'Select a provider',
-      options,
-      searchable: true,
-      onSelect: (value) => {
-        host.restoreEditor();
-        resolve(value);
-      },
-      onCancel: () => {
-        host.restoreEditor();
-        resolve(undefined);
-      },
+/**
+ * Prompts for an API key, surfacing the catalog provider's env-var names and
+ * documentation URL as hints. When one of the catalog's declared env vars is
+ * already set in the environment, its value is pre-filled so the user can
+ * confirm with Enter instead of pasting the key manually.
+ */
+export function promptApiKeyForCatalogProvider(
+  host: SlashCommandHost,
+  option: ProviderCatalogOption,
+): Promise<string | undefined> {
+  const subtitleLines: string[] = ['Your key will be saved to ~/.superliora/config.toml'];
+  let prefill: string | undefined;
+  if (option.envVars !== undefined && option.envVars.length > 0) {
+    const detected = option.envVars.find((name) => {
+      const value = process.env[name];
+      return typeof value === 'string' && value.length > 0;
     });
-    host.mountEditorReplacement(picker);
-  });
-}
-
-export async function promptModelSelectionForOpenPlatform(
-  host: SlashCommandHost,
-  models: ManagedKimiCodeModelInfo[],
-  platform: OpenPlatformDefinition,
-): Promise<{ model: ManagedKimiCodeModelInfo; thinking: boolean } | undefined> {
-  const modelDict: Record<string, ModelAlias> = {};
-  for (const m of models) {
-    modelDict[`${platform.id}/${m.id}`] = {
-      provider: platform.id,
-      model: m.id,
-      maxContextSize: m.contextLength,
-      capabilities: capabilitiesForModel(m),
-      supportEfforts: m.supportEfforts === undefined ? undefined : [...m.supportEfforts],
-      defaultEffort: m.defaultEffort,
-      displayName: m.displayName,
-    };
+    if (detected !== undefined) {
+      prefill = process.env[detected];
+      subtitleLines.push(`Detected $${detected} — press Enter to use it.`);
+    } else {
+      subtitleLines.push(`Or set the ${option.envVars.join(' / ')} env var.`);
+    }
   }
-  const selection = await runModelSelector(host, modelDict);
-  if (selection === undefined) return undefined;
-  const model = models.find((m) => `${platform.id}/${m.id}` === selection.alias);
-  return model ? { model, thinking: selection.thinking } : undefined;
-}
-
-export async function promptModelSelectionForCatalog(
-  host: SlashCommandHost,
-  providerId: string,
-  models: CatalogModel[],
-): Promise<{ model: CatalogModel; thinking: boolean } | undefined> {
-  const modelDict: Record<string, ModelAlias> = {};
-  for (const m of models) {
-    modelDict[`${providerId}/${m.id}`] = catalogModelToAlias(providerId, m);
+  if (option.docUrl !== undefined && option.docUrl.length > 0) {
+    subtitleLines.push(`Get a key: ${option.docUrl}`);
   }
-  const selection = await runModelSelector(host, modelDict);
-  if (selection === undefined) return undefined;
-  const model = models.find((m) => `${providerId}/${m.id}` === selection.alias);
-  return model ? { model, thinking: selection.thinking } : undefined;
+  return promptApiKey(host, option.label, subtitleLines, { prefill });
 }
 
 export function runModelSelector(

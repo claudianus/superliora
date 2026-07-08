@@ -866,6 +866,12 @@ describe('Session MCP startup', () => {
     await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
     const port = (httpServer.address() as HttpAddress).port;
     const scripted = createScriptedGenerate();
+    // The RPC `prompt` path runs a lightweight response-language LLM
+    // detection (see feat(agent-core): detect response language with LLM) in
+    // the session layer, BEFORE the agent turn loop's MCP-readiness gate. That
+    // call is unrelated to MCP startup, so feed it a response of its own; the
+    // turn's response ('ready') is queued afterwards.
+    scripted.mockNextResponse({ type: 'text', text: '{"language_code":"en"}' });
     scripted.mockNextResponse({ type: 'text', text: 'ready' });
     const session = new Session({
       id: 'test-mcp-turn-ended',
@@ -915,8 +921,12 @@ describe('Session MCP startup', () => {
           throw new Error('Timed out waiting for turn.started');
         }),
       ]);
+      // MCP startup gates the agent turn: while the slow server is still
+      // connecting, the turn step loop has not started and the turn has not
+      // called the model. The single call recorded so far is the pre-turn
+      // response-language detection (which intentionally bypasses the MCP gate).
       expect(events.some((event) => event.type === 'turn.step.started')).toBe(false);
-      expect(scripted.calls).toHaveLength(0);
+      expect(scripted.calls).toHaveLength(1);
 
       releaseMcp();
       await Promise.race([
@@ -926,8 +936,11 @@ describe('Session MCP startup', () => {
         }),
       ]);
 
-      expect(scripted.calls).toHaveLength(1);
-      const toolNames = scripted.calls[0]!.tools.map((tool) => tool.name);
+      // The turn's model call (the last recorded call) runs only after MCP
+      // startup completes, and receives the now-connected MCP tools.
+      expect(scripted.calls).toHaveLength(2);
+      const turnCall = scripted.calls[1]!;
+      const toolNames = turnCall.tools.map((tool) => tool.name);
       expect(toolNames).toContain('mcp__slow__echo');
     } finally {
       await session.close();

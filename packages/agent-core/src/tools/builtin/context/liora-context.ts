@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 import { composeRankContext } from '../../../lean-context/compose/ranker';
 import { getIndexBuiltAt } from '../../../lean-context/index/builder';
-import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
@@ -105,9 +104,6 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
         if (cached !== undefined) {
           return { output: `${cached}\nstatus: compose_cache_hit` };
         }
-        await ensureWorkspaceIndex(this.kaos, this.workspace);
-        const freshIndexBuiltAt = await getIndexBuiltAt(this.kaos, this.workspace);
-        const freshCacheInput = { ...cacheInput, indexBuiltAt: freshIndexBuiltAt };
         const composed = await composeRankContext({
           kaos: this.kaos,
           workspace: this.workspace,
@@ -115,6 +111,11 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
           maxFiles: input.max_files,
           maxSymbolsPerFile: input.max_symbols_per_file,
         });
+        // Read built_at AFTER compose, which may have auto-built the index.
+        // Reading it before would capture the pre-build value and persist the
+        // cache under a key that never matches the next call's post-build value.
+        const freshIndexBuiltAt = await getIndexBuiltAt(this.kaos, this.workspace);
+        const freshCacheInput = { ...cacheInput, indexBuiltAt: freshIndexBuiltAt };
         const body = renderContextPacket(composed.ranked, { ...input, mode }, composed.allFiles, {
           strategy: composed.strategy,
         });

@@ -20,11 +20,13 @@ const mocks = vi.hoisted(() => {
     setPermission: vi.fn(),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
+    setCredentialHandler: vi.fn(),
     getStatus: vi.fn(
       async (): Promise<{ readonly permission: string; readonly model?: string }> => ({
         permission: 'manual',
       }),
     ),
+    tryAutoResumeUltrawork: vi.fn(async () => null),
     onEvent: vi.fn((handler: (event: any) => void) => {
       eventHandlers.add(handler);
       return () => eventHandlers.delete(handler);
@@ -1048,7 +1050,7 @@ describe('runPrompt', () => {
         stderr: { write: vi.fn(() => true) },
       }),
     ).rejects.toThrow(
-      'No model configured. Run `kimi` and use /login to sign in, then retry; or set default_model in config.toml.',
+      'No model configured. Run `liora` and use /login to sign in, then retry; or set default_model in config.toml.',
     );
 
     expect(mocks.harnessClose).toHaveBeenCalled();

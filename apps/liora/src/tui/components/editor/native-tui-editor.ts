@@ -64,6 +64,10 @@ export class NativeTUIEditor implements TUIEditor {
   onRecall?: (entry: string) => string | undefined;
   onHistoryDraftSave?: () => unknown;
   onHistoryDraftRestore?: (state: unknown) => void;
+  onHistorySearch?: () => void;
+  onCommandPalette?: () => void;
+  onTranscriptSearch?: () => void;
+  onRetryLastTurn?: () => void;
 
   private readonly pasteBurst = new PasteBurst();
   private disablePasteBurst = false;
@@ -331,6 +335,27 @@ export class NativeTUIEditor implements TUIEditor {
     }
     if (matchesKey(data, Key.ctrl('-'))) {
       this.onUndo?.();
+      return true;
+    }
+    // Ctrl-R: history fuzzy-search (only when the editor is empty so it does
+    // not clobber in-progress typing or readline-style history recall).
+    if (matchesKey(data, Key.ctrl('r')) && this.getText().length === 0) {
+      this.onHistorySearch?.();
+      return true;
+    }
+    // Ctrl-Space: command palette.
+    if (matchesKey(data, Key.ctrl(Key.space))) {
+      this.onCommandPalette?.();
+      return true;
+    }
+    // Ctrl-F: transcript search.
+    if (matchesKey(data, Key.ctrl('f'))) {
+      this.onTranscriptSearch?.();
+      return true;
+    }
+    // Ctrl-Y: retry the last failed turn (host decides whether it applies).
+    if (matchesKey(data, Key.ctrl('y'))) {
+      this.onRetryLastTurn?.();
       return true;
     }
     if (

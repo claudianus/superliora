@@ -111,13 +111,24 @@ describe('open-in-app launch commands', () => {
   });
 
   it('falls back to the platform default for macOS-only apps on other platforms', () => {
-    expect(openInAppCommandFor('iterm', '/repo/src/App.vue', {}, 'win32')).toEqual({
-      command: 'cmd',
-      args: ['/c', 'start', '""', '/repo/src/App.vue'],
-    });
-    expect(openInAppCommandFor('iterm', '/repo/src/App.vue', {}, 'linux')).toEqual({
-      command: 'xdg-open',
-      args: ['/repo/src/App.vue'],
-    });
+    // openInMacApp resolves the editor from process.env; clear the editor env
+    // vars so the macOS-only fallback reaches the platform default command.
+    const saved = ['SUPERLIORA_EDITOR', 'VISUAL', 'EDITOR'].map((key) => [key, process.env[key]]);
+    for (const key of ['SUPERLIORA_EDITOR', 'VISUAL', 'EDITOR']) delete process.env[key];
+    try {
+      expect(openInAppCommandFor('iterm', '/repo/src/App.vue', {}, 'win32')).toEqual({
+        command: 'cmd',
+        args: ['/c', 'start', '""', '/repo/src/App.vue'],
+      });
+      expect(openInAppCommandFor('iterm', '/repo/src/App.vue', {}, 'linux')).toEqual({
+        command: 'xdg-open',
+        args: ['/repo/src/App.vue'],
+      });
+    } finally {
+      for (const [key, value] of saved) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });

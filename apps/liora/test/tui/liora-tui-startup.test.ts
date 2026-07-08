@@ -8,7 +8,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { BannerProvider } from '#/tui/banner/banner-provider';
 import { readBannerDisplayState } from '#/tui/banner/state';
 import { handleLoginCommand, handleLogoutCommand } from '#/tui/commands/auth';
-import { promptPlatformSelection, promptLogoutProviderSelection } from '#/tui/commands/prompts';
+import { promptProviderCatalog, promptLogoutProviderSelection } from '#/tui/commands/prompts';
+import { loadCatalogWithSpinner } from '#/tui/commands/provider-connect';
 import { BannerComponent } from '#/tui/components/chrome/banner';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
@@ -29,7 +30,11 @@ import {
 
 vi.mock('#/tui/commands/prompts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('#/tui/commands/prompts')>();
-  return { ...actual, promptPlatformSelection: vi.fn(), promptLogoutProviderSelection: vi.fn() };
+  return { ...actual, promptProviderCatalog: vi.fn(), promptLogoutProviderSelection: vi.fn() };
+});
+vi.mock('#/tui/commands/provider-connect', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/commands/provider-connect')>();
+  return { ...actual, loadCatalogWithSpinner: vi.fn(async () => ({})) };
 });
 vi.mock('#/utils/clipboard/clipboard-text', () => ({
   copyTextToClipboard: vi.fn(async () => {}),
@@ -104,6 +109,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     })),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
+    setCredentialHandler: vi.fn(),
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
@@ -206,6 +212,7 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
 function makeDriver(harness: ReturnType<typeof makeHarness>, input: LioraTUIStartupInput) {
   const driver = new LioraTUI(harness as never, input) as unknown as StartupDriver;
   vi.spyOn(driver.state.ui, 'requestRender').mockImplementation(() => {});
+  vi.spyOn(driver.state.renderer, 'invalidateFrame').mockImplementation(() => {});
   vi.spyOn(driver.state.terminal, 'setProgress').mockImplementation(() => {});
   return driver;
 }
@@ -1056,7 +1063,7 @@ describe('LioraTUI startup', () => {
 
     expect(listeners[0]?.(LIGHT_OSC11_REPORT)).toEqual({ consume: true });
     expect(driver.state.appState.theme).toBe('auto');
-    expect(driver.state.ui.requestRender).toHaveBeenCalled();
+    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
   });
 
   it('does not track terminal theme reports for explicit themes', () => {
@@ -1166,7 +1173,7 @@ describe('LioraTUI startup', () => {
       planMode: true,
     });
 
-    vi.mocked(promptPlatformSelection).mockResolvedValue('kimi-code');
+    vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
     await handleLoginCommand(driver as any);
 
     expect(createSession).toHaveBeenNthCalledWith(1, {
@@ -1218,7 +1225,7 @@ describe('LioraTUI startup', () => {
     const driver = makeDriver(harness, makeStartupInput());
 
     await expect(driver.init()).resolves.toBe(false);
-    vi.mocked(promptPlatformSelection).mockResolvedValue('kimi-code');
+    vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
     await handleLoginCommand(driver as any);
 
     expect(createSession).toHaveBeenNthCalledWith(2, {
@@ -1249,7 +1256,7 @@ describe('LioraTUI startup', () => {
     await expect(driver.init()).resolves.toBe(false);
     expect(driver.state.appState.thinking).toBe(false);
 
-    vi.mocked(promptPlatformSelection).mockResolvedValue('kimi-code');
+    vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
     await handleLoginCommand(driver as any);
 
     expect(session.setModel).toHaveBeenCalledWith('k2');
@@ -1283,7 +1290,7 @@ describe('LioraTUI startup', () => {
     await expect(driver.init()).resolves.toBe(false);
     harness.track.mockClear();
 
-    vi.mocked(promptPlatformSelection).mockResolvedValue('kimi-code');
+    vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
     await handleLoginCommand(driver as any);
 
     expect(harness.auth.login).toHaveBeenCalledWith(
@@ -1319,7 +1326,7 @@ describe('LioraTUI startup', () => {
     try {
       await expect(driver.init()).resolves.toBe(false);
 
-      vi.mocked(promptPlatformSelection).mockResolvedValue('kimi-code');
+      vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
       await handleLoginCommand(driver as any);
 
       expect(harness.auth.login).toHaveBeenCalledWith(

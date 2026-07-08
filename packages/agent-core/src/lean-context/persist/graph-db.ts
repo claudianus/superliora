@@ -38,7 +38,13 @@ function openSqlite(path: string): SqliteDatabase {
   if (path !== ':memory:') {
     mkdirSync(dirname(path), { recursive: true });
   }
-  return new sqlite.DatabaseSync(path);
+  const db = new sqlite.DatabaseSync(path);
+  // WAL keeps readers unblocked while a build commits, and avoids the
+  // per-row fsync that the default rollback-journal mode would impose on
+  // every FTS5 shadow write during an index build.
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA synchronous = NORMAL');
+  return db;
 }
 
 const testDatabases = new Map<string, GraphDatabase>();
@@ -90,6 +96,23 @@ export class GraphDatabase {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * Wrap a batch of writes in a single transaction so the FTS5 shadow
+   * writes and node/edge inserts commit (and fsync) once, instead of once
+   * per row. On any throw the caller is expected to ROLLBACK.
+   */
+  beginTransaction(): void {
+    this.db.exec('BEGIN');
+  }
+
+  commitTransaction(): void {
+    this.db.exec('COMMIT');
+  }
+
+  rollbackTransaction(): void {
+    this.db.exec('ROLLBACK');
   }
 
   private initSchema(): void {
@@ -212,10 +235,16 @@ export class GraphDatabase {
   }
 
   finishBuild(incremental: boolean, started: number): GraphBuildStats {
-    const builtAt = Date.now();
-    this.setMeta('built_at', String(builtAt));
-    this.setMeta('incremental', incremental ? '1' : '0');
     const stats = this.getStats();
+    // A 0-row "successful" build is almost always an interrupted full rebuild
+    // (rows deleted but not re-inserted). Refreshing built_at would mask it as
+    // ready, which forces the next call into another full rebuild — the empty
+    // index loop. Leave built_at untouched so the stale/empty state stays
+    // visible and callers can fall back to direct discovery instead.
+    if (stats.files > 0) {
+      this.setMeta('built_at', String(Date.now()));
+      this.setMeta('incremental', incremental ? '1' : '0');
+    }
     return {
       filesIndexed: stats.files,
       nodesIndexed: stats.nodes,

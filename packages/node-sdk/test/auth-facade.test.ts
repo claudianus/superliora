@@ -135,7 +135,7 @@ describe('LioraHarness.auth', () => {
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 api_key = ""
 
@@ -165,7 +165,7 @@ max_steps_per_turn = "abc"
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "https://api.dev.example.test/coding/v1"
 api_key = ""
@@ -189,7 +189,7 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "https://api.dev.example.test/coding/v1"
 api_key = ""
@@ -279,7 +279,7 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "${baseUrl}"
 api_key = ""
@@ -358,7 +358,7 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "${oauthHost}" }
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "${baseUrl}"
 api_key = ""
@@ -416,7 +416,7 @@ oauth = { storage = "file", key = "oauth/kimi-code" }
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "${configuredBaseUrl}"
 api_key = ""
@@ -465,12 +465,12 @@ oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https:/
       `
 default_model = "kimi-code/kimi-for-coding"
 
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 api_key = ""
 
 [models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
+provider = "managed:kimi-api"
 model = "kimi-for-coding"
 `,
     );
@@ -502,7 +502,7 @@ model = "kimi-for-coding"
     expect(config.models?.['kimi-code/kimi-for-coding']).toBeUndefined();
     expect(config.providers[SUPERLIORA_PROVIDER_NAME]).toBeDefined();
     const { warnings } = await harness.getConfigDiagnostics();
-    expect(warnings.some((w) => w.includes('models.superliora/kimi-for-coding'))).toBe(true);
+    expect(warnings.some((w) => w.includes('models.kimi-code/kimi-for-coding'))).toBe(true);
   });
 
   it('removes managed Kimi config on logout', async () => {
@@ -512,7 +512,7 @@ model = "kimi-for-coding"
       `
 default_model = "kimi-code/kimi-for-coding"
 
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 api_key = ""
 oauth = { storage = "file", key = "oauth/kimi-code" }
@@ -522,7 +522,7 @@ type = "kimi"
 api_key = "sk-existing"
 
 [models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
+provider = "managed:kimi-api"
 model = "kimi-for-coding"
 max_context_size = 262144
 
@@ -563,7 +563,7 @@ oauth = { storage = "file", key = "oauth/kimi-code" }
     ).resolves.toBeUndefined();
 
     const text = await readFile(join(homeDir, 'config.toml'), 'utf-8');
-    expect(text).not.toContain('managed:kimi-code');
+    expect(text).not.toContain('managed:kimi-api');
     expect(text).not.toContain('kimi-code/kimi-for-coding');
     expect(text).not.toContain('moonshot_search');
   });
@@ -582,14 +582,14 @@ oauth = { storage = "file", key = "oauth/kimi-code" }
       `
 default_model = "kimi-code/kimi-for-coding"
 
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "https://api.dev.example.test/coding/v1"
 api_key = ""
 oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.example.test" }
 
 [models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
+provider = "managed:kimi-api"
 model = "kimi-for-coding"
 max_context_size = 262144
 `,
@@ -622,14 +622,14 @@ max_context_size = 262144
       `
 default_model = "kimi-code/kimi-for-coding"
 
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "${baseUrl}"
 api_key = ""
 oauth = { storage = "file", key = "oauth/kimi-code" }
 
 [models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
+provider = "managed:kimi-api"
 model = "kimi-for-coding"
 max_context_size = 262144
 `,
@@ -689,7 +689,7 @@ max_context_size = 262144
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "${baseUrl}"
 api_key = ""
@@ -755,7 +755,7 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[providers."managed:kimi-code"]
+[providers."managed:kimi-api"]
 type = "kimi"
 base_url = "${configuredBaseUrl}"
 api_key = ""

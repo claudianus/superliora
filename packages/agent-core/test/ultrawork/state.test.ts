@@ -36,6 +36,22 @@ describe('UltraworkRunStateMachine', () => {
     ]);
   });
 
+  it('can sync to learn then advance to done', () => {
+    const machine = UltraworkRunStateMachine.create({
+      id: 'uw_1',
+      objective: 'Ship the workflow',
+      now: '2026-07-01T00:00:00.000Z',
+    });
+
+    machine.advance('plan', 'planned', '2026-07-01T00:00:01.000Z');
+    const synced = machine.syncStageForward('learn', 'Goal completed', '2026-07-01T00:00:02.000Z');
+    expect(synced.stage).toBe('learn');
+
+    const done = machine.advance('done', 'Finished', '2026-07-01T00:00:03.000Z');
+    expect(done.status).toBe('done');
+    expect(done.stage).toBe('done');
+  });
+
   it('rejects skipped or backward stage transitions', () => {
     const machine = UltraworkRunStateMachine.create({
       id: 'uw_1',

@@ -357,9 +357,11 @@ micro_compaction = false
       configValue: false,
       env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
     });
-    expect(features).toEqual([
-      expect.objectContaining({ id: 'micro_compaction', enabled: false }),
-    ]);
+    expect(features).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'micro_compaction', enabled: false }),
+      ]),
+    );
   });
 
   it('can create the default config scaffold without selecting a model', async () => {

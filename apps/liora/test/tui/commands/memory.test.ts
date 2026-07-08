@@ -138,6 +138,7 @@ describe('memory readiness slash command builders', () => {
         '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
         'manual',
         false,
+        undefined,
         new Date('2026-07-02T00:00:00.000Z'),
       );
 
@@ -167,6 +168,7 @@ describe('memory readiness slash command builders', () => {
         'Improve LLM Wiki quality without leaking secrets token=secret-value',
         'manual',
         false,
+        undefined,
         new Date('2026-07-02T00:00:00.000Z'),
       );
       rmSync(join(workDir, '.superliora/evidence'), { recursive: true, force: true });
@@ -191,6 +193,7 @@ describe('memory readiness slash command builders', () => {
         'Document the harness wiki layer',
         'manual',
         false,
+        undefined,
         new Date('2026-07-02T00:00:00.000Z'),
       );
       const host = {
@@ -277,6 +280,7 @@ describe('memory readiness slash command builders', () => {
         'Verify harness evidence promotion',
         'manual',
         false,
+        undefined,
         new Date('2026-07-02T00:00:00.000Z'),
       );
 

@@ -49,7 +49,7 @@ describe('tips constants', () => {
   });
 
   it('nudges users toward natural task prompts before workflow command names', () => {
-    expect(WORKING_TIPS.some((tip) => tip.text === 'describe the outcome and Kimi will keep the work organized')).toBe(true);
+    expect(WORKING_TIPS.some((tip) => tip.text === 'describe the outcome and Liora will keep the work organized')).toBe(true);
     expect(WORKING_TIPS.some((tip) => tip.text.startsWith('/goal for '))).toBe(false);
   });
 

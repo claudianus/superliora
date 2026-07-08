@@ -66,10 +66,8 @@ export { handleForkCommand, handleInitCommand, handleTitleCommand } from './sess
 export { handleUndoCommand } from './undo';
 export {
   promptApiKey,
-  promptCatalogProviderSelection,
+  promptApiKeyForCatalogProvider,
   promptLogoutProviderSelection,
-  promptModelSelectionForCatalog,
-  promptModelSelectionForOpenPlatform,
-  promptPlatformSelection,
+  promptProviderCatalog,
   runModelSelector,
 } from './prompts';

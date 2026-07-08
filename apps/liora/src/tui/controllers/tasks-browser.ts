@@ -91,6 +91,7 @@ export class TasksBrowserController {
     const pollTimer = setInterval(() => {
       void this.refresh({ silent: true });
     }, 1000);
+    pollTimer.unref();
 
     this.host.setTasksBrowser({
       component,
@@ -356,6 +357,7 @@ export class TasksBrowserController {
     const pollTimer = setInterval(() => {
       void this.refreshOutputViewer({ silent: true });
     }, 1000);
+    pollTimer.unref();
 
     browser.viewer = {
       component: viewer,
@@ -414,6 +416,7 @@ export class TasksBrowserController {
       current.flashTimer = undefined;
       this.repaint();
     }, durationMs);
+    browser.flashTimer.unref?.();
     this.repaint();
   }
 

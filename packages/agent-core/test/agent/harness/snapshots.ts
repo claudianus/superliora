@@ -331,7 +331,7 @@ function isPlanModeReminder(value: string): boolean {
   );
 }
 
-function isCurrentTimeReminder(value: string): boolean {
+export function isCurrentTimeReminder(value: string): boolean {
   return value.includes('<current_time>') && value.includes('Authoritative host clock');
 }
 

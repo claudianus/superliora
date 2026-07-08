@@ -14,6 +14,7 @@ import {
   injectUltraworkPostSwarmContinuation,
   inferResumeStageFloor,
   maybeAdvanceUltraworkStage,
+  maybeAdvanceUltraworkOnGoalComplete,
   promoteUltraworkRunStageForResume,
   releaseUltraworkPlanModeIfComplete,
   reconcileUltraworkRunForResume,
@@ -47,6 +48,72 @@ function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
     ...overrides,
   };
 }
+
+function ultraworkActivation(id: string) {
+  return {
+    source: 'manual' as const,
+    replaceGoal: false,
+    evidenceRoot: `.superliora/evidence/ultrawork-runs/${id}`,
+    workDir: '/tmp',
+  };
+}
+
+function createUltraworkAtPlan(agent: Agent, id: string): void {
+  agent.ultrawork.create({
+    id,
+    objective: 'Ship feature',
+    activation: ultraworkActivation(id),
+  });
+}
+
+describe('Ultrawork goal completion', () => {
+  it('completeLearnStage from plan finishes run', () => {
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-goal-complete-plan');
+    expect(agent.ultrawork.getRun()?.stage).toBe('plan');
+
+    const run = agent.ultrawork.completeLearnStage('UltraGoal completed');
+    expect(run?.status).toBe('done');
+    expect(run?.stage).toBe('done');
+    expect(agent.ultrawork.isModeEnabled()).toBe(false);
+  });
+
+  it('markComplete with ultrawork at plan clears goal and finishes run', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-mark-complete-plan');
+    await agent.goal.createGoal({ objective: 'Ship docs' });
+
+    const snapshot = await agent.goal.markComplete({}, 'model');
+    expect(snapshot?.status).toBe('complete');
+    expect(agent.goal.getGoal().goal).toBeNull();
+    expect(agent.ultrawork.getRun()?.status).toBe('done');
+    expect(agent.ultrawork.getRun()?.stage).toBe('done');
+  });
+
+  it('maybeAdvanceUltraworkOnGoalComplete from plan finishes run without throwing', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-advance-on-goal-complete');
+    await agent.goal.createGoal({ objective: 'Ship docs' });
+
+    maybeAdvanceUltraworkOnGoalComplete(agent);
+    expect(agent.ultrawork.getRun()?.status).toBe('done');
+    expect(agent.ultrawork.getRun()?.stage).toBe('done');
+  });
+
+  it('completeLearnStage from learn transitions to done', () => {
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-goal-complete-learn');
+    for (const stage of ['research', 'goal', 'staff', 'swarm', 'integrate', 'verify', 'learn'] as const) {
+      agent.ultrawork.advance(stage, 'test');
+    }
+    expect(agent.ultrawork.getRun()?.stage).toBe('learn');
+
+    const run = agent.ultrawork.completeLearnStage('Ultrawork completed');
+    expect(run?.status).toBe('done');
+    expect(run?.stage).toBe('done');
+    expect(agent.ultrawork.isModeEnabled()).toBe(false);
+  });
+});
 
 describe('Ultrawork recovery', () => {
   it('keeps plan mode only while the effective stage is still plan or research', () => {

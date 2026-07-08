@@ -115,6 +115,7 @@ function makeHost(
       swarmModeEntry: undefined,
       transcriptContainer,
       ui: { requestRender: vi.fn() },
+      renderer: { invalidateFrame: vi.fn() },
       theme: { palette: getBuiltInPalette('dark') },
     },
     session: hasSession ? session : undefined,
@@ -486,7 +487,7 @@ describe('handleGoalCommand', () => {
     expect(stripAnsi(message.render(80).join('\n'))).toBe(
       '\n● Upcoming goal added. It will start after the current goal is complete.',
     );
-    expect(host.state.ui.requestRender).toHaveBeenCalled();
+    expect(host.state.renderer.invalidateFrame).toHaveBeenCalled();
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
     expect(session.createGoal).not.toHaveBeenCalled();
   });
@@ -643,7 +644,9 @@ describe('handleGoalCommand', () => {
     expect(session.resumeGoal).toHaveBeenCalledOnce();
     expect(host.track).toHaveBeenCalledWith('goal_resume');
     expect(host.showStatus).not.toHaveBeenCalledWith('Goal resumed.');
-    expect(host.sendNormalUserInput).toHaveBeenCalledWith('Resume the active goal.');
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith(
+      'Continue from where you left off. Resume the active goal without restarting earlier Ultrawork stages or redoing completed work.',
+    );
   });
 
   it('/goal cancel calls cancelGoal and does not send input', async () => {

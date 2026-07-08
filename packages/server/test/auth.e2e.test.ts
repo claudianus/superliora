@@ -200,14 +200,14 @@ describe('GET /api/v1/auth — readiness probe (P2.1 D2)', () => {
     });
   });
 
-  it('surfaces managed_provider.unauthenticated when config has managed:kimi-code but no cached token', async () => {
+  it('surfaces managed_provider.unauthenticated when config has managed:kimi-api but no cached token', async () => {
     seedConfig(
       [
-        '[providers."managed:kimi-code"]',
+        '[providers."managed:kimi-api"]',
         'type = "kimi"',
         'base_url = "https://example/v1"',
         '',
-        '[providers."managed:kimi-code".oauth]',
+        '[providers."managed:kimi-api".oauth]',
         'storage = "file"',
         'key = "oauth/kimi-code"',
         '',
@@ -218,7 +218,7 @@ describe('GET /api/v1/auth — readiness probe (P2.1 D2)', () => {
     const env = envelopeOf<AuthSummary>(res.json());
     const summary = authSummarySchema.parse(env.data);
     expect(summary.managed_provider).toEqual({
-      name: 'managed:kimi-code',
+      name: 'managed:kimi-api',
       status: 'unauthenticated',
     });
     // ready is still false — no default_model, even though provider exists

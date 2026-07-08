@@ -867,7 +867,7 @@ class AnthropicStreamedMessage implements StreamedMessage {
   }
 }
 export class AnthropicChatProvider implements ChatProvider {
-  readonly name: string = 'anthropic';
+  name: string;
   readonly contextManagementCapability = {
     toolResultClearing: true,
     thinkingBlockClearing: true,
@@ -887,6 +887,7 @@ export class AnthropicChatProvider implements ChatProvider {
   private _explicitMaxTokens: boolean;
 
   constructor(options: AnthropicOptions) {
+    this.name = 'anthropic';
     this._model = options.model;
     this._stream = options.stream ?? true;
     this._metadata = options.metadata;

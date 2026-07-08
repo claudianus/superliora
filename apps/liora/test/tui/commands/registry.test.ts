@@ -116,7 +116,6 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('plan');
     expect(primaryNames).not.toContain('ultrawork');
     expect(primaryNames).not.toContain('ultraswarm');
-    expect(primaryNames).not.toContain('btw');
     expect(primaryNames).not.toContain('experiments');
     expect(primaryNames).not.toContain('permission');
     expect(primaryNames).not.toContain('reload');
@@ -126,7 +125,6 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('export-debug-zip');
     expect(advancedNames).toEqual(
       expect.arrayContaining([
-        'btw',
         'experiments',
         'plan',
         'permission',
@@ -183,9 +181,10 @@ describe('built-in slash command registry', () => {
       (command) => command.name,
     );
 
-    expect(primaryNames.slice(0, 7)).toEqual([
+    expect(primaryNames.slice(0, 8)).toEqual([
       'auto',
       'model',
+      'premium',
       'status',
       'thinking',
       'usage',

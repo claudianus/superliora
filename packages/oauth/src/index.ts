@@ -23,6 +23,39 @@ export { FileTokenStorage } from './storage';
 export type { DevicePollResult, RefreshOptions } from './oauth';
 export { pollDeviceToken, refreshAccessToken, requestDeviceAuthorization } from './oauth';
 
+export {
+  getJson,
+  generatePkcePair,
+  generateState,
+  generateNonce,
+  postForm as postOAuthForm,
+  postJson as postOAuthJson,
+  startCallbackServer,
+  type CallbackResult,
+  type CallbackServer,
+  type PkcePair,
+} from './oauth-flow-http';
+export {
+  exchangeOpenAiToken,
+  pollOpenAiDeviceToken,
+  refreshOpenAiToken,
+  requestOpenAiUserCode,
+  runOpenAiBrowserFlow,
+  runOpenAiDeviceFlow,
+  toTokenInfo as toOpenAiTokenInfo,
+  toDeviceAuthorization as toOpenAiDeviceAuthorization,
+  type OpenAIDeviceCode,
+  type OpenAITokenExchange,
+} from './oauth-flow-openai';
+export {
+  exchangeXaiToken,
+  refreshXaiToken,
+  resolveXaiEndpoints,
+  runXaiBrowserFlow,
+  toTokenInfo as toXaiTokenInfo,
+  type XaiTokenExchange,
+} from './oauth-flow-xai';
+
 export type { LoginOptions, OAuthManagerOptions, OAuthRefreshOutcome } from './oauth-manager';
 export { OAuthManager, defaultRefreshThreshold, newInstanceId } from './oauth-manager';
 
@@ -166,3 +199,29 @@ export type {
   KimiOAuthTokenRef,
   KimiOAuthToolkitOptions,
 } from './toolkit';
+
+export {
+  ANTHROPIC_PROFILE,
+  EXPERIMENTAL_PROVIDER_PROFILES,
+  getProviderProfile,
+  isOAuthProviderId,
+  KIMI_PROFILE,
+  OPENAI_PROFILE,
+  PROVIDER_PROFILES,
+  XAI_PROFILE,
+} from './profiles';
+export type {
+  OAuthFlowKind,
+  OAuthProviderId,
+  OAuthProviderWire,
+  ProviderFlowConfig,
+  ProviderModelPreset,
+  ProviderProfile,
+} from './profiles';
+
+export { OAuthProviderManager } from './oauth-provider-manager';
+export type {
+  OAuthProviderManagerOptions,
+  ProviderLoginCallbacks,
+  ProviderLoginOptions,
+} from './oauth-provider-manager';

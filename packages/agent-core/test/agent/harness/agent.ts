@@ -35,6 +35,7 @@ import { createScriptedGenerate } from './scripted-generate';
 import {
   DEFAULT_TEST_SYSTEM_PROMPT,
   eventSnapshot,
+  isCurrentTimeReminder,
   type EventSnapshotEntry,
   type RpcSnapshotEntry,
   type WireSnapshotEntry,
@@ -732,7 +733,9 @@ export class AgentTestContext {
   compactHistory(): Array<{ readonly role: string; readonly text: string }> {
     return this.agent.context.history.map((message) => ({
       role: message.role,
-      text: message.content.map((part) => (part.type === 'text' ? part.text : '')).join(''),
+      text: normalizeHistoryText(
+        message.content.map((part) => (part.type === 'text' ? part.text : '')).join(''),
+      ),
     }));
   }
 
@@ -1033,6 +1036,26 @@ function isSystemReminderMessage(
     .join('')
     .trimStart();
   return text.startsWith('<system-reminder>');
+}
+
+/**
+ * Replace volatile reminder text (current-time, permission-mode, plan-mode)
+ * with stable placeholders so history snapshots stay deterministic across
+ * runs. Mirrors the normalization in snapshots.ts formatText().
+ */
+function normalizeHistoryText(text: string): string {
+  if (isCurrentTimeReminder(text)) return '<current-time-reminder>';
+  if (text.includes('Auto permission mode is active.')) return '<auto-mode-enter-reminder>';
+  if (text.includes('Auto permission mode is no longer active.')) {
+    return '<auto-mode-exit-reminder>';
+  }
+  if (
+    text.includes('Plan mode is active. You MUST NOT make any edits') &&
+    text.includes('Plan file:')
+  ) {
+    return '<plan-mode-reminder>';
+  }
+  return text;
 }
 
 function configStateSnapshot(agent: Agent): ResumeStateSnapshot['config'] {

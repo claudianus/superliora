@@ -79,6 +79,7 @@ terminal_palette = true
 
     expect(config).toEqual({
       theme: 'light',
+      disablePasteBurst: false,
       editorCommand: 'code --wait',
       notifications: { enabled: false, condition: 'always' },
       upgrade: { autoInstall: false },
@@ -103,6 +104,7 @@ command = "   "
 
     expect(config).toEqual({
       theme: 'auto',
+      disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: true },
@@ -136,6 +138,7 @@ command = "   "
     await saveTuiConfig(
       {
         theme: 'light',
+        disablePasteBurst: false,
         editorCommand: 'vim',
         notifications: { enabled: false, condition: 'always' },
         upgrade: { autoInstall: false },
@@ -150,6 +153,7 @@ command = "   "
 
     expect(await loadTuiConfig(filePath)).toEqual({
       theme: 'light',
+      disablePasteBurst: false,
       editorCommand: 'vim',
       notifications: { enabled: false, condition: 'always' },
       upgrade: { autoInstall: false },
@@ -166,6 +170,7 @@ command = "   "
     await saveTuiConfig(
       {
         theme,
+        disablePasteBurst: false,
         editorCommand: null,
         notifications: DEFAULT_TUI_CONFIG.notifications,
         upgrade: DEFAULT_TUI_CONFIG.upgrade,

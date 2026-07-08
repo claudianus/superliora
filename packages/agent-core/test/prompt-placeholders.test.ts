@@ -36,7 +36,14 @@ const STATIC_PLACEHOLDER_PROTOCOL_FILES = new Set([
 
 const mdFiles = globSync('**/*.md', { cwd: SRC })
   .map((file) => file.split('\\').join('/'))
-  .filter((file) => !file.endsWith('README.md'));
+  .filter(
+    (file) =>
+      !file.endsWith('README.md') &&
+      // Third-party skill catalog bodies embed JS/bash code examples whose
+      // `${var}` template literals and shell expansions are legitimate code,
+      // not unrendered prompt placeholders. They are loaded verbatim by design.
+      !file.startsWith('skill/catalog/'),
+  );
 
 describe('prompt placeholders', () => {
   it('discovers prompt .md files', () => {

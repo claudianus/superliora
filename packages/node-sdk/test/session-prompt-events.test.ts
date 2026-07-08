@@ -33,6 +33,11 @@ vi.mock('@superliora/kosong', async (importOriginal) => {
         thinkingEffort: null,
         async generate(systemPrompt: string, _tools: unknown, history: unknown) {
           fakeProviderState.calls.push({ systemPrompt, history });
+          // Response-language detection issues its own generate call with a
+          // dedicated system prompt before the main agent turn. Return compact
+          // JSON so the detector can parse a language preference.
+          const detectionJson = detectResponseLanguageJson(systemPrompt, history);
+          const responseText = detectionJson ?? fakeProviderState.responseText;
           return {
             id: 'fake-response',
             usage: {
@@ -44,7 +49,7 @@ vi.mock('@superliora/kosong', async (importOriginal) => {
             finishReason: 'completed',
             rawFinishReason: 'stop',
             async *[Symbol.asyncIterator]() {
-              yield { type: 'text', text: fakeProviderState.responseText };
+              yield { type: 'text', text: responseText };
             },
           };
         },
@@ -208,8 +213,11 @@ describe('Session.prompt events', () => {
           reason: 'completed',
         }),
       );
-      expect(fakeProviderState.calls[0]?.systemPrompt).toContain('You are SuperLiora CLI');
-      expect(fakeProviderState.calls[0]?.systemPrompt).toContain('Skill Runtime');
+      const mainCall = fakeProviderState.calls.find((call) =>
+        call.systemPrompt.includes('You are SuperLiora CLI'),
+      );
+      expect(mainCall?.systemPrompt).toContain('You are SuperLiora CLI');
+      expect(mainCall?.systemPrompt).toContain('Skill Runtime');
       expect(fakeProviderState.providerConfigs[0]).toMatchObject({
         type: 'kimi',
         defaultHeaders: expect.objectContaining({
@@ -250,10 +258,11 @@ describe('Session.prompt events', () => {
         locked: true,
         updatedAt: expect.any(String),
       });
-      expect(JSON.stringify(fakeProviderState.calls[0]?.history)).toContain(
+      const firstMainCall = mainAgentCall(0);
+      expect(JSON.stringify(firstMainCall?.history)).toContain(
         '<response_language>',
       );
-      expect(JSON.stringify(fakeProviderState.calls[0]?.history)).toContain('Korean (ko)');
+      expect(JSON.stringify(firstMainCall?.history)).toContain('Korean (ko)');
 
       done = waitForEvent(session, (event) => event.type === 'turn.ended');
       await session.prompt('continue with implementation details');
@@ -266,7 +275,7 @@ describe('Session.prompt events', () => {
         code: 'ko',
         source: 'detected',
       });
-      expect(JSON.stringify(fakeProviderState.calls[1]?.history)).toContain('Korean (ko)');
+      expect(JSON.stringify(mainAgentCall(1)?.history)).toContain('Korean (ko)');
 
       const fork = await harness.forkSession({
         id: session.id,
@@ -288,7 +297,7 @@ describe('Session.prompt events', () => {
       done = waitForEvent(resumed, (event) => event.type === 'turn.ended');
       await resumed.prompt('continue after resume');
       await done;
-      expect(JSON.stringify(fakeProviderState.calls[2]?.history)).toContain('Korean (ko)');
+      expect(JSON.stringify(mainAgentCall(2)?.history)).toContain('Korean (ko)');
     } finally {
       await harness.close();
     }
@@ -361,16 +370,18 @@ describe('Session.prompt events', () => {
           type: 'session.meta.updated',
         }),
       );
-      expect(fakeProviderState.calls[0]?.history).toMatchObject([
-        {
-          role: 'user',
-          content: [
-            expect.objectContaining({
-              text: expect.stringContaining('Task requirements:'),
-            }),
-          ],
-        },
-      ]);
+      expect(fakeProviderState.calls[0]?.history).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: expect.arrayContaining([
+              expect.objectContaining({
+                text: expect.stringContaining('Task requirements:'),
+              }),
+            ]),
+          }),
+        ]),
+      );
 
       const statePath = join(session.summary!.sessionDir, 'state.json');
       const state = JSON.parse(await readFile(statePath, 'utf-8')) as Record<string, unknown>;
@@ -438,10 +449,8 @@ describe('Session.prompt events', () => {
           type: 'session.meta.updated',
         }),
       );
-      expect(fakeProviderState.calls[1]?.systemPrompt).toBe(
-        fakeProviderState.calls[0]?.systemPrompt,
-      );
-      const btwHistoryText = JSON.stringify(fakeProviderState.calls[1]?.history);
+      expect(mainAgentCall(1)?.systemPrompt).toBe(mainAgentCall(0)?.systemPrompt);
+      const btwHistoryText = JSON.stringify(mainAgentCall(1)?.history);
       expect(btwHistoryText).toContain('main task context');
       expect(btwHistoryText).toContain('What are you working on right now?');
 
@@ -519,4 +528,34 @@ function waitForEvent(
       resolve(event);
     });
   });
+}
+
+/**
+ * The response-language detector issues a dedicated `generate` call with its
+ * own system prompt before the main agent turn. Return compact JSON the
+ * detector can parse when this is that call, otherwise return `undefined` so
+ * the fake provider streams the normal response text.
+ */
+function detectResponseLanguageJson(systemPrompt: string, history: unknown): string | undefined {
+  if (!systemPrompt.startsWith('You detect the response language')) return undefined;
+  const text = JSON.stringify(history);
+  // Korean Hangul syllables (U+AC00–U+D7A3) mark the Korean detection case.
+  const isKorean = /[\uac00-\ud7a3]/u.test(text);
+  const result = isKorean
+    ? { language_code: 'ko', language_name: 'Korean', explicit_override: false, confidence: 0.95 }
+    : { language_code: 'en', language_name: 'English', explicit_override: false, confidence: 0.9 };
+  return JSON.stringify(result);
+}
+
+/**
+ * Index into only the main-agent generate calls, skipping the interleaved
+ * response-language detection calls that now precede each turn.
+ */
+function mainAgentCall(
+  index: number,
+): { readonly systemPrompt: string; readonly history: unknown } | undefined {
+  const mainCalls = fakeProviderState.calls.filter(
+    (call) => !call.systemPrompt.startsWith('You detect the response language'),
+  );
+  return mainCalls[index];
 }

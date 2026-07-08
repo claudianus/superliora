@@ -461,8 +461,8 @@ describe('compaction — head/tail user-message retention', () => {
 
     const history = ctx.agent.context.history;
     const texts = historyTexts(ctx);
-    // [FIRST, head slice of MIDDLE, marker, tail slice of MIDDLE, LAST, summary]
-    expect(history).toHaveLength(6);
+    // [FIRST, head slice of MIDDLE, marker, tail slice of MIDDLE, LAST, summary, current-time]
+    expect(history).toHaveLength(7);
     expect(texts[0]).toBe(FIRST);
     expect(/^b+$/.test(texts[1]!)).toBe(true);
     expect(MIDDLE.startsWith(texts[1]!)).toBe(true);

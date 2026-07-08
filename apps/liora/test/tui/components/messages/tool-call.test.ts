@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
+import { advanceAppearanceAnimationClock } from '#/tui/utils/appearance-effects';
 
 import { captureProcessWrite } from '../../../helpers/process';
 
@@ -1721,6 +1722,7 @@ describe('ToolCallComponent', () => {
   it('refreshes and stops the Edit streaming progress timer', () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
+    advanceAppearanceAnimationClock(0);
     const ui = { requestRender: vi.fn() };
     const component = new ToolCallComponent(
       {
@@ -1735,9 +1737,14 @@ describe('ToolCallComponent', () => {
     );
 
     expect(strip(component.render(100).join('\n'))).toContain('0s elapsed');
+    // The streaming-progress counter ticks off the shared appearance animation
+    // clock (advanced once per frame by the native render loop) and rebuilds
+    // during `render()`, so advance both clocks then render to drive the tick.
+    ui.requestRender.mockClear();
     vi.advanceTimersByTime(1000);
-    expect(ui.requestRender).toHaveBeenCalled();
+    advanceAppearanceAnimationClock(1000);
     expect(strip(component.render(100).join('\n'))).toContain('1s elapsed');
+    expect(ui.requestRender).toHaveBeenCalled();
 
     ui.requestRender.mockClear();
     component.setResult({
@@ -1746,6 +1753,8 @@ describe('ToolCallComponent', () => {
       is_error: false,
     });
     vi.advanceTimersByTime(1000);
+    advanceAppearanceAnimationClock(1000);
+    component.render(100);
     expect(ui.requestRender).not.toHaveBeenCalled();
 
     const componentToDispose = new ToolCallComponent(

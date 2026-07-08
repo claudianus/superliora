@@ -47,6 +47,10 @@ export interface EditorKeyboardHost {
   handleUltraworkModeToggle(next: boolean): void;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   clearQueuedMessages(): void;
+  showHistorySearch(): void;
+  showCommandPalette(): void;
+  showTranscriptSearch(): void;
+  retryLastTurn(): Promise<void>;
   setExternalEditorRunning(running: boolean): void;
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
 }
@@ -141,6 +145,15 @@ export class EditorKeyboardController {
 
     editor.onEscape = () => {
       if (this.pendingExit) this.clearPendingExit();
+      // Esc cancels an in-flight login/catalog load (mirrors Ctrl-C), so the
+      // user is not forced to remember "only Ctrl-C works" during OAuth flows.
+      if (host.cancelInFlight !== undefined) {
+        const cancel = host.cancelInFlight;
+        host.cancelInFlight = undefined;
+        this.clearPendingExit();
+        cancel();
+        return;
+      }
       if (host.state.activeDialog === 'session-picker') {
         host.hideSessionPicker();
         this.clearPendingUndoEsc();
@@ -346,6 +359,21 @@ export class EditorKeyboardController {
     editor.onTranscriptBottom = () => host.scrollTranscriptViewport('bottom');
 
     editor.onPasteImage = async () => this.handleClipboardImagePaste();
+
+    editor.onHistorySearch = () => {
+      if (this.host.state.appState.streamingPhase !== 'idle') return;
+      this.host.showHistorySearch();
+    };
+    editor.onCommandPalette = () => {
+      if (this.host.state.appState.streamingPhase !== 'idle') return;
+      this.host.showCommandPalette();
+    };
+    editor.onTranscriptSearch = () => {
+      this.host.showTranscriptSearch();
+    };
+    editor.onRetryLastTurn = () => {
+      void this.host.retryLastTurn();
+    };
   }
 
   clearPendingExit(): void {

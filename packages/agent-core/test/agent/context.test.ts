@@ -528,6 +528,7 @@ describe('Agent context', () => {
         assistant: text "I will call Lookup."  calls call_lookup:Lookup { "query": "moon" }
         tool[call_lookup]: text "lookup result"
         user: text "continue"
+        user: text <current-time-reminder>
     `);
     await ctx.expectResumeMatches();
   });
@@ -550,6 +551,7 @@ describe('Agent context', () => {
       messages:
         user: text "<system-reminder>\\nRemember the host note.\\n</system-reminder>"
         user: text "Real user prompt"
+        user: text <current-time-reminder>
     `);
   });
 
@@ -818,6 +820,7 @@ describe('Agent context', () => {
       tools: []
       messages:
         user: text "fresh prompt"
+        user: text <current-time-reminder>
     `);
     await ctx.expectResumeMatches();
   });
@@ -847,6 +850,7 @@ describe('Agent context', () => {
       messages:
         user: text "summary of old context"
         user: text "recent user message\\n\\nnew prompt"
+        user: text <current-time-reminder>
     `);
     await ctx.expectResumeMatches();
   });

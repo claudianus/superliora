@@ -85,6 +85,7 @@ import type { ColorToken } from '#/tui/theme';
 import { errorReportHintLine } from '../constant/feedback';
 import { formatStepDebugTiming } from '#/utils/usage/debug-timing';
 import { requestTUILayoutRender } from '../utils/frame-render';
+import { ttui } from '../utils/tui-i18n';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { BtwPanelController } from './btw-panel';
 import type { StreamingUIController } from './streaming-ui';
@@ -127,6 +128,7 @@ export interface SessionEventHost {
   updateTerminalTitle(): void;
   sendQueuedMessage(session: Session, item: QueuedMessage): void;
   shiftQueuedMessage(): QueuedMessage | undefined;
+  setLastTurnFailed(failed: boolean): void;
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
 }
@@ -433,6 +435,8 @@ export class SessionEventHandler {
     if (event.reason === 'filtered') {
       this.host.showStatus('Turn stopped: provider safety policy blocked the response.', 'error');
     }
+    // A cleanly-ended turn clears the retry flag (only errors set it).
+    this.host.setLastTurnFailed(false);
     const todos = this.host.state.todoPanel.getTodos();
     if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
       this.host.streamingUI.setTodoList([]);
@@ -845,6 +849,7 @@ export class SessionEventHandler {
           this.scheduleQueuedGoalPromotion();
         });
     }, 0);
+    this.queuedGoalPromotionTimer.unref?.();
   }
 
   private clearQueuedGoalPromotionTimer(): void {
@@ -976,6 +981,9 @@ export class SessionEventHandler {
     this.host.streamingUI.flushNow();
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
+    // Mark the last turn as failed so the user can re-send it with `/retry`
+    // (Ctrl-Y).
+    this.host.setLastTurnFailed(true);
     if (event.code === OAUTH_LOGIN_REQUIRED_CODE) {
       this.host.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE);
       return;
@@ -984,6 +992,15 @@ export class SessionEventHandler {
     const sessionId = this.host.state.appState.sessionId;
     if (sessionId.length > 0) {
       this.host.showStatus(errorReportHintLine());
+      this.host.appendTranscriptEntry({
+        id: `retry-hint-${Date.now()}`,
+        kind: 'status',
+        turnId: undefined,
+        renderMode: 'plain',
+        content: ttui('tui.retry.hint'),
+        color: 'warning',
+        bullet: '',
+      });
     }
   }
 

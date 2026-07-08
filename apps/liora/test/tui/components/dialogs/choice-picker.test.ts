@@ -293,4 +293,31 @@ describe('ChoicePickerComponent', () => {
     // Unselected option: description falls back to textMuted.
     expect(renderDescLine('none')).toBe(mutedLine);
   });
+
+  // BUG-1 regression: a selected option with a description but no descriptionTone
+  // must not crash. Previously the render referenced an undefined `premium`
+  // variable, throwing ReferenceError on every render of such an option.
+  it('renders a described option without descriptionTone without crashing', () => {
+    const picker = new ChoicePickerComponent({
+      title: 'Pick one',
+      options: [
+        {
+          value: 'a',
+          label: 'Option A',
+          description: 'A description without a tone',
+        },
+        {
+          value: 'b',
+          label: 'Option B',
+          description: 'Another description',
+        },
+      ],
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    // Should not throw — the first option is selected by default.
+    expect(() => picker.render(80)).not.toThrow();
+    const lines = picker.render(80).map(strip);
+    expect(lines.some((line) => line.includes('A description without a tone'))).toBe(true);
+  });
 });
