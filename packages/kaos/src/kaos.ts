@@ -89,6 +89,12 @@ export interface Kaos {
   mkdir(path: string, options?: { parents?: boolean; existOk?: boolean }): Promise<void>;
   /** Delete the file at `path`. */
   unlink(path: string): Promise<void>;
+  /**
+   * Rename / move `source` to `destination`, atomically replacing `destination`
+   * if it already exists (POSIX `rename(2)` semantics). Used for crash-safe
+   * writes that stage a temp file then swap it into place.
+   */
+  rename(source: string, destination: string): Promise<void>;
 
   // ── Process execution ───────────────────────────────────────────────
 

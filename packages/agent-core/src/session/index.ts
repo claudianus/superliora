@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'pathe';
-import type { Kaos } from '@superliora/kaos';
+import { KaosFileNotFoundError, type Kaos } from '@superliora/kaos';
 import type { SessionWarning } from '@superliora/protocol';
 
 import { ErrorCodes, LioraError } from '#/errors';
@@ -629,20 +629,84 @@ export class Session {
     return join(this.options.homedir, 'state.json');
   }
 
+  protected get metadataBackupPath() {
+    return join(this.options.homedir, 'state.json.bak');
+  }
+
+  protected get metadataTempPath() {
+    return join(this.options.homedir, 'state.json.tmp');
+  }
+
   writeMetadata() {
     const text = JSON.stringify(this.metadata, null, 2);
+    const kaos = this.persistenceKaos;
+    const tmp = this.metadataTempPath;
+    const dest = this.metadataPath;
+    const backup = this.metadataBackupPath;
     const write = async () => {
-      await this.persistenceKaos.mkdir(this.options.homedir, { parents: true, existOk: true });
-      await this.persistenceKaos.writeText(this.metadataPath, text);
+      await kaos.mkdir(this.options.homedir, { parents: true, existOk: true });
+      // Stage the new content in a temp file, then atomically rename it into
+      // place. A crash between writing and renaming leaves `state.json` at
+      // its previous (complete) value rather than truncated mid-write.
+      await kaos.writeText(tmp, text);
+      // Preserve the prior good file as `.bak` so a corrupt future read can
+      // fall back to it. Only rotate when the current target already exists
+      // — the first write in a fresh homedir has nothing to back up.
+      let hadExisting = false;
+      try {
+        await kaos.stat(dest);
+        hadExisting = true;
+      } catch {
+        hadExisting = false;
+      }
+      if (hadExisting) {
+        // Best-effort rotation: if rename-to-backup fails (e.g. a stray
+        // stale backup we can't replace), keep going — the atomic rename
+        // below is what guarantees a consistent target.
+        await kaos.rename(dest, backup).catch(() => {});
+      }
+      await kaos.rename(tmp, dest);
     };
     this.writeMetadataPromise = this.writeMetadataPromise.then(write, write);
     return this.writeMetadataPromise;
   }
 
   async readMetadata() {
-    const text = await this.persistenceKaos.readText(this.metadataPath);
-    this.metadata = JSON.parse(text);
-    return this.metadata;
+    const kaos = this.persistenceKaos;
+    const dest = this.metadataPath;
+    const backup = this.metadataBackupPath;
+    const parse = (text: string): SessionMeta => JSON.parse(text) as SessionMeta;
+
+    try {
+      const text = await kaos.readText(dest);
+      this.metadata = parse(text);
+      return this.metadata;
+    } catch (error) {
+      // A truncated/empty `state.json` (crash mid-write) must not abort
+      // resume. Fall back to the rotated backup first; only if that is
+      // also unreadable do we start fresh with the default metadata.
+      if (!isNotFoundError(error)) {
+        try {
+          const backupText = await kaos.readText(backup);
+          this.metadata = parse(backupText);
+          this.log.warn('state.json was corrupt; recovered session metadata from state.json.bak', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return this.metadata;
+        } catch (backupError) {
+          this.log.warn(
+            'state.json and state.json.bak are both unreadable; starting with default session metadata',
+            {
+              error: error instanceof Error ? error.message : String(error),
+              backupError: backupError instanceof Error ? backupError.message : String(backupError),
+            },
+          );
+        }
+      }
+      // ENOENT (first run) or unrecoverable corruption: keep the default
+      // metadata initialized in the constructor.
+      return this.metadata;
+    }
   }
 
   async flushMetadata() {
@@ -909,4 +973,18 @@ function initCompletionReminder(agentsMd: string): string {
     'Latest AGENTS.md file content:',
     latest,
   ].join('\n');
+}
+
+/**
+ * Return true iff `error` represents a "file does not exist" failure from
+ * either the local Kaos (raw `node:fs` `ENOENT`) or the SSH Kaos
+ * (`KaosFileNotFoundError`). Used by {@link Session.readMetadata} to
+ * distinguish "first run, no state.json yet" from a corrupt read.
+ */
+function isNotFoundError(error: unknown): boolean {
+  if (error instanceof KaosFileNotFoundError) return true;
+  if (error !== null && typeof error === 'object' && 'code' in error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+  return false;
 }

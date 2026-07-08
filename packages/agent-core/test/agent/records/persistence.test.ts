@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rmdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 
@@ -188,10 +188,15 @@ describe('FileSystemAgentRecordPersistence', () => {
     expect(JSON.parse(lines[0]!)['type']).toBe('turn.prompt');
   });
 
-  it('enters error state after a write failure', async () => {
+  it('self-heals after a transient write failure when below the latch threshold', async () => {
+    // A directory at wirePath makes the open() inside drainBatch fail with
+    // EISDIR. Removing it again simulates a transient condition clearing up
+    // (e.g. a momentary disk-full or lock that releases).
     const wirePath = await makeWirePath();
     await mkdir(wirePath);
-    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+    const persistence = new FileSystemAgentRecordPersistence(wirePath, {
+      maxConsecutiveDrainFailures: 5,
+    });
 
     persistence.append({
       type: 'turn.prompt',
@@ -200,6 +205,44 @@ describe('FileSystemAgentRecordPersistence', () => {
     });
     await expect(persistence.flush()).rejects.toBeInstanceOf(Error);
 
+    // Below the threshold the error is not latched, so append/rewrite stay
+    // usable — the persistence is still alive and can recover.
+    expect(() => {
+      persistence.append({
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: 'second' }],
+        origin: { kind: 'user' },
+      });
+    }).not.toThrow();
+
+    // Clear the fault and flush again: the re-queued batch lands on disk.
+    await rmdir(wirePath);
+    await persistence.flush();
+
+    const lines = await readLines(wirePath);
+    expect(lines.length).toBeGreaterThanOrEqual(1);
+    // Both records (re-queued first + appended second) survive.
+    expect(lines.some((l) => JSON.parse(l)['input'][0]['text'] === 'first')).toBe(true);
+    expect(lines.some((l) => JSON.parse(l)['input'][0]['text'] === 'second')).toBe(true);
+  });
+
+  it('latches into a sticky error state after repeated consecutive failures', async () => {
+    const wirePath = await makeWirePath();
+    await mkdir(wirePath);
+    const persistence = new FileSystemAgentRecordPersistence(wirePath, {
+      maxConsecutiveDrainFailures: 2,
+    });
+
+    persistence.append({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'first' }],
+      origin: { kind: 'user' },
+    });
+    // Drive enough consecutive failures to trip the circuit-breaker.
+    await expect(persistence.flush()).rejects.toBeInstanceOf(Error);
+    await expect(persistence.flush()).rejects.toBeInstanceOf(Error);
+
+    // Now latched: further operations throw immediately.
     expect(() => {
       persistence.append({
         type: 'turn.prompt',

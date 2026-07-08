@@ -53,6 +53,9 @@ export interface BufferReplaySource {
   getCursor(sessionId: string): Promise<{ seq: number; epoch: string }>;
 }
 
+/** Reason values the broadcast layer can surface for `resync_required`. */
+export type BroadcastResyncReason = 'buffer_overflow' | 'session_recreated' | 'epoch_changed';
+
 export interface AbortHandler {
   abort(
     sessionId: string,
@@ -114,6 +117,13 @@ export interface WsConnectionOptions {
 
   maxEventBufferSize?: number;
 
+  /**
+   * Soft cap on the per-socket send buffer (bytes). When the underlying
+   * socket's `bufferedAmount` exceeds it, volatile frames are dropped until
+   * the buffer drains back below the recovery threshold.
+   */
+  maxBufferedBytes?: number;
+
   /** Peer address from the upgrade socket. Null when unavailable. */
   remoteAddress?: string | null;
 
@@ -126,6 +136,22 @@ const DEFAULT_PING_INTERVAL_MS = 30_000;
 const DEFAULT_PONG_TIMEOUT_MS = 10_000;
 
 const DEFAULT_MAX_EVENT_BUFFER = 1000;
+
+/**
+ * Soft cap (bytes) on the per-socket OS send buffer. Above this we consider
+ * the client a "slow consumer" and start dropping volatile frames so a single
+ * lagging subscriber can't balloon server memory on a high-throughput session
+ * (e.g. an UltraSwarm run fanning out many deltas). Durable frames are always
+ * sent; the client re-syncs its snapshot if it missed volatiles.
+ */
+const DEFAULT_MAX_BUFFERED_BYTES = 1_048_576;
+
+/**
+ * Once in slow-consumer mode, the buffer must drain back below this fraction
+ * of the cap before volatile frames resume. Hysteresis prevents rapid
+ * flapping around the threshold.
+ */
+const SLOW_CONSUMER_RECOVER_RATIO = 0.5;
 
 export class WsConnection {
   public readonly id: string;
@@ -154,11 +180,20 @@ export class WsConnection {
   private readonly pingIntervalMs: number;
   private readonly pongTimeoutMs: number;
   private readonly maxEventBufferSize: number;
+  private readonly maxBufferedBytes: number;
 
   private pingTimer?: NodeJS.Timeout;
   private pongTimer?: NodeJS.Timeout;
   private closed = false;
   private gotClientHello = false;
+
+  /**
+   * True while this socket is being treated as a slow consumer: volatile
+   * frames are dropped and a single `resync_required(slow_consumer)` has
+   * been sent so the client knows to rebuild its view from the snapshot.
+   * Cleared (with hysteresis) once `bufferedAmount` drains.
+   */
+  private slowConsumer = false;
 
   constructor(opts: WsConnectionOptions) {
     this.id = `conn_${ulid()}`;
@@ -175,6 +210,7 @@ export class WsConnection {
     this.pingIntervalMs = opts.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
     this.pongTimeoutMs = opts.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS;
     this.maxEventBufferSize = opts.maxEventBufferSize ?? DEFAULT_MAX_EVENT_BUFFER;
+    this.maxBufferedBytes = opts.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
 
     this.send(
       buildServerHello({
@@ -708,6 +744,81 @@ export class WsConnection {
   public send(message: unknown): void {
     if (this.closed) return;
     if (this.socket.readyState !== this.socket.OPEN) return;
+
+    // Backpressure defence: if the OS send buffer is already large, drop
+    // volatile frames (deltas / progress) rather than letting one slow
+    // subscriber balloon server memory. Durable frames, acks, and control
+    // messages are always sent — a dropped durable would corrupt the seq
+    // watermark contract. A slow-consumer `resync_required` is emitted once
+    // on entry so the client rebuilds its view from the snapshot.
+    this.updateSlowConsumer();
+    if (this.slowConsumer && isVolatileEnvelope(message)) {
+      return;
+    }
+
+    try {
+      this.socket.send(JSON.stringify(message), (err) => {
+        if (err) this.logger.warn({ err: String(err) }, 'ws send failed');
+      });
+    } catch (err) {
+      this.logger.warn({ err: String(err) }, 'ws send threw');
+    }
+  }
+
+  /**
+   * Enter slow-consumer mode when `bufferedAmount` exceeds the cap, leave it
+   * when it drains back below the recovery threshold (hysteresis). Entering
+   * emits a single `resync_required(slow_consumer)` per subscribed session
+   * so the client knows volatile frames may have been dropped and can
+   * rebuild from the snapshot.
+   */
+  private updateSlowConsumer(): void {
+    const buffered = this.socket.bufferedAmount;
+    if (!this.slowConsumer) {
+      if (buffered > this.maxBufferedBytes) {
+        this.slowConsumer = true;
+        this.logger.info(
+          { bufferedAmount: buffered, cap: this.maxBufferedBytes },
+          'ws slow-consumer mode entered; volatile frames will be dropped',
+        );
+        this.notifySlowConsumerResync();
+      }
+    } else if (buffered < this.maxBufferedBytes * SLOW_CONSUMER_RECOVER_RATIO) {
+      this.slowConsumer = false;
+      this.logger.info(
+        { bufferedAmount: buffered, threshold: this.maxBufferedBytes * SLOW_CONSUMER_RECOVER_RATIO },
+        'ws slow-consumer mode cleared; volatile frames resumed',
+      );
+    }
+  }
+
+  /**
+   * Send a `resync_required(slow_consumer)` for every subscribed session so
+   * the client drops its optimistic (delta-fed) state and rebuilds from the
+   * durable snapshot. Sent directly (bypassing the slow-consumer drop) so it
+   * is guaranteed to reach the client.
+   */
+  private notifySlowConsumerResync(): void {
+    for (const sid of this.subscriptions) {
+      this.wsBroadcast.getCursor(sid).then(
+        ({ seq, epoch }) => {
+          this.sendControlFrame(buildResyncRequired(sid, 'slow_consumer', seq, epoch));
+        },
+        (err: unknown) => {
+          this.logger.warn({ sid, err: String(err) }, 'ws slow-consumer resync cursor lookup failed');
+        },
+      );
+    }
+  }
+
+  /**
+   * Send a frame that must bypass the slow-consumer volatile drop (control
+   * frames, the resync notice itself). Mirrors {@link send} minus the
+   * backpressure gate.
+   */
+  private sendControlFrame(message: unknown): void {
+    if (this.closed) return;
+    if (this.socket.readyState !== this.socket.OPEN) return;
     try {
       this.socket.send(JSON.stringify(message), (err) => {
         if (err) this.logger.warn({ err: String(err) }, 'ws send failed');
@@ -746,5 +857,20 @@ function hasErrorName(err: unknown, name: string): boolean {
     err !== null &&
     'name' in err &&
     (err as { name?: unknown }).name === name
+  );
+}
+
+/**
+ * Return true iff `message` is an outbound event envelope marked volatile
+ * (deltas / progress / status). Only such frames are eligible for the
+ * slow-consumer drop; durable events, acks, ping, and `resync_required`
+ * itself must always be sent.
+ */
+function isVolatileEnvelope(message: unknown): boolean {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    'volatile' in message &&
+    (message as { volatile?: unknown }).volatile === true
   );
 }

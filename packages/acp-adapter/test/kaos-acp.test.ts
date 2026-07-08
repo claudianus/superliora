@@ -75,6 +75,8 @@ interface MockInnerKaos extends Kaos {
     iterdirCalls: string[];
     globCalls: Array<{ path: string; pattern: string; options?: { caseSensitive?: boolean } }>;
     mkdirCalls: Array<{ path: string; options?: { parents?: boolean; existOk?: boolean } }>;
+    unlinkCalls: string[];
+    renameCalls: Array<{ source: string; destination: string }>;
     execCalls: string[][];
     execWithEnvCalls: Array<{ args: string[]; env?: Record<string, string> }>;
     readTextCalls: string[];
@@ -97,6 +99,8 @@ function makeMockInner(opts?: { pathClass?: 'posix' | 'win32' }): MockInnerKaos 
     iterdirCalls: [] as string[],
     globCalls: [] as Array<{ path: string; pattern: string; options?: { caseSensitive?: boolean } }>,
     mkdirCalls: [] as Array<{ path: string; options?: { parents?: boolean; existOk?: boolean } }>,
+    unlinkCalls: [] as string[],
+    renameCalls: [] as Array<{ source: string; destination: string }>,
     execCalls: [] as string[][],
     execWithEnvCalls: [] as Array<{ args: string[]; env?: Record<string, string> }>,
     readTextCalls: [] as string[],
@@ -168,6 +172,12 @@ function makeMockInner(opts?: { pathClass?: 'posix' | 'win32' }): MockInnerKaos 
     },
     mkdir: async (path: string, options?: { parents?: boolean; existOk?: boolean }) => {
       spy.mkdirCalls.push({ path, options });
+    },
+    unlink: async (path: string) => {
+      spy.unlinkCalls.push(path);
+    },
+    rename: async (source: string, destination: string) => {
+      spy.renameCalls.push({ source, destination });
     },
     exec: async (...args: string[]) => {
       spy.execCalls.push(args);
