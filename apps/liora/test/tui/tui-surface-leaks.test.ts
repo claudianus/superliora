@@ -123,7 +123,7 @@ describe('TUI surface leak checks', () => {
           'Auto          Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks',
           'Flow          ███░ 3/4 verify blocked',
           'Stages        Plan off | Goal ready | Swarm off | Verify blocked',
-          'Next          Run /login or /provider first; use /model after sign-in.',
+          'Next          Run /login to add a provider, then /model to pick one.',
         ].join('\n'),
       ),
     ).toBe(true);
@@ -186,8 +186,8 @@ describe('TUI surface leak checks', () => {
       'Coverage      test public behavior changes',
       'Screen check  open changed screen before finishing',
       'Done gate     tests + typecheck/lint/build + clean diff + TUI',
-      'Next          Run /login or /provider first; use /model after sign-in.',
-      'next: /login or /provider, then /model',
+      'Next          Run /login to add a provider, then /model to pick one.',
+      'next: /login to add a provider, then /model',
     ].join('\n');
 
     expect(shouldRequireModelSetupAction(readyScreen)).toBe(false);

@@ -1,6 +1,6 @@
 /**
  * CustomEndpointImportDialog — collects a direct OpenAI-compatible endpoint,
- * model id, optional API key, and context window for `/provider`.
+ * model id, optional API key, and context window for `/login`.
  */
 
 import {

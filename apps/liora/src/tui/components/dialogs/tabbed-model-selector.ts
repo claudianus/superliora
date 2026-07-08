@@ -68,7 +68,7 @@ export class TabbedModelSelectorComponent extends Container implements Focusable
     this.tabs = buildTabs(opts);
 
     // Default to the "All" tab. Only an explicit initialTabId (e.g. the
-    // provider just added via /provider) opens on a specific provider tab —
+    // provider just added via /login) opens on a specific provider tab —
     // the current model is still highlighted inside whichever tab is active.
     const initialTabIdx = opts.initialTabId
       ? this.tabs.findIndex((tab) => tab.id === opts.initialTabId)

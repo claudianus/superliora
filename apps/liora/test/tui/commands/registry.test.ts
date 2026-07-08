@@ -189,7 +189,7 @@ describe('built-in slash command registry', () => {
       'thinking',
       'usage',
       'yolo',
-      'provider',
+      'btw',
     ]);
   });
 

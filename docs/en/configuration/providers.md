@@ -19,24 +19,14 @@ All providers communicate with models in streaming mode by default. Capabilities
 
 **Credential priority**: explicit provider credential fields > `[providers.<name>.env]` sub-table keys > if both are absent, startup fails with an error. A credential value can be a raw key or an environment reference such as `{env:OPENAI_API_KEY}`. The CLI does not silently fall back to shell environment variables; the reference must be written in config or added with a provider command. See [Config overrides: provider credentials](./overrides.md#provider-credentials).
 
-## `/provider` — interactive provider management
+## Adding providers interactively
 
-Prefer not to edit TOML by hand? Type `/provider` in the TUI to open the **provider manager**, where you can interactively add or remove providers.
-
-The manager displays providers as a list of entries grouped by source. Navigation:
-
-- ↑/↓ to move the cursor, ←/→ to page
-- `d` to delete the current provider (with `[y/N]` confirmation)
-- Press Enter on the `[ Add New Platform ]` row to add a new provider
-
-Two paths when adding:
+Prefer not to edit TOML by hand? Type `/login` in the TUI to add a provider interactively. `/login` supports two paths:
 
 - **Known third-party provider**: fetches the model catalog from [models.dev](https://models.dev/), select a provider → enter an API key → select a default model
 - **Custom registry (api.json)**: paste a custom registry URL and Bearer token; the CLI automatically creates the `providers` / `models` entries. On later startup, providers from the same registry URL are refreshed together, so upstream provider additions, removals, and model metadata changes are synced.
 
-::: warning
-SuperLiora OAuth managed accounts logged in via `/login` do not appear in `/provider`. Use `/login` and `/logout` to manage them.
-:::
+Once signed in, use `/model` to switch between the models you just configured.
 
 The same operations are also available in non-interactive environments via the shell command: [`liora provider`](../reference/liora-command.md#kimi-provider).
 

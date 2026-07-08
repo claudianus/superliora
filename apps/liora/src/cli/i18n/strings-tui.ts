@@ -48,7 +48,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.retry.none': 'Nothing to retry yet.',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
-  'tui.footer.next.login': 'next: /login or /provider, then /model',
+  'tui.footer.next.login': 'next: /login to add a provider, then /model',
   'tui.footer.next.compact': 'next: /compact before long work',
   'tui.footer.next.review': 'next: review changes',
   'tui.footer.next.default': 'next: Shift-Tab toggles Ultrawork/off, or type normally',
@@ -144,7 +144,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.retry.none': '다시 보낼 메시지가 없습니다.',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
-  'tui.footer.next.login': '다음: /login 또는 /provider, 그리고 /model',
+  'tui.footer.next.login': '다음: /login으로 프로바이더 추가, 그리고 /model',
   'tui.footer.next.compact': '다음: 긴 작업 전 /compact',
   'tui.footer.next.review': '다음: 변경사항 검토',
   'tui.footer.next.default': '다음: Shift-Tab로 Ultrawork 켜기/끄기, 또는 그냥 입력',

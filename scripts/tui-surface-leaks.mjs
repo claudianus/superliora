@@ -112,11 +112,11 @@ export function shouldRequireModelSetupAction(output) {
 }
 
 export function hasLoggedOutSetupNextAction(output) {
-  return /\bnext:\s*\/login or \/provider,\s*then \/model\b/i.test(output);
+  return /\bnext:\s*\/login to add a provider,\s*then \/model\b/i.test(output);
 }
 
 export function hasStatusPanelSetupNextAction(output) {
-  return /\bState\b\s+Model needed\b[\s\S]*\bNext\b\s+Run \/login or \/provider first;\s*use \/model after sign-in\./i.test(
+  return /\bState\b\s+Model needed\b[\s\S]*\bNext\b\s+Run \/login to add a provider,\s*then \/model to pick one\./i.test(
     output,
   );
 }

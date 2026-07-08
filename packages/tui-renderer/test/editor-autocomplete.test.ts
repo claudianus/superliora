@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   RendererEditorAutocompleteController,
@@ -163,6 +163,66 @@ describe('RendererEditorAutocompleteController', () => {
         cursorLine: 0,
         cursorCol: 9,
       },
+    });
+  });
+
+  describe('debounce', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('coalesces rapid requests into a single provider call', async () => {
+      const provider = providerReturning([{ value: 'help', label: 'help' }]);
+      const getSuggestions = provider.getSuggestions as ReturnType<typeof vi.fn>;
+      const controller = new RendererEditorAutocompleteController({ debounceMs: 80 });
+      controller.setProvider(provider);
+      const source = new TestAutocompleteSource('/h');
+
+      // Simulate rapid typing: three requests arrive before the debounce
+      // window elapses.
+      void controller.request(source);
+      void controller.request(source);
+      void controller.request(source);
+
+      // Provider should not have been queried yet.
+      expect(getSuggestions).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(80);
+
+      expect(getSuggestions).toHaveBeenCalledTimes(1);
+      expect(controller.isOpen()).toBe(true);
+    });
+
+    it('queries immediately when force is true', async () => {
+      const provider = providerReturning([{ value: 'help', label: 'help' }]);
+      const getSuggestions = provider.getSuggestions as ReturnType<typeof vi.fn>;
+      const controller = new RendererEditorAutocompleteController({ debounceMs: 80 });
+      controller.setProvider(provider);
+      const source = new TestAutocompleteSource('/');
+
+      await controller.request(source, { force: true });
+
+      expect(getSuggestions).toHaveBeenCalledTimes(1);
+      expect(controller.isOpen()).toBe(true);
+    });
+
+    it('clears pending timers on close', async () => {
+      const provider = providerReturning([{ value: 'help', label: 'help' }]);
+      const getSuggestions = provider.getSuggestions as ReturnType<typeof vi.fn>;
+      const controller = new RendererEditorAutocompleteController({ debounceMs: 80 });
+      controller.setProvider(provider);
+
+      void controller.request(new TestAutocompleteSource('/'));
+      controller.close(false);
+
+      await vi.advanceTimersByTimeAsync(80);
+
+      expect(getSuggestions).not.toHaveBeenCalled();
+      expect(controller.isOpen()).toBe(false);
     });
   });
 });

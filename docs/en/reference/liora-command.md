@@ -300,7 +300,7 @@ liora vis --host 0.0.0.0 --port 8123 --no-open
 
 ### `liora provider`
 
-Manage providers in the shell — the non-interactive equivalent of `/provider` in the TUI. Suitable for scripted deployments, CI initialization, account-pool setup, and route diagnostics on a new machine.
+Manage providers in the shell — the non-interactive counterpart to `/login` in the TUI. Suitable for scripted deployments, CI initialization, account-pool setup, and route diagnostics on a new machine.
 
 ```sh
 liora provider <action> [options]

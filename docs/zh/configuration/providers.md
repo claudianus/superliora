@@ -19,24 +19,14 @@ SuperLiora CLI 支持同时接入多家 LLM 平台——用 SuperLiora 托管服
 
 **凭证优先级**：显式 provider 凭证字段 > `[providers.<name>.env]` 子表键 > 两者都缺时启动报错。凭证值可以是原始 key，也可以是 `{env:OPENAI_API_KEY}` 这类环境变量引用。CLI 不会静默回退读取 shell 环境变量；必须把引用写入配置，或通过 provider 命令添加。详见[配置覆盖：供应商凭证](./overrides.md#供应商凭证)。
 
-## `/provider` — 交互式供应商管理
+## 交互式添加供应商
 
-不想手动编辑 TOML？在 TUI 里输入 `/provider` 打开**供应商管理器**，可以以交互方式添加或删除供应商。
-
-管理器按来源把供应商显示为一行行条目。操作方式：
-
-- ↑/↓ 移动光标，←/→ 翻页
-- `d` 键删除当前供应商（有 `[y/N]` 确认）
-- 在 `[ Add New Platform ]` 行按 Enter 添加新供应商
-
-添加时有两条路径：
+不想手动编辑 TOML？在 TUI 里输入 `/login` 以交互方式添加供应商。`/login` 支持两条路径：
 
 - **Known third-party provider**：从 [models.dev](https://models.dev/) 拉取模型目录，选供应商 → 输入 API 密钥 → 选默认模型
 - **Custom registry (api.json)**：粘贴自定义 registry 地址和 Bearer token，CLI 自动创建 `providers` / `models` 条目。后续启动时，同一个 registry 地址下的供应商会一起刷新，因此上游新增、删除供应商以及模型元数据变化都会同步。
 
-::: warning
-通过 `/login` 登录的 SuperLiora OAuth 托管账号不会在 `/provider` 里显示，请用 `/login` 和 `/logout` 管理。
-:::
+登录后用 `/model` 在刚配置好的模型间切换。
 
 非交互环境下也可以用 shell 命令完成同样操作：[`liora provider`](../reference/liora-command.md#kimi-provider)。
 

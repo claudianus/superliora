@@ -1,9 +1,8 @@
 /**
  * `liora provider` sub-command — non-interactive provider management.
  *
- * Mirrors the TUI `/provider` flow (apps/liora/src/tui/commands/provider.ts)
- * for the custom-registry path so users can import an api.json document, drop
- * a provider, or inspect what is configured without launching the TUI.
+ * Covers the custom-registry path so users can import an api.json document,
+ * drop a provider, or inspect what is configured without launching the TUI.
  *
  * `add` writes the same `source = { kind: 'apiJson', url, apiKey }` blob the
  * TUI does; the next launch's `refreshAllProviderModels`

@@ -13,9 +13,10 @@ import {
   RENDERER_EDITOR_SHELL_MODE_LABEL,
   renderRendererEditorSurface,
   resolveRendererEditorSurfaceStyles,
-  type RendererEditorAutocompleteLineStyles,
   type AutocompleteProvider,
+  type NativeInputKeyEvent,
   type RendererEditorAutocompleteCompletion,
+  type RendererEditorAutocompleteLineStyles,
   type RendererEditorCursor,
   type RendererRegionLine,
 } from '#/tui/renderer';
@@ -25,9 +26,13 @@ import { printableChar } from '#/tui/utils/printable-key';
 
 import type { TUIEditor, TUIEditorInputMode } from './editor-contract';
 
+/** Debounce window for autocomplete provider queries after each keystroke. */
+const DEFAULT_AUTOCOMPLETE_DEBOUNCE_MS = 80;
+
 export interface NativeTUIEditorOptions {
   readonly requestRender?: () => void;
   readonly autocompleteMaxVisible?: number;
+  readonly autocompleteDebounceMs?: number;
 }
 
 export class NativeTUIEditor implements TUIEditor {
@@ -85,6 +90,7 @@ export class NativeTUIEditor implements TUIEditor {
     this.autocomplete = new RendererEditorAutocompleteController({
       requestRender: options.requestRender,
       maxVisible: options.autocompleteMaxVisible,
+      debounceMs: options.autocompleteDebounceMs ?? DEFAULT_AUTOCOMPLETE_DEBOUNCE_MS,
     });
   }
 
@@ -165,6 +171,15 @@ export class NativeTUIEditor implements TUIEditor {
 
   reopenAutocompleteAfterNativeInput(): void {
     void this.requestAutocomplete({ force: this.inputMode === 'bash' });
+  }
+
+  handleAutocompleteNavigation(event: NativeInputKeyEvent): boolean {
+    if (!this.autocomplete.isOpen()) return false;
+    if (event.eventType === 'release') return false;
+    const result = this.autocomplete.handleNativeInput(event, this);
+    if (!result.handled) return false;
+    if (result.completion !== undefined) this.applyAutocompleteCompletion(result.completion);
+    return true;
   }
 
   invalidate(): void {}

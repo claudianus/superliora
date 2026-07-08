@@ -32,6 +32,13 @@ export interface RendererEditorAutocompleteOptions {
   readonly requestRender?: () => void;
   readonly maxVisible?: number;
   readonly lineStyles?: RendererEditorAutocompleteLineStyles;
+  /**
+   * Delay (ms) before the autocomplete provider is queried after the last text
+   * change. While the timer is pending, new requests reset it. `force: true`
+   * bypasses the delay and queries immediately. Defaults to 0 (no debounce),
+   * preserving the legacy synchronous behavior.
+   */
+  readonly debounceMs?: number;
 }
 
 export interface RendererEditorAutocompleteRequestOptions {
@@ -59,14 +66,17 @@ const DEFAULT_AUTOCOMPLETE_MAX_VISIBLE = 6;
 
 export class RendererEditorAutocompleteController {
   private readonly maxVisible: number;
+  private readonly debounceMs: number;
   private lineStyles: RendererEditorAutocompleteLineStyles;
   private provider: AutocompleteProvider | undefined;
   private abort: AbortController | undefined;
   private requestId = 0;
   private state: RendererEditorAutocompleteState | undefined;
+  private debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: RendererEditorAutocompleteOptions = {}) {
     this.maxVisible = normalizeAutocompleteMaxVisible(options.maxVisible);
+    this.debounceMs = normalizeAutocompleteDebounceMs(options.debounceMs);
     this.lineStyles = options.lineStyles ?? {};
   }
 
@@ -98,6 +108,28 @@ export class RendererEditorAutocompleteController {
       return;
     }
 
+    // Debounce non-forced requests so that rapid typing (notably IME
+    // composition languages like Korean) does not spawn a provider query —
+    // and its potential disk I/O / fd process — for every keystroke.
+    if (this.debounceMs > 0 && options.force !== true) {
+      this.clearDebounceTimer();
+      return new Promise<void>((resolve) => {
+        this.debounceTimer = setTimeout(() => {
+          this.debounceTimer = undefined;
+          this.executeRequest(source, provider, options).finally(resolve);
+        }, this.debounceMs);
+      });
+    }
+
+    this.clearDebounceTimer();
+    return this.executeRequest(source, provider, options);
+  }
+
+  private async executeRequest(
+    source: RendererEditorAutocompleteSource,
+    provider: AutocompleteProvider,
+    options: RendererEditorAutocompleteRequestOptions,
+  ): Promise<void> {
     this.abort?.abort();
     const requestId = ++this.requestId;
     const abort = new AbortController();
@@ -225,13 +257,20 @@ export class RendererEditorAutocompleteController {
   }
 
   close(requestRender = false): boolean {
-    if (this.state === undefined && this.abort === undefined) return false;
+    const hadState = this.state !== undefined || this.abort !== undefined;
+    this.clearDebounceTimer();
     this.abort?.abort();
     this.abort = undefined;
     this.requestId++;
     this.state = undefined;
     if (requestRender) this.options.requestRender?.();
-    return true;
+    return hadState;
+  }
+
+  private clearDebounceTimer(): void {
+    if (this.debounceTimer === undefined) return;
+    clearTimeout(this.debounceTimer);
+    this.debounceTimer = undefined;
   }
 
   overlayLines(
@@ -282,6 +321,11 @@ function normalizeAutocompleteMaxVisible(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value) || value <= 0) {
     return DEFAULT_AUTOCOMPLETE_MAX_VISIBLE;
   }
+  return Math.floor(value);
+}
+
+function normalizeAutocompleteDebounceMs(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return 0;
   return Math.floor(value);
 }
 

@@ -46,7 +46,6 @@ import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
 import { handlePreflightCommand } from './preflight';
 import { applyPremiumQuality, handlePremiumQualityCommand } from './premium';
-import { handleProviderCommand } from './provider';
 import {
   handleRendererCommand,
   type RendererDiagnosticsOverlayCommand,
@@ -327,9 +326,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'thinking':
       await handleThinkingCommand(host, args);
-      return;
-    case 'provider':
-      await handleProviderCommand(host);
       return;
     case 'permission':
       showPermissionPicker(host);

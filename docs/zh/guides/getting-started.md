@@ -96,7 +96,7 @@ liora -c
 需要退出登录时，输入 `/logout` 清除当前凭证。
 
 ::: tip 使用其他 AI 供应商
-如果你想接入 Anthropic、OpenAI、Google 等其他供应商，可以在 TUI 中打开 `/provider`，也可以在 shell 中使用 `liora provider catalog add` / `liora provider custom add`。对于有多个账号或 API key 的团队，`liora provider key add`、`liora provider oauth add` 和 `liora provider route auto` 可以创建 quota-aware fallback route，且不会暴露 secret。详见[平台与模型](../configuration/providers.md)。
+如果你想接入 Anthropic、OpenAI、Google 等其他供应商，可以在 TUI 中使用 `/login`，也可以在 shell 中使用 `liora provider catalog add` / `liora provider custom add`。对于有多个账号或 API key 的团队，`liora provider key add`、`liora provider oauth add` 和 `liora provider route auto` 可以创建 quota-aware fallback route，且不会暴露 secret。详见[平台与模型](../configuration/providers.md)。
 :::
 
 ## 第一个对话

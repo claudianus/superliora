@@ -1672,7 +1672,7 @@ command = "vim"
 
     expect(session.prompt).not.toHaveBeenCalled();
     expect(driver.state.transcriptContainer.render(120).join('\n')).toContain(
-      'Model not set. Run /login or /provider first; use /model after sign-in.',
+      'Model not set. Run /login to add a provider, then /model to pick one.',
     );
     expect(driver.state.transcriptContainer.render(120).join('\n')).not.toContain('LLM not set');
   });
@@ -2328,7 +2328,7 @@ command = "vim"
     expect(session.startBtw).not.toHaveBeenCalled();
     expect(driver.state.btwPanelContainer.children).toHaveLength(0);
     expect(stripSgr(renderTranscript(driver))).toContain(
-      'Model not set. Run /login or /provider first; use /model after sign-in.',
+      'Model not set. Run /login to add a provider, then /model to pick one.',
     );
     expect(stripSgr(renderTranscript(driver))).not.toContain('LLM not set');
 
@@ -2336,7 +2336,7 @@ command = "vim"
 
     expect(session.startBtw).not.toHaveBeenCalled();
     expect(stripSgr(renderTranscript(driver))).toContain(
-      'Model not set. Run /login or /provider first; use /model after sign-in.',
+      'Model not set. Run /login to add a provider, then /model to pick one.',
     );
     expect(stripSgr(renderTranscript(driver))).not.toContain('LLM not set');
   });
@@ -2555,7 +2555,7 @@ command = "vim"
 
     expect(session.init).not.toHaveBeenCalled();
     expect(driver.state.transcriptContainer.render(120).join('\n')).toContain(
-      'Model not set. Run /login or /provider first; use /model after sign-in.',
+      'Model not set. Run /login to add a provider, then /model to pick one.',
     );
     expect(driver.state.transcriptContainer.render(120).join('\n')).not.toContain('LLM not set');
   });
