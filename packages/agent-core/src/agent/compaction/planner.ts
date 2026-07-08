@@ -48,6 +48,7 @@ export interface CompactionRawRef {
   readonly tokens: number;
   readonly toolCallIds?: readonly string[];
   readonly toolNames?: readonly string[];
+  readonly archiveId?: string;
 }
 
 export interface CompactionPlan {

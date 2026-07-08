@@ -37,6 +37,8 @@ import {
   resolveCompletionBudget,
 } from '../../utils/completion-budget';
 import compactionInstructionTemplate from './compaction-instruction.md?raw';
+import { archiveContent } from '../../tools/builtin/context/context-archive';
+import { renderMessagesToText } from './render-messages';
 import { renderTodoList, type TodoItem } from '../../tools/builtin/state/todo-list';
 import type {
   CompactionBeginData,
@@ -58,6 +60,7 @@ import {
 } from './strategy';
 import {
   CompactionPlanner,
+  groupMessages,
   splitMessagesIntoTokenBlocks,
   type CompactionPlan,
 } from './planner';
@@ -751,6 +754,14 @@ export class FullCompaction {
 
       plan = this.planner.plan(originalHistory, compactedCount);
 
+      // Archive compacted tool-exchange groups so their original content stays
+      // recoverable via liora-expand after the prefix is summarized away.
+      const { rawRefs: archivedRawRefs, guidance: archiveGuidance } =
+        this.archiveCompactedToolExchanges(originalHistory, plan);
+      if (archivedRawRefs !== plan.rawRefs) {
+        plan = { ...plan, rawRefs: archivedRawRefs as typeof plan.rawRefs };
+      }
+
       const initialQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
       let quality: CompactionQualityResult = initialQuality;
       if (initialQuality.critical.length > 0 && !usedEmergencyBackstop) {
@@ -848,6 +859,9 @@ export class FullCompaction {
       }
 
       summary = this.renderStructuredV2Summary(summary, plan);
+      if (archiveGuidance.length > 0) {
+        summary = `${summary.trimEnd()}${archiveGuidance}`;
+      }
       const contextSummary = buildCompactionSummaryText(summary);
       const summaryTokens = estimateTokens(contextSummary);
       const retained = this.agent.context.history.slice(compactedCount);
@@ -1458,6 +1472,75 @@ export class FullCompaction {
       });
     }
     return saved;
+  }
+
+  /**
+   * Archive compacted tool-exchange groups so the model can recover their
+   * original content via `liora-expand` after compaction. Returns rawRefs with
+   * the resolved archive ids plus a short guidance section for the summary.
+   *
+   * Only tool_exchange groups are archived: they carry the command/output
+   * detail the model most often needs to re-check. Plain user or assistant
+   * text is summarized in place and is not worth the archive cost.
+   *
+   * Skipped during record replay (`records.restoring`) — on resume the archive
+   * store is already populated, so re-archiving would both duplicate work and
+   * write into the records stream while it is being replayed.
+   */
+  private archiveCompactedToolExchanges(
+    messages: readonly Message[],
+    plan: CompactionPlan,
+  ): { rawRefs: readonly CompactionResultRawRef[]; guidance: string } {
+    if (this.agent.records.restoring !== null) {
+      return { rawRefs: plan.rawRefs, guidance: '' };
+    }
+    const compactedToolGroups = groupMessages(messages).filter(
+      (group) => group.kind === 'tool_exchange' && group.end < plan.compactedCount,
+    );
+    if (compactedToolGroups.length === 0) {
+      return { rawRefs: plan.rawRefs, guidance: '' };
+    }
+
+    const store = this.agent.tools.getStore();
+    const archiveIds: string[] = [];
+    const refByStart = new Map(plan.rawRefs.map((ref) => [ref.messageStart, ref]));
+    for (const group of compactedToolGroups) {
+      const rendered = renderMessagesToText(group.messages);
+      if (rendered.trim().length === 0) continue;
+      const labelParts = [
+        'compaction',
+        ...(group.toolNames.length > 0 ? [group.toolNames.join(',')] : []),
+      ];
+      const archived = archiveContent({
+        store,
+        content: rendered,
+        label: labelParts.join(':'),
+      });
+      archiveIds.push(archived.id);
+      const existing = refByStart.get(group.start);
+      if (existing !== undefined) {
+        refByStart.set(group.start, { ...existing, archiveId: archived.id });
+      } else {
+        refByStart.set(group.start, {
+          kind: group.kind,
+          messageStart: group.start,
+          messageEnd: group.end,
+          tokens: group.tokens,
+          toolCallIds: group.toolCallIds,
+          toolNames: group.toolNames,
+          archiveId: archived.id,
+        });
+      }
+    }
+
+    const rawRefs = plan.rawRefs.map((ref) => refByStart.get(ref.messageStart) ?? ref);
+    const guidance =
+      archiveIds.length === 0
+        ? ''
+        : `\n\n<compaction-archives>Tool exchanges compacted above were archived. ` +
+          `Use LioraExpand(id=...) to recover a group's original content when the summary is insufficient. ` +
+          `archive_ids="${archiveIds.join(',')}"</compaction-archives>`;
+    return { rawRefs, guidance };
   }
 
   private postProcessSummary(summary: string): string {
