@@ -21,6 +21,15 @@ export const COMPACTION_SUMMARY_PREFIX = summaryPrefixTemplate.trimEnd();
 export const COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000;
 
 /**
+ * Fraction of the model window that the kept-user budget is capped at on small
+ * context windows. Kept-user messages are verbatim, so an oversized budget
+ * pushes the post-compaction context back toward the auto-compaction trigger
+ * (PROBE #3) and can prevent convergence below it. 0.15 keeps the cap well
+ * inside the 80% soft trigger even on a 64K window (9.6K vs the old 32K).
+ */
+export const COMPACT_USER_MESSAGE_WINDOW_RATIO = 0.15;
+
+/**
  * Scale the kept-user budget down on small context windows so post-compaction
  * context stays below the auto-compaction trigger.
  */
@@ -28,7 +37,10 @@ export function resolveCompactionUserMessageBudget(maxContextTokens?: number): n
   if (maxContextTokens === undefined || maxContextTokens <= 0) {
     return COMPACT_USER_MESSAGE_MAX_TOKENS;
   }
-  return Math.min(COMPACT_USER_MESSAGE_MAX_TOKENS, Math.floor(maxContextTokens * 0.5));
+  return Math.min(
+    COMPACT_USER_MESSAGE_MAX_TOKENS,
+    Math.floor(maxContextTokens * COMPACT_USER_MESSAGE_WINDOW_RATIO),
+  );
 }
 /**
  * Of `COMPACT_USER_MESSAGE_MAX_TOKENS`, the slice reserved for the OLDEST user
