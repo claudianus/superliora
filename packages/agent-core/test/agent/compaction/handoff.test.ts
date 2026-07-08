@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   COMPACT_USER_MESSAGE_HEAD_TOKENS,
   COMPACT_USER_MESSAGE_MAX_TOKENS,
+  COMPACT_USER_MESSAGE_WINDOW_RATIO,
   COMPACTION_SUMMARY_PREFIX,
   buildCompactionElisionText,
   buildCompactionSummaryText,
@@ -11,6 +12,7 @@ import {
   compactionUserMessageDisposition,
   isCompactionSummaryMessage,
   isRealUserInput,
+  resolveCompactionUserMessageBudget,
   selectCompactionUserMessages,
   selectRecentUserMessages,
   type CompactionUserDisposition,
@@ -362,5 +364,26 @@ describe('buildCompactionSummaryText', () => {
 
   it('falls back when the summary is empty', () => {
     expect(buildCompactionSummaryText('   ')).toBe(`${COMPACTION_SUMMARY_PREFIX}\n(no summary available)`);
+  });
+});
+
+describe('resolveCompactionUserMessageBudget', () => {
+  it('returns the full default on an unknown window', () => {
+    expect(resolveCompactionUserMessageBudget(undefined)).toBe(COMPACT_USER_MESSAGE_MAX_TOKENS);
+    expect(resolveCompactionUserMessageBudget(0)).toBe(COMPACT_USER_MESSAGE_MAX_TOKENS);
+  });
+
+  it('keeps the default when the window is large enough', () => {
+    // 256K window: 0.15 * 256_000 = 38_400 > 20_000, so the cap wins.
+    expect(resolveCompactionUserMessageBudget(256_000)).toBe(COMPACT_USER_MESSAGE_MAX_TOKENS);
+  });
+
+  it('scales the budget down on small windows so post-compaction context converges below the trigger', () => {
+    // 64K window: 0.15 * 64_000 = 9_600 — well inside the 80% soft trigger,
+    // unlike the old 0.5 ratio that kept 32K (50% of a 64K window).
+    expect(resolveCompactionUserMessageBudget(64_000)).toBe(
+      Math.floor(64_000 * COMPACT_USER_MESSAGE_WINDOW_RATIO),
+    );
+    expect(resolveCompactionUserMessageBudget(64_000)).toBeLessThan(COMPACT_USER_MESSAGE_MAX_TOKENS);
   });
 });
