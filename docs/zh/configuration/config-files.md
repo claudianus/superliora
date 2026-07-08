@@ -160,7 +160,12 @@ max_context_size = 1047576
 | --- | --- | --- | --- |
 | `max_steps_per_turn` | `integer` | — | 单轮最大步数；不设或设为 `0` 则无上限 |
 | `max_retries_per_step` | `integer` | `3` | 单步失败后的最大重试次数 |
-| `reserved_context_size` | `integer` | — | 预留给模型输出的 token 数；上下文窗口剩余量低于此值时触发自动压缩 |
+| `reserved_context_size` | `integer` | `50000` | 预留给模型输出的 token 数；上下文窗口剩余量低于此值时触发自动压缩 |
+| `compaction_trigger_ratio` | `number` | `0.8` | 上下文窗口占比达到此值时开始自动压缩（范围 `0.5`–`0.99`） |
+| `compaction_block_ratio` | `number` | `0.92` | 占比达到此值时压缩变为强制执行，当前轮会阻塞直到压缩完成（范围 `0.5`–`0.99`） |
+| `compaction_trigger_tokens` | `integer` | `200000` | 触发压缩的绝对 token 阈值，仅在大窗口（≥ 256K）上生效 |
+| `compaction_max_recent_messages` | `integer` | `4` | 压缩后逐字保留的最近消息数上限 |
+| `compaction_model` | `string` | — | 用于压缩摘要的模型别名；设为在 `[models]` 中注册的更便宜或更快的模型可降低压缩成本，不设则使用主对话模型 |
 
 ## `background`
 

@@ -160,7 +160,12 @@ You can also switch models temporarily without touching the config file — by s
 | --- | --- | --- | --- |
 | `max_steps_per_turn` | `integer` | — | Maximum steps per turn; unset or `0` means unlimited |
 | `max_retries_per_step` | `integer` | `3` | Maximum retries after a step failure |
-| `reserved_context_size` | `integer` | — | Number of tokens reserved for model output; automatic compaction is triggered when the remaining context window falls below this value |
+| `reserved_context_size` | `integer` | `50000` | Tokens kept free for model output; automatic compaction is triggered when the remaining context window falls below this value |
+| `compaction_trigger_ratio` | `number` | `0.8` | Fraction of the context window at which automatic compaction begins (range `0.5`–`0.99`) |
+| `compaction_block_ratio` | `number` | `0.92` | Fraction of the context window at which compaction becomes mandatory and the turn blocks until it finishes (range `0.5`–`0.99`) |
+| `compaction_trigger_tokens` | `integer` | `200000` | Absolute token threshold that triggers compaction, only honored on large windows (≥ 256K) |
+| `compaction_max_recent_messages` | `integer` | `4` | Maximum number of recent messages preserved verbatim after compaction |
+| `compaction_model` | `string` | — | Model alias used for compaction summarization, set to a cheaper or faster model registered under `[models]` to lower compaction cost; unset uses the main conversation model |
 
 ## `background`
 
