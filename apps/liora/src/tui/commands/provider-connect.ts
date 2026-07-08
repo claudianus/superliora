@@ -14,6 +14,7 @@ import {
   DEFAULT_CATALOG_URL,
   fetchCatalog,
   inferWireType,
+  log,
   type Catalog,
 } from '@superliora/sdk';
 import {
@@ -361,6 +362,12 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
     });
     spinner = undefined;
     if (cancelled) return;
+    log.warn('login failed', {
+      providerName: DEFAULT_OAUTH_PROVIDER_NAME,
+      alreadyLoggedIn,
+      sessionId: host.session?.id,
+      error,
+    });
     const message = formatErrorMessage(error);
     host.showError(ttui('tui.provider.loginFailed', { message }));
   } finally {

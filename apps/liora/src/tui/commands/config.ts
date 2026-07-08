@@ -822,7 +822,7 @@ function tuiConfigFromHost(
     readonly state: {
       readonly appState: Pick<
         SlashCommandHost['state']['appState'],
-        'theme' | 'editorCommand' | 'notifications' | 'upgrade'
+        'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst'
       > & { readonly appearance?: AppearancePreferences };
     };
   },
@@ -830,6 +830,7 @@ function tuiConfigFromHost(
 ): TuiConfig {
   return {
     theme: host.state.appState.theme,
+    disablePasteBurst: host.state.appState.disablePasteBurst ?? false,
     editorCommand: host.state.appState.editorCommand,
     notifications: host.state.appState.notifications,
     upgrade: host.state.appState.upgrade,
