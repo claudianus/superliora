@@ -428,8 +428,26 @@ export class Session {
       parseEnv: parseBooleanEnv,
     });
     if (keepAliveOnExit) return;
+    // Include agents that were never lazily resumed — their entry is still a
+    // pending Promise. Resolve each (bounded by a short timeout so a stuck
+    // resume can't hang shutdown) so detached background tasks they hold are
+    // stopped too, instead of leaking past session close.
+    const entries = Array.from(this.agents.values());
+    const resolved = await Promise.all(
+      entries.map(async (entry) => {
+        if (entry instanceof Agent) return entry;
+        try {
+          return await waitForSettlementOrTimeout(entry, 2_000)
+            .then((r) => r.agent)
+            .catch(() => undefined);
+        } catch {
+          return undefined;
+        }
+      }),
+    );
     await Promise.all(
-      Array.from(this.readyAgents(), async (agent) => {
+      resolved.map(async (agent) => {
+        if (agent === undefined) return;
         const activeTasks = agent.background.list(true);
         await Promise.all(
           activeTasks.map((task) =>
