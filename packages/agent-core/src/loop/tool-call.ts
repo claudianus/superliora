@@ -570,20 +570,23 @@ async function executeTool(
       });
     },
   });
-  return raceExecuteWithGraceTimeout(executePromise, signal, toolName);
+  return raceExecuteWithGraceTimeout(executePromise, signal, toolName, step.log);
 }
 
 async function raceExecuteWithGraceTimeout(
   executePromise: Promise<ExecutableToolResult>,
   signal: AbortSignal,
   toolName: string,
+  log?: Logger | undefined,
 ): Promise<ExecutableToolResult> {
   let graceTimer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
+  let graceFired = false;
 
   const graceSentinel: Promise<ExecutableToolResult> = new Promise((resolve) => {
     const armTimer = (): void => {
       graceTimer = setTimeout(() => {
+        graceFired = true;
         resolve({
           output: `Tool "${toolName}" aborted by grace timeout (${String(GRACE_TIMEOUT_MS)}ms)`,
           isError: true,
@@ -601,7 +604,26 @@ async function raceExecuteWithGraceTimeout(
   try {
     // Tools that ignore AbortSignal may never settle. After abort, the grace
     // branch lets the turn finish with a synthetic error result.
-    return await Promise.race([executePromise, graceSentinel]);
+    const result = await Promise.race([executePromise, graceSentinel]);
+    if (graceFired) {
+      // The real tool work is still running in `executePromise`; it ignored
+      // the abort signal within the grace window. Surface that so the leak is
+      // observable instead of silent, and attach a continuation so a late
+      // settlement is logged rather than becoming an unhandled rejection.
+      log?.warn('tool ignored abort signal; grace timeout fired while execution continues', {
+        toolName,
+        graceTimeoutMs: GRACE_TIMEOUT_MS,
+      });
+      executePromise.then(
+        () => {
+          log?.info('tool settled after grace timeout (work continued past abort)', { toolName });
+        },
+        (err) => {
+          log?.warn('tool rejected after grace timeout', { toolName, error: String(err) });
+        },
+      );
+    }
+    return result;
   } finally {
     if (graceTimer !== undefined) clearTimeout(graceTimer);
     if (onAbort !== undefined) {

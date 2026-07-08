@@ -59,7 +59,14 @@ export class ContextMemory {
   private tokenCountCoveredMessageCount = 0;
   private openSteps: Map<string, ContextMessage> = new Map();
   private pendingToolResultIds = new Set<string>();
-  private lateAcceptedToolCallIds = new Set<string>();
+  /**
+   * Tool-call ids whose results may still arrive after a compaction raced
+   * ahead of them. Maps each id to the `_history.length` at the time it was
+   * registered so {@link applyCompaction} can expire entries that belong to a
+   * prefix that has since been summarized away and can never produce a
+   * meaningful late result.
+   */
+  private lateAcceptedToolCallIds = new Map<string, number>();
   private deferredMessages: ContextMessage[] = [];
   private _lastAssistantAt: number | null = null;
   private lastProjectionRepairSignature: string | null = null;
@@ -371,10 +378,23 @@ export class ContextMemory {
       : [...keptMessages, summaryMessage, ...retainedSuffix];
     this.openSteps.clear();
     const previouslyPending = new Set(this.pendingToolResultIds);
+    const compactionHistoryLength = this._history.length;
     this.resyncPendingToolResultIdsFromHistory();
     for (const toolCallId of this.pendingToolResultIds) {
       if (previouslyPending.has(toolCallId)) {
-        this.lateAcceptedToolCallIds.add(toolCallId);
+        this.lateAcceptedToolCallIds.set(toolCallId, compactionHistoryLength);
+      }
+    }
+    // Expire late-accept ids registered before the prefix this compaction
+    // just summarized. A result for one of those ids can no longer attach to
+    // a visible tool-call message, so keeping it only risks accepting a
+    // genuinely stale result later. The newly-registered ids above (still in
+    // `pendingToolResultIds`) are preserved because their results can still
+    // land in the retained suffix.
+    const stillPending = this.pendingToolResultIds;
+    for (const [id, registeredAt] of this.lateAcceptedToolCallIds) {
+      if (registeredAt < compactionHistoryLength && !stillPending.has(id)) {
+        this.lateAcceptedToolCallIds.delete(id);
       }
     }
     this._tokenCount = estimateTokensForMessages(this._history);
@@ -556,8 +576,9 @@ export class ContextMemory {
    */
   prepareManualCompactionWithOpenToolExchange(): boolean {
     if (this.pendingToolResultIds.size === 0) return false;
+    const historyLength = this._history.length;
     for (const toolCallId of this.pendingToolResultIds) {
-      this.lateAcceptedToolCallIds.add(toolCallId);
+      this.lateAcceptedToolCallIds.set(toolCallId, historyLength);
     }
     return this.closePendingToolResults().length > 0;
   }
