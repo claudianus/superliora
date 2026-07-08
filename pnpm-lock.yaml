@@ -223,6 +223,10 @@ importers:
       '@superliora/sdk':
         specifier: workspace:^
         version: link:../node-sdk
+    devDependencies:
+      jimp:
+        specifier: ^1.6.1
+        version: 1.6.1
 
   packages/agent-core:
     dependencies:
@@ -536,6 +540,9 @@ importers:
       '@types/ws':
         specifier: ^8.18.0
         version: 8.18.1
+      jimp:
+        specifier: ^1.6.1
+        version: 1.6.1
 
   packages/server-e2e:
     dependencies:
