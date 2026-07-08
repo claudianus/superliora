@@ -176,7 +176,13 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
         if (this.flushPromise === promise) {
           this.flushPromise = undefined;
         }
+        // Only re-arm the background flush after a *successful* drain — a
+        // failed drain already re-queued its batch, and immediately retrying
+        // in the background would burn through the latch threshold on a
+        // single persistent outage. The next explicit append/flush call
+        // re-triggers the flush.
         if (
+          this.consecutiveFailures === 0 &&
           this.error === undefined &&
           (this.shouldClear || this.pendingRecords.length > 0)
         ) {

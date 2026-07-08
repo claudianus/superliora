@@ -40,6 +40,8 @@ import {
 interface UltraworkSetupState extends UltraworkSessionSnapshot {
   /** Prior `swarmModeEntry` so rollback can restore the TUI-only value. */
   readonly previousSwarmModeEntry: 'manual' | 'task' | undefined;
+  /** Prior `ultraworkMode` so rollback restores it instead of forcing off. */
+  readonly ultraworkModeWasEnabled: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ function captureTuiUltraworkSetup(host: SlashCommandHost): UltraworkSetupState {
       host.state.appState.premiumQualityMode ?? false,
     ),
     previousSwarmModeEntry: host.state.swarmModeEntry,
+    ultraworkModeWasEnabled: host.state.appState.ultraworkMode ?? false,
   };
 }
 
@@ -658,7 +661,7 @@ async function rollbackUltraworkSetup(
   await rollbackUltraworkSession(session, setup);
   host.setAppState({
     planMode: setup.planModeWasEnabled,
-    ultraworkMode: false,
+    ultraworkMode: setup.ultraworkModeWasEnabled,
     ultraworkPriorState: null,
     ...(setup.swarmEnabled ? { swarmMode: setup.swarmModeWasEnabled } : {}),
     ...(setup.premiumQualityChanged

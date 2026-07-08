@@ -616,21 +616,23 @@ describe('Session.metadata persistence', () => {
       rpc: createSessionRpc([]),
     });
 
-    session.metadata.title = 'atomic-title';
-    await session.writeMetadata();
+    try {
+      session.metadata.title = 'atomic-title';
+      await session.writeMetadata();
 
-    // After a successful write, state.json exists and parses.
-    const first = await session.readMetadata();
-    expect(first.title).toBe('atomic-title');
+      // After a successful write, state.json exists and parses.
+      const first = await session.readMetadata();
+      expect(first.title).toBe('atomic-title');
 
-    // Simulate a crash mid-write: truncate state.json. The prior good
-    // content was rotated to state.json.bak by writeMetadata.
-    await writeFile(join(sessionDir, 'state.json'), '{ "truncated', 'utf-8');
+      // Simulate a crash mid-write: truncate state.json. The prior good
+      // content was rotated to state.json.bak by writeMetadata.
+      await writeFile(join(sessionDir, 'state.json'), '{ "truncated', 'utf-8');
 
-    const recovered = await session.readMetadata();
-    expect(recovered.title).toBe('atomic-title');
-
-    await session.close();
+      const recovered = await session.readMetadata();
+      expect(recovered.title).toBe('atomic-title');
+    } finally {
+      await session.close();
+    }
   });
 
   it('starts with default metadata when both state.json and backup are unreadable', async () => {
@@ -647,12 +649,14 @@ describe('Session.metadata persistence', () => {
       rpc: createSessionRpc([]),
     });
 
-    const meta = await session.readMetadata();
-    // Falls back to the constructor default, not a throw.
-    expect(meta.title).toBe('New Session');
-    expect(meta.agents).toEqual({});
-
-    await session.close();
+    try {
+      const meta = await session.readMetadata();
+      // Falls back to the constructor default, not a throw.
+      expect(meta.title).toBe('New Session');
+      expect(meta.agents).toEqual({});
+    } finally {
+      await session.close();
+    }
   });
 
   it('returns default metadata on first run with no state.json (ENOENT)', async () => {
@@ -665,10 +669,12 @@ describe('Session.metadata persistence', () => {
       rpc: createSessionRpc([]),
     });
 
-    const meta = await session.readMetadata();
-    expect(meta.title).toBe('New Session');
-
-    await session.close();
+    try {
+      const meta = await session.readMetadata();
+      expect(meta.title).toBe('New Session');
+    } finally {
+      await session.close();
+    }
   });
 });
 
