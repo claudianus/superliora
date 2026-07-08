@@ -18,6 +18,13 @@ export const ErrorCode = {
   /** JSON 解析失败、字段类型错 */
   REQUEST_MALFORMED: 40002,
 
+  /** daemon token auth: the bearer token was missing on a protected route. */
+  DAEMON_AUTH_TOKEN_MISSING: 40101,
+  /** daemon token auth: the bearer token was rejected (wrong/revoked). */
+  DAEMON_AUTH_TOKEN_INVALID: 40102,
+  /** daemon token auth: the request origin is not in the allow-list. */
+  DAEMON_AUTH_ORIGIN_FORBIDDEN: 40103,
+
   /** daemon 没有任何 provider 配置 */
   AUTH_PROVISIONING_REQUIRED: 40110,
   /** provider 存在但 token / api_key 缺失 */
@@ -135,9 +142,6 @@ export const ErrorCode = {
 
 /**
  * Reserved (intentionally unallocated; do NOT reuse for new variants):
- *   - 40101 auth.invalid_token        (daemon's own token; future)
- *   - 40102 auth.missing_token        (daemon's own token; future)
- *   - 40103 auth.forbidden_origin     (daemon's own token; future)
  *   - 42901 rate.limited
  *   - 50002 protocol.version_mismatch
  */
@@ -149,6 +153,10 @@ export const ErrorCodeReason: Readonly<Record<ErrorCode, string>> = {
 
   [ErrorCode.VALIDATION_FAILED]: 'validation.failed',
   [ErrorCode.REQUEST_MALFORMED]: 'request.malformed',
+
+  [ErrorCode.DAEMON_AUTH_TOKEN_MISSING]: 'daemon_auth.token_missing',
+  [ErrorCode.DAEMON_AUTH_TOKEN_INVALID]: 'daemon_auth.token_invalid',
+  [ErrorCode.DAEMON_AUTH_ORIGIN_FORBIDDEN]: 'daemon_auth.origin_forbidden',
 
   [ErrorCode.AUTH_PROVISIONING_REQUIRED]: 'auth.provisioning_required',
   [ErrorCode.AUTH_TOKEN_MISSING]: 'auth.token_missing',
