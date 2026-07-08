@@ -246,6 +246,16 @@ export class AgentTestContext {
     this.agent.config.update({ modelAlias: provider.model });
   }
 
+  /**
+   * Override the `loopControl` block of the runtime config. Used to exercise
+   * compaction knobs such as `compactionModel` without spinning up a full
+   * config.toml. Mutates `kimiConfig` in place so the ProviderManager (which
+   * reads through `() => this.kimiConfig`) picks the change up live.
+   */
+  configureLoopControl(loopControl: LioraConfig['loopControl']): void {
+    this.kimiConfig = { ...this.kimiConfig, loopControl };
+  }
+
   newEvents(): ReturnType<typeof eventSnapshot> {
     const events = this.allEvents.slice(this.lastEventCount);
     this.lastEventCount = this.allEvents.length;
@@ -1001,6 +1011,8 @@ function createResumeNoSideEffectKaos(
     writeBytes: () => fail('writeBytes'),
     writeText: () => fail('writeText'),
     mkdir: () => fail('mkdir'),
+    unlink: () => fail('unlink'),
+    rename: () => fail('rename'),
     exec: () => fail('exec'),
     execWithEnv: () => fail('execWithEnv'),
   };

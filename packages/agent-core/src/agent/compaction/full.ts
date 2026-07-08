@@ -6,11 +6,13 @@ import {
 } from '#/errors';
 import {
   APIEmptyResponseError,
+  createProvider,
   inputTotal,
   isRetryableGenerateError,
   type ChatProvider,
   type GenerateResult,
   type Message,
+  type ModelCapability,
   type TokenUsage,
   APIContextOverflowError,
   APIStatusError,
@@ -1016,7 +1018,16 @@ export class FullCompaction {
   }
 
   private createCompactionProvider(usedContextTokens: number): ChatProvider {
-    const capability = this.agent.config.modelCapabilities;
+    // When a dedicated compaction model is configured, summarize with it
+    // instead of the (usually more expensive) main model. The alias is
+    // resolved through the same ModelProvider so auth/routing stays consistent.
+    const compactionModelAlias = this.agent.kimiConfig?.loopControl?.compactionModel;
+    const resolvedCompaction =
+      compactionModelAlias !== undefined
+        ? this.agent.modelProvider?.resolveProviderConfig(compactionModelAlias)
+        : undefined;
+    const capability: ModelCapability = resolvedCompaction?.modelCapabilities
+      ?? this.agent.config.modelCapabilities;
     const maxContextTokens = capability.max_context_tokens;
     const defaultCompactionCap =
       maxContextTokens > 0
@@ -1029,7 +1040,11 @@ export class FullCompaction {
     // Compaction must emit visible summary text. Thinking models can spend the
     // entire output budget on reasoning alone, which kosong surfaces as
     // APIEmptyResponseError — the root cause of compaction.failed in production.
-    const withoutThinking = this.agent.config.provider.withThinking('off');
+    const baseProvider =
+      resolvedCompaction !== undefined
+        ? createProvider(resolvedCompaction.provider)
+        : this.agent.config.provider;
+    const withoutThinking = baseProvider.withThinking('off');
     let provider = applyCompletionBudget({
       provider: withoutThinking,
       budget,

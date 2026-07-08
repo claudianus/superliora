@@ -150,6 +150,7 @@ export const LoopControlSchema = z.object({
   compactionBlockRatio: z.number().min(0.5).max(0.99).optional(),
   compactionTriggerTokens: z.number().int().min(1000).optional(),
   compactionMaxRecentMessages: z.number().int().min(1).optional(),
+  compactionModel: z.string().min(1).optional(),
 });
 
 export type LoopControl = z.infer<typeof LoopControlSchema>;
