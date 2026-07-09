@@ -267,7 +267,7 @@ Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You may ONLY write to the current plan file. All other file edits are BLOCKED. You may read only the current plan file, update TodoList for progress tracking, use SearchSkill/Skill for the no-AI-slop prose gate, and use NextPhase or ExitPlanMode when complete.
+You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading files (Read, Grep, Glob, WebSearch, FetchURL, etc.) is allowed for quick verification while writing — but stay focused on the plan file. Use TodoList for progress tracking, SearchSkill/Skill for the no-AI-slop prose gate, and NextPhase or ExitPlanMode when complete.
 
 Before writing plan prose that users will read, apply the no-AI-slop prose gate (light pass first; SearchSkill → Skill only if needed):
 ${NO_AI_SLOP_SKILL_ROUTING}
@@ -280,7 +280,7 @@ ExitPlanMode only after a complete Seed Spec. Write/Edit the plan file (Write if
   exit: `## Exit Phase
 Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver. Quick anti-slop light pass on user-visible plan text before ExitPlanMode; SearchSkill → Skill only if prose still reads generic.
 ${NO_AI_SLOP_SKILL_ROUTING}
-If ExitPlanMode reports missing sections, Read the current plan file if needed, correct only that plan file, and retry.`,
+If ExitPlanMode reports missing sections, Read the plan file if needed, correct only that plan file, and retry. Reading other files for quick verification is allowed but stay focused on finalizing the plan.`,
 };
 
 const INTERVIEW_SPARSE_ESSENTIALS = [
