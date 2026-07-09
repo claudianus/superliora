@@ -240,6 +240,34 @@ describe('TodoPanelComponent', () => {
     expect(strip(panel.render(80).join('\n'))).toMatch(/\+2 more/);
   });
 
+  it('shows a stale warning after 3+ tool calls without a board update', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'Investigate parser', status: 'done' },
+      { title: 'Add tests', status: 'in_progress' },
+      { title: 'Open PR', status: 'pending' },
+    ]);
+    panel.bumpActivity();
+    panel.bumpActivity();
+    const fresh = strip(panel.render(80).join('\n'));
+    expect(fresh).not.toMatch(/stale/);
+
+    panel.bumpActivity();
+    const stale = strip(panel.render(80).join('\n'));
+    expect(stale).toMatch(/stale · 3 calls since update/);
+  });
+
+  it('clears stale counter when the board is updated', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([{ title: 'a', status: 'pending' }]);
+    panel.bumpActivity();
+    panel.bumpActivity();
+    panel.bumpActivity();
+    panel.setTodos([{ title: 'a', status: 'in_progress' }]);
+    const out = strip(panel.render(80).join('\n'));
+    expect(out).not.toMatch(/stale/);
+  });
+
   it('setTodos() keeps the expanded state across list updates', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos(many(7));
@@ -265,6 +293,21 @@ describe('TodoPanelComponent', () => {
     panel.clear();
     panel.setTodos(many(7));
     expect(strip(panel.render(80).join('\n'))).toMatch(/\+2 more/);
+  });
+
+  it('wraps long todo titles across multiple lines on narrow terminals', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      {
+        title: 'Investigate the parser regression in auth module',
+        status: 'in_progress',
+      },
+    ]);
+    const out = strip(panel.render(40).join('\n'));
+    expect(out).toMatch(/Investigate the/);
+    expect(out).toMatch(/parser regression/);
+    expect(out).toMatch(/in auth module/);
+    expect(out).not.toMatch(/…/);
   });
 });
 

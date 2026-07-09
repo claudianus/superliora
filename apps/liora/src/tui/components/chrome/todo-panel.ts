@@ -13,6 +13,7 @@ import {
   renderRendererDividerRow,
   truncateToWidth,
   visibleWidth,
+  wrapTextWithAnsi,
   type Component,
 } from '#/tui/renderer';
 import chalk from 'chalk';
@@ -40,6 +41,7 @@ const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
 const BOARD_SEPARATOR = ' │ ';
 const CHANGE_FLASH_MS = 18_000;
+const STALE_TOOL_CALLS = 3;
 const EMPTY_HIGHLIGHTS: ReadonlyMap<string, TodoChangeKind> = new Map();
 
 export interface VisibleTodos {
@@ -145,6 +147,7 @@ export class TodoPanelComponent implements Component {
   private expanded = false;
   private recentChanges = new Map<string, TodoChangeKind>();
   private changeSummary: TodoPanelChangeSummary | undefined;
+  private callsSinceUpdate = 0;
 
   setTodos(todos: readonly TodoItem[]): void {
     const next = todos.map((t) => ({ title: t.title, status: t.status }));
@@ -152,10 +155,19 @@ export class TodoPanelComponent implements Component {
     this.todos = next;
     this.recentChanges = diff.highlights;
     this.changeSummary = diff.summary;
+    this.callsSinceUpdate = 0;
   }
 
   getTodos(): readonly TodoItem[] {
     return this.todos;
+  }
+
+  bumpActivity(): void {
+    this.callsSinceUpdate += 1;
+  }
+
+  resetActivity(): void {
+    this.callsSinceUpdate = 0;
   }
 
   clear(): void {
@@ -163,6 +175,7 @@ export class TodoPanelComponent implements Component {
     this.expanded = false;
     this.recentChanges = new Map();
     this.changeSummary = undefined;
+    this.callsSinceUpdate = 0;
   }
 
   isEmpty(): boolean {
@@ -209,7 +222,9 @@ export class TodoPanelComponent implements Component {
   ): string[] {
     const c = currentTheme.palette;
     const contentWidth = this.interiorWidth(width, profile);
-    const lines: string[] = [renderBoardMeta(this.todos, c, this.currentChangeSummary())];
+    const lines: string[] = [
+      renderBoardMeta(this.todos, c, this.currentChangeSummary(), this.callsSinceUpdate),
+    ];
 
     if (this.expanded) {
       lines.push(...renderTodos(this.todos, c, contentWidth, this.currentHighlights(), profile));
@@ -262,11 +277,11 @@ function renderTodos(
   profile: ReturnType<typeof resolveResponsiveLayout> = 'standard',
 ): string[] {
   if (profile === 'tiny') {
-    return renderLanes(todos, colors, highlights);
+    return renderLanes(todos, colors, width, highlights);
   }
   return width >= BOARD_MIN_WIDTH
     ? renderBoard(todos, colors, width, highlights)
-    : renderLanes(todos, colors, highlights);
+    : renderLanes(todos, colors, width, highlights);
 }
 
 function renderBoard(
@@ -322,6 +337,7 @@ function renderBoard(
 function renderLanes(
   todos: readonly TodoItem[],
   colors: ColorPalette,
+  width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
 ): string[] {
   const lines: string[] = [];
@@ -330,7 +346,7 @@ function renderLanes(
     if (laneTodos.length === 0) continue;
     lines.push(chalk.hex(colors.textDim)(`  ${lane.label}`));
     for (const todo of laneTodos) {
-      lines.push(renderRow(todo, colors, highlights.get(todo.title)));
+      lines.push(...renderWrappedCell(todo, colors, highlights.get(todo.title), width));
     }
   }
   return lines;
@@ -340,6 +356,7 @@ function renderBoardMeta(
   todos: readonly TodoItem[],
   colors: ColorPalette,
   summary: TodoPanelChangeSummary | undefined,
+  callsSinceUpdate: number,
 ): string {
   const counts = countTodos(todos);
   const wipText = `wip ${String(counts.in_progress)}/1`;
@@ -355,6 +372,11 @@ function renderBoardMeta(
   const flow = summary === undefined ? undefined : formatChangeSummary(summary);
   if (flow !== undefined) {
     parts.unshift(chalk.hex(colors.primary)(`${renderShimmerPrefix()}flow ${flow}`));
+  }
+  if (callsSinceUpdate >= STALE_TOOL_CALLS) {
+    parts.push(
+      chalk.hex(colors.warning).bold(`stale · ${String(callsSinceUpdate)} calls since update`),
+    );
   }
   return `  ${parts.join(chalk.hex(colors.textMuted)(' · '))}`;
 }
@@ -376,14 +398,6 @@ function renderLaneHeader(
   }
 }
 
-function renderRow(
-  todo: TodoItem,
-  colors: ColorPalette,
-  change: TodoChangeKind | undefined,
-): string {
-  return `  ${renderCell(todo, colors, change)}`;
-}
-
 function renderCell(
   todo: TodoItem,
   colors: ColorPalette,
@@ -393,6 +407,31 @@ function renderCell(
   const marker = statusMarker(todo.status, colors);
   const titleStyled = styleTitle(todo.title, todo.status, colors);
   return `${badge}${marker} ${titleStyled}`;
+}
+
+function renderWrappedCell(
+  todo: TodoItem,
+  colors: ColorPalette,
+  change: TodoChangeKind | undefined,
+  width: number,
+): string[] {
+  const badge = changeBadge(change, colors);
+  const marker = statusMarker(todo.status, colors);
+  const titleStyled = styleTitle(todo.title, todo.status, colors);
+  const firstPrefix = `${badge}${marker} `;
+  const prefixWidth = visibleWidth(firstPrefix);
+  const availableWidth = Math.max(
+    1,
+    width - visibleWidth(BOARD_INDENT) - prefixWidth,
+  );
+  const titleLines =
+    visibleWidth(titleStyled) <= availableWidth
+      ? [titleStyled]
+      : wrapTextWithAnsi(titleStyled, availableWidth);
+  return titleLines.map((line, index) => {
+    const prefix = index === 0 ? firstPrefix : ' '.repeat(prefixWidth);
+    return `${BOARD_INDENT}${prefix}${line}`;
+  });
 }
 
 function padCell(content: string, width: number): string {

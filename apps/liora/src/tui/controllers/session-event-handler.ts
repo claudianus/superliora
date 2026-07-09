@@ -674,7 +674,7 @@ export class SessionEventHandler {
   }
 
   private handleToolCall(event: ToolCallStartedEvent): void {
-    const { streamingUI } = this.host;
+    const { state, streamingUI } = this.host;
     streamingUI.flushNow();
     const { turnId, step } = streamingUI.getTurnContext();
     const toolCall: ToolCallBlockData = {
@@ -687,6 +687,10 @@ export class SessionEventHandler {
       turnId,
     };
     streamingUI.registerToolCall(toolCall);
+    if (event.name !== 'TodoList') {
+      state.todoPanel.bumpActivity();
+      requestTUILayoutRender(state);
+    }
     if (isSwarmProgressToolName(event.name)) {
       this.subAgentEventHandler.handleAgentSwarmToolCallStarted(
         event.toolCallId,
