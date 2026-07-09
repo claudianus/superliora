@@ -177,6 +177,16 @@ export class SubAgentEventHandler {
     this.host.updateActivityPane();
   }
 
+  applyRoutingDecisionToSwarmProgress(routing: {
+    readonly decision: string;
+    readonly intensity: string;
+    readonly estimatedExperts: number;
+  }): void {
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applyRoutingDecision(routing);
+    }
+  }
+
   hasAgentSwarmProgress(toolCallId: string): boolean {
     return this.agentSwarmProgress.has(toolCallId);
   }

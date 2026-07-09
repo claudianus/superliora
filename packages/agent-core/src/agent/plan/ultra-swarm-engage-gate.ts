@@ -1,8 +1,10 @@
 import type { Agent } from '..';
+import type { SwarmRoutingResult } from './ultra-swarm-routing';
 
 export interface UltraSwarmEngageGateData {
   readonly planPath?: string;
   readonly reason?: string;
+  readonly routing?: SwarmRoutingResult;
 }
 
 export class UltraSwarmEngageGate {
@@ -24,6 +26,19 @@ export class UltraSwarmEngageGate {
       ...input,
     });
     this.restoreEngage(input);
+    if (input.routing !== undefined) {
+      const run = this.agent.ultrawork.getRun();
+      if (run !== null) {
+        this.agent.emitEvent({
+          type: 'ultrawork.routing.decided',
+          runId: run.id,
+          decision: input.routing.decision,
+          intensity: input.routing.intensity,
+          estimatedExperts: input.routing.estimatedExperts,
+          rationale: input.routing.rationale,
+        });
+      }
+    }
   }
 
   clear(reason?: string): void {

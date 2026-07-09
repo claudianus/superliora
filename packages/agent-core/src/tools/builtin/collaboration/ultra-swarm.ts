@@ -236,7 +236,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
   ): Promise<string> {
     const profileBaseName = normalizeOptionalString(args.subagent_type) ?? 'coder';
     const autoSelect = args.auto_select !== false;
-    const maxExperts = args.max_experts ?? defaultMaxExperts(args.intensity);
+    const engageGate = this.agent.ultraSwarmEngageGate;
+    const routing = typeof engageGate?.data === 'function' ? engageGate.data()?.routing : undefined;
+    const maxExperts = resolveMaxExperts(args.intensity, routing, args.max_experts);
     const runId = normalizeOptionalString(args.run_id) ?? `ultra-swarm-${randomUUID()}`;
     const workNodeContext = this.resolveWorkNodeContext(args);
     const requestedExperts = uniqueStrings([
@@ -1196,8 +1198,16 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function defaultMaxExperts(intensity: UltraSwarmToolInput['intensity']): number {
-  if (intensity === 'max') return MAX_ULTRA_SWARM_SUBAGENTS;
+export function resolveMaxExperts(
+  toolIntensity: UltraSwarmToolInput['intensity'] | undefined,
+  routing: { readonly estimatedExperts: number } | undefined,
+  explicitMax: number | undefined,
+): number {
+  if (explicitMax !== undefined) return Math.min(explicitMax, MAX_ULTRA_SWARM_SUBAGENTS);
+  if (toolIntensity === 'max') return MAX_ULTRA_SWARM_SUBAGENTS;
+  if (toolIntensity === undefined && routing !== undefined) {
+    return Math.max(1, Math.min(routing.estimatedExperts, MAX_ULTRA_SWARM_SUBAGENTS));
+  }
   return 24;
 }
 

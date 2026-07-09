@@ -273,8 +273,8 @@ Before writing plan prose that users will read, apply the no-AI-slop prose gate 
 ${NO_AI_SLOP_SKILL_ROUTING}
 
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
-Include: \`Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>\`
-Prefer ENGAGE for multi-lane or review-heavy work. DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
+Include: \`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>\`
+Prefer ENGAGE for multi-lane or review-heavy work. Use ADAPTIVE for moderate single-domain tasks (fewer specialists). DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
 ExitPlanMode only after a complete Seed Spec. Write/Edit the plan file (Write if missing).`,
 
   exit: `## Exit Phase

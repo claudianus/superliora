@@ -16,6 +16,7 @@ import {
   ultraSwarmDecision,
   ultraSwarmEngageNextAction,
 } from '#/agent/plan/ultra-swarm-decision';
+import { routeFromPlanSignals } from '#/agent/plan/ultra-swarm-routing';
 import type { PlanData } from '#/agent/plan';
 import {
   combinedDrift,
@@ -180,7 +181,8 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       ultra: isUltra,
     });
 
-    const engageUltraSwarm = isUltra && ultraSwarmDecision(resolvedPlan.plan) === 'ENGAGE';
+    const swarmDecision = ultraSwarmDecision(resolvedPlan.plan);
+    const engageUltraSwarm = isUltra && (swarmDecision === 'ENGAGE' || swarmDecision === 'ADAPTIVE');
     const failed = this.exitPlanMode();
     if (failed !== undefined) return failed;
 
@@ -199,6 +201,7 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       this.agent.ultraSwarmEngageGate?.engage({
         planPath: resolvedPlan.path,
         reason: swarmDecisionSummary(resolvedPlan.plan),
+        routing: routeFromPlanSignals(resolvedPlan.plan) ?? undefined,
       });
     }
 
@@ -446,7 +449,7 @@ function hasFieldContent(plan: string, labels: readonly string[]): boolean {
 }
 
 function hasSwarmDecisionLine(plan: string): boolean {
-  return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\b/i.test(plan);
+  return /\bswarm decision\s*:\s*(?:ENGAGE|ADAPTIVE|DEFER)\b/i.test(plan);
 }
 
 function hasSwarmDeferWaiver(plan: string): boolean {
@@ -515,9 +518,9 @@ function hasSwarmDecisionField(plan: string, label: string): boolean {
   if (hasFieldContent(plan, [label])) return true;
   switch (label) {
     case 'Decision':
-      return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\b/i.test(plan);
+      return /\bswarm decision\s*:\s*(?:ENGAGE|ADAPTIVE|DEFER)\b/i.test(plan);
     case 'Reason':
-      return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\s*(?:[.:\-—]\s*\S|.*\breason\s*:)/i.test(plan);
+      return /\bswarm decision\s*:\s*(?:ENGAGE|ADAPTIVE|DEFER)\s*(?:[.:\-—]\s*\S|.*\breason\s*:)/i.test(plan);
     case 'Specialist value':
       return /\bvalue\s*:\s*\S/i.test(plan);
     case 'Verification owner':
