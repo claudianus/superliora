@@ -286,6 +286,7 @@ export class AgentSwarmProgressComponent implements Component {
   private readonly progressEstimator = new AgentSwarmProgressEstimator();
   private description: string;
   private readonly title: string;
+  private routingBadge: string | undefined;
   private readonly requestRender: (() => void) | undefined;
   private readonly availableGridHeight: (() => number | undefined) | undefined;
   private inputComplete = false;
@@ -394,6 +395,15 @@ export class AgentSwarmProgressComponent implements Component {
     }
     this.itemsStarted = members.length > 0;
     this.rebuildExpertSlotIndex();
+  }
+
+  applyRoutingDecision(routing: {
+    readonly decision: string;
+    readonly intensity: string;
+    readonly estimatedExperts: number;
+  }): void {
+    this.routingBadge = `${routing.decision} · ${routing.intensity}`;
+    this.requestRender?.();
   }
 
   applySwarmCollaborationMessage(message: SwarmCollaborationFeedMessage): void {
@@ -717,6 +727,9 @@ export class AgentSwarmProgressComponent implements Component {
       : '';
     const stats = summary === undefined ? '' : this.renderMissionStats(summary);
     const headlineParts = [title];
+    if (this.routingBadge !== undefined) {
+      headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${chalk.hex(this.colors.primary)(this.routingBadge)}`);
+    }
     if (description.length > 0) headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${description}`);
     if (stats.length > 0) headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${stats}`);
     return [truncateToWidth(headlineParts.join(' '), width)];
