@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ultraSwarmDecision, ultraSwarmEngageNextAction } from '../../src/agent/plan/ultra-swarm-decision';
+import {
+  routeFromPlanSignals,
+  intensityToDefaultExpertCount,
+  type SwarmRoutingIntensity,
+} from '../../src/agent/plan/ultra-swarm-routing';
 
 describe('ultraSwarmDecision', () => {
   describe('ternary decision parsing', () => {
@@ -40,5 +45,71 @@ describe('ultraSwarmDecision', () => {
     it('returns guidance string for ENGAGE', () => {
       expect(ultraSwarmEngageNextAction('Swarm decision: ENGAGE')).toContain('UltraSwarm ENGAGE is binding');
     });
+  });
+});
+
+describe('intensityToDefaultExpertCount', () => {
+  it('returns 4 for light', () => {
+    expect(intensityToDefaultExpertCount('light')).toBe(4);
+  });
+  it('returns 12 for standard', () => {
+    expect(intensityToDefaultExpertCount('standard')).toBe(12);
+  });
+  it('returns 24 for heavy', () => {
+    expect(intensityToDefaultExpertCount('heavy')).toBe(24);
+  });
+});
+
+describe('routeFromPlanSignals', () => {
+  it('routes ENGAGE + heavy when plan declares both', () => {
+    const plan = 'Swarm decision: ENGAGE\nSwarm intensity: heavy';
+    const result = routeFromPlanSignals(plan);
+    expect(result).toBeDefined();
+    expect(result!.decision).toBe('ENGAGE');
+    expect(result!.intensity).toBe('heavy');
+    expect(result!.estimatedExperts).toBe(24);
+  });
+
+  it('routes ADAPTIVE + standard by default for ADAPTIVE without explicit intensity', () => {
+    const plan = 'Swarm decision: ADAPTIVE - moderate';
+    const result = routeFromPlanSignals(plan);
+    expect(result).toBeDefined();
+    expect(result!.decision).toBe('ADAPTIVE');
+    expect(result!.intensity).toBe('standard');
+    expect(result!.estimatedExperts).toBe(12);
+  });
+
+  it('routes DEFER with light intensity and 0 experts', () => {
+    const plan = 'Swarm decision: DEFER - single-owner task';
+    const result = routeFromPlanSignals(plan);
+    expect(result).toBeDefined();
+    expect(result!.decision).toBe('DEFER');
+    expect(result!.intensity).toBe('light');
+    expect(result!.estimatedExperts).toBe(0);
+  });
+
+  it('defaults ENGAGE to heavy when intensity line is absent', () => {
+    const plan = 'Swarm decision: ENGAGE - multi-lane';
+    const result = routeFromPlanSignals(plan);
+    expect(result).toBeDefined();
+    expect(result!.intensity).toBe('heavy');
+  });
+
+  it('respects explicit Swarm intensity even for ADAPTIVE', () => {
+    const plan = 'Swarm decision: ADAPTIVE\nSwarm intensity: light';
+    const result = routeFromPlanSignals(plan);
+    expect(result).toBeDefined();
+    expect(result!.intensity).toBe('light');
+    expect(result!.estimatedExperts).toBe(4);
+  });
+
+  it('returns undefined when plan has no decision line', () => {
+    expect(routeFromPlanSignals('no decision here')).toBeUndefined();
+  });
+
+  it('always provides a non-empty rationale', () => {
+    const result = routeFromPlanSignals('Swarm decision: ADAPTIVE');
+    expect(result).toBeDefined();
+    expect(result!.rationale.length).toBeGreaterThan(0);
   });
 });
