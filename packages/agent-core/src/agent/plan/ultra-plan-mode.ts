@@ -973,6 +973,7 @@ export class UltraPlanModeEngine {
     return formatInterviewReadinessGuide(resolved, {
       perspective: this._currentPerspective,
       interviewRoundCount: this._interviewState.rounds.length,
+      consecutiveNonUserAnswers: this._interviewState.consecutiveNonUserAnswers,
     });
   }
 
@@ -1386,6 +1387,7 @@ Respond ONLY with valid JSON. No other text before or after.
 export interface InterviewReadinessGuideOptions {
   readonly perspective?: InterviewPerspective;
   readonly interviewRoundCount?: number;
+  readonly consecutiveNonUserAnswers?: number;
 }
 
 export function pickNextInterviewFocus(
@@ -1515,7 +1517,21 @@ export function formatInterviewReadinessGuide(
   if (interviewRoundCount >= MAX_INTERVIEW_ROUNDS) {
     lines.push(
       '',
-      `Round cap: ${interviewRoundCount} interview rounds completed (soft cap ${MAX_INTERVIEW_ROUNDS}). Design stays blocked until the blockers above close — do not call NextPhase until READY.`,
+      `Round cap: ${interviewRoundCount} interview rounds completed (soft cap ${MAX_INTERVIEW_ROUNDS}).`,
+      'Two options:',
+      '1. AskUserQuestion: offer the user to advance with conservative defaults for remaining gaps.',
+      '   If the user confirms, call NextPhase({ phase: "design", advance_with_defaults: true }).',
+      '2. Continue interviewing to close the remaining blockers manually.',
+    );
+  }
+
+  const consecutiveNonUser = options?.consecutiveNonUserAnswers ?? 0;
+  if (consecutiveNonUser >= 3) {
+    lines.push(
+      '',
+      '⚠ RHYTHM GUARD: 3 consecutive findings were answered from code or research, not the user.',
+      'Your next turn MUST use AskUserQuestion (PATH 2) to confirm a decision with the user directly.',
+      'Do not use RecordInterviewFinding again until the user has answered at least one question.',
     );
   }
 
@@ -1533,5 +1549,21 @@ export function formatInterviewReadinessGuide(
     pickNextInterviewFocus(readiness, perspective),
   );
 
+  const lateralHint = perspectiveLateralHint(perspective);
+  if (lateralHint !== undefined) {
+    lines.push('', `Lateral thinking (${perspective}): ${lateralHint}`);
+  }
+
   return lines.join('\n');
+}
+
+function perspectiveLateralHint(perspective: InterviewPerspective): string | undefined {
+  const hints: Partial<Record<InterviewPerspective, string>> = {
+    researcher: 'What information are we still missing? What similar problems have documented solutions?',
+    simplifier: 'What can we remove without breaking the core outcome? Consider a Baseline that cuts 30%+ of scope.',
+    architect: 'How would we design this from scratch? What abstraction would clarify the structure?',
+    'breadth-keeper': 'What edge cases or quality dimensions did the user skip? Balance stretch goals vs non-goals.',
+    'seed-closer': 'What would make this definitely fail? Lock each acceptance criterion to a pass/fail test.',
+  };
+  return hints[perspective];
 }
