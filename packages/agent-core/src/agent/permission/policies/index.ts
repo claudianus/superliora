@@ -16,6 +16,7 @@ import { GoalStartReviewAskPermissionPolicy } from './goal-start-review-ask';
 import { PlanModeGuardDenyPermissionPolicy } from './plan-mode-guard-deny';
 import { PlanModeToolApprovePermissionPolicy } from './plan-mode-tool-approve';
 import { PreToolCallHookPermissionPolicy } from './pre-tool-call-hook';
+import { SensitiveFileAccessDenyPermissionPolicy } from './sensitive-file-access-deny';
 import { SessionApprovalHistoryPermissionPolicy } from './session-approval-history';
 import { SwarmModeAgentSwarmApprovePermissionPolicy } from './swarm-mode-agent-swarm-approve';
 import { UltraSwarmEngageGateDenyPermissionPolicy } from './ultra-swarm-engage-gate-deny';
@@ -43,6 +44,8 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new UserConfiguredDenyPermissionPolicy(agent),
     // GUI-use risk policy must run before auto/yolo approval so risky desktop/browser actions still gate.
     new GuiUseSafetyPermissionPolicy(agent),
+    // Access touches a sensitive file (keys, .env, cloud credentials) → deny under auto/yolo (beats auto/yolo approval). In manual mode the ask policy below still runs.
+    new SensitiveFileAccessDenyPermissionPolicy(agent),
     // auto mode → approve (any auto-mode block must be a deny rule above this).
     new AutoModeApprovePermissionPolicy(agent),
     // Approve-for-session memorized rule matches → approve. Runs before user-configured ask rules so an in-session grant beats a still-matching ask rule on later calls.

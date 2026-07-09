@@ -423,5 +423,17 @@ describe('path access policy', () => {
         expect(isSensitiveFile(`/home/user/.ssh/${key}`)).toBe(true);
       });
     }
+
+    it('flags the whole .ssh directory (config, known_hosts, ...)', () => {
+      for (const path of [
+        '/home/user/.ssh/config',
+        '/home/user/.ssh/known_hosts',
+        '/home/user/.ssh/authorized_keys',
+        '.ssh/config',
+        '/home/user/.ssh',
+      ]) {
+        expect(isSensitiveFile(path), path).toBe(true);
+      }
+    });
   });
 });
