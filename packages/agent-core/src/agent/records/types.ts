@@ -78,6 +78,9 @@ export interface AgentRecordEvents {
   };
   'swarm_mode.exit': {};
 
+  'swarm.steer': {
+    input: string;
+  };
   'tools.register_user_tool': UserToolRegistration;
   'tools.unregister_user_tool': {
     name: string;

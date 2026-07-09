@@ -94,6 +94,10 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'swarm_mode.exit':
       agent.swarmMode.exit();
       return;
+    case 'swarm.steer':
+      // Steering during an UltraSwarm run is queued in the swarm checkpoint,
+      // not replayed as a turn-level steer. No per-agent state to restore.
+      return;
     case 'context.append_message':
       agent.context.appendMessage(input.message);
       return;
