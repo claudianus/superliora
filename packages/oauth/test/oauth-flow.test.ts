@@ -119,6 +119,9 @@ describe('provider profile registry', () => {
     expect(XAI_PROFILE.models).toBeDefined();
     expect(XAI_PROFILE.models!.length).toBeGreaterThan(0);
     expect(XAI_PROFILE.models!.every((m) => m.id.length > 0 && m.maxContextSize > 0)).toBe(true);
+    // The latest flagship model must be present as a fallback even before the
+    // models.dev catalog is fetched.
+    expect(XAI_PROFILE.models!.some((m) => m.id === 'grok-4.5')).toBe(true);
   });
 
   it('keeps the Anthropic profile out of the always-on list and in the experimental list', () => {

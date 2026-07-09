@@ -41,6 +41,7 @@ export function renderNativeLayoutFrame(
     readonly clear?: boolean;
     readonly fill?: RendererCell;
     readonly force?: boolean;
+    readonly forceCursor?: boolean;
     readonly cursor?: RendererCursorState;
     readonly composition?: RendererCompositionOptions;
   } = {},
@@ -61,7 +62,7 @@ export function renderNativeLayoutFrame(
   if (options.cursor !== undefined) {
     renderer.setCursor(options.cursor);
   }
-  const present = renderer.present({ force: options.force });
+  const present = renderer.present({ force: options.force, forceCursor: options.forceCursor });
   return { ...present, composition, regions: layers };
 }
 

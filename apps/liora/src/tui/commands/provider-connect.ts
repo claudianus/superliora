@@ -10,12 +10,15 @@
 import {
   applyCatalogProvider,
   catalogBaseUrl,
+  catalogModelToAlias,
   catalogProviderModels,
   DEFAULT_CATALOG_URL,
   fetchCatalog,
   inferWireType,
   log,
   type Catalog,
+  type CatalogModel,
+  type ModelAlias,
 } from '@superliora/sdk';
 import {
   applyCustomRegistryEntries,
@@ -24,6 +27,7 @@ import {
   OAuthProviderManager,
   type CustomRegistrySource,
   type ManagedKimiConfigShape,
+  type ProviderModelPreset,
 } from '@superliora/oauth';
 
 import {
@@ -45,6 +49,7 @@ import {
   type ProviderCatalogOption,
   type ProviderCatalogSelection,
 } from '#/tui/utils/provider-catalog-options';
+import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import { applyCustomEndpointProvider } from '#/utils/custom-provider';
 import {
   promptApiKeyForCatalogProvider,
@@ -377,6 +382,47 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
   }
 }
 
+/** Builds a model alias from a hardcoded profile preset. */
+function presetModelToAlias(providerId: string, preset: ProviderModelPreset): ModelAlias {
+  return {
+    provider: providerId,
+    model: preset.id,
+    maxContextSize: preset.maxContextSize,
+    capabilities: preset.capabilities !== undefined ? [...preset.capabilities] : undefined,
+    displayName: preset.displayName,
+  };
+}
+
+/**
+ * Resolves the model list for an OAuth provider. Prefers the live models.dev
+ * catalog (so newly released models surface without a release), and falls back
+ * to the profile preset when the catalog is unavailable or has no entry for
+ * the provider. Returns `undefined` when neither source yields models.
+ */
+export async function resolveOAuthProviderModels(
+  providerId: string,
+  presets: readonly ProviderModelPreset[] | undefined,
+): Promise<readonly ModelAlias[] | undefined> {
+  const catalogId = oauthProviderCatalogId(providerId);
+  try {
+    const catalog = await loadCatalog();
+    const entry = catalog[catalogId];
+    if (entry !== undefined) {
+      const models: CatalogModel[] = catalogProviderModels(entry);
+      if (models.length > 0) {
+        return models.map((model) => catalogModelToAlias(providerId, model));
+      }
+    }
+  } catch (error) {
+    // Catalog fetch is best-effort; the preset below keeps the provider usable.
+    log.warn(`Failed to load models.dev catalog for "${providerId}", using preset.`, formatErrorMessage(error));
+  }
+  if (presets !== undefined && presets.length > 0) {
+    return presets.map((preset) => presetModelToAlias(providerId, preset));
+  }
+  return undefined;
+}
+
 /**
  * Connects a non-Kimi OAuth provider (OpenAI Codex, xAI Grok). Runs the
  * provider's login flow via {@link OAuthProviderManager}, then persists a
@@ -434,18 +480,15 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
       oauth: { storage: 'file', key: storageKey },
     };
 
-    // Write model aliases from the profile preset so the provider is usable
-    // immediately without a /models fetch.
-    const models = freshConfig.models ?? {};
-    if (profile.models !== undefined && profile.models.length > 0) {
-      for (const preset of profile.models) {
-        models[`${providerId}/${preset.id}`] = {
-          provider: providerId,
-          model: preset.id,
-          maxContextSize: preset.maxContextSize,
-          capabilities: preset.capabilities !== undefined ? [...preset.capabilities] : undefined,
-          displayName: preset.displayName,
-        };
+    // Resolve the model list from the models.dev catalog when possible
+    // (so new models like Grok 4.5 appear without a release), falling back
+    // to the profile preset when the catalog is unavailable. This keeps the
+    // provider usable immediately without a per-request /models fetch.
+    const resolvedModels = await resolveOAuthProviderModels(providerId, profile.models);
+    if (resolvedModels !== undefined && resolvedModels.length > 0) {
+      const models = freshConfig.models ?? {};
+      for (const alias of resolvedModels) {
+        models[`${providerId}/${alias.model}`] = alias;
       }
       freshConfig.models = models;
     }
@@ -460,7 +503,7 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
     host.showStatus(ttui('tui.provider.connected', { name: profile.displayName }));
 
     // Offer the model picker so the user can choose a default.
-    if (profile.models !== undefined && profile.models.length > 0) {
+    if (resolvedModels !== undefined && resolvedModels.length > 0) {
       await openModelPickerForProvider(host, providerId);
     }
   } catch (error) {

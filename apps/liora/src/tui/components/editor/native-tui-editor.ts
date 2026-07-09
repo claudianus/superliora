@@ -416,7 +416,10 @@ export class NativeTUIEditor implements TUIEditor {
     if (text.trim().length > 0 && this.inputMode !== 'bash') this.addToHistory(text);
     this.setTextInternal('', true);
     this.historyIndex = undefined;
-    this.onSubmit?.(text);
+    // IME: double-defer so macOS hangul composition has time to flush any
+    // pending character to stdin before we hand the text downstream.
+    // See https://github.com/anomalyco/opencode/pull/22041 for the same fix.
+    setTimeout(() => setTimeout(() => this.onSubmit?.(text), 0), 0);
   }
 
   private navigateHistory(direction: -1 | 1): void {

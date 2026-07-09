@@ -105,7 +105,7 @@ export class NativeFrameRenderer {
     this.previousCursor = undefined;
   }
 
-  present(options: { readonly force?: boolean } = {}): NativeFramePresentResult {
+  present(options: { readonly force?: boolean; readonly forceCursor?: boolean } = {}): NativeFramePresentResult {
     const startedAt = this.now();
     const force = options.force === true || this.forceNextPresent;
     const diffStartedAt = this.now();
@@ -115,7 +115,12 @@ export class NativeFrameRenderer {
     });
     const diffEndedAt = this.now();
     this.forceNextPresent = false;
-    const cursor = cursorStatesEqual(this.previousCursor, this.nextCursor)
+    // When forceCursor is set (e.g. input-driven frames), always re-emit the
+    // cursor position even if it hasn't changed. Without this, the terminal
+    // keeps its cursor at a stale location and OS IME renders the composition
+    // window (e.g. Korean hangul preedit) at the wrong screen position.
+    const cursorEqual = cursorStatesEqual(this.previousCursor, this.nextCursor);
+    const cursor = cursorEqual && options.forceCursor !== true
       ? undefined
       : this.nextCursor ?? { x: 0, y: 0, visible: false };
     const outputPolicy = resolveRendererFrameOutputPolicy({
