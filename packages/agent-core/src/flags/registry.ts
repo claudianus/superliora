@@ -38,6 +38,30 @@ export const FLAG_DEFINITIONS = [
     default: false,
     surface: 'core',
   },
+  {
+    id: 'async_compaction',
+    title: 'Async background compaction',
+    description: 'Launch background compaction at a lower context threshold (default 60%) while the turn continues.',
+    env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
+    default: false,
+    surface: 'core',
+  },
+  {
+    id: 'auto_dream',
+    title: 'Auto-dream memory consolidation',
+    description: 'After each user turn, fire a cheap-gated background job that consolidates long-term memory with an LLM without blocking the live session.',
+    env: 'SUPERLIORA_EXPERIMENTAL_AUTO_DREAM',
+    default: false,
+    surface: 'core',
+  },
+  {
+    id: 'auto_pilot',
+    title: 'Autopilot issue-to-PR pipeline',
+    description: 'Queue-based autonomous repo loop: ingest issues, run agent in a worktree, verify, open PR, poll CI, auto-merge on label, with a repair loop.',
+    env: 'SUPERLIORA_EXPERIMENTAL_AUTO_PILOT',
+    default: false,
+    surface: 'core',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

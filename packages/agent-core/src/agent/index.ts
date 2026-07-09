@@ -40,6 +40,9 @@ import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
 import { UltraworkMode } from '../ultrawork';
+import { AutoDreamService } from './dream/auto-dream';
+import { AutopilotMode } from '../autopilot';
+import { LioraRecallStore } from '../memory/store';
 import { PremiumQualityMode } from '../premium-quality';
 import { reconcileUltraworkFromMirror } from '../ultrawork/mirror-reconcile';
 import { HookEngine } from '../session/hooks';
@@ -109,6 +112,7 @@ export interface AgentOptions {
   readonly additionalDirs?: readonly string[];
   readonly memory?: AgentMemoryRuntime;
   readonly responseLanguagePreference?: (() => ResponseLanguagePreference | undefined) | undefined;
+  readonly dreamStore?: LioraRecallStore;
 }
 
 export class Agent {
@@ -159,6 +163,8 @@ export class Agent {
   readonly cron: CronManager | null;
   readonly goal: GoalMode;
   readonly ultrawork: UltraworkMode;
+  readonly dream: AutoDreamService | null;
+  readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
@@ -232,6 +238,9 @@ export class Agent {
     this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.goal = new GoalMode(this);
     this.ultrawork = new UltraworkMode(this);
+    this.dream =
+      options.dreamStore !== undefined ? new AutoDreamService(this, options.dreamStore) : null;
+    this.autopilot = new AutopilotMode(this);
     this.premiumQuality = new PremiumQualityMode(this);
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
