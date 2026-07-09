@@ -113,3 +113,41 @@ describe('routeFromPlanSignals', () => {
     expect(result!.rationale.length).toBeGreaterThan(0);
   });
 });
+
+import { UltraSwarmEngageGate, type UltraSwarmEngageGateData } from '../../src/agent/plan/ultra-swarm-engage-gate';
+import type { Agent } from '../../src/agent';
+
+function createMockAgent(): { agent: Agent; logs: unknown[] } {
+  const logs: unknown[] = [];
+  const agent = { records: { logRecord: (record: unknown) => logs.push(record) } } as unknown as Agent;
+  return { agent, logs };
+}
+
+describe('UltraSwarmEngageGate routing field', () => {
+  it('engages with a routing result and exposes it via data()', () => {
+    const { agent, logs } = createMockAgent();
+    const gate = new UltraSwarmEngageGate(agent);
+    const input: UltraSwarmEngageGateData = {
+      planPath: '/tmp/plan.md',
+      reason: 'multi-lane',
+      routing: {
+        decision: 'ADAPTIVE',
+        intensity: 'standard',
+        estimatedExperts: 12,
+        rationale: 'Moderate complexity',
+      },
+    };
+    gate.engage(input);
+    expect(gate.isActive).toBe(true);
+    expect(gate.data()?.routing?.decision).toBe('ADAPTIVE');
+    expect(gate.data()?.routing?.estimatedExperts).toBe(12);
+    expect(logs).toContainEqual(expect.objectContaining({ type: 'ultra_swarm_engage_gate.set' }));
+  });
+
+  it('engages without routing (backward compatible)', () => {
+    const { agent } = createMockAgent();
+    const gate = new UltraSwarmEngageGate(agent);
+    gate.engage({ planPath: '/tmp/plan.md' });
+    expect(gate.data()?.routing).toBeUndefined();
+  });
+});

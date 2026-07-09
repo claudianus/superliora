@@ -1,8 +1,10 @@
 import type { Agent } from '..';
+import type { SwarmRoutingResult } from './ultra-swarm-routing';
 
 export interface UltraSwarmEngageGateData {
   readonly planPath?: string;
   readonly reason?: string;
+  readonly routing?: SwarmRoutingResult;
 }
 
 export class UltraSwarmEngageGate {
