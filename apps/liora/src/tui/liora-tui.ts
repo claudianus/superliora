@@ -1058,7 +1058,7 @@ export class LioraTUI {
       process.off('exit', exitHandler);
     });
 
-    const signals: NodeJS.Signals[] = ['SIGTERM'];
+    const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
     if (process.platform !== 'win32') {
       signals.push('SIGHUP');
     }
@@ -1066,17 +1066,25 @@ export class LioraTUI {
     for (const signal of signals) {
       const handler = (): void => {
         if (signal === 'SIGHUP') {
+          // Best-effort synchronous flush before the emergency exit — a dead
+          // terminal can EIO-loop and pin a CPU, so we cannot run async
+          // cleanup, but we can still drain pending records to disk so the
+          // in-flight work survives the abrupt exit.
+          this.harness.emergencyFlushSync();
           this.emergencyTerminalExit();
           return;
         }
-        // Registering a SIGTERM listener disables Node's default exit(143),
-        // so we must reinstate it after stop() or on failure.
-        this.stop(143).then(
+        // Registering a SIGTERM/SIGINT listener disables Node's default
+        // exit(128+signum), so we must reinstate it after stop() or on
+        // failure. Both take the graceful async path that flushes records
+        // and Ultrawork checkpoints via Session.close().
+        const code = 128 + (signal === 'SIGINT' ? 2 : 15);
+        this.stop(code).then(
           () => {
-            process.exit(143);
+            process.exit(code);
           },
           () => {
-            this.emergencyTerminalExit(143);
+            this.emergencyTerminalExit(code);
           },
         );
       };
@@ -1111,6 +1119,13 @@ export class LioraTUI {
   private emergencyTerminalExit(exitCode = 129): never {
     this.isShuttingDown = true;
     this.unregisterSignalHandlers();
+    // Last-resort synchronous flush so any state still pending after the
+    // graceful stop attempt (or a failed one) is not lost to the abrupt exit.
+    try {
+      this.harness.emergencyFlushSync();
+    } catch {
+      // Swallow — we are exiting regardless.
+    }
     process.exit(exitCode);
   }
 

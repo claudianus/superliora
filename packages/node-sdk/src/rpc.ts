@@ -166,6 +166,17 @@ export abstract class SDKRpcClientBase {
 
   protected abstract getRpc(): Promise<ResolvedCoreAPI>;
 
+  /**
+   * Emergency synchronous flush of all in-process sessions' pending state to
+   * disk (fsync'd). Only meaningful for in-process cores (e.g.
+   * {@link SDKRpcClient}); a remote-transport client has no local sessions and
+   * leaves this as a no-op. Called from crash paths (signal handlers,
+   * `uncaughtExceptionMonitor`); never throws.
+   */
+  emergencyFlushSync(): void {
+    // Default no-op for transports without an in-process core.
+  }
+
   async createSession(input: CreateSessionOptions): Promise<SessionSummary> {
     const rpc = await this.getRpc();
     const { planMode, ...coreInput } = input;

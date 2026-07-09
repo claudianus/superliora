@@ -198,6 +198,9 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   private readonly appVersion: string | undefined;
   private readonly experimentalFlags: FlagResolver;
   private readonly memory: LioraRecallStore;
+  private readonly uncaughtListener:
+    | ((error: Error, origin: NodeJS.UncaughtExceptionOrigin) => void)
+    | undefined;
 
   constructor(
     protected readonly rpcClient: CoreRPCClient,
@@ -251,6 +254,21 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     log.info('experimental flags enabled', { flags: this.experimentalFlags.enabledIds() });
 
     this.sdk = rpcClient(this);
+
+    // Register a one-shot uncaught-exception monitor that drains pending
+    // session state to disk before the process dies on an unexpected throw.
+    // `uncaughtExceptionMonitor` runs synchronously before termination but
+    // cannot await async work, so this is the synchronous best-effort path;
+    // the graceful signal handlers (SIGINT/SIGTERM/SIGHUP) take the async
+    // path. Idempotent across multiple core constructions in one process.
+    this.uncaughtListener = () => {
+      try {
+        this.emergencyFlushSync();
+      } catch {
+        // Never mask the original exception.
+      }
+    };
+    process.on('uncaughtExceptionMonitor', this.uncaughtListener);
   }
 
   async createSession(input: CreateSessionPayload): Promise<SessionSummary> {
@@ -447,6 +465,22 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     if (session) {
       await session.close();
       this.sessions.delete(sessionId);
+    }
+  }
+
+  /**
+   * Emergency synchronous flush of every active session's pending state to
+   * disk (Ultrawork mirrors + wire-log records, with fsync). Intended only for
+   * crash paths (signal handlers, `uncaughtExceptionMonitor`) where no async
+   * work can complete before the process exits. Never throws.
+   */
+  emergencyFlushSync(): void {
+    for (const session of this.sessions.values()) {
+      try {
+        session.emergencyFlushSync();
+      } catch {
+        // Best-effort — never let one session's failure skip the rest.
+      }
     }
   }
 
