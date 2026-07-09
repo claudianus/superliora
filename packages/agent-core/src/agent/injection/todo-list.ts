@@ -10,11 +10,15 @@ import { DynamicInjector } from './injector';
 
 const TODO_LIST_REMINDER_VARIANT = 'todo_list_reminder';
 const TODO_LIST_REMINDER_TURNS_SINCE_WRITE = 2;
+const TODO_LIST_REMINDER_CALLS_SINCE_WRITE = 3;
 const TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS = 3;
+const TODO_LIST_REMINDER_CALLS_BETWEEN_REMINDERS = 5;
 
-interface TodoListReminderTurnCounts {
+interface TodoListReminderCounts {
   readonly turnsSinceLastWrite: number;
+  readonly callsSinceLastWrite: number;
   readonly turnsSinceLastReminder: number;
+  readonly callsSinceLastReminder: number;
 }
 
 export class TodoListReminderInjector extends DynamicInjector {
@@ -23,10 +27,12 @@ export class TodoListReminderInjector extends DynamicInjector {
   protected override getInjection(): string | undefined {
     if (!this.isTodoListActive()) return undefined;
 
-    const counts = getTodoListReminderTurnCounts(this.agent.context.history);
+    const counts = getTodoListReminderCounts(this.agent.context.history);
     if (
-      counts.turnsSinceLastWrite < TODO_LIST_REMINDER_TURNS_SINCE_WRITE ||
-      counts.turnsSinceLastReminder < TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS
+      (counts.turnsSinceLastWrite < TODO_LIST_REMINDER_TURNS_SINCE_WRITE &&
+        counts.callsSinceLastWrite < TODO_LIST_REMINDER_CALLS_SINCE_WRITE) ||
+      (counts.turnsSinceLastReminder < TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS &&
+        counts.callsSinceLastReminder < TODO_LIST_REMINDER_CALLS_BETWEEN_REMINDERS)
     ) {
       return undefined;
     }
@@ -50,24 +56,34 @@ export class TodoListReminderInjector extends DynamicInjector {
   }
 }
 
-function getTodoListReminderTurnCounts(
+function getTodoListReminderCounts(
   history: readonly ContextMessage[],
-): TodoListReminderTurnCounts {
+): TodoListReminderCounts {
   let foundWrite = false;
   let foundReminder = false;
   let turnsSinceLastWrite = 0;
+  let callsSinceLastWrite = 0;
   let turnsSinceLastReminder = 0;
+  let callsSinceLastReminder = 0;
 
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const message = history[i];
     if (message === undefined) continue;
 
     if (message.role === 'assistant') {
-      if (!foundWrite && hasTodoListWrite(message)) {
-        foundWrite = true;
+      const nonTodoCalls = countNonTodoToolCalls(message);
+      if (!foundWrite) {
+        if (hasTodoListWrite(message)) {
+          foundWrite = true;
+        } else {
+          turnsSinceLastWrite += 1;
+          callsSinceLastWrite += nonTodoCalls;
+        }
       }
-      if (!foundWrite) turnsSinceLastWrite += 1;
-      if (!foundReminder) turnsSinceLastReminder += 1;
+      if (!foundReminder) {
+        turnsSinceLastReminder += 1;
+        callsSinceLastReminder += nonTodoCalls;
+      }
       continue;
     }
 
@@ -80,8 +96,18 @@ function getTodoListReminderTurnCounts(
 
   return {
     turnsSinceLastWrite,
-    turnsSinceLastReminder,
+    callsSinceLastWrite,
+    turnsSinceLastReminder: foundReminder ? turnsSinceLastReminder : Number.MAX_SAFE_INTEGER,
+    callsSinceLastReminder: foundReminder ? callsSinceLastReminder : Number.MAX_SAFE_INTEGER,
   };
+}
+
+function countNonTodoToolCalls(message: ContextMessage): number {
+  let count = 0;
+  for (const toolCall of message.toolCalls) {
+    if (toolCall.name !== TODO_LIST_TOOL_NAME) count += 1;
+  }
+  return count;
 }
 
 function hasTodoListWrite(message: ContextMessage): boolean {

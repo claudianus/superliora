@@ -79,6 +79,19 @@ function todoListQuery(): ContextMessage {
   };
 }
 
+function assistantWithToolCalls(toolNames: readonly string[]): ContextMessage {
+  return {
+    role: 'assistant',
+    content: [],
+    toolCalls: toolNames.map((name, index) => ({
+      type: 'function' as const,
+      id: `call_${name}_${index}`,
+      name,
+      arguments: JSON.stringify({}),
+    })),
+  };
+}
+
 function priorTodoReminder(): ContextMessage {
   return {
     role: 'user',
@@ -170,5 +183,33 @@ describe('TodoListReminderInjector', () => {
     await injector.inject();
 
     expect(lastReminderText(history)).toContain('The TodoList tool has not been updated recently');
+  });
+
+  it('injects a reminder when 3+ non-TodoList tool calls happen in a single turn', async () => {
+    const todos: TodoItem[] = [{ title: 'Read code', status: 'in_progress' }];
+    const history = [
+      todoListWrite(todos),
+      assistantWithToolCalls(['Read', 'Grep', 'Edit']),
+    ];
+    const agent = todoAgent({ history, todos, todoListActive: true });
+    const injector = new TodoListReminderInjector(agent);
+
+    await injector.inject();
+
+    expect(lastReminderText(history)).toContain('The TodoList tool has not been updated recently');
+  });
+
+  it('does not inject a reminder for only 2 non-TodoList tool calls in one turn', async () => {
+    const todos: TodoItem[] = [{ title: 'Read code', status: 'in_progress' }];
+    const history = [
+      todoListWrite(todos),
+      assistantWithToolCalls(['Read', 'Grep']),
+    ];
+    const agent = todoAgent({ history, todos, todoListActive: true });
+    const injector = new TodoListReminderInjector(agent);
+
+    await injector.inject();
+
+    expect(history).toHaveLength(2);
   });
 });
