@@ -13,9 +13,18 @@ import {
 } from '../../../session/subagent-host';
 import {
   assignReviewCriticEdges,
+  assignDiverseCriticEdges,
   buildCriticAssignmentXml,
+  CRITIC_LENSES,
   type CriticAssignment,
+  type CriticLens,
 } from '../../../session/ultra-swarm-critic';
+import {
+  consensusFromDiverseVotes,
+  extractLensVotes,
+  type CouncilDecision,
+} from '../../../session/ultra-swarm-consensus';
+import type { SwarmRoutingIntensity } from '../../../agent/plan/ultra-swarm-routing';
 import {
   buildRestaffReflectionPrompt,
   collectRestaffGaps,
@@ -355,6 +364,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           phaseSpecsForRun = attachCriticAssignments(
             phaseSpecs,
             phaseResults.map(withRenderedMetadata),
+            routing?.intensity,
           );
         }
 
@@ -428,13 +438,17 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const rendered = phaseResults.map(withRenderedMetadata);
     if (busEnabled) {
       const reviewResults = rendered.filter((result) => result.spec.phase === 'review');
+      const decision = councilDecisionFromReview(rendered);
+      // Protocol CouncilDecision does not yet carry strong-approve; collapse for emission.
+      const emitDecision =
+        decision === 'strong-approve' ? 'approve' : decision;
       emitCouncilDecisionFromReview(this.agent, {
         runId,
         councilExpertIds: team.councilExpertIds ?? [],
         verdictSummary: reviewResults
           .map((result) => `${result.spec.expertId}=${result.verdict}`)
           .join(', '),
-        decision: councilDecisionFromReview(rendered),
+        decision: emitDecision,
       });
     }
     if (workNodeContext !== undefined) {
@@ -773,9 +787,12 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       input.rendered,
       input.busEnabled ? renderSwarmBusDigest(this.store) : '',
     );
+    const restaffRouting = typeof this.agent.ultraSwarmEngageGate?.data === 'function'
+      ? this.agent.ultraSwarmEngageGate.data()?.routing
+      : undefined;
     const phaseSpecs =
       phase === 'review'
-        ? attachCriticAssignments(restaffSpecs, input.rendered)
+        ? attachCriticAssignments(restaffSpecs, input.rendered, restaffRouting?.intensity)
         : restaffSpecs;
 
     const results = await this.runPhaseExperts({
@@ -1057,7 +1074,7 @@ function augmentTeamPlan(
 
 function councilDecisionFromReview(
   results: readonly UltraSwarmRenderedResult[],
-): 'approve' | 'revise' | 'block' | 'interrupted' {
+): CouncilDecision {
   const reviewResults = results.filter((result) => result.spec.phase === 'review');
   if (
     reviewResults.length > 0 &&
@@ -1065,28 +1082,57 @@ function councilDecisionFromReview(
   ) {
     return 'interrupted';
   }
-  if (reviewResults.some((result) => result.verdict === 'FAIL')) return 'block';
-  if (reviewResults.some((result) => result.verdict === 'BLOCKED')) return 'revise';
-  if (reviewResults.some((result) => result.verdict !== 'PASS')) return 'revise';
-  return 'approve';
+  const votes = extractLensVotes(reviewResults);
+  if (votes.length === 0) {
+    // No completed reviews — fall back to the prior rule-based path.
+    if (reviewResults.some((result) => result.verdict === 'FAIL')) return 'block';
+    if (reviewResults.some((result) => result.verdict !== 'PASS')) return 'revise';
+    return 'approve';
+  }
+  return consensusFromDiverseVotes(votes);
+}
+
+function lensesForIntensity(intensity: SwarmRoutingIntensity | undefined): readonly CriticLens[] {
+  const specStrict = CRITIC_LENSES[0];
+  const adversarial = CRITIC_LENSES[1];
+  if (intensity === 'light') {
+    return specStrict !== undefined ? [specStrict] : CRITIC_LENSES.slice(0, 1);
+  }
+  if (intensity === 'standard') {
+    return specStrict !== undefined && adversarial !== undefined
+      ? [specStrict, adversarial]
+      : CRITIC_LENSES.slice(0, 2);
+  }
+  // heavy or undefined → all three lenses
+  return CRITIC_LENSES;
 }
 
 function attachCriticAssignments(
   specs: readonly UltraSwarmSpec[],
   priorResults: readonly UltraSwarmRenderedResult[],
+  intensity: SwarmRoutingIntensity | undefined,
 ): UltraSwarmSpec[] {
-  const assignments = assignReviewCriticEdges(
-    specs.map((spec) => ({ expertId: spec.expertId, expertName: spec.expertName })),
-    priorResults
-      .filter((result) => result.status === 'completed')
-      .map((result) => ({
-        expertId: result.spec.expertId,
-        expertName: result.spec.expertName,
-        phase: result.spec.phase,
-        verdict: result.verdict,
-        handoff: collapseForHandoff(result.result ?? result.error ?? ''),
-      })),
-  );
+  const lenses = lensesForIntensity(intensity);
+  const sources = priorResults
+    .filter((result) => result.status === 'completed')
+    .map((result) => ({
+      expertId: result.spec.expertId,
+      expertName: result.spec.expertName,
+      phase: result.spec.phase,
+      verdict: result.verdict,
+      handoff: collapseForHandoff(result.result ?? result.error ?? ''),
+    }));
+  const assignments =
+    lenses.length >= 2
+      ? assignDiverseCriticEdges(
+          specs.map((spec) => ({ expertId: spec.expertId, expertName: spec.expertName })),
+          sources,
+          lenses,
+        )
+      : assignReviewCriticEdges(
+          specs.map((spec) => ({ expertId: spec.expertId, expertName: spec.expertName })),
+          sources,
+        );
   return specs.map((spec) => {
     const assignment = assignments.get(spec.expertId);
     if (assignment === undefined) return spec;
