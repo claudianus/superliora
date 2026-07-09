@@ -219,6 +219,7 @@ export function buildUltraworkResumeCursor(
     interviewRound: planContext?.interviewRoundCount,
     workGraphNodeId: nextNode?.id,
     goalStatus: goal?.status,
+    journalOffset: agent.records.recordCount(),
   };
 }
 

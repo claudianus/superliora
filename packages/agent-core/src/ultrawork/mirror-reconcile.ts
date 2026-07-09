@@ -70,6 +70,17 @@ function reconcileUltraworkRunFromMirror(agent: Agent, mirror: UltraworkRunMirro
   const current = agent.ultrawork.getRun();
   if (current === null) return;
 
+  // The wire-log journal (replayed into `current`) is the single source of
+  // truth. The on-disk mirror is an acceleration/auxiliary copy, so it only
+  // wins when it is genuinely ahead of the journal — measured by the durable
+  // append-offset captured at checkpoint time. When the mirror carries no
+  // offset (older schema-1 mirrors), fall back to the timestamp/graph/teamPlan
+  // heuristics so the upgrade stays backward-compatible.
+  const journalOffset = agent.records.recordCount();
+  const mirrorOffset = mirror.journalOffset;
+  const mirrorHasOffset = mirrorOffset !== undefined;
+
+  const mirrorIsAheadByOffset = mirrorHasOffset && mirrorOffset > journalOffset;
   const mirrorUpdated = Date.parse(mirror.lastCheckpointAt || mirror.run.updatedAt);
   const recordUpdated = Date.parse(current.updatedAt);
   const mirrorIsNewer = mirrorUpdated > recordUpdated;
@@ -77,7 +88,13 @@ function reconcileUltraworkRunFromMirror(agent: Agent, mirror: UltraworkRunMirro
     (mirror.run.workGraph?.nodes.length ?? 0) > (current.workGraph?.nodes.length ?? 0);
   const mirrorHasTeamPlan = mirror.run.teamPlan !== undefined && current.teamPlan === undefined;
 
-  if (!mirrorIsNewer && !mirrorHasRicherGraph && !mirrorHasTeamPlan) return;
+  // With an offset, the journal is authoritative unless the mirror is strictly
+  // ahead. Without an offset (legacy mirror), keep the heuristic so older
+  // checkpoints still reconcile during the upgrade window.
+  const shouldApply = mirrorHasOffset
+    ? mirrorIsAheadByOffset
+    : mirrorIsNewer || mirrorHasRicherGraph || mirrorHasTeamPlan;
+  if (!shouldApply) return;
 
   agent.ultrawork.applyMirrorRunQuiet({
     run: {

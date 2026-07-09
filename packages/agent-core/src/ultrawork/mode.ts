@@ -139,7 +139,10 @@ export class UltraworkMode {
     const from = machine.snapshot().stage;
     const run = machine.advance(to, reason);
     this.emitStageChanged(run, from, to, reason);
-    this.scheduleCheckpoint();
+    // A stage transition is a significant, infrequent milestone — flush it
+    // synchronously so a crash immediately after the transition cannot lose
+    // the progress marker (the debounced path would lose up to ~1s).
+    this.flushCheckpoint();
     return run;
   }
 
@@ -371,11 +374,16 @@ export class UltraworkMode {
     this.syncWorkGraphFromStore();
     const run = this.machine.snapshot();
     const planCheckpoint = this.capturePlanRecoveryContext();
+    // Capture the durable journal append-offset so resume can use it as the
+    // primary authority for mirror-vs-journal precedence (Phase 6): a mirror
+    // whose offset lags the replayed journal is stale, regardless of timestamp.
+    const journalOffset = this.agent.records.recordCount();
     checkpointUltraworkRun(this.agent, run, {
       activation: this.activation,
       interruptReason: this.interruptReason,
       flush: options.flush,
       planCheckpoint,
+      journalOffset,
     });
     if (options.flush) {
       void this.agent.records.flush();

@@ -169,4 +169,11 @@ export interface AgentRecordPersistence {
    * process dies. Never call this on the hot path — it stalls the event loop.
    */
   flushSync(): void;
+  /**
+   * Total number of records durably appended to the log so far. This is the
+   * append-offset used as the authoritative journal position for checkpoint
+   * precedence (e.g. Ultrawork mirror reconciliation). Pending (not-yet-fsync'd)
+   * records are excluded so the offset only advances once a record is durable.
+   */
+  recordCount(): number;
 }
