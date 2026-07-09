@@ -130,7 +130,7 @@ export class EditTool implements BuiltinTool<EditInput> {
         }
 
         const newContent = replaceOnceLiteral(content, args.old_string, args.new_string);
-        await this.kaos.writeText(
+        await this.kaos.writeAtomic(
           safePath,
           materializeModelText(newContent, modelView.lineEndingStyle),
         );
@@ -145,7 +145,7 @@ export class EditTool implements BuiltinTool<EditInput> {
       }
 
       const newContent = parts.join(args.new_string);
-      await this.kaos.writeText(
+      await this.kaos.writeAtomic(
         safePath,
         materializeModelText(newContent, modelView.lineEndingStyle),
       );

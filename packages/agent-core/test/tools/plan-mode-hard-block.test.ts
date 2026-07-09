@@ -71,6 +71,7 @@ async function activePlanAgent(
     kaos: {
       mkdir: vi.fn().mockResolvedValue(undefined),
       writeText: vi.fn().mockResolvedValue(undefined),
+      writeAtomic: vi.fn().mockResolvedValue(undefined),
     },
     config: { provider: { modelName: 'mock' } },
     generate: async (

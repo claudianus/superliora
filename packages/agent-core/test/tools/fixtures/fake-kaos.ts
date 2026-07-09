@@ -60,6 +60,7 @@ export function createFakeKaos(
     mkdir: () => notImplemented('mkdir'),
     unlink: () => notImplemented('unlink'),
     rename: () => notImplemented('rename'),
+    writeAtomic: () => notImplemented('writeAtomic'),
     exec: () => notImplemented('exec'),
     execWithEnv: (args, invocationEnv) => {
       const mergedEnv = mergeEnvLayers(invocationEnv, envLayers);

@@ -182,6 +182,37 @@ describe('LocalKaos', () => {
     });
   });
 
+  describe('writeAtomic', () => {
+    it('writes content that is readable after, and replaces an existing file', async () => {
+      const filePath = join(tempDir, 'atomic.txt');
+      await kaos.writeAtomic(filePath, 'first');
+      expect(await kaos.readText(filePath)).toBe('first');
+
+      await kaos.writeAtomic(filePath, 'second');
+      expect(await kaos.readText(filePath)).toBe('second');
+    });
+
+    it('writes into a nested path whose parent does not yet exist', async () => {
+      // writeAtomic creates the file in place; the temp lives in the same
+      // directory, so a missing parent must be created by the caller. Tools
+      // call mkdir first, but verify the rename lands when the dir exists.
+      const parent = join(tempDir, 'sub');
+      await kaos.mkdir(parent, { parents: true });
+      const filePath = join(parent, 'deep.txt');
+      await kaos.writeAtomic(filePath, 'payload');
+      expect(await kaos.readText(filePath)).toBe('payload');
+    });
+
+    it('does not leave a leftover temp file after a successful write', async () => {
+      const filePath = join(tempDir, 'clean.txt');
+      await kaos.writeAtomic(filePath, 'data');
+      const entries: string[] = [];
+      for await (const entry of kaos.iterdir(tempDir)) entries.push(entry);
+      // Only the target file should remain — no `.tmp.*` staging file.
+      expect(entries).toEqual([filePath]);
+    });
+  });
+
   describe('readLines streaming', () => {
     async function collectLines(path: string, options?: Parameters<LocalKaos['readLines']>[1]) {
       const lines: string[] = [];

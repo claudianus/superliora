@@ -1,5 +1,7 @@
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { closeSync, fsyncSync, openSync } from 'node:fs';
 import {
   appendFile,
   lstat,
@@ -13,7 +15,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join, normalize } from 'pathe';
+import { dirname, isAbsolute, join, normalize } from 'pathe';
 import type { Readable, Writable } from 'node:stream';
 
 import { detectEnvironmentFromNode, type Environment } from './environment';
@@ -730,6 +732,63 @@ export class LocalKaos implements Kaos {
 
   async rename(source: string, destination: string): Promise<void> {
     await rename(this._resolvePath(source), this._resolvePath(destination));
+  }
+
+  async writeAtomic(
+    path: string,
+    data: string | Buffer,
+    options?: { fsyncDir?: boolean },
+  ): Promise<void> {
+    const resolved = this._resolvePath(path);
+    const fsyncDir = options?.fsyncDir ?? true;
+    // Uniquely-named temp so two concurrent writers don't collide on the same
+    // staging file (the `writeFileAtomicDurable` helper in agent-core uses a
+    // fixed `.tmp` suffix and is therefore not safe here).
+    const hex = randomBytes(4).toString('hex');
+    const tmpPath = `${resolved}.tmp.${process.pid}.${hex}`;
+    let renamed = false;
+    try {
+      const fh = await open(tmpPath, 'w');
+      try {
+        await fh.writeFile(data);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
+      // Windows `fs.rename` maps to MoveFileEx and fails with EPERM if the
+      // target is held by another handle; pre-unlinking turns it into the
+      // POSIX-style "replace" case.
+      if (isWindows) {
+        try {
+          await unlink(resolved);
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code !== 'ENOENT') throw error;
+        }
+      }
+      await rename(tmpPath, resolved);
+      renamed = true;
+      // Commit the directory entry so the rename survives a power loss.
+      // NTFS commits the dirent inside the file fsync, so the dir fsync is a
+      // no-op there (and `open(dir, 'r')` would EISDIR anyway).
+      if (fsyncDir && !isWindows) {
+        const dir = dirname(resolved);
+        const dirFd = openSync(dir, 'r');
+        try {
+          fsyncSync(dirFd);
+        } finally {
+          closeSync(dirFd);
+        }
+      }
+    } finally {
+      if (!renamed) {
+        try {
+          await unlink(tmpPath);
+        } catch {
+          /* ignore — temp may not exist if `open` itself failed */
+        }
+      }
+    }
   }
 
   async exec(...args: string[]): Promise<KaosProcess> {

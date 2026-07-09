@@ -121,6 +121,18 @@ export class AcpKaos implements Kaos {
     return this.inner.rename(source, destination);
   }
 
+  writeAtomic(
+    path: string,
+    data: string | Buffer,
+    options?: { fsyncDir?: boolean },
+  ): Promise<void> {
+    // Delegate to the inner (local) Kaos rather than the ACP writeTextFile
+    // RPC: atomic temp+rename+fsync is not available over ACP, and crash
+    // safety (never observing a torn file) matters more than routing the
+    // write through the editor's scratchpad here.
+    return this.inner.writeAtomic(path, data, options);
+  }
+
   // ── reads: route through ACP `fs/readTextFile` ─────────────────────
 
   /**

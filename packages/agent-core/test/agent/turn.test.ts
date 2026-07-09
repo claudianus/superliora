@@ -2082,6 +2082,7 @@ describe('abandoned tool exchange teardown', () => {
       },
       flush: () => base.flush(),
       close: () => base.close(),
+      flushSync: () => base.flushSync(),
     };
     const ctx = testAgent({ kaos: createCommandKaos('ok'), persistence });
     ctx.configure({ tools: ['Bash'] });

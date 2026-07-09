@@ -84,11 +84,11 @@ describe('EditTool', () => {
   });
 
   it('replaces a unique first occurrence and writes the updated content', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('alpha beta'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -98,13 +98,13 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 1 occurrence');
-    expect(writeText).toHaveBeenCalledWith('/tmp/a.txt', 'alpha gamma');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/a.txt', 'alpha gamma');
   });
 
   it('expands leading tilde paths using the kaos home directory', async () => {
     const readText = vi.fn().mockResolvedValue('alpha beta');
-    const writeText = vi.fn().mockResolvedValue(0);
-    const tool = new EditTool(createFakeKaos({ readText, writeText }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
+    const tool = new EditTool(createFakeKaos({ readText, writeAtomic }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool,
       context({ path: '~/notes/today.txt', old_string: 'beta', new_string: 'gamma' }),
@@ -112,15 +112,15 @@ describe('EditTool', () => {
 
     expect(result.output).toContain('Replaced 1 occurrence');
     expect(readText).toHaveBeenCalledWith('/home/test/notes/today.txt');
-    expect(writeText).toHaveBeenCalledWith('/home/test/notes/today.txt', 'alpha gamma');
+    expect(writeAtomic).toHaveBeenCalledWith('/home/test/notes/today.txt', 'alpha gamma');
   });
 
   it('treats replacement dollar sequences literally for single edits', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('alpha beta gamma'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -130,15 +130,15 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 1 occurrence');
-    expect(writeText).toHaveBeenCalledWith('/tmp/a.txt', "alpha $& $$ $` $' gamma");
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/a.txt', "alpha $& $$ $` $' gamma");
   });
 
   it('treats replacement dollar sequences literally for replace_all edits', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('a b a'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -148,15 +148,15 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 2 occurrences');
-    expect(writeText).toHaveBeenCalledWith('/tmp/a.txt', '$& b $&');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/a.txt', '$& b $&');
   });
 
   it('matches pure CRLF files through the LF model view and writes back CRLF', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('alpha\r\nbeta\r\ngamma\r\n'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -166,15 +166,15 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 1 occurrence');
-    expect(writeText).toHaveBeenCalledWith('/tmp/a.txt', 'one\r\ntwo\r\ngamma\r\n');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/a.txt', 'one\r\ntwo\r\ngamma\r\n');
   });
 
   it('does not double carriage returns when editing pure CRLF files', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('alpha\r\nbeta\r\n'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -184,15 +184,15 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 1 occurrence');
-    expect(writeText).toHaveBeenCalledWith('/tmp/a.txt', 'one\r\ntwo\r\n');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/a.txt', 'one\r\ntwo\r\n');
   });
 
   it('keeps mixed line ending files on the raw exact path', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('alpha\r\nbeta\ngamma\r\n'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -203,15 +203,15 @@ describe('EditTool', () => {
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('old_string not found');
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
   it('allows exact raw edits in mixed line ending files without normalizing the rest', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('alpha\r\nbeta\ngamma\r\n'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -221,15 +221,15 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 1 occurrence');
-    expect(writeText).toHaveBeenCalledWith('/tmp/a.txt', 'one\r\ntwo\ngamma\r\n');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/a.txt', 'one\r\ntwo\ngamma\r\n');
   });
 
   it('replace_all replaces every occurrence', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('a b a'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -239,13 +239,13 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 2 occurrences');
-    expect(writeText).toHaveBeenCalledWith('/tmp/a.txt', 'x b x');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/a.txt', 'x b x');
   });
 
   it('rejects no-op edits before file I/O', async () => {
     const readText = vi.fn().mockResolvedValue('same');
-    const writeText = vi.fn().mockResolvedValue(0);
-    const tool = new EditTool(createFakeKaos({ readText, writeText }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
+    const tool = new EditTool(createFakeKaos({ readText, writeAtomic }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool,
       context({
@@ -259,15 +259,15 @@ describe('EditTool', () => {
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('No changes to make');
     expect(readText).not.toHaveBeenCalled();
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
   it('errors when old_string is missing', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('alpha beta'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -278,15 +278,15 @@ describe('EditTool', () => {
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('old_string not found');
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
   it('errors when old_string is not unique and replace_all is false', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('same same'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -299,7 +299,7 @@ describe('EditTool', () => {
     expect(result.output).toContain('not unique');
     expect(result.output).toContain('set replace_all=true');
     expect(result.output).toContain('include more surrounding context');
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
   it('rejects relative traversal edits before reading', async () => {
@@ -319,11 +319,11 @@ describe('EditTool', () => {
   });
 
   it('replaces unicode strings (CJK) and round-trips the surrounding text', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('Hello 世界! café'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -333,16 +333,16 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 1 occurrence');
-    expect(writeText).toHaveBeenCalledWith('/tmp/u.txt', 'Hello 地球! café');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/u.txt', 'Hello 地球! café');
   });
 
   it('leaves the file byte-identical when old_string is not present', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const original = 'Hello world!';
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue(original),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -353,7 +353,7 @@ describe('EditTool', () => {
 
     expect(result.isError).toBe(true);
     // Lockdown the negative side-effect: no write should have been issued.
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
   it('errors with an is-not-a-file phrasing when the path resolves to a directory', async () => {
@@ -381,11 +381,11 @@ describe('EditTool', () => {
   });
 
   it('replaces a substring with an empty new_string (deletion)', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('Hello world!'),
-        writeText,
+        writeAtomic,
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -395,15 +395,15 @@ describe('EditTool', () => {
     );
 
     expect(result.output).toContain('Replaced 1 occurrence');
-    expect(writeText).toHaveBeenCalledWith('/tmp/e.txt', 'Hello !');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/e.txt', 'Hello !');
   });
 
   it('allows absolute edits outside the workspace under default policy', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('old content'),
-        writeText,
+        writeAtomic,
       }),
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
@@ -413,17 +413,17 @@ describe('EditTool', () => {
     );
 
     expect(result.isError).toBeFalsy();
-    expect(writeText).toHaveBeenCalledWith('/tmp/outside.txt', 'new content');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/outside.txt', 'new content');
   });
 
   it('allows absolute edits to a sibling dir that merely shares the work-dir prefix', async () => {
     // /workspace-sneaky/* is outside /workspace — string prefix check must not
     // mistake "shares a prefix" for "inside workspace".
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
       createFakeKaos({
         readText: vi.fn().mockResolvedValue('content'),
-        writeText,
+        writeAtomic,
       }),
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
@@ -433,6 +433,6 @@ describe('EditTool', () => {
     );
 
     expect(result.isError).toBeFalsy();
-    expect(writeText).toHaveBeenCalledWith('/workspace-sneaky/test.txt', 'new');
+    expect(writeAtomic).toHaveBeenCalledWith('/workspace-sneaky/test.txt', 'new');
   });
 });

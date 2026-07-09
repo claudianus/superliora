@@ -95,6 +95,26 @@ export interface Kaos {
    * writes that stage a temp file then swap it into place.
    */
   rename(source: string, destination: string): Promise<void>;
+  /**
+   * Write `data` to `path` atomically and (by default) durably:
+   *   1. Write `data` to a uniquely-named temp file in the same directory.
+   *   2. fsync the temp file so the bytes survive a power loss.
+   *   3. rename(temp, path) — atomic on POSIX, so readers never observe a
+   *      half-written / truncated file.
+   *   4. fsync the parent directory so the rename is durable (unless
+   *      `fsyncDir: false` is passed for a cache/derived file).
+   *
+   * This is the crash-safe replacement for `writeText`/`writeBytes` at any path
+   * where a torn write would corrupt durable state (user source files, session
+   * state, ultrawork mirrors). It does NOT support append mode — append paths
+   * use `writeText(path, data, { mode: 'a' })` plus their own durability
+   * strategy (e.g. the wire-log append+fsync).
+   */
+  writeAtomic(
+    path: string,
+    data: string | Buffer,
+    options?: { fsyncDir?: boolean },
+  ): Promise<void>;
 
   // ── Process execution ───────────────────────────────────────────────
 

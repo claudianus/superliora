@@ -93,7 +93,7 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       if (mode === 'append') {
         await this.kaos.writeText(safePath, args.content, { mode: 'a' });
       } else {
-        await this.kaos.writeText(safePath, args.content);
+        await this.kaos.writeAtomic(safePath, args.content);
       }
       // Report the number of UTF-8 bytes this call wrote to disk. The string
       // length would only equal the byte count for pure ASCII content, so it

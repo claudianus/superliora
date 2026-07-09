@@ -115,8 +115,9 @@ export async function writeFileAtomicDurable(
  * Does NOT fsync the parent directory; callers that need full POSIX
  * crash durability should `await syncDir(dirname(path))` after this call.
  *
- * NOT suitable for append-only paths (wire.jsonl). Those use
- * `JournalWriter.append()` which writes at the current file position.
+ * NOT suitable for append-only paths (wire.jsonl). Those are handled by
+ * `FileSystemAgentRecordPersistence.drainBatch`, which appends at the current
+ * file position and fsyncs the fd.
  */
 
 /**

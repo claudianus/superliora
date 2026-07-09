@@ -293,6 +293,41 @@ describe('FileSystemAgentRecordPersistence', () => {
     expect(blobFiles).toHaveLength(1);
     expect((await readFile(join(blobsDir, blobFiles[0]!))).toString('base64')).toBe(payload);
   });
+
+  it('flushSync drains pending records with a synchronous fsync', async () => {
+    const wirePath = await makeWirePath();
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+
+    // Append two records without awaiting flush. They sit in `pendingRecords`
+    // until either the background drain or a flush runs.
+    persistence.append({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'sync-one' }],
+      origin: { kind: 'user' },
+    });
+    persistence.append({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'sync-two' }],
+      origin: { kind: 'user' },
+    });
+
+    // Synchronous flush must land both pending records on disk immediately,
+    // with a synchronous fsync and no async drain — this is the guarantee a
+    // signal handler relies on when no microtask can run before the process
+    // exits.
+    persistence.flushSync();
+
+    const lines = await readLines(wirePath);
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[0]!)['input'][0]['text']).toBe('sync-one');
+    expect(JSON.parse(lines[1]!)['input'][0]['text']).toBe('sync-two');
+
+    // After flushSync, pendingRecords is empty — a second call is a no-op
+    // that does not append duplicates.
+    persistence.flushSync();
+    const linesAfterNoop = await readLines(wirePath);
+    expect(linesAfterNoop).toHaveLength(2);
+  });
 });
 
 describe('InMemoryAgentRecordPersistence', () => {

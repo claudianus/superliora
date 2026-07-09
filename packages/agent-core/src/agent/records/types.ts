@@ -162,4 +162,11 @@ export interface AgentRecordPersistence {
   rewrite(records: readonly AgentRecord[]): void;
   flush(): Promise<void>;
   close(): Promise<void>;
+  /**
+   * Synchronously drain every pending record to disk (append + fsync + dir
+   * sync). Used only from crash paths (signal handlers,
+   * `uncaughtExceptionMonitor`) where no async work can complete before the
+   * process dies. Never call this on the hot path — it stalls the event loop.
+   */
+  flushSync(): void;
 }

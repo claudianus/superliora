@@ -749,6 +749,20 @@ export class Session {
     await Promise.all(Array.from(this.readyAgents()).map((agent) => agent.records.flush()));
   }
 
+  /**
+   * Best-effort synchronous flush for crash paths (signal handlers,
+   * `uncaughtExceptionMonitor`). Drains pending wire-log records with an
+   * fsync so the most recent state survives a hard exit. It does NOT await
+   * `writeMetadataPromise` or `skillsReady` — those are async and cannot
+   * complete from a sync context. Use {@link flushMetadata} for normal
+   * graceful shutdown.
+   */
+  flushMetadataSync(): void {
+    for (const agent of this.readyAgents()) {
+      agent.records.flushSync();
+    }
+  }
+
   async listSkills(): Promise<readonly SkillSummary[]> {
     await this.skillsReady;
     return this.skills.listSkills().map(summarizeSkill);

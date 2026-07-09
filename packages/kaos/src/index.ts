@@ -36,6 +36,7 @@ export {
   setCurrentKaos,
   stat,
   unlink,
+  writeAtomic,
   writeBytes,
   writeText,
 } from './current';

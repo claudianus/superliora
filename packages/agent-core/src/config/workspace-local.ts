@@ -89,7 +89,7 @@ export async function appendWorkspaceAdditionalDir(
   file.raw['workspace'] = workspace;
 
   await kaos.mkdir(dirname(configPath), { parents: true, existOk: true });
-  await kaos.writeText(configPath, `${stringifyToml(file.raw)}\n`);
+  await kaos.writeAtomic(configPath, `${stringifyToml(file.raw)}\n`);
 
   return { projectRoot, configPath, additionalDirs: [...fileExistingDirs, additionalDir] };
 }

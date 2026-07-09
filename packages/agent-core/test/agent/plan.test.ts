@@ -20,9 +20,9 @@ describe('manual plan entry', () => {
 
   it('enters plan mode without starting a model turn and prepares the plan directory', async () => {
     const mkdir = vi.fn().mockResolvedValue(undefined);
-    const writeText = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(0);
     const ctx = testAgent({
-      kaos: createFakeKaos({ mkdir, writeText }),
+      kaos: createFakeKaos({ mkdir, writeAtomic }),
     });
 
     await ctx.rpc.enterPlan({});
@@ -31,15 +31,15 @@ describe('manual plan entry', () => {
     expect(ctx.agent.planMode.isActive).toBe(true);
     expect(ctx.agent.planMode.planFilePath).toMatch(/\.md$/);
     expect(mkdir).toHaveBeenCalledWith('/workspace/plan', { parents: true, existOk: true });
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
     expect(ctx.allEvents.some((event) => event.event === 'turn.started')).toBe(false);
     expect(ctx.llmCalls).toHaveLength(0);
   });
 
   it('enters UltraPlan with the phase machine and template active', async () => {
-    const writeText = vi.fn(async (_path: string, content: string) => content.length);
+    const writeAtomic = vi.fn(async (_path: string, content: string) => content.length);
     const ctx = testAgent({
-      kaos: createPlanKaos({ writeText }),
+      kaos: createPlanKaos({ writeAtomic }),
     });
 
     await ctx.agent.planMode.enter(
@@ -58,15 +58,15 @@ describe('manual plan entry', () => {
       'Build a Galaga-style browser game with visible verification.',
     );
     expect(ctx.agent.planMode.planFilePath).toBe('/workspace/plan/ultra-regression.md');
-    expect(writeText).toHaveBeenCalledWith(
+    expect(writeAtomic).toHaveBeenCalledWith(
       '/workspace/plan/ultra-regression.md',
       expect.stringContaining('# Ultra Plan'),
     );
-    expect(writeText).toHaveBeenCalledWith(
+    expect(writeAtomic).toHaveBeenCalledWith(
       '/workspace/plan/ultra-regression.md',
       expect.stringContaining('## Seed Spec'),
     );
-    expect(writeText).toHaveBeenCalledWith(
+    expect(writeAtomic).toHaveBeenCalledWith(
       '/workspace/plan/ultra-regression.md',
       expect.stringContaining('## Evaluation Plan'),
     );
@@ -79,7 +79,7 @@ describe('manual plan entry', () => {
   it('derives the no-homedir plan path from cwd on enter and restore', async () => {
     const ctx = testAgent({
       kaos: createPlanKaos({
-        writeText: vi.fn(async (_path: string, content: string) => content.length),
+        writeAtomic: vi.fn(async (_path: string, content: string) => content.length),
       }),
     });
     await ctx.agent.planMode.enter('stable-plan');
@@ -114,7 +114,7 @@ describe('manual plan entry', () => {
     };
     const ctx = testAgent({
       kaos: createPlanKaos({
-        writeText: vi.fn(async (_path: string, content: string) => content.length),
+        writeAtomic: vi.fn(async (_path: string, content: string) => content.length),
       }),
     });
     ctx.configure({ tools: ['EnterPlanMode'] });
@@ -138,13 +138,13 @@ describe('plan clear', () => {
     const files = new Map<string, string>();
     const mkdir = vi.fn().mockResolvedValue(undefined);
     const readText = vi.fn(async (path: string) => files.get(path) ?? '');
-    const writeText = vi.fn(async (path: string, content: string) => {
+    const writeAtomic = vi.fn(async (path: string, content: string) => {
       files.set(path, content);
       return content.length;
     });
 
     const ctx = testAgent({
-      kaos: createPlanKaos({ mkdir, readText, writeText }),
+      kaos: createPlanKaos({ mkdir, readText, writeAtomic }),
     });
     await ctx.agent.planMode.enter('test-plan', false);
 
@@ -154,7 +154,7 @@ describe('plan clear', () => {
 
     await ctx.rpc.clearPlan({});
 
-    expect(writeText).toHaveBeenCalledWith(planPath, '');
+    expect(writeAtomic).toHaveBeenCalledWith(planPath, '');
     expect(files.get(planPath)).toBe('');
     expect(ctx.agent.planMode.isActive).toBe(true);
     expect(ctx.agent.planMode.planFilePath).toBe(planPath);
@@ -371,12 +371,12 @@ describe('plan allows safe tool flow', () => {
     async (toolName) => {
       const files = new Map<string, string>();
       const readText = vi.fn(async (path: string) => files.get(path) ?? '');
-      const writeText = vi.fn(async (path: string, content: string) => {
+      const writeAtomic = vi.fn(async (path: string, content: string) => {
         files.set(path, content);
         return content.length;
       });
       const ctx = testAgent({
-        kaos: createPlanKaos({ readText, writeText }),
+        kaos: createPlanKaos({ readText, writeAtomic }),
       });
       ctx.configure({ tools: [toolName] });
       await ctx.agent.planMode.enter('test-plan', false);
@@ -405,7 +405,7 @@ describe('plan allows safe tool flow', () => {
       await ctx.untilTurnEnd();
 
       expect(files.get(planPath)).toBe(expectedContent);
-      expect(writeText).toHaveBeenCalledWith(planPath, expectedContent);
+      expect(writeAtomic).toHaveBeenCalledWith(planPath, expectedContent);
       expect(
         ctx.allEvents.some((event) => event.type === '[rpc]' && event.event === 'requestApproval'),
       ).toBe(false);
@@ -415,12 +415,12 @@ describe('plan allows safe tool flow', () => {
 
   it('keeps explicit deny rules above active plan file writes', async () => {
     const files = new Map<string, string>();
-    const writeText = vi.fn(async (path: string, content: string) => {
+    const writeAtomic = vi.fn(async (path: string, content: string) => {
       files.set(path, content);
       return content.length;
     });
     const ctx = testAgent({
-      kaos: createPlanKaos({ writeText }),
+      kaos: createPlanKaos({ writeAtomic }),
     });
     ctx.configure({ tools: ['Write'] });
     ctx.agent.permission.rules.push({
@@ -448,7 +448,7 @@ describe('plan allows safe tool flow', () => {
     await ctx.untilTurnEnd();
 
     expect(files.get(planPath)).toBeUndefined();
-    expect(writeText.mock.calls.some(([path]) => path === planPath)).toBe(false);
+    expect(writeAtomic.mock.calls.some(([path]) => path === planPath)).toBe(false);
     expect(toolResultText(ctx.agent.context.history)).toContain(
       'Tool "Write" was denied by permission rule. Reason: blocked by test',
     );

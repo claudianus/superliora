@@ -1,8 +1,8 @@
-import { createReadStream } from 'node:fs';
+import { appendFileSync, closeSync, createReadStream, fsyncSync, mkdirSync, openSync } from 'node:fs';
 import { mkdir, open } from 'node:fs/promises';
 import { dirname } from 'pathe';
 
-import { syncDir } from '../../utils/fs';
+import { syncDir, syncDirSync } from '../../utils/fs';
 import type { BlobStore } from './blobref';
 import { type AgentRecord, type AgentRecordPersistence } from './types';
 
@@ -60,6 +60,8 @@ export class InMemoryAgentRecordPersistence implements AgentRecordPersistence {
   async flush(): Promise<void> {}
 
   async close(): Promise<void> {}
+
+  flushSync(): void {}
 }
 
 export class FileSystemAgentRecordPersistence implements AgentRecordPersistence {
@@ -143,9 +145,56 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     await this.flush();
   }
 
-  private scheduleFlush(): void {
-    void this.ensureFlush().catch((error) => {
+  flushSync(): void {
+    // Crash-path only (signal handlers, uncaughtExceptionMonitor): drain
+    // whatever is still pending with a synchronous append + fsync + dir sync.
+    //
+    // We deliberately do NOT touch an in-flight async `flushPromise`: that
+    // batch was already spliced out of `pendingRecords` and lives in the
+    // async drain's local — if its write/fsync hadn't completed when the
+    // process died, that batch is lost regardless (a sync path cannot await
+    // an fd it does not own). We only guarantee durability for records still
+    // in `pendingRecords` at the moment of the crash.
+    if (this.pendingRecords.length === 0 && !this.shouldClear) return;
+    const batch = this.pendingRecords.splice(0);
+    const shouldClear = this.shouldClear;
+    this.shouldClear = false;
+    try {
+      const directory = dirname(this.filePath);
+      mkdirSync(directory, { recursive: true });
+      const content = batch.map((e) => JSON.stringify(e) + '\n').join('');
+      const flags = shouldClear ? 'w' : 'a';
+      const fd = openSync(this.filePath, flags);
+      try {
+        if (content.length > 0) appendFileSync(fd, content, 'utf8');
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+      if (!this.directorySynced) {
+        syncDirSync(directory);
+        this.directorySynced = true;
+      }
+      this.consecutiveFailures = 0;
+    } catch (error) {
+      // Re-queue so a subsequent resume attempt can retry; do NOT latch — a
+      // crash-path failure should not brick future sessions.
+      this.pendingRecords.unshift(...batch);
+      if (shouldClear) this.shouldClear = true;
       this.options.onError?.(error);
+    }
+  }
+
+  private scheduleFlush(): void {
+    // Defer the drain start to a microtask so that a synchronous `flushSync`
+    // (called from a signal handler / uncaughtExceptionMonitor within the same
+    // tick as `append`) can drain `pendingRecords` before the async path
+    // splices it out. The async drain still begins within the same tick —
+    // only its synchronous `splice(0)` is pushed past the current call stack.
+    queueMicrotask(() => {
+      void this.ensureFlush().catch((error) => {
+        this.options.onError?.(error);
+      });
     });
   }
 

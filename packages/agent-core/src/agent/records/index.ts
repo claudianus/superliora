@@ -267,6 +267,10 @@ export class AgentRecords {
     await this.persistence?.flush();
   }
 
+  flushSync(): void {
+    this.persistence?.flushSync();
+  }
+
   async readAll(): Promise<readonly AgentRecord[]> {
     if (!this.persistence) return [];
     const records: AgentRecord[] = [];
