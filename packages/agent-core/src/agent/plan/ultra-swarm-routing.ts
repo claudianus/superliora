@@ -33,18 +33,27 @@ const RATIONALE_BY_DECISION = {
   DEFER: 'Single-owner or deterministic task; a single agent suffices.',
 };
 
+const SWARM_OVERRIDE_REGEX = /--swarm|force swarm\s*:\s*yes\b/i;
+
 export function routeFromPlanSignals(plan: string): SwarmRoutingResult | undefined {
   const decision = ultraSwarmDecision(plan);
   if (decision === undefined) return undefined;
 
+  // Escape hatch: a DEFER can be upgraded to a scaled-down ADAPTIVE swarm
+  // when the user explicitly forces it via --swarm / "Force Swarm: yes".
+  const upgradedFromDefer = decision === 'DEFER' && SWARM_OVERRIDE_REGEX.test(plan);
+  const effectiveDecision = upgradedFromDefer ? 'ADAPTIVE' : decision;
+
   const explicitIntensityMatch = INTENSITY_REGEX.exec(plan);
+  const defaultIntensity = upgradedFromDefer ? 'standard' : DEFAULT_INTENSITY_BY_DECISION[decision];
   const intensity =
     explicitIntensityMatch?.[1] !== undefined
       ? (explicitIntensityMatch[1].toLowerCase() as SwarmRoutingIntensity)
-      : DEFAULT_INTENSITY_BY_DECISION[decision];
+      : defaultIntensity;
 
-  const estimatedExperts = decision === 'DEFER' ? 0 : intensityToDefaultExpertCount(intensity);
-  const rationale = RATIONALE_BY_DECISION[decision];
+  const estimatedExperts =
+    effectiveDecision === 'DEFER' ? 0 : intensityToDefaultExpertCount(intensity);
+  const rationale = RATIONALE_BY_DECISION[effectiveDecision];
 
-  return { decision, intensity, estimatedExperts, rationale };
+  return { decision: effectiveDecision, intensity, estimatedExperts, rationale };
 }

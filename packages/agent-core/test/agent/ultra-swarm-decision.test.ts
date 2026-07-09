@@ -177,3 +177,30 @@ describe('resolveMaxExperts', () => {
     expect(resolveMaxExperts('premium', { estimatedExperts: 4 }, undefined)).toBe(24);
   });
 });
+
+describe('routeFromPlanSignals DEFER override', () => {
+  it('upgrades DEFER to ADAPTIVE when "--swarm" flag is present', () => {
+    const plan = 'Swarm decision: DEFER - single-owner\n--swarm';
+    const result = routeFromPlanSignals(plan);
+    expect(result).toBeDefined();
+    expect(result!.decision).toBe('ADAPTIVE');
+    expect(result!.intensity).toBe('standard');
+    expect(result!.estimatedExperts).toBe(12);
+  });
+
+  it('upgrades DEFER when "Force Swarm: yes" keyword is present (case-insensitive)', () => {
+    const plan = 'Swarm decision: DEFER\nForce Swarm: yes';
+    const result = routeFromPlanSignals(plan);
+    expect(result).toBeDefined();
+    expect(result!.decision).toBe('ADAPTIVE');
+  });
+
+  it('does not change ENGAGE/ADAPTIVE when flag is present (no downgrade)', () => {
+    expect(routeFromPlanSignals('Swarm decision: ENGAGE\n--swarm')?.decision).toBe('ENGAGE');
+    expect(routeFromPlanSignals('Swarm decision: ADAPTIVE\n--swarm')?.decision).toBe('ADAPTIVE');
+  });
+
+  it('override does not trigger when no DEFER decision exists', () => {
+    expect(routeFromPlanSignals('no decision\n--swarm')).toBeUndefined();
+  });
+});
