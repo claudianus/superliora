@@ -901,6 +901,26 @@ describe('Simple permission policy direct behavior', () => {
     ).toBeUndefined();
   });
 
+  it('allows UltraSwarm through an active gate regardless of decision value (ADAPTIVE)', () => {
+    // The deny policy gates on `isActive`, not on the decision value. An ADAPTIVE
+    // engage still activates the gate, so UltraSwarm must pass and other tools
+    // must still be denied. Regression guard for the ternary routing change.
+    const agent = {
+      ultraSwarmEngageGate: { isActive: true },
+    } as unknown as Agent;
+    const policy = new UltraSwarmEngageGateDenyPermissionPolicy(agent);
+
+    expect(
+      policy.evaluate(hookContext({ id: 'call_swarm', toolName: 'UltraSwarm' })),
+    ).toBeUndefined();
+    expect(
+      policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' })),
+    ).toMatchObject({
+      kind: 'deny',
+      message: expect.stringContaining('UltraSwarm ENGAGE is binding'),
+    });
+  });
+
   it('denies AgentSwarm mixed with other tool calls in the same response', () => {
     const policy = new AgentSwarmExclusiveDenyPermissionPolicy();
     const agentSwarmCall = toolCall('call_agent_swarm', 'AgentSwarm', {
