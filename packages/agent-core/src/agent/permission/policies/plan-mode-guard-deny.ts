@@ -111,6 +111,19 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           this.agent.planMode.incrementInterviewRound();
           return;
         }
+        if (toolName === 'RecordInterviewFinding') {
+          // Dialectic Rhythm Guard: after 3 consecutive non-user answers,
+          // force the next question to the user via AskUserQuestion.
+          const consecutive = this.agent.planMode.ultraEngine.interviewState.consecutiveNonUserAnswers;
+          if (consecutive >= 3) {
+            return {
+              kind: 'deny',
+              message:
+                'Rhythm Guard: 3 consecutive findings were recorded without user input. Use AskUserQuestion next to confirm a decision with the user directly. Do not use RecordInterviewFinding again until the user has answered at least one question.',
+            };
+          }
+          return;
+        }
         if (toolName === 'NextPhase') return;
         if (toolName === 'Bash') {
           if (isNarrowReadOnlyBash(context) || isReadOnlyReviewBash(context)) return;
