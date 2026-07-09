@@ -86,6 +86,14 @@ export interface MCPClient {
     args: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<MCPToolResult>;
+  /**
+   * Server-level usage instructions captured during the MCP `initialize`
+   * handshake. Compliant servers (Claude Code, Cursor, opencode, ...) surface
+   * these to the model so the agent learns how to use the server's tools
+   * without a per-turn context cost. Returns `undefined` when the server did
+   * not provide instructions.
+   */
+  getInstructions?(): string | undefined;
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   estimateTokensForMessage,
   estimateTokensForMessages,
 } from '../../utils/tokens';
+import { surpriseScore } from '../../lean-context/gate/density';
 
 export const CONTEXT_COMPACTION_V2_VERSION = 'super_kimi_context_compaction_v2' as const;
 
@@ -39,6 +40,12 @@ export interface MessageGroup {
   readonly tokens: number;
   readonly toolCallIds: readonly string[];
   readonly toolNames: readonly string[];
+  /**
+   * Information-density / surprise score in [0, 1]. Higher means the group's
+   * content is more novel / less compressible, so parallel summarization
+   * prioritizes keeping its detail. Computed once at group creation.
+   */
+  readonly densityScore: number;
 }
 
 export interface CompactionRawRef {
@@ -197,6 +204,7 @@ function createGroup(
     tokens: estimateTokensForMessages(slice),
     toolCallIds: assistant?.toolCalls.map((toolCall) => toolCall.id) ?? [],
     toolNames: assistant?.toolCalls.map((toolCall) => toolCall.name) ?? [],
+    densityScore: surpriseScore(messageSliceText(slice)),
   };
 }
 
@@ -222,4 +230,27 @@ function estimateMarkerTokens(group: MessageGroup): number {
     ],
     toolCalls: [],
   });
+}
+
+/**
+ * Flatten a message slice to its text content for density scoring. Tool calls
+ * contribute their name + arguments (the substantive payload); text parts
+ * contribute their text. Bounded to avoid spending too long on huge outputs.
+ */
+function messageSliceText(messages: readonly Message[]): string {
+  const parts: string[] = [];
+  for (const message of messages) {
+    if (typeof message.content === 'string') {
+      parts.push(message.content);
+    } else if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        if (part.type === 'text') parts.push(part.text);
+      }
+    }
+    for (const toolCall of message.toolCalls) {
+      parts.push(`${toolCall.name} ${toolCall.arguments}`);
+    }
+  }
+  // Bound the text fed to gzip so a single huge tool result doesn't dominate.
+  return parts.join('\n').slice(0, 16_000);
 }

@@ -35,7 +35,6 @@ export * from './gui/computer-use';
 export * from './planning/enter-plan-mode';
 export * from './planning/exit-plan-mode';
 export * from './planning/next-phase';
-export * from './planning/record-interview-finding';
 export * from './shell/bash';
 export * from './state/current-time';
 export * from './state/memory';

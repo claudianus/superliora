@@ -38,6 +38,15 @@ export const FLAG_DEFINITIONS = [
     default: false,
     surface: 'core',
   },
+  {
+    id: 'async_compaction',
+    title: 'Async background compaction',
+    description:
+      'Launch background compaction at a lower context threshold (default 60%) while the turn continues, falling back to synchronous compaction at the regular trigger (80%). Keeps the first two messages (system + initial user) in a frozen zone that is never compacted.',
+    env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
+    default: false,
+    surface: 'core',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

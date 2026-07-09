@@ -19,6 +19,17 @@ export interface CompactionConfig {
   absoluteTriggerBlocks?: boolean;
   speculativeStepBufferTokens: number;
   minRecompactGrowthRatio: number;
+  /**
+   * Lower ratio at which background (async) compaction may start while the
+   * turn keeps running. The regular `triggerRatio` stays the synchronous
+   * threshold. Only consulted when async compaction is enabled.
+   */
+  asyncTriggerRatio: number;
+  /**
+   * Number of leading messages (system + initial user) kept in a frozen zone
+   * that is never included in the compacted prefix. Defaults to 2.
+   */
+  frozenZoneSize: number;
 }
 
 export function resolveCompactionBlockRatio(
@@ -46,6 +57,10 @@ export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.05;
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.7;
 /** During UltraSwarm, allow micro compaction from this context usage ratio upward. */
 export const SWARM_MICRO_PRESSURE_RATIO = 0.85;
+/** Default ratio at which async background compaction may start. */
+export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.6;
+/** Default number of leading messages (system + initial user) kept frozen. */
+export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
@@ -64,11 +79,14 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   parallelBlockTarget: 15_000,
   speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
   minRecompactGrowthRatio: DEFAULT_MIN_RECOMPACT_GROWTH_RATIO,
+  asyncTriggerRatio: DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
+  frozenZoneSize: DEFAULT_FROZEN_ZONE_SIZE,
 };
 
 export interface CompactionStrategy {
   shouldCompact(usedSize: number): boolean;
   shouldBlock(usedSize: number): boolean;
+  shouldAsyncCompact(usedSize: number): boolean;
   computeCompactCount(messages: readonly Message[], source: CompactionSource): number;
   reduceCompactOnOverflow(messages: readonly Message[]): number;
   readonly checkAfterStep: boolean;
@@ -77,6 +95,8 @@ export interface CompactionStrategy {
   readonly parallelBlockThreshold?: number;
   readonly parallelBlockTarget?: number;
   readonly minRecompactGrowthRatio?: number;
+  readonly asyncTriggerRatio: number;
+  readonly frozenZoneSize: number;
 }
 
 export class DefaultCompactionStrategy implements CompactionStrategy {
@@ -121,6 +141,16 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   shouldCompact(usedSize: number): boolean {
     if (this.maxSize <= 0) return false;
     return usedSize >= this.compactThreshold();
+  }
+
+  shouldAsyncCompact(usedSize: number): boolean {
+    if (this.maxSize <= 0) return false;
+    if (this.config.asyncTriggerRatio <= 0) return false;
+    // Only start async compaction when we're above the async threshold but
+    // below the synchronous trigger — once the sync trigger fires, the
+    // regular blocking path takes over.
+    const asyncThreshold = Math.floor(this.maxSize * this.config.asyncTriggerRatio);
+    return usedSize >= asyncThreshold && !this.shouldCompact(usedSize);
   }
 
   shouldSpeculativelyCompact(projectedUsedSize: number): boolean {
@@ -286,6 +316,14 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   get maxOverflowCompactionAttempts(): number {
     return this.config.maxOverflowCompactionAttempts;
   }
+
+  get asyncTriggerRatio(): number {
+    return this.config.asyncTriggerRatio;
+  }
+
+  get frozenZoneSize(): number {
+    return this.config.frozenZoneSize;
+  }
 }
 
 export class PipelineStrategy implements CompactionStrategy {
@@ -300,6 +338,10 @@ export class PipelineStrategy implements CompactionStrategy {
 
   shouldBlock(usedSize: number): boolean {
     return this.trigger.shouldBlock(usedSize);
+  }
+
+  shouldAsyncCompact(usedSize: number): boolean {
+    return this.trigger.shouldAsyncCompact(usedSize);
   }
 
   computeCompactCount(messages: readonly Message[], source: CompactionSource): number {
@@ -331,6 +373,14 @@ export class PipelineStrategy implements CompactionStrategy {
   get maxOverflowCompactionAttempts(): number {
     return this.trigger.maxOverflowCompactionAttempts;
   }
+
+  get asyncTriggerRatio(): number {
+    return this.trigger.asyncTriggerRatio;
+  }
+
+  get frozenZoneSize(): number {
+    return this.trigger.frozenZoneSize;
+  }
 }
 
 export class ToolCollapseStrategy implements CompactionStrategy {
@@ -340,9 +390,12 @@ export class ToolCollapseStrategy implements CompactionStrategy {
 
   shouldCompact(): boolean { return true; }
   shouldBlock(): boolean { return false; }
+  shouldAsyncCompact(): boolean { return false; }
   checkAfterStep = false;
   maxCompactionPerTurn = Infinity;
   maxOverflowCompactionAttempts = 3;
+  asyncTriggerRatio = 0;
+  frozenZoneSize = 0;
 
   computeCompactCount(messages: readonly Message[], _source: CompactionSource): number {
     let toolGroupsSeen = 0;
@@ -374,9 +427,12 @@ export class SlidingWindowStrategy implements CompactionStrategy {
 
   shouldCompact(): boolean { return true; }
   shouldBlock(): boolean { return false; }
+  shouldAsyncCompact(): boolean { return false; }
   checkAfterStep = false;
   maxCompactionPerTurn = Infinity;
   maxOverflowCompactionAttempts = 3;
+  asyncTriggerRatio = 0;
+  frozenZoneSize = 0;
 
   computeCompactCount(messages: readonly Message[], _source: CompactionSource): number {
     let groupsKept = 0;
