@@ -443,6 +443,16 @@ export interface UltraworkTeamStaffedEvent {
   readonly team: TeamPlan;
 }
 
+export interface UltraworkRoutingDecidedEvent {
+  readonly type: 'ultrawork.routing.decided';
+  readonly runId: string;
+  readonly toolCallId?: string;
+  readonly decision: 'ENGAGE' | 'ADAPTIVE' | 'DEFER';
+  readonly intensity: 'light' | 'standard' | 'heavy';
+  readonly estimatedExperts: number;
+  readonly rationale: string;
+}
+
 export interface UltraworkTaskAssignedEvent {
   readonly type: 'ultrawork.task.assigned';
   readonly runId: string;
@@ -466,6 +476,20 @@ export interface UltraworkCouncilDecisionEvent {
   readonly type: 'ultrawork.council.decision';
   readonly runId: string;
   readonly decision: CouncilDecision;
+}
+
+export interface UltraworkSwarmPausedEvent {
+  readonly type: 'ultrawork.swarm.paused';
+  readonly runId: string;
+  readonly reason: string;
+  readonly input?: string;
+  readonly phase?: string;
+}
+
+export interface UltraworkSwarmResumedEvent {
+  readonly type: 'ultrawork.swarm.resumed';
+  readonly runId: string;
+  readonly reason?: string;
 }
 
 export interface UltraworkVerificationCompletedEvent {
@@ -794,10 +818,13 @@ export type AgentEvent =
   | UltraworkResearchProviderSelectedEvent
   | UltraworkResearchFindingVerifiedEvent
   | UltraworkTeamStaffedEvent
+  | UltraworkRoutingDecidedEvent
   | UltraworkTaskAssignedEvent
   | UltraworkCollaborationMessageEvent
   | UltraworkCollaborationMentionEvent
   | UltraworkCouncilDecisionEvent
+  | UltraworkSwarmPausedEvent
+  | UltraworkSwarmResumedEvent
   | UltraworkVerificationCompletedEvent
   | UltraworkKnowledgePromotedEvent
   | GoalUpdatedEvent
@@ -1242,6 +1269,16 @@ export const ultraworkTeamStaffedEventSchema = z.object({
   team: teamPlanSchema,
 }) satisfies z.ZodType<UltraworkTeamStaffedEvent>;
 
+export const ultraworkRoutingDecidedEventSchema = z.object({
+  type: z.literal('ultrawork.routing.decided'),
+  runId: z.string().min(1),
+  toolCallId: z.string().min(1).optional(),
+  decision: z.enum(['ENGAGE', 'ADAPTIVE', 'DEFER']),
+  intensity: z.enum(['light', 'standard', 'heavy']),
+  estimatedExperts: z.number().int().min(0),
+  rationale: z.string().min(1),
+}) satisfies z.ZodType<UltraworkRoutingDecidedEvent>;
+
 export const ultraworkTaskAssignedEventSchema = z.object({
   type: z.literal('ultrawork.task.assigned'),
   runId: z.string().min(1),
@@ -1266,6 +1303,21 @@ export const ultraworkCouncilDecisionEventSchema = z.object({
   runId: z.string().min(1),
   decision: councilDecisionSchema,
 }) satisfies z.ZodType<UltraworkCouncilDecisionEvent>;
+
+export const ultraworkSwarmPausedEventSchema = z.object({
+  type: z.literal('ultrawork.swarm.paused'),
+  runId: z.string().min(1),
+  reason: z.string().min(1),
+  input: z.string().optional(),
+  phase: z.string().optional(),
+}) satisfies z.ZodType<UltraworkSwarmPausedEvent>;
+
+export const ultraworkSwarmResumedEventSchema = z.object({
+  type: z.literal('ultrawork.swarm.resumed'),
+  runId: z.string().min(1),
+  reason: z.string().optional(),
+}) satisfies z.ZodType<UltraworkSwarmResumedEvent>;
+
 
 export const ultraworkVerificationCompletedEventSchema = z.object({
   type: z.literal('ultrawork.verification.completed'),
@@ -1586,10 +1638,13 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   ultraworkResearchProviderSelectedEventSchema,
   ultraworkResearchFindingVerifiedEventSchema,
   ultraworkTeamStaffedEventSchema,
+  ultraworkRoutingDecidedEventSchema,
   ultraworkTaskAssignedEventSchema,
   ultraworkCollaborationMessageEventSchema,
   ultraworkCollaborationMentionEventSchema,
   ultraworkCouncilDecisionEventSchema,
+  ultraworkSwarmPausedEventSchema,
+  ultraworkSwarmResumedEventSchema,
   ultraworkVerificationCompletedEventSchema,
   ultraworkKnowledgePromotedEventSchema,
   goalUpdatedEventSchema,

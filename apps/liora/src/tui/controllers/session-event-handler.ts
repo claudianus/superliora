@@ -259,6 +259,36 @@ export class SessionEventHandler {
       this.host.streamingUI.setTurnId(String(event.turnId));
     }
 
+    if (event.type === 'ultrawork.routing.decided') {
+      this.subAgentEventHandler.applyRoutingDecisionToSwarmProgress({
+        decision: event.decision,
+        intensity: event.intensity,
+        estimatedExperts: event.estimatedExperts,
+      });
+      requestTUILayoutRender(this.host.state);
+      return;
+    }
+
+    
+    if (event.type === 'ultrawork.swarm.paused') {
+      this.subAgentEventHandler.applySwarmPausedToSwarmProgress({
+        reason: event.reason,
+        phase: event.phase,
+      });
+      requestTUILayoutRender(this.host.state);
+      return;
+    }
+
+    if (event.type === 'ultrawork.council.decision') {
+      this.subAgentEventHandler.applyCouncilDecisionToSwarmProgress({
+        decision: event.decision.decision,
+        reason: event.decision.reason,
+      });
+      requestTUILayoutRender(this.host.state);
+      // fall through so theatre can also record it when applicable
+    }
+
+
     if (isUltraworkTheatreEvent(event)) {
       this.handleUltraworkEvent(event);
       return;

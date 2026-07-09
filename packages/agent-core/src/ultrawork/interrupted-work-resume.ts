@@ -7,6 +7,23 @@ import {
   type InterruptedWorkResumeContext,
 } from './resume-intent-llm';
 
+
+export function buildResumeWithSteering(
+  recoveryPrompt: string,
+  userText: string,
+): string {
+  const trimmed = userText.trim();
+  if (trimmed.length === 0) return recoveryPrompt;
+  return [
+    recoveryPrompt,
+    '',
+    '## User steering for this resume',
+    'The user provided additional direction while work was interrupted. Apply it on top of the recovery cursor above.',
+    '',
+    trimmed,
+  ].join('\n');
+}
+
 export interface InterruptedWorkResumePromptResult {
   readonly promptText: string;
   readonly reason: string;
@@ -44,7 +61,10 @@ export async function maybeTransformPromptForInterruptedWorkResume(
   if (blockedUltrawork) {
     const resumed = await agent.ultrawork.resume();
     if (resumed === null) return undefined;
-    return { promptText: resumed.recoveryPrompt, reason: intent.reason };
+    return {
+      promptText: buildResumeWithSteering(resumed.recoveryPrompt, userText),
+      reason: intent.reason,
+    };
   }
 
   const pausedGoal =

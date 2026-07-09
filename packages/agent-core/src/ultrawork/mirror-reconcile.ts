@@ -13,7 +13,7 @@ export function inferUltraPlanPhaseFromPlanContent(content: string): UltraPlanPh
 
   const hasExecutionPlan = /##\s*Execution Plan[\s\S]*\S/.test(trimmed);
   const hasWorkGraph = /##\s*WorkGraph[\s\S]*\S/.test(trimmed);
-  const hasSwarmDecision = /Swarm decision:\s*(ENGAGE|DEFER)/i.test(trimmed);
+  const hasSwarmDecision = /Swarm decision:\s*(ENGAGE|ADAPTIVE|DEFER)/i.test(trimmed);
   const hasSeedSpecBody =
     /Verifiable UltraGoal:\s*\S/.test(trimmed) &&
     /Acceptance Criteria:\s*\S/.test(trimmed) &&

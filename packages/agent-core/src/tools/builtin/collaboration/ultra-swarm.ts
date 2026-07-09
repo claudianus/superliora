@@ -13,9 +13,18 @@ import {
 } from '../../../session/subagent-host';
 import {
   assignReviewCriticEdges,
+  assignDiverseCriticEdges,
   buildCriticAssignmentXml,
+  CRITIC_LENSES,
   type CriticAssignment,
+  type CriticLens,
 } from '../../../session/ultra-swarm-critic';
+import {
+  consensusFromDiverseVotes,
+  extractLensVotes,
+  type CouncilDecision,
+} from '../../../session/ultra-swarm-consensus';
+import type { SwarmRoutingIntensity } from '../../../agent/plan/ultra-swarm-routing';
 import {
   buildRestaffReflectionPrompt,
   collectRestaffGaps,
@@ -24,7 +33,10 @@ import {
   restaffPhaseForGaps,
   restaffSlotsAvailable,
 } from '../../../session/ultra-swarm-restaff';
-import { createUltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
+import {
+  consumeUltraSwarmSteerRequests,
+  createUltraSwarmRunContext,
+} from '../../../agent/ultra-swarm-run';
 import {
   injectUltraworkPostSwarmContinuation,
   maybeAdvanceUltraworkStage,
@@ -236,7 +248,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
   ): Promise<string> {
     const profileBaseName = normalizeOptionalString(args.subagent_type) ?? 'coder';
     const autoSelect = args.auto_select !== false;
-    const maxExperts = args.max_experts ?? defaultMaxExperts(args.intensity);
+    const engageGate = this.agent.ultraSwarmEngageGate;
+    const routing = typeof engageGate?.data === 'function' ? engageGate.data()?.routing : undefined;
+    const maxExperts = resolveMaxExperts(args.intensity, routing, args.max_experts);
     const runId = normalizeOptionalString(args.run_id) ?? `ultra-swarm-${randomUUID()}`;
     const workNodeContext = this.resolveWorkNodeContext(args);
     const requestedExperts = uniqueStrings([
@@ -353,6 +367,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           phaseSpecsForRun = attachCriticAssignments(
             phaseSpecs,
             phaseResults.map(withRenderedMetadata),
+            routing?.intensity,
           );
         }
 
@@ -391,25 +406,57 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           busEnabled ? renderSwarmBusDigest(this.store) : '',
         );
         blockedBy = blockingRequiredResult(renderedPhaseResults, phase);
+
+        // Pause-Redirect-Resume checkpoint: if the user steered mid-run, stop
+        // launching further phases after this phase finishes. Completed work is kept.
+        const steerTexts = consumeUltraSwarmSteerRequests(this.agent.ultraSwarmRun);
+        if (steerTexts.length > 0) {
+          const steerNote = steerTexts.join('\n\n');
+          phaseHandoff = `${phaseHandoff}\n\n<user_steering>\n${steerNote}\n</user_steering>`;
+          // Mark remaining unstarted phases as skipped by setting blockedBy-like marker.
+          // We break the phase loop early; restaff is also skipped below when paused.
+          if (this.agent.ultraSwarmRun !== undefined) {
+            this.agent.ultraSwarmRun.pausedForSteer = true;
+          }
+          this.agent.emitEvent({
+            type: 'ultrawork.swarm.paused',
+            runId,
+            reason: 'User steering applied at phase checkpoint',
+            input: steerNote,
+            phase,
+          } as any);
+          break;
+        }
       }
 
-      const restaffed = await this.maybeRestaffForRevision({
-        rendered: phaseResults.map(withRenderedMetadata),
-        specs,
-        team,
-        busEnabled,
-        args,
-        workNodeContext,
-        profileBaseName,
-        toolCallId,
-        runId,
-        signal,
-        maxExperts,
-        requiredExpertIds,
-        onTeamUpdated: (nextTeam) => {
-          team = nextTeam;
-        },
-      });
+      // Cost control: skip adaptive restaff when review consensus is already solid.
+      // strong-approve always skips; plain approve skips only for light intensity.
+      const preRestaffDecision = councilDecisionFromReview(
+        phaseResults.map(withRenderedMetadata),
+      );
+      const skipRestaff =
+        this.agent.ultraSwarmRun?.pausedForSteer === true
+        || preRestaffDecision === 'strong-approve'
+        || (preRestaffDecision === 'approve' && routing?.intensity === 'light');
+      const restaffed = skipRestaff
+        ? []
+        : await this.maybeRestaffForRevision({
+            rendered: phaseResults.map(withRenderedMetadata),
+            specs,
+            team,
+            busEnabled,
+            args,
+            workNodeContext,
+            profileBaseName,
+            toolCallId,
+            runId,
+            signal,
+            maxExperts,
+            requiredExpertIds,
+            onTeamUpdated: (nextTeam) => {
+              team = nextTeam;
+            },
+          });
       phaseResults.push(...restaffed);
     } catch (error) {
       if (workNodeContext !== undefined) {
@@ -426,13 +473,17 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const rendered = phaseResults.map(withRenderedMetadata);
     if (busEnabled) {
       const reviewResults = rendered.filter((result) => result.spec.phase === 'review');
+      const decision = councilDecisionFromReview(rendered);
+      // Protocol CouncilDecision does not yet carry strong-approve; collapse for emission.
+      const emitDecision =
+        decision === 'strong-approve' ? 'approve' : decision;
       emitCouncilDecisionFromReview(this.agent, {
         runId,
         councilExpertIds: team.councilExpertIds ?? [],
         verdictSummary: reviewResults
           .map((result) => `${result.spec.expertId}=${result.verdict}`)
           .join(', '),
-        decision: councilDecisionFromReview(rendered),
+        decision: emitDecision,
       });
     }
     if (workNodeContext !== undefined) {
@@ -441,7 +492,10 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     this.agent.ultraSwarmEngageGate?.clear('ultra-swarm-completed');
     maybeAdvanceUltraworkStage(this.agent, 'integrate', 'UltraSwarm completed');
     injectUltraworkPostSwarmContinuation(this.agent);
-    const rawResult = renderUltraSwarmResults(rendered, plan, runId);
+    const steerSuffix = this.agent.ultraSwarmRun?.pausedForSteer === true
+      ? '\n\n<user_steering_applied>UltraSwarm paused after user steering. Incorporate the steering note in the phase handoff and continue from the remaining work.</user_steering_applied>'
+      : '';
+    const rawResult = renderUltraSwarmResults(rendered, plan, runId) + steerSuffix;
     const compacted = compactSwarmToolResult(this.store, rawResult, { runId });
     if (compacted.archiveIds.length > 0) {
       this.agent.telemetry.track('boundary_compaction_applied', {
@@ -771,9 +825,12 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       input.rendered,
       input.busEnabled ? renderSwarmBusDigest(this.store) : '',
     );
+    const restaffRouting = typeof this.agent.ultraSwarmEngageGate?.data === 'function'
+      ? this.agent.ultraSwarmEngageGate.data()?.routing
+      : undefined;
     const phaseSpecs =
       phase === 'review'
-        ? attachCriticAssignments(restaffSpecs, input.rendered)
+        ? attachCriticAssignments(restaffSpecs, input.rendered, restaffRouting?.intensity)
         : restaffSpecs;
 
     const results = await this.runPhaseExperts({
@@ -1055,7 +1112,7 @@ function augmentTeamPlan(
 
 function councilDecisionFromReview(
   results: readonly UltraSwarmRenderedResult[],
-): 'approve' | 'revise' | 'block' | 'interrupted' {
+): CouncilDecision {
   const reviewResults = results.filter((result) => result.spec.phase === 'review');
   if (
     reviewResults.length > 0 &&
@@ -1063,28 +1120,57 @@ function councilDecisionFromReview(
   ) {
     return 'interrupted';
   }
-  if (reviewResults.some((result) => result.verdict === 'FAIL')) return 'block';
-  if (reviewResults.some((result) => result.verdict === 'BLOCKED')) return 'revise';
-  if (reviewResults.some((result) => result.verdict !== 'PASS')) return 'revise';
-  return 'approve';
+  const votes = extractLensVotes(reviewResults);
+  if (votes.length === 0) {
+    // No completed reviews — fall back to the prior rule-based path.
+    if (reviewResults.some((result) => result.verdict === 'FAIL')) return 'block';
+    if (reviewResults.some((result) => result.verdict !== 'PASS')) return 'revise';
+    return 'approve';
+  }
+  return consensusFromDiverseVotes(votes);
+}
+
+function lensesForIntensity(intensity: SwarmRoutingIntensity | undefined): readonly CriticLens[] {
+  const specStrict = CRITIC_LENSES[0];
+  const adversarial = CRITIC_LENSES[1];
+  if (intensity === 'light') {
+    return specStrict !== undefined ? [specStrict] : CRITIC_LENSES.slice(0, 1);
+  }
+  if (intensity === 'standard') {
+    return specStrict !== undefined && adversarial !== undefined
+      ? [specStrict, adversarial]
+      : CRITIC_LENSES.slice(0, 2);
+  }
+  // heavy or undefined → all three lenses
+  return CRITIC_LENSES;
 }
 
 function attachCriticAssignments(
   specs: readonly UltraSwarmSpec[],
   priorResults: readonly UltraSwarmRenderedResult[],
+  intensity: SwarmRoutingIntensity | undefined,
 ): UltraSwarmSpec[] {
-  const assignments = assignReviewCriticEdges(
-    specs.map((spec) => ({ expertId: spec.expertId, expertName: spec.expertName })),
-    priorResults
-      .filter((result) => result.status === 'completed')
-      .map((result) => ({
-        expertId: result.spec.expertId,
-        expertName: result.spec.expertName,
-        phase: result.spec.phase,
-        verdict: result.verdict,
-        handoff: collapseForHandoff(result.result ?? result.error ?? ''),
-      })),
-  );
+  const lenses = lensesForIntensity(intensity);
+  const sources = priorResults
+    .filter((result) => result.status === 'completed')
+    .map((result) => ({
+      expertId: result.spec.expertId,
+      expertName: result.spec.expertName,
+      phase: result.spec.phase,
+      verdict: result.verdict,
+      handoff: collapseForHandoff(result.result ?? result.error ?? ''),
+    }));
+  const assignments =
+    lenses.length >= 2
+      ? assignDiverseCriticEdges(
+          specs.map((spec) => ({ expertId: spec.expertId, expertName: spec.expertName })),
+          sources,
+          lenses,
+        )
+      : assignReviewCriticEdges(
+          specs.map((spec) => ({ expertId: spec.expertId, expertName: spec.expertName })),
+          sources,
+        );
   return specs.map((spec) => {
     const assignment = assignments.get(spec.expertId);
     if (assignment === undefined) return spec;
@@ -1196,8 +1282,16 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function defaultMaxExperts(intensity: UltraSwarmToolInput['intensity']): number {
-  if (intensity === 'max') return MAX_ULTRA_SWARM_SUBAGENTS;
+export function resolveMaxExperts(
+  toolIntensity: UltraSwarmToolInput['intensity'] | undefined,
+  routing: { readonly estimatedExperts: number } | undefined,
+  explicitMax: number | undefined,
+): number {
+  if (explicitMax !== undefined) return Math.min(explicitMax, MAX_ULTRA_SWARM_SUBAGENTS);
+  if (toolIntensity === 'max') return MAX_ULTRA_SWARM_SUBAGENTS;
+  if (toolIntensity === undefined && routing !== undefined) {
+    return Math.max(1, Math.min(routing.estimatedExperts, MAX_ULTRA_SWARM_SUBAGENTS));
+  }
   return 24;
 }
 

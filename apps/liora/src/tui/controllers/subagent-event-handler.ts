@@ -177,6 +177,34 @@ export class SubAgentEventHandler {
     this.host.updateActivityPane();
   }
 
+  applyRoutingDecisionToSwarmProgress(routing: {
+    readonly decision: string;
+    readonly intensity: string;
+    readonly estimatedExperts: number;
+  }): void {
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applyRoutingDecision(routing);
+    }
+  }
+
+  applyCouncilDecisionToSwarmProgress(input: {
+    readonly decision: string;
+    readonly reason?: string;
+  }): void {
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applyCouncilDecision(input);
+    }
+  }
+
+  applySwarmPausedToSwarmProgress(input: {
+    readonly reason: string;
+    readonly phase?: string;
+  }): void {
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applySwarmPaused(input);
+    }
+  }
+
   hasAgentSwarmProgress(toolCallId: string): boolean {
     return this.agentSwarmProgress.has(toolCallId);
   }

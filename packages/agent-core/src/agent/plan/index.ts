@@ -264,7 +264,7 @@ export class PlanMode {
 
   private async writeUltraPlanTemplate(path: string): Promise<void> {
     await this.ensurePlanDirectory(path);
-    const template = `# Ultra Plan\n\n## Seed Spec\n- Verifiable UltraGoal: \n- Completion Criterion: \n- Actors: \n- Inputs: \n- Outputs: \n- Constraints: \n- Non-goals: \n- Acceptance Criteria: \n- Verification Plan: \n- Failure Modes: \n- Runtime Context: \n\n## AC Tree\n- [ ] \n\n## Ontology\n- Name: \n- Fields: \n\n## Swarm Decision\nSwarm decision: \n- Decision: \n- Reason: \n- Specialist value: \n- Candidate experts: \n- Verification owner: \n- Swarm DEFER waiver: \n\n## Evaluation Plan\n- Stage 1 (Mechanical): lint, build, test\n- Stage 2 (Semantic): compliance, quality\n- Stage 3 (Consensus): if needed\n\n## Execution Plan\n<!-- Write your step-by-step plan here -->\n`;
+    const template = `# Ultra Plan\n\n## Seed Spec\n- Verifiable UltraGoal: \n- Completion Criterion: \n- Actors: \n- Inputs: \n- Outputs: \n- Constraints: \n- Non-goals: \n- Acceptance Criteria: \n- Verification Plan: \n- Failure Modes: \n- Runtime Context: \n\n## AC Tree\n- [ ] \n\n## Ontology\n- Name: \n- Fields: \n\n## Swarm Decision\nSwarm decision: \n- Decision: \n- Swarm intensity: \n- Reason: \n- Specialist value: \n- Candidate experts: \n- Verification owner: \n- Swarm DEFER waiver: \n\n## Evaluation Plan\n- Stage 1 (Mechanical): lint, build, test\n- Stage 2 (Semantic): compliance, quality\n- Stage 3 (Consensus): if needed\n\n## Execution Plan\n<!-- Write your step-by-step plan here -->\n`;
     await this.agent.kaos.writeAtomic(path, template);
   }
 

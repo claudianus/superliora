@@ -3,7 +3,7 @@ Request plan approval after writing the plan to the plan file. This tool does NO
 Use only for implementation planning, not For research tasks (searching/reading the codebase).
 
 A good plan lists verifiable steps with real files and commands. For Ultra Plan include:
-`Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>`
+`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>`
 
 Multiple approaches: pass them via the `options` parameter so the user can choose (see parameter format) alongside Reject and Revise controls.
 

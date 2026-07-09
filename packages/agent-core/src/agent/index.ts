@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { requestUltraSwarmSteer } from './ultra-swarm-run';
 import { join } from 'pathe';
 
 import { normalizeAdditionalDirs } from '../config';
@@ -373,6 +374,20 @@ export class Agent {
     return result;
   }
 
+  
+  /**
+   * Mid-run UltraSwarm steering. Queues a redirect at the next phase/wave
+   * checkpoint instead of buffering until the entire tool returns.
+   */
+  swarmSteer(input: string): boolean {
+    const accepted = requestUltraSwarmSteer(this.ultraSwarmRun, input);
+    if (accepted) {
+      this.records.logRecord({ type: 'swarm.steer', input });
+      void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
+    }
+    return accepted;
+  }
+
   get rpcMethods(): PromisableMethods<AgentAPI> {
     return {
       prompt: (payload) => {
@@ -382,6 +397,24 @@ export class Agent {
       cancelShellCommand: (payload) => this.tools.cancelShellCommand(payload.commandId),
       steer: (payload) => {
         this.telemetry.track('input_steer', { parts: payload.input.length });
+        // During UltraSwarm, route steers into the swarm checkpoint queue.
+        if (this.ultraSwarmRun !== undefined) {
+          const text = payload.input
+            .map((part) => ('text' in part ? String(part.text ?? '') : ''))
+            .join('\n')
+            .trim();
+          if (requestUltraSwarmSteer(this.ultraSwarmRun, text)) {
+            this.records.logRecord({ type: 'swarm.steer', input: text });
+            void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
+            this.emitEvent({
+              type: 'ultrawork.swarm.paused',
+              runId: this.ultraSwarmRun.runId,
+              reason: 'User steering requested',
+              input: text,
+            } as any);
+            return;
+          }
+        }
         this.turn.steer(payload.input);
       },
       cancel: (payload) => {

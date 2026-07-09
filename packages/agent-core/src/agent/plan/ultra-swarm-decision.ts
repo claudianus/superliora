@@ -1,12 +1,12 @@
 import type { SeedWorkGraphFromPlanResult } from './work-graph-from-plan';
 
-export type UltraSwarmDecision = 'ENGAGE' | 'DEFER';
+export type UltraSwarmDecision = 'ENGAGE' | 'ADAPTIVE' | 'DEFER';
 
 export function ultraSwarmDecision(plan: string): UltraSwarmDecision | undefined {
-  const lineMatch = /\bswarm decision\s*:\s*(ENGAGE|DEFER)\b/i.exec(plan);
+  const lineMatch = /\bswarm decision\s*:\s*(ENGAGE|ADAPTIVE|DEFER)\b/i.exec(plan);
   if (lineMatch?.[1] !== undefined) return lineMatch[1].toUpperCase() as UltraSwarmDecision;
   const fieldMatch =
-    /^\s*(?:[-*+•]|\d+[.)])?\s*(?:\*\*)?Decision(?:\*\*)?\s*:\s*(ENGAGE|DEFER)\b/im.exec(plan);
+    /^\s*(?:[-*+•]|\d+[.)])?\s*(?:\*\*)?Decision(?:\*\*)?\s*:\s*(ENGAGE|ADAPTIVE|DEFER)\b/im.exec(plan);
   if (fieldMatch?.[1] !== undefined) return fieldMatch[1].toUpperCase() as UltraSwarmDecision;
   return undefined;
 }

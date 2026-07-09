@@ -53,7 +53,7 @@ export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 10;
 const SWARM_OPS_FEED_MAX_ENTRIES = 48;
 const SWARM_OPS_FEED_RENDER_LINES = 8;
 const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
-const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block']);
+const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block', 'council']);
 const SWARM_FEED_BODY_MIN_WIDTH = 24;
 const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
 const SWARM_FEED_NARROW_WIDTH = 72;
@@ -157,7 +157,8 @@ type SwarmOpsFeedTag =
   | 'msg'
   | 'mention'
   | 'block'
-  | 'standup';
+  | 'standup'
+  | 'council';
 
 interface SwarmCollaborationFeedMessage {
   readonly from: { readonly expertId?: string; readonly name: string; readonly emoji?: string };
@@ -286,6 +287,7 @@ export class AgentSwarmProgressComponent implements Component {
   private readonly progressEstimator = new AgentSwarmProgressEstimator();
   private description: string;
   private readonly title: string;
+  private routingBadge: string | undefined;
   private readonly requestRender: (() => void) | undefined;
   private readonly availableGridHeight: (() => number | undefined) | undefined;
   private inputComplete = false;
@@ -394,6 +396,46 @@ export class AgentSwarmProgressComponent implements Component {
     }
     this.itemsStarted = members.length > 0;
     this.rebuildExpertSlotIndex();
+  }
+
+  applyRoutingDecision(routing: {
+    readonly decision: string;
+    readonly intensity: string;
+    readonly estimatedExperts: number;
+  }): void {
+    this.routingBadge = `${routing.decision} · ${routing.intensity}`;
+    this.requestRender?.();
+  }
+
+  applyCouncilDecision(input: {
+    readonly decision: string;
+    readonly reason?: string;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const body = input.reason === undefined || input.reason.trim().length === 0
+      ? `council ${input.decision}`
+      : `council ${input.decision} · ${input.reason}`;
+    this.appendConversationFeed({
+      tag: 'council',
+      fromExpertId: 'council',
+      fromName: 'Council',
+      fromEmoji: '⚑',
+      body,
+    });
+    this.requestRender?.();
+  }
+
+  applySwarmPaused(input: { readonly reason: string; readonly phase?: string }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const phase = input.phase === undefined ? '' : ` @ ${input.phase}`;
+    this.appendConversationFeed({
+      tag: 'stop',
+      fromExpertId: 'orchestrator',
+      fromName: 'Orchestrator',
+      fromEmoji: '⏸',
+      body: `paused for steering${phase} · ${input.reason}`,
+    });
+    this.requestRender?.();
   }
 
   applySwarmCollaborationMessage(message: SwarmCollaborationFeedMessage): void {
@@ -717,6 +759,9 @@ export class AgentSwarmProgressComponent implements Component {
       : '';
     const stats = summary === undefined ? '' : this.renderMissionStats(summary);
     const headlineParts = [title];
+    if (this.routingBadge !== undefined) {
+      headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${chalk.hex(this.colors.primary)(this.routingBadge)}`);
+    }
     if (description.length > 0) headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${description}`);
     if (stats.length > 0) headlineParts.push(`${chalk.hex(this.colors.textDim)('·')} ${stats}`);
     return [truncateToWidth(headlineParts.join(' '), width)];
@@ -2110,6 +2155,8 @@ function swarmCollaborationFeedTag(
       return 'standup';
     case 'blocker':
       return 'block';
+    case 'council':
+      return 'council';
     default:
       return 'msg';
   }

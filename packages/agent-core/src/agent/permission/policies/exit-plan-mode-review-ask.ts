@@ -3,6 +3,7 @@ import {
   ultraSwarmDecision,
   ultraSwarmEngageNextAction,
 } from '../../plan/ultra-swarm-decision';
+import { routeFromPlanSignals } from '../../plan/ultra-swarm-routing';
 import type { ApprovalResponse, PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 
 interface ExitPlanModeOption {
@@ -58,10 +59,12 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
     if (failed !== undefined) {
       return { kind: 'result' as const, syntheticResult: failed };
     }
-    if (isUltra && ultraSwarmDecision(display.plan) === 'ENGAGE') {
+    const swarmDecision = ultraSwarmDecision(display.plan);
+    if (isUltra && (swarmDecision === 'ENGAGE' || swarmDecision === 'ADAPTIVE')) {
       this.agent.ultraSwarmEngageGate?.engage({
         planPath: display.path,
         reason: swarmDecisionSummary(display.plan),
+        routing: routeFromPlanSignals(display.plan) ?? undefined,
       });
     }
 
