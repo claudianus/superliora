@@ -452,7 +452,7 @@ function hasFieldContent(plan: string, labels: readonly string[]): boolean {
 }
 
 function hasSwarmDecisionLine(plan: string): boolean {
-  return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\b/i.test(plan);
+  return /\bswarm decision\s*:\s*(?:ENGAGE|ADAPTIVE|DEFER)\b/i.test(plan);
 }
 
 function hasSwarmDeferWaiver(plan: string): boolean {
@@ -521,9 +521,9 @@ function hasSwarmDecisionField(plan: string, label: string): boolean {
   if (hasFieldContent(plan, [label])) return true;
   switch (label) {
     case 'Decision':
-      return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\b/i.test(plan);
+      return /\bswarm decision\s*:\s*(?:ENGAGE|ADAPTIVE|DEFER)\b/i.test(plan);
     case 'Reason':
-      return /\bswarm decision\s*:\s*(?:ENGAGE|DEFER)\s*(?:[.:\-—]\s*\S|.*\breason\s*:)/i.test(plan);
+      return /\bswarm decision\s*:\s*(?:ENGAGE|ADAPTIVE|DEFER)\s*(?:[.:\-—]\s*\S|.*\breason\s*:)/i.test(plan);
     case 'Specialist value':
       return /\bvalue\s*:\s*\S/i.test(plan);
     case 'Verification owner':
