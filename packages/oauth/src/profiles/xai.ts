@@ -45,6 +45,12 @@ export const XAI_PROFILE: ProviderProfile = {
   docUrl: 'https://docs.x.ai',
   models: [
     {
+      id: 'grok-4.5',
+      displayName: 'Grok 4.5',
+      maxContextSize: 500000,
+      capabilities: ['thinking', 'tool_use'],
+    },
+    {
       id: 'grok-4',
       displayName: 'Grok 4',
       maxContextSize: 256000,

@@ -23,6 +23,7 @@ import {
 } from '@superliora/sdk';
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
+import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 
 /** How the user will authenticate for a given entry. */
 export type ProviderAuthKind = 'oauth' | 'api-key' | 'keyless' | 'cloud' | 'custom';
@@ -161,20 +162,13 @@ function priorityFor(option: ProviderCatalogOption): number {
   // Other OAuth providers sort alongside their pinned catalog ids.
   if (option.value.startsWith('oauth:')) {
     const id = option.value.slice('oauth:'.length);
-    const pinned = PROVIDER_PRIORITY.get(oauthPriorityId(id));
+    const pinned = PROVIDER_PRIORITY.get(oauthProviderCatalogId(id));
     if (pinned !== undefined) return pinned;
     return 50;
   }
   const pinned = PROVIDER_PRIORITY.get(option.catalogId ?? '');
   if (pinned !== undefined) return pinned;
   return 100;
-}
-
-/** Maps an OAuth provider id to a catalog-like id for priority lookup. */
-function oauthPriorityId(id: string): string {
-  if (id === 'openai-codex') return 'openai';
-  if (id === 'xai-grok') return 'xai';
-  return id;
 }
 
 /** Resolves a picker `value` back to the structured selection. */
