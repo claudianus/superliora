@@ -129,6 +129,13 @@ export interface ExecutableToolContext {
 export interface RunnableToolExecution {
   readonly isError?: false | undefined;
   readonly accesses?: ToolAccesses | undefined;
+  /**
+   * True when the tool never mutates files, runstate, or external state.
+   * Permission policies use this to allow read-only tools in restricted
+   * phases (e.g. UltraPlan) without relying solely on a hardcoded name set.
+   * Defaults to false (safe) when unset.
+   */
+  readonly readOnly?: boolean | undefined;
   readonly display?: ToolInputDisplay | undefined;
   readonly description?: string;
   /**
