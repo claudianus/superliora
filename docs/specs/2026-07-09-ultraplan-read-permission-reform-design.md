@@ -76,16 +76,16 @@ export interface RunnableToolExecution {
 
 builtin 읽기 도구들(`Read`, `Grep`, `Glob`, `WebSearch`, `FetchURL`, `LioraContext` 등)이 이 속성을 채운다. 점진적 채우기가 가능하다 — 채우지 않은 도구는 다음 소스로 폴백한다.
 
-### 2. `accesses` 기반 추론 (C)
-`readOnly`가 unset이면 `context.execution.accesses`를 본다.
-- `accesses`가 비어 있거나 `none()` → 읽기 전용 (사이드 이펙트 선언 없음)
-- 모든 access의 `operation`이 `read` 또는 `search` → 읽기 전용
-- `write`/`readwrite`가 하나라도 있거나 `kind: 'all'` → mutation
+### 2. `accesses` 부분 추론 (C, 제한적)
+`readOnly`가 unset이면 `context.execution.accesses`를 본다 — 단 **안전한 방향으로만** 추론한다.
+- `accesses`에 `write`/`readwrite`가 있거나 `kind: 'all'`이 있으면 → **mutation 확정** (차단)
+- `accesses`가 비어 있거나 `none()` → **판별 불가** (읽기 전용 아님). `none()`이 사이드 이펙트 부재를 의미하지 않기 때문. `Agent`(`accesses: none()`이지만 서브에이전트를 띄움), `BrowserObserve`(`none()`이지만 브라우저를 조작) 등이 이 케이스.
+- 모든 access가 `read`/`search` operation이고 **정적 집합에 있는 이름**이면 → 읽기 전용. 정적 집합에 없는 이름은 mutation로 취급(안전).
 
-이 추론은 `file-access-ask.ts`의 기존 패턴을 일반화한다.
+핵심 설계 결정: **`none()`만으로는 절대 읽기 전용으로 판별하지 않는다.** `none()`은 "이 도구가 파일 충돌을 일으키지 않는다"는 뜻이지 "부작용이 없다"는 뜻이 아니다. 파일 기반 동시성 직렬화(`tool-access.ts`)와 permission 판별은 다른 질문이다.
 
-### 3. 기존 정적 집합 (하위호환)
-`accesses`가 없는 도구(MCP, user 도구 등)는 기존 `READ_ONLY_TOOL_NAMES` 집합을 마지막으로 확인한다. builtin 도구들이 `readOnly`를 점진적으로 채우면서 이 집합은 축소·폐지 대상이지만, 즉시 제거하면 회귀 위험이 있어 보존한다.
+### 3. 기존 정적 집합 (핵심 판별 수단)
+`READ_ONLY_TOOL_NAMES` 집합이 읽기 전용 판별의 핵심으로 유지된다. builtin 도구들이 `readOnly: true`를 점진적으로 채우면서 중복이 되지만, 두 소스 모두 일관되게 true를 반환하므로 안전하다. MCP 도구는 정적 집합 대신 `READ_ONLY_MCP_PATTERNS`으로 판별한다.
 
 ### mutation 판별
 mutation = `readOnly`가 명시적으로 `false`이거나, `accesses`에 `write`/`readwrite`/`kind:'all'`이 있거나, 도구 이름이 알려진 mutation 집합(`Write`, `Edit`, `Bash`, `TaskStop`, `CronCreate`, `CronDelete`)에 있는 경우.
@@ -153,8 +153,9 @@ write 단계 허용 도구 목록에 Read/Grep/Glob 등을 명시하고, "빠른
     → evaluateUltraPhase(context, phase)
       → isReadOnlyTool(context)?  ← 신규 범용 헬퍼
           a. execution.readOnly === true? → 통과
-          b. accesses 추론 (none / read·search only)? → 통과
-          c. READ_ONLY_TOOL_NAMES 또는 READ_ONLY_MCP_PATTERNS? → 통과
+          b. accesses가 write/readwrite/kind:'all' → mutation 확정 (이 단계서 끝)
+          c. READ_ONLY_TOOL_NAMES에 있고 accesses에 mutation 없음 → 통과
+          d. READ_ONLY_MCP_PATTERNS 매칭 → 통과
           아니면 → mutation으로 분류, 단계별 차단 로직 평가
       → Write/Edit: 계획파일 외 차단 (write/exit은 계획파일 허용)
       → Bash: 단계별 좁은 읽기 전용 검증
@@ -163,7 +164,8 @@ write 단계 허용 도구 목록에 Read/Grep/Glob 등을 명시하고, "빠른
 
 ## 에지 케이스
 
-- **`accesses`가 undefined인 MCP/user 도구**: `tool-call.ts:390`에서 `all()`로 간주되지만, 이는 동시성 직렬화용. `isReadOnlyTool`은 `accesses === undefined`를 "판별 불가"로 취급해 정적 집합 + MCP 패턴으로 폴백한다. `all()`을 읽기 전용으로 해석하지 않는다.
+- **`accesses: none()`이지만 사이드 이펙트가 있는 도구**: `Agent`(`none()`이지만 서브에이전트 런치), `BrowserObserve`(`none()`이지만 브라우저 조작) 등. `isReadOnlyTool`은 `none()`을 "판별 불가 → 정적 집합 확인"으로 취급한다. 정적 집합에 없으면 mutation으로 차단된다. 즉 `none()`만으로는 절대 읽기 전용 판정이 나지 않는다.
+- **`accesses`가 undefined인 MCP/user 도구**: `tool-call.ts:390`에서 `all()`로 간주되지만, 이는 동시성 직렬화용. `isReadOnlyTool`은 `accesses === undefined`를 "판별 불가 → 정적 집합 + MCP 패턴 확인"으로 취급한다. `all()`을 읽기 전용으로 해석하지 않는다.
 - **도구가 `readOnly: true`를 거짓 선언**: 책임은 도구 작성자에게. mutation 도구가 `readOnly: true`를 선언하면 plan mode에서 통과되지만, 이는 선언 오류이며 코드 리뷰에서 잡아야 한다. 타입 시스템으로 강제하지 않는다(과잉).
 - **write 단계에서 읽기 후 산만해지는 에이전트**: 정책으로 강제하지 않고 프롬프트로 가이드. 설계 의도 — 읽기는 안전하며, 강제 차단보다 프롬프트 가이드가 실제 동작에서 더 효과적.
 - **`Bash`는 항상 mutation**: 읽기 전용 Bash 명령(`ls`, `cat`)은 별도 검증(`isNarrowReadOnlyBash` 등)을 통과해야 하며, `isReadOnlyTool`이 Bash를 통과시키지 않는다. 이는 변하지 않는다.
@@ -175,10 +177,13 @@ write 단계 허용 도구 목록에 Read/Grep/Glob 등을 명시하고, "빠른
 1. **단위 테스트 — `isReadOnlyTool` 헬퍼** (`tool-read-only.ts` 신규 테스트 또는 `permission.test.ts`에 추가):
    - 명시적 `readOnly: true` 도구 → true
    - `readOnly: false` + `accesses`에 write → false
-   - `accesses: none()` → true
-   - `accesses`에 read/search만 → true
+   - `accesses: none()` + 정적 집합에 없음 → **false** (사이드 이펙트 가능)
+   - `accesses: none()` + 정적 집합에 있음(`WebSearch`) → true
+   - `accesses`에 read/search만 + 정적 집합에 있음(`Read`) → true
+   - `accesses`에 read/search만 + 정적 집합에 없음 → false (안전)
    - `accesses` undefined + 정적 집합에 있음 → true
    - `accesses` undefined + 정적 집합에 없음 → false
+   - `Agent` 도구(`accesses: none()`) + 정적 집합에 없음 → **false** (핵심: 사이드 이펙트 도구 차단)
    - MCP `mcp__context7__query-docs` → true (패턴 매칭)
    - MCP `mcp__github__create_issue` → false (패턴 불일치)
 
