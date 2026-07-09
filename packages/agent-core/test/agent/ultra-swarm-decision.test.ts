@@ -151,3 +151,29 @@ describe('UltraSwarmEngageGate routing field', () => {
     expect(gate.data()?.routing).toBeUndefined();
   });
 });
+
+import { resolveMaxExperts } from '../../src/tools/builtin/collaboration/ultra-swarm';
+
+describe('resolveMaxExperts', () => {
+  it('returns MAX when tool intensity is max', () => {
+    expect(resolveMaxExperts('max', undefined, undefined)).toBe(128);
+  });
+
+  it('returns routing.estimatedExperts when tool intensity is omitted and routing exists', () => {
+    expect(resolveMaxExperts(undefined, { estimatedExperts: 4 }, undefined)).toBe(4);
+    expect(resolveMaxExperts(undefined, { estimatedExperts: 12 }, undefined)).toBe(12);
+  });
+
+  it('falls back to 24 when neither tool intensity nor routing is present', () => {
+    expect(resolveMaxExperts(undefined, undefined, undefined)).toBe(24);
+  });
+
+  it('respects explicit max_experts override over routing', () => {
+    expect(resolveMaxExperts(undefined, { estimatedExperts: 24 }, 8)).toBe(8);
+  });
+
+  it('treats balanced/premium as explicit (ignores routing)', () => {
+    expect(resolveMaxExperts('balanced', { estimatedExperts: 4 }, undefined)).toBe(24);
+    expect(resolveMaxExperts('premium', { estimatedExperts: 4 }, undefined)).toBe(24);
+  });
+});
