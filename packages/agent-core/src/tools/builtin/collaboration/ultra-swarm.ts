@@ -405,23 +405,33 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         blockedBy = blockingRequiredResult(renderedPhaseResults, phase);
       }
 
-      const restaffed = await this.maybeRestaffForRevision({
-        rendered: phaseResults.map(withRenderedMetadata),
-        specs,
-        team,
-        busEnabled,
-        args,
-        workNodeContext,
-        profileBaseName,
-        toolCallId,
-        runId,
-        signal,
-        maxExperts,
-        requiredExpertIds,
-        onTeamUpdated: (nextTeam) => {
-          team = nextTeam;
-        },
-      });
+      // Cost control: skip adaptive restaff when review consensus is already solid.
+      // strong-approve always skips; plain approve skips only for light intensity.
+      const preRestaffDecision = councilDecisionFromReview(
+        phaseResults.map(withRenderedMetadata),
+      );
+      const skipRestaff =
+        preRestaffDecision === 'strong-approve'
+        || (preRestaffDecision === 'approve' && routing?.intensity === 'light');
+      const restaffed = skipRestaff
+        ? []
+        : await this.maybeRestaffForRevision({
+            rendered: phaseResults.map(withRenderedMetadata),
+            specs,
+            team,
+            busEnabled,
+            args,
+            workNodeContext,
+            profileBaseName,
+            toolCallId,
+            runId,
+            signal,
+            maxExperts,
+            requiredExpertIds,
+            onTeamUpdated: (nextTeam) => {
+              team = nextTeam;
+            },
+          });
       phaseResults.push(...restaffed);
     } catch (error) {
       if (workNodeContext !== undefined) {

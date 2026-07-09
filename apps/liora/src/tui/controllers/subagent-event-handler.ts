@@ -187,6 +187,15 @@ export class SubAgentEventHandler {
     }
   }
 
+  applyCouncilDecisionToSwarmProgress(input: {
+    readonly decision: string;
+    readonly reason?: string;
+  }): void {
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applyCouncilDecision(input);
+    }
+  }
+
   hasAgentSwarmProgress(toolCallId: string): boolean {
     return this.agentSwarmProgress.has(toolCallId);
   }

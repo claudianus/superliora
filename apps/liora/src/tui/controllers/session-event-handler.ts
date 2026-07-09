@@ -269,6 +269,16 @@ export class SessionEventHandler {
       return;
     }
 
+    if (event.type === 'ultrawork.council.decision') {
+      this.subAgentEventHandler.applyCouncilDecisionToSwarmProgress({
+        decision: event.decision.decision,
+        reason: event.decision.reason,
+      });
+      requestTUILayoutRender(this.host.state);
+      // fall through so theatre can also record it when applicable
+    }
+
+
     if (isUltraworkTheatreEvent(event)) {
       this.handleUltraworkEvent(event);
       return;

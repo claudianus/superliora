@@ -53,7 +53,7 @@ export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 10;
 const SWARM_OPS_FEED_MAX_ENTRIES = 48;
 const SWARM_OPS_FEED_RENDER_LINES = 8;
 const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
-const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block']);
+const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block', 'council']);
 const SWARM_FEED_BODY_MIN_WIDTH = 24;
 const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
 const SWARM_FEED_NARROW_WIDTH = 72;
@@ -157,7 +157,8 @@ type SwarmOpsFeedTag =
   | 'msg'
   | 'mention'
   | 'block'
-  | 'standup';
+  | 'standup'
+  | 'council';
 
 interface SwarmCollaborationFeedMessage {
   readonly from: { readonly expertId?: string; readonly name: string; readonly emoji?: string };
@@ -403,6 +404,24 @@ export class AgentSwarmProgressComponent implements Component {
     readonly estimatedExperts: number;
   }): void {
     this.routingBadge = `${routing.decision} · ${routing.intensity}`;
+    this.requestRender?.();
+  }
+
+  applyCouncilDecision(input: {
+    readonly decision: string;
+    readonly reason?: string;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const body = input.reason === undefined || input.reason.trim().length === 0
+      ? `council ${input.decision}`
+      : `council ${input.decision} · ${input.reason}`;
+    this.appendConversationFeed({
+      tag: 'council',
+      fromExpertId: 'council',
+      fromName: 'Council',
+      fromEmoji: '⚑',
+      body,
+    });
     this.requestRender?.();
   }
 
@@ -2123,6 +2142,8 @@ function swarmCollaborationFeedTag(
       return 'standup';
     case 'blocker':
       return 'block';
+    case 'council':
+      return 'council';
     default:
       return 'msg';
   }
