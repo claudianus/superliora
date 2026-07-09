@@ -289,15 +289,6 @@ function terminalPaletteToTheme(palette: TerminalPalette): CustomThemeDefinition
     particle: bright[5] ?? normal[5] ?? fallback.particle,
     gradientStart: normal[4] ?? fallback.gradientStart,
     gradientEnd: normal[6] ?? fallback.gradientEnd,
-    auroraA: base === 'light'
-      ? mixHex(background, bright[4] ?? normal[4] ?? fallback.auroraA, 0.14)
-      : mixHex(background, bright[4] ?? normal[4] ?? fallback.auroraA, 0.22),
-    auroraB: base === 'light'
-      ? mixHex(background, bright[5] ?? normal[5] ?? fallback.auroraB, 0.14)
-      : mixHex(background, bright[5] ?? normal[5] ?? fallback.auroraB, 0.22),
-    auroraC: base === 'light'
-      ? mixHex(background, bright[1] ?? normal[5] ?? fallback.auroraC, 0.12)
-      : mixHex(background, bright[1] ?? normal[5] ?? fallback.auroraC, 0.2),
     syntaxText: foreground,
     syntaxKeyword: bright[5] ?? normal[5] ?? fallback.syntaxKeyword,
     syntaxFunction: bright[4] ?? normal[4] ?? fallback.syntaxFunction,

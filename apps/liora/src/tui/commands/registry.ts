@@ -519,7 +519,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'appearance',
     aliases: ['skin'],
-    description: 'Tune TUI motion, density, mascot, and background',
+    description: 'Tune TUI motion, density, and background',
     priority: 60,
     availability: 'always',
   },

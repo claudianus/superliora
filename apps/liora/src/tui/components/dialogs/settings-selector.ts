@@ -29,7 +29,7 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
   {
     value: 'appearance',
     label: 'Appearance',
-    description: 'Tune motion, density, mascot, and background.',
+    description: 'Tune motion, density, and background.',
   },
   {
     value: 'editor',

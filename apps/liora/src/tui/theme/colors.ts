@@ -94,7 +94,7 @@ export interface ColorPalette {
   shellMode: string;
 
   // ── Premium effects ──
-  /** Glow / halo accent for premium mascot and focus effects. */
+  /** Glow / halo accent for focus effects. */
   glow: string;
   /** Particle accent for event bursts and ambient effects. */
   particle: string;
@@ -102,17 +102,6 @@ export interface ColorPalette {
   gradientStart: string;
   /** End of premium gradient treatments. */
   gradientEnd: string;
-
-  // ── Aurora background ──
-  // The three anchor colours of the ambient aurora background wash. Each cell
-  // is a low-intensity blend of these anchors over `background`, so the base
-  // canvas stays dominant and foreground text contrast is preserved.
-  /** Aurora anchor 1 — deep cyan/teal wash. */
-  auroraA: string;
-  /** Aurora anchor 2 — deep indigo wash. */
-  auroraB: string;
-  /** Aurora anchor 3 — deep violet wash. */
-  auroraC: string;
 
   // ── Syntax highlighting ──
   /** Syntax default / identifiers. */
@@ -174,10 +163,6 @@ export const darkColors: ColorPalette = {
   gradientStart: '#00D5FF',
   gradientEnd: '#B784FF',
 
-  auroraA: '#0B3D5C',
-  auroraB: '#2A1B5C',
-  auroraC: '#3D1452',
-
   syntaxText: '#E0E0E0',
   syntaxKeyword: '#C792EA',
   syntaxFunction: '#82AAFF',
@@ -226,10 +211,6 @@ export const lightColors: ColorPalette = {
   particle: '#7C3AED',
   gradientStart: '#075985',
   gradientEnd: '#0F766E',
-
-  auroraA: '#DCEEF7',
-  auroraB: '#E5E0F4',
-  auroraC: '#F0E0EF',
 
   syntaxText: '#1A1A1A',
   syntaxKeyword: '#6D28D9',

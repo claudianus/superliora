@@ -538,7 +538,7 @@ describe('createTUIState', () => {
 
     expect(first.width).toBe(8);
     expect(first.height).toBe(4);
-    expect(first.regions.map((region) => region.id)).toEqual(['aurora-background', 'transcript', 'editor', 'footer']);
+    expect(first.regions.map((region) => region.id)).toEqual(['transcript', 'editor', 'footer']);
     expect(rowText(first.renderer.frame, 0).trim()).toBe('t2    │');
     expect(rowText(first.renderer.frame, 1).trim()).toBe('t3    █');
     expect(rowText(first.renderer.frame, 2).trim()).toBe('ed');
@@ -587,7 +587,7 @@ describe('createTUIState', () => {
 
     const first = renderTUIStateNativeFrame(state);
 
-    expect(first.regions.map((region) => region.id)).toEqual(['aurora-background', 'transcript', 'editor']);
+    expect(first.regions.map((region) => region.id)).toEqual(['transcript', 'editor']);
     expect(rowText(first.renderer.frame, 3)).toBe('╭────────────╮');
     expect(rowText(first.renderer.frame, 4)).toBe('│ > hello    │');
     expect(rowText(first.renderer.frame, 5)).toBe('╰────────────╯');
@@ -718,7 +718,7 @@ describe('createTUIState', () => {
 
     const regions = buildTUIStateNativeFrameRegions(state, 10, 5);
 
-    expect(regions.map((region) => region.id)).toEqual(['aurora-background', 'transcript']);
+    expect(regions.map((region) => region.id)).toEqual(['transcript']);
     expect(state.footerContainer.children).toHaveLength(0);
   });
 

@@ -33,14 +33,12 @@ export const UpgradePreferencesSchema = z.object({
 export const AppearanceProfileSchema = z.enum(['auto', 'off', 'subtle', 'premium']);
 export const AppearanceDensitySchema = z.enum(['auto', 'compact', 'comfortable', 'spacious']);
 export const AppearanceParticlesSchema = z.enum(['auto', 'off', 'ambient', 'events', 'premium']);
-export const AppearanceMascotSchema = z.enum(['auto', 'minimal', 'standard', 'premium', 'off']);
 export const TerminalBackgroundSchema = z.enum(['off', 'session']);
 
 export const AppearancePreferencesSchema = z.object({
   profile: AppearanceProfileSchema,
   density: AppearanceDensitySchema,
   particles: AppearanceParticlesSchema,
-  mascot: AppearanceMascotSchema,
   animationFps: z.number().int().min(1).max(30),
   canvasBackground: z.boolean(),
   terminalBackground: TerminalBackgroundSchema,
@@ -66,12 +64,11 @@ export const TuiConfigFileSchema = z.object({
       auto_install: z.boolean().optional(),
     })
     .optional(),
-  appearance: z
+    appearance: z
     .object({
       profile: AppearanceProfileSchema.optional(),
       density: AppearanceDensitySchema.optional(),
       particles: AppearanceParticlesSchema.optional(),
-      mascot: AppearanceMascotSchema.optional(),
       animation_fps: z.number().int().min(1).max(30).optional(),
       canvas_background: z.boolean().optional(),
       terminal_background: TerminalBackgroundSchema.optional(),
@@ -108,7 +105,6 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   profile: 'premium',
   density: 'spacious',
   particles: 'premium',
-  mascot: 'premium',
   animationFps: 20,
   canvasBackground: true,
   terminalBackground: 'off',
@@ -192,7 +188,6 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
       profile: config.appearance?.profile ?? DEFAULT_APPEARANCE_PREFERENCES.profile,
       density: config.appearance?.density ?? DEFAULT_APPEARANCE_PREFERENCES.density,
       particles: config.appearance?.particles ?? DEFAULT_APPEARANCE_PREFERENCES.particles,
-      mascot: config.appearance?.mascot ?? DEFAULT_APPEARANCE_PREFERENCES.mascot,
       animationFps:
         config.appearance?.animation_fps ?? DEFAULT_APPEARANCE_PREFERENCES.animationFps,
       canvasBackground:
@@ -228,7 +223,6 @@ auto_install = ${String(config.upgrade.autoInstall)} # true | false
 profile = "${appearance.profile}" # "auto" | "off" | "subtle" | "premium"
 density = "${appearance.density}" # "auto" | "compact" | "comfortable" | "spacious"
 particles = "${appearance.particles}" # "auto" | "off" | "ambient" | "events" | "premium"
-mascot = "${appearance.mascot}" # "auto" | "minimal" | "standard" | "premium" | "off"
 animation_fps = ${String(appearance.animationFps)} # 1..30
 canvas_background = ${String(appearance.canvasBackground)} # Fill TUI-owned cells with theme background
 terminal_background = "${appearance.terminalBackground}" # "off" | "session"
