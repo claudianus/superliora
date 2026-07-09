@@ -16,6 +16,7 @@ import {
   ultraSwarmDecision,
   ultraSwarmEngageNextAction,
 } from '#/agent/plan/ultra-swarm-decision';
+import { routeFromPlanSignals } from '#/agent/plan/ultra-swarm-routing';
 import type { PlanData } from '#/agent/plan';
 import {
   combinedDrift,
@@ -181,7 +182,8 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       ultra: isUltra,
     });
 
-    const engageUltraSwarm = isUltra && ultraSwarmDecision(resolvedPlan.plan) === 'ENGAGE';
+    const swarmDecision = ultraSwarmDecision(resolvedPlan.plan);
+    const engageUltraSwarm = isUltra && (swarmDecision === 'ENGAGE' || swarmDecision === 'ADAPTIVE');
     const failed = this.exitPlanMode();
     if (failed !== undefined) return failed;
 
@@ -200,6 +202,7 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       this.agent.ultraSwarmEngageGate?.engage({
         planPath: resolvedPlan.path,
         reason: swarmDecisionSummary(resolvedPlan.plan),
+        routing: routeFromPlanSignals(resolvedPlan.plan) ?? undefined,
       });
     }
 

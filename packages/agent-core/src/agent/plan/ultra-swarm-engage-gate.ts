@@ -26,6 +26,19 @@ export class UltraSwarmEngageGate {
       ...input,
     });
     this.restoreEngage(input);
+    if (input.routing !== undefined) {
+      const run = this.agent.ultrawork.getRun();
+      if (run !== null) {
+        this.agent.emitEvent({
+          type: 'ultrawork.routing.decided',
+          runId: run.runId,
+          decision: input.routing.decision,
+          intensity: input.routing.intensity,
+          estimatedExperts: input.routing.estimatedExperts,
+          rationale: input.routing.rationale,
+        });
+      }
+    }
   }
 
   clear(reason?: string): void {

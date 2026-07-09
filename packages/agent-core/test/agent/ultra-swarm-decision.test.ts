@@ -119,7 +119,11 @@ import type { Agent } from '../../src/agent';
 
 function createMockAgent(): { agent: Agent; logs: unknown[] } {
   const logs: unknown[] = [];
-  const agent = { records: { logRecord: (record: unknown) => logs.push(record) } } as unknown as Agent;
+  const agent = {
+    records: { logRecord: (record: unknown) => logs.push(record) },
+    emitEvent: () => undefined,
+    ultrawork: { getRun: () => null },
+  } as unknown as Agent;
   return { agent, logs };
 }
 
@@ -202,5 +206,70 @@ describe('routeFromPlanSignals DEFER override', () => {
 
   it('override does not trigger when no DEFER decision exists', () => {
     expect(routeFromPlanSignals('no decision\n--swarm')).toBeUndefined();
+  });
+});
+
+describe('UltraSwarmEngageGate emits routing event', () => {
+  function createEmittingMockAgent(runId: string | null): {
+    agent: Agent;
+    events: unknown[];
+  } {
+    const events: unknown[] = [];
+    const agent = {
+      records: { logRecord: () => undefined },
+      emitEvent: (event: unknown) => events.push(event),
+      ultrawork: { getRun: () => (runId === null ? null : { runId }) },
+      homedir: undefined,
+      type: 'main',
+    } as unknown as Agent;
+    return { agent, events };
+  }
+
+  it('emits ultrawork.routing.decided when engaging with routing and a run exists', () => {
+    const { agent, events } = createEmittingMockAgent('run-42');
+    const gate = new UltraSwarmEngageGate(agent);
+    gate.engage({
+      planPath: '/tmp/plan.md',
+      routing: {
+        decision: 'ADAPTIVE',
+        intensity: 'standard',
+        estimatedExperts: 12,
+        rationale: 'moderate',
+      },
+    });
+    const routingEvent = events.find(
+      (e) => (e as { type: string }).type === 'ultrawork.routing.decided',
+    ) as { runId: string; decision: string } | undefined;
+    expect(routingEvent).toBeDefined();
+    expect(routingEvent!.runId).toBe('run-42');
+    expect(routingEvent!.decision).toBe('ADAPTIVE');
+  });
+
+  it('does not emit when engaging without routing (backward compatible)', () => {
+    const { agent, events } = createEmittingMockAgent('run-42');
+    const gate = new UltraSwarmEngageGate(agent);
+    gate.engage({ planPath: '/tmp/plan.md' });
+    const routingEvent = events.find(
+      (e) => (e as { type: string }).type === 'ultrawork.routing.decided',
+    );
+    expect(routingEvent).toBeUndefined();
+  });
+
+  it('does not emit when no ultrawork run exists (runId unavailable)', () => {
+    const { agent, events } = createEmittingMockAgent(null);
+    const gate = new UltraSwarmEngageGate(agent);
+    gate.engage({
+      planPath: '/tmp/plan.md',
+      routing: {
+        decision: 'ENGAGE',
+        intensity: 'heavy',
+        estimatedExperts: 24,
+        rationale: 'multi-lane',
+      },
+    });
+    const routingEvent = events.find(
+      (e) => (e as { type: string }).type === 'ultrawork.routing.decided',
+    );
+    expect(routingEvent).toBeUndefined();
   });
 });
