@@ -70,3 +70,4 @@ The theme apply/switch mechanics live in the `write-tui` skill. The following ru
 - Optional object properties do not need to additionally allow `undefined` in the type.
 - Internal methods with only a single parameter should not be turned into options objects just for stylistic uniformity.
 - Except for a package's own `index.ts`, other `index.ts` files should prefer `export * from './module'`.
+- **Verify TUI/CLI behavior changes before claiming they work.** A change that affects transcript output, rendering, key input, or the bundled CLI must pass either the actual bundled CLI (`pnpm -C apps/liora run build && pnpm -C apps/liora run smoke`) or a focused test that exercises the changed path. Do not rely only on code inspection.

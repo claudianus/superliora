@@ -19,6 +19,7 @@ import type {
   SessionMetaUpdatedEvent,
   SkillActivatedEvent,
   ThinkingDeltaEvent,
+  TokenUsage,
   ToolCallDeltaEvent,
   ToolCallStartedEvent,
   ToolProgressEvent,
@@ -84,6 +85,7 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import { errorReportHintLine } from '../constant/feedback';
 import { formatStepDebugTiming } from '#/utils/usage/debug-timing';
+import { formatTokenCount } from '#/utils/usage/usage-format';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { ttui } from '../utils/tui-i18n';
 import { nextTranscriptId } from '../utils/transcript-id';
@@ -160,6 +162,7 @@ export class SessionEventHandler {
   private goalCompletionAwaitingClear = false;
   private goalCompletionTurnEnded = false;
   private currentTurnHasAssistantText = false;
+  private currentTurnUsage: TokenUsage | undefined;
   private pendingModelBlockedFallback: GoalChange | undefined;
   private queuedGoalPromotionPending = false;
   private queuedGoalPromotionInFlight = false;
@@ -178,6 +181,7 @@ export class SessionEventHandler {
     this.goalCompletionAwaitingClear = false;
     this.goalCompletionTurnEnded = false;
     this.currentTurnHasAssistantText = false;
+    this.currentTurnUsage = undefined;
     this.pendingModelBlockedFallback = undefined;
     this.queuedGoalPromotionPending = false;
     this.queuedGoalPromotionInFlight = false;
@@ -439,6 +443,7 @@ export class SessionEventHandler {
   private handleTurnBegin(_event: TurnStartedEvent): void {
     void _event;
     this.currentTurnHasAssistantText = false;
+    this.currentTurnUsage = undefined;
     this.clearAgentSwarmProgress();
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.setStep(0);
@@ -487,10 +492,26 @@ export class SessionEventHandler {
     }
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeTurn(sendQueued);
+    this.appendTurnSummary(event);
     this.renderPendingModelBlockedFallback();
     this.currentTurnHasAssistantText = false;
+    this.currentTurnUsage = undefined;
     this.goalCompletionTurnEnded = true;
     this.scheduleQueuedGoalPromotion();
+  }
+
+  private appendTurnSummary(event: TurnEndedEvent): void {
+    const text = formatTurnSummary(event.durationMs, this.currentTurnUsage);
+    if (text === undefined) return;
+    this.host.appendTranscriptEntry({
+      id: nextTranscriptId(),
+      kind: 'status',
+      turnId: String(event.turnId),
+      renderMode: 'plain',
+      content: text,
+      color: 'textDim',
+      bullet: '',
+    });
   }
 
   private handleStepBegin(event: TurnStepStartedEvent): void {
@@ -511,6 +532,9 @@ export class SessionEventHandler {
 
   private handleStepCompleted(event: TurnStepCompletedEvent): void {
     this.host.streamingUI.flushNow();
+    if (event.usage !== undefined) {
+      this.currentTurnUsage = addTokenUsage(this.currentTurnUsage, event.usage);
+    }
     this.maybeShowDebugTiming(event);
 
     if (event.providerFinishReason === 'filtered') {
@@ -1317,4 +1341,38 @@ export class SessionEventHandler {
     state.footer.setBackgroundCounts({ bashTasks, agentTasks });
     requestTUILayoutRender(state);
   }
+}
+
+function formatTurnSummary(durationMs: number | undefined, usage: TokenUsage | undefined): string | undefined {
+  const hasDuration = durationMs !== undefined && durationMs >= 0;
+  const hasUsage = usage !== undefined;
+  if (!hasDuration && !hasUsage) return undefined;
+
+  const parts: string[] = [];
+  if (hasDuration) parts.push(`⏱ ${formatTurnDuration(durationMs!)}`);
+  if (hasUsage) {
+    const total =
+      usage!.inputOther + usage!.inputCacheRead + usage!.inputCacheCreation + usage!.output;
+    parts.push(`${formatTokenCount(total)} tokens`);
+  }
+  return parts.join(' · ');
+}
+
+function formatTurnDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60 * 1000) return `${(ms / 1000).toFixed(1)}s`;
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m${seconds.toString().padStart(2, '0')}s`;
+}
+
+function addTokenUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
+  if (a === undefined) return b;
+  return {
+    inputOther: a.inputOther + b.inputOther,
+    output: a.output + b.output,
+    inputCacheRead: a.inputCacheRead + b.inputCacheRead,
+    inputCacheCreation: a.inputCacheCreation + b.inputCacheCreation,
+  };
 }
