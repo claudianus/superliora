@@ -298,6 +298,12 @@ export function createTUIStateNativeRenderCallback(
       force: policy.force,
       clear: policy.clear,
       cursor: nativeFrame.cursor,
+      // Always re-emit the cursor position on every frame. Without this,
+      // animation/idle frames skip the CUP sequence (cursor unchanged) and the
+      // terminal's cursor drifts to the last drawn cell — usually the bottom of
+      // the footer — so OS IME renders the composition window (e.g. Korean
+      // hangul preedit) at the wrong screen position.
+      forceCursor: true,
     });
     return result;
   };
@@ -550,6 +556,13 @@ function buildTUIStateNativeFrame(
               viewport: { x: 0, y: 0, width, height },
             });
       if (projected.cursor !== undefined && cursor.visible === false) {
+        cursor = projected.cursor;
+      }
+      // The editor cursor takes precedence over any earlier region's cursor
+      // marker — the terminal cursor must sit at the text insertion point so
+      // the OS IME renders its preedit (composing) text there, not at a stale
+      // cursor position left over from a non-editor region.
+      if (region.id === 'editor' && projected.cursor !== undefined) {
         cursor = projected.cursor;
       }
       const content = region.id === 'editor'

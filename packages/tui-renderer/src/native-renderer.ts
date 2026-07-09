@@ -213,6 +213,7 @@ export interface NativeTerminalRendererLayoutFrameOptions {
   readonly clear?: boolean;
   readonly fill?: RendererCell;
   readonly force?: boolean;
+  readonly forceCursor?: boolean;
   readonly cursor?: RendererCursorState;
   readonly scheduleRegionVfx?: boolean;
 }
@@ -521,6 +522,7 @@ export class NativeTerminalRenderer {
       clear: options.clear,
       fill: options.fill ?? this.options.fill,
       force: options.force,
+      forceCursor: options.forceCursor,
       cursor: options.cursor,
       composition: {
         lineCache: this.lineCache,

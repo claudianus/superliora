@@ -107,6 +107,10 @@ export function detectNativeTerminalCapabilities(
     'HARNESS_TUI_SYNCHRONIZED_OUTPUT',
     'TUI_RENDERER_SYNCHRONIZED_OUTPUT',
   ]);
+  const keyboardProtocolOverride = firstEnvBoolean(environment, [
+    'HARNESS_TUI_KEYBOARD_PROTOCOL',
+    'TUI_RENDERER_KEYBOARD_PROTOCOL',
+  ]);
   const colorMode = detectNativeTerminalColorMode(environment);
   const imageProtocol = detectNativeTerminalImageProtocol(environment);
   const interactive =
@@ -140,7 +144,8 @@ export function detectNativeTerminalCapabilities(
 
   return {
     interactive,
-    keyboardProtocol: interactive && knownModernTerminal && !inMultiplexer,
+    keyboardProtocol:
+      (keyboardProtocolOverride ?? (interactive && knownModernTerminal && !inMultiplexer)),
     mouseTracking: interactive && (knownModernTerminal || xtermLike),
     bracketedPaste: interactive && (knownModernTerminal || xtermLike),
     focusEvents: interactive && (knownModernTerminal || xtermLike),
