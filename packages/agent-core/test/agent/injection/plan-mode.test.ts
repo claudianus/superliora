@@ -278,8 +278,8 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('You may ONLY write to the current plan file');
-    expect(text).toContain('read only the current plan file');
-    expect(text).toContain('update TodoList for progress tracking');
+    expect(text).toContain('allowed for quick verification while writing');
+    expect(text).toContain('Use TodoList for progress tracking');
     expect(text).toContain('NextPhase or ExitPlanMode');
   });
 
@@ -295,7 +295,7 @@ describe('PlanModeInjector content', () => {
     await injector.inject();
 
     const text = lastReminder(agent);
-    expect(text).toContain('Read the current plan file if needed');
+    expect(text).toContain('Read the plan file if needed');
     expect(text).toContain('correct only that plan file');
   });
 });

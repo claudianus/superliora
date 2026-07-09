@@ -12,6 +12,8 @@
  *      then Readability, then `<body>` as the last fallback.
  */
 
+import { promises as dns } from 'node:dns';
+
 import { Readability } from '@mozilla/readability';
 import { parseHTML as rawParseHTML } from 'linkedom';
 
@@ -74,18 +76,74 @@ export interface LocalFetchURLProviderOptions {
    * (10.x, 192.168.x), or reading local daemons (127.0.0.1:*).
    */
   allowPrivateAddresses?: boolean;
+  /**
+   * Resolve the hostname via `node:dns` and reject if any resolved address
+   * is private / loopback / link-local / ULA. Defends against DNS rebinding
+   * (a public-looking domain that resolves to an internal IP). Defaults to
+   * `true`; disabled only for tests that inject a fake fetcher.
+   */
+  resolveDns?: boolean;
+  /**
+   * Maximum HTTP redirect hops to follow. Each hop is re-validated through
+   * the full static + DNS SSRF guard. Defaults to 5.
+   */
+  maxRedirects?: number;
+}
+
+/**
+ * True when the IP literal is private / loopback / link-local / ULA / CGNAT.
+ * Handles IPv4 dotted-quad, IPv6 loopback/ULA/link-local, and IPv6-mapped IPv4
+ * (`::ffff:127.0.0.1`). Returns false for non-IP strings (domain names).
+ */
+export function isPrivateIp(address: string): boolean {
+  const host = address.toLowerCase();
+  // Literal "localhost" / loopback aliases.
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+
+  // Strip IPv6-mapped IPv4: `::ffff:127.0.0.1` → `127.0.0.1`.
+  const mappedV4 = /::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
+  if (mappedV4 !== null) return isPrivateIp(mappedV4[1]!);
+
+  // IPv6 loopback / ULA / link-local. `fc`/`fd` are ULA (fc00::/7);
+  // `fe80` is link-local; `::1` loopback; `::` unspecified.
+  if (host === '::1' || host === '::') return true;
+  if (host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true;
+
+  // IPv4 literal — only check when the hostname is a dotted-quad.
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (v4 === null) return false;
+  const octets = [v4[1], v4[2], v4[3], v4[4]].map(Number);
+  if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+  const [a, b] = octets as [number, number, number, number];
+  // 127.0.0.0/8 loopback, 10.0.0.0/8, 192.168.0.0/16,
+  // 172.16.0.0/12, 169.254.0.0/16 link-local / AWS metadata,
+  // 0.0.0.0/8 "this network", 100.64.0.0/10 CGNAT.
+  return (
+    a === 127 ||
+    a === 10 ||
+    (a === 192 && b === 168) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 169 && b === 254) ||
+    a === 0 ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
 }
 
 /**
  * SSRF guard — reject non-http(s) schemes and (by default) any hostname
- * that is, or parses as, a private / loopback / link-local / ULA IP
- * literal. This is a *static* check against the URL string; it does NOT
- * do DNS resolution, so a domain that resolves to a private IP via
- * DNS-rebinding is **not** caught here. That attack is a known
- * limitation; mitigations (e.g. pinning the resolved IP through to
- * fetch) are left for a follow-up.
+ * that is, or resolves to, a private / loopback / link-local / ULA address.
+ *
+ * Two layers:
+ *   1. Static URL-string check (scheme + IP literal / localhost hostname).
+ *   2. DNS resolution (when `resolveDns` is true) — reject if any resolved
+ *      address is private. Closes the DNS-rebinding window where a public
+ *      domain resolves to an internal IP.
  */
-function assertSafeFetchTarget(url: string, allowPrivate: boolean): void {
+async function assertSafeFetchTarget(
+  url: string,
+  allowPrivate: boolean,
+  resolveDns: boolean,
+): Promise<void> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -95,55 +153,34 @@ function assertSafeFetchTarget(url: string, allowPrivate: boolean): void {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error(`Unsupported URL scheme "${parsed.protocol}" — only http(s) allowed.`);
   }
+  // Reject URLs with embedded credentials (`user:pass@host`).
+  if (parsed.username.length > 0 || parsed.password.length > 0) {
+    throw new Error(`Refusing to fetch URL with embedded credentials: "${parsed.origin}"`);
+  }
   if (allowPrivate) return;
   // URL hostname preserves surrounding `[ ]` for IPv6 literals on some
   // Node versions (and not others). Strip them for uniform comparison.
   const hostRaw = parsed.hostname.toLowerCase();
   const host = hostRaw.startsWith('[') && hostRaw.endsWith(']') ? hostRaw.slice(1, -1) : hostRaw;
-  // Literal "localhost" / loopback aliases.
-  if (host === 'localhost' || host.endsWith('.localhost')) {
+  if (isPrivateIp(host)) {
     throw new Error(`Refusing to fetch private host: "${host}"`);
   }
-  // IPv6 loopback / ULA / link-local. Check after bracket strip.
-  if (
-    host === '::1' ||
-    host === '::' ||
-    host.startsWith('fe80:') ||
-    host.startsWith('fc') ||
-    host.startsWith('fd')
-  ) {
-    throw new Error(`Refusing to fetch private host: "${host}"`);
-  }
-  // IPv4 literal — only check when the hostname is a dotted-quad; normal
-  // domains will never match.
-  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (v4 !== null) {
-    const octets = [v4[1], v4[2], v4[3], v4[4]].map(Number);
-    if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
-      throw new Error(`Invalid IPv4 literal: "${host}"`);
+  // For domain names (non-IP-literal), resolve and check each address to
+  // defend against DNS rebinding. Skip for IP literals already checked above.
+  if (!resolveDns || /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':')) return;
+  try {
+    const resolved = await dns.lookup(host, { all: true });
+    for (const entry of resolved) {
+      if (isPrivateIp(entry.address)) {
+        throw new Error(
+          `Refusing to fetch "${host}": resolves to private address "${entry.address}".`,
+        );
+      }
     }
-    const [a, b] = octets as [number, number, number, number];
-    // 127.0.0.0/8 loopback, 10.0.0.0/8, 192.168.0.0/16,
-    // 172.16.0.0/12, 169.254.0.0/16 link-local / AWS metadata,
-    // 0.0.0.0/8 "this network", 100.64.0.0/10 CGNAT.
-    const isLoopback = a === 127;
-    const isPrivate10 = a === 10;
-    const isPrivate192 = a === 192 && b === 168;
-    const isPrivate172 = a === 172 && b >= 16 && b <= 31;
-    const isLinkLocal = a === 169 && b === 254;
-    const isZero = a === 0;
-    const isCgnat = a === 100 && b >= 64 && b <= 127;
-    if (
-      isLoopback ||
-      isPrivate10 ||
-      isPrivate192 ||
-      isPrivate172 ||
-      isLinkLocal ||
-      isZero ||
-      isCgnat
-    ) {
-      throw new Error(`Refusing to fetch private address: "${host}"`);
-    }
+  } catch (error) {
+    // Re-throw our own rejection; surface DNS failures as-is (they will
+    // surface again as a fetch error, which is the correct behavior).
+    if (error instanceof Error && error.message.startsWith('Refusing to fetch')) throw error;
   }
 }
 
@@ -152,22 +189,46 @@ export class LocalFetchURLProvider implements UrlFetcher {
   private readonly fetchImpl: typeof fetch;
   private readonly maxBytes: number;
   private readonly allowPrivateAddresses: boolean;
+  private readonly resolveDns: boolean;
+  private readonly maxRedirects: number;
 
   constructor(options: LocalFetchURLProviderOptions = {}) {
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
     this.allowPrivateAddresses = options.allowPrivateAddresses ?? false;
+    this.resolveDns = options.resolveDns ?? true;
+    this.maxRedirects = options.maxRedirects ?? 5;
   }
 
   async fetch(url: string, _options?: { toolCallId?: string }): Promise<UrlFetchResult> {
-    assertSafeFetchTarget(url, this.allowPrivateAddresses);
-
-    const response = await this.fetchImpl(url, {
-      method: 'GET',
-      headers: { 'User-Agent': this.userAgent },
-    });
-
+    // Follow redirects manually so every hop is re-validated through the
+    // full static + DNS SSRF guard. A first-hop-safe URL that 302s to an
+    // internal service must still be blocked.
+    let currentUrl = url;
+    let response: Response | undefined;
+    for (let hop = 0; hop <= this.maxRedirects; hop++) {
+      await assertSafeFetchTarget(currentUrl, this.allowPrivateAddresses, this.resolveDns);
+      response = await this.fetchImpl(currentUrl, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { 'User-Agent': this.userAgent },
+      });
+      if (response.status < 300 || response.status >= 400) break;
+      const location = response.headers.get('location');
+      // Drain the redirect response body before continuing.
+      await response.body?.cancel().catch(() => {
+        /* already closed */
+      });
+      if (location === null) break;
+      currentUrl = new URL(location, currentUrl).toString();
+    }
+    if (response === undefined) {
+      throw new Error(`Too many redirects (>${String(this.maxRedirects)}) fetching "${url}".`);
+    }
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error(`Too many redirects (>${String(this.maxRedirects)}) fetching "${url}".`);
+    }
     if (response.status >= 400) {
       // Drain the unused body so undici can release the socket back to
       // the keep-alive pool instead of leaking it on error paths.

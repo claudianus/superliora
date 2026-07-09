@@ -251,6 +251,7 @@ export class ReadTool implements BuiltinTool<ReadInput> {
     });
     return {
       accesses: ToolAccesses.readFile(path),
+      readOnly: true,
       description: `Reading ${args.path}`,
       display: { kind: 'file_io', operation: 'read', path },
       approvalRule: literalRulePattern(this.name, path),

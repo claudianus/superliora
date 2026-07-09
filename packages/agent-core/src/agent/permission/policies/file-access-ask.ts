@@ -61,7 +61,7 @@ export class GitControlPathAccessAskPermissionPolicy implements PermissionPolicy
   }
 }
 
-function fileAccesses(context: PermissionPolicyContext): ToolFileAccess[] {
+export function fileAccesses(context: PermissionPolicyContext): ToolFileAccess[] {
   return (
     context.execution.accesses?.filter((access): access is ToolFileAccess => access.kind === 'file') ??
     []

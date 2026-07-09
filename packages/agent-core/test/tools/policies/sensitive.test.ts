@@ -18,12 +18,51 @@ describe('isSensitiveFile', () => {
   it('flags cloud credential file locations', () => {
     for (const path of [
       '/home/user/.aws/credentials',
+      '/home/user/.aws/config',
       '/home/user/.gcp/credentials',
       '.aws/credentials',
+      '.aws/config',
       '.gcp/credentials',
       'credentials',
     ]) {
       expect(isSensitiveFile(path), path).toBe(true);
+    }
+  });
+
+  it('flags directory-scoped credential stores (.ssh, .gnupg, .kube, .docker)', () => {
+    for (const path of [
+      // .ssh — the whole directory is protected (config, known_hosts, ...).
+      '/home/user/.ssh/config',
+      '/home/user/.ssh/known_hosts',
+      '/home/user/.ssh/authorized_keys',
+      '/home/user/.ssh/id_ecdsa',
+      '/home/user/.ssh',
+      '.ssh/config',
+      '.ssh/id_dsa',
+      // .gnupg — keyrings, trusted keys, etc.
+      '/home/user/.gnupg/pubring.kbx',
+      '/home/user/.gnupg/private-keys-v1.d/KEY.key',
+      '/home/user/.gnupg',
+      '.gnupg/secring.gpg',
+      // .kube / .docker — exact config files.
+      '/home/user/.kube/config',
+      '.kube/config',
+      '/home/user/.docker/config.json',
+      '.docker/config.json',
+    ]) {
+      expect(isSensitiveFile(path), path).toBe(true);
+    }
+  });
+
+  it('does not false-positive on directory-like substrings', () => {
+    for (const path of [
+      // `.ssh` as a file extension, not a directory part.
+      'myapp.ssh/config',
+      'notes.ssh',
+      // `.gnupg` inside an unrelated name.
+      'docs/.gnupg-readme.md',
+    ]) {
+      expect(isSensitiveFile(path), path).toBe(false);
     }
   });
 

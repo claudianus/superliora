@@ -64,6 +64,7 @@ export class LioraSearchTool implements BuiltinTool<LioraSearchInput> {
         ? explicitPaths.map((path) => ({ kind: 'file' as const, operation: 'read' as const, path }))
         : ToolAccesses.searchTree(this.workspace.workspaceDir),
       description: `Searching for ${normalized.pattern}`,
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(normalized, explicitPaths),
     };

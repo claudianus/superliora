@@ -62,6 +62,7 @@ export class LioraTreeTool implements BuiltinTool<LioraTreeInput> {
     return {
       accesses: ToolAccesses.readFile(basePath),
       description: 'Building compact directory tree',
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(parsed.data, basePath),
     };

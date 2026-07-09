@@ -43,6 +43,7 @@ export class SearchExpertTool implements BuiltinTool<SearchExpertInput> {
     return {
       description: `Search expert agents for "${args.query}"`,
       display: { kind: 'generic', summary: `SearchExpert: ${args.query}` },
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(args),
     };

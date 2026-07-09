@@ -74,6 +74,7 @@ export class FetchURLTool implements BuiltinTool<FetchURLInput> {
     const preview = args.url.length > 50 ? `${args.url.slice(0, 50)}…` : args.url;
     return {
       accesses: ToolAccesses.none(),
+      readOnly: true,
       description: `Fetching: ${preview}`,
       display: { kind: 'url_fetch', url: args.url },
       approvalRule: literalRulePattern(this.name, args.url),
