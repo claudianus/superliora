@@ -915,6 +915,61 @@ oauth = { storage = "file", key = "${configuredOauthKey}", oauth_host = "https:/
     });
   });
 
+  describe('non-Kimi OAuth routing (xai-grok, openai-codex)', () => {
+    // Regression coverage for the "No OAuth manager configured for provider
+    // xai-grok" bug: the TUI request path uses LioraAuthFacade (node-sdk),
+    // not ServicesManagedAuthFacade (agent-core). Non-Kimi OAuth providers
+    // must route through OAuthProviderManager here too, not the Kimi-only
+    // toolkit.
+    it('getCachedAccessToken resolves an xai-grok token from disk (not the Kimi toolkit)', async () => {
+      await new FileTokenStorage(join(homeDir, 'credentials')).save('xai-grok', freshToken());
+      const harness = createLioraHarness({ homeDir });
+      await expect(harness.auth.getCachedAccessToken('xai-grok')).resolves.toBe(
+        'oauth-access-token',
+      );
+    });
+
+    it('resolveOAuthTokenProvider returns a usable Bearer token for xai-grok', async () => {
+      await new FileTokenStorage(join(homeDir, 'credentials')).save('xai-grok', freshToken());
+      const harness = createLioraHarness({ homeDir });
+      // This is the call made per-prompt-turn by ProviderManager.resolveAuth.
+      // Before the fix this threw "No OAuth manager configured for provider
+      // xai-grok".
+      await expect(
+        harness.auth.resolveOAuthTokenProvider('xai-grok').getAccessToken(),
+      ).resolves.toBe('oauth-access-token');
+    });
+
+    it('logout removes the xai-grok credential file', async () => {
+      const storage = new FileTokenStorage(join(homeDir, 'credentials'));
+      await storage.save('xai-grok', freshToken());
+      const harness = createLioraHarness({ homeDir });
+      await expect(harness.auth.logout('xai-grok')).resolves.toMatchObject({
+        providerName: 'xai-grok',
+        ok: true,
+      });
+      await expect(storage.load('xai-grok')).resolves.toBeUndefined();
+    });
+
+    it('applies the same routing to openai-codex', async () => {
+      await new FileTokenStorage(join(homeDir, 'credentials')).save('openai-codex', freshToken());
+      const harness = createLioraHarness({ homeDir });
+      await expect(
+        harness.auth.resolveOAuthTokenProvider('openai-codex').getAccessToken(),
+      ).resolves.toBe('oauth-access-token');
+    });
+
+    it('still routes the managed Kimi provider through the toolkit', () => {
+      const harness = createLioraHarness({ homeDir });
+      // Without a persisted Kimi token this returns a provider whose
+      // getAccessToken() would fail, but the routing itself must not throw
+      // "No OAuth manager configured" — that only happens for non-Kimi names
+      // routed into the toolkit.
+      const provider = harness.auth.resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME);
+      expect(typeof provider.getAccessToken).toBe('function');
+    });
+  });
+
   it('submitFeedback surfaces HTTP errors without throwing', async () => {
     await new FileTokenStorage(join(homeDir, 'credentials')).save('kimi-code', freshToken());
     vi.stubGlobal(
