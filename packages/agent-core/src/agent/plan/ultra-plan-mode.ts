@@ -67,6 +67,12 @@ export interface DriftMetrics {
 
 export const ULTRA_PLAN_DRIFT_THRESHOLD = 0.4;
 
+/** Tolerant drift threshold for auto-generated Seed Specs (extracted from
+ *  interview answers). Stricter than full exemption but more lenient than
+ *  manually-written Seeds, since interview-derived Seeds have inherent
+ *  wording variance. */
+export const ULTRA_PLAN_DRIFT_THRESHOLD_AUTO = 0.6;
+
 export function combinedDrift(metrics: DriftMetrics): number {
   return metrics.goalDrift * 0.5 + metrics.constraintDrift * 0.3 + metrics.ontologyDrift * 0.2;
 }
@@ -74,6 +80,8 @@ export function combinedDrift(metrics: DriftMetrics): number {
 export function isDriftAcceptable(metrics: DriftMetrics): boolean {
   return combinedDrift(metrics) <= ULTRA_PLAN_DRIFT_THRESHOLD;
 }
+
+export type InterviewAnswerOrigin = 'user' | 'code' | 'research';
 
 export type InterviewPerspective =
   | 'researcher'
@@ -91,6 +99,9 @@ export interface InterviewRound {
   readonly question: string;
   readonly userResponse: string;
   readonly timestamp: number;
+  /** Where the answer came from. 'user' = user decided via AskUserQuestion;
+   *  'code' = agent answered from codebase evidence; 'research' = external research. */
+  readonly origin: InterviewAnswerOrigin;
 }
 
 export interface AmbiguityScoreBreakdown {
@@ -123,6 +134,12 @@ export interface InterviewState {
   /** Once true, the interview stays "ready" until a new round is added —
    *  LLM non-determinism cannot un-ready an already-passed gate. */
   readonly monotonicReadyLocked?: boolean;
+  /** Consecutive rounds where origin was 'code' or 'research' (not 'user').
+   *  Reset to 0 on each 'user' answer. Drives the Dialectic Rhythm Guard. */
+  readonly consecutiveNonUserAnswers: number;
+  /** Wall-clock timestamp when the interview phase started. Used to filter
+   *  pre-interview user prompts out of the ambiguity evidence. */
+  readonly startedAtTimestamp: number;
 }
 
 export const ULTRA_PLAN_REQUIRED_SECTIONS = [
@@ -617,6 +634,8 @@ export class UltraPlanModeEngine {
     lastScoredEvidenceHash: undefined,
     cachedLlmResult: undefined,
     monotonicReadyLocked: false,
+    consecutiveNonUserAnswers: 0,
+    startedAtTimestamp: 0,
   };
 
   get interviewState(): InterviewState {
@@ -660,20 +679,30 @@ export class UltraPlanModeEngine {
       lastScoredEvidenceHash: undefined,
       cachedLlmResult: undefined,
       monotonicReadyLocked: false,
+      consecutiveNonUserAnswers: 0,
+      startedAtTimestamp: Date.now(),
     };
   }
 
-  addInterviewRound(question: string, userResponse: string): void {
+  addInterviewRound(
+    question: string,
+    userResponse: string,
+    origin: InterviewAnswerOrigin = 'user',
+  ): void {
     const round: InterviewRound = {
       roundNumber: this._interviewState.rounds.length + 1,
       question,
       userResponse,
       timestamp: Date.now(),
+      origin,
     };
     this.advancePerspective();
+    const consecutiveNonUserAnswers =
+      origin === 'user' ? 0 : this._interviewState.consecutiveNonUserAnswers + 1;
     this._interviewState = {
       ...this._interviewState,
       rounds: [...this._interviewState.rounds, round],
+      consecutiveNonUserAnswers,
       // A new round changes the evidence — invalidate the LLM cache and
       // unlock monotonic ready so the gate is re-evaluated fairly.
       lastScoredEvidenceHash: undefined,
@@ -967,6 +996,7 @@ export class UltraPlanModeEngine {
     return formatInterviewReadinessGuide(resolved, {
       perspective: this._currentPerspective,
       interviewRoundCount: this._interviewState.rounds.length,
+      consecutiveNonUserAnswers: this._interviewState.consecutiveNonUserAnswers,
     });
   }
 
@@ -1037,8 +1067,14 @@ export class UltraPlanModeEngine {
   }
 
   private recentUserPromptTexts(): string[] {
+    const startedAt = this._interviewState.startedAtTimestamp ?? 0;
     return (this.agent.context?.history ?? [])
-      .filter((message) => message.role === 'user' && isRealUserPromptOrigin(message.origin))
+      .filter(
+        (message) =>
+          message.role === 'user' &&
+          isRealUserPromptOrigin(message.origin) &&
+          ((message as { timestamp?: number }).timestamp ?? 0) >= startedAt,
+      )
       .slice(-3)
       .map((message) => extractText(message, '\n').trim())
       .filter((text) => text.length > 0);
@@ -1374,6 +1410,7 @@ Respond ONLY with valid JSON. No other text before or after.
 export interface InterviewReadinessGuideOptions {
   readonly perspective?: InterviewPerspective;
   readonly interviewRoundCount?: number;
+  readonly consecutiveNonUserAnswers?: number;
 }
 
 export function pickNextInterviewFocus(
@@ -1503,7 +1540,21 @@ export function formatInterviewReadinessGuide(
   if (interviewRoundCount >= MAX_INTERVIEW_ROUNDS) {
     lines.push(
       '',
-      `Round cap: ${interviewRoundCount} interview rounds completed (soft cap ${MAX_INTERVIEW_ROUNDS}). Design stays blocked until the blockers above close — do not call NextPhase until READY.`,
+      `Round cap: ${interviewRoundCount} interview rounds completed (soft cap ${MAX_INTERVIEW_ROUNDS}).`,
+      'Two options:',
+      '1. AskUserQuestion: offer the user to advance with conservative defaults for remaining gaps.',
+      '   If the user confirms, call NextPhase({ phase: "design", advance_with_defaults: true }).',
+      '2. Continue interviewing to close the remaining blockers manually.',
+    );
+  }
+
+  const consecutiveNonUser = options?.consecutiveNonUserAnswers ?? 0;
+  if (consecutiveNonUser >= 3) {
+    lines.push(
+      '',
+      '⚠ RHYTHM GUARD: 3 consecutive findings were answered from code or research, not the user.',
+      'Your next turn MUST use AskUserQuestion (PATH 2) to confirm a decision with the user directly.',
+      'Do not use RecordInterviewFinding again until the user has answered at least one question.',
     );
   }
 
@@ -1521,5 +1572,21 @@ export function formatInterviewReadinessGuide(
     pickNextInterviewFocus(readiness, perspective),
   );
 
+  const lateralHint = perspectiveLateralHint(perspective);
+  if (lateralHint !== undefined) {
+    lines.push('', `Lateral thinking (${perspective}): ${lateralHint}`);
+  }
+
   return lines.join('\n');
+}
+
+function perspectiveLateralHint(perspective: InterviewPerspective): string | undefined {
+  const hints: Partial<Record<InterviewPerspective, string>> = {
+    researcher: 'What information are we still missing? What similar problems have documented solutions?',
+    simplifier: 'What can we remove without breaking the core outcome? Consider a Baseline that cuts 30%+ of scope.',
+    architect: 'How would we design this from scratch? What abstraction would clarify the structure?',
+    'breadth-keeper': 'What edge cases or quality dimensions did the user skip? Balance stretch goals vs non-goals.',
+    'seed-closer': 'What would make this definitely fail? Lock each acceptance criterion to a pass/fail test.',
+  };
+  return hints[perspective];
 }

@@ -191,7 +191,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('Perspective: researcher');
     expect(text).not.toContain('{{perspective}}');
     expect(text).toContain('benchmarks, best practices');
-    expect(text).toContain('Your turn MUST end with AskUserQuestion or NextPhase');
+    expect(text).toContain('Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase');
     expect(text).toContain('Read-only research in the same turn is allowed and encouraged');
     expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');
     expect(text).toContain('Do not advance just because the task feels actionable');

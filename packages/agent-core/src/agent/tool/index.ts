@@ -303,7 +303,23 @@ export class ToolManager {
       qualifiedNames.push(qualified);
     }
     this.mcpToolsByServer.set(serverName, qualifiedNames);
+    this.injectMcpServerInstructions(serverName, client);
     return { registered: qualifiedNames, collisions };
+  }
+
+  /**
+   * Surface server-level usage instructions (from the MCP `initialize`
+   * handshake) into the agent context so the model learns how to use the
+   * server's tools without a per-turn prompt cost. Compliant servers
+   * (Claude Code, Cursor, opencode, ...) emit these at connection time.
+   */
+  private injectMcpServerInstructions(serverName: string, client: MCPClient): void {
+    const instructions = client.getInstructions?.();
+    if (instructions === undefined || instructions.trim().length === 0) return;
+    this.agent.context?.appendSystemReminder(
+      `MCP server "${serverName}" usage instructions:\n${instructions.trim()}`,
+      { kind: 'injection', variant: 'mcp_instructions' },
+    );
   }
 
   unregisterMcpServer(serverName: string): boolean {

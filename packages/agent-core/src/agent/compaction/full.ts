@@ -70,6 +70,7 @@ import {
   extractUltraworkRunLines,
   renderUltraworkRunsMemorySection,
 } from '../../ultrawork/envelope';
+import { surpriseScore } from '../../lean-context/gate/density';
 import {
   mergeCompactionQualityResults,
   validateInitialCompactionSummary,
@@ -437,6 +438,12 @@ export class FullCompaction {
         return;
       }
     }
+    // Async background compaction: start summarizing at a lower threshold
+    // without blocking the turn. The worker runs concurrently; beforeStep
+    // will block on it only when the synchronous threshold is reached.
+    if (this.isAsyncCompactionEnabled() && this.shouldAsyncCompactNow(projected)) {
+      this.beginAutoCompaction(false);
+    }
     if (this.strategy.shouldBlock(this.tokenCountWithPending)) {
       this.canAutoCompact(true);
     }
@@ -447,7 +454,27 @@ export class FullCompaction {
     if (this.strategy.checkAfterStep) {
       this.checkAutoCompaction(false);
     }
+    // Opportunistically start a background compaction when the async
+    // threshold is crossed but the sync trigger hasn't fired yet.
+    if (
+      this.compacting === null &&
+      this.isAsyncCompactionEnabled() &&
+      this.shouldAsyncCompactNow(this.tokenCountWithPending)
+    ) {
+      this.beginAutoCompaction(false);
+    }
     // Do not block after the step
+  }
+
+  private isAsyncCompactionEnabled(): boolean {
+    return this.agent.experimentalFlags.enabled('async_compaction');
+  }
+
+  private shouldAsyncCompactNow(usedSize: number): boolean {
+    if (this.compacting !== null) return false;
+    if (this.shouldDeferAutoCompaction()) return false;
+    if (this.shouldSkipRecompactUntilGrowth()) return false;
+    return this.strategy.shouldAsyncCompact(usedSize);
   }
 
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
@@ -1163,6 +1190,12 @@ export class FullCompaction {
     parallelBlockCount: number;
     mergeInputTokens: number;
   }> {
+    // Order blocks by density (highest surprise first) so the merge pass
+    // prioritizes detail from novel, information-dense regions over sparse
+    // boilerplate when fitting the merged summary.
+    const orderedBlocks = [...blocks].sort(
+      (a, b) => blockDensity(b) - blockDensity(a),
+    );
     const blockPrompt = renderPrompt(compactionInstructionTemplate, {
       customInstruction: this.compactionInstruction(
         instruction,
@@ -1171,7 +1204,7 @@ export class FullCompaction {
       ),
     });
     const blockResults = await Promise.all(
-      blocks.map(async (block) => {
+      orderedBlocks.map(async (block) => {
         const messages = [
           ...this.agent.context.projectForCompaction(block),
           createUserMessage(blockPrompt),
@@ -2018,4 +2051,26 @@ function formatRawRef(ref: CompactionPlan['rawRefs'][number]): string {
       ? ` tools=${ref.toolNames.join(',')}`
       : '';
   return `${ref.kind}[${String(ref.messageStart)}-${String(ref.messageEnd)}] tokens=${String(ref.tokens)}${tools}`;
+}
+
+/**
+ * Density / surprise score for a parallel-compaction block. Used to order
+ * blocks so information-dense regions are summarized first and get priority
+ * in the merged summary.
+ */
+function blockDensity(block: readonly Message[]): number {
+  const parts: string[] = [];
+  for (const message of block) {
+    if (typeof message.content === 'string') {
+      parts.push(message.content);
+    } else if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        if (part.type === 'text') parts.push(part.text);
+      }
+    }
+    for (const toolCall of message.toolCalls) {
+      parts.push(`${toolCall.name} ${toolCall.arguments}`);
+    }
+  }
+  return surpriseScore(parts.join('\n').slice(0, 16_000));
 }

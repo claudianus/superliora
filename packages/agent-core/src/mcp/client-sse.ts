@@ -127,6 +127,10 @@ export class SseMcpClient implements MCPClient {
     return toMcpToolResult(result);
   }
 
+  getInstructions(): string | undefined {
+    return this.client.getInstructions();
+  }
+
   private async closeStartedClient(): Promise<void> {
     if (!this.started) return;
     this.started = false;

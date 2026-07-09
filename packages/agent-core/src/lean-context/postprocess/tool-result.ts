@@ -9,6 +9,7 @@ import {
   resolvePressureMode,
   shouldSkipCompressionForRead,
 } from '../gate/bounce';
+import { compressionResistance } from '../gate/density';
 
 const READ_TOKEN_THRESHOLD = 2500;
 const GREP_LINE_THRESHOLD = 40;
@@ -66,7 +67,20 @@ function postprocessRead(
     return appendHint(input.result, '[liora-gate] bounce detected — kept Read output verbatim.');
   }
 
-  const mode = pressureMode === 'aggressive' ? 'signatures' : 'signatures';
+  // Density-driven mode: high-surprise content (novel logic, project-specific
+  // identifiers) resists compression and stays in a richer `signatures` form;
+  // low-surprise boilerplate compresses to the terse `map` form. Under
+  // aggressive context pressure, only very-high-surprise content keeps
+  // signatures — everything else drops to `map`.
+  const resistance = compressionResistance(output);
+  const mode =
+    pressureMode === 'aggressive'
+      ? resistance > 0.7
+        ? 'signatures'
+        : 'map'
+      : resistance > 0.5
+        ? 'signatures'
+        : 'map';
   const rendered = renderTerseRead({
     content: stripSystemSuffix(output),
     displayPath: pathArg,

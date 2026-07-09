@@ -4,6 +4,7 @@ import { collectContextFiles } from '../../tools/builtin/context/context-discove
 import type { RankedFile } from '../../tools/builtin/context/context-types';
 import { rankContextFiles } from '../../tools/builtin/context/context-symbols';
 import type { WorkspaceConfig } from '../../tools/support/workspace';
+import { surpriseScore } from '../gate/density';
 import { isLeanCodegraphV2Enabled } from '../graph/enabled';
 import { getGraphDatabase } from '../graph/pipeline';
 import { topIndexedPaths } from '../graph/search';
@@ -162,6 +163,13 @@ async function composeRankContextV1(input: ComposeRankInput): Promise<ComposeRan
       })
       .toSorted((a, b) => b.score - a.score || a.file.displayPath.localeCompare(b.file.displayPath));
   }
+
+  // Density/surprise boost: information-dense, project-specific files rank
+  // higher than sparse boilerplate of equivalent lexical relevance. Scaled
+  // to add at most a few points so it breaks ties rather than dominating.
+  ranked = ranked
+    .map((item) => ({ ...item, score: item.score + surpriseScore(item.file.content) * 3 }))
+    .toSorted((a, b) => b.score - a.score || a.file.displayPath.localeCompare(b.file.displayPath));
 
   const maxFiles = input.maxFiles ?? 8;
   ranked = ranked.slice(0, maxFiles);

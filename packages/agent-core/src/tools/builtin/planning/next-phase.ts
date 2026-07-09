@@ -11,11 +11,18 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
+import { MAX_INTERVIEW_ROUNDS } from '#/agent/plan/ultra-plan-mode';
 
 export const NextPhaseInputSchema = z.object({
   phase: z.enum(['interview', 'design', 'review', 'write', 'exit']).describe(
     'The target phase to advance to. Must be the next logical phase in the workflow.',
   ),
+  advance_with_defaults: z
+    .boolean()
+    .optional()
+    .describe(
+      'Only valid for interview→design when the round cap is reached. When true, remaining seed gaps are filled with conservative defaults and the interview advances. The user must have explicitly agreed via AskUserQuestion.',
+    ),
 }).strict();
 
 export type NextPhaseInput = z.infer<typeof NextPhaseInputSchema>;
@@ -83,10 +90,17 @@ You can only advance forward, never backward.`;
     if (currentPhase === 'interview' && targetPhase === 'design') {
       const readiness = await this.agent.planMode.ultraEngine.interviewReadiness({ rescore: true });
       if (!readiness.ready) {
-        return {
-          isError: true,
-          output: await this.agent.planMode.ultraEngine.readinessBlockerMessage(),
-        };
+        const roundCount = this.agent.planMode.ultraEngine.interviewState.rounds.length;
+        const wantsSafeDefault = args.advance_with_defaults === true && roundCount >= MAX_INTERVIEW_ROUNDS;
+        if (!wantsSafeDefault) {
+          return {
+            isError: true,
+            output: await this.agent.planMode.ultraEngine.readinessBlockerMessage(),
+          };
+        }
+        // Safe-default advance: round cap reached and user explicitly agreed.
+        // Fall through to seed generation — the auto-generated Seed will fill
+        // remaining gaps with conservative assumptions.
       }
       if (this.agent.planMode.ultraEngine.seedSpec === null) {
         const seed = await this.agent.planMode.ultraEngine.autoGenerateSeedSpecFromInterview(
@@ -114,7 +128,7 @@ You can only advance forward, never backward.`;
 
   private phaseInstructions(phase: string): string {
     const instructions: Record<string, string> = {
-      interview: "Interview Phase: Act as an expert leader — teach brief insights, surface unknown-unknowns, and present Baseline + Upgrade choices backed by read-only research when needed. Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for other external facts. Elevate the UltraGoal; do not merely clarify gaps. When ambiguity <= 0.2, clarity floors pass, the UltraGoal is true/false verifiable, and required Seed gaps are closed, call NextPhase({ phase: 'design' }).",
+      interview: "Interview Phase: Act as an expert leader — teach brief insights, surface unknown-unknowns, and present Baseline + Upgrade choices backed by read-only research. Route questions: use RecordInterviewFinding when code or research already answers them (PATH 1/3), and AskUserQuestion only for human decisions (PATH 2). After 3 consecutive non-user findings, the Rhythm Guard forces AskUserQuestion. Refine free-text answers into structured form (Decision/Reasoning/Constraints/Out-of-scope/Context). Before advancing, restate the goal in one sentence and confirm with the user. When ambiguity <= 0.2, clarity floors pass, the UltraGoal is true/false verifiable, and required Seed gaps are closed, call NextPhase({ phase: 'design' }).",
       design: "Design Phase: Use read-only tools (Read, Grep, Glob, Context7Resolve, Context7Docs, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, Bash read-only inspection) plus TodoList progress tracking to explore the codebase and map coverage lanes to concrete expert candidates. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip directly to write.",
       review: "Review Phase: Use read-only tools (Read, ReadMediaFile, Grep, Glob, LioraContext, Context7Resolve, Context7Docs, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TaskList, TaskOutput, Bash read-only inspection) plus TodoList progress tracking to re-read key files, re-check current external claims, and verify expert coverage before writing the plan. When verification is complete, call NextPhase({ phase: 'write' }).",
       write: 'Write Phase: Write the complete plan to the plan file. Only the current plan file may be edited; reading files for quick verification is allowed. TodoList progress tracking and NextPhase/ExitPlanMode remain available. Include Seed Spec, AC Tree, Workgraph, Evaluation Plan, and Execution Plan.',

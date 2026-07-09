@@ -652,4 +652,44 @@ describe('ToolManager MCP integration', () => {
 
     expect(tm.loopTools.map((t) => t.name)).toEqual(['mcp__s__echo']);
   });
+
+  it('injects server instructions into agent context when getInstructions is present', async () => {
+    const reminders: string[] = [];
+    const agent = {
+      ...fakeAgent(),
+      context: {
+        appendSystemReminder(content: string) {
+          reminders.push(content);
+        },
+      },
+    } as unknown as Agent;
+    const tm = new ToolManager(agent);
+    const client: MCPClient = {
+      ...fakeClient(),
+      getInstructions: () => 'Use the echo tool to repeat text back verbatim.',
+    };
+    tm.registerMcpServer('helpful', client, await discoverTools(client));
+
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]).toContain('MCP server "helpful" usage instructions');
+    expect(reminders[0]).toContain('Use the echo tool to repeat text back verbatim.');
+  });
+
+  it('does not inject when the server provides no instructions', async () => {
+    const reminders: string[] = [];
+    const agent = {
+      ...fakeAgent(),
+      context: {
+        appendSystemReminder(content: string) {
+          reminders.push(content);
+        },
+      },
+    } as unknown as Agent;
+    const tm = new ToolManager(agent);
+    // fakeClient() has no getInstructions — treated as undefined.
+    const client = fakeClient();
+    tm.registerMcpServer('silent', client, await discoverTools(client));
+
+    expect(reminders).toHaveLength(0);
+  });
 });

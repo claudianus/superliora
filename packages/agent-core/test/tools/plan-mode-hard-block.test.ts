@@ -1024,6 +1024,82 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'Bash', { command: 'rm foo.txt' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'TaskStop', { task_id: 'bash-abc12345' })).toBeUndefined();
   });
+
+  it('allows RecordInterviewFinding in Ultra Plan interview phase', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+
+    expect(
+      evaluatePlanPolicy(agent, 'RecordInterviewFinding', {
+        question_answered: 'What framework version?',
+        finding: 'Next.js 14.2.0 from package.json',
+        origin: 'code',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('blocks RecordInterviewFinding outside interview phase', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('research');
+
+    const deny = expectDeny(
+      evaluatePlanPolicy(agent, 'RecordInterviewFinding', {
+        question_answered: 'What framework version?',
+        finding: 'Next.js 14.2.0',
+        origin: 'code',
+      }),
+    );
+    expect(deny.message ?? '').toContain('Research phase');
+  });
+
+  it('blocks RecordInterviewFinding after 3 consecutive non-user answers (Rhythm Guard)', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+
+    planMode.ultraEngine.addInterviewRound('Q1', 'code answer 1', 'code');
+    planMode.ultraEngine.addInterviewRound('Q2', 'code answer 2', 'code');
+    planMode.ultraEngine.addInterviewRound('Q3', 'code answer 3', 'code');
+
+    const deny = expectDeny(
+      evaluatePlanPolicy(agent, 'RecordInterviewFinding', {
+        question_answered: 'Q4',
+        finding: 'code answer 4',
+        origin: 'code',
+      }),
+    );
+    expect(deny.message ?? '').toContain('Rhythm Guard');
+  });
+
+  it('allows AskUserQuestion even when Rhythm Guard is active', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+
+    planMode.ultraEngine.addInterviewRound('Q1', 'code answer 1', 'code');
+    planMode.ultraEngine.addInterviewRound('Q2', 'code answer 2', 'code');
+    planMode.ultraEngine.addInterviewRound('Q3', 'code answer 3', 'code');
+
+    expect(
+      evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'What do you want?' }),
+    ).toBeUndefined();
+  });
+
+  it('resets Rhythm Guard after a user answer', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+
+    planMode.ultraEngine.addInterviewRound('Q1', 'code answer 1', 'code');
+    planMode.ultraEngine.addInterviewRound('Q2', 'code answer 2', 'code');
+    planMode.ultraEngine.addInterviewRound('Q3', 'code answer 3', 'code');
+    planMode.ultraEngine.addInterviewRound('Q4', 'user decision', 'user');
+
+    expect(
+      evaluatePlanPolicy(agent, 'RecordInterviewFinding', {
+        question_answered: 'Q5',
+        finding: 'another code finding',
+        origin: 'code',
+      }),
+    ).toBeUndefined();
+  });
 });
 
 function toolAccesses(toolName: string, args: unknown) {

@@ -226,6 +226,20 @@ export class PlanMode {
     this.logStateCheckpoint();
   }
 
+  recordUltraInterviewFinding(
+    finding: string,
+    origin: 'code' | 'research',
+    questionAnswered: string,
+  ): void {
+    if (!this._isActive || !this._isUltraMode || this._phase !== 'interview') return;
+    this.ultraEngine.addInterviewRound(questionAnswered, finding, origin);
+    void this.ultraEngine.calculateAmbiguityScore(undefined, (delta) => {
+      this.emitThinkingDelta(delta);
+    });
+    this._interviewRoundCount = this.ultraEngine.interviewState.rounds.length;
+    this.logStateCheckpoint();
+  }
+
   private emitThinkingDelta(delta: string): void {
     const turnId = this.agent.turn.currentTurnId() ?? 0;
     this.agent.emitEvent({ type: 'thinking.delta', turnId, delta });
