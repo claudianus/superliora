@@ -14,9 +14,9 @@ describe('formatTokenCount', () => {
   });
 
   it('rounds integers over 1k to 1 decimal', () => {
-    expect(formatTokenCount(1_000)).toBe('1.0k');
-    expect(formatTokenCount(1_234)).toBe('1.2k');
-    expect(formatTokenCount(9_876)).toBe('9.9k');
+    expect(formatTokenCount(1_000)).toBe('1.0K');
+    expect(formatTokenCount(1_234)).toBe('1.2K');
+    expect(formatTokenCount(9_876)).toBe('9.9K');
   });
 
   it('switches to M above a million', () => {
