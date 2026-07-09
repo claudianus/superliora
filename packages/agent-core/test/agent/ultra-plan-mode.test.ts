@@ -458,6 +458,67 @@ describe('UltraPlanModeEngine', () => {
       expect(engine.currentPerspective).toBe('researcher');
     });
 
+    it('tracks origin and resets consecutiveNonUserAnswers on user answer', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Ship feature X');
+
+      engine.addInterviewRound('What framework?', 'Next.js 14', 'code');
+      expect(engine.interviewState.consecutiveNonUserAnswers).toBe(1);
+
+      engine.addInterviewRound('What ORM?', 'Prisma', 'code');
+      expect(engine.interviewState.consecutiveNonUserAnswers).toBe(2);
+
+      engine.addInterviewRound('What is the goal?', 'Build feature X', 'user');
+      expect(engine.interviewState.consecutiveNonUserAnswers).toBe(0);
+    });
+
+    it('records origin on interview rounds', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Ship feature X');
+
+      engine.addInterviewRound('Q1', 'code answer', 'code');
+      engine.addInterviewRound('Q2', 'user answer', 'user');
+
+      const rounds = engine.interviewState.rounds;
+      expect(rounds[0]?.origin).toBe('code');
+      expect(rounds[1]?.origin).toBe('user');
+    });
+
+    it('initializes startedAtTimestamp when interview starts', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      expect(engine.interviewState.startedAtTimestamp).toBe(0);
+      engine.startInterview('Ship feature X');
+      expect(engine.interviewState.startedAtTimestamp).toBeGreaterThan(0);
+    });
+
+    it('includes Rhythm Guard alert in readiness guide after 3 non-user answers', async () => {
+      const engine = new UltraPlanModeEngine(
+        createMockAgent(() =>
+          ambiguityResponse({
+            present_sections: ['goal'],
+            verifiable_goal: false,
+            goal_clarity_score: 0.4,
+            constraint_clarity_score: 0.4,
+            success_criteria_clarity_score: 0.4,
+            specificity_score: 0.3,
+          }),
+        ),
+      );
+      engine.startInterview('Ship feature X');
+      engine.addInterviewRound('Q1', 'code 1', 'code');
+      engine.addInterviewRound('Q2', 'code 2', 'code');
+      engine.addInterviewRound('Q3', 'code 3', 'code');
+      await engine.calculateAmbiguityScore();
+      const readiness = await engine.interviewReadiness();
+      const guide = formatInterviewReadinessGuide(readiness, {
+        perspective: engine.currentPerspective,
+        interviewRoundCount: engine.interviewState.rounds.length,
+        consecutiveNonUserAnswers: engine.interviewState.consecutiveNonUserAnswers,
+      });
+      expect(guide).toContain('RHYTHM GUARD');
+      expect(guide).toContain('AskUserQuestion');
+    });
+
     it('does not force-ready after the interview round cap when blockers remain', async () => {
       let callCount = 0;
       const engine = new UltraPlanModeEngine(
