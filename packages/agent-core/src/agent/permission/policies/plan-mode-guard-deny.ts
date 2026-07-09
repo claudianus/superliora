@@ -1,47 +1,8 @@
 import type { Agent } from '../..';
-import type { ToolFileAccess } from '../../../loop/tool-access';
 import { isUltraworkWorkflowReportWritePath } from '../../../ultrawork/workflow-report';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
-
-/**
- * Tools that are inherently read-only — they never mutate files, runstate,
- * or scheduled work.  In Ultra Plan read-only phases (research, interview,
- * design, review) these are always allowed without per-phase enumeration.
- *
- * When a new read-only tool is added to the codebase, add its name here and
- * it is automatically permitted in every read-only phase.  This replaces the
- * old per-phase hardcoded arrays that drifted out of sync (e.g. `ReadMediaFile`
- * and `LioraContext` were allowed in research/review but not in design).
- */
-const READ_ONLY_TOOL_NAMES = new Set<string>([
-  'Read',
-  'ReadMediaFile',
-  'Grep',
-  'Glob',
-  'LioraContext',
-  'LioraRead',
-  'LioraSearch',
-  'LioraTree',
-  'LioraSymbol',
-  'LioraCallgraph',
-  'LioraExpand',
-  'LioraIndex',
-  'WebSearch',
-  'FetchURL',
-  'Context7Resolve',
-  'Context7Docs',
-  'SearchSkill',
-  'Skill',
-  'SearchExpert',
-  'TodoList',
-  'TaskList',
-  'TaskOutput',
-]);
-
-function isReadOnlyTool(toolName: string): boolean {
-  return READ_ONLY_TOOL_NAMES.has(toolName);
-}
+import { isReadOnlyTool } from './tool-read-only';
 
 export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
   readonly name = 'plan-mode-guard-deny';
@@ -109,10 +70,16 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
     phase: string,
   ): PermissionPolicyResult | undefined {
     const toolName = context.toolCall.name;
+
+    // Read-only tools are allowed in every Ultra phase. This is the core
+    // deny-list reform: instead of per-phase allow-lists that block unknown
+    // read-only tools (MCP docs, new builtins), we gate only mutating tools.
+    // The agent can always read, search, and research regardless of phase.
+    if (isReadOnlyTool(context)) return;
+
     switch (phase) {
       case 'research': {
-        // Read-only tools are always allowed in research phase.
-        if (isReadOnlyTool(toolName) || toolName === 'NextPhase') return;
+        if (toolName === 'NextPhase') return;
         if (toolName === 'Bash') {
           if (isNarrowReadOnlyBash(context)) return;
           return {
@@ -145,7 +112,6 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           return;
         }
         if (toolName === 'NextPhase') return;
-        if (isReadOnlyTool(toolName)) return;
         if (toolName === 'Bash') {
           if (isNarrowReadOnlyBash(context) || isReadOnlyReviewBash(context)) return;
           return {
@@ -173,8 +139,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         };
       }
       case 'design': {
-        // Read-only tools are always allowed in design phase.
-        if (isReadOnlyTool(toolName) || toolName === 'NextPhase') return;
+        if (toolName === 'NextPhase') return;
         if (toolName === 'Bash') {
           if (isReadOnlyReviewBash(context)) return;
           return {
@@ -195,8 +160,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         };
       }
       case 'review': {
-        // Read-only tools are always allowed in review phase.
-        if (isReadOnlyTool(toolName) || toolName === 'NextPhase') return;
+        if (toolName === 'NextPhase') return;
         if (toolName === 'Bash') {
           if (isReadOnlyReviewBash(context)) return;
           return {
@@ -217,12 +181,10 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         };
       }
       case 'write': {
-        const planFilePath = this.agent.planMode.planFilePath;
+        // Read-only tools passed the global gate. Allow plan-file writes and
+        // phase-control tools; block everything else (Bash, background, etc.).
         if (toolName === 'Write' || toolName === 'Edit') return;
-        if (toolName === 'Read' && planFilePath !== null && readsOnlyPlanFile(context, planFilePath)) return;
-        if (toolName === 'TodoList') return;
         if (toolName === 'NextPhase' || toolName === 'ExitPlanMode') return;
-        if (toolName === 'SearchSkill' || toolName === 'Skill') return;
 
         if (toolName === 'Bash') {
           return {
@@ -239,20 +201,17 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         return {
           kind: 'deny',
           message:
-            `${toolName} is blocked in Write phase. Only the current plan file may be read or edited, TodoList may be updated for progress tracking, SearchSkill/Skill may be used for the no-AI-slop prose gate, and NextPhase/ExitPlanMode may be used when the plan is complete.`,
+            `${toolName} is blocked in Write phase. You may read files for quick verification, write only to the current plan file, and use NextPhase or ExitPlanMode when complete.`,
         };
       }
       case 'exit': {
-        // ExitPlanMode may report a missing required section. Allow plan-file
-        // reads and edits so the agent can repair the plan instead of getting trapped.
-        const planFilePath = this.agent.planMode.planFilePath;
-        if (toolName === 'Read' && planFilePath !== null && readsOnlyPlanFile(context, planFilePath)) return;
+        // Read-only tools passed the global gate. Allow plan-file edits (to
+        // repair missing sections) and ExitPlanMode; block Bash/background.
         if (toolName === 'Write' || toolName === 'Edit') return;
         if (toolName === 'ExitPlanMode') return;
-        if (toolName === 'SearchSkill' || toolName === 'Skill') return;
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Exit phase. Only ExitPlanMode, current plan-file reads or edits, and SearchSkill/Skill for the no-AI-slop prose gate are allowed.`,
+          message: `${toolName} is blocked in Exit phase. You may read files for quick verification, edit only the current plan file to repair missing sections, and call ExitPlanMode for approval.`,
         };
       }
       default:
@@ -288,19 +247,6 @@ function writesOnlyPlanFile(
   const writeAccesses = writeFileAccesses(context);
   if (writeAccesses.length === 0) return false;
   return writeAccesses.every((access) => access.path === planFilePath);
-}
-
-function readsOnlyPlanFile(
-  context: PermissionPolicyContext,
-  planFilePath: string,
-): boolean {
-  const readAccesses =
-    context.execution.accesses?.filter(
-      (access): access is ToolFileAccess =>
-        access.kind === 'file' && access.operation === 'read',
-    ) ?? [];
-  if (readAccesses.length === 0) return false;
-  return readAccesses.every((access) => access.path === planFilePath);
 }
 
 function planModeWriteDeniedMessage(planFilePath: string | null): string {
