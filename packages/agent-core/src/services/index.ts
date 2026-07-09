@@ -10,7 +10,6 @@ export { IEventService } from './event/event';
 export { EventService } from './event/eventService';
 
 export { IApprovalService } from './approval/approval';
-export type { ApprovalRequest, ApprovalResponse } from './approval/approval';
 export {
   toAgentCoreResponse as approvalToAgentCoreResponse,
   toBrokerRequest as approvalToBrokerRequest,
@@ -18,7 +17,6 @@ export {
 } from './approval/approval';
 
 export { IQuestionService } from './question/question';
-export type { QuestionRequest, QuestionResult } from './question/question';
 export {
   toAgentCoreResponse as questionToAgentCoreResponse,
   toBrokerRequest as questionToBrokerRequest,

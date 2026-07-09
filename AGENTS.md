@@ -88,6 +88,7 @@ Changes that touch `packages/agent-core`, `packages/node-sdk`, `packages/acp-ada
 
 Required checks:
 
+- `pnpm -C packages/node-sdk run build:dts` — fast declaration-only pre-check. Run this first; it catches TS2308 duplicate exports and TS2416/TS2322 type mismatches in `@superliora/agent-core` before the full build.
 - `pnpm run build` — full monorepo build, including `@superliora/sdk` declaration emit (`build:dts`).
 - `pnpm run check:imports` — rejects mistyped workspace package names such as `@superliora/superliora-sdk`.
 - `pnpm -C apps/liora run build` — CLI bundle build plus `check-cli-bundle.mjs` (no runtime `@superliora/*` imports left in `dist/main.mjs`).

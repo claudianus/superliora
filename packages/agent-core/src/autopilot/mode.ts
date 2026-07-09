@@ -4,7 +4,7 @@ import type { AutopilotCard, AutopilotRun } from '@superliora/protocol';
 import type { Agent } from '../agent';
 import { buildCard, dedupeCards, pickNextCard, type RawCardInput } from './intake';
 import { commitAll, createWorktree, removeWorktree, runGit, runGh } from './git';
-import { findUnsafeVerificationCommand, parseVerificationCommand, type VerificationCommand, type VerificationResult } from './verification';
+import { findUnsafeVerificationCommand, parseVerificationCommand, type VerificationCommand, type AutopilotVerificationResult } from './verification';
 
 const MAX_ATTEMPTS = 3;
 export interface AutopilotPolicy { readonly baseBranch: string; readonly mergeLabel: string; readonly verificationCommands: readonly VerificationCommand[]; readonly maxAttempts?: number; }
@@ -50,7 +50,7 @@ export class AutopilotMode {
     } catch (e) { lastError = e instanceof Error ? e.message : String(e); run = { ...run, status: 'failed', lastError, updatedAt: new Date().toISOString() }; this.runs.set(runId, run); this.upd(card.id, { status: 'failed', lastError }); return run; }
     finally { await removeWorktree(this.agent.kaos, root, wt).catch(() => {}); }
   }
-  private async verify(cwd: string): Promise<VerificationResult> {
+  private async verify(cwd: string): Promise<AutopilotVerificationResult> {
     const unsafe = findUnsafeVerificationCommand(this.policy.verificationCommands);
     if (unsafe) return { passed: false, output: `Rejected unsafe: ${typeof unsafe === 'string' ? unsafe : unsafe.command}` };
     const outs: string[] = [];

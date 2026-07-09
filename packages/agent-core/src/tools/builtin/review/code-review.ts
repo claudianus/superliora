@@ -14,7 +14,7 @@ import type { Kaos } from '@superliora/kaos';
 import type { BuiltinTool } from '../../../agent/tool/types';
 import type { Agent } from '../../../agent';
 import { toInputJsonSchema } from '../../support/input-schema';
-import { ToolAccesses } from '../../../loop';
+import { ToolAccesses, type ToolExecution } from '../../../loop';
 import { parseDiff, resolveLineBySnippet, type DiffFile } from './diff-parser';
 
 const inputSchema = z.object({
@@ -44,7 +44,7 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
     private readonly agent: Agent,
   ) {}
 
-  resolveExecution(args: CodeReviewInput) {
+  resolveExecution(args: CodeReviewInput): ToolExecution {
     const parsed = inputSchema.safeParse(args);
     if (!parsed.success) {
       return { isError: true as const, output: `Invalid input: ${parsed.error.message}` };
@@ -53,7 +53,7 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
     return {
       accesses: ToolAccesses.none(),
       readOnly: true,
-      display: { kind: 'description', description: `Reviewing diff (${input.diff_source})` } as const,
+      display: { kind: 'generic', summary: `Reviewing diff (${input.diff_source})` },
       approvalRule: 'LioraReview' as const,
       execute: async () => this.runReview(input),
     };
