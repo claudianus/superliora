@@ -22,6 +22,7 @@ export * from './file';
 export * from './modelCatalog';
 export * from './providerRoute';
 export * from './ultrawork';
+export * from './autopilot';
 
 export * from './rest/meta';
 export * from './rest/auth';

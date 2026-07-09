@@ -682,6 +682,8 @@ export class TurnFlow {
       this.agent.emitEvent(errorEvent);
     }
     await this.recordTurnMemory(turnId, input, ended.reason);
+    this.agent.dream?.maybeSchedule();
+    this.agent.dream?.maybeSchedule();
     if (ended.reason !== 'completed') {
       this.trackTurnInterrupted(turnId, this.currentStepByTurn.get(turnId) ?? this.currentStep);
     }

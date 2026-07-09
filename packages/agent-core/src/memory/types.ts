@@ -123,6 +123,7 @@ export interface MemoryImportResult {
 export interface MemoryConsolidateResult {
   readonly examined: number;
   readonly merged: number;
+  readonly semanticMerged?: number;
 }
 
 export interface LioraRecallConfig {

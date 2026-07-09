@@ -7,6 +7,7 @@ export * from './config';
 export * from './memory';
 export * from './flags';
 export * from './ultrawork';
+export * from './autopilot';
 export * from './session/export';
 export * from './telemetry';
 export * from './errors';

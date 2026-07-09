@@ -55,6 +55,7 @@ import type { ToolServices } from '../tools/support/services';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
 import { abortError } from '../utils/abort';
 import type { SessionMemoryRuntime } from '../memory';
+import type { LioraRecallStore } from '../memory/store';
 import { responseLanguagePreferenceFromUnknown } from './response-language';
 
 export interface SessionOptions {
@@ -80,6 +81,7 @@ export interface SessionOptions {
   readonly experimentalFlags?: ExperimentalFlagResolver;
   readonly additionalDirs?: readonly string[];
   readonly memory?: SessionMemoryRuntime;
+  readonly dreamStore?: LioraRecallStore;
   /**
    * Print-mode (`liora -p`) only: hold the main turn open while background
    * subagents are still running before the run exits.
@@ -925,6 +927,7 @@ export class Session {
         type === 'main'
           ? () => responseLanguagePreferenceFromUnknown(this.metadata.custom['responseLanguage'])
           : undefined,
+      dreamStore: type === 'main' ? this.options.dreamStore : undefined,
     });
   }
 

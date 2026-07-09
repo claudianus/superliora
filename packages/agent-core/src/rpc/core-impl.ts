@@ -357,6 +357,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       appVersion: this.appVersion,
       additionalDirs,
       memory: this.memory.runtimeForSession({ sessionId: summary.id, workDir }),
+      dreamStore: this.memory,
       pluginCommands,
       drainAgentTasksOnStop: options.drainAgentTasksOnStop,
     });
@@ -562,6 +563,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       appVersion: this.appVersion,
       additionalDirs,
       memory: this.memory.runtimeForSession({ sessionId: summary.id, workDir: summary.workDir }),
+      dreamStore: this.memory,
       pluginCommands,
     });
     let warning: string | undefined;

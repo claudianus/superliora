@@ -118,6 +118,7 @@ const MEMORY_STATUSES: readonly MemoryStatus[] = ['active', 'archived', 'superse
 
 export class LioraRecallStore {
   private readonly db: SqliteDatabase;
+  private readonly dbPath: string;
   private readonly recordsDir: string;
   private readonly now: () => number;
   private readonly config: (() => LioraRecallConfig | undefined) | undefined;
@@ -126,12 +127,16 @@ export class LioraRecallStore {
   constructor(options: LioraRecallStoreOptions) {
     this.now = options.now ?? Date.now;
     this.config = options.config;
-    const dbPath = options.config?.()?.storePath ?? join(options.homeDir, STORE_RELATIVE_PATH);
-    mkdirSync(dirname(dbPath), { recursive: true, mode: 0o700 });
-    this.recordsDir = join(dirname(dbPath), RECORDS_DIR_NAME);
-    this.db = openDatabase(dbPath);
+    this.dbPath = options.config?.()?.storePath ?? join(options.homeDir, STORE_RELATIVE_PATH);
+    mkdirSync(dirname(this.dbPath), { recursive: true, mode: 0o700 });
+    this.recordsDir = join(dirname(this.dbPath), RECORDS_DIR_NAME);
+    this.db = openDatabase(this.dbPath);
     this.migrate();
     this.restoreMarkdownRecords();
+  }
+
+  getStorePath(): string {
+    return this.dbPath;
   }
 
   isEnabled(): boolean {
