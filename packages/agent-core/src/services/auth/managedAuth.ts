@@ -6,6 +6,8 @@ import {
   applyManagedKimiCodeLogoutConfig,
   SUPERLIORA_PROVIDER_NAME,
   KimiOAuthToolkit,
+  OAuthProviderManager,
+  isOAuthProviderId,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
   type BearerTokenProvider,
@@ -47,6 +49,7 @@ export interface ServicesAuthFacade {
 
 class ServicesManagedAuthFacade implements ServicesAuthFacade {
   private readonly toolkit: KimiOAuthToolkit<ServicesManagedConfig>;
+  private readonly providerManager: OAuthProviderManager;
 
   constructor(
     private readonly options: Pick<IEnvironmentService, 'homeDir' | 'configPath'>,
@@ -63,6 +66,11 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
         remove: applyManagedKimiCodeLogoutConfig,
       },
     });
+    // Non-Kimi OAuth providers (xAI Grok, OpenAI Codex, …) logged in via
+    // `/connect` store their tokens through OAuthProviderManager. Reusing the
+    // same homeDir keeps request-time resolution pointed at the credential
+    // file login wrote (`~/.superliora/credentials/<provider>.json`).
+    this.providerManager = new OAuthProviderManager({ homeDir: options.homeDir });
   }
 
   async login(
@@ -98,6 +106,11 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
   async logout(
     providerName?: string | undefined,
   ): Promise<ServicesAuthLogoutResult> {
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
+    if (this.isNonKimiOAuthProvider(name)) {
+      await this.providerManager.logout(name);
+      return { providerName: name, ok: true };
+    }
     const result = await this.toolkit.logout(
       providerName,
       this.resolveRuntimeManagedAuth(providerName).oauthRef,
@@ -112,6 +125,10 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
     providerName?: string,
     oauthRef?: OAuthRef | undefined,
   ): Promise<string | undefined> {
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
+    if (this.isNonKimiOAuthProvider(name)) {
+      return this.providerManager.getCachedAccessToken(name);
+    }
     return this.toolkit.getCachedAccessToken(
       providerName,
       this.runtimeOAuthRef(providerName, oauthRef),
@@ -122,6 +139,12 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
     providerName: string,
     oauthRef?: OAuthRef | undefined,
   ): BearerTokenProvider => {
+    if (this.isNonKimiOAuthProvider(providerName)) {
+      return {
+        getAccessToken: (options) =>
+          this.providerManager.ensureFresh(providerName, options ?? {}),
+      };
+    }
     return this.toolkit.tokenProvider(
       providerName,
       this.runtimeOAuthRef(providerName, oauthRef),
@@ -164,6 +187,18 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
       configuredBaseUrl: auth.baseUrl,
       configuredOAuthRef: oauthRef ?? auth.oauthRef,
     }).oauthRef;
+  }
+
+  /**
+   * Whether `providerName` is a non-Kimi OAuth provider (xAI Grok, OpenAI
+   * Codex, …). These route through {@link OAuthProviderManager} at request
+   * time instead of the Kimi toolkit, which only accepts the managed Kimi
+   * provider name.
+   */
+  private isNonKimiOAuthProvider(providerName: string): boolean {
+    return (
+      providerName !== SUPERLIORA_PROVIDER_NAME && isOAuthProviderId(providerName)
+    );
   }
 }
 
