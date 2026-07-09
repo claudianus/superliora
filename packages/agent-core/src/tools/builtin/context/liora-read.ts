@@ -62,6 +62,7 @@ export class LioraReadTool implements BuiltinTool<LioraReadInput> {
     return {
       accesses: ToolAccesses.readFile(path),
       description: `LioraRead ${normalized.path}`,
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(normalized, path),
     };

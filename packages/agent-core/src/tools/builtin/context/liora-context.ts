@@ -80,6 +80,7 @@ export class LioraContextTool implements BuiltinTool<LioraContextInput> {
       description: parsed.data.query
         ? `Building compact context for ${parsed.data.query}`
         : 'Building compact context map',
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(parsed.data, explicitPaths),
     };

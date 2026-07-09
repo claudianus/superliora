@@ -70,6 +70,7 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
     const preview = args.query.length > 40 ? `${args.query.slice(0, 40)}…` : args.query;
     return {
       accesses: ToolAccesses.none(),
+      readOnly: true,
       description: `Searching: ${preview}`,
       display: { kind: 'search', query: args.query },
       approvalRule: literalRulePattern(this.name, args.query),

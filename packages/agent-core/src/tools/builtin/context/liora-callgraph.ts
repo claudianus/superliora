@@ -62,6 +62,7 @@ export class LioraCallgraphTool implements BuiltinTool<LioraCallgraphInput> {
         ? explicitPaths.map((path) => ({ kind: 'file' as const, operation: 'read' as const, path }))
         : ToolAccesses.searchTree(this.workspace.workspaceDir),
       description: `Tracing ${parsed.data.symbol}`,
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(parsed.data, explicitPaths),
     };

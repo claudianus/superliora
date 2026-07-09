@@ -209,6 +209,7 @@ export class GrepTool implements BuiltinTool<GrepInput> {
     const searchPath = args.path ?? this.workspace.workspaceDir;
     return {
       accesses: ToolAccesses.searchTree(searchPaths[0]!),
+      readOnly: true,
       description: `Searching for '${args.pattern}' in ${searchPath}`,
       display: { kind: 'file_io', operation: 'grep', path: searchPaths[0]! },
       approvalRule: literalRulePattern(this.name, args.pattern),

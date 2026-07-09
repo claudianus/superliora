@@ -35,6 +35,7 @@ export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {
     }
     return {
       description: `Expanding archive ${parsed.data.id}`,
+      readOnly: true,
       approvalRule: this.name,
       execute: async () => this.execution(parsed.data),
     };

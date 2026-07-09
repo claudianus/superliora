@@ -47,6 +47,7 @@ export class LioraIndexTool implements BuiltinTool<LioraIndexInput> {
     }
     return {
       description: parsed.data.action === 'build' ? 'Building Liora index' : 'Reading Liora index status',
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(parsed.data),
     };

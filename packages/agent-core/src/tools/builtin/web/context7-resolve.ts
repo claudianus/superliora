@@ -43,6 +43,7 @@ export class Context7ResolveTool implements BuiltinTool<Context7ResolveInput> {
       args.library_name.length > 32 ? `${args.library_name.slice(0, 32)}…` : args.library_name;
     return {
       accesses: ToolAccesses.none(),
+      readOnly: true,
       description: `Context7 resolve: ${preview}`,
       display: { kind: 'search', query: args.library_name },
       approvalRule: literalRulePattern(this.name, args.library_name),

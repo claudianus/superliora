@@ -46,6 +46,7 @@ export class Context7DocsTool implements BuiltinTool<Context7DocsInput> {
     const preview = args.library_id.length > 40 ? `${args.library_id.slice(0, 40)}…` : args.library_id;
     return {
       accesses: ToolAccesses.none(),
+      readOnly: true,
       description: `Context7 docs: ${preview}`,
       display: { kind: 'search', query: args.query },
       approvalRule: literalRulePattern(this.name, args.library_id),

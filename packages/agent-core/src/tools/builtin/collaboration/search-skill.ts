@@ -36,6 +36,7 @@ export class SearchSkillTool implements BuiltinTool<SearchSkillInput> {
     return {
       description: `Search skills for "${args.query}"`,
       display: { kind: 'generic', summary: `SearchSkill: ${args.query}` },
+      readOnly: true,
       approvalRule: this.name,
       execute: () => this.execution(args),
     };
