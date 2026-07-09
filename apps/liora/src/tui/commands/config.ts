@@ -42,7 +42,6 @@ const APPEARANCE_KEYS = [
   'profile',
   'density',
   'particles',
-  'mascot',
   'animation-fps',
   'canvas-background',
   'terminal-background',
@@ -844,7 +843,6 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
     `profile: ${appearance.profile}`,
     `density: ${appearance.density}`,
     `particles: ${appearance.particles}`,
-    `mascot: ${appearance.mascot}`,
     `animation-fps: ${String(appearance.animationFps)}`,
     `canvas-background: ${appearance.canvasBackground ? 'on' : 'off'}`,
     `terminal-background: ${appearance.terminalBackground}`,
@@ -870,10 +868,6 @@ function parseAppearancePatch(
     case 'particles':
       if (!isOneOf(value, ['auto', 'off', 'ambient', 'events', 'premium'])) return null;
       next.particles = value;
-      return next;
-    case 'mascot':
-      if (!isOneOf(value, ['auto', 'minimal', 'standard', 'premium', 'off'])) return null;
-      next.mascot = value;
       return next;
     case 'animation-fps': {
       const fps = Number.parseInt(value, 10);

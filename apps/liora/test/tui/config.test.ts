@@ -42,7 +42,6 @@ describe('TUI config', () => {
     expect(text).toContain('profile = "premium"');
     expect(text).toContain('density = "spacious"');
     expect(text).toContain('particles = "premium"');
-    expect(text).toContain('mascot = "premium"');
     expect(text).toContain('animation_fps = 20');
     expect(text).toContain('canvas_background = true');
     expect(text).toContain('terminal_background = "off"');
@@ -70,7 +69,6 @@ auto_install = false
 profile = "premium"
 density = "comfortable"
 particles = "events"
-mascot = "premium"
 animation_fps = 18
 canvas_background = false
 terminal_background = "session"
@@ -87,7 +85,6 @@ terminal_palette = true
         profile: 'premium',
         density: 'comfortable',
         particles: 'events',
-        mascot: 'premium',
         animationFps: 18,
         canvasBackground: false,
         terminalBackground: 'session',

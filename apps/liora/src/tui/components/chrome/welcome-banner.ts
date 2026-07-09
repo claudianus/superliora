@@ -3,7 +3,7 @@ import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layou
 import { truncateToWidth } from '#/tui/renderer';
 import { renderSpectacularText } from '#/tui/utils/appearance-effects';
 
-// figlet Slant "SUPERLIORA". Regenerate via scripts/generate-liora-mascot-art.sh banner.
+// figlet Slant "SUPERLIORA".
 const BANNER_LARGE = [
   '   _____ __  ______  __________  __    ________  ____  ___ ',
   '  / ___// / / / __ \\/ ____/ __ \\/ /   /  _/ __ \\/ __ \\/   |',

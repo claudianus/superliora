@@ -4,15 +4,14 @@
  */
 
 import type { Component } from '#/tui/renderer';
-import { renderRendererFrameRows, truncateToWidth, visibleWidth } from '#/tui/renderer';
+import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import { DEFAULT_APPEARANCE_PREFERENCES, type AppearancePreferences } from '#/tui/config';
-import { resolveResponsiveLayout, type ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import { renderParticleRail } from '#/tui/utils/appearance-effects';
-import { renderLioraMascotIcon } from './liora-mascot-icon';
 import { renderWelcomeBanner } from './welcome-banner';
 
 const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab to toggle Ultrawork/off.';
@@ -74,7 +73,6 @@ export class WelcomeComponent implements Component {
 
     const contentLines: string[] = [
       ...bannerLines,
-      ...mascotLines(bannerLines, layout, appearance, innerWidth),
       '',
       promptLine,
       '',
@@ -98,30 +96,4 @@ export class WelcomeComponent implements Component {
       '',
     ];
   }
-}
-
-/**
- * Center the mascot art under the banner. The mascot is intentionally compact
- * (3-line art) and only appears on wide terminals so it does not crowd the
- * transcript on standard widths. We force the compact layout variant so the
- * welcome stays short regardless of the appearance mascot preference.
- */
-function mascotLines(
-  bannerLines: readonly string[],
-  layout: ResponsiveLayoutProfile,
-  appearance: AppearancePreferences,
-  innerWidth: number,
-): string[] {
-  if (layout !== 'wide' && layout !== 'ultrawide') return [];
-  // Render with a forced compact layout so we always get the small art.
-  const mascot = renderLioraMascotIcon({ layout: 'compact', appearance });
-  if (mascot.length === 0) return [''];
-  const mascotWidth = mascot.reduce((max, line) => Math.max(max, visibleWidth(line)), 0);
-  return ['', ...mascot.map((line) => centerLine(line, mascotWidth, innerWidth))];
-}
-
-function centerLine(line: string, contentWidth: number, targetWidth: number): string {
-  if (contentWidth >= targetWidth) return truncateToWidth(line, targetWidth, '…');
-  const pad = Math.floor((targetWidth - contentWidth) / 2);
-  return `${' '.repeat(pad)}${line}`;
 }
