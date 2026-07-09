@@ -40,7 +40,7 @@ export function captureUltraworkEnvelopeSnapshot(
   const resumeCursor = buildUltraworkResumeCursor(agent, run, planCheckpoint);
 
   return {
-    schema: 1,
+    schema: 2,
     run,
     activation: ultrawork.getActivation(),
     interruptReason:
@@ -55,6 +55,7 @@ export function captureUltraworkEnvelopeSnapshot(
     effectiveStage,
     compactionBoundary: options.compactionBoundary,
     resumeCursor,
+    journalOffset: agent.records.recordCount(),
   };
 }
 
