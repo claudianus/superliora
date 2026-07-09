@@ -524,6 +524,31 @@ describe('RendererEditorTextInput bridge', () => {
     expect(synced.getCursor()).toEqual({ line: 0, col: '안녕'.length });
   });
 
+  it('does not restore controller text when the host editor is cleared', () => {
+    const editor = mutableEditor('');
+    const synced = {
+      ...editor,
+      applyNativeTextInputSync: (next: string, cursor: RendererEditorCursor) => {
+        editor.setText(next);
+        editor.setCursorPosition(cursor);
+      },
+    };
+    const controller = new RendererEditorTextInputController();
+    const input = controller.inputForEditor(synced);
+
+    input.handleInput(key('character', { text: '안' }));
+    input.handleInput(key('character', { text: '녕' }));
+    expect(input.getText()).toBe('안녕');
+
+    // Simulate the host clearing the editor after submit (or Ctrl-C).
+    editor.setText('');
+
+    const rebound = controller.inputForEditor(synced);
+    expect(rebound).not.toBe(input);
+    expect(rebound.getText()).toBe('');
+    expect(synced.getText()).toBe('');
+  });
+
   it('handles command-prefix mode transitions before text mutation fallback', () => {
     const editor = mutableEditor('');
     const controller = new RendererEditorTextInputController();

@@ -106,6 +106,7 @@ export class RendererEditorTextInputController {
       if (
         existing !== undefined &&
         controllerText !== undefined &&
+        text.length > 0 &&
         controllerText.length > text.length &&
         controllerText.startsWith(text) &&
         syncTarget.applyNativeTextInputSync !== undefined
