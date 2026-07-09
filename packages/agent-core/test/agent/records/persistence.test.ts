@@ -328,6 +328,46 @@ describe('FileSystemAgentRecordPersistence', () => {
     const linesAfterNoop = await readLines(wirePath);
     expect(linesAfterNoop).toHaveLength(2);
   });
+
+  it('survives a simulated power loss: durable prefix intact, torn tail dropped', async () => {
+    // Simulate a hard crash (SIGKILL / power loss) mid-write:
+    //   1. fsync a few records (durable on disk).
+    //   2. Append a partial trailing line directly to the file — as if the
+    //      process died halfway through `fh.writeFile` before fsync.
+    //   3. Open a fresh persistence on the same file and read it back.
+    // The reader must tolerate the truncated trailing line (drop it) and yield
+    // every well-formed line before it — and seed recordCount from those.
+    const wirePath = await makeWirePath();
+    const durable = new FileSystemAgentRecordPersistence(wirePath);
+    for (let i = 0; i < 3; i += 1) {
+      durable.append({
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: `durable-${i}` }],
+        origin: { kind: 'user' },
+      });
+    }
+    await durable.close();
+
+    // Now corrupt the tail with a partial (non-newline-terminated) line, as a
+    // crash mid-flush would leave. Use a low-level append so persistence is
+    // not involved.
+    const { appendFile } = await import('node:fs/promises');
+    await appendFile(wirePath, '{"type":"turn.prompt","input":[{"type":"text","text":"PARTIAL-WITHOUT-NEWLINE', 'utf8');
+
+    const afterCrash = new FileSystemAgentRecordPersistence(wirePath);
+    const recovered: AgentRecord[] = [];
+    for await (const record of afterCrash.read()) recovered.push(record);
+
+    // The three durable records survive; the partial line is dropped, not
+    // fatal. recordCount is seeded from the recovered (well-formed) records.
+    expect(recovered).toHaveLength(3);
+    expect(recovered.map((r) => (r as { input: { text: string }[] }).input[0]!.text)).toEqual([
+      'durable-0',
+      'durable-1',
+      'durable-2',
+    ]);
+    expect(afterCrash.recordCount()).toBe(3);
+  });
 });
 
 describe('InMemoryAgentRecordPersistence', () => {
