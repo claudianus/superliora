@@ -924,6 +924,113 @@ describe('Agent context', () => {
     );
   });
 
+  it('resume reconciles an unacked tool.intend with a path-aware message', () => {
+    // Simulate a crash mid-execution: tool.call + tool.intend were fsync'd,
+    // but the process died before tool.ack / tool.result. On resume,
+    // finishResume must close the exchange with a message that says the side
+    // effect may have applied and points the model at the intended path(s).
+    const ctx = testAgent();
+    ctx.configure();
+    const stepUuid = 'context-intend-crash-step';
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'edit the file' }]);
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: { type: 'step.begin', uuid: stepUuid, turnId: '0', step: 1 },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.call',
+        uuid: 'call_edit_crash',
+        turnId: '0',
+        step: 1,
+        stepUuid,
+        toolCallId: 'call_edit_crash',
+        name: 'Edit',
+        args: { path: '/workspace/src/a.ts', old_string: 'x', new_string: 'y' },
+      },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.intend',
+        toolCallId: 'call_edit_crash',
+        name: 'Edit',
+        args: { path: '/workspace/src/a.ts', old_string: 'x', new_string: 'y' },
+        writePaths: ['/workspace/src/a.ts'],
+      },
+    });
+    // No tool.ack, no tool.result — the crash happened here.
+
+    ctx.agent.context.finishResume();
+
+    const closed = ctx.agent.context.history.find(
+      (message) => message.toolCallId === 'call_edit_crash',
+    );
+    expect(closed).toBeDefined();
+    // The synthesized message names the tool and the intended path so the
+    // model re-reads before retrying, rather than assuming it never ran.
+    expect(textOf(closed!)).toContain('interrupted mid-execution');
+    expect(textOf(closed!)).toContain('Edit');
+    expect(textOf(closed!)).toContain('/workspace/src/a.ts');
+    expect(textOf(closed!)).toContain('may already be present');
+  });
+
+  it('resume clears the intend once a tool.result is replayed', () => {
+    // A normal completion path: intend → result closes the window. Resume
+    // must not synthesize an interrupted result for an already-completed call.
+    const ctx = testAgent();
+    ctx.configure();
+    const stepUuid = 'context-intend-ok-step';
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'edit the file' }]);
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: { type: 'step.begin', uuid: stepUuid, turnId: '0', step: 1 },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.call',
+        uuid: 'call_edit_ok',
+        turnId: '0',
+        step: 1,
+        stepUuid,
+        toolCallId: 'call_edit_ok',
+        name: 'Edit',
+        args: { path: '/workspace/src/b.ts', old_string: 'x', new_string: 'y' },
+      },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.intend',
+        toolCallId: 'call_edit_ok',
+        name: 'Edit',
+        args: { path: '/workspace/src/b.ts', old_string: 'x', new_string: 'y' },
+        writePaths: ['/workspace/src/b.ts'],
+      },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.result',
+        parentUuid: 'call_edit_ok',
+        toolCallId: 'call_edit_ok',
+        result: { output: 'Replaced 1 occurrence in /workspace/src/b.ts' },
+      },
+    });
+
+    ctx.agent.context.finishResume();
+
+    const result = ctx.agent.context.history.find(
+      (message) => message.toolCallId === 'call_edit_ok',
+    );
+    expect(result).toBeDefined();
+    // The real result survived — finishResume did not overwrite it.
+    expect(textOf(result!)).toContain('Replaced 1 occurrence');
+    expect(textOf(result!)).not.toContain('interrupted mid-execution');
+  });
+
   it('does not zero tokenCount when a filtered step reports zero usage', () => {
     const ctx = testAgent();
     ctx.configure();

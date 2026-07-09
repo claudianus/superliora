@@ -985,6 +985,14 @@ export class TurnFlow {
     return createLoopEventDispatcher({
       appendTranscriptRecord: async (event: LoopRecordedEvent) => {
         this.agent.context.appendLoopEvent(event);
+        // A tool intent record must be durable (fsync'd) BEFORE the tool runs,
+        // so a crash mid-execution leaves proof that the side effect was
+        // attempted. The loop awaits this dispatch before starting execution,
+        // so flushing here establishes the durability boundary without
+        // blocking read-only tool calls.
+        if (event.type === 'tool.intend') {
+          await this.agent.records.flush();
+        }
       },
       emitLiveEvent: (event: LoopEvent) => {
         this.noteFirstRequestEvent(event);

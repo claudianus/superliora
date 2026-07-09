@@ -72,6 +72,38 @@ export interface LoopToolCallEvent {
   readonly extras?: Record<string, unknown> | undefined;
 }
 
+/**
+ * Pre-execution intent log for a tool call that will produce durable side
+ * effects (file writes, shell commands). Persisted and fsync'd *before* the
+ * tool runs, so that a crash mid-execution leaves a durable record of what was
+ * attempted — letting resume distinguish "never started" from "started,
+ * unknown completion" and, for file writes, verify idempotently whether the
+ * intended content already landed.
+ */
+export interface LoopToolIntendEvent {
+  readonly type: 'tool.intend';
+  readonly toolCallId: string;
+  readonly name: string;
+  readonly args: unknown;
+  /**
+   * File paths this call is expected to write (derived from the tool's
+   * declared accesses). Present only for file-mutating tools; absent for
+   * side effects that are not file-backed (shell, network).
+   */
+  readonly writePaths?: readonly string[] | undefined;
+}
+
+/**
+ * Post-execution acknowledgment paired with {@link LoopToolIntendEvent}. A
+ * crash that leaves an `intend` without a matching `ack` means execution may
+ * or may not have completed — the resume path reconciles accordingly.
+ */
+export interface LoopToolAckEvent {
+  readonly type: 'tool.ack';
+  readonly parentUuid: string;
+  readonly toolCallId: string;
+}
+
 export interface LoopToolResultEvent {
   readonly type: 'tool.result';
   readonly parentUuid: string;
@@ -116,6 +148,8 @@ export type LoopRecordedEvent =
   | LoopStepEndEvent
   | LoopContentPartEvent
   | LoopToolCallEvent
+  | LoopToolIntendEvent
+  | LoopToolAckEvent
   | LoopToolResultEvent;
 
 export type LoopLiveOnlyEvent =
@@ -159,6 +193,8 @@ function isRecordedEvent(event: LoopEvent): event is LoopRecordedEvent {
     event.type === 'step.end' ||
     event.type === 'content.part' ||
     event.type === 'tool.call' ||
+    event.type === 'tool.intend' ||
+    event.type === 'tool.ack' ||
     event.type === 'tool.result'
   );
 }

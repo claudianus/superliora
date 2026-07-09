@@ -2,7 +2,7 @@ import { createToolMessage, type ContentPart, type Message } from '@superliora/k
 
 import type { Agent } from '..';
 import { ErrorCodes, LioraError } from '../../errors';
-import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
+import type { ExecutableToolResult, LoopRecordedEvent, LoopToolIntendEvent } from '../../loop';
 import { extractImageCompressionCaptions } from '../../tools/support/image-compress';
 import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
 import { escapeXml } from '../../utils/xml-escape';
@@ -49,6 +49,29 @@ const TOOL_OUTPUT_EMPTY_TEXT = 'Tool output is empty.';
 const TOOL_INTERRUPTED_ON_RESUME_OUTPUT =
   'Tool execution was interrupted before its result was recorded. Do not assume the tool completed successfully.';
 
+/**
+ * Message synthesized on resume for a tool call that logged an intent but was
+ * interrupted before its ack/result. Because a durable side effect may have
+ * partially or fully applied, the model is told to verify before redoing the
+ * work. For file writes, point it at the intended paths so it re-reads them.
+ */
+function interruptedWithIntentMessage(intend: LoopToolIntendEvent): string {
+  const paths = intend.writePaths;
+  if (paths !== undefined && paths.length > 0) {
+    const listed = paths.map((p) => `  - ${p}`).join('\n');
+    return (
+      `Tool "${intend.name}" was interrupted mid-execution after its side effect ` +
+      `was started. The write to the following path(s) may have partially or fully applied:\n${listed}\n` +
+      `Re-read the file(s) to check the current contents before retrying — the change may already be present.`
+    );
+  }
+  return (
+    `Tool "${intend.name}" was interrupted mid-execution after it was started. ` +
+    `Its side effect may have partially or fully applied. Do not assume it either completed or did nothing — ` +
+    `verify the resulting state before retrying.`
+  );
+}
+
 // Invariant: _history must not contain an unresolved tool call exchange except
 // at the tail. When the tail is unresolved, pendingToolResultIds is exactly the
 // set of missing tool result ids for that tail exchange; appendMessage keeps
@@ -67,6 +90,14 @@ export class ContextMemory {
    * meaningful late result.
    */
   private lateAcceptedToolCallIds = new Map<string, number>();
+  /**
+   * Side-effecting tool calls that logged a `tool.intend` but have not yet been
+   * acknowledged (`tool.ack`). On resume, an intend without an ack means
+   * execution may or may not have completed — the close-pending path reconciles
+   * it (e.g. idempotently verifying a file write landed) instead of treating it
+   * as never-started.
+   */
+  private intendedToolCalls = new Map<string, LoopToolIntendEvent>();
   private deferredMessages: ContextMessage[] = [];
   private _lastAssistantAt: number | null = null;
   private lastProjectionRepairSignature: string | null = null;
@@ -550,12 +581,18 @@ export class ContextMemory {
     if (this.pendingToolResultIds.size === 0) return [];
     const interruptedToolCallIds = [...this.pendingToolResultIds];
     for (const toolCallId of interruptedToolCallIds) {
+      // If the call logged a `tool.intend`, execution was at least attempted
+      // before the crash — the side effect may have partially or fully applied.
+      // Use a sharper message so the model re-reads before redoing the write,
+      // rather than assuming the call never ran.
+      const intend = this.intendedToolCalls.get(toolCallId);
+      const message = intend === undefined ? output : interruptedWithIntentMessage(intend);
       this.appendLoopEvent({
         type: 'tool.result',
         parentUuid: toolCallId,
         toolCallId,
         result: {
-          output,
+          output: message,
           isError: true,
         },
       });
@@ -667,6 +704,19 @@ export class ContextMemory {
         this.pendingToolResultIds.add(event.toolCallId);
         return;
       }
+      case 'tool.intend': {
+        // Track the intent so resume can reconcile a crash that left the tool
+        // call without an ack/result. The intend itself does not add to the
+        // message history — it is a durability marker only.
+        this.intendedToolCalls.set(event.toolCallId, event);
+        return;
+      }
+      case 'tool.ack': {
+        // Execution settled; the side effect completed. Remove the intent so
+        // the close-pending path no longer treats it as ambiguous.
+        this.intendedToolCalls.delete(event.toolCallId);
+        return;
+      }
       case 'tool.result': {
         const acceptsLateResult = this.lateAcceptedToolCallIds.has(event.toolCallId);
         if (!this.pendingToolResultIds.has(event.toolCallId) && !acceptsLateResult) return;
@@ -678,6 +728,9 @@ export class ContextMemory {
         });
         this.pendingToolResultIds.delete(event.toolCallId);
         this.lateAcceptedToolCallIds.delete(event.toolCallId);
+        // A result also settles the intend window — clear it so the resume
+        // path does not treat a result-bearing call as still ambiguous.
+        this.intendedToolCalls.delete(event.toolCallId);
         this.flushDeferredMessagesIfToolExchangeClosed();
         return;
       }
