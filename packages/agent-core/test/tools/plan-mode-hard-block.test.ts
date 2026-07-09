@@ -581,7 +581,7 @@ describe('Plan mode permission policy', () => {
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from review phase to write phase');
     expect(result.output).toContain('Write Phase');
-    expect(result.output).toContain('Only the current plan file can be read or edited');
+    expect(result.output).toContain('Only the current plan file may be edited');
     expect(planMode.phase).toBe('write');
   });
 
@@ -718,10 +718,18 @@ describe('Plan mode permission policy', () => {
     ['Read', { path: '/workspace/src/main.ts' }],
     ['WebSearch', { query: 'new planning evidence' }],
     ['FetchURL', { url: 'https://example.com/docs' }],
+    ['TaskOutput', { task_id: 'task_123' }],
+  ] as const)('allows %s in Ultra Plan write phase for quick verification', async (toolName, args) => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('write');
+
+    expect(evaluatePlanPolicy(agent, toolName, args)).toBeUndefined();
+  });
+
+  it.each([
     ['Agent', { prompt: 'review the plan', description: 'review plan' }],
     ['BrowserObserve', {}],
-    ['TaskOutput', { task_id: 'task_123' }],
-  ] as const)('blocks %s in Ultra Plan write phase', async (toolName, args) => {
+  ] as const)('blocks %s in Ultra Plan write phase (side effects)', async (toolName, args) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('write');
 
@@ -901,8 +909,10 @@ describe('Plan mode permission policy', () => {
     ).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'Skill', { skill: 'no-ai-slop-korean' })).toBeUndefined();
 
-    const readDeny = expectDeny(evaluatePlanPolicy(agent, 'Read', { path: '/workspace/src/main.ts' }));
-    expect(readDeny.message ?? '').toContain('current plan-file reads');
+    // Reading non-plan files is now allowed in exit phase for quick verification.
+    expect(
+      evaluatePlanPolicy(agent, 'Read', { path: '/workspace/src/main.ts' }),
+    ).toBeUndefined();
 
     const deny = expectDeny(
       evaluatePlanPolicy(agent, 'Write', {
@@ -911,6 +921,42 @@ describe('Plan mode permission policy', () => {
       }),
     );
     expect(deny.message ?? '').toContain('current plan file');
+  });
+
+  it('allows known read-only MCP tools in Ultra Plan research phase', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+
+    expect(
+      evaluatePlanPolicy(agent, 'mcp__plugin_context7_context7__query-docs', {
+        library_id: '/vercel/next.js',
+        query: 'middleware',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('allows known read-only MCP tools in Ultra Plan write phase', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('write');
+
+    expect(
+      evaluatePlanPolicy(agent, 'mcp__plugin_context7_context7__query-docs', {
+        library_id: '/vercel/next.js',
+        query: 'middleware',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('blocks unknown MCP tools in Ultra Plan research phase', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+
+    const deny = expectDeny(
+      evaluatePlanPolicy(agent, 'mcp__github__create_issue', {
+        title: 'test',
+        body: 'test',
+      }),
+    );
+
+    expect(deny.message ?? '').toContain('Research phase');
   });
 
   it.each(['manual', 'yolo', 'auto'] as const)(
