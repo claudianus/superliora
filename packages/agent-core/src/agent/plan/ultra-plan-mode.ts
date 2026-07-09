@@ -1060,8 +1060,14 @@ export class UltraPlanModeEngine {
   }
 
   private recentUserPromptTexts(): string[] {
+    const startedAt = this._interviewState.startedAtTimestamp ?? 0;
     return (this.agent.context?.history ?? [])
-      .filter((message) => message.role === 'user' && isRealUserPromptOrigin(message.origin))
+      .filter(
+        (message) =>
+          message.role === 'user' &&
+          isRealUserPromptOrigin(message.origin) &&
+          ((message as { timestamp?: number }).timestamp ?? 0) >= startedAt,
+      )
       .slice(-3)
       .map((message) => extractText(message, '\n').trim())
       .filter((text) => text.length > 0);
