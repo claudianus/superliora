@@ -273,3 +273,47 @@ describe('UltraSwarmEngageGate emits routing event', () => {
     expect(routingEvent).toBeUndefined();
   });
 });
+
+
+import { buildResumeWithSteering } from '../../src/ultrawork/interrupted-work-resume';
+import {
+  createUltraSwarmRunContext,
+  requestUltraSwarmSteer,
+  consumeUltraSwarmSteerRequests,
+} from '../../src/agent/ultra-swarm-run';
+import type { TeamPlan } from '@superliora/protocol';
+
+describe('buildResumeWithSteering', () => {
+  it('returns recovery prompt alone when user text is empty', () => {
+    expect(buildResumeWithSteering('recovery', '   ')).toBe('recovery');
+  });
+
+  it('appends user steering section to recovery prompt', () => {
+    const out = buildResumeWithSteering('recovery cursor', 'focus on security');
+    expect(out).toContain('recovery cursor');
+    expect(out).toContain('User steering for this resume');
+    expect(out).toContain('focus on security');
+  });
+});
+
+describe('UltraSwarm steer request queue', () => {
+  const team = { experts: [], maxExperts: 1, reason: 'test' } as unknown as TeamPlan;
+
+  it('queues and consumes steer requests', () => {
+    const run = createUltraSwarmRunContext({
+      runId: 'r1',
+      parentToolCallId: 't1',
+      team,
+      busEnabled: true,
+    });
+    expect(requestUltraSwarmSteer(run, ' go left ')).toBe(true);
+    expect(run.pausedForSteer).toBe(true);
+    expect(requestUltraSwarmSteer(run, '  ')).toBe(false);
+    expect(consumeUltraSwarmSteerRequests(run)).toEqual(['go left']);
+    expect(consumeUltraSwarmSteerRequests(run)).toEqual([]);
+  });
+
+  it('returns false when no run is active', () => {
+    expect(requestUltraSwarmSteer(undefined, 'x')).toBe(false);
+  });
+});

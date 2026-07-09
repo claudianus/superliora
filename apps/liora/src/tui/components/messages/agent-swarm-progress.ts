@@ -425,6 +425,19 @@ export class AgentSwarmProgressComponent implements Component {
     this.requestRender?.();
   }
 
+  applySwarmPaused(input: { readonly reason: string; readonly phase?: string }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const phase = input.phase === undefined ? '' : ` @ ${input.phase}`;
+    this.appendConversationFeed({
+      tag: 'stop',
+      fromExpertId: 'orchestrator',
+      fromName: 'Orchestrator',
+      fromEmoji: '⏸',
+      body: `paused for steering${phase} · ${input.reason}`,
+    });
+    this.requestRender?.();
+  }
+
   applySwarmCollaborationMessage(message: SwarmCollaborationFeedMessage): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
     if (!isAgentConversationChannel(message.channel)) return;

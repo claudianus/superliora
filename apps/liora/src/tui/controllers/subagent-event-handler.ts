@@ -196,6 +196,15 @@ export class SubAgentEventHandler {
     }
   }
 
+  applySwarmPausedToSwarmProgress(input: {
+    readonly reason: string;
+    readonly phase?: string;
+  }): void {
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applySwarmPaused(input);
+    }
+  }
+
   hasAgentSwarmProgress(toolCallId: string): boolean {
     return this.agentSwarmProgress.has(toolCallId);
   }

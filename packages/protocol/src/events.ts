@@ -478,6 +478,20 @@ export interface UltraworkCouncilDecisionEvent {
   readonly decision: CouncilDecision;
 }
 
+export interface UltraworkSwarmPausedEvent {
+  readonly type: 'ultrawork.swarm.paused';
+  readonly runId: string;
+  readonly reason: string;
+  readonly input?: string;
+  readonly phase?: string;
+}
+
+export interface UltraworkSwarmResumedEvent {
+  readonly type: 'ultrawork.swarm.resumed';
+  readonly runId: string;
+  readonly reason?: string;
+}
+
 export interface UltraworkVerificationCompletedEvent {
   readonly type: 'ultrawork.verification.completed';
   readonly runId: string;
@@ -809,6 +823,8 @@ export type AgentEvent =
   | UltraworkCollaborationMessageEvent
   | UltraworkCollaborationMentionEvent
   | UltraworkCouncilDecisionEvent
+  | UltraworkSwarmPausedEvent
+  | UltraworkSwarmResumedEvent
   | UltraworkVerificationCompletedEvent
   | UltraworkKnowledgePromotedEvent
   | GoalUpdatedEvent
@@ -1288,6 +1304,21 @@ export const ultraworkCouncilDecisionEventSchema = z.object({
   decision: councilDecisionSchema,
 }) satisfies z.ZodType<UltraworkCouncilDecisionEvent>;
 
+export const ultraworkSwarmPausedEventSchema = z.object({
+  type: z.literal('ultrawork.swarm.paused'),
+  runId: z.string().min(1),
+  reason: z.string().min(1),
+  input: z.string().optional(),
+  phase: z.string().optional(),
+}) satisfies z.ZodType<UltraworkSwarmPausedEvent>;
+
+export const ultraworkSwarmResumedEventSchema = z.object({
+  type: z.literal('ultrawork.swarm.resumed'),
+  runId: z.string().min(1),
+  reason: z.string().optional(),
+}) satisfies z.ZodType<UltraworkSwarmResumedEvent>;
+
+
 export const ultraworkVerificationCompletedEventSchema = z.object({
   type: z.literal('ultrawork.verification.completed'),
   runId: z.string().min(1),
@@ -1612,6 +1643,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   ultraworkCollaborationMessageEventSchema,
   ultraworkCollaborationMentionEventSchema,
   ultraworkCouncilDecisionEventSchema,
+  ultraworkSwarmPausedEventSchema,
+  ultraworkSwarmResumedEventSchema,
   ultraworkVerificationCompletedEventSchema,
   ultraworkKnowledgePromotedEventSchema,
   goalUpdatedEventSchema,

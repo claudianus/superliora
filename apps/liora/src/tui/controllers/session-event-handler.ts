@@ -269,6 +269,16 @@ export class SessionEventHandler {
       return;
     }
 
+    
+    if (event.type === 'ultrawork.swarm.paused') {
+      this.subAgentEventHandler.applySwarmPausedToSwarmProgress({
+        reason: event.reason,
+        phase: event.phase,
+      });
+      requestTUILayoutRender(this.host.state);
+      return;
+    }
+
     if (event.type === 'ultrawork.council.decision') {
       this.subAgentEventHandler.applyCouncilDecisionToSwarmProgress({
         decision: event.decision.decision,

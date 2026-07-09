@@ -33,7 +33,10 @@ import {
   restaffPhaseForGaps,
   restaffSlotsAvailable,
 } from '../../../session/ultra-swarm-restaff';
-import { createUltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
+import {
+  consumeUltraSwarmSteerRequests,
+  createUltraSwarmRunContext,
+} from '../../../agent/ultra-swarm-run';
 import {
   injectUltraworkPostSwarmContinuation,
   maybeAdvanceUltraworkStage,
@@ -403,6 +406,27 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           busEnabled ? renderSwarmBusDigest(this.store) : '',
         );
         blockedBy = blockingRequiredResult(renderedPhaseResults, phase);
+
+        // Pause-Redirect-Resume checkpoint: if the user steered mid-run, stop
+        // launching further phases after this phase finishes. Completed work is kept.
+        const steerTexts = consumeUltraSwarmSteerRequests(this.agent.ultraSwarmRun);
+        if (steerTexts.length > 0) {
+          const steerNote = steerTexts.join('\n\n');
+          phaseHandoff = `${phaseHandoff}\n\n<user_steering>\n${steerNote}\n</user_steering>`;
+          // Mark remaining unstarted phases as skipped by setting blockedBy-like marker.
+          // We break the phase loop early; restaff is also skipped below when paused.
+          if (this.agent.ultraSwarmRun !== undefined) {
+            this.agent.ultraSwarmRun.pausedForSteer = true;
+          }
+          this.agent.emitEvent({
+            type: 'ultrawork.swarm.paused',
+            runId,
+            reason: 'User steering applied at phase checkpoint',
+            input: steerNote,
+            phase,
+          } as any);
+          break;
+        }
       }
 
       // Cost control: skip adaptive restaff when review consensus is already solid.
@@ -411,7 +435,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         phaseResults.map(withRenderedMetadata),
       );
       const skipRestaff =
-        preRestaffDecision === 'strong-approve'
+        this.agent.ultraSwarmRun?.pausedForSteer === true
+        || preRestaffDecision === 'strong-approve'
         || (preRestaffDecision === 'approve' && routing?.intensity === 'light');
       const restaffed = skipRestaff
         ? []
@@ -467,7 +492,10 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     this.agent.ultraSwarmEngageGate?.clear('ultra-swarm-completed');
     maybeAdvanceUltraworkStage(this.agent, 'integrate', 'UltraSwarm completed');
     injectUltraworkPostSwarmContinuation(this.agent);
-    const rawResult = renderUltraSwarmResults(rendered, plan, runId);
+    const steerSuffix = this.agent.ultraSwarmRun?.pausedForSteer === true
+      ? '\n\n<user_steering_applied>UltraSwarm paused after user steering. Incorporate the steering note in the phase handoff and continue from the remaining work.</user_steering_applied>'
+      : '';
+    const rawResult = renderUltraSwarmResults(rendered, plan, runId) + steerSuffix;
     const compacted = compactSwarmToolResult(this.store, rawResult, { runId });
     if (compacted.archiveIds.length > 0) {
       this.agent.telemetry.track('boundary_compaction_applied', {
