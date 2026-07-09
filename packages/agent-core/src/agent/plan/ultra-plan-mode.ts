@@ -75,6 +75,8 @@ export function isDriftAcceptable(metrics: DriftMetrics): boolean {
   return combinedDrift(metrics) <= ULTRA_PLAN_DRIFT_THRESHOLD;
 }
 
+export type InterviewAnswerOrigin = 'user' | 'code' | 'research';
+
 export type InterviewPerspective =
   | 'researcher'
   | 'simplifier'
@@ -91,6 +93,9 @@ export interface InterviewRound {
   readonly question: string;
   readonly userResponse: string;
   readonly timestamp: number;
+  /** Where the answer came from. 'user' = user decided via AskUserQuestion;
+   *  'code' = agent answered from codebase evidence; 'research' = external research. */
+  readonly origin: InterviewAnswerOrigin;
 }
 
 export interface AmbiguityScoreBreakdown {
@@ -123,6 +128,12 @@ export interface InterviewState {
   /** Once true, the interview stays "ready" until a new round is added —
    *  LLM non-determinism cannot un-ready an already-passed gate. */
   readonly monotonicReadyLocked?: boolean;
+  /** Consecutive rounds where origin was 'code' or 'research' (not 'user').
+   *  Reset to 0 on each 'user' answer. Drives the Dialectic Rhythm Guard. */
+  readonly consecutiveNonUserAnswers: number;
+  /** Wall-clock timestamp when the interview phase started. Used to filter
+   *  pre-interview user prompts out of the ambiguity evidence. */
+  readonly startedAtTimestamp: number;
 }
 
 export const ULTRA_PLAN_REQUIRED_SECTIONS = [
@@ -617,6 +628,8 @@ export class UltraPlanModeEngine {
     lastScoredEvidenceHash: undefined,
     cachedLlmResult: undefined,
     monotonicReadyLocked: false,
+    consecutiveNonUserAnswers: 0,
+    startedAtTimestamp: 0,
   };
 
   get interviewState(): InterviewState {
@@ -660,20 +673,30 @@ export class UltraPlanModeEngine {
       lastScoredEvidenceHash: undefined,
       cachedLlmResult: undefined,
       monotonicReadyLocked: false,
+      consecutiveNonUserAnswers: 0,
+      startedAtTimestamp: Date.now(),
     };
   }
 
-  addInterviewRound(question: string, userResponse: string): void {
+  addInterviewRound(
+    question: string,
+    userResponse: string,
+    origin: InterviewAnswerOrigin = 'user',
+  ): void {
     const round: InterviewRound = {
       roundNumber: this._interviewState.rounds.length + 1,
       question,
       userResponse,
       timestamp: Date.now(),
+      origin,
     };
     this.advancePerspective();
+    const consecutiveNonUserAnswers =
+      origin === 'user' ? 0 : this._interviewState.consecutiveNonUserAnswers + 1;
     this._interviewState = {
       ...this._interviewState,
       rounds: [...this._interviewState.rounds, round],
+      consecutiveNonUserAnswers,
       // A new round changes the evidence — invalidate the LLM cache and
       // unlock monotonic ready so the gate is re-evaluated fairly.
       lastScoredEvidenceHash: undefined,
