@@ -961,6 +961,7 @@ function buildBackgroundTaskNotificationBody(info: BackgroundTaskInfo): string {
     `Use agent_id ("${agentId}"), NOT source_id / task_id ("${info.taskId}") — the two look alike but only agent_id is accepted by the resume parameter.`,
     'Add run_in_background=true to keep it backgrounded, or omit it to take the result inline in the current turn.',
     'The subagent retains its full prior context across the restart, but any in-flight tool call lost its result and may need to be redone.',
+    'Before redoing a file edit/write, re-read the target file — the prior process may have completed the write before dying (an interrupted tool.intend marker records this), so the change may already be present.',
   ].join('\n');
 
   return `${baseLine}${recovery}`;

@@ -242,4 +242,65 @@ Swarm decision: ENGAGE
       }),
     ).toThrow(/already active/i);
   });
+
+  it('treats the journal as authoritative: a mirror whose offset lags is ignored', async () => {
+    // The on-disk mirror is auxiliary. When it carries a journalOffset that is
+    // behind the replayed journal, resume must keep the journal's run (even if
+    // the mirror is "newer" by timestamp) so a stale mirror cannot regress
+    // progress that is durably recorded in the wire log.
+    const homedir = join(tmpdir(), `ultrawork-offset-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    agent.ultrawork.create({
+      id: 'run-offset',
+      objective: 'Offset authority',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-offset',
+        workDir: homedir,
+      },
+    });
+
+    // Advance the in-memory run to a richer state than the mirror will claim.
+    const advancedRun = agent.ultrawork.getRun()!;
+    const richerRun = {
+      ...advancedRun,
+      workGraph: {
+        ...advancedRun.workGraph,
+        nodes: [
+          ...(advancedRun.workGraph?.nodes ?? []),
+          {
+            id: 'WG-journal',
+            stage: 'integrate',
+            description: 'node only the journal knows',
+            status: 'done' as const,
+          },
+        ],
+      },
+    };
+
+    // Write a mirror whose journalOffset is BEHIND the journal (0 < the live
+    // record count), with an older, smaller workGraph. The mirror must lose.
+    mirrorUltraworkRunToDisk({
+      workDir: homedir,
+      run: advancedRun,
+      journalOffset: 0,
+    });
+
+    const replayAgent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    // Simulate the journal having replayed the richer run state.
+    replayAgent.ultrawork.restoreRun({
+      type: 'ultrawork.run',
+      run: richerRun,
+      time: Date.now(),
+    });
+
+    await reconcileUltraworkFromMirror(replayAgent);
+
+    const after = replayAgent.ultrawork.getRun();
+    // The journal's richer graph survives; the stale mirror did not regress it.
+    expect(after?.workGraph?.nodes.some((n) => n.id === 'WG-journal')).toBe(true);
+  });
 });

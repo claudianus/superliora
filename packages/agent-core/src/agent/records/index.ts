@@ -267,6 +267,18 @@ export class AgentRecords {
     await this.persistence?.flush();
   }
 
+  flushSync(): void {
+    this.persistence?.flushSync();
+  }
+
+  /**
+   * Number of records durably appended to the wire log (the append-offset).
+   * Used as the authoritative journal position for checkpoint precedence.
+   */
+  recordCount(): number {
+    return this.persistence?.recordCount() ?? 0;
+  }
+
   async readAll(): Promise<readonly AgentRecord[]> {
     if (!this.persistence) return [];
     const records: AgentRecord[] = [];

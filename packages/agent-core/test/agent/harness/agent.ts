@@ -930,6 +930,8 @@ export class AgentTestContext {
       },
       flush: () => persistence.flush(),
       close: () => persistence.close(),
+      flushSync: () => persistence.flushSync(),
+      recordCount: () => persistence.recordCount(),
     };
   }
 
@@ -1013,6 +1015,7 @@ function createResumeNoSideEffectKaos(
     mkdir: () => fail('mkdir'),
     unlink: () => fail('unlink'),
     rename: () => fail('rename'),
+    writeAtomic: () => fail('writeAtomic'),
     exec: () => fail('exec'),
     execWithEnv: () => fail('execWithEnv'),
   };

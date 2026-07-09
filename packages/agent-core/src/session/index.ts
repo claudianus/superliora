@@ -345,6 +345,15 @@ export class Session {
       );
       await this.cancelActiveTurnsOnClose();
       await this.stopBackgroundTasksOnExit();
+      // Flush each active Ultrawork run to a flushed checkpoint before the
+      // records flush below, so an in-flight run survives an interrupt or a
+      // process restart and can be auto-resumed from its last checkpoint
+      // rather than being lost or left as `running`.
+      await Promise.allSettled(
+        Array.from(this.readyAgents(), async (agent) => {
+          if (agent.ultrawork.getRun()) agent.ultrawork.flushCheckpoint();
+        }),
+      );
       await this.flushMetadata();
       await this.triggerSessionEnd('exit');
     } finally {
@@ -747,6 +756,44 @@ export class Session {
     await this.skillsReady;
     await this.writeMetadataPromise;
     await Promise.all(Array.from(this.readyAgents()).map((agent) => agent.records.flush()));
+  }
+
+  /**
+   * Best-effort synchronous flush for crash paths (signal handlers,
+   * `uncaughtExceptionMonitor`). Drains pending wire-log records with an
+   * fsync so the most recent state survives a hard exit. It does NOT await
+   * `writeMetadataPromise` or `skillsReady` — those are async and cannot
+   * complete from a sync context. Use {@link flushMetadata} for normal
+   * graceful shutdown.
+   */
+  flushMetadataSync(): void {
+    for (const agent of this.readyAgents()) {
+      agent.records.flushSync();
+    }
+  }
+
+  /**
+   * Emergency synchronous flush for the hardest crash paths (SIGHUP on a dead
+   * terminal, `uncaughtExceptionMonitor`) where no async cleanup can run.
+   * Flushes each active Ultrawork run's on-disk mirror (its checkpoint write
+   * is already synchronous) and then drains pending wire-log records with a
+   * synchronous fsync. Best-effort: any record already inside an in-flight
+   * async drain may or may not have been fsync'd, but nothing still pending
+   * is lost. Never throws — a crash path must not fail twice.
+   */
+  emergencyFlushSync(): void {
+    for (const agent of this.readyAgents()) {
+      try {
+        if (agent.ultrawork.getRun()) agent.ultrawork.flushCheckpoint();
+      } catch {
+        // Best-effort: a mirror write failure must not skip the records flush.
+      }
+      try {
+        agent.records.flushSync();
+      } catch {
+        // Swallow — the process is dying anyway.
+      }
+    }
   }
 
   async listSkills(): Promise<readonly SkillSummary[]> {

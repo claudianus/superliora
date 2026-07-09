@@ -10,7 +10,9 @@ import {
   applyManagedKimiCodeConfig,
   applyManagedKimiCodeLogoutConfig,
   SUPERLIORA_PROVIDER_NAME,
+  isOAuthProviderId,
   KimiOAuthToolkit,
+  OAuthProviderManager,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
   type AuthManagedUsageResult,
@@ -98,6 +100,7 @@ type SDKManagedConfig = LioraConfig & ManagedKimiConfigShape;
 
 export class LioraAuthFacade {
   private readonly toolkit: KimiOAuthToolkit<SDKManagedConfig>;
+  private readonly providerManager: OAuthProviderManager;
 
   constructor(private readonly options: LioraAuthFacadeOptions) {
     this.toolkit = new KimiOAuthToolkit<SDKManagedConfig>({
@@ -115,6 +118,14 @@ export class LioraAuthFacade {
         apply: applyManagedKimiCodeConfig,
         remove: applyManagedKimiCodeLogoutConfig,
       },
+    });
+    // Non-Kimi OAuth providers (xAI Grok, OpenAI Codex, …) logged in via
+    // `/connect` store their tokens through OAuthProviderManager. Reusing the
+    // same homeDir keeps request-time resolution pointed at the credential
+    // file login wrote (`~/.superliora/credentials/<provider>.json`).
+    this.providerManager = new OAuthProviderManager({
+      homeDir: options.homeDir,
+      onRefresh: options.onRefresh,
     });
   }
 
@@ -155,6 +166,11 @@ export class LioraAuthFacade {
   }
 
   async logout(providerName?: string | undefined): Promise<LioraAuthLogoutResult> {
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
+    if (this.isNonKimiOAuthProvider(name)) {
+      await this.providerManager.logout(name);
+      return { providerName: name, ok: true };
+    }
     const result = await this.toolkit.logout(
       providerName,
       this.resolveRuntimeManagedAuth(providerName).oauthRef,
@@ -251,6 +267,10 @@ export class LioraAuthFacade {
     providerName?: string,
     oauthRef?: OAuthRef | undefined,
   ): Promise<string | undefined> {
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
+    if (this.isNonKimiOAuthProvider(name)) {
+      return this.providerManager.getCachedAccessToken(name);
+    }
     return this.toolkit.getCachedAccessToken(
       providerName,
       this.runtimeOAuthRef(providerName, oauthRef),
@@ -261,6 +281,12 @@ export class LioraAuthFacade {
     providerName: string,
     oauthRef?: OAuthRef | undefined,
   ): BearerTokenProvider => {
+    if (this.isNonKimiOAuthProvider(providerName)) {
+      return {
+        getAccessToken: (options) =>
+          this.providerManager.ensureFresh(providerName, options ?? {}),
+      };
+    }
     const provider = this.toolkit.tokenProvider(
       providerName,
       this.runtimeOAuthRef(providerName, oauthRef),
@@ -315,5 +341,15 @@ export class LioraAuthFacade {
       configuredBaseUrl: auth.baseUrl,
       configuredOAuthRef: oauthRef ?? auth.oauthRef,
     }).oauthRef;
+  }
+
+  /**
+   * Whether `providerName` is a non-Kimi OAuth provider (xAI Grok, OpenAI
+   * Codex, …). These route through {@link OAuthProviderManager} at request
+   * time instead of the Kimi toolkit, which only accepts the managed Kimi
+   * provider name.
+   */
+  private isNonKimiOAuthProvider(providerName: string): boolean {
+    return providerName !== SUPERLIORA_PROVIDER_NAME && isOAuthProviderId(providerName);
   }
 }

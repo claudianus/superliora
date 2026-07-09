@@ -101,6 +101,7 @@ function makeMockInner(opts?: { pathClass?: 'posix' | 'win32' }): MockInnerKaos 
     mkdirCalls: [] as Array<{ path: string; options?: { parents?: boolean; existOk?: boolean } }>,
     unlinkCalls: [] as string[],
     renameCalls: [] as Array<{ source: string; destination: string }>,
+    writeAtomicCalls: [] as Array<{ path: string; data: string | Buffer; options?: { fsyncDir?: boolean } }>,
     execCalls: [] as string[][],
     execWithEnvCalls: [] as Array<{ args: string[]; env?: Record<string, string> }>,
     readTextCalls: [] as string[],
@@ -178,6 +179,9 @@ function makeMockInner(opts?: { pathClass?: 'posix' | 'win32' }): MockInnerKaos 
     },
     rename: async (source: string, destination: string) => {
       spy.renameCalls.push({ source, destination });
+    },
+    writeAtomic: async (path: string, data: string | Buffer, options?: { fsyncDir?: boolean }) => {
+      spy.writeAtomicCalls.push({ path, data, options });
     },
     exec: async (...args: string[]) => {
       spy.execCalls.push(args);

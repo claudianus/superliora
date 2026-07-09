@@ -204,6 +204,10 @@ function traceEventFromLoopEvent(
       return eventWithData(id, index, time, 'loop.step.end', `Step ${String(loopEvent.step)} ended`, loopEvent.finishReason, loopEvent, redactions);
     case 'content.part':
       return eventWithData(id, index, time, 'content.part', 'Assistant content part', contentPartSummary(loopEvent.part), loopEvent, redactions);
+    case 'tool.intend':
+      return eventWithData(id, index, time, 'tool.intend', `Tool intent: ${loopEvent.name}`, undefined, loopEvent, redactions);
+    case 'tool.ack':
+      return eventWithData(id, index, time, 'tool.ack', `Tool ack: ${loopEvent.toolCallId}`, undefined, loopEvent, redactions);
   }
 }
 

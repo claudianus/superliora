@@ -141,7 +141,11 @@ export async function runPrompt(
     })());
     await raceWithTimeout(pending, PROMPT_CLEANUP_TIMEOUT_MS);
   };
-  removeTerminationCleanup = installPromptTerminationCleanup(promptProcess, cleanupPromptRun);
+  removeTerminationCleanup = installPromptTerminationCleanup(
+    promptProcess,
+    cleanupPromptRun,
+    () => harness.emergencyFlushSync(),
+  );
 
   try {
     await harness.ensureConfigFile();
@@ -451,6 +455,7 @@ function installHeadlessHandlers(session: Session): void {
 function installPromptTerminationCleanup(
   promptProcess: PromptProcess,
   cleanup: () => Promise<void>,
+  emergencyFlushSync: () => void,
 ): () => void {
   let terminating = false;
   const exitAfterCleanup = async (signal: NodeJS.Signals): Promise<void> => {
@@ -459,6 +464,14 @@ function installPromptTerminationCleanup(
     try {
       await cleanup();
     } finally {
+      // If async cleanup could not complete in time (or threw), drain any
+      // state still pending synchronously before the process exits so the
+      // in-flight work is not lost. No-op if the async path already flushed.
+      try {
+        emergencyFlushSync();
+      } catch {
+        // Best-effort — exiting regardless.
+      }
       promptProcess.exit(signalExitCode(signal));
     }
   };

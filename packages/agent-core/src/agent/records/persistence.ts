@@ -1,8 +1,8 @@
-import { createReadStream } from 'node:fs';
+import { appendFileSync, closeSync, createReadStream, fsyncSync, mkdirSync, openSync } from 'node:fs';
 import { mkdir, open } from 'node:fs/promises';
 import { dirname } from 'pathe';
 
-import { syncDir } from '../../utils/fs';
+import { syncDir, syncDirSync } from '../../utils/fs';
 import type { BlobStore } from './blobref';
 import { type AgentRecord, type AgentRecordPersistence } from './types';
 
@@ -60,6 +60,12 @@ export class InMemoryAgentRecordPersistence implements AgentRecordPersistence {
   async flush(): Promise<void> {}
 
   async close(): Promise<void> {}
+
+  flushSync(): void {}
+
+  recordCount(): number {
+    return this.records.length;
+  }
 }
 
 export class FileSystemAgentRecordPersistence implements AgentRecordPersistence {
@@ -69,6 +75,12 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
   private flushPromise: Promise<void> | undefined;
   private error: unknown;
   private consecutiveFailures = 0;
+  /**
+   * Count of records durably appended (fsync'd) to the log. Advances only
+   * after a batch write is confirmed durable so it reflects the true on-disk
+   * append offset. Reset to the live record count after a rewrite (clear).
+   */
+  private committedRecordCount = 0;
 
   constructor(
     private readonly filePath: string,
@@ -80,6 +92,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
 
     let line = '';
     let lineNumber = 0;
+    let yielded = 0;
     const stream = createReadStream(this.filePath, { encoding: 'utf8' });
     try {
       for await (const chunk of stream) {
@@ -96,7 +109,10 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
             this.filePath,
             false,
           );
-          if (record !== undefined) yield record;
+          if (record !== undefined) {
+            yielded++;
+            yield record;
+          }
 
           newlineIndex = line.indexOf('\n');
         }
@@ -110,8 +126,16 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     if (line.length > 0) {
       lineNumber++;
       const record = parseRecordLine(line, lineNumber, this.filePath, true);
-      if (record !== undefined) yield record;
+      if (record !== undefined) {
+        yielded++;
+        yield record;
+      }
     }
+
+    // Seed the committed offset from the records just read, so a freshly
+    // resumed persistence reflects the existing durable log length before any
+    // new appends or rewrites land.
+    this.committedRecordCount = yielded;
   }
 
   append(input: AgentRecord): void {
@@ -143,9 +167,69 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     await this.flush();
   }
 
-  private scheduleFlush(): void {
-    void this.ensureFlush().catch((error) => {
+  flushSync(): void {
+    // Crash-path only (signal handlers, uncaughtExceptionMonitor): drain
+    // whatever is still pending with a synchronous append + fsync + dir sync.
+    //
+    // We deliberately do NOT touch an in-flight async `flushPromise`: that
+    // batch was already spliced out of `pendingRecords` and lives in the
+    // async drain's local — if its write/fsync hadn't completed when the
+    // process died, that batch is lost regardless (a sync path cannot await
+    // an fd it does not own). We only guarantee durability for records still
+    // in `pendingRecords` at the moment of the crash.
+    if (this.pendingRecords.length === 0 && !this.shouldClear) return;
+    const batch = this.pendingRecords.splice(0);
+    const shouldClear = this.shouldClear;
+    this.shouldClear = false;
+    try {
+      const directory = dirname(this.filePath);
+      mkdirSync(directory, { recursive: true });
+      const content = batch.map((e) => JSON.stringify(e) + '\n').join('');
+      const flags = shouldClear ? 'w' : 'a';
+      const fd = openSync(this.filePath, flags);
+      try {
+        if (content.length > 0) appendFileSync(fd, content, 'utf8');
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+      if (!this.directorySynced) {
+        syncDirSync(directory);
+        this.directorySynced = true;
+      }
+      this.consecutiveFailures = 0;
+      // Advance the committed offset for the batch we just fsync'd. On a clear
+      // the log is reset to this batch; otherwise it extends the prior offset.
+      // Note: an in-flight async drain may still settle its own batch later,
+      // so the offset is approximate at crash time — acceptable, since journal
+      // replay (not this counter) is the source of truth and the offset only
+      // guides checkpoint precedence.
+      this.committedRecordCount = shouldClear
+        ? batch.length
+        : this.committedRecordCount + batch.length;
+    } catch (error) {
+      // Re-queue so a subsequent resume attempt can retry; do NOT latch — a
+      // crash-path failure should not brick future sessions.
+      this.pendingRecords.unshift(...batch);
+      if (shouldClear) this.shouldClear = true;
       this.options.onError?.(error);
+    }
+  }
+
+  recordCount(): number {
+    return this.committedRecordCount;
+  }
+
+  private scheduleFlush(): void {
+    // Defer the drain start to a microtask so that a synchronous `flushSync`
+    // (called from a signal handler / uncaughtExceptionMonitor within the same
+    // tick as `append`) can drain `pendingRecords` before the async path
+    // splices it out. The async drain still begins within the same tick —
+    // only its synchronous `splice(0)` is pushed past the current call stack.
+    queueMicrotask(() => {
+      void this.ensureFlush().catch((error) => {
+        this.options.onError?.(error);
+      });
     });
   }
 
@@ -242,6 +326,11 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
         await syncDir(directory);
         this.directorySynced = true;
       }
+      // The batch is now durable. Advance the committed append-offset: a clear
+      // (rewrite) resets the log to exactly this batch, an append extends it.
+      this.committedRecordCount = shouldClear
+        ? writable.length
+        : this.committedRecordCount + writable.length;
     } catch (error) {
       // Re-queue the un-drained batch so a transient failure does not lose
       // records. `shouldClear` (a rewrite) is also restored so a failed

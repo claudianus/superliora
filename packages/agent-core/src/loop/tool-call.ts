@@ -31,7 +31,7 @@ import { errorMessage, isAbortError } from './errors';
 import type { LoopEventDispatcher, LoopToolCallEvent } from './events';
 import type { LLM, LLMChatResponse } from './llm';
 import { parseToolCallArguments } from './tool-args-parse';
-import { ToolAccesses } from './tool-access';
+import { ToolAccesses, type ToolResourceAccess } from './tool-access';
 import { ToolScheduler, type ToolCallTask } from './tool-scheduler';
 import type {
   AuthorizeToolExecutionResult,
@@ -48,6 +48,36 @@ const GRACE_TIMEOUT_MS = 2_000;
 const TOOL_OUTPUT_EMPTY = 'Tool output is empty.';
 const TOOL_OUTPUT_NON_TEXT = 'Tool returned non-text content.';
 const MAX_SYNTHETIC_TOOL_PREAMBLE_LENGTH = 180;
+
+/**
+ * Tools whose side effects are not file-backed (and therefore not captured by
+ * `writePathsFromAccesses`) but are still durable enough to warrant a
+ * pre-execution intent log. The resume path treats these as "attempted,
+ * completion unknown" since there is no idempotent content check available.
+ */
+const ALWAYS_SIDE_EFFECTING_TOOLS = new Set<string>(['Bash']);
+
+function isAlwaysSideEffectingTool(name: string): boolean {
+  return ALWAYS_SIDE_EFFECTING_TOOLS.has(name);
+}
+
+/**
+ * Extract the file paths a tool execution will write, from its declared
+ * resource accesses. Returns `undefined` when the tool does not declare any
+ * file write access (read-only tools, or side effects that are not file-backed).
+ */
+function writePathsFromAccesses(
+  accesses: readonly ToolResourceAccess[] | undefined,
+): readonly string[] | undefined {
+  if (accesses === undefined) return undefined;
+  const paths: string[] = [];
+  for (const access of accesses) {
+    if (access.kind === 'file' && (access.operation === 'write' || access.operation === 'readwrite')) {
+      paths.push(access.path);
+    }
+  }
+  return paths.length > 0 ? paths : undefined;
+}
 
 const validators = new WeakMap<ExecutableTool, ToolArgsValidator>();
 
@@ -121,6 +151,8 @@ interface PendingToolResult {
 interface PreparedToolCallTask {
   readonly task: ToolCallTask<PendingToolResult>;
   readonly stopBatchAfterThis?: boolean | undefined;
+  /** True when a `tool.intend` was dispatched for this call (needs an ack). */
+  readonly intended?: boolean | undefined;
 }
 
 type ToolCallDisplayFields = Pick<LoopToolCallEvent, 'description' | 'display'>;
@@ -138,12 +170,16 @@ export async function runToolCallBatch(
   const calls = response.toolCalls.map((toolCall) => preflightToolCall(step, toolCall));
   const scheduler = new ToolScheduler<PendingToolResult>();
   const pendingResults: Array<Promise<PendingToolResult>> = [];
+  // toolCallIds that received a `tool.intend` and therefore need a `tool.ack`
+  // once execution settles, so the intend→ack durability window is closed.
+  const finalizedIntends = new Set<string>();
   let stopTurn = false;
 
   try {
     for (let index = 0; index < calls.length; index += 1) {
       const call = calls[index]!;
       const prepared = await prepareToolCall(batchStep, call);
+      if (prepared.intended === true) finalizedIntends.add(call.toolCall.id);
       pendingResults.push(scheduler.add(prepared.task));
 
       if (prepared.stopBatchAfterThis === true) {
@@ -162,6 +198,15 @@ export async function runToolCallBatch(
     for (const pendingResult of pendingResults) {
       const result = await finalizePendingToolResult(batchStep, await pendingResult);
       if (result.stopTurn === true) stopTurn = true;
+      // Acknowledge that execution settled, closing the intend→ack window so a
+      // crash after this point is unambiguous (the side effect completed).
+      if (finalizedIntends.has(result.toolCall.id)) {
+        await step.dispatchEvent({
+          type: 'tool.ack',
+          parentUuid: result.toolCall.id,
+          toolCallId: result.toolCall.id,
+        });
+      }
       await step.dispatchEvent({
         type: 'tool.result',
         parentUuid: result.toolCall.id,
@@ -324,6 +369,22 @@ async function prepareToolCall(
 
   const executionMetadata = authorization?.executionMetadata ?? decision.metadata;
   await dispatchToolCall(step, call, effectiveArgs, displayFields);
+  // For tools that mutate durable state, record a pre-execution intent and
+  // flush it to disk BEFORE the side effect runs. A crash during execution
+  // then leaves a durable marker that the effect was attempted, so resume can
+  // reconcile (e.g. verify a file write already landed) instead of silently
+  // redoing it or assuming it never happened.
+  const writePaths = writePathsFromAccesses(execution.accesses);
+  const intended = writePaths !== undefined || isAlwaysSideEffectingTool(call.toolName);
+  if (intended) {
+    await step.dispatchEvent({
+      type: 'tool.intend',
+      toolCallId: call.toolCall.id,
+      name: call.toolName,
+      args: effectiveArgs,
+      ...(writePaths !== undefined ? { writePaths } : {}),
+    });
+  }
   return {
     task: {
       accesses: execution.accesses ?? ToolAccesses.all(),
@@ -332,6 +393,7 @@ async function prepareToolCall(
       }),
     },
     stopBatchAfterThis: execution.stopBatchAfterThis,
+    intended,
   };
 }
 

@@ -119,6 +119,10 @@ export class SDKRpcClient extends SDKRpcClientBase {
     );
   }
 
+  override emergencyFlushSync(): void {
+    this.core.emergencyFlushSync();
+  }
+
   private createKimiRequestHeaders(): Record<string, string> | undefined {
     if (this.identity === undefined) return undefined;
     return createKimiDefaultHeaders({

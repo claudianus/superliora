@@ -98,6 +98,14 @@ export function rename(source: string, destination: string): Promise<void> {
   return getCurrentKaos().rename(source, destination);
 }
 
+export function writeAtomic(
+  path: string,
+  data: string | Buffer,
+  options?: { fsyncDir?: boolean },
+): Promise<void> {
+  return getCurrentKaos().writeAtomic(path, data, options);
+}
+
 export function iterdir(path: string): AsyncGenerator<string> {
   return getCurrentKaos().iterdir(path);
 }

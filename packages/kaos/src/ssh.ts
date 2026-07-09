@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, normalize, resolve } from 'pathe';
 import type { Readable, Writable } from 'node:stream';
@@ -877,6 +878,37 @@ export class SSHKaos implements Kaos {
 
   async rename(source: string, destination: string): Promise<void> {
     await sftpRename(this._sftp, this._resolvePath(source), this._resolvePath(destination));
+  }
+
+  async writeAtomic(
+    path: string,
+    data: string | Buffer,
+    _options?: { fsyncDir?: boolean },
+  ): Promise<void> {
+    // SFTP has no client-side fsync, so this is best-effort crash-safety: a
+    // uniquely-named temp file (so concurrent writers don't collide) is
+    // written then renamed into place. SFTP rename atomicity is server-
+    // dependent, but the temp+rename dance still guarantees we never leave
+    // the destination truncated mid-write. The `fsyncDir` option is accepted
+    // for interface compatibility but is a no-op over SFTP.
+    const resolved = this._resolvePath(path);
+    const buf = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data;
+    const hex = randomBytes(4).toString('hex');
+    const tmpPath = `${resolved}.tmp.${process.pid}.${hex}`;
+    let renamed = false;
+    try {
+      await sftpWriteFile(this._sftp, tmpPath, buf);
+      await sftpRename(this._sftp, tmpPath, resolved);
+      renamed = true;
+    } finally {
+      if (!renamed) {
+        try {
+          await sftpUnlink(this._sftp, tmpPath);
+        } catch {
+          /* ignore — temp may not exist if the write itself failed */
+        }
+      }
+    }
   }
 
   // ── Process execution ──────────────────────────────────────────────

@@ -248,9 +248,9 @@ describe('current builtin file and shell tools', () => {
   });
 
   it('Write exposes parameters and writes through kaos', async () => {
-    const writeText = vi.fn().mockResolvedValue(5);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
     const tool = new WriteTool(
-      createFakeKaos({ writeText, stat: vi.fn<Kaos['stat']>().mockResolvedValue(directoryStat) }),
+      createFakeKaos({ writeAtomic, stat: vi.fn<Kaos['stat']>().mockResolvedValue(directoryStat) }),
       workspace,
     );
 
@@ -263,7 +263,7 @@ describe('current builtin file and shell tools', () => {
     });
 
     const result = await executeTool(tool, context({ path: '/workspace/a.txt', content: 'hello' }));
-    expect(writeText).toHaveBeenCalledWith('/workspace/a.txt', 'hello');
+    expect(writeAtomic).toHaveBeenCalledWith('/workspace/a.txt', 'hello');
     expect(result.output).toContain('Wrote 5 bytes');
   });
 

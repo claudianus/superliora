@@ -101,6 +101,20 @@ export class LioraHarness {
     this.telemetry.setContext?.(patch);
   }
 
+  /**
+   * Emergency synchronous flush of every active in-process session's pending
+   * state to disk (Ultrawork mirrors + wire-log records, fsync'd). For crash
+   * paths only (signal handlers, `uncaughtExceptionMonitor`); never throws.
+   * No-op for remote-transport harnesses without an in-process core.
+   */
+  emergencyFlushSync(): void {
+    try {
+      this.rpc.emergencyFlushSync();
+    } catch {
+      // Best-effort — the process is dying.
+    }
+  }
+
   async createSession(options: CreateSessionOptions): Promise<Session> {
     const { planMode, kaos, persistenceKaos, sessionStartedProperties, ...coreOptions } = options;
     const summary =

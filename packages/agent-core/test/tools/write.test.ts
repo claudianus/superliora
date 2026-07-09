@@ -113,22 +113,22 @@ describe('WriteTool', () => {
   });
 
   it('writes content through kaos and reports bytes written', async () => {
-    const writeText = vi.fn().mockResolvedValue(5);
-    const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool, context({ path: '/tmp/new.txt', content: 'hello' }));
 
-    expect(writeText).toHaveBeenCalledWith('/tmp/new.txt', 'hello');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/new.txt', 'hello');
     expect(result.output).toContain('Wrote 5 bytes');
   });
 
   it('expands leading tilde paths using the kaos home directory', async () => {
-    const writeText = vi.fn().mockResolvedValue(5);
-    const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool, context({ path: '~/notes/today.txt', content: 'hello' }));
 
-    expect(writeText).toHaveBeenCalledWith('/home/test/notes/today.txt', 'hello');
+    expect(writeAtomic).toHaveBeenCalledWith('/home/test/notes/today.txt', 'hello');
     expect(result.output).toContain('Wrote 5 bytes');
   });
 
@@ -152,10 +152,10 @@ describe('WriteTool', () => {
     const expectedBytes = Buffer.byteLength(content, 'utf8');
     expect(expectedBytes).toBe(18);
 
-    // writeText's contract returns a character count; the tool must not rely
+    // writeAtomic's contract returns void; the tool must not rely
     // on it for the byte figure.
-    const writeText = vi.fn().mockResolvedValue(content.length);
-    const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool, context({ path: '/tmp/jp.txt', content }));
 
@@ -174,10 +174,10 @@ describe('WriteTool', () => {
     const expectedBytes = Buffer.byteLength(content, 'utf8');
     expect(expectedBytes).toBe(6);
 
-    // writeText's contract returns a character count; the tool must not rely
+    // writeAtomic's contract returns void; the tool must not rely
     // on it for the byte figure.
-    const writeText = vi.fn().mockResolvedValue(content.length);
-    const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool, context({ path: '/tmp/emoji.txt', content }));
 
@@ -206,8 +206,8 @@ describe('WriteTool', () => {
     });
     const stat = vi.fn().mockRejectedValue(enoent);
     const mkdir = vi.fn().mockResolvedValue(undefined);
-    const writeText = vi.fn().mockResolvedValue(4);
-    const tool = new WriteTool(createFakeKaos({ stat, mkdir, writeText }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ stat, mkdir, writeAtomic }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool,
       context({ path: '/tmp/missing-dir/file.txt', content: 'data' }),
@@ -215,7 +215,7 @@ describe('WriteTool', () => {
 
     expect(result.isError).toBeFalsy();
     expect(mkdir).toHaveBeenCalledWith('/tmp/missing-dir', { parents: true, existOk: true });
-    expect(writeText).toHaveBeenCalledWith('/tmp/missing-dir/file.txt', 'data');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/missing-dir/file.txt', 'data');
   });
 
   it('surfaces mkdir failures when a missing parent cannot be created', async () => {
@@ -238,8 +238,8 @@ describe('WriteTool', () => {
   it('rejects writing when the parent path is not a directory', async () => {
     // A regular file (S_IFREG) standing where a directory is expected.
     const stat = vi.fn().mockResolvedValue({ stMode: 0o100644 });
-    const writeText = vi.fn().mockResolvedValue(4);
-    const tool = new WriteTool(createFakeKaos({ stat, writeText }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ stat, writeAtomic }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool,
       context({ path: '/tmp/a-file/child.txt', content: 'data' }),
@@ -247,25 +247,25 @@ describe('WriteTool', () => {
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toMatch(/not a directory/i);
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
   it('writes when the parent directory exists', async () => {
     const stat = vi.fn().mockResolvedValue({ stMode: 0o040755 });
-    const writeText = vi.fn().mockResolvedValue(4);
-    const tool = new WriteTool(createFakeKaos({ stat, writeText }), PERMISSIVE_WORKSPACE);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ stat, writeAtomic }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool, context({ path: '/tmp/exists/file.txt', content: 'data' }));
 
     expect(result.isError).toBeUndefined();
-    expect(writeText).toHaveBeenCalledWith('/tmp/exists/file.txt', 'data');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/exists/file.txt', 'data');
   });
 
   it('surfaces kaos write failures as tool errors', async () => {
     const tool = new WriteTool(
       createFakeKaos({
         stat: DIR_STAT,
-        writeText: vi.fn().mockRejectedValue(new Error('disk full')),
+        writeAtomic: vi.fn().mockRejectedValue(new Error('disk full')),
       }),
       PERMISSIVE_WORKSPACE,
     );
@@ -276,8 +276,8 @@ describe('WriteTool', () => {
   });
 
   it('allows explicit absolute writes outside the workspace', async () => {
-    const writeText = vi.fn().mockResolvedValue(1);
-    const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), {
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic, stat: DIR_STAT }), {
       workspaceDir: '/workspace',
       additionalDirs: [],
     });
@@ -285,12 +285,12 @@ describe('WriteTool', () => {
     const result = await executeTool(tool, context({ path: '/tmp/pwned.txt', content: 'x' }));
 
     expect(result.isError).toBeUndefined();
-    expect(writeText).toHaveBeenCalledWith('/tmp/pwned.txt', 'x');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/pwned.txt', 'x');
   });
 
   it('rejects relative traversal writes before kaos I/O', async () => {
-    const writeText = vi.fn().mockResolvedValue(1);
-    const tool = new WriteTool(createFakeKaos({ writeText }), {
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic }), {
       workspaceDir: '/workspace/project',
       additionalDirs: [],
     });
@@ -299,12 +299,12 @@ describe('WriteTool', () => {
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('absolute path');
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
   it('blocks sensitive file writes', async () => {
-    const writeText = vi.fn().mockResolvedValue(1);
-    const tool = new WriteTool(createFakeKaos({ writeText }), {
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic }), {
       workspaceDir: '/workspace',
       additionalDirs: [],
     });
@@ -313,42 +313,42 @@ describe('WriteTool', () => {
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('sensitive-file pattern');
-    expect(writeText).not.toHaveBeenCalled();
+    expect(writeAtomic).not.toHaveBeenCalled();
   });
 
-  it('round-trips unicode content (CJK + emoji + accented Latin) through kaos.writeText', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
-    const tool = new WriteTool(createFakeKaos({ writeText }), PERMISSIVE_WORKSPACE);
+  it('round-trips unicode content (CJK + emoji + accented Latin) through kaos.writeAtomic', async () => {
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic }), PERMISSIVE_WORKSPACE);
     const content = 'Hello 世界 🌍\nUnicode: café, naïve, résumé';
 
     const result = await executeTool(tool,context({ path: '/tmp/unicode.txt', content }));
 
     expect(result.isError).toBeFalsy();
-    expect(writeText).toHaveBeenCalledWith('/tmp/unicode.txt', content);
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/unicode.txt', content);
   });
 
-  it('writes empty content as a zero-byte file via kaos.writeText("")', async () => {
-    const writeText = vi.fn().mockResolvedValue(0);
-    const tool = new WriteTool(createFakeKaos({ writeText }), PERMISSIVE_WORKSPACE);
+  it('writes empty content as a zero-byte file via kaos.writeAtomic("")', async () => {
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool,context({ path: '/tmp/empty.txt', content: '' }));
 
     expect(result.isError).toBeFalsy();
-    expect(writeText).toHaveBeenCalledWith('/tmp/empty.txt', '');
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/empty.txt', '');
   });
 
-  it('still reports parent-directory ENOENT surfaced by writeText itself', async () => {
+  it('still reports parent-directory ENOENT surfaced by writeAtomic itself', async () => {
     // When the proactive parent check is inconclusive (e.g. the environment
     // has no `stat`) and the underlying write then fails with ENOENT — for
     // example a parent directory removed between the check and the write —
     // the tool still surfaces a clear "parent directory does not exist"
     // message rather than a raw host error.
-    const writeText = vi
+    const writeAtomic = vi
       .fn()
       .mockRejectedValue(
         Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
       );
-    const tool = new WriteTool(createFakeKaos({ writeText }), PERMISSIVE_WORKSPACE);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic }), PERMISSIVE_WORKSPACE);
 
     const result = await executeTool(tool,
       context({ path: '/tmp/missing-dir/file.txt', content: 'data' }),
@@ -376,8 +376,8 @@ describe('WriteTool', () => {
   it('allows absolute writes to a sibling dir that merely shares the work-dir prefix', async () => {
     // Path policy must distinguish "shares a prefix with workspaceDir" from
     // "is inside workspaceDir". /workspace-sneaky/* is outside /workspace.
-    const writeText = vi.fn().mockResolvedValue(1);
-    const tool = new WriteTool(createFakeKaos({ writeText }), {
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const tool = new WriteTool(createFakeKaos({ writeAtomic }), {
       workspaceDir: '/workspace',
       additionalDirs: [],
     });
@@ -387,6 +387,6 @@ describe('WriteTool', () => {
     );
 
     expect(result.isError).toBeFalsy();
-    expect(writeText).toHaveBeenCalledWith('/workspace-sneaky/file.txt', 'content');
+    expect(writeAtomic).toHaveBeenCalledWith('/workspace-sneaky/file.txt', 'content');
   });
 });

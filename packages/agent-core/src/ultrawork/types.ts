@@ -16,7 +16,12 @@ export interface CreateUltraworkRunInput {
 }
 
 export interface UltraworkRunMirror {
-  readonly schema: 1;
+  /**
+   * Mirror schema version. Bumped when the on-disk shape changes in a way old
+   * readers cannot safely consume. Readers accept their own version and
+   * earlier; `readUltraworkMirrorFromDisk` validates this.
+   */
+  readonly schema: 2;
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
   readonly interruptReason?: string;
@@ -26,6 +31,13 @@ export interface UltraworkRunMirror {
   readonly effectiveStage?: UltraworkStage;
   readonly compactionBoundary?: boolean;
   readonly lastCheckpointAt: string;
+  /**
+   * The wire-log append offset (total fsync'd record count) at the time this
+   * checkpoint was written. Resume uses it as the primary authority for
+   * mirror-vs-journal precedence: a mirror whose offset is behind the
+   * replayed journal is stale and ignored, even if its timestamp is newer.
+   */
+  readonly journalOffset?: number;
 }
 
 export interface UltraworkPlanRecoveryContext {
@@ -41,6 +53,12 @@ export interface UltraworkResumeCursor {
   readonly interviewRound?: number;
   readonly workGraphNodeId?: string;
   readonly goalStatus?: string;
+  /**
+   * Wire-log offset captured at the checkpoint, surfaced to the recovery
+   * prompt so the resume cursor records exactly how far the journal had
+   * progressed when the run was last durable.
+   */
+  readonly journalOffset?: number;
 }
 
 export interface UltraworkRecoveryReport {

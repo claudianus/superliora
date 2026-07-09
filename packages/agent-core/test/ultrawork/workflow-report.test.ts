@@ -21,7 +21,7 @@ function mockAgent(workDir: string) {
     reminders,
     kaos: { getcwd: () => workDir },
     log: { warn: () => {} },
-    records: { logRecord: () => {}, flush: async () => {} },
+    records: { logRecord: () => {}, flush: async () => {}, recordCount: () => 0 },
     emitEvent: () => {},
     context: {
       appendSystemReminder: (text: string) => {
