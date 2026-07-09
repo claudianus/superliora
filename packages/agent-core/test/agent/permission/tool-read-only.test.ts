@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PermissionPolicyContext } from '../../../src/agent/permission/types';
 import type { ToolExecutionHookContext } from '../../../src/loop';
-import { isReadOnlyTool, READ_ONLY_MCP_PATTERNS } from '../../../src/agent/permission/policies/tool-read-only';
+import { isReadOnlyTool } from '../../../src/agent/permission/policies/tool-read-only';
 
 const signal = new AbortController().signal;
 
@@ -107,21 +107,34 @@ describe('isReadOnlyTool', () => {
   });
 });
 
-describe('READ_ONLY_MCP_PATTERNS', () => {
+describe('isReadOnlyTool — MCP keyword token matching', () => {
   it.each([
     'mcp__plugin_context7_context7__query-docs',
     'mcp__docs_server__get_docs',
     'mcp__search_mcp__search',
     'mcp__fetch_tool__fetch',
-  ])('matches known read-only MCP tool: %s', (toolName) => {
-    expect(READ_ONLY_MCP_PATTERNS.some((p) => p.test(toolName))).toBe(true);
+    'mcp__context7__resolve',
+    'mcp__docs-server__get',
+    'mcp__my-search__query',
+  ])('classifies known read-only MCP tool as read-only: %s', (toolName) => {
+    expect(isReadOnlyTool(ctx(toolName))).toBe(true);
   });
 
   it.each([
     'mcp__github__create_issue',
     'mcp__slack__post_message',
     'mcp__database__execute',
-  ])('does NOT match write MCP tool: %s', (toolName) => {
-    expect(READ_ONLY_MCP_PATTERNS.some((p) => p.test(toolName))).toBe(false);
+    // Substring false positives that must NOT match (security):
+    'mcp__docker__run',          // 'docker' ≠ 'doc'/'docs'
+    'mcp__docker__exec',
+    'mcp__research__write_note', // 'research' ≠ 'search'
+    'mcp__fetcher__post_webhook',// 'fetcher' ≠ 'fetch'
+    'mcp__docstore__delete_doc', // 'docstore' ≠ 'doc'/'docs'
+    'mcp__doctool__overwrite',   // 'doctool' ≠ 'doc'/'docs'
+    // Keyword in tool name, not server name — must not match:
+    'mcp__notion__search_pages',
+    'mcp__confluence__get_docs',
+  ])('does NOT classify write/unknown MCP tool as read-only: %s', (toolName) => {
+    expect(isReadOnlyTool(ctx(toolName))).toBe(false);
   });
 });

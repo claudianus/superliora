@@ -33,16 +33,19 @@ export const READ_ONLY_TOOL_NAMES = new Set<string>([
 ]);
 
 /**
- * MCP server name patterns (the segment between `mcp__` and the tool name)
- * that are known to be read-only documentation/search/fetch servers. MCP
- * tools matching these patterns are allowed in read-only plan phases. All
- * other MCP tools are treated as potentially mutating (safe default).
+ * Keywords that mark an MCP server as read-only. The server-name segment
+ * (between `mcp__` and the final `__`) is split into `_`/`-` delimited tokens,
+ * and a server is classified read-only only when one of its tokens EXACTLY
+ * matches a keyword here. Substring matches are intentionally rejected so that
+ * `docker` does NOT match `doc`, `research` does NOT match `search`, and
+ * `fetcher` does NOT match `fetch`.
  */
-export const READ_ONLY_MCP_PATTERNS: readonly RegExp[] = [
-  /^mcp__[\w-]*context7[\w-]*__/i,
-  /^mcp__[\w-]*docs?[\w-]*__/i,
-  /^mcp__[\w-]*search[\w-]*__/i,
-  /^mcp__[\w-]*fetch[\w-]*__/i,
+const READ_ONLY_MCP_KEYWORDS: readonly string[] = [
+  'context7',
+  'doc',
+  'docs',
+  'search',
+  'fetch',
 ];
 
 /**
@@ -54,7 +57,8 @@ export const READ_ONLY_MCP_PATTERNS: readonly RegExp[] = [
  *    mutating, return false.
  * 3. Name in the static `READ_ONLY_TOOL_NAMES` set (and accesses has no
  *    mutation) → read-only.
- * 4. Name matches a `READ_ONLY_MCP_PATTERNS` entry → read-only.
+ * 4. Name is an MCP tool whose server segment contains a read-only keyword
+ *    token (see `READ_ONLY_MCP_KEYWORDS`) → read-only.
  * 5. Otherwise → not read-only (safe default).
  *
  * CRITICAL: `accesses: none()` (empty array) does NOT imply read-only. Tools
@@ -95,5 +99,12 @@ function hasMutatingAccesses(
 }
 
 function isReadOnlyMcpTool(toolName: string): boolean {
-  return READ_ONLY_MCP_PATTERNS.some((pattern) => pattern.test(toolName));
+  if (!toolName.startsWith('mcp__')) return false;
+  // The server segment is between `mcp__` and the final `__` separator.
+  const rest = toolName.slice('mcp__'.length);
+  const separatorIndex = rest.lastIndexOf('__');
+  if (separatorIndex === -1) return false;
+  const serverSegment = rest.slice(0, separatorIndex).toLowerCase();
+  const tokens = serverSegment.split(/[_-]+/);
+  return tokens.some((token) => READ_ONLY_MCP_KEYWORDS.includes(token));
 }
