@@ -562,6 +562,7 @@ export class ToolManager {
       new b.EnterPlanModeTool(this.agent),
       new b.ExitPlanModeTool(this.agent),
       new b.NextPhaseTool(this.agent),
+      new b.RecordInterviewFindingTool(this.agent),
       goalToolsEnabled && new b.CreateGoalTool(this.agent),
       goalToolsEnabled && new b.GetGoalTool(this.agent),
       goalToolsEnabled && new b.SetGoalBudgetTool(this.agent),
