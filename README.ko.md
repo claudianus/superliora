@@ -13,14 +13,14 @@
 # 설치
 pnpm add -g @superliora/liora
 
-# 세션 시작
+# 인터랙티브 세션 시작
 liora
 
-# 복잡한 작업 계획
-liora plan --deep
+# 복잡한 작업을 위해 Plan mode로 시작
+liora --plan
 
-# 전문가 스웜 투입
-liora swarm --engage
+# 현재 디렉터리의 최근 세션 이어하기
+liora --continue
 ```
 
 SuperLiora는 터미널에서 실행하는 독립형 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저 사용, 컴퓨터 사용을 하나의 작업 흐름으로 연결합니다.
@@ -62,11 +62,14 @@ liora --version
 # 대화형 세션 시작
 liora
 
-# 복잡한 작업은 Ultrawork로 전환
-liora work --ultra
+# Plan mode로 시작
+liora --plan
 
-# 먼저 인터뷰로 계획
-liora plan migrate-to-nextjs
+# 단일 프롬프트 비대화 실행
+liora -p "auth를 stateless JWT로 리팩터링"
+
+# 현재 디렉터리 최근 세션 이어하기
+liora --continue
 ```
 
 ## 개발

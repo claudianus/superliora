@@ -14,14 +14,14 @@
 # install
 pnpm add -g @superliora/liora
 
-# start a session
+# start an interactive session
 liora
 
-# plan a complex task
-liora plan --deep
+# start with plan mode for a complex task
+liora --plan
 
-# engage specialist swarm
-liora swarm --engage
+# resume the most recent session in the current directory
+liora --continue
 ```
 
 ---
@@ -68,11 +68,14 @@ liora --version
 # Start an interactive session
 liora
 
-# Switch to Ultrawork for a complex task
-liora work --ultra
+# Start with plan mode enabled
+liora --plan
 
-# Plan an interview first
-liora plan migrate-to-nextjs
+# Run a single prompt non-interactively
+liora -p "refactor auth to stateless JWT"
+
+# Resume the most recent session in cwd
+liora --continue
 ```
 
 ### Development
