@@ -2,6 +2,7 @@ import { useI18n } from '../i18n';
 import { CopyButton } from './CopyButton';
 import { Terminal } from './Terminal';
 import { Reveal } from './Reveal';
+import { HeroCommandCenter, AgentCockpit } from './Visuals';
 import {
   ACPIcon,
   ArrowRightIcon,
@@ -51,52 +52,6 @@ function SectionHead({
       </h2>
       {body && <p className="mt-4 text-lg leading-relaxed text-soft md:text-xl">{body}</p>}
     </Reveal>
-  );
-}
-
-function asset(path: string) {
-  const base = import.meta.env.BASE_URL ?? '/';
-  return `${base}assets/${path}`;
-}
-
-function HeroImage({
-  src,
-  webp,
-  alt,
-  eager = false,
-  badge,
-  imgClassName,
-  wrapperClassName,
-}: {
-  src: string;
-  webp: string;
-  alt: string;
-  eager?: boolean;
-  badge?: React.ReactNode;
-  imgClassName?: string;
-  wrapperClassName?: string;
-}) {
-  const imgCls = imgClassName ?? 'h-auto w-full transition duration-700 group-hover:scale-[1.02]';
-  return (
-    <div className={`group relative overflow-hidden rounded-2xl border border-line bg-bg-2 shadow-lg card-hover ${wrapperClassName ?? ''}`}>
-      <picture>
-        <source srcSet={webp} type="image/webp" />
-        <img
-          src={src}
-          alt={alt}
-          width={1672}
-          height={941}
-          loading={eager ? 'eager' : 'lazy'}
-          decoding="async"
-          className={imgCls}
-        />
-      </picture>
-      {badge && (
-        <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-bg/80 px-3 py-1 text-xs font-medium text-text backdrop-blur">
-          {badge}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -202,18 +157,7 @@ export function Sections() {
 
             <Reveal stagger={2} className="lg:col-span-5 lg:row-span-2">
               <div className="hero-glow rounded-2xl">
-                <HeroImage
-                  src={asset('hero-command-center.png')}
-                  webp={asset('hero-command-center.webp')}
-                  alt="SuperLiora Bento command center: Harness, Terminal, Capabilities, Status"
-                  eager
-                  badge={
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald pulse-dot" />
-                      SuperLiora 0.20.1
-                    </span>
-                  }
-                />
+                <HeroCommandCenter />
               </div>
             </Reveal>
           </div>
@@ -310,13 +254,7 @@ export function Sections() {
           <div className="grid items-center gap-10 lg:grid-cols-12">
             <Reveal stagger={1} className="lg:col-span-7">
               <div className="h-[360px] lg:h-[420px]">
-                <HeroImage
-                  src={asset('agent-cockpit.png')}
-                  webp={asset('agent-cockpit.webp')}
-                  alt="SuperLiora agent cockpit with session list, command log, and live status"
-                  wrapperClassName="h-full"
-                  imgClassName="h-full w-full object-cover object-[center_33%] transition duration-700 group-hover:scale-[1.02]"
-                />
+                <AgentCockpit />
               </div>
             </Reveal>
             <Reveal stagger={2} className="lg:col-span-5">

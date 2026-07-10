@@ -9,7 +9,19 @@
 
 [English README](./README.md) · [라이브 데모](https://claudianus.github.io/superliora/)
 
-![SuperLiora Bento command center](https://claudianus.github.io/superliora/assets/hero-command-center.png)
+```bash
+# 설치
+pnpm add -g @superliora/liora
+
+# 세션 시작
+liora
+
+# 복잡한 작업 계획
+liora plan --deep
+
+# 전문가 스웜 투입
+liora swarm --engage
+```
 
 SuperLiora는 터미널에서 실행하는 독립형 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저 사용, 컴퓨터 사용을 하나의 작업 흐름으로 연결합니다.
 

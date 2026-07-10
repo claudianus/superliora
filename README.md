@@ -10,7 +10,19 @@
 
 [Live demo](https://claudianus.github.io/superliora/) · [English below](#english) · [한국어 README](./README.ko.md) · [한국어는 하단에서](#korean)
 
-![SuperLiora Bento command center](https://claudianus.github.io/superliora/assets/hero-command-center.png)
+```bash
+# install
+pnpm add -g @superliora/liora
+
+# start a session
+liora
+
+# plan a complex task
+liora plan --deep
+
+# engage specialist swarm
+liora swarm --engage
+```
 
 ---
 
