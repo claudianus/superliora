@@ -23,6 +23,7 @@
 ## Swarm Decision
 Swarm decision: 
 - Decision: 
+- Swarm intensity: 
 - Reason: 
 - Specialist value: 
 - Candidate experts: 

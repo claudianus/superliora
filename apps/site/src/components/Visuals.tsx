@@ -51,13 +51,13 @@ export function HeroCommandCenter() {
             <StatusDot />
           </div>
           <div className="font-mono text-xs leading-relaxed text-soft">
-            <span className="text-cyan">$</span> liora plan --deep
+            <span className="text-cyan">$</span> liora --version
             <br />
-            <span className="text-muted">›</span> interviewing...
+            <span className="text-muted">›</span> SuperLiora 0.20.1
             <br />
-            <span className="text-muted">›</span> UltraPlan ready
+            <span className="text-cyan">$</span> liora --plan
             <br />
-            <span className="text-cyan">$</span> liora swarm --engage
+            <span className="text-muted">›</span> Plan mode enabled
           </div>
         </Panel>
 
