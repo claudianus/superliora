@@ -1,8 +1,9 @@
 import type { ParsedSlashInput } from './types';
 
 export function parseSlashInput(input: string): ParsedSlashInput | null {
-  if (!input.startsWith('/')) return null;
-  const trimmed = input.slice(1).trim();
+  const commandText = input.trimStart();
+  if (!commandText.startsWith('/')) return null;
+  const trimmed = commandText.slice(1).trim();
   if (trimmed.length === 0) return null;
   const spaceIdx = trimmed.indexOf(' ');
   const name = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);

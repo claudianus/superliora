@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 describe('parseSlashInput', () => {
   it('parses command names and trimmed args', () => {
     expect(parseSlashInput('/help')).toEqual({ name: 'help', args: '' });
+    expect(parseSlashInput('  /new')).toEqual({ name: 'new', args: '' });
     expect(parseSlashInput('/model   kimi-k2  ')).toEqual({
       name: 'model',
       args: 'kimi-k2',

@@ -539,6 +539,8 @@ command = "vim"
       .mockResolvedValueOnce(failedSession);
     const { driver } = await makeDriver(initialSession, { createSession });
     vi.mocked(failedSession.onEvent).mockClear();
+    driver.handleUserInput('hello before /new');
+    driver.state.appState.streamingPhase = 'idle';
 
     driver.handleUserInput('/new');
 
@@ -547,7 +549,33 @@ command = "vim"
         'Post-create setup failed: permission setup failed',
       );
     });
+    expect(stripSgr(renderTranscript(driver))).not.toContain('hello before /new');
     expect(failedSession.onEvent).toHaveBeenCalledOnce();
+  });
+
+  it('clears ultrawork mode when /new starts a fresh session', async () => {
+    const initialSession = makeSession({ id: 'ses-initial' });
+    const nextSession = makeSession({ id: 'ses-next' });
+    const createSession = vi
+      .fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockResolvedValueOnce(nextSession);
+    const { driver } = await makeDriver(initialSession, { createSession });
+    driver.state.appState.ultraworkMode = true;
+    driver.state.appState.ultraworkPriorState = {
+      planMode: false,
+      swarmMode: false,
+      premiumQualityMode: false,
+      swarmModeEntry: undefined,
+    };
+
+    driver.handleUserInput('/new');
+
+    await vi.waitFor(() => {
+      expect(driver.getCurrentSessionId()).toBe('ses-next');
+      expect(driver.state.appState.ultraworkMode).toBe(false);
+      expect(driver.state.appState.ultraworkPriorState).toBeNull();
+    });
   });
 
   it('tracks Shift-Tab Ultrawork mode switches through the editor handler', async () => {

@@ -2010,8 +2010,16 @@ export class LioraTUI {
     }
 
     this.resetSessionRuntime();
+    this.setAppState({
+      ultraworkMode: false,
+      ultraworkPriorState: null,
+      activityTip: null,
+      isCompacting: false,
+      streamingPhase: 'idle',
+    });
     await this.setSession(session);
     this.setAppState({ sessionId: session.id });
+    this.clearTranscriptAndRedraw();
     try {
       await this.activateRuntime();
       await this.syncRuntimeState(session);
@@ -2027,7 +2035,6 @@ export class LioraTUI {
       /* keep the new session usable even if dynamic skills fail */
     }
     this.sessionEventHandler.startSubscription();
-    this.clearTranscriptAndRedraw();
     this.showStatus(`Started a new session (${session.id}).`);
     void this.showSessionWarnings(session);
     void this.showConfigWarningsIfAny();

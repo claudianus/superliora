@@ -57,11 +57,15 @@ export function resolveSlashCommandInput(options: ResolveSlashCommandInput): Sla
   if (parsed === null) return { kind: 'not-command' };
 
   const command = findBuiltInSlashCommand(parsed.name);
-  // `command` is a literal union where only some members carry `experimentalFlag`; widen to read it.
-  if (
-    command !== undefined &&
-    isExperimentalFlagEnabled((command as LioraSlashCommand).experimentalFlag)
-  ) {
+  if (command !== undefined) {
+    // `command` is a literal union where only some members carry `experimentalFlag`; widen to read it.
+    if (!isExperimentalFlagEnabled((command as LioraSlashCommand).experimentalFlag)) {
+      return {
+        kind: 'invalid',
+        commandName: parsed.name,
+        reason: 'unknown',
+      };
+    }
     const busyReason = slashCommandBusyReason(options);
     if (
       busyReason !== undefined &&

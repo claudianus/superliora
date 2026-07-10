@@ -297,7 +297,11 @@ export class UltraworkMode {
   completeLearnStage(reason = 'Ultrawork completed'): UltraworkRun | null {
     const machine = this.machine;
     if (machine === undefined) return null;
-    let from = machine.snapshot().stage;
+    const snapshot = machine.snapshot();
+    if (snapshot.status === 'done' || snapshot.status === 'failed') {
+      return snapshot;
+    }
+    let from = snapshot.stage;
     if (from !== 'learn') {
       const synced = machine.syncStageForward('learn', reason);
       if (synced.stage !== from) {

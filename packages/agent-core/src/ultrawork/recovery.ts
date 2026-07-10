@@ -496,7 +496,7 @@ export function maybeFinishUltraworkRun(agent: Agent): void {
   const ultrawork = agent.ultrawork;
   if (ultrawork === undefined) return;
   const run = ultrawork.getRun();
-  if (run === null || run.status !== 'running' || run.stage !== 'learn') return;
+  if (run === null || run.status !== 'running') return;
   const graph = run.workGraph;
   if (graph !== undefined && graph.nodes.length > 0 && !graph.nodes.every((node) => node.status === 'done')) {
     return;
