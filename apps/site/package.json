@@ -1,0 +1,35 @@
+{
+  "name": "@superliora/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SuperLiora GitHub Pages landing site",
+  "license": "MIT",
+  "author": "SuperLiora Contributors",
+  "homepage": "https://claudianus.github.io/superliora/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/claudianus/superliora.git",
+    "directory": "apps/site"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "preview": "vite preview",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react-swc": "^3.8.0",
+    "tailwindcss": "^4.1.4",
+    "typescript": "6.0.2",
+    "vite": "^6.3.3"
+  }
+}

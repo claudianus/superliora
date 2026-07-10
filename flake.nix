@@ -75,6 +75,7 @@
         ./packages/telemetry
         ./packages/tui-renderer
         ./apps/liora
+        ./apps/site
         ./apps/vis
         ./apps/vis/server
         ./apps/vis/web
@@ -94,6 +95,7 @@
         "@superliora/telemetry"
         "@harness-kit/tui-renderer"
         "@superliora/liora"
+        "@superliora/site"
         "@superliora/vis"
         "@superliora/vis-server"
         "@superliora/vis-web"
