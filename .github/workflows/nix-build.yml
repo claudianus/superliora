@@ -12,6 +12,9 @@ permissions:
   contents: read
   pull-requests: write
 
+# Disabled - not used in current workflow
+if: false
+
 jobs:
   check-workspace-sync:
     name: Check flake.nix workspace sync
