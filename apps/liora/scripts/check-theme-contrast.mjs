@@ -37,28 +37,28 @@ function contrastRatio(fg, bg) {
 // --- Read and parse ---
 const source = readFileSync(THEMES_PATH, 'utf-8');
 
-// Find vanta theme blocks: from "name: 'superliora-vanta-" to the closing "  },"
+// Find all bundled theme blocks: from "name: 'superliora-" to the closing "  },"
 const themeBlocks = [];
-const nameRegex = /name: 'superliora-vanta-[^']*'/g;
+const nameRegex = /name: 'superliora-[^']*'/g;
 let match;
 while ((match = nameRegex.exec(source)) !== null) {
   themeBlocks.push(match[0]);
 }
 
-if (themeBlocks.length !== 12) {
-  console.error(`ERROR: expected 12 vanta themes, found ${themeBlocks.length}`);
+if (themeBlocks.length !== 7) {
+  console.error(`ERROR: expected 7 bundled themes, found ${themeBlocks.length}`);
   process.exit(1);
 }
-console.log(`Found ${themeBlocks.length} vanta theme entries.`);
+console.log(`Found ${themeBlocks.length} bundled theme entries.`);
 
 // Extract full theme objects by finding the surrounding braces
 const themes = [];
-const vantaNamePattern = /name: '(superliora-vanta-[^']*)'/g;
-let vantaMatch;
-while ((vantaMatch = vantaNamePattern.exec(source)) !== null) {
-  const name = vantaMatch[1];
+const themeNamePattern = /name: '(superliora-[^']*)'/g;
+let themeMatch;
+while ((themeMatch = themeNamePattern.exec(source)) !== null) {
+  const name = themeMatch[1];
   // Find the enclosing object: search backward for "name:" line, forward for "  },"
-  const namePos = vantaMatch.index;
+  const namePos = themeMatch.index;
   // Find the "colors:" opening
   const colorsIdx = source.indexOf('colors:', namePos);
   if (colorsIdx === -1) continue;
@@ -95,8 +95,8 @@ while ((vantaMatch = vantaNamePattern.exec(source)) !== null) {
   }
 }
 
-if (themes.length !== 12) {
-  console.error(`ERROR: extracted ${themes.length} themes (expected 12)`);
+if (themes.length !== 7) {
+  console.error(`ERROR: extracted ${themes.length} themes (expected 7)`);
   process.exit(1);
 }
 console.log(`Extracted ${themes.length} themes with full color tokens.`);
