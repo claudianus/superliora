@@ -12,6 +12,13 @@ import {
 
 export type UltraworkModeMarkerState = 'active' | 'ended';
 
+export interface UltraworkModeMarkerOptions {
+  readonly state: UltraworkModeMarkerState;
+  readonly taskDescription: string;
+  readonly currentStage?: string;
+  readonly progress?: string;
+}
+
 const ULTRAWORK_PIPELINE = 'Research -> UltraPlan -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn';
 const ULTRAWORK_COMPACT_PIPELINE = 'Research>UltraPlan>UltraGoal>Swarm?>Integrate>Verify>Learn';
 const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: source-backed questions, verifiable goal, decide team, verify';
@@ -23,8 +30,7 @@ const ULTRAWORK_COMPLETION_NEXT = 'Ultrawork mode is off. Continue with normal p
 
 export class UltraworkModeMarkerComponent implements Component {
   constructor(
-    private readonly state: UltraworkModeMarkerState,
-    private readonly taskDescription: string,
+    private readonly options: UltraworkModeMarkerOptions,
   ) {}
 
   invalidate(): void {}
@@ -34,15 +40,15 @@ export class UltraworkModeMarkerComponent implements Component {
     if (safeWidth <= 0) return [''];
 
     const appearance = getActiveAppearancePreferences();
-    const active = this.state === 'active';
+    const active = this.options.state === 'active';
     const animated = active && shouldRenderAmbientEffects(appearance);
     const token = active ? 'success' : 'textDim';
     const marker = animated
-      ? renderPulseGlyph(['✦', '✧', '✺', '∙'], `ultrawork:marker:${this.state}`, STATUS_BULLET, token, appearance)
+      ? renderPulseGlyph(['✦', '✧', '✺', '∙'], `ultrawork:marker:${this.options.state}`, STATUS_BULLET, token, appearance)
       : currentTheme.boldFg(token, STATUS_BULLET);
     const label = animated
-      ? renderPremiumHeadline(ultraworkMarkerLabel(this.state), `ultrawork:label:${this.state}`, appearance)
-      : currentTheme.boldFg(token, ultraworkMarkerLabel(this.state));
+      ? renderPremiumHeadline(ultraworkMarkerLabel(this.options.state), `ultrawork:label:${this.options.state}`, appearance)
+      : currentTheme.boldFg(token, ultraworkMarkerLabel(this.options.state));
     const pipelineText =
       `  ${ULTRAWORK_PIPELINE}`.length <= safeWidth
         ? `  ${ULTRAWORK_PIPELINE}`
@@ -74,7 +80,17 @@ export class UltraworkModeMarkerComponent implements Component {
           truncateToWidth(`  ${ULTRAWORK_RESEARCH_STATUS}`, safeWidth, '…'),
         )
       : undefined;
-    const taskLine = currentTheme.fg('textDim', truncateToWidth(`  ${this.taskDescription}`, safeWidth, '…'));
+    const taskLine = currentTheme.fg('textDim', truncateToWidth(`  ${this.options.taskDescription}`, safeWidth, '…'));
+    
+    // Add stage and progress information if available
+    const extraInfo: string[] = [];
+    if (this.options.currentStage !== undefined) {
+      extraInfo.push(currentTheme.fg('primary', truncateToWidth(`  Stage: ${this.options.currentStage}`, safeWidth, '…')));
+    }
+    if (this.options.progress !== undefined) {
+      extraInfo.push(currentTheme.fg('textDim', truncateToWidth(`  ${this.options.progress}`, safeWidth, '…')));
+    }
+
     return [
       '',
       truncateToWidth(marker + label, safeWidth, '…'),
@@ -82,6 +98,7 @@ export class UltraworkModeMarkerComponent implements Component {
       stageStatusLine,
       ...(researchLine !== undefined ? [researchLine] : []),
       nextActionLine,
+      ...extraInfo,
       taskLine,
     ];
   }

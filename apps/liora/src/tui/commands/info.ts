@@ -64,9 +64,18 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
 }
 
 export async function showStatusReport(host: SlashCommandHost): Promise<void> {
-  const [runtimeStatus, managedUsage] = await Promise.all([
+  const [runtimeStatus, managedUsage, ultraworkRun] = await Promise.all([
     loadRuntimeStatusReport(host),
     loadManagedUsageReport(host),
+    (async () => {
+      if (!host.session) return null;
+      if (typeof host.session.getUltraworkRun !== 'function') return null;
+      try {
+        return await host.session.getUltraworkRun();
+      } catch {
+        return null;
+      }
+    })(),
   ]);
   const appState = host.state.appState;
   const humanWriting = loadPreflightHumanWriting(appState.workDir);
@@ -84,6 +93,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     premiumQualityMode: appState.premiumQualityMode,
     swarmMode: appState.swarmMode,
     goalStatus: appState.goal?.status,
+    ultraworkRun: ultraworkRun ? { stage: ultraworkRun.stage } : null,
     contextUsage: appState.contextUsage,
     contextTokens: appState.contextTokens,
     maxContextTokens: appState.maxContextTokens,

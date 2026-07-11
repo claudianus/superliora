@@ -73,6 +73,7 @@ export interface StatusReportOptions {
   readonly humanWriting?: StatusHumanWritingReadiness;
   readonly recovery?: StatusRecoveryReadiness;
   readonly upstreamBaseline?: string;
+  readonly ultraworkRun?: { readonly stage: string } | null;
 }
 
 type Colorize = (text: string) => string;
@@ -160,7 +161,16 @@ function formatUltraworkStageStatus(options: StatusReportOptions): string {
   const goal = `Goal ${formatGoalStatus(options.goalStatus)}`;
   const swarm = `Swarm ${options.swarmMode === true ? 'armed' : canAutoOrchestrate ? 'decision pending' : 'off'}`;
   const verify = `Verify ${formatVerifyStatus(options.goalStatus, planMode, blocked)}`;
-  return `${plan} | ${goal} | ${swarm} | ${verify}`;
+  
+  // Add current Ultrawork stage if available
+  let stageInfo = '';
+  if (options.ultraworkRun !== undefined && options.ultraworkRun !== null) {
+    const stage = options.ultraworkRun.stage;
+    const stageLabel = stage.replaceAll('_', ' ');
+    stageInfo = ` | Stage: ${stageLabel}`;
+  }
+  
+  return `${plan} | ${goal} | ${swarm} | ${verify}${stageInfo}`;
 }
 
 function formatUltraworkFlow(options: StatusReportOptions): FieldRow {

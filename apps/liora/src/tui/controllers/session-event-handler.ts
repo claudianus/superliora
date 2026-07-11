@@ -401,7 +401,10 @@ export class SessionEventHandler {
     const reason = event.reason?.trim();
     const objective = event.run.objective.trim();
     this.host.state.transcriptContainer.addChild(
-      new UltraworkModeMarkerComponent('ended', objective),
+      new UltraworkModeMarkerComponent({
+        state: 'ended',
+        taskDescription: objective,
+      }),
     );
     this.host.showNotice(
       'Ultrawork completed',

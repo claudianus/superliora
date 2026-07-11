@@ -71,6 +71,18 @@ export class UltraworkTheatreComponent implements Component {
   private verification: VerificationResult | undefined;
   private readonly promotions = new Map<string, KnowledgePromotion>();
 
+  // Stage progress tracking
+  private readonly stageOrder: readonly UltraworkRun['stage'][] = [
+    'intake',
+    'research',
+    'plan',
+    'staff',
+    'swarm',
+    'integrate',
+    'verify',
+    'learn',
+  ] as const;
+
   constructor(initialEvent: UltraworkTheatreEvent) {
     this.applyEvent(initialEvent);
   }
@@ -155,8 +167,23 @@ export class UltraworkTheatreComponent implements Component {
     const objective = this.objective ?? this.run?.objective ?? 'pending';
     return [
       this.plainLine(objective, width, 'text'),
+      this.plainLine(this.stageProgressLine(), width, 'textDim'),
       this.plainLine(this.progressSummary(), width, 'textDim'),
     ];
+  }
+
+  private stageProgressLine(): string {
+    const currentStage = this.stage ?? this.run?.stage ?? 'intake';
+    const currentIndex = this.stageOrder.indexOf(currentStage);
+    if (currentIndex === -1) return currentStage;
+
+    const totalStages = this.stageOrder.length;
+    const progress = currentIndex / (totalStages - 1);
+    const filledWidth = Math.round(progress * 8);
+    const emptyWidth = 8 - filledWidth;
+    const progressBar = '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
+    const stageLabel = currentStage.replaceAll('_', ' ');
+    return `${progressBar} ${stageLabel} (${currentIndex + 1}/${totalStages})`;
   }
 
   private progressSummary(): string {

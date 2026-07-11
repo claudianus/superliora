@@ -53,6 +53,7 @@ describe('UltraworkTheatreComponent', () => {
     expect(output).toContain('LocalResearchStack');
     expect(output).not.toContain('Ultrawork Theatre');
     expect(output).not.toContain('intake>plan');
+    expect(output).toContain('█'); // Progress bar should be present
   });
 
   it('hides the theatre panel during swarm so UltraSwarm owns the dashboard', () => {
@@ -81,5 +82,17 @@ describe('UltraworkTheatreComponent', () => {
     });
 
     expect(theatre.render(100)).toEqual([]);
+  });
+
+  it('renders stage progress with progress bar', () => {
+    const theatre = new UltraworkTheatreComponent(researchStageEvent);
+    const output = theatre.render(100).join('\n');
+    
+    // Should contain progress bar characters
+    expect(output).toMatch(/█+/);
+    // Should contain stage information
+    expect(output).toContain('research');
+    // Should contain progress ratio
+    expect(output).toMatch(/\d+\/\d+/);
   });
 });

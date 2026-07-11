@@ -278,7 +278,10 @@ async function startUltrawork(
   }
   host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP });
   host.state.transcriptContainer.addChild(
-    new UltraworkModeMarkerComponent('active', request.objective),
+    new UltraworkModeMarkerComponent({
+      state: 'active',
+      taskDescription: request.objective,
+    }),
   );
   requestTUILayoutRender(host.state);
   host.sendNormalUserInput(
@@ -774,7 +777,12 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
     });
     await session.setPremiumQuality(true);
     host.state.transcriptContainer.addChild(
-      new UltraworkModeMarkerComponent('active', current.objective),
+      new UltraworkModeMarkerComponent({
+        state: 'active',
+        taskDescription: current.objective,
+        currentStage: current.stage,
+        progress: `${current.stage} stage`,
+      }),
     );
     requestTUILayoutRender(host.state);
     host.sendNormalUserInput(result.recoveryPrompt, {
