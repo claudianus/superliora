@@ -149,6 +149,7 @@
     "coverage/",
     "node_modules/",
     "apps/*/scripts/",
-    "*.generated.ts"
+    "*.generated.ts",
+    "packages/agent-core/src/skill/catalog/"
   ]
 }

@@ -112,6 +112,11 @@ function makeAgent(
       getActiveRunId: () => undefined,
       getRun: () => null,
       syncWorkGraphFromStore: vi.fn(),
+	      completeLearnStage: vi.fn(() => null),
+    },
+    goal: {
+      getGoal: vi.fn(() => ({ goal: null })),
+      createGoal: vi.fn(async () => ({ goalId: 'test-goal', objective: 'test', status: 'active' })),
     },
   } as unknown as Agent;
   return { agent, requestApproval, emit, toolStore };
@@ -763,9 +768,92 @@ describe('ExitPlanModeTool', () => {
     expect(result.isError).toBe(false);
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
   });
-});
 
-describe('ExitPlanMode option description optionality', () => {
+  it('auto-creates an UltraGoal from the run objective when none exists', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## Seed Spec',
+        'Summary of the bounded implementation task.',
+        '',
+        '## Verifiable UltraGoal',
+        'True when the requested prompt token is emitted and covered by the focused test; false otherwise.',
+        '',
+        '## Completion Criterion',
+        'The harness verifier and focused vitest command both pass.',
+        '',
+        '## Actors',
+        'CLI user, implementation agent, and verification owner.',
+        '',
+        '## Inputs',
+        'Source file, test file, and harness verifier.',
+        '',
+        '## Outputs',
+        'Source/test edits and passing verification evidence.',
+        '',
+        '## Constraints',
+        'Minimal change; no unrelated edits.',
+        '',
+        '## Non-goals',
+        'No full-suite rewrite.',
+        '',
+        '## Acceptance Criteria',
+        'Token emitted and focused test passes.',
+        '',
+        '## Verification Plan',
+        'Run the harness verifier and the focused vitest command.',
+        '',
+        '## Failure Modes',
+        'Missing token or failing test.',
+        '',
+        '## Runtime Context',
+        'Local TypeScript monorepo.',
+        '',
+        '## AC Tree',
+        '- Token emitted',
+        '- Focused test passes',
+        '',
+        ...workGraphSection(),
+        '',
+        '## Evaluation Plan',
+        '- Harness verifier and focused vitest.',
+        '',
+        '## Execution Plan',
+        'Edit source, edit test, run checks.',
+        '',
+        '## Swarm Decision',
+        'Swarm decision: DEFER. Bounded deterministic edit. value: none; owner: main agent.',
+        'Swarm DEFER waiver: Single-owner source/test edit with no specialist lane.',
+      ].join('\n'),
+    });
+    // Override getRun to return a run with an objective so the goal
+    // auto-creation path triggers.
+    (agent.ultrawork as { getRun: () => unknown }).getRun = () => ({
+      id: 'uw-auto-goal',
+      objective: 'Ship the auto-created UltraGoal',
+      status: 'running',
+      stage: 'goal',
+      createdAt: '2026-07-12T00:00:00.000Z',
+      updatedAt: '2026-07-12T00:00:00.000Z',
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_auto_goal',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
+    expect(agent.goal.createGoal).toHaveBeenCalledWith(
+      { objective: 'Ship the auto-created UltraGoal' },
+      'runtime',
+    );
+  });
   it('exposes options[].description as optional with a default of empty string', () => {
     const { agent } = makeAgent();
     const tool = new ExitPlanModeTool(agent);

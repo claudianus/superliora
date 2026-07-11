@@ -40,6 +40,7 @@ import {
 import {
   injectUltraworkPostSwarmContinuation,
   maybeAdvanceUltraworkStage,
+  maybeFinishUltraworkRun,
 } from '../../../ultrawork';
 import {
   buildSwarmChannelRulesXml,
@@ -590,6 +591,13 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         task: node,
       });
     }
+    // Sync the updated graph into the run so its workGraph reflects the new
+    // node statuses, then check whether the run (and its UltraGoal) should
+    // finish. Without this, swarm-completed nodes never trigger the
+    // run/goal termination path — the UltraworkGraph tool does this sync,
+    // but updateWorkNodes is the path UltraSwarm uses, and it was missing.
+    this.agent.ultrawork.syncWorkGraphFromStore();
+    maybeFinishUltraworkRun(this.agent);
   }
 
   private async buildPlan(

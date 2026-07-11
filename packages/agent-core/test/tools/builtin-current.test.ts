@@ -132,6 +132,12 @@ function mockUltraSwarmAgent(
     ultrawork: {
       attachTeamPlan: vi.fn(),
       getRun: vi.fn(() => null),
+      syncWorkGraphFromStore: vi.fn(() => undefined),
+      completeLearnStage: vi.fn(() => null),
+    },
+    goal: {
+      getGoal: vi.fn(() => ({ goal: null })),
+      markComplete: vi.fn(async () => null),
     },
     tools: store === undefined ? undefined : { getStore: () => store },
     turn: { hasActiveTurn: false },
@@ -1408,6 +1414,12 @@ describe('current builtin collaboration tools', () => {
       ultrawork: {
         attachTeamPlan: vi.fn(),
         getRun: vi.fn(() => null),
+        syncWorkGraphFromStore: vi.fn(() => undefined),
+        completeLearnStage: vi.fn(() => null),
+      },
+      goal: {
+        getGoal: vi.fn(() => ({ goal: null })),
+        markComplete: vi.fn(async () => null),
       },
     } as unknown as Agent;
     const runQueued = vi.fn(

@@ -119,6 +119,36 @@ describe('Ultrawork goal completion', () => {
     });
   });
 
+  it('syncWorkGraphFromStore + maybeFinishUltraworkRun closes goal (UltraSwarm path)', async () => {
+    // UltraSwarm's updateWorkNodes calls syncWorkGraphFromStore() then
+    // maybeFinishUltraworkRun() after marking work nodes done. This test
+    // verifies that path terminates both the run and the active goal.
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-swarm-path-closes-goal');
+    await agent.goal.createGoal({ objective: 'Ship feature' });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
+      id: 'run-swarm-path-closes-goal:work_graph',
+      runId: 'run-swarm-path-closes-goal',
+      nodes: [
+        { id: 'node-1', title: 'Implement', stage: 'swarm', status: 'done' },
+        { id: 'node-2', title: 'Verify', stage: 'verify', status: 'done' },
+      ],
+    });
+    agent.ultrawork.syncWorkGraphFromStore();
+    maybeFinishUltraworkRun(agent);
+
+    expect(agent.ultrawork.getRun()?.status).toBe('done');
+    await vi.waitFor(() => {
+      expect(agent.goal.getGoal().goal).toBeNull();
+    });
+  });
+
   it('maybeAdvanceUltraworkOnGoalComplete finishes a blocked run', async () => {
     const agent = new Agent({ kaos: testKaos });
     createUltraworkAtPlan(agent, 'run-blocked-on-goal-complete');
