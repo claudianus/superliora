@@ -83,6 +83,40 @@ base_url = "https://api.openai.com/v1"
 api_key = "sk-xxxxx"
 ```
 
+### ClinePass
+
+[ClinePass](https://docs.cline.bot/getting-started/clinepass) is a SuperLiora-curated OpenAI-compatible gateway for Cline’s open-weight coding subscription. It is available in `/login` and `liora provider catalog` even though it is not listed on models.dev.
+
+- Provider id: `clinepass`
+- `base_url`: `https://api.cline.bot/api/v1`
+- Credential env: `CLINE_API_KEY` (create a key under **Settings → API Keys** at [app.cline.bot](https://app.cline.bot))
+- Model ids use the ClinePass slug form, e.g. `cline-pass/glm-5.2`, `cline-pass/deepseek-v4-flash`
+
+Interactive:
+
+```bash
+# TUI
+/login   # pick ClinePass, paste API key, choose a model
+
+# CLI
+liora provider catalog add clinepass --api-key "$CLINE_API_KEY"
+```
+
+Manual `config.toml`:
+
+```toml
+[providers.clinepass]
+type = "openai"
+base_url = "https://api.cline.bot/api/v1"
+api_key = "your_cline_api_key"
+
+[models."clinepass/cline-pass/glm-5.2"]
+provider = "clinepass"
+model = "cline-pass/glm-5.2"
+max_context_size = 200000
+capabilities = ["tool_use", "thinking"]
+```
+
 ## `openai_responses`
 
 Corresponds to OpenAI's newer Responses API, always operating in streaming mode. Configuration is the same as `openai`.

@@ -3378,6 +3378,32 @@ describe('liora provider catalog list', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('https://example.test/catalog.json', expect.any(Object));
   });
+
+  it('surfaces the SuperLiora-curated ClinePass provider alongside models.dev entries', async () => {
+    mockRegistryFetch(CATALOG_BODY);
+    const { harness } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, stdout, exitCodes } = makeDeps(harness);
+
+    await tryRun(() => handleCatalogList(deps, undefined, { json: false }));
+
+    expect(exitCodes).toEqual([]);
+    const out = stdout.join('');
+    expect(out).toMatch(/clinepass\s+wire=openai\s+models=10\s+ClinePass/);
+  });
+
+  it('lists curated ClinePass even when models.dev is unreachable', async () => {
+    globalThis.fetch = vi.fn(
+      async () => new Response('server error', { status: 500 }),
+    ) as unknown as typeof globalThis.fetch;
+    const { harness } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, stdout, exitCodes } = makeDeps(harness);
+
+    await tryRun(() => handleCatalogList(deps, undefined, { json: false }));
+
+    expect(exitCodes).toEqual([]);
+    const out = stdout.join('');
+    expect(out).toMatch(/clinepass\s+wire=openai\s+models=10\s+ClinePass/);
+  });
 });
 
 describe('liora provider catalog add', () => {
@@ -3678,5 +3704,51 @@ describe('liora provider catalog add', () => {
 
     expect(exitCodes).toEqual([1]);
     expect(stderr.join('')).toContain('Provider "no-such-id" not found in catalog');
+  });
+
+  it('imports the curated ClinePass provider with cline-pass/ model ids', async () => {
+    mockRegistryFetch(CATALOG_BODY);
+    const { harness, current } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, stdout, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleCatalogAdd(deps, 'clinepass', { apiKey: 'cline-test-key' }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    const finalConfig = current();
+    expect(finalConfig.providers['clinepass']).toMatchObject({
+      type: 'openai',
+      apiKey: 'cline-test-key',
+    });
+    // Model alias keys are `providerId/modelId` — the slash in the ClinePass
+    // model id (`cline-pass/glm-5.2`) is preserved as a literal.
+    expect(finalConfig.models?.['clinepass/cline-pass/glm-5.2']).toMatchObject({
+      provider: 'clinepass',
+      model: 'cline-pass/glm-5.2',
+    });
+    expect(finalConfig.models?.['clinepass/cline-pass/deepseek-v4-flash']).toBeDefined();
+    expect(stdout.join('')).toContain('Imported ClinePass (clinepass)');
+  });
+
+  it('imports ClinePass even when models.dev is unreachable', async () => {
+    globalThis.fetch = vi.fn(
+      async () => new Response('server error', { status: 500 }),
+    ) as unknown as typeof globalThis.fetch;
+    const { harness, current } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, stdout, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleCatalogAdd(deps, 'clinepass', { apiKey: 'cline-test-key' }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    const finalConfig = current();
+    expect(finalConfig.providers['clinepass']).toMatchObject({
+      type: 'openai',
+      apiKey: 'cline-test-key',
+    });
+    expect(finalConfig.models?.['clinepass/cline-pass/glm-5.2']).toBeDefined();
+    expect(stdout.join('')).toContain('Imported ClinePass (clinepass)');
   });
 });

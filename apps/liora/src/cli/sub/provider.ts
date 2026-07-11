@@ -43,6 +43,7 @@ import {
   applyCustomEndpointProvider,
   DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE,
 } from '#/utils/custom-provider';
+import { mergeLocalCatalogProviders } from '#/utils/local-catalog-providers';
 
 interface WritableLike {
   write(chunk: string): boolean;
@@ -2609,8 +2610,19 @@ export async function handleCatalogAdd(
 
 async function loadCatalogOrExit(deps: ProviderDeps, url: string): Promise<Catalog> {
   try {
-    return await fetchCatalog(url);
+    const catalog = await fetchCatalog(url);
+    // Curated SuperLiora providers (ClinePass, …) only attach to the public
+    // models.dev catalog — never to a user-supplied custom registry URL.
+    if (url === DEFAULT_CATALOG_URL) {
+      return mergeLocalCatalogProviders(catalog);
+    }
+    return catalog;
   } catch (error) {
+    // models.dev may be unreachable while SuperLiora-curated providers still
+    // need to work (e.g. `liora provider catalog add clinepass`).
+    if (url === DEFAULT_CATALOG_URL) {
+      return mergeLocalCatalogProviders({});
+    }
     writeProviderErr(deps, 'cli.runtime.provider.fetchCatalogFailed', {
       url,
       suffix: error instanceof CatalogFetchError ? ` (HTTP ${String(error.status)})` : '',

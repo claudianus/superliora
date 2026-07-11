@@ -101,6 +101,37 @@ describe('buildProviderCatalogOptions', () => {
     // Kimi managed OAuth leads the list.
     expect(options[0]?.value).toBe('oauth:managed:kimi-api');
   });
+
+  it('surfaces ClinePass when present in the catalog', () => {
+    const catalog = {
+      ...makeCatalog(),
+      clinepass: {
+        id: 'clinepass',
+        name: 'ClinePass',
+        api: 'https://api.cline.bot/api/v1',
+        env: ['CLINE_API_KEY'],
+        type: 'openai',
+        npm: '@ai-sdk/openai-compatible',
+        models: {
+          'cline-pass/glm-5.2': {
+            id: 'cline-pass/glm-5.2',
+            name: 'GLM-5.2',
+            limit: { context: 200000 },
+            tool_call: true,
+          },
+        },
+      },
+    };
+    const options = buildProviderCatalogOptions(catalog);
+    const clinepass = options.find((o) => o.catalogId === 'clinepass');
+    expect(clinepass).toMatchObject({
+      label: 'ClinePass',
+      authKind: 'api-key',
+      modelCount: 1,
+      envVars: ['CLINE_API_KEY'],
+      baseUrl: 'https://api.cline.bot/api/v1',
+    });
+  });
 });
 
 describe('resolveProviderSelection', () => {

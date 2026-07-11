@@ -83,6 +83,40 @@ base_url = "https://api.openai.com/v1"
 api_key = "sk-xxxxx"
 ```
 
+### ClinePass
+
+[ClinePass](https://docs.cline.bot/getting-started/clinepass) 是 SuperLiora 内置的 OpenAI 兼容网关，对应 Cline 的开源权重编程模型订阅。它会出现在 `/login` 与 `liora provider catalog` 中（models.dev 上不一定有该条目）。
+
+- Provider id：`clinepass`
+- `base_url`：`https://api.cline.bot/api/v1`
+- 凭证环境变量：`CLINE_API_KEY`（在 [app.cline.bot](https://app.cline.bot) 的 **Settings → API Keys** 创建）
+- 模型 id 使用 ClinePass slug，例如 `cline-pass/glm-5.2`、`cline-pass/deepseek-v4-flash`
+
+交互式：
+
+```bash
+# TUI
+/login   # 选择 ClinePass，粘贴 API key，再选默认模型
+
+# CLI
+liora provider catalog add clinepass --api-key "$CLINE_API_KEY"
+```
+
+手动 `config.toml`：
+
+```toml
+[providers.clinepass]
+type = "openai"
+base_url = "https://api.cline.bot/api/v1"
+api_key = "your_cline_api_key"
+
+[models."clinepass/cline-pass/glm-5.2"]
+provider = "clinepass"
+model = "cline-pass/glm-5.2"
+max_context_size = 200000
+capabilities = ["tool_use", "thinking"]
+```
+
 ## `openai_responses`
 
 对应 OpenAI 较新的 Responses API，始终以流式方式工作。配置方式与 `openai` 相同。

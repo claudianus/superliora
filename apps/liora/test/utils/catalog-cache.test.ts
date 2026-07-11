@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,10 +35,16 @@ describe('loadCatalog', () => {
     const fetchImpl = vi.fn(async () => catalogResponse(SAMPLE_CATALOG));
     const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
     expect(catalog['anthropic']?.name).toBe('Anthropic');
+    // SuperLiora-curated providers are layered on top of models.dev.
+    expect(catalog['clinepass']?.name).toBe('ClinePass');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     // The cache file exists so the next load skips the network.
     const cachePath = join(home, 'cache', 'models-dev-catalog.json');
     expect(() => statSync(cachePath)).not.toThrow();
+    // Cache stores the remote snapshot only — no curated overlay baked in.
+    const disk = JSON.parse(readFileSync(cachePath, 'utf8')) as Record<string, unknown>;
+    expect(disk['clinepass']).toBeUndefined();
+    expect(disk['anthropic']).toBeDefined();
   });
 
   it('reuses the fresh on-disk cache without a network fetch', async () => {
@@ -61,5 +67,15 @@ describe('loadCatalog', () => {
     });
     const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
     expect(catalog['anthropic']?.name).toBe('Anthropic');
+    expect(catalog['clinepass']?.name).toBe('ClinePass');
+  });
+
+  it('returns curated providers when the network fails with no cache', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
+    expect(catalog['clinepass']?.name).toBe('ClinePass');
+    expect(catalog['clinepass']?.api).toBe('https://api.cline.bot/api/v1');
   });
 });

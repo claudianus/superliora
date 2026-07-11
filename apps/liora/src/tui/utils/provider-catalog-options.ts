@@ -67,6 +67,8 @@ const PROVIDER_PRIORITY: ReadonlyMap<string, number> = new Map<string, number>([
   ['deepseek', 5],
   ['groq', 6],
   ['mistral', 7],
+  // SuperLiora-curated subscription gateway (not in models.dev).
+  ['clinepass', 8],
 ]);
 
 export function buildProviderCatalogOptions(catalog: Catalog): readonly ProviderCatalogOption[] {

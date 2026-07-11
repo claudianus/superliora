@@ -20,6 +20,7 @@ import {
 } from '@superliora/sdk';
 
 import { BUILT_IN_CATALOG_JSON } from '#/built-in-catalog';
+import { mergeLocalCatalogProviders } from '#/utils/local-catalog-providers';
 import { getCacheDir } from '#/utils/paths';
 
 const CATALOG_CACHE_FILE = 'models-dev-catalog.json';
@@ -70,6 +71,11 @@ async function writeCachedCatalog(catalog: Catalog): Promise<void> {
  *   3. Stale on-disk cache (any age) → returned when the network fails.
  *   4. Build-time snapshot (`BUILT_IN_CATALOG_JSON`) → last-resort fallback.
  *
+ * SuperLiora-curated providers (e.g. ClinePass) are always merged after the
+ * models.dev snapshot so they appear even when offline. The on-disk cache
+ * stores only the remote snapshot so local entry updates take effect without
+ * waiting for the TTL.
+ *
  * Throws {@link CatalogCacheError} only when every source is unavailable.
  */
 export async function loadCatalog(
@@ -86,27 +92,20 @@ export async function loadCatalog(
       // Treat an unreadable mtime as stale.
     }
     if (isFreshCache(cacheAge)) {
-      return cached;
+      return mergeLocalCatalogProviders(cached);
     }
   }
 
   try {
     const catalog = await fetchCatalog(DEFAULT_CATALOG_URL, signal, fetchImpl);
     await writeCachedCatalog(catalog);
-    return catalog;
+    return mergeLocalCatalogProviders(catalog);
   } catch (error) {
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) return mergeLocalCatalogProviders(cached);
     const builtIn = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
-    if (builtIn !== undefined) return builtIn;
-    if (error instanceof CatalogFetchError) {
-      throw new CatalogCacheError(
-        `Catalog unavailable (HTTP ${error.status}) and no cached snapshot.`,
-        { cause: error },
-      );
-    }
-    throw new CatalogCacheError(
-      'Catalog unavailable and no cached snapshot.',
-      { cause: error },
-    );
+    if (builtIn !== undefined) return mergeLocalCatalogProviders(builtIn);
+    // Still surface SuperLiora-curated providers when models.dev is unreachable
+    // and no snapshot exists (e.g. fresh install offline).
+    return mergeLocalCatalogProviders({});
   }
 }
