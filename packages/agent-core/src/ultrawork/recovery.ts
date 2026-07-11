@@ -383,10 +383,10 @@ export function maybeAdvanceUltraworkOnGoalComplete(agent: Agent): void {
   const ultrawork = agent.ultrawork;
   if (ultrawork === undefined) return;
   const run = ultrawork.getRun();
-  if (run === null || run.status !== 'running') return;
+  if (run === null || run.status === 'done' || run.status === 'failed') return;
   maybeFinishUltraworkRun(agent);
   const updated = ultrawork.getRun();
-  if (updated !== null && updated.status === 'running') {
+  if (updated !== null && updated.status !== 'done' && updated.status !== 'failed') {
     try {
       ultrawork.completeLearnStage('UltraGoal completed');
     } catch (error) {
@@ -502,6 +502,25 @@ export function maybeFinishUltraworkRun(agent: Agent): void {
     return;
   }
   ultrawork.completeLearnStage();
+  completeUltraGoalForFinishedRun(agent);
+}
+
+/**
+ * A finished Ultrawork run must also close its UltraGoal: the goal driver keeps
+ * issuing continuation turns while a goal is `active`, so leaving the goal open
+ * after the run reaches `done` strands the session in an endless goal loop
+ * waiting for a model-issued UpdateGoal that may never come.
+ */
+function completeUltraGoalForFinishedRun(agent: Agent): void {
+  const run = agent.ultrawork?.getRun();
+  if (run === undefined || run === null || run.status !== 'done') return;
+  const goal = agent.goal.getGoal().goal;
+  if (goal === null || goal.status !== 'active') return;
+  void agent.goal
+    .markComplete({ reason: 'Ultrawork run completed' }, 'runtime')
+    .catch((error: unknown) => {
+      agent.log.warn('ultrawork run-complete goal close failed', { error });
+    });
 }
 
 function reconcileWorkGraph(graph: WorkGraph | undefined): WorkGraph | undefined {
