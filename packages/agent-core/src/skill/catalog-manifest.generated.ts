@@ -3,7 +3,11 @@
 export const SKILL_CATALOG_SOURCE_COUNTS = {
   "anthropic": 17,
   "ericgrill": 12,
-  "luokai": 4146,
-  "deduped": 4022,
-  "written": 4022
+  "luokai": 9786,
+  "agentic": 1943,
+  "claudeskills": 770,
+  "mindrally": 240,
+  "seb1n": 91,
+  "deduped": 7956,
+  "written": 7956
 } as const;

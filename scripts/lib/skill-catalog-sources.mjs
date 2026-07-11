@@ -5,6 +5,7 @@
  * - github.com/anthropics/skills (official Agent Skills examples)
  * - github.com/EricGrill/agent-personalities-skills (universal + claude-code skills)
  * - github.com/luokai0/ai-agent-skills-by-luo-kai (curated domain skills, 4000+)
+ * - github.com/sickn33/agentic-awesome-skills (community skill library, 1900+)
  */
 import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
@@ -108,7 +109,43 @@ const SOURCE_CONFIGS = [
     prefix: 'luokai',
     priority: 3,
     skillRoots: ['ai-agent-skills'],
-    excludePathParts: ['21-external-registries', '22-clawhub-skills'],
+    excludePathParts: [],
+  },
+  {
+    key: 'agentic',
+    url: 'https://github.com/sickn33/agentic-awesome-skills.git',
+    branch: 'main',
+    prefix: 'agentic',
+    priority: 4,
+    skillRoots: ['skills'],
+    excludePathParts: [],
+  },
+  {
+    key: 'claudeskills',
+    url: 'https://github.com/alirezarezvani/claude-skills.git',
+    branch: 'main',
+    prefix: 'claudeskills',
+    priority: 5,
+    skillRoots: ['.'],
+    excludePathParts: ['.claude-plugin', '.codex-plugin', '.github', 'scripts', 'templates', 'docs', 'assets'],
+  },
+  {
+    key: 'mindrally',
+    url: 'https://github.com/Mindrally/skills.git',
+    branch: 'main',
+    prefix: 'mindrally',
+    priority: 6,
+    skillRoots: ['.'],
+    excludePathParts: ['.gitignore', 'LICENSE', 'README.md'],
+  },
+  {
+    key: 'seb1n',
+    url: 'https://github.com/seb1n/awesome-ai-agent-skills.git',
+    branch: 'main',
+    prefix: 'seb1n',
+    priority: 7,
+    skillRoots: ['.'],
+    excludePathParts: ['.gitignore', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'SKILL_TEMPLATE.md', 'test.txt'],
   },
 ];
 
@@ -118,14 +155,10 @@ export async function buildSkillCatalog(outDir, options = {}) {
   await mkdir(outDir, { recursive: true });
 
   const byName = new Map();
-  const sourceCounts = { anthropic: 0, ericgrill: 0, luokai: 0 };
+  const sourceCounts = { anthropic: 0, ericgrill: 0, luokai: 0, agentic: 0, claudeskills: 0, mindrally: 0, seb1n: 0 };
 
   for (const config of SOURCE_CONFIGS) {
-    const excludeParts = config.key === 'luokai' && !includeExternal
-      ? config.excludePathParts
-      : config.key === 'luokai' && includeExternal
-        ? []
-        : config.excludePathParts;
+    const excludeParts = config.excludePathParts;
 
     console.log(`Fetching ${config.key}...`);
     const tempRoot = join(tmpdir(), `superliora-skills-${config.key}-${Date.now()}`);
@@ -186,6 +219,10 @@ export async function buildSkillCatalog(outDir, options = {}) {
       anthropic: 'https://github.com/anthropics/skills',
       ericgrill: 'https://github.com/EricGrill/agent-personalities-skills',
       luokai: 'https://github.com/luokai0/ai-agent-skills-by-luo-kai',
+      agentic: 'https://github.com/sickn33/agentic-awesome-skills',
+      claudeskills: 'https://github.com/alirezarezvani/claude-skills',
+      mindrally: 'https://github.com/Mindrally/skills',
+      seb1n: 'https://github.com/seb1n/awesome-ai-agent-skills',
     },
   };
 
