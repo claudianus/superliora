@@ -81,7 +81,7 @@ export async function parseSource(displayPath: string, content: string): Promise
     language,
     rootType: tree.rootNode.type,
     walk(visitor) {
-      walkNode(tree.rootNode, content, lineStarts, visitor);
+      walkNode(tree.rootNode, content, visitor);
     },
     textForNode(startIndex, endIndex) {
       return content.slice(startIndex, endIndex);
@@ -115,37 +115,42 @@ async function loadLanguage(language: SupportedLanguage): Promise<Language | und
   }
 }
 
-function walkNode(
-  node: Node,
-  content: string,
-  lineStarts: readonly number[],
-  visitor: TreeVisitor,
-): void {
-  const view = toNodeView(node, content, lineStarts);
-  visitor(view);
+function walkNode(node: Node, content: string, visitor: TreeVisitor): void {
+  // Visit every node with a *lazy* view. Materializing the full subtree for
+  // each node (as the previous eager `toNodeView` did) made the walk
+  // O(nodes x depth) and copied `content` slices for every node — on large
+  // files this blocked the event loop long enough to defeat the index build
+  // budget and stall subagents. The view now computes `text`/`namedChildren`/
+  // `childForField` only when the visitor actually reads them, so an unread
+  // node costs nothing beyond the shallow record.
+  visitor(makeNodeView(node, content));
   for (let index = 0; index < node.namedChildCount; index += 1) {
     const child = node.namedChild(index);
-    if (child !== null) walkNode(child, content, lineStarts, visitor);
+    if (child !== null) walkNode(child, content, visitor);
   }
 }
 
-function toNodeView(node: Node, content: string, lineStarts: readonly number[]): TreeNodeView {
-  const namedChildren: TreeNodeView[] = [];
-  for (let index = 0; index < node.namedChildCount; index += 1) {
-    const child = node.namedChild(index);
-    if (child !== null) namedChildren.push(toNodeView(child, content, lineStarts));
-  }
+function makeNodeView(node: Node, content: string): TreeNodeView {
   return {
     type: node.type,
     startIndex: node.startIndex,
     endIndex: node.endIndex,
     startLine: node.startPosition.row + 1,
     endLine: node.endPosition.row + 1,
-    text: content.slice(node.startIndex, node.endIndex),
-    namedChildren,
+    get text() {
+      return content.slice(node.startIndex, node.endIndex);
+    },
+    get namedChildren() {
+      const children: TreeNodeView[] = [];
+      for (let index = 0; index < node.namedChildCount; index += 1) {
+        const child = node.namedChild(index);
+        if (child !== null) children.push(makeNodeView(child, content));
+      }
+      return children;
+    },
     childForField(name: string) {
       const child = node.childForFieldName(name);
-      return child === null ? undefined : toNodeView(child, content, lineStarts);
+      return child === null ? undefined : makeNodeView(child, content);
     },
   };
 }

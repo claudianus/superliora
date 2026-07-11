@@ -9,7 +9,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { collectContextFiles } from './context-discovery';
 import { isLeanCodegraphV2Enabled } from '../../../lean-context/graph/enabled';
-import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
+import { ensureWorkspaceIndexBudgeted } from '../../../lean-context/index/ensure';
 import { getGraphDatabase } from '../../../lean-context/graph/pipeline';
 
 export const LIORA_SYMBOL_TOOL_NAME = 'LioraSymbol';
@@ -69,20 +69,25 @@ export class LioraSymbolTool implements BuiltinTool<LioraSymbolInput> {
   ): Promise<ExecutableToolResult> {
     try {
       if (isLeanCodegraphV2Enabled() && explicitPaths === undefined) {
-        await ensureWorkspaceIndex(this.kaos, this.workspace);
-        const hits = getGraphDatabase(this.workspace).findNodesByName(input.name, input.max_results ?? 20);
-        const definitions = hits.map(
-          (hit) => `${hit.filePath}:L${String(hit.startLine)} def ${hit.signature || hit.qualifiedName}`,
-        );
-        const output = [
-          `<liora_symbol name="${input.name}">`,
-          `definitions: ${String(definitions.length)}`,
-          ...definitions.map((line) => `- ${line}`),
-          'references: 0',
-          'next: LioraRead(mode=lines) or Read for exact edit bytes.',
-          '</liora_symbol>',
-        ].join('\n');
-        return { output };
+        // Wait for the index only within the build budget; if it is not ready
+        // yet, fall through to the regex/filesystem path below rather than
+        // blocking the turn or returning empty results from a cold graph.
+        const ensured = await ensureWorkspaceIndexBudgeted(this.kaos, this.workspace);
+        if (ensured.ready) {
+          const hits = getGraphDatabase(this.workspace).findNodesByName(input.name, input.max_results ?? 20);
+          const definitions = hits.map(
+            (hit) => `${hit.filePath}:L${String(hit.startLine)} def ${hit.signature || hit.qualifiedName}`,
+          );
+          const output = [
+            `<liora_symbol name="${input.name}">`,
+            `definitions: ${String(definitions.length)}`,
+            ...definitions.map((line) => `- ${line}`),
+            'references: 0',
+            'next: LioraRead(mode=lines) or Read for exact edit bytes.',
+            '</liora_symbol>',
+          ].join('\n');
+          return { output };
+        }
       }
       const files = await collectContextFiles({
         kaos: this.kaos,

@@ -11,7 +11,7 @@ import { collectContextFiles } from './context-discovery';
 import { buildCallgraph, renderCallgraph } from './context-callgraph';
 import { isLeanCodegraphV2Enabled } from '../../../lean-context/graph/enabled';
 import { buildIndexedCallgraph } from '../../../lean-context/graph/callgraph';
-import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
+import { ensureWorkspaceIndexBudgeted } from '../../../lean-context/index/ensure';
 import { getGraphDatabase } from '../../../lean-context/graph/pipeline';
 
 export const LIORA_CALLGRAPH_TOOL_NAME = 'LioraCallgraph';
@@ -74,13 +74,18 @@ export class LioraCallgraphTool implements BuiltinTool<LioraCallgraphInput> {
   ): Promise<ExecutableToolResult> {
     try {
       if (isLeanCodegraphV2Enabled() && explicitPaths === undefined) {
-        await ensureWorkspaceIndex(this.kaos, this.workspace);
-        const graph = buildIndexedCallgraph(
-          getGraphDatabase(this.workspace),
-          input.symbol,
-          input.direction ?? 'both',
-        );
-        return { output: renderCallgraph(graph) };
+        // Wait for the index only within the build budget; if it is not ready
+        // yet, fall through to the direct-discovery callgraph below instead of
+        // blocking the turn on a cold/stale build.
+        const ensured = await ensureWorkspaceIndexBudgeted(this.kaos, this.workspace);
+        if (ensured.ready) {
+          const graph = buildIndexedCallgraph(
+            getGraphDatabase(this.workspace),
+            input.symbol,
+            input.direction ?? 'both',
+          );
+          return { output: renderCallgraph(graph) };
+        }
       }
       const files = await collectContextFiles({
         kaos: this.kaos,

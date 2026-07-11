@@ -2,7 +2,7 @@ import type { Kaos } from '@superliora/kaos';
 import { z } from 'zod';
 
 import { queryIndexedPaths } from '../../../lean-context/index/builder';
-import { ensureWorkspaceIndex } from '../../../lean-context/index/ensure';
+import { ensureWorkspaceIndexBudgeted } from '../../../lean-context/index/ensure';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
@@ -78,11 +78,17 @@ export class LioraSearchTool implements BuiltinTool<LioraSearchInput> {
       let scopedPaths = explicitPaths;
       let source: 'filesystem' | 'index' = 'filesystem';
       if (scopedPaths === undefined) {
-        await ensureWorkspaceIndex(this.kaos, this.workspace);
-        const indexed = await queryIndexedPaths(this.kaos, this.workspace, input.pattern, 40);
-        if (indexed.length > 0) {
-          scopedPaths = indexed;
-          source = 'index';
+        // Never block the turn on a cold/stale build: wait only within the
+        // build budget, then fall back to direct filesystem discovery. The
+        // build keeps running in the background (deduped), so a later call
+        // gets the warm index.
+        const ensured = await ensureWorkspaceIndexBudgeted(this.kaos, this.workspace);
+        if (ensured.ready) {
+          const indexed = await queryIndexedPaths(this.kaos, this.workspace, input.pattern, 40);
+          if (indexed.length > 0) {
+            scopedPaths = indexed;
+            source = 'index';
+          }
         }
       }
       const files = await collectContextFiles({
