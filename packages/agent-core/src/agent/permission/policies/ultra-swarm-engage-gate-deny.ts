@@ -12,12 +12,15 @@ export class UltraSwarmEngageGateDenyPermissionPolicy implements PermissionPolic
     // After an approved Ultra Plan with ENGAGE, the model must first create the
     // verifiable UltraGoal (if it does not already exist), then call UltraSwarm.
     // GetGoal is allowed so the model can confirm the current goal state.
+    // TodoList is allowed so the model can sync the todo board while preparing
+    // the UltraSwarm call; it has no product-file or runstate side effects.
     if (
       toolName === 'UltraSwarm' ||
       toolName === 'UltraworkGraph' ||
       toolName === 'EnterPlanMode' ||
       toolName === 'CreateGoal' ||
-      toolName === 'GetGoal'
+      toolName === 'GetGoal' ||
+      toolName === 'TodoList'
     ) {
       return;
     }

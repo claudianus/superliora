@@ -950,6 +950,9 @@ describe('Simple permission policy direct behavior', () => {
     expect(
       policy.evaluate(hookContext({ id: 'call_plan', toolName: 'EnterPlanMode' })),
     ).toBeUndefined();
+    expect(
+      policy.evaluate(hookContext({ id: 'call_todo', toolName: 'TodoList' })),
+    ).toBeUndefined();
 
     const denied = policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' }));
     expect(denied).toMatchObject({
