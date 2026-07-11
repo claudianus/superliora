@@ -312,18 +312,46 @@ These images will be viewed at small sizes in social feeds, timeline cards, and 
 - Tagline text at 14-16px -- bump it to 20-24px minimum
 - Using the same spacing between all elements instead of grouping related items tightly
 
-## Phase 8: Capture to PNG
+## Phase 8: Screenshot with Playwright
 
-Prefer the host's managed browser automation path when it is available:
+Create and run a Node.js script:
 
-1. Open `file:///tmp/feature-image-[UNIQUE_ID]-page.html` in the managed browser runtime.
-2. Wait for the page and fonts to settle.
-3. Capture the image through the browser screenshot surface and save it as `./feature-image.png`.
-4. Clean up `/tmp/feature-image-[UNIQUE_ID]-page.html` after the capture succeeds.
+```javascript
+import { chromium } from 'playwright';
+import { readFileSync } from 'fs';
 
-Do **not** bypass a healthy managed browser runtime by launching a user-installed Chrome binary directly or by writing an ad-hoc Playwright/Puppeteer capture script.
+async function capture() {
+  const browser = await chromium.launch();
+  const context = await browser.newContext({
+    viewport: { width: [WIDTH], height: [HEIGHT] },
+    deviceScaleFactor: 2, // Retina quality
+  });
+  const page = await context.newPage();
 
-Only if no managed browser capture surface is available, ask the user before using a temporary local fallback such as Playwright. If the user approves the fallback, keep it temporary and clean up any `/tmp/feature-image-[UNIQUE_ID]-*` files afterward.
+  // Load the HTML file
+  const html = readFileSync('/tmp/feature-image-[UNIQUE_ID]-page.html', 'utf-8');
+  await page.setContent(html, { waitUntil: 'networkidle' });
+
+  // Wait for fonts to load
+  await page.waitForTimeout(1000);
+
+  await page.screenshot({
+    path: './feature-image.png',
+    type: 'png',
+  });
+
+  await browser.close();
+  console.log('Saved: ./feature-image.png');
+}
+
+capture().catch(console.error);
+```
+
+Save the script to `/tmp/feature-image-[UNIQUE_ID]-capture.mjs`, run it, then clean up:
+
+```bash
+node /tmp/feature-image-[UNIQUE_ID]-capture.mjs && rm /tmp/feature-image-[UNIQUE_ID]-capture.mjs /tmp/feature-image-[UNIQUE_ID]-page.html
+```
 
 ## Phase 9: Verify & Present
 
@@ -355,8 +383,7 @@ Only if no managed browser capture surface is available, ask the user before usi
 
 ## Error Handling
 
-- **Managed browser capture unavailable**: Explain which dedicated browser path failed, then ask the user before using any local Playwright/Puppeteer fallback
-- **Playwright not found after an approved fallback attempt**: Suggest manual installation with `npm install -D playwright && npx playwright install chromium`
+- **Playwright not found after install attempt**: Suggest manual installation with `npm install -D playwright && npx playwright install chromium`
 - **No git history**: Skip git analysis, ask user directly what the feature is
 - **No brand colors found**: Fall back to a clean, neutral palette (dark background, white text, blue accent)
 - **No fonts detected**: Fall back to Inter (Google Font) as a safe, modern default

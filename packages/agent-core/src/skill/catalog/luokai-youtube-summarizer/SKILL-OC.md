@@ -77,8 +77,8 @@ console.log(JSON.stringify(result, null, 2));
 
 **6. Telegram delivery** (if in OpenClaw context):
 ```bash
-curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument" \
-  -F "chat_id=$CHAT_ID" \
+curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+  -F "chat_id=${CHAT_ID}" \
   -F "document=@/tmp/[video-id]-transcript.md"
 ```
 
