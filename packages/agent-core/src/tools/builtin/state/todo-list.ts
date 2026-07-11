@@ -43,7 +43,7 @@ declare module '../../store' {
 
 // ── Schema ───────────────────────────────────────────────────────────
 
-const TodoItemSchema = z.object({
+const TodoItemSchema = z.strictObject({
   title: z.string().min(1).describe('Short, actionable title for the todo.'),
   status: z.enum(['pending', 'in_progress', 'done']).describe('Current status of the todo.'),
 });
@@ -97,10 +97,21 @@ export class TodoListTool implements BuiltinTool<TodoListInput> {
   constructor(private readonly store: ToolStore) {}
 
   resolveExecution(args: TodoListInput): ToolExecution {
+    // Defense-in-depth: the AJV preflight in `preflightToolCall` already rejects
+    // malformed args, but a friendly, self-correcting error here stops the model
+    // from looping on the same shape mistake when it somehow reaches execution.
+    const parsed = TodoListInputSchema.safeParse(args);
+    if (!parsed.success) {
+      return {
+        isError: true,
+        output: `Invalid TodoList args: ${parsed.error.issues.map((issue) => formatZodIssue(issue)).join('; ')}. Each item needs a non-empty "title" string and a "status" of "pending" | "in_progress" | "done" — no other fields. Pass the full list to replace it, omit "todos" to read, or pass "todos": [] to clear.`,
+      };
+    }
+    const validArgs = parsed.data;
     const description =
-      args.todos === undefined
+      validArgs.todos === undefined
         ? 'Reading todo list'
-        : args.todos.length === 0
+        : validArgs.todos.length === 0
           ? 'Clearing todo list'
           : 'Updating todo list';
     return {
@@ -109,14 +120,14 @@ export class TodoListTool implements BuiltinTool<TodoListInput> {
       approvalRule: this.name,
       execute: async () => {
         // Query mode — return the current list without mutation.
-        if (args.todos === undefined) {
+        if (validArgs.todos === undefined) {
           const current = this.getTodos();
           return { isError: false, output: renderTodoList(current) };
         }
 
         // Write mode — replace the full list and return the new state.
         const previous = this.getTodos();
-        this.setTodos(args.todos);
+        this.setTodos(validArgs.todos);
         const stored = this.getTodos();
         const changes = renderTodoListChangeSummary(previous, stored);
         const output =
@@ -253,4 +264,9 @@ export function updateSwarmOrchestrationTodoStatus(
     TODO_STORE_KEY,
     todos.map((todo, i) => (i === index ? { title: todo.title, status } : todo)),
   );
+}
+
+function formatZodIssue(issue: z.ZodIssue): string {
+  const path = issue.path.length > 0 ? `${issue.path.join('/')}: ` : '';
+  return `${path}${issue.message}`;
 }
