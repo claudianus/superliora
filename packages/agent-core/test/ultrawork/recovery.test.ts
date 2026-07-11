@@ -15,6 +15,7 @@ import {
   inferResumeStageFloor,
   maybeAdvanceUltraworkStage,
   maybeAdvanceUltraworkOnGoalComplete,
+  maybeFinishUltraworkRun,
   promoteUltraworkRunStageForResume,
   releaseUltraworkPlanModeIfComplete,
   reconcileUltraworkRunForResume,
@@ -94,6 +95,36 @@ describe('Ultrawork goal completion', () => {
     const agent = new Agent({ kaos: testKaos });
     createUltraworkAtPlan(agent, 'run-advance-on-goal-complete');
     await agent.goal.createGoal({ objective: 'Ship docs' });
+
+    maybeAdvanceUltraworkOnGoalComplete(agent);
+    expect(agent.ultrawork.getRun()?.status).toBe('done');
+    expect(agent.ultrawork.getRun()?.stage).toBe('done');
+  });
+
+  it('finishing the run when the work graph completes also closes the active goal', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-graph-done-closes-goal');
+    await agent.goal.createGoal({ objective: 'Ship docs' });
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
+      id: 'run-graph-done-closes-goal:work_graph',
+      runId: 'run-graph-done-closes-goal',
+      nodes: [{ id: 'node-1', title: 'Implement', stage: 'integrate', status: 'done' }],
+    });
+    agent.ultrawork.syncWorkGraphFromStore();
+
+    maybeFinishUltraworkRun(agent);
+    expect(agent.ultrawork.getRun()?.status).toBe('done');
+    await vi.waitFor(() => {
+      expect(agent.goal.getGoal().goal).toBeNull();
+    });
+  });
+
+  it('maybeAdvanceUltraworkOnGoalComplete finishes a blocked run', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-blocked-on-goal-complete');
+    await agent.goal.createGoal({ objective: 'Ship docs' });
+    await agent.ultrawork.markInterrupted({ reason: 'Paused after interruption' });
+    expect(agent.ultrawork.getRun()?.status).toBe('blocked');
 
     maybeAdvanceUltraworkOnGoalComplete(agent);
     expect(agent.ultrawork.getRun()?.status).toBe('done');
