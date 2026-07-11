@@ -72,6 +72,7 @@
     "test": "corepack pnpm -w run build:packages && vitest run",
     "e2e": "corepack pnpm -w run build:packages && KIMI_E2E=1 vitest run test/e2e",
     "e2e:real": "corepack pnpm -w run build:packages && KIMI_E2E_REAL=1 vitest run test/e2e/real-llm-smoke.e2e.test.ts",
+    "check:contrast": "node scripts/check-theme-contrast.mjs",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "optionalDependencies": {

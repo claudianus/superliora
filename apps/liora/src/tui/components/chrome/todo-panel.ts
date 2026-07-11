@@ -295,7 +295,7 @@ function renderBoard(
     (availableWidth - visibleWidth(BOARD_SEPARATOR) * (TODO_LANES.length - 1)) /
       TODO_LANES.length,
   );
-  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) return renderLanes(todos, colors, highlights);
+  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) return renderLanes(todos, colors, width, highlights);
 
   const lanes = TODO_LANES.map((lane) => ({
     ...lane,

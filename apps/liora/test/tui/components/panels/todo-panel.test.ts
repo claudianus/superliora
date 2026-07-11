@@ -72,6 +72,34 @@ describe('TodoPanelComponent', () => {
     expect(lines.some((line) => line.includes('✓ Investigate parser'))).toBe(true);
   });
 
+  it('falls back to stacked lanes on narrow terminals without crashing (renderBoard -> renderLanes fallback)', () => {
+    // Regression: renderBoard used to call renderLanes(todos, colors, highlights),
+    // dropping the `width` arg so `width` became the highlights Map and
+    // `highlights` became undefined — this blew up renderWrappedCell / highlights.get
+    // and produced the broken "default" + infinite empty-box render seen in the bug report.
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'Investigate parser', status: 'done' },
+      { title: 'Add tests', status: 'in_progress' },
+      { title: 'Open PR', status: 'pending' },
+    ]);
+
+    // A narrow width forces `columnWidth < BOARD_COLUMN_MIN_WIDTH`, so renderBoard
+    // must delegate to renderLanes. This must not throw and must still show the items.
+    const lines = panel.render(40).map(strip);
+    const joined = lines.join('\n');
+
+    expect(lines.length).toBeGreaterThan(0);
+    expect(joined).toContain('Add tests');
+    expect(joined).toContain('Open PR');
+    expect(joined).toContain('Investigate parser');
+    // Lane labels are rendered (Doing / Next / Done) since empty lanes are skipped
+    // but every status here has an item.
+    expect(joined).toContain('Doing');
+    expect(joined).toContain('Next');
+    expect(joined).toContain('Done');
+  });
+
   it('setTodos replaces the list (not appends)', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([{ title: 'old', status: 'pending' }]);
