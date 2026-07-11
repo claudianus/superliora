@@ -251,6 +251,48 @@ describe('TodoListTool', () => {
     expect(updateExecution.description).toBe('Updating todo list');
   });
 
+  it('rejects malformed args with a self-correcting message instead of crashing', () => {
+    // Regression: the model sometimes emits items missing `title`, carrying an
+    // invalid `status` (e.g. "default"/"wip"), or smuggling extra fields. The
+    // AJV preflight rejects these, but a friendly runtime guard stops the model
+    // from looping on the same shape mistake if it ever reaches resolveExecution.
+    const { tool, getTodos } = makeTool([{ title: 'existing', status: 'pending' }]);
+
+    // (1) invalid status value — "default" / "wip" / "completed" are not accepted.
+    const badStatus = tool.resolveExecution({
+      todos: [{ title: 'x', status: 'default' as unknown as 'pending' }],
+    });
+    expect(badStatus.isError).toBe(true);
+    if (badStatus.isError !== true) throw new TypeError('expected error result');
+    expect(badStatus.output).toContain('Invalid TodoList args');
+    // The message must teach the correct shape so the model can self-correct.
+    expect(badStatus.output).toContain('"pending" | "in_progress" | "done"');
+
+    // (2) item missing `title`.
+    const missingTitle = tool.resolveExecution({
+      todos: [{ status: 'pending' } as unknown as { title: string; status: 'pending' }],
+    });
+    expect(missingTitle.isError).toBe(true);
+    if (missingTitle.isError !== true) throw new TypeError('expected error result');
+    expect(missingTitle.output).toContain('"title"');
+
+    // (3) extra field smuggled in (e.g. a hallucinated `priority`).
+    const extraField = tool.resolveExecution({
+      todos: [
+        { title: 'x', status: 'pending', priority: 'high' } as unknown as {
+          title: string;
+          status: 'pending';
+        },
+      ],
+    });
+    expect(extraField.isError).toBe(true);
+    if (extraField.isError !== true) throw new TypeError('expected error result');
+    expect(extraField.output).toContain('no other fields');
+
+    // The store must be untouched on rejection — no partial clobbering.
+    expect(getTodos()).toEqual([{ title: 'existing', status: 'pending' }]);
+  });
+
   it('seeds swarm orchestration cards without duplicating existing titles', () => {
     const { store, getTodos } = makeStore([
       { title: '[swarm] auth module', status: 'done' },
