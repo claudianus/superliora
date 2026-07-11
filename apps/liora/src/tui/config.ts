@@ -112,7 +112,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
 };
 
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
-  theme: 'superliora-vanta-imperial',
+  theme: 'superliora-ash',
   disablePasteBurst: false,
   editorCommand: null,
   notifications: DEFAULT_NOTIFICATIONS_CONFIG,
