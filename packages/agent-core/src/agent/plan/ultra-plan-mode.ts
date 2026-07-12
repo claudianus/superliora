@@ -117,6 +117,9 @@ export interface AmbiguityScoreResult {
   readonly isReadyForSeed: boolean;
   readonly milestone: AmbiguityMilestone;
   readonly floorFailures: readonly string[];
+  /** True when the score was derived from the deterministic heuristic because
+   *  the LLM scoring engine was unavailable or returned invalid JSON. */
+  readonly usedHeuristicFallback?: boolean;
 }
 
 export interface InterviewState {
@@ -221,6 +224,8 @@ export interface UltraPlanReadiness {
   readonly verifiableGoal: boolean;
   readonly completionCandidateStreak: number;
   readonly floorFailures: readonly string[];
+  /** True when the ambiguity score was derived from the heuristic fallback. */
+  readonly usedHeuristicFallback?: boolean;
 }
 
 export type StagnationPatternType =
@@ -767,10 +772,34 @@ export class UltraPlanModeEngine {
       'Scoring ambiguity across goal, constraints, and success criteria...',
     );
 
-    const llmResult = await this._calculateAmbiguityWithLLM(evidence, signal);
+    let llmResult = await this._calculateAmbiguityWithLLM(evidence, signal);
     if (llmResult === null) {
-      throw new Error(
-        'LLM-based ambiguity scoring failed: the LLM is unavailable or returned invalid JSON.',
+      // Automatic one-time retry before falling back to the deterministic
+      // heuristic. This prevents a single transient LLM failure from blocking
+      // the interview.
+      llmResult = await this._calculateAmbiguityWithLLM(evidence, signal);
+    }
+    if (llmResult === null) {
+      // LLM is unavailable or returning invalid JSON. Use a deterministic
+      // heuristic so the interview can continue safely without throwing.
+      this.emitProgress(
+        onProgress,
+        'Scoring engine unavailable — falling back to deterministic heuristic.',
+      );
+      const heuristicResult = this.computeAmbiguityScoreHeuristic(this._interviewState);
+      this._lastAmbiguityResult = heuristicResult;
+      this._interviewState = {
+        ...this._interviewState,
+        lastScoredEvidenceHash: evidenceHash,
+        // cachedLlmResult is intentionally not set so the LLM is retried on
+        // the next scoring attempt when it may be available again.
+      };
+      return this.buildScoreResult(
+        heuristicResult,
+        evidenceHash,
+        onProgress,
+        false,
+        /* usedHeuristicFallback */ true,
       );
     }
     this._lastAmbiguityResult = llmResult;
@@ -796,6 +825,7 @@ export class UltraPlanModeEngine {
     evidenceHash: string,
     onProgress: ((text: string) => void) | undefined,
     _skipLlm: boolean,
+    usedHeuristicFallback = false,
   ): AmbiguityScoreResult {
     const totalRounds = this._interviewState.rounds.length;
     const answerRoundClarity = Math.min(totalRounds / 3, 1.0);
@@ -918,6 +948,7 @@ export class UltraPlanModeEngine {
       isReadyForSeed: isReady,
       milestone,
       floorFailures,
+      usedHeuristicFallback,
     };
 
     this._interviewState = {
@@ -981,6 +1012,7 @@ export class UltraPlanModeEngine {
       verifiableGoal,
       completionCandidateStreak: this._interviewState.completionCandidateStreak,
       floorFailures: ambiguityScore.floorFailures,
+      usedHeuristicFallback: ambiguityScore.usedHeuristicFallback,
     };
   }
 
@@ -1160,6 +1192,40 @@ export class UltraPlanModeEngine {
     const end = trimmed.lastIndexOf('}');
     if (start !== -1 && end !== -1 && end > start) return trimmed.slice(start, end + 1);
     return null;
+  }
+
+  /**
+   * Deterministic fallback ambiguity scorer used when the LLM scoring engine
+   * is unavailable or returns invalid JSON. The formula is intentionally
+   * conservative so that a transient LLM outage cannot prematurely mark the
+   * interview as ready.
+   */
+  private computeAmbiguityScoreHeuristic(state: InterviewState): LLMAmbiguityResult {
+    const totalRounds = state.rounds.length;
+    const userRounds = state.rounds.filter((round) => round.origin === 'user').length;
+    const userOriginRatio = totalRounds > 0 ? userRounds / totalRounds : 0;
+    // Assume most sections are open when the LLM cannot evaluate the evidence;
+    // each closed round is treated as covering roughly two sections.
+    const estimatedClosedSections = Math.min(Math.floor(totalRounds * 2), ULTRA_PLAN_REQUIRED_SECTIONS.length);
+    const openGaps = Math.max(0, ULTRA_PLAN_REQUIRED_SECTIONS.length - estimatedClosedSections);
+
+    const goalClarity = Math.max(0, 1 - 0.25 * openGaps) * (userOriginRatio * 0.7 + 0.3);
+    const constraintClarity = (userOriginRatio * 0.7 + 0.3) / 3;
+    const successCriteriaClarity = constraintClarity;
+
+    return {
+      goalClarity: Math.max(0, Math.min(1, goalClarity)),
+      constraintClarity: Math.max(0, Math.min(1, constraintClarity)),
+      successCriteriaClarity: Math.max(0, Math.min(1, successCriteriaClarity)),
+      presentSections: [],
+      verifiableGoal: false,
+      specificityScore: 0,
+      justifications: {
+        goal: `Heuristic fallback: ${openGaps} estimated open sections, ${Math.round(userOriginRatio * 100)}% user-origin answers.`,
+        constraints: 'Heuristic fallback: derived from user-origin ratio.',
+        successCriteria: 'Heuristic fallback: derived from user-origin ratio.',
+      },
+    };
   }
 
   private async _calculateAmbiguityWithLLM(
@@ -1501,6 +1567,14 @@ export function formatInterviewReadinessGuide(
     'WHY NextPhase is blocked (close these before retrying):',
   ];
 
+  if (readiness.usedHeuristicFallback) {
+    lines.push(
+      '',
+      '⚠ Scoring engine unavailable — ambiguity score uses a deterministic heuristic fallback.',
+      '  You may continue with heuristic defaults, or retry scoring manually once the engine is back.',
+    );
+  }
+
   let blockerNum = 1;
 
   if (!readiness.verifiableGoal) {
@@ -1549,6 +1623,12 @@ export function formatInterviewReadinessGuide(
   }
 
   const consecutiveNonUser = options?.consecutiveNonUserAnswers ?? 0;
+  if (consecutiveNonUser > 0 && consecutiveNonUser < 3) {
+    lines.push(
+      '',
+      `Auto-answers so far: ${consecutiveNonUser}/3 (asking you once we hit 3).`,
+    );
+  }
   if (consecutiveNonUser >= 3) {
     lines.push(
       '',

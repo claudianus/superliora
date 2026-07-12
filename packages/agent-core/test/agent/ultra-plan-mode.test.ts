@@ -7,7 +7,10 @@ import {
   formatInterviewReadinessGuide,
   isDriftAcceptable,
   pickNextInterviewFocus,
+  type AmbiguityScoreResult,
+  type UltraPlanReadiness,
 } from '../../src/agent/plan/ultra-plan-mode';
+import { enforceSeedCoverage } from '../../src/tools/builtin/planning/exit-plan-mode';
 
 // Minimal mock agent
 const mockAgent = {
@@ -813,6 +816,64 @@ describe('UltraPlanModeEngine', () => {
       newEngine.deserialize(serialized);
       expect(newEngine.interviewState.rounds).toHaveLength(1);
       expect(newEngine.interviewState.initialContext).toBe('Ship feature X');
+    });
+  });
+
+  describe('UltraPlan flow improvements (regression)', () => {
+    it('AC-1: exposes the auto-answer origin counter in the readiness guide', () => {
+      const score: AmbiguityScoreResult = {
+        overallScore: 0.5,
+        breakdown: [],
+        isReadyForSeed: false,
+        milestone: 'initial',
+        floorFailures: [],
+      };
+      const readiness: UltraPlanReadiness = {
+        ready: false,
+        stableReady: false,
+        openGaps: ['goal'],
+        ambiguityScore: score,
+        verifiableGoal: false,
+        completionCandidateStreak: 0,
+        floorFailures: [],
+      };
+      const guide = formatInterviewReadinessGuide(readiness, {
+        consecutiveNonUserAnswers: 2,
+      });
+      expect(guide).toContain('Auto-answers so far: 2/3');
+    });
+
+    it('AC-2: falls back to deterministic heuristic when LLM scoring returns null', async () => {
+      let generateCalls = 0;
+      const engine = new UltraPlanModeEngine(
+        createMockAgent(() => {
+          generateCalls++;
+          return textResponse('not valid json');
+        }),
+      );
+      engine.startInterview('Build a heuristic-tested CLI tool');
+      engine.addInterviewRound('What is the goal?', 'Goal: build a CLI tool.');
+
+      const result = await engine.calculateAmbiguityScore();
+
+      expect(generateCalls).toBe(2);
+      expect(result.usedHeuristicFallback).toBe(true);
+      expect(result.isReadyForSeed).toBe(false);
+    });
+
+    it('AC-3: enforceSeedCoverage flags a plan missing a Seed section', () => {
+      const plan = [
+        '## Seed Spec',
+        'Verifiable UltraGoal: build a thing',
+        'Constraints: none',
+        'Acceptance Criteria: tests pass',
+        'Ontology: Thing',
+        // Evaluation Plan is intentionally missing.
+        '## WorkGraph',
+        '## Execution Plan',
+      ].join('\n');
+      const missing = enforceSeedCoverage(plan);
+      expect(missing).toContain('Missing section: Evaluation');
     });
   });
 });

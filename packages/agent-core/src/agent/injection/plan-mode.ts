@@ -199,20 +199,20 @@ function exitReminder(): string {
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
-Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, NextPhase.
+Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, NextPhase.
 AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode are BLOCKED.
 
 Goal: gather current, source-backed context and improvement levers before the UltraPlan interview elevates the user's goal and presents upgrade choices.
 Collect: facts, best practices, benchmarks, comparable patterns, and quality dimensions (UX, performance, maintainability, conversion, reliability) that can become interview options.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Prefer LioraContext (compose), LioraSearch, LioraSymbol, Grep, Glob, LioraRead before broad Read. SearchExpert for specialist lanes. Fetch primary sources; distill an evidence pack. Do not ask the user.
+Prefer Grep, LioraSymbol, Glob, LioraRead before broad Read. SearchExpert for specialist lanes. Fetch primary sources; distill an evidence pack. Do not ask the user.
 
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
   interview: `## Interview Phase
 Mission: interview quality drives plan quality. Do not merely execute the user's prompt — act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrade paths.
 
-Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, AskUserQuestion, RecordInterviewFinding, NextPhase.
+Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, AskUserQuestion, RecordInterviewFinding, NextPhase.
 Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED.
 
 Expert leader mindset:
@@ -230,7 +230,7 @@ Question routing — minimize user fatigue, maximize decision quality:
 
 Before each AskUserQuestion when needed, research-first is strongly encouraged: search and read current sources so insights, defaults, and discrete options are evidence-backed.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraContext, LioraRead, Grep, Glob for codebase facts. Skip extra research when the evidence pack already answers the gap.
+Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraRead, Grep, Glob for codebase facts. Skip extra research when the evidence pack already answers the gap.
 
 Refine gate — preserve user intent:
 When the user gives a free-text answer (via "Other" or an open question), do not compress it to one line. Structure it before the next round:
@@ -280,7 +280,7 @@ Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-Read-only tools plus TodoList progress tracking (Read, ReadMediaFile, Grep, Glob, LioraContext, LioraRead, LioraSearch, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, read-only Bash inspection). Write, Edit, general Bash BLOCKED.
+Read-only tools plus TodoList progress tracking (Read, ReadMediaFile, Grep, Glob, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, read-only Bash inspection). Write, Edit, general Bash BLOCKED.
 
 Verify design against code. Search and fetch current sources again when external claims stay uncertain. Use TodoList to keep verification gaps and completed checks current.
 Bash read-only: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, read-only git.
@@ -354,6 +354,7 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
     body = `${body}\n\n${formatInterviewReadinessGuide(readiness, {
       perspective: engine.currentPerspective,
       interviewRoundCount: engine.interviewState.rounds.length,
+      consecutiveNonUserAnswers: engine.interviewState.consecutiveNonUserAnswers,
     })}`;
   }
 
@@ -411,6 +412,7 @@ async function buildPhaseSparseReminder(
     body = `${body}\n\n${formatInterviewReadinessGuide(readiness, {
       perspective,
       interviewRoundCount: engine.interviewState.rounds.length,
+      consecutiveNonUserAnswers: engine.interviewState.consecutiveNonUserAnswers,
     })}`;
   }
 

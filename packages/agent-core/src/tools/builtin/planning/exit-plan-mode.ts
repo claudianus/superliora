@@ -177,6 +177,20 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     const ultraDrift = isUltra ? await this.validateUltraPlanDrift(resolvedPlan.plan) : undefined;
     if (ultraDrift?.ok === false) return ultraDrift.error;
 
+    if (isUltra) {
+      const missingSeedSections = enforceSeedCoverage(resolvedPlan.plan);
+      if (missingSeedSections.length > 0) {
+        return {
+          isError: true,
+          output: [
+            'ExitPlanMode blocked: the Ultra Plan does not cover all Seed Spec sections.',
+            `Missing section(s): ${missingSeedSections.join(', ')}`,
+            'Reopen the interview and fill the missing Seed sections before exiting.',
+          ].join('\n\n'),
+        };
+      }
+    }
+
     this.agent.telemetry.track('plan_submitted', {
       has_options: args.options !== undefined && args.options.length >= 2,
       ultra: isUltra,
@@ -358,6 +372,28 @@ function missingUltraPlanSections(plan: string): string[] {
     missing.push('Swarm DEFER waiver');
   }
   missing.push(...missingWorkGraphRequirements(plan));
+  return missing;
+}
+
+/**
+ * Verify that the approved plan covers the five Seed Spec sections:
+ * Goal, Constraints, Acceptance (Criteria), Ontology, and Evaluation.
+ * This is a second-layer guard applied after drift validation succeeds.
+ */
+export function enforceSeedCoverage(plan: string): string[] {
+  const missing: string[] = [];
+  const seedSections: readonly { readonly name: string; readonly aliases: readonly string[] }[] = [
+    { name: 'Goal', aliases: ['Verifiable UltraGoal', 'Goal / UltraGoal', 'UltraGoal'] },
+    { name: 'Constraints', aliases: ['Constraints'] },
+    { name: 'Acceptance', aliases: ['Acceptance Criteria'] },
+    { name: 'Ontology', aliases: ['Ontology', 'WorkGraph', 'AC Tree'] },
+    { name: 'Evaluation', aliases: ['Evaluation Plan', 'Evaluation'] },
+  ];
+  for (const section of seedSections) {
+    if (!section.aliases.some((alias) => hasFieldContent(plan, [alias]))) {
+      missing.push(`Missing section: ${section.name}`);
+    }
+  }
   return missing;
 }
 
