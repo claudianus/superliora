@@ -372,6 +372,7 @@ function renderIndexPage(manifest: LlmWikiManifest): string {
     .map((run) => `- [${run.createdAt} ${run.runId}](runs/${basename(run.path)}) - ${run.objective}`)
     .join('\n');
   const sources = manifest.sources.map((source) => `- ${source.type}: ${source.path}`).join('\n');
+  const knowledgeMapLink = latest?.knowledgeMapPath ?? 'none';
   return `# LLM Wiki
 
 Updated: ${manifest.updatedAt}
@@ -393,6 +394,12 @@ ${runLinks.length === 0 ? '- none' : runLinks}
 - Keep raw transcripts, unverified snippets, secrets, credentials, and private identifiers out of the wiki.
 - Mark speculation as Open Questions until it is backed by code, tests, runtime evidence, or cited sources.
 - Link every important claim to a file path, evidence artifact, or source URL.
+
+## Knowledge Provenance
+
+- linked_from: ${knowledgeMapLink}
+- linked_to: ${knowledgeMapLink}
+- Liora Knowledge Map: ${knowledgeMapLink}
 
 ## Sources
 

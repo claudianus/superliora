@@ -482,6 +482,8 @@ export function createUltraworkEvidenceSeed(
         'Which files, tests, tools, and visible surfaces are connected to this UltraGoal?',
         'Which acceptance criteria need runtime, browser, computer-use, or expert evidence?',
       ],
+      linked_from: [wikiArtifacts.wikiIndexPath],
+      linked_to: [wikiArtifacts.wikiIndexPath],
       nodes: [
         { id: 'ultragoal_seed', type: 'goal', label: 'Provisional UltraGoal seed', confidence: 'EXTRACTED' },
         { id: 'coverage_matrix', type: 'artifact', label: files.coverageMatrixPath, confidence: 'EXTRACTED' },
