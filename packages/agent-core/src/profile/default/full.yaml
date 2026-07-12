@@ -1,0 +1,57 @@
+name: superliora-full
+description: Backwards-compatible profile exposing every built-in tool.
+
+systemPromptPath: ./system.md
+promptVars:
+  roleAdditional: ''
+
+# Full tool set for users who depend on the legacy default behaviour.
+tools:
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - LioraRead
+  - LioraTree
+  - LioraSymbol
+  - LioraCallgraph
+  - LioraExpand
+  - Bash
+  - TaskList
+  - TaskOutput
+  - TaskStop
+  - CronCreate
+  - CronList
+  - CronDelete
+  - ReadMediaFile
+  - TodoList
+  - Memory
+  - Skill
+  - SearchSkill
+  - SearchExpert
+  - WebSearch
+  - BrowserStatus
+  - BrowserObserve
+  - BrowserScreenshot
+  - BrowserAct
+  - BrowserConsole
+  - ComputerCapture
+  - ComputerAct
+  - ComputerStatus
+  - Agent
+  - AgentSwarm
+  - UltraSwarm
+  - FetchURL
+  - Context7Resolve
+  - Context7Docs
+  - AskUserQuestion
+  - EnterPlanMode
+  - NextPhase
+  - ExitPlanMode
+  - CreateGoal
+  - GetGoal
+  - GetCurrentTime
+  - SetGoalBudget
+  - UpdateGoal
+  - mcp__*

@@ -8,36 +8,29 @@ promptVars:
 whenToUse: |
   Use this agent for non-trivial software engineering work that may require reading files, editing code, running commands, and returning a compact but technically complete summary to the parent agent.
 tools:
-  - Bash
+  # Core coding tools.
   - Read
-  - ReadMediaFile
-  - Glob
+  - Write
+  - Edit
   - Grep
-  - LioraContext
+  - Glob
+  - Bash
   - LioraRead
-  - LioraSearch
+  # External information and user clarification.
+  - WebSearch
+  - FetchURL
+  - AskUserQuestion
+  # Subagent-specific additions for non-trivial engineering work.
+  - ReadMediaFile
   - LioraTree
   - LioraSymbol
   - LioraCallgraph
   - LioraExpand
-  - LioraIndex
-  - Write
-  - Edit
   - Memory
-  - WebSearch
-  - GetCurrentTime
-  - BrowserStatus
-  - BrowserObserve
-  - BrowserScreenshot
-  - BrowserAct
-  - BrowserConsole
-  - ComputerCapture
-  - ComputerAct
-  - ComputerStatus
-  - FetchURL
+  - TodoList
+  - Skill
+  - SearchSkill
   - Context7Resolve
   - Context7Docs
-  - SearchSkill
-  - Skill
-  - TodoList
+  - GetCurrentTime
   - mcp__*

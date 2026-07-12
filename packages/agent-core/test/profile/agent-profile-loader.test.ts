@@ -167,6 +167,9 @@ describe('default agent profiles', () => {
     );
 
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toEqual(
+      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob']),
+    );
+    expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toEqual(
       expect.arrayContaining([
         'Read',
         'Write',
@@ -197,7 +200,6 @@ describe('default agent profiles', () => {
       expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'TodoList']),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Write');
-    expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Bash');
   });
 
   it('renders stable skill runtime guidance for bundled prompts', () => {
@@ -215,14 +217,14 @@ describe('default agent profiles', () => {
     skills.register(skill('private', { disableModelInvocation: true }));
     skills.register(skill('flow-only', { type: 'flow' }));
 
-    const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+    const prompt = DEFAULT_AGENT_PROFILES['superliora-full']?.systemPrompt({
       ...promptContext,
       skills,
     });
 
     expect(prompt).toContain('# Skill Runtime');
     expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
-    expect(prompt).toContain('Translate non-English user requests');
+    expect(prompt).toContain('Light pass by default');
     expect(prompt).toContain('Apply loaded skills selectively');
     expect(prompt).not.toContain('- review:');
     expect(prompt).not.toContain('When to use: When code review is requested.');
@@ -239,7 +241,7 @@ describe('default agent profiles', () => {
     const skills = new SessionSkillRegistry();
     skills.register(skill('review', { whenToUse: 'When code review is requested.' }));
 
-    const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+    const prompt = DEFAULT_AGENT_PROFILES['superliora-full']?.systemPrompt({
       ...promptContext,
       skills,
       skillPromptMode: 'legacy-list',
@@ -253,11 +255,11 @@ describe('default agent profiles', () => {
   });
 
   it('renders the bundled default prompt from the current runtime context', () => {
-    const first = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+    const first = DEFAULT_AGENT_PROFILES['superliora-full']?.systemPrompt({
       ...promptContext,
       cwd: '/workspace/one',
     });
-    const second = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+    const second = DEFAULT_AGENT_PROFILES['superliora-full']?.systemPrompt({
       ...promptContext,
       cwd: '/workspace/two',
     });

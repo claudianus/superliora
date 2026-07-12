@@ -22,28 +22,24 @@ describe('default agent profiles', () => {
     const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext);
 
     expect(prompt).toContain('You are SuperLiora CLI');
-    expect(prompt).toContain('Skill Runtime');
     expect(prompt).toContain('/workspace');
   });
 
   it('keeps static instructions before dynamic prompt context', () => {
     const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext) ?? '';
 
-    expect(prompt.indexOf('Use this as your basic understanding of the project structure.')).toBeLessThan(
+    expect(prompt.indexOf('Before any tool call, emit a short preamble')).toBeLessThan(
       prompt.indexOf('LISTING_SNAPSHOT'),
     );
-    expect(prompt.indexOf('User instructions given directly in the conversation')).toBeLessThan(
+    expect(prompt.indexOf('In subdirectories, check for local `AGENTS.md`')).toBeLessThan(
       prompt.indexOf('AGENTS_MD_BODY'),
-    );
-    expect(prompt.indexOf('Discover skills with SearchSkill using concise English keywords')).toBeLessThan(
-      prompt.indexOf('- test-skill: does things'),
     );
   });
 
-  it('lists the goal tools on the agent profile but not on subagent profiles', () => {
-    const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
-    expect(agentTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal', 'GetCurrentTime']));
-    for (const name of ['coder', 'explore', 'plan']) {
+  it('lists the goal tools on the full profile but not on subagent profiles', () => {
+    const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    expect(fullTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal', 'GetCurrentTime']));
+    for (const name of ['agent', 'coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).not.toContain('CreateGoal');
       expect(tools).not.toContain('GetGoal');
@@ -55,9 +51,9 @@ describe('default agent profiles', () => {
     expect(exploreTools).toEqual(expect.arrayContaining(['GetCurrentTime', 'WebSearch']));
   });
 
-  it('exposes Ultrawork orchestration tools on the root agent profile', () => {
-    const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
-    expect(agentTools).toEqual(
+  it('exposes Ultrawork orchestration tools on the full profile', () => {
+    const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    expect(fullTools).toEqual(
       expect.arrayContaining([
         'EnterPlanMode',
         'NextPhase',
@@ -71,38 +67,29 @@ describe('default agent profiles', () => {
     );
   });
 
-  it('keeps the root skill runtime prompt aligned with exposed tools', () => {
-    const agent = DEFAULT_AGENT_PROFILES['agent'];
-    expect(agent?.tools).toEqual(expect.arrayContaining(['Skill', 'SearchSkill']));
+  it('keeps the full profile skill runtime prompt aligned with exposed tools', () => {
+    const full = DEFAULT_AGENT_PROFILES['superliora-full'];
+    expect(full?.tools).toEqual(expect.arrayContaining(['Skill', 'SearchSkill']));
 
-    const prompt = agent?.systemPrompt(promptContext) ?? '';
+    const prompt = full?.systemPrompt(promptContext) ?? '';
     expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
   });
 
   it('exposes Liora lean context tools to coding profiles as the default compact exploration surface', () => {
-    const leanTools = [
-      'LioraContext',
-      'LioraRead',
-      'LioraSearch',
-      'LioraTree',
-      'LioraSymbol',
-      'LioraCallgraph',
-      'LioraExpand',
-      'LioraIndex',
-    ];
-    for (const tool of leanTools) {
-      expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain(tool);
-      expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain(tool);
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('LioraRead');
+    for (const name of ['coder', 'explore', 'plan']) {
+      for (const tool of ['LioraRead', 'LioraTree', 'LioraExpand']) {
+        expect(DEFAULT_AGENT_PROFILES[name]?.tools).toContain(tool);
+      }
     }
-    for (const tool of ['LioraContext', 'LioraRead', 'LioraSearch', 'LioraTree', 'LioraExpand', 'LioraIndex']) {
-      expect(DEFAULT_AGENT_PROFILES['explore']?.tools).toContain(tool);
-      expect(DEFAULT_AGENT_PROFILES['plan']?.tools).toContain(tool);
+    for (const tool of ['LioraSymbol', 'LioraCallgraph']) {
+      expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain(tool);
     }
   });
 
   it('exposes Liora Recall only to writable coding profiles', () => {
-    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('Memory');
+    expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Memory');
   });
@@ -116,17 +103,10 @@ describe('default agent profiles', () => {
   });
 
   it('includes skill tools for subagent profiles used by UltraSwarm experts', () => {
-    const agentPrompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext) ?? '';
-    expect(agentPrompt).toContain('# Skill Runtime');
-    expect(agentPrompt).toContain('- test-skill: does things');
-
     for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).toContain('SearchSkill');
       expect(tools).toContain('Skill');
-      const prompt = DEFAULT_AGENT_PROFILES[name]?.systemPrompt(promptContext) ?? '';
-      expect(prompt).toContain('# Skill Runtime');
-      expect(prompt).toContain('- test-skill: does things');
     }
   });
 

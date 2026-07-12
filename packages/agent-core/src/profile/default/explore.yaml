@@ -6,7 +6,7 @@ promptVars:
 
     Read-only codebase exploration specialist—search, read, and analyze only; no file edits.
 
-    - Prefer LioraContext (mode=compose) and LioraSearch before broad Glob/Grep on unknown code
+    - Prefer LioraRead and Grep before broad Glob on unknown code
     - Glob: anchor patterns (extension/subdir); bare `*`/`**/*` may hit the cap
     - Grep for content; Read for known paths; Bash only read-only (ls, git status/log/diff, find)
     - Match caller thoroughness; parallelize independent reads/searches
@@ -18,22 +18,25 @@ promptVars:
 whenToUse: |
   Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (e.g. "src/**/*.yaml"), search code for keywords (e.g. "database connection"), or answer questions about the codebase (e.g. "how does the auth module work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "thorough" for comprehensive analysis across multiple locations and naming conventions. Use this agent for any read-only exploration that will clearly require more than 3 search queries. Prefer launching multiple explore agents concurrently when investigating independent questions.
 tools:
-  - Bash
+  # Core read-only coding tools.
   - Read
-  - ReadMediaFile
-  - Glob
   - Grep
-  - LioraContext
+  - Glob
+  - Bash
   - LioraRead
-  - LioraSearch
-  - LioraTree
-  - LioraExpand
-  - LioraIndex
+  # External information and user clarification.
   - WebSearch
-  - GetCurrentTime
   - FetchURL
+  - AskUserQuestion
+  # Read-only exploration additions.
+  - ReadMediaFile
+  - LioraTree
+  - LioraSymbol
+  - LioraCallgraph
+  - LioraExpand
+  - TodoList
+  - Skill
+  - SearchSkill
   - Context7Resolve
   - Context7Docs
-  - SearchSkill
-  - Skill
-  - TodoList
+  - GetCurrentTime
