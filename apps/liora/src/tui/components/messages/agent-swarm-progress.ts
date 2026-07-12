@@ -26,8 +26,10 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
+import { renderParticleRail } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { gradientText } from '#/tui/theme/gradient-text';
 
 const TEXT_CELL_PREFERRED_WIDTH = 30;
 const CELL_GAP = '  ';
@@ -670,24 +672,38 @@ export class AgentSwarmProgressComponent implements Component {
       phaseElapsedMs: terminalPhaseElapsedMs(member, nowMs),
     }));
     const summary = summarizeSnapshots(snapshots);
+    // Sort grid: running first, then completed, then pending
+    const sortedMembers = [...this.members].sort((a, b) => {
+      const order = (p: AgentSwarmPhase): number => {
+        if (p === 'running') return 0;
+        if (p === 'completed') return 1;
+        return 2;
+      };
+      return order(a.phase) - order(b.phase);
+    });
+    const sortedSnapshots = sortedMembers.map((member): AgentSwarmSnapshot => ({
+      phase: member.phase,
+      ticks: member.ticks,
+      latestModelText: member.latestModelText,
+      phaseElapsedMs: terminalPhaseElapsedMs(member, nowMs),
+    }));
     const lines = this.members.length === 0
       ? this.renderEmptyLayout(innerWidth, summary)
       : this.isUltraSwarmOpsFeedEnabled()
-        ? this.renderUltraSwarmLayout(innerWidth, summary, snapshots, nowMs)
+        ? this.renderUltraSwarmLayout(innerWidth, summary, sortedSnapshots, nowMs)
         : [
             '',
-            ...this.renderHeaderLines(innerWidth, summary),
+            ...this.renderIntegratedDashboard(innerWidth, summary),
             '',
             ...this.renderGrid(
               innerWidth,
               this.availableGridHeight?.(),
-              snapshots,
+              sortedSnapshots,
               nowMs,
             ),
             ...this.renderMemberTodoSection(innerWidth),
             ...this.renderOpsFeed(innerWidth),
             '',
-            this.renderStatusLine(innerWidth),
             '',
           ];
     this.startAnimationIfNeeded();
@@ -847,6 +863,15 @@ export class AgentSwarmProgressComponent implements Component {
       }),
     ];
     return lines;
+  }
+
+  private renderIntegratedDashboard(
+    width: number,
+    summary: AgentSwarmSummary | undefined,
+  ): string[] {
+    const headerLines = this.renderHeaderLines(width, summary);
+    const statusLine = this.renderStatusLine(width);
+    return [...headerLines, '', statusLine];
   }
 
   private renderMemberTodoSection(width: number): string[] {
