@@ -88,6 +88,14 @@ function parseHunks(
     const hunkLines: DiffHunkLine[] = [];
     let oldNo = oldStart;
     let newNo = newStart;
+    // The unified diff header may carry the first context line after the hunk
+    // marker (e.g. "@@ -10,5 +10,8 @@ function main() {"). Treat it as a context
+    // line so the following line numbers stay aligned with the file.
+    const headerLine = lines[i - 1]!;
+    const headerSuffix = headerLine.slice(header[0].length).replace(/^\s+/, '');
+    if (headerSuffix.length > 0) {
+      hunkLines.push({ type: 'context', oldLineNo: oldNo++, newLineNo: newNo++, text: headerSuffix });
+    }
     while (i < lines.length && !lines[i]!.startsWith('@@') && !lines[i]!.startsWith('diff ')) {
       const line = lines[i]!;
       if (line.startsWith('+')) {

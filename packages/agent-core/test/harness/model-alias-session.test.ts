@@ -392,7 +392,7 @@ max_context_size = 1000000
     });
   });
 
-  it('tracks session_load_failed with the attempted session context', async () => {
+  it('recovers from a corrupt state.json when resuming the session', async () => {
     const rpc = await createTestRpc();
     const created = await rpc.createSession({ workDir });
     await writeFile(join(created.sessionDir, 'state.json'), '{bad json', 'utf-8');
@@ -400,12 +400,10 @@ max_context_size = 1000000
     const records: TelemetryContextRecord[] = [];
     const freshRpc = await createTestRpc({ telemetry: recordingContextTelemetry(records) });
 
-    await expect(freshRpc.resumeSession({ sessionId: created.id })).rejects.toThrow();
-    expect(records).toContainEqual({
-      event: 'session_load_failed',
-      sessionId: created.id,
-      properties: { reason: 'SyntaxError' },
-    });
+    await expect(freshRpc.resumeSession({ sessionId: created.id })).resolves.toBeDefined();
+    expect(records).not.toContainEqual(
+      expect.objectContaining({ event: 'session_load_failed' }),
+    );
   });
 
   it('adds web client metadata to new-session telemetry', async () => {

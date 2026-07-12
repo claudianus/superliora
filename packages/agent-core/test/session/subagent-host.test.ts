@@ -349,15 +349,15 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.permission.data().rules).toEqual(parent.agent.permission.rules);
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
+      'AskUserQuestion',
       'Bash',
       'GetCurrentTime',
       'Glob',
       'Grep',
-      'LioraContext',
+      'LioraCallgraph',
       'LioraExpand',
-      'LioraIndex',
       'LioraRead',
-      'LioraSearch',
+      'LioraSymbol',
       'LioraTree',
       'Read',
       'TodoList',
@@ -403,15 +403,15 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.systemPrompt).toContain('Anthropologist Agent Personality');
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
+      'AskUserQuestion',
       'Bash',
       'GetCurrentTime',
       'Glob',
       'Grep',
-      'LioraContext',
+      'LioraCallgraph',
       'LioraExpand',
-      'LioraIndex',
       'LioraRead',
-      'LioraSearch',
+      'LioraSymbol',
       'LioraTree',
       'Read',
       'TodoList',
@@ -518,17 +518,15 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.config.profileName).toBe('coder');
     expect(child.llmCalls[0]?.systemPrompt).toContain('You are now running as a subagent.');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
+      'AskUserQuestion',
       'Bash',
       'Edit',
       'GetCurrentTime',
       'Glob',
       'Grep',
       'LioraCallgraph',
-      'LioraContext',
       'LioraExpand',
-      'LioraIndex',
       'LioraRead',
-      'LioraSearch',
       'LioraSymbol',
       'LioraTree',
       'Read',

@@ -10,7 +10,16 @@ export class LeanContextInjector extends DynamicInjector {
   }
 
   protected override getInjection(): string | undefined {
-    if (!this.agent.tools.loopTools.some((tool) => tool.name === 'LioraContext')) return undefined;
+    const leanContextToolNames = new Set([
+      'LioraRead',
+      'LioraSymbol',
+      'LioraCallgraph',
+      'LioraExpand',
+      'LioraTree',
+    ]);
+    if (!this.agent.tools.loopTools.some((tool) => leanContextToolNames.has(tool.name))) {
+      return undefined;
+    }
     return buildLeanContextGuidance();
   }
 }
