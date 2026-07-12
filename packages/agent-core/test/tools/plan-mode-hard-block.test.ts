@@ -338,7 +338,6 @@ describe('Plan mode permission policy', () => {
         query: 'middleware',
       }),
     ).toBeUndefined();
-    expect(evaluatePlanPolicy(agent, 'LioraContext', { query: 'ultrawork' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'SearchExpert', { query: 'architecture review' })).toBeUndefined();
     expect(
       evaluatePlanPolicy(agent, 'TodoList', {
@@ -614,7 +613,6 @@ describe('Plan mode permission policy', () => {
 
   it.each([
     ['ReadMediaFile', { path: '/workspace/screenshot.png' }],
-    ['LioraContext', { query: 'plan mode guard' }],
     ['SearchSkill', { query: 'tui review workflow' }],
     ['Skill', { skill: 'write-tui' }],
     ['SearchExpert', { query: 'testing evidence review' }],
@@ -646,7 +644,6 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'FetchURL', { url: 'https://example.com/docs' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'Read', { path: '/workspace/src/main.ts' })).toBeUndefined();
     expect(evaluatePlanPolicy(agent, 'Grep', { pattern: 'interview', path: '/workspace' })).toBeUndefined();
-    expect(evaluatePlanPolicy(agent, 'LioraContext', { query: 'ultra plan interview' })).toBeUndefined();
   });
 
   it('blocks mutating tools during Ultra Plan interview', async () => {

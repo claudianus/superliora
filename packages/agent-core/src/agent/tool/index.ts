@@ -12,7 +12,6 @@ import { isMcpToolName, qualifyMcpToolName } from '../../mcp/tool-naming';
 import type { MCPClient } from '../../mcp/types';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
 import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
-import { warmWorkspaceIndex } from '../../tools/builtin/context/liora-index';
 import * as b from '../../tools/builtin';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
 import type {
@@ -533,7 +532,6 @@ export class ToolManager {
         .filter((tool) => !!tool)
         .map((tool) => [tool.name, tool] as const),
     );
-    void warmWorkspaceIndex(kaos, workspace).catch(() => undefined);
   }
 
   private createFileAndContextTools(
@@ -551,10 +549,7 @@ export class ToolManager {
       new b.EditTool(kaos, workspace),
       new b.GrepTool(kaos, workspace, this.agent.telemetry),
       new b.GlobTool(kaos, workspace, this.agent.telemetry),
-      new b.LioraContextTool(kaos, workspace, this.toolStore),
-      new b.LioraIndexTool(kaos, workspace, this.agent.telemetry),
       new b.LioraReadTool(kaos, workspace, this.toolStore),
-      new b.LioraSearchTool(kaos, workspace, this.toolStore),
       new b.LioraTreeTool(kaos, workspace),
       new b.LioraSymbolTool(kaos, workspace),
       new b.LioraCallgraphTool(kaos, workspace),

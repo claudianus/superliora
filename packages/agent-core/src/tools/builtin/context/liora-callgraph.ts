@@ -29,7 +29,7 @@ export type LioraCallgraphInput = z.infer<typeof LioraCallgraphInputSchema>;
 
 const DESCRIPTION = [
   'Compact caller/callee/import graph for impact analysis.',
-  'Use for hidden dependencies; use LioraSearch for const/static string references.',
+  'Use for hidden dependencies; use Grep for const/static string references.',
 ].join(' ');
 
 export class LioraCallgraphTool implements BuiltinTool<LioraCallgraphInput> {

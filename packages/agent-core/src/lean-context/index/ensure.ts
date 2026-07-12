@@ -38,18 +38,9 @@ function clearBuildFailure(key: string): void {
   buildFailureUntil.delete(key);
 }
 
-export function resetBuildFailureCooldownForTests(): void {
-  buildFailureUntil.clear();
-}
-
 /**
- * Best-effort background build. Auto/warm builds always run incrementally: a
- * destructive `full` rebuild is only valid from an explicit `LioraIndex
- * action=build full=true`. Running `full` from ensure deletes rows first,
- * which — combined with the swallowed error at the call site — left an empty
- * committed index that forced every subsequent call into another full
- * rebuild. Incremental inserts missing rows without deleting the existing
- * ones, so an interrupted build can never shrink the index.
+ * Best-effort background build. Auto/warm builds always run incrementally so
+ * an interrupted build can never shrink the index.
  */
 async function runIncrementalBuild(kaos: Kaos, workspace: WorkspaceConfig): Promise<void> {
   const current = await getIndexStatus(kaos, workspace);
@@ -57,55 +48,6 @@ async function runIncrementalBuild(kaos: Kaos, workspace: WorkspaceConfig): Prom
   await buildWorkspaceIndex({ kaos, workspace, incremental: true });
 }
 
-export async function ensureWorkspaceIndex(
-  kaos: Kaos,
-  workspace: WorkspaceConfig,
-): Promise<EnsureWorkspaceIndexResult> {
-  const key = workspaceKey(workspace);
-  const initial = await getIndexStatus(kaos, workspace);
-  if (initial.ready && !initial.stale) {
-    clearBuildFailure(key);
-    return { built: false, ready: true };
-  }
-
-  if (isBuildCoolingDown(key)) {
-    return { built: false, ready: initial.ready };
-  }
-
-  let pending = inFlight.get(key);
-  if (pending === undefined) {
-    pending = (async () => {
-      try {
-        await runIncrementalBuild(kaos, workspace);
-      } catch {
-        recordBuildFailure(key);
-        // Best-effort: callers fall back to direct workspace scans when indexing is unavailable.
-      } finally {
-        inFlight.delete(key);
-      }
-    })();
-    inFlight.set(key, pending);
-  }
-  await pending;
-
-  const finalStatus = await getIndexStatus(kaos, workspace);
-  if (finalStatus.ready && !finalStatus.stale) {
-    clearBuildFailure(key);
-    return { built: true, ready: true };
-  }
-
-  if (!finalStatus.ready) {
-    recordBuildFailure(key);
-  }
-  return { built: true, ready: finalStatus.ready };
-}
-
-/**
- * Same as {@link ensureWorkspaceIndex}, but gives up waiting after `budgetMs`
- * and returns `{ timedOut: true }`. The underlying build is not cancelled —
- * it keeps running (deduped via `inFlight`) and will be ready for the next
- * call. This keeps compose/search from blocking the agent on a long build.
- */
 export async function ensureWorkspaceIndexBudgeted(
   kaos: Kaos,
   workspace: WorkspaceConfig,

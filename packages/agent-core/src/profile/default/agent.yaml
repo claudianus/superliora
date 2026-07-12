@@ -6,56 +6,20 @@ promptVars:
   roleAdditional: ''
 
 tools:
+  # Core coding tools — minimal set required for everyday software engineering.
   - Read
   - Write
   - Edit
   - Grep
   - Glob
-  - LioraContext
-  - LioraRead
-  - LioraSearch
-  - LioraTree
-  - LioraSymbol
-  - LioraCallgraph
-  - LioraExpand
-  - LioraIndex
   - Bash
-  - TaskList
-  - TaskOutput
-  - TaskStop
-  - CronCreate
-  - CronList
-  - CronDelete
-  - ReadMediaFile
-  - TodoList
-  - Memory
-  - Skill
-  - SearchSkill
-  - SearchExpert
+  # Lean context tools — kept until merged into Read/Grep advanced modes.
+  - LioraRead
+  # External information and user clarification.
   - WebSearch
-  - BrowserStatus
-  - BrowserObserve
-  - BrowserScreenshot
-  - BrowserAct
-  - BrowserConsole
-  - ComputerCapture
-  - ComputerAct
-  - ComputerStatus
-  - Agent
-  - AgentSwarm
-  - UltraSwarm
   - FetchURL
-  - Context7Resolve
-  - Context7Docs
   - AskUserQuestion
-  - EnterPlanMode
-  - NextPhase
-  - ExitPlanMode
-  - CreateGoal
-  - GetGoal
-  - GetCurrentTime
-  - SetGoalBudget
-  - UpdateGoal
+  # MCP tools are gated separately by the profile.
   - mcp__*
 
 subagents:

@@ -89,7 +89,6 @@ describe('GoalInjector content', () => {
     await store.createGoal({ objective: 'Ship feature X' });
     const text = (await injectOnce(store))!;
     expect(text).toContain('Liora Lean Context');
-    expect(text).toContain('LioraContext');
     expect(text).toContain('LioraRead');
     expect(text).toContain('LioraExpand');
   });

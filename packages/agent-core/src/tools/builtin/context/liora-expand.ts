@@ -18,7 +18,7 @@ export type LioraExpandInput = z.infer<typeof LioraExpandInputSchema>;
 
 const DESCRIPTION = [
   'Recover reversibly archived lean-context bytes.',
-  'Use when LioraRead/LioraSearch/Bash compressed output and you need the omitted section.',
+  'Use when LioraRead/Bash compressed output and you need the omitted section.',
 ].join(' ');
 
 export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {

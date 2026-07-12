@@ -19,7 +19,6 @@ import { TaskListTool } from '../../src/tools/background/task-list';
 import { compileToolArgsValidator, validateToolArgs } from '../../src/tools/args-validator';
 import { AskUserQuestionTool } from '../../src/tools/builtin/collaboration/ask-user';
 import { LioraReadTool } from '../../src/tools/builtin/context/liora-read';
-import { LioraSearchTool } from '../../src/tools/builtin/context/liora-search';
 import { createFakeKaos } from './fixtures/fake-kaos';
 
 /** Collect every `required` array nested anywhere inside a JSON Schema. */
@@ -53,7 +52,6 @@ function lioraTools() {
   const workspace = { workspaceDir: '/workspace', additionalDirs: [] };
   return {
     read: new LioraReadTool(createFakeKaos({ readText: async () => '' }), workspace, store as never),
-    search: new LioraSearchTool(createFakeKaos({}), workspace, store as never),
   };
 }
 
@@ -126,13 +124,6 @@ describe('builtin tool input JSON Schema', () => {
     const validator = compileToolArgsValidator(tool.parameters);
 
     expect(validateToolArgs(validator, { path: 'src/a.ts', line_offset: 10, n_lines: 20 })).toBeNull();
-  });
-
-  it('accepts LioraSearch alias and literal fields through runtime validation', () => {
-    const tool = lioraTools().search;
-    const validator = compileToolArgsValidator(tool.parameters);
-
-    expect(validateToolArgs(validator, { pattern: 'needle', limit: 5, literal: true })).toBeNull();
   });
 
   it('rejects an unknown nested argument through runtime validation', () => {

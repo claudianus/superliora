@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { LioraExpandTool } from '../../src/tools/builtin/context/liora-expand';
 import { LioraReadTool } from '../../src/tools/builtin/context/liora-read';
-import { LioraSearchTool } from '../../src/tools/builtin/context/liora-search';
 import { compressShellOutput } from '../../src/tools/builtin/context/context-terse';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
@@ -90,29 +89,6 @@ describe('Liora lean context tools', () => {
     expect(output).toContain('<liora_read mode="signatures"');
     expect(output).toContain('targetNeedle');
     expect(output).not.toContain('filler150');
-  });
-
-  it('LioraSearch archives overflow matches and LioraExpand restores them', async () => {
-    const lines = Array.from({ length: 40 }, (_, index) => `const trace${index} = "needle";`).join('\n');
-    const { store } = makeStore();
-    const search = new LioraSearchTool(
-      makeKaos({ '/workspace/src/trace.ts': lines }),
-      workspace,
-      store,
-    );
-    const expand = new LioraExpandTool(store);
-
-    const searchResult = await executeTool(
-      search,
-      context({ pattern: 'needle', max_matches: 5 }),
-    );
-    const searchOutput = toolContentString(searchResult);
-    expect(searchOutput).toContain('[liora-archived id=');
-
-    const idMatch = /id=([a-f0-9]{12})/u.exec(searchOutput);
-    expect(idMatch?.[1]).toBeDefined();
-    const expandResult = await executeTool(expand, context({ id: idMatch![1]! }));
-    expect(toolContentString(expandResult)).toContain('trace39');
   });
 
   it('compressShellOutput collapses repetitive passing test lines', () => {

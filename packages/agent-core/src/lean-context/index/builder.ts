@@ -3,13 +3,10 @@ import type { Kaos } from '@superliora/kaos';
 import { collectContextFiles } from '../../tools/builtin/context/context-discovery';
 import type { WorkspaceConfig } from '../../tools/support/workspace';
 import { isLeanCodegraphV2Enabled } from '../graph/enabled';
-import { buildGraphIndex, getGraphBuiltAt, getGraphDatabase, getGraphIndexStatus, isGraphIndexStale } from '../graph/pipeline';
-import { topIndexedPaths } from '../graph/search';
-import { relativeDisplayPath } from '../shared/display-path';
+import { buildGraphIndex, getGraphIndexStatus, isGraphIndexStale } from '../graph/pipeline';
 import { workspaceIndexDir } from '../persist/paths';
 import { loadBm25Index, loadGraphIndex, loadManifest, saveIndexArtifacts } from '../persist/store';
 import type {
-  Bm25IndexData,
   GraphIndexData,
   ImportGraphEdge,
   IndexBuildStats,
@@ -18,42 +15,11 @@ import type {
   IndexStatus,
 } from '../persist/types';
 import { LEAN_CONTEXT_INDEX_VERSION } from '../persist/types';
-import { buildBm25Index, searchBm25, topPathsFromHits } from './bm25';
+import { buildBm25Index } from './bm25';
 import { chunkFileContent, extractImportEdges } from './chunk';
 
 const S_IFMT = 0o170000;
 const S_IFREG = 0o100000;
-
-interface WorkspaceIndexMemoryCache {
-  readonly builtAt: number;
-  readonly bm25: Bm25IndexData | undefined;
-  readonly graph: GraphIndexData | undefined;
-}
-
-const memoryIndexCache = new Map<string, WorkspaceIndexMemoryCache>();
-
-export function clearWorkspaceIndexMemoryCacheForTests(): void {
-  memoryIndexCache.clear();
-}
-
-async function loadMemoryIndex(
-  kaos: Kaos,
-  workspace: WorkspaceConfig,
-): Promise<WorkspaceIndexMemoryCache | undefined> {
-  const key = workspace.workspaceDir;
-  const indexDir = workspaceIndexDir(workspace);
-  const manifest = await loadManifest(kaos, indexDir);
-  if (manifest === undefined) return undefined;
-  const cached = memoryIndexCache.get(key);
-  if (cached !== undefined && cached.builtAt === manifest.builtAt) return cached;
-  const [bm25, graph] = await Promise.all([
-    loadBm25Index(kaos, indexDir),
-    loadGraphIndex(kaos, indexDir),
-  ]);
-  const entry: WorkspaceIndexMemoryCache = { builtAt: manifest.builtAt, bm25, graph };
-  memoryIndexCache.set(key, entry);
-  return entry;
-}
 
 interface BuildWorkspaceIndexOptions {
   readonly kaos: Kaos;
@@ -183,14 +149,6 @@ export async function getIndexStatus(kaos: Kaos, workspace: WorkspaceConfig): Pr
   };
 }
 
-export async function getIndexBuiltAt(kaos: Kaos, workspace: WorkspaceConfig): Promise<number> {
-  if (isLeanCodegraphV2Enabled()) {
-    return getGraphBuiltAt(workspace);
-  }
-  const manifest = await loadManifest(kaos, workspaceIndexDir(workspace));
-  return manifest?.builtAt ?? 0;
-}
-
 async function isManifestStale(
   kaos: Kaos,
   workspace: WorkspaceConfig,
@@ -212,60 +170,6 @@ async function isManifestStale(
   return false;
 }
 
-export async function queryIndexedPaths(
-  kaos: Kaos,
-  workspace: WorkspaceConfig,
-  query: string,
-  limit = 20,
-): Promise<readonly string[]> {
-  if (isLeanCodegraphV2Enabled()) {
-    return topIndexedPaths(getGraphDatabase(workspace), query, limit);
-  }
-  const bm25 = await loadBm25Index(kaos, workspaceIndexDir(workspace));
-  return queryIndexedPathsFromBm25(bm25, query, limit);
-}
-
-export function queryIndexedPathsFromBm25(
-  bm25: Bm25IndexData | undefined,
-  query: string,
-  limit = 20,
-): readonly string[] {
-  if (bm25 === undefined || bm25.chunkCount === 0) return [];
-  return topPathsFromHits(searchBm25(bm25, query, limit * 3), limit);
-}
-
-export async function loadWorkspaceGraph(
-  kaos: Kaos,
-  workspace: WorkspaceConfig,
-): Promise<GraphIndexData | undefined> {
-  const cached = await loadMemoryIndex(kaos, workspace);
-  if (cached !== undefined) return cached.graph;
-  return loadGraphIndex(kaos, workspaceIndexDir(workspace));
-}
-
-export async function loadWorkspaceBm25(
-  kaos: Kaos,
-  workspace: WorkspaceConfig,
-): Promise<Bm25IndexData | undefined> {
-  const cached = await loadMemoryIndex(kaos, workspace);
-  if (cached !== undefined) return cached.bm25;
-  return loadBm25Index(kaos, workspaceIndexDir(workspace));
-}
-
-export function graphNeighbors(
-  graph: GraphIndexData,
-  displayPath: string,
-): readonly string[] {
-  const neighbors = new Set<string>();
-  for (const edge of graph.edges) {
-    if (edge.from === displayPath) neighbors.add(edge.to);
-    if (edge.to === displayPath) neighbors.add(edge.from);
-  }
-  return [...neighbors];
-}
-
 function isRegularFile(stMode: number): boolean {
   return (stMode & S_IFMT) === S_IFREG;
 }
-
-export { relativeDisplayPath } from '../shared/display-path';
