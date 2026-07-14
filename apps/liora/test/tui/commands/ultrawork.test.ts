@@ -197,154 +197,52 @@ describe('buildUltraworkPrompt', () => {
 
     expect(prompt).toContain('<ultrawork_flow>');
     expect(prompt).toContain('Ship feature X');
-    expect(prompt).toContain('Ultrawork orchestration');
-    expect(prompt).toContain('UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn');
-    expect(prompt).toContain('one workflow, not separate user-facing modes');
-    expect(prompt).toContain('Ultrawork is the product workflow; UltraPlan, UltraGoal, Research, and Swarm decision are internal stages');
-    expect(prompt).toContain('normalize it into the same Ultrawork run');
-    expect(prompt).toContain('source-backed UltraResearch prelude');
-    expect(prompt).toContain('hardens an already-created /goal seed into a verifiable UltraGoal contract');
-    expect(prompt).toContain('force Ultra Plan mode into Research phase first');
-    expect(prompt).toContain('gather current source-backed evidence before any user question options');
+    expect(prompt).toContain('activation: manual');
     expect(prompt).toContain('active_goal_already_created: false');
-    expect(prompt).toContain('Shift-Tab turns Ultrawork mode on');
-    expect(prompt).toContain('cannot turn mode off while an Ultrawork run is active');
-    expect(prompt).toContain('General /plan remains explicit steering');
-    expect(prompt).toContain('/ultrawork is an explicit steering override');
-    expect(prompt).toContain('UltraPlan: clarify the request until the future UltraGoal can be judged complete or incomplete as 1 or 0');
-    expect(prompt).toContain('UltraPlan must produce and surface the Ouroboros plan before implementation');
-    expect(prompt).toContain('Do not skip directly from one interview question into implementation');
-    expect(prompt).toContain('before asking the user anything, search/fetch/read enough current evidence');
-    expect(prompt).toContain('Ongoing research discipline');
-    expect(prompt).toContain('do not stop researching after the prelude');
-    expect(prompt).toContain('UltraResearch: when latest APIs, papers, security, benchmarks');
-    expect(prompt).toContain('produce and refresh evidence packs before and during implementation');
-    expect(prompt).toContain('UltraGoal: create or replace the active goal only after UltraPlan has produced the verifiable objective');
-    expect(prompt).toContain('If Ultrawork is entered through /goal and an active goal already exists');
-    expect(prompt).toContain('UltraSwarm: decide ENGAGE or DEFER after the verifiable UltraGoal exists');
-    expect(prompt).toContain('Context7Resolve/Context7Docs');
-    expect(prompt).toContain('WebSearch/FetchURL');
-    expect(prompt).toContain('latest papers, framework guidance, verified libraries, security advisories');
-    expect(prompt).toContain('UltraSwarm is not proof by badge');
-    expect(prompt).toContain('ENGAGE is an execution commitment, not a status label');
-    expect(prompt).toContain('call UltraSwarm as the only tool call before product-file edits');
-    expect(prompt).toContain('Write a Swarm decision before implementation');
+    expect(prompt).toContain('Ultrawork orchestration');
+    expect(prompt).toContain(
+      'UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn',
+    );
+    expect(prompt).toContain('force Ultra Plan Research first');
+    expect(prompt).toContain('Shift-Tab turns Ultrawork mode ON');
+    expect(prompt).toContain('cannot turn mode off while a run is active');
+    expect(prompt).toContain('Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan');
     expect(prompt).toContain('Swarm decision: ENGAGE|DEFER');
-    expect(prompt).toContain('ENGAGE when parallel PM, architecture, TUI, QA, security, performance');
-    expect(prompt).toContain('DEFER when single-agent execution is faster and lower-risk');
-    expect(prompt).toContain('value: <specialist value or none>; owner: <verification owner>');
-    expect(prompt).toContain('include the reason, expected specialist value or none, and verification owner');
+    expect(prompt).toContain('call UltraSwarm as the only tool call before product-file edits');
     expect(prompt).toContain('Do not ask the user to choose /ultraplan, /ultraresearch, /ultragoal, or /ultraswarm');
-    expect(prompt).toContain('When the task looks actionable, still pass the UltraPlan gate');
-    expect(prompt).toContain('Treat Korean brand mentions such as 울트라플랜, 울트라리서치, 울트라골, and 울트라 스웜 as the same internal stages');
+    expect(prompt).toContain('울트라플랜');
     expect(prompt).toContain('ultra-plan');
     expect(prompt).toContain('kanban');
     expect(prompt).toContain('Liora Lean Context');
     expect(prompt).toContain('LioraRead');
     expect(prompt).toContain('LioraCallgraph');
     expect(prompt).toContain('Liora Knowledge Map');
-    expect(prompt).toContain('compact project knowledge map');
-    expect(prompt).toContain('EXTRACTED, INFERRED, or AMBIGUOUS');
-    expect(prompt).toContain('path/affected-style questions');
-    expect(prompt).toContain('Ultrawork workflow transparency harness');
+    expect(prompt).toContain('EXTRACTED');
     expect(prompt).toContain('workflow-report.md');
-    expect(prompt).toContain('Do not silently claim Learn');
     expect(prompt).toContain('Knowledge persistence ledger');
     expect(prompt).toContain('liora_recall');
     expect(prompt).toContain('llm_wiki');
-    expect(prompt).toContain('wrote`, `skipped`, or `blocked');
-    expect(prompt).toContain('path/id/evidence');
-    expect(prompt).toContain('never hide the only proof inside chat');
-    expect(prompt).toContain('UltraResearch / SuperLiora Free Web Research');
-    expect(prompt).toContain('no-subscription web research as a primary Ultrawork capability');
-    expect(prompt).toContain('Context7Resolve and Context7Docs');
-    expect(prompt).toContain('Re-search throughout the run, not only during UltraResearch prelude');
-    expect(prompt).toContain('LocalResearchStack is always the free fallback path');
-    expect(prompt).toContain('precise 3-12 keyword queries');
-    expect(prompt).toContain('fetch primary sources before relying on snippets');
-    expect(prompt).toContain('official docs, release notes, GitHub issues and PRs, papers, benchmark pages');
-    expect(prompt).toContain('Feed verified durable findings back into Liora Knowledge Map, memory, LLM Wiki');
-    expect(prompt).toContain('Absorb Scrapling-class ideas');
-    expect(prompt).toContain('CSS selector targeting, main-content extraction, screenshots, session reuse');
-    expect(prompt).toContain('rendered DOM observation, screenshots, downloads, PDF extraction');
-    expect(prompt).toContain(
-      'user-provided authenticated sessions, and explicitly authorized test targets',
-    );
-    expect(prompt).toContain('do not defeat CAPTCHA, paywall, login');
-    expect(prompt).toContain('without a paid search subscription or extra-cost search API');
+    expect(prompt).toContain('wrote|skipped|blocked');
+    expect(prompt).toContain('UltraResearch / free web research');
+    expect(prompt).toContain('Context7Resolve/Context7Docs');
+    expect(prompt).toContain('LocalResearchStack');
     expect(prompt).toContain('Browser / computer-use verification');
-    expect(prompt).toContain('default harness capabilities for rendered web pages, visual QA');
-    expect(prompt).toContain('headless/background browser sessions and cua-driver background capture');
-    expect(prompt).toContain('Prefer BrowserObserve refs and ComputerCapture SOM element indexes');
-    expect(prompt).toContain('safe GUI actions may run automatically');
-    expect(prompt).toContain('High-risk GUI actions still require explicit approval');
     expect(prompt).toContain('SuperLiora Agent Bench');
     expect(prompt).toContain('node scripts/liora-agent-sota-gate.mjs');
-    expect(prompt).toContain('node scripts/qa-superliora-autonomous.mjs --phase sota-gate');
     expect(prompt).toContain('C001');
     expect(prompt).toContain('C002');
     expect(prompt).toContain('C003');
-    expect(prompt).toContain('pass rate');
-    expect(prompt).toContain('budget/cleanup/secret-scan regression proof');
-    expect(prompt).toContain('rebranded into SuperLiora internals');
-    expect(prompt).toContain(
-      'Do not use browser-only UI paths as a success surface',
-    );
-    expect(prompt).toContain('Capability coverage / expert routing');
     expect(prompt).toContain('Capability Coverage Matrix');
-    expect(prompt).toContain('product/requirements, domain subject matter, architecture/implementation');
-    expect(prompt).toContain('Use the expert catalog as a searchable capability index');
-    expect(prompt).toContain('tags, capabilities, whenToUse, and division matching');
-    expect(prompt).toContain('Default Swarm decision to ENGAGE when the matrix has more than one material lane');
-    expect(prompt).toContain('required_experts only for lanes whose mandatory expert is known');
-    expect(prompt).toContain('Visual/game work is just one instance of this generic rule');
-    expect(prompt).toContain('Do not ship placeholders unless the user explicitly asked for a prototype');
-    expect(prompt).toContain('XP-lite / Definition of Done');
-    expect(prompt).toContain('harness-level work contract, not optional style advice');
-    expect(prompt).toContain('automated readiness, QA gates, and final reports');
-    expect(prompt).toContain('Inspect the relevant files, tests, and project rules before editing');
-    expect(prompt).toContain('Keep each change small, focused, and free of unrelated refactors');
-    expect(prompt).toContain('Update or add focused tests before core logic changes when practical');
-    expect(prompt).toContain('Public behavior changes need focused tests unless they are cosmetic or docs-only');
-    expect(prompt).toContain('Run the relevant tests, typecheck, lint, build, and real-surface checks');
-    expect(prompt).toContain('explicit available tools, MCP/plugin app-state capture');
-    expect(prompt).toContain('Do not decide that browser/computer-use is unavailable');
-    expect(prompt).toContain('Puppeteer or Playwright');
-    expect(prompt).toContain('Summarize changed files, behavior, verification results, and remaining risks');
-    expect(prompt).toContain('Human Writing / Anti-Slop');
-    expect(prompt).toContain('not a bottleneck on code');
-    expect(prompt).toContain('light pass');
-    expect(prompt).toContain('Dynamic routing');
-    expect(prompt).toContain('response language');
-    expect(prompt).toContain('Locale-specific skills are discovered');
-    expect(prompt).toContain('surface-specific voice lane');
-    expect(prompt).toContain('plain specific claims, concrete nouns and verbs');
-    expect(prompt).toContain('source-backed details');
-    expect(prompt).toContain('self-audit for template openings');
-    expect(prompt).toContain('avoid-ai-writing style checks');
-    expect(prompt).toContain('Do not treat AI-writing detectors as truth');
-    expect(prompt).toContain('never use detector signals to accuse an author');
-    expect(prompt).toContain('deterministic unslop cleanup only as advisory pattern checks');
-    expect(prompt).toContain('second-pass rewrite or deterministic cleanup');
-    expect(prompt).toContain('reread for changed meaning');
-    expect(prompt).toContain('use read-only research tools plus TodoList for progress tracking and NextPhase');
-    expect(prompt).toContain('Premium Quality (default ON in Ultrawork');
-    expect(prompt).toContain('ULTRA SUPER GOD-TIER');
+    expect(prompt).toContain('Definition of Done');
+    expect(prompt).toContain('Premium Quality (default ON in Ultrawork)');
     expect(prompt).toContain('Art Direction Brief');
-    expect(prompt).toContain('act as an expert leader');
-    expect(prompt).toContain('Baseline + Upgrade choices');
-    expect(prompt).toContain('Collect improvement levers');
-    expect(prompt).toContain('use read-only WebSearch, FetchURL, and codebase read tools before each AskUserQuestion');
-    expect(prompt).toContain('If AskUserQuestion is unavailable or rejected by policy');
-    expect(prompt).toContain('Baseline (original scope), 1-3 Upgrades');
-    expect(prompt).toContain('omit options for open-ended answers');
-    expect(prompt).toContain('Do not cap the interview by an arbitrary question count');
-    expect(prompt).toContain('continue the same Ultrawork turn toward a complete plan');
-    expect(prompt).toContain('call NextPhase({ phase: "interview" }) before asking questions');
-    expect(prompt).toContain('call NextPhase({ phase: "design" }) before design exploration or plan writing');
-    expect(prompt).toContain('UltraGoal has been created from that plan');
-    expect(prompt).toContain('call UltraSwarm as the first post-plan execution tool');
+    expect(prompt).toContain('Human Writing / Anti-Slop');
+    expect(prompt).toContain('Baseline + Upgrade');
+    expect(prompt).toContain('NextPhase({ phase: "interview" })');
+    expect(prompt).toContain('NextPhase({ phase: "design" })');
     expect(prompt).toContain('UpdateGoal');
+    // Keep the startup contract lean: ~6.7k tokens was too expensive for every Ultrawork turn.
+    expect(prompt.length).toBeLessThan(12_000);
   });
 
   it('marks /goal activations as already-created goal seeds', () => {
@@ -355,7 +253,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('activation: goal');
     expect(prompt).toContain('active_goal_already_created: true');
     expect(prompt).toContain('Do not call CreateGoal again for the same work');
-    expect(prompt).toContain('use UltraPlan to make the active goal verifiable');
+    expect(prompt).toContain('finish with UpdateGoal complete/blocked');
   });
 
   it('threads runtime evidence seed paths into the workflow contract', () => {
@@ -376,7 +274,7 @@ describe('buildUltraworkPrompt', () => {
       },
     });
 
-    expect(prompt).toContain('Runtime evidence seed was created before this turn');
+    expect(prompt).toContain('Runtime evidence seed created');
     expect(prompt).toContain('llm_wiki_root: .superliora/wiki');
     expect(prompt).toContain('llm_wiki_index: .superliora/wiki/index.md');
     expect(prompt).toContain('llm_wiki_manifest: .superliora/wiki/manifest.json');
@@ -390,7 +288,7 @@ describe('buildUltraworkPrompt', () => {
     );
     expect(prompt).toContain('workflow_report: .superliora/evidence/ultrawork-runs/run-1/workflow-report.md');
     expect(prompt).toContain('workflow_stages: .superliora/evidence/ultrawork-runs/run-1/workflow-stages.json');
-    expect(prompt).toContain('Fill each stage narrative before leaving that stage');
+    expect(prompt).toContain('Fill each stage narrative before leaving the stage');
   });
 
   it('records blocked evidence persistence when the seed cannot be written', () => {
@@ -548,7 +446,7 @@ describe('handleUltraworkCommand', () => {
       expect(laneIds).toContain('independent_review_loop');
 
       const prompt = (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as string;
-      expect(prompt).toContain('Runtime evidence seed was created before this turn');
+      expect(prompt).toContain('Runtime evidence seed created');
       expect(prompt).toContain('.superliora/evidence/ultrawork-runs');
       expect(prompt).toContain('.superliora/wiki/index.md');
       expect(prompt).toContain('knowledge_persistence_ledger');
