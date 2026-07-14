@@ -198,9 +198,13 @@ function exitReminder(): string {
 
 // ── Ultra Plan Mode phase-aware reminders ──────────────────────────────────
 
+/** Shared read-only research tool list (keeps names tests and model routing need). */
+const ULTRA_PLAN_READ_TOOLS =
+  'Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking';
+
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
-Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, NextPhase.
+Allowed: ${ULTRA_PLAN_READ_TOOLS}, NextPhase.
 AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode are BLOCKED.
 
 Goal: gather current, source-backed context and improvement levers before the UltraPlan interview elevates the user's goal and presents upgrade choices.
@@ -212,7 +216,7 @@ Your turn MUST end with a short evidence-pack summary, then call NextPhase({ pha
   interview: `## Interview Phase
 Mission: interview quality drives plan quality. Do not merely execute the user's prompt — act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrade paths.
 
-Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, AskUserQuestion, RecordInterviewFinding, NextPhase.
+Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase.
 Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED.
 
 Routing:
@@ -243,7 +247,7 @@ Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. R
   design: `## Design Phase
 Read-only tools plus TodoList progress tracking (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, read-only Bash). Write/Edit BLOCKED.
 
-Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill for task-specific guidance when it improves the design. SearchExpert for UltraSwarm candidates.
+Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill when it improves the design; SearchExpert for UltraSwarm candidates.
 
 Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
@@ -252,26 +256,26 @@ Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' 
 Read-only tools plus TodoList progress tracking (Read, ReadMediaFile, Grep, Glob, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, read-only Bash inspection). Write, Edit, general Bash BLOCKED.
 
 Verify design against code. Search and fetch current sources again when external claims stay uncertain. Use TodoList to keep verification gaps and completed checks current.
-Bash read-only: pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, read-only git.
+Bash read-only: cat, sed -n, head/tail, grep/rg, read-only git (plus ls/find/jq as needed).
 
 Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading files (Read, Grep, Glob, WebSearch, FetchURL, etc.) is allowed for quick verification while writing — but stay focused on the plan file. Use TodoList for progress tracking, SearchSkill/Skill for the no-AI-slop prose gate, and NextPhase or ExitPlanMode when complete.
+You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading files (Read, Grep, Glob, WebSearch, FetchURL, etc.) is allowed for quick verification while writing — stay focused on the plan file. Use TodoList for progress tracking, SearchSkill/Skill for the no-AI-slop prose gate, and NextPhase or ExitPlanMode when complete.
 
-Before writing plan prose that users will read, apply the no-AI-slop prose gate (light pass first; SearchSkill → Skill only if needed):
+Before writing user-visible plan prose, apply the no-AI-slop prose gate (light pass first; SearchSkill → Skill only if needed):
 ${NO_AI_SLOP_SKILL_ROUTING}
 
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
 Include: \`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>\`
-Prefer ENGAGE for multi-lane or review-heavy work. Use ADAPTIVE for moderate single-domain tasks. DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
+Prefer ENGAGE for multi-lane or review-heavy work; ADAPTIVE for moderate single-domain; DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
 ExitPlanMode only after a complete Seed Spec.`,
 
   exit: `## Exit Phase
 Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver. Quick anti-slop light pass on user-visible plan text before ExitPlanMode; SearchSkill → Skill only if prose still reads generic.
 ${NO_AI_SLOP_SKILL_ROUTING}
-If ExitPlanMode reports missing sections, Read the plan file if needed, correct only that plan file, and retry. Reading other files for quick verification is allowed but stay focused on finalizing the plan.`,
+If ExitPlanMode reports missing sections, Read the plan file if needed, correct only that plan file, and retry. Other file reads for quick verification are allowed; stay focused on finalizing the plan.`,
 };
 
 const INTERVIEW_SPARSE_ESSENTIALS = [

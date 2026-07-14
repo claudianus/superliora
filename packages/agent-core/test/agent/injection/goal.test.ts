@@ -92,6 +92,8 @@ describe('GoalInjector content', () => {
     expect(text).toContain('UpdateGoal');
     expect(text).not.toContain('Liora Lean Context');
     expect(text).not.toContain('LioraExpand');
+    // Active goal reminders inject every continuation turn — keep them compact.
+    expect(text.length).toBeLessThan(1600);
   });
 
   it('wraps the completion criterion when present', async () => {
