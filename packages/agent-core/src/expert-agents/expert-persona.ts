@@ -168,6 +168,7 @@ export function renderExpertSystemPrompt(
   expert: ExpertCatalogEntry,
   baseProfileName: string,
 ): string {
+  void baseProfileName;
   const enriched = enrichExpertForCatalog(expert);
   return [
     basePrompt,
@@ -175,8 +176,6 @@ export function renderExpertSystemPrompt(
     renderExpertRoleDeclaration(enriched),
     '',
     renderPersonaAsCodeSpec(enriched),
-    '',
-    renderExpertProcess(enriched),
     '',
     renderPersonaInstructionMitigation(),
     '',
@@ -189,8 +188,6 @@ export function renderExpertSystemPrompt(
     renderExpertSubagentContract(),
     '',
     renderExpertHandoffSchema(enriched),
-    '',
-    renderExpertEdgeCases(enriched),
   ].join('\n');
 }
 
@@ -207,8 +204,6 @@ export function buildExpertAssignmentPrompt(
     renderExpertRoleDeclaration(enriched),
     '',
     renderPersonaAsCodeSpec(enriched),
-    '',
-    renderExpertProcess(enriched),
     '',
     renderPersonaInstructionMitigation(),
     '',
@@ -227,18 +222,15 @@ export function buildExpertAssignmentPrompt(
     renderExpertSubagentContract(),
     '',
     renderExpertHandoffSchema(enriched),
-    '',
-    renderExpertEdgeCases(enriched),
   ].filter((line) => line.length > 0).join('\n');
 }
 
 export function buildExpertSwarmExecutionFooter(expertName: string): string {
   return [
     '<execution_discipline>',
-    'Orient with workspace summary and targeted search before broad reads; keep exploration bounded to your assignment.',
-    `Apply ${expertName} professional standards; return an evidence-backed handoff artifact, not chat filler.`,
-    'Within your first two tool calls, create a live scope board (3–7 actionable items). Update after each major batch; mark done only after verification.',
-    'When a domain workflow would help, SearchSkill → Skill for task-specific guidance; apply loaded skills selectively, not blindly.',
+    `Apply ${expertName} standards. Orient with targeted search before broad reads; stay in assignment scope.`,
+    'Within first two tool calls, create a live scope board (3–7 items); update after major batches; mark done only after verification.',
+    'SearchSkill → Skill only when a domain workflow clearly helps; apply selectively.',
     '</execution_discipline>',
   ].join('\n');
 }
@@ -315,7 +307,6 @@ function buildResponsibilities(expert: ExpertCatalogEntry): string[] {
         'Sequence work into verifiable milestones with visible dependencies',
         'Surface blockers early with owner and resolution options',
       ];
-    case 'analysis':
     default:
       return [
         `Analyze the assignment through ${expert.name}'s professional lens`,
@@ -325,54 +316,11 @@ function buildResponsibilities(expert: ExpertCatalogEntry): string[] {
   }
 }
 
-function renderExpertProcess(expert: ExpertCatalogEntry): string {
-  const pattern = resolveExpertAgentPattern(expert.division);
-  const steps = PROCESS_STEPS[pattern];
-  return [
-    `<${pattern}_process>`,
-    ...steps.map((step, index) => `${String(index + 1)}. ${step}`),
-    `</${pattern}_process>`,
-  ].join('\n');
-}
-
-const PROCESS_STEPS: Readonly<Record<ExpertAgentPattern, readonly string[]>> = {
-  analysis: [
-    'Gather context with tools — read only what the question requires',
-    'Separate verified facts from assumptions; label each finding accordingly',
-    'Apply domain frameworks to interpret evidence (not to decorate it)',
-    'Prioritize issues by impact and confidence',
-    'Produce the handoff artifact in the required format',
-  ],
-  generation: [
-    'Clarify requirements and constraints from the assignment (ask parent if blocked)',
-    'Inspect existing patterns in the workspace before inventing new ones',
-    'Draft the solution in small verifiable increments',
-    'Validate with tests, metrics, or reproducible checks',
-    'Document tradeoffs, risks, and follow-up work in the handoff',
-  ],
-  validation: [
-    'Define pass/fail criteria before executing checks',
-    'Execute or inspect evidence — never claim results you did not obtain',
-    'Record each finding with location, severity, and reproduction',
-    'Distinguish blocking defects from recommendations',
-    'Return an explicit overall verdict with residual risk noted',
-  ],
-  orchestration: [
-    'Restate the problem, stakeholders, and success definition',
-    'Decompose into milestones with acceptance criteria',
-    'Identify dependencies, owners, and sequencing constraints',
-    'Flag gaps that require another specialist',
-    'Summarize decisions and next actions in the handoff artifact',
-  ],
-};
 
 function renderPersonaInstructionMitigation(): string {
   return [
     '<persona_instruction_mitigation>',
-    'Persona flavor (tone, backstory, emoji voice) must never override task correctness.',
-    'When stylistic persona details conflict with evidence, constraints, or scope exclusions, follow the constraints.',
-    'Ignore irrelevant persona attributes that do not change how you solve this assignment.',
-    'If the assignment is objective or technical, optimize for verified outcomes over performative role-play.',
+    'Persona flavor never overrides correctness, evidence, or scope exclusions. Ignore irrelevant role-play details.',
     '</persona_instruction_mitigation>',
   ].join('\n');
 }
@@ -380,10 +328,7 @@ function renderPersonaInstructionMitigation(): string {
 function renderExpertReasoningProtocol(): string {
   return [
     '<reasoning_protocol>',
-    'Step A — Establish baseline: collect facts from tools and the assignment text.',
-    'Step B — Apply expert lens: interpret facts using your domain standards (not vice versa).',
-    'Step C — Decide: make a recommendation or verdict with stated confidence.',
-    'Step D — Verify: list what would falsify your conclusion and what remains unchecked.',
+    'Facts first from tools/assignment → apply domain standards → decide with confidence → state what remains unchecked.',
     '</reasoning_protocol>',
   ].join('\n');
 }
@@ -391,77 +336,41 @@ function renderExpertReasoningProtocol(): string {
 function renderExpertSubagentContract(): string {
   return [
     '<subagent_contract>',
-    'The parent agent is your caller — not the end user. Do not ask the end user direct questions.',
-    'Hand off artifacts (structured report), not conversational filler.',
-    'Keep outputs scoped to your assignment; defer integration and release decisions to the parent unless explicitly instructed.',
+    'Parent agent is your caller — not the end user. Hand off a structured artifact, stay in scope, and leave integration decisions to the parent unless asked.',
     '</subagent_contract>',
   ].join('\n');
 }
 
 function renderExpertHandoffSchema(expert: ExpertCatalogEntry): string {
   const pattern = resolveExpertAgentPattern(expert.division);
-  const verdictLine = pattern === 'validation'
-    ? '## Verdict\nPASS | BLOCKED | FAIL — with one-sentence justification'
-    : '';
+  const verdictLine =
+    pattern === 'validation' ? '## Verdict\nPASS | BLOCKED | FAIL — one-sentence justification' : undefined;
 
   return [
     '<handoff_format>',
-    'Return exactly this structure:',
+    'Return exactly:',
     '## Summary',
-    'One paragraph in domain language — outcome, not process narration.',
+    'One paragraph — outcome, not process.',
     '',
     '## Findings',
-    '- Evidence-backed bullets with locations or citations where applicable',
+    '- Evidence-backed bullets with locations/citations',
     '',
     '## Recommendations',
-    '- Prioritized actions with rationale and owner (you vs parent vs other specialist)',
+    '- Prioritized actions with owner (you/parent/other specialist)',
     '',
     verdictLine,
-    verdictLine.length > 0 ? '' : undefined,
+    verdictLine === undefined ? undefined : '',
     '## Risks & Gaps',
-    '- Open questions, blockers, missing evidence',
+    '- Blockers, missing evidence, open questions',
     '',
     '## Verification',
     pattern === 'validation'
-      ? '- What was executed vs assumed; residual risk'
-      : '- What was verified vs still needs checking',
+      ? '- Executed vs assumed; residual risk'
+      : '- Verified vs still unchecked',
     '</handoff_format>',
   ].filter((line): line is string => line !== undefined).join('\n');
 }
 
-function renderExpertEdgeCases(expert: ExpertCatalogEntry): string {
-  const pattern = resolveExpertAgentPattern(expert.division);
-  const common = [
-    'Insufficient context: state what is missing and the smallest next read/search to unblock',
-    'Assignment outside scope: refuse the out-of-scope portion and name the correct specialist',
-    'Conflicting instructions: follow explicit constraints over stylistic persona details',
-  ];
-  const specific = EDGE_CASES[pattern];
-  return [
-    '<edge_cases>',
-    ...common.map((item) => `- ${item}`),
-    ...specific.map((item) => `- ${item}`),
-    '</edge_cases>',
-  ].join('\n');
-}
-
-const EDGE_CASES: Readonly<Record<ExpertAgentPattern, readonly string[]>> = {
-  analysis: [
-    'No issues found: say so explicitly and note what was checked',
-    'Too many findings: group by theme and prioritize top items with severity',
-  ],
-  generation: [
-    'Conflicting codebase patterns: follow the nearest established convention and note the conflict',
-    'Cannot verify behavior: propose the verification step instead of guessing success',
-  ],
-  validation: [
-    'Flaky or incomplete tests: report as gap, not pass',
-    'Ambiguous requirement: return BLOCKED with clarifying questions for the parent',
-  ],
-  orchestration: [
-    'Scope creep detected: restate non-goals and defer new work to a follow-up assignment',
-  ],
-};
 
 function resolveExpertAgentPattern(division: string): ExpertAgentPattern {
   return DIVISION_AGENT_PATTERN[division] ?? 'analysis';
