@@ -614,11 +614,13 @@ export class ToolManager {
     background: Agent['background'],
     allowBackground: boolean,
   ): Array<BuiltinTool | false | undefined> {
-    // Catalog skills load lazily; builtins alone are enough to expose Skill/SearchSkill.
+    // Profile gating (shouldCreateBuiltin) is independent of invocable presence.
+    // Do not OR shouldCreateBuiltin into this — empty enabledTools makes it always
+    // true and would re-expose Skill/SearchSkill with no registry / no invocables.
+    // Deferred catalog load still works: registerBuiltinSkills + project skills
+    // usually provide invocables at start; tools call ensureCatalogLoaded on use.
     const hasInvocableSkills =
-      (this.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0 ||
-      this.shouldCreateBuiltin('Skill') ||
-      this.shouldCreateBuiltin('SearchSkill');
+      (this.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
     return [
       hasInvocableSkills && this.shouldCreateBuiltin('Skill') && new b.SkillTool(this.agent),
       hasInvocableSkills &&
