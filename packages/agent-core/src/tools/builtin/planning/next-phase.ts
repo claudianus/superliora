@@ -29,17 +29,13 @@ export type NextPhaseInput = z.infer<typeof NextPhaseInputSchema>;
 
 export class NextPhaseTool implements BuiltinTool<NextPhaseInput> {
   readonly name = 'NextPhase' as const;
-  readonly description = `Advance to the next phase in Ultra Plan Mode workflow.
+  readonly description = `Advance to the next phase in Ultra Plan Mode workflow. Call when the current phase is complete.
 
-Usage: call this tool when you have completed the current phase.
-- From research: call NextPhase({ phase: 'interview' }) after you have a compact evidence pack for the questions you may ask
-- From interview: call NextPhase({ phase: 'design' }) only after the readiness checklist reports READY (ambiguity <= 0.2, clarity floors pass, no open_gaps, verifiable_goal=true). If blocked, read the blocker output and AskUserQuestion about the listed NEXT TURN focus — do not Write the plan file or repeat resolved questions.
-- From design: call NextPhase({ phase: 'review' })
-- From review: call NextPhase({ phase: 'write' })
-- From write: call NextPhase({ phase: 'exit' })
+- research → interview: after a compact evidence pack for upcoming questions
+- interview → design: only when readiness is READY (ambiguity <= 0.2, clarity floors pass, no open_gaps, verifiable_goal=true). If blocked, read the blocker and AskUserQuestion on the listed NEXT TURN focus — do not Write the plan file or repeat resolved questions.
+- design → review → write → exit: advance one phase at a time
 
-This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advance phases.
-You can only advance forward, never backward.`;
+This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advance phases. Forward only, never backward.`;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(NextPhaseInputSchema);
 
   constructor(private readonly agent: Agent) {}

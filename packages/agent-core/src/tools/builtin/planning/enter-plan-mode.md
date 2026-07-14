@@ -1,6 +1,6 @@
 Enter plan mode before non-trivial implementation to get user sign-off.
 
-Use it when ANY of these conditions apply:
+Use when ANY apply:
 1. New Feature Implementation
 2. Multiple Valid Approaches
 3. Code Modifications / Architectural Decisions / Multi-File Changes (3+ files)
