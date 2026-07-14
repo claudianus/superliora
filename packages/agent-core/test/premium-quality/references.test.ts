@@ -5,6 +5,7 @@ import {
   PREMIUM_VISUAL_INSPIRATION_SITES,
   PREMIUM_VISUAL_PHOTO_CATALOG,
   PREMIUM_VISUAL_REFERENCE_CATALOG,
+  PREMIUM_VISUAL_REFERENCE_COMPACT,
 } from '../../src/premium-quality/references';
 
 describe('Premium Visual reference catalog', () => {
@@ -30,5 +31,11 @@ describe('Premium Visual reference catalog', () => {
     expect(PREMIUM_VISUAL_REFERENCE_CATALOG).toContain('Design inspiration');
     expect(PREMIUM_VISUAL_REFERENCE_CATALOG).toContain('Pre-ship self-critique');
     expect(PREMIUM_VISUAL_REFERENCE_CATALOG).toContain('fonts.googleapis.com');
+  });
+
+  it('keeps a compact injection pointer with the highest-value refs', () => {
+    expect(PREMIUM_VISUAL_REFERENCE_COMPACT).toContain('godly.website');
+    expect(PREMIUM_VISUAL_REFERENCE_COMPACT).toContain('picsum.photos/seed/');
+    expect(PREMIUM_VISUAL_REFERENCE_COMPACT.length).toBeLessThan(PREMIUM_VISUAL_REFERENCE_CATALOG.length / 2);
   });
 });

@@ -461,7 +461,7 @@ ${lanes}
 ## Next Retrieval Hints
 
 - Start with ${artifacts.wikiIndexPath}, then inspect this run page and the linked knowledge map.
-- Use LioraContext for compact source maps before broad reads.
+- Use LioraRead/LioraSymbol/LioraTree for compact source maps before broad reads.
 - Use Liora Recall for concise durable memories only when they are relevant to the current task.
 `;
 }

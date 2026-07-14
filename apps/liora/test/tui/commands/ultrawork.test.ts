@@ -240,8 +240,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('ultra-plan');
     expect(prompt).toContain('kanban');
     expect(prompt).toContain('Liora Lean Context');
-    expect(prompt).toContain('LioraContext');
-    expect(prompt).toContain('codegraph');
+    expect(prompt).toContain('LioraRead');
+    expect(prompt).toContain('LioraCallgraph');
     expect(prompt).toContain('Liora Knowledge Map');
     expect(prompt).toContain('compact project knowledge map');
     expect(prompt).toContain('EXTRACTED, INFERRED, or AMBIGUOUS');
@@ -440,11 +440,17 @@ describe('handleUltraworkCommand', () => {
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
     expect(host.setAppState).toHaveBeenCalledWith({
       planMode: true,
       ultraworkMode: true,
       premiumQualityMode: true,
+      swarmMode: true,
+      ultraworkPriorState: {
+        planMode: false,
+        swarmMode: false,
+        swarmModeEntry: undefined,
+        premiumQualityMode: false,
+      },
     });
     expect(session.setPremiumQuality).toHaveBeenCalledWith(true);
     expect(session.createGoal).not.toHaveBeenCalled();
@@ -595,6 +601,13 @@ describe('handleUltraworkCommand', () => {
       planMode: true,
       ultraworkMode: true,
       premiumQualityMode: true,
+      swarmMode: true,
+      ultraworkPriorState: {
+        planMode: false,
+        swarmMode: false,
+        swarmModeEntry: undefined,
+        premiumQualityMode: false,
+      },
     });
     expect(session.setPremiumQuality).toHaveBeenCalledWith(true);
     expect(session.createGoal).not.toHaveBeenCalled();

@@ -108,15 +108,14 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
 ].join('\n');
 const ULTRAWORK_LEAN_CONTEXT_GUIDANCE = [
   'Liora Lean Context:',
-  '- Prefer the LioraContext tool for compact code packets before broad file reads; it is the built-in lean-codegraph surface.',
-  '- Prefer indexed codegraph lookup when available; otherwise use LioraContext, rg, or similarly precise search before broad file reads.',
-  '- Retrieve exact symbols, call sites, and changed files first; cite file paths or source names for important evidence.',
+  '- Prefer LioraRead (signatures/map/lines), LioraSymbol, LioraTree, and LioraCallgraph for compact exploration before broad Read dumps.',
+  '- Prefer Grep / LioraSymbol for exact symbols and call sites; use Glob for path discovery; cite file paths for important evidence.',
   '- Keep working context small: summarize bulky outputs, retain decisions and open questions, and avoid dumping irrelevant context.',
   '- Use memory only for durable preferences and decisions, not raw transcripts or transient scratch data.',
 ].join('\n');
 const ULTRAWORK_KNOWLEDGE_MAP_GUIDANCE = [
   'Liora Knowledge Map:',
-  '- Before broad exploration, build or refresh a compact project knowledge map from LioraContext, indexed codegraph, memory, and available artifact summaries.',
+  '- Before broad exploration, build or refresh a compact project knowledge map from LioraRead/LioraSymbol/LioraTree, Grep, memory, and available artifact summaries.',
   '- Treat code structure as deterministic first-pass evidence: symbols, imports, calls, changed files, tests, and ownership edges should be EXTRACTED before any inferred narrative.',
   '- Attach non-code context such as docs, papers, screenshots, transcripts, MCP/plugin manifests, and prior QA evidence as linked evidence nodes instead of dumping raw files into the turn.',
   '- Label important relationships as EXTRACTED, INFERRED, or AMBIGUOUS, and resolve AMBIGUOUS edges with targeted reads, tests, or TUI observation before making architectural claims.',

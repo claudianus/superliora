@@ -51,7 +51,7 @@ describe('PremiumQualityInjector', () => {
     expect(text).toContain('KING-GOD-GENERAL');
     expect(text).toContain('SearchSkill');
     expect(text).toContain('BrowserScreenshot');
-    expect(text).toContain('https://godly.website/');
+    expect(text).toContain('godly.website');
     expect(text).toContain('picsum.photos/seed/');
   });
 

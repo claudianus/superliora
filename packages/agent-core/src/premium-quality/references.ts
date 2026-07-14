@@ -108,6 +108,17 @@ export const PREMIUM_VISUAL_SELF_CRITIQUE_PROMPT = [
   '5. Screenshot inspected — what specific defect remains? Fix or defer with user consent.',
 ].join('\n');
 
+/** Compact pointer block for Premium injection (token-efficient). Full catalog stays available as PREMIUM_VISUAL_REFERENCE_CATALOG. */
+export const PREMIUM_VISUAL_REFERENCE_COMPACT = [
+  '### Visual refs (compact — expand via SearchSkill / design skills when needed)',
+  '- Inspiration: godly.website, awwwards.com, bentogrids.com, dark.design; study 2–3 refs, do not clone.',
+  '- Layouts: bento hero, split narrative, oversized type, product-in-hero, dark craft, game frame. Ban centered 3-card + purple gradient.',
+  '- Imagery: `https://picsum.photos/seed/{project}-hero/1920/1080.webp`; dicebear `https://api.dicebear.com/10.x/notionists/svg?seed={id}`.',
+  '- Fonts: Outfit+JetBrains Mono (product), Newsreader+Outfit (editorial), Space Grotesk+IBM Plex Mono (devtool), Fredoka+Nunito (playful).',
+  '- Components: aceternity, magicui, reactbits, shadcn; verify deps before copy-paste.',
+  '- Self-critique: name 3 remaining AI-slop tells, one signature element, and the last screenshot defect before claiming done.',
+].join('\n');
+
 /** Full embedded reference block for injection. */
 export const PREMIUM_VISUAL_REFERENCE_CATALOG = [
   PREMIUM_VISUAL_INSPIRATION_SITES,

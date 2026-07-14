@@ -16,7 +16,7 @@ describe('Premium Visual harness', () => {
     expect(PREMIUM_VISUAL_HARNESS).toContain('KING-GOD-GENERAL');
     expect(PREMIUM_VISUAL_HARNESS).toContain('Art direction before code');
     expect(PREMIUM_VISUAL_HARNESS).toContain('Visual verification loop');
-    expect(PREMIUM_VISUAL_HARNESS).toContain('500% visual upgrade playbook');
+    expect(PREMIUM_VISUAL_HARNESS).toContain('Visual upgrade playbook');
   });
 
   it('bans placeholder geometry as final art', () => {
@@ -40,7 +40,7 @@ describe('Premium Quality guidance composition', () => {
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('Premium Quality mode is ON');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('supreme, king-god-general');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain(PREMIUM_VISUAL_HARNESS);
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('https://godly.website/');
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('godly.website');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('picsum.photos/seed/');
   });
 
