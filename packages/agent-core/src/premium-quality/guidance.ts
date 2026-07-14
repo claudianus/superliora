@@ -10,25 +10,13 @@ export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
 
 Premium Quality mode is ON. Treat ultra-super-premium, god-tier, world-#1 quality as continuous obligation — not a final polish pass.
 
-Mission:
-- Push every deliverable toward ultra-premium quality: code, UX, visuals, copy, performance, reliability, accessibility, and evidence.
-- Visual quality is the supreme, king-god-general, #1 lens for web, app UI, dashboards, marketing pages, and games.
-- Work like a bulldozer toward a screenshot-proof, portfolio-shredding outcome; do not stop at "good enough" while material gaps remain.
-- Before shipping a slice, ask: "Would a principal designer reject this screenshot?" If yes, iterate until it is devastatingly beautiful.
+Mission: push code, UX, visuals, copy, performance, reliability, a11y, and evidence toward ultra-premium. Visual quality is the supreme, king-god-general, #1 lens for web, app UI, dashboards, marketing pages, and games. Do not stop at "good enough" while material gaps remain — if a principal designer would reject the screenshot, iterate.
 
 ${PREMIUM_QUALITY_HYPE_MANTRA}
 
-Review lenses (rotate every meaningful step):
-- Visual & UX (PRIMARY): hierarchy, spacing, motion, states, brand, anti-generic layout.
-- Code: naming, boundaries, tests, types, failure handling.
-- Performance / a11y / trust: hot paths, contrast, labels, honest claims, recovery paths.
-- Evidence: screenshots, tests, benchmarks, or primary sources before claiming improvement.
+Review lenses (rotate each meaningful step): Visual & UX (PRIMARY: hierarchy, spacing, motion, states, brand); Code (naming, boundaries, tests, types, failures); Performance/a11y/trust; Evidence (screenshots, tests, benchmarks, sources) before claiming improvement.
 
-Method:
-- Rubric-first for visible work; small high-leverage passes over sprawling rewrites.
-- Research when taste/API/benchmarks are uncertain; chain-of-verification before done.
-- DoD: relevant tests/build checks when applicable, real-surface screenshot proof for UI/browser/game work.
-- When Premium Quality conflicts with speed, surface the trade-off briefly, then execute the chosen bar.
+Method: rubric-first for visible work; small high-leverage passes; research when taste/API/benchmarks are uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game work. When quality conflicts with speed, surface the trade-off briefly, then execute the chosen bar.
 
 ${PREMIUM_VISUAL_HARNESS}`;
 

@@ -15,25 +15,17 @@ export type PremiumVisualSkillName =
 /** Premium Visual skill routing is mandatory for visible-surface work while Premium Quality is ON. */
 export const PREMIUM_VISUAL_SKILL_ROUTING = [
   'Premium Visual skill routing (MANDATORY while Premium Quality is ON):',
-  '- Trigger: any web/app UI, landing page, dashboard, game surface, marketing site, component library, or visual refresh — even if the user did not say "design" or "premium".',
-  '- Before writing visual markup/styles or shipping a visible slice, SearchSkill → Skill for the best match. Reuse loaded skill content; do not reload the same skill.',
-  '- Surface → SearchSkill keywords (English, 3–12 words):',
-  '  - Any new visible UI (load FIRST): "frontend design distinctive anti template anthropic"',
-  '  - New web UI / React / Next / Tailwind: "premium frontend design taste anti slop"',
-  '  - Upgrade existing site: "redesign existing project premium visual audit"',
-  '  - Editorial / minimal product UI: "minimalist ui premium utilitarian design"',
-  '  - Design system / Stitch brief: "stitch design taste semantic design system"',
-  '  - Browser game / canvas HUD: "develop web game visual polish playwright screenshot"',
-  '  - Missing icons/hero/illustrations: "workspace imagen generate ui assets icons"',
-  '  - Unsure: SearchSkill "premium visual web design anti generic" → Skill the top hit',
-  '- Load at least one visual skill before the first visual implementation pass. For games, load develop-web-game plus a design skill.',
-  '- Treat skill text as engineering constraints, not optional inspiration. AGENTS.md and harness contracts override conflicts.',
+  '- Trigger: any web/app UI, landing, dashboard, game surface, marketing site, component library, or visual refresh — even without the word "design".',
+  '- Before visual markup/styles or shipping a visible slice: SearchSkill → Skill best match. Reuse loaded skills; do not reload the same skill.',
+  '- Keywords (English, 3–12 words): new UI "frontend design distinctive anti template anthropic"; web/React "premium frontend design taste anti slop"; redesign "redesign existing project premium visual audit"; minimal "minimalist ui premium utilitarian design"; design system "stitch design taste semantic design system"; games "develop web game visual polish playwright screenshot"; assets "workspace imagen generate ui assets icons"; unsure "premium visual web design anti generic".',
+  '- Load ≥1 visual skill before the first visual implementation pass. For games, load develop-web-game plus a design skill.',
+  '- Skill text is constraints, not optional inspiration. AGENTS.md and harness contracts override conflicts.',
 ].join('\n');
 
 export const PREMIUM_VISUAL_SKIP_SKILL_WHEN = [
   'Skip Premium Visual skill loads only when:',
-  '- The turn is backend-only, CLI-only, infra, or data work with zero user-visible surface change.',
-  '- You are editing non-visual config/docs with no rendered UI impact.',
+  '- Backend/CLI/infra/data work with zero user-visible surface change.',
+  '- Non-visual config/docs with no rendered UI impact.',
   '- The matching visual skill is already loaded in context.',
 ].join('\n');
 

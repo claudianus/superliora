@@ -111,12 +111,12 @@ export const PREMIUM_VISUAL_SELF_CRITIQUE_PROMPT = [
 /** Compact pointer block for Premium injection (token-efficient). Full catalog stays available as PREMIUM_VISUAL_REFERENCE_CATALOG. */
 export const PREMIUM_VISUAL_REFERENCE_COMPACT = [
   '### Visual refs (compact — expand via SearchSkill / design skills when needed)',
-  '- Inspiration: godly.website, awwwards.com, bentogrids.com, dark.design; study 2–3 refs, do not clone.',
+  '- Inspiration: godly.website, awwwards.com, bentogrids.com, dark.design; study 2–3, do not clone.',
   '- Layouts: bento hero, split narrative, oversized type, product-in-hero, dark craft, game frame. Ban centered 3-card + purple gradient.',
-  '- Imagery: `https://picsum.photos/seed/{project}-hero/1920/1080.webp`; dicebear `https://api.dicebear.com/10.x/notionists/svg?seed={id}`.',
-  '- Fonts: Outfit+JetBrains Mono (product), Newsreader+Outfit (editorial), Space Grotesk+IBM Plex Mono (devtool), Fredoka+Nunito (playful).',
-  '- Components: aceternity, magicui, reactbits, shadcn; verify deps before copy-paste.',
-  '- Self-critique: name 3 remaining AI-slop tells, one signature element, and the last screenshot defect before claiming done.',
+  '- Imagery: `https://picsum.photos/seed/{project}-hero/1920/1080.webp`; dicebear notionists SVG seeds.',
+  '- Fonts: Outfit+JetBrains Mono, Newsreader+Outfit, Space Grotesk+IBM Plex Mono, Fredoka+Nunito. Ban naked Inter.',
+  '- Components: aceternity, magicui, reactbits, shadcn; verify deps first.',
+  '- Self-critique: 3 AI-slop tells, one signature element, last screenshot defect before claiming done.',
 ].join('\n');
 
 /** Full embedded reference block for injection. */

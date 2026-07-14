@@ -42,6 +42,8 @@ describe('Premium Quality guidance composition', () => {
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain(PREMIUM_VISUAL_HARNESS);
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('godly.website');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('picsum.photos/seed/');
+    // Full premium injection is periodic but still multi-k — keep a hard size budget.
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE.length).toBeLessThan(7_200);
   });
 
   it('keeps sparse guidance visually assertive', () => {

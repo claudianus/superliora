@@ -8,10 +8,8 @@ import { PREMIUM_VISUAL_REFERENCE_COMPACT } from './references';
 /** Hard visual supremacy mandate — injected on every full Premium Quality refresh. */
 export const PREMIUM_VISUAL_SUPREMACY_MANDATE = [
   '## ULTRA SUPER PREMIUM VISUAL SUPREMACY (PRIMARY — KING-GOD-GENERAL WORLD-#1 while Premium Quality is ON)',
-  'Visual quality is the top priority for any user-visible surface — especially web, dashboards, and games.',
-  'Premium mode means god-tier, Awwwards-worthy, screenshot-proof visuals — NOT "works in the browser".',
-  'A functional MVP with flat shapes, default fonts, or placeholder geometry is an unforgivable FAILURE under Premium Quality unless the user asked for a wireframe/prototype.',
-  'Treat every visible deliverable as if a principal designer will screenshot it and reject generic AI slop — then fix it until it looks illegally premium.',
+  'Visual quality is the top priority for any user-visible surface — especially web, dashboards, and games. Premium means god-tier, Awwwards-worthy, screenshot-proof visuals — NOT "works in the browser".',
+  'A functional MVP with flat shapes, default fonts, or placeholder geometry is an unforgivable FAILURE under Premium Quality unless the user asked for a wireframe/prototype. Fix until a principal designer would not reject the screenshot.',
   '',
   PREMIUM_QUALITY_HYPE_VISUAL_FLOOD,
 ].join('\n');
@@ -22,7 +20,7 @@ export const PREMIUM_VISUAL_ART_DIRECTION_GATE = [
   'Before the first visual implementation pass, write a short Art Direction Brief:',
   '- Vibe: 3 adjectives.',
   '- Palette: 1 neutral base + 1 accent (saturation < 80%). Ban AI purple/blue neon gradients.',
-  '- Typography: display + body + mono/data fonts — never browser defaults or Inter-by-default.',
+  '- Typography: display + body + mono/data — never browser defaults or Inter-by-default.',
   '- Layout: asymmetric/split hero when appropriate; max-width container; `min-h-[100dvh]` not `100vh`.',
   '- Motion + assets + evidence target (BrowserScreenshot / Playwright).',
 ].join('\n');
@@ -33,7 +31,7 @@ export const PREMIUM_VISUAL_CHEAT_KEYS = [
   'Typography: tight display tracking; body `max-w-[65ch] leading-relaxed`; ban naked Inter — use Geist, Outfit, Cabinet Grotesk, Satoshi.',
   'Color: off-black/off-white bases; tinted shadows; one accent; ban #000 large fields and purple AI-gradient heroes.',
   'Layout: CSS Grid; break 3-equal-card rows; optical spacing and depth.',
-  'Surfaces/interaction: elevation with purpose; skeleton loaders; tactile active states; visible focus rings.',
+  'Surfaces/interaction: purposeful elevation; skeleton loaders; tactile active states; visible focus rings.',
   'Content/game: real copy; themed HUD/assets; no emoji-as-UI or primitive placeholder geometry.',
 ].join('\n');
 
@@ -51,12 +49,7 @@ export const PREMIUM_VISUAL_BANNED_SHIP_STATES = [
 /** Verification loop — proof before done. */
 export const PREMIUM_VISUAL_VERIFICATION_LOOP = [
   '### Visual verification loop (mandatory before done)',
-  '1. Implement or upgrade one visual slice.',
-  '2. Run dev server or open deployed URL when applicable.',
-  '3. Capture real-surface evidence: BrowserScreenshot, BrowserUse, Playwright, or develop-web-game screenshot loop.',
-  '4. Inspect the screenshot — if it still looks like a placeholder, iterate.',
-  '5. Score the visual rubric below. Any FAIL → another pass.',
-  '6. Record evidence path in plan/todo/evidence — not only chat.',
+  '1. Ship one visual slice → 2. Open real surface → 3. BrowserScreenshot / BrowserUse / Playwright / develop-web-game capture → 4. Inspect; iterate if still placeholder → 5. Rubric score; FAIL = another pass → 6. Record evidence path (not only chat).',
   'Missing optional npm packages do NOT prove browser verification is impossible; use harness BrowserUse paths first.',
 ].join('\n');
 
