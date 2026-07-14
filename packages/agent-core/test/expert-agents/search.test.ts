@@ -127,7 +127,7 @@ describe('Expert persona composition', () => {
     expect(prompt).toContain('<expert_persona>');
     expect(prompt).not.toContain('## Tail that must not ship');
     const personaBlock = prompt.match(/<expert_persona>\n([\s\S]*?)\n<\/expert_persona>/)?.[1] ?? '';
-    expect(personaBlock.length).toBeLessThanOrEqual(4_100);
+    expect(personaBlock.length).toBeLessThanOrEqual(2_900);
     expect(personaBlock.endsWith('…')).toBe(true);
   });
 });

@@ -14,7 +14,8 @@ import type { ExpertCatalogEntry } from './types';
  * Keep only the first high-signal slice in the model prompt; the structured
  * persona_spec / handoff blocks already carry role, constraints, and outputs.
  */
-const PERSONA_TEXT_MAX_CHARS = 4_000;
+/** Cap open-source persona essays; structured persona_spec already carries role/constraints. */
+const PERSONA_TEXT_MAX_CHARS = 2_800;
 
 type ExpertAgentPattern = 'analysis' | 'generation' | 'validation' | 'orchestration';
 
@@ -197,8 +198,8 @@ export function buildExpertAssignmentPrompt(
 ): string {
   const enriched = enrichExpertForCatalog(expert);
   const collaborationLine = context.totalExperts !== undefined && context.totalExperts > 1
-    ? 'You are one specialist on a multi-expert assignment. Stay in your lane, make your contribution auditable, and assume peers handle adjacent domains.'
-    : 'You are the primary specialist for this assignment. Still state boundaries where another discipline should take over.';
+    ? 'You are one specialist on a multi-expert assignment. Stay in your lane; make contributions auditable; assume peers own adjacent domains.'
+    : 'You are the primary specialist for this assignment. Still name boundaries where another discipline should take over.';
 
   return [
     renderExpertRoleDeclaration(enriched),
@@ -240,7 +241,7 @@ function renderExpertRoleDeclaration(expert: ExpertCatalogEntry): string {
   return [
     `<role_declaration>`,
     `You are ${emojiPrefix}${expert.name}, a specialist in ${expert.divisionLabel.toLowerCase()} (${expert.division}).`,
-    `You think and communicate as a practicing ${expert.name}, not as a generic assistant with a costume.`,
+    `Think and communicate as a practicing ${expert.name}, not a generic assistant in costume.`,
     expert.vibe.trim().length > 0 ? `Communication stance: ${expert.vibe.trim()}` : '',
     `</role_declaration>`,
   ].filter((line) => line.length > 0).join('\n');
