@@ -27,6 +27,7 @@ import {
   postForm,
   postJson,
   startCallbackServer,
+  waitForCallbackOrManual,
   type CallbackServer,
   type PkcePair,
 } from './oauth-flow-http';
@@ -232,6 +233,10 @@ export async function runOpenAiBrowserFlow(
   flow: ProviderFlowConfig,
   options: {
     readonly onAuthorizeUrl?: (url: string) => Promise<void> | void;
+    readonly onManualCallbackPrompt?: (context: {
+      readonly signal: AbortSignal;
+      readonly lastError?: string;
+    }) => Promise<string | undefined>;
     readonly signal?: AbortSignal;
   } = {},
 ): Promise<OpenAITokenExchange> {
@@ -242,7 +247,11 @@ export async function runOpenAiBrowserFlow(
   try {
     const authorizeUrl = buildOpenAiAuthorizeUrl(flow, pkce, state, server.redirectUri);
     await options.onAuthorizeUrl?.(authorizeUrl);
-    const { code } = await server.waitForCallback(options.signal);
+    const { code } = await waitForCallbackOrManual(server, {
+      signal: options.signal,
+      expectedState: state,
+      onManualCallbackPrompt: options.onManualCallbackPrompt,
+    });
     return exchangeOpenAiToken(flow, code, pkce.verifier, server.redirectUri, {
       signal: options.signal,
     });

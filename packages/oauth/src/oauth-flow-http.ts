@@ -171,6 +171,13 @@ export interface CallbackServer {
   readonly redirectUri: string;
   /** Resolves with the authorization code, or rejects on error/timeout. */
   readonly waitForCallback: (signal?: AbortSignal) => Promise<CallbackResult>;
+  /**
+   * Resolves a pending {@link waitForCallback} with a manually provided
+   * authorization code / callback URL. Used when the browser cannot reach the
+   * loopback server (remote SSH, blocked port, etc.) and the user pastes the
+   * callback into the CLI instead.
+   */
+  readonly submitManualCallback: (result: CallbackResult) => void;
   /** Stops the HTTP server. */
   readonly close: () => Promise<void>;
 }
@@ -228,6 +235,13 @@ export async function startCallbackServer(
 
   return {
     redirectUri: `http://${redirectHost}:${String(port)}/callback`,
+    submitManualCallback: (result) => {
+      if (pendingResolve === undefined) return;
+      const resolve = pendingResolve;
+      pendingResolve = undefined;
+      pendingReject = undefined;
+      resolve(result);
+    },
     waitForCallback: (signal) => {
       if (signal?.aborted === true) {
         return Promise.reject(new OAuthError('Authorization aborted'));
@@ -259,6 +273,181 @@ function listenOnPort(server: Server, preferredPort: number): Promise<number> {
       }
     });
   });
+}
+
+/**
+ * Parses a user-pasted OAuth callback value into `{ code, state }`.
+ *
+ * Accepts:
+ * - a full callback URL (`http://127.0.0.1:56121/callback?code=...&state=...`)
+ * - a query string (`code=...&state=...`)
+ * - a bare authorization code (uses `expectedState` when provided)
+ */
+export function parseOAuthCallbackInput(
+  raw: string,
+  expectedState?: string,
+): CallbackResult {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    throw new OAuthError('Pasted OAuth callback is empty.');
+  }
+
+  const fromParams = (params: URLSearchParams): CallbackResult | undefined => {
+    const code = params.get('code');
+    if (code === null || code.length === 0) return undefined;
+    const state = params.get('state') ?? expectedState;
+    if (state === undefined || state.length === 0) {
+      throw new OAuthError(
+        'Pasted OAuth callback is missing state. Paste the full callback URL.',
+      );
+    }
+    if (expectedState !== undefined && state !== expectedState) {
+      throw new OAuthError('Pasted OAuth callback state does not match this login attempt.');
+    }
+    const error = params.get('error');
+    if (error !== null && error.length > 0) {
+      throw new OAuthError(`Authorization error: ${error}`);
+    }
+    return { code, state };
+  };
+
+  // Full URL (or anything URL-parseable that carries a query string).
+  try {
+    const asUrl = new URL(trimmed);
+    const parsed = fromParams(asUrl.searchParams);
+    if (parsed !== undefined) return parsed;
+  } catch (error) {
+    // Preserve structured OAuth errors from fromParams; only fall through when
+    // the value simply is not a URL.
+    if (error instanceof OAuthError) throw error;
+  }
+
+  // Query string / fragment style: "code=...&state=..." or leading "?".
+  if (trimmed.includes('code=')) {
+    const query = trimmed.startsWith('?') ? trimmed.slice(1) : trimmed;
+    const parsed = fromParams(new URLSearchParams(query));
+    if (parsed !== undefined) return parsed;
+  }
+
+  // Bare authorization code. Requires the expected state from the local flow.
+  // Keep this strict so free-form invalid pastes re-prompt instead of being
+  // treated as a code: no whitespace / query markers, and a minimum length.
+  if (
+    expectedState !== undefined &&
+    expectedState.length > 0 &&
+    trimmed.length >= 12 &&
+    !/\s/.test(trimmed) &&
+    !/[?&=]/.test(trimmed)
+  ) {
+    return { code: trimmed, state: expectedState };
+  }
+
+  throw new OAuthError(
+    'Could not parse pasted OAuth callback. Paste the full callback URL or the authorization code.',
+  );
+}
+
+export interface ManualCallbackPromptContext {
+  readonly signal: AbortSignal;
+  /** Previous paste error message, when re-prompting after invalid input. */
+  readonly lastError?: string;
+}
+
+export interface WaitForCallbackOrManualOptions {
+  readonly signal?: AbortSignal;
+  /** State generated for this login attempt; used to accept bare code pastes. */
+  readonly expectedState?: string;
+  /**
+   * Optional prompt that lets the user paste a callback URL/code when the
+   * loopback redirect cannot reach this process. Return the pasted text, or
+   * `undefined` to keep waiting on the loopback server only.
+   *
+   * When the loopback callback wins first, `context.signal` is aborted so the
+   * prompt can dismiss itself.
+   */
+  readonly onManualCallbackPrompt?: (
+    context: ManualCallbackPromptContext,
+  ) => Promise<string | undefined>;
+}
+
+/**
+ * Waits for either the loopback OAuth callback or a manually pasted callback
+ * value. The first successful source wins; a cancelled/empty manual prompt
+ * does not abort the loopback wait.
+ */
+export async function waitForCallbackOrManual(
+  server: CallbackServer,
+  options: WaitForCallbackOrManualOptions = {},
+): Promise<CallbackResult> {
+  if (options.onManualCallbackPrompt === undefined) {
+    return server.waitForCallback(options.signal);
+  }
+
+  const local = new AbortController();
+  const onOuterAbort = (): void => {
+    local.abort();
+  };
+  options.signal?.addEventListener('abort', onOuterAbort, { once: true });
+
+  try {
+    return await new Promise<CallbackResult>((resolve, reject) => {
+      let settled = false;
+      const settleResolve = (result: CallbackResult): void => {
+        if (settled) return;
+        settled = true;
+        local.abort();
+        resolve(result);
+      };
+      const settleReject = (error: unknown): void => {
+        if (settled) return;
+        settled = true;
+        local.abort();
+        reject(error instanceof Error ? error : new OAuthError(String(error)));
+      };
+
+      void server.waitForCallback(options.signal).then(settleResolve, settleReject);
+
+      void (async () => {
+        let lastError: string | undefined;
+        while (!settled && !local.signal.aborted) {
+          let pasted: string | undefined;
+          try {
+            pasted = await options.onManualCallbackPrompt?.({
+              signal: local.signal,
+              lastError,
+            });
+          } catch (error) {
+            if (local.signal.aborted || options.signal?.aborted === true) {
+              settleReject(
+                options.signal?.aborted === true || local.signal.aborted
+                  ? new OAuthError('Authorization aborted')
+                  : error,
+              );
+              return;
+            }
+            lastError = error instanceof Error ? error.message : String(error);
+            continue;
+          }
+          if (settled || local.signal.aborted) return;
+          if (pasted === undefined) {
+            // User skipped/cancelled the prompt — keep waiting on loopback only.
+            return;
+          }
+          try {
+            const parsed = parseOAuthCallbackInput(pasted, options.expectedState);
+            server.submitManualCallback(parsed);
+            settleResolve(parsed);
+            return;
+          } catch (error) {
+            lastError = error instanceof Error ? error.message : String(error);
+          }
+        }
+      })();
+    });
+  } finally {
+    options.signal?.removeEventListener('abort', onOuterAbort);
+    local.abort();
+  }
 }
 
 const SUCCESS_PAGE =
@@ -294,6 +483,9 @@ export async function runPkceBrowserFlow(
   config: GenericPkceFlowConfig,
   options: {
     readonly onAuthorizeUrl?: (url: string) => Promise<void> | void;
+    readonly onManualCallbackPrompt?: (
+      context: ManualCallbackPromptContext,
+    ) => Promise<string | undefined>;
     readonly signal?: AbortSignal;
   } = {},
 ): Promise<GenericPkceToken> {
@@ -318,7 +510,11 @@ export async function runPkceBrowserFlow(
     });
     const authorizeUrl = `${config.authorizeUrl}?${params.toString()}`;
     await options.onAuthorizeUrl?.(authorizeUrl);
-    const { code } = await server.waitForCallback(options.signal);
+    const { code } = await waitForCallbackOrManual(server, {
+      signal: options.signal,
+      expectedState: state,
+      onManualCallbackPrompt: options.onManualCallbackPrompt,
+    });
     const { status, data } = await postForm(
       config.tokenUrl,
       {

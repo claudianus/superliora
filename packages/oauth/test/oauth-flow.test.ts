@@ -5,8 +5,11 @@ import {
   generatePkcePair,
   generateState,
   base64url,
+  parseOAuthCallbackInput,
   postJson,
   postForm,
+  startCallbackServer,
+  waitForCallbackOrManual,
 } from '../src/oauth-flow-http';
 import {
   ANTHROPIC_PROFILE,
@@ -206,5 +209,80 @@ describe('OAuthProviderManager', () => {
   it('throws for an unknown provider id on login', async () => {
     const manager = new OAuthProviderManager();
     await expect(manager.login('unknown-provider', {})).rejects.toThrow(/No OAuth profile/);
+  });
+});
+
+
+describe('parseOAuthCallbackInput', () => {
+  it('parses a full callback URL', () => {
+    const result = parseOAuthCallbackInput(
+      'http://127.0.0.1:56121/callback?code=abc123&state=xyz',
+    );
+    expect(result).toEqual({ code: 'abc123', state: 'xyz' });
+  });
+
+  it('parses a query string', () => {
+    const result = parseOAuthCallbackInput('code=abc123&state=xyz');
+    expect(result).toEqual({ code: 'abc123', state: 'xyz' });
+  });
+
+  it('accepts a bare authorization code when expectedState is provided', () => {
+    const result = parseOAuthCallbackInput('abc123XYZ7890', 'xyz');
+    expect(result).toEqual({ code: 'abc123XYZ7890', state: 'xyz' });
+  });
+
+  it('rejects a bare code without expectedState', () => {
+    expect(() => parseOAuthCallbackInput('abc123XYZ7890')).toThrow(/Could not parse/);
+  });
+
+  it('rejects a mismatched state', () => {
+    expect(() =>
+      parseOAuthCallbackInput('http://127.0.0.1/callback?code=abc&state=one', 'two'),
+    ).toThrow(/state does not match/);
+  });
+});
+
+describe('waitForCallbackOrManual', () => {
+  it('accepts a manually pasted callback while the loopback server is waiting', async () => {
+    const server = await startCallbackServer(0, '127.0.0.1');
+    try {
+      const resultPromise = waitForCallbackOrManual(server, {
+        expectedState: 'state-1',
+        onManualCallbackPrompt: async () =>
+          'http://127.0.0.1:1/callback?code=manual-code&state=state-1',
+      });
+      await expect(resultPromise).resolves.toEqual({
+        code: 'manual-code',
+        state: 'state-1',
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('re-prompts after an invalid paste and then accepts a valid one', async () => {
+    const server = await startCallbackServer(0, '127.0.0.1');
+    try {
+      let calls = 0;
+      const resultPromise = waitForCallbackOrManual(server, {
+        expectedState: 'state-2',
+        onManualCallbackPrompt: async ({ lastError }) => {
+          calls += 1;
+          if (calls === 1) {
+            expect(lastError).toBeUndefined();
+            return 'not a valid callback';
+          }
+          expect(lastError).toMatch(/Could not parse|missing state|empty/i);
+          return 'code=ok-code&state=state-2';
+        },
+      });
+      await expect(resultPromise).resolves.toEqual({
+        code: 'ok-code',
+        state: 'state-2',
+      });
+      expect(calls).toBe(2);
+    } finally {
+      await server.close();
+    }
   });
 });

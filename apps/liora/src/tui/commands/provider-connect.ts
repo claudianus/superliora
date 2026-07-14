@@ -53,6 +53,7 @@ import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import { applyCustomEndpointProvider } from '#/utils/custom-provider';
 import {
   promptApiKeyForCatalogProvider,
+  promptOAuthCallback,
   promptProviderCatalog,
 } from './prompts';
 import type { SlashCommandHost } from './dispatch';
@@ -458,7 +459,49 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
           spinner?.stop({ ok: false, label: '' });
           // Open the browser automatically; fall back to showing the URL.
           openUrl(url);
-          spinner = host.showProgressSpinner(`Opening browser to authorize…\nIf it did not open, visit:\n${url}`);
+          spinner = host.showProgressSpinner(
+            ttui('tui.provider.openingBrowser', { url }),
+          );
+        },
+        onManualCallbackPrompt: async ({ signal, lastError }) => {
+          // Give the loopback redirect a short head start so local browser
+          // logins that complete automatically never flash the paste dialog.
+          if (lastError === undefined) {
+            const delayMs = 8_000;
+            await new Promise<void>((resolve) => {
+              if (signal.aborted) {
+                resolve();
+                return;
+              }
+              const timer = setTimeout(() => {
+                signal.removeEventListener('abort', onAbort);
+                resolve();
+              }, delayMs);
+              const onAbort = (): void => {
+                clearTimeout(timer);
+                resolve();
+              };
+              signal.addEventListener('abort', onAbort, { once: true });
+            });
+            if (signal.aborted) return undefined;
+          }
+
+          spinner?.stop({ ok: false, label: '' });
+          spinner = undefined;
+          const pasted = await promptOAuthCallback(host, {
+            signal,
+            errorHint: lastError,
+            title: ttui('tui.provider.pasteCallbackTitle'),
+            subtitleLines: [
+              ttui('tui.provider.pasteCallbackHint1'),
+              ttui('tui.provider.pasteCallbackHint2'),
+            ],
+          });
+          if (pasted === undefined && !signal.aborted) {
+            // User cancelled the paste dialog; keep waiting for loopback.
+            spinner = host.showProgressSpinner(ttui('tui.provider.waitingAuthorization'));
+          }
+          return pasted;
         },
       },
       { signal: controller.signal },

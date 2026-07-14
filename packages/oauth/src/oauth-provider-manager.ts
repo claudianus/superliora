@@ -61,6 +61,14 @@ export interface ProviderLoginCallbacks {
   readonly onDeviceCode?: (auth: DeviceAuthorization) => Promise<void> | void;
   /** Called with the authorize URL for browser flows; the caller opens it. */
   readonly onAuthorizeUrl?: (url: string) => Promise<void> | void;
+  /**
+   * Optional fallback for PKCE browser flows when the loopback callback cannot
+   * reach this process. Prompt the user to paste the callback URL/code.
+   */
+  readonly onManualCallbackPrompt?: (context: {
+    readonly signal: AbortSignal;
+    readonly lastError?: string;
+  }) => Promise<string | undefined>;
 }
 
 export class OAuthProviderManager {
@@ -195,10 +203,28 @@ export class OAuthProviderManager {
   ): Promise<TokenInfo> {
     const token =
       profile.id === 'xai-grok'
-        ? toXaiTokenInfo(await runXaiBrowserFlow(profile.flow, { onAuthorizeUrl: callbacks.onAuthorizeUrl, signal: options.signal }))
+        ? toXaiTokenInfo(
+            await runXaiBrowserFlow(profile.flow, {
+              onAuthorizeUrl: callbacks.onAuthorizeUrl,
+              onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
+              signal: options.signal,
+            }),
+          )
         : profile.id === 'anthropic-oauth'
-          ? toXaiTokenInfo(await runPkceBrowserFlow(toGenericPkceConfig(profile.flow), { onAuthorizeUrl: callbacks.onAuthorizeUrl, signal: options.signal }))
-          : toOpenAiTokenInfo(await runOpenAiBrowserFlow(profile.flow, { onAuthorizeUrl: callbacks.onAuthorizeUrl, signal: options.signal }));
+          ? toXaiTokenInfo(
+              await runPkceBrowserFlow(toGenericPkceConfig(profile.flow), {
+                onAuthorizeUrl: callbacks.onAuthorizeUrl,
+                onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
+                signal: options.signal,
+              }),
+            )
+          : toOpenAiTokenInfo(
+              await runOpenAiBrowserFlow(profile.flow, {
+                onAuthorizeUrl: callbacks.onAuthorizeUrl,
+                onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
+                signal: options.signal,
+              }),
+            );
     await this.storage.save(this.storageName(profile.id), token);
     return token;
   }

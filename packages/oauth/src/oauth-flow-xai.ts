@@ -16,6 +16,7 @@ import {
   getJson,
   postForm,
   startCallbackServer,
+  waitForCallbackOrManual,
   type PkcePair,
 } from './oauth-flow-http';
 import type { ProviderFlowConfig } from './profiles';
@@ -117,6 +118,14 @@ export async function runXaiBrowserFlow(
   flow: ProviderFlowConfig,
   options: {
     readonly onAuthorizeUrl?: (url: string) => Promise<void> | void;
+    /**
+     * Optional fallback when the browser cannot reach the loopback callback
+     * server. The caller prompts the user to paste the callback URL/code.
+     */
+    readonly onManualCallbackPrompt?: (context: {
+      readonly signal: AbortSignal;
+      readonly lastError?: string;
+    }) => Promise<string | undefined>;
     readonly signal?: AbortSignal;
   } = {},
 ): Promise<XaiTokenExchange> {
@@ -129,7 +138,11 @@ export async function runXaiBrowserFlow(
   try {
     const url = buildXaiAuthorizeUrl(flow, pkce, state, nonce, server.redirectUri, authorizeUrl);
     await options.onAuthorizeUrl?.(url);
-    const { code } = await server.waitForCallback(options.signal);
+    const { code } = await waitForCallbackOrManual(server, {
+      signal: options.signal,
+      expectedState: state,
+      onManualCallbackPrompt: options.onManualCallbackPrompt,
+    });
     return exchangeXaiToken(flow, code, pkce.verifier, server.redirectUri, tokenUrl, {
       signal: options.signal,
     });

@@ -4,6 +4,10 @@ import {
 } from '@superliora/sdk';
 
 import { ApiKeyInputDialogComponent, type ApiKeyInputResult } from '../components/dialogs/api-key-input-dialog';
+import {
+  OAuthCallbackInputDialogComponent,
+  type OAuthCallbackInputResult,
+} from '../components/dialogs/oauth-callback-input-dialog';
 import { ChoicePickerComponent, type ChoiceOption } from '../components/dialogs/choice-picker';
 import { ModelSelectorComponent } from '../components/dialogs/model-selector';
 import { ProviderCatalogPickerComponent } from '../components/dialogs/provider-catalog-picker';
@@ -81,6 +85,51 @@ export function promptApiKey(
         resolve(result.kind === 'ok' ? result.value : undefined);
       },
       { prefill: options.prefill },
+    );
+    host.mountEditorReplacement(dialog);
+  });
+}
+
+/**
+ * Prompts for a manually pasted OAuth callback URL / authorization code.
+ * Used as a fallback when the browser cannot redirect back to the local
+ * loopback server (remote SSH, blocked port, etc.).
+ */
+export function promptOAuthCallback(
+  host: SlashCommandHost,
+  options: {
+    readonly title?: string;
+    readonly subtitleLines?: readonly string[];
+    readonly errorHint?: string;
+    readonly signal?: AbortSignal;
+  } = {},
+): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: string | undefined): void => {
+      if (settled) return;
+      settled = true;
+      options.signal?.removeEventListener('abort', onAbort);
+      host.restoreEditor();
+      resolve(value);
+    };
+    const onAbort = (): void => {
+      finish(undefined);
+    };
+    if (options.signal?.aborted === true) {
+      resolve(undefined);
+      return;
+    }
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    const dialog = new OAuthCallbackInputDialogComponent(
+      (result: OAuthCallbackInputResult) => {
+        finish(result.kind === 'ok' ? result.value : undefined);
+      },
+      {
+        title: options.title,
+        subtitleLines: options.subtitleLines,
+        errorHint: options.errorHint,
+      },
     );
     host.mountEditorReplacement(dialog);
   });

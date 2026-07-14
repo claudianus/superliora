@@ -28,12 +28,16 @@ export {
   generatePkcePair,
   generateState,
   generateNonce,
+  parseOAuthCallbackInput,
   postForm as postOAuthForm,
   postJson as postOAuthJson,
   startCallbackServer,
+  waitForCallbackOrManual,
   type CallbackResult,
   type CallbackServer,
+  type ManualCallbackPromptContext,
   type PkcePair,
+  type WaitForCallbackOrManualOptions,
 } from './oauth-flow-http';
 export {
   exchangeOpenAiToken,
