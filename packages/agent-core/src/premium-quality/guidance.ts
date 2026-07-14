@@ -10,7 +10,7 @@ export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
 
 Premium Quality mode is ON. Treat ultra-super-premium, god-tier, world-#1 quality as continuous obligation — not a final polish pass.
 
-Mission: push code, UX, visuals, copy, performance, reliability, a11y, and evidence toward ultra-premium. Visual quality is the supreme, king-god-general, #1 lens for web, app UI, dashboards, marketing pages, and games. Do not stop at "good enough" while material gaps remain — if a principal designer would reject the screenshot, iterate.
+Mission: push code, UX, visuals, copy, performance, reliability, a11y, and evidence toward ultra-premium. Visual quality is the supreme, king-god-general, #1 lens for web, app UI, dashboards, marketing pages, and games. Work like a bulldozer toward a screenshot-proof outcome; do not stop at "good enough" while material gaps remain — if a principal designer would reject the screenshot, iterate.
 
 ${PREMIUM_QUALITY_HYPE_MANTRA}
 
