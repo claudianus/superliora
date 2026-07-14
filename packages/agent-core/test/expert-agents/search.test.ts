@@ -9,7 +9,7 @@ import {
   renderExpertSystemPrompt,
   resolveExpertWhenToUse,
 } from '../../src/expert-agents/expert-persona';
-import { EXPERT_CATALOG_BY_ID } from '../../src/expert-agents/catalog';
+import { EXPERT_CATALOG_BY_ID, EXPERT_CATALOG_META_BY_ID, hydrateExpertCatalogEntry } from '../../src/expert-agents/catalog';
 
 describe('ExpertSearchEngine', () => {
   it('ranks terminal UI work ahead of sales coaches for technical TUI queries', async () => {
@@ -129,5 +129,16 @@ describe('Expert persona composition', () => {
     const personaBlock = prompt.match(/<expert_persona>\n([\s\S]*?)\n<\/expert_persona>/)?.[1] ?? '';
     expect(personaBlock.length).toBeLessThanOrEqual(4_100);
     expect(personaBlock.endsWith('…')).toBe(true);
+  });
+});
+
+describe('Expert catalog lazy persona hydration', () => {
+  it('keeps meta entries empty until hydrateExpertCatalogEntry runs', () => {
+    const meta = EXPERT_CATALOG_META_BY_ID['engineering-frontend-developer'];
+    expect(meta).toBeDefined();
+    expect(meta!.personaText).toBe('');
+    const hydrated = hydrateExpertCatalogEntry(meta);
+    expect(hydrated?.personaText.length).toBeGreaterThan(100);
+    expect(EXPERT_CATALOG_BY_ID['engineering-frontend-developer']?.personaText.length).toBeGreaterThan(100);
   });
 });

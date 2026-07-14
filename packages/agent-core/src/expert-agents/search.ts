@@ -1,11 +1,11 @@
 import MiniSearch from 'minisearch';
 import type { ExpertCatalogEntry, ExpertSearchResult } from './types';
-import { EXPERT_CATALOG } from './catalog';
+import { EXPERT_CATALOG_META } from './catalog-meta';
 import { EXPERT_CATALOG_EXTENSIONS } from './catalog-extensions';
 import { enrichExpertForCatalog } from './expert-persona';
 import { inferExpertTaskProfile, type ExpertTaskProfile } from './task-profile';
 
-const ALL_EXPERTS: readonly ExpertCatalogEntry[] = [...EXPERT_CATALOG, ...EXPERT_CATALOG_EXTENSIONS];
+const ALL_EXPERTS: readonly ExpertCatalogEntry[] = [...EXPERT_CATALOG_META, ...EXPERT_CATALOG_EXTENSIONS];
 
 export interface ExpertSearchOptions {
   readonly query: string;
