@@ -3,10 +3,16 @@ import {
   PREMIUM_QUALITY_FULL_GUIDANCE,
   PREMIUM_QUALITY_SPARSE_GUIDANCE,
 } from '../../premium-quality';
+import { isRealUserPromptOrigin } from '../context/types';
 import { DynamicInjector } from './injector';
 
-const PREMIUM_QUALITY_DEDUP_MIN_TURNS = 1;
-const PREMIUM_QUALITY_FULL_REFRESH_TURNS = 3;
+/**
+ * Full Premium guidance is ~5k tokens. Only re-inject the full block when the
+ * mode turns on or a real user prompt arrives. Mid-loop system reminders,
+ * tool-result shells, and other `role: user` injections must not re-flood it.
+ * Sparse checkpoints keep pressure without blowing the context budget.
+ */
+const PREMIUM_QUALITY_SPARSE_REFRESH_TURNS = 2;
 
 export class PremiumQualityInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'premium_quality';
@@ -47,12 +53,11 @@ export class PremiumQualityInjector extends DynamicInjector {
         assistantTurnsSince += 1;
         continue;
       }
-      if (msg.role === 'user') {
+      if (msg.role === 'user' && isRealUserPromptOrigin(msg.origin)) {
         return 'full';
       }
     }
-    if (assistantTurnsSince >= PREMIUM_QUALITY_FULL_REFRESH_TURNS) return 'full';
-    if (assistantTurnsSince >= PREMIUM_QUALITY_DEDUP_MIN_TURNS) return 'sparse';
+    if (assistantTurnsSince >= PREMIUM_QUALITY_SPARSE_REFRESH_TURNS) return 'sparse';
     return null;
   }
 }

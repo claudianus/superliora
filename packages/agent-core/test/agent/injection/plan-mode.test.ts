@@ -55,7 +55,11 @@ function planAgent(stub: PlanModeStub): Agent {
     context: {
       history,
       appendSystemReminder: (content: string) => {
-        history.push({ role: 'user', content: [{ type: 'text', text: content }] });
+        history.push({
+          role: 'user',
+          content: [{ type: 'text', text: content }],
+          origin: { kind: 'injection', variant: 'plan_mode' },
+        });
       },
     },
   } as unknown as Agent;
@@ -222,6 +226,40 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('Perspective: researcher');
     expect(text).toContain('Interview readiness:');
   });
+
+  it('does not re-flood full plan guidance for injection-origin user messages', async () => {
+    const agent = planAgent({ isActive: true, planFilePath: '/tmp/plan.md' });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+    const before = history(agent).length;
+    history(agent).push({
+      role: 'user',
+      content: [{ type: 'text', text: '<system-reminder>other injector</system-reminder>' }],
+      origin: { kind: 'injection', variant: 'current_time' },
+    } as never);
+    history(agent).push({ role: 'assistant' } as never);
+
+    await injector.inject();
+    expect(history(agent)).toHaveLength(before + 2);
+  });
+
+  it('re-injects full plan guidance after a real user prompt', async () => {
+    const agent = planAgent({ isActive: true, planFilePath: '/tmp/plan.md' });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+    history(agent).push({
+      role: 'user',
+      content: [{ type: 'text', text: 'continue planning' }],
+      origin: { kind: 'user' },
+    } as never);
+    await injector.inject();
+
+    expect(lastReminder(agent)).toContain('Plan mode is active');
+    expect(lastReminder(agent)).toContain('Plan file: /tmp/plan.md');
+  });
+
 
   it('routes Ultra Plan design to review before write', async () => {
     const agent = planAgent({

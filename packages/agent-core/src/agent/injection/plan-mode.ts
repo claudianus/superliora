@@ -1,5 +1,6 @@
 import type { PlanFilePath } from '../plan';
 import type { Agent } from '..';
+import { isRealUserPromptOrigin } from '../context/types';
 import { buildResponseLanguageDirective } from './response-language';
 import { DynamicInjector } from './injector';
 import { LIBRARY_DOCS_RESEARCH_GUIDANCE } from '../../research/library-docs';
@@ -78,7 +79,7 @@ export class PlanModeInjector extends DynamicInjector {
         assistantTurnsSince += 1;
         continue;
       }
-      if (msg.role === 'user') {
+      if (msg.role === 'user' && isRealUserPromptOrigin(msg.origin)) {
         return 'full';
       }
     }
