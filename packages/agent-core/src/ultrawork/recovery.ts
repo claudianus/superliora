@@ -587,7 +587,7 @@ function suggestNextActions(
     run.stage === 'research'
   ) {
     actions.push(
-      'The WorkGraph shows completed work beyond the checkpoint stage. Continue implementation/verification from the current in-progress node; do not restart research.',
+      'WorkGraph is ahead of the checkpoint stage. Continue implementation/verification from the current in-progress node; do not restart research.',
     );
   }
   if (progress.nextPendingNode !== undefined) {
@@ -600,10 +600,10 @@ function suggestNextActions(
   if (skippedInterview) {
     if (progress.nextPendingNode !== undefined) {
       actions.push(
-        `Continue implementation from WorkGraph node ${progress.nextPendingNode.id}; do not reopen UltraPlan interview.`,
+        `Continue from WorkGraph node ${progress.nextPendingNode.id}; do not reopen UltraPlan interview.`,
       );
     } else if (planPhase === 'design' || planPhase === 'review' || planPhase === 'write') {
-      actions.push(`Resume UltraPlan ${planPhase} and advance toward ExitPlanMode without new interview rounds.`);
+      actions.push(`Resume UltraPlan ${planPhase}; advance toward ExitPlanMode without new interview rounds.`);
     } else if (effectiveStage === 'goal' || effectiveStage === 'staff' || effectiveStage === 'swarm') {
       actions.push('Verify the UltraGoal contract and resume autonomous pursuit without interview questions.');
     } else if (
@@ -611,14 +611,14 @@ function suggestNextActions(
       effectiveStage === 'verify' ||
       effectiveStage === 'learn'
     ) {
-      actions.push(`Continue the ${effectiveStage} stage from the checkpoint; do not reopen UltraPlan interview.`);
+      actions.push(`Continue ${effectiveStage} from the checkpoint; do not reopen UltraPlan interview.`);
     } else {
-      actions.push('Continue design and implementation from the saved checkpoint; do not reopen UltraPlan interview.');
+      actions.push('Continue from the saved checkpoint; do not reopen UltraPlan interview.');
     }
   } else if (effectiveStage === 'plan' || effectiveStage === 'research') {
     switch (planPhase) {
       case 'research':
-        actions.push('Refresh the evidence pack with current sources before asking blocking questions.');
+        actions.push('Refresh the evidence pack before asking blocking questions.');
         break;
       case 'interview': {
         const round = planContext?.interviewRoundCount ?? resumeCursor?.interviewRound ?? 0;
@@ -633,13 +633,13 @@ function suggestNextActions(
         break;
       }
       case 'design':
-        actions.push('Resume design exploration and map coverage lanes before Review.');
+        actions.push('Resume design exploration and coverage lanes before Review.');
         break;
       case 'review':
         actions.push('Re-verify the plan against code and sources, then advance to Write when ready.');
         break;
       case 'write':
-        actions.push('Resume writing the approved plan sections; do not reopen a fresh interview.');
+        actions.push('Resume writing approved plan sections; do not reopen a fresh interview.');
         break;
       case 'exit':
         actions.push('Call ExitPlanMode only after the plan file still satisfies the Seed Spec gate.');
@@ -667,7 +667,7 @@ function suggestNextActions(
         actions.push('Re-run mechanical checks and capture runtime evidence for open acceptance criteria.');
         break;
       case 'learn':
-        actions.push('Update the knowledge persistence ledger and promote only verified findings.');
+        actions.push('Update the knowledge ledger; promote only verified findings.');
         break;
       case 'done':
         actions.push('Confirm completion criteria and close the run.');

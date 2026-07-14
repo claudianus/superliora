@@ -23,6 +23,9 @@ describe('default agent profiles', () => {
 
     expect(prompt).toContain('You are SuperLiora CLI');
     expect(prompt).toContain('/workspace');
+    // Shared system prompt is on every turn for every profile — keep static bulk bounded.
+    // Dynamic cwd listing / AGENTS.md body are excluded from this size check via context stubs.
+    expect(prompt!.length).toBeLessThan(16_000);
   });
 
   it('keeps static instructions before dynamic prompt context', () => {
