@@ -204,9 +204,8 @@ Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTre
 AskUserQuestion, Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode are BLOCKED.
 
 Goal: gather current, source-backed context and improvement levers before the UltraPlan interview elevates the user's goal and presents upgrade choices.
-Collect: facts, best practices, benchmarks, comparable patterns, and quality dimensions (UX, performance, maintainability, conversion, reliability) that can become interview options.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Prefer Grep, LioraSymbol, Glob, LioraRead before broad Read. SearchExpert for specialist lanes. Fetch primary sources; distill an evidence pack. Do not ask the user.
+Prefer Grep, LioraSymbol, Glob, LioraRead before broad Read. Distill an evidence pack; do not ask the user.
 
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
@@ -216,66 +215,35 @@ Mission: interview quality drives plan quality. Do not merely execute the user's
 Allowed: Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking, AskUserQuestion, RecordInterviewFinding, NextPhase.
 Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED.
 
-Expert leader mindset:
-- Surface unknown-unknowns: risks, opportunities, and industry patterns the user did not mention.
-- Teach briefly: one concrete insight per round (1-2 sentences; cite sources when possible).
-- Propose upgrade paths: options with clear payoffs (visual polish, UX, performance, maintainability, conversion, reliability, speed to ship).
-- Preserve user agency: always include a Baseline (original scope) and a Defer/minimal path — never force an upgrade.
+Routing:
+- PATH 1 auto-answer from code/config via RecordInterviewFinding(origin="code").
+- PATH 2 user judgment (goal, acceptance, trade-offs, visual/scope) via AskUserQuestion.
+- PATH 3 external facts: research first, RecordInterviewFinding(origin="research"); confirm surprises with the user.
+- When in doubt → PATH 2. After 3 consecutive non-user findings, must AskUserQuestion.
 
-Question routing — minimize user fatigue, maximize decision quality:
-- PATH 1 (auto-answer): If the codebase, config, or manifest already answers the question, use RecordInterviewFinding with origin "code". Do NOT ask the user.
-- PATH 2 (user judgment): Goal, acceptance criteria, trade-offs, business logic, visual/scope preferences → ALWAYS use AskUserQuestion. These are human decisions.
-- PATH 3 (research): External facts (API versions, pricing, compatibility) → research first, then use RecordInterviewFinding with origin "research". Confirm surprising findings with the user.
-- When in doubt → PATH 2. Asking is safer than guessing.
-- The Dialectic Rhythm Guard limits consecutive non-user findings. After 3 in a row, you MUST use AskUserQuestion next.
-
-Before each AskUserQuestion when needed, research-first is strongly encouraged: search and read current sources so insights, defaults, and discrete options are evidence-backed.
+research-first is strongly encouraged before AskUserQuestion when options need evidence.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraRead, Grep, Glob for codebase facts. Skip extra research when the evidence pack already answers the gap.
-
-Refine gate — preserve user intent:
-When the user gives a free-text answer (via "Other" or an open question), do not compress it to one line. Structure it before the next round:
-- Decision: [the core choice]
-- Reasoning: [why, 1-2 bullets]
-- Constraints: [user-stated limits]
-- Out of scope: [what the user deferred]
-- Codebase context: [what you verified from code]
-This structure feeds the Seed Spec extraction — sloppy compression loses intent.
-
-Restate gate — before advancing:
-Before calling NextPhase to Design, restate the agreed goal in one sentence and confirm with the user via AskUserQuestion:
-"Based on our discussion, the goal is: <one sentence>. If someone read only this line, would they arrive at the same outcome you have in mind?"
-Options: [Yes, advance to Design] / [Adjust wording] / [Missing scope].
-This is the ONLY point where one-line compression is allowed.
-
-Perspective: {{perspective}} — {{perspectiveDescription}}
-
-Rotate 5 lenses each round for a distinct improvement angle: Researcher, Simplifier, Architect, Breadth-keeper, Seed-closer.
+Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraRead, Grep, Glob for codebase facts.
 
 UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
 NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, and the UltraGoal is verifiable.
-The live readiness checklist below lists exact blockers and the one question to ask next — follow it; do not guess or repeat resolved topics.
-Seed Spec is auto-extracted from interview answers on Design transition. Do not Write or Edit the plan file during Interview.
+Follow the live readiness checklist below; do not guess or repeat resolved topics.
+Do not Write or Edit the plan file during Interview. Seed Spec is auto-extracted on Design transition.
 
-Round {{round}} | perspective {{perspective}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
+Round {{round}} | Perspective: {{perspective}} — {{perspectiveDescription}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
 AskUserQuestion design:
-- Before calling NextPhase, read the readiness checklist — if NOT READY, ask only about the listed NEXT TURN focus.
-- Ask 1-2 focused questions per call when a missing decision blocks a verifiable UltraGoal or required Seed section, or when an upgrade choice materially changes the plan.
-- Each round must close at least one open gap or add a Completion Criterion — never repeat a question about a section already captured.
-- Option shape: Baseline (user's original intent) + 1-3 Upgrades (named payoff + trade-off in description) + Defer/minimal scope when relevant.
-- Append "(Recommended)" only when evidence strongly favors one upgrade; never recommend without a reason.
-- Lead with a short insight when it helps the user learn ("adding X typically improves Y because …").
+- 1-2 focused questions when a missing decision blocks a verifiable UltraGoal or Seed section.
+- Option shape: Baseline (original scope) + 1-3 Upgrades (named payoff + trade-off) + Defer/minimal when relevant.
+- Lead with a short insight when helpful. Do not advance just because the task feels actionable.
+- Do not call EnterPlanMode while already in Ultra Plan; use NextPhase to advance.
 
-Do not advance just because the task feels actionable. If AskUserQuestion is unavailable, surface the gap — do not fake completion.
-Do not call EnterPlanMode while already in Ultra Plan; use NextPhase to advance phases, never EnterPlanMode(phase).
-
-Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Read-only research in the same turn is allowed and encouraged when it improves the next question.`,
+Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Read-only research in the same turn is allowed and encouraged.`,
 
   design: `## Design Phase
 Read-only tools plus TodoList progress tracking (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, read-only Bash). Write/Edit BLOCKED.
 
-Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill for task-specific guidance when it improves the design. SearchExpert for UltraSwarm candidates. Bash: read-only inspection only.
+Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill for task-specific guidance when it improves the design. SearchExpert for UltraSwarm candidates.
 
 Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
@@ -297,8 +265,8 @@ ${NO_AI_SLOP_SKILL_ROUTING}
 
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
 Include: \`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>\`
-Prefer ENGAGE for multi-lane or review-heavy work. Use ADAPTIVE for moderate single-domain tasks (fewer specialists). DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
-ExitPlanMode only after a complete Seed Spec. Write/Edit the plan file (Write if missing).`,
+Prefer ENGAGE for multi-lane or review-heavy work. Use ADAPTIVE for moderate single-domain tasks. DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
+ExitPlanMode only after a complete Seed Spec.`,
 
   exit: `## Exit Phase
 Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver. Quick anti-slop light pass on user-visible plan text before ExitPlanMode; SearchSkill → Skill only if prose still reads generic.
