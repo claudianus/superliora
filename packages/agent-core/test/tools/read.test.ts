@@ -107,6 +107,8 @@ describe('ReadTool', () => {
     expect(tool.description).toContain('Pure CRLF files are displayed with LF');
     expect(tool.description).not.toContain('skip the verification re-read');
     expect(tool.description).toContain('final external contract');
+    // Always-on default-profile tool — keep the schema description compact.
+    expect(tool.description.length).toBeLessThan(1600);
     expect(tool.parameters).toMatchObject({
       type: 'object',
       properties: {

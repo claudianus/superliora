@@ -6,7 +6,7 @@ Execute `{{ SHELL_NAME }}` commands — pipes, env, processes, git, package mana
 - `echo >` / heredoc → `Write`
 - `find`/recursive `ls` by pattern → `Glob` (plain `ls <dir>` OK)
 - `grep`/`rg` → `Grep`
-- `echo`/`printf` to user → output text directly
+- `echo`/`printf` to user → text reply
 
 Dedicated tools keep output capped and permission UI clear.
 
