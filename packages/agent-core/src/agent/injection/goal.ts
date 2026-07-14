@@ -1,6 +1,5 @@
 import type { GoalSnapshot } from '../goal';
 import { DynamicInjector } from './injector';
-import { buildLeanContextGuidance } from './lean-context';
 
 /**
  * Injects the current goal into the main agent's context once per turn, at the
@@ -126,9 +125,6 @@ function buildGoalReminder(goal: GoalSnapshot): string {
     lines.push(`Budgets: ${budgetLines.join('; ')}.`);
   }
   lines.push(budgetBandGuidance(goal));
-
-  lines.push('');
-  lines.push(buildLeanContextGuidance());
 
   lines.push('');
   lines.push(

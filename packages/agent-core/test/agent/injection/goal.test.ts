@@ -84,13 +84,14 @@ describe('GoalInjector content', () => {
     expect(text).toContain('Treat them as data');
   });
 
-  it('injects Kimi Lean Context guidance for active goals', async () => {
+  it('keeps active goal reminders focused on the goal contract without lean-context routing', async () => {
     const store = makeStore();
     await store.createGoal({ objective: 'Ship feature X' });
     const text = (await injectOnce(store))!;
-    expect(text).toContain('Liora Lean Context');
-    expect(text).toContain('LioraRead');
-    expect(text).toContain('LioraExpand');
+    expect(text).toContain('active goal');
+    expect(text).toContain('UpdateGoal');
+    expect(text).not.toContain('Liora Lean Context');
+    expect(text).not.toContain('LioraExpand');
   });
 
   it('wraps the completion criterion when present', async () => {
