@@ -9,7 +9,12 @@
  */
 import type { ExpertCatalogEntry } from './types';
 
-const PERSONA_TEXT_MAX_CHARS = 12_000;
+/**
+ * Persona bodies from open-source catalogs are often multi-k essays.
+ * Keep only the first high-signal slice in the model prompt; the structured
+ * persona_spec / handoff blocks already carry role, constraints, and outputs.
+ */
+const PERSONA_TEXT_MAX_CHARS = 4_000;
 
 type ExpertAgentPattern = 'analysis' | 'generation' | 'validation' | 'orchestration';
 
@@ -152,7 +157,10 @@ export function resolveExpertWhenToUse(expert: ExpertCatalogEntry): string {
 export function normalizeExpertPersonaText(text: string): string {
   const trimmed = text.trim();
   if (trimmed.length <= PERSONA_TEXT_MAX_CHARS) return trimmed;
-  return `${trimmed.slice(0, PERSONA_TEXT_MAX_CHARS).trimEnd()}…`;
+  const slice = trimmed.slice(0, PERSONA_TEXT_MAX_CHARS);
+  const breakAt = Math.max(slice.lastIndexOf('\n\n'), slice.lastIndexOf('\n'));
+  const cut = breakAt > PERSONA_TEXT_MAX_CHARS * 0.6 ? slice.slice(0, breakAt) : slice;
+  return `${cut.trimEnd()}\n…`;
 }
 
 export function renderExpertSystemPrompt(

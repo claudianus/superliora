@@ -115,4 +115,19 @@ describe('Expert persona composition', () => {
     expect(prompt).not.toContain('SuperLiora');
     expect(prompt).not.toContain('UltraSwarm');
   });
+
+
+  it('truncates oversized personaText before embedding it in expert prompts', () => {
+    const expert = EXPERT_CATALOG_BY_ID['engineering-frontend-developer']!;
+    const oversized = {
+      ...expert,
+      personaText: `${'A'.repeat(6_000)}\n\n## Tail that must not ship\n${'B'.repeat(200)}`,
+    };
+    const prompt = renderExpertSystemPrompt('Base profile prompt.', oversized, 'coder');
+    expect(prompt).toContain('<expert_persona>');
+    expect(prompt).not.toContain('## Tail that must not ship');
+    const personaBlock = prompt.match(/<expert_persona>\n([\s\S]*?)\n<\/expert_persona>/)?.[1] ?? '';
+    expect(personaBlock.length).toBeLessThanOrEqual(4_100);
+    expect(personaBlock.endsWith('…')).toBe(true);
+  });
 });
