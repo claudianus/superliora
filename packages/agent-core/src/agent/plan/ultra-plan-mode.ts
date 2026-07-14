@@ -1556,22 +1556,19 @@ export function formatInterviewReadinessGuide(
   if (readiness.ready) {
     return [
       'Interview readiness: READY for Design.',
-      'Call NextPhase({ phase: "design" }). Seed Spec will be auto-extracted from interview evidence.',
+      'Call NextPhase({ phase: "design" }). Seed Spec auto-extracts from interview evidence.',
       'Do not Write or Edit the plan file yet — that happens in Write phase.',
     ].join('\n');
   }
 
   const lines: string[] = [
     'Interview readiness: NOT READY for Design.',
-    '',
-    'WHY NextPhase is blocked (close these before retrying):',
+    'Blockers (close before NextPhase):',
   ];
 
   if (readiness.usedHeuristicFallback) {
     lines.push(
-      '',
-      '⚠ Scoring engine unavailable — ambiguity score uses a deterministic heuristic fallback.',
-      '  You may continue with heuristic defaults, or retry scoring manually once the engine is back.',
+      '⚠ Scoring engine unavailable — using heuristic fallback; continue or rescore later.',
     );
   }
 
@@ -1579,82 +1576,62 @@ export function formatInterviewReadinessGuide(
 
   if (!readiness.verifiableGoal) {
     lines.push(
-      `${blockerNum++}. verifiable_goal=false — no true/false Completion Criterion yet.`,
-      '   The UltraGoal must be judgeable as complete/incomplete.',
-      '   ambiguity stays >= 0.45 until a Completion Criterion is captured in interview answers.',
+      `${blockerNum++}. verifiable_goal=false — capture a true/false Completion Criterion.`,
     );
   }
 
   if (readiness.openGaps.length > 0) {
     lines.push(
-      `${blockerNum++}. open_gaps — ${readiness.openGaps.length} missing Seed section(s): ${readiness.openGaps.join(', ')}`,
+      `${blockerNum++}. open_gaps (${readiness.openGaps.length}): ${readiness.openGaps.join(', ')}`,
     );
     for (const gap of readiness.openGaps.slice(0, 3)) {
       const guidance = ULTRA_PLAN_SECTION_GUIDANCE[gap];
       lines.push(`   - ${guidance.label}: ${guidance.askHint}`);
     }
     if (readiness.openGaps.length > 3) {
-      lines.push(`   - ...then the remaining ${readiness.openGaps.length - 3} gap(s).`);
+      lines.push(`   - …+${readiness.openGaps.length - 3} more`);
     }
   }
 
   if (readiness.floorFailures.length > 0) {
     lines.push(
-      `${blockerNum++}. clarity floors not met: ${readiness.floorFailures.join('; ')}`,
-      '   Existing answers are too vague — ask for specifics (files, commands, metrics, concrete deliverables).',
+      `${blockerNum++}. clarity floors: ${readiness.floorFailures.join('; ')} — ask for files/commands/metrics.`,
     );
   }
 
   if (readiness.ambiguityScore.overallScore > AMBIGUITY_THRESHOLD) {
     lines.push(
-      `${blockerNum++}. ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} (must be <= ${AMBIGUITY_THRESHOLD.toFixed(1)})`,
+      `${blockerNum++}. ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} (need <= ${AMBIGUITY_THRESHOLD.toFixed(1)})`,
     );
   }
 
   if (interviewRoundCount >= MAX_INTERVIEW_ROUNDS) {
     lines.push(
-      '',
       `Round cap: ${interviewRoundCount} interview rounds completed (soft cap ${MAX_INTERVIEW_ROUNDS}).`,
-      'Two options:',
-      '1. AskUserQuestion: offer the user to advance with conservative defaults for remaining gaps.',
-      '   If the user confirms, call NextPhase({ phase: "design", advance_with_defaults: true }).',
-      '2. Continue interviewing to close the remaining blockers manually.',
+      'Option: AskUserQuestion to advance with defaults → NextPhase({ phase: "design", advance_with_defaults: true }), or keep interviewing.',
     );
   }
 
   const consecutiveNonUser = options?.consecutiveNonUserAnswers ?? 0;
   if (consecutiveNonUser > 0 && consecutiveNonUser < 3) {
-    lines.push(
-      '',
-      `Auto-answers so far: ${consecutiveNonUser}/3 (asking you once we hit 3).`,
-    );
+    lines.push(`Auto-answers: ${consecutiveNonUser}/3.`);
   }
   if (consecutiveNonUser >= 3) {
     lines.push(
-      '',
-      '⚠ RHYTHM GUARD: 3 consecutive findings were answered from code or research, not the user.',
-      'Your next turn MUST use AskUserQuestion (PATH 2) to confirm a decision with the user directly.',
-      'Do not use RecordInterviewFinding again until the user has answered at least one question.',
+      '⚠ RHYTHM GUARD: 3 consecutive non-user findings. Next turn MUST use AskUserQuestion (PATH 2); no more RecordInterviewFinding until a user answer.',
     );
   }
 
   lines.push(
-    '',
     `Status: perspective=${perspective} | ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ')}`,
-    '',
-    'DO NOT (these will not unblock the gate):',
-    '- Write or Edit the plan file. Seed Spec is auto-generated on Design transition; the plan file is written in Write phase.',
-    '- Call NextPhase again until the blockers above are closed.',
-    '- Repeat questions about sections already captured — target only open_gaps listed above.',
-    '- Ask bare checklist questions — teach briefly and frame Baseline/Upgrade choices through the current perspective.',
-    '',
-    `NEXT TURN — AskUserQuestion: close the focus below through the ${perspective} perspective (one primary gap per round):`,
+    'Do not Write or Edit the plan file. Do not NextPhase until blockers close. Target only open_gaps; frame Baseline/Upgrade through the current perspective.',
+    `NEXT TURN — AskUserQuestion: close the focus below through the ${perspective} perspective (one gap):`,
     pickNextInterviewFocus(readiness, perspective),
   );
 
   const lateralHint = perspectiveLateralHint(perspective);
   if (lateralHint !== undefined) {
-    lines.push('', `Lateral thinking (${perspective}): ${lateralHint}`);
+    lines.push(`Lateral (${perspective}): ${lateralHint}`);
   }
 
   return lines.join('\n');
@@ -1662,11 +1639,11 @@ export function formatInterviewReadinessGuide(
 
 function perspectiveLateralHint(perspective: InterviewPerspective): string | undefined {
   const hints: Partial<Record<InterviewPerspective, string>> = {
-    researcher: 'What information are we still missing? What similar problems have documented solutions?',
-    simplifier: 'What can we remove without breaking the core outcome? Consider a Baseline that cuts 30%+ of scope.',
-    architect: 'How would we design this from scratch? What abstraction would clarify the structure?',
-    'breadth-keeper': 'What edge cases or quality dimensions did the user skip? Balance stretch goals vs non-goals.',
-    'seed-closer': 'What would make this definitely fail? Lock each acceptance criterion to a pass/fail test.',
+    researcher: 'Missing info? Documented solutions for similar problems?',
+    simplifier: 'What can we remove? Prefer a Baseline that cuts 30%+ scope.',
+    architect: 'Design from scratch — which abstraction clarifies structure?',
+    'breadth-keeper': 'Skipped edge cases / quality dims? Balance stretch vs non-goals.',
+    'seed-closer': 'What would fail the goal? Lock each AC to a pass/fail test.',
   };
   return hints[perspective];
 }
