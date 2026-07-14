@@ -259,7 +259,7 @@ export function buildUltraworkRecoveryPrompt(
 ): string {
   const lines = [
     '<ultrawork_recovery>',
-    'Resume the interrupted Ultrawork run from the last durable checkpoint. Do not restart from scratch unless the checkpoint is unusable.',
+    'Resume from the last durable checkpoint. Do not restart from scratch unless the checkpoint is unusable.',
     `Run id: ${report.run.id}`,
     `Objective: ${report.run.objective}`,
     `Stage: ${report.run.stage}`,
@@ -292,17 +292,14 @@ export function buildUltraworkRecoveryPrompt(
       'Do not ask blocking interview questions unless a critical missing blocker prevents progress.',
     );
   }
+
   const progress = summarizeWorkGraphProgress(report.run.workGraph);
   if (progress.doneCount > 0 || progress.pendingCount > 0) {
     lines.push(
       `WorkGraph progress: ${String(progress.doneCount)} done, ${String(progress.pendingCount)} pending.`,
     );
-    if (progress.inProgressNodes.length > 0) {
-      for (const node of progress.inProgressNodes.slice(0, 6)) {
-        lines.push(`- [${node.status}] ${node.id}: ${node.title} (stage=${node.stage})`);
-      }
-    }
   }
+
   const effectiveStage = inferEffectiveUltraworkStage(report.run.stage, report.run.workGraph);
   if (effectiveStage !== report.run.stage) {
     lines.push(
@@ -329,25 +326,32 @@ export function buildUltraworkRecoveryPrompt(
       lines.push(`- goal_status: ${resumeCursor.goalStatus}`);
     }
   }
+
+  // Keep only the most actionable pending nodes / orphans; full graph is on disk.
   if (report.run.workGraph !== undefined && report.run.workGraph.nodes.length > 0) {
     const pending = report.run.workGraph.nodes.filter((node) => node.status !== 'done');
-    lines.push(`Pending WorkGraph nodes (${String(pending.length)}):`);
-    for (const node of pending.slice(0, 12)) {
-      lines.push(`- [${node.status}] ${node.id}: ${node.title} (stage=${node.stage})`);
+    if (pending.length > 0) {
+      lines.push(`Pending WorkGraph nodes (${String(pending.length)}):`);
+      for (const node of pending.slice(0, 5)) {
+        lines.push(`- [${node.status}] ${node.id}: ${node.title} (stage=${node.stage})`);
+      }
+      if (pending.length > 5) {
+        lines.push(`- … ${String(pending.length - 5)} more`);
+      }
     }
   }
   if (report.orphanedWorkNodes.length > 0) {
-    lines.push(`Reconcile orphaned work nodes: ${report.orphanedWorkNodes.join(', ')}`);
+    lines.push(`Reconcile orphaned work nodes: ${report.orphanedWorkNodes.slice(0, 8).join(', ')}`);
   }
   if (report.orphanedExperts.length > 0) {
-    lines.push(`Reconcile orphaned experts: ${report.orphanedExperts.join(', ')}`);
+    lines.push(`Reconcile orphaned experts: ${report.orphanedExperts.slice(0, 8).join(', ')}`);
   }
   if (report.lostBackgroundTasks.length > 0) {
-    lines.push(`Lost/failed background tasks: ${report.lostBackgroundTasks.join(', ')}`);
+    lines.push(`Lost/failed background tasks: ${report.lostBackgroundTasks.slice(0, 8).join(', ')}`);
   }
 
   lines.push('Next actions:');
-  for (const action of report.nextActions) {
+  for (const action of report.nextActions.slice(0, 4)) {
     lines.push(`- ${action}`);
   }
   lines.push('Continue from the current stage, refresh evidence as needed, and keep the WorkGraph ledger current.');
@@ -624,10 +628,7 @@ function suggestNextActions(
             : 'Continue the UltraPlan interview from the current evidence pack.',
         );
         actions.push(
-          'Before the next AskUserQuestion, use read-only WebSearch, FetchURL, and codebase read tools when needed so options stay evidence-backed.',
-        );
-        actions.push(
-          'Continue elevating the goal: teach brief insights and offer Baseline + Upgrade choices — not only gap-filling questions.',
+          'Research-first before AskUserQuestion; offer Baseline + Upgrade choices, not only gap-filling questions.',
         );
         break;
       }

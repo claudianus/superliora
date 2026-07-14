@@ -38,4 +38,26 @@ describe('skill catalog loader', () => {
     const hits = await registry.searchByQuery('pdf document processing', 5);
     expect(hits.length).toBeGreaterThan(0);
   });
+
+  it('defers catalog registration until ensureCatalogLoaded/search', async () => {
+    const catalogDir = await resolveSkillCatalogDir();
+    if (catalogDir === undefined) return;
+
+    const registry = new SessionSkillRegistry();
+    registerBuiltinSkills(registry);
+
+    const before = registry.listSkills().length;
+    expect(before).toBeGreaterThan(0); // builtins only
+
+    const started = performance.now();
+    await registry.ensureCatalogLoaded();
+    const after = registry.listSkills().length;
+    expect(after).toBeGreaterThan(before + 1000);
+    expect(performance.now() - started).toBeLessThan(5_000);
+
+    // Second call is a no-op.
+    const againStart = performance.now();
+    await registry.ensureCatalogLoaded();
+    expect(performance.now() - againStart).toBeLessThan(50);
+  });
 });

@@ -2,6 +2,7 @@ import { expandSkillParameters, skillArgumentNames } from './parser';
 import { discoverSkills, type DiscoverSkillsOptions } from './scanner';
 import { SkillSearchEngine } from './expert-search';
 import { composeSkillInstructions, enrichSkillForSearch } from './skill-composition';
+import { registerCatalogSkills } from './catalog-loader';
 import type { SkillDefinition, SkillRoot, SkillSearchHit, SkillSource, SkippedSkill } from './types';
 import { isInlineSkillType, normalizeSkillName, skillRisk } from './types';
 import type { SkillRegistry as AgentSkillRegistry } from '../agent/skill/types';
@@ -52,6 +53,8 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
   private readonly defaultSearchLimit: number;
   private readonly maxSearchLimit: number;
   private searchEngine: SkillSearchEngine | undefined;
+  private catalogLoadPromise: Promise<void> | undefined;
+  private catalogLoaded = false;
   readonly sessionId?: string;
 
   constructor(options: SkillRegistryOptions = {}) {
@@ -100,7 +103,20 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
   }
 
   getSkill(name: string): SkillDefinition | undefined {
-    return this.byName.get(normalizeSkillName(name));
+    const key = normalizeSkillName(name);
+    const existing = this.byName.get(key);
+    if (existing !== undefined) return existing;
+    // Best-effort sync path: if catalog is already loaded, lookup succeeds.
+    // Callers that need guaranteed catalog coverage should await ensureCatalogLoaded().
+    return this.byName.get(key);
+  }
+
+  async getSkillAsync(name: string): Promise<SkillDefinition | undefined> {
+    const key = normalizeSkillName(name);
+    const existing = this.byName.get(key);
+    if (existing !== undefined) return existing;
+    await this.ensureCatalogLoaded();
+    return this.byName.get(key);
   }
 
   getPluginSkill(pluginId: string, name: string): SkillDefinition | undefined {
@@ -179,6 +195,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
   ): Promise<readonly SkillSearchHit[]> {
     const trimmed = query.trim();
     if (trimmed.length === 0) return [];
+    await this.ensureCatalogLoaded();
     const limit = clampSearchLimit(topK ?? this.defaultSearchLimit, this.maxSearchLimit);
     const engine = this.getSearchEngine();
     const first = engine.search({
@@ -204,6 +221,23 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     const content = await skill.loadContent();
     this.contentCache.set(cacheKey, content);
     return content;
+  }
+
+  /**
+   * Builtin catalog skills are large. Load them on first SearchSkill/Skill use
+   * rather than at session construction so ordinary coding turns start faster.
+   */
+  async ensureCatalogLoaded(): Promise<void> {
+    if (this.catalogLoaded) return;
+    if (this.catalogLoadPromise === undefined) {
+      this.catalogLoadPromise = (async () => {
+        await registerCatalogSkills(this);
+        this.catalogLoaded = true;
+        // Catalog registration mutates the skill set; rebuild search index next query.
+        this.searchEngine = undefined;
+      })();
+    }
+    await this.catalogLoadPromise;
   }
 
   private getSearchEngine(): SkillSearchEngine {

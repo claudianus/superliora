@@ -9,4 +9,5 @@ export interface SkillRegistry {
   getModelSkillListing(): string;
   getLegacyModelSkillListing?(): string;
   searchByQuery?(query: string, topK?: number): Promise<readonly SkillSearchHit[]>;
+  ensureCatalogLoaded?(): Promise<void>;
 }
