@@ -841,6 +841,8 @@ describe('UltraPlanModeEngine', () => {
         consecutiveNonUserAnswers: 2,
       });
       expect(guide).toContain('Auto-answers: 2/3');
+      // Keep interview readiness injections compact (pre-slim guides were 1.5k+ chars).
+      expect(guide.length).toBeLessThan(1200);
     });
 
     it('AC-2: falls back to deterministic heuristic when LLM scoring returns null', async () => {
