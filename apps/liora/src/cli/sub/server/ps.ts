@@ -6,6 +6,8 @@
  */
 
 import { t, tln } from '#/cli/i18n';
+import chalk from 'chalk';
+import type { Command } from 'commander';
 
 import { getLiveLock } from '@superliora/server';
 

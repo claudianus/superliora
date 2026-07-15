@@ -129,8 +129,8 @@ describe('PremiumQualityInjector', () => {
       role: 'user',
       content: [{ type: 'text', text: '<system-reminder>other injector</system-reminder>' }],
       origin: { kind: 'injection', variant: 'current_time' },
-    });
-    history(agent).push({ role: 'assistant', content: [{ type: 'text', text: 'working' }] });
+    } as never);
+    history(agent).push({ role: 'assistant', content: [{ type: 'text', text: 'working' }] } as never);
 
     await injector.inject();
     expect(history(agent)).toHaveLength(before + 2);
@@ -175,7 +175,7 @@ describe('PremiumQualityInjector', () => {
       role: 'user',
       content: [{ type: 'text', text: 'please polish the dashboard' }],
       origin: { kind: 'user' },
-    });
+    } as never);
     await injector.inject();
 
     expect(lastReminder(agent)).toContain('Premium Quality mode is ON');

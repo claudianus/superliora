@@ -425,6 +425,15 @@ export function projectContext(
       case 'ultra_swarm_engage_gate.set':
       case 'ultra_swarm_engage_gate.clear':
         break;
+      case 'plan_mode.state':
+      case 'premium-quality.mode':
+      case 'swarm.steer':
+      case 'ultrawork.mode':
+      case 'ultrawork.run':
+      case 'context.append_message':
+      case 'context.apply_compaction':
+      case 'context.clear':
+        break;
       default: {
         const _exhaustive: never = rec;
         void _exhaustive;

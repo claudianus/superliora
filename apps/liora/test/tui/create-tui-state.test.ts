@@ -427,7 +427,7 @@ describe('createTUIState', () => {
         id: 'call_websearch',
         name: 'WebSearch',
         args: { query: 'Phaser 3 browser game' },
-      }),
+      }, undefined),
     );
     state.editorContainer.addChild(state.editor);
     state.footerContainer.addChild(fixedLines(['footer']));

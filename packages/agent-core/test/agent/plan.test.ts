@@ -20,7 +20,7 @@ describe('manual plan entry', () => {
 
   it('enters plan mode without starting a model turn and prepares the plan directory', async () => {
     const mkdir = vi.fn().mockResolvedValue(undefined);
-    const writeAtomic = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
     const ctx = testAgent({
       kaos: createFakeKaos({ mkdir, writeAtomic }),
     });
@@ -37,7 +37,7 @@ describe('manual plan entry', () => {
   });
 
   it('enters UltraPlan with the phase machine and template active', async () => {
-    const writeAtomic = vi.fn(async (_path: string, content: string) => content.length);
+    const writeAtomic = vi.fn(async (_path: string, content: string) => { void content; });
     const ctx = testAgent({
       kaos: createPlanKaos({ writeAtomic }),
     });
@@ -79,7 +79,7 @@ describe('manual plan entry', () => {
   it('derives the no-homedir plan path from cwd on enter and restore', async () => {
     const ctx = testAgent({
       kaos: createPlanKaos({
-        writeAtomic: vi.fn(async (_path: string, content: string) => content.length),
+        writeAtomic: vi.fn(async (_path: string, content: string) => { void content; }),
       }),
     });
     await ctx.agent.planMode.enter('stable-plan');
@@ -114,7 +114,7 @@ describe('manual plan entry', () => {
     };
     const ctx = testAgent({
       kaos: createPlanKaos({
-        writeAtomic: vi.fn(async (_path: string, content: string) => content.length),
+        writeAtomic: vi.fn(async (_path: string, content: string) => { void content; }),
       }),
     });
     ctx.configure({ tools: ['EnterPlanMode'] });
@@ -140,7 +140,7 @@ describe('plan clear', () => {
     const readText = vi.fn(async (path: string) => files.get(path) ?? '');
     const writeAtomic = vi.fn(async (path: string, content: string) => {
       files.set(path, content);
-      return content.length;
+      return undefined;
     });
 
     const ctx = testAgent({
@@ -373,7 +373,7 @@ describe('plan allows safe tool flow', () => {
       const readText = vi.fn(async (path: string) => files.get(path) ?? '');
       const writeAtomic = vi.fn(async (path: string, content: string) => {
         files.set(path, content);
-        return content.length;
+        return undefined;
       });
       const ctx = testAgent({
         kaos: createPlanKaos({ readText, writeAtomic }),
@@ -417,7 +417,7 @@ describe('plan allows safe tool flow', () => {
     const files = new Map<string, string>();
     const writeAtomic = vi.fn(async (path: string, content: string) => {
       files.set(path, content);
-      return content.length;
+      return undefined;
     });
     const ctx = testAgent({
       kaos: createPlanKaos({ writeAtomic }),

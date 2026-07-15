@@ -2220,6 +2220,9 @@ function providerDefaultApiKeyEnv(
       return 'GOOGLE_API_KEY';
     case 'vertexai':
       return 'VERTEXAI_API_KEY';
+    case 'bedrock':
+    case 'vertex_claude':
+      return undefined;
     default: {
       const exhaustive: never = type;
       return exhaustive;

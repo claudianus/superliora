@@ -211,3 +211,5 @@ export type {
   TerminalSpawnOptions,
 } from './terminal/terminal';
 export { NodePtyTerminalBackend, TerminalService } from './terminal/terminalService';
+export type { ApprovalRequest, ApprovalResponse } from './approval/approval';
+export type { QuestionRequest, QuestionResult } from './question/question';

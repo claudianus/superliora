@@ -15,7 +15,7 @@ export class StatusMessageComponent extends Container {
   private textComponent: Text;
   private content: string;
   private color?: ColorToken;
-  private ambientAnimationEpoch = -1;
+  ambientAnimationEpoch = -1;
 
   constructor(content: string, color?: ColorToken) {
     super();
@@ -69,7 +69,7 @@ export class NoticeMessageComponent extends Container {
   private detailText?: Text;
   private title: string;
   private detail?: string;
-  private ambientAnimationEpoch = -1;
+  ambientAnimationEpoch = -1;
 
   constructor(title: string, detail: string | undefined, coalesceKey?: string) {
     super();

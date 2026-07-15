@@ -29,6 +29,9 @@ describe('interrupted work resume intent', () => {
             remainingTurns: null,
             remainingTokens: null,
             remainingWallClockMs: null,
+            tokenBudgetReached: false,
+            turnBudgetReached: false,
+            wallClockBudgetReached: false,
           },
         },
         ultraworkRun: null,
@@ -66,7 +69,9 @@ describe('interrupted work resume intent', () => {
     const intent = await detectInterruptedWorkResumeIntentWithLlm(
       {
         generate: vi.fn(async () => ({
+          id: 'gen_test',
           message: {
+            role: 'assistant',
             content: [
               {
                 type: 'text',
@@ -74,7 +79,10 @@ describe('interrupted work resume intent', () => {
               },
             ],
           },
-        })),
+          usage: null,
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+        })) as never,
         provider: {} as never,
       },
       {

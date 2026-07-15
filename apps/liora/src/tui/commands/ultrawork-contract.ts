@@ -1,4 +1,4 @@
-import type { UltraworkRun } from '@superliora/protocol';
+import type { UltraworkRun } from '@superliora/sdk';
 
 export type UltraworkActivationSource = 'manual' | 'auto' | 'headless' | 'goal';
 

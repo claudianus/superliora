@@ -2075,8 +2075,9 @@ describe('FullCompaction', () => {
       cwd: dir,
       trigger: 'auto',
     });
-    expect(typeof post.estimated_token_count).toBe('number');
-    expect(post.estimated_token_count).toBeGreaterThan(39);
+    expect(post).toBeDefined();
+    expect(typeof post?.['estimated_token_count']).toBe('number');
+    expect(Number(post?.['estimated_token_count'])).toBeGreaterThan(39);
   });
 
   it('cancels while waiting for a PreCompact hook', async () => {
@@ -4207,11 +4208,14 @@ function realKosongGenerate(
 const alwaysCompactOnce: CompactionStrategy = {
   shouldCompact: () => true,
   shouldBlock: () => true,
+  shouldAsyncCompact: () => false,
   computeCompactCount: (messages: readonly Message[]) => messages.length,
   reduceCompactOnOverflow: (messages: readonly Message[]) => messages.length,
   checkAfterStep: true,
   maxCompactionPerTurn: 1,
   maxOverflowCompactionAttempts: 3,
+  asyncTriggerRatio: 0.5,
+  frozenZoneSize: 2,
 };
 
 const parallelCompactAll: CompactionStrategy = {

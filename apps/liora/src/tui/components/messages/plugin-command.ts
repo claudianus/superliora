@@ -16,7 +16,7 @@ export class PluginCommandComponent extends Container {
   private previewText?: Text;
   private readonly commandLabel: string;
   private readonly args?: string;
-  private ambientAnimationEpoch = -1;
+  ambientAnimationEpoch = -1;
 
   constructor(
     pluginId: string,

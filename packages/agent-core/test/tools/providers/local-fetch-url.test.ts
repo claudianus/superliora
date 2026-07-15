@@ -16,7 +16,7 @@ import {
 
 // Disable DNS resolution for content-kind tests so they never touch the
 // network resolver; the SSRF/DNS behavior has its own suite below.
-function providerWith(fetchImpl: ReturnType<typeof vi.fn>): LocalFetchURLProvider {
+function providerWith(fetchImpl: typeof fetch): LocalFetchURLProvider {
   return new LocalFetchURLProvider({ fetchImpl, resolveDns: false });
 }
 

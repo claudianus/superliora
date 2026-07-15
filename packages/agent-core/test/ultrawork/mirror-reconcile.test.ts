@@ -1,3 +1,4 @@
+import type { UltraworkRun } from '@superliora/protocol';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -293,7 +294,7 @@ Swarm decision: ENGAGE
     // Simulate the journal having replayed the richer run state.
     replayAgent.ultrawork.restoreRun({
       type: 'ultrawork.run',
-      run: richerRun,
+      run: richerRun as UltraworkRun,
       time: Date.now(),
     });
 

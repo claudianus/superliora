@@ -72,11 +72,15 @@ describe('ultra-swarm restaff helpers', () => {
           {
             expertId: 'testing-evidence-collector',
             expertName: 'QA Collector',
+            emoji: '🧪',
+            color: 'green',
             prompt: 'Review tests.',
           },
           {
             expertId: 'security-appsec-engineer',
             expertName: 'AppSec Engineer',
+            emoji: '🔒',
+            color: 'red',
             prompt: 'Review security.',
           },
         ],

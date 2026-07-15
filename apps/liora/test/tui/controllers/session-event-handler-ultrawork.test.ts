@@ -252,7 +252,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
       expect.objectContaining({ coalesceKey: 'ultrawork-completed:uw_done' }),
     );
     const markerText = host.state.transcriptContainer.addChild.mock.calls
-      .map((call) => stripAnsi((call[0] as TestComponent | undefined)?.render(100).join('\n') ?? ''))
+      .map((call: unknown[]) => stripAnsi((call[0] as TestComponent | undefined)?.render(100).join('\n') ?? ''))
       .join('\n');
     expect(markerText).toContain('Ultrawork completed');
   });

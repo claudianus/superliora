@@ -94,7 +94,7 @@ describe('ultrawork workflow report harness', () => {
       });
 
       expect(existsSync(join(workDir, evidenceRoot, WORKFLOW_REPORT_FILENAME))).toBe(true);
-      expect(agent.reminders.some((text) => text.includes('<ultrawork_workflow_report>'))).toBe(true);
+      expect((agent as unknown as { reminders: string[] }).reminders.some((text: string) => text.includes('<ultrawork_workflow_report>'))).toBe(true);
 
       const run = mode.getRun();
       expect(run).not.toBeNull();

@@ -43,6 +43,7 @@ function makeAgent(
     emitEvent: vi.fn(),
     requestApproval: vi.fn(),
     requestQuestion: vi.fn(),
+    requestCredential: vi.fn(),
     toolCall: vi.fn(),
   } as unknown as SDKAgentRPC;
   const agent = new Agent({
@@ -72,6 +73,7 @@ function sessionRpc(): SDKSessionRPC {
     emitEvent: vi.fn(),
     requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
     requestQuestion: vi.fn(async () => null),
+    requestCredential: vi.fn(async () => null),
     toolCall: vi.fn(async () => ({ output: '' })),
   } as unknown as SDKSessionRPC;
 }

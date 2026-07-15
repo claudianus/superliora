@@ -48,7 +48,8 @@ describe('GetCurrentTimeTool', () => {
     const result = await executeTool(tool, { turnId: '0', toolCallId: 'call_1', args: {}, signal });
 
     expect(result.isError).toBeFalsy();
-    const snapshot = JSON.parse(result.output ?? '{}') as {
+    const outputText = typeof result.output === 'string' ? result.output : JSON.stringify(result.output ?? {});
+    const snapshot = JSON.parse(outputText || '{}') as {
       iso: string;
       today: string;
       local: string;

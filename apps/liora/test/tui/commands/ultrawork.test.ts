@@ -568,7 +568,7 @@ describe('handleUltraworkCommand', () => {
       stage: 'plan',
       createdAt: '2026-07-06T00:00:00.000Z',
       updatedAt: '2026-07-06T00:05:00.000Z',
-    });
+    } as never);
     session.resumeUltrawork.mockResolvedValue({
       run: {
         id: 'run-blocked',
@@ -594,7 +594,7 @@ describe('handleUltraworkCommand', () => {
         lostBackgroundTasks: [],
         nextActions: [],
       },
-    });
+    } as never);
 
     await handleUltraworkCommand(host, 'resume', 'manual');
 
@@ -615,7 +615,7 @@ describe('handleUltraworkCommand', () => {
       stage: 'research',
       createdAt: '2026-07-06T00:00:00.000Z',
       updatedAt: '2026-07-06T00:05:00.000Z',
-    });
+    } as never);
 
     await handleUltraworkCommand(host, '울트라워크로 readme 작업 재개해줘', 'auto');
 
@@ -637,7 +637,7 @@ describe('handleUltraworkModeToggle', () => {
       stage: 'integrate',
       createdAt: '2026-07-06T00:00:00.000Z',
       updatedAt: '2026-07-06T00:00:00.000Z',
-    });
+    } as never);
 
     await handleUltraworkModeToggle(host, false);
 
@@ -658,7 +658,7 @@ describe('handleUltraworkModeToggle', () => {
       stage: 'verify',
       createdAt: '2026-07-06T00:00:00.000Z',
       updatedAt: '2026-07-06T00:00:00.000Z',
-    });
+    } as never);
 
     await handleUltraworkModeToggle(host, false);
 

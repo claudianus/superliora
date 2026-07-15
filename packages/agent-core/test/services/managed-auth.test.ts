@@ -77,7 +77,7 @@ describe('ServicesManagedAuthFacade — non-Kimi OAuth routing', () => {
       // This is the call made per-prompt-turn by ProviderManager.resolveAuth.
       // Before the fix this threw "No OAuth manager configured for provider
       // xai-grok".
-      const accessToken = await provider.getAccessToken();
+      const accessToken = await provider!.getAccessToken();
       expect(accessToken).toBe('grok-at-2');
     } finally {
       rmSync(homeDir, { recursive: true, force: true });
@@ -109,7 +109,7 @@ describe('ServicesManagedAuthFacade — non-Kimi OAuth routing', () => {
     try {
       const facade = createManagedAuthFacade({ homeDir, configPath });
       const provider = facade.resolveOAuthTokenProvider('openai-codex');
-      expect(await provider.getAccessToken()).toBe('codex-at-1');
+      expect(await provider!.getAccessToken()).toBe('codex-at-1');
     } finally {
       rmSync(homeDir, { recursive: true, force: true });
     }
@@ -127,7 +127,7 @@ describe('ServicesManagedAuthFacade — Kimi provider unchanged', () => {
       // "No OAuth manager configured" — that only happens for non-Kimi names
       // routed into the toolkit.
       const provider = facade.resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME);
-      expect(typeof provider.getAccessToken).toBe('function');
+      expect(typeof provider!.getAccessToken).toBe('function');
     } finally {
       rmSync(homeDir, { recursive: true, force: true });
     }

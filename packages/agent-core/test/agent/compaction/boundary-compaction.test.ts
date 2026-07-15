@@ -14,13 +14,13 @@ import type { ToolStore } from '../../../src/tools/store';
 function mockStore(): ToolStore {
   const data = new Map<string, unknown>();
   return {
-    get: (key) => data.get(key as string),
-    set: (key, value) => {
-      data.set(key as string, value);
+    get: (key: string) => data.get(key),
+    set: (key: string, value: unknown) => {
+      data.set(key, value);
     },
-    update: (key, updater) => {
-      const current = data.get(key as string);
-      data.set(key as string, updater(current));
+    update: (key: string, updater: (current: unknown) => unknown) => {
+      const current = data.get(key);
+      data.set(key, updater(current));
     },
   } as unknown as ToolStore;
 }

@@ -90,6 +90,7 @@
     "@superliora/gui-use": "workspace:^",
     "@superliora/oauth": "workspace:^",
     "@superliora/sdk": "workspace:^",
+    "@superliora/protocol": "workspace:^",
     "@superliora/telemetry": "workspace:^",
     "@superliora/server": "workspace:^",
     "@superliora/vis-server": "workspace:^",
