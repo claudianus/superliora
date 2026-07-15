@@ -148,7 +148,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   }
 
   lines.push(
-    'resume_policy: Continue the active Ultrawork run from this checkpoint. Do not restart UltraPlan interview, create a new plan file, or open a new Ultrawork run unless the checkpoint is unusable.',
+    'resume_policy: Continue this Ultrawork run from the checkpoint. Do not restart UltraPlan interview, create a new plan file, or open a new Ultrawork run unless the checkpoint is unusable.',
   );
   return lines.join('\n');
 }
