@@ -50,6 +50,7 @@ describe('default agent profiles', () => {
         'SetGoalBudget',
         'UpdateGoal',
         'TodoList',
+        'UltraworkGraph',
         'EnterPlanMode',
         'ExitPlanMode',
         'Skill',

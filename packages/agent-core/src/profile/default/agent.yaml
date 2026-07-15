@@ -17,6 +17,7 @@ tools:
   - LioraRead
   # Progress transparency and long-run autonomy (main agent only).
   - TodoList
+  - UltraworkGraph
   - EnterPlanMode
   - NextPhase
   - ExitPlanMode
