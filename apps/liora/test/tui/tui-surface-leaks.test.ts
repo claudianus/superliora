@@ -177,7 +177,7 @@ describe('TUI surface leak checks', () => {
       'Coverage      test public behavior changes',
       'Screen check  open changed screen before finishing',
       'Done gate     tests + typecheck/lint/build + clean diff + TUI',
-      'next: Shift-Tab toggles Ultrawork/off, or type normally',
+      'next: Shift-Tab toggles Ultrawork/off · /bench for LioraBench',
     ].join('\n');
     const setupScreen = [
       'Model: not set',

@@ -179,7 +179,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
       const [, line2] = footer.render(120);
 
-      expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Ultrawork/off, or type normally');
+      expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Ultrawork/off · /bench for LioraBench');
       expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
       expect(strip(line2 ?? '')).not.toContain('helpers');
       expect(strip(line2 ?? '')).toContain('context: 0.0%');
@@ -201,7 +201,7 @@ describe('FooterComponent — context NaN resilience', () => {
     try {
       const footer = new FooterComponent(baseState());
       const [, line2] = footer.render(120);
-      expect(strip(line2 ?? '')).toContain('OPENAI_API_KEY or GOOGLE_API_KEY for media');
+      expect(strip(line2 ?? '')).toContain('OPENAI_API_KEY or GOOGLE_API_KEY for image/video');
       expect(strip(line2 ?? '')).toContain('context: 0.0%');
     } finally {
       for (const [key, value] of Object.entries(previous)) {
