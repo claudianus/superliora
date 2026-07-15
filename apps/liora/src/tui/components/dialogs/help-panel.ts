@@ -57,9 +57,9 @@ export const ADVANCED_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
   ...DEFAULT_KEYBOARD_SHORTCUTS.slice(1),
 ];
 const DEFAULT_HELP_INTRO =
-  'Shift-Tab toggles Ultrawork and off.\n/status shows media, web/Context7 readiness, and ZDR privacy.\nNormal messages stay lightweight unless Ultrawork is on.';
+  'Shift-Tab toggles Ultrawork and off.\n/status shows media, web/Context7, ZDR privacy, and LioraBench readiness.\nNormal messages stay lightweight unless Ultrawork is on.';
 export const ADVANCED_HELP_INTRO =
-  'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.\nShift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.\n/status shows media, web/Context7 readiness, and ZDR privacy.';
+  'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.\nShift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.\n/status shows media, web/Context7, ZDR privacy, and LioraBench readiness.';
 
 export interface HelpPanelOptions {
   readonly commands: readonly HelpPanelCommand[];
