@@ -151,7 +151,7 @@ function budgetBandGuidance(goal: GoalSnapshot): string {
   if (fraction >= 0.75) {
     return 'Budget guidance: nearing a budget. Converge on the objective and avoid starting new discretionary work.';
   }
-  return 'Budget guidance: within budget. Make steady, focused progress toward the objective.';
+  return 'Budget guidance: within budget. Make steady, focused progress.';
 }
 
 function escapeUntrustedText(text: string): string {
