@@ -23,6 +23,7 @@ export * from './file/grep';
 export * from './file/read';
 export * from './file/read-media';
 export * from './file/write';
+export * from './media/generate-image';
 export * from './goal/create-goal';
 export * from './goal/get-goal';
 export * from './goal/set-goal-budget';

@@ -43,7 +43,7 @@ describe('buildContextOsReportLines', () => {
     expect(lines).toContain('Telemetry: ON');
     expect(lines).toContain('telemetry = false');
     expect(lines).toContain('WebSearch');
-    expect(lines).toContain('workspace-imagen');
+    expect(lines).toContain('GenerateImage');
     expect(lines).toContain('evidence-miss selections 1');
   });
 

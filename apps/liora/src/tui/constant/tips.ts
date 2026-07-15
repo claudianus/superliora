@@ -45,7 +45,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/compact compresses context when it gets long', priority: 2 },
   { text: '/status shows context, Context OS continuity, and micro-clear health at a glance', priority: 3, solo: true },
   { text: '/context diagnoses memory continuity, evidence, and privacy (ZDR) posture', priority: 3, solo: true },
-  { text: 'images/video: SearchSkill workspace-imagen or gemini-omni-flash when you need media', priority: 2, solo: true },
+  { text: 'images: GenerateImage with OPENAI_API_KEY or GOOGLE_API_KEY; video via SearchSkill gemini-omni-flash', priority: 2, solo: true },
   { text: 'footer badges warn when context is high or durable evidence went missing after compact', priority: 2, solo: true },
   { text: 'ctrl-o to hide or reveal tool output switching between a clean chat view and full execution details', priority: 2 },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },

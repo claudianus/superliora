@@ -567,6 +567,9 @@ export class ToolManager {
       this.shouldCreateBuiltin('ReadMediaFile') &&
         (modelCapabilities.image_in || modelCapabilities.video_in) &&
         new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
+      this.shouldCreateBuiltin('GenerateImage') &&
+        b.isGenerateImageAvailable() &&
+        new b.GenerateImageTool(kaos, workspace),
     ];
   }
 

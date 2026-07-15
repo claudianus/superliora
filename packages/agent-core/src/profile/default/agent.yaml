@@ -44,6 +44,7 @@ tools:
   - TaskOutput
   - TaskStop
   - ReadMediaFile
+  - GenerateImage
   # MCP tools are gated separately by the profile.
   - mcp__*
 

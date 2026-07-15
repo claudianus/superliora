@@ -93,7 +93,8 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+LocalResearchStack \+ WebSearch \+ FetchURL; provider\/MCP optional/);
+    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL ready \(LocalResearchStack when no managed search\)/);
+    expect(output).toMatch(/Media\s+GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY\/GEMINI_API_KEY is set/);
     expect(output).toMatch(/Catalog\s+1 models \/ 1 providers; active managed:kimi-api/);
     expect(output).toMatch(/Memory\s+prefs \| session recall \| long-run notes/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify queued/);
@@ -180,7 +181,8 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+LocalResearchStack \+ WebSearch \+ FetchURL; provider\/MCP optional/);
+    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL ready \(LocalResearchStack when no managed search\)/);
+    expect(output).toMatch(/Media\s+GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY\/GEMINI_API_KEY is set/);
     expect(output).toMatch(/Memory\s+prefs \| session recall \| long-run notes/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
     expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm off \| Verify blocked/);

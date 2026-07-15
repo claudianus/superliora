@@ -91,6 +91,8 @@ export interface StatusReportOptions {
   };
   /** Product telemetry enabled (false ≈ ZDR-friendlier local posture). */
   readonly privacyTelemetryEnabled?: boolean;
+  /** Active tool names from the session (for research/media readiness). */
+  readonly activeToolNames?: readonly string[];
 }
 
 type Colorize = (text: string) => string;
@@ -150,7 +152,8 @@ const ENGINE_GATE = 'UltraPlan | UltraGoal | Research | Swarm decision | Integra
 const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
-const RESEARCH_GATE = 'LocalResearchStack + WebSearch + FetchURL; provider/MCP optional';
+const RESEARCH_GATE = 'WebSearch + FetchURL ready (LocalResearchStack when no managed search)';
+const MEDIA_GATE = 'GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set';
 const MEMORY_GATE = 'prefs | session recall | long-run notes';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
@@ -158,6 +161,44 @@ const WRITING_GATE = 'human voice lanes; detectors advisory-only';
 const WRITING_BLOCKED_GATE = 'voice-lane guidance blocked; detectors must stay advisory-only';
 const SCREEN_CHECK_GATE = 'open changed screen before finishing';
 const DONE_GATE = 'tests + typecheck/lint/build + clean diff + TUI';
+
+function hasActiveTool(options: StatusReportOptions, name: string): boolean | undefined {
+  if (options.activeToolNames === undefined) return undefined;
+  return options.activeToolNames.includes(name);
+}
+
+function imageProviderKeyReady(): boolean {
+  return (
+    nonEmptyEnv(process.env['OPENAI_API_KEY']) !== undefined ||
+    nonEmptyEnv(process.env['GOOGLE_API_KEY']) !== undefined ||
+    nonEmptyEnv(process.env['GEMINI_API_KEY']) !== undefined
+  );
+}
+
+function nonEmptyEnv(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function formatResearchGate(options: StatusReportOptions): string {
+  const web = hasActiveTool(options, 'WebSearch');
+  const fetch = hasActiveTool(options, 'FetchURL');
+  if (web === undefined || fetch === undefined) return RESEARCH_GATE;
+  if (web && fetch) return 'WebSearch + FetchURL active · local/managed search path ready';
+  if (!web && !fetch) return 'Web research tools unavailable in this session';
+  return `Partial: WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}`;
+}
+
+function formatMediaGate(options: StatusReportOptions): string {
+  const generate = hasActiveTool(options, 'GenerateImage');
+  if (generate === true) return 'GenerateImage active · provider key detected';
+  if (imageProviderKeyReady()) {
+    return 'Provider key present · GenerateImage registers when profile allows it';
+  }
+  if (generate === false) return MEDIA_GATE;
+  return MEDIA_GATE;
+}
 
 function humanWritingBlocked(options: StatusReportOptions): boolean {
   const humanWriting = options.humanWriting;
@@ -438,7 +479,8 @@ function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
     { label: 'Autonomy', value: AUTONOMY_GATE },
     { label: 'Recovery', value: formatRecoveryGate(options) },
     { label: 'Tools', value: TOOLS_GATE },
-    { label: 'Research', value: RESEARCH_GATE },
+    { label: 'Research', value: formatResearchGate(options) },
+    { label: 'Media', value: formatMediaGate(options) },
     { label: 'Catalog', value: formatModelCatalogGate(options) },
     { label: 'Memory', value: MEMORY_GATE },
     formatUltraworkFlow(options),
