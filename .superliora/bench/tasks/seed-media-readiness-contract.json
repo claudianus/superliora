@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "seed.media-readiness-contract.v1",
+  "title": "Record a media readiness contract",
+  "suite": "seed",
+  "kind": "media-readiness",
+  "risk": "low",
+  "tags": [
+    "media",
+    "image",
+    "video",
+    "provider",
+    "deterministic-check"
+  ],
+  "prompt": "Create reports/media-readiness-contract.md with sections for Provider keys, /status Media gate, GenerateImage path, and GenerateVideo path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/media-readiness-contract.md",
+      "content": "# Media Readiness Contract\n\n## Provider keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY\n\n## /status Media gate\nshow ready/key/missing without MCP\n\n## GenerateImage path\n.superliora/generated/images/<timestamp>.png\n\n## GenerateVideo path\n.superliora/generated/videos/<timestamp>.mp4\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/media-readiness-contract.md",
+      "text": "Provider keys",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-readiness-contract.md",
+      "text": "/status Media gate",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-readiness-contract.md",
+      "text": "GenerateImage path",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-readiness-contract.md",
+      "text": "GenerateVideo path",
+      "weight": 1
+    }
+  ]
+}
