@@ -422,6 +422,11 @@ function extractKeyArgument(
   const keyMap: Record<string, string[]> = {
     Bash: ['command'],
     Read: ['path', 'file_path'],
+    LioraRead: ['path', 'file_path'],
+    LioraSymbol: ['name', 'path'],
+    LioraTree: ['path'],
+    LioraExpand: ['id'],
+    LioraCallgraph: ['symbol', 'path'],
     Write: ['path', 'file_path'],
     GenerateImage: ['path', 'prompt'],
     GenerateVideo: ['path', 'prompt'],

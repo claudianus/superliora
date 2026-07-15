@@ -6,13 +6,13 @@ Write as your own continuing reasoning—first person, present tense—not a thi
 
 The next turn sees only your recent user messages and this note—every assistant message, tool call, and tool result above will be gone. Preserve what you need to continue:
 
-- What the latest request is actually asking for: intent, resolved ambiguity, and at-risk parts of large pastes (especially the actual ask). If multiple requests are active, which governs next; re-quote earlier asks that may have scrolled out.
-- Instructions and constraints still in force—condensed; separate settled decisions from open questions.
-- What was done: exact commands, paths, success/failure, key outputs/errors/schemas (not just commands). Keep final working code; drop dead ends.
-- What you still don't know—files unread, APIs unseen, unanswered user questions—so the next turn checks instead of assuming.
-- Forward plan: invest here—you hold more context now than the next turn will. Give the exact next command/tool call and the remaining sequence, decisions already made, foreseeable obstacles, and any patch/query/answer shape you can commit to now. Include required final format.
-- Durable identifiers when present: WorkGraph/Ultrawork node ids, AC ids, evidence_ids, archive markers (`liora-archived`), plan file paths, goal status. Prefer concrete ids over vague "see above".
-- Settled decisions vs open questions: keep DECIDED/chosen approaches and rejected alternatives that still constrain the next step.
+- Latest request: intent, resolved ambiguity, at-risk parts of large pastes (especially the actual ask). If multiple requests are active, which governs next; re-quote earlier asks that may have scrolled out.
+- Instructions/constraints still in force—condensed; separate settled decisions from open questions.
+- What was done: exact commands, paths, success/failure, key outputs/errors/schemas. Keep final working code; drop dead ends.
+- Unknowns: files unread, APIs unseen, unanswered questions—so the next turn checks instead of assuming.
+- Forward plan: exact next command/tool call, remaining sequence, decisions made, foreseeable obstacles, required final format, any patch/query/answer shape you can commit to now.
+- Durable ids when present: WorkGraph/Ultrawork node ids, AC ids, evidence_ids, archive markers (`liora-archived`), plan file paths, goal status. Prefer concrete ids over "see above".
+- Settled vs open: keep DECIDED/chosen approaches and rejected alternatives that still constrain the next step.
 
 Your TODO list re-attaches from live source—do not transcribe it. Record reasoning between tasks (reorder, drops, cross-task decisions) instead.
 

@@ -121,6 +121,75 @@ describe('tool-result registry', () => {
     expect(out).toContain('Alpha');
     expect(out).toContain('Beta');
   });
+  it('LioraRead glance surfaces mode and summary without dumping the file body', () => {
+    const renderer = pickResultRenderer('LioraRead');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('LioraRead', { path: 'src/foo.ts' }),
+          result(
+            [
+              'export function foo() {}',
+              'export function bar() {}',
+              '<tool_meta tool="LioraRead" mode="signatures">',
+              'summary: Rendered 12 of 40 lines for src/foo.ts.',
+              'total_lines: 40',
+              'rendered_lines: 12',
+              '</tool_meta>',
+            ].join('\n'),
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('signatures');
+    expect(out).toContain('Rendered 12 of 40 lines');
+    expect(out).not.toContain('export function bar');
+    expect(isGenericToolResult('LioraRead')).toBe(false);
+  });
+
+  it('LioraSymbol glance lists definition samples', () => {
+    const renderer = pickResultRenderer('LioraSymbol');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('LioraSymbol', { name: 'GoalInjector' }),
+          result(
+            [
+              '<liora_symbol name="GoalInjector">',
+              'definitions: 1',
+              '- packages/agent-core/src/agent/injection/goal.ts:L15 def export class GoalInjector',
+              'references: 1',
+              '- packages/agent-core/src/agent/injection/manager.ts:L40 ref GoalInjector',
+              '</liora_symbol>',
+            ].join('\n'),
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('goal.ts');
+    expect(out).toContain('manager.ts');
+    expect(isGenericToolResult('LioraSymbol')).toBe(false);
+  });
+
+  it('LioraTree glance samples tree rows', () => {
+    const renderer = pickResultRenderer('LioraTree');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('LioraTree', { path: 'src' }),
+          result(['<liora_tree>', 'a.ts', 'b/', 'b/c.ts', 'd.ts', '</liora_tree>'].join('\n')),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('a.ts');
+    expect(out).toContain('b/');
+    expect(out).toContain('+1 more');
+    expect(isGenericToolResult('LioraTree')).toBe(false);
+  });
+
 
   it('Grep glance lists path samples below the chip', () => {
     const renderer = pickResultRenderer('Grep');

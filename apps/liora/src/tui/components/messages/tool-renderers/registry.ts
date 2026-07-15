@@ -11,14 +11,19 @@
  */
 
 import { readMediaSummary } from './media';
-import { shellExecutionResultRenderer } from '../shell-execution';
 import { goalSummary } from './goal';
+import { shellExecutionResultRenderer } from '../shell-execution';
 import {
   editSummary,
   fetchSummary,
   generateMediaSummary,
   globSummary,
   grepSummary,
+  lioraCallgraphSummary,
+  lioraExpandSummary,
+  lioraReadSummary,
+  lioraSymbolSummary,
+  lioraTreeSummary,
   readSummary,
   thinkSummary,
   webSearchSummary,
@@ -41,6 +46,16 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
   switch (toolName) {
     case 'Read':
       return readSummary;
+    case 'LioraRead':
+      return lioraReadSummary;
+    case 'LioraSymbol':
+      return lioraSymbolSummary;
+    case 'LioraTree':
+      return lioraTreeSummary;
+    case 'LioraExpand':
+      return lioraExpandSummary;
+    case 'LioraCallgraph':
+      return lioraCallgraphSummary;
     case 'ReadMediaFile':
       return readMediaSummary;
     case 'Grep':
