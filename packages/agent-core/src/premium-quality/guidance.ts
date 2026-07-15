@@ -31,7 +31,7 @@ export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
  * Keep code/evidence bar without the full visual harness flood.
  */
 export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [
-  'Premium Quality mode is ON (code/evidence density — no visible UI surface detected in the active objective).',
+  'Premium Quality mode is ON (code/evidence density — no visible UI surface in the active objective).',
   'Raise code quality, correctness, tests, types, failure handling, performance, and security. Prefer small high-leverage diffs.',
   'DoD: inspect relevant files/tests first; run focused verification; finish only with evidence (test output, typecheck, real CLI/API proof) and remaining risks.',
   'If the work later adds a user-visible surface (web/app/dashboard/game), switch to visual Premium bar: art direction, anti-slop, screenshot proof.',
