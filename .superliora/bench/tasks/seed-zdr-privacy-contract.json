@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "seed.zdr-privacy-contract.v1",
+  "title": "Record a ZDR privacy posture contract",
+  "suite": "seed",
+  "kind": "privacy-zdr",
+  "risk": "low",
+  "tags": [
+    "privacy",
+    "zdr",
+    "telemetry",
+    "deterministic-check"
+  ],
+  "prompt": "Create reports/zdr-privacy-contract.md with sections for Default telemetry, Opt-in analytics, /status privacy gate, and Local evidence only.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/zdr-privacy-contract.md",
+      "content": "# ZDR Privacy Contract\n\n## Default telemetry\nproduct telemetry is OFF by default (ZDR-friendly)\n\n## Opt-in analytics\nset telemetry = true in config.toml only when usage analytics are wanted\n\n## /status privacy gate\n/status and /context show Privacy / ZDR posture without secrets\n\n## Local evidence only\nkeep secrets out of chat/logs; redacted bench evidence before sharing\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-privacy-contract.md",
+      "text": "Default telemetry",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-privacy-contract.md",
+      "text": "Opt-in analytics",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-privacy-contract.md",
+      "text": "/status privacy gate",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-privacy-contract.md",
+      "text": "Local evidence only",
+      "weight": 1
+    }
+  ]
+}
