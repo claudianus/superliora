@@ -40,8 +40,8 @@ const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
 const BOARD_SEPARATOR = ' │ ';
-const CHANGE_FLASH_MS = 18_000;
-const STALE_TOOL_CALLS = 3;
+const CHANGE_FLASH_MS = 22_000;
+const STALE_TOOL_CALLS = 2;
 const EMPTY_HIGHLIGHTS: ReadonlyMap<string, TodoChangeKind> = new Map();
 
 export interface VisibleTodos {
@@ -201,13 +201,18 @@ export class TodoPanelComponent implements Component {
     if (this.todos.length === 0) return [];
     const profile = resolveResponsiveLayout({ width });
     const content = this.buildTodoContent(width, profile);
+    const counts = countTodos(this.todos);
+    const title =
+      profile === 'tiny'
+        ? ' Todo '
+        : ` Todo Board · ${String(counts.done)}/${String(this.todos.length)} done `;
 
     if (profile === 'tiny') {
       return content.map((line) => truncateToWidth(line, width));
     }
 
     return renderRoundedPanel({
-      title: ' Todo Board ',
+      title,
       content,
       width,
       borderToken: 'border',
