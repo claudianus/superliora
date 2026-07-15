@@ -412,7 +412,7 @@ describe('Ultrawork recovery', () => {
     expect(prompt).toContain('UltraPlan phase: interview');
     expect(prompt).toContain('Interview rounds completed: 3');
     expect(prompt).toContain('continue_interview_from_round: 4');
-    expect(prompt).toContain('Do not restart the UltraPlan interview from round 1.');
+    expect(prompt).toContain('do not restart UltraPlan interview from round 1.');
   });
 
   it('promotes resume stage from WorkGraph progress when checkpoint lags', () => {
