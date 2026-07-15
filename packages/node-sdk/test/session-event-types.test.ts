@@ -159,6 +159,13 @@ describe('Event public types', () => {
         case 'background.task.terminated':
         case 'cron.fired':
         case 'prompt.submitted':
+        case 'subagent.todo.updated':
+        case 'tools.update_store':
+        case 'ultrawork.collaboration.mention':
+        case 'ultrawork.collaboration.message':
+        case 'ultrawork.routing.decided':
+        case 'ultrawork.swarm.paused':
+        case 'ultrawork.swarm.resumed':
           return;
         default:
           assertNever(event);
