@@ -172,14 +172,43 @@ describe('FooterComponent — context NaN resilience', () => {
   });
 
   it('keeps the idle next action visible beside context usage', () => {
-    const footer = new FooterComponent(baseState());
+    const previous = process.env['OPENAI_API_KEY'];
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    try {
+      const footer = new FooterComponent(baseState());
 
-    const [, line2] = footer.render(120);
+      const [, line2] = footer.render(120);
 
-    expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Ultrawork/off, or type normally');
-    expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
-    expect(strip(line2 ?? '')).not.toContain('helpers');
-    expect(strip(line2 ?? '')).toContain('context: 0.0%');
+      expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Ultrawork/off, or type normally');
+      expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
+      expect(strip(line2 ?? '')).not.toContain('helpers');
+      expect(strip(line2 ?? '')).toContain('context: 0.0%');
+    } finally {
+      if (previous === undefined) delete process.env['OPENAI_API_KEY'];
+      else process.env['OPENAI_API_KEY'] = previous;
+    }
+  });
+
+  it('points idle users without media keys at zero-config image/video setup', () => {
+    const previous = {
+      OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
+      GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
+      GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
+    };
+    delete process.env['OPENAI_API_KEY'];
+    delete process.env['GOOGLE_API_KEY'];
+    delete process.env['GEMINI_API_KEY'];
+    try {
+      const footer = new FooterComponent(baseState());
+      const [, line2] = footer.render(120);
+      expect(strip(line2 ?? '')).toContain('OPENAI_API_KEY or GOOGLE_API_KEY for image/video');
+      expect(strip(line2 ?? '')).toContain('context: 0.0%');
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it('shows a compact history badge while transcript follow output is paused', () => {
