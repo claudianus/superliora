@@ -433,8 +433,8 @@ export class TasksBrowserApp extends Container implements Focusable {
     if (this.sortedVisible.length === 0) {
       const empty =
         this.props.filter === 'active'
-          ? 'No active tasks · Tab shows all · Ctrl+B backgrounds long shell work'
-          : 'No background tasks yet · long Bash/Agent work can detach with Ctrl+B';
+          ? 'No active tasks · Tab=all · Ctrl+B backgrounds shell work'
+          : 'No background tasks yet · Ctrl+B detaches long Bash/Agent work';
       const lines: string[] = [currentTheme.fg('textMuted', empty)];
       while (lines.length < innerHeight) lines.push('');
       return this.renderFrame(title, lines, width, height);
