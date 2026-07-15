@@ -136,7 +136,7 @@ describe('PremiumQualityInjector', () => {
     expect(history(agent)).toHaveLength(before + 2);
   });
 
-  it('uses sparse guidance after four assistant turns without a new real user prompt', async () => {
+  it('uses sparse guidance after five assistant turns without a new real user prompt', async () => {
     const agent = premiumAgent(true);
     const injector = new PremiumQualityInjector(agent);
     await injector.inject();
@@ -144,7 +144,7 @@ describe('PremiumQualityInjector', () => {
     await injector.inject();
     expect(history(agent).filter((m) => m.origin?.kind === 'injection')).toHaveLength(1);
 
-    history(agent).push({ role: 'assistant' }, { role: 'assistant' });
+    history(agent).push({ role: 'assistant' }, { role: 'assistant' }, { role: 'assistant' });
     await injector.inject();
 
     const text = lastReminder(agent);
@@ -152,11 +152,12 @@ describe('PremiumQualityInjector', () => {
     expect(text).not.toContain(PREMIUM_QUALITY_FULL_GUIDANCE.slice(0, 80));
   });
 
-  it('uses code sparse guidance for non-visual objectives after four assistant turns', async () => {
+  it('uses code sparse guidance for non-visual objectives after five assistant turns', async () => {
     const agent = premiumAgent(true, { goalObjective: 'Refactor the RPC session API' });
     const injector = new PremiumQualityInjector(agent);
     await injector.inject();
     history(agent).push(
+      { role: 'assistant' },
       { role: 'assistant' },
       { role: 'assistant' },
       { role: 'assistant' },

@@ -38,6 +38,8 @@ describe('HelpPanelComponent', () => {
     expect(out).not.toMatch(/Ctrl-Shift-Tab/);
     expect(out).not.toMatch(/Steer UltraPlan/);
     expect(out).toMatch(/Ctrl-O/);
+    expect(out).toMatch(/Ctrl-B/);
+    expect(out).toMatch(/\/tasks/);
     expect(out).toMatch(/Shift-Enter \/ Ctrl-J/);
     expect(out).toMatch(/Esc Esc/);
     expect(out).toMatch(/Open undo selector/);

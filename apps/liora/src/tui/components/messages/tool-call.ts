@@ -68,8 +68,8 @@ const ABORTED_MARK = '⊘';
 const MAX_LIVE_OUTPUT_CHARS = 50_000;
 
 /** Delay before a long-running foreground Bash/Agent card advertises Ctrl+B. */
-const DETACH_HINT_DELAY_MS = 10_000;
-const DETACH_HINT_TEXT = 'Press Ctrl+B to run in background';
+const DETACH_HINT_DELAY_MS = 6_000;
+const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /tasks to inspect';
 
 type SubagentTextKind = 'thinking' | 'text';
 type SubagentPhase = 'queued' | 'spawning' | 'running' | 'done' | 'failed' | 'backgrounded';

@@ -15,7 +15,7 @@ import type { Agent } from '..';
  * Re-inject full (for the active density) when mode turns on or a real user prompt arrives.
  * Sparse checkpoints keep pressure without blowing the budget.
  */
-const PREMIUM_QUALITY_SPARSE_REFRESH_TURNS = 4;
+const PREMIUM_QUALITY_SPARSE_REFRESH_TURNS = 5;
 
 export class PremiumQualityInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'premium_quality';
