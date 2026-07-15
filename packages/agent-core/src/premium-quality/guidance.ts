@@ -21,7 +21,7 @@ Method: rubric-first for visible work; small high-leverage passes; research when
 ${PREMIUM_VISUAL_HARNESS}`;
 
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
-  'Premium Quality mode still ON — keep elevating visuals (PRIMARY), UX, code, performance, a11y, and evidence before claiming done.',
+  'Premium Quality mode still ON — keep elevating visuals (PRIMARY), UX, code, performance, a11y, and evidence before done.',
   PREMIUM_QUALITY_HYPE_SPARSE,
   PREMIUM_VISUAL_SPARSE_CHECKPOINT,
 ].join('\n');
@@ -39,7 +39,7 @@ export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [
 ].join('\n');
 
 export const PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE =
-  'Premium Quality still ON (code/evidence density) — keep correctness, tests, types, and real-surface verification tight; no visual harness while the objective stays non-visual.';
+  'Premium Quality still ON (code/evidence density) — keep correctness, tests, types, and real-surface verification tight; no visual harness while non-visual.';
 
 export const PREMIUM_QUALITY_EXIT_GUIDANCE =
   'Premium Quality mode is OFF. Continue with normal quality expectations unless the user asks for premium polish again.';
