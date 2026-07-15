@@ -847,10 +847,13 @@ command = "vim"
       expect(session.undoHistory).toHaveBeenCalledWith(1);
     });
 
-    const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).not.toContain('hello');
-    expect(transcript).not.toContain('Cannot undo 10 prompts');
-    expect(transcript).toContain('Tools auto-approved. Agent will not ask questions.');
+    await vi.waitFor(() => {
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript).not.toContain('hello');
+      expect(transcript).not.toContain('Cannot undo 10 prompts');
+      // Command notices are session-scoped and must survive undo of user turns.
+      expect(transcript).toContain('Tools auto-approved. Agent will not ask questions.');
+    });
     expect(driver.state.appState.permissionMode).toBe('auto');
   });
 
