@@ -82,7 +82,7 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   '- One workflow: UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn. Stages ordered; normalize 울트라플랜/리서치/골/스웜 into the same run.',
   '- Activation: force Ultra Plan Research first; source-backed evidence before AskUserQuestion; interview until UltraGoal is true/false-verifiable.',
   '- Shift-Tab turns Ultrawork mode ON; cannot turn mode off while a run is active. /ultrawork overrides; /plan is separate steering.',
-  '- UltraPlan must write Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan, then ExitPlanMode, before product-file edits. Advance Design -> Review -> Write -> Exit with NextPhase / ExitPlanMode first.',
+  '- UltraPlan must write Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan, then ExitPlanMode, before product-file edits. Advance Design -> Review -> Write -> Exit via NextPhase / ExitPlanMode first.',
   '- UltraGoal: create/replace only after plan approval, unless /goal already created the active goal — then harden that seed and finish with UpdateGoal complete/blocked (never CreateGoal again for the same work).',
   '- UltraSwarm after UltraGoal: emit exactly `Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>`. ENGAGE: after ExitPlanMode + UltraGoal, call UltraSwarm as the only tool call before product-file edits; DEFER needs a visible waiver.',
   '- Subagents may use Context7Resolve/Context7Docs and WebSearch/FetchURL unless internet is forbidden. Integrate before editing; Verify real surfaces; Learn only verified durable findings. Do not ask the user to choose /ultraplan, /ultraresearch, /ultragoal, or /ultraswarm.',
@@ -91,7 +91,7 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
 /** Compact always-on operating rules (merged former multi-block dump). */
 const ULTRAWORK_CORE_OPERATING_GUIDANCE = [
   'Core operating rules:',
-  '- Liora Lean Context: prefer LioraRead (signatures/map/lines), LioraSymbol, LioraTree, LioraCallgraph, and Grep before broad Read dumps; cite paths; keep context small; memory only for durable preferences/decisions.',
+  '- Liora Lean Context: prefer LioraRead (signatures/map/lines), LioraSymbol, LioraTree, LioraCallgraph, and Grep before broad Read dumps; cite paths; keep context small; memory only for durable prefs/decisions.',
   '- Liora Knowledge Map: map from LioraRead/LioraSymbol/LioraTree, Grep, memory, and artifact summaries before broad exploration. Prefer EXTRACTED edges over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.',
   '- Workflow transparency: maintain `workflow-report.md` + `workflow-stages.json`; fill each stage narrative before leaving. Knowledge persistence ledger: final reports need `liora_recall` and `llm_wiki` rows with wrote|skipped|blocked + reason/path/id/evidence (`.superliora/wiki`); promote seed wiki/knowledge-map only in Learn with evidenceState verified.',
   '- UltraResearch / free web research: prefer Context7Resolve/Context7Docs; WebSearch + FetchURL for primary sources; LocalResearchStack free fallback. Re-search on new uncertainty; label stale/offline if live search fails; never defeat CAPTCHA/paywall/login/rate-limits.',
