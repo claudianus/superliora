@@ -429,6 +429,36 @@ const cronDeleteChip: ChipProvider = (_toolCall, result) => {
   }
   return 'deleted';
 };
+const ultraworkGraphChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  if (/Ultrawork graph is empty/i.test(result.output)) return 'empty';
+  const updated = /Ultrawork graph updated:\s*(\d+)\s+nodes/i.exec(result.output);
+  if (updated) return `${updated[1]} nodes`;
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    if (/^\s*\[[^\]]+\]\s+\S+:/.test(line)) count++;
+  }
+  if (count > 0) return pluralize(count, 'node');
+  return 'graph';
+};
+
+const swarmChannelChip: ChipProvider = (toolCall, result) => {
+  if (result.is_error) return '';
+  const action = typeof toolCall.args['action'] === 'string' ? toolCall.args['action'] : '';
+  if (/Posted to Swarm bus/i.test(result.output)) return 'posted';
+  if (/No Swarm bus messages/i.test(result.output)) return 'empty';
+  if (action === 'list' || /^\s*\[/.test(result.output)) {
+    let count = 0;
+    for (const line of result.output.split('\n')) {
+      if (/^\s*\[.+\]\s+/.test(line)) count++;
+    }
+    if (count > 0) return pluralize(count, 'msg');
+  }
+  if (action === 'artifact' || /artifact/i.test(result.output)) return 'artifact';
+  if (action === 'reply') return 'reply';
+  return action.length > 0 ? action : 'ok';
+};
+
 
 
 
@@ -473,6 +503,8 @@ const REGISTRY: Record<string, ChipProvider> = {
   CronList: cronListChip,
   CronCreate: cronCreateChip,
   CronDelete: cronDeleteChip,
+  UltraworkGraph: ultraworkGraphChip,
+  SwarmChannel: swarmChannelChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

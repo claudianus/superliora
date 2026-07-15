@@ -453,6 +453,8 @@ function extractKeyArgument(
     CronList: [],
     CronCreate: ['cron', 'prompt'],
     CronDelete: ['id'],
+    UltraworkGraph: ['run_id', 'graph_id'],
+    SwarmChannel: ['action', 'channel', 'body'],
     // Prefer the short `description` so the header preview never spills a
     // multi-line `prompt` into the TUI chrome.
     Agent: ['description', 'prompt'],

@@ -420,6 +420,39 @@ describe('tool-result registry', () => {
     expect(out).toContain('next ');
     expect(isGenericToolResult('CronCreate')).toBe(false);
   });
+  it('UltraworkGraph glance samples node statuses', () => {
+    const renderer = pickResultRenderer('UltraworkGraph');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('UltraworkGraph', {}),
+          result('Ultrawork graph g1 for run-1:\n  [running] n1: Scaffold\n  [pending] n2: Tests'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('running n1');
+    expect(out).toContain('pending n2');
+    expect(isGenericToolResult('UltraworkGraph')).toBe(false);
+  });
+
+  it('SwarmChannel glance shows posted channel/kind', () => {
+    const renderer = pickResultRenderer('SwarmChannel');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('SwarmChannel', { action: 'post' }),
+          result('Posted to Swarm bus.\nid=m1\nchannel=standup\nkind=status'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('posted');
+    expect(out).toContain('standup');
+    expect(out).toContain('status');
+    expect(isGenericToolResult('SwarmChannel')).toBe(false);
+  });
+
 
 
 

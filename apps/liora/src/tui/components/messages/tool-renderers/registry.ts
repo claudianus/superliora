@@ -41,10 +41,12 @@ import {
   searchExpertSummary,
   searchSkillSummary,
   skillSummary,
+  swarmChannelSummary,
   taskListSummary,
   taskOutputSummary,
   taskStopSummary,
   thinkSummary,
+  ultraworkGraphSummary,
   webSearchSummary,
   writeSummary,
 } from './summary';
@@ -123,6 +125,10 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return cronCreateSummary;
     case 'CronDelete':
       return cronDeleteSummary;
+    case 'UltraworkGraph':
+      return ultraworkGraphSummary;
+    case 'SwarmChannel':
+      return swarmChannelSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
