@@ -93,7 +93,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(LocalResearchStack fallback\)/);
+    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -183,7 +183,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(LocalResearchStack fallback\)/);
+    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );

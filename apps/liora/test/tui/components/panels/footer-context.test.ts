@@ -201,7 +201,7 @@ describe('FooterComponent — context NaN resilience', () => {
     try {
       const footer = new FooterComponent(baseState());
       const [, line2] = footer.render(120);
-      expect(strip(line2 ?? '')).toContain('OPENAI_API_KEY or GOOGLE_API_KEY for image/video');
+      expect(strip(line2 ?? '')).toContain('OPENAI_API_KEY or GOOGLE_API_KEY for media');
       expect(strip(line2 ?? '')).toContain('context: 0.0%');
     } finally {
       for (const [key, value] of Object.entries(previous)) {

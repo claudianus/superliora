@@ -51,8 +51,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.next.login': 'next: /login to add a provider, then /model',
   'tui.footer.next.compact': 'next: /compact before long work',
   'tui.footer.next.review': 'next: review changes',
-  'tui.footer.next.media': 'next: set OPENAI_API_KEY or GOOGLE_API_KEY for image/video, or /status',
-  'tui.footer.next.history': 'next: ctrl-o toggles clean chat vs full tool history',
+  'tui.footer.next.media': 'next: set OPENAI_API_KEY or GOOGLE_API_KEY for media, or /status',
+  'tui.footer.next.history': 'next: ctrl-o toggles clean chat vs tool history',
   'tui.footer.next.default': 'next: Shift-Tab toggles Ultrawork/off, or type normally',
   'tui.footer.compacting': 'compacting context',
   'tui.footer.replaying': 'replaying session',
@@ -62,7 +62,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.premium': 'Premium Quality ON — art direction, anti-slop, screenshot proof',
   'tui.footer.exitConfirmCtrlC': 'Press Ctrl+C again to exit',
   'tui.footer.exitConfirmCtrlD': 'Press Ctrl+D again to exit',
-  'tui.footer.detachHint': 'Detached. Output continues in the background (/tasks).',
+  'tui.footer.detachHint': 'Detached. Output continues in background (/tasks).',
 
   // ── Provider / login flows ───────────────────────────────────────────────
   'tui.provider.catalogLoading': 'Loading provider catalog',
