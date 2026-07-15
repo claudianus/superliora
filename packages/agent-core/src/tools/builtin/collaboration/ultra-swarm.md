@@ -1,9 +1,9 @@
-UltraSwarm — auto-assemble expert subagents (400+ across 16 divisions) with personas for complex multi-domain work. Cap concurrency with `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY`.
+UltraSwarm — auto-assemble expert subagents (400+ / 16 divisions) with personas for complex multi-domain work. Cap concurrency with `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY`.
 
-**How:** analyze task → BM25+fuzzy expert search → spawn experts in parallel (or phased if dependencies) → collect tagged results.
+**How:** analyze → BM25+fuzzy expert search → spawn parallel/phased experts → collect tagged results.
 
-**Usage:** specific description; optional `experts`/`required_experts`; default `auto_select`. For Ultrawork, include Capability Coverage Matrix (AC, risks, lanes, evidence). Results tagged with expert name/emoji.
+**Usage:** specific description; optional `experts`/`required_experts`; default `auto_select`. For Ultrawork, include Capability Coverage Matrix (AC, risks, lanes, evidence).
 
-**TodoList sync:** WorkGraph nodes mirror to the parent TodoList as `[nodeId] title` (via UltraworkGraph `sync_todos`). Each expert subagent keeps its own live TodoList — create within the first 2 tool calls.
+**TodoList sync:** WorkGraph nodes mirror as `[nodeId] title` (UltraworkGraph `sync_todos`). Each expert keeps a live TodoList — create within first 2 tool calls.
 
 **Divisions:** Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, Game Development, GIS, Paid Media, Project Management, Sales, Spatial Computing, Specialized, Support.
