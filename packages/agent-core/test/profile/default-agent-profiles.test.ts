@@ -136,7 +136,7 @@ describe('default agent profiles', () => {
       expect(prompt).toContain('High-quality work is the default');
       expect(prompt).toContain('complete, polished, practical result');
       expect(prompt).toContain('domain-appropriate and polished by default');
-      expect(prompt).toContain('first runnable surface look intentionally designed');
+      expect(prompt).toContain('first runnable surface looks intentionally designed');
       expect(prompt).toContain('verify the actual rendered output');
       expect(prompt).toContain('a missing optional automation package is not proof');
       expect(prompt).toContain('Do not inflate scope just to look premium');
@@ -197,7 +197,7 @@ describe('default agent profiles', () => {
       expect(prompt).toContain('Local, reversible work your role permits');
       // Concrete one-line examples anchoring high-frequency abstract rules.
       expect(prompt).toContain('locate the method in the code'); // ambiguous instruction -> edit code, not echo text
-      expect(prompt).toContain('run the focused test'); // preamble phrasing example
+      expect(prompt).toContain('patch the failing path'); // preamble phrasing example
       expect(prompt).toContain('premature abstraction'); // MINIMAL-changes counterexample
     }
   });
