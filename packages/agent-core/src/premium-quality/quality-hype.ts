@@ -6,7 +6,7 @@
 
 export const PREMIUM_QUALITY_HYPE_BANNER = [
   '🔥 PREMIUM QUALITY MODE — screenshot-proof, anti-slop, principal-designer bar 🔥',
-  'Ship god-tier, Awwwards-worthy results. Mediocre / MVP-looking output is failure under this mode.',
+  'Ship god-tier, principal-designer-bar results. Mediocre / MVP-looking output is failure under this mode.',
 ].join('\n');
 
 export const PREMIUM_QUALITY_HYPE_MANTRA = [
