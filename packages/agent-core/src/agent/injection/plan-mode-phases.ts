@@ -56,19 +56,19 @@ AskUserQuestion: 1-2 focused questions when a missing decision blocks a verifiab
 Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Read-only research in the same turn is allowed and encouraged.`,
 
   design: `## Design Phase
-Read-only tools plus TodoList progress tracking (Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, read-only Bash). Write/Edit BLOCKED.
-Explore and converge on one approach. Use TodoList to keep the live design work board current. SearchSkill/Skill when it improves the design; SearchExpert for UltraSwarm candidates.
+Allowed: ${ULTRA_PLAN_READ_TOOLS}. Write/Edit BLOCKED.
+Converge on one approach. TodoList for the live design board; SearchSkill/Skill when useful; SearchExpert for UltraSwarm candidates.
 Cannot write the plan file or call ExitPlanMode. Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-Read-only tools plus TodoList progress tracking (Read, ReadMediaFile, Grep, Glob, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, TaskList, TaskOutput, read-only Bash inspection). Write, Edit, general Bash BLOCKED.
-Verify design against code. Search and fetch current sources again when external claims stay uncertain. Use TodoList to keep verification gaps and completed checks current.
+Allowed: ${ULTRA_PLAN_READ_TOOLS}, TaskList, TaskOutput. Write, Edit, general Bash BLOCKED.
+Verify design against code. Re-search when external claims stay uncertain. TodoList for verification gaps.
 Bash read-only: cat, sed -n, head/tail, grep/rg, read-only git (plus ls/find/jq as needed).
 Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading files (Read, Grep, Glob, WebSearch, FetchURL, etc.) is allowed for quick verification while writing — stay focused on the plan file. Use TodoList for progress tracking, SearchSkill/Skill for the no-AI-slop prose gate, and NextPhase or ExitPlanMode when complete.
+You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) is allowed for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
 
 Before writing user-visible plan prose: ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
 No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if light pass fails.
@@ -81,7 +81,7 @@ ExitPlanMode only after a complete Seed Spec.`,
   exit: `## Exit Phase
 Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver.
 No-AI-Slop skill routing: light pass on user-visible plan text; SearchSkill with response language only if prose still reads generic.
-If ExitPlanMode reports missing sections, Read the plan file if needed, correct only that plan file, and retry. Other file reads for quick verification are allowed; stay focused on finalizing the plan.`,
+If ExitPlanMode reports missing sections, Read/fix only that plan file and retry. Other reads for quick verification are allowed; stay focused on finalizing the plan.`,
 };
 
 const INTERVIEW_SPARSE_ESSENTIALS = [
