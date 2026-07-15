@@ -205,7 +205,7 @@ A plan file from a prior session exists. Before proceeding:
   1. Read the existing plan file.
   2. Compare to the current request — new task: replace; same task: update.
   3. Write/Edit the plan file (Write if missing).
-  4. AskUserQuestion for missing requirements/preferences; edit before ExitPlanMode.
+  4. AskUserQuestion for missing preferences; edit before ExitPlanMode.
 
 End with AskUserQuestion or ExitPlanMode.`;
   return withPlanFileFooter(body, planFilePath);

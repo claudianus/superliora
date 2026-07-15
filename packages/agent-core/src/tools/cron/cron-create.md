@@ -23,4 +23,4 @@ Missed fires while offline collapse to one delivery with `coalescedCount` — tr
 Recurring: forward ≤min(10% period, 15m). One-shot on :00/:30: pull earlier ≤90s.
 
 ## Session & limits
-Tasks persist on `kimi resume` of the same session, not new sessions. Max **50 live cron tasks**. Returns `id` (8-hex), `cron` (the normalized expression), `humanSchedule`, `recurring`, `nextFireAt`. Tell the user how to cancel/modify via you (include `id`) — no self-service `/cron` UI.
+Tasks persist on `kimi resume` of the same session, not new sessions. Max **50 live cron tasks**. Returns `id` (8-hex), `cron` (normalized), `humanSchedule`, `recurring`, `nextFireAt`. Tell the user how to cancel/modify via you (include `id`) — no self-service `/cron` UI.
