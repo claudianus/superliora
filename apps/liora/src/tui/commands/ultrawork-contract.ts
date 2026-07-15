@@ -79,7 +79,7 @@ const _ULTRAWORK_CONTROL_SUBCOMMANDS = new Set(['status', 'pause', 'resume', 'ca
 /** Always-on Ultrawork spine — keep contracts, drop synonym/detail floods. */
 const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   'Ultrawork orchestration:',
-  '- One workflow: UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn. Stages are ordered; normalize 울트라플랜/리서치/골/스웜 into the same run.',
+  '- One workflow: UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn. Stages ordered; normalize 울트라플랜/리서치/골/스웜 into the same run.',
   '- Activation: force Ultra Plan Research first; source-backed evidence before AskUserQuestion; interview until UltraGoal is true/false-verifiable.',
   '- Shift-Tab turns Ultrawork mode ON; cannot turn mode off while a run is active. /ultrawork overrides; /plan is separate steering.',
   '- UltraPlan must write Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan, then ExitPlanMode, before product-file edits. Advance Design -> Review -> Write -> Exit with NextPhase / ExitPlanMode first.',
@@ -96,20 +96,20 @@ const ULTRAWORK_CORE_OPERATING_GUIDANCE = [
   '- Workflow transparency: maintain `workflow-report.md` + `workflow-stages.json`; fill each stage narrative before leaving. Knowledge persistence ledger: final reports need `liora_recall` and `llm_wiki` rows with wrote|skipped|blocked + reason/path/id/evidence (`.superliora/wiki`); promote seed wiki/knowledge-map only in Learn with evidenceState verified.',
   '- UltraResearch / free web research: prefer Context7Resolve/Context7Docs; WebSearch + FetchURL for primary sources; LocalResearchStack free fallback. Re-search on new uncertainty; label stale/offline if live search fails; never defeat CAPTCHA/paywall/login/rate-limits.',
   '- Capability Coverage Matrix: criterion/risk -> expertise -> evidence -> expert -> owner from UltraGoal + AC Tree. Prefer UltraSwarm auto_select; ENGAGE when >1 material lane, subjective quality, high risk, hard-to-observe behavior, or independent review; DEFER only if main agent owns every lane. Report matrix, specialist usage, evidence paths, risks.',
-  '- Definition of Done: inspect files/tests/rules first; small changes; focused tests when practical; relevant checks; finish only with evidence and remaining risks. Prefer deterministic verification over model-claimed success.',
+  '- Definition of Done: inspect files/tests/rules first; small changes; focused tests when practical; relevant checks; finish only with evidence and remaining risks. Prefer deterministic verification over model claims.',
   '- Premium Quality (default ON in Ultrawork): Premium injector owns the full bar. For web/app/dashboard/game surfaces, write an Art Direction Brief before visual work; SearchSkill for design skills; screenshot-proof before done. Human Writing / Anti-Slop: light pass by default; SearchSkill -> Skill only for docs/PR/changelog/TUI/plan prose; plain specific claims over hype.',
 ].join('\n');
 
 const ULTRAWORK_GUI_USE_GUIDANCE = [
   'Browser / computer-use verification (surface-relevant):',
-  '- Use BrowserUse/ComputerUse for rendered pages, visual QA, downloads, and desktop evidence when they improve verification; prefer headless/background capture.',
+  '- Use BrowserUse/ComputerUse for rendered pages, visual QA, downloads, and desktop evidence when useful; prefer headless/background capture.',
   '- Prefer BrowserObserve refs and ComputerCapture SOM indexes over raw coordinates; screenshot before claiming visual/interactive done.',
-  '- Safe GUI may auto-run in auto/yolo; high-risk GUI still needs approval. If GUI is blocked, record the blocker and use the next-best evidence.',
+  '- Safe GUI may auto-run in auto/yolo; high-risk GUI still needs approval. If blocked, record the blocker and use next-best evidence.',
 ].join('\n');
 
 const ULTRAWORK_BENCH_GUIDANCE = [
   'SuperLiora Agent Bench (surface-relevant):',
-  '- For harness/TUI benchmark or SOTA claims, use `node scripts/liora-agent-sota-gate.mjs` or `node scripts/qa-superliora-autonomous.mjs --phase sota-gate` (C001 system score, C002 live TUI surface, C003 budget/cleanup/secret scan). Do not use browser-only UI as a TUI success surface.',
+  '- For harness/TUI benchmark or SOTA claims, use `node scripts/liora-agent-sota-gate.mjs` or `node scripts/qa-superliora-autonomous.mjs --phase sota-gate` (C001 system score, C002 live TUI surface, C003 budget/cleanup/secret scan). Do not treat browser-only UI as TUI success.',
 ].join('\n');
 
 /** Shared with coverage matrix UX lane — keep Premium visual heuristic in sync. */
