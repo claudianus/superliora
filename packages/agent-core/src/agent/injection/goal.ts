@@ -97,7 +97,7 @@ function buildGoalReminder(goal: GoalSnapshot): string {
   lines.push(
     '',
     `Status: ${goal.status}`,
-    `Progress: ${goal.turnsUsed} continuation turns, ${goal.tokensUsed} tokens, ${formatElapsed(goal.wallClockMs)} elapsed.`,
+    `Progress: ${goal.turnsUsed} turns, ${goal.tokensUsed} tokens, ${formatElapsed(goal.wallClockMs)} elapsed.`,
   );
 
   const budget = goal.budget;
