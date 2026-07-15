@@ -405,6 +405,31 @@ const taskStopChip: ChipProvider = (_toolCall, result) => {
   if (/stopped|killed|cancelled/i.test(result.output)) return 'stopped';
   return 'ok';
 };
+const cronListChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const m = /cron_jobs:\s*(\d+)/i.exec(result.output);
+  if (m) {
+    const n = Number(m[1]);
+    return n === 0 ? 'none' : pluralize(n, 'job');
+  }
+  if (/No cron jobs scheduled/i.test(result.output)) return 'none';
+  return 'jobs';
+};
+
+const cronCreateChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const id = /^id:\s*(\S+)/m.exec(result.output)?.[1];
+  return id !== undefined ? id : 'scheduled';
+};
+
+const cronDeleteChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) {
+    if (/No cron job/i.test(result.output) || /not found/i.test(result.output)) return 'missing';
+    return 'failed';
+  }
+  return 'deleted';
+};
+
 
 
 
@@ -445,6 +470,9 @@ const REGISTRY: Record<string, ChipProvider> = {
   TaskList: taskListChip,
   TaskOutput: taskOutputChip,
   TaskStop: taskStopChip,
+  CronList: cronListChip,
+  CronCreate: cronCreateChip,
+  CronDelete: cronDeleteChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

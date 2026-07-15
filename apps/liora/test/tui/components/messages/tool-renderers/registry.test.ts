@@ -395,6 +395,32 @@ describe('tool-result registry', () => {
     expect(out).toContain('/tmp/out.log');
     expect(isGenericToolResult('TaskOutput')).toBe(false);
   });
+  it('CronList glance shows job count', () => {
+    const renderer = pickResultRenderer('CronList');
+    const out = strip(
+      joinRender(renderer(call('CronList', {}), result('cron_jobs: 0\nNo cron jobs scheduled.'), ctx)),
+    );
+    expect(out).toContain('no cron jobs');
+    expect(isGenericToolResult('CronList')).toBe(false);
+  });
+
+  it('CronCreate glance shows id cron and next fire', () => {
+    const renderer = pickResultRenderer('CronCreate');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('CronCreate', { cron: '0 9 * * *' }),
+          result('id: abcd1234\ncron: 0 9 * * *\nhumanSchedule: At 09:00\nrecurring: true\nnextFireAt: 2026-07-16T09:00:00+09:00'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('abcd1234');
+    expect(out).toContain('0 9 * * *');
+    expect(out).toContain('next ');
+    expect(isGenericToolResult('CronCreate')).toBe(false);
+  });
+
 
 
 
