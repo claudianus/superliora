@@ -20,6 +20,7 @@ describe('QueuePaneComponent', () => {
 
     const output = stripAnsi(component.render(120).join('\n'));
 
+    expect(output).toContain('queue 2 · 2 prompts');
     expect(output).toContain('❯ first message');
     expect(output).toContain('❯ /skill:review src/app.ts');
     expect(output).toContain('ctrl-s to steer immediately');
@@ -62,8 +63,8 @@ describe('QueuePaneComponent', () => {
     });
 
     const lines = component.render(30);
-    expect(lines).toHaveLength(3); // border + message + hint
-    const messageLine = stripAnsi(lines[1] as string);
+    expect(lines).toHaveLength(4); // border + count + message + hint
+    const messageLine = stripAnsi(lines[2] as string);
     expect(messageLine).not.toContain('a'.repeat(30));
     expect(messageLine.endsWith('…')).toBe(true);
   });
@@ -77,8 +78,8 @@ describe('QueuePaneComponent', () => {
     });
 
     const lines = component.render(120);
-    expect(lines).toHaveLength(3); // border + message + hint
-    const messageLine = stripAnsi(lines[1] as string);
+    expect(lines).toHaveLength(4); // border + count + message + hint
+    const messageLine = stripAnsi(lines[2] as string);
     expect(messageLine).toContain('line one line two line three');
     expect(messageLine).not.toContain('\n');
   });
@@ -106,6 +107,7 @@ describe('QueuePaneComponent', () => {
     });
 
     const output = stripAnsi(component.render(120).join('\n'));
+    expect(output).toContain('queue 1 · 1 shell');
     expect(output).toContain('❯ $ ls -la');
   });
 
@@ -131,6 +133,7 @@ describe('QueuePaneComponent', () => {
     });
 
     const output = stripAnsi(component.render(120).join('\n'));
+    expect(output).toContain('queue 2 · 1 prompt · 1 shell');
     expect(output).toContain('ctrl-s to steer immediately');
   });
 });
