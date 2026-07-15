@@ -251,7 +251,7 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('╭');
     expect(output).toContain('UltraSwarm');
     expect(output).toContain('AppSec Engineer');
-    expect(output).toContain('feed');
+    expect(output).toContain('live feed');
     expect(output).toContain('awaiting team messages');
     expect(output).not.toContain('STAFF');
     expect(output).not.toContain('lanes:');
@@ -270,7 +270,7 @@ describe('AgentSwarmProgressComponent', () => {
 
     output = renderText(component);
     expect(output).toContain('AppSec Engineer: PASS');
-    expect(output).toContain('report');
+    expect(output).toContain('integration report');
     expect(output).toContain('AppSec Engineer · review · PASS');
     expect(output).toContain('Reviewed auth middleware');
     expect(output).not.toContain('ev_1');
@@ -302,7 +302,7 @@ describe('AgentSwarmProgressComponent', () => {
     });
 
     const output = renderText(component, 120);
-    expect(output).toContain('feed');
+    expect(output).toContain('live feed');
     expect(output).not.toContain('JOIN');
     expect(output).not.toContain('LIVE');
     expect(output).not.toContain('TOOL');
@@ -356,7 +356,7 @@ describe('AgentSwarmProgressComponent', () => {
 
     const output = renderText(component, 120);
     const feedSection = output.split('feed')[1]?.split('╰')[0] ?? '';
-    expect(output).toContain('feed');
+    expect(output).toContain('live feed');
     expect(feedSection).toContain('001→002: auth middleware missing tests');
     expect(feedSection).toContain('002: patch ready for review');
     expect(feedSection).toContain('001→@002: Need auth review @impl-engineer');
@@ -426,7 +426,8 @@ describe('AgentSwarmProgressComponent', () => {
     startSubagents(component, 2);
 
     const output = renderText(component);
-    expect(output).not.toContain('SWARM FEED');
+    expect(output).not.toContain('LIVE FEED');
+    expect(output).not.toContain('live feed');
   });
 
   it('fits three queued columns with the narrower gap and minimum cell width', () => {

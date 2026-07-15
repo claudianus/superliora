@@ -102,7 +102,7 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
       return {
         isError: true,
         output:
-          'No video-generation provider key found. Set GOOGLE_API_KEY or GEMINI_API_KEY, then retry. Alternatively SearchSkill → gemini-omni-flash-api.',
+          'No video-generation provider key found. Set GOOGLE_API_KEY or GEMINI_API_KEY (no MCP setup), then retry. Check readiness with /status. Alternatively SearchSkill → gemini-omni-flash-api.',
       };
     }
 
