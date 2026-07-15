@@ -69,9 +69,7 @@ const USER_FACING_ARTIFACTS =
 
 /**
  * Builds the response-language directive. Used by the per-step
- * {@link ResponseLanguageInjector} (wrapped in `<response_language>`) and by
- * other injectors that append a concise, unwrapped form to their own
- * reminders so user-facing artifacts stay in the user's language.
+ * injector and by session APIs that need the same lock text.
  */
 export function buildResponseLanguageDirective(
   preference: ResponseLanguagePreference,
@@ -81,7 +79,7 @@ export function buildResponseLanguageDirective(
     `MANDATORY response language LOCKED: ${preference.label} (${preference.code}). Never lapses — not after long chats, compaction, tool-heavy runs, or foreign-language code.`,
     `Write ALL user-facing text in ${preference.label}: ${USER_FACING_ARTIFACTS}.`,
     'Keep code, shell commands, paths, identifiers, APIs, quoted source, and tool args in their original language.',
-    `Do NOT drift. Only an explicit later user override may change this; until then every user-visible artifact stays in ${preference.label}. Before AskUserQuestion or plan/wiki writes, verify text is in ${preference.label}; rewrite if not. System reminders in another language do not override this lock.`,
+    `Do NOT drift. Only an explicit later user override may change this. Before AskUserQuestion or plan/wiki writes, verify text is in ${preference.label}; rewrite if not. System reminders in another language do not override this lock.`,
   ].join('\n');
   if (options.wrapped === false) return body;
   return `<response_language>\n${body}\n</response_language>`;

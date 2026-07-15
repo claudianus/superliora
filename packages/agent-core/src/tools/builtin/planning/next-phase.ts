@@ -124,11 +124,15 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
 
   private phaseInstructions(phase: string): string {
     const instructions: Record<string, string> = {
-      interview: "Interview Phase: Act as an expert leader — teach brief insights, surface unknown-unknowns, and present Baseline + Upgrade choices backed by read-only research. Route questions: use RecordInterviewFinding when code or research already answers them (PATH 1/3), and AskUserQuestion only for human decisions (PATH 2). After 3 consecutive non-user findings, the Rhythm Guard forces AskUserQuestion. Refine free-text answers into structured form (Decision/Reasoning/Constraints/Out-of-scope/Context). Before advancing, restate the goal in one sentence and confirm with the user. When ambiguity <= 0.2, clarity floors pass, the UltraGoal is true/false verifiable, and required Seed gaps are closed, call NextPhase({ phase: 'design' }).",
-      design: "Design Phase: Use read-only tools (Read, Grep, Glob, Context7Resolve, Context7Docs, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, Bash read-only inspection) plus TodoList progress tracking to explore the codebase and map coverage lanes to concrete expert candidates. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip directly to write.",
-      review: "Review Phase: Use read-only tools (Read, ReadMediaFile, Grep, Glob, Context7Resolve, Context7Docs, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TaskList, TaskOutput, Bash read-only inspection) plus TodoList progress tracking to re-read key files, re-check current external claims, and verify expert coverage before writing the plan. When verification is complete, call NextPhase({ phase: 'write' }).",
-      write: 'Write Phase: Write the complete plan to the plan file. Only the current plan file may be edited; reading files for quick verification is allowed. TodoList progress tracking and NextPhase/ExitPlanMode remain available. Include Seed Spec, AC Tree, Workgraph, Evaluation Plan, and Execution Plan.',
-      exit: 'Exit Phase: The plan is complete. Call ExitPlanMode to request user approval.',
+      interview:
+        "Interview Phase: Act as an expert leader — teach brief insights, surface unknown-unknowns, Baseline + Upgrade choices with read-only research. PATH 1/3 → RecordInterviewFinding; PATH 2 → AskUserQuestion. After 3 consecutive non-user findings, must AskUserQuestion. When ambiguity <= 0.2, clarity floors pass, UltraGoal is verifiable, and Seed gaps are closed, call NextPhase({ phase: 'design' }).",
+      design:
+        "Design Phase: Read-only tools + TodoList progress tracking (Context7Resolve/Docs, WebSearch/FetchURL, Liora*, SearchSkill/Skill/SearchExpert, Bash read-only). Explore coverage lanes and expert candidates. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip to write.",
+      review:
+        "Review Phase: Read-only tools + TodoList progress tracking (WebSearch, FetchURL, Context7Resolve/Docs, TaskList, TaskOutput). Re-check code and external claims, then call NextPhase({ phase: 'write' }).",
+      write:
+        'Write Phase: Only the current plan file may be edited; reading for verification is allowed. TodoList + NextPhase/ExitPlanMode available. Include Seed Spec, AC Tree, WorkGraph, Evaluation Plan, Execution Plan.',
+      exit: 'Exit Phase: Plan complete — call ExitPlanMode for approval.',
     };
     return instructions[phase] ?? '';
   }

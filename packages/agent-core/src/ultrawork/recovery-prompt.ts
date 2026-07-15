@@ -146,7 +146,7 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`- ${action}`);
   }
   lines.push(
-    'Continue from the current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over model claims; mark AC/nodes done only with evidence. Preserve durable ids (nodes, AC, evidence_ids, archives).',
+    'Continue from the current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over model claims; mark AC/nodes done only with evidence. Preserve durable ids.',
   );
   lines.push('</ultrawork_recovery>');
   return lines.join('\n');

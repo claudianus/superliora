@@ -198,6 +198,30 @@ const context7DocsGlance: GlanceFn = (toolCall, result) => {
   const head = libraryId.length > 0 ? `${libraryId} · ` : '';
   return `${head}${titles.join(' · ')}`;
 };
+const searchSkillGlance: GlanceFn = (_toolCall, result) => {
+  const names: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /name="([^"]+)"/.exec(line);
+    if (m && m[1] !== undefined && /<skill-candidate\b/.test(line)) {
+      names.push(m[1]);
+      if (names.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  return names.join(' · ');
+};
+
+const searchExpertGlance: GlanceFn = (_toolCall, result) => {
+  const names: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /name="([^"]+)"/.exec(line);
+    if (m && m[1] !== undefined && /<expert-candidate\b/.test(line)) {
+      names.push(m[1]);
+      if (names.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  return names.join(' · ');
+};
+
 
 
 
@@ -261,3 +285,5 @@ export const lioraExpandSummary: ResultRenderer = withGlance(lioraExpandGlance);
 export const lioraCallgraphSummary: ResultRenderer = withGlance(lioraCallgraphGlance);
 export const context7ResolveSummary: ResultRenderer = withGlance(context7ResolveGlance);
 export const context7DocsSummary: ResultRenderer = withGlance(context7DocsGlance);
+export const searchSkillSummary: ResultRenderer = withGlance(searchSkillGlance);
+export const searchExpertSummary: ResultRenderer = withGlance(searchExpertGlance);
