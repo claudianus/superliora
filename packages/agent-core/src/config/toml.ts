@@ -53,6 +53,10 @@ const DEFAULT_CONFIG_FILE_TEXT = `# ~/.superliora/config.toml
 # Runtime settings for SuperLiora.
 # This file starts empty so built-in defaults can apply.
 # Login will populate managed Kimi provider and model entries.
+#
+# Product telemetry is off by default (ZDR-friendly).
+# Set telemetry = true only if you want usage analytics.
+# telemetry = false
 `;
 
 export async function ensureConfigFile(filePath: string): Promise<void> {

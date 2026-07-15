@@ -227,6 +227,9 @@ describe('events / display re-exports', () => {
     });
 
     expect(staffed.type).toBe('ultrawork.team.staffed');
+    if (staffed.type !== 'ultrawork.team.staffed') {
+      throw new Error('expected ultrawork.team.staffed');
+    }
     expect(staffed.toolCallId).toBe('call_ultra_swarm');
     expect(staffed.team.experts[0]).toMatchObject({
       coverageLane: 'architecture_implementation',
@@ -257,6 +260,9 @@ describe('events / display re-exports', () => {
     });
 
     expect(collaboration.type).toBe('ultrawork.collaboration.message');
+    if (collaboration.type !== 'ultrawork.collaboration.message') {
+      throw new Error('expected ultrawork.collaboration.message');
+    }
     expect(collaboration.message.channel).toBe('blocker');
 
     const mention = eventSchema.parse({
@@ -269,6 +275,9 @@ describe('events / display re-exports', () => {
     });
 
     expect(mention.type).toBe('ultrawork.collaboration.mention');
+    if (mention.type !== 'ultrawork.collaboration.mention') {
+      throw new Error('expected ultrawork.collaboration.mention');
+    }
     expect(mention.mentionExpertIds).toEqual(['impl-engineer']);
 
     const verified = eventSchema.parse({
