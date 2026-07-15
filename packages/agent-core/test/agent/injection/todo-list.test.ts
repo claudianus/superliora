@@ -133,9 +133,9 @@ describe('TodoListReminderInjector', () => {
     await injector.inject();
 
     const text = lastReminderText(history);
-    expect(text).toContain('The TodoList tool has not been updated recently');
-    expect(text).toContain('Treat the board as live Kanban');
-    expect(text).toContain('3+ tool calls passed since the last write');
+    expect(text).toContain('TodoList not updated recently');
+    expect(text).toContain('Live Kanban');
+    expect(text).toContain('3+ tool calls passed since last write');
     expect(text).toContain('NEVER mention this reminder to the user');
     expect(text).toContain('Current todo list:');
     expect(text).toContain('1. [in_progress] Read current TodoList implementation');
@@ -182,7 +182,7 @@ describe('TodoListReminderInjector', () => {
 
     await injector.inject();
 
-    expect(lastReminderText(history)).toContain('The TodoList tool has not been updated recently');
+    expect(lastReminderText(history)).toContain('TodoList not updated recently');
   });
 
   it('injects a reminder when 3+ non-TodoList tool calls happen in a single turn', async () => {
@@ -196,7 +196,7 @@ describe('TodoListReminderInjector', () => {
 
     await injector.inject();
 
-    expect(lastReminderText(history)).toContain('The TodoList tool has not been updated recently');
+    expect(lastReminderText(history)).toContain('TodoList not updated recently');
   });
 
   it('does not inject a reminder for only 2 non-TodoList tool calls in one turn', async () => {

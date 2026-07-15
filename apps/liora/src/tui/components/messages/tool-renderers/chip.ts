@@ -200,6 +200,42 @@ const lioraCallgraphChip: ChipProvider = (toolCall, result) => {
   if (symbol.length > 0) return symbol;
   return pluralize(edges, 'line');
 };
+const context7ResolveChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  if (result.output.includes('No libraries found')) return 'no libraries';
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    // Prefer library IDs so Title+ID pairs are not double-counted.
+    if (/library ID:\s*\/\S+/i.test(line)) count++;
+  }
+  if (count === 0) {
+    for (const line of result.output.split('\n')) {
+      if (/^\s*-?\s*Title:\s+/i.test(line)) count++;
+    }
+  }
+  if (count === 0) {
+    for (const line of result.output.split('\n')) {
+      if (/^\s*[-*]\s+\S/.test(line)) count++;
+    }
+  }
+  if (count === 0) return result.output.trim().length === 0 ? 'no libraries' : 'library match';
+  return pluralize(count, 'library', 'libraries');
+};
+
+const context7DocsChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  if (result.output.includes('No documentation snippets matched')) return 'no snippets';
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    if (/^\s*Title:\s+/i.test(line) || /^\s*#\s+\S/.test(line)) count++;
+  }
+  if (count === 0) {
+    const lines = countNonEmptyLines(result.output);
+    return lines === 0 ? 'no snippets' : pluralize(lines, 'line');
+  }
+  return pluralize(count, 'snippet');
+};
+
 
 
 const goalStatusOutputChip: ChipProvider = (_toolCall, result) =>
@@ -221,6 +257,8 @@ const REGISTRY: Record<string, ChipProvider> = {
   Glob: globChip,
   FetchURL: fetchChip,
   WebSearch: webSearchChip,
+  Context7Resolve: context7ResolveChip,
+  Context7Docs: context7DocsChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

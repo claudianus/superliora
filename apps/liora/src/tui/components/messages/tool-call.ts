@@ -435,6 +435,8 @@ function extractKeyArgument(
     Glob: ['pattern'],
     FetchURL: ['url'],
     WebSearch: ['query'],
+    Context7Resolve: ['library_name', 'query'],
+    Context7Docs: ['library_id', 'query'],
     // Prefer the short `description` so the header preview never spills a
     // multi-line `prompt` into the TUI chrome.
     Agent: ['description', 'prompt'],

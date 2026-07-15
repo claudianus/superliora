@@ -183,6 +183,31 @@ describe('chip registry', () => {
     );
     expect(out).toBe('1-20/200 lines');
   });
+  it('Context7Resolve chip counts library IDs', () => {
+    const out = chipFor(
+      'Context7Resolve',
+      { library_name: 'react', query: 'hooks' },
+      result(
+        [
+          '- Title: React',
+          '- Context7-compatible library ID: /reactjs/react.dev',
+          '- Title: React Router',
+          '- Context7-compatible library ID: /remix-run/react-router',
+        ].join('\n'),
+      ),
+    );
+    expect(out).toBe('2 libraries');
+  });
+
+  it('Context7Docs chip counts snippet titles', () => {
+    const out = chipFor(
+      'Context7Docs',
+      { library_id: '/reactjs/react.dev', query: 'useEffect' },
+      result('Title: useEffect\nSOURCE: https://react.dev\n\nTitle: Rules of Hooks\nSOURCE: https://react.dev/rules'),
+    );
+    expect(out).toBe('2 snippets');
+  });
+
 
 
   it('Unknown tools have no chip', () => {

@@ -14,6 +14,8 @@ import { readMediaSummary } from './media';
 import { goalSummary } from './goal';
 import { shellExecutionResultRenderer } from '../shell-execution';
 import {
+  context7DocsSummary,
+  context7ResolveSummary,
   editSummary,
   fetchSummary,
   generateMediaSummary,
@@ -66,6 +68,10 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return fetchSummary;
     case 'WebSearch':
       return webSearchSummary;
+    case 'Context7Resolve':
+      return context7ResolveSummary;
+    case 'Context7Docs':
+      return context7DocsSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
