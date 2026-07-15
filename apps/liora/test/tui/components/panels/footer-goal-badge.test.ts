@@ -161,4 +161,22 @@ describe('FooterComponent — goal badge', () => {
     expect(out).toContain('1 turn');
     expect(out).not.toContain('1 turns');
   });
+
+  it('surfaces the SuperLiora SOTA pulse for LioraBench/ZDR goals', () => {
+    const footer = new FooterComponent(
+      baseState({
+        goal: {
+          objective: 'Improve LioraBench ZDR proof loops',
+          status: 'active',
+          turnsUsed: 1,
+          tokensUsed: 0,
+          wallClockMs: 1000,
+          budget: { turnBudget: null, tokenBudget: null, wallClockBudgetMs: null, remainingTurns: null, remainingTokens: null, remainingWallClockMs: null },
+        },
+      } as never),
+    );
+    const out = strip(footer.render(120).join('\n'));
+    expect(out).toContain('SuperLiora SOTA');
+  });
+
 });

@@ -86,10 +86,10 @@ If ExitPlanMode reports missing sections, Read/fix only that plan file and retry
 
 const INTERVIEW_SPARSE_ESSENTIALS = [
   'Expert-leader interview — keep every round valuable:',
-  '- Teach one brief insight or unknown-unknown when it helps the user decide.',
+  '- Teach one brief insight/unknown-unknown when it helps the user decide.',
   '- AskUserQuestion: Baseline + Upgrades (payoff/trade-off) + Defer; research-first when options need evidence.',
   '- Close the open gap below through the current perspective lens — not a bare checklist question.',
-  '- Read-only research in the same turn is fine when it improves the next question.',
+  '- Same-turn read-only research is fine when it improves the next question.',
 ].join('\n');
 
 export function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): Promise<string> {
