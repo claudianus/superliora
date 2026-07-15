@@ -11,4 +11,4 @@ Execute `{{ SHELL_NAME }}` commands — pipes, env, processes, git, package mana
 
 **Guidelines for efficiency:** chain with `&&`, `;`, `||`, pipes/redirections; quote spaced paths; compose `if`/`for`/`while` in one call; background long builds/tests/servers.
 
-**Commands available:** ls, pwd, cd, cp, mv, rm, mkdir, git, curl, tar, ps, kill, node, npm, pnpm, python, pip, etc. (confirm with `which` when unsure).
+**Commands available:** ls, pwd, cd, cp, mv, rm, mkdir, git, curl, tar, ps, kill, node, npm, pnpm, python, pip, etc. (use `which` when unsure).
