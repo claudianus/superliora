@@ -250,6 +250,22 @@ export function formatMicroCompactionFooterBadge(
   };
 }
 
+
+function nonEmptyEnv(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** True when a zero-config image provider key is present in the process env. */
+function mediaProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (
+    nonEmptyEnv(env['OPENAI_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GOOGLE_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GEMINI_API_KEY']) !== undefined
+  );
+}
+
 /** Context usage line severity for high pre-rot pressure. */
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
@@ -287,6 +303,10 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   }
   if (state.streamingPhase !== 'idle') return null;
   if (git?.dirty === true) return ttui('tui.footer.next.review');
+  // Beginner path: surface media readiness when keys are missing (image/video are zero-config otherwise).
+  if (!mediaProviderKeyReady()) {
+    return ttui('tui.footer.next.media');
+  }
   return ttui('tui.footer.next.default');
 }
 
