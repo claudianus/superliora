@@ -14,6 +14,8 @@ import { readMediaSummary } from './media';
 import { goalSummary } from './goal';
 import { shellExecutionResultRenderer } from '../shell-execution';
 import {
+  agentSummary,
+  agentSwarmSummary,
   askUserQuestionSummary,
   context7DocsSummary,
   context7ResolveSummary,
@@ -46,6 +48,7 @@ import {
   taskOutputSummary,
   taskStopSummary,
   thinkSummary,
+  ultraSwarmSummary,
   ultraworkGraphSummary,
   webSearchSummary,
   writeSummary,
@@ -129,6 +132,12 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return ultraworkGraphSummary;
     case 'SwarmChannel':
       return swarmChannelSummary;
+    case 'Agent':
+      return agentSummary;
+    case 'AgentSwarm':
+      return agentSwarmSummary;
+    case 'UltraSwarm':
+      return ultraSwarmSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
