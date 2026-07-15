@@ -117,6 +117,7 @@ const goalStatusOutputChip: ChipProvider = (_toolCall, result) =>
 const REGISTRY: Record<string, ChipProvider> = {
   Edit: editChip,
   Write: writeChip,
+  GenerateImage: writeChip,
   Read: readChip,
   ReadMediaFile: readMediaChip,
   Grep: grepChip,

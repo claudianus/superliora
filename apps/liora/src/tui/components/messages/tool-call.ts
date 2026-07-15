@@ -423,6 +423,7 @@ function extractKeyArgument(
     Bash: ['command'],
     Read: ['path', 'file_path'],
     Write: ['path', 'file_path'],
+    GenerateImage: ['path', 'prompt'],
     Edit: ['path', 'file_path'],
     Grep: ['pattern'],
     Glob: ['pattern'],

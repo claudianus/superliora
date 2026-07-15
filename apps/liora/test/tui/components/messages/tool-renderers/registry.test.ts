@@ -83,6 +83,19 @@ describe('tool-result registry', () => {
     expect(out.trim()).toBe('');
   });
 
+  it('GenerateImage uses the write summary renderer (collapsed body)', () => {
+    const renderer = pickResultRenderer('GenerateImage');
+    const out = joinRender(
+      renderer(
+        call('GenerateImage', { prompt: 'logo', path: 'out.png' }),
+        result('Generated image with openai.\nPath: out.png'),
+        ctx,
+      ),
+    );
+    expect(out.trim()).toBe('');
+    expect(isGenericToolResult('GenerateImage')).toBe(false);
+  });
+
   it('Read expands to the raw file content when expanded', () => {
     const renderer = pickResultRenderer('Read');
     const out = strip(
