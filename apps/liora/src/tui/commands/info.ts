@@ -226,6 +226,7 @@ function formatMediaReadinessLines(env: NodeJS.ProcessEnv = process.env): readon
   return [
     'Media & research (zero-config when keys already exist)',
     '  Web: WebSearch + FetchURL + LocalResearchStack (built-in).',
+    '  Docs: Context7Resolve → Context7Docs for library APIs (built-in).',
     imageReady
       ? '  Images: ready · GenerateImage (OPENAI_API_KEY or GOOGLE/GEMINI key detected).'
       : '  Images: set OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY to enable GenerateImage.',

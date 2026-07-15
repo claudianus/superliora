@@ -152,7 +152,7 @@ const ENGINE_GATE = 'UltraPlan | UltraGoal | Research | Swarm decision | Integra
 const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
-const RESEARCH_GATE = 'WebSearch + FetchURL ready (LocalResearchStack when no managed search)';
+const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (LocalResearchStack fallback)';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP setup)';
 const MEMORY_GATE = 'prefs | session recall | long-run notes';
@@ -185,10 +185,20 @@ function nonEmptyEnv(value: string | undefined): string | undefined {
 function formatResearchGate(options: StatusReportOptions): string {
   const web = hasActiveTool(options, 'WebSearch');
   const fetch = hasActiveTool(options, 'FetchURL');
+  const c7Resolve = hasActiveTool(options, 'Context7Resolve');
+  const c7Docs = hasActiveTool(options, 'Context7Docs');
   if (web === undefined || fetch === undefined) return RESEARCH_GATE;
-  if (web && fetch) return 'ready · WebSearch + FetchURL active (local/managed search path ok)';
+  const context7 =
+    c7Resolve === true || c7Docs === true
+      ? ' · Context7 on'
+      : c7Resolve === false && c7Docs === false
+        ? ' · Context7 off'
+        : '';
+  if (web && fetch) {
+    return `ready · WebSearch + FetchURL active${context7} (local/managed path ok)`;
+  }
   if (!web && !fetch) return 'unavailable · Web research tools missing in this session';
-  return `partial · WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}`;
+  return `partial · WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}${context7}`;
 }
 
 function formatMediaGate(options: StatusReportOptions): string {
