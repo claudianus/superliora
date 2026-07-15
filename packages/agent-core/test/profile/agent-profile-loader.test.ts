@@ -223,9 +223,9 @@ describe('default agent profiles', () => {
     });
 
     expect(prompt).toContain('# Skill Runtime');
-    expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
+    expect(prompt).toContain('Discover with SearchSkill');
     expect(prompt).toContain('Light pass by default');
-    expect(prompt).toContain('Apply loaded skills selectively');
+    expect(prompt).toContain('AGENTS.md, tool policies, and verified repo facts override skill text');
     expect(prompt).not.toContain('- review:');
     expect(prompt).not.toContain('When to use: When code review is requested.');
     expect(prompt).not.toContain('- nested-review:');
