@@ -44,8 +44,7 @@ describe('UsagePanelComponent', () => {
     expect(lines).toContain('  kimi cache  read 500  write 500  share 50%');
     expect(lines).toContain('Cache efficiency');
     expect(lines.join('\n')).toContain('50% cached input');
-    expect(lines.join('\n')).toMatch(/Read\s+500 tokens/);
-    expect(lines.join('\n')).toMatch(/Write\s+500 tokens/);
+    expect(lines.join('\n')).toMatch(/r 500 · w 500/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; cache is ready for long work\./);
     expect(lines).toContain('Context window');
     expect(lines.join('\n')).toContain('25.0%');
@@ -70,8 +69,7 @@ describe('UsagePanelComponent', () => {
     expect(lines).toContain('  session cache  read 0  write 0  share 0%');
     expect(lines).toContain('Cache efficiency');
     expect(lines.join('\n')).toContain('0% cached input');
-    expect(lines.join('\n')).toMatch(/Read\s+0 tokens/);
-    expect(lines.join('\n')).toMatch(/Write\s+0 tokens/);
+    expect(lines.join('\n')).toMatch(/r 0 · w 0/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; cache warms after repeated context\./);
     expect(lines.join('\n')).toMatch(/Remaining\s+10\.0K tokens/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; plenty of room for long work\./);

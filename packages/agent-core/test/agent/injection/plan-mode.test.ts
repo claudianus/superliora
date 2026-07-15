@@ -278,7 +278,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('SearchSkill');
     expect(text).toContain('Skill');
     expect(text).toContain('TodoList progress tracking');
-    expect(text).toContain('Use TodoList to keep the live design work board current');
+    expect(text).toContain('TodoList for the live design board');
   });
 
   it('routes Ultra Plan review to write after verification', async () => {
@@ -296,11 +296,11 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain("call NextPhase({ phase: 'write' })");
     expect(text).toContain('WebSearch');
     expect(text).toContain('FetchURL');
-    expect(text).toContain('Search and fetch current sources again');
-    expect(text).toContain('read-only Bash inspection');
+    expect(text).toContain('Re-search when external claims stay uncertain');
+    expect(text).toContain('read-only Bash');
     expect(text).toContain('cat, sed -n, head/tail');
     expect(text).toContain('TodoList progress tracking');
-    expect(text).toContain('Use TodoList to keep verification gaps and completed checks current');
+    expect(text).toContain('TodoList for verification gaps');
   });
 
   it('keeps Ultra Plan write instructions scoped to the plan file', async () => {
@@ -316,8 +316,8 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('You may ONLY write to the current plan file');
-    expect(text).toContain('allowed for quick verification while writing');
-    expect(text).toContain('Use TodoList for progress tracking');
+    expect(text).toContain('allowed for quick verification');
+    expect(text).toContain('TodoList for progress');
     expect(text).toContain('NextPhase or ExitPlanMode');
   });
 
@@ -333,8 +333,8 @@ describe('PlanModeInjector content', () => {
     await injector.inject();
 
     const text = lastReminder(agent);
-    expect(text).toContain('Read the plan file if needed');
-    expect(text).toContain('correct only that plan file');
+    expect(text).toContain('Read/fix only that plan file');
+    expect(text).toContain('retry');
   });
 });
 

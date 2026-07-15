@@ -269,9 +269,12 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
   });
   lines.push('');
   lines.push(accent('Cache efficiency'));
-  lines.push(`  ${cacheBarColoured}  ${value(cachePct)}`);
-  lines.push(`  ${muted('Read')}       ${value(`${formatTokenCount(cacheEfficiency.cacheRead)} tokens`)}`);
-  lines.push(`  ${muted('Write')}      ${value(`${formatTokenCount(cacheEfficiency.cacheWrite)} tokens`)}`);
+  lines.push(
+    `  ${cacheBarColoured}  ${value(cachePct)}  ` +
+      muted(
+        `r ${formatTokenCount(cacheEfficiency.cacheRead)} · w ${formatTokenCount(cacheEfficiency.cacheWrite)}`,
+      ),
+  );
   lines.push(
     `  ${muted('Next')}       ${value(
       cacheEfficiencyNext(cacheRatio, cacheEfficiency.cacheRead, options.contextUsage),
