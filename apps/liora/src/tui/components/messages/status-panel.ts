@@ -154,7 +154,7 @@ const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL ready (LocalResearchStack when no managed search)';
 const MEDIA_GATE =
-  'GenerateImage/GenerateVideo when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set';
+  'set OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP setup)';
 const MEMORY_GATE = 'prefs | session recall | long-run notes';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
