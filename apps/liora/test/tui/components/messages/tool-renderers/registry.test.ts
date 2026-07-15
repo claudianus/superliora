@@ -107,6 +107,21 @@ describe('tool-result registry', () => {
     expect(out).toContain('bar');
   });
 
+  it('WebSearch glance lists result titles below the chip', () => {
+    const renderer = pickResultRenderer('WebSearch');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('WebSearch', { query: 'kimi' }),
+          result('Title: Alpha\nURL: https://a.test\n\n---\n\nTitle: Beta\nURL: https://b.test\n'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('Alpha');
+    expect(out).toContain('Beta');
+  });
+
   it('Grep glance lists path samples below the chip', () => {
     const renderer = pickResultRenderer('Grep');
     const out = strip(
@@ -159,12 +174,15 @@ describe('tool-result registry', () => {
     expect(out).toContain('+1 more');
   });
 
-  it('FetchURL renders no body when collapsed', () => {
+  it('FetchURL glance shows host and content preview when collapsed', () => {
     const renderer = pickResultRenderer('FetchURL');
-    const out = joinRender(
-      renderer(call('FetchURL', { url: 'https://example.com/x' }), result('<body>...'), ctx),
+    const out = strip(
+      joinRender(
+        renderer(call('FetchURL', { url: 'https://example.com/x' }), result('<body>hello world'), ctx),
+      ),
     );
-    expect(out.trim()).toBe('');
+    expect(out).toContain('example.com');
+    expect(out).toContain('hello');
   });
 
   it('WebSearch renders no body when collapsed', () => {

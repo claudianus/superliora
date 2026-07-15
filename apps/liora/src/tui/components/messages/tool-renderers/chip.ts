@@ -131,12 +131,18 @@ const fetchChip: ChipProvider = (_toolCall, result) =>
   formatBytes(Buffer.byteLength(result.output, 'utf8'));
 
 const webSearchChip: ChipProvider = (_toolCall, result) => {
-  const lines = result.output.split('\n').filter((l) => l.trim().length > 0);
+  if (result.output.includes('No search results found.')) return 'no results';
   let count = 0;
-  for (const line of lines) {
-    if (/^\s*(\d+\.|[-*])\s+/.test(line)) count++;
+  for (const line of result.output.split('\n')) {
+    if (/^\s*Title:\s+/.test(line)) count++;
   }
-  if (count === 0) return lines.length === 0 ? 'no results' : 'web result';
+  if (count === 0) {
+    // Fallback for hosts that emit numbered/bullet lists instead of Title: lines.
+    for (const line of result.output.split('\n')) {
+      if (/^\s*(\d+\.|[-*])\s+/.test(line)) count++;
+    }
+  }
+  if (count === 0) return result.output.trim().length === 0 ? 'no results' : 'web result';
   return pluralize(count, 'result');
 };
 
