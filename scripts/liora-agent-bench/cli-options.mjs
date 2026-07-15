@@ -5,7 +5,7 @@ import { DEFAULT_TASK_DIR, SUPPORTED_RUNNERS, SUPPORTED_SUITES } from './constan
 export function usage() {
   return `Usage: node scripts/liora-agent-bench.mjs [options]
 
-Internal SuperLiora agent benchmark and bounded improvement loop.
+LioraBench — SuperLiora agent benchmark and bounded improvement loop.
 
 Options:
   --help                         Show this help.

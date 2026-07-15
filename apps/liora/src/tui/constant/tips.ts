@@ -49,6 +49,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/context diagnoses memory continuity, evidence, and privacy (ZDR) posture', priority: 3, solo: true },
   { text: 'media: OPENAI_API_KEY or GOOGLE_API_KEY enables GenerateImage/GenerateVideo — no MCP', priority: 2, solo: true },
   { text: 'research: Context7 for library docs; WebSearch + FetchURL for papers/CVEs — no MCP', priority: 2, solo: true },
+  { text: '/bench: LioraBench score, loop trend, and next bounded rerun', priority: 2, solo: true },
     { text: 'browser/computer tools are built-in for screenshot proof — no MCP', priority: 2, solo: true },
   { text: 'first run: /login then type a task — no complex config required', priority: 3, solo: true },
   { text: 'footer badges warn when context is high or durable evidence is missing after compact', priority: 2, solo: true },

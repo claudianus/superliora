@@ -108,7 +108,7 @@ const ULTRAWORK_GUI_USE_GUIDANCE = [
 ].join('\n');
 
 const ULTRAWORK_BENCH_GUIDANCE = [
-  'SuperLiora Agent Bench (surface-relevant):',
+  'LioraBench (surface-relevant):',
   '- For harness/TUI benchmark or SOTA claims, use `node scripts/liora-agent-sota-gate.mjs` or `node scripts/qa-superliora-autonomous.mjs --phase sota-gate` (C001 system score, C002 live TUI surface, C003 budget/cleanup/secret scan). Do not treat browser-only UI as TUI success.',
 ].join('\n');
 

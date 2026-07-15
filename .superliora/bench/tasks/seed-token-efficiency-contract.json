@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "seed.token-efficiency-contract.v1",
+  "title": "Record a token-efficiency improvement contract",
+  "suite": "seed",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "context",
+    "prompt",
+    "deterministic-check"
+  ],
+  "prompt": "Create reports/token-efficiency-contract.md with sections for High-frequency injections, Tool description budget, Proof path, and Rollback note.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/token-efficiency-contract.md",
+      "content": "# Token Efficiency Contract\n\n## High-frequency injections\ntrim goal/plan/premium recovery copy\n\n## Tool description budget\nkeep schema contracts while compressing prose\n\n## Proof path\nfocused vitest + /bench loop evidence\n\n## Rollback note\nrevert denser copy if routing contracts regress\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/token-efficiency-contract.md",
+      "text": "High-frequency injections",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/token-efficiency-contract.md",
+      "text": "Tool description budget",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/token-efficiency-contract.md",
+      "text": "Proof path",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/token-efficiency-contract.md",
+      "text": "Rollback note",
+      "weight": 1
+    }
+  ]
+}
