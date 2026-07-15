@@ -23,7 +23,7 @@ export const NO_AI_SLOP_SKIP_WHEN = [
 /** Lightweight pass — default for most replies; no skill round-trip. */
 export const NO_AI_SLOP_LIGHT_PASS = [
   'Light anti-slop (default): follow system.md writing rules; vary rhythm; ban Tier-1 AI-isms; no template intros/outros.',
-  'Run a 5-second inline scan for buzzwords and filler before send. Load a skill only when the light pass is insufficient.',
+  'Run a 5-second inline scan for buzzwords and filler before send. Load a skill only if the light pass is insufficient.',
 ].join('\n');
 
 /**
