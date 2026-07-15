@@ -486,6 +486,39 @@ describe('tool-result registry', () => {
     expect(out).toContain('completed: 2');
     expect(isGenericToolResult('UltraSwarm')).toBe(false);
   });
+  it('BrowserStatus glance shows host and title', () => {
+    const renderer = pickResultRenderer('BrowserStatus');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('BrowserStatus', {}),
+          result(JSON.stringify({ ok: true, url: 'https://example.com/app', title: 'Demo App' }, null, 2)),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('example.com');
+    expect(out).toContain('Demo App');
+    expect(isGenericToolResult('BrowserStatus')).toBe(false);
+  });
+
+  it('ComputerCapture glance shows mode app and window title', () => {
+    const renderer = pickResultRenderer('ComputerCapture');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('ComputerCapture', { mode: 'som' }),
+          result(JSON.stringify({ ok: true, mode: 'som', app: 'Safari', windowTitle: 'Home' }, null, 2)),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('som');
+    expect(out).toContain('Safari');
+    expect(out).toContain('Home');
+    expect(isGenericToolResult('ComputerCapture')).toBe(false);
+  });
+
 
 
 

@@ -387,6 +387,26 @@ describe('chip registry', () => {
       ),
     ).toBe('3 ok · 0 fail · 0 abort');
   });
+  it('BrowserStatus chip shows host', () => {
+    expect(
+      chipFor(
+        'BrowserStatus',
+        {},
+        result(JSON.stringify({ ok: true, url: 'https://example.com/app', title: 'Demo' }, null, 2)),
+      ),
+    ).toBe('example.com');
+  });
+
+  it('ComputerCapture chip shows mode', () => {
+    expect(
+      chipFor(
+        'ComputerCapture',
+        { mode: 'som' },
+        result(JSON.stringify({ ok: true, mode: 'som', app: 'Safari', windowTitle: 'Home' }, null, 2)),
+      ),
+    ).toBe('som');
+  });
+
 
 
 

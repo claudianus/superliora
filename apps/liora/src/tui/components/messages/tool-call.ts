@@ -459,6 +459,14 @@ function extractKeyArgument(
     Agent: ['description', 'subagent_type', 'resume', 'prompt'],
     AgentSwarm: ['description', 'tasks'],
     UltraSwarm: ['description', 'task'],
+    BrowserStatus: ['url'],
+    BrowserObserve: ['url'],
+    BrowserScreenshot: ['url', 'full_page'],
+    BrowserAct: ['actions'],
+    BrowserConsole: ['url'],
+    ComputerCapture: ['mode', 'app'],
+    ComputerAct: ['actions'],
+    ComputerStatus: ['app'],
   };
 
   // Glob: concatenate multiple args into a single summary so the header

@@ -17,6 +17,14 @@ import {
   agentSummary,
   agentSwarmSummary,
   askUserQuestionSummary,
+  browserActSummary,
+  browserConsoleSummary,
+  browserObserveSummary,
+  browserScreenshotSummary,
+  browserStatusSummary,
+  computerActSummary,
+  computerCaptureSummary,
+  computerStatusSummary,
   context7DocsSummary,
   context7ResolveSummary,
   cronCreateSummary,
@@ -138,6 +146,22 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return agentSwarmSummary;
     case 'UltraSwarm':
       return ultraSwarmSummary;
+    case 'BrowserStatus':
+      return browserStatusSummary;
+    case 'BrowserObserve':
+      return browserObserveSummary;
+    case 'BrowserScreenshot':
+      return browserScreenshotSummary;
+    case 'BrowserAct':
+      return browserActSummary;
+    case 'BrowserConsole':
+      return browserConsoleSummary;
+    case 'ComputerCapture':
+      return computerCaptureSummary;
+    case 'ComputerAct':
+      return computerActSummary;
+    case 'ComputerStatus':
+      return computerStatusSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
