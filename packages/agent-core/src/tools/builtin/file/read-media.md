@@ -9,5 +9,3 @@ Read image or video content from a file.
 - Missing/invalid paths return an error.
 - Max size {{ MAX_MEDIA_MEGABYTES }}MB; larger files error.
 - Returned media is directly viewable.
-
-**Capabilities**
