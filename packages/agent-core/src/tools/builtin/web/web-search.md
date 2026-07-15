@@ -1,6 +1,6 @@
 Search the web for up-to-date information.
 
-Include the current year from the latest `<current_time>` reminder or `GetCurrentTime` for recent releases, CVEs, news, or other time-sensitive facts.
+Include the current year from the latest `<current_time>` reminder or `GetCurrentTime` for recent releases, CVEs, news, or time-sensitive facts.
 
 Each result has a title, publication date when available, URL, and snippet. With `include_content`, full page text may follow when available.
 

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.media-web-zero-config.v1",
+  "title": "Record a media/web zero-config readiness contract",
+  "suite": "holdout",
+  "kind": "media-web",
+  "risk": "low",
+  "tags": [
+    "media",
+    "web",
+    "zero-config",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/media-web-zero-config-contract.md with sections for Image keys, Video keys, WebSearch fallback, and /status readiness.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/media-web-zero-config-contract.md",
+      "content": "# Media/Web Zero-Config Contract\n\n## Image keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY enables GenerateImage without MCP\n\n## Video keys\nGOOGLE_API_KEY/GEMINI_API_KEY enables GenerateVideo without MCP\n\n## WebSearch fallback\nno-subscription local search provider when managed search is not configured\n\n## /status readiness\n/status shows Research, Media, Bench, and Privacy/ZDR gates for beginners\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/media-web-zero-config-contract.md",
+      "text": "Image keys",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-web-zero-config-contract.md",
+      "text": "Video keys",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-web-zero-config-contract.md",
+      "text": "WebSearch fallback",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-web-zero-config-contract.md",
+      "text": "/status readiness",
+      "weight": 1
+    }
+  ]
+}
