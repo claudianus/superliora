@@ -1,4 +1,4 @@
-import type { UltraworkRun, UltraworkStage } from '@superliora/protocol';
+import type { UltraworkStage } from '@superliora/protocol';
 
 import type { Agent } from '../agent';
 import {

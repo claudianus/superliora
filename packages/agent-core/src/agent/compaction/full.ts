@@ -7,10 +7,8 @@ import {
 import {
   APIEmptyResponseError,
   createProvider,
-  inputTotal,
   isRetryableGenerateError,
   type ChatProvider,
-  type GenerateResult,
   type Message,
   type ModelCapability,
   type TokenUsage,
@@ -97,7 +95,6 @@ import { buildEmergencyBackstopSummary } from './backstop';
 import { buildCompactionSummaryText } from './handoff';
 import {
   compactionFinishedTelemetryProperties,
-  compactionSummaryMessage,
   compactionV2FinishedTelemetryProperties,
   buildEmergencyBackstopActions,
   emergencyBackstopWarnings,
@@ -756,14 +753,13 @@ export class FullCompaction {
       await this.triggerPreCompactHook(data, tokensBefore, signal);
 
       const model = this.agent.config.model;
-      const capability = this.agent.config.modelCapabilities;
       let summary: string;
       let usage: TokenUsage | null = null;
       let parallelBlockCount = 0;
       let mergeInputTokens: number | undefined;
       let repairAttempted = false;
       let usedEmergencyBackstop = false;
-      let messagesToCompact = originalHistory.slice(0, compactedCount);
+      let messagesToCompact: readonly Message[] = originalHistory.slice(0, compactedCount);
       let plan = this.planner.plan(originalHistory, compactedCount);
       const provider = this.createCompactionProvider(
         estimateTokensForMessages(messagesToCompact),
@@ -852,7 +848,7 @@ export class FullCompaction {
       }
       let contextSummary = buildCompactionSummaryText(summary);
       let summaryTokens = estimateTokens(contextSummary);
-      let retained = this.agent.context.history.slice(compactedCount);
+      let retained: readonly Message[] = this.agent.context.history.slice(compactedCount);
       let retainedTokens = estimateTokensForMessages(retained);
       let tokensAfter = summaryTokens + retainedTokens;
       let renderedQuality = validateRenderedCompactionSummary(
@@ -1381,7 +1377,6 @@ export class FullCompaction {
     let summary: string;
     let usage: TokenUsage | null = null;
     let parallelBlockCount = 0;
-    let mergeInputTokens: number | undefined;
     let compactedCount = input.compactedCount;
     let messagesToCompact = input.messagesToCompact;
     let usedEmergencyBackstop = false;
@@ -1436,7 +1431,7 @@ export class FullCompaction {
       summary,
       usage,
       parallelBlockCount,
-      mergeInputTokens,
+      mergeInputTokens: undefined,
       compactedCount,
       messagesToCompact,
       usedEmergencyBackstop,

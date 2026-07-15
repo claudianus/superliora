@@ -93,14 +93,14 @@ function toIndexedCatalogSkill(
   const dir = join(catalogDir, entry.relDir);
   const skillMdPath = join(dir, 'SKILL.md');
   const metadata: Record<string, unknown> = {};
-  if (entry.type !== undefined) metadata.type = entry.type;
-  if (entry.whenToUse !== undefined) metadata.whenToUse = entry.whenToUse;
-  if (entry.disableModelInvocation === true) metadata.disableModelInvocation = true;
-  if (entry.isSubSkill === true) metadata.isSubSkill = true;
-  if (entry.category !== undefined) metadata.category = entry.category;
-  if (entry.risk !== undefined) metadata.risk = entry.risk;
-  if (entry.catalogSource !== undefined) metadata.catalogSource = entry.catalogSource;
-  if (entry.catalogId !== undefined) metadata.catalogId = entry.catalogId;
+  if (entry.type !== undefined) metadata['type'] = entry.type;
+  if (entry.whenToUse !== undefined) metadata['whenToUse'] = entry.whenToUse;
+  if (entry.disableModelInvocation === true) metadata['disableModelInvocation'] = true;
+  if (entry.isSubSkill === true) metadata['isSubSkill'] = true;
+  if (entry.category !== undefined) metadata['category'] = entry.category;
+  if (entry.risk !== undefined) metadata['risk'] = entry.risk;
+  if (entry.catalogSource !== undefined) metadata['catalogSource'] = entry.catalogSource;
+  if (entry.catalogId !== undefined) metadata['catalogId'] = entry.catalogId;
 
   return {
     name: entry.name,

@@ -2,7 +2,7 @@
  * Pure Ultrawork recovery report/prompt builders (no Agent mutation).
  */
 
-import type { UltraworkRun, UltraworkStage } from '@superliora/protocol';
+import type { UltraworkRun } from '@superliora/protocol';
 
 import {
   inferEffectiveUltraworkStage,
