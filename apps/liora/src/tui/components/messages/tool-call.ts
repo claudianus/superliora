@@ -689,11 +689,18 @@ export class ToolCallComponent extends Container {
   private tickClockDrivenRefresh(): void {
     const now = appearanceAnimationNow();
 
-    // Streaming-edit progress.
-    if (this.isStreamingEditPreview()) {
+    // Streaming-edit progress + live duration chip for long-running tools.
+    const shouldTickToolProgress =
+      this.isStreamingEditPreview() ||
+      (this.result === undefined && this.toolCall.streamingStartedAtMs !== undefined);
+    if (shouldTickToolProgress) {
       if (now - this.lastStreamingProgressTickMs >= STREAMING_PROGRESS_INTERVAL_MS) {
         this.lastStreamingProgressTickMs = now;
-        this.rebuildBody();
+        if (this.isStreamingEditPreview()) {
+          this.rebuildBody();
+        } else {
+          this.headerText.setText(this.buildHeader());
+        }
         this.ui?.requestRender();
       }
     } else {
@@ -1497,7 +1504,15 @@ export class ToolCallComponent extends Container {
         : `${toolNameStyled}${currentTheme.dim(` · MCP/${decoded.serverName}`)}`;
     const argStr = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
     let chipStr = '';
-    if (isFinished && result) chipStr = this.buildHeaderChip(result);
+    if (isFinished && result) {
+      chipStr = this.buildHeaderChip(result);
+    } else {
+      // Live duration for long-running tools makes work transparent without expand.
+      const liveDuration = this.formatToolDurationChip();
+      if (liveDuration !== undefined) {
+        chipStr = currentTheme.dim(formatRendererToolHeaderChip({ text: liveDuration }));
+      }
+    }
     return renderRendererToolActivityHeader({
       marker: bullet,
       action: verbStyled,

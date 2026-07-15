@@ -1,4 +1,4 @@
-Fetch content from a URL. For HTML, main article text is extracted; for plain-text/markdown, the full body is returned verbatim. The result states which of the two you received. Use this when you need to read a specific web page.
+Fetch content from a URL. For HTML, main article text is extracted; for plain-text/markdown, the full body is returned verbatim. The result states which of the two you received.
 
 Only fully-formed public `http`/`https` URLs are supported; other schemes and private/loopback addresses are not fetched. Very large pages may be truncated or refused.
 

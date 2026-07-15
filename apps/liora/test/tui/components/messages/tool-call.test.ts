@@ -73,6 +73,25 @@ describe('ToolCallComponent', () => {
     expect(out).toContain('3s');
   });
 
+  it('shows live elapsed duration on long-running unfinished tools', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-29T00:00:00Z'));
+
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_duration',
+        name: 'Bash',
+        args: { command: 'sleep 30' },
+        streamingStartedAtMs: Date.now() - 4_200,
+      },
+      undefined,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Using Bash');
+    expect(out).toContain('4s');
+  });
+
   describe('detach hint for long-running foreground Bash/Agent', () => {
     it('shows the Ctrl+B hint after 6s for a running Bash call', () => {
       vi.useFakeTimers();
