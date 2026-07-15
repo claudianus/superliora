@@ -128,9 +128,9 @@ export const translations: Record<Lang, Translation> = {
     lang: 'ko',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora - 터미널 중심 AI 코딩 하네스',
+      title: 'SuperLiora - Blood Moon 터미널 AI 코딩 하네스',
       description:
-        'SuperLiora는 터미널에서 실행하는 독립형 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화를 하나로 연결합니다.',
+        'SuperLiora는 Blood Moon 브랜드의 터미널 중심 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화를 하나의 시네마틱 작업 흐름으로 연결합니다.',
       ogLocale: 'ko_KR',
     },
     skip: '본문으로 이동',
@@ -142,9 +142,9 @@ export const translations: Record<Lang, Translation> = {
       install: 'Install',
     },
     hero: {
-      eyebrow: 'AI coding harness',
-      h1: '길고 복잡한 개발 흐름을 터미널에서 끝까지 이어가는 하네스',
-      lead: 'SuperLiora는 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 하나의 작업 흐름으로 연결합니다. 긴 세션에서도 맥락을 보존하고, 근거 있는 결정을 남기며, 개발자가 다음 단계에 집중할 수 있도록 돕습니다.',
+      eyebrow: 'Blood Moon · AI coding harness',
+      h1: '붉은 달 아래, 긴 개발 흐름을 터미널에서 끝까지 이어갑니다',
+      lead: 'SuperLiora는 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 하나의 작업 흐름으로 묶습니다. Blood Moon 팔레트로 시인성을 높이고, 긴 세션에서도 맥락과 근거를 잃지 않게 합니다.',
       install: '바로 설치',
       github: 'GitHub 보기',
       stats: ['v0.20.1', 'MIT 라이선스', '12개 핵심 기능', 'Node.js >= 24'],
@@ -175,7 +175,7 @@ export const translations: Record<Lang, Translation> = {
     solution: {
       kicker: 'Solution',
       title: 'Shift-Tab 한 번으로 Ultrawork 시작',
-      body: '일반 프롬프트는 가볍게, 복잡한 작업은 인터랙티브 세션 안에서 Ultrawork로 전환합니다. UltraPlan interview부터 research, Swarm decision, verification, learning까지 이어집니다.',
+      body: '일반 프롬프트는 가볍게, 복잡한 작업은 인터랙티브 세션 안에서 Ultrawork로 전환합니다. UltraPlan interview부터 research, Swarm decision, verification, learning까지 Blood Moon 조종석 안에서 이어집니다.',
     },
     terminal: [
       { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
@@ -232,12 +232,12 @@ export const translations: Record<Lang, Translation> = {
     },
     themes: {
       kicker: 'Premium TUI',
-      title: '터미널도 개발자에게 맞춘 조종석이 됩니다',
-      body: 'Neon Noir, Daylight, Prism Syntax, Recall Green, Executive Gold 등 팔레트를 바꾸고 외부 터미널 색상을 가져올 수 있습니다. 키보드 중심 탐색과 세션별 시각 디버깅을 지원합니다.',
+      title: 'Blood Moon 조종석으로 터미널을 맞춥니다',
+      body: 'Blood Moon, Daylight, Prism Syntax, Recall Green, Executive Gold 등 팔레트를 바꾸고 외부 터미널 색상을 가져올 수 있습니다. 키보드 중심 탐색과 세션별 시각 디버깅을 지원합니다.',
       cards: [
         {
-          title: 'Neon Operator',
-          body: '기본 다크 팔레트. 높은 대비와 시네마틱한 강조색.',
+          title: 'Blood Moon',
+          body: '기본 다크 팔레트. #E63946 프라이머리와 높은 대비의 시네마틱 강조.',
         },
         {
           title: 'Prism Syntax',
@@ -249,7 +249,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'Executive Gold',
-          body: '덜 붉은 앰버 계열로 전환한 고급스러운 라이트 팔레트.',
+          body: '앰버·골드 계열로 전환한 고급스러운 라이트 팔레트.',
         },
       ],
     },
@@ -267,7 +267,7 @@ export const translations: Record<Lang, Translation> = {
         { title: 'Computer-use', body: 'CUA/MCP로 네이티브 데스크톱을 캡처하고 조작합니다.' },
         { title: 'Provider routing', body: 'quota, cooldown, latency, route health를 기준으로 fallback 후보를 선택합니다.' },
         { title: 'LLM Wiki', body: '코드베이스 지식과 검증 근거를 프로젝트 로컬에서 검토할 수 있는 위키로 전환합니다.' },
-        { title: 'Premium TUI', body: 'Neon Noir / Daylight 팔레트와 키보드 중심 탐색으로 터미널 작업 환경을 조종합니다.' },
+        { title: 'Premium TUI', body: 'Blood Moon / Daylight 팔레트와 키보드 중심 탐색으로 터미널 작업 환경을 조종합니다.' },
         { title: 'ACP', body: '동일한 SuperLiora workflow를 stdio로 ACP 호환 editor와 IDE에 노출합니다.' },
       ],
     },
@@ -284,7 +284,7 @@ export const translations: Record<Lang, Translation> = {
     },
     cta: {
       title: '복잡한 작업도 한 흐름으로 끝까지',
-      body: 'SuperLiora를 설치하고 첫 Ultrawork session을 시작해 보세요.',
+      body: 'SuperLiora를 설치하고 Blood Moon 조종석에서 첫 Ultrawork session을 시작해 보세요.',
       install: '지금 설치',
       github: 'GitHub 보기',
     },
@@ -300,9 +300,9 @@ export const translations: Record<Lang, Translation> = {
     lang: 'en',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora - Terminal-Centric AI Coding Harness',
+      title: 'SuperLiora - Blood Moon Terminal AI Coding Harness',
       description:
-        'SuperLiora is a self-contained AI coding harness that runs in your terminal. It connects planning, research, goal management, parallel execution, verification, memory, and documentation into one workflow.',
+        'SuperLiora is a Blood Moon-branded, terminal-centric AI coding harness. It connects planning, research, goal management, parallel execution, verification, memory, and documentation into one cinematic workflow.',
       ogLocale: 'en_US',
     },
     skip: 'Skip to main content',
@@ -314,9 +314,9 @@ export const translations: Record<Lang, Translation> = {
       install: 'Install',
     },
     hero: {
-      eyebrow: 'AI coding harness',
-      h1: 'A terminal harness that carries long, complex development flows to the finish line',
-      lead: 'SuperLiora connects planning, research, goal management, parallel execution, verification, memory, documentation, browser, and computer use into one workflow. It preserves context across long sessions, leaves evidence-backed decisions, and helps developers focus on the next step.',
+      eyebrow: 'Blood Moon · AI coding harness',
+      h1: 'Under a blood moon, carry long development flows to the finish in your terminal',
+      lead: 'SuperLiora connects planning, research, goal management, parallel execution, verification, memory, documentation, browser, and computer use into one workflow. The Blood Moon palette keeps dense status readable while long sessions keep context and evidence intact.',
       install: 'Install now',
       github: 'View on GitHub',
       stats: ['v0.20.1', 'MIT License', '12 capabilities', 'Node.js >= 24'],
@@ -347,7 +347,7 @@ export const translations: Record<Lang, Translation> = {
     solution: {
       kicker: 'Solution',
       title: 'Start Ultrawork with one Shift-Tab',
-      body: 'Use normal prompts for light tasks, and switch to Ultrawork inside an interactive session for complex ones. From UltraPlan interview through research, Swarm decision, verification, and learning.',
+      body: 'Use normal prompts for light tasks, and switch to Ultrawork inside an interactive session for complex ones. From UltraPlan interview through research, Swarm decision, verification, and learning—all from the Blood Moon cockpit.',
     },
     terminal: [
       { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
@@ -404,12 +404,12 @@ export const translations: Record<Lang, Translation> = {
     },
     themes: {
       kicker: 'Premium TUI',
-      title: 'Make the terminal a cockpit tuned for the developer',
-      body: 'Switch palettes such as Neon Noir, Daylight, Prism Syntax, Recall Green, and Executive Gold, or import external terminal colors. Keyboard-first navigation and per-session visual debugging are built in.',
+      title: 'Tune the terminal as a Blood Moon cockpit',
+      body: 'Switch palettes such as Blood Moon, Daylight, Prism Syntax, Recall Green, and Executive Gold, or import external terminal colors. Keyboard-first navigation and per-session visual debugging are built in.',
       cards: [
         {
-          title: 'Neon Operator',
-          body: 'The default dark palette. High contrast and cinematic accents.',
+          title: 'Blood Moon',
+          body: 'Default dark palette. #E63946 primary with high-contrast cinematic accents.',
         },
         {
           title: 'Prism Syntax',
@@ -421,7 +421,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'Executive Gold',
-          body: 'A luxurious light palette shifted toward a less red amber.',
+          body: 'A refined light palette shifted toward amber and gold.',
         },
       ],
     },
@@ -439,7 +439,7 @@ export const translations: Record<Lang, Translation> = {
         { title: 'Computer-use', body: 'Capture and manipulate native desktops with CUA/MCP.' },
         { title: 'Provider routing', body: 'Choose fallback candidates by quota, cooldown, latency, and route health.' },
         { title: 'LLM Wiki', body: 'Turn codebase knowledge and verification evidence into a local project wiki.' },
-        { title: 'Premium TUI', body: 'Pilot the terminal with Neon Noir / Daylight palettes and keyboard-first navigation.' },
+        { title: 'Premium TUI', body: 'Pilot the terminal with Blood Moon / Daylight palettes and keyboard-first navigation.' },
         { title: 'ACP', body: 'Expose the same SuperLiora workflow over stdio to ACP-compatible editors and IDEs.' },
       ],
     },
@@ -456,7 +456,7 @@ export const translations: Record<Lang, Translation> = {
     },
     cta: {
       title: 'One flow from start to finish, even for complex work',
-      body: 'Install SuperLiora and start your first Ultrawork session.',
+      body: 'Install SuperLiora and start your first Ultrawork session from the Blood Moon cockpit.',
       install: 'Install now',
       github: 'View on GitHub',
     },
