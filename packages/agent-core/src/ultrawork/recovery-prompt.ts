@@ -145,9 +145,9 @@ export function buildUltraworkRecoveryPrompt(
   for (const action of report.nextActions.slice(0, 4)) {
     lines.push(`- ${action}`);
   }
-  lines.push('Continue from the current stage, refresh evidence as needed, and keep the WorkGraph ledger current.');
-  lines.push('Control: prefer deterministic checks (tests, typecheck, real-surface proof) over model-claimed success; mark AC/WorkGraph done only with evidence.');
-  lines.push('Preserve durable ids across resume (WorkGraph node ids, AC ids, evidence_ids, archive markers) — do not drop them from checkpoints.');
+  lines.push(
+    'Continue from the current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over model claims; mark AC/nodes done only with evidence. Preserve durable ids (nodes, AC, evidence_ids, archives).',
+  );
   lines.push('</ultrawork_recovery>');
   return lines.join('\n');
 }
@@ -172,7 +172,7 @@ export function suggestNextActions(
     run.stage === 'research'
   ) {
     actions.push(
-      'WorkGraph is ahead of the checkpoint stage. Continue implementation/verification from the current in-progress node; do not restart research.',
+      'WorkGraph is ahead of checkpoint stage — continue current in-progress node; do not restart research.',
     );
   }
   const planPhase = planContext?.phase ?? resumeCursor?.planPhase;
@@ -214,7 +214,7 @@ export function suggestNextActions(
             : 'Continue the UltraPlan interview from the current evidence pack.',
         );
         actions.push(
-          'Research-first before AskUserQuestion; offer Baseline + Upgrade choices, not only gap-filling questions.',
+          'Research-first before AskUserQuestion; offer Baseline + Upgrade choices.',
         );
         break;
       }
@@ -244,7 +244,7 @@ export function suggestNextActions(
         break;
       case 'staff':
       case 'swarm':
-        actions.push('Reconcile Swarm staffing, rerun UltraSwarm only if ENGAGE is still required.');
+        actions.push('Reconcile swarm staffing; rerun UltraSwarm only if ENGAGE still required.');
         break;
       case 'integrate':
         actions.push('Merge specialist output and resolve conflicts before more product edits.');
