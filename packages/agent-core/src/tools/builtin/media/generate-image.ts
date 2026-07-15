@@ -112,7 +112,7 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
       return {
         isError: true,
         output:
-          'No image-generation provider key found. Set OPENAI_API_KEY, or GOOGLE_API_KEY / GEMINI_API_KEY, then retry.',
+          'No image-generation provider key found. Set OPENAI_API_KEY, or GOOGLE_API_KEY / GEMINI_API_KEY (no MCP setup), then retry. Check readiness with /status.',
       };
     }
 

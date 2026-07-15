@@ -740,7 +740,7 @@ export class AgentSwarmProgressComponent implements Component {
     const teamBody = teamContent.length > 0
       ? teamContent
       : [chalk.hex(this.colors.textDim)('awaiting agents…')];
-    const feedHeader = chalk.hex(this.colors.textDim)('feed');
+    const feedHeader = chalk.hex(this.colors.textDim)('live feed · team messages');
     const panelContent = [
       ...missionContent,
       '',
@@ -798,7 +798,7 @@ export class AgentSwarmProgressComponent implements Component {
     const report = this.integrationReport;
     if (report === undefined) return [];
 
-    const lines: string[] = [chalk.hex(this.colors.textDim)('report')];
+    const lines: string[] = [chalk.hex(this.colors.textDim)('integration report')];
     if (report.headline.length > 0) {
       lines.push(chalk.hex(this.colors.textDim)(truncateToWidth(report.headline, width)));
     }
@@ -898,7 +898,7 @@ export class AgentSwarmProgressComponent implements Component {
       '',
       renderRendererLabeledDividerRow({
         width,
-        label: chalk.hex(this.colors.accent)('SWARM FEED'),
+        label: chalk.hex(this.colors.accent)('LIVE FEED'),
         dividerStyle,
       }),
       ...this.renderOpsFeedContent(width, SWARM_OPS_FEED_RENDER_LINES, true),
