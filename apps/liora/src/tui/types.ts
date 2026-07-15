@@ -43,7 +43,7 @@ export interface AppState {
   ultraworkPriorState?: {
     readonly planMode: boolean;
     readonly swarmMode: boolean;
-    readonly swarmModeEntry: 'manual' | 'task' | undefined;
+    readonly swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
     readonly premiumQualityMode: boolean;
   } | null;
   /** Visual-first premium harness: art direction, anti-slop visuals, skill routing, screenshot proof. */

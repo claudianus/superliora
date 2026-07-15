@@ -621,7 +621,7 @@ function formatMicroCompactionStatus(options: StatusReportOptions): string | und
       ? ''
       : ` @${(micro.lastContextUsageRatio * 100).toFixed(0)}%`;
   const top = Object.entries(micro.byTrigger)
-    .sort((a, b) => b[1] - a[1])
+    .toSorted((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([name, count]) => `${name}:${String(count)}`)
     .join(',');

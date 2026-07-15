@@ -40,7 +40,7 @@ export interface UltraworkSessionSnapshot {
  */
 export interface UltraworkTuiSetupState extends UltraworkSessionSnapshot {
   /** Prior `swarmModeEntry` so rollback can restore the TUI-only value. */
-  readonly previousSwarmModeEntry: 'manual' | 'task' | undefined;
+  readonly previousSwarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
   /** Prior `ultraworkMode` so rollback restores it instead of forcing off. */
   readonly ultraworkModeWasEnabled: boolean;
 }
@@ -62,7 +62,7 @@ export interface UltraworkTuiHost {
       premiumQualityMode?: boolean;
       ultraworkMode?: boolean;
     };
-    swarmModeEntry: 'manual' | 'task' | undefined;
+    swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
   };
   requireSession(): Session;
   setAppState(patch: Record<string, unknown>): void;
@@ -105,8 +105,8 @@ export function captureUltraworkSnapshot(
 export function captureUltraworkTuiSetup(host: UltraworkTuiHost): UltraworkTuiSetupState {
   return {
     ...captureUltraworkSnapshot(
-      host.state.appState.planMode === true,
-      host.state.appState.swarmMode === true,
+      host.state.appState.planMode,
+      host.state.appState.swarmMode,
       host.state.appState.premiumQualityMode ?? false,
     ),
     previousSwarmModeEntry: host.state.swarmModeEntry,
