@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.long-horizon-token-contract.v1",
+  "title": "Record a long-horizon token efficiency contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "context",
+    "long-horizon",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/long-horizon-token-contract.md with sections for High-frequency injections, Compaction recovery, Tool schema budget, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/long-horizon-token-contract.md",
+      "content": "# Long-Horizon Token Contract\n\n## High-frequency injections\nlean goal/plan/premium recovery copy every turn\n\n## Compaction recovery\nre-check files/commands after summary; treat done claims as unverified\n\n## Tool schema budget\nkeep contracts while compressing always-on tool descriptions\n\n## Evidence path\nLioraBench seed/holdout + focused vitest + /status readiness\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/long-horizon-token-contract.md",
+      "text": "High-frequency injections",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/long-horizon-token-contract.md",
+      "text": "Compaction recovery",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/long-horizon-token-contract.md",
+      "text": "Tool schema budget",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/long-horizon-token-contract.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
