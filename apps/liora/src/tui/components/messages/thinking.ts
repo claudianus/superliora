@@ -111,13 +111,13 @@ export class ThinkingComponent implements Component {
         const contentLines = this.text.length > 0 ? this.textComponent.render(contentWidth) : [''];
 
         if (this.mode === 'live') {
-          const visibleLines = this.expanded
-            ? projectRendererLineWindow({
-              lines: contentLines,
-              maxLines: THINKING_PREVIEW_LINES,
-              tail: true,
-            }).lines
-            : [];
+          // Live thinking always shows a short tail glance so work is transparent
+          // without waiting for Ctrl+O expand.
+          const visibleLines = projectRendererLineWindow({
+            lines: contentLines,
+            maxLines: this.expanded ? Math.max(THINKING_PREVIEW_LINES, 6) : THINKING_PREVIEW_LINES,
+            tail: true,
+          }).lines;
           const spinnerFrame =
             Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
             BRAILLE_SPINNER_FRAMES.length;
