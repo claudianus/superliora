@@ -90,7 +90,7 @@ export function loadBenchStatus(workDir: string, args: string): BenchStatus {
 
 export function buildBenchStatusLines(status: BenchStatus): string[] {
   const lines = [
-    'SuperLiora Agent Bench',
+    'LioraBench',
     `Latest status  ${redactBenchStatusText(status.status)}`,
   ];
 

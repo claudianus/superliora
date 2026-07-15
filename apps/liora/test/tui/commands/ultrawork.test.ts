@@ -232,7 +232,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('LocalResearchStack');
     // Non-visual/non-bench objectives omit surface-conditional blocks.
     expect(prompt).not.toContain('Browser / computer-use verification');
-    expect(prompt).not.toContain('SuperLiora Agent Bench');
+    expect(prompt).not.toContain('LioraBench');
     expect(prompt).toContain('Capability Coverage Matrix');
     expect(prompt).toContain('Definition of Done');
     expect(prompt).toContain('Premium Quality (default ON in Ultrawork)');
@@ -250,13 +250,13 @@ describe('buildUltraworkPrompt', () => {
     const prompt = buildUltraworkPrompt('Redesign the dashboard UI with browser screenshots', 'manual');
     expect(prompt).toContain('capability_visual_surface: true');
     expect(prompt).toContain('Browser / computer-use verification');
-    expect(prompt).not.toContain('SuperLiora Agent Bench');
+    expect(prompt).not.toContain('LioraBench');
   });
 
   it('includes bench guidance only for harness/SOTA objectives', () => {
     const prompt = buildUltraworkPrompt('Run the SuperLiora agent SOTA harness benchmark gate', 'manual');
     expect(prompt).toContain('capability_bench_surface: true');
-    expect(prompt).toContain('SuperLiora Agent Bench');
+    expect(prompt).toContain('LioraBench');
     expect(prompt).toContain('node scripts/liora-agent-sota-gate.mjs');
     expect(prompt).toContain('C001');
     expect(prompt).toContain('C002');
