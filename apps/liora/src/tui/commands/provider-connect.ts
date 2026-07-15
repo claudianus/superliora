@@ -160,6 +160,7 @@ export async function connectCatalogProvider(
   await host.authFlow.refreshConfigAfterLogin();
   host.track('connect', { provider: providerId, method: 'catalog' });
   host.showStatus(ttui('tui.provider.added', { name: entry.name ?? providerId }));
+  host.showNotice(ttui('tui.provider.mediaHint'));
 
   await openModelPickerForProvider(host, providerId);
   return true;
@@ -544,6 +545,7 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
     await host.authFlow.refreshConfigAfterLogin();
     host.track('login', { provider: providerId, method: 'oauth' });
     host.showStatus(ttui('tui.provider.connected', { name: profile.displayName }));
+    host.showNotice(ttui('tui.provider.mediaHint'));
 
     // Offer the model picker so the user can choose a default.
     if (resolvedModels !== undefined && resolvedModels.length > 0) {
