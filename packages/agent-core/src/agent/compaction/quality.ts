@@ -75,16 +75,19 @@ export function validateInitialCompactionSummary(
     warnings.push('summary may not mention the latest compacted user request');
   }
 
-  addSignalWarnings(
-    warnings,
-    warningCategories,
-    evaluateCompactionQualitySignals({
-      summary: trimmed,
-      compactedMessages,
-      tokensBefore: plan.compactedTokens,
-      tokensAfter: undefined,
-    }),
-  );
+  const signals = evaluateCompactionQualitySignals({
+    summary: trimmed,
+    compactedMessages,
+    tokensBefore: plan.compactedTokens,
+    tokensAfter: undefined,
+  });
+  addSignalWarnings(warnings, warningCategories, signals);
+  // Durable IDs are load-bearing for resume/harness control (T4): drop = critical.
+  if (signals.evidenceIdRecallScore < 1) {
+    critical.push(
+      'summary is missing durable evidence/node/archive identifiers present in compacted history',
+    );
+  }
 
   if (containsRiskyBarePath(trimmed)) {
     warnings.push('summary contains a path-like reference outside code formatting');
@@ -94,6 +97,7 @@ export function validateInitialCompactionSummary(
     critical: uniqueList(critical),
     warnings: uniqueList(warnings),
     warningCategories: uniqueCategories(warningCategories),
+    signals,
   };
 }
 
@@ -128,6 +132,11 @@ export function validateRenderedCompactionSummary(
     tokensAfter,
   });
   addSignalWarnings(warnings, warningCategories, signals);
+  if (signals.evidenceIdRecallScore < 1) {
+    critical.push(
+      'summary is missing durable evidence/node/archive identifiers present in compacted history',
+    );
+  }
 
   return {
     critical: uniqueList(critical),
@@ -183,6 +192,8 @@ export function evaluateCompactionQualitySignals(input: {
   const sourceText = input.compactedMessages.map((message) => extractText(message, ' ')).join('\n');
   const expectedFileHints = uniqueLower(extractFileHintsFromText(sourceText));
   const summaryFileHints = uniqueLower(extractFileHintsFromText(input.summary));
+  const expectedEvidenceIds = uniqueLower(extractEvidenceIdsFromText(sourceText));
+  const summaryEvidenceIds = uniqueLower(extractEvidenceIdsFromText(input.summary));
   const usefulNextActions = usefulItems(memory.nextActions);
   const usefulFailedAttempts = usefulItems(memory.failedAttempts);
   const usefulDecisions = usefulItems(memory.decisions);
@@ -211,6 +222,9 @@ export function evaluateCompactionQualitySignals(input: {
   const fileHintRecallScore = expectedFileHints.length === 0
     ? 1
     : ratio(overlapCount(expectedFileHints, summaryFileHints), expectedFileHints.length);
+  const evidenceIdRecallScore = expectedEvidenceIds.length === 0
+    ? 1
+    : ratio(overlapCount(expectedEvidenceIds, summaryEvidenceIds), expectedEvidenceIds.length);
   const expectsNextAction = containsUnfinishedWork(sourceText);
   const nextActionPreservationScore = expectsNextAction ? (usefulNextActions.length > 0 ? 1 : 0) : 1;
   const expectsFailure = containsFailureMarker(sourceText);
@@ -228,6 +242,7 @@ export function evaluateCompactionQualitySignals(input: {
     fileHintRecallScore,
     nextActionPreservationScore,
     failedAttemptRecallScore,
+    evidenceIdRecallScore,
     promptInjectionResistanceScore,
     swarmRecallScore,
   ];
@@ -237,6 +252,8 @@ export function evaluateCompactionQualitySignals(input: {
   const failureSignature = buildFailureSignature({
     expectedFileHints,
     summaryFileHints,
+    expectedEvidenceIds,
+    summaryEvidenceIds,
     expectsNextAction,
     usefulNextActions,
     expectsFailure,
@@ -254,6 +271,7 @@ export function evaluateCompactionQualitySignals(input: {
     fileHintRecallScore,
     nextActionPreservationScore,
     failedAttemptRecallScore,
+    evidenceIdRecallScore,
     promptInjectionResistanceScore,
     swarmRecallScore,
     failureSignature,
@@ -319,6 +337,10 @@ function addSignalWarnings(
   if (signals.failedAttemptRecallScore < 1) {
     warnings.push('summary did not preserve failed_attempts for compacted errors');
     warningCategories.push('missing_failed_attempts');
+  }
+  if (signals.evidenceIdRecallScore < 1) {
+    warnings.push('summary did not preserve durable evidence/node/archive identifiers from compacted work');
+    warningCategories.push('missing_evidence_ids');
   }
   if (signals.placeholderItemCount > 0 && signals.criticalFactCount === 0) {
     warnings.push('summary structured memory contains placeholders only');
@@ -401,6 +423,35 @@ function extractFileHintsFromText(text: string): readonly string[] {
   return files;
 }
 
+/** Stable durable identifiers that must survive compaction when present in history. */
+function extractEvidenceIdsFromText(text: string): string[] {
+  const ids = new Set<string>();
+  // evidence_ids: a,b  OR evidence_id=x OR evidence_ids="a,b"
+  const attr = /\bevidence[_-]?ids?\s*[=:]\s*["']?([A-Za-z0-9_.:\/-]+(?:\s*,\s*[A-Za-z0-9_.:\/-]+)*)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = attr.exec(text)) !== null) {
+    for (const raw of match[1]?.split(/[,\s]+/) ?? []) {
+      const id = raw.trim();
+      if (id.length >= 2) ids.add(id);
+    }
+  }
+  // WorkGraph / Ultrawork node ids in common forms: node_id=..., work_node_ids=...
+  const nodeAttr = /\b(?:work_?node_ids?|node_id|ac_id|acceptance_criterion_id)\s*[=:]\s*["']?([A-Za-z0-9_.:\/-]+(?:\s*,\s*[A-Za-z0-9_.:\/-]+)*)/gi;
+  while ((match = nodeAttr.exec(text)) !== null) {
+    for (const raw of match[1]?.split(/[,\s]+/) ?? []) {
+      const id = raw.trim();
+      if (id.length >= 2) ids.add(id);
+    }
+  }
+  // liora-archived markers
+  const archive = /\[liora-archived[^\]]*id=([a-f0-9]+)/gi;
+  while ((match = archive.exec(text)) !== null) {
+    if (match[1]) ids.add(match[1]);
+  }
+  return [...ids];
+}
+
+
 function uniqueLower(items: readonly string[]): readonly string[] {
   return [...new Set(items.map((item) => item.toLowerCase()).filter((item) => item.length > 0))];
 }
@@ -444,6 +495,8 @@ function hasPromptControlInStructuredMemory(
 function buildFailureSignature(input: {
   readonly expectedFileHints: readonly string[];
   readonly summaryFileHints: readonly string[];
+  readonly expectedEvidenceIds: readonly string[];
+  readonly summaryEvidenceIds: readonly string[];
   readonly expectsNextAction: boolean;
   readonly usefulNextActions: readonly string[];
   readonly expectsFailure: boolean;
@@ -455,6 +508,12 @@ function buildFailureSignature(input: {
   const failures: string[] = [];
   if (input.expectedFileHints.length > 0 && overlapCount(input.expectedFileHints, input.summaryFileHints) < input.expectedFileHints.length) {
     failures.push('missing_file_hints');
+  }
+  if (
+    input.expectedEvidenceIds.length > 0 &&
+    overlapCount(input.expectedEvidenceIds, input.summaryEvidenceIds) < input.expectedEvidenceIds.length
+  ) {
+    failures.push('missing_evidence_ids');
   }
   if (input.expectsNextAction && input.usefulNextActions.length === 0) {
     failures.push('missing_next_actions');
@@ -483,6 +542,9 @@ export interface CompactionQualityTrend {
   readonly rollingAverage: number | null;
   readonly lowQualityStreak: number;
   readonly emergencyBackstopCount: number;
+  readonly evidenceRepairAttempts: number;
+  readonly evidenceRepairSuccesses: number;
+  readonly evidenceRepairSuccessRate: number | null;
 }
 
 /**
@@ -494,11 +556,21 @@ export class CompactionQualityTracker {
   private readonly scores: number[] = [];
   private lowQualityStreak = 0;
   private emergencyBackstopCount = 0;
+  private evidenceRepairAttempts = 0;
+  private evidenceRepairSuccesses = 0;
 
   record(input: {
     readonly recallEvalScore?: number | undefined;
     readonly usedEmergencyBackstop: boolean;
+    readonly evidenceRepairAttempted?: boolean;
+    readonly evidenceRepairSucceeded?: boolean;
   }): CompactionQualityTrend {
+    if (input.evidenceRepairAttempted === true) {
+      this.evidenceRepairAttempts += 1;
+      if (input.evidenceRepairSucceeded === true) {
+        this.evidenceRepairSuccesses += 1;
+      }
+    }
     if (input.usedEmergencyBackstop) {
       this.emergencyBackstopCount += 1;
       this.lowQualityStreak += 1;
@@ -517,12 +589,19 @@ export class CompactionQualityTracker {
   }
 
   trend(): CompactionQualityTrend {
+    const evidenceRepairSuccessRate =
+      this.evidenceRepairAttempts === 0
+        ? null
+        : Number((this.evidenceRepairSuccesses / this.evidenceRepairAttempts).toFixed(3));
     if (this.scores.length === 0) {
       return {
         sampleCount: 0,
         rollingAverage: null,
         lowQualityStreak: this.lowQualityStreak,
         emergencyBackstopCount: this.emergencyBackstopCount,
+        evidenceRepairAttempts: this.evidenceRepairAttempts,
+        evidenceRepairSuccesses: this.evidenceRepairSuccesses,
+        evidenceRepairSuccessRate,
       };
     }
     const rollingAverage = Number(
@@ -533,6 +612,10 @@ export class CompactionQualityTracker {
       rollingAverage,
       lowQualityStreak: this.lowQualityStreak,
       emergencyBackstopCount: this.emergencyBackstopCount,
+      evidenceRepairAttempts: this.evidenceRepairAttempts,
+      evidenceRepairSuccesses: this.evidenceRepairSuccesses,
+      evidenceRepairSuccessRate,
     };
   }
 }
+

@@ -5,10 +5,10 @@ import { DynamicInjector } from './injector';
 
 /**
  * Lean-context routing is stable for a profile. Inject once on first need,
- * after a real user prompt, or after a long assistant stretch so compaction
- * / multi-step loops do not append the same ~180-token block every step.
+ * after a real user prompt, or after a longer assistant stretch so compaction
+ * / multi-step loops do not append the same lean-context block every few steps.
  */
-const LEAN_CONTEXT_REFRESH_ASSISTANT_TURNS = 4;
+const LEAN_CONTEXT_REFRESH_ASSISTANT_TURNS = 6;
 
 export class LeanContextInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'lean_context';

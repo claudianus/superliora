@@ -86,6 +86,7 @@ import type {
   DetachBackgroundPayload,
   ClientTelemetryInfo,
   EmptyPayload,
+  DiagnoseContextOSPayload,
   EnterPlanPayload,
   EnterSwarmPayload,
   GoalSnapshot,
@@ -857,6 +858,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
   getContext({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getContext(payload);
+  }
+
+  diagnoseContextOS({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<DiagnoseContextOSPayload>) {
+    return this.sessionApi(sessionId).diagnoseContextOS(payload);
   }
 
   getSessionTrace({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {

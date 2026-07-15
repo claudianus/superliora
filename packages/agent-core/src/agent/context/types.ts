@@ -151,4 +151,21 @@ export interface SystemReminderRecord {
 export interface AgentContextData {
   history: readonly ContextMessage[];
   tokenCount: number;
+  /** Optional Context OS health for /status and harness dashboards. */
+  contextOS?: {
+    readonly pageCount: number;
+    readonly readyPageCount: number;
+    readonly needsRehydrationPageCount: number;
+    readonly atRiskPageCount: number;
+    readonly missingEvidencePageCount: number;
+    readonly evidenceIdRecallScore: number;
+    readonly latestContinuityStatus: string;
+  };
+  /** Micro-compaction trigger dashboard (tool-result clearing path). */
+  microCompaction?: {
+    readonly total: number;
+    readonly lastTrigger: string | null;
+    readonly lastContextUsageRatio: number | null;
+    readonly byTrigger: Readonly<Record<string, number>>;
+  };
 }

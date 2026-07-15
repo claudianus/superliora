@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   agentEventSchema,
+  agentStatusUpdatedEventSchema,
   assistantDeltaEventSchema,
   eventSchema,
   toolCallStartedEventSchema,
@@ -477,5 +478,51 @@ describe('events / display re-exports', () => {
         previous_status: 'idle',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('agentStatusUpdatedEventSchema', () => {
+  it('accepts contextOS health and null clear', () => {
+    const withHealth = agentStatusUpdatedEventSchema.parse({
+      type: 'agent.status.updated',
+      model: 'kimi-code',
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      contextUsage: 0.1,
+      planMode: false,
+      swarmMode: false,
+      premiumQualityMode: false,
+      permission: 'manual',
+      providerRoute: null,
+      contextOS: {
+        pageCount: 1,
+        readyPageCount: 0,
+        needsRehydrationPageCount: 1,
+        atRiskPageCount: 0,
+        missingEvidencePageCount: 1,
+        evidenceIdRecallScore: 0.25,
+        latestContinuityStatus: 'needs_rehydration',
+      },
+    });
+    expect(withHealth.contextOS?.missingEvidencePageCount).toBe(1);
+
+    const withMicro = agentStatusUpdatedEventSchema.parse({
+      type: 'agent.status.updated',
+      microCompaction: {
+        total: 2,
+        lastTrigger: 'swarm_pressure',
+        lastContextUsageRatio: 0.7,
+        byTrigger: { swarm_pressure: 2 },
+      },
+    });
+    expect(withMicro.microCompaction?.total).toBe(2);
+
+    const cleared = agentStatusUpdatedEventSchema.parse({
+      type: 'agent.status.updated',
+      contextOS: null,
+      microCompaction: null,
+    });
+    expect(cleared.contextOS).toBeNull();
+    expect(cleared.microCompaction).toBeNull();
   });
 });

@@ -108,7 +108,10 @@ export const PREMIUM_VISUAL_SELF_CRITIQUE_PROMPT = [
   '5. Screenshot inspected — what specific defect remains? Fix or defer with user consent.',
 ].join('\n');
 
-/** Compact pointer block for Premium injection (token-efficient). Full catalog stays available as PREMIUM_VISUAL_REFERENCE_CATALOG. */
+/**
+ * Compact pointer block for Premium injection (token-efficient hot path).
+ * Full catalog below is offline reference material, not injected by PremiumQualityInjector.
+ */
 export const PREMIUM_VISUAL_REFERENCE_COMPACT = [
   '### Visual refs (compact — expand via SearchSkill / design skills when needed)',
   '- Inspiration: godly.website, awwwards.com, bentogrids.com, dark.design; study 2–3, do not clone.',
@@ -119,7 +122,7 @@ export const PREMIUM_VISUAL_REFERENCE_COMPACT = [
   '- Self-critique: 3 AI-slop tells, one signature element, last screenshot defect before claiming done.',
 ].join('\n');
 
-/** Full embedded reference block for injection. */
+/** Offline full reference catalog — not part of the Premium injection hot path. */
 export const PREMIUM_VISUAL_REFERENCE_CATALOG = [
   PREMIUM_VISUAL_INSPIRATION_SITES,
   '',

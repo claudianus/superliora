@@ -17,7 +17,7 @@ export const PREMIUM_VISUAL_SKILL_ROUTING = [
   'Premium Visual skill routing (MANDATORY while Premium Quality is ON):',
   '- Trigger: any web/app UI, landing, dashboard, game surface, marketing site, component library, or visual refresh — even without the word "design".',
   '- Before visual markup/styles or shipping a visible slice: SearchSkill → Skill best match. Reuse loaded skills; do not reload the same skill.',
-  '- Keywords (English, 3–12 words): new UI "frontend design distinctive anti template anthropic"; web/React "premium frontend design taste anti slop"; redesign "redesign existing project premium visual audit"; minimal "minimalist ui premium utilitarian design"; design system "stitch design taste semantic design system"; games "develop web game visual polish playwright screenshot"; assets "workspace imagen generate ui assets icons"; unsure "premium visual web design anti generic".',
+  '- Keywords (3–12 words): "frontend design distinctive anti template"; "premium frontend design taste anti slop"; "redesign existing project premium visual audit"; "minimalist ui premium utilitarian design"; "stitch design taste semantic design system"; "develop web game visual polish playwright screenshot"; "workspace imagen generate ui assets icons".',
   '- Load ≥1 visual skill before the first visual implementation pass. For games, load develop-web-game plus a design skill.',
   '- Skill text is constraints, not optional inspiration. AGENTS.md and harness contracts override conflicts.',
 ].join('\n');
@@ -31,4 +31,4 @@ export const PREMIUM_VISUAL_SKIP_SKILL_WHEN = [
 
 /** Compact reminder injected on sparse premium turns. */
 export const PREMIUM_VISUAL_SPARSE_CHECKPOINT =
-  'Premium Visual still ON — use embedded refs (picsum seeds, dicebear, font stacks, bento/split templates), art direction before code, SearchSkill → frontend-design if not loaded, BrowserScreenshot before done.';
+  'Premium Visual still ON — art direction before code; SearchSkill → frontend-design if needed; BrowserScreenshot before done; use picsum/dicebear/font stacks/bento templates.';

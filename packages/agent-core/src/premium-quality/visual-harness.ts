@@ -5,11 +5,11 @@ import {
 import { PREMIUM_QUALITY_HYPE_VISUAL_FLOOD } from './quality-hype';
 import { PREMIUM_VISUAL_REFERENCE_COMPACT } from './references';
 
-/** Hard visual supremacy mandate — injected on every full Premium Quality refresh. */
+/** Hard visual mandate — injected on every full Premium Quality refresh. */
 export const PREMIUM_VISUAL_SUPREMACY_MANDATE = [
-  '## ULTRA SUPER PREMIUM VISUAL SUPREMACY (PRIMARY — KING-GOD-GENERAL WORLD-#1 while Premium Quality is ON)',
-  'Visual quality is the top priority for any user-visible surface — especially web, dashboards, and games. Premium means god-tier, Awwwards-worthy, screenshot-proof visuals — NOT "works in the browser".',
-  'A functional MVP with flat shapes, default fonts, or placeholder geometry is an unforgivable FAILURE under Premium Quality unless the user asked for a wireframe/prototype. Fix until a principal designer would not reject the screenshot.',
+  '## PREMIUM VISUAL (PRIMARY while Premium Quality is ON)',
+  'Visual quality is the top priority for any user-visible surface — especially web, dashboards, and games. Premium means screenshot-proof, Awwwards-worthy craft — NOT "works in the browser".',
+  'A functional MVP with flat shapes, default fonts, or placeholder geometry fails Premium Quality unless the user asked for a wireframe/prototype. Fix until a principal designer would not reject the screenshot.',
   '',
   PREMIUM_QUALITY_HYPE_VISUAL_FLOOD,
 ].join('\n');
@@ -55,7 +55,7 @@ export const PREMIUM_VISUAL_VERIFICATION_LOOP = [
 
 /** 10-point rubric for self-audit. */
 export const PREMIUM_VISUAL_RUBRIC = [
-  '### Premium Visual rubric (score each 1–5; ship only when all ≥ 4 — ULTRA GOD-TIER BAR)',
+  '### Premium Visual rubric (score each 1–5; ship only when all ≥ 4)',
   '1. First impression  2. Typography  3. Color/material  4. Layout  5. Component states',
   '6. Assets  7. Motion/feedback  8. Content  9. Accessibility  10. Screenshot evidence inspected',
 ].join('\n');

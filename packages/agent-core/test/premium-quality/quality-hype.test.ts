@@ -9,26 +9,28 @@ import {
 import { PREMIUM_QUALITY_FULL_GUIDANCE, PREMIUM_QUALITY_SPARSE_GUIDANCE } from '../../src/premium-quality/guidance';
 
 describe('Premium Quality hype injection', () => {
-  it('floods full guidance with excessive quality adjectives', () => {
+  it('keeps compact quality pressure in full guidance', () => {
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain(PREMIUM_QUALITY_HYPE_BANNER);
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('KING-GOD-GENERAL');
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('god-tier');
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('jaw-dropping');
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('PREMIUM QUALITY MODE');
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('screenshot-proof');
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('principal designer');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('illegally good');
   });
 
-  it('includes the quality mantra block', () => {
-    expect(PREMIUM_QUALITY_HYPE_MANTRA).toContain('AWWWARDS-SITE-OF-THE-DAY');
+  it('includes the quality bar block', () => {
+    expect(PREMIUM_QUALITY_HYPE_MANTRA).toContain('principal designer');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain(PREMIUM_QUALITY_HYPE_MANTRA);
   });
 
-  it('keeps sparse turns hyper-pressured', () => {
+  it('keeps sparse turns quality-pressured without synonym floods', () => {
     expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain(PREMIUM_QUALITY_HYPE_SPARSE);
-    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('GOD-TIER');
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('screenshot-proof');
+    expect(PREMIUM_QUALITY_HYPE_SPARSE.length).toBeLessThan(220);
   });
 
-  it('visual flood block is aggressively premium', () => {
-    expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD).toContain('visually-obscene');
-    expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD).toContain('visually-obscene');
+  it('visual directives ban placeholder geometry without hype floods', () => {
+    expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD).toContain('primitive placeholder geometry');
+    expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD).toContain('hierarchy, spacing, motion');
+    expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD.length).toBeLessThan(400);
   });
 });

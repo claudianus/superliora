@@ -6,7 +6,13 @@ import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import chalk from 'chalk';
 
-import { FooterComponent, formatFooterGitBadge, buildWeightedTips } from '#/tui/components/chrome/footer';
+import {
+  FooterComponent,
+  formatFooterGitBadge,
+  formatContextOSFooterBadge,
+  formatMicroCompactionFooterBadge,
+  buildWeightedTips,
+} from '#/tui/components/chrome/footer';
 import { darkColors } from '#/tui/theme/colors';
 import type { AppState } from '#/tui/types';
 
@@ -125,7 +131,7 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(out).not.toContain('plan-first');
     expect(out).not.toContain('plan  k2');
     expect(strip(line2 ?? '')).toContain(
-      'Workflow interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
+      'Workflow research -> interview -> goal -> swarm decision -> integrate -> verify -> learn',
     );
     expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
     expect(strip(line2 ?? '')).not.toContain('helpers');
@@ -139,7 +145,7 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(line1 ?? '')).toContain('ultrawork');
     expect(strip(line1 ?? '')).not.toContain('plan');
     expect(strip(line2 ?? '')).toContain(
-      'Workflow interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
+      'Workflow research -> interview -> goal -> swarm decision -> integrate -> verify -> learn',
     );
   });
 
@@ -151,7 +157,7 @@ describe('FooterComponent — context NaN resilience', () => {
     const [, line2] = footer.render(120);
 
     expect(strip(line2 ?? '')).toContain(
-      'Workflow interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
+      'Workflow research -> interview -> goal -> swarm decision -> integrate -> verify -> learn',
     );
   });
 
@@ -246,6 +252,73 @@ describe('FooterComponent — context NaN resilience', () => {
     }
   });
 });
+
+  it('shows Context OS evidence badge when durable IDs were dropped', () => {
+    const footer = new FooterComponent(
+      baseState({
+        contextUsage: 0.2,
+        contextTokens: 1000,
+        maxContextTokens: 10_000,
+        contextOS: {
+          pageCount: 2,
+          readyPageCount: 1,
+          needsRehydrationPageCount: 1,
+          atRiskPageCount: 0,
+          missingEvidencePageCount: 1,
+          evidenceIdRecallScore: 0.5,
+          latestContinuityStatus: 'needs_rehydration',
+        },
+      }),
+    );
+    const lines = footer.render(120).map(strip);
+    const joined = lines.join('\n');
+    expect(joined).toContain('ctx-os:evidence↓0.50');
+    expect(formatContextOSFooterBadge({
+      pageCount: 2,
+      readyPageCount: 1,
+      needsRehydrationPageCount: 1,
+      atRiskPageCount: 0,
+      missingEvidencePageCount: 1,
+      evidenceIdRecallScore: 0.5,
+      latestContinuityStatus: 'needs_rehydration',
+    })).toEqual({ text: 'ctx-os:evidence↓0.50', severity: 'danger' });
+    expect(formatContextOSFooterBadge(null)).toBeNull();
+  });
+
+  it('shows micro-clear badge when tool-result clearing has fired', () => {
+    const footer = new FooterComponent(
+      baseState({
+        contextUsage: 0.3,
+        contextTokens: 2000,
+        maxContextTokens: 10_000,
+        microCompaction: {
+          total: 3,
+          lastTrigger: 'usage_pressure',
+          lastContextUsageRatio: 0.62,
+          byTrigger: { usage_pressure: 2, swarm_pressure: 1 },
+        },
+      }),
+    );
+    const joined = footer.render(120).map(strip).join('\n');
+    expect(joined).toContain('micro:usage_pressure×3');
+    expect(
+      formatMicroCompactionFooterBadge({
+        total: 3,
+        lastTrigger: 'usage_pressure',
+        lastContextUsageRatio: 0.62,
+        byTrigger: { usage_pressure: 2 },
+      }),
+    ).toEqual({ text: 'micro:usage_pressure×3', severity: 'info' });
+    expect(
+      formatMicroCompactionFooterBadge({
+        total: 2,
+        lastTrigger: 'swarm_pressure',
+        lastContextUsageRatio: 0.8,
+        byTrigger: { swarm_pressure: 2 },
+      }),
+    ).toEqual({ text: 'micro:swarm_pressure×2', severity: 'warning' });
+    expect(formatMicroCompactionFooterBadge(null)).toBeNull();
+  });
 
 describe('buildWeightedTips — weighted rotation', () => {
   it('repeats higher-priority tips more often (length = sum of weights)', () => {

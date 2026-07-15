@@ -43,21 +43,29 @@ export function resolveCompactionBlockRatio(
 const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
- * Soft trigger aligned with production guidance (warning ~70%, compact ~80%):
- * compress late enough to avoid ACON-style accuracy loss from premature summarization.
+ * Soft trigger for full (lossy) compaction.
+ * Production context-engineering guidance: compact before attention rot
+ * (~70% of effective window), not at hard exhaustion. 0.75 sits between
+ * the pre-rot zone and the old 0.8 late trigger so summaries are generated
+ * while the model still attends well (see context-engineering practice 2026;
+ * async path still starts earlier via asyncTriggerRatio).
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.8;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.75;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.92;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction. */
 export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 8_000;
 /** Minimum context growth since the last compaction before auto may fire again. */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.05;
-/** Pre-swarm handoff compaction target (below the default 80% soft trigger). */
+/** Pre-swarm handoff compaction target (below the soft trigger). */
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.7;
-/** During UltraSwarm, allow micro compaction from this context usage ratio upward. */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.85;
-/** Default ratio at which async background compaction may start. */
+/**
+ * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
+ * Observation masking / tool-result clearing is preferred over full summarization
+ * for cost and fidelity; start earlier than the soft compaction trigger.
+ */
+export const SWARM_MICRO_PRESSURE_RATIO = 0.7;
+/** Default ratio at which async background compaction may start (pre-rot). */
 export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.6;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
@@ -348,7 +356,11 @@ export class PipelineStrategy implements CompactionStrategy {
     let count = this.trigger.computeCompactCount(messages, source);
     for (const strategy of this.strategies) {
       if (count <= 0) break;
-      count = Math.min(count, strategy.computeCompactCount(messages, source));
+      // 0 from a secondary strategy means "no additional constraint", not "compact nothing".
+      const constrained = strategy.computeCompactCount(messages, source);
+      if (constrained > 0) {
+        count = Math.min(count, constrained);
+      }
     }
     return count;
   }
@@ -357,7 +369,10 @@ export class PipelineStrategy implements CompactionStrategy {
     let count = this.trigger.reduceCompactOnOverflow(messages);
     for (const strategy of this.strategies) {
       if (count <= 1) break;
-      count = Math.min(count, strategy.reduceCompactOnOverflow(messages));
+      const constrained = strategy.reduceCompactOnOverflow(messages);
+      if (constrained > 0) {
+        count = Math.min(count, constrained);
+      }
     }
     return count;
   }
@@ -381,11 +396,54 @@ export class PipelineStrategy implements CompactionStrategy {
   get frozenZoneSize(): number {
     return this.trigger.frozenZoneSize;
   }
+
+  /** Forward to DefaultCompactionStrategy trigger when present (Pipeline-safe). */
+  get speculativeStepBufferTokens(): number {
+    if (this.trigger instanceof DefaultCompactionStrategy) {
+      return this.trigger.speculativeStepBufferTokens;
+    }
+    return DEFAULT_COMPACTION_CONFIG.speculativeStepBufferTokens;
+  }
+
+  get minRecompactGrowthRatio(): number {
+    if (this.trigger instanceof DefaultCompactionStrategy) {
+      return this.trigger.minRecompactGrowthRatio;
+    }
+    return DEFAULT_COMPACTION_CONFIG.minRecompactGrowthRatio;
+  }
+
+  shouldSpeculativelyCompact(projectedUsedSize: number): boolean {
+    if (this.trigger instanceof DefaultCompactionStrategy) {
+      return this.trigger.shouldSpeculativelyCompact(projectedUsedSize);
+    }
+    return this.trigger.shouldCompact(projectedUsedSize);
+  }
+
+  applyQualityFeedback(input: {
+    readonly recallEvalScore?: number | undefined;
+    readonly usedEmergencyBackstop: boolean;
+  }): number {
+    if (this.trigger instanceof DefaultCompactionStrategy) {
+      return this.trigger.applyQualityFeedback(input);
+    }
+    return 0;
+  }
 }
 
 export class ToolCollapseStrategy implements CompactionStrategy {
+  /**
+   * Keep the last N tool-call groups fully intact (observation masking).
+   * Default 2 retains the current exchange plus one prior group so the model
+   * can still ground on the immediately previous tool result (context-engineering
+   * keep-window practice; JetBrains observation masking).
+   *
+   * NOTE: `computeCompactCount` returns 0 when there is nothing older to
+   * collapse. PipelineStrategy treats 0 as "no additional constraint".
+   * Live tool-result clearing remains owned by MicroCompaction (usage-primary);
+   * this strategy only bounds how far full compaction may cut into recent tool groups.
+   */
   constructor(
-    private readonly keepRecentToolGroups: number = 1,
+    private readonly keepRecentToolGroups: number = 2,
   ) {}
 
   shouldCompact(): boolean { return true; }

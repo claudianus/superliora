@@ -59,7 +59,7 @@ export function createFakeKaos(
     writeText: () => notImplemented('writeText'),
     mkdir: () => notImplemented('mkdir'),
     unlink: () => notImplemented('unlink'),
-    rename: () => notImplemented('rename'),
+    rename: async () => undefined,
     writeAtomic: () => notImplemented('writeAtomic'),
     exec: () => notImplemented('exec'),
     execWithEnv: (args, invocationEnv) => {

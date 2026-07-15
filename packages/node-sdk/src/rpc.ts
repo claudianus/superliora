@@ -4,6 +4,7 @@ import {
   ErrorCodes,
   makeErrorPayload,
   type AgentContextData,
+  type ContextOSRetrievalDiagnostics,
   type ApprovalRequest,
   type ApprovalResponse,
   type CoreAPI,
@@ -542,6 +543,18 @@ export abstract class SDKRpcClientBase {
     });
   }
 
+  async diagnoseContextOS(
+    input: SessionIdRpcInput & { readonly query?: string; readonly limit?: number },
+  ): Promise<ContextOSRetrievalDiagnostics> {
+    const rpc = await this.getRpc();
+    return rpc.diagnoseContextOS({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      query: input.query,
+      limit: input.limit,
+    });
+  }
+
   async getSessionTrace(input: SessionIdRpcInput): Promise<SessionTrace> {
     const rpc = await this.getRpc();
     return rpc.getSessionTrace({
@@ -613,6 +626,8 @@ export abstract class SDKRpcClientBase {
       contextUsage,
       usage: hasUsage ? usage : undefined,
       providerRouteStatus,
+      contextOS: context.contextOS,
+      microCompaction: context.microCompaction,
     };
   }
 

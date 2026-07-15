@@ -1036,9 +1036,11 @@ function resumeStateSnapshot(agent: Agent): ResumeStateSnapshot {
 
 function resumeContextSnapshot(agent: Agent) {
   const context = agent.context.data();
+  // microCompaction is an ephemeral dashboard; exclude from resume equality.
+  const { microCompaction: _micro, ...durableContext } = context;
   return {
-    ...context,
-    history: context.history.filter((message) => !isSystemReminderMessage(message)),
+    ...durableContext,
+    history: durableContext.history.filter((message) => !isSystemReminderMessage(message)),
   };
 }
 

@@ -190,6 +190,74 @@ function formatContextStatus(usage: number, tokens?: number, maxTokens?: number)
   return `context: ${pct}`;
 }
 
+export type FooterBadgeSeverity = 'muted' | 'info' | 'warning' | 'danger';
+
+export interface FooterBadge {
+  readonly text: string;
+  readonly severity: FooterBadgeSeverity;
+}
+
+function styleFooterBadge(
+  badge: FooterBadge,
+  colors: ColorPalette,
+  appearance: AppState['appearance'] | undefined,
+): string {
+  if (badge.severity === 'danger') {
+    return renderPulseText(badge.text, `footer:badge:${badge.text}`, 'error', appearance);
+  }
+  const hex =
+    badge.severity === 'warning'
+      ? colors.warning
+      : badge.severity === 'info'
+        ? colors.primary
+        : colors.textMuted;
+  return chalk.hex(hex).bold(badge.text);
+}
+
+/** Evidence-missing badge for Context OS continuity (T4 durable IDs). */
+export function formatContextOSFooterBadge(
+  contextOS: AppState['contextOS'],
+): FooterBadge | null {
+  if (contextOS === undefined || contextOS === null || contextOS.pageCount <= 0) {
+    return null;
+  }
+  if (contextOS.missingEvidencePageCount > 0) {
+    return {
+      text: `ctx-os:evidence↓${contextOS.evidenceIdRecallScore.toFixed(2)}`,
+      severity: 'danger',
+    };
+  }
+  if (contextOS.latestContinuityStatus !== 'ready') {
+    return {
+      text: `ctx-os:${contextOS.latestContinuityStatus}`,
+      severity: 'warning',
+    };
+  }
+  return null;
+}
+
+/** Micro tool-result clearing badge (primary cheap context path). */
+export function formatMicroCompactionFooterBadge(
+  micro: AppState['microCompaction'],
+): FooterBadge | null {
+  if (micro === undefined || micro === null || micro.total <= 0) return null;
+  const last = micro.lastTrigger ?? 'micro';
+  const severity: FooterBadgeSeverity =
+    last === 'swarm_pressure' || last === 'usage_and_cache_miss' ? 'warning' : 'info';
+  return {
+    text: `micro:${last}×${String(micro.total)}`,
+    severity,
+  };
+}
+
+/** Context usage line severity for high pre-rot pressure. */
+export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
+  const ratio = safeUsage(usage);
+  if (ratio >= 0.9) return 'danger';
+  if (ratio >= 0.75) return 'warning';
+  return 'muted';
+}
+
 function formatTranscriptViewportBadge(
   viewport: FooterTranscriptViewportSnapshot | undefined,
   colors: ColorPalette,
@@ -203,7 +271,14 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (state.isCompacting) return ttui('tui.footer.compacting');
   if (state.isReplaying) return ttui('tui.footer.replaying');
   if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
-  if (safeUsage(state.contextUsage) >= 0.85) return ttui('tui.footer.next.compact');
+  if (safeUsage(state.contextUsage) >= 0.75) return ttui('tui.footer.next.compact');
+  if (
+    state.contextOS !== undefined &&
+    state.contextOS !== null &&
+    state.contextOS.missingEvidencePageCount > 0
+  ) {
+    return 'durable evidence missing after compaction — verify IDs before resume';
+  }
   if (state.ultraworkMode) {
     return ttui('tui.footer.ultrawork');
   }
@@ -397,11 +472,24 @@ export class FooterComponent implements Component {
     }
 
     // ── Line 2: transient hint (bottom-left) + context (right) ──
-    const contextText = formatContextStatus(
+    const contextBase = formatContextStatus(
       state.contextUsage,
       state.contextTokens,
       state.maxContextTokens,
     );
+    const contextOsBadge = formatContextOSFooterBadge(state.contextOS);
+    const microBadge = formatMicroCompactionFooterBadge(state.microCompaction);
+    const usageSeverity = contextUsageSeverity(state.contextUsage);
+    const contextParts: string[] = [
+      styleFooterBadge({ text: contextBase, severity: usageSeverity }, colors, appearance),
+    ];
+    if (contextOsBadge !== null) {
+      contextParts.push(styleFooterBadge(contextOsBadge, colors, appearance));
+    }
+    if (microBadge !== null) {
+      contextParts.push(styleFooterBadge(microBadge, colors, appearance));
+    }
+    const contextText = contextParts.join(chalk.hex(colors.textMuted)(' · '));
     const contextWidth = visibleWidth(contextText);
     let line2: string;
     const nextAction = footerNextAction(state, git);
@@ -421,13 +509,10 @@ export class FooterComponent implements Component {
       const hintStyle = this.transientHint !== null
         ? chalk.hex(colors.warning).bold
         : chalk.hex(colors.textDim);
-      line2 =
-        hintStyle(shownHint) +
-        ' '.repeat(pad) +
-        chalk.hex(colors.text)(contextText);
+      line2 = hintStyle(shownHint) + ' '.repeat(pad) + contextText;
     } else {
       const leftPad = Math.max(0, width - contextWidth);
-      line2 = ' '.repeat(leftPad) + chalk.hex(colors.text)(contextText);
+      line2 = ' '.repeat(leftPad) + contextText;
     }
 
     return [truncateToWidth(line1, width), truncateToWidth(line2, width)];

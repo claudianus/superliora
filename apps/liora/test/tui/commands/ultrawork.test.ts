@@ -199,6 +199,9 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('Ship feature X');
     expect(prompt).toContain('activation: manual');
     expect(prompt).toContain('active_goal_already_created: false');
+    expect(prompt).toContain('capability_visual_surface: false');
+    expect(prompt).toContain('capability_bench_surface: false');
+
     expect(prompt).toContain('Ultrawork orchestration');
     expect(prompt).toContain(
       'UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn',
@@ -213,6 +216,7 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('울트라플랜');
     expect(prompt).toContain('ultra-plan');
     expect(prompt).toContain('kanban');
+    expect(prompt).toContain('Core operating rules');
     expect(prompt).toContain('Liora Lean Context');
     expect(prompt).toContain('LioraRead');
     expect(prompt).toContain('LioraCallgraph');
@@ -226,12 +230,9 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('UltraResearch / free web research');
     expect(prompt).toContain('Context7Resolve/Context7Docs');
     expect(prompt).toContain('LocalResearchStack');
-    expect(prompt).toContain('Browser / computer-use verification');
-    expect(prompt).toContain('SuperLiora Agent Bench');
-    expect(prompt).toContain('node scripts/liora-agent-sota-gate.mjs');
-    expect(prompt).toContain('C001');
-    expect(prompt).toContain('C002');
-    expect(prompt).toContain('C003');
+    // Non-visual/non-bench objectives omit surface-conditional blocks.
+    expect(prompt).not.toContain('Browser / computer-use verification');
+    expect(prompt).not.toContain('SuperLiora Agent Bench');
     expect(prompt).toContain('Capability Coverage Matrix');
     expect(prompt).toContain('Definition of Done');
     expect(prompt).toContain('Premium Quality (default ON in Ultrawork)');
@@ -241,8 +242,25 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('NextPhase({ phase: "interview" })');
     expect(prompt).toContain('NextPhase({ phase: "design" })');
     expect(prompt).toContain('UpdateGoal');
-    // Keep the startup contract lean: ~6.7k tokens was too expensive for every Ultrawork turn.
-    expect(prompt.length).toBeLessThan(12_000);
+    // Lean activation: merged core blocks + conditional surfaces only.
+    expect(prompt.length).toBeLessThan(8_000);
+  });
+
+  it('includes GUI verification only for visual-surface objectives', () => {
+    const prompt = buildUltraworkPrompt('Redesign the dashboard UI with browser screenshots', 'manual');
+    expect(prompt).toContain('capability_visual_surface: true');
+    expect(prompt).toContain('Browser / computer-use verification');
+    expect(prompt).not.toContain('SuperLiora Agent Bench');
+  });
+
+  it('includes bench guidance only for harness/SOTA objectives', () => {
+    const prompt = buildUltraworkPrompt('Run the SuperLiora agent SOTA harness benchmark gate', 'manual');
+    expect(prompt).toContain('capability_bench_surface: true');
+    expect(prompt).toContain('SuperLiora Agent Bench');
+    expect(prompt).toContain('node scripts/liora-agent-sota-gate.mjs');
+    expect(prompt).toContain('C001');
+    expect(prompt).toContain('C002');
+    expect(prompt).toContain('C003');
   });
 
   it('marks /goal activations as already-created goal seeds', () => {

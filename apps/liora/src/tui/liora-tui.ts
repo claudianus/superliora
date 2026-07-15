@@ -1756,6 +1756,8 @@ export class LioraTUI {
       contextTokens: status.contextTokens,
       maxContextTokens: status.maxContextTokens,
       contextUsage: status.contextUsage,
+      contextOS: status.contextOS ?? null,
+      microCompaction: status.microCompaction ?? null,
       providerRouteStatus: status.providerRouteStatus ?? null,
       sessionTitle: session.summary?.title ?? null,
       goal: goalResult.goal,

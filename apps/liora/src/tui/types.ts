@@ -55,6 +55,23 @@ export interface AppState {
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;
+  /** Context OS continuity/evidence health when compacted pages exist. */
+  contextOS?: {
+    readonly pageCount: number;
+    readonly readyPageCount: number;
+    readonly needsRehydrationPageCount: number;
+    readonly atRiskPageCount: number;
+    readonly missingEvidencePageCount: number;
+    readonly evidenceIdRecallScore: number;
+    readonly latestContinuityStatus: string;
+  } | null;
+  /** Micro-compaction trigger dashboard when tool-result clearing has fired. */
+  microCompaction?: {
+    readonly total: number;
+    readonly lastTrigger: string | null;
+    readonly lastContextUsageRatio: number | null;
+    readonly byTrigger: Readonly<Record<string, number>>;
+  } | null;
   isCompacting: boolean;
   isReplaying: boolean;
   streamingPhase: 'idle' | 'waiting' | 'thinking' | 'composing' | 'shell';

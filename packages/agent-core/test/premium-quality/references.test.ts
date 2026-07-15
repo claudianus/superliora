@@ -38,4 +38,9 @@ describe('Premium Visual reference catalog', () => {
     expect(PREMIUM_VISUAL_REFERENCE_COMPACT).toContain('picsum.photos/seed/');
     expect(PREMIUM_VISUAL_REFERENCE_COMPACT.length).toBeLessThan(PREMIUM_VISUAL_REFERENCE_CATALOG.length / 2);
   });
+
+  it('documents that the full catalog is offline-only, not the injection hot path', () => {
+    // Hot path: visual-harness imports COMPACT only. Full catalog remains exported for offline use/tests.
+    expect(PREMIUM_VISUAL_REFERENCE_CATALOG.length).toBeGreaterThan(PREMIUM_VISUAL_REFERENCE_COMPACT.length * 2);
+  });
 });

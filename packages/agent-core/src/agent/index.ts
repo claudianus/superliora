@@ -588,6 +588,8 @@ export class Agent {
       cancelUltrawork: (payload) => this.ultrawork.cancel(payload.reason),
       getBackgroundOutput: (payload) => this.background.readOutput(payload.taskId, payload.tail),
       getContext: () => this.context.data(),
+      diagnoseContextOS: (payload) =>
+        this.contextOS.diagnose(payload.query ?? '', payload.limit),
       getConfig: () => this.config.data(),
       getPermission: () => this.permission.data(),
       getPlan: () => this.planMode.data(),
@@ -639,6 +641,8 @@ export class Agent {
     const model = this.config.model;
     const providerRoute = this.providerRouteStatus();
 
+    const contextOSHealth = this.contextOS.health();
+    const microSnap = this.microCompaction.triggers.snapshot();
     this.emitEvent({
       type: 'agent.status.updated',
       model,
@@ -651,6 +655,27 @@ export class Agent {
       permission: this.permission.mode,
       usage,
       providerRoute,
+      contextOS:
+        contextOSHealth.pageCount === 0
+          ? null
+          : {
+              pageCount: contextOSHealth.pageCount,
+              readyPageCount: contextOSHealth.readyPageCount,
+              needsRehydrationPageCount: contextOSHealth.needsRehydrationPageCount,
+              atRiskPageCount: contextOSHealth.atRiskPageCount,
+              missingEvidencePageCount: contextOSHealth.missingEvidencePageCount,
+              evidenceIdRecallScore: contextOSHealth.evidenceIdRecallScore,
+              latestContinuityStatus: contextOSHealth.latestContinuityStatus,
+            },
+      microCompaction:
+        microSnap.total === 0
+          ? null
+          : {
+              total: microSnap.total,
+              lastTrigger: microSnap.lastTrigger,
+              lastContextUsageRatio: microSnap.lastContextUsageRatio,
+              byTrigger: microSnap.byTrigger,
+            },
     });
   }
 

@@ -1,12 +1,10 @@
 export function buildLeanContextGuidance(): string {
   return [
     'Liora Lean Context (token-efficient exploration):',
-    '- Read path: LioraRead(mode=signatures|map|lines) → Read only for edit-ready exact bytes.',
-    '- Search path: Grep or LioraSymbol before broad Read when exploring unknown code.',
-    '- Structure path: LioraTree before Bash ls/find; LioraCallgraph for caller/callee impact.',
-    '- Compressed output is reversible: use LioraExpand(id=...) when you see [liora-archived ...] markers.',
-    '- Parallel work: fire independent Grep/LioraRead/LioraSymbol calls in the same turn.',
-    '- Ultrawork/UltraSwarm: keep subagent packets compact; archive bulky logs; expand only on failure paths; swarm handoffs are archived with LioraExpand(id=...).',
-    '- Memory stays durable facts only — not raw transcripts or archived tool dumps.',
+    '- Read: LioraRead(signatures|map|lines) before full Read; Grep/LioraSymbol before broad dumps (just-in-time, not front-load).',
+    '- Structure: LioraTree before ls/find; LioraCallgraph for impact; LioraExpand for [liora-archived] ids after tool-result clearing.',
+    '- Parallelize independent Grep/LioraRead/LioraSymbol calls in one turn.',
+    '- Ultrawork/UltraSwarm: compact packets; archive bulky logs; expand only on failure paths.',
+    '- Memory: durable facts only — not raw transcripts or archived dumps.',
   ].join('\n');
 }

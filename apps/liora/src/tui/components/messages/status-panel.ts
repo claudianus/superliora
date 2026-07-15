@@ -29,7 +29,7 @@ import { buildManagedUsageReportLines, type ManagedUsageReport } from './usage-p
 interface FieldRow {
   readonly label: string;
   readonly value: string;
-  readonly severity?: 'error';
+  readonly severity?: 'error' | 'warning';
 }
 
 type StatusGoalStatus = 'active' | 'paused' | 'blocked' | 'complete';
@@ -74,6 +74,23 @@ export interface StatusReportOptions {
   readonly recovery?: StatusRecoveryReadiness;
   readonly upstreamBaseline?: string;
   readonly ultraworkRun?: { readonly stage: string } | null;
+  readonly contextOS?: {
+    readonly pageCount: number;
+    readonly readyPageCount: number;
+    readonly needsRehydrationPageCount: number;
+    readonly atRiskPageCount: number;
+    readonly missingEvidencePageCount: number;
+    readonly evidenceIdRecallScore: number;
+    readonly latestContinuityStatus: string;
+  };
+  readonly microCompaction?: {
+    readonly total: number;
+    readonly lastTrigger: string | null;
+    readonly lastContextUsageRatio: number | null;
+    readonly byTrigger: Readonly<Record<string, number>>;
+  };
+  /** Product telemetry enabled (false ≈ ZDR-friendlier local posture). */
+  readonly privacyTelemetryEnabled?: boolean;
 }
 
 type Colorize = (text: string) => string;
@@ -97,10 +114,16 @@ function addFieldRows(
   muted: Colorize,
   value: Colorize,
   errorStyle: Colorize,
+  warningStyle: Colorize = value,
 ): void {
   const labelWidth = Math.max(10, ...rows.map((row) => row.label.length));
   for (const row of rows) {
-    const colorize = row.severity === 'error' ? errorStyle : value;
+    const colorize =
+      row.severity === 'error'
+        ? errorStyle
+        : row.severity === 'warning'
+          ? warningStyle
+          : value;
     lines.push(`  ${muted(row.label.padEnd(labelWidth, ' '))}  ${colorize(row.value)}`);
   }
 }
@@ -122,7 +145,7 @@ function formatWorktreeStatus(status: GitStatus): string {
 }
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
-const WORKFLOW_GATE = 'interview -> goal -> research -> swarm decision -> integrate -> verify -> learn';
+const WORKFLOW_GATE = 'research -> interview -> goal -> swarm decision -> integrate -> verify -> learn';
 const ENGINE_GATE = 'UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn';
 const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks';
 const AUTONOMY_GATE = 'bounded now -> headless target';
@@ -146,7 +169,7 @@ function verifyBlockedByReadiness(options: StatusReportOptions): boolean {
   const { ratio, maxTokens } = contextValues(options);
   return (
     model.length === 0 ||
-    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.85) ||
+    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.75) ||
     options.gitStatus?.dirty === true ||
     options.goalStatus === 'blocked' ||
     humanWritingBlocked(options)
@@ -260,7 +283,7 @@ function formatReadinessBlockers(options: StatusReportOptions): string {
   const model = (options.status?.model ?? options.model).trim();
   if (model.length === 0) blockers.push('model setup');
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.85) blockers.push('context high');
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.75) blockers.push('context high');
   if (options.gitStatus?.dirty === true) blockers.push('worktree dirty');
   if (options.goalStatus === 'blocked') blockers.push('goal blocked');
   if (humanWritingBlocked(options)) blockers.push('writing guidance');
@@ -441,7 +464,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   }
 
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.85) {
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.75) {
     return [
       { label: 'State', value: 'Context high' },
       ...gateRows,
@@ -488,11 +511,82 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   ];
 }
 
+function formatContextOSStatus(options: StatusReportOptions): string | undefined {
+  const health = options.contextOS ?? options.status?.contextOS;
+  if (health === undefined || health.pageCount <= 0) return undefined;
+  const evidence =
+    health.missingEvidencePageCount > 0
+      ? `evidence ${health.evidenceIdRecallScore.toFixed(2)} (missing ${String(health.missingEvidencePageCount)})`
+      : `evidence ${health.evidenceIdRecallScore.toFixed(2)}`;
+  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}`;
+}
+
+
+
+function privacyStatusRows(options: StatusReportOptions): readonly FieldRow[] {
+  if (options.privacyTelemetryEnabled === undefined) return [];
+  if (options.privacyTelemetryEnabled) {
+    return [
+      {
+        label: 'Privacy',
+        value: 'Telemetry ON · set telemetry=false in config.toml for ZDR-friendly local mode',
+        severity: 'warning',
+      },
+    ];
+  }
+  return [
+    {
+      label: 'Privacy',
+      value: 'Telemetry OFF · local-preferring (ZDR-friendly product analytics)',
+    },
+  ];
+}
+
+function contextOSStatusRows(options: StatusReportOptions): readonly FieldRow[] {
+  const value = formatContextOSStatus(options);
+  if (value === undefined) return [];
+  const health = options.contextOS ?? options.status?.contextOS;
+  const severity: FieldRow['severity'] =
+    health !== undefined && health.missingEvidencePageCount > 0
+      ? 'error'
+      : health !== undefined && health.latestContinuityStatus !== 'ready'
+        ? 'warning'
+        : undefined;
+  return [{ label: 'Context OS', value, severity }];
+}
+
+function microCompactionStatusRows(options: StatusReportOptions): readonly FieldRow[] {
+  const value = formatMicroCompactionStatus(options);
+  if (value === undefined) return [];
+  const micro = options.microCompaction ?? options.status?.microCompaction;
+  const last = micro?.lastTrigger;
+  const severity: FieldRow['severity'] =
+    last === 'swarm_pressure' || last === 'usage_and_cache_miss' ? 'warning' : undefined;
+  return [{ label: 'Micro clear', value, severity }];
+}
+
+function formatMicroCompactionStatus(options: StatusReportOptions): string | undefined {
+  const micro = options.microCompaction ?? options.status?.microCompaction;
+  if (micro === undefined || micro.total <= 0) return undefined;
+  const last = micro.lastTrigger ?? 'unknown';
+  const usage =
+    micro.lastContextUsageRatio === null || micro.lastContextUsageRatio === undefined
+      ? ''
+      : ` @${(micro.lastContextUsageRatio * 100).toFixed(0)}%`;
+  const top = Object.entries(micro.byTrigger)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name, count]) => `${name}:${String(count)}`)
+    .join(',');
+  return `${String(micro.total)} clears · last ${last}${usage}${top.length > 0 ? ` · ${top}` : ''}`;
+}
+
 export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const accent = (text: string) => currentTheme.boldFg('primary', text);
   const value = (text: string) => currentTheme.fg('text', text);
   const muted = (text: string) => currentTheme.fg('textDim', text);
   const errorStyle = (text: string) => currentTheme.fg('error', text);
+  const warningStyle = (text: string) => currentTheme.fg('warning', text);
   const severityToken = (sev: 'ok' | 'warn' | 'danger'): 'error' | 'warning' | 'success' =>
     sev === 'danger' ? 'error' : sev === 'warn' ? 'warning' : 'success';
 
@@ -504,6 +598,9 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     { label: 'Permissions', value: permission },
     { label: 'Ultrawork', value: formatUltraworkStatus(options) },
     { label: 'Premium', value: formatPremiumQualityStatus(options) },
+    ...contextOSStatusRows(options),
+    ...microCompactionStatusRows(options),
+    ...privacyStatusRows(options),
     { label: 'Session', value: sessionId },
   ];
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
@@ -528,7 +625,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     lines.push(`${muted('Upstream')}  ${value(options.upstreamBaseline)}`);
   }
   lines.push('');
-  addFieldRows(lines, rows, muted, value, errorStyle);
+  addFieldRows(lines, rows, muted, value, errorStyle, warningStyle);
 
   const { ratio, tokens, maxTokens } = contextValues(options);
   lines.push('');
@@ -559,6 +656,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
       muted,
       value,
       errorStyle,
+      warningStyle,
     );
   }
 
@@ -570,6 +668,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     muted,
     value,
     errorStyle,
+    warningStyle,
   );
 
   const managedSection = buildManagedUsageReportLines({

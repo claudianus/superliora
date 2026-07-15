@@ -38,7 +38,7 @@ import {
   showSettingsSelector,
 } from './config';
 import { handleGoalCommand } from './goal';
-import { showMcpServers, showStatusReport, showUsage } from './info';
+import { showContextOsReport, showMcpServers, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
 import { handleBenchCommand } from './bench';
 import { handleMemoryCommand } from './memory';
@@ -338,6 +338,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'status':
       void showStatusReport(host);
+      return;
+    case 'context':
+      void showContextOsReport(host, args);
       return;
     case 'btw':
       await handleBtwCommand(host, args);

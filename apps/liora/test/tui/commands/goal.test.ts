@@ -90,6 +90,7 @@ function makeHost(
     setPermission: vi.fn(async () => {}),
     setPlanMode: vi.fn(async () => {}),
     setSwarmMode: vi.fn(async () => {}),
+    setPremiumQuality: vi.fn(async () => {}),
     createGoal: vi.fn(async () => fakeSnapshot()),
     getGoal: vi.fn(async (): Promise<{ goal: ReturnType<typeof fakeSnapshot> | null }> => ({
       goal: null,
@@ -272,9 +273,14 @@ describe('handleGoalCommand', () => {
     );
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(host.setAppState).toHaveBeenCalledWith({ swarmMode: true });
+    expect(session.setPremiumQuality).toHaveBeenCalledWith(true);
     expect(host.setAppState).toHaveBeenCalledWith(
-      expect.objectContaining({ planMode: true, ultraworkMode: true }),
+      expect.objectContaining({
+        planMode: true,
+        ultraworkMode: true,
+        premiumQualityMode: true,
+        swarmMode: true,
+      }),
     );
     expectGoalWorkflowPrompt(host, 'Ship feature X');
     expect(host.sendNormalUserInput).not.toHaveBeenCalledWith('/goal Ship feature X');

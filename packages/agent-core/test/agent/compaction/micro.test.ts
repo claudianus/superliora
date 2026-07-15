@@ -1,6 +1,8 @@
 import type { ContentPart, Message } from '@superliora/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MicroTriggerTracker } from '../../../src/agent/compaction/micro';
+
 import type { AgentRecord } from '../../../src/agent';
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
@@ -88,6 +90,32 @@ describe('MicroCompaction', () => {
     ctx.agent.microCompaction.detectUnderSwarmPressure(0.85);
 
     expect(ctx.agent.microCompaction.compact(ctx.agent.context.messages).length).toBeGreaterThan(0);
+  });
+
+  it('applies usage-ratio pressure on detect without waiting for cache miss', () => {
+    const ctx = testAgent({
+      microCompaction: {
+        keepRecentMessages: 4,
+        minContentTokens: 1,
+        cacheMissedThresholdMs: 60 * 60 * 1000,
+        minContextUsageRatio: 0.55,
+      },
+    });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+
+    appendMicroToolExchange(ctx, 1);
+    appendMicroToolExchange(ctx, 2);
+    appendMicroToolExchange(ctx, 3);
+
+    // Fresh cache (no miss) but high usage — tool-result clearing should still run.
+    vi.spyOn(ctx.agent.context, 'tokenCountWithPending', 'get').mockReturnValue(220_000);
+    ctx.agent.microCompaction.detect();
+
+    const messages = ctx.agent.context.messages;
+    expect(textOf(messages[2])).toBe(DEFAULT_MARKER);
   });
 
   it('does nothing before cache miss threshold', () => {
@@ -485,6 +513,8 @@ describe('MicroCompaction', () => {
       cache_missed_threshold_ms: microCompaction.cacheMissedThresholdMs,
       truncated_marker: DEFAULT_MARKER,
       min_context_usage_ratio: microCompaction.minContextUsageRatio,
+      micro_trigger: 'cache_miss',
+      context_usage_ratio: expect.any(Number),
       previous_cutoff: 0,
       cutoff: 7,
       message_count: 9,
@@ -690,6 +720,39 @@ describe('MicroCompaction', () => {
     expect(tool?.content.length).toBeGreaterThan(1);
   });
 
+
+  it('preserves stateful ledger tool results (UltraworkGraph / Memory)', () => {
+    vi.useFakeTimers();
+    const ctx = testAgent({
+      microCompaction: {
+        keepRecentMessages: 0,
+        minContentTokens: 1,
+        cacheMissedThresholdMs: 60 * MINUTE,
+        minContextUsageRatio: 0,
+      },
+    });
+
+    vi.setSystemTime(0);
+    appendMicroToolExchange(ctx, 1, {
+      toolName: 'UltraworkGraph',
+      output: 'graph node status update\n'.repeat(80),
+    });
+    appendMicroToolExchange(ctx, 2, {
+      toolName: 'Memory',
+      output: 'durable preference stored\n'.repeat(80),
+    });
+
+    vi.setSystemTime(61 * MINUTE);
+
+    ctx.agent.microCompaction.detect();
+    const compacted = ctx.agent.microCompaction.compact(ctx.agent.context.history);
+    const toolTexts = compacted
+      .filter((message) => message.role === 'tool')
+      .map((message) => textOf(message, { raw: true }));
+    expect(toolTexts.some((text) => text.includes('graph node status update'))).toBe(true);
+    expect(toolTexts.some((text) => text.includes('durable preference stored'))).toBe(true);
+    expect(hasMarker(compacted)).toBe(false);
+  });
   it('preserves known mutating tool results', () => {
     vi.useFakeTimers();
     const ctx = testAgent({
@@ -1097,3 +1160,27 @@ function numberProperty(record: TelemetryRecord, key: string): number {
   expect(typeof value).toBe('number');
   return value as number;
 }
+
+describe('MicroTriggerTracker', () => {
+  it('aggregates micro triggers for dashboard telemetry', () => {
+    const tracker = new MicroTriggerTracker();
+    tracker.record('usage_pressure', 0.6);
+    tracker.record('swarm_pressure', 0.75);
+    tracker.record('usage_pressure', 0.7);
+    const snap = tracker.snapshot();
+    expect(snap.total).toBe(3);
+    expect(snap.byTrigger).toEqual({
+      usage_pressure: 2,
+      swarm_pressure: 1,
+    });
+    expect(snap.lastTrigger).toBe('usage_pressure');
+    expect(snap.lastContextUsageRatio).toBe(0.7);
+    tracker.reset();
+    expect(tracker.snapshot()).toEqual({
+      total: 0,
+      byTrigger: {},
+      lastTrigger: null,
+      lastContextUsageRatio: null,
+    });
+  });
+});

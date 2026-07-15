@@ -34,12 +34,48 @@ export interface UltraworkSessionSnapshot {
   premiumQualityChanged: boolean;
 }
 
+/**
+ * TUI-only extensions: `swarmModeEntry` and `ultraworkMode` live in AppState /
+ * host state, not on the SDK Session.
+ */
+export interface UltraworkTuiSetupState extends UltraworkSessionSnapshot {
+  /** Prior `swarmModeEntry` so rollback can restore the TUI-only value. */
+  readonly previousSwarmModeEntry: 'manual' | 'task' | undefined;
+  /** Prior `ultraworkMode` so rollback restores it instead of forcing off. */
+  readonly ultraworkModeWasEnabled: boolean;
+}
+
 export interface PrepareUltraworkOptions {
   /**
    * When true, preserve an already-active plan mode instead of resetting it.
    * Used by the `/goal` path that wants to keep an existing interview going.
    */
   readonly preservePlan?: boolean;
+}
+
+/** Minimal host surface for TUI prepare/rollback (shared by Goal + Ultrawork). */
+export interface UltraworkTuiHost {
+  readonly state: {
+    appState: {
+      planMode: boolean;
+      swarmMode: boolean;
+      premiumQualityMode?: boolean;
+      ultraworkMode?: boolean;
+    };
+    swarmModeEntry: 'manual' | 'task' | undefined;
+  };
+  requireSession(): Session;
+  setAppState(patch: Record<string, unknown>): void;
+}
+
+export interface PrepareUltraworkTuiOptions extends PrepareUltraworkOptions {
+  /** Optional activity tip written into AppState after prepare. */
+  readonly activityTip?: string | null;
+  /**
+   * When true (default), stash prior plan/swarm/premium into
+   * `ultraworkPriorState` for finish-path restoration.
+   */
+  readonly recordPriorState?: boolean;
 }
 
 /**
@@ -60,6 +96,21 @@ export function captureUltraworkSnapshot(
     planChanged: false,
     swarmEnabled: false,
     premiumQualityChanged: false,
+  };
+}
+
+/**
+ * Capture TUI-visible flags plus `swarmModeEntry` / prior ultrawork mode.
+ */
+export function captureUltraworkTuiSetup(host: UltraworkTuiHost): UltraworkTuiSetupState {
+  return {
+    ...captureUltraworkSnapshot(
+      host.state.appState.planMode === true,
+      host.state.appState.swarmMode === true,
+      host.state.appState.premiumQualityMode ?? false,
+    ),
+    previousSwarmModeEntry: host.state.swarmModeEntry,
+    ultraworkModeWasEnabled: host.state.appState.ultraworkMode === true,
   };
 }
 
@@ -104,8 +155,10 @@ export async function prepareUltraworkSession(
       snapshot.swarmEnabled = true;
     }
     if (options.preservePlan) {
-      const status = await session.getStatus();
-      if (!status.planMode) {
+      // Snapshot is captured immediately before prepare on TUI/headless paths.
+      // Prefer it over getStatus so call sites do not need an extra status round-trip
+      // and unit tests can exercise prepare without mocking getStatus.
+      if (!snapshot.planModeWasEnabled) {
         await session.setPlanMode(true, true, initialContext);
         snapshot.planChanged = true;
       }
@@ -122,6 +175,47 @@ export async function prepareUltraworkSession(
     }
   } catch (error) {
     await rollbackUltraworkSession(session, snapshot);
+    throw error;
+  }
+}
+
+/**
+ * Session prepare + AppState mirror used by both `/ultrawork` and `/goal`.
+ */
+export async function prepareUltraworkTuiSetup(
+  host: UltraworkTuiHost,
+  setup: UltraworkTuiSetupState,
+  initialContext = '',
+  options: PrepareUltraworkTuiOptions = {},
+): Promise<void> {
+  const session = host.requireSession();
+  try {
+    await prepareUltraworkSession(session, setup, initialContext, {
+      preservePlan: options.preservePlan,
+    });
+    const recordPriorState = options.recordPriorState !== false;
+    host.setAppState({
+      planMode: true,
+      ultraworkMode: true,
+      premiumQualityMode: true,
+      ...(setup.swarmEnabled ? { swarmMode: true } : {}),
+      ...(recordPriorState
+        ? {
+            ultraworkPriorState: {
+              planMode: setup.planModeWasEnabled,
+              swarmMode: setup.swarmModeWasEnabled,
+              swarmModeEntry: setup.previousSwarmModeEntry,
+              premiumQualityMode: setup.premiumQualityWasEnabled,
+            },
+          }
+        : {}),
+      ...(options.activityTip !== undefined ? { activityTip: options.activityTip } : {}),
+    });
+    if (setup.swarmEnabled) {
+      host.state.swarmModeEntry = 'ultrawork';
+    }
+  } catch (error) {
+    await rollbackUltraworkTuiSetup(host, setup);
     throw error;
   }
 }
@@ -144,5 +238,26 @@ export async function rollbackUltraworkSession(
   }
   if (snapshot.premiumQualityChanged) {
     await session.setPremiumQuality(snapshot.premiumQualityWasEnabled).catch(() => {});
+  }
+}
+
+/** Session rollback + AppState / swarmModeEntry restore for TUI hosts. */
+export async function rollbackUltraworkTuiSetup(
+  host: UltraworkTuiHost,
+  setup: UltraworkTuiSetupState,
+): Promise<void> {
+  const session = host.requireSession();
+  await rollbackUltraworkSession(session, setup);
+  host.setAppState({
+    planMode: setup.planModeWasEnabled,
+    ultraworkMode: setup.ultraworkModeWasEnabled,
+    ultraworkPriorState: null,
+    ...(setup.swarmEnabled ? { swarmMode: setup.swarmModeWasEnabled } : {}),
+    ...(setup.premiumQualityChanged
+      ? { premiumQualityMode: setup.premiumQualityWasEnabled }
+      : {}),
+  });
+  if (setup.swarmEnabled) {
+    host.state.swarmModeEntry = setup.previousSwarmModeEntry;
   }
 }

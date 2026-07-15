@@ -18,7 +18,7 @@ import { injectUltraworkPostCompactionContinuation } from '../../ultrawork/recov
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
   'Context was compacted but background tasks still run. Do not start duplicates — TaskOutput for results, TaskList to enumerate, TaskStop to cancel.';
 
-const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 6_000;
+const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 3_500;
 
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];
@@ -134,17 +134,18 @@ export class InjectionManager {
     }
 
     if (graph !== undefined && graph.nodes.length > 0) {
-      const nodes = duringSwarm
-        ? graph.nodes.filter(
-            (node) =>
-              node.status === 'running' ||
-              node.status === 'blocked' ||
-              node.status === 'queued',
-          )
-        : graph.nodes;
-      const limit = duringSwarm ? 8 : 32;
+      // Prefer non-done nodes; fall back to a short done sample only if nothing pending.
+      const pending = graph.nodes.filter((node) => node.status !== 'done');
+      const nodes =
+        pending.length > 0
+          ? pending
+          : graph.nodes.filter((node) => node.status === 'done');
+      const limit = duringSwarm ? 6 : 16;
       for (const node of nodes.slice(0, limit)) {
         lines.push(`- ${node.id}: ${node.status} — ${node.title}`);
+      }
+      if (nodes.length > limit) {
+        lines.push(`- … ${String(nodes.length - limit)} more`);
       }
     }
 

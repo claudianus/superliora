@@ -5,6 +5,7 @@ import {
   estimateTokensForMessages,
 } from '../../utils/tokens';
 import { surpriseScore } from '../../lean-context/gate/density';
+import { isStatefulOrMutatingTool } from './micro';
 
 export const CONTEXT_COMPACTION_V2_VERSION = 'super_kimi_context_compaction_v2' as const;
 
@@ -82,6 +83,14 @@ export class CompactionPlanner {
     const actions: CompactionAction[] = [];
     const toolGroups = compactedGroups.filter((group) => group.kind === 'tool_exchange');
     for (const group of toolGroups) {
+      // Skip pure stateful/control tool exchanges — their results are durable
+      // ledger/memory/control signals and should not be planned as clearable.
+      if (
+        group.toolNames.length > 0 &&
+        group.toolNames.every((name) => isStatefulOrMutatingTool(name))
+      ) {
+        continue;
+      }
       actions.push({
         type: 'tool_result_clearing',
         reason: 'old tool-call group moved out of working context with replay references kept',

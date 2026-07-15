@@ -13,7 +13,7 @@ import { PREMIUM_VISUAL_SKILL_ROUTING } from '../../src/premium-quality/contract
 
 describe('Premium Visual harness', () => {
   it('includes supremacy mandate, art direction, and verification loop', () => {
-    expect(PREMIUM_VISUAL_HARNESS).toContain('KING-GOD-GENERAL');
+    expect(PREMIUM_VISUAL_HARNESS).toContain('PREMIUM VISUAL');
     expect(PREMIUM_VISUAL_HARNESS).toContain('Art direction before code');
     expect(PREMIUM_VISUAL_HARNESS).toContain('Visual verification loop');
     expect(PREMIUM_VISUAL_HARNESS).toContain('Visual upgrade playbook');
@@ -38,16 +38,16 @@ describe('Premium Visual harness', () => {
 describe('Premium Quality guidance composition', () => {
   it('embeds the full visual harness in full guidance', () => {
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('Premium Quality mode is ON');
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('supreme, king-god-general');
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('principal designer');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain(PREMIUM_VISUAL_HARNESS);
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('godly.website');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('picsum.photos/seed/');
-    // Full premium injection is periodic but still multi-k — keep a hard size budget.
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE.length).toBeLessThan(7_200);
+    // Full premium injection is periodic — keep a hard size budget after hype collapse.
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE.length).toBeLessThan(6_400);
   });
 
   it('keeps sparse guidance visually assertive', () => {
-    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('PRIMARY ULTRA GOD-TIER');
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('PRIMARY');
     expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('BrowserScreenshot before done');
   });
 });

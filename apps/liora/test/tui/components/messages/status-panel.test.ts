@@ -83,11 +83,11 @@ describe('status panel report lines', () => {
     expect(output).toContain('Title        Implement status');
     expect(output).toContain('Context window');
     expect(output).toContain('25.0%');
-    expect(output).toContain('(3.0k / 12.0k)');
+    expect(output).toContain('(3.0K / 12.0K)');
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+interview -> goal -> research -> swarm decision -> integrate -> verify -> learn/);
+    expect(output).toMatch(/Workflow\s+research -> interview -> goal -> swarm decision -> integrate -> verify -> learn/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
     expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion for plain tasks/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
@@ -174,7 +174,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+interview -> goal -> research -> swarm decision -> integrate -> verify -> learn/);
+    expect(output).toMatch(/Workflow\s+research -> interview -> goal -> swarm decision -> integrate -> verify -> learn/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
     expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion for plain tasks/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
@@ -490,5 +490,100 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Stages\s+Plan on \| Goal blocked \| Swarm off \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+goal blocked/);
     expect(output).toMatch(/Next\s+Resolve or replace the blocked goal before continuing\./);
+  });
+
+  it('includes Context OS health when compacted pages exist', () => {
+    const lines = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      availableModels: {},
+      contextOS: {
+        pageCount: 2,
+        readyPageCount: 1,
+        needsRehydrationPageCount: 1,
+        atRiskPageCount: 0,
+        missingEvidencePageCount: 1,
+        evidenceIdRecallScore: 0.5,
+        latestContinuityStatus: 'needs_rehydration',
+      },
+    });
+    const joined = lines.join('\n');
+    expect(joined).toContain('Context OS');
+    expect(joined).toContain('needs_rehydration');
+    expect(joined).toContain('evidence 0.50');
+    expect(joined).toContain('missing 1');
+  });
+
+  it('includes Micro clear when micro-compaction has fired', () => {
+    const lines = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      availableModels: {},
+      microCompaction: {
+        total: 4,
+        lastTrigger: 'swarm_pressure',
+        lastContextUsageRatio: 0.8,
+        byTrigger: { swarm_pressure: 3, usage_pressure: 1 },
+      },
+    });
+    const joined = lines.join('\n');
+    expect(joined).toContain('Micro clear');
+    expect(joined).toContain('4 clears');
+    expect(joined).toContain('swarm_pressure');
+  });
+
+  it('shows privacy/ZDR posture when telemetry flag is known', () => {
+    const on = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      availableModels: {},
+      privacyTelemetryEnabled: true,
+    }).join('\n');
+    expect(on).toContain('Privacy');
+    expect(on).toContain('Telemetry ON');
+
+    const off = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      availableModels: {},
+      privacyTelemetryEnabled: false,
+    }).join('\n');
+    expect(off).toContain('Telemetry OFF');
   });
 });

@@ -13,6 +13,45 @@ import { createUserMessage, extractText } from '@superliora/kosong';
 
 import type { Agent } from '..';
 import { isRealUserPromptOrigin } from '../context';
+import { formatInterviewReadinessGuide } from './ultra-plan-interview-guide';
+
+export {
+  formatInterviewReadinessGuide,
+  pickNextInterviewFocus,
+  type InterviewReadinessGuideOptions,
+} from './ultra-plan-interview-guide';
+
+import type { UltraPlanRequiredSection } from './ultra-plan-section-guidance';
+
+export {
+  MAX_INTERVIEW_ROUNDS,
+  ULTRA_PLAN_REQUIRED_SECTIONS,
+  ULTRA_PLAN_SECTION_GUIDANCE,
+  type UltraPlanRequiredSection,
+} from './ultra-plan-section-guidance';
+
+import {
+  computeAmbiguityScoreHeuristic as computeAmbiguityScoreHeuristicPure,
+  type LLMAmbiguityResult,
+} from './ultra-plan-ambiguity-heuristic';
+
+export { AMBIGUITY_THRESHOLD } from './ultra-plan-ambiguity-heuristic';
+import { extractJsonFromText, extractTextFromLLMResponse } from './ultra-plan-llm-json';
+import { normalizeSeedSpec } from './ultra-plan-seed-normalize';
+import {
+  AMBIGUITY_LLM_SYSTEM_PROMPT,
+  buildDriftEvaluationUserPrompt,
+  buildSeedSpecExtractionUserPrompt,
+  DRIFT_LLM_SYSTEM_PROMPT,
+  parseAmbiguityLlmResult,
+  parseDriftLlmResult,
+  SEED_SPEC_LLM_SYSTEM_PROMPT,
+} from './ultra-plan-llm-scoring';
+import {
+  detectAllStagnation,
+  hashText,
+  type StagnationDetection,
+} from './ultra-plan-stagnation';
 
 export interface SeedSpec {
   readonly goal: string;
@@ -145,76 +184,10 @@ export interface InterviewState {
   readonly startedAtTimestamp: number;
 }
 
-export const ULTRA_PLAN_REQUIRED_SECTIONS = [
-  'goal',
-  'actors',
-  'inputs',
-  'outputs',
-  'constraints',
-  'non_goals',
-  'acceptance_criteria',
-  'verification_plan',
-  'failure_modes',
-  'runtime_context',
-] as const;
-
-export type UltraPlanRequiredSection = typeof ULTRA_PLAN_REQUIRED_SECTIONS[number];
-
-export const ULTRA_PLAN_SECTION_GUIDANCE: Record<
-  UltraPlanRequiredSection,
-  { readonly label: string; readonly askHint: string }
-> = {
-  goal: {
-    label: 'Goal / UltraGoal',
-    askHint: 'State the single deliverable or outcome in one concrete sentence.',
-  },
-  actors: {
-    label: 'Actors',
-    askHint: 'Who is involved (user, agent, reviewer, end-user)?',
-  },
-  inputs: {
-    label: 'Inputs',
-    askHint: 'What artifacts, files, APIs, or context does the work start from?',
-  },
-  outputs: {
-    label: 'Outputs',
-    askHint: 'What concrete deliverables will exist when done (files, docs, UI, decisions)?',
-  },
-  constraints: {
-    label: 'Constraints',
-    askHint: 'What limits apply (time, tech stack, budget, brand, must-not-change rules)?',
-  },
-  non_goals: {
-    label: 'Non-goals',
-    askHint: 'What is explicitly out of scope?',
-  },
-  acceptance_criteria: {
-    label: 'Acceptance Criteria',
-    askHint: 'What checks must pass for the work to be accepted?',
-  },
-  verification_plan: {
-    label: 'Verification Plan',
-    askHint: 'How will you verify success (tests, review, demo, metrics)?',
-  },
-  failure_modes: {
-    label: 'Failure Modes',
-    askHint: 'What could go wrong or what regressions must be avoided?',
-  },
-  runtime_context: {
-    label: 'Runtime Context',
-    askHint: 'Where does this run (repo, stack, environment, audience)?',
-  },
-};
-
-const AMBIGUITY_THRESHOLD = 0.2;
 const COMPLETION_STREAK_REQUIRED = 1;
-const GOAL_CLARITY_FLOOR = 0.75;
-const CONSTRAINT_CLARITY_FLOOR = 0.65;
-const SUCCESS_CRITERIA_CLARITY_FLOOR = 0.70;
 
 /** Soft cap on interview rounds — surfaces a warning in the readiness guide but
  *  does not bypass the Design gate. */
-export const MAX_INTERVIEW_ROUNDS = 8;
 
 export interface UltraPlanReadiness {
   readonly ready: boolean;
@@ -228,18 +201,17 @@ export interface UltraPlanReadiness {
   readonly usedHeuristicFallback?: boolean;
 }
 
-export type StagnationPatternType =
-  | 'spinning'
-  | 'oscillation'
-  | 'no_drift'
-  | 'diminishing_returns';
-
-export interface StagnationDetection {
-  readonly pattern: StagnationPatternType;
-  readonly detected: boolean;
-  readonly confidence: number;
-  readonly evidence: Record<string, unknown>;
-}
+export type { StagnationDetection, StagnationPatternType } from './ultra-plan-stagnation';
+import { buildAmbiguityScoreResult, openSeedGapsFromLlmResult } from './ultra-plan-score-result';
+import { buildSeedSpec as buildSeedSpecPure } from './ultra-plan-seed-build';
+import { getInterviewPerspectiveDescription } from './ultra-plan-perspective';
+import { buildLateralThinkingResult } from './ultra-plan-lateral';
+import { buildDefaultEvaluationPlan } from './ultra-plan-evaluation';
+import {
+  appendInterviewRoundState,
+  formatInterviewAnswerText,
+  formatInterviewQuestionText,
+} from './ultra-plan-interview-rounds';
 
 export type ThinkingPersona =
   | 'hacker'
@@ -277,20 +249,6 @@ interface StagnationHistoryEntry {
   readonly errorSignatures: readonly string[];
   readonly driftScores: readonly number[];
   readonly detections: readonly StagnationDetection[];
-}
-
-interface LLMAmbiguityResult {
-  readonly goalClarity: number;
-  readonly constraintClarity: number;
-  readonly successCriteriaClarity: number;
-  readonly presentSections: readonly string[];
-  readonly verifiableGoal: boolean;
-  readonly specificityScore: number;
-  readonly justifications: {
-    readonly goal: string;
-    readonly constraints: string;
-    readonly successCriteria: string;
-  };
 }
 
 export class UltraPlanModeEngine {
@@ -339,36 +297,14 @@ export class UltraPlanModeEngine {
     ontologyFields: OntologyField[],
     autoGenerated = false,
   ): SeedSpec {
-    return {
+    return buildSeedSpecPure(
       goal,
-      taskType: 'code',
-      constraints: [...constraints],
-      acceptanceCriteria: acceptanceCriteria.map((desc, i) => ({
-        id: `ac_${i + 1}`,
-        description: desc,
-        status: 'pending',
-      })),
-      ontology: {
-        name: ontologyName,
-        description: `Ontology for ${ontologyName}`,
-        fields: [...ontologyFields],
-      },
-      evaluationPrinciples: [
-        { name: 'completeness', description: 'All requirements are met', weight: 1.0 },
-        { name: 'correctness', description: 'Implementation is correct', weight: 1.0 },
-        { name: 'clarity', description: 'Code is clear and maintainable', weight: 0.8 },
-      ],
-      exitConditions: [
-        {
-          name: 'all_criteria_met',
-          description: 'All acceptance criteria satisfied',
-          criteria: '100% criteria pass',
-        },
-      ],
-      ambiguityScore: 0.15,
+      constraints,
+      acceptanceCriteria,
+      ontologyName,
+      ontologyFields,
       autoGenerated,
-      createdAt: new Date().toISOString(),
-    };
+    );
   }
 
   generateSeedSpecFromInterview(
@@ -408,12 +344,7 @@ export class UltraPlanModeEngine {
     errorSignatures: string[],
     driftScores: number[],
   ): StagnationDetection[] {
-    const results: StagnationDetection[] = [
-      this._detectSpinning(phaseOutputs, errorSignatures),
-      this._detectOscillation(phaseOutputs),
-      this._detectNoDrift(driftScores),
-      this._detectDiminishingReturns(driftScores),
-    ];
+    const results = detectAllStagnation(phaseOutputs, errorSignatures, driftScores);
 
     this._stagnationHistory.push({
       timestamp: Date.now(),
@@ -426,102 +357,8 @@ export class UltraPlanModeEngine {
     return results;
   }
 
-  private _detectSpinning(
-    _phaseOutputs: string[],
-    errorSignatures: string[],
-  ): StagnationDetection {
-    const threshold = 3;
-    const hashes = errorSignatures.map((e) => this._hash(e));
-    const last = hashes.slice(-threshold);
-    const detected = last.length >= threshold && last.every((h) => h === last[0]);
-    return {
-      pattern: 'spinning',
-      detected,
-      confidence: detected ? 0.9 : 0.0,
-      evidence: { threshold, lastErrors: errorSignatures.slice(-threshold) },
-    };
-  }
-
-  private _detectOscillation(phaseOutputs: string[]): StagnationDetection {
-    const cycles = 2;
-    const hashes = phaseOutputs.map((o) => this._hash(o));
-    if (hashes.length < cycles * 2) {
-      return { pattern: 'oscillation', detected: false, confidence: 0.0, evidence: {} };
-    }
-    const n = hashes.length;
-    const detected =
-      hashes[n - 1] === hashes[n - 3] && hashes[n - 2] === hashes[n - 4];
-    return {
-      pattern: 'oscillation',
-      detected,
-      confidence: detected ? 0.85 : 0.0,
-      evidence: { cycles, lastOutputs: phaseOutputs.slice(-cycles * 2) },
-    };
-  }
-
-  private _detectNoDrift(driftScores: number[]): StagnationDetection {
-    const threshold = 3;
-    const epsilon = 0.01;
-    if (driftScores.length < threshold) {
-      return { pattern: 'no_drift', detected: false, confidence: 0.0, evidence: {} };
-    }
-    const last = driftScores.slice(-threshold);
-    const maxDiff = Math.max(...last) - Math.min(...last);
-    const detected = maxDiff < epsilon;
-    return {
-      pattern: 'no_drift',
-      detected,
-      confidence: detected ? 0.8 : 0.0,
-      evidence: { threshold, maxDiff, lastScores: last },
-    };
-  }
-
-  private _detectDiminishingReturns(driftScores: number[]): StagnationDetection {
-    const threshold = 3;
-    if (driftScores.length < threshold + 1) {
-      return { pattern: 'diminishing_returns', detected: false, confidence: 0.0, evidence: {} };
-    }
-    const improvements: number[] = [];
-    for (let i = 1; i < driftScores.length; i++) {
-      improvements.push((driftScores[i] ?? 0) - (driftScores[i - 1] ?? 0));
-    }
-    const last = improvements.slice(-threshold);
-    const avgImprovement = last.reduce((a, b) => a + b, 0) / last.length;
-    const detected = avgImprovement < 0.01;
-    return {
-      pattern: 'diminishing_returns',
-      detected,
-      confidence: detected ? 0.75 : 0.0,
-      evidence: { threshold, avgImprovement, lastImprovements: last },
-    };
-  }
-
   private _hash(text: string): string {
-    let h1 = 5381;
-    let h2 = 0;
-    for (let i = 0; i < text.length; i++) {
-      const c = text.charCodeAt(i);
-      h1 = ((h1 << 5) + h1 + c) | 0;
-      h2 = (h2 * 33 + c) | 0;
-    }
-    return `${h1.toString(36)}:${h2.toString(36)}`;
-  }
-
-  private _normalizeSectionName(section: string): string {
-    let result = '';
-    let previousWasSpace = true;
-    for (const c of section.trim().toLowerCase()) {
-      if (c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === '\f' || c === '\v') {
-        if (!previousWasSpace) {
-          result += '_';
-          previousWasSpace = true;
-        }
-      } else {
-        result += c;
-        previousWasSpace = false;
-      }
-    }
-    return result;
+    return hashText(text);
   }
 
   generateLateralThinking(
@@ -529,61 +366,9 @@ export class UltraPlanModeEngine {
     problemContext: string,
     currentApproach: string,
   ): LateralThinkingResult {
-    const summaries: Record<ThinkingPersona, string> = {
-      hacker: 'Find unconventional workarounds and bypasses',
-      researcher: 'Seek additional information and context',
-      simplifier: 'Reduce complexity and challenge assumptions',
-      architect: 'Restructure the approach fundamentally',
-      contrarian: 'Challenge assumptions and invert the problem',
-    };
-
-    const prompt = `You are acting as a ${persona}.\n${summaries[persona]}.\n\nProblem context: ${problemContext}\nCurrent approach: ${currentApproach}\n\nGenerate an alternative approach from this perspective. Be specific and actionable.`;
-
-    const questions = this._generateQuestionsForPersona(persona, problemContext);
-
-    const result: LateralThinkingResult = {
-      persona,
-      prompt,
-      approachSummary: summaries[persona],
-      questions,
-    };
-
+    const result = buildLateralThinkingResult(persona, problemContext, currentApproach);
     this._lateralThinking = result;
     return result;
-  }
-
-  private _generateQuestionsForPersona(
-    persona: ThinkingPersona,
-    _context: string,
-  ): string[] {
-    const questionBanks: Record<ThinkingPersona, string[]> = {
-      hacker: [
-        'What is the simplest workaround?',
-        'What assumption can we bypass?',
-        'What is the minimal viable fix?',
-      ],
-      researcher: [
-        'What information are we missing?',
-        'What similar problems have been solved?',
-        'What documentation should we read?',
-      ],
-      simplifier: [
-        'What can we remove without breaking it?',
-        'What is the core problem, not the symptoms?',
-        'Can we solve a smaller version first?',
-      ],
-      architect: [
-        'What is the fundamental structure?',
-        'How would we design this from scratch?',
-        'What abstraction would clarify this?',
-      ],
-      contrarian: [
-        'What if the opposite is true?',
-        'What assumption is most dangerous?',
-        'What would make this definitely fail?',
-      ],
-    };
-    return questionBanks[persona];
   }
 
   setEvaluationPlan(plan: EvaluationPlan): void {
@@ -595,13 +380,7 @@ export class UltraPlanModeEngine {
   }
 
   generateDefaultEvaluationPlan(): EvaluationPlan {
-    return {
-      stage1Mechanical: true,
-      stage2Semantic: true,
-      stage3Consensus: false,
-      mechanicalChecks: ['lint', 'build', 'test', 'static_analysis', 'coverage'],
-      semanticCriteria: ['ac_compliance', 'code_quality', 'maintainability'],
-    };
+    return buildDefaultEvaluationPlan();
   }
 
   serialize(): Record<string, unknown> {
@@ -657,19 +436,7 @@ export class UltraPlanModeEngine {
   }
 
   getPerspectiveDescription(): string {
-    const descriptions: Record<InterviewPerspective, string> = {
-      researcher:
-        'Explore industry and technical context. Surface benchmarks, best practices, and opportunities the user may not know exist.',
-      simplifier:
-        'Contrast MVP vs premium scope. Show what to cut vs what unlocks disproportionate value with modest extra effort.',
-      architect:
-        'Propose structural and pattern improvements. Focus on interfaces, maintainability, and long-term design quality.',
-      'breadth-keeper':
-        'Balance stretch goals vs non-goals. Catch missed quality dimensions, edge cases, and expansion opportunities.',
-      'seed-closer':
-        'Lock the elevated UltraGoal into measurable acceptance criteria and a verifiable completion test.',
-    };
-    return descriptions[this._currentPerspective];
+    return getInterviewPerspectiveDescription(this._currentPerspective);
   }
 
   startInterview(initialContext: string): void {
@@ -694,41 +461,23 @@ export class UltraPlanModeEngine {
     userResponse: string,
     origin: InterviewAnswerOrigin = 'user',
   ): void {
-    const round: InterviewRound = {
-      roundNumber: this._interviewState.rounds.length + 1,
+    this.advancePerspective();
+    this._interviewState = appendInterviewRoundState(
+      this._interviewState,
       question,
       userResponse,
-      timestamp: Date.now(),
       origin,
-    };
-    this.advancePerspective();
-    const consecutiveNonUserAnswers =
-      origin === 'user' ? 0 : this._interviewState.consecutiveNonUserAnswers + 1;
-    this._interviewState = {
-      ...this._interviewState,
-      rounds: [...this._interviewState.rounds, round],
-      consecutiveNonUserAnswers,
-      // A new round changes the evidence — invalidate the LLM cache and
-      // unlock monotonic ready so the gate is re-evaluated fairly.
-      lastScoredEvidenceHash: undefined,
-      cachedLlmResult: undefined,
-      monotonicReadyLocked: false,
-    };
+    );
   }
 
   recordInterviewAnswers(
     questions: ReadonlyArray<{ readonly question: string; readonly header?: string }>,
     answers: Record<string, string | true>,
   ): void {
-    const answerText = Object.entries(answers)
-      .map(([key, value]) => `${key}: ${value === true ? 'true' : value}`)
-      .join('\n');
-    const questionText = questions
-      .map((q) => q.header === undefined || q.header.length === 0
-        ? q.question
-        : `${q.header}: ${q.question}`)
-      .join('\n');
-    this.addInterviewRound(questionText, answerText);
+    this.addInterviewRound(
+      formatInterviewQuestionText(questions),
+      formatInterviewAnswerText(answers),
+    );
   }
 
   /**
@@ -786,7 +535,7 @@ export class UltraPlanModeEngine {
         onProgress,
         'Scoring engine unavailable — falling back to deterministic heuristic.',
       );
-      const heuristicResult = this.computeAmbiguityScoreHeuristic(this._interviewState);
+      const heuristicResult = computeAmbiguityScoreHeuristicPure(this._interviewState);
       this._lastAmbiguityResult = heuristicResult;
       this._interviewState = {
         ...this._interviewState,
@@ -827,162 +576,17 @@ export class UltraPlanModeEngine {
     _skipLlm: boolean,
     usedHeuristicFallback = false,
   ): AmbiguityScoreResult {
-    const totalRounds = this._interviewState.rounds.length;
-    const answerRoundClarity = Math.min(totalRounds / 3, 1.0);
-    const specificityClarity = llmResult.specificityScore;
-
-    const goalClarity = this.clampClarity(
-      llmResult.goalClarity * 0.7 + answerRoundClarity * 0.2 + specificityClarity * 0.1,
-    );
-    const constraintClarity = this.clampClarity(
-      llmResult.constraintClarity * 0.75 + specificityClarity * 0.15 + answerRoundClarity * 0.1,
-    );
-    const criteriaClarity = this.clampClarity(
-      llmResult.successCriteriaClarity * 0.75 + specificityClarity * 0.15 + answerRoundClarity * 0.1,
-    );
-
-    const rawOverall = 1.0 - (
-      goalClarity * 0.4 +
-      constraintClarity * 0.3 +
-      criteriaClarity * 0.3
-    );
-
-    const presentSet = new Set(
-      llmResult.presentSections.map((section) => this._normalizeSectionName(String(section))),
-    );
-    const openGaps = ULTRA_PLAN_REQUIRED_SECTIONS.filter((section) => !presentSet.has(section));
-    const gapPressure = openGaps.length / ULTRA_PLAN_REQUIRED_SECTIONS.length;
-    const verifiableGoal = llmResult.verifiableGoal;
-    const floorFailures = this.floorFailures(goalClarity, constraintClarity, criteriaClarity);
-    const floorPressure = floorFailures.length > 0 ? AMBIGUITY_THRESHOLD + 0.01 : 0;
-    const gatedOverall = this.clampClarity(
-      Math.max(rawOverall, gapPressure, verifiableGoal ? 0 : 0.45, floorPressure),
-    );
-
-    const milestone: AmbiguityMilestone =
-      gatedOverall <= AMBIGUITY_THRESHOLD ? 'ready' :
-      gatedOverall <= 0.3 ? 'refined' :
-      gatedOverall <= 0.4 ? 'progress' : 'initial';
-
-    let isReady = (
-      gatedOverall <= AMBIGUITY_THRESHOLD &&
-      openGaps.length === 0 &&
-      verifiableGoal &&
-      floorFailures.length === 0
-    );
-
-    // ── Monotonic ready: once locked, stay ready until evidence changes.
-    if (this._interviewState.monotonicReadyLocked === true) {
-      isReady = true;
-    }
-
-    const hitMaxRounds = totalRounds >= MAX_INTERVIEW_ROUNDS;
-    if (hitMaxRounds && !isReady) {
-      this.emitProgress(
-        onProgress,
-        `Interview round cap (${MAX_INTERVIEW_ROUNDS}) reached — Design remains blocked until blockers close.`,
-      );
-    }
-
-    const lastReadyRoundCount = this._interviewState.lastReadyRoundCount ?? -1;
-    const hasNewRoundSinceLastReady =
-      this._interviewState.rounds.length > lastReadyRoundCount;
-    const evidenceChanged =
-      this._interviewState.lastReadyEvidenceHash !== evidenceHash;
-
-    if (isReady && (evidenceChanged || hasNewRoundSinceLastReady)) {
-      this._interviewState = {
-        ...this._interviewState,
-        completionCandidateStreak: this._interviewState.completionCandidateStreak + 1,
-        lastReadyEvidenceHash: evidenceHash,
-        lastReadyRoundCount: this._interviewState.rounds.length,
-        // Lock monotonic ready so subsequent calls with the same evidence
-        // cannot un-ready the gate due to LLM non-determinism.
-        monotonicReadyLocked: true,
-      };
-    } else {
-      this._interviewState = {
-        ...this._interviewState,
-        completionCandidateStreak: isReady ? this._interviewState.completionCandidateStreak : 0,
-        lastReadyEvidenceHash: isReady ? this._interviewState.lastReadyEvidenceHash : undefined,
-        lastReadyRoundCount: isReady ? this._interviewState.lastReadyRoundCount : -1,
-        // Only unlock when a genuinely new round makes isReady false.
-        monotonicReadyLocked: isReady ? this._interviewState.monotonicReadyLocked : false,
-      };
-    }
-
-    const result: AmbiguityScoreResult = {
-      overallScore: gatedOverall,
-      breakdown: [
-        {
-          name: 'goal_clarity',
-          clarityScore: goalClarity,
-          weight: 0.4,
-          justification: llmResult.justifications.goal,
-        },
-        {
-          name: 'constraint_clarity',
-          clarityScore: constraintClarity,
-          weight: 0.3,
-          justification: llmResult.justifications.constraints,
-        },
-        {
-          name: 'success_criteria_clarity',
-          clarityScore: criteriaClarity,
-          weight: 0.3,
-          justification: llmResult.justifications.successCriteria,
-        },
-        {
-          name: 'seed_ledger_gaps',
-          clarityScore: 1 - gapPressure,
-          weight: 1,
-          justification: `Open required sections: ${openGaps.length === 0 ? 'none' : openGaps.join(', ')}`,
-        },
-        {
-          name: 'verifiable_goal',
-          clarityScore: verifiableGoal ? 1 : 0,
-          weight: 1,
-          justification: 'UltraGoal must be judgeable as complete or incomplete.',
-        },
-      ],
-      isReadyForSeed: isReady,
-      milestone,
-      floorFailures,
+    const built = buildAmbiguityScoreResult({
+      llmResult,
+      evidenceHash,
+      interviewState: this._interviewState,
       usedHeuristicFallback,
-    };
-
-    this._interviewState = {
-      ...this._interviewState,
-      ambiguityScore: result,
-    };
-
-    this.emitProgress(
-      onProgress,
-      `Goal clarity: ${goalClarity.toFixed(2)} — ${llmResult.justifications.goal}`,
-    );
-    this.emitProgress(
-      onProgress,
-      `Constraint clarity: ${constraintClarity.toFixed(2)} — ${llmResult.justifications.constraints}`,
-    );
-    this.emitProgress(
-      onProgress,
-      `Success criteria clarity: ${criteriaClarity.toFixed(2)} — ${llmResult.justifications.successCriteria}`,
-    );
-    this.emitProgress(
-      onProgress,
-      `Open Seed gaps: ${openGaps.length === 0 ? 'none' : openGaps.join(', ')}`,
-    );
-    if (floorFailures.length > 0) {
-      this.emitProgress(onProgress, `Dimension floor failures: ${floorFailures.join('; ')}`);
+    });
+    this._interviewState = built.nextInterviewState;
+    for (const message of built.progressMessages) {
+      this.emitProgress(onProgress, message);
     }
-    this.emitProgress(
-      onProgress,
-      result.isReadyForSeed
-        ? 'Seed Spec is ready. Preparing next question...'
-        : 'Preparing next question...',
-    );
-
-    return result;
+    return built.result;
   }
 
   /**
@@ -1049,15 +653,7 @@ export class UltraPlanModeEngine {
   }
 
   private openSeedGapsFromCache(): readonly UltraPlanRequiredSection[] {
-    if (this._lastAmbiguityResult === null) {
-      return [...ULTRA_PLAN_REQUIRED_SECTIONS];
-    }
-    const presentSet = new Set(
-      this._lastAmbiguityResult.presentSections.map((section) =>
-        this._normalizeSectionName(String(section)),
-      ),
-    );
-    return ULTRA_PLAN_REQUIRED_SECTIONS.filter((section) => !presentSet.has(section));
+    return openSeedGapsFromLlmResult(this._lastAmbiguityResult);
   }
 
   /**
@@ -1074,7 +670,13 @@ export class UltraPlanModeEngine {
     const llmResult = await this._extractSeedSpecFromLLM(allText, ontologyName, signal);
     if (llmResult !== null) {
       this.emitProgress(onProgress, 'Seed Spec extracted.');
-      return this._normalizeSeedSpec(llmResult, ontologyName, true);
+      return normalizeSeedSpec(
+        llmResult,
+        ontologyName,
+        true,
+        this._interviewState.initialContext,
+        this.buildSeedSpec.bind(this),
+      );
     }
     throw new Error(
       'LLM-based Seed Spec extraction failed: the LLM is unavailable or returned invalid JSON.',
@@ -1112,28 +714,6 @@ export class UltraPlanModeEngine {
       .filter((text) => text.length > 0);
   }
 
-  private clampClarity(value: number): number {
-    return Math.max(0, Math.min(1, value));
-  }
-
-  private floorFailures(
-    goalClarity: number,
-    constraintClarity: number,
-    criteriaClarity: number,
-  ): readonly string[] {
-    const failures: string[] = [];
-    if (goalClarity < GOAL_CLARITY_FLOOR) {
-      failures.push(`Goal Clarity ${goalClarity.toFixed(2)} < ${GOAL_CLARITY_FLOOR.toFixed(2)}`);
-    }
-    if (constraintClarity < CONSTRAINT_CLARITY_FLOOR) {
-      failures.push(`Constraint Clarity ${constraintClarity.toFixed(2)} < ${CONSTRAINT_CLARITY_FLOOR.toFixed(2)}`);
-    }
-    if (criteriaClarity < SUCCESS_CRITERIA_CLARITY_FLOOR) {
-      failures.push(`Success Criteria Clarity ${criteriaClarity.toFixed(2)} < ${SUCCESS_CRITERIA_CLARITY_FLOOR.toFixed(2)}`);
-    }
-    return failures;
-  }
-
   // ---------------------------------------------------------------------------
   // LLM-backed Seed Spec extraction, ambiguity scoring, and drift evaluation
   // ---------------------------------------------------------------------------
@@ -1160,8 +740,8 @@ export class UltraPlanModeEngine {
         undefined,
         { signal },
       );
-      const text = this._extractTextFromLLMResponse(response);
-      const json = this._extractJsonFromText(text);
+      const text = extractTextFromLLMResponse(response);
+      const json = extractJsonFromText(text);
       if (json === null) return null;
       return JSON.parse(json) as T;
     } catch {
@@ -1169,97 +749,10 @@ export class UltraPlanModeEngine {
     }
   }
 
-  private _extractTextFromLLMResponse(response: unknown): string {
-    const msg = response as {
-      message?: {
-        content?: ReadonlyArray<{ type?: string; text?: string }>;
-      };
-    };
-    const parts = msg.message?.content ?? [];
-    for (const part of parts) {
-      if (part.type === 'text' && typeof part.text === 'string') return part.text;
-    }
-    return '';
-  }
-
-  private _extractJsonFromText(text: string): string | null {
-    const trimmed = text.trim();
-    if (trimmed.startsWith('```')) {
-      const match = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/);
-      if (match?.[1]) return match[1].trim();
-    }
-    const start = trimmed.indexOf('{');
-    const end = trimmed.lastIndexOf('}');
-    if (start !== -1 && end !== -1 && end > start) return trimmed.slice(start, end + 1);
-    return null;
-  }
-
-  /**
-   * Deterministic fallback ambiguity scorer used when the LLM scoring engine
-   * is unavailable or returns invalid JSON. The formula is intentionally
-   * conservative so that a transient LLM outage cannot prematurely mark the
-   * interview as ready.
-   */
-  private computeAmbiguityScoreHeuristic(state: InterviewState): LLMAmbiguityResult {
-    const totalRounds = state.rounds.length;
-    const userRounds = state.rounds.filter((round) => round.origin === 'user').length;
-    const userOriginRatio = totalRounds > 0 ? userRounds / totalRounds : 0;
-    // Assume most sections are open when the LLM cannot evaluate the evidence;
-    // each closed round is treated as covering roughly two sections.
-    const estimatedClosedSections = Math.min(Math.floor(totalRounds * 2), ULTRA_PLAN_REQUIRED_SECTIONS.length);
-    const openGaps = Math.max(0, ULTRA_PLAN_REQUIRED_SECTIONS.length - estimatedClosedSections);
-
-    const goalClarity = Math.max(0, 1 - 0.25 * openGaps) * (userOriginRatio * 0.7 + 0.3);
-    const constraintClarity = (userOriginRatio * 0.7 + 0.3) / 3;
-    const successCriteriaClarity = constraintClarity;
-
-    return {
-      goalClarity: Math.max(0, Math.min(1, goalClarity)),
-      constraintClarity: Math.max(0, Math.min(1, constraintClarity)),
-      successCriteriaClarity: Math.max(0, Math.min(1, successCriteriaClarity)),
-      presentSections: [],
-      verifiableGoal: false,
-      specificityScore: 0,
-      justifications: {
-        goal: `Heuristic fallback: ${openGaps} estimated open sections, ${Math.round(userOriginRatio * 100)}% user-origin answers.`,
-        constraints: 'Heuristic fallback: derived from user-origin ratio.',
-        successCriteria: 'Heuristic fallback: derived from user-origin ratio.',
-      },
-    };
-  }
-
   private async _calculateAmbiguityWithLLM(
     evidence: string,
     signal?: AbortSignal,
   ): Promise<LLMAmbiguityResult | null> {
-    const system = `You are an expert requirements analyst. Evaluate the clarity of the requirements captured in the interview evidence.
-
-Evaluate three components:
-1. Goal Clarity (40%): Is the goal specific and well-defined? Are actors, inputs, and outputs clear?
-2. Constraint Clarity (30%): Are constraints, non-goals, failure modes, and runtime context clear?
-3. Success Criteria Clarity (30%): Are acceptance criteria, verification plan, and completion criterion measurable?
-
-Score each component from 0.0 (unclear) to 1.0 (perfectly clear).
-
-Also report:
-- present_sections: list of section names present in the evidence from [goal, actors, inputs, outputs, constraints, non_goals, acceptance_criteria, verification_plan, failure_modes, runtime_context]
-- verifiable_goal: boolean, whether the goal has a clear true/false or pass/fail completion criterion
-- specificity_score: 0.0-1.0, how specific the requirements are (files, commands, APIs, concrete paths, etc.)
-
-Respond ONLY with valid JSON. No other text before or after.
-
-{
-  "goal_clarity_score": 0.0,
-  "goal_clarity_justification": "...",
-  "constraint_clarity_score": 0.0,
-  "constraint_clarity_justification": "...",
-  "success_criteria_clarity_score": 0.0,
-  "success_criteria_clarity_justification": "...",
-  "present_sections": ["goal"],
-  "verifiable_goal": false,
-  "specificity_score": 0.0
-}`;
-
     const raw = await this._llmJsonRequest<{
       goal_clarity_score?: number;
       goal_clarity_justification?: string;
@@ -1270,162 +763,20 @@ Respond ONLY with valid JSON. No other text before or after.
       present_sections?: unknown;
       verifiable_goal?: boolean;
       specificity_score?: number;
-    }>(system, evidence, signal);
-
-    if (raw === null) return null;
-
-    const clamp = (value: number): number => {
-      if (typeof value !== 'number' || Number.isNaN(value)) return 0;
-      return Math.max(0, Math.min(1, value));
-    };
-
-    const presentSections = Array.isArray(raw.present_sections)
-      ? raw.present_sections.map((section) => String(section))
-      : [];
-
-    return {
-      goalClarity: clamp(raw.goal_clarity_score ?? 0),
-      constraintClarity: clamp(raw.constraint_clarity_score ?? 0),
-      successCriteriaClarity: clamp(raw.success_criteria_clarity_score ?? 0),
-      presentSections,
-      verifiableGoal: raw.verifiable_goal === true,
-      specificityScore: clamp(raw.specificity_score ?? 0),
-      justifications: {
-        goal: typeof raw.goal_clarity_justification === 'string' ? raw.goal_clarity_justification : '',
-        constraints: typeof raw.constraint_clarity_justification === 'string' ? raw.constraint_clarity_justification : '',
-        successCriteria: typeof raw.success_criteria_clarity_justification === 'string' ? raw.success_criteria_clarity_justification : '',
-      },
-    };
+    }>(AMBIGUITY_LLM_SYSTEM_PROMPT, evidence, signal);
+    return parseAmbiguityLlmResult(raw);
   }
 
   private async _extractSeedSpecFromLLM(
     evidence: string,
-    ontologyName: string,
+    _ontologyName: string,
     signal?: AbortSignal,
   ): Promise<unknown | null> {
-    const system = `You are an expert planning assistant. Extract a structured Seed Spec from the provided evidence. Return ONLY a JSON object matching the requested schema. Do not wrap it in markdown code fences. Use the same language as the evidence.`;
-    const user = [
-      `Extract a Seed Spec from the following interview evidence.`,
-      ``,
-      `Required JSON schema (omit fields that are empty):`,
-      JSON.stringify({
-        goal: 'string',
-        taskType: 'code | research | analysis',
-        constraints: ['string'],
-        acceptanceCriteria: ['string'],
-        ontology: {
-          name: 'string',
-          description: 'string',
-          fields: [{ name: 'string', type: 'string', description: 'string', required: true }],
-        },
-        evaluationPrinciples: [{ name: 'string', description: 'string', weight: 1.0 }],
-        exitConditions: [{ name: 'string', description: 'string', criteria: 'string' }],
-        ambiguityScore: 0.15,
-      }, null, 2),
-      ``,
-      `Evidence:\n${evidence}`,
-    ].join('\n');
-    return this._llmJsonRequest<unknown>(system, user, signal);
-  }
-
-  private _normalizeSeedSpec(raw: unknown, ontologyName: string, autoGenerated: boolean): SeedSpec {
-    const parsed = raw as Partial<{
-      goal: string;
-      taskType: string;
-      constraints: unknown[];
-      acceptanceCriteria: unknown[];
-      ontology: Partial<{
-        name: string;
-        description: string;
-        fields: unknown[];
-      }>;
-      evaluationPrinciples: unknown[];
-      exitConditions: unknown[];
-      ambiguityScore: number;
-    }>;
-    const goal =
-      typeof parsed.goal === 'string' && parsed.goal.trim().length > 0
-        ? parsed.goal.trim()
-        : this._interviewState.initialContext;
-    const taskType = ['code', 'research', 'analysis'].includes(parsed.taskType as string)
-      ? (parsed.taskType as SeedSpec['taskType'])
-      : 'code';
-    const constraints = Array.isArray(parsed.constraints)
-      ? parsed.constraints.filter((c): c is string => typeof c === 'string')
-      : [];
-    const acceptanceCriteria = Array.isArray(parsed.acceptanceCriteria)
-      ? parsed.acceptanceCriteria.filter((c): c is string => typeof c === 'string')
-      : [];
-    const ontology = this._normalizeOntology(parsed.ontology, ontologyName);
-    const evaluationPrinciples = Array.isArray(parsed.evaluationPrinciples)
-      ? parsed.evaluationPrinciples
-          .filter((p): p is { name: string; description: string; weight: number } => {
-            const item = p as { name?: unknown; description?: unknown; weight?: unknown };
-            return (
-              typeof item.name === 'string' &&
-              typeof item.description === 'string' &&
-              typeof item.weight === 'number'
-            );
-          })
-          .map((p) => ({ name: p.name, description: p.description, weight: p.weight }))
-      : [
-          { name: 'completeness', description: 'All requirements are met', weight: 1.0 },
-          { name: 'correctness', description: 'Implementation is correct', weight: 1.0 },
-          { name: 'clarity', description: 'Code is clear and maintainable', weight: 0.8 },
-        ];
-    const exitConditions = Array.isArray(parsed.exitConditions)
-      ? parsed.exitConditions
-          .filter((c): c is { name: string; description: string; criteria: string } => {
-            const item = c as { name?: unknown; description?: unknown; criteria?: unknown };
-            return (
-              typeof item.name === 'string' &&
-              typeof item.description === 'string' &&
-              typeof item.criteria === 'string'
-            );
-          })
-          .map((c) => ({ name: c.name, description: c.description, criteria: c.criteria }))
-      : [{ name: 'all_criteria_met', description: 'All acceptance criteria satisfied', criteria: '100% criteria pass' }];
-    const ambiguityScore = typeof parsed.ambiguityScore === 'number' ? parsed.ambiguityScore : 0.15;
-    const seed = this.buildSeedSpec(
-      goal,
-      constraints,
-      acceptanceCriteria,
-      ontology.name,
-      [...ontology.fields],
-      autoGenerated,
+    return this._llmJsonRequest<unknown>(
+      SEED_SPEC_LLM_SYSTEM_PROMPT,
+      buildSeedSpecExtractionUserPrompt(evidence),
+      signal,
     );
-    // buildSeedSpec overrides ambiguityScore; patch it back if LLM provided one
-    return { ...seed, taskType, evaluationPrinciples, exitConditions, ambiguityScore };
-  }
-
-  private _normalizeOntology(raw: unknown, defaultName: string): OntologySchema {
-    const parsed = raw as Partial<{
-      name: string;
-      description: string;
-      fields: unknown[];
-    }>;
-    const name =
-      typeof parsed?.name === 'string' && parsed.name.trim().length > 0
-        ? parsed.name.trim()
-        : defaultName;
-    const description =
-      typeof parsed?.description === 'string' && parsed.description.trim().length > 0
-        ? parsed.description.trim()
-        : `Ontology for ${name}`;
-    const fields = Array.isArray(parsed?.fields)
-      ? parsed.fields
-          .filter((f): f is { name: string; type: string; description: string; required: boolean } => {
-            const item = f as { name?: unknown; type?: unknown; description?: unknown; required?: unknown };
-            return (
-              typeof item.name === 'string' &&
-              typeof item.type === 'string' &&
-              typeof item.description === 'string' &&
-              typeof item.required === 'boolean'
-            );
-          })
-          .map((f) => ({ name: f.name, type: f.type, description: f.description, required: f.required }))
-      : [];
-    return { name, description, fields: [...fields] };
   }
 
   private async _calculateDriftWithLLM(
@@ -1433,24 +784,11 @@ Respond ONLY with valid JSON. No other text before or after.
     constraintViolations: string[],
   ): Promise<DriftMetrics | null> {
     if (!this._seedSpec) return null;
-    const system = `You are a semantic drift evaluator. Compare the Seed Spec and the current plan/output. Return ONLY a JSON object with goalDrift, constraintDrift, ontologyDrift, each a number 0..1. 0 = perfectly aligned, 1 = completely divergent. Be strict about constraint violations.`;
-    const user = [
-      `Seed Spec:\n${JSON.stringify(this._seedSpec, null, 2)}`,
-      ``,
-      `Current output/plan:\n${currentOutput}`,
-      ``,
-      `Reported constraint violations:\n${constraintViolations.length > 0 ? constraintViolations.join('\n') : 'none'}`,
-      ``,
-      `Return JSON: { "goalDrift": number, "constraintDrift": number, "ontologyDrift": number }`,
-    ].join('\n');
-    const raw = await this._llmJsonRequest<Partial<DriftMetrics>>(system, user);
-    if (raw === null) return null;
-    const clamp = (v: number) => Math.max(0, Math.min(1, v));
-    return {
-      goalDrift: clamp(typeof raw.goalDrift === 'number' ? raw.goalDrift : 0),
-      constraintDrift: clamp(typeof raw.constraintDrift === 'number' ? raw.constraintDrift : 0),
-      ontologyDrift: clamp(typeof raw.ontologyDrift === 'number' ? raw.ontologyDrift : 0),
-    };
+    const raw = await this._llmJsonRequest<Partial<DriftMetrics>>(
+      DRIFT_LLM_SYSTEM_PROMPT,
+      buildDriftEvaluationUserPrompt(this._seedSpec, currentOutput, constraintViolations),
+    );
+    return parseDriftLlmResult(raw);
   }
 
   deserialize(data: Record<string, unknown>): void {
@@ -1471,179 +809,4 @@ Respond ONLY with valid JSON. No other text before or after.
       this._currentPerspective = data['currentPerspective'] as InterviewPerspective;
     }
   }
-}
-
-export interface InterviewReadinessGuideOptions {
-  readonly perspective?: InterviewPerspective;
-  readonly interviewRoundCount?: number;
-  readonly consecutiveNonUserAnswers?: number;
-}
-
-export function pickNextInterviewFocus(
-  readiness: UltraPlanReadiness,
-  perspective: InterviewPerspective = 'researcher',
-): string {
-  const lens = perspectiveFocusLead(perspective);
-  if (!readiness.verifiableGoal) {
-    const completionAsk =
-      perspective === 'seed-closer'
-        ? 'how success is judged true/false or pass/fail with a concrete Completion Criterion'
-        : 'how success is judged true/false or pass/fail — offer Baseline completion vs an Upgrade with a sharper verifiable test';
-    return `${lens} Completion Criterion — ask ${completionAsk}.`;
-  }
-  const firstGap = readiness.openGaps[0];
-  if (firstGap !== undefined) {
-    const guidance = ULTRA_PLAN_SECTION_GUIDANCE[firstGap];
-    return `${lens} ${guidance.label} — ${guidance.askHint}${perspectiveGapSuffix(perspective, firstGap)}`;
-  }
-  if (readiness.floorFailures.length > 0) {
-    return `${lens} clarify ${readiness.floorFailures[0]} with concrete specifics (files, commands, metrics, deliverables).`;
-  }
-  return `${lens} clarify the vaguest remaining requirement with concrete specifics and Baseline/Upgrade options when they help.`;
-}
-
-function perspectiveFocusLead(perspective: InterviewPerspective): string {
-  const leads: Record<InterviewPerspective, string> = {
-    researcher: 'Researcher lens — cite context or benchmarks, then',
-    simplifier: 'Simplifier lens — contrast Baseline MVP vs Upgrade scope, then',
-    architect: 'Architect lens — tie to structure, interfaces, or maintainability, then',
-    'breadth-keeper': 'Breadth-keeper lens — balance stretch goals vs non-goals, then',
-    'seed-closer': 'Seed-closer lens — push toward measurable criteria, then',
-  };
-  return leads[perspective];
-}
-
-function perspectiveGapSuffix(
-  perspective: InterviewPerspective,
-  gap: UltraPlanRequiredSection,
-): string {
-  const suffixes: Partial<Record<InterviewPerspective, Partial<Record<UltraPlanRequiredSection, string>>>> = {
-    researcher: {
-      goal: ' Ground options in industry patterns or benchmarks when useful.',
-      constraints: ' Reference comparable projects or standards when useful.',
-      runtime_context: ' Mention stack norms or deployment patterns when useful.',
-    },
-    simplifier: {
-      goal: ' Offer Baseline (minimal) vs Upgrade (higher payoff) scope.',
-      non_goals: ' Show what to defer without losing the core outcome.',
-      acceptance_criteria: ' Separate must-have checks from nice-to-have upgrades.',
-    },
-    architect: {
-      actors: ' Clarify who owns interfaces, reviews, and long-term maintenance.',
-      inputs: ' Name the structural boundaries the work starts from.',
-      outputs: ' Name durable artifacts (modules, APIs, schemas) not just tasks.',
-    },
-    'breadth-keeper': {
-      non_goals: ' Catch scope creep and missing edge cases.',
-      failure_modes: ' Surface regressions and quality dimensions the user skipped.',
-      acceptance_criteria: ' Add stretch checks only when they materially improve outcomes.',
-    },
-    'seed-closer': {
-      acceptance_criteria: ' Make each criterion pass/fail or measurable.',
-      verification_plan: ' Name exact commands, reviews, or demos.',
-      goal: ' Lock a true/false Completion Criterion before advancing.',
-    },
-  };
-  return suffixes[perspective]?.[gap] ?? ' Offer Baseline + Upgrade options when the choice changes outcomes.';
-}
-
-export function formatInterviewReadinessGuide(
-  readiness: UltraPlanReadiness,
-  options?: InterviewReadinessGuideOptions,
-): string {
-  const perspective = options?.perspective ?? 'researcher';
-  const interviewRoundCount = options?.interviewRoundCount ?? 0;
-  if (readiness.ready) {
-    return [
-      'Interview readiness: READY for Design.',
-      'Call NextPhase({ phase: "design" }). Seed Spec auto-extracts from interview evidence.',
-      'Do not Write or Edit the plan file yet — that happens in Write phase.',
-    ].join('\n');
-  }
-
-  const lines: string[] = [
-    'Interview readiness: NOT READY for Design.',
-    'Blockers (close before NextPhase):',
-  ];
-
-  if (readiness.usedHeuristicFallback) {
-    lines.push(
-      '⚠ Scoring engine unavailable — using heuristic fallback; continue or rescore later.',
-    );
-  }
-
-  let blockerNum = 1;
-
-  if (!readiness.verifiableGoal) {
-    lines.push(
-      `${blockerNum++}. verifiable_goal=false — capture a true/false Completion Criterion.`,
-    );
-  }
-
-  if (readiness.openGaps.length > 0) {
-    lines.push(
-      `${blockerNum++}. open_gaps (${readiness.openGaps.length}): ${readiness.openGaps.join(', ')}`,
-    );
-    for (const gap of readiness.openGaps.slice(0, 3)) {
-      const guidance = ULTRA_PLAN_SECTION_GUIDANCE[gap];
-      lines.push(`   - ${guidance.label}: ${guidance.askHint}`);
-    }
-    if (readiness.openGaps.length > 3) {
-      lines.push(`   - …+${readiness.openGaps.length - 3} more`);
-    }
-  }
-
-  if (readiness.floorFailures.length > 0) {
-    lines.push(
-      `${blockerNum++}. clarity floors: ${readiness.floorFailures.join('; ')} — ask for files/commands/metrics.`,
-    );
-  }
-
-  if (readiness.ambiguityScore.overallScore > AMBIGUITY_THRESHOLD) {
-    lines.push(
-      `${blockerNum++}. ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} (need <= ${AMBIGUITY_THRESHOLD.toFixed(1)})`,
-    );
-  }
-
-  if (interviewRoundCount >= MAX_INTERVIEW_ROUNDS) {
-    lines.push(
-      `Round cap: ${interviewRoundCount} interview rounds completed (soft cap ${MAX_INTERVIEW_ROUNDS}).`,
-      'Option: AskUserQuestion to advance with defaults → NextPhase({ phase: "design", advance_with_defaults: true }), or keep interviewing.',
-    );
-  }
-
-  const consecutiveNonUser = options?.consecutiveNonUserAnswers ?? 0;
-  if (consecutiveNonUser > 0 && consecutiveNonUser < 3) {
-    lines.push(`Auto-answers: ${consecutiveNonUser}/3.`);
-  }
-  if (consecutiveNonUser >= 3) {
-    lines.push(
-      '⚠ RHYTHM GUARD: 3 consecutive non-user findings. Next turn MUST use AskUserQuestion (PATH 2); no more RecordInterviewFinding until a user answer.',
-    );
-  }
-
-  lines.push(
-    `Status: perspective=${perspective} | ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ')}`,
-    'Do not Write or Edit the plan file. Do not NextPhase until blockers close. Target only open_gaps; frame Baseline/Upgrade through the current perspective.',
-    `NEXT TURN — AskUserQuestion: close the focus below through the ${perspective} perspective (one gap):`,
-    pickNextInterviewFocus(readiness, perspective),
-  );
-
-  const lateralHint = perspectiveLateralHint(perspective);
-  if (lateralHint !== undefined) {
-    lines.push(`Lateral (${perspective}): ${lateralHint}`);
-  }
-
-  return lines.join('\n');
-}
-
-function perspectiveLateralHint(perspective: InterviewPerspective): string | undefined {
-  const hints: Partial<Record<InterviewPerspective, string>> = {
-    researcher: 'Missing info? Documented solutions for similar problems?',
-    simplifier: 'What can we remove? Prefer a Baseline that cuts 30%+ scope.',
-    architect: 'Design from scratch — which abstraction clarifies structure?',
-    'breadth-keeper': 'Skipped edge cases / quality dims? Balance stretch vs non-goals.',
-    'seed-closer': 'What would fail the goal? Lock each AC to a pass/fail test.',
-  };
-  return hints[perspective];
 }

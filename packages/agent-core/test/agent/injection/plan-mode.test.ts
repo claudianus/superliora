@@ -394,4 +394,46 @@ describe('PlanModeInjector cadence', () => {
     expect(text).toContain('Plan mode is active');
     expect(text).not.toContain('Plan mode still active');
   });
+
+  it('uses phase-stable sparse for Ultra Plan instead of periodic full refresh', async () => {
+    const agent = planAgent({
+      isActive: true,
+      isUltraMode: true,
+      phase: 'interview',
+      planFilePath: '/tmp/ultra-plan.md',
+    });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+    const messages = history(agent);
+    for (let i = 0; i < 5; i += 1) {
+      messages.push({ role: 'assistant' });
+    }
+    await injector.inject();
+
+    const text = lastReminder(agent);
+    // After 5 assistant turns without a user prompt, Ultra Plan stays sparse (not full phase dump).
+    expect(text).toContain('Expert-leader interview');
+    expect(text).not.toContain('PATH 1 auto-answer from code/config');
+  });
+
+  it('re-sends full Ultra Plan phase instructions when the phase changes', async () => {
+    const stub = {
+      isActive: true,
+      isUltraMode: true,
+      phase: 'research' as string,
+      planFilePath: '/tmp/ultra-plan.md',
+    };
+    const agent = planAgent(stub);
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+    expect(lastReminder(agent)).toContain('Research Phase');
+
+    stub.phase = 'interview';
+    history(agent).push({ role: 'assistant' } as never);
+    await injector.inject();
+    expect(lastReminder(agent)).toContain('Interview Phase');
+    expect(lastReminder(agent)).toContain('PATH 1 auto-answer from code/config');
+  });
 });
