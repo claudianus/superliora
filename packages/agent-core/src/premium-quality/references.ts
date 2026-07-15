@@ -12,8 +12,6 @@ export const PREMIUM_VISUAL_INSPIRATION_SITES = [
   '- https://www.landingfolio.com/ — landing sections, hero patterns, component ideas.',
   '- https://land-book.com/ — SaaS/marketing landing gallery + templates.',
   '- https://bentogrids.com/ — bento grid layouts (2026 default for feature density).',
-  '- https://www.saasframe.io/ — SaaS hero, product demo, CTA patterns with examples.',
-  '- https://siteinspire.com/ — editorial/minimal gallery.',
   '- https://dark.design/ — dark-mode craft references.',
   '- Live benchmarks (study, do not copy assets): Linear, Stripe, Framer, Notion marketing pages.',
 ].join('\n');
