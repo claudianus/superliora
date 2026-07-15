@@ -455,9 +455,10 @@ function extractKeyArgument(
     CronDelete: ['id'],
     UltraworkGraph: ['run_id', 'graph_id'],
     SwarmChannel: ['action', 'channel', 'body'],
-    // Prefer the short `description` so the header preview never spills a
-    // multi-line `prompt` into the TUI chrome.
-    Agent: ['description', 'prompt'],
+    // Prefer short description for Agent so multi-line prompts never spill into chrome.
+    Agent: ['description', 'subagent_type', 'resume', 'prompt'],
+    AgentSwarm: ['description', 'tasks'],
+    UltraSwarm: ['description', 'task'],
   };
 
   // Glob: concatenate multiple args into a single summary so the header

@@ -452,6 +452,41 @@ describe('tool-result registry', () => {
     expect(out).toContain('status');
     expect(isGenericToolResult('SwarmChannel')).toBe(false);
   });
+  it('Agent glance shows type status and id', () => {
+    const renderer = pickResultRenderer('Agent');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('Agent', { description: 'explore' }),
+          result('agent_id: a1\nactual_subagent_type: explore\nstatus: completed\n\n[summary]\nok'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('explore');
+    expect(out).toContain('completed');
+    expect(out).toContain('a1');
+    expect(isGenericToolResult('Agent')).toBe(false);
+  });
+
+  it('UltraSwarm glance shows strategy and summary', () => {
+    const renderer = pickResultRenderer('UltraSwarm');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('UltraSwarm', {}),
+          result(
+            '<ultra_swarm_result run_id="r1">\n<strategy>auto_select</strategy>\n<summary>completed: 2, failed: 0, aborted: 0</summary>\n</ultra_swarm_result>',
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('auto_select');
+    expect(out).toContain('completed: 2');
+    expect(isGenericToolResult('UltraSwarm')).toBe(false);
+  });
+
 
 
 

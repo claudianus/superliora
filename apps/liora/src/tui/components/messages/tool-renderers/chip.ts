@@ -458,6 +458,50 @@ const swarmChannelChip: ChipProvider = (toolCall, result) => {
   if (action === 'reply') return 'reply';
   return action.length > 0 ? action : 'ok';
 };
+const agentChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const status = /^status:\s*([a-z_]+)/m.exec(result.output)?.[1];
+  if (status !== undefined) return status;
+  if (/status: completed/i.test(result.output)) return 'completed';
+  if (/status: running/i.test(result.output)) return 'running';
+  if (/status: failed/i.test(result.output)) return 'failed';
+  return 'agent';
+};
+
+const agentSwarmChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const completed = /completed:\s*(\d+)/i.exec(result.output)?.[1];
+  const failed = /failed:\s*(\d+)/i.exec(result.output)?.[1];
+  const aborted = /aborted:\s*(\d+)/i.exec(result.output)?.[1];
+  const parts: string[] = [];
+  if (completed !== undefined) parts.push(`${completed} ok`);
+  if (failed !== undefined) parts.push(`${failed} fail`);
+  if (aborted !== undefined) parts.push(`${aborted} abort`);
+  if (parts.length > 0) return parts.join(' · ');
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    if (/<subagent\b/.test(line) || /<expert\b/.test(line)) count++;
+  }
+  return count > 0 ? pluralize(count, 'agent') : 'swarm';
+};
+
+const ultraSwarmChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const completed = /completed:\s*(\d+)/i.exec(result.output)?.[1];
+  const failed = /failed:\s*(\d+)/i.exec(result.output)?.[1];
+  const aborted = /aborted:\s*(\d+)/i.exec(result.output)?.[1];
+  const parts: string[] = [];
+  if (completed !== undefined) parts.push(`${completed} ok`);
+  if (failed !== undefined) parts.push(`${failed} fail`);
+  if (aborted !== undefined) parts.push(`${aborted} abort`);
+  if (parts.length > 0) return parts.join(' · ');
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    if (/<expert\b/.test(line)) count++;
+  }
+  return count > 0 ? pluralize(count, 'expert') : 'ultra-swarm';
+};
+
 
 
 
@@ -505,6 +549,9 @@ const REGISTRY: Record<string, ChipProvider> = {
   CronDelete: cronDeleteChip,
   UltraworkGraph: ultraworkGraphChip,
   SwarmChannel: swarmChannelChip,
+  Agent: agentChip,
+  AgentSwarm: agentSwarmChip,
+  UltraSwarm: ultraSwarmChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

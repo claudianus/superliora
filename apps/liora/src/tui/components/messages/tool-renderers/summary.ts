@@ -422,6 +422,54 @@ const swarmChannelGlance: GlanceFn = (toolCall, result) => {
   const action = typeof toolCall.args['action'] === 'string' ? toolCall.args['action'] : '';
   return action.length > 0 ? action : result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
+const agentGlance: GlanceFn = (_toolCall, result) => {
+  const agentId = /^agent_id:\s*(\S+)/m.exec(result.output)?.[1];
+  const status = /^status:\s*([a-z_]+)/m.exec(result.output)?.[1];
+  const type = /^actual_subagent_type:\s*(\S+)/m.exec(result.output)?.[1];
+  const parts: string[] = [];
+  if (type !== undefined) parts.push(type);
+  if (status !== undefined) parts.push(status);
+  if (agentId !== undefined) parts.push(agentId);
+  if (parts.length > 0) return parts.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const agentSwarmGlance: GlanceFn = (_toolCall, result) => {
+  const summary = /<summary>([^<]+)<\/summary>/i.exec(result.output)?.[1]?.trim();
+  if (summary !== undefined && summary.length > 0) return summary;
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /outcome="([^"]+)"/.exec(line);
+    const item = /item="([^"]+)"/.exec(line)?.[1];
+    if (m) {
+      samples.push(item !== undefined ? `${item}:${m[1]}` : m[1]!);
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length > 0) return samples.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const ultraSwarmGlance: GlanceFn = (_toolCall, result) => {
+  const summary = /<summary>([^<]+)<\/summary>/i.exec(result.output)?.[1]?.trim();
+  const strategy = /<strategy>([^<]+)<\/strategy>/i.exec(result.output)?.[1]?.trim();
+  const parts: string[] = [];
+  if (strategy !== undefined) parts.push(strategy);
+  if (summary !== undefined) parts.push(summary);
+  if (parts.length > 0) return parts.join(' · ');
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const name = /name="([^"]+)"/.exec(line)?.[1];
+    const outcome = /outcome="([^"]+)"/.exec(line)?.[1];
+    if (name !== undefined && outcome !== undefined) {
+      samples.push(`${name}:${outcome}`);
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length > 0) return samples.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 
 
 
@@ -511,3 +559,6 @@ export const cronCreateSummary: ResultRenderer = withGlance(cronCreateGlance);
 export const cronDeleteSummary: ResultRenderer = withGlance(null);
 export const ultraworkGraphSummary: ResultRenderer = withGlance(ultraworkGraphGlance);
 export const swarmChannelSummary: ResultRenderer = withGlance(swarmChannelGlance);
+export const agentSummary: ResultRenderer = withGlance(agentGlance);
+export const agentSwarmSummary: ResultRenderer = withGlance(agentSwarmGlance);
+export const ultraSwarmSummary: ResultRenderer = withGlance(ultraSwarmGlance);

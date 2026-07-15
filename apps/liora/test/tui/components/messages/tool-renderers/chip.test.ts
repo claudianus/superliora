@@ -358,6 +358,36 @@ describe('chip registry', () => {
       ),
     ).toBe('posted');
   });
+  it('Agent chip shows status', () => {
+    expect(
+      chipFor(
+        'Agent',
+        { description: 'explore' },
+        result('agent_id: a1\nactual_subagent_type: explore\nstatus: completed\n\n[summary]\nok'),
+      ),
+    ).toBe('completed');
+  });
+
+  it('AgentSwarm chip shows completion summary', () => {
+    expect(
+      chipFor(
+        'AgentSwarm',
+        {},
+        result('<agent_swarm_result>\n<summary>completed: 2, failed: 1</summary>\n</agent_swarm_result>'),
+      ),
+    ).toBe('2 ok · 1 fail');
+  });
+
+  it('UltraSwarm chip shows expert summary', () => {
+    expect(
+      chipFor(
+        'UltraSwarm',
+        {},
+        result('<ultra_swarm_result run_id="r1">\n<summary>completed: 3, failed: 0, aborted: 0</summary>\n</ultra_swarm_result>'),
+      ),
+    ).toBe('3 ok · 0 fail · 0 abort');
+  });
+
 
 
 
