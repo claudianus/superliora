@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tui-duration-transparency.v1",
+  "title": "Record a TUI tool-duration transparency contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "ux",
+    "duration",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tui-duration-transparency-contract.md with sections for Live duration chips, Finished duration chips, Thinking glance, and Keyboard expand path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tui-duration-transparency-contract.md",
+      "content": "# TUI Duration Transparency Contract\n\n## Live duration chips\nunfinished tools show elapsed time when streamingStartedAtMs is known (sub-second quiet)\n\n## Finished duration chips\nfinished tool headers append duration with result chips\n\n## Thinking glance\nlive thinking shows a 3-line tail without expand\n\n## Keyboard expand path\nctrl+o expands full thinking/tool history\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tui-duration-transparency-contract.md",
+      "text": "Live duration chips",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-duration-transparency-contract.md",
+      "text": "Finished duration chips",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-duration-transparency-contract.md",
+      "text": "Thinking glance",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-duration-transparency-contract.md",
+      "text": "Keyboard expand path",
+      "weight": 1
+    }
+  ]
+}
