@@ -52,4 +52,5 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'footer badges warn when context is high or durable evidence went missing after compact', priority: 2, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
+  { text: '/login connects providers; set OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
 ];

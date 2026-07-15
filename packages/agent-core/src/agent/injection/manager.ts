@@ -16,7 +16,7 @@ import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-g
 import { injectUltraworkPostCompactionContinuation } from '../../ultrawork/recovery';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
-  'Context was compacted but background tasks still run. Do not start duplicates — TaskOutput for results, TaskList to enumerate, TaskStop to cancel.';
+  'Context was compacted but background tasks still run. Do not start duplicates — TaskOutput for results, TaskList to list, TaskStop to cancel.';
 
 const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 3_500;
 
@@ -121,8 +121,8 @@ export class InjectionManager {
     const lines = [
       '<ultrawork_graph_status>',
       duringSwarm
-        ? 'Post-compaction UltraworkGraph status (UltraSwarm active — continue assigned nodes):'
-        : 'Post-compaction UltraworkGraph node status (continue assigned nodes from here):',
+        ? 'Post-compaction UltraworkGraph (UltraSwarm active — continue assigned nodes):'
+        : 'Post-compaction UltraworkGraph node status (continue assigned nodes):',
     ];
 
     if (run !== null && run !== undefined) {
