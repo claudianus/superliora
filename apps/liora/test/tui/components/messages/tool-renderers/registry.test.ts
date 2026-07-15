@@ -191,7 +191,7 @@ describe('tool-result registry', () => {
     const out = strip(joinRender(renderer(call('GetGoal'), result(goalOutput()), ctx)));
     expect(out).toContain('Goal active: Ship feature X');
     expect(out).toContain('2 turns');
-    expect(out).toContain('1.2k tokens');
+    expect(out).toContain('1.2K tokens');
     expect(out).toContain('1m 01s');
     expect(out).not.toContain('"objective"');
     expect(out).not.toContain('"budget"');

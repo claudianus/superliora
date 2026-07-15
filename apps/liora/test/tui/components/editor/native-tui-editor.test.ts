@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import type { AutocompleteItem, AutocompleteProvider } from '#/tui/renderer';
@@ -7,6 +7,10 @@ import type { TUIEditor } from '#/tui/components/editor/editor-contract';
 function makeEditor(): NativeTUIEditor {
   return new NativeTUIEditor();
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 async function flushAutocomplete(): Promise<void> {
   await Promise.resolve();
@@ -55,13 +59,15 @@ describe('NativeTUIEditor', () => {
     expect(changes).toEqual(['a', 'ab', 'a']);
   });
 
-  it('submits plain Enter, clears text, and keeps local history', () => {
+  it('submits plain Enter, clears text, and keeps local history', async () => {
+    vi.useFakeTimers();
     const editor = makeEditor();
     const submit = vi.fn();
     editor.onSubmit = submit;
 
     editor.setText('first');
     editor.handleInput('\r');
+    await vi.runAllTimersAsync();
     editor.handleInput('\u001B[A');
 
     expect(submit).toHaveBeenCalledWith('first');
@@ -134,8 +140,9 @@ describe('NativeTUIEditor', () => {
   });
 
   it('requests, renders, and applies autocomplete suggestions without the legacy editor', async () => {
+    vi.useFakeTimers();
     const requestRender = vi.fn();
-    const editor = new NativeTUIEditor({ requestRender });
+    const editor = new NativeTUIEditor({ requestRender, autocompleteDebounceMs: 0 });
     const provider = providerReturning([
       { value: 'help', label: 'help', description: 'Show help' },
       { value: 'history', label: 'history', description: 'Show history' },
@@ -143,6 +150,7 @@ describe('NativeTUIEditor', () => {
     editor.setAutocompleteProvider(provider);
 
     editor.handleInput('/');
+    await vi.runAllTimersAsync();
     await flushAutocomplete();
 
     expect(editor.isShowingAutocomplete()).toBe(true);

@@ -41,6 +41,7 @@ function makeHarness() {
     resumeSession: vi.fn(),
     listSessions: vi.fn(async () => []),
     close: vi.fn(async () => {}),
+    emergencyFlushSync: vi.fn(),
     track: vi.fn(),
     setTelemetryContext: vi.fn(),
     auth: {

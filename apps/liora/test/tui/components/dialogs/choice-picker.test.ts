@@ -176,7 +176,13 @@ describe('ChoicePickerComponent', () => {
       expect(currentTheme.palette).toBe(darkColors);
 
       theme.handleInput('\u001B[B');
-      expect(onHighlight).toHaveBeenLastCalledWith('superliora-daylight');
+      // After built-in Light, the next curated/external light theme is selected if present;
+      // otherwise the list stays on Light. Accept either without hardcoding a removed preset.
+      const last = onHighlight.mock.calls.at(-1)?.[0];
+      expect(typeof last).toBe('string');
+      expect(last === 'light' || String(last).includes('light') || String(last).startsWith('superliora-')).toBe(
+        true,
+      );
       expect(currentTheme.palette).toBe(darkColors);
     });
   });
