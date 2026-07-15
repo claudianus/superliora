@@ -122,7 +122,7 @@ export class InjectionManager {
       '<ultrawork_graph_status>',
       duringSwarm
         ? 'Post-compaction UltraworkGraph (UltraSwarm active — continue assigned nodes):'
-        : 'Post-compaction UltraworkGraph node status (continue assigned nodes):',
+        : 'Post-compaction UltraworkGraph (continue assigned nodes):',
     ];
 
     if (run !== null && run !== undefined) {
