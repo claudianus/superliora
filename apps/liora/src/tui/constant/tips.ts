@@ -32,7 +32,7 @@ export const WORKING_TIPS: readonly ToolbarTip[] = [
   { text: 'shift-tab toggles Ultrawork and off', solo: true, priority: 3 },
   { text: '@: mention files', priority: 2 },
   { text: '! to run a shell command', priority: 2 },
-  { text: 'ctrl-o toggles clean chat vs full tool history so you can audit what Liora did', priority: 2 },
+  { text: 'ctrl-o toggles clean chat vs full tool history to audit what Liora did', priority: 2 },
   { text: 'ctrl-b backgrounds a long shell task; /tasks shows progress', priority: 2 },
 ];
 

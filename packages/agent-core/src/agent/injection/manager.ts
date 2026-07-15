@@ -16,7 +16,7 @@ import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-g
 import { injectUltraworkPostCompactionContinuation } from '../../ultrawork/recovery';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
-  'Context was compacted but background tasks still run. Do not start duplicates — TaskOutput for results, TaskList to list, TaskStop to cancel.';
+  'Context compacted; background tasks still run. Do not start duplicates — TaskOutput for results, TaskList to list, TaskStop to cancel.';
 
 const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 3_500;
 
