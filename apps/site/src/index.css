@@ -1,7 +1,8 @@
 /**
- * Art Direction Brief: SuperLiora GitHub Pages
- * Vibe: cinematic dark-craft, editorial utilitarian, glass bento
- * Palette: off-black base (#0A0B0D) + surface (#111318) + cyan accent (#2DD4BF)
+ * Art Direction Brief: SuperLiora GitHub Pages — Blood Moon
+ * Vibe: cinematic dark Blood Moon, editorial utilitarian, glass bento
+ * Palette: near-black base (#0A0A0B) + surface (#131316) + primary (#E63946)
+ * Accents: #FF6B7A / #FF8E98 · text #E8E8E8
  * Typography: Space Grotesk (display) + IBM Plex Mono (mono/data) + Pretendard (KR)
  * Layout: 12-column bento hero, 55/45 split narrative, max-w-7xl, min-h-[100dvh]
  * Motion: transform + opacity only, cubic-bezier(0.22, 1, 0.36, 1), reduced-motion fallback
@@ -16,25 +17,26 @@
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-kr: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Space Grotesk", sans-serif;
 
-  --color-bg: #0A0B0D;
-  --color-bg-1: #060709;
-  --color-bg-2: #111318;
-  --color-bg-3: #171B21;
-  --color-elevated: #1B2028;
-  --color-line: #2A303A;
-  --color-line-strong: #3B4450;
-  --color-text: #E6EDF3;
-  --color-soft: #8A95A2;
-  --color-muted: #5D6978;
-  --color-cyan: #2DD4BF;
-  --color-cyan-dim: rgba(45, 212, 191, 0.6);
-  --color-cyan-glow: rgba(45, 212, 191, 0.12);
-  --color-teal: #5EEAD4;
+  --color-bg: #0A0A0B;
+  --color-bg-1: #060607;
+  --color-bg-2: #131316;
+  --color-bg-3: #1A1A1E;
+  --color-elevated: #1F1F24;
+  --color-line: #2A2A30;
+  --color-line-strong: #3A3A42;
+  --color-text: #E8E8E8;
+  --color-soft: #A0A0A8;
+  --color-muted: #6B6B75;
+  /* Token names kept; values remapped to Blood Moon primary/accents */
+  --color-cyan: #E63946;
+  --color-cyan-dim: rgba(230, 57, 70, 0.6);
+  --color-cyan-glow: rgba(230, 57, 70, 0.12);
+  --color-teal: #FF6B7A;
   --color-amber: #F5B041;
   --color-amber-dim: rgba(245, 176, 65, 0.15);
   --color-violet: #A78BFA;
   --color-emerald: #34D399;
-  --color-rose: #F87171;
+  --color-rose: #FF8E98;
   --color-gold: #FCD34D;
 
   --radius-sm: 0.875rem;
@@ -42,7 +44,7 @@
 
   --shadow-card: 0 18px 50px rgba(0, 0, 0, 0.35);
   --shadow-card-sm: 0 4px 14px rgba(0, 0, 0, 0.25);
-  --shadow-glow: 0 0 40px -12px rgba(45, 212, 191, 0.18);
+  --shadow-glow: 0 0 40px -12px rgba(230, 57, 70, 0.22);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -67,10 +69,10 @@
 .mesh-bg {
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(ellipse at 10% 0%, rgba(45, 212, 191, 0.12) 0%, transparent 42%),
-    radial-gradient(ellipse at 90% 15%, rgba(87, 83, 161, 0.08) 0%, transparent 38%),
-    radial-gradient(ellipse at 50% 100%, rgba(45, 212, 191, 0.06) 0%, transparent 48%),
-    radial-gradient(ellipse at 70% 60%, rgba(245, 176, 65, 0.04) 0%, transparent 35%);
+    radial-gradient(ellipse at 10% 0%, rgba(230, 57, 70, 0.14) 0%, transparent 42%),
+    radial-gradient(ellipse at 90% 15%, rgba(255, 107, 122, 0.08) 0%, transparent 38%),
+    radial-gradient(ellipse at 50% 100%, rgba(230, 57, 70, 0.07) 0%, transparent 48%),
+    radial-gradient(ellipse at 70% 60%, rgba(255, 142, 152, 0.05) 0%, transparent 35%);
   background-size: 150% 150%;
   animation: mesh-drift 24s ease-in-out infinite;
 }
@@ -83,9 +85,9 @@
 html[data-theme="light"] .mesh-bg {
   background-color: #FAFBFC;
   background-image:
-    radial-gradient(ellipse at 10% 0%, rgba(13, 148, 136, 0.08) 0%, transparent 42%),
-    radial-gradient(ellipse at 90% 15%, rgba(109, 40, 217, 0.04) 0%, transparent 38%),
-    radial-gradient(ellipse at 50% 100%, rgba(13, 148, 136, 0.05) 0%, transparent 48%),
+    radial-gradient(ellipse at 10% 0%, rgba(230, 57, 70, 0.08) 0%, transparent 42%),
+    radial-gradient(ellipse at 90% 15%, rgba(185, 28, 28, 0.04) 0%, transparent 38%),
+    radial-gradient(ellipse at 50% 100%, rgba(230, 57, 70, 0.05) 0%, transparent 48%),
     radial-gradient(ellipse at 70% 60%, rgba(245, 158, 11, 0.04) 0%, transparent 35%);
 }
 
@@ -98,7 +100,7 @@ html[data-theme="light"] .mesh-bg {
 }
 
 .glass {
-  background-color: rgba(17, 19, 24, 0.72);
+  background-color: rgba(19, 19, 22, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.09);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -122,7 +124,7 @@ html[data-theme="light"] .glass {
 
 .card-hover:hover {
   transform: translateY(-4px);
-  border-color: rgba(45, 212, 191, 0.45);
+  border-color: rgba(230, 57, 70, 0.45);
   box-shadow: var(--shadow-card), var(--shadow-glow);
 }
 
@@ -141,7 +143,7 @@ html[data-theme="light"] .glass {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background: radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(45, 212, 191, 0.12), transparent 40%);
+  background: radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(230, 57, 70, 0.14), transparent 40%);
   transition: opacity 0.4s ease;
   pointer-events: none;
   z-index: 0;
@@ -221,19 +223,19 @@ html[data-theme="light"] {
   --color-text: #0F172A;
   --color-soft: #475569;
   --color-muted: #64748B;
-  --color-cyan: #0F766E;
-  --color-cyan-dim: rgba(15, 118, 110, 0.55);
-  --color-cyan-glow: rgba(15, 118, 110, 0.08);
-  --color-teal: #115E59;
+  --color-cyan: #C62828;
+  --color-cyan-dim: rgba(198, 40, 40, 0.55);
+  --color-cyan-glow: rgba(198, 40, 40, 0.08);
+  --color-teal: #B71C1C;
   --color-amber: #B45309;
   --color-amber-dim: rgba(180, 83, 9, 0.12);
   --color-violet: #6D28D9;
   --color-emerald: #166534;
-  --color-rose: #B91C1C;
+  --color-rose: #9F1239;
   --color-gold: #92400E;
   --shadow-card: 0 18px 50px rgba(15, 23, 42, 0.12);
   --shadow-card-sm: 0 4px 14px rgba(15, 23, 42, 0.08);
-  --shadow-glow: 0 0 40px -12px rgba(15, 118, 110, 0.14);
+  --shadow-glow: 0 0 40px -12px rgba(198, 40, 40, 0.16);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
@@ -258,7 +260,7 @@ html[data-theme="light"] {
 }
 
 .terminal-glow {
-  box-shadow: 0 0 60px -16px rgba(45, 212, 191, 0.15);
+  box-shadow: 0 0 60px -16px rgba(230, 57, 70, 0.2);
 }
 
 /* --- Hero image ambient glow --- */
@@ -271,7 +273,7 @@ html[data-theme="light"] {
   position: absolute;
   inset: -24px;
   border-radius: 2rem;
-  background: radial-gradient(circle at 50% 40%, rgba(45, 212, 191, 0.18), transparent 55%);
+  background: radial-gradient(circle at 50% 40%, rgba(230, 57, 70, 0.2), transparent 55%);
   filter: blur(28px);
   opacity: 0.7;
   z-index: -1;
@@ -287,7 +289,7 @@ html[data-theme="light"] {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(600px circle at 50% 0%, rgba(45, 212, 191, 0.10), transparent 60%);
+  background: radial-gradient(600px circle at 50% 0%, rgba(230, 57, 70, 0.12), transparent 60%);
   pointer-events: none;
   z-index: -1;
 }
