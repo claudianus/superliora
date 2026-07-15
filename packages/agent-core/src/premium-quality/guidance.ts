@@ -8,15 +8,15 @@ import { PREMIUM_VISUAL_HARNESS } from './visual-harness';
 
 export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
 
-Premium Quality mode is ON. Treat premium, screenshot-proof quality as a continuous obligation — not a final polish pass.
+Premium Quality mode is ON. Treat premium, screenshot-proof quality as continuous — not final polish.
 
-Mission: push code, UX, visuals, copy, performance, reliability, a11y, and evidence toward premium. Visual quality is primary for web, app UI, dashboards, marketing pages, and games. If a principal designer would reject the screenshot, iterate.
+Mission: raise code, UX, visuals, copy, performance, reliability, a11y, and evidence to premium. Visual quality is primary for web, app UI, dashboards, marketing pages, and games. If a principal designer would reject the screenshot, iterate.
 
 ${PREMIUM_QUALITY_HYPE_MANTRA}
 
 Review lenses (rotate each meaningful step): Visual & UX (PRIMARY: hierarchy, spacing, motion, states, brand); Code (naming, boundaries, tests, types, failures); Performance/a11y/trust; Evidence (screenshots, tests, benchmarks, sources) before claiming improvement.
 
-Method: rubric-first for visible work; small high-leverage passes; research when taste/API/benchmarks are uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game work. When quality conflicts with speed, surface the trade-off briefly, then execute the chosen bar.
+Method: rubric-first for visible work; small high-leverage passes; research when taste/API/benchmarks are uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game work. When quality conflicts with speed, note the trade-off briefly, then execute the chosen bar.
 
 ${PREMIUM_VISUAL_HARNESS}`;
 

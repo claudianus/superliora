@@ -52,7 +52,7 @@ export function buildUltraworkRecoveryPrompt(
 ): string {
   const lines = [
     '<ultrawork_recovery>',
-    'Resume from the last durable checkpoint. Do not restart from scratch unless the checkpoint is unusable.',
+    'Resume from the last durable checkpoint. Do not restart from scratch unless unusable.',
     `Run id: ${report.run.id}`,
     `Objective: ${report.run.objective}`,
     `Stage: ${report.run.stage}`,
@@ -70,14 +70,14 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`Plan file: ${planContext.planFilePath}`);
   }
   if (planContext?.phase !== undefined) {
-    lines.push(`UltraPlan phase: ${planContext.phase}; Do not create a new plan file or restart EnterPlanMode.`);
+    lines.push(`UltraPlan phase: ${planContext.phase}; do not create a new plan file or restart EnterPlanMode.`);
   }
   if (planContext?.interviewRoundCount !== undefined && planContext.interviewRoundCount > 0) {
-    lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}; Do not restart the UltraPlan interview from round 1.`);
+    lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}; do not restart UltraPlan interview from round 1.`);
   }
   if (report.skippedInterview === true) {
     lines.push(
-      'Resume policy: Skip UltraPlan interview on resume. Continue design, implementation, or verification from the saved checkpoint.',
+      'Resume policy: Skip UltraPlan interview on resume. Continue design/implementation/verification from the saved checkpoint.',
     );
     lines.push(
       'Do not ask blocking interview questions unless a critical missing blocker prevents progress.',
@@ -146,7 +146,7 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`- ${action}`);
   }
   lines.push(
-    'Continue from the current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over model claims; mark AC/nodes done only with evidence. Preserve durable ids.',
+    'Continue from current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over model claims; mark AC/nodes done only with evidence. Preserve durable ids.',
   );
   lines.push('</ultrawork_recovery>');
   return lines.join('\n');

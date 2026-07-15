@@ -15,7 +15,7 @@ export type PremiumVisualSkillName =
 /** Premium Visual skill routing is mandatory for visible-surface work while Premium Quality is ON. */
 export const PREMIUM_VISUAL_SKILL_ROUTING = [
   'Premium Visual skill routing (MANDATORY while Premium Quality is ON):',
-  '- Trigger: any web/app UI, landing, dashboard, game, marketing site, component library, or visual refresh — even without the word "design".',
+  '- Trigger: any web/app UI, landing, dashboard, game, marketing site, component library, or visual refresh — even without "design".',
   '- Before visual markup/styles or shipping a visible slice: SearchSkill → Skill best match. Reuse loaded skills; do not reload the same skill.',
   '- Keywords (3–12 words): "frontend design distinctive anti template"; "premium frontend design taste anti slop"; "redesign existing project premium visual audit"; "minimalist ui premium utilitarian design"; "stitch design taste semantic design system"; "develop web game visual polish playwright screenshot"; "workspace imagen generate ui assets icons".',
   '- Subject-specific assets: GenerateImage when OPENAI/GOOGLE/GEMINI keys exist; otherwise SearchSkill → workspace-imagen.',
