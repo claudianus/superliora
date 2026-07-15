@@ -26,7 +26,7 @@ const PHASE_INSTRUCTIONS: Record<string, string> = {
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, NextPhase.
 AskUserQuestion, ${ULTRA_PLAN_BLOCKED_MUTATORS}
 
-Goal: source-backed context + improvement levers before the UltraPlan interview elevates the goal and upgrade choices.
+Goal: source-backed context + improvement levers before UltraPlan interview elevates the goal and upgrade choices.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 Prefer Grep, LioraSymbol, Glob, LioraRead before broad Read. Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
@@ -63,7 +63,7 @@ Cannot write the plan file or call ExitPlanMode. Your turn MUST end with a desig
   review: `## Review Phase
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, TaskList, TaskOutput. Write, Edit, general Bash BLOCKED.
 Verify design against code. Re-search when external claims stay uncertain. TodoList for verification gaps.
-Bash read-only: cat, sed -n, head/tail, grep/rg, read-only git (plus ls/find/jq as needed).
+Bash read-only: cat, sed -n, head/tail, grep/rg, read-only git (+ ls/find/jq as needed).
 Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
@@ -81,7 +81,7 @@ ExitPlanMode only after a complete Seed Spec.`,
   exit: `## Exit Phase
 Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver.
 No-AI-Slop skill routing: light pass on user-visible plan text; SearchSkill with response language only if prose still reads generic.
-If ExitPlanMode reports missing sections, Read/fix only that plan file and retry. Other reads for quick verification are allowed; stay focused on finalizing the plan.`,
+If ExitPlanMode reports missing sections, Read/fix only that plan file and retry. Other reads for quick verification allowed; stay focused on finalizing the plan.`,
 };
 
 const INTERVIEW_SPARSE_ESSENTIALS = [
