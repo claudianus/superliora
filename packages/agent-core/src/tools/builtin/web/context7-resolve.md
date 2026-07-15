@@ -4,4 +4,4 @@ Use for up-to-date API docs, setup steps, or code examples for a named library. 
 
 Provide both `library_name` (package/product name) and `query` (task/question — ranks matches by relevance). Pick the best match, then call Context7Docs with that library ID.
 
-Prefer this over WebSearch/FetchURL for library/framework docs rather than blogs, papers, or security advisories.
+Prefer this over WebSearch/FetchURL for library/framework docs — not blogs, papers, or security advisories.
