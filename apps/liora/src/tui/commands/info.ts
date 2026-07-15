@@ -187,12 +187,12 @@ function loadPrivacySnapshot(host: SlashCommandHost): {
     const configPath = host.harness.configPath ?? resolveConfigPath({ homeDir });
     const { config } = loadRuntimeConfigSafe(configPath);
     return {
-      telemetryEnabled: config.telemetry !== false,
+      telemetryEnabled: config.telemetry === true,
       configPath,
     };
   } catch {
     return {
-      telemetryEnabled: true,
+      telemetryEnabled: false,
       configPath: '(unknown)',
     };
   }
@@ -222,9 +222,9 @@ export function buildContextOsReportLines(
   lines.push(
     '',
     'Privacy / ZDR posture',
-    `  Telemetry: ${privacy.telemetryEnabled ? 'ON (can be disabled)' : 'OFF (local-preferring)'}`,
+    `  Telemetry: ${privacy.telemetryEnabled ? 'ON (opt-in)' : 'OFF (default · ZDR-friendly)'}`,
     `  Config: ${privacy.configPath}`,
-    '  Tip: set `telemetry = false` in config.toml for zero product telemetry (ZDR-friendly).',
+    '  Tip: product telemetry is off by default. Set `telemetry = true` in config.toml only if you want usage analytics.',
     '  Session transcripts still stay local to this machine unless you export them.',
     '',
     'Media & research (no extra setup when keys already exist)',

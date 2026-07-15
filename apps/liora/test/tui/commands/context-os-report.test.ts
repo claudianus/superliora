@@ -41,7 +41,7 @@ describe('buildContextOsReportLines', () => {
     expect(lines).toContain('auth flow');
     expect(lines).toContain('needs_rehydration');
     expect(lines).toContain('Telemetry: ON');
-    expect(lines).toContain('telemetry = false');
+    expect(lines).toContain('telemetry = true');
     expect(lines).toContain('WebSearch');
     expect(lines).toContain('GenerateImage');
     expect(lines).toContain('evidence-miss selections 1');

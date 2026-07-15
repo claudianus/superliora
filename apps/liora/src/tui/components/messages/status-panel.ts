@@ -576,7 +576,7 @@ function privacyStatusRows(options: StatusReportOptions): readonly FieldRow[] {
     return [
       {
         label: 'Privacy',
-        value: 'Telemetry ON · set telemetry=false in config.toml for ZDR-friendly local mode',
+        value: 'Telemetry ON (opt-in) · set telemetry=false or omit it for ZDR-friendly local mode',
         severity: 'warning',
       },
     ];
@@ -584,7 +584,7 @@ function privacyStatusRows(options: StatusReportOptions): readonly FieldRow[] {
   return [
     {
       label: 'Privacy',
-      value: 'Telemetry OFF · local-preferring (ZDR-friendly product analytics)',
+      value: 'Telemetry OFF (default) · local-preferring ZDR posture',
     },
   ];
 }

@@ -29,7 +29,9 @@ export function isTelemetryDisabledByEnv(env: NodeJS.ProcessEnv = process.env): 
 export function shouldEnableTelemetry(
   input: { readonly enabled?: boolean; readonly env?: NodeJS.ProcessEnv } = {},
 ): boolean {
-  return input.enabled !== false && !isTelemetryDisabledByEnv(input.env ?? process.env);
+  // Product telemetry is opt-in (ZDR-friendly default). Hosts must pass
+  // `enabled: true` explicitly after reading config.telemetry === true.
+  return input.enabled === true && !isTelemetryDisabledByEnv(input.env ?? process.env);
 }
 
 export function initializeTelemetry(options: TelemetryBootstrapOptions): void {
