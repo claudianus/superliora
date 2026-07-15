@@ -4,4 +4,4 @@ Maintain the Ultrawork WorkGraph — AC/work ledger backing TodoList during Ultr
 
 **API:** no args = read; `run_id` + `nodes` (+ optional `graph_id`, `root_goal`) = replace. `sync_todos` (default true) mirrors TodoList as `[nodeId] title`.
 
-**Rules:** stable short ids (`ac_1`, `verify_2`); nodes independently checkable; `done` only with evidence; ledger not prose storage.
+**Rules:** stable short ids (`ac_1`, `verify_2`); independently checkable nodes; `done` only with evidence; ledger not prose storage.
