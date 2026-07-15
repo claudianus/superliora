@@ -64,6 +64,20 @@ export class QueuePaneComponent extends Container {
           }),
     ];
 
+    if (this.messages.length > 0) {
+      const n = this.messages.length;
+      const bashCount = this.messages.filter((m) => m.mode === 'bash').length;
+      const promptCount = n - bashCount;
+      const parts: string[] = [`queue ${String(n)}`];
+      if (promptCount > 0) parts.push(`${String(promptCount)} prompt${promptCount === 1 ? '' : 's'}`);
+      if (bashCount > 0) parts.push(`${String(bashCount)} shell`);
+      const label = parts.join(' · ');
+      const countLine = animated
+        ? `  ${renderSpectacularText(label, 'queue:count:' + label, appearance, { intense: false })}`
+        : `  ${label}`;
+      lines.push(dim(truncateToWidth(countLine, width, ELLIPSIS)));
+    }
+
     for (const item of this.messages) {
       const displayText = item.displayText ?? item.text;
       const singleLine = displayText.replaceAll(/\s+/g, ' ').trim();

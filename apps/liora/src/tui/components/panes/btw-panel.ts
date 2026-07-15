@@ -132,8 +132,8 @@ export class BtwPanelComponent implements Component {
     const animated = shouldRenderAmbientEffects(appearance);
     const paint = (s: string): string => chalk.hex(currentTheme.palette.border)(s);
     const hint = truncated && this.options.canUseScrollKeys()
-      ? 'Esc close · ↑↓ scroll '
-      : 'Esc close ';
+      ? 'Esc close · ↑↓ scroll · /btw '
+      : 'Esc close · /btw ';
     const titleLabel = animated
       ? renderPremiumHeadline('BTW', 'btw:title', appearance)
       : chalk.hex(currentTheme.palette.accent).bold(' BTW ');
