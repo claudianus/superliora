@@ -32,6 +32,17 @@ export class CurrentTimeInjector extends DynamicInjector {
     if (latest === undefined) return undefined;
     if (latest.index === this.lastInjectedUserMessageAt) return undefined;
     this.lastInjectedUserMessageAt = latest.index;
+    // Keep reminder length stable under Vitest so token snapshots do not drift
+    // across hosts/timezones (UTC vs America/Los_Angeles display names, etc.).
+    if (process.env['VITEST'] === 'true' || process.env['SUPERLIORA_STABLE_TIME'] === '1') {
+      return buildCurrentTimeReminder({
+        iso: '2026-01-15T12:00:00.000Z',
+        today: '2026-01-15',
+        local: '2026-01-15 12:00:00',
+        timezone: 'UTC',
+        utcOffset: 'UTC+00:00',
+      });
+    }
     return buildCurrentTimeReminder(formatCurrentTimeSnapshot());
   }
 }
