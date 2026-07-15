@@ -161,7 +161,7 @@ export function suggestNextActions(
 ): string[] {
   const actions: string[] = [];
   if (interruptReason !== undefined) {
-    actions.push(`Acknowledge the interruption (${interruptReason}) and restate the remaining objective.`);
+    actions.push(`Acknowledge interruption (${interruptReason}); restate remaining objective.`);
   }
 
   const progress = summarizeWorkGraphProgress(run.workGraph);
@@ -172,7 +172,7 @@ export function suggestNextActions(
     run.stage === 'research'
   ) {
     actions.push(
-      'WorkGraph is ahead of checkpoint stage — continue current in-progress node; do not restart research.',
+      'WorkGraph is ahead of checkpoint — continue in-progress node; do not restart research.',
     );
   }
   const planPhase = planContext?.phase ?? resumeCursor?.planPhase;
@@ -190,15 +190,15 @@ export function suggestNextActions(
       if (planPhase === 'design' || planPhase === 'review' || planPhase === 'write') {
         actions.push(`Resume UltraPlan ${planPhase}; advance toward ExitPlanMode without new interview rounds.`);
       } else if (effectiveStage === 'goal' || effectiveStage === 'staff' || effectiveStage === 'swarm') {
-        actions.push('Verify the UltraGoal contract and resume autonomous pursuit without interview questions.');
+        actions.push('Verify UltraGoal; resume autonomous pursuit without interview questions.');
       } else if (
         effectiveStage === 'integrate' ||
         effectiveStage === 'verify' ||
         effectiveStage === 'learn'
       ) {
-        actions.push(`Continue ${effectiveStage} from the checkpoint; do not reopen UltraPlan interview.`);
+        actions.push(`Continue ${effectiveStage} from checkpoint; do not reopen UltraPlan interview.`);
       } else {
-        actions.push('Continue from the saved checkpoint; do not reopen UltraPlan interview.');
+        actions.push('Continue from saved checkpoint; do not reopen UltraPlan interview.');
       }
     }
   } else if (effectiveStage === 'plan' || effectiveStage === 'research') {
@@ -210,8 +210,8 @@ export function suggestNextActions(
         const round = planContext?.interviewRoundCount ?? resumeCursor?.interviewRound ?? 0;
         actions.push(
           round > 0
-            ? `Continue the UltraPlan interview from round ${String(round + 1)}; do not restart discovery.`
-            : 'Continue the UltraPlan interview from the current evidence pack.',
+            ? `Continue UltraPlan interview from round ${String(round + 1)}; do not restart discovery.`
+            : 'Continue UltraPlan interview from the current evidence pack.',
         );
         actions.push(
           'Research-first before AskUserQuestion; offer Baseline + Upgrade choices.',
@@ -222,25 +222,25 @@ export function suggestNextActions(
         actions.push('Resume design exploration and coverage lanes before Review.');
         break;
       case 'review':
-        actions.push('Re-verify the plan against code and sources, then advance to Write when ready.');
+        actions.push('Re-verify plan against code/sources, then advance to Write when ready.');
         break;
       case 'write':
         actions.push('Resume writing approved plan sections; do not reopen a fresh interview.');
         break;
       case 'exit':
-        actions.push('Call ExitPlanMode only after the plan file still satisfies the Seed Spec gate.');
+        actions.push('Call ExitPlanMode only after Seed Spec gate still passes.');
         break;
       default:
-        actions.push('Re-open the active Ultra Plan file and continue the interview or plan gate.');
+        actions.push('Re-open the active Ultra Plan file; continue interview or plan gate.');
         break;
     }
   } else {
     switch (effectiveStage) {
       case 'intake':
-        actions.push('Re-open the active Ultra Plan file and continue the interview or plan gate.');
+        actions.push('Re-open the active Ultra Plan file; continue interview or plan gate.');
         break;
       case 'goal':
-        actions.push('Verify the UltraGoal contract and resume autonomous pursuit.');
+        actions.push('Verify UltraGoal contract and resume autonomous pursuit.');
         break;
       case 'staff':
       case 'swarm':
@@ -250,10 +250,10 @@ export function suggestNextActions(
         actions.push('Merge specialist output and resolve conflicts before more product edits.');
         break;
       case 'verify':
-        actions.push('Re-run mechanical checks and capture runtime evidence for open acceptance criteria.');
+        actions.push('Re-run mechanical checks; capture runtime evidence for open ACs.');
         break;
       case 'learn':
-        actions.push('Update the knowledge ledger; promote only verified findings.');
+        actions.push('Update knowledge ledger; promote only verified findings.');
         break;
       case 'done':
         actions.push('Confirm completion criteria and close the run.');
