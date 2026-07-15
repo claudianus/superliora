@@ -10,7 +10,7 @@ export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
 
 Premium Quality mode is ON. Treat premium, screenshot-proof quality as a continuous obligation — not a final polish pass.
 
-Mission: push code, UX, visuals, copy, performance, reliability, a11y, and evidence toward premium. Visual quality is the primary lens for web, app UI, dashboards, marketing pages, and games. If a principal designer would reject the screenshot, iterate.
+Mission: push code, UX, visuals, copy, performance, reliability, a11y, and evidence toward premium. Visual quality is primary for web, app UI, dashboards, marketing pages, and games. If a principal designer would reject the screenshot, iterate.
 
 ${PREMIUM_QUALITY_HYPE_MANTRA}
 
@@ -21,7 +21,7 @@ Method: rubric-first for visible work; small high-leverage passes; research when
 ${PREMIUM_VISUAL_HARNESS}`;
 
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
-  'Premium Quality mode still ON — keep elevating visuals (PRIMARY), UX, code, performance, accessibility, and evidence before you claim done.',
+  'Premium Quality mode still ON — keep elevating visuals (PRIMARY), UX, code, performance, a11y, and evidence before you claim done.',
   PREMIUM_QUALITY_HYPE_SPARSE,
   PREMIUM_VISUAL_SPARSE_CHECKPOINT,
 ].join('\n');
