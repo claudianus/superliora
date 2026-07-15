@@ -239,6 +239,27 @@ describe('chip registry', () => {
     );
     expect(out).toBe('1 expert');
   });
+  it('Skill chip shows loaded status', () => {
+    expect(
+      chipFor('Skill', { skill: 'no-ai-slop' }, result('Skill "no-ai-slop" loaded inline. Follow its instructions.')),
+    ).toBe('loaded');
+  });
+
+  it('Memory chip counts search hits', () => {
+    const out = chipFor(
+      'Memory',
+      { search: { query: 'prefs' } },
+      result('1. score=0.91 [m1] semantic/user\nSubject: Theme\nContent: dark\n\n2. score=0.80 [m2] semantic/user\nSubject: Lang\nContent: ko'),
+    );
+    expect(out).toBe('2 memories');
+  });
+
+  it('Memory chip shows saved status', () => {
+    expect(
+      chipFor('Memory', { write: { subject: 'Theme', content: 'dark' } }, result('Memory saved: m1\n[m1] semantic/user\nSubject: Theme\nContent: dark')),
+    ).toBe('saved');
+  });
+
 
 
 

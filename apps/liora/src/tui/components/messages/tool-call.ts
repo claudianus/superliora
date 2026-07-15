@@ -439,6 +439,8 @@ function extractKeyArgument(
     Context7Docs: ['library_id', 'query'],
     SearchSkill: ['query', 'keywords'],
     SearchExpert: ['query', 'keywords'],
+    Skill: ['skill', 'name', 'args'],
+    Memory: ['search', 'write', 'read', 'list', 'forget'],
     // Prefer the short `description` so the header preview never spills a
     // multi-line `prompt` into the TUI chrome.
     Agent: ['description', 'prompt'],
