@@ -17,7 +17,7 @@ export interface SwarmRunMemory {
 
 const EXPERT_BLOCK_RE = /<expert\s+([^>]+)>\n?([\s\S]*?)\n<\/expert>/g;
 const ARCHIVE_ID_RE = /\[liora-archived id=([a-f0-9]+)/;
-const EVIDENCE_ATTR_RE = /evidence_ids="([^"]*)"/i;
+const _EVIDENCE_ATTR_RE = /evidence_ids="([^"]*)"/i;
 const RUN_ID_RE = /run_id="([^"]+)"/i;
 
 export function extractSwarmRunsFromText(text: string): readonly SwarmRunMemory[] {

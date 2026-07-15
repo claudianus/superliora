@@ -151,7 +151,6 @@ import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import { SUPERLIORA_PROVIDER_NAME } from '@superliora/oauth';
 import type { SessionWarning } from '@superliora/protocol';
-import type { CredentialRequest, CredentialResponse } from '@superliora/agent-core';
 import { proxyWithExtraPayload } from './types';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';

@@ -430,9 +430,6 @@ export function projectContext(
       case 'swarm.steer':
       case 'ultrawork.mode':
       case 'ultrawork.run':
-      case 'context.append_message':
-      case 'context.apply_compaction':
-      case 'context.clear':
         break;
       default: {
         const _exhaustive: never = rec;

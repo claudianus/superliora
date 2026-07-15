@@ -4,7 +4,6 @@ import { basename, join } from 'node:path';
 import {
   CANONICAL_LLM_WIKI_ROOT,
   resolveLlmWikiPaths,
-  resolveLlmWikiRoot,
 } from '#/constant/workspace-data';
 
 import type { UltraworkActivationSource } from './ultrawork-contract';

@@ -45,7 +45,7 @@ import { handleMemoryCommand } from './memory';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
 import { handlePreflightCommand } from './preflight';
-import { applyPremiumQuality, handlePremiumQualityCommand } from './premium';
+import { handlePremiumQualityCommand } from './premium';
 import {
   handleRendererCommand,
   type RendererDiagnosticsOverlayCommand,

@@ -33,7 +33,7 @@ function preflightRefreshEvidenceRoot(workDir: string): string {
   return workspaceRelativePath(workDir, 'evidence', 'superliora-preflight-refresh');
 }
 
-function preflightRuntimeEvidenceRoot(workDir: string): string {
+function _preflightRuntimeEvidenceRoot(workDir: string): string {
   return workspaceRelativePath(workDir, 'evidence', 'preflight-readiness');
 }
 

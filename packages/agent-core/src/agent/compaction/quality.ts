@@ -427,7 +427,7 @@ function extractFileHintsFromText(text: string): readonly string[] {
 function extractEvidenceIdsFromText(text: string): string[] {
   const ids = new Set<string>();
   // evidence_ids: a,b  OR evidence_id=x OR evidence_ids="a,b"
-  const attr = /\bevidence[_-]?ids?\s*[=:]\s*["']?([A-Za-z0-9_.:\/-]+(?:\s*,\s*[A-Za-z0-9_.:\/-]+)*)/gi;
+  const attr = /\bevidence[_-]?ids?\s*[=:]\s*["']?([A-Za-z0-9_.:/-]+(?:\s*,\s*[A-Za-z0-9_.:/-]+)*)/gi;
   let match: RegExpExecArray | null;
   while ((match = attr.exec(text)) !== null) {
     for (const raw of match[1]?.split(/[,\s]+/) ?? []) {
@@ -436,7 +436,7 @@ function extractEvidenceIdsFromText(text: string): string[] {
     }
   }
   // WorkGraph / Ultrawork node ids in common forms: node_id=..., work_node_ids=...
-  const nodeAttr = /\b(?:work_?node_ids?|node_id|ac_id|acceptance_criterion_id)\s*[=:]\s*["']?([A-Za-z0-9_.:\/-]+(?:\s*,\s*[A-Za-z0-9_.:\/-]+)*)/gi;
+  const nodeAttr = /\b(?:work_?node_ids?|node_id|ac_id|acceptance_criterion_id)\s*[=:]\s*["']?([A-Za-z0-9_.:/-]+(?:\s*,\s*[A-Za-z0-9_.:/-]+)*)/gi;
   while ((match = nodeAttr.exec(text)) !== null) {
     for (const raw of match[1]?.split(/[,\s]+/) ?? []) {
       const id = raw.trim();

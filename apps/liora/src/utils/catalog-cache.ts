@@ -12,7 +12,6 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import {
-  CatalogFetchError,
   DEFAULT_CATALOG_URL,
   fetchCatalog,
   loadBuiltInCatalog,
@@ -100,7 +99,7 @@ export async function loadCatalog(
     const catalog = await fetchCatalog(DEFAULT_CATALOG_URL, signal, fetchImpl);
     await writeCachedCatalog(catalog);
     return mergeLocalCatalogProviders(catalog);
-  } catch (error) {
+  } catch (_error) {
     if (cached !== undefined) return mergeLocalCatalogProviders(cached);
     const builtIn = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
     if (builtIn !== undefined) return mergeLocalCatalogProviders(builtIn);

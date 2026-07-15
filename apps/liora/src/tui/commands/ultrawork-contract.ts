@@ -75,7 +75,7 @@ const ULTRAWORK_OPT_OUT_PATTERN =
     'i',
   );
 const MAX_ULTRAWORK_OBJECTIVE_LENGTH = 4000;
-const ULTRAWORK_CONTROL_SUBCOMMANDS = new Set(['status', 'pause', 'resume', 'cancel']);
+const _ULTRAWORK_CONTROL_SUBCOMMANDS = new Set(['status', 'pause', 'resume', 'cancel']);
 /** Always-on Ultrawork spine — keep contracts, drop synonym/detail floods. */
 const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   'Ultrawork orchestration:',

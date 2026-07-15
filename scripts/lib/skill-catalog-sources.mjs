@@ -150,7 +150,7 @@ const SOURCE_CONFIGS = [
 ];
 
 export async function buildSkillCatalog(outDir, options = {}) {
-  const includeExternal = options.includeExternal === true;
+  const _includeExternal = options.includeExternal === true;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 

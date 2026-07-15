@@ -3,7 +3,6 @@ import type { Agent } from '..';
 import { isRealUserPromptOrigin } from '../context/types';
 import { buildResponseLanguageDirective } from './response-language';
 import { DynamicInjector } from './injector';
-import { LIBRARY_DOCS_RESEARCH_GUIDANCE } from '../../research/library-docs';
 import {
   NO_AI_SLOP_SKILL_MANDATE_COMPACT,
 } from '../../anti-slop/contract';

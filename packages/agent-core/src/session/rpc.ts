@@ -22,8 +22,6 @@ import type {
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
   PauseUltraworkPayload,
-  ResumeUltraworkPayloadResult,
-  UltraworkRunSnapshot,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,

@@ -1,6 +1,4 @@
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 type PersonaMap = Readonly<Record<string, string>>;
 

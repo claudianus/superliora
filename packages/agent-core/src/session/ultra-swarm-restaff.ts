@@ -1,4 +1,4 @@
-import type { ExpertAssignment, ExpertSwarmPlan } from '../expert-agents/types';
+import type { ExpertSwarmPlan } from '../expert-agents/types';
 
 const RESTAFF_MAX_NEW_EXPERTS = 2;
 

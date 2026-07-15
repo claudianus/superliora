@@ -22,7 +22,6 @@ import {
   prepareUltraworkTuiSetup,
   resetUltraPlanMode,
   rollbackUltraworkTuiSetup,
-  type UltraworkTuiSetupState,
 } from './ultrawork-lifecycle';
 import {
   buildUltraworkPrompt,

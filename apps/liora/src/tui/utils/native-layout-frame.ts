@@ -38,7 +38,6 @@ import {
   type RendererRect,
   type RendererRegionVfxPreset,
   type RendererRegionId,
-  type NativeRenderCause,
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';

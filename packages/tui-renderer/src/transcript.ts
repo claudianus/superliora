@@ -1,12 +1,10 @@
 import { Container, RendererWidthRenderCache } from './component-primitives';
 import type { RendererRegionLine } from './compositor';
 import {
-  renderRendererRightGutterLines,
   renderRendererRightGutterRegionLines,
   renderRendererVerticalScrollbar,
 } from './scrollbar';
 import {
-  projectRendererViewportLineWindow,
   type RendererTranscriptViewport,
   type RendererViewportSnapshot,
 } from './viewport';
@@ -483,7 +481,7 @@ export class RendererPrefixedWrappedLine implements RendererComponent {
             : wrapped;
         const padded =
           this.options.minLines !== undefined
-            ? [...lines, ...Array(Math.max(0, this.options.minLines - lines.length)).fill('')]
+            ? [...lines, ...Array.from({ length: Math.max(0, this.options.minLines - lines.length) }, () => '')]
             : lines;
         return renderRendererTranscriptLineBlock({
           width: safeWidth,

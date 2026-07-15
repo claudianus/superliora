@@ -23,7 +23,7 @@ import {
 } from '@superliora/telemetry';
 
 import { createProgram } from './cli/commands';
-import { detectCliLocale, setCliLocale, t, tln } from './cli/i18n';
+import { detectCliLocale, setCliLocale, tln } from './cli/i18n';
 import { finalizeHeadlessRun } from './cli/headless-exit';
 import type { CLIOptions } from './cli/options';
 import { OptionConflictError, validateOptions } from './cli/options';

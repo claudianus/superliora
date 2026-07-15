@@ -26,10 +26,8 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
-import { renderParticleRail } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
-import { gradientText } from '#/tui/theme/gradient-text';
 
 const TEXT_CELL_PREFERRED_WIDTH = 30;
 const CELL_GAP = '  ';
@@ -840,7 +838,7 @@ export class AgentSwarmProgressComponent implements Component {
     );
   }
 
-  private renderHeaderLines(width: number, summary: AgentSwarmSummary | undefined): string[] {
+  private renderHeaderLines(width: number, _summary: AgentSwarmSummary | undefined): string[] {
     const dividerStyle = (text: string): string => chalk.hex(this.colors.primary)(text);
     if (width <= 3) {
       return [

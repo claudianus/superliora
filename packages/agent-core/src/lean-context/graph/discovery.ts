@@ -131,7 +131,7 @@ export async function mapWithConcurrency<T, R>(
   concurrency: number,
   worker: (item: T) => Promise<R>,
 ): Promise<R[]> {
-  const results: R[] = new Array(items.length);
+  const results: R[] = Array.from({ length: items.length });
   let nextIndex = 0;
   const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
     while (true) {
