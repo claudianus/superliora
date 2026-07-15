@@ -21,7 +21,7 @@ Method: rubric-first for visible work; small high-leverage passes; research when
 ${PREMIUM_VISUAL_HARNESS}`;
 
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
-  'Premium Quality mode still ON — keep elevating visuals (PRIMARY), UX, code, performance, a11y, and evidence before you claim done.',
+  'Premium Quality mode still ON — keep elevating visuals (PRIMARY), UX, code, performance, a11y, and evidence before claiming done.',
   PREMIUM_QUALITY_HYPE_SPARSE,
   PREMIUM_VISUAL_SPARSE_CHECKPOINT,
 ].join('\n');

@@ -165,7 +165,7 @@ TodoList is the live execution board during planning — durable content goes in
 
 const PLAN_MULTI_APPROACH = `## Multiple approaches
 At most 2–3 meaningfully different options; do not pad minor variants. If preference matters, AskUserQuestion first.
-Multiple approaches in the plan → pass \`options\` to ExitPlanMode so the user can choose.
+Multiple approaches in the plan → pass \`options\` to ExitPlanMode for user choice.
 NEVER write multiple approaches and call ExitPlanMode without \`options\`.
 
 AskUserQuestion: missing requirements/preferences only — never plan approval (user cannot see the plan until ExitPlanMode).
