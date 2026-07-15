@@ -67,6 +67,6 @@ Authoritative host clock (do not guess the date from pretrained knowledge):
 - Today: ${snapshot.today}
 - Local: ${snapshot.local} (${snapshot.timezone}, ${snapshot.utcOffset})
 - ISO: ${snapshot.iso}
-Before WebSearch/FetchURL on time-sensitive topics, include the correct year in queries. Call GetCurrentTime if this reminder may be stale.
+For time-sensitive WebSearch/FetchURL, include the correct year. Call GetCurrentTime if this may be stale.
 </current_time>`;
 }

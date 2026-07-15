@@ -315,6 +315,18 @@ describe('chip registry', () => {
       ),
     ).toBe('2 findings');
   });
+  it('TaskList chip counts tasks', () => {
+    expect(chipFor('TaskList', {}, result('active_background_tasks: 2\nid: bash-1\n---\nid: bash-2'))).toBe(
+      '2 tasks',
+    );
+  });
+
+  it('TaskOutput chip shows status', () => {
+    expect(
+      chipFor('TaskOutput', { task_id: 'bash-1' }, result('task_id: bash-1\nstatus: running\noutput_path: /tmp/out')),
+    ).toBe('running');
+  });
+
 
 
 

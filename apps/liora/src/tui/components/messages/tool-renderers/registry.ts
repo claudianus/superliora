@@ -38,6 +38,9 @@ import {
   searchExpertSummary,
   searchSkillSummary,
   skillSummary,
+  taskListSummary,
+  taskOutputSummary,
+  taskStopSummary,
   thinkSummary,
   webSearchSummary,
   writeSummary,
@@ -105,6 +108,12 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return askUserQuestionSummary;
     case 'LioraReview':
       return lioraReviewSummary;
+    case 'TaskList':
+      return taskListSummary;
+    case 'TaskOutput':
+      return taskOutputSummary;
+    case 'TaskStop':
+      return taskStopSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
