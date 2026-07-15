@@ -83,16 +83,18 @@ describe('tool-result registry', () => {
     expect(out.trim()).toBe('');
   });
 
-  it('GenerateImage uses the write summary renderer (collapsed body)', () => {
+  it('GenerateImage uses the media summary renderer (path glance, collapsed body)', () => {
     const renderer = pickResultRenderer('GenerateImage');
-    const out = joinRender(
-      renderer(
-        call('GenerateImage', { prompt: 'logo', path: 'out.png' }),
-        result('Generated image with openai.\nPath: out.png'),
-        ctx,
+    const out = strip(
+      joinRender(
+        renderer(
+          call('GenerateImage', { prompt: 'logo', path: 'out.png' }),
+          result('Generated image with openai.\nPath: out.png\nBytes: 1234\nMIME: image/png'),
+          ctx,
+        ),
       ),
     );
-    expect(out.trim()).toBe('');
+    expect(out).toContain('out.png');
     expect(isGenericToolResult('GenerateImage')).toBe(false);
   });
 

@@ -16,6 +16,7 @@ import { goalSummary } from './goal';
 import {
   editSummary,
   fetchSummary,
+  generateMediaSummary,
   globSummary,
   grepSummary,
   readSummary,
@@ -57,9 +58,10 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
     case 'Edit':
       return editSummary;
     case 'Write':
+      return writeSummary;
     case 'GenerateImage':
     case 'GenerateVideo':
-      return writeSummary;
+      return generateMediaSummary;
     case 'CreateGoal':
     case 'GetGoal':
     case 'SetGoalBudget':
