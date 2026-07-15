@@ -25,7 +25,7 @@ import type { ToolCallComponent, ToolCallSubagentSnapshot } from './tool-call';
 
 const THROTTLE_MS = 200;
 
-const DETACH_HINT_TEXT = 'Press Ctrl+B to run in background';
+const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /tasks to inspect';
 
 interface AgentEntry {
   readonly toolCallId: string;
