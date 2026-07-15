@@ -116,7 +116,7 @@ export class RendererEditorAutocompleteController {
       return new Promise<void>((resolve) => {
         this.debounceTimer = setTimeout(() => {
           this.debounceTimer = undefined;
-          this.executeRequest(source, provider, options).finally(resolve);
+          void this.executeRequest(source, provider, options).finally(resolve);
         }, this.debounceMs);
       });
     }

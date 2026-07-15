@@ -99,7 +99,7 @@ export async function loadCatalog(
     const catalog = await fetchCatalog(DEFAULT_CATALOG_URL, signal, fetchImpl);
     await writeCachedCatalog(catalog);
     return mergeLocalCatalogProviders(catalog);
-  } catch (_error) {
+  } catch {
     if (cached !== undefined) return mergeLocalCatalogProviders(cached);
     const builtIn = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
     if (builtIn !== undefined) return mergeLocalCatalogProviders(builtIn);

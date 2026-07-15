@@ -252,7 +252,7 @@ export async function runOpenAiBrowserFlow(
       expectedState: state,
       onManualCallbackPrompt: options.onManualCallbackPrompt,
     });
-    return exchangeOpenAiToken(flow, code, pkce.verifier, server.redirectUri, {
+    return await exchangeOpenAiToken(flow, code, pkce.verifier, server.redirectUri, {
       signal: options.signal,
     });
   } finally {

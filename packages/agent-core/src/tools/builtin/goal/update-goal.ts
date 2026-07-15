@@ -16,7 +16,7 @@ import { z } from 'zod';
 import {
   GOAL_BLOCKED_REMINDER_NAME,
   GOAL_COMPLETION_REMINDER_NAME,
-} from '../../../agent/turn';
+} from '../../../agent/turn/reminder-names';
 import {
   buildGoalBlockedReasonPrompt,
   buildGoalCompletionSummaryPrompt,

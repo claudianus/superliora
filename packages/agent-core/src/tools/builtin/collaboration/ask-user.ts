@@ -19,12 +19,12 @@ import type { BuiltinTool } from '../../../agent/tool';
 import { ErrorCodes, LioraError } from '../../../errors';
 import { errorMessage, isAbortError } from '../../../loop/errors';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import {
-  isQuestionResponse,
-  type QuestionAnswers,
-  type QuestionAnswerMethod,
-  type QuestionResult,
-} from '../../../rpc';
+import { isQuestionResponse } from '../../../rpc/question-result';
+import type {
+  QuestionAnswers,
+  QuestionAnswerMethod,
+  QuestionResult,
+} from '../../../rpc/sdk-api';
 import type { TelemetryPropertyValue } from '../../../telemetry';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './ask-user.md?raw';

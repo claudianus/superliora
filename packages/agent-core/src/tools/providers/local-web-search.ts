@@ -3,7 +3,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'pathe';
 import { parseHTML as rawParseHTML } from 'linkedom';
 
-import type { UrlFetcher, WebSearchProvider, WebSearchResult } from '../builtin';
+import type { UrlFetcher } from '../builtin/web/fetch-url';
+import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
 
 interface DomElementLike {
   textContent: string | null;

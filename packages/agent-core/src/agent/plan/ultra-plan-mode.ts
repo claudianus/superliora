@@ -771,7 +771,7 @@ export class UltraPlanModeEngine {
     evidence: string,
     _ontologyName: string,
     signal?: AbortSignal,
-  ): Promise<unknown | null> {
+  ): Promise<unknown> {
     return this._llmJsonRequest<unknown>(
       SEED_SPEC_LLM_SYSTEM_PROMPT,
       buildSeedSpecExtractionUserPrompt(evidence),

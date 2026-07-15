@@ -27,7 +27,7 @@ export function extractJsonFromText(text: string): string | null {
   return null;
 }
 
-export function parseJsonFromLLMResponse(response: unknown): unknown | null {
+export function parseJsonFromLLMResponse(response: unknown): unknown {
   const text = extractTextFromLLMResponse(response);
   const json = extractJsonFromText(text);
   if (json === null) return null;

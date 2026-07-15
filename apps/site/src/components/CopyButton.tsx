@@ -9,14 +9,16 @@ interface CopyButtonProps {
 export function CopyButton({ text, copiedLabel = 'Copied', copyLabel = 'Copy command' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
-  const handleClick = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // ignore
-    }
+  const handleClick = () => {
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      } catch {
+        // ignore
+      }
+    })();
   };
 
   return (

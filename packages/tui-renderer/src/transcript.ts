@@ -293,7 +293,7 @@ export class RendererTranscriptViewportComponent extends Container {
       return this.lineCountCache;
     }
 
-    const counts = new Array<number>(n);
+    const counts: number[] = Array.from({ length: n });
     for (let i = 0; i < n; i++) {
       counts[i] = this.children[i]!.render(inner).length;
     }

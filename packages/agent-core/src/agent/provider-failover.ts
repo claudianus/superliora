@@ -2,7 +2,8 @@ import type { Agent } from '.';
 import { ErrorCodes, type LioraErrorPayload } from '../errors';
 import { isAbortError } from '../loop/errors';
 import { retryBackoffDelays, sleepForRetry } from '../loop/retry';
-import { normalizeQuestionAnswers, type QuestionOption, type QuestionResult } from '../rpc';
+import { normalizeQuestionAnswers } from '../rpc/question-result';
+import type { QuestionOption, QuestionResult } from '../rpc/sdk-api';
 
 export const GOAL_PROVIDER_AUTO_RETRIES = 2;
 

@@ -1,5 +1,6 @@
 import type { BrowserUseRuntime, ComputerUseRuntime } from '@superliora/gui-use';
-import type { UrlFetcher, WebSearchProvider } from '../builtin';
+import type { UrlFetcher } from '../builtin/web/fetch-url';
+import type { WebSearchProvider } from '../builtin/web/web-search';
 import type { Context7Provider } from '../providers/context7';
 
 export interface ToolServices {

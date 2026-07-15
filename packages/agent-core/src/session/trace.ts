@@ -452,7 +452,9 @@ function toJsonValue(value: unknown, redactions: RedactionState, depth: number, 
     }
     return out;
   }
-  return String(value);
+  if (typeof value === 'symbol') return value.description ?? value.toString();
+  if (typeof value === 'function') return `[function ${value.name || 'anonymous'}]`;
+  return '[unserializable]';
 }
 
 function sanitizeString(value: string, redactions: RedactionState): string {
