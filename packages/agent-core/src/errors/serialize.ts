@@ -82,13 +82,23 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
         : error.statusCode === 401
           ? ErrorCodes.PROVIDER_AUTH_ERROR
           : ErrorCodes.PROVIDER_API_ERROR;
+    const message = sanitizeStatusErrorMessage(error.message);
+    // Quota-style 4xx bodies (insufficient_quota, credit balance, etc.) should
+    // recover like rate limits so Ultrawork can wait or switch models.
+    const looksLikeQuota =
+      code === ErrorCodes.PROVIDER_API_ERROR && isQuotaOrRateLimitMessage(message);
+    const resolvedCode: LioraErrorCode = looksLikeQuota
+      ? ErrorCodes.PROVIDER_RATE_LIMIT
+      : code;
     const retryable =
-      code === ErrorCodes.PROVIDER_API_ERROR && error.statusCode >= 500
+      resolvedCode === ErrorCodes.PROVIDER_RATE_LIMIT
         ? true
-        : KIMI_ERROR_INFO[code].retryable;
+        : resolvedCode === ErrorCodes.PROVIDER_API_ERROR && error.statusCode >= 500
+          ? true
+          : KIMI_ERROR_INFO[resolvedCode].retryable;
     return {
-      code,
-      message: sanitizeStatusErrorMessage(error.message),
+      code: resolvedCode,
+      message,
       name: error.name,
       details: {
         statusCode: error.statusCode,
@@ -116,16 +126,21 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
         finishReason: error.finishReason,
         rawFinishReason: error.rawFinishReason,
       },
-      retryable: KIMI_ERROR_INFO[ErrorCodes.PROVIDER_API_ERROR].retryable,
+      // Empty responses are almost always transient stream glitches.
+      retryable: true,
     };
   }
 
   if (error instanceof ChatProviderError) {
+    const message = error.message;
+    const looksLikeRateLimit = isQuotaOrRateLimitMessage(message);
     return {
-      code: ErrorCodes.PROVIDER_API_ERROR,
-      message: error.message,
+      code: looksLikeRateLimit ? ErrorCodes.PROVIDER_RATE_LIMIT : ErrorCodes.PROVIDER_API_ERROR,
+      message,
       name: error.name,
-      retryable: KIMI_ERROR_INFO[ErrorCodes.PROVIDER_API_ERROR].retryable,
+      retryable: looksLikeRateLimit
+        ? true
+        : KIMI_ERROR_INFO[ErrorCodes.PROVIDER_API_ERROR].retryable,
     };
   }
 
@@ -143,6 +158,29 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
     message: String(error),
     retryable: KIMI_ERROR_INFO[ErrorCodes.INTERNAL].retryable,
   };
+}
+
+const QUOTA_OR_RATE_LIMIT_MESSAGE_PATTERNS = [
+  /insufficient[_\s-]?quota/i,
+  /quota\s+exceed/i,
+  /exceed(?:ed|s|ing)?\s+(?:your\s+)?(?:current\s+)?quota/i,
+  /credit[_\s-]?balance[_\s-]?too[_\s-]?low/i,
+  /credit balance is too low/i,
+  /insufficient.*(?:credit|balance|funds|quota)/i,
+  /(?:credit|credits).*(?:exhausted|depleted|expired|limit|spent)/i,
+  /(?:no|zero)\s+(?:credit|credits)\s+(?:remaining|left|available)/i,
+  /usage.*limit.*(?:reached|exceed)/i,
+  /spend.*limit.*(?:reached|exceed)/i,
+  /billing.*(?:limit|quota|credit|payment)/i,
+  /monthly.*(?:budget|spend).*limit/i,
+  /hard[_\s-]?limit/i,
+  /rate[_\s-]?limit/i,
+  /too many requests/i,
+  /provider\.rate_limit/i,
+] as const;
+
+function isQuotaOrRateLimitMessage(message: string): boolean {
+  return QUOTA_OR_RATE_LIMIT_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
 }
 
 /**

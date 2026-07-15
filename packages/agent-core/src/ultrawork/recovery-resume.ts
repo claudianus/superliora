@@ -49,6 +49,11 @@ export function inferResumeStageFloor(run: UltraworkRun): UltraworkStage {
 
 export function shouldKeepPlanModeForUltraworkRun(run: UltraworkRun): boolean {
   if (run.teamPlan !== undefined && run.teamPlan.experts.length > 0) return false;
+  const progress = summarizeWorkGraphProgress(run.workGraph);
+  // Any WorkGraph progress means ExitPlanMode already happened (or graph was
+  // seeded from an approved plan). Staying in Ultra Plan would trap resume in
+  // Design/Review/Write tool locks instead of continuing product work.
+  if (progress.doneCount > 0 || progress.pendingCount > 0) return false;
   const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
   return ultraworkStageIndex(effectiveStage) <= ultraworkStageIndex('research');
 }
@@ -59,19 +64,27 @@ export function shouldSkipInterviewOnUltraworkResume(
   planContext?: UltraworkPlanRecoveryContext,
 ): boolean {
   const planMode = agent.planMode;
-  if (!planMode.isActive || !planMode.isUltraMode) return false;
-
-  const phase = (planContext?.phase ?? planMode.phase) as UltraPlanPhase;
-  const interviewRounds = planContext?.interviewRoundCount ?? planMode.interviewRoundCount;
+  const phase = (planContext?.phase ?? (planMode.isActive ? planMode.phase : undefined)) as
+    | UltraPlanPhase
+    | undefined;
+  const interviewRounds =
+    planContext?.interviewRoundCount ?? (planMode.isActive ? planMode.interviewRoundCount : 0);
   const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
   const progress = summarizeWorkGraphProgress(run.workGraph);
   const goal = agent.goal.getGoal().goal;
 
-  if (phase === 'design' || phase === 'review' || phase === 'write' || phase === 'exit') return true;
-  if (interviewRounds > 0) return true;
+  // Execution evidence means interview is done regardless of plan-mode liveness.
+  // (Plan mode may already have been released by releaseUltraworkPlanModeIfComplete.)
   if (progress.doneCount > 0 || progress.pendingCount > 0) return true;
   if (goal !== null) return true;
   if (ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('plan')) return true;
+  if (run.teamPlan !== undefined && run.teamPlan.experts.length > 0) return true;
+
+  // Still in planning — only skip interview when ultra plan mode is active and
+  // the phase/rounds show interview is no longer the right entry point.
+  if (!planMode.isActive || !planMode.isUltraMode) return false;
+  if (phase === 'design' || phase === 'review' || phase === 'write' || phase === 'exit') return true;
+  if (interviewRounds > 0) return true;
   if (phase === 'interview') return true;
   return false;
 }
@@ -90,10 +103,39 @@ export function applyUltraworkResumeSkipInterview(
   }
 
   const planMode = agent.planMode;
+  const currentPhase = (planContext?.phase ?? (planMode.isActive ? planMode.phase : undefined)) as
+    | UltraPlanPhase
+    | undefined;
+  const progress = summarizeWorkGraphProgress(run.workGraph);
+  const goal = agent.goal.getGoal().goal;
+  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  const executionStarted =
+    progress.doneCount > 0 ||
+    progress.pendingCount > 0 ||
+    goal !== null ||
+    ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') ||
+    (run.teamPlan !== undefined && run.teamPlan.experts.length > 0);
+
+  // Once execution (or a goal) has started, plan mode is a trap — release it
+  // instead of parking the agent in Design with read-only tool locks.
+  if (executionStarted) {
+    const promotedRun = promoteUltraworkRunStageForResume(run);
+    if (planMode.isActive && planMode.isUltraMode) {
+      planMode.exit();
+    }
+    return {
+      run: agent.ultrawork.getRun() ?? promotedRun,
+      planContext: undefined,
+      skippedInterview: true,
+    };
+  }
+
   if (planMode.isActive && planMode.isUltraMode) {
-    const phase = (planContext?.phase ?? planMode.phase) as UltraPlanPhase;
-    if (phase === 'research' || phase === 'interview') {
-      planMode.setPhase('design');
+    // Preserve an already-advanced phase. Only lift research/interview forward
+    // when we still need planning, and never regress design/review/write/exit.
+    const restoredPhase = resolveResumePlanPhase(currentPhase);
+    if (restoredPhase !== undefined && restoredPhase !== planMode.phase) {
+      planMode.setPhase(restoredPhase);
     }
   }
 
@@ -111,13 +153,27 @@ export function applyUltraworkResumeSkipInterview(
             planMode.captureStateCheckpoint()?.ultraPlan ??
             planMode.ultraEngine.serialize(),
         }
-      : planContext;
+      : undefined;
 
   return {
     run: agent.ultrawork.getRun() ?? promotedRun,
     planContext: updatedPlanContext,
     skippedInterview: true,
   };
+}
+
+/**
+ * Pick the UltraPlan phase to restore on resume when interview should be skipped
+ * but product execution has not started yet.
+ *
+ * - design/review/write/exit: keep as-is (never drop back to design from later phases)
+ * - research/interview: advance to design so NextPhase is not blocked on interview gates
+ * - unknown: leave undefined so the live phase is unchanged
+ */
+function resolveResumePlanPhase(phase: UltraPlanPhase | undefined): UltraPlanPhase | undefined {
+  if (phase === undefined) return 'design';
+  if (phase === 'research' || phase === 'interview') return 'design';
+  return phase;
 }
 
 export function releaseUltraworkPlanModeIfComplete(

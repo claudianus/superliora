@@ -155,6 +155,10 @@ function ultraworkResumeGate(
   ];
   if (phase === 'interview' && interviewRounds > 0) {
     lines.push(`- Continue the interview from round ${String(interviewRounds + 1)}.`);
+  } else if (phase === 'design' || phase === 'review' || phase === 'write' || phase === 'exit') {
+    lines.push(
+      `- Resume UltraPlan ${phase} from the checkpoint; do not drop back to interview or redesign from scratch.`,
+    );
   }
   return lines.join('\n');
 }

@@ -360,7 +360,19 @@ export class TurnFlow {
       if (initialGoalStatus === 'active') {
         return await this.driveGoal(firstTurnId, input, origin, signal);
       }
-      const end = await this.runOneTurn(firstTurnId, input, origin, signal, true);
+      let end = await this.runOneTurn(firstTurnId, input, origin, signal, true);
+      // Ordinary Ultrawork / single turns also hit rate limits and transient
+      // provider failures. Recover here so a mid-run 429 does not silently end
+      // the turn when a goal is not yet active.
+      if (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
+        end = await this.recoverGoalTurnFromProviderFailure(
+          firstTurnId,
+          input,
+          origin,
+          signal,
+          end,
+        );
+      }
       // A goal can become active during an ordinary turn: the model creates one
       // with CreateGoal, or resumes a paused/blocked goal via UpdateGoal. Either
       // way, hand the now-active goal to the driver so it is actually pursued,

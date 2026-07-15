@@ -246,12 +246,19 @@ export class UltraworkMode {
     if (run.status === 'blocked') {
       run = this.machine.resumeFromBlocked();
     }
-
+    // Release plan mode before skip-interview so execution-stage resumes never
+    // keep Design/Review/Write tool locks. Capture may still hold a stale
+    // planContext from before release — clear it when plan mode is gone.
     releaseUltraworkPlanModeIfComplete(this.agent, run);
 
     const skipInterviewResult = applyUltraworkResumeSkipInterview(this.agent, run, planContext);
     run = skipInterviewResult.run;
     planContext = skipInterviewResult.planContext;
+    if (!this.agent.planMode.isActive) {
+      // Stale planContext would re-inject "UltraPlan phase: design" and trap
+      // the model even after plan mode was correctly released.
+      planContext = undefined;
+    }
     this.machine = new UltraworkRunStateMachine(run);
 
     const savedInterruptReason = this.interruptReason;

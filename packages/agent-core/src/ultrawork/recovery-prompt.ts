@@ -187,8 +187,10 @@ export function suggestNextActions(
 
   if (skippedInterview) {
     if (progress.nextPendingNode === undefined) {
-      if (planPhase === 'design' || planPhase === 'review' || planPhase === 'write') {
-        actions.push(`Resume UltraPlan ${planPhase}; advance toward ExitPlanMode without new interview rounds.`);
+      if (planPhase === 'design' || planPhase === 'review' || planPhase === 'write' || planPhase === 'exit') {
+        actions.push(
+          `Resume UltraPlan ${planPhase} from checkpoint; advance toward ExitPlanMode without new interview rounds.`,
+        );
       } else if (effectiveStage === 'goal' || effectiveStage === 'staff' || effectiveStage === 'swarm') {
         actions.push('Verify UltraGoal; resume autonomous pursuit without interview questions.');
       } else if (
