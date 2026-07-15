@@ -150,9 +150,9 @@ function budgetBandGuidance(goal: GoalSnapshot): string {
   // budget, report a terminal state" instruction would never be acted on. We
   // only nudge the model to converge as it nears a budget.
   if (fraction >= 0.75) {
-    return 'Budget guidance: you are nearing a budget. Converge on the objective and avoid starting new discretionary work.';
+    return 'Budget guidance: nearing a budget. Converge on the objective and avoid starting new discretionary work.';
   }
-  return 'Budget guidance: you are within budget. Make steady, focused progress toward the objective.';
+  return 'Budget guidance: within budget. Make steady, focused progress toward the objective.';
 }
 
 function escapeUntrustedText(text: string): string {

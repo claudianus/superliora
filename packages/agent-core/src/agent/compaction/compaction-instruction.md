@@ -1,4 +1,4 @@
-You are about to run out of context. Write a first-person handoff note to yourself so you can continue this task after earlier conversation is cleared.
+You are about to run out of context. Write a first-person handoff note to yourself so you can continue after earlier conversation is cleared.
 
 --- This message is a direct task, not part of the above conversation ---
 

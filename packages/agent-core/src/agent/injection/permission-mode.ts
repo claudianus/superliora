@@ -8,7 +8,7 @@ const AUTO_MODE_ENTER_REMINDER = [
 ].join('\n');
 
 const AUTO_MODE_EXIT_REMINDER = [
-  'Auto permission mode is no longer active. Tool approvals and permission checks are back to the current mode.',
+  'Auto permission mode is no longer active. Tool approvals and permission checks follow the current mode.',
   '  - Continue normally, but expect approval prompts or denials when tools require them.',
 ].join('\n');
 
