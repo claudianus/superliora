@@ -14,6 +14,7 @@ import { readMediaSummary } from './media';
 import { goalSummary } from './goal';
 import { shellExecutionResultRenderer } from '../shell-execution';
 import {
+  askUserQuestionSummary,
   context7DocsSummary,
   context7ResolveSummary,
   editSummary,
@@ -27,6 +28,7 @@ import {
   lioraCallgraphSummary,
   lioraExpandSummary,
   lioraReadSummary,
+  lioraReviewSummary,
   lioraSymbolSummary,
   lioraTreeSummary,
   memorySummary,
@@ -99,6 +101,10 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return enterPlanModeSummary;
     case 'ExitPlanMode':
       return exitPlanModeSummary;
+    case 'AskUserQuestion':
+      return askUserQuestionSummary;
+    case 'LioraReview':
+      return lioraReviewSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
