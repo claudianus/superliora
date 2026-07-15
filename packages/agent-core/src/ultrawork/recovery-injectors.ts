@@ -130,7 +130,7 @@ export function capturePlanRecoveryContextFromAgent(agent: Agent): UltraworkPlan
 
 function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean): string | undefined {
   if (duringSwarm) {
-    return 'UltraSwarm is active. Let the current wave finish; use integrate/verify after swarm completes.';
+    return 'UltraSwarm is active. Let the current wave finish; integrate/verify after swarm completes.';
   }
   switch (stage) {
     case 'plan':
@@ -139,7 +139,7 @@ function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean):
       return 'Refresh or extend the evidence pack as needed. Do not restart UltraResearch from scratch.';
     case 'staff':
     case 'swarm':
-      return 'Reconcile team staffing and call UltraSwarm only when ENGAGE is still required.';
+      return 'Reconcile team staffing; call UltraSwarm only when ENGAGE is still required.';
     case 'integrate':
       return 'Merge specialist output and resolve conflicts before more product edits.';
     case 'verify':

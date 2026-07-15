@@ -75,7 +75,7 @@ No-AI-Slop skill routing: SearchSkill with response language + surface keywords 
 
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
 Include: \`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>\`
-Prefer ENGAGE for multi-lane or review-heavy work; ADAPTIVE for moderate single-domain; DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
+Prefer ENGAGE for multi-lane/review-heavy work; ADAPTIVE for moderate single-domain; DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
 ExitPlanMode only after a complete Seed Spec.`,
 
   exit: `## Exit Phase

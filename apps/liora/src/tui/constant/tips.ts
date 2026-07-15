@@ -32,6 +32,7 @@ export const WORKING_TIPS: readonly ToolbarTip[] = [
   { text: 'shift-tab toggles Ultrawork and off', solo: true, priority: 3 },
   { text: '@: mention files', priority: 2 },
   { text: '! to run a shell command', priority: 2 },
+  { text: 'ctrl-o toggles clean chat vs full tool history so you can audit what Liora did', priority: 2 },
 ];
 
 export const ALL_TIPS: readonly ToolbarTip[] = [
@@ -49,7 +50,6 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/status: privacy/ZDR, web search readiness, and image/video keys at a glance', priority: 3, solo: true },
   { text: 'first run: /login then type a task — no complex config required', priority: 3, solo: true },
   { text: 'footer badges warn when context is high or durable evidence went missing after compact', priority: 2, solo: true },
-  { text: 'ctrl-o toggles clean chat vs full tool history so you can audit what Liora did', priority: 2 },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
 ];
