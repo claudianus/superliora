@@ -189,7 +189,7 @@ function sparseReminder(planFilePath: PlanFilePath): string {
     return inlineSparseReminder();
   }
 
-  const body = `Plan mode still active (see full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for user preferences; pass \`options\` to ExitPlanMode when multiple approaches exist. End with AskUserQuestion or ExitPlanMode — never ask plan approval via text.`;
+  const body = `Plan mode still active (see full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode when multiple approaches exist. End with AskUserQuestion or ExitPlanMode — never ask plan approval via text.`;
   return withPlanFileFooter(body, planFilePath);
 }
 
@@ -220,7 +220,7 @@ ${PLAN_MULTI_APPROACH}`;
 }
 
 function inlineSparseReminder(): string {
-  return `Plan mode still active (see full instructions earlier). Read-only; no plan file path in this host — wait for the host to provide a plan file path before ExitPlanMode. AskUserQuestion for preferences; pass \`options\` when multiple approaches exist. End with AskUserQuestion or ExitPlanMode.`;
+  return `Plan mode still active (see full instructions earlier). Read-only; no plan file path in this host — wait for the host path before ExitPlanMode. AskUserQuestion for preferences; pass \`options\` when multiple approaches exist. End with AskUserQuestion or ExitPlanMode.`;
 }
 
 function inlineReentryReminder(): string {
