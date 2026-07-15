@@ -626,6 +626,83 @@ export const WIRE_RENDERERS: RendererMap = {
     label: 'goal×',
     headline: () => ({ main: <Dim>goal cleared</Dim> }),
   },
+
+  'plan_mode.state': {
+    tone: 'lifecycle',
+    label: 'plan·',
+    headline: (r) => ({
+      main: (
+        <span className="flex items-center gap-2 min-w-0">
+          <Pill tone="lifecycle" variant="soft">
+            {r.phase}
+          </Pill>
+          <Dim>interview rounds {r.interviewRoundCount}</Dim>
+        </span>
+      ),
+    }),
+    detail: (r) => <JsonViewer value={r.ultraPlan} defaultOpenDepth={1} />,
+  },
+
+  'ultra_swarm_engage_gate.set': {
+    tone: 'lifecycle',
+    label: 'engage+',
+    headline: (r) => ({
+      main: (
+        <span className="truncate text-fg-1">
+          {r.reason ?? r.planPath ?? <Dim>ultra swarm engage gate set</Dim>}
+        </span>
+      ),
+    }),
+  },
+
+  'ultra_swarm_engage_gate.clear': {
+    tone: 'lifecycle',
+    label: 'engage×',
+    headline: (r) => ({
+      main: <span className="truncate text-fg-1">{r.reason ?? <Dim>engage gate cleared</Dim>}</span>,
+    }),
+  },
+
+  'swarm.steer': {
+    tone: 'lifecycle',
+    label: 'steer',
+    headline: (r) => ({
+      main: <span className="truncate text-fg-1">{r.input}</span>,
+    }),
+  },
+
+  'ultrawork.run': {
+    tone: 'lifecycle',
+    label: 'uw-run',
+    headline: (r) => ({
+      main: (
+        <span className="flex items-center gap-2 min-w-0">
+          <Pill tone="lifecycle" variant="soft">
+            {r.run.status}
+          </Pill>
+          <Mono>{r.run.id}</Mono>
+          <span className="truncate text-fg-1">{r.run.objective}</span>
+        </span>
+      ),
+    }),
+    detail: (r) => <JsonViewer value={r} defaultOpenDepth={1} />,
+  },
+
+  'ultrawork.mode': {
+    tone: 'lifecycle',
+    label: 'uw-mode',
+    headline: (r) => ({
+      main: <Dim>{r.enabled ? 'ultrawork mode on' : 'ultrawork mode off'}</Dim>,
+    }),
+  },
+
+  'premium-quality.mode': {
+    tone: 'lifecycle',
+    label: 'premium',
+    headline: (r) => ({
+      main: <Dim>{r.enabled ? 'premium quality on' : 'premium quality off'}</Dim>,
+    }),
+  },
 };
 
 /** Look up a renderer by a runtime `type` string. Returns `undefined` for kinds
