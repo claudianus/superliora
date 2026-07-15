@@ -6,7 +6,7 @@ import {
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent';
-import { maybeFinishUltraworkRun } from '../../../ultrawork';
+import { maybeFinishUltraworkRun } from '../../../ultrawork/finish-run';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';

@@ -112,11 +112,6 @@ function buildDetectionUserPrompt(text: string, context: InterruptedWorkResumeCo
   return lines.filter((line) => line.length > 0).join('\n');
 }
 
-interface ParsedDetectionJson {
-  readonly should_resume: boolean;
-  readonly confidence: number;
-  readonly reason: string;
-}
 
 function parseDetectionResponse(text: string): InterruptedWorkResumeIntent | undefined {
   const json = extractJsonObject(text);

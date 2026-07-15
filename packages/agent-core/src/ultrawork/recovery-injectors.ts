@@ -1,6 +1,7 @@
 import type { UltraworkStage } from '@superliora/protocol';
 
 import type { Agent } from '../agent';
+import { maybeFinishUltraworkRun } from './finish-run';
 import {
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
@@ -150,33 +151,4 @@ function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean):
   }
 }
 
-export function maybeFinishUltraworkRun(agent: Agent): void {
-  const ultrawork = agent.ultrawork;
-  if (ultrawork === undefined) return;
-  const run = ultrawork.getRun();
-  if (run === null || run.status !== 'running') return;
-  const graph = run.workGraph;
-  if (graph !== undefined && graph.nodes.length > 0 && !graph.nodes.every((node) => node.status === 'done')) {
-    return;
-  }
-  ultrawork.completeLearnStage();
-  completeUltraGoalForFinishedRun(agent);
-}
-
-/**
- * A finished Ultrawork run must also close its UltraGoal: the goal driver keeps
- * issuing continuation turns while a goal is `active`, so leaving the goal open
- * after the run reaches `done` strands the session in an endless goal loop
- * waiting for a model-issued UpdateGoal that may never come.
- */
-function completeUltraGoalForFinishedRun(agent: Agent): void {
-  const run = agent.ultrawork?.getRun();
-  if (run === undefined || run === null || run.status !== 'done') return;
-  const goal = agent.goal.getGoal().goal;
-  if (goal === null || goal.status !== 'active') return;
-  void agent.goal
-    .markComplete({ reason: 'Ultrawork run completed' }, 'runtime')
-    .catch((error: unknown) => {
-      agent.log.warn('ultrawork run-complete goal close failed', { error });
-    });
-}
+export { maybeFinishUltraworkRun } from './finish-run';
