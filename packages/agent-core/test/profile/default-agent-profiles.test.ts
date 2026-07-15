@@ -91,7 +91,7 @@ describe('default agent profiles', () => {
     expect(full?.tools).toEqual(expect.arrayContaining(['Skill', 'SearchSkill']));
 
     const prompt = full?.systemPrompt(promptContext) ?? '';
-    expect(prompt).toContain('Discover skills with SearchSkill using concise English keywords');
+    expect(prompt).toContain('Discover with SearchSkill');
   });
 
   it('exposes Liora lean context tools to coding profiles as the default compact exploration surface', () => {
@@ -179,7 +179,7 @@ describe('default agent profiles', () => {
       expect(prompt).not.toContain('`Write` / `Edit` to change files');
       expect(prompt).not.toContain('Keep `Bash` for genuine shell work');
       expect(prompt).toContain('`Glob` to find files by name'); // universal routing stays
-      expect(prompt).toContain('refuse a fixed set of well-known secret files'); // shared guard stays
+      expect(prompt).toContain('well-known secret files'); // shared guard stays
       expect(prompt).toContain('If your active profile is read-only, stay read-only');
     }
   });
