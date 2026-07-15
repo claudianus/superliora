@@ -161,7 +161,7 @@ const PLAN_WORKFLOW = `Workflow:
   4. Write Plan — Write or Edit the plan file (Write if missing). ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
   5. Exit — ExitPlanMode for approval.
 
-TodoList is the live execution board during planning — durable plan content goes in the plan file only.`;
+TodoList is the live execution board during planning — durable content goes in the plan file only.`;
 
 const PLAN_MULTI_APPROACH = `## Multiple approaches
 At most 2–3 meaningfully different options; do not pad minor variants. If preference matters, AskUserQuestion first.
