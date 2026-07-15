@@ -16,8 +16,8 @@ export interface ToolbarTip {
  * Subset of toolbar tips shown behind the composing spinner.
  */
 export const WORKING_TIPS: readonly ToolbarTip[] = [
-  { text: 'ctrl-s to add guidance without waiting for the turn to finish', priority: 2, solo: true },
-  { text: '/tasks to check progress and status for background tasks', priority: 2 },
+  { text: 'ctrl-s adds guidance without waiting for the turn to finish', priority: 2, solo: true },
+  { text: '/tasks to check progress for background tasks', priority: 2 },
   { text: '/init: generate AGENTS.md', priority: 2 },
   { text: '/plugins: manage plugins — try the "superpowers" plugin', solo: true, priority: 3 },
   {
@@ -41,8 +41,8 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'shift+enter: newline' },
   { text: 'ctrl+c: cancel' },
   { text: '/theme to switch the terminal UI theme' },
-  { text: '/auto when you want Liora to handle approvals and keep going unattended' },
-  { text: '/yolo to skip most approvals for trusted batch work, only use it in repos you trust' },
+  { text: '/auto lets Liora handle approvals and keep going unattended' },
+  { text: '/yolo skips most approvals for trusted batch work — only in repos you trust' },
   { text: '/help: show commands' },
   { text: '/compact compresses context when it gets long', priority: 2 },
   { text: '/status: context, Context OS, micro-clear, privacy/ZDR, web/Context7, media keys', priority: 3, solo: true },
@@ -51,7 +51,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'research: Context7 for library docs; WebSearch + FetchURL for papers/CVEs — no MCP', priority: 2, solo: true },
     { text: 'browser/computer tools are built-in for screenshot proof — no MCP', priority: 2, solo: true },
   { text: 'first run: /login then type a task — no complex config required', priority: 3, solo: true },
-  { text: 'footer badges warn when context is high or durable evidence went missing after compact', priority: 2, solo: true },
+  { text: 'footer badges warn when context is high or durable evidence is missing after compact', priority: 2, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
