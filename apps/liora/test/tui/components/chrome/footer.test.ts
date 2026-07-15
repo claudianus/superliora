@@ -84,8 +84,8 @@ describe('FooterComponent', () => {
     delete process.env['GEMINI_API_KEY'];
     try {
       const footer = new FooterComponent(appState);
-      const rendered = footer.render(160).join('\n');
-      expect(rendered).toMatch(/OPENAI_API_KEY|GOOGLE_API_KEY|image\/video|\/status/i);
+      const [, line2 = ''] = footer.render(160);
+      expect(line2).toMatch(/OPENAI_API_KEY|GOOGLE_API_KEY|image\/video|\/status/i);
     } finally {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key];
@@ -95,16 +95,25 @@ describe('FooterComponent', () => {
   });
 
   it('keeps the default Ultrawork next-action when media keys are already present', () => {
-    const previous = process.env['OPENAI_API_KEY'];
+    const previous = {
+      OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
+      GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
+      GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
+    };
     process.env['OPENAI_API_KEY'] = 'test-key';
+    delete process.env['GOOGLE_API_KEY'];
+    delete process.env['GEMINI_API_KEY'];
     try {
       const footer = new FooterComponent(appState);
-      const rendered = footer.render(160).join('\n');
-      expect(rendered).toMatch(/Ultrawork|\/status/i);
-      expect(rendered).not.toMatch(/OPENAI_API_KEY or GOOGLE_API_KEY for image\/video/);
+      const [, line2 = ''] = footer.render(160);
+      // Only assert the next-action line — rotating tips may mention media keys.
+      expect(line2).toMatch(/Ultrawork|type normally/i);
+      expect(line2).not.toMatch(/OPENAI_API_KEY or GOOGLE_API_KEY for image\/video/);
     } finally {
-      if (previous === undefined) delete process.env['OPENAI_API_KEY'];
-      else process.env['OPENAI_API_KEY'] = previous;
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });
 

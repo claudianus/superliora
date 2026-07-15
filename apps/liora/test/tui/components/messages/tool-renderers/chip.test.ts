@@ -70,7 +70,17 @@ describe('chip registry', () => {
     expect(out).toMatch(/\d+\s*B/);
   });
 
-  it('WebSearch chip shows result count', () => {
+  it('WebSearch chip shows result count from Title lines', () => {
+    expect(
+      chipFor(
+        'WebSearch',
+        { query: 'kimi' },
+        result('Title: Alpha\nURL: https://a.test\n\n---\n\nTitle: Beta\nURL: https://b.test\n\n---\n\nTitle: Gamma\nURL: https://c.test\n'),
+      ),
+    ).toBe('3 results');
+  });
+
+  it('WebSearch chip still counts numbered list fallbacks', () => {
     expect(chipFor('WebSearch', { query: 'kimi' }, result('1. Alpha\n2. Beta\n3. Gamma'))).toBe(
       '3 results',
     );

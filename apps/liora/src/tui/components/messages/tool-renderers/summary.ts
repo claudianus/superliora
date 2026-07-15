@@ -80,8 +80,37 @@ const globGlance: GlanceFn = (_toolCall, result) => {
 // Tools whose chip already conveys everything — the body is empty in
 // the collapsed state and only the raw output appears when expanded.
 export const readSummary: ResultRenderer = withGlance(null);
-export const fetchSummary: ResultRenderer = withGlance(null);
-export const webSearchSummary: ResultRenderer = withGlance(null);
+const fetchGlance: GlanceFn = (toolCall, result) => {
+  const url = typeof toolCall.args['url'] === 'string' ? toolCall.args['url'] : '';
+  const host = (() => {
+    try {
+      return url.length > 0 ? new URL(url).host : '';
+    } catch {
+      return url;
+    }
+  })();
+  const preview = result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+  if (host.length > 0 && preview.length > 0) return `${host} · ${preview}${result.output.trim().length > 72 ? '…' : ''}`;
+  if (host.length > 0) return host;
+  return preview;
+};
+
+export const fetchSummary: ResultRenderer = withGlance(fetchGlance);
+
+
+const webSearchGlance: GlanceFn = (_toolCall, result) => {
+  if (result.output.includes('No search results found.')) return 'no results';
+  const titles: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^\s*Title:\s+(.+)$/.exec(line);
+    if (m && m[1] !== undefined) titles.push(m[1].trim());
+    if (titles.length >= GLANCE_SAMPLES) break;
+  }
+  if (titles.length === 0) return '';
+  return titles.join(' · ');
+};
+
+export const webSearchSummary: ResultRenderer = withGlance(webSearchGlance);
 export const thinkSummary: ResultRenderer = withGlance(null);
 export const editSummary: ResultRenderer = withGlance(null);
 
