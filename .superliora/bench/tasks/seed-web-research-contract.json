@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "seed.web-research-contract.v1",
+  "title": "Record a web research readiness contract",
+  "suite": "seed",
+  "kind": "web-research",
+  "risk": "low",
+  "tags": [
+    "web",
+    "research",
+    "context7",
+    "deterministic-check"
+  ],
+  "prompt": "Create reports/web-research-contract.md with sections for Current-time year, Context7 library docs, WebSearch primary sources, and FetchURL citation.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/web-research-contract.md",
+      "content": "# Web Research Contract\n\n## Current-time year\nprefer GetCurrentTime / <current_time> before year-sensitive claims\n\n## Context7 library docs\nContext7Resolve \u2192 Context7Docs for library APIs\n\n## WebSearch primary sources\nWebSearch then FetchURL for CVEs, releases, papers\n\n## FetchURL citation\ncite primary source URLs; do not rely only on snippets\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-contract.md",
+      "text": "Current-time year",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-contract.md",
+      "text": "Context7 library docs",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-contract.md",
+      "text": "WebSearch primary sources",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-contract.md",
+      "text": "FetchURL citation",
+      "weight": 1
+    }
+  ]
+}
