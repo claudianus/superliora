@@ -1067,7 +1067,7 @@ function normalizeHistoryText(text: string): string {
     return '<auto-mode-exit-reminder>';
   }
   if (
-    text.includes('Plan mode is active. You MUST NOT make any edits') &&
+    text.includes('Plan mode is active. MUST NOT edit') &&
     text.includes('Plan file:')
   ) {
     return '<plan-mode-reminder>';

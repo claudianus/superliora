@@ -326,7 +326,7 @@ function isVolatileDurationKey(key: string): boolean {
 
 function isPlanModeReminder(value: string): boolean {
   return (
-    value.includes('Plan mode is active. You MUST NOT make any edits') &&
+    value.includes('Plan mode is active. MUST NOT edit') &&
     value.includes('Plan file:')
   );
 }

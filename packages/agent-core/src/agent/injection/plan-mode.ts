@@ -148,11 +148,11 @@ function withResponseLanguage(body: string, agent: Agent): string {
 }
 
 const PLAN_MODE_BLOCKED_TOOLS =
-  'TaskStop, CronCreate, and CronDelete are blocked in plan mode — call ExitPlanMode first if needed.';
+  'TaskStop, CronCreate, and CronDelete are blocked — call ExitPlanMode first if needed.';
 
-const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. You MUST NOT make any edits (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools. Bash only when needed; Bash follows normal permission rules. This supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
+const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. MUST NOT edit (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed (normal permission rules). Supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
 
-const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. You MUST NOT make any edits or change the system unless a tool request is explicitly approved. Prefer read-only tools. Bash only when needed; Bash follows normal permission rules. This supersedes other instructions.`;
+const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. MUST NOT edit or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed (normal permission rules). Supersedes other instructions.`;
 
 const PLAN_WORKFLOW = `Workflow:
   1. Understand — Glob, Grep, Read; Context7Resolve/Docs for library docs; WebSearch/FetchURL when external evidence matters.
@@ -189,7 +189,7 @@ function sparseReminder(planFilePath: PlanFilePath): string {
     return inlineSparseReminder();
   }
 
-  const body = `Plan mode still active (see full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode when multiple approaches exist. End with AskUserQuestion or ExitPlanMode — never ask plan approval via text.`;
+  const body = `Plan mode still active (see full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode for multiple approaches. End with AskUserQuestion or ExitPlanMode — never text plan approval.`;
   return withPlanFileFooter(body, planFilePath);
 }
 
@@ -220,7 +220,7 @@ ${PLAN_MULTI_APPROACH}`;
 }
 
 function inlineSparseReminder(): string {
-  return `Plan mode still active (see full instructions earlier). Read-only; no plan file path in this host — wait for the host path before ExitPlanMode. AskUserQuestion for preferences; pass \`options\` when multiple approaches exist. End with AskUserQuestion or ExitPlanMode.`;
+  return `Plan mode still active (see full instructions earlier). Read-only; no plan file path in this host — wait for the host path before ExitPlanMode. AskUserQuestion for preferences; pass \`options\` for multiple approaches. End with AskUserQuestion or ExitPlanMode.`;
 }
 
 function inlineReentryReminder(): string {
@@ -231,6 +231,6 @@ No plan file path in this host. Re-evaluate the request, AskUserQuestion for gap
 }
 
 function exitReminder(): string {
-  return `Plan mode is no longer active. Read-only and plan-file-only restrictions no longer apply. Continue with the approved plan using normal tool and permission rules.`;
+  return `Plan mode is no longer active. Read-only and plan-file-only restrictions no longer apply. Continue the approved plan with normal tool and permission rules.`;
 }
 

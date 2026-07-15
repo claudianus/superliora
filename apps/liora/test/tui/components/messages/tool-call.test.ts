@@ -49,6 +49,29 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain(`\u23FA Used Read`);
     expect(out).not.toContain(`${String.fromCodePoint(0x23fa, 0xfe0e)} Used Read`);
   });
+  it('appends elapsed duration to finished tool header chips', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-29T00:00:00Z'));
+
+    const component = new ToolCallComponent(
+      {
+        id: 'call_read_duration',
+        name: 'Read',
+        args: { path: 'foo.ts' },
+        streamingStartedAtMs: Date.now() - 3_500,
+      },
+      {
+        tool_call_id: 'call_read_duration',
+        output: 'line1\nline2',
+        is_error: false,
+      },
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Used Read');
+    expect(out).toContain('2 lines');
+    expect(out).toContain('3s');
+  });
 
   describe('detach hint for long-running foreground Bash/Agent', () => {
     it('shows the Ctrl+B hint after 6s for a running Bash call', () => {
