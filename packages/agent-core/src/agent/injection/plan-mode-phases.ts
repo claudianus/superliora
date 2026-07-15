@@ -26,7 +26,7 @@ const PHASE_INSTRUCTIONS: Record<string, string> = {
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, NextPhase.
 AskUserQuestion, ${ULTRA_PLAN_BLOCKED_MUTATORS}
 
-Goal: source-backed context + improvement levers before UltraPlan interview elevates the goal and upgrade choices.
+Goal: source-backed context + improvement levers before UltraPlan interview elevates goal/upgrade choices.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 Prefer Grep, LioraSymbol, Glob, LioraRead before broad Read. Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
@@ -68,7 +68,7 @@ Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
+You may ONLY write to the current plan file. All other file edits BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
 
 Before writing user-visible plan prose: ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
 No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if light pass fails.
@@ -86,7 +86,7 @@ If ExitPlanMode reports missing sections, Read/fix only that plan file and retry
 
 const INTERVIEW_SPARSE_ESSENTIALS = [
   'Expert-leader interview — keep every round valuable:',
-  '- Teach one brief insight/unknown-unknown when it helps the user decide.',
+  '- Teach one brief insight/unknown-unknown when it helps decide.',
   '- AskUserQuestion: Baseline + Upgrades (payoff/trade-off) + Defer; research-first when options need evidence.',
   '- Close the open gap below through the current perspective lens — not a bare checklist question.',
   '- Same-turn read-only research is fine when it improves the next question.',

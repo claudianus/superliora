@@ -77,7 +77,7 @@ describe('PremiumQualityInjector', () => {
     const injector = new PremiumQualityInjector(agent);
     await injector.inject();
     const text = lastReminder(agent);
-    expect(text).toContain('Premium Quality mode is ON');
+    expect(text).toContain('Premium Quality is ON');
     expect(text).toContain('principal designer');
     expect(text).toContain('PREMIUM QUALITY MODE');
     expect(text).toContain('SearchSkill');
@@ -179,7 +179,7 @@ describe('PremiumQualityInjector', () => {
     } as never);
     await injector.inject();
 
-    expect(lastReminder(agent)).toContain('Premium Quality mode is ON');
+    expect(lastReminder(agent)).toContain('Premium Quality is ON');
     expect(lastReminder(agent)).toContain('principal designer');
   });
 });

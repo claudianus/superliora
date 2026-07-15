@@ -107,10 +107,10 @@ const GOAL_CONTINUATION_PROMPT = [
   'against the work done so far. Goal mode is iterative: do one coherent slice of work, then',
   'reassess. Call UpdateGoal with `complete` only when all required work is done, any stated',
   'validation has passed, and there is no useful next action. Do not mark complete after only',
-  'producing a plan, summary, first pass, or partial result. If an external condition or required',
+  'a plan/summary/first pass/partial result. If an external condition or required',
   'user input prevents progress, or the objective cannot be completed as stated, call UpdateGoal',
-  'with `blocked`. Otherwise keep going — use the existing conversation context and your tools,',
-  'and do not ask the user for input unless a real blocker prevents progress.',
+  'with `blocked`. Otherwise keep going — use existing conversation context and tools;',
+  'do not ask the user for input unless a real blocker prevents progress.',
 ].join(' ');
 
 export class TurnFlow {

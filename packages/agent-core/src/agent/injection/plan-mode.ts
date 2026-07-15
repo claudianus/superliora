@@ -148,27 +148,27 @@ function withResponseLanguage(body: string, agent: Agent): string {
 }
 
 const PLAN_MODE_BLOCKED_TOOLS =
-  'TaskStop, CronCreate, and CronDelete are blocked — call ExitPlanMode first if needed.';
+  'TaskStop, CronCreate, CronDelete blocked — call ExitPlanMode first if needed.';
 
 const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. MUST NOT edit (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed (normal permission rules). Supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
 
 const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. MUST NOT edit or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed (normal permission rules). Supersedes other instructions.`;
 
 const PLAN_WORKFLOW = `Workflow:
-  1. Understand — Glob, Grep, Read; Context7Resolve/Docs for library docs; WebSearch/FetchURL when external evidence matters.
+  1. Understand — Glob, Grep, Read; Context7Resolve/Docs for library docs; WebSearch/FetchURL for external evidence.
   2. Design — one best approach; trade-offs only when they matter.
   3. Review — re-read key files.
   4. Write Plan — Write or Edit the plan file (Write if missing). ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
   5. Exit — ExitPlanMode for approval.
 
-TodoList is the live execution board during planning — durable content goes in the plan file only.`;
+TodoList is the live execution board during planning — durable content stays in the plan file only.`;
 
 const PLAN_MULTI_APPROACH = `## Multiple approaches
-At most 2–3 meaningfully different options; do not pad minor variants. If preference matters, AskUserQuestion first.
+At most 2–3 different options; do not pad minor variants. If preference matters, AskUserQuestion first.
 Multiple approaches in the plan → pass \`options\` to ExitPlanMode for user choice.
 NEVER write multiple approaches and call ExitPlanMode without \`options\`.
 
-AskUserQuestion: missing requirements/preferences only — never plan approval (plan is invisible until ExitPlanMode).
+AskUserQuestion: missing requirements/preferences only — never plan approval (invisible until ExitPlanMode).
 End every turn with AskUserQuestion (clarify) or ExitPlanMode (approve).`;
 
 function fullReminder(planFilePath: PlanFilePath): string {
@@ -189,7 +189,7 @@ function sparseReminder(planFilePath: PlanFilePath): string {
     return inlineSparseReminder();
   }
 
-  const body = `Plan mode still active (see full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode for multiple approaches. End with AskUserQuestion or ExitPlanMode — never text plan approval.`;
+  const body = `Plan mode still active (full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode for multiple approaches. End with AskUserQuestion or ExitPlanMode — never text plan approval.`;
   return withPlanFileFooter(body, planFilePath);
 }
 
@@ -201,7 +201,7 @@ function reentryReminder(planFilePath: PlanFilePath): string {
   const body = `${PLAN_READ_ONLY_WITH_FILE}
 
 ## Re-entering Plan Mode
-A plan file from a prior session exists. Before proceeding:
+A prior-session plan file exists. Before proceeding:
   1. Read the existing plan file.
   2. Compare to the current request — replace if new, update if same.
   3. Write/Edit the plan file (Write if missing).
@@ -220,7 +220,7 @@ ${PLAN_MULTI_APPROACH}`;
 }
 
 function inlineSparseReminder(): string {
-  return `Plan mode still active (see full instructions earlier). Read-only; no plan file path in this host — wait for the host path before ExitPlanMode. AskUserQuestion for preferences; pass \`options\` for multiple approaches. End with AskUserQuestion or ExitPlanMode.`;
+  return `Plan mode still active (full instructions earlier). Read-only; no plan file path in this host — wait for the host path before ExitPlanMode. AskUserQuestion for preferences; pass \`options\` for multiple approaches. End with AskUserQuestion or ExitPlanMode.`;
 }
 
 function inlineReentryReminder(): string {
@@ -231,6 +231,6 @@ No plan file path in this host. Re-evaluate the request, AskUserQuestion for gap
 }
 
 function exitReminder(): string {
-  return `Plan mode is no longer active. Read-only and plan-file-only restrictions no longer apply. Continue the approved plan with normal tool and permission rules.`;
+  return `Plan mode is no longer active. Read-only and plan-file-only restrictions no longer apply. Continue the approved plan under normal tool and permission rules.`;
 }
 
