@@ -77,10 +77,10 @@ export function buildUltraworkRecoveryPrompt(
   }
   if (report.skippedInterview === true) {
     lines.push(
-      'Resume policy: Skip UltraPlan interview on resume. Continue design/implementation/verification from the saved checkpoint.',
+      'Resume policy: Skip UltraPlan interview on resume. Continue design/implementation/verification from checkpoint.',
     );
     lines.push(
-      'Do not ask blocking interview questions unless a critical missing blocker prevents progress.',
+      'Do not ask blocking interview questions unless a critical missing blocker blocks progress.',
     );
   }
 
@@ -146,7 +146,7 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`- ${action}`);
   }
   lines.push(
-    'Continue from current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over model claims; mark AC/nodes done only with evidence. Preserve durable ids.',
+    'Continue from current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over claims; mark AC/nodes done only with evidence. Preserve durable ids.',
   );
   lines.push('</ultrawork_recovery>');
   return lines.join('\n');
