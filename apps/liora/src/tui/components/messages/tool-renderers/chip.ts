@@ -236,7 +236,33 @@ const context7DocsChip: ChipProvider = (_toolCall, result) => {
   return pluralize(count, 'snippet');
 };
 
+const searchSkillChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    if (/<skill-candidate\b/.test(line)) count++;
+  }
+  if (count === 0) {
+    return result.output.trim().length === 0
+      ? 'no skills'
+      : pluralize(countNonEmptyLines(result.output), 'line');
+  }
+  return pluralize(count, 'skill');
+};
 
+const searchExpertChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    if (/<expert-candidate\b/.test(line)) count++;
+  }
+  if (count === 0) {
+    return result.output.trim().length === 0
+      ? 'no experts'
+      : pluralize(countNonEmptyLines(result.output), 'line');
+  }
+  return pluralize(count, 'expert');
+};
 
 const goalStatusOutputChip: ChipProvider = (_toolCall, result) =>
   result.is_error ? '' : goalStatusChip(result.output);
@@ -259,6 +285,8 @@ const REGISTRY: Record<string, ChipProvider> = {
   WebSearch: webSearchChip,
   Context7Resolve: context7ResolveChip,
   Context7Docs: context7DocsChip,
+  SearchSkill: searchSkillChip,
+  SearchExpert: searchExpertChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

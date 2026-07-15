@@ -207,6 +207,39 @@ describe('chip registry', () => {
     );
     expect(out).toBe('2 snippets');
   });
+  it('SearchSkill chip counts skill candidates', () => {
+    const out = chipFor(
+      'SearchSkill',
+      { query: 'no-ai-slop' },
+      result(
+        [
+          '<skill-candidate rank="1" name="no-ai-slop" source="bundled" score="0.9" match_reason="name">',
+          '  <description>Human writing</description>',
+          '</skill-candidate>',
+          '<skill-candidate rank="2" name="write-tui" source="bundled" score="0.7" match_reason="tag">',
+          '  <description>TUI</description>',
+          '</skill-candidate>',
+        ].join('\n'),
+      ),
+    );
+    expect(out).toBe('2 skills');
+  });
+
+  it('SearchExpert chip counts expert candidates', () => {
+    const out = chipFor(
+      'SearchExpert',
+      { query: 'frontend' },
+      result(
+        [
+          '<expert-candidate rank="1" id="fe" name="Frontend Engineer" division="product" division_label="Product" score="0.8">',
+          '  <description>UI</description>',
+          '</expert-candidate>',
+        ].join('\n'),
+      ),
+    );
+    expect(out).toBe('1 expert');
+  });
+
 
 
 

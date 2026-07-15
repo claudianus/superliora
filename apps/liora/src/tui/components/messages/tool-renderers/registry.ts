@@ -27,6 +27,8 @@ import {
   lioraSymbolSummary,
   lioraTreeSummary,
   readSummary,
+  searchExpertSummary,
+  searchSkillSummary,
   thinkSummary,
   webSearchSummary,
   writeSummary,
@@ -72,6 +74,10 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return context7ResolveSummary;
     case 'Context7Docs':
       return context7DocsSummary;
+    case 'SearchSkill':
+      return searchSkillSummary;
+    case 'SearchExpert':
+      return searchExpertSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':

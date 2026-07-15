@@ -227,6 +227,52 @@ describe('tool-result registry', () => {
     expect(out).toContain('useEffect');
     expect(isGenericToolResult('Context7Docs')).toBe(false);
   });
+  it('SearchSkill glance lists skill names', () => {
+    const renderer = pickResultRenderer('SearchSkill');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('SearchSkill', { query: 'no-ai-slop' }),
+          result(
+            [
+              '<skill-candidate rank="1" name="no-ai-slop" source="bundled" score="0.9" match_reason="name">',
+              '  <description>Human writing</description>',
+              '</skill-candidate>',
+              '<skill-candidate rank="2" name="write-tui" source="bundled" score="0.7" match_reason="tag">',
+              '  <description>TUI</description>',
+              '</skill-candidate>',
+            ].join('\n'),
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('no-ai-slop');
+    expect(out).toContain('write-tui');
+    expect(isGenericToolResult('SearchSkill')).toBe(false);
+  });
+
+  it('SearchExpert glance lists expert names', () => {
+    const renderer = pickResultRenderer('SearchExpert');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('SearchExpert', { query: 'frontend' }),
+          result(
+            [
+              '<expert-candidate rank="1" id="fe" name="Frontend Engineer" division="product" division_label="Product" score="0.8">',
+              '  <description>UI</description>',
+              '</expert-candidate>',
+            ].join('\n'),
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('Frontend Engineer');
+    expect(isGenericToolResult('SearchExpert')).toBe(false);
+  });
+
 
 
 
