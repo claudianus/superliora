@@ -56,6 +56,7 @@ import {
   taskOutputSummary,
   taskStopSummary,
   thinkSummary,
+  todoListSummary,
   ultraSwarmSummary,
   ultraworkGraphSummary,
   webSearchSummary,
@@ -162,6 +163,8 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return computerActSummary;
     case 'ComputerStatus':
       return computerStatusSummary;
+    case 'TodoList':
+      return todoListSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':

@@ -406,6 +406,16 @@ describe('chip registry', () => {
       ),
     ).toBe('som');
   });
+  it('TodoList chip counts items and doing work', () => {
+    expect(
+      chipFor(
+        'TodoList',
+        {},
+        result('Current todo list:\n  [in_progress] Wire chips\n  [pending] Write tests\n  [done] Plan'),
+      ),
+    ).toBe('3 · 1 doing');
+  });
+
 
 
 

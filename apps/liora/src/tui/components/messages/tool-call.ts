@@ -467,6 +467,7 @@ function extractKeyArgument(
     ComputerCapture: ['mode', 'app'],
     ComputerAct: ['actions'],
     ComputerStatus: ['app'],
+    TodoList: ['todos'],
   };
 
   // Glob: concatenate multiple args into a single summary so the header

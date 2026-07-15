@@ -584,6 +584,37 @@ const computerStatusChip: ChipProvider = (_toolCall, result) => {
   if (json?.['ok'] === true) return 'ready';
   return 'status';
 };
+const todoListChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  if (/Todo list is empty/i.test(result.output) || /Todo list cleared/i.test(result.output)) {
+    return 'empty';
+  }
+  if (/Todo list updated/i.test(result.output)) {
+    let count = 0;
+    for (const line of result.output.split('\n')) {
+      if (/^\s*\[(pending|in_progress|done)\]\s+/.test(line)) count++;
+    }
+    return count > 0 ? pluralize(count, 'item') : 'updated';
+  }
+  let count = 0;
+  let inProgress = 0;
+  let done = 0;
+  for (const line of result.output.split('\n')) {
+    if (/^\s*\[pending\]\s+/.test(line)) count++;
+    else if (/^\s*\[in_progress\]\s+/.test(line)) {
+      count++;
+      inProgress++;
+    } else if (/^\s*\[done\]\s+/.test(line)) {
+      count++;
+      done++;
+    }
+  }
+  if (count === 0) return 'empty';
+  if (inProgress > 0) return `${count} · ${inProgress} doing`;
+  if (done === count) return `${count} done`;
+  return pluralize(count, 'item');
+};
+
 
 
 
@@ -644,6 +675,7 @@ const REGISTRY: Record<string, ChipProvider> = {
   ComputerCapture: computerCaptureChip,
   ComputerAct: computerActChip,
   ComputerStatus: computerStatusChip,
+  TodoList: todoListChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

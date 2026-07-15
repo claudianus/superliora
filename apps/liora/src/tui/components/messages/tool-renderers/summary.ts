@@ -529,6 +529,23 @@ const computerCaptureGlance: GlanceFn = (_toolCall, result) => {
   }
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
+const todoListGlance: GlanceFn = (_toolCall, result) => {
+  if (/Todo list is empty/i.test(result.output) || /Todo list cleared/i.test(result.output)) {
+    return 'empty';
+  }
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^\s*\[(pending|in_progress|done)\]\s+(.+)$/.exec(line);
+    if (m) {
+      samples.push(`${m[1]}: ${m[2]!.slice(0, 40)}`);
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length > 0) return samples.join(' · ');
+  if (/Todo list updated/i.test(result.output)) return 'updated';
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 
 
 
@@ -631,3 +648,4 @@ export const browserConsoleSummary: ResultRenderer = withGlance(null);
 export const computerCaptureSummary: ResultRenderer = withGlance(computerCaptureGlance);
 export const computerActSummary: ResultRenderer = withGlance(null);
 export const computerStatusSummary: ResultRenderer = withGlance(null);
+export const todoListSummary: ResultRenderer = withGlance(todoListGlance);
