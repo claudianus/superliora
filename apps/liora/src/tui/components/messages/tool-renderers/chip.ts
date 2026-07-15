@@ -263,6 +263,34 @@ const searchExpertChip: ChipProvider = (_toolCall, result) => {
   }
   return pluralize(count, 'expert');
 };
+const skillChip: ChipProvider = (toolCall, result) => {
+  if (result.is_error) return '';
+  if (/loaded inline/i.test(result.output)) return 'loaded';
+  const skill =
+    typeof toolCall.args['skill'] === 'string'
+      ? toolCall.args['skill']
+      : typeof toolCall.args['name'] === 'string'
+        ? toolCall.args['name']
+        : '';
+  return skill.length > 0 ? skill : 'ok';
+};
+
+const memoryChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  if (/Memory saved:/i.test(result.output)) return 'saved';
+  if (/Memory forgotten:/i.test(result.output)) return 'forgotten';
+  if (/No memory found:/i.test(result.output)) return 'missing';
+  if (/Liora Recall is disabled/i.test(result.output)) return 'disabled';
+  // Numbered search/list rows: "1. score=..." or "1. [id]"
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    if (/^\s*\d+\.\s+/.test(line)) count++;
+  }
+  if (count > 0) return pluralize(count, 'memory', 'memories');
+  if (/Subject:/i.test(result.output)) return '1 memory';
+  return result.output.trim().length === 0 ? 'empty' : 'ok';
+};
+
 
 const goalStatusOutputChip: ChipProvider = (_toolCall, result) =>
   result.is_error ? '' : goalStatusChip(result.output);
@@ -287,6 +315,8 @@ const REGISTRY: Record<string, ChipProvider> = {
   Context7Docs: context7DocsChip,
   SearchSkill: searchSkillChip,
   SearchExpert: searchExpertChip,
+  Skill: skillChip,
+  Memory: memoryChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

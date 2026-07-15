@@ -272,6 +272,39 @@ describe('tool-result registry', () => {
     expect(out).toContain('Frontend Engineer');
     expect(isGenericToolResult('SearchExpert')).toBe(false);
   });
+  it('Skill glance shows loaded skill name without expand', () => {
+    const renderer = pickResultRenderer('Skill');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('Skill', { skill: 'no-ai-slop' }),
+          result('Skill "no-ai-slop" loaded inline. Follow its instructions.'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('no-ai-slop');
+    expect(out).toContain('loaded');
+    expect(isGenericToolResult('Skill')).toBe(false);
+  });
+
+  it('Memory glance lists subjects for search results', () => {
+    const renderer = pickResultRenderer('Memory');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('Memory', { search: { query: 'prefs' } }),
+          result('1. score=0.91 [m1] semantic/user\nSubject: Theme\nContent: dark\n\n2. score=0.80 [m2] semantic/user\nSubject: Lang\nContent: ko'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('search');
+    expect(out).toContain('Theme');
+    expect(out).toContain('Lang');
+    expect(isGenericToolResult('Memory')).toBe(false);
+  });
+
 
 
 

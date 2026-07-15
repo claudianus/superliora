@@ -221,6 +221,51 @@ const searchExpertGlance: GlanceFn = (_toolCall, result) => {
   }
   return names.join(' · ');
 };
+const skillGlance: GlanceFn = (toolCall, result) => {
+  const skill =
+    typeof toolCall.args['skill'] === 'string'
+      ? toolCall.args['skill']
+      : typeof toolCall.args['name'] === 'string'
+        ? toolCall.args['name']
+        : '';
+  if (/loaded inline/i.test(result.output)) {
+    return skill.length > 0 ? `${skill} loaded` : 'skill loaded';
+  }
+  const first = result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+  if (skill.length > 0 && first.length > 0) return `${skill} · ${first}`;
+  return skill.length > 0 ? skill : first;
+};
+
+const memoryGlance: GlanceFn = (toolCall, result) => {
+  const action =
+    typeof toolCall.args['write'] === 'object' && toolCall.args['write'] !== null
+      ? 'write'
+      : typeof toolCall.args['search'] === 'object' && toolCall.args['search'] !== null
+        ? 'search'
+        : typeof toolCall.args['read'] === 'object' && toolCall.args['read'] !== null
+          ? 'read'
+          : typeof toolCall.args['forget'] === 'object' && toolCall.args['forget'] !== null
+            ? 'forget'
+            : typeof toolCall.args['list'] === 'object' && toolCall.args['list'] !== null
+              ? 'list'
+              : '';
+  const subjects: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^Subject:\s+(.+)$/i.exec(line.trim());
+    if (m && m[1] !== undefined) {
+      subjects.push(m[1].trim());
+      if (subjects.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (subjects.length > 0) {
+    const head = action.length > 0 ? `${action} · ` : '';
+    return `${head}${subjects.join(' · ')}`;
+  }
+  const first = result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+  if (action.length > 0 && first.length > 0) return `${action} · ${first}`;
+  return action.length > 0 ? action : first;
+};
+
 
 
 
@@ -287,3 +332,5 @@ export const context7ResolveSummary: ResultRenderer = withGlance(context7Resolve
 export const context7DocsSummary: ResultRenderer = withGlance(context7DocsGlance);
 export const searchSkillSummary: ResultRenderer = withGlance(searchSkillGlance);
 export const searchExpertSummary: ResultRenderer = withGlance(searchExpertGlance);
+export const skillSummary: ResultRenderer = withGlance(skillGlance);
+export const memorySummary: ResultRenderer = withGlance(memoryGlance);

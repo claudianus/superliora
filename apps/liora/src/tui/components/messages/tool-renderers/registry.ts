@@ -26,9 +26,11 @@ import {
   lioraReadSummary,
   lioraSymbolSummary,
   lioraTreeSummary,
+  memorySummary,
   readSummary,
   searchExpertSummary,
   searchSkillSummary,
+  skillSummary,
   thinkSummary,
   webSearchSummary,
   writeSummary,
@@ -78,6 +80,10 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return searchSkillSummary;
     case 'SearchExpert':
       return searchExpertSummary;
+    case 'Skill':
+      return skillSummary;
+    case 'Memory':
+      return memorySummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
