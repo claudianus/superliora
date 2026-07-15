@@ -340,6 +340,29 @@ const lioraReviewGlance: GlanceFn = (_toolCall, result) => {
   }
   return files !== undefined ? `${files} files reviewed` : result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
+const taskListGlance: GlanceFn = (_toolCall, result) => {
+  const m = /(?:active_background_tasks|background_tasks):\s*(\d+)/i.exec(result.output);
+  if (m) {
+    const n = Number(m[1]);
+    if (n === 0) return 'no background tasks';
+    return `${n} background task${n === 1 ? '' : 's'}`;
+  }
+  if (/No background tasks found/i.test(result.output)) return 'no background tasks';
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const taskOutputGlance: GlanceFn = (toolCall, result) => {
+  const id = typeof toolCall.args['task_id'] === 'string' ? toolCall.args['task_id'] : '';
+  const status = /status:\s*([a-z_]+)/i.exec(result.output)?.[1];
+  const path = /output_path:\s*(\S+)/i.exec(result.output)?.[1];
+  const parts: string[] = [];
+  if (id.length > 0) parts.push(id);
+  if (status !== undefined) parts.push(status);
+  if (path !== undefined) parts.push(path);
+  if (parts.length > 0) return parts.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 
 
 
@@ -418,3 +441,6 @@ export const enterPlanModeSummary: ResultRenderer = withGlance(null);
 export const exitPlanModeSummary: ResultRenderer = withGlance(null);
 export const askUserQuestionSummary: ResultRenderer = withGlance(askUserQuestionGlance);
 export const lioraReviewSummary: ResultRenderer = withGlance(lioraReviewGlance);
+export const taskListSummary: ResultRenderer = withGlance(taskListGlance);
+export const taskOutputSummary: ResultRenderer = withGlance(taskOutputGlance);
+export const taskStopSummary: ResultRenderer = withGlance(null);

@@ -370,6 +370,32 @@ describe('tool-result registry', () => {
     expect(out).toContain('a.ts:10');
     expect(isGenericToolResult('LioraReview')).toBe(false);
   });
+  it('TaskList glance shows task count', () => {
+    const renderer = pickResultRenderer('TaskList');
+    const out = strip(
+      joinRender(renderer(call('TaskList', {}), result('active_background_tasks: 0\nNo background tasks found.'), ctx)),
+    );
+    expect(out).toContain('no background tasks');
+    expect(isGenericToolResult('TaskList')).toBe(false);
+  });
+
+  it('TaskOutput glance shows id status and path', () => {
+    const renderer = pickResultRenderer('TaskOutput');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('TaskOutput', { task_id: 'bash-1' }),
+          result('task_id: bash-1\nstatus: completed\noutput_path: /tmp/out.log'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('bash-1');
+    expect(out).toContain('completed');
+    expect(out).toContain('/tmp/out.log');
+    expect(isGenericToolResult('TaskOutput')).toBe(false);
+  });
+
 
 
 

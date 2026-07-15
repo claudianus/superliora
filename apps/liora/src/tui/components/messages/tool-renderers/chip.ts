@@ -378,6 +378,34 @@ const lioraReviewChip: ChipProvider = (_toolCall, result) => {
   const files = /Files reviewed:\s+(\d+)/i.exec(result.output)?.[1];
   return files !== undefined ? `${files} files` : 'reviewed';
 };
+const taskListChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const m = /(?:active_background_tasks|background_tasks):\s*(\d+)/i.exec(result.output);
+  if (m) {
+    const n = Number(m[1]);
+    return n === 0 ? 'none' : pluralize(n, 'task');
+  }
+  if (/No background tasks found/i.test(result.output)) return 'none';
+  return 'tasks';
+};
+
+const taskOutputChip: ChipProvider = (toolCall, result) => {
+  if (result.is_error) return '';
+  const status = /status:\s*([a-z_]+)/i.exec(result.output)?.[1];
+  if (status !== undefined) return status;
+  const id = typeof toolCall.args['task_id'] === 'string' ? toolCall.args['task_id'] : '';
+  return id.length > 0 ? id : 'output';
+};
+
+const taskStopChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) {
+    if (/not found/i.test(result.output)) return 'missing';
+    return 'failed';
+  }
+  if (/stopped|killed|cancelled/i.test(result.output)) return 'stopped';
+  return 'ok';
+};
+
 
 
 
@@ -414,6 +442,9 @@ const REGISTRY: Record<string, ChipProvider> = {
   ExitPlanMode: exitPlanModeChip,
   AskUserQuestion: askUserQuestionChip,
   LioraReview: lioraReviewChip,
+  TaskList: taskListChip,
+  TaskOutput: taskOutputChip,
+  TaskStop: taskStopChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

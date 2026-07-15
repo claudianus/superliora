@@ -447,6 +447,9 @@ function extractKeyArgument(
     ExitPlanMode: ['options'],
     AskUserQuestion: ['questions', 'header'],
     LioraReview: ['diff_source', 'from_ref', 'to_ref'],
+    TaskList: ['active_only', 'limit'],
+    TaskOutput: ['task_id'],
+    TaskStop: ['task_id'],
     // Prefer the short `description` so the header preview never spills a
     // multi-line `prompt` into the TUI chrome.
     Agent: ['description', 'prompt'],
