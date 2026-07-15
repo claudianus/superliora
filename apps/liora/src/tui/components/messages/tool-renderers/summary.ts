@@ -74,6 +74,93 @@ const globGlance: GlanceFn = (_toolCall, result) => {
   const tail = remaining > 0 ? `, +${String(remaining)} more` : '';
   return `${samples.join(', ')}${tail}`;
 };
+const lioraReadGlance: GlanceFn = (_toolCall, result) => {
+  const mode = /mode="([^"]+)"/.exec(result.output)?.[1];
+  const summary = /summary:\s+(.+)$/m.exec(result.output)?.[1]?.trim();
+  if (summary !== undefined && summary.length > 0) {
+    return mode !== undefined ? `${mode} · ${summary}` : summary;
+  }
+  // Fallback: first non-meta content line.
+  for (const line of result.output.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.startsWith('<tool_meta') || trimmed.startsWith('</tool_meta')) {
+      continue;
+    }
+    if (trimmed.startsWith('truncated:') || trimmed.startsWith('partial:') || trimmed.startsWith('summary:')) {
+      continue;
+    }
+    return trimmed.slice(0, 80);
+  }
+  return '';
+};
+
+const lioraSymbolGlance: GlanceFn = (_toolCall, result) => {
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('- ')) continue;
+    samples.push(trimmed.slice(2).trim());
+    if (samples.length >= GLANCE_SAMPLES) break;
+  }
+  if (samples.length === 0) return '';
+  return samples.join(' · ');
+};
+
+const lioraTreeGlance: GlanceFn = (_toolCall, result) => {
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    if (trimmed.startsWith('<liora_tree') || trimmed.startsWith('</liora_tree')) continue;
+    samples.push(trimmed);
+    if (samples.length >= GLANCE_SAMPLES) break;
+  }
+  if (samples.length === 0) return '';
+  const remaining = Math.max(0, countTreeEntries(result.output) - samples.length);
+  const tail = remaining > 0 ? `, +${String(remaining)} more` : '';
+  return `${samples.join(', ')}${tail}`;
+};
+
+function countTreeEntries(output: string): number {
+  let count = 0;
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    if (trimmed.startsWith('<liora_tree') || trimmed.startsWith('</liora_tree')) continue;
+    count++;
+  }
+  return count;
+}
+
+const lioraExpandGlance: GlanceFn = (toolCall, result) => {
+  const id = typeof toolCall.args['id'] === 'string' ? toolCall.args['id'] : '';
+  const window = /window:\s+(\d+)-(\d+)\s+of\s+(\d+)/.exec(result.output);
+  if (window !== null) {
+    const base = `lines ${window[1]}-${window[2]} of ${window[3]}`;
+    return id.length > 0 ? `${id} · ${base}` : base;
+  }
+  const label = /label="([^"]+)"/.exec(result.output)?.[1];
+  if (id.length > 0 && label !== undefined) return `${id} · ${label}`;
+  return id;
+};
+
+const lioraCallgraphGlance: GlanceFn = (toolCall, result) => {
+  const symbol = typeof toolCall.args['symbol'] === 'string' ? toolCall.args['symbol'] : '';
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    if (trimmed.startsWith('<') || trimmed.startsWith('direction:') || trimmed.startsWith('symbol:')) {
+      continue;
+    }
+    samples.push(trimmed.slice(0, 60));
+    if (samples.length >= GLANCE_SAMPLES) break;
+  }
+  if (samples.length === 0) return symbol;
+  const head = symbol.length > 0 ? `${symbol} · ` : '';
+  return `${head}${samples.join(' · ')}`;
+};
+
 
 // ── Exports ──────────────────────────────────────────────────────────
 
@@ -128,3 +215,8 @@ export const writeSummary: ResultRenderer = withGlance(null);
 // Tools that benefit from inline path samples below the chip.
 export const grepSummary: ResultRenderer = withGlance(grepGlance);
 export const globSummary: ResultRenderer = withGlance(globGlance);
+export const lioraReadSummary: ResultRenderer = withGlance(lioraReadGlance);
+export const lioraSymbolSummary: ResultRenderer = withGlance(lioraSymbolGlance);
+export const lioraTreeSummary: ResultRenderer = withGlance(lioraTreeGlance);
+export const lioraExpandSummary: ResultRenderer = withGlance(lioraExpandGlance);
+export const lioraCallgraphSummary: ResultRenderer = withGlance(lioraCallgraphGlance);

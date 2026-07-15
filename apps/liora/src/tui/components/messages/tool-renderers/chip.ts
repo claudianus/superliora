@@ -145,6 +145,62 @@ const webSearchChip: ChipProvider = (_toolCall, result) => {
   if (count === 0) return result.output.trim().length === 0 ? 'no results' : 'web result';
   return pluralize(count, 'result');
 };
+const lioraReadChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const mode = /mode="([^"]+)"/.exec(result.output)?.[1];
+  const rendered = /rendered_lines:\s+(\d+)/.exec(result.output)?.[1];
+  const total = /total_lines:\s+(\d+)/.exec(result.output)?.[1];
+  if (rendered !== undefined && total !== undefined) {
+    const base = `${rendered}/${total} lines`;
+    return mode !== undefined ? `${mode} · ${base}` : base;
+  }
+  return pluralize(countNonEmptyLines(result.output), 'line');
+};
+
+const lioraSymbolChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const defs = /definitions:\s+(\d+)/.exec(result.output)?.[1];
+  const refs = /references:\s+(\d+)/.exec(result.output)?.[1];
+  if (defs === undefined && refs === undefined) return '';
+  const parts: string[] = [];
+  if (defs !== undefined) parts.push(`${defs} def${defs === '1' ? '' : 's'}`);
+  if (refs !== undefined) parts.push(`${refs} ref${refs === '1' ? '' : 's'}`);
+  return parts.join(' · ');
+};
+
+const lioraTreeChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  // Count tree body lines between the wrapper tags (exclude open/close tags).
+  let count = 0;
+  for (const line of result.output.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    if (trimmed.startsWith('<liora_tree') || trimmed.startsWith('</liora_tree')) continue;
+    count++;
+  }
+  if (count === 0) return 'empty';
+  return pluralize(count, 'entry', 'entries');
+};
+
+const lioraExpandChip: ChipProvider = (toolCall, result) => {
+  if (result.is_error) return '';
+  const window = /window:\s+(\d+)-(\d+)\s+of\s+(\d+)/.exec(result.output);
+  if (window !== null) {
+    return `${window[1]}-${window[2]}/${window[3]} lines`;
+  }
+  const id = typeof toolCall.args['id'] === 'string' ? toolCall.args['id'] : '';
+  return id.length > 0 ? id : pluralize(countNonEmptyLines(result.output), 'line');
+};
+
+const lioraCallgraphChip: ChipProvider = (toolCall, result) => {
+  if (result.is_error) return '';
+  const symbol = typeof toolCall.args['symbol'] === 'string' ? toolCall.args['symbol'] : '';
+  const edges = countNonEmptyLines(result.output);
+  if (symbol.length > 0 && edges > 0) return `${symbol} · ${pluralize(edges, 'line')}`;
+  if (symbol.length > 0) return symbol;
+  return pluralize(edges, 'line');
+};
+
 
 const goalStatusOutputChip: ChipProvider = (_toolCall, result) =>
   result.is_error ? '' : goalStatusChip(result.output);
@@ -155,6 +211,11 @@ const REGISTRY: Record<string, ChipProvider> = {
   GenerateImage: generateImageChip,
   GenerateVideo: generateVideoChip,
   Read: readChip,
+  LioraRead: lioraReadChip,
+  LioraSymbol: lioraSymbolChip,
+  LioraTree: lioraTreeChip,
+  LioraExpand: lioraExpandChip,
+  LioraCallgraph: lioraCallgraphChip,
   ReadMediaFile: readMediaChip,
   Grep: grepChip,
   Glob: globChip,

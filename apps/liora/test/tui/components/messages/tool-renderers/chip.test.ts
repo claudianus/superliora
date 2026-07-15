@@ -121,6 +121,69 @@ describe('chip registry', () => {
     expect(text).toContain('x.png');
     expect(text).toMatch(/2(\.0)? KB|2048 B/);
   });
+  it('LioraRead chip shows mode and rendered/total lines from tool_meta', () => {
+    const out = chipFor(
+      'LioraRead',
+      { path: 'src/foo.ts' },
+      result(
+        [
+          'export function foo() {}',
+          '<tool_meta tool="LioraRead" mode="signatures">',
+          'truncated: false',
+          'partial: false',
+          'summary: Rendered 12 of 40 lines for src/foo.ts.',
+          'total_lines: 40',
+          'rendered_lines: 12',
+          '</tool_meta>',
+        ].join('\n'),
+      ),
+    );
+    expect(out).toBe('signatures · 12/40 lines');
+  });
+
+  it('LioraSymbol chip shows definition and reference counts', () => {
+    const out = chipFor(
+      'LioraSymbol',
+      { name: 'GoalInjector' },
+      result(
+        [
+          '<liora_symbol name="GoalInjector">',
+          'definitions: 1',
+          '- packages/agent-core/src/agent/injection/goal.ts:L15 def export class GoalInjector',
+          'references: 2',
+          '- packages/agent-core/src/agent/injection/manager.ts:L40 ref GoalInjector',
+          '</liora_symbol>',
+        ].join('\n'),
+      ),
+    );
+    expect(out).toBe('1 def · 2 refs');
+  });
+
+  it('LioraTree chip counts body entries', () => {
+    const out = chipFor(
+      'LioraTree',
+      { path: 'src' },
+      result(['<liora_tree>', 'a.ts', 'b/', 'b/c.ts', '</liora_tree>'].join('\n')),
+    );
+    expect(out).toBe('3 entries');
+  });
+
+  it('LioraExpand chip shows window range when present', () => {
+    const out = chipFor(
+      'LioraExpand',
+      { id: 'arch-1' },
+      result(
+        [
+          '<liora_expand id="arch-1" label="src/foo.ts">',
+          'window: 1-20 of 200',
+          '1\tline one',
+          '</liora_expand>',
+        ].join('\n'),
+      ),
+    );
+    expect(out).toBe('1-20/200 lines');
+  });
+
 
   it('Unknown tools have no chip', () => {
     expect(pickChip('SomethingElse')).toBeUndefined();

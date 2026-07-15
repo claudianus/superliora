@@ -93,7 +93,7 @@ describe('GoalInjector content', () => {
     expect(text).not.toContain('Liora Lean Context');
     expect(text).not.toContain('LioraExpand');
     // Active goal reminders inject every continuation turn — keep them compact.
-    expect(text.length).toBeLessThan(1600);
+    expect(text.length).toBeLessThan(1400);
   });
 
   it('wraps the completion criterion when present', async () => {
@@ -192,7 +192,7 @@ describe('GoalInjector content', () => {
     const store = makeStore();
     await store.createGoal({ objective: 'work for up to 20 turns' });
     const text = (await injectOnce(store))!;
-    expect(text).toContain('Before doing any goal work');
+    expect(text).toContain('hard budget that is not recorded');
     expect(text).toContain('call SetGoalBudget first');
     expect(text).toContain('SetGoalBudget');
     expect(text).toContain('Do not invent budgets');
