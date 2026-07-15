@@ -39,6 +39,8 @@ export interface SkillRegistryOptions {
   readonly onWarning?: (message: string, cause?: unknown) => void;
   readonly sessionId?: string;
   readonly defaultSearchLimit?: number;
+  /** When true, SearchSkill/Skill never auto-load the builtin catalog (unit tests). */
+  readonly disableCatalogLoad?: boolean;
   readonly maxSearchLimit?: number;
 }
 
@@ -52,6 +54,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
   private readonly onWarning: (message: string, cause?: unknown) => void;
   private readonly defaultSearchLimit: number;
   private readonly maxSearchLimit: number;
+  private readonly disableCatalogLoad: boolean;
   private searchEngine: SkillSearchEngine | undefined;
   private catalogLoadPromise: Promise<void> | undefined;
   private catalogLoaded = false;
@@ -65,6 +68,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
       options.defaultSearchLimit ?? DEFAULT_SKILL_SEARCH_LIMIT,
       this.maxSearchLimit,
     );
+    this.disableCatalogLoad = options.disableCatalogLoad === true;
     this.sessionId = options.sessionId;
   }
 
@@ -228,7 +232,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
    * rather than at session construction so ordinary coding turns start faster.
    */
   async ensureCatalogLoaded(): Promise<void> {
-    if (this.catalogLoaded) return;
+    if (this.catalogLoaded || this.disableCatalogLoad) return;
     if (this.catalogLoadPromise === undefined) {
       this.catalogLoadPromise = (async () => {
         await registerCatalogSkills(this);

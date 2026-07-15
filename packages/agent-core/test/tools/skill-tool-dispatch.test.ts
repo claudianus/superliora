@@ -26,7 +26,7 @@ function skill(name: string, metadata: SkillDefinition['metadata'] = {}): SkillD
 }
 
 function registry(skills: readonly SkillDefinition[] = []): AgentSkillRegistry {
-  const registry = new SessionSkillRegistry();
+  const registry = new SessionSkillRegistry({ disableCatalogLoad: true });
   for (const item of skills) {
     registry.register(item);
   }

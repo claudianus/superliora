@@ -68,7 +68,7 @@ describe('EnterPlanModeTool', () => {
 
     expect(tool.name).toBe('EnterPlanMode');
     expect(tool.description.length).toBeGreaterThan(0);
-    expect(tool.description).toContain('Use it when ANY of these conditions apply');
+    expect(tool.description).toContain('Use when ANY apply');
     expect(tool.description).toContain('New Feature Implementation');
     expect(tool.description).toContain('When NOT to use');
     expect(tool.description).toContain('subagent_type="explore"');

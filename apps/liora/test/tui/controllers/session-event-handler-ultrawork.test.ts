@@ -32,7 +32,12 @@ function makeHost() {
       ui: { requestRender: vi.fn() },
       renderer: { invalidateFrame: vi.fn() },
     },
-    session: {},
+    session: {
+      setSwarmMode: vi.fn(async () => undefined),
+      setPlanMode: vi.fn(async () => undefined),
+      setPremiumQuality: vi.fn(async () => undefined),
+      getUltraworkRun: vi.fn(async () => null),
+    },
     aborted: false,
     sessionEventUnsubscribe: undefined,
     streamingUI: {
@@ -45,7 +50,9 @@ function makeHost() {
       appendAssistantDelta: vi.fn(),
       scheduleFlush: vi.fn(),
     },
-    requireSession: vi.fn(() => ({})),
+    requireSession: vi.fn(function (this: { session: unknown }) {
+      return this.session;
+    }),
     setAppState: vi.fn(),
     patchLivePane: vi.fn(),
     resetLivePane: vi.fn(),
@@ -202,9 +209,8 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
   });
 
   it('turns off Ultrawork mode and shows a completion marker when the run reaches done', () => {
-    const setPlanMode = vi.fn(async () => {});
     const host = makeHost();
-    host.requireSession = vi.fn(() => ({ setPlanMode }));
+    // Keep full session mocks so finishUltraworkRun can restore swarm/premium.
     host.state.appState.ultraworkMode = true;
     host.state.appState.planMode = true;
     host.state.appState.swarmMode = true;
@@ -231,10 +237,14 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(host.setAppState).toHaveBeenCalledWith({
       ultraworkMode: false,
       planMode: false,
-      activityTip: null,
       swarmMode: false,
+      premiumQualityMode: false,
+      activityTip: null,
+      ultraworkPriorState: null,
     });
-    expect(setPlanMode).toHaveBeenCalledWith(false, false);
+    expect(host.session.setPlanMode).toHaveBeenCalledWith(false, false);
+    expect(host.session.setSwarmMode).toHaveBeenCalledWith(false, 'task');
+    expect(host.session.setPremiumQuality).toHaveBeenCalledWith(false);
     expect(host.state.swarmModeEntry).toBeUndefined();
     expect(host.showNotice).toHaveBeenCalledWith(
       'Ultrawork completed',

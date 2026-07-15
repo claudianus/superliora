@@ -39,10 +39,25 @@ describe('default agent profiles', () => {
     );
   });
 
-  it('lists the goal tools on the full profile but not on subagent profiles', () => {
+  it('lists goal tools on the main agent and full profile, not on subagent profiles', () => {
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    const mainTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(fullTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal', 'GetCurrentTime']));
-    for (const name of ['agent', 'coder', 'explore', 'plan']) {
+    expect(mainTools).toEqual(
+      expect.arrayContaining([
+        'CreateGoal',
+        'GetGoal',
+        'SetGoalBudget',
+        'UpdateGoal',
+        'TodoList',
+        'EnterPlanMode',
+        'ExitPlanMode',
+        'Skill',
+        'SearchSkill',
+        'Agent',
+      ]),
+    );
+    for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).not.toContain('CreateGoal');
       expect(tools).not.toContain('GetGoal');

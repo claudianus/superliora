@@ -6,7 +6,7 @@ promptVars:
   roleAdditional: ''
 
 tools:
-  # Core coding tools — minimal set required for everyday software engineering.
+  # Core coding tools — everyday software engineering.
   - Read
   - Write
   - Edit
@@ -15,10 +15,34 @@ tools:
   - Bash
   # Lean context tools — kept until merged into Read/Grep advanced modes.
   - LioraRead
+  # Progress transparency and long-run autonomy (main agent only).
+  - TodoList
+  - EnterPlanMode
+  - NextPhase
+  - ExitPlanMode
+  - CreateGoal
+  - GetGoal
+  - SetGoalBudget
+  - UpdateGoal
+  - GetCurrentTime
+  # Skills + subagents (catalog still loads on demand).
+  - Skill
+  - SearchSkill
+  - Agent
+  - SearchExpert
+  - AgentSwarm
+  - UltraSwarm
   # External information and user clarification.
   - WebSearch
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
   - AskUserQuestion
+  - Memory
+  - TaskList
+  - TaskOutput
+  - TaskStop
+  - ReadMediaFile
   # MCP tools are gated separately by the profile.
   - mcp__*
 
