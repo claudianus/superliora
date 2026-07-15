@@ -4,7 +4,7 @@ Use when ANY apply:
 1. New Feature Implementation
 2. Multiple Valid Approaches
 3. Code Modifications / Architectural Decisions / Multi-File Changes (3+ files)
-4. Unclear Requirements or user preferences that materially change the approach
+4. Unclear requirements or preferences that materially change the approach
 
 When NOT to use: tiny fixes, very specific instructions, pure exploration.
 
