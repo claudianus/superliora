@@ -384,6 +384,45 @@ const cronCreateGlance: GlanceFn = (_toolCall, result) => {
   if (parts.length > 0) return parts.join(' · ');
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
+const ultraworkGraphGlance: GlanceFn = (_toolCall, result) => {
+  if (/Ultrawork graph is empty/i.test(result.output)) return 'empty graph';
+  const updated = /Ultrawork graph updated:\s*(\d+)\s+nodes,\s*(\d+)\s+task events/i.exec(result.output);
+  if (updated) return `updated · ${updated[1]} nodes · ${updated[2]} events`;
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^\s*\[([^\]]+)\]\s+([^:]+):\s+(.+)$/.exec(line);
+    if (m) {
+      samples.push(`${m[1]} ${m[2]}`);
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length > 0) return samples.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const swarmChannelGlance: GlanceFn = (toolCall, result) => {
+  if (/No Swarm bus messages/i.test(result.output)) return 'no messages';
+  if (/Posted to Swarm bus/i.test(result.output)) {
+    const channel = /channel=(\S+)/.exec(result.output)?.[1];
+    const kind = /kind=(\S+)/.exec(result.output)?.[1];
+    const parts = ['posted'];
+    if (channel !== undefined) parts.push(channel);
+    if (kind !== undefined) parts.push(kind);
+    return parts.join(' · ');
+  }
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^\s*\[.+\]\s+(.+?)\s+→\s+.+?\s+\(([^)]+)\):\s*(.+)$/.exec(line);
+    if (m) {
+      samples.push(`${m[1]} (${m[2]})`);
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length > 0) return samples.join(' · ');
+  const action = typeof toolCall.args['action'] === 'string' ? toolCall.args['action'] : '';
+  return action.length > 0 ? action : result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 
 
 
@@ -470,3 +509,5 @@ export const taskStopSummary: ResultRenderer = withGlance(null);
 export const cronListSummary: ResultRenderer = withGlance(cronListGlance);
 export const cronCreateSummary: ResultRenderer = withGlance(cronCreateGlance);
 export const cronDeleteSummary: ResultRenderer = withGlance(null);
+export const ultraworkGraphSummary: ResultRenderer = withGlance(ultraworkGraphGlance);
+export const swarmChannelSummary: ResultRenderer = withGlance(swarmChannelGlance);

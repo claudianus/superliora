@@ -339,6 +339,26 @@ describe('chip registry', () => {
       ),
     ).toBe('abcd1234');
   });
+  it('UltraworkGraph chip counts nodes', () => {
+    expect(
+      chipFor(
+        'UltraworkGraph',
+        {},
+        result('Ultrawork graph g1 for run-1:\n  [running] n1: Scaffold\n  [pending] n2: Tests'),
+      ),
+    ).toBe('2 nodes');
+  });
+
+  it('SwarmChannel chip shows posted status', () => {
+    expect(
+      chipFor(
+        'SwarmChannel',
+        { action: 'post' },
+        result('Posted to Swarm bus.\nid=m1\nchannel=standup\nkind=status'),
+      ),
+    ).toBe('posted');
+  });
+
 
 
 
