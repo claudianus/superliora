@@ -39,7 +39,7 @@ export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [
 ].join('\n');
 
 export const PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE =
-  'Premium Quality still ON (code/evidence density) — keep correctness, tests, types, and real-surface verification tight; no visual-harness flood while the objective stays non-visual.';
+  'Premium Quality still ON (code/evidence density) — keep correctness, tests, types, and real-surface verification tight; no visual harness while the objective stays non-visual.';
 
 export const PREMIUM_QUALITY_EXIT_GUIDANCE =
   'Premium Quality mode is OFF. Continue with normal quality expectations unless the user asks for premium polish again.';

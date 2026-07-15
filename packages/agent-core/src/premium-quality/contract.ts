@@ -32,4 +32,4 @@ export const PREMIUM_VISUAL_SKIP_SKILL_WHEN = [
 
 /** Compact reminder injected on sparse premium turns. */
 export const PREMIUM_VISUAL_SPARSE_CHECKPOINT =
-  'Premium Visual still ON — art direction before code; SearchSkill → frontend-design if needed; GenerateImage for custom assets when keys exist; BrowserScreenshot before done; use picsum/dicebear/font stacks/bento templates.';
+  'Premium Visual still ON — art direction before code; SearchSkill → frontend-design if needed; GenerateImage for custom assets when keys exist; BrowserScreenshot before done; picsum/dicebear/font stacks/bento ok.';
