@@ -259,6 +259,36 @@ describe('chip registry', () => {
       chipFor('Memory', { write: { subject: 'Theme', content: 'dark' } }, result('Memory saved: m1\n[m1] semantic/user\nSubject: Theme\nContent: dark')),
     ).toBe('saved');
   });
+  it('NextPhase chip shows from→to phase', () => {
+    expect(
+      chipFor(
+        'NextPhase',
+        { phase: 'interview' },
+        result('Advanced from research phase to interview phase.\n\nInterview Phase: ...'),
+      ),
+    ).toBe('research→interview');
+  });
+
+  it('RecordInterviewFinding chip shows origin', () => {
+    expect(
+      chipFor(
+        'RecordInterviewFinding',
+        { origin: 'code', question_answered: 'default port' },
+        result('Recorded code finding for: default port\n\nThe finding has been added'),
+      ),
+    ).toBe('code');
+  });
+
+  it('GetCurrentTime chip shows local time', () => {
+    expect(
+      chipFor(
+        'GetCurrentTime',
+        {},
+        result(JSON.stringify({ iso: '2026-07-07T14:51:00.000+09:00', local: '2026-07-07 14:51:00', timezone: 'Asia/Seoul' }, null, 2)),
+      ),
+    ).toBe('2026-07-07 14:51:00');
+  });
+
 
 
 

@@ -265,6 +265,42 @@ const memoryGlance: GlanceFn = (toolCall, result) => {
   if (action.length > 0 && first.length > 0) return `${action} · ${first}`;
   return action.length > 0 ? action : first;
 };
+const nextPhaseGlance: GlanceFn = (_toolCall, result) => {
+  const m = /Advanced from (\w+) phase to (\w+) phase/i.exec(result.output);
+  if (m) return `${m[1]} → ${m[2]}`;
+  const first = result.output.split('\n').find((line) => line.trim().length > 0)?.trim() ?? '';
+  return first.slice(0, 80);
+};
+
+const recordInterviewFindingGlance: GlanceFn = (toolCall, result) => {
+  const question =
+    typeof toolCall.args['question_answered'] === 'string' ? toolCall.args['question_answered'] : '';
+  const origin = typeof toolCall.args['origin'] === 'string' ? toolCall.args['origin'] : '';
+  if (origin.length > 0 && question.length > 0) return `${origin}: ${question.slice(0, 60)}`;
+  if (question.length > 0) return question.slice(0, 72);
+  const m = /Recorded (\w+) finding for:\s*(.+)/i.exec(result.output);
+  if (m) return `${m[1]}: ${m[2]!.slice(0, 60)}`;
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const getCurrentTimeGlance: GlanceFn = (_toolCall, result) => {
+  try {
+    const parsed = JSON.parse(result.output) as {
+      iso?: unknown;
+      local?: unknown;
+      timezone?: unknown;
+    };
+    const local = typeof parsed.local === 'string' ? parsed.local : undefined;
+    const iso = typeof parsed.iso === 'string' ? parsed.iso : undefined;
+    const tz = typeof parsed.timezone === 'string' ? parsed.timezone : undefined;
+    const when = local ?? iso ?? '';
+    if (when.length > 0 && tz !== undefined && tz.length > 0) return `${when} · ${tz}`;
+    return when;
+  } catch {
+    return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+  }
+};
+
 
 
 
@@ -334,3 +370,8 @@ export const searchSkillSummary: ResultRenderer = withGlance(searchSkillGlance);
 export const searchExpertSummary: ResultRenderer = withGlance(searchExpertGlance);
 export const skillSummary: ResultRenderer = withGlance(skillGlance);
 export const memorySummary: ResultRenderer = withGlance(memoryGlance);
+export const nextPhaseSummary: ResultRenderer = withGlance(nextPhaseGlance);
+export const recordInterviewFindingSummary: ResultRenderer = withGlance(recordInterviewFindingGlance);
+export const getCurrentTimeSummary: ResultRenderer = withGlance(getCurrentTimeGlance);
+export const enterPlanModeSummary: ResultRenderer = withGlance(null);
+export const exitPlanModeSummary: ResultRenderer = withGlance(null);

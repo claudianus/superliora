@@ -290,6 +290,50 @@ const memoryChip: ChipProvider = (_toolCall, result) => {
   if (/Subject:/i.test(result.output)) return '1 memory';
   return result.output.trim().length === 0 ? 'empty' : 'ok';
 };
+const nextPhaseChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  const m = /Advanced from (\w+) phase to (\w+) phase/i.exec(result.output);
+  if (m) return `${m[1]}→${m[2]}`;
+  return 'ok';
+};
+
+const recordInterviewFindingChip: ChipProvider = (toolCall, result) => {
+  if (result.is_error) return '';
+  const origin =
+    typeof toolCall.args['origin'] === 'string'
+      ? toolCall.args['origin']
+      : /Recorded (\w+) finding/i.exec(result.output)?.[1];
+  return origin !== undefined && origin.length > 0 ? origin : 'recorded';
+};
+
+const getCurrentTimeChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  try {
+    const parsed = JSON.parse(result.output) as { iso?: unknown; local?: unknown };
+    if (typeof parsed.local === 'string' && parsed.local.length > 0) return parsed.local;
+    if (typeof parsed.iso === 'string' && parsed.iso.length > 0) return parsed.iso.slice(0, 19);
+  } catch {
+    // fall through
+  }
+  const iso = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.exec(result.output)?.[0];
+  return iso ?? 'now';
+};
+
+const enterPlanModeChip: ChipProvider = (toolCall, result) => {
+  if (result.is_error) return '';
+  if (toolCall.args['ultra'] === true || /Ultra Plan/i.test(result.output)) return 'ultra';
+  return 'entered';
+};
+
+const exitPlanModeChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) {
+    if (/blocked/i.test(result.output)) return 'blocked';
+    if (/missing/i.test(result.output)) return 'incomplete';
+    return 'error';
+  }
+  return 'submitted';
+};
+
 
 
 const goalStatusOutputChip: ChipProvider = (_toolCall, result) =>
@@ -317,6 +361,11 @@ const REGISTRY: Record<string, ChipProvider> = {
   SearchExpert: searchExpertChip,
   Skill: skillChip,
   Memory: memoryChip,
+  NextPhase: nextPhaseChip,
+  RecordInterviewFinding: recordInterviewFindingChip,
+  GetCurrentTime: getCurrentTimeChip,
+  EnterPlanMode: enterPlanModeChip,
+  ExitPlanMode: exitPlanModeChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

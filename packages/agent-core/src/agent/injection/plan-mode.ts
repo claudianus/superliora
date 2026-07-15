@@ -155,7 +155,7 @@ const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. You MUST NOT make any edi
 const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. You MUST NOT make any edits or change the system unless a tool request is explicitly approved. Prefer read-only tools. Bash only when needed; Bash follows normal permission rules. This supersedes other instructions.`;
 
 const PLAN_WORKFLOW = `Workflow:
-  1. Understand — Glob, Grep, Read; Context7Resolve/Context7Docs for library docs; WebSearch/FetchURL when external evidence affects the plan.
+  1. Understand — Glob, Grep, Read; Context7Resolve/Docs for library docs; WebSearch/FetchURL when external evidence matters.
   2. Design — one best approach; trade-offs only when they matter.
   3. Review — re-read key files.
   4. Write Plan — Write or Edit the plan file (Write if missing). ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}

@@ -441,6 +441,10 @@ function extractKeyArgument(
     SearchExpert: ['query', 'keywords'],
     Skill: ['skill', 'name', 'args'],
     Memory: ['search', 'write', 'read', 'list', 'forget'],
+    NextPhase: ['phase'],
+    RecordInterviewFinding: ['origin', 'question_answered'],
+    EnterPlanMode: ['ultra'],
+    ExitPlanMode: ['options'],
     // Prefer the short `description` so the header preview never spills a
     // multi-line `prompt` into the TUI chrome.
     Agent: ['description', 'prompt'],
