@@ -4,4 +4,4 @@ Use for product demos, motion mockups, and UI/animation previews when `GOOGLE_AP
 
 Provider: Google Gemini video path when available. Check readiness with `/status` (no MCP).
 
-Default path: `.superliora/generated/videos/<timestamp>.mp4`. Report the path; use ReadMediaFile when the model supports video input.
+Default path: `.superliora/generated/videos/<timestamp>.mp4`. Report the path; use ReadMediaFile when video input is supported.
