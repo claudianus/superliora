@@ -1,4 +1,4 @@
-UltraSwarm — auto-assemble expert subagents (400+ / 16 divisions) with personas for complex multi-domain work. Cap concurrency with `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY`.
+UltraSwarm — auto-assemble expert subagents (400+ / 16 divisions) for complex multi-domain work. Cap concurrency with `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY`.
 
 **How:** analyze → BM25+fuzzy expert search → spawn parallel/phased experts → collect tagged results.
 
