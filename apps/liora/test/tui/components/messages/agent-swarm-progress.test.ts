@@ -522,10 +522,7 @@ describe('AgentSwarmProgressComponent', () => {
     const gridLine = lines.find((line) => line.includes('001 ['));
 
     expect(gridLine).toBeDefined();
-    // Compact grid shows bars for every member; terminal state is encoded in the bar fill/color.
-    expect(gridLine).toMatch(/001 \[[^\]]+\]/);
-    expect(gridLine).toMatch(/002 \[[^\]]+\]/);
-    expect(gridLine).toMatch(/003 \[[^\]]+\]/);
+    expect(gridLine).toMatch(/001 \[[^\]]+\]✓ +002 \[[^\]]+\]✗ +003 \[[^\]]+\]⊘/);
     expect(gridLine).not.toContain('Completed');
     expect(gridLine).not.toContain('Failed');
     expect(gridLine).not.toContain('Aborted');
@@ -1070,10 +1067,10 @@ describe('AgentSwarmProgressComponent', () => {
 
     const output = renderText(component);
 
-    // Index 1 is started (bar), index 2 is unassigned item text only until it starts.
-    expect(output).toContain('001 [');
-    expect(output).toContain('src/a.ts');
-    expect(output).toContain('002 src/b.ts');
+    // Running agents sort first (002 started), then pending item rows (001).
+    expect(output).toContain('002 [');
+    expect(output).toContain('src/b.ts');
+    expect(output).toContain('001 src/a.ts');
     expect(output).not.toContain('123 [');
   });
 

@@ -690,7 +690,7 @@ export class AgentSwarmProgressComponent implements Component {
     const lines = this.members.length === 0
       ? this.renderEmptyLayout(innerWidth, summary)
       : this.isUltraSwarmOpsFeedEnabled()
-        ? this.renderUltraSwarmLayout(innerWidth, summary, sortedSnapshots, nowMs)
+        ? this.renderUltraSwarmLayout(innerWidth, summary, sortedMembers, sortedSnapshots, nowMs)
         : [
             '',
             ...this.renderIntegratedDashboard(innerWidth, summary),
@@ -698,6 +698,7 @@ export class AgentSwarmProgressComponent implements Component {
             ...this.renderGrid(
               innerWidth,
               this.availableGridHeight?.(),
+              sortedMembers,
               sortedSnapshots,
               nowMs,
             ),
@@ -712,7 +713,7 @@ export class AgentSwarmProgressComponent implements Component {
 
   private renderEmptyLayout(width: number, summary: AgentSwarmSummary): string[] {
     if (this.isUltraSwarmOpsFeedEnabled()) {
-      return this.renderUltraSwarmLayout(width, summary, [], Date.now());
+      return this.renderUltraSwarmLayout(width, summary, [], [], Date.now());
     }
     return [
       '',
@@ -726,12 +727,13 @@ export class AgentSwarmProgressComponent implements Component {
   private renderUltraSwarmLayout(
     width: number,
     summary: AgentSwarmSummary,
+    members: readonly AgentSwarmMember[],
     snapshots: readonly AgentSwarmSnapshot[],
     nowMs: number,
   ): string[] {
     const profile = resolveResponsiveLayout({ width });
     const missionContent = this.renderMissionContent(width, summary);
-    const teamContent = this.renderGrid(width, this.availableGridHeight?.(), snapshots, nowMs);
+    const teamContent = this.renderGrid(width, this.availableGridHeight?.(), members, snapshots, nowMs);
     const feedLimit = profile === 'tiny' ? SWARM_OPS_FEED_RENDER_LINES_TINY : SWARM_OPS_FEED_RENDER_LINES;
     const feedContent = this.renderOpsFeedContent(width, feedLimit);
     const reportContent = this.renderIntegrationReportContent(width);
@@ -1165,13 +1167,14 @@ export class AgentSwarmProgressComponent implements Component {
   private renderGrid(
     width: number,
     height: number | undefined,
+    members: readonly AgentSwarmMember[],
     snapshots: readonly AgentSwarmSnapshot[],
     nowMs: number,
   ): string[] {
     const layout = calculateAgentSwarmGridLayout({
       width,
       height: height ?? Number.POSITIVE_INFINITY,
-      count: this.members.length,
+      count: members.length,
     });
     const columns = Math.max(1, layout.columns);
     const rows = layout.rows;
@@ -1183,7 +1186,7 @@ export class AgentSwarmProgressComponent implements Component {
       const cells: string[] = [];
       for (let col = 0; col < columns; col += 1) {
         const index = row * columns + col;
-        const member = this.members[index];
+        const member = members[index];
         const snapshot = snapshots[index];
         if (member === undefined || snapshot === undefined) continue;
         cells.push(padAnsi(this.renderCell(member, snapshot, layout, nowMs), layout.cellWidth));
