@@ -39,7 +39,8 @@ const ULTRAWORK_PLANNING_SHORTCUT: KeyboardShortcut = {
 export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
   ULTRAWORK_PLANNING_SHORTCUT,
   { keys: 'Ctrl-G', description: 'Edit in external editor ($VISUAL / $EDITOR)' },
-  { keys: 'Ctrl-O', description: 'Toggle tool output expansion' },
+  { keys: 'Ctrl-O', description: 'Toggle tool output expansion (recent turns)' },
+  { keys: 'Ctrl-B', description: 'Background a long-running shell task · /tasks' },
   { keys: 'Ctrl-T', description: 'Expand / collapse the todo list (when truncated)' },
   { keys: 'Ctrl-S', description: 'Steer — inject a follow-up during streaming' },
   { keys: 'Shift-Enter / Ctrl-J', description: 'Insert newline' },

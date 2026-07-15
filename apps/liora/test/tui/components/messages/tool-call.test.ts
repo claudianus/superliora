@@ -51,7 +51,7 @@ describe('ToolCallComponent', () => {
   });
 
   describe('detach hint for long-running foreground Bash/Agent', () => {
-    it('shows the Ctrl+B hint after 10s for a running Bash call', () => {
+    it('shows the Ctrl+B hint after 6s for a running Bash call', () => {
       vi.useFakeTimers();
       const component = new ToolCallComponent(
         { id: 'call_bash_long', name: 'Bash', args: { command: 'sleep 30' } },
@@ -60,12 +60,12 @@ describe('ToolCallComponent', () => {
       );
 
       expect(strip(component.render(100).join('\n'))).not.toContain(
-        'Press Ctrl+B to run in background',
+        'Press Ctrl+B to background this task · /tasks to inspect',
       );
 
-      vi.advanceTimersByTime(10_000);
+      vi.advanceTimersByTime(6_000);
       expect(strip(component.render(100).join('\n'))).toContain(
-        'Press Ctrl+B to run in background',
+        'Press Ctrl+B to background this task · /tasks to inspect',
       );
 
       component.dispose();
@@ -81,7 +81,7 @@ describe('ToolCallComponent', () => {
 
       // No timer advancement — Agents advertise Ctrl+B immediately.
       expect(strip(component.render(100).join('\n'))).toContain(
-        'Press Ctrl+B to run in background',
+        'Press Ctrl+B to background this task · /tasks to inspect',
       );
 
       component.dispose();
@@ -97,13 +97,13 @@ describe('ToolCallComponent', () => {
 
       vi.advanceTimersByTime(15_000);
       expect(strip(component.render(100).join('\n'))).not.toContain(
-        'Press Ctrl+B to run in background',
+        'Press Ctrl+B to background this task · /tasks to inspect',
       );
 
       component.dispose();
     });
 
-    it('does not show the hint when the result lands before 10s', () => {
+    it('does not show the hint when the result lands before 6s', () => {
       vi.useFakeTimers();
       const component = new ToolCallComponent(
         { id: 'call_bash_short', name: 'Bash', args: { command: 'echo hi' } },
@@ -113,10 +113,10 @@ describe('ToolCallComponent', () => {
 
       vi.advanceTimersByTime(5_000);
       component.setResult({ tool_call_id: 'call_bash_short', output: 'hi', is_error: false });
-      vi.advanceTimersByTime(10_000);
+      vi.advanceTimersByTime(6_000);
 
       expect(strip(component.render(100).join('\n'))).not.toContain(
-        'Press Ctrl+B to run in background',
+        'Press Ctrl+B to background this task · /tasks to inspect',
       );
 
       component.dispose();
