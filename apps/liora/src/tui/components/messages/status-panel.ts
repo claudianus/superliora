@@ -186,21 +186,21 @@ function formatResearchGate(options: StatusReportOptions): string {
   const web = hasActiveTool(options, 'WebSearch');
   const fetch = hasActiveTool(options, 'FetchURL');
   if (web === undefined || fetch === undefined) return RESEARCH_GATE;
-  if (web && fetch) return 'WebSearch + FetchURL active · local/managed search path ready';
-  if (!web && !fetch) return 'Web research tools unavailable in this session';
-  return `Partial: WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}`;
+  if (web && fetch) return 'ready · WebSearch + FetchURL active (local/managed search path ok)';
+  if (!web && !fetch) return 'unavailable · Web research tools missing in this session';
+  return `partial · WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}`;
 }
 
 function formatMediaGate(options: StatusReportOptions): string {
   const image = hasActiveTool(options, 'GenerateImage');
   const video = hasActiveTool(options, 'GenerateVideo');
   if (image === true && video === true) {
-    return 'GenerateImage + GenerateVideo active · provider keys detected';
+    return 'ready · GenerateImage + GenerateVideo active (provider keys detected)';
   }
-  if (image === true) return 'GenerateImage active · provider key detected';
-  if (video === true) return 'GenerateVideo active · Google/Gemini key detected';
+  if (image === true) return 'ready · GenerateImage active (provider key detected)';
+  if (video === true) return 'ready · GenerateVideo active (Google/Gemini key detected)';
   if (imageProviderKeyReady()) {
-    return 'Provider key present · GenerateImage/GenerateVideo register when profile allows';
+    return 'key ready · GenerateImage/GenerateVideo will register when the profile allows';
   }
   return MEDIA_GATE;
 }

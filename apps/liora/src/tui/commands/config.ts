@@ -216,7 +216,7 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
-    host.showNotice('YOLO mode: ON', 'Workspace tools auto-approved.');
+    host.showNotice('YOLO mode: ON', 'Workspace tools auto-approved.', { coalesceKey: 'permission-mode-yolo' });
     return;
   }
 
@@ -227,7 +227,7 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('YOLO mode: OFF');
+    host.showNotice('YOLO mode: OFF', undefined, { coalesceKey: 'permission-mode-yolo' });
     return;
   }
 
@@ -235,11 +235,11 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'yolo') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('YOLO mode: OFF');
+    host.showNotice('YOLO mode: OFF', undefined, { coalesceKey: 'permission-mode-yolo' });
   } else {
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
-    host.showNotice('YOLO mode: ON', 'Workspace tools auto-approved.');
+    host.showNotice('YOLO mode: ON', 'Workspace tools auto-approved.', { coalesceKey: 'permission-mode-yolo' });
   }
 }
 
@@ -260,7 +260,7 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
-    host.showNotice('Auto mode: ON', 'Tools auto-approved. Agent will not ask questions.');
+    host.showNotice('Auto mode: ON', 'Tools auto-approved. Agent will not ask questions.', { coalesceKey: 'permission-mode-auto' });
     return;
   }
 
@@ -271,7 +271,7 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('Auto mode: OFF');
+    host.showNotice('Auto mode: OFF', undefined, { coalesceKey: 'permission-mode-auto' });
     return;
   }
 
@@ -279,11 +279,11 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'auto') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('Auto mode: OFF');
+    host.showNotice('Auto mode: OFF', undefined, { coalesceKey: 'permission-mode-auto' });
   } else {
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
-    host.showNotice('Auto mode: ON', 'Tools auto-approved. Agent will not ask questions.');
+    host.showNotice('Auto mode: ON', 'Tools auto-approved. Agent will not ask questions.', { coalesceKey: 'permission-mode-auto' });
   }
 }
 

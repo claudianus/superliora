@@ -121,6 +121,11 @@ async function undoByCount(host: SlashCommandHost, count: number): Promise<boole
     renderWelcome(host);
   }
 
+  // Command notices are session-scoped (not turn-scoped). Reassert the live
+  // permission mode after undo so undoing user turns cannot leave a blank
+  // transcript without the still-active auto/yolo state.
+  reassertPermissionModeNotice(host);
+
   requestTUILayoutRender(host.state);
   return true;
 }
@@ -491,6 +496,26 @@ function pluginCommandLabel(entry: TranscriptEntry): string {
   if (pluginId.length === 0) return commandName;
   if (commandName.length === 0) return pluginId;
   return `${pluginId}:${commandName}`;
+}
+
+
+function reassertPermissionModeNotice(host: SlashCommandHost): void {
+  const mode = host.state.appState.permissionMode;
+  if (mode === 'auto') {
+    host.showNotice(
+      'Auto mode: ON',
+      'Tools auto-approved. Agent will not ask questions.',
+      { coalesceKey: 'permission-mode-auto' },
+    );
+    return;
+  }
+  if (mode === 'yolo') {
+    host.showNotice(
+      'YOLO mode: ON',
+      'Workspace tools auto-approved.',
+      { coalesceKey: 'permission-mode-yolo' },
+    );
+  }
 }
 
 function renderWelcome(host: SlashCommandHost): void {

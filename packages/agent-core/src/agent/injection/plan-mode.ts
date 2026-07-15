@@ -164,11 +164,11 @@ const PLAN_WORKFLOW = `Workflow:
 TodoList is the live execution board during planning — durable plan content goes in the plan file only.`;
 
 const PLAN_MULTI_APPROACH = `## Multiple approaches
-At most 2–3 meaningfully different options; do not pad minor variants. If user preference matters, AskUserQuestion first.
+At most 2–3 meaningfully different options; do not pad minor variants. If preference matters, AskUserQuestion first.
 Multiple approaches in the plan → pass \`options\` to ExitPlanMode so the user can choose.
 NEVER write multiple approaches and call ExitPlanMode without \`options\`.
 
-AskUserQuestion: missing requirements or preferences only — never plan approval (user cannot see the plan until ExitPlanMode).
+AskUserQuestion: missing requirements/preferences only — never plan approval (user cannot see the plan until ExitPlanMode).
 End every turn with AskUserQuestion (clarify) or ExitPlanMode (approve).`;
 
 function fullReminder(planFilePath: PlanFilePath): string {
@@ -205,8 +205,7 @@ A plan file from a prior session exists. Before proceeding:
   1. Read the existing plan file.
   2. Compare to the current request — new task: replace; same task: update.
   3. Write/Edit the plan file (Write if missing).
-  4. AskUserQuestion for missing requirements/preferences.
-  5. Edit the plan file before ExitPlanMode.
+  4. AskUserQuestion for missing requirements/preferences; edit before ExitPlanMode.
 
 End with AskUserQuestion or ExitPlanMode.`;
   return withPlanFileFooter(body, planFilePath);
