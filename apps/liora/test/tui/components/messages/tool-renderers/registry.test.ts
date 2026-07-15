@@ -518,6 +518,22 @@ describe('tool-result registry', () => {
     expect(out).toContain('Home');
     expect(isGenericToolResult('ComputerCapture')).toBe(false);
   });
+  it('TodoList glance samples statuses and titles', () => {
+    const renderer = pickResultRenderer('TodoList');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('TodoList', {}),
+          result('Current todo list:\n  [in_progress] Wire chips\n  [pending] Write tests\n  [done] Plan'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('in_progress: Wire chips');
+    expect(out).toContain('pending: Write tests');
+    expect(isGenericToolResult('TodoList')).toBe(false);
+  });
+
 
 
 

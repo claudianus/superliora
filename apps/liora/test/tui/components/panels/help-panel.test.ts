@@ -29,6 +29,7 @@ describe('HelpPanelComponent', () => {
     const out = strip(panel.render(120).join('\n'));
     expect(out).toMatch(/help/);
     expect(out).toMatch(/Shift-Tab toggles Ultrawork and off\./);
+    expect(out).toMatch(/\/status shows media, web\/Context7 readiness, and ZDR privacy\./);
     expect(out).toMatch(/Normal messages stay lightweight unless Ultrawork is on\./);
     expect(out).not.toMatch(/helpers/);
     expect(out).toMatch(/Keyboard shortcuts/);
