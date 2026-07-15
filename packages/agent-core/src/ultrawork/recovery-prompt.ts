@@ -52,7 +52,7 @@ export function buildUltraworkRecoveryPrompt(
 ): string {
   const lines = [
     '<ultrawork_recovery>',
-    'Resume from the last durable checkpoint. Do not restart from scratch unless unusable.',
+    'Resume from last durable checkpoint. Do not restart from scratch unless unusable.',
     `Run id: ${report.run.id}`,
     `Objective: ${report.run.objective}`,
     `Stage: ${report.run.stage}`,
@@ -70,17 +70,17 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`Plan file: ${planContext.planFilePath}`);
   }
   if (planContext?.phase !== undefined) {
-    lines.push(`UltraPlan phase: ${planContext.phase}; do not create a new plan file or restart EnterPlanMode.`);
+    lines.push(`UltraPlan phase: ${planContext.phase}; do not create plan file or restart EnterPlanMode.`);
   }
   if (planContext?.interviewRoundCount !== undefined && planContext.interviewRoundCount > 0) {
-    lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}; do not restart UltraPlan interview from round 1.`);
+    lines.push(`Interview rounds completed: ${String(planContext.interviewRoundCount)}; do not restart interview from round 1.`);
   }
   if (report.skippedInterview === true) {
     lines.push(
-      'Resume policy: Skip UltraPlan interview on resume. Continue design/implementation/verification from checkpoint.',
+      'Resume policy: Skip UltraPlan interview. Continue design/implementation/verification from checkpoint.',
     );
     lines.push(
-      'Do not ask blocking interview questions unless a critical missing blocker blocks progress.',
+      'Do not ask blocking interview questions unless a critical blocker blocks progress.',
     );
   }
 
@@ -97,7 +97,7 @@ export function buildUltraworkRecoveryPrompt(
       `Effective resume stage: ${effectiveStage} (checkpoint stage ${report.run.stage} is behind WorkGraph progress).`,
     );
     lines.push(
-      'Do not restart UltraResearch, UltraPlan interview, or other completed stages unless the checkpoint is unusable.',
+      'Do not restart UltraResearch, UltraPlan interview, or other completed stages unless checkpoint is unusable.',
     );
   }
 
@@ -146,7 +146,7 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`- ${action}`);
   }
   lines.push(
-    'Continue from current stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over claims; mark AC/nodes done only with evidence. Preserve durable ids.',
+    'Continue from stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over claims; mark AC/nodes done only with evidence. Preserve durable ids.',
   );
   lines.push('</ultrawork_recovery>');
   return lines.join('\n');
@@ -161,7 +161,7 @@ export function suggestNextActions(
 ): string[] {
   const actions: string[] = [];
   if (interruptReason !== undefined) {
-    actions.push(`Acknowledge interruption (${interruptReason}); restate remaining objective.`);
+    actions.push(`Acknowledge interruption (${interruptReason}); restate objective.`);
   }
 
   const progress = summarizeWorkGraphProgress(run.workGraph);
@@ -172,7 +172,7 @@ export function suggestNextActions(
     run.stage === 'research'
   ) {
     actions.push(
-      'WorkGraph is ahead of checkpoint — continue in-progress node; do not restart research.',
+      'WorkGraph ahead of checkpoint — continue in-progress node; do not restart research.',
     );
   }
   const planPhase = planContext?.phase ?? resumeCursor?.planPhase;
@@ -214,37 +214,37 @@ export function suggestNextActions(
             : 'Continue UltraPlan interview from the current evidence pack.',
         );
         actions.push(
-          'Research-first before AskUserQuestion; offer Baseline + Upgrade choices.',
+          'Research-first before AskUserQuestion; Baseline + Upgrade choices.',
         );
         break;
       }
       case 'design':
-        actions.push('Resume design exploration and coverage lanes before Review.');
+        actions.push('Resume design coverage lanes before Review.');
         break;
       case 'review':
-        actions.push('Re-verify plan against code/sources, then advance to Write when ready.');
+        actions.push('Re-verify plan against code/sources, then advance to Write.');
         break;
       case 'write':
-        actions.push('Resume writing approved plan sections; do not reopen a fresh interview.');
+        actions.push('Resume writing approved plan sections; do not reopen interview.');
         break;
       case 'exit':
-        actions.push('Call ExitPlanMode only after Seed Spec gate still passes.');
+        actions.push('Call ExitPlanMode only after Seed Spec gate passes.');
         break;
       default:
-        actions.push('Re-open the active Ultra Plan file; continue interview or plan gate.');
+        actions.push('Re-open Ultra Plan file; continue interview or plan gate.');
         break;
     }
   } else {
     switch (effectiveStage) {
       case 'intake':
-        actions.push('Re-open the active Ultra Plan file; continue interview or plan gate.');
+        actions.push('Re-open Ultra Plan file; continue interview or plan gate.');
         break;
       case 'goal':
         actions.push('Verify UltraGoal contract and resume autonomous pursuit.');
         break;
       case 'staff':
       case 'swarm':
-        actions.push('Reconcile swarm staffing; rerun UltraSwarm only if ENGAGE still required.');
+        actions.push('Reconcile swarm staffing; rerun UltraSwarm only if ENGAGE required.');
         break;
       case 'integrate':
         actions.push('Merge specialist output and resolve conflicts before more product edits.');

@@ -132,7 +132,7 @@ function isTodoListReminder(message: ContextMessage): boolean {
 
 function renderTodoListReminder(todos: readonly TodoItem[]): string {
   let message =
-    'TodoList not updated recently. Live Kanban: add/split work, drop obsolete pending, reorder next, mark done after verification. If 3+ tool calls passed since last write, update the board. Keep one in_progress unless real parallel work is active. If still accurate, do nothing. NEVER mention this reminder to the user.';
+    'TodoList not updated recently. Live Kanban: add/split work, drop obsolete pending, reorder next, mark done after verification. If 3+ tool calls passed since last write, update the board. Keep one in_progress unless true parallel work. If still accurate, do nothing. NEVER mention this reminder to the user.';
 
   const items = renderTodoItems(todos);
   if (items.length > 0) {
