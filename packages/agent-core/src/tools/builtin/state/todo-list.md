@@ -1,4 +1,4 @@
-Live Kanban board for multi-step work — use proactively and often when progress tracking helps. Update when the work shape changes. In plan mode, write the durable plan to the plan file; TodoList is the execution board only.
+Live Kanban board for multi-step work — use proactively when progress tracking helps. Update when the work shape changes. In plan mode, write the durable plan to the plan file; TodoList is the execution board only.
 
 **Use when:** multi-step tasks, large searches, edit sequences, 2+ file edits, test→fix loops, swarm orchestration.  
 **Skip when:** one–two call tasks or pure conversation.
@@ -13,4 +13,4 @@ Live Kanban board for multi-step work — use proactively and often when progres
 
 **Granularity:** verb + target (+ path). Keep exactly one `in_progress` unless true parallel tracks.
 
-**Avoid churn:** do not re-call when nothing meaningful has changed since the last write. When unsure, use query mode first (no `todos` argument). If stuck, tell the user instead of reordering endlessly.
+**Avoid churn:** do not re-call when nothing meaningful has changed since the last write. When unsure, query first (no `todos` argument). If stuck, tell the user instead of reordering endlessly.

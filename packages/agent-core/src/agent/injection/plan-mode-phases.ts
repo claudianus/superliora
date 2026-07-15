@@ -26,7 +26,7 @@ const PHASE_INSTRUCTIONS: Record<string, string> = {
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, NextPhase.
 AskUserQuestion, ${ULTRA_PLAN_BLOCKED_MUTATORS}
 
-Goal: gather current, source-backed context and improvement levers before the UltraPlan interview elevates the goal and presents upgrade choices.
+Goal: source-backed context + improvement levers before the UltraPlan interview elevates the goal and upgrade choices.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 Prefer Grep, LioraSymbol, Glob, LioraRead before broad Read. Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
@@ -41,7 +41,7 @@ Routing:
 - PATH 1 auto-answer from code/config via RecordInterviewFinding(origin="code").
 - PATH 2 user judgment (goal, acceptance, trade-offs, visual/scope) via AskUserQuestion.
 - PATH 3 external facts: research first, RecordInterviewFinding(origin="research"); confirm surprises with the user.
-- When in doubt → PATH 2. After 3 consecutive non-user findings, must AskUserQuestion. research-first is strongly encouraged before AskUserQuestion when options need evidence. Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraRead, Grep, Glob for codebase facts.
+- When in doubt → PATH 2. After 3 consecutive non-user findings, must AskUserQuestion. Research-first before AskUserQuestion when options need evidence. Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraRead, Grep, Glob for codebase facts.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 
 UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
@@ -51,7 +51,7 @@ Do not Write or Edit the plan file during Interview. Seed Spec is auto-extracted
 
 Round {{round}} | Perspective: {{perspective}} — {{perspectiveDescription}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
-AskUserQuestion: 1-2 focused questions when a missing decision blocks a verifiable UltraGoal or Seed section. Option shape: Baseline (original scope) + 1-3 Upgrades (named payoff + trade-off) + Defer/minimal when relevant. Lead with a short insight when helpful. Do not advance just because the task feels actionable. Do not call EnterPlanMode while already in Ultra Plan; use NextPhase to advance.
+AskUserQuestion: 1-2 focused questions when a missing decision blocks a verifiable UltraGoal or Seed section. Option shape: Baseline (original scope) + 1-3 Upgrades (named payoff + trade-off) + Defer/minimal when relevant. Lead with a short insight when helpful. Do not advance just because the task feels actionable. Do not call EnterPlanMode while already in Ultra Plan; use NextPhase.
 
 Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Read-only research in the same turn is allowed and encouraged.`,
 
@@ -68,7 +68,7 @@ Cannot write the plan file or call ExitPlanMode.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) is allowed for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
+You may ONLY write to the current plan file. All other file edits are BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
 
 Before writing user-visible plan prose: ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
 No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if light pass fails.
