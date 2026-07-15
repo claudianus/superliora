@@ -288,6 +288,34 @@ describe('chip registry', () => {
       ),
     ).toBe('2026-07-07 14:51:00');
   });
+  it('AskUserQuestion chip counts answers', () => {
+    expect(chipFor('AskUserQuestion', {}, result(JSON.stringify({ answers: { q1: 'A', q2: 'B' } })))).toBe(
+      '2 answers',
+    );
+  });
+
+  it('LioraReview chip shows clean when no issues', () => {
+    expect(
+      chipFor(
+        'LioraReview',
+        {},
+        result('# Code Review Report\nFiles reviewed: 3\n\nNo issues found. The diff looks clean.\n'),
+      ),
+    ).toBe('clean');
+  });
+
+  it('LioraReview chip counts findings', () => {
+    expect(
+      chipFor(
+        'LioraReview',
+        {},
+        result(
+          '# Code Review Report\nFiles reviewed: 2\n\n## Findings\n- **WARNING** `a.ts:10` — empty catch\n- **SUGGESTION** `b.ts:2` — TODO\n',
+        ),
+      ),
+    ).toBe('2 findings');
+  });
+
 
 
 

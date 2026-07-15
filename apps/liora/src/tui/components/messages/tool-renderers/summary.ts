@@ -300,6 +300,47 @@ const getCurrentTimeGlance: GlanceFn = (_toolCall, result) => {
     return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
   }
 };
+const askUserQuestionGlance: GlanceFn = (_toolCall, result) => {
+  try {
+    const parsed = JSON.parse(result.output) as { answers?: unknown };
+    if (Array.isArray(parsed.answers)) {
+      return parsed.answers
+        .slice(0, GLANCE_SAMPLES)
+        .map((answer) => String(answer).replaceAll(/\s+/g, ' ').trim().slice(0, 40))
+        .filter((s) => s.length > 0)
+        .join(' · ');
+    }
+    if (parsed.answers !== undefined && typeof parsed.answers === 'object' && parsed.answers !== null) {
+      return Object.entries(parsed.answers as Record<string, unknown>)
+        .slice(0, GLANCE_SAMPLES)
+        .map(([key, value]) => `${key}=${String(value).replaceAll(/\s+/g, ' ').trim().slice(0, 28)}`)
+        .join(' · ');
+    }
+  } catch {
+    // fall through
+  }
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const lioraReviewGlance: GlanceFn = (_toolCall, result) => {
+  if (/No issues found/i.test(result.output)) return 'clean · no findings';
+  if (/No changes to review/i.test(result.output)) return 'empty diff';
+  const files = /Files reviewed:\s+(\d+)/i.exec(result.output)?.[1];
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^\s*-\s+\*\*([A-Z]+)\*\*\s+`([^`]+)`\s+—\s+(.+)$/.exec(line.trim());
+    if (m) {
+      samples.push(`${m[1]} ${m[2]}`);
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length > 0) {
+    const head = files !== undefined ? `${files} files · ` : '';
+    return `${head}${samples.join(' · ')}`;
+  }
+  return files !== undefined ? `${files} files reviewed` : result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 
 
 
@@ -375,3 +416,5 @@ export const recordInterviewFindingSummary: ResultRenderer = withGlance(recordIn
 export const getCurrentTimeSummary: ResultRenderer = withGlance(getCurrentTimeGlance);
 export const enterPlanModeSummary: ResultRenderer = withGlance(null);
 export const exitPlanModeSummary: ResultRenderer = withGlance(null);
+export const askUserQuestionSummary: ResultRenderer = withGlance(askUserQuestionGlance);
+export const lioraReviewSummary: ResultRenderer = withGlance(lioraReviewGlance);

@@ -333,6 +333,52 @@ const exitPlanModeChip: ChipProvider = (_toolCall, result) => {
   }
   return 'submitted';
 };
+const askUserQuestionChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  try {
+    const parsed = JSON.parse(result.output) as { answers?: unknown };
+    if (Array.isArray(parsed.answers)) {
+      const n = parsed.answers.length;
+      return n === 0 ? 'no answers' : pluralize(n, 'answer');
+    }
+    if (parsed.answers !== undefined && typeof parsed.answers === 'object' && parsed.answers !== null) {
+      const n = Object.keys(parsed.answers as Record<string, unknown>).length;
+      return n === 0 ? 'no answers' : pluralize(n, 'answer');
+    }
+  } catch {
+    // fall through
+  }
+  return result.output.trim().length === 0 ? 'no answers' : 'answered';
+};
+
+const lioraReviewChip: ChipProvider = (_toolCall, result) => {
+  if (result.is_error) return '';
+  if (/No changes to review/i.test(result.output) || /diff is empty/i.test(result.output)) {
+    return 'empty diff';
+  }
+  if (/No issues found/i.test(result.output)) return 'clean';
+  let findings = 0;
+  for (const line of result.output.split('\n')) {
+    if (/^\s*-\s+\*\*/.test(line) || /^\s*-\s+\*\*[A-Z]+/.test(line)) findings++;
+    else if (/^\s*-\s+\*\*(?:WARNING|SUGGESTION|ERROR|INFO)\*\*/i.test(line)) findings++;
+  }
+  if (findings === 0) {
+    // Count markdown finding bullets under ## Findings
+    let inFindings = false;
+    for (const line of result.output.split('\n')) {
+      if (/^##\s+Findings/i.test(line.trim())) {
+        inFindings = true;
+        continue;
+      }
+      if (inFindings && /^##\s+/.test(line.trim())) break;
+      if (inFindings && /^\s*-\s+/.test(line)) findings++;
+    }
+  }
+  if (findings > 0) return pluralize(findings, 'finding');
+  const files = /Files reviewed:\s+(\d+)/i.exec(result.output)?.[1];
+  return files !== undefined ? `${files} files` : 'reviewed';
+};
+
 
 
 
@@ -366,6 +412,8 @@ const REGISTRY: Record<string, ChipProvider> = {
   GetCurrentTime: getCurrentTimeChip,
   EnterPlanMode: enterPlanModeChip,
   ExitPlanMode: exitPlanModeChip,
+  AskUserQuestion: askUserQuestionChip,
+  LioraReview: lioraReviewChip,
   CreateGoal: goalStatusOutputChip,
   GetGoal: goalStatusOutputChip,
 };

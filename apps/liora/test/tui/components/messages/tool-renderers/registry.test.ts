@@ -340,6 +340,37 @@ describe('tool-result registry', () => {
     expect(out).toContain('Asia/Seoul');
     expect(isGenericToolResult('GetCurrentTime')).toBe(false);
   });
+  it('AskUserQuestion glance lists answers', () => {
+    const renderer = pickResultRenderer('AskUserQuestion');
+    const out = strip(
+      joinRender(
+        renderer(call('AskUserQuestion', {}), result(JSON.stringify({ answers: { theme: 'dark', lang: 'ko' } })), ctx),
+      ),
+    );
+    expect(out).toContain('theme=dark');
+    expect(out).toContain('lang=ko');
+    expect(isGenericToolResult('AskUserQuestion')).toBe(false);
+  });
+
+  it('LioraReview glance samples findings', () => {
+    const renderer = pickResultRenderer('LioraReview');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('LioraReview', {}),
+          result(
+            '# Code Review Report\nFiles reviewed: 2\n\n## Findings\n- **WARNING** `a.ts:10` — empty catch\n- **SUGGESTION** `b.ts:2` — TODO\n',
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('2 files');
+    expect(out).toContain('WARNING');
+    expect(out).toContain('a.ts:10');
+    expect(isGenericToolResult('LioraReview')).toBe(false);
+  });
+
 
 
 

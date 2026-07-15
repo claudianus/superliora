@@ -445,6 +445,8 @@ function extractKeyArgument(
     RecordInterviewFinding: ['origin', 'question_answered'],
     EnterPlanMode: ['ultra'],
     ExitPlanMode: ['options'],
+    AskUserQuestion: ['questions', 'header'],
+    LioraReview: ['diff_source', 'from_ref', 'to_ref'],
     // Prefer the short `description` so the header preview never spills a
     // multi-line `prompt` into the TUI chrome.
     Agent: ['description', 'prompt'],
