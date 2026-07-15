@@ -100,6 +100,18 @@ describe('chip registry', () => {
     expect(pickChip('UpdateGoal')).toBeUndefined();
   });
 
+  it('GenerateImage chip shows path basename and bytes', () => {
+    const text = chipFor(
+      'GenerateImage',
+      { prompt: 'logo' },
+      result(
+        'Generated image with openai.\nPath: .superliora/generated/images/x.png\nBytes: 2048\nMIME: image/png',
+      ),
+    );
+    expect(text).toContain('x.png');
+    expect(text).toMatch(/2(\.0)? KB|2048 B/);
+  });
+
   it('Unknown tools have no chip', () => {
     expect(pickChip('SomethingElse')).toBeUndefined();
   });
@@ -142,3 +154,5 @@ describe('computeEditStats', () => {
     expect(stats.removed).toBe(0);
   });
 });
+
+

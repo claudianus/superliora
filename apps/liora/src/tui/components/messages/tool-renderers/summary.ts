@@ -84,6 +84,16 @@ export const fetchSummary: ResultRenderer = withGlance(null);
 export const webSearchSummary: ResultRenderer = withGlance(null);
 export const thinkSummary: ResultRenderer = withGlance(null);
 export const editSummary: ResultRenderer = withGlance(null);
+
+const generateMediaGlance: GlanceFn = (_toolCall, result) => {
+  for (const line of result.output.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('Path:')) return trimmed.slice('Path:'.length).trim();
+  }
+  return '';
+};
+
+export const generateMediaSummary: ResultRenderer = withGlance(generateMediaGlance);
 export const writeSummary: ResultRenderer = withGlance(null);
 
 // Tools that benefit from inline path samples below the chip.

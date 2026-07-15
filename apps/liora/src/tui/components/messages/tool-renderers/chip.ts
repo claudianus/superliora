@@ -83,6 +83,35 @@ const editChip: ChipProvider = (toolCall) => {
 
 const writeChip: ChipProvider = (toolCall) => formatWriteChip(computeWriteStats(toolCall.args));
 
+/** Parse GenerateImage/GenerateVideo tool output: Path / Bytes / MIME lines. */
+function generateMediaChip(result: ToolResultBlockData): string {
+  if (result.is_error) return '';
+  let path: string | undefined;
+  let bytes: string | undefined;
+  let mime: string | undefined;
+  for (const line of result.output.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('Path:')) path = trimmed.slice('Path:'.length).trim();
+    else if (trimmed.startsWith('Bytes:')) bytes = trimmed.slice('Bytes:'.length).trim();
+    else if (trimmed.startsWith('MIME:')) mime = trimmed.slice('MIME:'.length).trim();
+  }
+  const parts: string[] = [];
+  if (path !== undefined && path.length > 0) {
+    const base = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+    parts.push(base);
+  }
+  if (bytes !== undefined && bytes.length > 0) {
+    const n = Number(bytes);
+    parts.push(Number.isFinite(n) ? formatBytes(n) : bytes);
+  } else if (mime !== undefined && mime.length > 0) {
+    parts.push(mime);
+  }
+  return parts.join(' · ');
+}
+
+const generateImageChip: ChipProvider = (_toolCall, result) => generateMediaChip(result);
+const generateVideoChip: ChipProvider = (_toolCall, result) => generateMediaChip(result);
+
 const readChip: ChipProvider = (_toolCall, result) =>
   pluralize(countNonEmptyLines(result.output), 'line');
 
@@ -117,8 +146,8 @@ const goalStatusOutputChip: ChipProvider = (_toolCall, result) =>
 const REGISTRY: Record<string, ChipProvider> = {
   Edit: editChip,
   Write: writeChip,
-  GenerateImage: writeChip,
-  GenerateVideo: writeChip,
+  GenerateImage: generateImageChip,
+  GenerateVideo: generateVideoChip,
   Read: readChip,
   ReadMediaFile: readMediaChip,
   Grep: grepChip,

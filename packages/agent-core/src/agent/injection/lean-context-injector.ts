@@ -8,7 +8,7 @@ import { DynamicInjector } from './injector';
  * after a real user prompt, or after a longer assistant stretch so compaction
  * / multi-step loops do not append the same lean-context block every few steps.
  */
-const LEAN_CONTEXT_REFRESH_ASSISTANT_TURNS = 6;
+const LEAN_CONTEXT_REFRESH_ASSISTANT_TURNS = 8;
 
 export class LeanContextInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'lean_context';
