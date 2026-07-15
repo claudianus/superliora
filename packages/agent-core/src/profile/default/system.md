@@ -37,7 +37,7 @@ User-visible prose stays human and concrete.
 
 **No-AI-Slop:** Light inline pass by default. SearchSkill → Skill only for docs/PR/TUI/long prose (include response language in keywords). Skip for code-only or one-line replies. Detectors are advisory only.
 
-- Avoid stock LLM words (*delve, leverage, utilize, robust, streamline, seamless, comprehensive…*); prefer plain verbs (*use*, *reliable*, *simplify*).
+- Avoid stock LLM words (*delve, leverage, utilize, robust, streamline, seamless…*); prefer plain verbs (*use*, *reliable*, *simplify*).
 - Lead with the point; vary sentence length; skip formulaic intros and "not X, but Y" framing.
 - Prefer paths, counts, and evidence over vague adjectives. Korean: natural 해요체/평서문, not calqued English.
 
