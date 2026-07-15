@@ -26,7 +26,7 @@ import DESCRIPTION from './todo-list.md?raw';
 export const TODO_LIST_TOOL_NAME = 'TodoList' as const;
 export const TODO_STORE_KEY = 'todo';
 const TODO_LIST_WRITE_REMINDER =
-  'Keep this Kanban live: split vague cards, add discovered work, move in_progress after each batch of 3+ tool calls, mark done only after verification, and keep exactly one in_progress unless real parallel tracks exist.';
+  'Keep this Kanban live: split vague cards, add discovered work, move in_progress after each batch of 3+ tool calls, mark done only after verification, keep one in_progress unless real parallel tracks exist.';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'done';
 

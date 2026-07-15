@@ -140,7 +140,7 @@ describe('TodoListTool', () => {
     expect(result.output).toContain('[in_progress] second');
     expect(result.output).toContain('Changes: 2 added.');
     expect(result.output).toContain('Keep this Kanban live');
-    expect(result.output).toContain('exactly one in_progress');
+    expect(result.output).toContain('one in_progress');
     expect(getTodos()).toEqual([
       { title: 'first', status: 'pending' },
       { title: 'second', status: 'in_progress' },
