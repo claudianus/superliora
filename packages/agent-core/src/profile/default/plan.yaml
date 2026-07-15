@@ -16,7 +16,8 @@ promptVars:
 whenToUse: |
   Use this agent when the parent agent needs a step-by-step implementation plan, key file identification, and architectural trade-off analysis before code changes are made.
 tools:
-  # Core coding tools.
+  # Lean planning surface: explore + write plan files/lifecycle. No Context7
+  # schema bloat on every plan spawn.
   - Read
   - Write
   - Edit
@@ -24,21 +25,17 @@ tools:
   - Glob
   - Bash
   - LioraRead
-  # External information and user clarification.
-  - WebSearch
-  - FetchURL
-  - AskUserQuestion
-  # Planning additions: can write plan files and control the plan lifecycle.
-  - ReadMediaFile
   - LioraTree
   - LioraSymbol
   - LioraCallgraph
   - LioraExpand
+  - WebSearch
+  - FetchURL
+  - ReadMediaFile
+  - AskUserQuestion
   - TodoList
   - Skill
   - SearchSkill
-  - Context7Resolve
-  - Context7Docs
   - GetCurrentTime
   - EnterPlanMode
   - ExitPlanMode

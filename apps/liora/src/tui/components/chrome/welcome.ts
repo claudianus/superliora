@@ -14,7 +14,8 @@ import { currentTheme } from '#/tui/theme';
 import { renderParticleRail } from '#/tui/utils/appearance-effects';
 import { renderWelcomeBanner } from './welcome-banner';
 
-const LOGGED_IN_PROMPT = 'Type normally, or press Shift-Tab to toggle Ultrawork/off.';
+const LOGGED_IN_PROMPT = 'Type to work · /status checks media · Shift-Tab: Ultrawork';
+const LOGGED_OUT_PROMPT = 'Run /login (or paste an API key). No complex setup.';
 
 export class WelcomeComponent implements Component {
   private state: AppState;
@@ -36,7 +37,7 @@ export class WelcomeComponent implements Component {
     if (safeWidth < 24 || layout === 'tiny') {
       const banner = renderWelcomeBanner(layout, appearance, safeWidth);
       const prompt = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)('Run /login to connect a provider.')
+        ? chalk.hex(currentTheme.palette.warning)(LOGGED_OUT_PROMPT)
         : chalk.hex(currentTheme.palette.textDim)(LOGGED_IN_PROMPT);
       const model = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)('not set, run /login')
@@ -51,7 +52,7 @@ export class WelcomeComponent implements Component {
     const dim = chalk.hex(currentTheme.palette.textDim);
     const labelStyle = chalk.bold.hex(currentTheme.palette.textDim);
     const promptLine = truncateToWidth(
-      dim(isLoggedOut ? 'Run /login to connect a provider.' : LOGGED_IN_PROMPT),
+      dim(isLoggedOut ? LOGGED_OUT_PROMPT : LOGGED_IN_PROMPT),
       innerWidth,
       '…',
     );
