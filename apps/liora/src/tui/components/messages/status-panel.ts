@@ -195,7 +195,7 @@ function formatResearchGate(options: StatusReportOptions): string {
         ? ' · Context7 off'
         : '';
   if (web && fetch) {
-    return `ready · WebSearch + FetchURL active${context7} (local/managed path ok)`;
+    return `ready · WebSearch + FetchURL active${context7} (local/managed ok)`;
   }
   if (!web && !fetch) return 'unavailable · Web research tools missing in this session';
   return `partial · WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}${context7}`;
@@ -205,12 +205,12 @@ function formatMediaGate(options: StatusReportOptions): string {
   const image = hasActiveTool(options, 'GenerateImage');
   const video = hasActiveTool(options, 'GenerateVideo');
   if (image === true && video === true) {
-    return 'ready · GenerateImage + GenerateVideo active (provider keys detected)';
+    return 'ready · GenerateImage + GenerateVideo active (keys detected)';
   }
-  if (image === true) return 'ready · GenerateImage active (provider key detected)';
-  if (video === true) return 'ready · GenerateVideo active (Google/Gemini key detected)';
+  if (image === true) return 'ready · GenerateImage active (key detected)';
+  if (video === true) return 'ready · GenerateVideo active (Google/Gemini key)';
   if (imageProviderKeyReady()) {
-    return 'key ready · GenerateImage/GenerateVideo will register when the profile allows';
+    return 'key ready · GenerateImage/GenerateVideo will register when profile allows';
   }
   return MEDIA_GATE;
 }
