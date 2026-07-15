@@ -225,16 +225,19 @@ async function generateWithGeminiOmni(
 
   for (const candidate of payload.candidates ?? []) {
     for (const part of candidate.content?.parts ?? []) {
-      const inline = part.inlineData ?? part.inline_data;
-      if (inline?.data !== undefined && inline.data.length > 0) {
+      const inline = part.inlineData;
+      const snakeInline = part.inline_data;
+      const data = inline?.data ?? snakeInline?.data;
+      if (data !== undefined && data.length > 0) {
         return {
-          bytes: Buffer.from(inline.data, 'base64'),
-          mimeType: inline.mimeType ?? inline.mime_type ?? 'video/mp4',
+          bytes: Buffer.from(data, 'base64'),
+          mimeType: inline?.mimeType ?? snakeInline?.mime_type ?? 'video/mp4',
           model,
         };
       }
-      const file = part.fileData ?? part.file_data;
-      const fileUri = file?.fileUri ?? file?.file_uri;
+      const file = part.fileData;
+      const snakeFile = part.file_data;
+      const fileUri = file?.fileUri ?? snakeFile?.file_uri;
       if (fileUri !== undefined && fileUri.length > 0) {
         const videoResponse = await fetchImpl(fileUri);
         if (!videoResponse.ok) {
@@ -245,7 +248,7 @@ async function generateWithGeminiOmni(
           bytes: Buffer.from(arrayBuffer),
           mimeType:
             file?.mimeType ??
-            file?.mime_type ??
+            snakeFile?.mime_type ??
             videoResponse.headers.get('content-type') ??
             'video/mp4',
           model,

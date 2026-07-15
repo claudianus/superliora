@@ -273,12 +273,13 @@ async function generateWithGoogle(
   };
   for (const candidate of payload.candidates ?? []) {
     for (const part of candidate.content?.parts ?? []) {
-      const inline = part.inlineData ?? part.inline_data;
-      const data = inline?.data;
+      const inline = part.inlineData;
+      const snake = part.inline_data;
+      const data = inline?.data ?? snake?.data;
       if (data !== undefined && data.length > 0) {
         return {
           bytes: Buffer.from(data, 'base64'),
-          mimeType: inline?.mimeType ?? inline?.mime_type ?? 'image/png',
+          mimeType: inline?.mimeType ?? snake?.mime_type ?? 'image/png',
           model,
         };
       }
