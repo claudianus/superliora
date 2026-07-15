@@ -1,5 +1,5 @@
-Fetch content from a URL. For an HTML page the main article text is extracted; for a plain-text or markdown response the full body is returned verbatim. The result states which of the two you received, so you can judge how complete it is. Use this when you need to read a specific web page.
+Fetch content from a URL. For HTML, main article text is extracted; for plain-text/markdown, the full body is returned verbatim. The result states which of the two you received. Use this when you need to read a specific web page.
 
-Only fully-formed public `http`/`https` URLs are supported; other schemes and private or loopback addresses are not fetched. Very large pages may be truncated or refused.
+Only fully-formed public `http`/`https` URLs are supported; other schemes and private/loopback addresses are not fetched. Very large pages may be truncated or refused.
 
 If extracted content is incomplete because the page needs rendering or targeted selection, use an available Scrapling-compatible MCP/CLI/browser tool for authorized public-page observation instead of inventing ad-hoc scraping logic.
