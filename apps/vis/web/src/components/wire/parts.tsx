@@ -65,6 +65,10 @@ export function loopEventSummary(ev: LoopRecordedEvent): string {
     }
     case 'tool.call':
       return `${ev.name}#${ev.toolCallId.slice(-8)}`;
+    case 'tool.intend':
+      return `intend ${ev.name}#${ev.toolCallId.slice(-8)}`;
+    case 'tool.ack':
+      return `ack#${ev.toolCallId.slice(-8)}`;
     case 'tool.result':
       return `result#${ev.toolCallId.slice(-8)}${ev.result.isError === true ? ' (error)' : ''}`;
     default: {
@@ -275,6 +279,38 @@ export function LoopEventDetail({ event }: { event: LoopRecordedEvent }) {
               <JsonViewer value={event.display} defaultOpenDepth={1} />
             </div>
           ) : null}
+        </div>
+      );
+    }
+    case 'tool.intend': {
+      return (
+        <div className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-[2px]">
+          <FieldRow label="name">
+            <Mono className="text-[var(--color-cat-tools)]">{event.name}</Mono>
+          </FieldRow>
+          <FieldRow label="toolCallId">
+            <Mono>{event.toolCallId}</Mono>
+          </FieldRow>
+          {event.writePaths && event.writePaths.length > 0 ? (
+            <FieldRow label="writePaths" wide>
+              <Mono>{event.writePaths.join(', ')}</Mono>
+            </FieldRow>
+          ) : null}
+          <FieldRow label="args" wide>
+            <JsonViewer value={event.args} defaultOpenDepth={2} />
+          </FieldRow>
+        </div>
+      );
+    }
+    case 'tool.ack': {
+      return (
+        <div className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-[2px]">
+          <FieldRow label="toolCallId">
+            <Mono>{event.toolCallId}</Mono>
+          </FieldRow>
+          <FieldRow label="parentUuid">
+            <Mono>{event.parentUuid}</Mono>
+          </FieldRow>
         </div>
       );
     }

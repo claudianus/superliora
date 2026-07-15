@@ -186,7 +186,7 @@ export class NativeInputDecoder {
   private pasteText: string | undefined;
   private pasteRaw = '';
   private pendingControl = '';
-  private pendingUtf8 = Buffer.alloc(0);
+  private pendingUtf8: Buffer = Buffer.alloc(0);
 
   decode(data: string | Buffer): readonly NativeInputEvent[] {
     const chunk = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
@@ -714,7 +714,7 @@ function consumeUnknownControlSequence(input: string, index: number): string | u
 }
 
 function splitDecodableUtf8(buffer: Buffer): { readonly text: string; readonly pending: Buffer } {
-  if (buffer.length === 0) return { text: '', pending: buffer };
+  if (buffer.length === 0) return { text: '', pending: Buffer.alloc(0) };
 
   // Walk backward from the end to detect a potentially incomplete multi-byte
   // UTF-8 sequence. Count trailing continuation bytes (0x80–0xBF), then check
@@ -742,8 +742,11 @@ function splitDecodableUtf8(buffer: Buffer): { readonly text: string; readonly p
   // the sequence expects, the rest will arrive in the next chunk.
   if (expectedLength > 0 && trailingContinuations + 1 < expectedLength) {
     const end = leadingByteIndex;
-    if (end === 0) return { text: '', pending: buffer };
-    return { text: buffer.subarray(0, end).toString('utf8'), pending: buffer.subarray(end) };
+    if (end === 0) return { text: '', pending: Buffer.from(buffer) };
+    return {
+      text: buffer.subarray(0, end).toString('utf8'),
+      pending: Buffer.from(buffer.subarray(end)),
+    };
   }
 
   // No partial multi-byte sequence at the end — decode everything.

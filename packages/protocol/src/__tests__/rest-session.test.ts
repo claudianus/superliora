@@ -423,6 +423,51 @@ describe('sessionStatusResponseSchema', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('accepts optional context_os health', () => {
+    const parsed = sessionStatusResponseSchema.parse({
+      status: 'idle',
+      thinking_level: 'off',
+      permission: 'manual',
+      plan_mode: false,
+      swarm_mode: false,
+      context_tokens: 10,
+      max_context_tokens: 1000,
+      context_usage: 0.01,
+      context_os: {
+        page_count: 2,
+        ready_page_count: 1,
+        needs_rehydration_page_count: 1,
+        at_risk_page_count: 0,
+        missing_evidence_page_count: 1,
+        evidence_id_recall_score: 0.5,
+        latest_continuity_status: 'needs_rehydration',
+      },
+    });
+    expect(parsed.context_os?.missing_evidence_page_count).toBe(1);
+    expect(parsed.context_os?.evidence_id_recall_score).toBe(0.5);
+  });
+
+  it('accepts optional micro_compaction dashboard', () => {
+    const parsed = sessionStatusResponseSchema.parse({
+      status: 'idle',
+      thinking_level: 'off',
+      permission: 'manual',
+      plan_mode: false,
+      swarm_mode: false,
+      context_tokens: 10,
+      max_context_tokens: 1000,
+      context_usage: 0.01,
+      micro_compaction: {
+        total: 2,
+        last_trigger: 'usage_pressure',
+        last_context_usage_ratio: 0.6,
+        by_trigger: { usage_pressure: 2 },
+      },
+    });
+    expect(parsed.micro_compaction?.total).toBe(2);
+    expect(parsed.micro_compaction?.last_trigger).toBe('usage_pressure');
+  });
 });
 
 describe('compactSessionRequestSchema', () => {

@@ -660,6 +660,7 @@ describe('telemetry bootstrap', () => {
       sessionId: 'ses',
       appName: 'kimi-code-cli',
       version: '1.2.3',
+      enabled: true,
     });
 
     await shutdownTelemetry();
@@ -683,6 +684,7 @@ describe('telemetry bootstrap', () => {
       sessionId: 'ses',
       appName: 'kimi-code-cli',
       version: '1.2.3',
+      enabled: true,
     });
     track('sync_flush');
 

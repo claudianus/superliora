@@ -29,6 +29,7 @@ function makeStartupInput(): LioraTUIStartupInput {
     },
     tuiConfig: {
       theme: 'dark',
+      disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: true },
@@ -181,7 +182,7 @@ describe('updateActivityPane terminal progress', () => {
       // Assert any moon-phase glyph leads the swarm progress row with the
       // elapsed-time + working label, keeping the intent (spinner in the row).
       expect(strip(progress.render(80).join('\n'))).toMatch(
-        /[🌑🌒🌓🌔🌕🌖🌗🌘]\s+0s Working\.\.\./,
+        /(?:🌑|🌒|🌓|🌔|🌕|🌖|🌗|🌘)\s+0s Working\.\.\./,
       );
 
       state.activitySpinner?.instance.stop();

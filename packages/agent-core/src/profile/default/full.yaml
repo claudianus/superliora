@@ -25,7 +25,10 @@ tools:
   - CronList
   - CronDelete
   - ReadMediaFile
+  - GenerateImage
+  - GenerateVideo
   - TodoList
+  - UltraworkGraph
   - Memory
   - Skill
   - SearchSkill

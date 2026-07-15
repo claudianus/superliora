@@ -143,7 +143,7 @@ export async function runXaiBrowserFlow(
       expectedState: state,
       onManualCallbackPrompt: options.onManualCallbackPrompt,
     });
-    return exchangeXaiToken(flow, code, pkce.verifier, server.redirectUri, tokenUrl, {
+    return await exchangeXaiToken(flow, code, pkce.verifier, server.redirectUri, tokenUrl, {
       signal: options.signal,
     });
   } finally {

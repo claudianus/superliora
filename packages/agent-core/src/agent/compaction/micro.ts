@@ -27,15 +27,66 @@ export interface MicroCompactionPolicyDecision {
     | 'replayable_tool_result';
 }
 
+/** Defaults favor tool-result clearing as the primary context mechanism (cheap, reversible). */
 const DEFAULT_CONFIG: MicroCompactionConfig = {
-  keepRecentMessages: 20,
+  keepRecentMessages: 16,
   minContentTokens: 100,
   cacheMissedThresholdMs: 60 * 60 * 1000,
   truncatedMarker: '[Old tool result content cleared]',
-  minContextUsageRatio: 0.5,
+  // Fire once usage is meaningful; full compaction still waits for triggerRatio.
+  minContextUsageRatio: 0.55,
 };
 
+export type MicroTriggerKind =
+  | 'usage_pressure'
+  | 'cache_miss'
+  | 'usage_and_cache_miss'
+  | 'swarm_pressure';
+
+export interface MicroTriggerDashboard {
+  readonly total: number;
+  readonly byTrigger: Readonly<Record<string, number>>;
+  readonly lastTrigger: MicroTriggerKind | null;
+  readonly lastContextUsageRatio: number | null;
+}
+
+/** Rolling micro-compaction trigger counters for harness dashboards. */
+export class MicroTriggerTracker {
+  private readonly counts = new Map<string, number>();
+  private lastTrigger: MicroTriggerKind | null = null;
+  private lastContextUsageRatio: number | null = null;
+  private total = 0;
+
+  record(trigger: MicroTriggerKind, contextUsageRatio: number): void {
+    this.total += 1;
+    this.counts.set(trigger, (this.counts.get(trigger) ?? 0) + 1);
+    this.lastTrigger = trigger;
+    this.lastContextUsageRatio = contextUsageRatio;
+  }
+
+  snapshot(): MicroTriggerDashboard {
+    const byTrigger: Record<string, number> = {};
+    for (const [key, value] of this.counts) {
+      byTrigger[key] = value;
+    }
+    return {
+      total: this.total,
+      byTrigger,
+      lastTrigger: this.lastTrigger,
+      lastContextUsageRatio: this.lastContextUsageRatio,
+    };
+  }
+
+  reset(): void {
+    this.counts.clear();
+    this.lastTrigger = null;
+    this.lastContextUsageRatio = null;
+    this.total = 0;
+  }
+}
+
 export class MicroCompaction {
+  readonly triggers = new MicroTriggerTracker();
   private cutoff = 0;
   readonly config: MicroCompactionConfig;
 
@@ -61,13 +112,23 @@ export class MicroCompaction {
   detect(): void {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return;
 
-    const config = this.config;
-    const { history, lastAssistantAt } = this.agent.context;
-    const cacheAgeMs = lastAssistantAt === null ? null : Date.now() - lastAssistantAt;
-    const cacheMissed = cacheAgeMs !== null && cacheAgeMs >= config.cacheMissedThresholdMs;
-    if (!cacheMissed) return;
+    // Primary: usage-ratio pressure when max_context_tokens is known (tool-result
+    // clearing is cheaper than full compaction). Without a known window size,
+    // fall back to the cache-miss secondary path only.
+    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
+    const hasKnownWindow = maxContextTokens !== undefined && maxContextTokens > 0;
+    const usagePressure =
+      hasKnownWindow && this.contextUsageRatio() >= this.config.minContextUsageRatio;
+    const cacheMissed = this.isCacheMissed();
+    if (!usagePressure && !cacheMissed) return;
 
-    this.applyPressureCutoff(history.length);
+    const trigger =
+      usagePressure && cacheMissed
+        ? 'usage_and_cache_miss'
+        : usagePressure
+          ? 'usage_pressure'
+          : 'cache_miss';
+    this.applyPressureCutoff(this.agent.context.history.length, trigger);
   }
 
   /**
@@ -76,27 +137,30 @@ export class MicroCompaction {
    */
   detectUnderSwarmPressure(minUsageRatio: number): void {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return;
-
-    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
-    const contextTokens = this.agent.context.tokenCountWithPending;
-    const contextUsageRatio =
-      maxContextTokens !== undefined && maxContextTokens > 0
-        ? contextTokens / maxContextTokens
-        : 1;
-    if (contextUsageRatio < minUsageRatio) return;
-
-    this.applyPressureCutoff(this.agent.context.history.length);
+    if (this.contextUsageRatio() < minUsageRatio) return;
+    this.applyPressureCutoff(this.agent.context.history.length, 'swarm_pressure');
   }
 
-  private applyPressureCutoff(historyLength: number): void {
-    const config = this.config;
-    const { history, lastAssistantAt } = this.agent.context;
+  private contextUsageRatio(): number {
     const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
     const contextTokens = this.agent.context.tokenCountWithPending;
-    const contextUsageRatio =
-      maxContextTokens !== undefined && maxContextTokens > 0
-        ? contextTokens / maxContextTokens
-        : 1;
+    if (maxContextTokens === undefined || maxContextTokens <= 0) return 1;
+    return contextTokens / maxContextTokens;
+  }
+
+  private isCacheMissed(): boolean {
+    const { lastAssistantAt } = this.agent.context;
+    if (lastAssistantAt === null) return false;
+    return Date.now() - lastAssistantAt >= this.config.cacheMissedThresholdMs;
+  }
+
+  private applyPressureCutoff(
+    historyLength: number,
+    trigger: 'usage_pressure' | 'cache_miss' | 'usage_and_cache_miss' | 'swarm_pressure' = 'usage_pressure',
+  ): void {
+    const config = this.config;
+    const { history, lastAssistantAt } = this.agent.context;
+    const contextUsageRatio = this.contextUsageRatio();
     if (contextUsageRatio < config.minContextUsageRatio) return;
 
     const previousCutoff = this.cutoff;
@@ -118,6 +182,8 @@ export class MicroCompaction {
         rawContextTokens -
         effect.truncatedToolResultTokensBefore +
         effect.truncatedToolResultTokensAfter;
+      this.triggers.record(trigger, contextUsageRatio);
+      const dashboard = this.triggers.snapshot();
       this.agent.telemetry.track('micro_compaction_finished', {
         keep_recent_messages: config.keepRecentMessages,
         min_content_tokens: config.minContentTokens,
@@ -128,6 +194,12 @@ export class MicroCompaction {
         truncated_tool_result_tokens_before: effect.truncatedToolResultTokensBefore,
         truncated_tool_result_tokens_after: effect.truncatedToolResultTokensAfter,
         micro_policy_reason: effect.clearedPolicyReasons.join(','),
+        micro_trigger: trigger,
+        micro_trigger_total: dashboard.total,
+        micro_trigger_counts: Object.entries(dashboard.byTrigger)
+          .map(([name, count]) => `${name}:${String(count)}`)
+          .join(','),
+        context_usage_ratio: contextUsageRatio,
         tokens_before: tokensBefore,
         tokens_after: tokensAfter,
         previous_cutoff: previousCutoff,
@@ -136,6 +208,8 @@ export class MicroCompaction {
         cache_age_ms: cacheAgeMs,
         thinking_level: this.agent.config.thinkingLevel,
       });
+      // Live footer/status: surface micro-trigger dashboard after tool-result clearing.
+      this.agent.emitStatusUpdated();
     }
   }
 
@@ -329,10 +403,17 @@ function truncateForMarker(text: string, maxLength: number): string {
   return `${text.slice(0, maxLength)}...`;
 }
 
+/**
+ * Tools whose results are treated as stateful / control-plane and must not be
+ * cleared by micro compaction (context-engineering exclude_tools policy).
+ * Includes mutators and durable ledger/memory surfaces.
+ */
 const KNOWN_MUTATING_TOOLS = new Set([
   'Agent',
   'AgentSwarm',
+  'AskUserQuestion',
   'Bash',
+  'CreateGoal',
   'CronCreate',
   'CronDelete',
   'Edit',
@@ -340,17 +421,23 @@ const KNOWN_MUTATING_TOOLS = new Set([
   'ExitPlanMode',
   'Memory',
   'NextPhase',
+  'RecordInterviewFinding',
   'SetGoalBudget',
   'Skill',
   'TaskStop',
   'TodoList',
   'UltraSwarm',
+  'UltraworkGraph',
   'UpdateGoal',
   'Write',
 ]);
 
-function isKnownMutatingTool(toolName: string): boolean {
+export function isStatefulOrMutatingTool(toolName: string): boolean {
   return KNOWN_MUTATING_TOOLS.has(toolName);
+}
+
+function isKnownMutatingTool(toolName: string): boolean {
+  return isStatefulOrMutatingTool(toolName);
 }
 
 function findLatestSwarmToolCallId(messages: readonly ContextMessage[]): string | undefined {

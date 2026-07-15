@@ -63,6 +63,14 @@ export {
 export type { LogContext, LogLevel, LogPayload, Logger } from '@superliora/agent-core';
 
 export { loadRuntimeConfigSafe, resolveConfigPath } from '@superliora/agent-core';
+export {
+  formatContextOSDiagnoseLine,
+  formatContextOSHealthLine,
+} from '@superliora/agent-core';
+export type {
+  ContextOSHealthSnapshot,
+  ContextOSRetrievalDiagnostics,
+} from '@superliora/agent-core';
 
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';
 

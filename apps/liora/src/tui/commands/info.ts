@@ -2,7 +2,19 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 import { resolveEvidenceRoot } from '#/constant/workspace-data';
-import type { McpServerInfo, SessionStatus, SessionUsage } from '@superliora/sdk';
+import type {
+  ContextOSRetrievalDiagnostics,
+  McpServerInfo,
+  SessionStatus,
+  SessionUsage,
+} from '@superliora/sdk';
+import {
+  formatContextOSDiagnoseLine,
+  formatContextOSHealthLine,
+  loadRuntimeConfigSafe,
+  resolveConfigPath,
+  resolveLioraHome,
+} from '@superliora/sdk';
 
 import { buildMcpStatusReportLines } from '../components/messages/mcp-status-panel';
 import {
@@ -80,6 +92,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
   const appState = host.state.appState;
   const humanWriting = loadPreflightHumanWriting(appState.workDir);
   const recovery = loadStatusRecoveryReadiness(appState.workDir);
+  const privacy = loadPrivacySnapshot(host);
   const reportArgs = {
     version: appState.version,
     model: appState.model,
@@ -102,6 +115,9 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     providerRouteStatus: runtimeStatus.status?.providerRouteStatus ?? appState.providerRouteStatus,
     status: runtimeStatus.status,
     statusError: runtimeStatus.error,
+    contextOS: runtimeStatus.status?.contextOS,
+    microCompaction: runtimeStatus.status?.microCompaction,
+    privacyTelemetryEnabled: privacy.telemetryEnabled,
     gitStatus: createGitStatusCache(appState.workDir).getStatus(),
     humanWriting: {
       ready: humanWriting.ready,
@@ -137,6 +153,120 @@ export async function showMcpServers(host: SlashCommandHost): Promise<void> {
   );
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
+}
+
+
+export async function showContextOsReport(host: SlashCommandHost, rawArgs = ''): Promise<void> {
+  const query = rawArgs.trim();
+  let diagnostics: ContextOSRetrievalDiagnostics;
+  try {
+    const session = host.requireSession();
+    if (typeof session.diagnoseContextOS !== 'function') {
+      host.showError('Context OS diagnose is unavailable in this session.');
+      return;
+    }
+    diagnostics = await session.diagnoseContextOS(query.length > 0 ? query : 'current work');
+  } catch (error) {
+    host.showError(`Failed to diagnose Context OS: ${formatErrorMessage(error)}`);
+    return;
+  }
+
+  const privacy = loadPrivacySnapshot(host);
+  const lines = buildContextOsReportLines(diagnostics, privacy, query);
+  const panel = new UsagePanelComponent(() => lines, 'primary', ' Context OS ');
+  host.state.transcriptContainer.addChild(panel);
+  requestTUILayoutRender(host.state);
+}
+
+function loadPrivacySnapshot(host: SlashCommandHost): {
+  readonly telemetryEnabled: boolean;
+  readonly configPath: string;
+} {
+  try {
+    const homeDir = host.harness.homeDir ?? resolveLioraHome();
+    const configPath = host.harness.configPath ?? resolveConfigPath({ homeDir });
+    const { config } = loadRuntimeConfigSafe(configPath);
+    return {
+      telemetryEnabled: config.telemetry === true,
+      configPath,
+    };
+  } catch {
+    return {
+      telemetryEnabled: false,
+      configPath: '(unknown)',
+    };
+  }
+}
+
+
+function nonEmptyEnv(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function imageProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (
+    nonEmptyEnv(env['OPENAI_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GOOGLE_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GEMINI_API_KEY']) !== undefined
+  );
+}
+
+function videoProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (
+    nonEmptyEnv(env['GOOGLE_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GEMINI_API_KEY']) !== undefined
+  );
+}
+
+function formatMediaReadinessLines(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  const imageReady = imageProviderKeyReady(env);
+  const videoReady = videoProviderKeyReady(env);
+  return [
+    'Media & research (zero-config when keys already exist)',
+    '  Web: WebSearch + FetchURL + LocalResearchStack (built-in).',
+    imageReady
+      ? '  Images: ready · GenerateImage (OPENAI_API_KEY or GOOGLE/GEMINI key detected).'
+      : '  Images: set OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY to enable GenerateImage.',
+    videoReady
+      ? '  Video: ready · GenerateVideo (GOOGLE/GEMINI key detected).'
+      : '  Video: set GOOGLE_API_KEY/GEMINI_API_KEY to enable GenerateVideo.',
+  ];
+}
+
+export function buildContextOsReportLines(
+  diagnostics: ContextOSRetrievalDiagnostics,
+  privacy: { readonly telemetryEnabled: boolean; readonly configPath: string },
+  query: string,
+): string[] {
+  const health = diagnostics.health;
+  const lines = [
+    formatContextOSDiagnoseLine(diagnostics),
+    '',
+    `Query: ${query.length > 0 ? query : '(default: current work)'}`,
+    `Health: ${formatContextOSHealthLine(health)}`,
+    `Pages: ${String(health.pageCount)} · ready ${String(health.readyPageCount)} · rehydrate ${String(health.needsRehydrationPageCount)} · at-risk ${String(health.atRiskPageCount)}`,
+    `Evidence: score ${health.evidenceIdRecallScore.toFixed(2)} · missing pages ${String(health.missingEvidencePageCount)}`,
+    `Selection: candidates ${String(diagnostics.candidatePageCount)} · selected ${String(diagnostics.selectedPageCount)} · superseded ${String(diagnostics.supersededPageCount)}`,
+    `Reasons: ${diagnostics.selectedReasons.length > 0 ? diagnostics.selectedReasons.join(', ') : 'none'}`,
+  ];
+  if (diagnostics.selectedPageSequences.length > 0) {
+    lines.push(
+      `Selected pages: ${diagnostics.selectedPageSequences.map(String).join(', ')}`,
+    );
+  }
+  lines.push(
+    '',
+    'Privacy / ZDR posture',
+    `  Telemetry: ${privacy.telemetryEnabled ? 'ON (opt-in)' : 'OFF (default · ZDR-friendly)'}`,
+    `  Config: ${privacy.configPath}`,
+    '  Tip: product telemetry is off by default. Set `telemetry = true` in config.toml only if you want usage analytics.',
+    '  Session transcripts still stay local to this machine unless you export them.',
+    '',
+    ...formatMediaReadinessLines(),
+  );
+  return lines;
 }
 
 async function loadSessionUsageReport(host: SlashCommandHost): Promise<SessionUsageResult> {

@@ -40,6 +40,7 @@ function createTestAppState(): AppState {
 
 function createTestTuiState(options: Partial<LioraTUIOptions> = {}) {
   const state = createTUIState({
+    startup: { continueLast: false, yolo: false, auto: false, plan: false },
     initialAppState: createTestAppState(),
     ...options,
   });
@@ -89,6 +90,10 @@ describe('transcript hit test', () => {
 
     const point = transcriptPointForMouse(
       {
+        raw: '',
+        ctrl: false,
+        alt: false,
+        shift: false,
         type: 'mouse',
         action: 'press',
         button: 'left',
@@ -109,6 +114,10 @@ describe('transcript hit test', () => {
 
     const point = transcriptPointForMouse(
       {
+        raw: '',
+        ctrl: false,
+        alt: false,
+        shift: false,
         type: 'mouse',
         action: 'press',
         button: 'left',
@@ -129,6 +138,10 @@ describe('transcript selection mouse routing', () => {
 
     const press = {
       type: 'mouse' as const,
+      raw: '',
+      ctrl: false,
+      alt: false,
+      shift: false,
       action: 'press' as const,
       button: 'left' as const,
       x: context.rect.x + CHROME_GUTTER,

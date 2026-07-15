@@ -48,7 +48,7 @@ export const PREMIUM_VISUAL_PHOTO_CATALOG = [
   '- `https://api.dicebear.com/10.x/shapes/svg?seed={unique-id}` — abstract brand marks.',
   '- `https://api.dicebear.com/10.x/initials/svg?seed={name}` — initials badges.',
   '**Rules:** one seed namespace per project; never reuse the same seed for different people; add real `alt` text.',
-  '**When Picsum is too generic:** SearchSkill → workspace-imagen for subject-specific hero/icons/sprites.',
+  '**When Picsum is too generic:** prefer GenerateImage (OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY) for subject-specific hero/icons/sprites; SearchSkill → workspace-imagen only if GenerateImage is unavailable.',
 ].join('\n');
 
 /** Premium Google Font stacks — paste into HTML or @import. */
@@ -108,7 +108,21 @@ export const PREMIUM_VISUAL_SELF_CRITIQUE_PROMPT = [
   '5. Screenshot inspected — what specific defect remains? Fix or defer with user consent.',
 ].join('\n');
 
-/** Full embedded reference block for injection. */
+/**
+ * Compact pointer block for Premium injection (token-efficient hot path).
+ * Full catalog below is offline reference material, not injected by PremiumQualityInjector.
+ */
+export const PREMIUM_VISUAL_REFERENCE_COMPACT = [
+  '### Visual refs (compact — expand via SearchSkill / design skills when needed)',
+  '- Inspiration: godly.website, awwwards.com, bentogrids.com, dark.design; study 2–3, do not clone.',
+  '- Layouts: bento hero, split narrative, oversized type, product-in-hero, dark craft, game frame. Ban centered 3-card + purple gradient.',
+  '- Imagery: `https://picsum.photos/seed/{project}-hero/1920/1080.webp`; dicebear notionists SVG seeds.',
+  '- Fonts: Outfit+JetBrains Mono, Newsreader+Outfit, Space Grotesk+IBM Plex Mono, Fredoka+Nunito. Ban naked Inter.',
+  '- Components: aceternity, magicui, reactbits, shadcn; verify deps first.',
+  '- Self-critique: 3 AI-slop tells, one signature element, last screenshot defect before claiming done.',
+].join('\n');
+
+/** Offline full reference catalog — not part of the Premium injection hot path. */
 export const PREMIUM_VISUAL_REFERENCE_CATALOG = [
   PREMIUM_VISUAL_INSPIRATION_SITES,
   '',

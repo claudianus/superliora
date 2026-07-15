@@ -2,7 +2,7 @@ import { basename, dirname, join } from 'pathe';
 
 import type { Agent } from '../agent';
 import { parseWorkGraphNodesFromPlan } from '../agent/plan/work-graph-from-plan';
-import { inferUltraPlanPhaseFromPlanContent } from './mirror-reconcile';
+import { inferUltraPlanPhaseFromPlanContent } from './plan-phase';
 
 function isApprovedUltraworkPlan(content: string): boolean {
   if (inferUltraPlanPhaseFromPlanContent(content) === 'exit') return true;

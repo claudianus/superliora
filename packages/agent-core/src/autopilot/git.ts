@@ -7,7 +7,7 @@ async function runCommand(kaos: Kaos, args: readonly string[], timeoutMs: number
   try {
     const proc = await kaos.exec(...args); proc.stdin.end();
     const out = collect(proc.stdout), err = collect(proc.stderr);
-    const t = setTimeout(() => proc.kill('SIGTERM'), timeoutMs);
+    const t = setTimeout(() => { void proc.kill('SIGTERM'); }, timeoutMs);
     try { const code = await proc.wait(); return { ok: code === 0, stdout: await out, stderr: await err, exitCode: code }; } finally { clearTimeout(t); }
   } catch (e) { return { ok: false, stdout: '', stderr: e instanceof Error ? e.message : String(e), exitCode: null }; }
 }

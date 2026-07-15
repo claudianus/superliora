@@ -3,7 +3,7 @@ import { track as trackTelemetry, type TelemetryProperties } from '@superliora/t
 import { updateBrowserUseRuntimes, updateCuaDriver } from '@superliora/gui-use';
 
 import { getHostPackageRoot } from '#/cli/version';
-import { t, tln } from '#/cli/i18n';
+import { tln } from '#/cli/i18n';
 import { refreshUpdateCache } from '#/cli/update/refresh';
 import { selectUpdateTarget } from '#/cli/update/select';
 import { detectInstallSource } from '#/cli/update/source';

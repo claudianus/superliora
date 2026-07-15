@@ -190,6 +190,7 @@ micro_compaction = false
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -246,6 +247,7 @@ micro_compaction = false
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -299,6 +301,7 @@ custom_headers = { "X-Test" = "1" }
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -350,6 +353,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -381,6 +385,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -420,6 +425,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -455,6 +461,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -497,6 +504,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -540,6 +548,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -577,6 +586,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -608,6 +618,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -638,6 +649,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -691,6 +703,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -736,6 +749,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -792,6 +806,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
     setCoreKaosFailure(
@@ -823,6 +838,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
     setCoreKaos(core, Promise.resolve(testKaos));
@@ -858,6 +874,7 @@ max_context_size = 100000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -900,6 +917,7 @@ base_url = "https://search.example.test/v1"
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -934,6 +952,7 @@ base_url = "https://search.example.test/v1"
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -992,6 +1011,7 @@ base_url = "https://search.example.test/v1"
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -1040,6 +1060,7 @@ base_url = "https://search.example.test/v1"
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -1075,6 +1096,7 @@ base_url = "https://search.example.test/v1"
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 
@@ -1107,6 +1129,7 @@ base_url = "https://search.example.test/v1"
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
 

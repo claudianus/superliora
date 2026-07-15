@@ -78,11 +78,15 @@ describe('error-codes', () => {
     expect(ErrorCodeReason[ErrorCode.FS_WATCH_LIMIT_EXCEEDED]).toBe('fs.watch_limit_exceeded');
   });
 
-  it('reserved codes are not redefined (40101, 50002 absent)', () => {
+  it('daemon auth codes occupy 40101-40103; older reserved slots stay free', () => {
     const allValues = Object.values(ErrorCode);
-    expect(allValues).not.toContain(40101);
-    expect(allValues).not.toContain(40102);
-    expect(allValues).not.toContain(40103);
+    expect(allValues).toContain(40101);
+    expect(allValues).toContain(40102);
+    expect(allValues).toContain(40103);
+    expect(ErrorCode.DAEMON_AUTH_TOKEN_MISSING).toBe(40101);
+    expect(ErrorCode.DAEMON_AUTH_TOKEN_INVALID).toBe(40102);
+    expect(ErrorCode.DAEMON_AUTH_ORIGIN_FORBIDDEN).toBe(40103);
+    // Still reserved / unused:
     expect(allValues).not.toContain(42901);
     expect(allValues).not.toContain(50002);
   });

@@ -3,30 +3,12 @@ import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
 import type { Agent } from '../agent';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
 import { resolveApprovedUltraworkPlanPath } from './approved-plan';
-import { releaseUltraworkPlanModeIfComplete, shouldKeepPlanModeForUltraworkRun } from './recovery';
+import { inferUltraPlanPhaseFromPlanContent } from './plan-phase';
+import { releaseUltraworkPlanModeIfComplete, shouldKeepPlanModeForUltraworkRun } from './recovery-resume';
 import { readUltraworkMirrorFromDisk } from './run-store';
 import type { UltraworkPlanRecoveryContext, UltraworkRunMirror } from './types';
 
-export function inferUltraPlanPhaseFromPlanContent(content: string): UltraPlanPhase | undefined {
-  const trimmed = content.trim();
-  if (trimmed.length === 0) return undefined;
-
-  const hasExecutionPlan = /##\s*Execution Plan[\s\S]*\S/.test(trimmed);
-  const hasWorkGraph = /##\s*WorkGraph[\s\S]*\S/.test(trimmed);
-  const hasSwarmDecision = /Swarm decision:\s*(ENGAGE|ADAPTIVE|DEFER)/i.test(trimmed);
-  const hasSeedSpecBody =
-    /Verifiable UltraGoal:\s*\S/.test(trimmed) &&
-    /Acceptance Criteria:\s*\S/.test(trimmed) &&
-    /Verification Plan:\s*\S/.test(trimmed);
-
-  if (hasExecutionPlan && hasWorkGraph && hasSwarmDecision && hasSeedSpecBody) {
-    return 'exit';
-  }
-  if (hasExecutionPlan || hasWorkGraph) return 'write';
-  if (hasSeedSpecBody && hasSwarmDecision) return 'review';
-  if (hasSeedSpecBody) return 'design';
-  return undefined;
-}
+export { inferUltraPlanPhaseFromPlanContent } from './plan-phase';
 
 export async function reconcileUltraworkFromMirror(agent: Agent): Promise<void> {
   const run = agent.ultrawork.getRun();

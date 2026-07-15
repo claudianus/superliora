@@ -178,6 +178,7 @@ describe('skill search', () => {
     const registry = new SessionSkillRegistry({
       defaultSearchLimit: 2,
       maxSearchLimit: 3,
+      disableCatalogLoad: true,
     });
     for (let index = 0; index < 5; index += 1) {
       registry.register(makeSkill(`match-${index}`, 'user', 'limit test'));
@@ -189,7 +190,8 @@ describe('skill search', () => {
 });
 
 function makeRegistry(skills: readonly SkillDefinition[]): SessionSkillRegistry {
-  const registry = new SessionSkillRegistry();
+  // Unit tests assert local registry ranking only — never pull the 7k+ catalog.
+  const registry = new SessionSkillRegistry({ disableCatalogLoad: true });
   for (const skill of skills) registry.register(skill);
   return registry;
 }

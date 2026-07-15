@@ -8,7 +8,7 @@ import {
   type LioraConfigValidationIssue,
 } from '@superliora/sdk';
 import type { Command } from 'commander';
-import { t, tln } from '#/cli/i18n';
+import { t } from '#/cli/i18n';
 import { z } from 'zod';
 
 import { getTuiConfigPath, parseTuiConfig } from '#/tui/config';

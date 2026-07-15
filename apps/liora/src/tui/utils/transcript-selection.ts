@@ -1,21 +1,18 @@
 import { visibleWidth, type RendererRegionLine } from '#/tui/renderer';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
+import {
+  plainTextFromRegionLine,
+  type TranscriptSelectionPoint,
+  type TranscriptSelectionRange,
+} from './transcript-selection-model';
+
+export type { TranscriptSelectionPoint, TranscriptSelectionRange } from './transcript-selection-model';
+export { plainTextFromRegionLine } from './transcript-selection-model';
+
 import type { TUIState } from '../tui-state';
 import { requestTUILayoutRender } from './frame-render';
 import { CHROME_GUTTER } from '../constant/rendering';
-import { resolveTranscriptHitTestContext } from './transcript-hit-test';
-
-export interface TranscriptSelectionPoint {
-  readonly globalLine: number;
-  readonly col: number;
-}
-
-export interface TranscriptSelectionRange {
-  readonly start: TranscriptSelectionPoint;
-  readonly end: TranscriptSelectionPoint;
-}
-
 export class TranscriptSelectionState {
   private anchor: TranscriptSelectionPoint | undefined;
   private head: TranscriptSelectionPoint | undefined;
@@ -91,11 +88,6 @@ export function shouldHoldTranscriptAnimation(options: {
     || options.transcriptSelection.isDragging
     || options.transcriptSelection.hasSelection
   );
-}
-
-export function plainTextFromRegionLine(line: RendererRegionLine): string {
-  if (typeof line === 'string') return line;
-  return line.map((cell) => cell.char).join('');
 }
 
 export function regionLineVisibleLength(line: RendererRegionLine): number {
@@ -206,6 +198,7 @@ function sliceByVisibleColumns(text: string, startCol: number, endCol: number): 
 export async function copyTranscriptSelectionToClipboard(state: TUIState): Promise<boolean> {
   const range = state.transcriptSelection.normalizedRange();
   if (range === undefined) return false;
+  const { resolveTranscriptHitTestContext } = await import('./transcript-hit-test');
   const context = resolveTranscriptHitTestContext(state);
   if (context === undefined) return false;
   const text = extractTranscriptSelectionPlainText(

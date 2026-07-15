@@ -12,12 +12,12 @@ export const CANONICAL_EVIDENCE_ROOT = `${WORKSPACE_DATA_DIR}/evidence`;
 /** Canonical Ultrawork run evidence root for new workspaces. */
 export const CANONICAL_ULTRAWORK_EVIDENCE_ROOT = `${CANONICAL_EVIDENCE_ROOT}/ultrawork-runs`;
 
-export function resolveWorkspaceDataDir(workDir: string): string {
+export function resolveWorkspaceDataDir(_workDir: string): string {
   return WORKSPACE_DATA_DIR;
 }
 
 /** Build a workspace-relative path under the workspace data directory. */
-export function workspaceRelativePath(workDir: string, ...segments: string[]): string {
+export function workspaceRelativePath(_workDir: string, ...segments: string[]): string {
   return join(WORKSPACE_DATA_DIR, ...segments);
 }
 

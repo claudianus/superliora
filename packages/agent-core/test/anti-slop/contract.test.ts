@@ -20,5 +20,7 @@ describe('anti-slop contract', () => {
     expect(NO_AI_SLOP_SKILL_ROUTING).toContain('do not assume any default locale');
     expect(NO_AI_SLOP_PROSE_GATE).toContain('Skip anti-slop skill loads');
     expect(NO_AI_SLOP_PROSE_GATE).not.toContain('MANDATORY');
+    // Injected into Ultra Plan write/exit phases — keep routing compact.
+    expect(NO_AI_SLOP_SKILL_ROUTING.length).toBeLessThan(900);
   });
 });

@@ -15,6 +15,7 @@
  */
 
 import { t, tln } from '#/cli/i18n';
+import type { Command } from 'commander';
 
 import { getLiveLock, type LockContents } from '@superliora/server';
 

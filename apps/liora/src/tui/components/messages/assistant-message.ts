@@ -163,7 +163,7 @@ const CARET_PULSE_INTERVAL_MS = 560;
  * in and out via a triangle wave on the shared animation clock, signalling
  * that the assistant is actively composing.
  */
-function appendStreamingCaret(lines: readonly string[], contentWidth: number): readonly string[] {
+function appendStreamingCaret(lines: readonly string[], _contentWidth: number): readonly string[] {
   if (lines.length === 0) return lines;
   // Find the last line with visible content.
   let lastIndex = lines.length - 1;

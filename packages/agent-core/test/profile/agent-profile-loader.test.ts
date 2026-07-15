@@ -268,7 +268,7 @@ describe('default agent profiles', () => {
     expect(first).toContain('Skill Runtime');
     expect(first).toContain('## Research');
     expect(first).toContain('Context7Resolve');
-    expect(first).toContain('WebSearch and FetchURL');
+    expect(first).toContain('WebSearch/FetchURL');
     expect(first).toContain('/workspace/one');
     expect(second).toContain('/workspace/two');
     expect(second).not.toContain('/workspace/one');

@@ -17,7 +17,7 @@ import { promises as dns } from 'node:dns';
 import { Readability } from '@mozilla/readability';
 import { parseHTML as rawParseHTML } from 'linkedom';
 
-import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin';
+import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin/web/fetch-url';
 
 // Readability's .d.ts references the global `Document` type, but this
 // package compiles with `lib: ES2023` (no DOM). Extracting the

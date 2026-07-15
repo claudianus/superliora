@@ -25,6 +25,7 @@ function makeStartupInput(): LioraTUIStartupInput {
     },
     tuiConfig: {
       theme: 'dark',
+      disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: true },
@@ -41,6 +42,7 @@ function makeHarness() {
     resumeSession: vi.fn(),
     listSessions: vi.fn(async () => []),
     close: vi.fn(async () => {}),
+    emergencyFlushSync: vi.fn(),
     track: vi.fn(),
     setTelemetryContext: vi.fn(),
     auth: {

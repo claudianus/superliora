@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import chalk from 'chalk';
 
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
@@ -101,6 +101,10 @@ async function flushAutocomplete(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function providerReturning(items: AutocompleteItem[]): AutocompleteProvider {
   return {
@@ -215,6 +219,7 @@ describe('createTUIState', () => {
   });
 
   it('composes renderer-native editor autocomplete below the native editor frame', async () => {
+    vi.useFakeTimers();
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
       startup: {
@@ -226,12 +231,15 @@ describe('createTUIState', () => {
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 24 });
+    // Rebuild editor with zero debounce so autocomplete opens deterministically in tests.
+    state.editor = new NativeTUIEditor({ requestRender: () => {}, autocompleteDebounceMs: 0 });
     state.editor.setAutocompleteProvider(providerReturning([
       { value: 'help', label: 'help', description: 'Show help' },
     ]));
     state.editorContainer.addChild(state.editor);
 
     state.editor.handleInput('/');
+    await vi.runAllTimersAsync();
     await flushAutocomplete();
     const frame = renderTUIStateNativeFrame(state);
 
@@ -419,7 +427,7 @@ describe('createTUIState', () => {
         id: 'call_websearch',
         name: 'WebSearch',
         args: { query: 'Phaser 3 browser game' },
-      }),
+      }, undefined),
     );
     state.editorContainer.addChild(state.editor);
     state.footerContainer.addChild(fixedLines(['footer']));

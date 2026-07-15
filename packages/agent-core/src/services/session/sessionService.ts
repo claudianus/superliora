@@ -463,6 +463,7 @@ export class SessionService extends Disposable implements ISessionService {
 
     const agentState = this.promptService.getAgentStateSnapshot(id);
 
+    const contextOS = context.contextOS;
     return {
       status: this._computeStatus(id),
       model: config.modelAlias ?? config.provider?.model,
@@ -474,6 +475,27 @@ export class SessionService extends Disposable implements ISessionService {
       max_context_tokens: maxContextTokens,
       context_usage: contextUsage,
       provider_route: providerRoute,
+      context_os:
+        contextOS === undefined
+          ? undefined
+          : {
+              page_count: contextOS.pageCount,
+              ready_page_count: contextOS.readyPageCount,
+              needs_rehydration_page_count: contextOS.needsRehydrationPageCount,
+              at_risk_page_count: contextOS.atRiskPageCount,
+              missing_evidence_page_count: contextOS.missingEvidencePageCount,
+              evidence_id_recall_score: contextOS.evidenceIdRecallScore,
+              latest_continuity_status: contextOS.latestContinuityStatus,
+            },
+      micro_compaction:
+        context.microCompaction === undefined
+          ? undefined
+          : {
+              total: context.microCompaction.total,
+              last_trigger: context.microCompaction.lastTrigger,
+              last_context_usage_ratio: context.microCompaction.lastContextUsageRatio,
+              by_trigger: { ...context.microCompaction.byTrigger },
+            },
     };
   }
 

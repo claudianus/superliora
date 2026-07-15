@@ -7,10 +7,8 @@ import {
 import {
   APIEmptyResponseError,
   createProvider,
-  inputTotal,
   isRetryableGenerateError,
   type ChatProvider,
-  type GenerateResult,
   type Message,
   type ModelCapability,
   type TokenUsage,
@@ -42,7 +40,6 @@ import { renderMessagesToText } from './render-messages';
 import { renderTodoList, type TodoItem } from '../../tools/builtin/state/todo-list';
 import type {
   CompactionBeginData,
-  CompactionContextMemoryTier,
   CompactionContextOS,
   CompactionContextPack,
   CompactionQualitySignals,
@@ -54,6 +51,8 @@ import type {
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
+  PipelineStrategy,
+  ToolCollapseStrategy,
   resolveCompactionBlockRatio,
   SWARM_MICRO_PRESSURE_RATIO,
   type CompactionStrategy,
@@ -70,7 +69,6 @@ import {
   extractUltraworkRunLines,
   renderUltraworkRunsMemorySection,
 } from '../../ultrawork/envelope';
-import { surpriseScore } from '../../lean-context/gate/density';
 import {
   mergeCompactionQualityResults,
   validateInitialCompactionSummary,
@@ -82,13 +80,10 @@ import {
 import {
   extractFactsFromSummary,
   formatFactsAsMemoryBlock,
-  isPromptControlCompactionMemoryItem,
-  isUsefulCompactionMemoryItem,
   mergeFactSets,
   parseStructuredCompactionMemory,
   type ExtractedFact,
 } from './memory';
-import type { MemoryCreateInput, MemoryKind, MemoryScope } from '../../memory';
 import {
   type AnchorDocument,
   createAnchorDocument,
@@ -99,9 +94,49 @@ import {
 import { buildEmergencyBackstopSummary } from './backstop';
 import { buildCompactionSummaryText } from './handoff';
 import {
+  compactionFinishedTelemetryProperties,
+  compactionV2FinishedTelemetryProperties,
+  buildEmergencyBackstopActions,
+  emergencyBackstopWarnings,
+  evidenceRepairSucceeded,
+  extractCompactionSummary,
+  formatContextManagementCapability,
+  isMissingEvidenceQualityFailure,
+  mergeQualityWarningLists,
+  mergeTokenUsage,
+  mergeTokenUsageOrNull,
+  shouldIncludeCompactionQualitySignals,
+} from './full-helpers';
+import {
+  handoffThresholdTokens,
+  relaxObservedMaxContextTokens,
+  resolveEffectiveMaxContextTokens,
+  shouldDeferAutoCompaction as shouldDeferAutoCompactionPolicy,
+  shouldRecoverFromOverflowStatus,
+  shouldSkipRecompactUntilGrowth as shouldSkipRecompactUntilGrowthPolicy,
+  shouldUseParallelSummarize,
+} from './full-policy';
+import {
   extractSwarmRunsFromMessages,
   renderSwarmRunsMemorySection,
 } from './swarm-memory-extract';
+import {
+  blockDensity,
+  countStructuredMemoryItems,
+  createCompactionRecallMemories,
+  evaluateContinuity,
+  extractFileHints,
+  extractNextActions,
+  extractSwarmRunLines,
+  factsToDetails,
+  formatRawRef,
+  formatStringList,
+  inferMemoryTiers,
+  mergeStringLists,
+  selectRehydrationRawRefKinds,
+  uniqueHints,
+  uniqueSorted,
+} from './context-helpers';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
@@ -169,26 +204,29 @@ export class FullCompaction {
       compactionTriggerRatio,
       loopControl?.compactionBlockRatio,
     );
+    const defaultTrigger = new DefaultCompactionStrategy(
+      () => this.getEffectiveMaxContextTokens(),
+      {
+        ...DEFAULT_COMPACTION_CONFIG,
+        triggerRatio: compactionTriggerRatio,
+        blockRatio: compactionBlockRatio,
+        reservedContextSize:
+          loopControl?.reservedContextSize ??
+          DEFAULT_COMPACTION_CONFIG.reservedContextSize,
+        absoluteTriggerTokens:
+          loopControl?.compactionTriggerTokens ??
+          DEFAULT_COMPACTION_CONFIG.absoluteTriggerTokens,
+        maxRecentMessages:
+          loopControl?.compactionMaxRecentMessages ??
+          DEFAULT_COMPACTION_CONFIG.maxRecentMessages,
+        absoluteTriggerBlocks: false,
+      },
+    );
+    // Observation masking: keep last 2 tool-call groups intact when collapsing.
+    // PipelineStrategy maps ToolCollapse 0 → no constraint (safe with few groups).
     this.strategy =
       strategy ??
-      new DefaultCompactionStrategy(
-        () => this.getEffectiveMaxContextTokens(),
-        {
-          ...DEFAULT_COMPACTION_CONFIG,
-          triggerRatio: compactionTriggerRatio,
-          blockRatio: compactionBlockRatio,
-          reservedContextSize:
-            loopControl?.reservedContextSize ??
-            DEFAULT_COMPACTION_CONFIG.reservedContextSize,
-          absoluteTriggerTokens:
-            loopControl?.compactionTriggerTokens ??
-            DEFAULT_COMPACTION_CONFIG.absoluteTriggerTokens,
-          maxRecentMessages:
-            loopControl?.compactionMaxRecentMessages ??
-            DEFAULT_COMPACTION_CONFIG.maxRecentMessages,
-          absoluteTriggerBlocks: false,
-        }
-      );
+      new PipelineStrategy([new ToolCollapseStrategy(2)], defaultTrigger);
 
     const systemPrompt = agent.config?.systemPrompt?.trim();
     if (systemPrompt && systemPrompt.length > 0) {
@@ -300,9 +338,7 @@ export class FullCompaction {
     const modelAlias = this.agent.config.modelAlias;
     const observed =
       modelAlias === undefined ? undefined : this.observedMaxContextTokensByModel.get(modelAlias);
-    if (observed === undefined) return configured;
-    if (configured <= 0) return observed;
-    return Math.min(configured, observed);
+    return resolveEffectiveMaxContextTokens({ configured, observed });
   }
 
   observeContextOverflow(estimatedRequestTokens: number): void {
@@ -326,16 +362,27 @@ export class FullCompaction {
     );
   }
 
+  private strategyWithQualityControls():
+    | DefaultCompactionStrategy
+    | PipelineStrategy
+    | undefined {
+    if (this.strategy instanceof DefaultCompactionStrategy) return this.strategy;
+    if (this.strategy instanceof PipelineStrategy) return this.strategy;
+    return undefined;
+  }
+
   private speculativeStepBufferTokens(): number {
-    if (this.strategy instanceof DefaultCompactionStrategy) {
-      return this.strategy.speculativeStepBufferTokens;
+    const strategy = this.strategyWithQualityControls();
+    if (strategy !== undefined) {
+      return strategy.speculativeStepBufferTokens;
     }
     return DEFAULT_COMPACTION_CONFIG.speculativeStepBufferTokens;
   }
 
   private shouldSpeculativelyCompact(projectedUsedSize: number): boolean {
-    if (this.strategy instanceof DefaultCompactionStrategy) {
-      return this.strategy.shouldSpeculativelyCompact(projectedUsedSize);
+    const strategy = this.strategyWithQualityControls();
+    if (strategy !== undefined) {
+      return strategy.shouldSpeculativelyCompact(projectedUsedSize);
     }
     return this.strategy.shouldCompact(projectedUsedSize);
   }
@@ -343,17 +390,21 @@ export class FullCompaction {
   private recordCompactionQuality(input: {
     readonly recallEvalScore?: number | undefined;
     readonly usedEmergencyBackstop: boolean;
+    readonly evidenceRepairAttempted?: boolean;
+    readonly evidenceRepairSucceeded?: boolean;
   }): void {
     const trend = this.qualityTracker.record(input);
+    const strategy = this.strategyWithQualityControls();
     const qualityTriggerBias =
-      this.strategy instanceof DefaultCompactionStrategy
-        ? this.strategy.applyQualityFeedback(input)
-        : 0;
+      strategy !== undefined ? strategy.applyQualityFeedback(input) : 0;
     this.agent.telemetry.track('compaction_quality_trend', {
       sample_count: trend.sampleCount,
       rolling_average: trend.rollingAverage,
       low_quality_streak: trend.lowQualityStreak,
       emergency_backstop_count: trend.emergencyBackstopCount,
+      evidence_repair_attempts: trend.evidenceRepairAttempts,
+      evidence_repair_successes: trend.evidenceRepairSuccesses,
+      evidence_repair_success_rate: trend.evidenceRepairSuccessRate,
       quality_trigger_bias: qualityTriggerBias,
     });
   }
@@ -362,13 +413,13 @@ export class FullCompaction {
     error: unknown,
     estimatedRequestTokens = this.estimateCurrentRequestTokens(),
   ): boolean {
-    if (error instanceof APIContextOverflowError) return true;
-    if (!(error instanceof APIStatusError) || error.statusCode !== 413) return false;
-    const maxContextTokens = this.getEffectiveMaxContextTokens();
-    return (
-      maxContextTokens > 0 &&
-      estimatedRequestTokens >= maxContextTokens * OVERFLOW_STATUS_RECOVERY_RATIO
-    );
+    return shouldRecoverFromOverflowStatus({
+      isContextOverflowError: error instanceof APIContextOverflowError,
+      isStatus413: error instanceof APIStatusError && error.statusCode === 413,
+      estimatedRequestTokens,
+      maxContextTokens: this.getEffectiveMaxContextTokens(),
+      recoveryRatio: OVERFLOW_STATUS_RECOVERY_RATIO,
+    });
   }
 
   resetForTurn(): void {
@@ -391,10 +442,14 @@ export class FullCompaction {
     const observed = this.observedMaxContextTokensByModel.get(modelAlias);
     if (observed === undefined) return;
     const configured = this.agent.config.modelCapabilities.max_context_tokens;
-    if (configured <= 0 || observed >= configured) return;
-    const gap = configured - observed;
-    const relaxed = observed + Math.ceil(gap * OBSERVED_MAX_DECAY_PER_TURN);
-    this.observedMaxContextTokensByModel.set(modelAlias, Math.min(configured, relaxed));
+    const relaxed = relaxObservedMaxContextTokens({
+      observed,
+      configured,
+      decayPerTurn: OBSERVED_MAX_DECAY_PER_TURN,
+    });
+    if (relaxed !== observed) {
+      this.observedMaxContextTokensByModel.set(modelAlias, relaxed);
+    }
   }
 
   async handleOverflowError(signal: AbortSignal, error: unknown) {
@@ -492,28 +547,24 @@ export class FullCompaction {
   }
 
   private shouldSkipRecompactUntilGrowth(): boolean {
-    if (this.lastCompactedTokenCount === null) return false;
-    if (this.tokenCountWithPending <= this.lastCompactedTokenCount) {
-      return true;
-    }
     const minGrowthRatio =
-      this.strategy instanceof DefaultCompactionStrategy
-        ? this.strategy.minRecompactGrowthRatio
-        : DEFAULT_COMPACTION_CONFIG.minRecompactGrowthRatio;
-    const maxContextTokens = this.getEffectiveMaxContextTokens();
-    if (minGrowthRatio <= 0 || maxContextTokens <= 0) {
-      return false;
-    }
-    const minGrowth = Math.floor(maxContextTokens * minGrowthRatio);
-    return this.tokenCountWithPending - this.lastCompactedTokenCount < minGrowth;
+      this.strategyWithQualityControls()?.minRecompactGrowthRatio ??
+      DEFAULT_COMPACTION_CONFIG.minRecompactGrowthRatio;
+    return shouldSkipRecompactUntilGrowthPolicy({
+      lastCompactedTokenCount: this.lastCompactedTokenCount,
+      tokenCountWithPending: this.tokenCountWithPending,
+      minGrowthRatio,
+      maxContextTokens: this.getEffectiveMaxContextTokens(),
+    });
   }
 
   private shouldDeferAutoCompaction(): boolean {
-    if (this.agent.ultraSwarmRun !== undefined) {
-      if (this.strategy.shouldBlock(this.tokenCountWithPending)) return false;
-      return true;
-    }
-    return this.agent.subagentHost?.hasActiveForegroundChildren?.() === true;
+    return shouldDeferAutoCompactionPolicy({
+      ultraSwarmActive: this.agent.ultraSwarmRun !== undefined,
+      shouldBlock: this.strategy.shouldBlock(this.tokenCountWithPending),
+      hasActiveForegroundChildren:
+        this.agent.subagentHost?.hasActiveForegroundChildren?.() === true,
+    });
   }
 
   private maybeRunSwarmMicroCompaction(): void {
@@ -526,14 +577,15 @@ export class FullCompaction {
     signal: AbortSignal,
     handoffRatio?: number,
   ): Promise<void> {
-    const maxTokens = this.agent.config.modelCapabilities.max_context_tokens;
-    if (maxTokens === undefined || maxTokens <= 0) return;
     const triggerRatio =
       handoffRatio ??
       this.agent.kimiConfig?.loopControl?.compactionTriggerRatio ??
       DEFAULT_COMPACTION_CONFIG.triggerRatio;
-    const threshold = Math.floor(maxTokens * triggerRatio);
-    if (this.tokenCountWithPending <= threshold) return;
+    const threshold = handoffThresholdTokens({
+      maxTokens: this.agent.config.modelCapabilities.max_context_tokens,
+      triggerRatio,
+    });
+    if (threshold === undefined || this.tokenCountWithPending <= threshold) return;
     this.checkAutoCompaction(false);
     if (this.compacting !== null) {
       await this.block(signal);
@@ -701,84 +753,34 @@ export class FullCompaction {
       await this.triggerPreCompactHook(data, tokensBefore, signal);
 
       const model = this.agent.config.model;
-      const capability = this.agent.config.modelCapabilities;
       let summary: string;
       let usage: TokenUsage | null = null;
       let parallelBlockCount = 0;
       let mergeInputTokens: number | undefined;
       let repairAttempted = false;
       let usedEmergencyBackstop = false;
-      let messagesToCompact = originalHistory.slice(0, compactedCount);
+      let messagesToCompact: readonly Message[] = originalHistory.slice(0, compactedCount);
       let plan = this.planner.plan(originalHistory, compactedCount);
       const provider = this.createCompactionProvider(
         estimateTokensForMessages(messagesToCompact),
       );
-      const compactedTokens = estimateTokensForMessages(messagesToCompact);
-
-      const parallelThreshold = this.strategy.parallelBlockThreshold ?? DEFAULT_PARALLEL_BLOCK_THRESHOLD;
-      if (compactedTokens > parallelThreshold && messagesToCompact.length > 4) {
-        const blocks = this.splitIntoBlocks(messagesToCompact);
-        if (blocks.length > 1) {
-          try {
-            const parallelResult = await this.parallelSummarize(
-              signal,
-              provider,
-              blocks,
-              plan,
-              data.instruction,
-              retryCount,
-            );
-            summary = parallelResult.summary;
-            usage = parallelResult.usage;
-            parallelBlockCount = parallelResult.parallelBlockCount;
-            mergeInputTokens = parallelResult.mergeInputTokens;
-          } catch (error) {
-            if (!isCompactionSummarizerError(error)) throw error;
-            const seqResult = await this.sequentialSummarize(
-              signal,
-              provider,
-              messagesToCompact,
-              plan,
-              this.compactionInstruction(data.instruction, plan),
-              retryCount,
-            );
-            summary = seqResult.summary;
-            usage = seqResult.usage;
-            compactedCount = seqResult.finalCompactedCount;
-            messagesToCompact = originalHistory.slice(0, compactedCount);
-            usedEmergencyBackstop = seqResult.usedEmergencyBackstop;
-          }
-        } else {
-          const seqResult = await this.sequentialSummarize(
-            signal,
-            provider,
-            messagesToCompact,
-            plan,
-            this.compactionInstruction(data.instruction, plan),
-            retryCount,
-          );
-          summary = seqResult.summary;
-          usage = seqResult.usage;
-          compactedCount = seqResult.finalCompactedCount;
-          messagesToCompact = originalHistory.slice(0, compactedCount);
-          usedEmergencyBackstop = seqResult.usedEmergencyBackstop;
-        }
-      } else {
-        const seqResult = await this.sequentialSummarize(
-          signal,
-          provider,
-          messagesToCompact,
-          plan,
-          this.compactionInstruction(data.instruction, plan),
-          retryCount,
-        );
-        summary = seqResult.summary;
-        usage = seqResult.usage;
-        compactedCount = seqResult.finalCompactedCount;
-        messagesToCompact = originalHistory.slice(0, compactedCount);
-        usedEmergencyBackstop = seqResult.usedEmergencyBackstop;
-      }
-
+      const summarized = await this.summarizeCompactedPrefix({
+        signal,
+        provider,
+        messagesToCompact,
+        plan,
+        instruction: data.instruction,
+        retryCount,
+        originalHistory,
+        compactedCount,
+      });
+      summary = summarized.summary;
+      usage = summarized.usage;
+      parallelBlockCount = summarized.parallelBlockCount;
+      mergeInputTokens = summarized.mergeInputTokens;
+      compactedCount = summarized.compactedCount;
+      messagesToCompact = summarized.messagesToCompact;
+      usedEmergencyBackstop = summarized.usedEmergencyBackstop;
       plan = this.planner.plan(originalHistory, compactedCount);
 
       // Archive compacted tool-exchange groups so their original content stays
@@ -834,67 +836,22 @@ export class FullCompaction {
         }
       }
 
-      summary = this.postProcessSummary(summary);
-
-      const newFacts = extractFactsFromSummary(summary);
-      this.extractedFacts = Array.from(mergeFactSets(this.extractedFacts, newFacts));
-      const memoryBlock = formatFactsAsMemoryBlock(this.extractedFacts);
-      if (memoryBlock.length > 0) {
-        summary = `${summary.trim()}\n\n${memoryBlock}`;
-      }
-
-      if (this.anchor !== null) {
-        const diff = extractAnchorDiff(summary);
-        this.anchor = mergeIntoAnchor(this.anchor, diff);
-        const anchorText = renderAnchor(this.anchor);
-        if (anchorText.length > 0) {
-          summary = `${anchorText}\n\n---\n\n${summary.trim()}`;
-        }
-      }
-
-      const swarmSection = renderSwarmRunsMemorySection(
-        extractSwarmRunsFromMessages(messagesToCompact),
-      );
-      if (swarmSection.length > 0) {
-        summary = `${summary.trim()}\n\n${swarmSection}`;
-      }
-
-      const ultraworkSnapshot = captureUltraworkEnvelopeSnapshot(this.agent, {
-        compactionBoundary: true,
+      const enrichment = this.enrichCompactionSummary({
+        summary,
+        messagesToCompact,
+        plan,
       });
-      const ultraworkEnvelope =
-        ultraworkSnapshot === undefined
-          ? undefined
-          : buildUltraworkCompactionEnvelope(this.agent, { compactionBoundary: true });
-      if (ultraworkEnvelope !== undefined) {
-        summary = `${summary.trim()}\n\n${ultraworkEnvelope}`;
-        const ultraworkRunsSection = renderUltraworkRunsMemorySection(ultraworkSnapshot!);
-        if (ultraworkRunsSection.length > 0) {
-          summary = `${summary.trim()}\n\n${ultraworkRunsSection}`;
-        }
-        this.agent.telemetry.track('compaction.ultrawork_checkpoint', {
-          run_id: ultraworkSnapshot!.run.id,
-          stage: ultraworkSnapshot!.run.stage,
-          effective_stage: ultraworkSnapshot!.effectiveStage ?? ultraworkSnapshot!.run.stage,
-          pending_nodes: String(
-            ultraworkSnapshot!.run.workGraph?.nodes.filter((node) => node.status !== 'done')
-              .length ?? 0,
-          ),
-          deferred_reason: this.agent.ultraSwarmRun !== undefined ? 'ultra_swarm_active' : 'none',
-          envelope_token_estimate: String(estimateTokens(ultraworkEnvelope)),
-        });
-      }
-
-      summary = this.renderStructuredV2Summary(summary, plan);
+      summary = enrichment.summary;
+      const ultraworkSnapshot = enrichment.ultraworkSnapshot;
       if (archiveGuidance.length > 0) {
         summary = `${summary.trimEnd()}${archiveGuidance}`;
       }
-      const contextSummary = buildCompactionSummaryText(summary);
-      const summaryTokens = estimateTokens(contextSummary);
-      const retained = this.agent.context.history.slice(compactedCount);
-      const retainedTokens = estimateTokensForMessages(retained);
-      const tokensAfter = summaryTokens + retainedTokens;
-      const renderedQuality = validateRenderedCompactionSummary(
+      let contextSummary = buildCompactionSummaryText(summary);
+      let summaryTokens = estimateTokens(contextSummary);
+      let retained: readonly Message[] = this.agent.context.history.slice(compactedCount);
+      let retainedTokens = estimateTokensForMessages(retained);
+      let tokensAfter = summaryTokens + retainedTokens;
+      let renderedQuality = validateRenderedCompactionSummary(
         summary,
         plan,
         messagesToCompact,
@@ -905,139 +862,116 @@ export class FullCompaction {
         const ultraworkQuality = validateUltraworkCompactionContinuity(summary, ultraworkSnapshot);
         quality = mergeCompactionQualityResults(quality, ultraworkQuality);
       }
+      const evidenceRepair = await this.applyEvidenceSecondChanceRepair({
+        signal,
+        provider,
+        messagesToCompact,
+        plan,
+        instruction: data.instruction,
+        quality,
+        summary,
+        usage,
+        archiveGuidance,
+        compactedCount,
+        ultraworkSnapshot,
+        usedEmergencyBackstop,
+        contextSummary,
+        summaryTokens,
+        retained,
+        retainedTokens,
+        tokensAfter,
+      });
+      summary = evidenceRepair.summary;
+      usage = evidenceRepair.usage;
+      quality = evidenceRepair.quality;
+      repairAttempted = repairAttempted || evidenceRepair.repairAttempted;
+      contextSummary = evidenceRepair.contextSummary;
+      summaryTokens = evidenceRepair.summaryTokens;
+      retained = evidenceRepair.retained;
+      retainedTokens = evidenceRepair.retainedTokens;
+      tokensAfter = evidenceRepair.tokensAfter;
       if (quality.critical.length > 0 && !usedEmergencyBackstop) {
         throw new CompactionQualityError(quality.critical);
       }
 
-      const compactionActions = usedEmergencyBackstop
-        ? [
-            ...plan.actions,
-            {
-              type: 'emergency_backstop',
-              reason: 'LLM summarizer failed after retries; applied deterministic extractive snapshot',
-              messageStart: 0,
-              messageEnd: Math.max(0, compactedCount - 1),
-            } satisfies CompactionResultAction,
-          ]
-        : plan.actions;
-      const backstopWarnings = usedEmergencyBackstop
-        ? ['emergency extractive backstop used after LLM summarizer failure']
-        : [];
-
-      const resultWithoutContextPack: CompactionResultWithQualityWarnings = {
+      const result = this.assembleCompactionResult({
         summary,
         contextSummary,
         compactedCount,
         tokensBefore,
         tokensAfter,
-        algorithmVersion: plan.algorithmVersion,
-        actions: compactionActions,
-        rawRefs: plan.rawRefs,
+        plan,
+        quality,
         summaryTokens,
         retainedTokens,
-        compactedTokens: plan.compactedTokens,
-        qualityWarnings: mergeStringLists(
-          mergeStringLists(plan.qualityWarnings, quality.warnings),
-          backstopWarnings,
-        ),
-        qualityWarningCategories:
-          quality.warningCategories.length > 0 ? quality.warningCategories : undefined,
-        parallelBlockCount: parallelBlockCount > 0 ? parallelBlockCount : undefined,
+        retainedCount: retained.length,
+        parallelBlockCount,
         mergeInputTokens,
-        repairAttempted: repairAttempted ? true : undefined,
-      };
-      const shouldIncludeQualitySignals =
-        quality.warningCategories.length > 0 || quality.signals?.failureSignature !== undefined;
-      const result: CompletedCompactionResult = {
-        ...resultWithoutContextPack,
-        contextPack: this.buildContextPack(
-          data.source,
-          resultWithoutContextPack,
-          retained.length,
-          provider,
-          shouldIncludeQualitySignals ? quality.signals : undefined,
-        ),
-      };
+        repairAttempted,
+        usedEmergencyBackstop,
+        source: data.source,
+        provider,
+      });
       const recallMemorySavedCount = await this.persistCompactionRecall(result);
       const qualitySignals = quality.signals;
       const qualityWarningCategories = result.qualityWarningCategories ?? [];
 
       const durationMs = Date.now() - startedAt;
-      this.agent.telemetry.track('compaction_finished', {
+      const finishedTelemetry = {
         source: data.source,
-        tokens_before: result.tokensBefore,
-        tokens_after: result.tokensAfter,
-        duration_ms: durationMs,
-        compacted_count: result.compactedCount,
-        retry_count: retryCount.value,
-        parallel_block_count: parallelBlockCount,
-        quality_warning_count: result.qualityWarnings.length,
-        quality_warning_categories: qualityWarningCategories.join(','),
-        repair_attempted: repairAttempted,
-        emergency_backstop_used: usedEmergencyBackstop,
-        merge_input_tokens: mergeInputTokens ?? 0,
-        provider_context_management: formatContextManagementCapability(provider),
-        context_pack_version: result.contextPack.version,
-        context_pack_raw_ref_count: result.contextPack.evidence.rawRefCount,
-        context_pack_action_count: result.contextPack.evidence.actionTypes.length,
-        context_pack_retained_message_count: result.contextPack.messageCounts.retained,
-        context_os_status: result.contextPack.contextOS.continuity.status,
-        context_os_score: result.contextPack.contextOS.continuity.score,
-        context_os_tier_count: result.contextPack.contextOS.memoryTiers.length,
-        context_os_rehydration_kind_count:
-          result.contextPack.contextOS.rehydrationRawRefKinds.length,
-        recall_eval_score: qualitySignals?.recallEvalScore,
-        critical_fact_count: qualitySignals?.criticalFactCount,
-        placeholder_item_count: qualitySignals?.placeholderItemCount,
-        tokens_saved_ratio: qualitySignals?.tokensSavedRatio,
-        failure_signature: qualitySignals?.failureSignature,
-        recall_memory_saved_count: recallMemorySavedCount,
+        tokensBefore: result.tokensBefore,
+        tokensAfter: result.tokensAfter,
+        summaryTokens: result.summaryTokens,
+        retainedTokens: result.retainedTokens,
+        compactedTokens: result.compactedTokens,
+        durationMs,
+        compactedCount: result.compactedCount,
+        retryCount: retryCount.value,
+        parallelBlockCount,
+        qualityWarningCount: result.qualityWarnings.length,
+        qualityWarningCategories,
+        repairAttempted,
+        emergencyBackstopUsed: usedEmergencyBackstop,
+        mergeInputTokens: mergeInputTokens ?? 0,
+        providerContextManagement: formatContextManagementCapability(provider),
+        contextPackVersion: result.contextPack.version,
+        contextPackRawRefCount: result.contextPack.evidence.rawRefCount,
+        contextPackActionCount: result.contextPack.evidence.actionTypes.length,
+        contextPackRetainedMessageCount: result.contextPack.messageCounts.retained,
+        contextOsStatus: result.contextPack.contextOS.continuity.status,
+        contextOsScore: result.contextPack.contextOS.continuity.score,
+        contextOsTierCount: result.contextPack.contextOS.memoryTiers.length,
+        contextOsRehydrationKindCount: result.contextPack.contextOS.rehydrationRawRefKinds.length,
+        recallEvalScore: qualitySignals?.recallEvalScore,
+        evidenceIdRecallScore: qualitySignals?.evidenceIdRecallScore,
+        criticalFactCount: qualitySignals?.criticalFactCount,
+        placeholderItemCount: qualitySignals?.placeholderItemCount,
+        tokensSavedRatio: qualitySignals?.tokensSavedRatio,
+        failureSignature: qualitySignals?.failureSignature,
+        recallMemorySavedCount,
         round,
-        thinking_level: this.agent.config.thinkingLevel,
-        ...usageTelemetryProperties(usage),
-      });
-      this.agent.telemetry.track('compaction_v2_finished', {
-        source: data.source,
-        tokens_before: result.tokensBefore,
-        tokens_after: result.tokensAfter,
-        summary_tokens: result.summaryTokens,
-        retained_tokens: result.retainedTokens,
-        compacted_tokens: result.compactedTokens,
-        duration_ms: durationMs,
-        compacted_count: result.compactedCount,
-        retry_count: retryCount.value,
-        parallel_block_count: parallelBlockCount,
-        quality_warning_count: result.qualityWarnings.length,
-        quality_warning_category_count: qualityWarningCategories.length,
-        repair_attempted: repairAttempted,
-        emergency_backstop_used: usedEmergencyBackstop,
-        merge_input_tokens: mergeInputTokens ?? 0,
-        provider_context_management: formatContextManagementCapability(provider),
-        context_pack_version: result.contextPack.version,
-        context_pack_raw_ref_count: result.contextPack.evidence.rawRefCount,
-        context_pack_action_count: result.contextPack.evidence.actionTypes.length,
-        context_pack_retained_message_count: result.contextPack.messageCounts.retained,
-        context_os_status: result.contextPack.contextOS.continuity.status,
-        context_os_score: result.contextPack.contextOS.continuity.score,
-        context_os_tier_count: result.contextPack.contextOS.memoryTiers.length,
-        context_os_rehydration_kind_count:
-          result.contextPack.contextOS.rehydrationRawRefKinds.length,
-        recall_eval_score: qualitySignals?.recallEvalScore,
-        critical_fact_count: qualitySignals?.criticalFactCount,
-        placeholder_item_count: qualitySignals?.placeholderItemCount,
-        tokens_saved_ratio: qualitySignals?.tokensSavedRatio,
-        failure_signature: qualitySignals?.failureSignature,
-        recall_memory_saved_count: recallMemorySavedCount,
-        round,
-        thinking_level: this.agent.config.thinkingLevel,
-        action_types: result.actions?.map((action) => action.type).join(',') ?? '',
-        quality_warnings: result.qualityWarnings?.join(',') ?? '',
-        quality_warning_categories: qualityWarningCategories.join(','),
-        ...usageTelemetryProperties(usage),
-      });
+        thinkingLevel: this.agent.config.thinkingLevel,
+        usage,
+        actionTypes: result.actions?.map((action) => action.type).join(',') ?? '',
+        qualityWarnings: result.qualityWarnings?.join(',') ?? '',
+      };
+      this.agent.telemetry.track(
+        'compaction_finished',
+        compactionFinishedTelemetryProperties(finishedTelemetry),
+      );
+      this.agent.telemetry.track(
+        'compaction_v2_finished',
+        compactionV2FinishedTelemetryProperties(finishedTelemetry),
+      );
       this.recordCompactionQuality({
         recallEvalScore: qualitySignals?.recallEvalScore,
         usedEmergencyBackstop,
+        evidenceRepairAttempted: repairAttempted,
+        evidenceRepairSucceeded: evidenceRepairSucceeded({
+          repairAttempted,
+          evidenceIdRecallScore: qualitySignals?.evidenceIdRecallScore,
+          qualityWarningCategories: result.qualityWarningCategories ?? [],
+        }),
       });
       const applied = this.agent.context.applyCompaction(result);
       this.lastCompactedTokenCount = applied.tokensAfter;
@@ -1106,6 +1040,402 @@ export class FullCompaction {
       );
     }
     return provider;
+  }
+
+
+
+
+
+  private assembleCompactionResult(input: {
+    readonly summary: string;
+    readonly contextSummary: string;
+    readonly compactedCount: number;
+    readonly tokensBefore: number;
+    readonly tokensAfter: number;
+    readonly plan: CompactionPlan;
+    readonly quality: CompactionQualityResult;
+    readonly summaryTokens: number;
+    readonly retainedTokens: number;
+    readonly retainedCount: number;
+    readonly parallelBlockCount: number;
+    readonly mergeInputTokens: number | undefined;
+    readonly repairAttempted: boolean;
+    readonly usedEmergencyBackstop: boolean;
+    readonly source: CompactionBeginData['source'];
+    readonly provider: ChatProvider;
+  }): CompletedCompactionResult {
+    const compactionActions = buildEmergencyBackstopActions(
+      input.plan.actions,
+      input.compactedCount,
+      input.usedEmergencyBackstop,
+    );
+    const backstopWarnings = emergencyBackstopWarnings(input.usedEmergencyBackstop);
+
+    const resultWithoutContextPack: CompactionResultWithQualityWarnings = {
+      summary: input.summary,
+      contextSummary: input.contextSummary,
+      compactedCount: input.compactedCount,
+      tokensBefore: input.tokensBefore,
+      tokensAfter: input.tokensAfter,
+      algorithmVersion: input.plan.algorithmVersion,
+      actions: compactionActions,
+      rawRefs: input.plan.rawRefs,
+      summaryTokens: input.summaryTokens,
+      retainedTokens: input.retainedTokens,
+      compactedTokens: input.plan.compactedTokens,
+      qualityWarnings: mergeQualityWarningLists(
+        input.plan.qualityWarnings,
+        input.quality.warnings,
+        backstopWarnings,
+      ),
+      qualityWarningCategories:
+        input.quality.warningCategories.length > 0
+          ? input.quality.warningCategories
+          : undefined,
+      parallelBlockCount:
+        input.parallelBlockCount > 0 ? input.parallelBlockCount : undefined,
+      mergeInputTokens: input.mergeInputTokens,
+      repairAttempted: input.repairAttempted ? true : undefined,
+    };
+    const shouldIncludeQualitySignals = shouldIncludeCompactionQualitySignals({
+      warningCategories: input.quality.warningCategories,
+      failureSignature: input.quality.signals?.failureSignature,
+    });
+    return {
+      ...resultWithoutContextPack,
+      contextPack: this.buildContextPack(
+        input.source,
+        resultWithoutContextPack,
+        input.retainedCount,
+        input.provider,
+        shouldIncludeQualitySignals ? input.quality.signals : undefined,
+      ),
+    };
+  }
+
+  private async applyEvidenceSecondChanceRepair(input: {
+    readonly signal: AbortSignal;
+    readonly provider: ChatProvider;
+    readonly messagesToCompact: readonly Message[];
+    readonly plan: CompactionPlan;
+    readonly instruction: string | undefined;
+    readonly quality: CompactionQualityResult;
+    readonly summary: string;
+    readonly usage: TokenUsage | null;
+    readonly archiveGuidance: string;
+    readonly compactedCount: number;
+    readonly ultraworkSnapshot: ReturnType<typeof captureUltraworkEnvelopeSnapshot>;
+    readonly usedEmergencyBackstop: boolean;
+    readonly contextSummary: string;
+    readonly summaryTokens: number;
+    readonly retained: readonly Message[];
+    readonly retainedTokens: number;
+    readonly tokensAfter: number;
+  }): Promise<{
+    summary: string;
+    usage: TokenUsage | null;
+    quality: CompactionQualityResult;
+    repairAttempted: boolean;
+    contextSummary: string;
+    summaryTokens: number;
+    retained: readonly Message[];
+    retainedTokens: number;
+    tokensAfter: number;
+  }> {
+    let {
+      summary,
+      usage,
+      quality,
+      contextSummary,
+      summaryTokens,
+      retained,
+      retainedTokens,
+      tokensAfter,
+    } = input;
+    let repairAttempted = false;
+
+    if (
+      quality.critical.length === 0 ||
+      input.usedEmergencyBackstop ||
+      !isMissingEvidenceQualityFailure(quality)
+    ) {
+      return {
+        summary,
+        usage,
+        quality,
+        repairAttempted,
+        contextSummary,
+        summaryTokens,
+        retained,
+        retainedTokens,
+        tokensAfter,
+      };
+    }
+
+    this.agent.telemetry.track('compaction_evidence_repair_started', {
+      critical_count: quality.critical.length,
+      warning_categories: quality.warningCategories.join(','),
+      evidence_id_recall_score: quality.signals?.evidenceIdRecallScore,
+    });
+    const repair = await this.repairSummaryForQuality(
+      input.signal,
+      input.provider,
+      input.messagesToCompact,
+      input.plan,
+      input.instruction,
+      quality,
+    );
+    summary = repair.summary;
+    repairAttempted = true;
+    if (repair.usage !== null) {
+      usage = mergeTokenUsage(usage, repair.usage);
+    }
+    const revalidated = this.revalidateAfterEvidenceRepair({
+      summary: repair.summary,
+      plan: input.plan,
+      messagesToCompact: input.messagesToCompact,
+      archiveGuidance: input.archiveGuidance,
+      compactedCount: input.compactedCount,
+      priorQuality: quality,
+      ultraworkSnapshot: input.ultraworkSnapshot,
+    });
+    this.agent.telemetry.track('compaction_evidence_repair_finished', {
+      critical_count: revalidated.quality.critical.length,
+      warning_categories: revalidated.quality.warningCategories.join(','),
+      evidence_id_recall_score: revalidated.quality.signals?.evidenceIdRecallScore,
+      repaired_ok: revalidated.quality.critical.length === 0,
+    });
+
+    return {
+      summary: revalidated.summary,
+      usage,
+      quality: revalidated.quality,
+      repairAttempted,
+      contextSummary: revalidated.contextSummary,
+      summaryTokens: revalidated.summaryTokens,
+      retained: revalidated.retained,
+      retainedTokens: revalidated.retainedTokens,
+      tokensAfter: revalidated.tokensAfter,
+    };
+  }
+
+  private revalidateAfterEvidenceRepair(input: {
+    readonly summary: string;
+    readonly plan: CompactionPlan;
+    readonly messagesToCompact: readonly Message[];
+    readonly archiveGuidance: string;
+    readonly compactedCount: number;
+    readonly priorQuality: CompactionQualityResult;
+    readonly ultraworkSnapshot: ReturnType<typeof captureUltraworkEnvelopeSnapshot>;
+  }): {
+    summary: string;
+    quality: CompactionQualityResult;
+    contextSummary: string;
+    summaryTokens: number;
+    retained: readonly Message[];
+    retainedTokens: number;
+    tokensAfter: number;
+  } {
+    let summary = this.postProcessSummary(input.summary);
+    summary = this.renderStructuredV2Summary(summary, input.plan);
+    if (input.archiveGuidance.length > 0) {
+      summary = `${summary.trimEnd()}${input.archiveGuidance}`;
+    }
+    const contextSummary = buildCompactionSummaryText(summary);
+    const summaryTokens = estimateTokens(contextSummary);
+    const retained = this.agent.context.history.slice(input.compactedCount);
+    const retainedTokens = estimateTokensForMessages(retained);
+    const tokensAfter = summaryTokens + retainedTokens;
+    const renderedQuality = validateRenderedCompactionSummary(
+      summary,
+      input.plan,
+      input.messagesToCompact,
+      tokensAfter,
+    );
+    let quality: CompactionQualityResult = {
+      critical: renderedQuality.critical,
+      warnings: mergeCompactionQualityResults(input.priorQuality, renderedQuality).warnings,
+      warningCategories: mergeCompactionQualityResults(input.priorQuality, renderedQuality)
+        .warningCategories,
+      signals: renderedQuality.signals ?? input.priorQuality.signals,
+    };
+    if (input.ultraworkSnapshot !== undefined) {
+      quality = mergeCompactionQualityResults(
+        quality,
+        validateUltraworkCompactionContinuity(summary, input.ultraworkSnapshot),
+      );
+    }
+    return {
+      summary,
+      quality,
+      contextSummary,
+      summaryTokens,
+      retained,
+      retainedTokens,
+      tokensAfter,
+    };
+  }
+
+  private enrichCompactionSummary(input: {
+    readonly summary: string;
+    readonly messagesToCompact: readonly Message[];
+    readonly plan: CompactionPlan;
+  }): {
+    summary: string;
+    ultraworkSnapshot: ReturnType<typeof captureUltraworkEnvelopeSnapshot>;
+  } {
+    let summary = this.postProcessSummary(input.summary);
+    summary = this.appendExtractedFactsAndAnchor(summary);
+    summary = this.appendSwarmRunsSection(summary, input.messagesToCompact);
+    const { summary: withUltrawork, ultraworkSnapshot } =
+      this.appendUltraworkCompactionSections(summary);
+    summary = this.renderStructuredV2Summary(withUltrawork, input.plan);
+    return { summary, ultraworkSnapshot };
+  }
+
+  private appendExtractedFactsAndAnchor(summary: string): string {
+    const newFacts = extractFactsFromSummary(summary);
+    this.extractedFacts = Array.from(mergeFactSets(this.extractedFacts, newFacts));
+    const memoryBlock = formatFactsAsMemoryBlock(this.extractedFacts);
+    let next = summary;
+    if (memoryBlock.length > 0) {
+      next = `${next.trim()}\n\n${memoryBlock}`;
+    }
+    if (this.anchor !== null) {
+      const diff = extractAnchorDiff(next);
+      this.anchor = mergeIntoAnchor(this.anchor, diff);
+      const anchorText = renderAnchor(this.anchor);
+      if (anchorText.length > 0) {
+        next = `${anchorText}\n\n---\n\n${next.trim()}`;
+      }
+    }
+    return next;
+  }
+
+  private appendSwarmRunsSection(
+    summary: string,
+    messagesToCompact: readonly Message[],
+  ): string {
+    const swarmSection = renderSwarmRunsMemorySection(
+      extractSwarmRunsFromMessages(messagesToCompact),
+    );
+    if (swarmSection.length === 0) return summary;
+    return `${summary.trim()}\n\n${swarmSection}`;
+  }
+
+  private appendUltraworkCompactionSections(summary: string): {
+    summary: string;
+    ultraworkSnapshot: ReturnType<typeof captureUltraworkEnvelopeSnapshot>;
+  } {
+    const ultraworkSnapshot = captureUltraworkEnvelopeSnapshot(this.agent, {
+      compactionBoundary: true,
+    });
+    const ultraworkEnvelope =
+      ultraworkSnapshot === undefined
+        ? undefined
+        : buildUltraworkCompactionEnvelope(this.agent, { compactionBoundary: true });
+    if (ultraworkEnvelope === undefined) {
+      return { summary, ultraworkSnapshot };
+    }
+    let next = `${summary.trim()}\n\n${ultraworkEnvelope}`;
+    const ultraworkRunsSection = renderUltraworkRunsMemorySection(ultraworkSnapshot!);
+    if (ultraworkRunsSection.length > 0) {
+      next = `${next.trim()}\n\n${ultraworkRunsSection}`;
+    }
+    this.agent.telemetry.track('compaction.ultrawork_checkpoint', {
+      run_id: ultraworkSnapshot!.run.id,
+      stage: ultraworkSnapshot!.run.stage,
+      effective_stage: ultraworkSnapshot!.effectiveStage ?? ultraworkSnapshot!.run.stage,
+      pending_nodes: String(
+        ultraworkSnapshot!.run.workGraph?.nodes.filter((node) => node.status !== 'done')
+          .length ?? 0,
+      ),
+      deferred_reason: this.agent.ultraSwarmRun !== undefined ? 'ultra_swarm_active' : 'none',
+      envelope_token_estimate: String(estimateTokens(ultraworkEnvelope)),
+    });
+    return { summary: next, ultraworkSnapshot };
+  }
+
+  private async summarizeCompactedPrefix(input: {
+    readonly signal: AbortSignal;
+    readonly provider: ChatProvider;
+    readonly messagesToCompact: readonly Message[];
+    readonly plan: CompactionPlan;
+    readonly instruction: string | undefined;
+    readonly retryCount: { value: number };
+    readonly originalHistory: readonly Message[];
+    readonly compactedCount: number;
+  }): Promise<{
+    summary: string;
+    usage: TokenUsage | null;
+    parallelBlockCount: number;
+    mergeInputTokens: number | undefined;
+    compactedCount: number;
+    messagesToCompact: readonly Message[];
+    usedEmergencyBackstop: boolean;
+  }> {
+    let summary: string;
+    let usage: TokenUsage | null = null;
+    let parallelBlockCount = 0;
+    let compactedCount = input.compactedCount;
+    let messagesToCompact = input.messagesToCompact;
+    let usedEmergencyBackstop = false;
+
+    const compactedTokens = estimateTokensForMessages(messagesToCompact);
+    const parallelThreshold = this.strategy.parallelBlockThreshold ?? DEFAULT_PARALLEL_BLOCK_THRESHOLD;
+    const shouldParallel = shouldUseParallelSummarize({
+      compactedTokens,
+      messageCount: messagesToCompact.length,
+      parallelThreshold,
+    });
+    const blocks = shouldParallel ? this.splitIntoBlocks(messagesToCompact) : [];
+
+    if (shouldParallel && blocks.length > 1) {
+      try {
+        const parallelResult = await this.parallelSummarize(
+          input.signal,
+          input.provider,
+          blocks,
+          input.plan,
+          input.instruction,
+          input.retryCount,
+        );
+        return {
+          summary: parallelResult.summary,
+          usage: parallelResult.usage,
+          parallelBlockCount: parallelResult.parallelBlockCount,
+          mergeInputTokens: parallelResult.mergeInputTokens,
+          compactedCount,
+          messagesToCompact,
+          usedEmergencyBackstop,
+        };
+      } catch (error) {
+        if (!isCompactionSummarizerError(error)) throw error;
+      }
+    }
+
+    const seqResult = await this.sequentialSummarize(
+      input.signal,
+      input.provider,
+      messagesToCompact,
+      input.plan,
+      this.compactionInstruction(input.instruction, input.plan),
+      input.retryCount,
+    );
+    summary = seqResult.summary;
+    usage = seqResult.usage;
+    compactedCount = seqResult.finalCompactedCount;
+    messagesToCompact = input.originalHistory.slice(0, compactedCount);
+    usedEmergencyBackstop = seqResult.usedEmergencyBackstop;
+    return {
+      summary,
+      usage,
+      parallelBlockCount,
+      mergeInputTokens: undefined,
+      compactedCount,
+      messagesToCompact,
+      usedEmergencyBackstop,
+    };
   }
 
   private async sequentialSummarize(
@@ -1326,7 +1656,10 @@ export class FullCompaction {
         plan,
         [
           'The previous compaction summary failed deterministic quality checks.',
-          `Failed checks: ${quality.critical.join('; ')}`,
+          `Failed checks: ${[...quality.critical, ...quality.warnings].join('; ')}`,
+          quality.warningCategories.includes('missing_evidence_ids')
+            ? 'Preserve every durable identifier from the compacted history: evidence_ids, WorkGraph/node ids, AC ids, and [liora-archived id=...] markers.'
+            : 'Preserve durable identifiers (evidence_ids, node ids, archive markers) when they appear in the history.',
           'Produce a complete replacement summary. Keep the exact v2 section labels when you use structured memory.',
         ].join('\n\n'),
       ),
@@ -1451,7 +1784,7 @@ export class FullCompaction {
       ...memory.failedAttempts,
       ...memory.decisions,
     ]).slice(0, 8);
-    const continuity = evaluateContinuity(result, memory, retrievalQueries);
+    const continuity = evaluateContinuity(result, memory, retrievalQueries, qualitySignals);
 
     return {
       version: 'context_os_v0',
@@ -1501,6 +1834,7 @@ export class FullCompaction {
         saved_count: saved,
         requested_count: inputs.length,
         recall_eval_score: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
+        evidence_id_recall_score: result.contextPack.contextOS.qualitySignals?.evidenceIdRecallScore,
         critical_fact_count: result.contextPack.contextOS.qualitySignals?.criticalFactCount,
       });
     }
@@ -1661,67 +1995,6 @@ export class FullCompaction {
   }
 }
 
-function extractCompactionSummary(response: GenerateResult): string {
-  const summary =
-    typeof response.message.content === 'string'
-      ? response.message.content
-      : response.message.content.map((part) => (part.type === 'text' ? part.text : '')).join('');
-
-  if (summary.trim().length === 0) {
-    throw new APIEmptyResponseError(
-      'The compaction response did not contain a non-empty summary.',
-    );
-  }
-  return summary;
-}
-
-function mergeTokenUsage(current: TokenUsage | null, next: TokenUsage): TokenUsage {
-  if (current === null) return next;
-  return {
-    inputOther: current.inputOther + next.inputOther,
-    output: current.output + next.output,
-    inputCacheRead: current.inputCacheRead + next.inputCacheRead,
-    inputCacheCreation: current.inputCacheCreation + next.inputCacheCreation,
-  };
-}
-
-function mergeTokenUsageOrNull(
-  current: TokenUsage | null,
-  next: TokenUsage | null,
-): TokenUsage | null {
-  if (next === null) return current;
-  return mergeTokenUsage(current, next);
-}
-
-function compactionSummaryMessage(summary: string): Message {
-  return {
-    role: 'assistant',
-    content: [{ type: 'text', text: summary }],
-    toolCalls: [],
-  };
-}
-
-function usageTelemetryProperties(
-  usage: TokenUsage | null,
-): { input_tokens?: number; output_tokens?: number } {
-  if (usage === null) return {};
-  return {
-    input_tokens: inputTotal(usage),
-    output_tokens: usage.output,
-  };
-}
-
-function formatContextManagementCapability(provider: ChatProvider): string {
-  const capability = provider.contextManagementCapability;
-  if (capability === undefined) return 'none';
-  const names = [
-    capability.serverSideCompaction === true ? 'server_side_compaction' : undefined,
-    capability.toolResultClearing === true ? 'tool_result_clearing' : undefined,
-    capability.thinkingBlockClearing === true ? 'thinking_block_clearing' : undefined,
-  ].filter((name): name is string => name !== undefined);
-  return names.length === 0 ? 'none' : names.join(',');
-}
-
 function isCompactionSummarizerError(error: unknown): boolean {
   return (
     error instanceof APIEmptyResponseError ||
@@ -1729,348 +2002,4 @@ function isCompactionSummarizerError(error: unknown): boolean {
     error instanceof APIContextOverflowError ||
     error instanceof CompactionQualityError
   );
-}
-
-function createCompactionRecallMemories(result: CompletedCompactionResult): readonly MemoryCreateInput[] {
-  const memory = parseStructuredCompactionMemory(result.summary);
-  const currentGoal = usefulRecallItems([memory.currentGoal]).at(0);
-  const decisions = usefulRecallItems(memory.decisions);
-  const filesTouched = usefulRecallItems(memory.filesTouched);
-  const failedAttempts = usefulRecallItems(memory.failedAttempts);
-  const nextActions = usefulRecallItems(memory.nextActions);
-  const records: MemoryCreateInput[] = [];
-
-  const workspaceSections = formatRecallSections([
-    ['Current goal', currentGoal === undefined ? [] : [currentGoal]],
-    ['Decisions', decisions],
-    ['Files touched', filesTouched],
-    ['Failed attempts', failedAttempts],
-  ]);
-  if (workspaceSections.length > 0) {
-    records.push({
-      kind: 'semantic' satisfies MemoryKind,
-      scope: 'workspace' satisfies MemoryScope,
-      subject: recallSubject('Compaction working memory', currentGoal ?? decisions[0] ?? filesTouched[0]),
-      content: workspaceSections,
-      tags: recallTags(['compaction', 'context-os', 'workspace'], [
-        decisions.length > 0 ? 'decision' : undefined,
-        filesTouched.length > 0 ? 'file' : undefined,
-        failedAttempts.length > 0 ? 'failure' : undefined,
-      ]),
-      confidence: 0.82,
-      importance: result.contextPack.contextOS.qualitySignals?.criticalFactCount
-        ? 0.82
-        : 0.68,
-      source: { kind: 'auto', excerpt: 'compaction structured working memory' },
-      metadata: {
-        source: 'compaction',
-        algorithmVersion: result.algorithmVersion,
-        recallEvalScore: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
-        contextOSStatus: result.contextPack.contextOS.continuity.status,
-      },
-    });
-  }
-
-  const prospectiveSections = formatRecallSections([
-    ['Current goal', currentGoal === undefined ? [] : [currentGoal]],
-    ['Next actions', nextActions],
-  ]);
-  if (nextActions.length > 0 && prospectiveSections.length > 0) {
-    records.push({
-      kind: 'prospective' satisfies MemoryKind,
-      scope: 'session' satisfies MemoryScope,
-      subject: recallSubject('Compaction next actions', currentGoal ?? nextActions[0]),
-      content: prospectiveSections,
-      tags: recallTags(['compaction', 'next-actions', 'session'], []),
-      confidence: 0.86,
-      importance: 0.84,
-      source: { kind: 'auto', excerpt: 'compaction next actions' },
-      metadata: {
-        source: 'compaction',
-        algorithmVersion: result.algorithmVersion,
-        recallEvalScore: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
-        contextOSStatus: result.contextPack.contextOS.continuity.status,
-      },
-    });
-  }
-
-  return records;
-}
-
-function usefulRecallItems(items: readonly (string | undefined)[]): readonly string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const item of items) {
-    if (item === undefined) continue;
-    const normalized = item.replaceAll(/\s+/g, ' ').trim();
-    if (!isUsefulCompactionMemoryItem(normalized)) continue;
-    if (isPromptControlCompactionMemoryItem(normalized)) continue;
-    const key = normalized.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(normalized);
-  }
-  return result.slice(0, 8);
-}
-
-function formatRecallSections(
-  sections: readonly [title: string, items: readonly string[]][],
-): string {
-  const lines: string[] = [];
-  for (const [title, items] of sections) {
-    if (items.length === 0) continue;
-    lines.push(`## ${title}`);
-    for (const item of items.slice(0, 8)) {
-      lines.push(`- ${item}`);
-    }
-    lines.push('');
-  }
-  return lines.join('\n').trim();
-}
-
-function recallSubject(prefix: string, detail: string | undefined): string {
-  if (detail === undefined) return prefix;
-  const compact = detail.replaceAll(/[`*_#]/g, '').replaceAll(/\s+/g, ' ').trim();
-  if (compact.length === 0) return prefix;
-  return `${prefix}: ${compact.slice(0, 80)}`;
-}
-
-function recallTags(
-  base: readonly string[],
-  optional: readonly (string | undefined)[],
-): readonly string[] {
-  return [...new Set([...base, ...optional.filter((tag): tag is string => tag !== undefined)])];
-}
-
-function formatStringList(items: readonly string[]): string {
-  if (items.length === 0) return '- None captured during compaction.';
-  return items.slice(0, 12).map((item) => `- ${item}`).join('\n');
-}
-
-function factsToDetails(facts: readonly ExtractedFact[]): readonly string[] {
-  return facts.map((fact) => fact.detail);
-}
-
-function extractSwarmRunLines(summary: string): readonly string[] {
-  const lines = summary.split('\n');
-  const result: string[] = [];
-  let inSection = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^swarm_runs:/i.test(trimmed)) {
-      inSection = true;
-      continue;
-    }
-    if (inSection && /^[a-z_]+:/i.test(trimmed) && !trimmed.startsWith('-')) break;
-    if (!inSection) continue;
-    const item = trimmed.replace(/^[-*]\s+/, '').trim();
-    if (item.length > 0) result.push(item);
-  }
-  return result;
-}
-
-function mergeStringLists(
-  primary: readonly string[],
-  fallback: readonly string[],
-): readonly string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const item of [...primary, ...fallback]) {
-    const normalized = item.trim();
-    if (normalized.length === 0) continue;
-    const key = normalized.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(normalized);
-  }
-  return result;
-}
-
-function extractNextActions(summary: string): readonly string[] {
-  const lines = summary.split('\n');
-  const result: string[] = [];
-  let inNextSection = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^#{1,4}\s*(next steps?|todo|pending|active issues)/i.test(trimmed)) {
-      inNextSection = true;
-      continue;
-    }
-    if (inNextSection && /^#{1,4}\s+/.test(trimmed)) break;
-    if (!inNextSection) continue;
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      result.push(trimmed.slice(2));
-    }
-  }
-  return result;
-}
-
-function uniqueSorted(items: readonly string[]): readonly string[] {
-  return [...new Set(items.filter((item) => item.length > 0))].toSorted();
-}
-
-function uniqueHints(items: readonly (string | undefined)[]): readonly string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const item of items) {
-    if (item === undefined) continue;
-    const normalized = normalizeHint(item);
-    if (normalized.length === 0) continue;
-    if (!isUsefulHint(normalized)) continue;
-    const key = normalized.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(normalized);
-  }
-  return result;
-}
-
-function normalizeHint(item: string): string {
-  return item
-    .replaceAll(/\s+/g, ' ')
-    .trim()
-    .slice(0, 200);
-}
-
-function isUsefulHint(item: string): boolean {
-  const lower = item.toLowerCase();
-  if (lower === 'none captured during compaction.') return false;
-  if (/^#{1,6}\s+/.test(item)) return false;
-  if (/^\*\*(?:file|decision|error|state|config|dependency|api)\*\*:\s*$/i.test(item)) {
-    return false;
-  }
-  return true;
-}
-
-function extractFileHints(item: string): readonly string[] {
-  const matches = item.matchAll(
-    /`([^`]+\.(?:ts|js|tsx|jsx|py|rs|go|java|kt|swift|md|json|yaml|yml|toml|html|css|scss|sql))`|([A-Za-z0-9_./-]+\.(?:ts|js|tsx|jsx|py|rs|go|java|kt|swift|md|json|yaml|yml|toml|html|css|scss|sql))/gi,
-  );
-  const files: string[] = [];
-  for (const match of matches) {
-    files.push((match[1] ?? match[2] ?? '').trim());
-  }
-  return uniqueSorted(files);
-}
-
-function inferMemoryTiers(
-  memory: ReturnType<typeof parseStructuredCompactionMemory>,
-  rawRefKinds: readonly string[],
-  actionTypes: readonly string[],
-  fileHints: readonly string[],
-): readonly CompactionContextMemoryTier[] {
-  const tiers = new Set<CompactionContextMemoryTier>(['working']);
-  if (rawRefKinds.length > 0) tiers.add('episodic');
-  if (
-    memory.currentGoal !== undefined ||
-    memory.decisions.length > 0 ||
-    memory.openQuestions.length > 0 ||
-    fileHints.length > 0
-  ) {
-    tiers.add('semantic');
-  }
-  if (
-    memory.nextActions.length > 0 ||
-    memory.failedAttempts.length > 0 ||
-    actionTypes.length > 0
-  ) {
-    tiers.add('procedural');
-  }
-  return Array.from(tiers);
-}
-
-function countStructuredMemoryItems(
-  memory: ReturnType<typeof parseStructuredCompactionMemory>,
-): number {
-  return [
-    memory.currentGoal,
-    ...memory.lastKnownState,
-    ...memory.decisions,
-    ...memory.filesTouched,
-    ...memory.failedAttempts,
-    ...memory.openQuestions,
-    ...memory.nextActions,
-    ...memory.rawRefs,
-  ]
-    .filter((item): item is string => item !== undefined)
-    .filter(isUsefulCompactionMemoryItem).length;
-}
-
-function evaluateContinuity(
-  result: CompactionResult,
-  memory: ReturnType<typeof parseStructuredCompactionMemory>,
-  retrievalQueries: readonly string[],
-): CompactionContextOS['continuity'] {
-  let score = 1;
-  const reasons: string[] = [];
-
-  if (memory.currentGoal === undefined) {
-    score -= 0.2;
-    reasons.push('missing_current_goal');
-  }
-  if (uniqueHints(memory.nextActions).length === 0) {
-    score -= 0.2;
-    reasons.push('missing_next_actions');
-  }
-  if ((result.rawRefs?.length ?? 0) === 0 || memory.rawRefs.length === 0) {
-    score -= 0.15;
-    reasons.push('missing_raw_refs');
-  }
-  if ((result.qualityWarnings?.length ?? 0) > 0) {
-    score -= 0.15;
-    reasons.push('quality_warnings_present');
-  }
-  if (result.repairAttempted === true) {
-    score -= 0.1;
-    reasons.push('summary_repaired');
-  }
-  if (retrievalQueries.length === 0) {
-    score -= 0.1;
-    reasons.push('empty_retrieval_queries');
-  }
-
-  const boundedScore = Math.max(0, Math.min(1, Number(score.toFixed(2))));
-  return {
-    status: boundedScore >= 0.85 ? 'ready' : boundedScore >= 0.55 ? 'needs_rehydration' : 'at_risk',
-    score: boundedScore,
-    reasons: reasons.length > 0 ? reasons : ['core_continuity_signals_present'],
-  };
-}
-
-function selectRehydrationRawRefKinds(
-  rawRefKinds: readonly string[],
-  status: CompactionContextOS['continuity']['status'],
-): readonly string[] {
-  if (status !== 'ready') return rawRefKinds;
-  return rawRefKinds.filter((kind) => kind.includes('tool'));
-}
-
-function formatRawRef(ref: CompactionPlan['rawRefs'][number]): string {
-  const tools =
-    ref.toolNames !== undefined && ref.toolNames.length > 0
-      ? ` tools=${ref.toolNames.join(',')}`
-      : '';
-  return `${ref.kind}[${String(ref.messageStart)}-${String(ref.messageEnd)}] tokens=${String(ref.tokens)}${tools}`;
-}
-
-/**
- * Density / surprise score for a parallel-compaction block. Used to order
- * blocks so information-dense regions are summarized first and get priority
- * in the merged summary.
- */
-function blockDensity(block: readonly Message[]): number {
-  const parts: string[] = [];
-  for (const message of block) {
-    if (typeof message.content === 'string') {
-      parts.push(message.content);
-    } else if (Array.isArray(message.content)) {
-      for (const part of message.content) {
-        if (part.type === 'text') parts.push(part.text);
-      }
-    }
-    for (const toolCall of message.toolCalls) {
-      parts.push(`${toolCall.name} ${toolCall.arguments}`);
-    }
-  }
-  return surpriseScore(parts.join('\n').slice(0, 16_000));
 }

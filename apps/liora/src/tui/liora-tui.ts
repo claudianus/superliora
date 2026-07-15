@@ -116,7 +116,7 @@ import { BtwPanelController } from './controllers/btw-panel';
 import { ClipboardImageHintController } from './controllers/clipboard-image-hint';
 import { EditorKeyboardController } from './controllers/editor-keyboard';
 import { SessionEventHandler } from './controllers/session-event-handler';
-import { SessionReplayRenderer } from './controllers/session-replay';
+import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
@@ -410,7 +410,7 @@ export class LioraTUI {
     });
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
-    this.sessionReplay = new SessionReplayRenderer(this);
+    this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
     this.editorKeyboard = new EditorKeyboardController(this, this.imageStore);
     this.editorKeyboard.install();
@@ -1756,6 +1756,8 @@ export class LioraTUI {
       contextTokens: status.contextTokens,
       maxContextTokens: status.maxContextTokens,
       contextUsage: status.contextUsage,
+      contextOS: status.contextOS ?? null,
+      microCompaction: status.microCompaction ?? null,
       providerRouteStatus: status.providerRouteStatus ?? null,
       sessionTitle: session.summary?.title ?? null,
       goal: goalResult.goal,

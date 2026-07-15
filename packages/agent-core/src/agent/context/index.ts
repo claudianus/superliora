@@ -7,7 +7,6 @@ import { extractImageCompressionCaptions } from '../../tools/support/image-compr
 import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
 import { escapeXml } from '../../utils/xml-escape';
 import {
-  COMPACT_USER_MESSAGE_MAX_TOKENS,
   COMPACTION_ELISION_VARIANT,
   buildCompactionElisionText,
   collectCompactableUserMessages,
@@ -441,9 +440,32 @@ export class ContextMemory {
   }
 
   data(): AgentContextData {
+    const health = this.agent.contextOS.health();
+    const micro = this.agent.microCompaction.triggers.snapshot();
     return {
       history: this.history,
       tokenCount: this.tokenCount,
+      contextOS:
+        health.pageCount === 0
+          ? undefined
+          : {
+              pageCount: health.pageCount,
+              readyPageCount: health.readyPageCount,
+              needsRehydrationPageCount: health.needsRehydrationPageCount,
+              atRiskPageCount: health.atRiskPageCount,
+              missingEvidencePageCount: health.missingEvidencePageCount,
+              evidenceIdRecallScore: health.evidenceIdRecallScore,
+              latestContinuityStatus: health.latestContinuityStatus,
+            },
+      microCompaction:
+        micro.total === 0
+          ? undefined
+          : {
+              total: micro.total,
+              lastTrigger: micro.lastTrigger,
+              lastContextUsageRatio: micro.lastContextUsageRatio,
+              byTrigger: micro.byTrigger,
+            },
     };
   }
 

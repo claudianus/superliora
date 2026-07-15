@@ -439,6 +439,11 @@ export class ToolManager {
     // builtin/user tool names. The split keeps every caller on one string[].
     this.enabledTools = new Set(names.filter((name) => !isMcpToolName(name)));
     this.mcpAccessPatterns = names.filter((name) => isMcpToolName(name));
+    // Rebuild builtin instances for the active profile only. Default profiles
+    // enable ~11 tools; instantiating the full 40+ set is wasted work/memory.
+    if (this.agent.config.hasProvider) {
+      this.initializeBuiltinTools();
+    }
   }
 
   copyLoopToolsFrom(source: ToolManager): void {
@@ -544,22 +549,30 @@ export class ToolManager {
     videoUploader: b.VideoUploader | undefined,
   ): Array<BuiltinTool | false | undefined> {
     return [
-      new b.ReadTool(kaos, workspace),
-      new b.WriteTool(kaos, workspace),
-      new b.EditTool(kaos, workspace),
-      new b.GrepTool(kaos, workspace, this.agent.telemetry),
-      new b.GlobTool(kaos, workspace, this.agent.telemetry),
-      new b.LioraReadTool(kaos, workspace, this.toolStore),
-      new b.LioraTreeTool(kaos, workspace),
-      new b.LioraSymbolTool(kaos, workspace),
-      new b.LioraCallgraphTool(kaos, workspace),
-      new b.LioraExpandTool(this.toolStore),
-      new b.BashTool(kaos, cwd, background, {
-        allowBackground,
-        store: this.toolStore,
-      }),
-      (modelCapabilities.image_in || modelCapabilities.video_in) &&
+      this.shouldCreateBuiltin('Read') && new b.ReadTool(kaos, workspace),
+      this.shouldCreateBuiltin('Write') && new b.WriteTool(kaos, workspace),
+      this.shouldCreateBuiltin('Edit') && new b.EditTool(kaos, workspace),
+      this.shouldCreateBuiltin('Grep') && new b.GrepTool(kaos, workspace, this.agent.telemetry),
+      this.shouldCreateBuiltin('Glob') && new b.GlobTool(kaos, workspace, this.agent.telemetry),
+      this.shouldCreateBuiltin('LioraRead') && new b.LioraReadTool(kaos, workspace, this.toolStore),
+      this.shouldCreateBuiltin('LioraTree') && new b.LioraTreeTool(kaos, workspace),
+      this.shouldCreateBuiltin('LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
+      this.shouldCreateBuiltin('LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
+      this.shouldCreateBuiltin('LioraExpand') && new b.LioraExpandTool(this.toolStore),
+      this.shouldCreateBuiltin('Bash') &&
+        new b.BashTool(kaos, cwd, background, {
+          allowBackground,
+          store: this.toolStore,
+        }),
+      this.shouldCreateBuiltin('ReadMediaFile') &&
+        (modelCapabilities.image_in || modelCapabilities.video_in) &&
         new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
+      this.shouldCreateBuiltin('GenerateImage') &&
+        b.isGenerateImageAvailable() &&
+        new b.GenerateImageTool(kaos, workspace),
+      this.shouldCreateBuiltin('GenerateVideo') &&
+        b.isGenerateVideoAvailable() &&
+        new b.GenerateVideoTool(kaos, workspace),
     ];
   }
 
@@ -569,26 +582,37 @@ export class ToolManager {
   ): Array<BuiltinTool | false | undefined> {
     const hasQuestionTool = this.agent.rpc?.requestQuestion !== undefined;
     const hasMemoryTool = this.agent.memory?.isEnabled() === true;
+    const hasCron = this.agent.cron !== null && this.agent.cron !== undefined;
     return [
-      new b.EnterPlanModeTool(this.agent),
-      new b.ExitPlanModeTool(this.agent),
-      new b.NextPhaseTool(this.agent),
-      new b.RecordInterviewFindingTool(this.agent),
-      goalToolsEnabled && new b.CreateGoalTool(this.agent),
-      goalToolsEnabled && new b.GetGoalTool(this.agent),
-      goalToolsEnabled && new b.SetGoalBudgetTool(this.agent),
-      goalToolsEnabled && new b.UpdateGoalTool(this.agent),
-      new b.GetCurrentTimeTool(),
-      hasQuestionTool && new b.AskUserQuestionTool(this.agent),
-      new b.TodoListTool(this.toolStore),
-      new b.UltraworkGraphTool(this.toolStore, this.agent),
-      hasMemoryTool && new b.MemoryTool(this.agent.memory!),
-      new b.TaskListTool(background),
-      new b.TaskOutputTool(background),
-      new b.TaskStopTool(background),
-      this.agent.cron !== null && this.agent.cron !== undefined && new b.CronCreateTool(this.agent.cron),
-      this.agent.cron !== null && this.agent.cron !== undefined && new b.CronListTool(this.agent.cron),
-      this.agent.cron !== null && this.agent.cron !== undefined && new b.CronDeleteTool(this.agent.cron),
+      this.shouldCreateBuiltin('EnterPlanMode') && new b.EnterPlanModeTool(this.agent),
+      this.shouldCreateBuiltin('ExitPlanMode') && new b.ExitPlanModeTool(this.agent),
+      this.shouldCreateBuiltin('NextPhase') && new b.NextPhaseTool(this.agent),
+      this.shouldCreateBuiltin('RecordInterviewFinding') &&
+        new b.RecordInterviewFindingTool(this.agent),
+      goalToolsEnabled &&
+        this.shouldCreateBuiltin('CreateGoal') &&
+        new b.CreateGoalTool(this.agent),
+      goalToolsEnabled && this.shouldCreateBuiltin('GetGoal') && new b.GetGoalTool(this.agent),
+      goalToolsEnabled &&
+        this.shouldCreateBuiltin('SetGoalBudget') &&
+        new b.SetGoalBudgetTool(this.agent),
+      goalToolsEnabled &&
+        this.shouldCreateBuiltin('UpdateGoal') &&
+        new b.UpdateGoalTool(this.agent),
+      this.shouldCreateBuiltin('GetCurrentTime') && new b.GetCurrentTimeTool(),
+      hasQuestionTool &&
+        this.shouldCreateBuiltin('AskUserQuestion') &&
+        new b.AskUserQuestionTool(this.agent),
+      this.shouldCreateBuiltin('TodoList') && new b.TodoListTool(this.toolStore),
+      this.shouldCreateBuiltin('UltraworkGraph') &&
+        new b.UltraworkGraphTool(this.toolStore, this.agent),
+      hasMemoryTool && this.shouldCreateBuiltin('Memory') && new b.MemoryTool(this.agent.memory!),
+      this.shouldCreateBuiltin('TaskList') && new b.TaskListTool(background),
+      this.shouldCreateBuiltin('TaskOutput') && new b.TaskOutputTool(background),
+      this.shouldCreateBuiltin('TaskStop') && new b.TaskStopTool(background),
+      hasCron && this.shouldCreateBuiltin('CronCreate') && new b.CronCreateTool(this.agent.cron!),
+      hasCron && this.shouldCreateBuiltin('CronList') && new b.CronListTool(this.agent.cron!),
+      hasCron && this.shouldCreateBuiltin('CronDelete') && new b.CronDeleteTool(this.agent.cron!),
     ];
   }
 
@@ -596,11 +620,20 @@ export class ToolManager {
     background: Agent['background'],
     allowBackground: boolean,
   ): Array<BuiltinTool | false | undefined> {
-    const hasInvocableSkills = (this.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
+    // Profile gating (shouldCreateBuiltin) is independent of invocable presence.
+    // Do not OR shouldCreateBuiltin into this — empty enabledTools makes it always
+    // true and would re-expose Skill/SearchSkill with no registry / no invocables.
+    // Deferred catalog load still works: registerBuiltinSkills + project skills
+    // usually provide invocables at start; tools call ensureCatalogLoaded on use.
+    const hasInvocableSkills =
+      (this.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
     return [
-      hasInvocableSkills && new b.SkillTool(this.agent),
-      hasInvocableSkills && new b.SearchSkillTool(this.agent),
+      hasInvocableSkills && this.shouldCreateBuiltin('Skill') && new b.SkillTool(this.agent),
+      hasInvocableSkills &&
+        this.shouldCreateBuiltin('SearchSkill') &&
+        new b.SearchSkillTool(this.agent),
       this.agent.subagentHost &&
+        this.shouldCreateBuiltin('Agent') &&
         new b.AgentTool(
           this.agent.subagentHost,
           background,
@@ -610,10 +643,14 @@ export class ToolManager {
             log: this.agent.log,
           },
         ),
-      this.agent.subagentHost && new b.SearchExpertTool(),
       this.agent.subagentHost &&
+        this.shouldCreateBuiltin('SearchExpert') &&
+        new b.SearchExpertTool(),
+      this.agent.subagentHost &&
+        this.shouldCreateBuiltin('AgentSwarm') &&
         new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode, this.toolStore),
       this.agent.subagentHost &&
+        this.shouldCreateBuiltin('UltraSwarm') &&
         new b.UltraSwarmTool(
           this.agent.subagentHost,
           this.agent.swarmMode,
@@ -627,19 +664,53 @@ export class ToolManager {
     toolServices: Agent['toolServices'],
   ): Array<BuiltinTool | false | undefined> {
     return [
-      toolServices?.browserUse && new b.BrowserStatusTool(toolServices.browserUse),
-      toolServices?.browserUse && new b.BrowserObserveTool(toolServices.browserUse),
-      toolServices?.browserUse && new b.BrowserScreenshotTool(toolServices.browserUse),
-      toolServices?.browserUse && new b.BrowserActTool(toolServices.browserUse),
-      toolServices?.browserUse && new b.BrowserConsoleTool(toolServices.browserUse),
-      toolServices?.computerUse && new b.ComputerCaptureTool(toolServices.computerUse),
-      toolServices?.computerUse && new b.ComputerActTool(toolServices.computerUse),
-      toolServices?.computerUse && new b.ComputerStatusTool(toolServices.computerUse),
-      toolServices?.webSearcher && new b.WebSearchTool(toolServices.webSearcher),
-      toolServices?.urlFetcher && new b.FetchURLTool(toolServices.urlFetcher),
-      toolServices?.context7 && new b.Context7ResolveTool(toolServices.context7),
-      toolServices?.context7 && new b.Context7DocsTool(toolServices.context7),
+      toolServices?.browserUse &&
+        this.shouldCreateBuiltin('BrowserStatus') &&
+        new b.BrowserStatusTool(toolServices.browserUse),
+      toolServices?.browserUse &&
+        this.shouldCreateBuiltin('BrowserObserve') &&
+        new b.BrowserObserveTool(toolServices.browserUse),
+      toolServices?.browserUse &&
+        this.shouldCreateBuiltin('BrowserScreenshot') &&
+        new b.BrowserScreenshotTool(toolServices.browserUse),
+      toolServices?.browserUse &&
+        this.shouldCreateBuiltin('BrowserAct') &&
+        new b.BrowserActTool(toolServices.browserUse),
+      toolServices?.browserUse &&
+        this.shouldCreateBuiltin('BrowserConsole') &&
+        new b.BrowserConsoleTool(toolServices.browserUse),
+      toolServices?.computerUse &&
+        this.shouldCreateBuiltin('ComputerCapture') &&
+        new b.ComputerCaptureTool(toolServices.computerUse),
+      toolServices?.computerUse &&
+        this.shouldCreateBuiltin('ComputerAct') &&
+        new b.ComputerActTool(toolServices.computerUse),
+      toolServices?.computerUse &&
+        this.shouldCreateBuiltin('ComputerStatus') &&
+        new b.ComputerStatusTool(toolServices.computerUse),
+      toolServices?.webSearcher &&
+        this.shouldCreateBuiltin('WebSearch') &&
+        new b.WebSearchTool(toolServices.webSearcher),
+      toolServices?.urlFetcher &&
+        this.shouldCreateBuiltin('FetchURL') &&
+        new b.FetchURLTool(toolServices.urlFetcher),
+      toolServices?.context7 &&
+        this.shouldCreateBuiltin('Context7Resolve') &&
+        new b.Context7ResolveTool(toolServices.context7),
+      toolServices?.context7 &&
+        this.shouldCreateBuiltin('Context7Docs') &&
+        new b.Context7DocsTool(toolServices.context7),
     ];
+  }
+
+  /**
+   * When no active profile tools are set yet (bootstrap / tests), create the
+   * full builtin set. Once setActiveTools runs, only the active profile tools
+   * are instantiated.
+   */
+  private shouldCreateBuiltin(name: string): boolean {
+    if (this.enabledTools.size === 0) return true;
+    return this.enabledTools.has(name);
   }
 
   refreshBuiltinTools(): void {

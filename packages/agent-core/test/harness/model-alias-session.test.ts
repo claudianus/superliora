@@ -473,6 +473,7 @@ max_context_size = 1000000
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async () => ({ decision: 'rejected' as const })),
       requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
       toolCall: vi.fn(async () => ({ output: '' })),
     });
   }

@@ -1,5 +1,5 @@
 import type { ExpertCatalogEntry } from './types';
-import { EXPERT_CATALOG_BY_ID } from './catalog';
+import { EXPERT_CATALOG_META_BY_ID, hydrateExpertCatalogEntry } from './catalog';
 
 /** Local catalog extensions not present in the upstream agency-agents repository. */
 export const EXPERT_CATALOG_EXTENSIONS: readonly ExpertCatalogEntry[] = [
@@ -67,5 +67,5 @@ You are **Terminal UI Engineer**, a specialist in building readable, high-densit
 ];
 
 export function resolveExpertCatalogEntry(id: string): ExpertCatalogEntry | undefined {
-  return EXPERT_CATALOG_BY_ID[id] ?? EXPERT_CATALOG_EXTENSIONS.find((expert) => expert.id === id);
+  return hydrateExpertCatalogEntry(EXPERT_CATALOG_META_BY_ID[id] ?? EXPERT_CATALOG_EXTENSIONS.find((expert) => expert.id === id));
 }

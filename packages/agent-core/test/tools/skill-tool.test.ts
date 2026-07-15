@@ -38,7 +38,8 @@ function registry(
   skills: readonly SkillDefinition[] = [],
   options: { readonly sessionId?: string } = {},
 ): AgentSkillRegistry {
-  const registry = new SessionSkillRegistry(options);
+  // Isolate unit fixtures from the deferred builtin catalog (7k+ skills).
+  const registry = new SessionSkillRegistry({ ...options, disableCatalogLoad: true });
   for (const item of skills) {
     registry.register(item);
   }

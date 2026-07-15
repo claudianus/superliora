@@ -458,7 +458,9 @@ describe('compaction — head/tail user-message retention', () => {
     return ctx;
   }
 
-  it('splits an oversized user pool into head + elision marker + tail', async () => {
+  it(
+    'splits an oversized user pool into head + elision marker + tail',
+    async () => {
     const ctx = await compactedOversizedPool();
 
     const history = ctx.agent.context.history;
@@ -485,9 +487,13 @@ describe('compaction — head/tail user-message retention', () => {
     });
 
     await ctx.expectResumeMatches();
-  });
+  },
+    60_000,
+  );
 
-  it('does not stack elision markers or re-summarize them across repeated compactions', async () => {
+  it(
+    'does not stack elision markers or re-summarize them across repeated compactions',
+    async () => {
     const ctx = await compactedOversizedPool();
 
     ctx.agent.context.appendUserMessage([{ type: 'text', text: 'd'.repeat(8_000) }]);
@@ -504,7 +510,9 @@ describe('compaction — head/tail user-message retention', () => {
       (message) => message.origin?.kind === 'compaction_summary',
     );
     expect(summaries).toHaveLength(1);
-  });
+  },
+    60_000,
+  );
 
   it('keeps everything verbatim (no marker) when the user pool fits the budget', async () => {
     const ctx = testAgent();

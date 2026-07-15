@@ -4,7 +4,6 @@ import { basename, join } from 'node:path';
 import {
   CANONICAL_LLM_WIKI_ROOT,
   resolveLlmWikiPaths,
-  resolveLlmWikiRoot,
 } from '#/constant/workspace-data';
 
 import type { UltraworkActivationSource } from './ultrawork-contract';
@@ -461,7 +460,7 @@ ${lanes}
 ## Next Retrieval Hints
 
 - Start with ${artifacts.wikiIndexPath}, then inspect this run page and the linked knowledge map.
-- Use LioraContext for compact source maps before broad reads.
+- Use LioraRead/LioraSymbol/LioraTree for compact source maps before broad reads.
 - Use Liora Recall for concise durable memories only when they are relevant to the current task.
 `;
 }

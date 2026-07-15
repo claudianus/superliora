@@ -489,6 +489,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'context',
+    aliases: ['context-os', 'ctx'],
+    description: 'Diagnose Context OS continuity/evidence + privacy (ZDR) posture',
+    priority: 85,
+    argumentHint: '[query]',
+    availability: 'always',
+  },
+  {
     name: 'undo',
     aliases: [],
     description: 'Withdraw the last prompt from the transcript',

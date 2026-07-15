@@ -262,6 +262,23 @@ export interface SessionStatus {
   readonly contextUsage: number;
   readonly usage?: SessionUsage;
   readonly providerRouteStatus?: ProviderRouteStatus | null;
+  /** Context OS continuity/evidence health when compacted pages exist. */
+  readonly contextOS?: {
+    readonly pageCount: number;
+    readonly readyPageCount: number;
+    readonly needsRehydrationPageCount: number;
+    readonly atRiskPageCount: number;
+    readonly missingEvidencePageCount: number;
+    readonly evidenceIdRecallScore: number;
+    readonly latestContinuityStatus: string;
+  };
+  /** Micro-compaction trigger dashboard when tool-result clearing has fired. */
+  readonly microCompaction?: {
+    readonly total: number;
+    readonly lastTrigger: string | null;
+    readonly lastContextUsageRatio: number | null;
+    readonly byTrigger: Readonly<Record<string, number>>;
+  };
 }
 
 export interface SessionSummary {

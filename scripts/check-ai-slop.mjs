@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
-import path from 'path';
-import { execSync } from 'child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
 
 const BLACKLIST = [
   'delve',
@@ -69,7 +69,7 @@ function getFilesToCheck() {
       .map(f => f.trim())
       .filter(f => f.endsWith('.md') && fs.existsSync(f));
     files.push(...stagedMd);
-  } catch (err) {
+  } catch {
     // Git command might fail if not inside a git repo or no staged changes
   }
 

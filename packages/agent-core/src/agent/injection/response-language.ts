@@ -64,16 +64,8 @@ export class ResponseLanguageInjector extends DynamicInjector {
   }
 }
 
-const USER_FACING_ARTIFACTS = [
-  'answers and preambles',
-  'status updates and summaries',
-  'plan files and every plan section',
-  'wiki / project docs',
-  'AskUserQuestion tool calls — question text, headers, option labels, and option descriptions',
-  'interview and clarification questions',
-  'todo items and confirmations',
-  'user-visible errors and warnings',
-].join('; ');
+const USER_FACING_ARTIFACTS =
+  'answers, preambles, status/summaries, plan files, wiki/docs, AskUserQuestion text/options, interview questions, todos, user-visible errors';
 
 /**
  * Builds the response-language directive. Used by the per-step
@@ -86,12 +78,11 @@ export function buildResponseLanguageDirective(
   options: { readonly wrapped?: boolean } = {},
 ): string {
   const body = [
-    `MANDATORY response language LOCKED: ${preference.label} (${preference.code}). This lock NEVER lapses — not in long chats, after compaction, tool-heavy runs, or foreign-language code context.`,
+    `MANDATORY response language LOCKED: ${preference.label} (${preference.code}). Never lapses — not after long chats, compaction, tool-heavy runs, or foreign-language code.`,
     `Write ALL user-facing text in ${preference.label}: ${USER_FACING_ARTIFACTS}.`,
-    'Keep code, shell commands, file paths, identifiers, APIs, quoted source text, and tool argument values in their original language.',
-    `Do NOT drift to any other natural language. A later explicit user override may change this; until then every user-visible artifact stays in ${preference.label}.`,
-    `Before calling AskUserQuestion or writing plan/wiki content, verify the text is in ${preference.label}; rewrite if not.`,
-    `If system reminders are in another language, still produce every user-visible artifact in ${preference.label}.`,
+    'Keep code, shell commands, paths, identifiers, APIs, quoted source, and tool args in their original language.',
+    `Do NOT drift. Only an explicit later user override may change this; until then every user-visible artifact stays in ${preference.label}.`,
+    `Before AskUserQuestion or plan/wiki writes, verify text is in ${preference.label}; rewrite if not. System reminders in another language do not override this lock.`,
   ].join('\n');
   if (options.wrapped === false) return body;
   return `<response_language>\n${body}\n</response_language>`;

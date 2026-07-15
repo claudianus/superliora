@@ -7,7 +7,8 @@
  */
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 
 import { OAuthConnectionError, OAuthError } from './errors';
 import { isRecord } from './utils';

@@ -87,6 +87,7 @@ function makeStartupInput(): LioraTUIStartupInput {
     },
     tuiConfig: {
       theme: 'dark',
+      disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: true },

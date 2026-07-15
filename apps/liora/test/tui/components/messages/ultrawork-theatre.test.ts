@@ -28,7 +28,7 @@ const swarmStageEvent = {
 
 describe('UltraworkTheatreComponent', () => {
   it('renders a compact status panel outside swarm', () => {
-    const theatre = new UltraworkTheatreComponent(researchStageEvent);
+    const theatre = new UltraworkTheatreComponent(researchStageEvent as never);
 
     theatre.applyEvent({
       type: 'ultrawork.research.started',
@@ -57,7 +57,7 @@ describe('UltraworkTheatreComponent', () => {
   });
 
   it('hides the theatre panel during swarm so UltraSwarm owns the dashboard', () => {
-    const theatre = new UltraworkTheatreComponent(swarmStageEvent);
+    const theatre = new UltraworkTheatreComponent(swarmStageEvent as never);
 
     theatre.applyEvent({
       type: 'ultrawork.collaboration.message',
@@ -85,7 +85,7 @@ describe('UltraworkTheatreComponent', () => {
   });
 
   it('renders stage progress with progress bar', () => {
-    const theatre = new UltraworkTheatreComponent(researchStageEvent);
+    const theatre = new UltraworkTheatreComponent(researchStageEvent as never);
     const output = theatre.render(100).join('\n');
     
     // Should contain progress bar characters

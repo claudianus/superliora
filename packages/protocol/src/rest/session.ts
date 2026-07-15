@@ -98,6 +98,23 @@ export type CreateSessionChildRequest = z.infer<typeof createSessionChildRequest
 export const createSessionChildResponseSchema = sessionSchema;
 export type CreateSessionChildResponse = z.infer<typeof createSessionChildResponseSchema>;
 
+export const contextOsHealthSchema = z.object({
+  page_count: z.number().int().nonnegative(),
+  ready_page_count: z.number().int().nonnegative(),
+  needs_rehydration_page_count: z.number().int().nonnegative(),
+  at_risk_page_count: z.number().int().nonnegative(),
+  missing_evidence_page_count: z.number().int().nonnegative(),
+  evidence_id_recall_score: z.number().min(0).max(1),
+  latest_continuity_status: z.string(),
+});
+
+export const microCompactionDashboardSchema = z.object({
+  total: z.number().int().nonnegative(),
+  last_trigger: z.string().nullable(),
+  last_context_usage_ratio: z.number().min(0).max(1).nullable(),
+  by_trigger: z.record(z.string(), z.number().int().nonnegative()),
+});
+
 export const sessionStatusResponseSchema = z.object({
   status: sessionStatusSchema,
   model: z.string().optional(),
@@ -109,6 +126,8 @@ export const sessionStatusResponseSchema = z.object({
   max_context_tokens: z.number().int().nonnegative(),
   context_usage: z.number().min(0).max(1),
   provider_route: providerRouteStatusSchema.nullable().optional(),
+  context_os: contextOsHealthSchema.optional(),
+  micro_compaction: microCompactionDashboardSchema.optional(),
 });
 export type SessionStatusResponse = z.infer<typeof sessionStatusResponseSchema>;
 

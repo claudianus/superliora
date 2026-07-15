@@ -6,7 +6,7 @@
  * come from `customHeaders`.
  */
 
-import type { WebSearchProvider, WebSearchResult } from '../builtin';
+import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
 
 export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;

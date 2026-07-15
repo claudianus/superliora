@@ -13,7 +13,7 @@
  *   4. If localFallback also throws → propagate that error.
  */
 
-import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin';
+import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin/web/fetch-url';
 
 export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;

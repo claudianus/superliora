@@ -100,9 +100,12 @@ describe('renderer editor chrome helpers', () => {
       { fg: '#aaaaaa', bold: true },
     );
 
-    expect(projected[0]?.[0]?.style).toEqual({ fg: '#aaaaaa', bold: true });
-    expect(projected[0]?.[6]?.style).toEqual({ fg: '#aaaaaa', bold: true });
-    expect(projected[0]?.[5]?.style).toBeUndefined();
+    const first = projected[0]?.[0];
+    const seventh = projected[0]?.[6];
+    const sixth = projected[0]?.[5];
+    expect(typeof first === 'object' ? first.style : undefined).toEqual({ fg: '#aaaaaa', bold: true });
+    expect(typeof seventh === 'object' ? seventh.style : undefined).toEqual({ fg: '#aaaaaa', bold: true });
+    expect(typeof sixth === 'object' ? sixth.style : undefined).toBeUndefined();
   });
 
   it('wraps legacy editor rows with painted side borders and labels', () => {

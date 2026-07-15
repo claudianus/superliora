@@ -1,12 +1,21 @@
 import {
   PREMIUM_QUALITY_EXIT_GUIDANCE,
-  PREMIUM_QUALITY_FULL_GUIDANCE,
-  PREMIUM_QUALITY_SPARSE_GUIDANCE,
+  resolvePremiumInjectionDensity,
+  selectPremiumFullGuidance,
+  selectPremiumSparseGuidance,
+  type PremiumInjectionDensity,
 } from '../../premium-quality';
+import { isRealUserPromptOrigin } from '../context/types';
 import { DynamicInjector } from './injector';
+import type { Agent } from '..';
 
-const PREMIUM_QUALITY_DEDUP_MIN_TURNS = 1;
-const PREMIUM_QUALITY_FULL_REFRESH_TURNS = 3;
+/**
+ * Full Premium visual guidance is ~1.5–1.8k tokens after compact hype.
+ * Non-visual Ultrawork/Goal objectives use code/evidence density instead.
+ * Re-inject full (for the active density) when mode turns on or a real user prompt arrives.
+ * Sparse checkpoints keep pressure without blowing the budget.
+ */
+const PREMIUM_QUALITY_SPARSE_REFRESH_TURNS = 4;
 
 export class PremiumQualityInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'premium_quality';
@@ -25,15 +34,18 @@ export class PremiumQualityInjector extends DynamicInjector {
       this.injectedAt = null;
       return PREMIUM_QUALITY_EXIT_GUIDANCE;
     }
+    const density = resolveActivePremiumDensity(this.agent);
     if (!this.wasActive) {
       this.injectedAt = null;
       this.wasActive = true;
-      return PREMIUM_QUALITY_FULL_GUIDANCE;
+      return selectPremiumFullGuidance(density);
     }
 
     const variant = this.getVariant();
     if (variant === null) return undefined;
-    return variant === 'full' ? PREMIUM_QUALITY_FULL_GUIDANCE : PREMIUM_QUALITY_SPARSE_GUIDANCE;
+    return variant === 'full'
+      ? selectPremiumFullGuidance(density)
+      : selectPremiumSparseGuidance(density);
   }
 
   private getVariant(): 'full' | 'sparse' | null {
@@ -47,12 +59,18 @@ export class PremiumQualityInjector extends DynamicInjector {
         assistantTurnsSince += 1;
         continue;
       }
-      if (msg.role === 'user') {
+      if (msg.role === 'user' && isRealUserPromptOrigin(msg.origin)) {
         return 'full';
       }
     }
-    if (assistantTurnsSince >= PREMIUM_QUALITY_FULL_REFRESH_TURNS) return 'full';
-    if (assistantTurnsSince >= PREMIUM_QUALITY_DEDUP_MIN_TURNS) return 'sparse';
+    if (assistantTurnsSince >= PREMIUM_QUALITY_SPARSE_REFRESH_TURNS) return 'sparse';
     return null;
   }
+}
+
+/** Prefer active goal objective; fall back to Ultrawork run objective. */
+export function resolveActivePremiumDensity(agent: Agent): PremiumInjectionDensity {
+  const goalObjective = agent.goal?.getGoal?.().goal?.objective;
+  const runObjective = agent.ultrawork?.getRun?.()?.objective;
+  return resolvePremiumInjectionDensity(goalObjective ?? runObjective);
 }

@@ -86,6 +86,7 @@ import type {
   DetachBackgroundPayload,
   ClientTelemetryInfo,
   EmptyPayload,
+  DiagnoseContextOSPayload,
   EnterPlanPayload,
   EnterSwarmPayload,
   GoalSnapshot,
@@ -150,7 +151,6 @@ import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import { SUPERLIORA_PROVIDER_NAME } from '@superliora/oauth';
 import type { SessionWarning } from '@superliora/protocol';
-import type { CredentialRequest, CredentialResponse } from '@superliora/agent-core';
 import { proxyWithExtraPayload } from './types';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';
@@ -857,6 +857,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
   getContext({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getContext(payload);
+  }
+
+  diagnoseContextOS({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<DiagnoseContextOSPayload>) {
+    return this.sessionApi(sessionId).diagnoseContextOS(payload);
   }
 
   getSessionTrace({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {

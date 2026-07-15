@@ -130,10 +130,10 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('recognizes Ultrawork startup seed files as local LLM Wiki and knowledge-map evidence', () => {
+  it('recognizes Ultrawork startup seed files as local LLM Wiki and knowledge-map evidence', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-ultrawork-seed-'));
     try {
-      const seed = createUltraworkEvidenceSeed(
+      const seed = await createUltraworkEvidenceSeed(
         workDir,
         '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
         'manual',
@@ -160,10 +160,10 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('recognizes project-local LLM Wiki v2 index and manifest even without run evidence', () => {
+  it('recognizes project-local LLM Wiki v2 index and manifest even without run evidence', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-wiki-v2-'));
     try {
-      const seed = createUltraworkEvidenceSeed(
+      const seed = await createUltraworkEvidenceSeed(
         workDir,
         'Improve LLM Wiki quality without leaking secrets token=secret-value',
         'manual',
@@ -188,7 +188,7 @@ describe('memory readiness slash command builders', () => {
   it('shows project-local LLM Wiki status through /memory wiki', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-wiki-command-'));
     try {
-      createUltraworkEvidenceSeed(
+      await createUltraworkEvidenceSeed(
         workDir,
         'Document the harness wiki layer',
         'manual',
@@ -253,7 +253,7 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('summarizes malformed evidence warnings so readiness panels stay scannable', () => {
+  it('summarizes malformed evidence warnings so readiness panels stay scannable', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-warning-summary-'));
     try {
       const evidenceDir = join(workDir, '.superliora/evidence/g006');
@@ -275,7 +275,7 @@ describe('memory readiness slash command builders', () => {
   it('promotes Ultrawork seed evidence to verified through /memory verify', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-verify-command-'));
     try {
-      createUltraworkEvidenceSeed(
+      await createUltraworkEvidenceSeed(
         workDir,
         'Verify harness evidence promotion',
         'manual',

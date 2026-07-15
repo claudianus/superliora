@@ -21,7 +21,6 @@ import {
 } from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
 import { currentTheme } from '#/tui/theme';
-import { gradientText } from '#/tui/theme/gradient-text';
 
 export type AmbientEffectMode = RendererEffectLevel;
 

@@ -5,11 +5,22 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
+  PipelineStrategy,
+  ToolCollapseStrategy,
   resolveCompactionBlockRatio,
   splitMessagesIntoTokenBlocks,
 } from '../../../src/agent/compaction';
 import { CompactionQualityTracker } from '../../../src/agent/compaction/quality';
 import { estimateTokensForMessages } from '../../../src/utils/tokens';
+import {
+  handoffThresholdTokens,
+  relaxObservedMaxContextTokens,
+  resolveEffectiveMaxContextTokens,
+  shouldDeferAutoCompaction,
+  shouldRecoverFromOverflowStatus,
+  shouldSkipRecompactUntilGrowth,
+  shouldUseParallelSummarize,
+} from '../../../src/agent/compaction/full-policy';
 
 describe('DefaultCompactionStrategy', () => {
   it('keeps an oversized trailing user message as recent', () => {
@@ -254,9 +265,9 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.effectiveTriggerRatio).toBe(0.8);
-    expect(strategy.shouldCompact(79_999)).toBe(false);
-    expect(strategy.shouldCompact(80_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBe(0.75);
+    expect(strategy.shouldCompact(74_999)).toBe(false);
+    expect(strategy.shouldCompact(75_000)).toBe(true);
     expect(strategy.shouldBlock(91_999)).toBe(false);
     expect(strategy.shouldBlock(92_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
@@ -273,8 +284,8 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.shouldSpeculativelyCompact(79_999)).toBe(false);
-    expect(strategy.shouldSpeculativelyCompact(80_000)).toBe(true);
+    expect(strategy.shouldSpeculativelyCompact(74_999)).toBe(false);
+    expect(strategy.shouldSpeculativelyCompact(75_000)).toBe(true);
 
     const lateTrigger = new DefaultCompactionStrategy(() => 100_000, {
       ...DEFAULT_COMPACTION_CONFIG,
@@ -293,10 +304,10 @@ describe('DefaultCompactionStrategy', () => {
       reservedContextSize: 0,
     });
     strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
-    expect(strategy.effectiveTriggerRatio).toBe(0.8);
+    expect(strategy.effectiveTriggerRatio).toBe(0.75);
     strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.8);
-    expect(strategy.shouldCompact(78_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.75);
+    expect(strategy.shouldCompact(73_000)).toBe(true);
   });
 });
 
@@ -340,3 +351,228 @@ function textMessage(role: 'user' | 'assistant', text: string): Message {
     toolCalls: [],
   };
 }
+
+describe('ToolCollapseStrategy', () => {
+  it('defaults to keeping the last two tool-call groups', () => {
+    const strategy = new ToolCollapseStrategy();
+    // Construct history: 3 tool exchanges (user/asst+tool) so collapse can fire.
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'u0' }], toolCalls: [] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a0' }], toolCalls: [{ id: 'c0', name: 'Read', arguments: '{}' }] },
+      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r0' }], toolCallId: 'c0', toolCalls: [] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a1' }], toolCalls: [{ id: 'c1', name: 'Read', arguments: '{}' }] },
+      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r1' }], toolCallId: 'c1', toolCalls: [] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a2' }], toolCalls: [{ id: 'c2', name: 'Read', arguments: '{}' }] },
+      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r2' }], toolCallId: 'c2', toolCalls: [] },
+    ];
+    // With keep=2, the oldest exchange is collapsible → compact count ends after first tool group.
+    const count = strategy.computeCompactCount(messages as never, 'auto');
+    expect(count).toBeGreaterThan(0);
+    // keep=1 would collapse more aggressively (higher compact count or same).
+    const aggressive = new ToolCollapseStrategy(1).computeCompactCount(messages as never, 'auto');
+    expect(aggressive).toBeGreaterThanOrEqual(count);
+  });
+});
+
+describe('PipelineStrategy', () => {
+  it('treats secondary computeCompactCount 0 as no constraint', () => {
+    const trigger = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+      maxRecentMessages: 2,
+    });
+    const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
+    const messages = [
+      textMessage('user', 'u0'),
+      textMessage('assistant', 'a0'),
+      textMessage('user', 'u1'),
+      textMessage('assistant', 'a1'),
+      textMessage('user', 'u2'),
+    ];
+    const base = trigger.computeCompactCount(messages, 'auto');
+    const piped = pipeline.computeCompactCount(messages, 'auto');
+    expect(piped).toBe(base);
+    expect(piped).toBeGreaterThan(0);
+  });
+
+  it('can tighten compact count when ToolCollapse finds older tool groups', () => {
+    const trigger = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+      maxRecentMessages: 20,
+    });
+    const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'u0' }], toolCalls: [] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a0' }], toolCalls: [{ id: 'c0', name: 'Read', arguments: '{}' }] },
+      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r0' }], toolCallId: 'c0', toolCalls: [] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a1' }], toolCalls: [{ id: 'c1', name: 'Read', arguments: '{}' }] },
+      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r1' }], toolCallId: 'c1', toolCalls: [] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a2' }], toolCalls: [{ id: 'c2', name: 'Read', arguments: '{}' }] },
+      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r2' }], toolCallId: 'c2', toolCalls: [] },
+      textMessage('user', 'recent'),
+    ] as Message[];
+    const base = trigger.computeCompactCount(messages, 'auto');
+    const collapse = new ToolCollapseStrategy(2).computeCompactCount(messages, 'auto');
+    const piped = pipeline.computeCompactCount(messages, 'auto');
+    expect(collapse).toBeGreaterThan(0);
+    expect(piped).toBe(Math.min(base, collapse));
+  });
+});
+
+describe('PipelineStrategy quality controls', () => {
+  it('forwards applyQualityFeedback to the DefaultCompactionStrategy trigger', () => {
+    const trigger = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+    });
+    const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
+    const before = trigger.effectiveTriggerRatio;
+    expect(before).toBe(0.75);
+    const bias = pipeline.applyQualityFeedback({ usedEmergencyBackstop: true });
+    expect(bias).toBeGreaterThan(0);
+    expect(trigger.effectiveTriggerRatio).toBeLessThan(before);
+    expect(pipeline.speculativeStepBufferTokens).toBe(trigger.speculativeStepBufferTokens);
+  });
+});
+
+
+describe('full compaction pure policy', () => {
+  it('shouldSkipRecompactUntilGrowth requires min growth after a compact', () => {
+    expect(
+      shouldSkipRecompactUntilGrowth({
+        lastCompactedTokenCount: null,
+        tokenCountWithPending: 1000,
+        minGrowthRatio: 0.05,
+        maxContextTokens: 10_000,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldSkipRecompactUntilGrowth({
+        lastCompactedTokenCount: 1000,
+        tokenCountWithPending: 1000,
+        minGrowthRatio: 0.05,
+        maxContextTokens: 10_000,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldSkipRecompactUntilGrowth({
+        lastCompactedTokenCount: 1000,
+        tokenCountWithPending: 1200,
+        minGrowthRatio: 0.05,
+        maxContextTokens: 10_000,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldSkipRecompactUntilGrowth({
+        lastCompactedTokenCount: 1000,
+        tokenCountWithPending: 1600,
+        minGrowthRatio: 0.05,
+        maxContextTokens: 10_000,
+      }),
+    ).toBe(false);
+  });
+
+  it('shouldDeferAutoCompaction defers under swarm unless blocked', () => {
+    expect(
+      shouldDeferAutoCompaction({
+        ultraSwarmActive: true,
+        shouldBlock: false,
+        hasActiveForegroundChildren: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldDeferAutoCompaction({
+        ultraSwarmActive: true,
+        shouldBlock: true,
+        hasActiveForegroundChildren: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldDeferAutoCompaction({
+        ultraSwarmActive: false,
+        shouldBlock: false,
+        hasActiveForegroundChildren: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('handoffThresholdTokens and relaxObservedMaxContextTokens are pure', () => {
+    expect(handoffThresholdTokens({ maxTokens: undefined, triggerRatio: 0.75 })).toBeUndefined();
+    expect(handoffThresholdTokens({ maxTokens: 1000, triggerRatio: 0.75 })).toBe(750);
+    expect(
+      relaxObservedMaxContextTokens({
+        observed: 1000,
+        configured: 2000,
+        decayPerTurn: 0.25,
+      }),
+    ).toBe(1250);
+    expect(
+      relaxObservedMaxContextTokens({
+        observed: 2000,
+        configured: 2000,
+        decayPerTurn: 0.25,
+      }),
+    ).toBe(2000);
+  });
+
+  it('resolveEffectiveMaxContextTokens and overflow recovery thresholds', () => {
+    expect(resolveEffectiveMaxContextTokens({ configured: 1000, observed: undefined })).toBe(1000);
+    expect(resolveEffectiveMaxContextTokens({ configured: 1000, observed: 800 })).toBe(800);
+    expect(resolveEffectiveMaxContextTokens({ configured: 0, observed: 800 })).toBe(800);
+    expect(
+      shouldRecoverFromOverflowStatus({
+        isContextOverflowError: true,
+        isStatus413: false,
+        estimatedRequestTokens: 1,
+        maxContextTokens: 1000,
+        recoveryRatio: 0.9,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRecoverFromOverflowStatus({
+        isContextOverflowError: false,
+        isStatus413: true,
+        estimatedRequestTokens: 950,
+        maxContextTokens: 1000,
+        recoveryRatio: 0.9,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRecoverFromOverflowStatus({
+        isContextOverflowError: false,
+        isStatus413: true,
+        estimatedRequestTokens: 100,
+        maxContextTokens: 1000,
+        recoveryRatio: 0.9,
+      }),
+    ).toBe(false);
+  });
+
+  it('shouldUseParallelSummarize chooses parallel only for large prefixes', () => {
+    expect(
+      shouldUseParallelSummarize({
+        compactedTokens: 100,
+        messageCount: 10,
+        parallelThreshold: 1000,
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseParallelSummarize({
+        compactedTokens: 5000,
+        messageCount: 2,
+        parallelThreshold: 1000,
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseParallelSummarize({
+        compactedTokens: 5000,
+        messageCount: 8,
+        parallelThreshold: 1000,
+      }),
+    ).toBe(true);
+  });
+});

@@ -748,7 +748,7 @@ export class SessionReplayRenderer {
 
   private async autoResumeUltraworkIfNeeded(session: Session): Promise<void> {
     try {
-      await autoResumeUltraworkFromSession(this.host as SlashCommandHost, session);
+      await autoResumeUltraworkFromSession(this.host as unknown as SlashCommandHost, session);
     } catch {
       // Best-effort auto-resume only.
     }

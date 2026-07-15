@@ -20,7 +20,7 @@ describe('manual plan entry', () => {
 
   it('enters plan mode without starting a model turn and prepares the plan directory', async () => {
     const mkdir = vi.fn().mockResolvedValue(undefined);
-    const writeAtomic = vi.fn().mockResolvedValue(0);
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
     const ctx = testAgent({
       kaos: createFakeKaos({ mkdir, writeAtomic }),
     });
@@ -37,7 +37,7 @@ describe('manual plan entry', () => {
   });
 
   it('enters UltraPlan with the phase machine and template active', async () => {
-    const writeAtomic = vi.fn(async (_path: string, content: string) => content.length);
+    const writeAtomic = vi.fn(async (_path: string, content: string) => { void content; });
     const ctx = testAgent({
       kaos: createPlanKaos({ writeAtomic }),
     });
@@ -79,7 +79,7 @@ describe('manual plan entry', () => {
   it('derives the no-homedir plan path from cwd on enter and restore', async () => {
     const ctx = testAgent({
       kaos: createPlanKaos({
-        writeAtomic: vi.fn(async (_path: string, content: string) => content.length),
+        writeAtomic: vi.fn(async (_path: string, content: string) => { void content; }),
       }),
     });
     await ctx.agent.planMode.enter('stable-plan');
@@ -114,7 +114,7 @@ describe('manual plan entry', () => {
     };
     const ctx = testAgent({
       kaos: createPlanKaos({
-        writeAtomic: vi.fn(async (_path: string, content: string) => content.length),
+        writeAtomic: vi.fn(async (_path: string, content: string) => { void content; }),
       }),
     });
     ctx.configure({ tools: ['EnterPlanMode'] });
@@ -140,7 +140,7 @@ describe('plan clear', () => {
     const readText = vi.fn(async (path: string) => files.get(path) ?? '');
     const writeAtomic = vi.fn(async (path: string, content: string) => {
       files.set(path, content);
-      return content.length;
+      return undefined;
     });
 
     const ctx = testAgent({
@@ -373,7 +373,7 @@ describe('plan allows safe tool flow', () => {
       const readText = vi.fn(async (path: string) => files.get(path) ?? '');
       const writeAtomic = vi.fn(async (path: string, content: string) => {
         files.set(path, content);
-        return content.length;
+        return undefined;
       });
       const ctx = testAgent({
         kaos: createPlanKaos({ readText, writeAtomic }),
@@ -417,7 +417,7 @@ describe('plan allows safe tool flow', () => {
     const files = new Map<string, string>();
     const writeAtomic = vi.fn(async (path: string, content: string) => {
       files.set(path, content);
-      return content.length;
+      return undefined;
     });
     const ctx = testAgent({
       kaos: createPlanKaos({ writeAtomic }),
@@ -474,9 +474,9 @@ describe('plan allows safe tool flow', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Inspect without mutating files' }] });
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "yolo", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null, "contextOS": null, "microCompaction": null }
       [wire] plan_mode.enter             { "id": "test-plan", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null, "contextOS": null, "microCompaction": null }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Inspect without mutating files" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Inspect without mutating files" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
@@ -494,18 +494,18 @@ describe('plan allows safe tool flow', () => {
       [wire] context.append_loop_event   { "event": { "type": "tool.ack", "parentUuid": "call_bash", "toolCallId": "call_bash" }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "plan-safe" } }, "time": "<time>" }
       [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "plan-safe" }
-      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 509, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
-      [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 509, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
-      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 509, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 532, "maxContextTokens": 1000000, "contextUsage": 0.000532, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 509, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 509, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 509, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null }
+      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 487, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
+      [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 487, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
+      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 487, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 510, "maxContextTokens": 1000000, "contextUsage": 0.00051, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 487, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 487, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 487, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "The safe command printed plan-safe." }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-4>", "turnId": "0", "step": 2, "stepUuid": "<uuid-3>", "part": { "type": "text", "text": "The safe command printed plan-safe." } }, "time": "<time>" }
-      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 536, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
-      [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 536, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
-      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 536, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 548, "maxContextTokens": 1000000, "contextUsage": 0.000548, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 1045, "output": 35, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 1045, "output": 35, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 1045, "output": 35, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null }
+      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 514, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
+      [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 514, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
+      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 514, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 526, "maxContextTokens": 1000000, "contextUsage": 0.000526, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 1001, "output": 35, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 1001, "output": 35, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 1001, "output": 35, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null }
       [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
     `);
     await ctx.expectResumeMatches();
@@ -531,9 +531,9 @@ describe('plan mode Bash ordinary permission behavior', () => {
 
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "yolo", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null, "contextOS": null, "microCompaction": null }
       [wire] plan_mode.enter             { "id": "test-plan", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null, "contextOS": null, "microCompaction": null }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Remove forbidden.txt" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Remove forbidden.txt" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
@@ -551,18 +551,18 @@ describe('plan mode Bash ordinary permission behavior', () => {
       [wire] context.append_loop_event   { "event": { "type": "tool.ack", "parentUuid": "call_bash", "toolCallId": "call_bash" }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "removed" } }, "time": "<time>" }
       [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "removed" }
-      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 506, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
-      [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 506, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
-      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 506, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 529, "maxContextTokens": 1000000, "contextUsage": 0.000529, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 506, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 506, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 506, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null }
+      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 484, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
+      [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 484, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
+      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 484, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 507, "maxContextTokens": 1000000, "contextUsage": 0.000507, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 484, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 484, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 484, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "The command completed." }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-4>", "turnId": "0", "step": 2, "stepUuid": "<uuid-3>", "part": { "type": "text", "text": "The command completed." } }, "time": "<time>" }
-      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 532, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
-      [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 532, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
-      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 532, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 541, "maxContextTokens": 1000000, "contextUsage": 0.000541, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 1038, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 1038, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 1038, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null }
+      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 510, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
+      [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 510, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
+      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 510, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 519, "maxContextTokens": 1000000, "contextUsage": 0.000519, "planMode": true, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 994, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 994, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 994, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null }
       [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
     `);
     expect(toolResultText(ctx.agent.context.history)).toContain('removed');

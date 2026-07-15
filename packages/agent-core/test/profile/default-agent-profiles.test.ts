@@ -23,6 +23,9 @@ describe('default agent profiles', () => {
 
     expect(prompt).toContain('You are SuperLiora CLI');
     expect(prompt).toContain('/workspace');
+    // Shared system prompt is on every turn for every profile — keep static bulk bounded.
+    // Dynamic cwd listing / AGENTS.md body are excluded from this size check via context stubs.
+    expect(prompt!.length).toBeLessThan(16_000);
   });
 
   it('keeps static instructions before dynamic prompt context', () => {
@@ -36,10 +39,26 @@ describe('default agent profiles', () => {
     );
   });
 
-  it('lists the goal tools on the full profile but not on subagent profiles', () => {
+  it('lists goal tools on the main agent and full profile, not on subagent profiles', () => {
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    const mainTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(fullTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal', 'GetCurrentTime']));
-    for (const name of ['agent', 'coder', 'explore', 'plan']) {
+    expect(mainTools).toEqual(
+      expect.arrayContaining([
+        'CreateGoal',
+        'GetGoal',
+        'SetGoalBudget',
+        'UpdateGoal',
+        'TodoList',
+        'UltraworkGraph',
+        'EnterPlanMode',
+        'ExitPlanMode',
+        'Skill',
+        'SearchSkill',
+        'Agent',
+      ]),
+    );
+    for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).not.toContain('CreateGoal');
       expect(tools).not.toContain('GetGoal');

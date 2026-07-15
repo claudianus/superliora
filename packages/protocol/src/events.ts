@@ -348,6 +348,23 @@ export interface McpOAuthAuthorizationUrlUpdateData {
 
 export type TurnEndReason = 'completed' | 'cancelled' | 'failed' | 'filtered';
 
+export interface AgentStatusContextOS {
+  readonly pageCount: number;
+  readonly readyPageCount: number;
+  readonly needsRehydrationPageCount: number;
+  readonly atRiskPageCount: number;
+  readonly missingEvidencePageCount: number;
+  readonly evidenceIdRecallScore: number;
+  readonly latestContinuityStatus: string;
+}
+
+export interface AgentStatusMicroCompaction {
+  readonly total: number;
+  readonly lastTrigger: string | null;
+  readonly lastContextUsageRatio: number | null;
+  readonly byTrigger: Readonly<Record<string, number>>;
+}
+
 export interface AgentStatusUpdatedEvent {
   readonly type: 'agent.status.updated';
   readonly model?: string;
@@ -360,6 +377,10 @@ export interface AgentStatusUpdatedEvent {
   readonly permission?: PermissionMode;
   readonly usage?: UsageStatus;
   readonly providerRoute?: ProviderRouteStatus | null;
+  /** Present when Context OS has compacted pages; null clears prior badge. */
+  readonly contextOS?: AgentStatusContextOS | null;
+  /** Present when micro-compaction has fired; null clears prior badge. */
+  readonly microCompaction?: AgentStatusMicroCompaction | null;
 }
 
 export interface SessionMetaUpdatedEvent {
@@ -1174,6 +1195,23 @@ export const mcpOAuthAuthorizationUrlUpdateDataSchema = z.object({
 
 export const turnEndReasonSchema = z.enum(['completed', 'cancelled', 'failed', 'filtered']) satisfies z.ZodType<TurnEndReason>;
 
+export const agentStatusContextOSSchema = z.object({
+  pageCount: z.number().int().nonnegative(),
+  readyPageCount: z.number().int().nonnegative(),
+  needsRehydrationPageCount: z.number().int().nonnegative(),
+  atRiskPageCount: z.number().int().nonnegative(),
+  missingEvidencePageCount: z.number().int().nonnegative(),
+  evidenceIdRecallScore: z.number().min(0).max(1),
+  latestContinuityStatus: z.string(),
+});
+
+export const agentStatusMicroCompactionSchema = z.object({
+  total: z.number().int().nonnegative(),
+  lastTrigger: z.string().nullable(),
+  lastContextUsageRatio: z.number().min(0).max(1).nullable(),
+  byTrigger: z.record(z.string(), z.number().int().nonnegative()),
+});
+
 export const agentStatusUpdatedEventSchema = z.object({
   type: z.literal('agent.status.updated'),
   model: z.string().optional(),
@@ -1186,6 +1224,8 @@ export const agentStatusUpdatedEventSchema = z.object({
   permission: permissionModeSchema.optional(),
   usage: usageStatusSchema.optional(),
   providerRoute: providerRouteStatusSchema.nullable().optional(),
+  contextOS: agentStatusContextOSSchema.nullable().optional(),
+  microCompaction: agentStatusMicroCompactionSchema.nullable().optional(),
 }) satisfies z.ZodType<AgentStatusUpdatedEvent>;
 
 export const sessionMetaUpdatedEventSchema = z.object({

@@ -64,8 +64,8 @@
   "devDependencies": {
     "@superliora/agent-core": "workspace:^",
     "@superliora/kaos": "workspace:^",
-    "@superliora/oauth": "workspace:^",
     "@superliora/kosong": "workspace:^",
+    "@superliora/oauth": "workspace:^",
     "@types/yazl": "^2.4.6"
   }
 }

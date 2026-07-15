@@ -49,7 +49,7 @@ export function initializeCliTelemetry(options: InitializeCliTelemetryOptions): 
   initializeTelemetry({
     homeDir: options.harness.homeDir,
     deviceId: options.bootstrap.deviceId,
-    enabled: options.config.telemetry !== false,
+    enabled: options.config.telemetry === true,
     appName: CLI_USER_AGENT_PRODUCT,
     version: options.version,
     uiMode: options.uiMode,
@@ -97,7 +97,7 @@ export function initializeServerTelemetry(
   initializeTelemetry({
     homeDir: bootstrap.homeDir,
     deviceId: bootstrap.deviceId,
-    enabled: config.telemetry !== false,
+    enabled: config.telemetry === true,
     appName: CLI_USER_AGENT_PRODUCT,
     version: options.version,
     uiMode: SERVER_UI_MODE,
@@ -118,8 +118,8 @@ function readServerTelemetryConfig(
   try {
     const { config, fileError } = loadRuntimeConfigSafe(configPath);
     // A broken config fails the server on its own inside LioraCore; for
-    // telemetry just degrade to "enabled, no model" so we never block startup.
-    if (fileError !== undefined) return {};
+    // telemetry degrade to OFF so we never enable product analytics by default.
+    if (fileError !== undefined) return { telemetry: false };
     return config;
   } catch {
     return {};

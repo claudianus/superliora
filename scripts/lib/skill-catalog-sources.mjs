@@ -150,7 +150,7 @@ const SOURCE_CONFIGS = [
 ];
 
 export async function buildSkillCatalog(outDir, options = {}) {
-  const includeExternal = options.includeExternal === true;
+  const _includeExternal = options.includeExternal === true;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
@@ -231,7 +231,79 @@ export async function buildSkillCatalog(outDir, options = {}) {
 // Do not edit manually.
 export const SKILL_CATALOG_SOURCE_COUNTS = ${JSON.stringify(manifest.counts, null, 2)} as const;
 `;
+  
   await writeFile(join(dirname(outDir), 'catalog-manifest.generated.ts'), ts, 'utf8');
+  await writeCatalogSearchIndex(outDir);
 
   return manifest;
+}
+
+
+async function writeCatalogSearchIndex(outDir) {
+  const { createHash } = await import('node:crypto');
+  const { load } = await import('js-yaml');
+  const entries = await readdir(outDir, { withFileTypes: true });
+  const skills = [];
+  let failed = 0;
+  for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory()) continue;
+    const skillMd = join(outDir, entry.name, 'SKILL.md');
+    try {
+      const text = await readFile(skillMd, 'utf8');
+      const parsed = parseFrontmatterLocal(text, load);
+      const data = parsed.data && typeof parsed.data === 'object' ? parsed.data : {};
+      const name = typeof data.name === 'string' && data.name.trim() ? data.name.trim() : entry.name;
+      const description =
+        typeof data.description === 'string' ? data.description.trim() : '';
+      const contentHash = createHash('sha256').update(parsed.body).digest('hex');
+      skills.push({
+        relDir: entry.name,
+        name,
+        description,
+        type: typeof data.type === 'string' ? data.type : undefined,
+        whenToUse:
+          typeof data.whenToUse === 'string'
+            ? data.whenToUse
+            : typeof data['when-to-use'] === 'string'
+              ? data['when-to-use']
+              : undefined,
+        disableModelInvocation:
+          data.disableModelInvocation === true || data['disable-model-invocation'] === true
+            ? true
+            : undefined,
+        isSubSkill: data.isSubSkill === true || data['is-sub-skill'] === true ? true : undefined,
+        category: typeof data.category === 'string' ? data.category : undefined,
+        risk: typeof data.risk === 'string' ? data.risk : undefined,
+        catalogSource: typeof data.catalogSource === 'string' ? data.catalogSource : undefined,
+        catalogId: typeof data.catalogId === 'string' ? data.catalogId : undefined,
+        contentHash,
+      });
+    } catch {
+      failed += 1;
+    }
+  }
+  const payload = {
+    version: 2,
+    generatedAt: new Date().toISOString(),
+    skillCount: skills.length,
+    failed,
+    skills,
+  };
+  const outPath = join(dirname(outDir), 'catalog-search-index.json');
+  await writeFile(outPath, JSON.stringify(payload), 'utf8');
+  console.log(`Wrote ${outPath} (${skills.length} skills, ${failed} failed)`);
+}
+
+function parseFrontmatterLocal(text, loadYaml) {
+  const lines = text.split(/\r?\n/);
+  if (lines[0]?.trim() !== '---') return { data: null, body: text };
+  const close = lines.findIndex((line, index) => index > 0 && line.trim() === '---');
+  if (close === -1) return { data: null, body: text };
+  const yamlText = lines.slice(1, close).join('\n').trim();
+  const body = lines.slice(close + 1).join('\n');
+  try {
+    return { data: yamlText ? loadYaml(yamlText) : {}, body };
+  } catch {
+    return { data: {}, body };
+  }
 }

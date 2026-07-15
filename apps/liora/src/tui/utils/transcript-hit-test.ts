@@ -11,7 +11,7 @@ import type { TUIState } from '../tui-state';
 import {
   plainTextFromRegionLine,
   type TranscriptSelectionPoint,
-} from './transcript-selection';
+} from './transcript-selection-model';
 
 export interface TranscriptHitTestContext {
   readonly rect: RendererRect;

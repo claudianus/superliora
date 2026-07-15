@@ -40,7 +40,7 @@ describe('UsagePanelComponent', () => {
     }).map(strip);
 
     expect(lines).toContain('Session usage');
-    expect(lines).toContain('  kimi  input 2.0k  output 250  total 2.3k');
+    expect(lines).toContain('  kimi  input 2.0K  output 250  total 2.3K');
     expect(lines).toContain('  kimi cache  read 500  write 500  share 50%');
     expect(lines).toContain('Cache efficiency');
     expect(lines.join('\n')).toContain('50% cached input');
@@ -49,7 +49,7 @@ describe('UsagePanelComponent', () => {
     expect(lines.join('\n')).toMatch(/Next\s+Continue; cache is ready for long work\./);
     expect(lines).toContain('Context window');
     expect(lines.join('\n')).toContain('25.0%');
-    expect(lines.join('\n')).toMatch(/Remaining\s+7\.5k tokens/);
+    expect(lines.join('\n')).toMatch(/Remaining\s+7\.5K tokens/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; plenty of room for long work\./);
     expect(lines).toContain('Plan usage');
     expect(lines.join('\n')).toContain('20% used');
@@ -73,7 +73,7 @@ describe('UsagePanelComponent', () => {
     expect(lines.join('\n')).toMatch(/Read\s+0 tokens/);
     expect(lines.join('\n')).toMatch(/Write\s+0 tokens/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; cache warms after repeated context\./);
-    expect(lines.join('\n')).toMatch(/Remaining\s+10\.0k tokens/);
+    expect(lines.join('\n')).toMatch(/Remaining\s+10\.0K tokens/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; plenty of room for long work\./);
   });
 
@@ -86,7 +86,7 @@ describe('UsagePanelComponent', () => {
     }).map(strip);
 
     expect(lines.join('\n')).toContain('90.0%');
-    expect(lines.join('\n')).toMatch(/Remaining\s+1\.0k tokens/);
+    expect(lines.join('\n')).toMatch(/Remaining\s+1\.0K tokens/);
     expect(lines.join('\n')).toMatch(/Next\s+Run \/compact before long work\./);
   });
 
@@ -111,7 +111,7 @@ describe('UsagePanelComponent', () => {
   });
 
   it('keeps the bordered panel within narrow terminal widths', () => {
-    const component = new UsagePanelComponent(() => ['Session usage', '  kimi  input 2.0k'], 'primary');
+    const component = new UsagePanelComponent(() => ['Session usage', '  kimi  input 2.0K'], 'primary');
 
     for (const width of [39, 24, 20, 10, 4, 1]) {
       for (const line of component.render(width)) {

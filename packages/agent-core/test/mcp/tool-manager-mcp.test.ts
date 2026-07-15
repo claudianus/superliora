@@ -655,14 +655,13 @@ describe('ToolManager MCP integration', () => {
 
   it('injects server instructions into agent context when getInstructions is present', async () => {
     const reminders: string[] = [];
-    const agent = {
-      ...fakeAgent(),
+    const agent = Object.assign(fakeAgent(), {
       context: {
         appendSystemReminder(content: string) {
           reminders.push(content);
         },
       },
-    } as unknown as Agent;
+    }) as unknown as Agent;
     const tm = new ToolManager(agent);
     const client: MCPClient = {
       ...fakeClient(),
@@ -677,14 +676,13 @@ describe('ToolManager MCP integration', () => {
 
   it('does not inject when the server provides no instructions', async () => {
     const reminders: string[] = [];
-    const agent = {
-      ...fakeAgent(),
+    const agent = Object.assign(fakeAgent(), {
       context: {
         appendSystemReminder(content: string) {
           reminders.push(content);
         },
       },
-    } as unknown as Agent;
+    }) as unknown as Agent;
     const tm = new ToolManager(agent);
     // fakeClient() has no getInstructions — treated as undefined.
     const client = fakeClient();

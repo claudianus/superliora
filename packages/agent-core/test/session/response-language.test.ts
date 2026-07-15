@@ -183,6 +183,8 @@ describe('response language preference', () => {
     expect(directive).toContain('AskUserQuestion');
     expect(directive).toContain('plan files');
     expect(directive).not.toContain('한국어 강제');
+    // Re-injected every few assistant turns — keep the lock compact.
+    expect(directive.length).toBeLessThan(800);
   });
 
   it('updates main-agent steer metadata when the LLM reports an explicit override', async () => {

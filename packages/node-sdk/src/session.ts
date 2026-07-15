@@ -2,6 +2,7 @@ import {
   ErrorCodes,
   LioraError,
   type AgentContextData,
+  type ContextOSRetrievalDiagnostics,
   type LioraErrorCode,
   type SwarmModeTrigger,
   type TurnCancelSource,
@@ -310,6 +311,14 @@ export class Session {
   async getContext(): Promise<AgentContextData> {
     this.ensureOpen();
     return this.rpc.getContext({ sessionId: this.id });
+  }
+
+  async diagnoseContextOS(
+    query = '',
+    limit?: number,
+  ): Promise<ContextOSRetrievalDiagnostics> {
+    this.ensureOpen();
+    return this.rpc.diagnoseContextOS({ sessionId: this.id, query, limit });
   }
 
   async getSessionTrace(): Promise<SessionTrace> {

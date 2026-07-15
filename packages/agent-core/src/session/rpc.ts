@@ -16,13 +16,12 @@ import type {
   CreateUltraworkRunPayload,
   DetachBackgroundPayload,
   EmptyPayload,
+  DiagnoseContextOSPayload,
   EnterPlanPayload,
   EnterSwarmPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
   PauseUltraworkPayload,
-  ResumeUltraworkPayloadResult,
-  UltraworkRunSnapshot,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
@@ -318,6 +317,13 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async getContext({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).getContext(payload);
+  }
+
+  async diagnoseContextOS({
+    agentId,
+    ...payload
+  }: AgentScopedPayload<DiagnoseContextOSPayload>) {
+    return (await this.getAgent(agentId)).diagnoseContextOS(payload);
   }
 
   async getSessionTrace({ agentId }: AgentScopedPayload<EmptyPayload>) {

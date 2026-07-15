@@ -76,6 +76,9 @@ importers:
       '@superliora/oauth':
         specifier: workspace:^
         version: link:../../packages/oauth
+      '@superliora/protocol':
+        specifier: workspace:^
+        version: link:../../packages/protocol
       '@superliora/sdk':
         specifier: workspace:^
         version: link:../../packages/node-sdk

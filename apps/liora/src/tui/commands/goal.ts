@@ -29,11 +29,10 @@ import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './dispatch';
 import { buildUltraworkPrompt } from './ultrawork-contract';
 import {
-  captureUltraworkSnapshot,
-  prepareUltraworkSession,
-  resetUltraPlanMode,
-  rollbackUltraworkSession,
-  type UltraworkSessionSnapshot,
+  captureUltraworkTuiSetup,
+  prepareUltraworkTuiSetup,
+  rollbackUltraworkTuiSetup,
+  type UltraworkTuiSetupState,
 } from './ultrawork-lifecycle';
 
 const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
@@ -65,13 +64,6 @@ type GoalCommandHost = Pick<
 export interface GoalStartOptions {
   readonly beforeSend?: () => boolean | Promise<boolean>;
   readonly sendInput?: (objective: string) => void;
-}
-
-interface GoalUltraworkSetupState extends UltraworkSessionSnapshot {
-  /** Prior `swarmModeEntry` so rollback can restore the TUI-only value. */
-  readonly previousSwarmModeEntry: 'manual' | 'task' | undefined;
-  /** Prior `ultraworkMode` so rollback restores it instead of forcing off. */
-  readonly ultraworkModeWasEnabled: boolean;
 }
 
 export type ParsedGoalCommand =
@@ -417,9 +409,15 @@ async function startGoal(
   parsed: Extract<ParsedGoalCommand, { kind: 'create' }>,
   options: GoalStartOptions,
 ): Promise<boolean> {
-  let setup: GoalUltraworkSetupState;
+  let setup: UltraworkTuiSetupState;
   try {
-    setup = await prepareGoalUltraworkSetup(host, parsed.objective);
+    setup = captureUltraworkTuiSetup(host);
+    await prepareUltraworkTuiSetup(host, setup, parsed.objective, {
+      preservePlan: true,
+      activityTip: GOAL_ULTRAWORK_ACTIVITY_TIP,
+      // Goal path historically did not stash ultraworkPriorState; keep that.
+      recordPriorState: false,
+    });
   } catch (error) {
     host.showError(`Failed to start goal workflow: ${formatErrorMessage(error)}`);
     return false;
@@ -431,7 +429,7 @@ async function startGoal(
       replace: parsed.replace,
     });
   } catch (error) {
-    await rollbackGoalUltraworkSetup(host, setup);
+    await rollbackUltraworkTuiSetup(host, setup);
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_ALREADY_EXISTS) {
       host.showError(
         'A goal is already active. Use `/goal replace <objective>` to replace it, or `/goal status` to inspect it.',
@@ -457,58 +455,6 @@ async function startGoal(
     );
   }
   return true;
-}
-
-async function prepareGoalUltraworkSetup(
-  host: GoalCommandHost,
-  initialContext = '',
-): Promise<GoalUltraworkSetupState> {
-  const setup: GoalUltraworkSetupState = {
-    ...captureUltraworkSnapshot(
-      host.state.appState.planMode === true,
-      host.state.appState.swarmMode === true,
-      host.state.appState.premiumQualityMode ?? false,
-    ),
-    previousSwarmModeEntry: host.state.swarmModeEntry,
-    ultraworkModeWasEnabled: host.state.appState.ultraworkMode === true,
-  };
-  try {
-    const session = host.requireSession();
-    await prepareUltraworkSession(session, setup, initialContext, { preservePlan: true });
-    host.setAppState({
-      planMode: true,
-      ultraworkMode: true,
-      premiumQualityMode: true,
-      ...(setup.swarmEnabled ? { swarmMode: true } : {}),
-      activityTip: GOAL_ULTRAWORK_ACTIVITY_TIP,
-    });
-    if (setup.swarmEnabled) {
-      host.state.swarmModeEntry = 'ultrawork';
-    }
-  } catch (error) {
-    await rollbackGoalUltraworkSetup(host, setup);
-    throw error;
-  }
-  return setup;
-}
-
-async function rollbackGoalUltraworkSetup(
-  host: GoalCommandHost,
-  setup: GoalUltraworkSetupState,
-): Promise<void> {
-  const session = host.requireSession();
-  await rollbackUltraworkSession(session, setup);
-  host.setAppState({
-    planMode: setup.planModeWasEnabled,
-    ultraworkMode: setup.ultraworkModeWasEnabled,
-    ...(setup.swarmEnabled ? { swarmMode: setup.swarmModeWasEnabled } : {}),
-    ...(setup.premiumQualityChanged
-      ? { premiumQualityMode: setup.premiumQualityWasEnabled }
-      : {}),
-  });
-  if (setup.swarmEnabled) {
-    host.state.swarmModeEntry = setup.previousSwarmModeEntry;
-  }
 }
 
 async function pauseGoal(host: SlashCommandHost): Promise<void> {

@@ -1,7 +1,39 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UltraworkRun } from '#/types';
-import { ensureUltraworkResumeSetup, tryAutoResumeUltrawork } from '#/ultrawork-auto-resume';
+import {
+  ensureUltraworkResumeSetup,
+  tryAutoResumeUltrawork,
+  type UltraworkAutoResumeSession,
+} from '#/ultrawork-auto-resume';
+
+function sampleStatus(overrides: { swarmMode?: boolean; planMode?: boolean } = {}) {
+  return {
+    thinkingLevel: 'off',
+    permission: 'manual' as const,
+    planMode: overrides.planMode ?? false,
+    swarmMode: overrides.swarmMode ?? true,
+    contextTokens: 0,
+    maxContextTokens: 1000,
+    contextUsage: 0,
+  };
+}
+
+function sampleResume(run: UltraworkRun = sampleRun()) {
+  return {
+    run,
+    report: {
+      run,
+      interruptReason: 'test',
+      orphanedWorkNodes: [],
+      orphanedExperts: [],
+      lostBackgroundTasks: [],
+      nextActions: [],
+    },
+    goalResumed: false,
+    recoveryPrompt: 'resume',
+  };
+}
 
 function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
   return {
@@ -27,14 +59,11 @@ describe('ultrawork auto resume', () => {
     const setPlanMode = vi.fn(async () => {});
     const session = {
       getUltraworkRun: vi.fn(async () => sampleRun()),
-      resumeUltrawork: vi.fn(async () => ({ run: sampleRun(), recoveryPrompt: 'resume' })),
-      getStatus: vi.fn(async () => ({
-        swarmMode: true,
-        planMode: true,
-      })),
+      resumeUltrawork: vi.fn(async () => sampleResume()),
+      getStatus: vi.fn(async () => sampleStatus({ swarmMode: true, planMode: true })),
       setSwarmMode: vi.fn(async () => {}),
       setPlanMode,
-    };
+    } as unknown as UltraworkAutoResumeSession;
 
     const changed = await ensureUltraworkResumeSetup(session, sampleRun());
     expect(changed).toBe(true);
@@ -45,14 +74,11 @@ describe('ultrawork auto resume', () => {
     const setPlanMode = vi.fn(async () => {});
     const session = {
       getUltraworkRun: vi.fn(async () => sampleRun()),
-      resumeUltrawork: vi.fn(async () => ({ run: sampleRun(), recoveryPrompt: 'resume' })),
-      getStatus: vi.fn(async () => ({
-        swarmMode: true,
-        planMode: false,
-      })),
+      resumeUltrawork: vi.fn(async () => sampleResume()),
+      getStatus: vi.fn(async () => sampleStatus({ swarmMode: true, planMode: false })),
       setSwarmMode: vi.fn(async () => {}),
       setPlanMode,
-    };
+    } as unknown as UltraworkAutoResumeSession;
 
     const changed = await ensureUltraworkResumeSetup(session, sampleRun());
     expect(changed).toBe(false);
@@ -63,14 +89,11 @@ describe('ultrawork auto resume', () => {
     const setPlanMode = vi.fn(async () => {});
     const session = {
       getUltraworkRun: vi.fn(async () => sampleRun({ stage: 'plan', teamPlan: undefined })),
-      resumeUltrawork: vi.fn(async () => ({ run: sampleRun({ stage: 'plan' }), recoveryPrompt: 'resume' })),
-      getStatus: vi.fn(async () => ({
-        swarmMode: false,
-        planMode: false,
-      })),
+      resumeUltrawork: vi.fn(async () => sampleResume(sampleRun({ stage: 'plan' }))),
+      getStatus: vi.fn(async () => sampleStatus({ swarmMode: false, planMode: false })),
       setSwarmMode: vi.fn(async () => {}),
       setPlanMode,
-    };
+    } as unknown as UltraworkAutoResumeSession;
 
     const changed = await ensureUltraworkResumeSetup(session, sampleRun({ stage: 'plan', teamPlan: undefined }));
     expect(changed).toBe(true);
@@ -78,17 +101,14 @@ describe('ultrawork auto resume', () => {
   });
 
   it('auto-resumes blocked runs', async () => {
-    const resumed = { run: sampleRun(), recoveryPrompt: 'resume' };
+    const resumed = sampleResume();
     const session = {
       getUltraworkRun: vi.fn(async () => sampleRun()),
       resumeUltrawork: vi.fn(async () => resumed),
-      getStatus: vi.fn(async () => ({
-        swarmMode: true,
-        planMode: false,
-      })),
+      getStatus: vi.fn(async () => sampleStatus({ swarmMode: true, planMode: false })),
       setSwarmMode: vi.fn(async () => {}),
       setPlanMode: vi.fn(async () => {}),
-    };
+    } as unknown as UltraworkAutoResumeSession;
 
     const result = await tryAutoResumeUltrawork(session);
     expect(result?.resumed).toBe(resumed);

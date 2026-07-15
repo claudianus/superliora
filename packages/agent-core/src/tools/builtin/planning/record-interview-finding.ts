@@ -31,13 +31,13 @@ export class RecordInterviewFindingTool implements BuiltinTool<RecordInterviewFi
   readonly name = 'RecordInterviewFinding' as const;
   readonly description = `Record a factual finding that answers an interview question WITHOUT asking the user.
 
-Use this when the codebase, config, or external research already answers the question:
-- PATH 1 (code): package versions, framework choices, existing patterns, file structure — read the code and record the finding with origin "code".
-- PATH 3 (research): API compatibility, pricing, version support — research first, then record with origin "research".
+Use when codebase/config or external research already answers the question:
+- PATH 1 (code): versions, framework choices, patterns, structure — origin "code"
+- PATH 3 (research): API compatibility, pricing, version support — research first, origin "research"
 
-Do NOT use this for human decisions (goals, acceptance criteria, trade-offs, visual/scope preferences). Those require AskUserQuestion.
+Do NOT use for human decisions (goals, acceptance criteria, trade-offs, visual/scope preferences) — use AskUserQuestion.
 
-The Dialectic Rhythm Guard limits consecutive non-user findings — after 3 in a row, you MUST use AskUserQuestion next.`;
+Rhythm Guard: after 3 consecutive non-user findings, you MUST AskUserQuestion next.`;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(RecordInterviewFindingInputSchema);
 
   constructor(private readonly agent: Agent) {}

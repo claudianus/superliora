@@ -9,22 +9,29 @@ import type {
 import type { Agent } from '../agent';
 import type { AgentRecordOf } from '../agent/records';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
-import { ensureWorkGraphForResume } from './recovery';
 import { checkpointUltraworkRun } from './run-store';
 import {
   UltraworkRunStateMachine,
   type UltraworkRunUpdate,
 } from './state';
 import { maybeSyncUltraworkStageFromWorkGraph } from './stage-progress';
+import {
+  applyUltraworkResumeSkipInterview,
+  buildUltraworkRecoveryPrompt,
+  buildUltraworkRecoveryReport,
+  buildUltraworkResumeCursor,
+  capturePlanRecoveryContextFromAgent,
+  ensureWorkGraphForResume,
+  reconcileUltraworkRunForResume,
+  releaseUltraworkPlanModeIfComplete,
+} from './recovery';
 import type {
   CreateUltraworkRunInput,
   MarkUltraworkInterruptedInput,
   PauseUltraworkInput,
   ResumeUltraworkResult,
   UltraworkActivation,
-  UltraworkPlanRecoveryContext,
 } from './types';
-import { buildUltraworkRecoveryReport, reconcileUltraworkRunForResume, buildUltraworkRecoveryPrompt, buildUltraworkResumeCursor, releaseUltraworkPlanModeIfComplete, applyUltraworkResumeSkipInterview } from './recovery';
 import { reconcileUltraworkFromMirror } from './mirror-reconcile';
 import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport, ensureUltraworkWorkflowArtifacts } from './workflow-report';
 
@@ -214,7 +221,7 @@ export class UltraworkMode {
     let run = machine.snapshot();
     if (run.status === 'done' || run.status === 'failed') return null;
 
-    let planContext = this.capturePlanRecoveryContext();
+    let planContext = capturePlanRecoveryContextFromAgent(this.agent);
     const seededGraph = await ensureWorkGraphForResume(
       this.agent,
       run,
@@ -377,7 +384,7 @@ export class UltraworkMode {
     if (this.machine === undefined) return;
     this.syncWorkGraphFromStore();
     const run = this.machine.snapshot();
-    const planCheckpoint = this.capturePlanRecoveryContext();
+    const planCheckpoint = capturePlanRecoveryContextFromAgent(this.agent);
     // Capture the durable journal append-offset so resume can use it as the
     // primary authority for mirror-vs-journal precedence (Phase 6): a mirror
     // whose offset lags the replayed journal is stale, regardless of timestamp.
@@ -392,18 +399,6 @@ export class UltraworkMode {
     if (options.flush) {
       void this.agent.records.flush();
     }
-  }
-
-  private capturePlanRecoveryContext(): UltraworkPlanRecoveryContext | undefined {
-    const planMode = this.agent.planMode;
-    if (!planMode.isActive || !planMode.isUltraMode) return undefined;
-    const checkpoint = planMode.captureStateCheckpoint();
-    return {
-      planFilePath: planMode.planFilePath ?? undefined,
-      phase: planMode.phase,
-      interviewRoundCount: planMode.interviewRoundCount,
-      ultraPlan: checkpoint?.ultraPlan,
-    };
   }
 
   private scheduleCheckpoint(options: { flush?: boolean } = {}): void {

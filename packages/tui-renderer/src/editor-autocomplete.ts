@@ -116,7 +116,7 @@ export class RendererEditorAutocompleteController {
       return new Promise<void>((resolve) => {
         this.debounceTimer = setTimeout(() => {
           this.debounceTimer = undefined;
-          this.executeRequest(source, provider, options).finally(resolve);
+          void this.executeRequest(source, provider, options).finally(resolve);
         }, this.debounceMs);
       });
     }
@@ -171,19 +171,34 @@ export class RendererEditorAutocompleteController {
     source: RendererEditorAutocompleteSource,
   ): RendererEditorAutocompleteInputResult {
     if (matchesKey(data, Key.up)) {
-      return this.handleNativeInput({ type: 'key', key: 'up', raw: data, eventType: 'press' }, source);
+      return this.handleNativeInput(
+        { type: 'key', key: 'up', raw: data, eventType: 'press', ctrl: false, alt: false, shift: false },
+        source,
+      );
     }
     if (matchesKey(data, Key.down)) {
-      return this.handleNativeInput({ type: 'key', key: 'down', raw: data, eventType: 'press' }, source);
+      return this.handleNativeInput(
+        { type: 'key', key: 'down', raw: data, eventType: 'press', ctrl: false, alt: false, shift: false },
+        source,
+      );
     }
     if (matchesKey(data, Key.tab)) {
-      return this.handleNativeInput({ type: 'key', key: 'tab', raw: data, eventType: 'press' }, source);
+      return this.handleNativeInput(
+        { type: 'key', key: 'tab', raw: data, eventType: 'press', ctrl: false, alt: false, shift: false },
+        source,
+      );
     }
     if (matchesKey(data, Key.enter)) {
-      return this.handleNativeInput({ type: 'key', key: 'enter', raw: data, eventType: 'press' }, source);
+      return this.handleNativeInput(
+        { type: 'key', key: 'enter', raw: data, eventType: 'press', ctrl: false, alt: false, shift: false },
+        source,
+      );
     }
     if (matchesKey(data, Key.escape)) {
-      return this.handleNativeInput({ type: 'key', key: 'escape', raw: data, eventType: 'press' }, source);
+      return this.handleNativeInput(
+        { type: 'key', key: 'escape', raw: data, eventType: 'press', ctrl: false, alt: false, shift: false },
+        source,
+      );
     }
     return { handled: false };
   }

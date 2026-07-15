@@ -150,12 +150,18 @@ describe('RendererEditorAutocompleteController', () => {
       key: 'down',
       raw: '\u001B[B',
       eventType: 'press',
+      ctrl: false,
+      alt: false,
+      shift: false,
     }, source).handled).toBe(true);
     expect(controller.handleNativeInput({
       type: 'key',
       key: 'enter',
       raw: '\r',
       eventType: 'press',
+      ctrl: false,
+      alt: false,
+      shift: false,
     }, source)).toMatchObject({
       handled: true,
       completion: {

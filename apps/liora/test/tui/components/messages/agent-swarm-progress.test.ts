@@ -1067,8 +1067,10 @@ describe('AgentSwarmProgressComponent', () => {
 
     const output = renderText(component);
 
-    expect(output).toContain('001 src/a.ts');
+    // Running agents sort first (002 started), then pending item rows (001).
     expect(output).toContain('002 [');
+    expect(output).toContain('src/b.ts');
+    expect(output).toContain('001 src/a.ts');
     expect(output).not.toContain('123 [');
   });
 

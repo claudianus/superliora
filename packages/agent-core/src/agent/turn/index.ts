@@ -34,7 +34,7 @@ import {
   type LoopTurnStopReason,
   type RecordStepUsageInfo,
 } from '../../loop/index';
-import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc';
+import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import type { TurnCancelSource } from '../../rpc/core-api';
 import { abortable, isUserCancellation, userCancellationReason } from '../../utils/abort';
@@ -77,8 +77,14 @@ const LLM_NOT_SET_MESSAGE = 'LLM not set, run /login or /provider to connect a m
 
 /** Origin tag for the synthetic "continue" prompt that drives each goal turn. */
 const GOAL_CONTINUATION_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'goal_continuation' };
-export const GOAL_COMPLETION_REMINDER_NAME = 'goal_completion';
-export const GOAL_BLOCKED_REMINDER_NAME = 'goal_blocked';
+import {
+  GOAL_BLOCKED_REMINDER_NAME,
+  GOAL_COMPLETION_REMINDER_NAME,
+} from './reminder-names';
+export {
+  GOAL_BLOCKED_REMINDER_NAME,
+  GOAL_COMPLETION_REMINDER_NAME,
+};
 const GOAL_RATE_LIMIT_PAUSE_REASON = 'Paused after provider rate limit';
 const GOAL_PROVIDER_CONNECTION_PAUSE_PREFIX = 'Paused after provider connection error';
 const GOAL_PROVIDER_AUTH_PAUSE_PREFIX = 'Paused after provider authentication error';

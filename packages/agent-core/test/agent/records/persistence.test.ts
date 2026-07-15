@@ -361,7 +361,7 @@ describe('FileSystemAgentRecordPersistence', () => {
     // The three durable records survive; the partial line is dropped, not
     // fatal. recordCount is seeded from the recovered (well-formed) records.
     expect(recovered).toHaveLength(3);
-    expect(recovered.map((r) => (r as { input: { text: string }[] }).input[0]!.text)).toEqual([
+    expect(recovered.map((r) => (r as unknown as { input: { text: string }[] }).input[0]!.text)).toEqual([
       'durable-0',
       'durable-1',
       'durable-2',

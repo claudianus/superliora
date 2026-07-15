@@ -126,6 +126,7 @@ describe('open-in-app launch commands', () => {
       });
     } finally {
       for (const [key, value] of saved) {
+        if (key === undefined) continue;
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }

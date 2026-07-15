@@ -55,7 +55,7 @@ describe('local catalog providers', () => {
       },
     };
     const merged = mergeLocalCatalogProviders(remote);
-    expect(merged.clinepass?.name).toBe('ClinePass');
-    expect(merged.clinepass?.api).toBe(CLINEPASS_API_BASE);
+    expect(merged['clinepass']?.name).toBe('ClinePass');
+    expect(merged['clinepass']?.api).toBe(CLINEPASS_API_BASE);
   });
 });

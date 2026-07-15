@@ -8,6 +8,8 @@ import type { Agent } from '../agent';
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
+  PipelineStrategy,
+  ToolCollapseStrategy,
   resolveCompactionBlockRatio,
 } from '../agent/compaction';
 import type { PromptOrigin } from '../agent/context';
@@ -151,18 +153,22 @@ export class SessionSubagentHost {
 
     const parent = await this.session.ensureAgentResumed(this.ownerAgentId);
     const profile = this.resolveProfile(parent, options.profileName, options.profileBaseName);
+    /** Subagent windows compact earlier than parent (MapReduce-style handoff). */
     const subTriggerRatio = 0.65;
     const { id, agent } = await this.session.createAgent(
       {
         type: 'sub',
         generate: parent.rawGenerate,
-        compactionStrategy: new DefaultCompactionStrategy(
-          () => parent.config.modelCapabilities.max_context_tokens,
-          {
-            ...DEFAULT_COMPACTION_CONFIG,
-            triggerRatio: subTriggerRatio,
-            blockRatio: resolveCompactionBlockRatio(subTriggerRatio),
-          },
+        compactionStrategy: new PipelineStrategy(
+          [new ToolCollapseStrategy(2)],
+          new DefaultCompactionStrategy(
+            () => parent.config.modelCapabilities.max_context_tokens,
+            {
+              ...DEFAULT_COMPACTION_CONFIG,
+              triggerRatio: subTriggerRatio,
+              blockRatio: resolveCompactionBlockRatio(subTriggerRatio),
+            },
+          ),
         ),
       },
       { parentAgentId: this.ownerAgentId, swarmItem: options.swarmItem },

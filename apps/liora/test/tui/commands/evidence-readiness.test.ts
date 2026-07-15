@@ -8,10 +8,10 @@ import { loadMemoryReadinessEvidence } from '#/tui/commands/evidence-readiness';
 import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork';
 
 describe('evidence readiness evaluator', () => {
-  it('prefers wiki v2 index over legacy llm-wiki evidence paths', () => {
+  it('prefers wiki v2 index over legacy llm-wiki evidence paths', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-evidence-readiness-wiki-v2-'));
     try {
-      createUltraworkEvidenceSeed(workDir, 'Document wiki v2 canonical path', 'manual', false);
+      await createUltraworkEvidenceSeed(workDir, 'Document wiki v2 canonical path', 'manual', false);
 
       const evidence = loadMemoryReadinessEvidence(workDir);
 

@@ -6,5 +6,9 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     include: ['test/**/*.{test,e2e}.ts'],
+    // Keep current-time reminder token estimates stable across CI hosts.
+    env: {
+      TZ: 'UTC',
+    },
   },
 });

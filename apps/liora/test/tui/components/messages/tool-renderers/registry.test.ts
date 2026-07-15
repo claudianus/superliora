@@ -83,6 +83,19 @@ describe('tool-result registry', () => {
     expect(out.trim()).toBe('');
   });
 
+  it('GenerateImage uses the write summary renderer (collapsed body)', () => {
+    const renderer = pickResultRenderer('GenerateImage');
+    const out = joinRender(
+      renderer(
+        call('GenerateImage', { prompt: 'logo', path: 'out.png' }),
+        result('Generated image with openai.\nPath: out.png'),
+        ctx,
+      ),
+    );
+    expect(out.trim()).toBe('');
+    expect(isGenericToolResult('GenerateImage')).toBe(false);
+  });
+
   it('Read expands to the raw file content when expanded', () => {
     const renderer = pickResultRenderer('Read');
     const out = strip(
@@ -191,7 +204,7 @@ describe('tool-result registry', () => {
     const out = strip(joinRender(renderer(call('GetGoal'), result(goalOutput()), ctx)));
     expect(out).toContain('Goal active: Ship feature X');
     expect(out).toContain('2 turns');
-    expect(out).toContain('1.2k tokens');
+    expect(out).toContain('1.2K tokens');
     expect(out).toContain('1m 01s');
     expect(out).not.toContain('"objective"');
     expect(out).not.toContain('"budget"');

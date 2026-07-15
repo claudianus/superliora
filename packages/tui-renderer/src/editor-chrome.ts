@@ -87,6 +87,7 @@ export interface RendererEditorSurfaceOptions
   readonly overlays?: readonly RendererRegionLine[];
   readonly scrollbar?: RendererEditorSurfaceScrollbarOptions | false;
   readonly slashTokenStyle?: RendererCellStyle;
+  readonly textStyle?: RendererCellStyle;
 }
 
 export interface RendererEditorSurfaceResult {
@@ -722,7 +723,7 @@ function writeRendererRegionLineCells(
   }
 }
 
-function rendererRegionLinePlainText(line: RendererRegionLine): string {
+function _rendererRegionLinePlainText(line: RendererRegionLine): string {
   if (typeof line === 'string') return line;
   return line.map((cell) => cell.char).join('');
 }

@@ -26,7 +26,7 @@ export class AutoDreamService {
     if (!this.agent.experimentalFlags.enabled('auto_dream')) return;
     if (this.inFlight) return;
     if ((Date.now() - this.lastDreamAt) / 3_600_000 < this.minHours) return;
-    void this.runDream().catch((e) => this.agent.log.warn('auto-dream failed', e));
+    void this.runDream().catch((e) => { this.agent.log.warn('auto-dream failed', e); });
   }
   private async runDream(): Promise<DreamResult | undefined> {
     this.inFlight = true;

@@ -30,7 +30,7 @@ export class SkillActivationComponent extends Container {
   private previewText?: Text;
   private name: string;
   private args?: string;
-  private ambientAnimationEpoch = -1;
+  ambientAnimationEpoch = -1;
 
   constructor(
     name: string,

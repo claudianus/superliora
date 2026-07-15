@@ -113,6 +113,10 @@ export interface ContextOSHealthSnapshot {
   readonly atRiskPageCount: number;
   readonly fileHintCount: number;
   readonly rawRefCount: number;
+  /** Pages whose last compaction lost durable evidence/node/archive identifiers. */
+  readonly missingEvidencePageCount: number;
+  /** Mean evidenceIdRecallScore across pages that expose the signal (1 when unknown). */
+  readonly evidenceIdRecallScore: number;
   readonly latestContinuityStatus: ContextOSHealthContinuityStatus;
   readonly lastPageSequence: number;
 }
@@ -128,6 +132,8 @@ export interface ContextOSRetrievalDiagnostics {
   readonly selectedScores: readonly number[];
   readonly selectedStatuses: readonly ContextOSHealthContinuityStatus[];
   readonly selectedReasons: readonly string[];
+  readonly selectedEvidenceIdRecallScores: readonly number[];
+  readonly missingEvidenceReasonCount: number;
   readonly supersededPageCount: number;
 }
 
@@ -213,7 +219,11 @@ export class ContextOSManager {
       context_os_at_risk_page_count: health.atRiskPageCount,
       context_os_file_hint_count: health.fileHintCount,
       context_os_raw_ref_count: health.rawRefCount,
+      context_os_missing_evidence_page_count: health.missingEvidencePageCount,
+      context_os_evidence_id_recall_score: health.evidenceIdRecallScore,
       context_os_latest_status: health.latestContinuityStatus,
+      evidence_id_recall_score:
+        result.contextPack.contextOS.qualitySignals?.evidenceIdRecallScore,
     });
   }
 
@@ -236,6 +246,12 @@ export class ContextOSManager {
         (selection) => selection.page.contextPack.contextOS.continuity.status,
       ),
       selectedReasons: [...new Set(result.selections.flatMap((selection) => selection.reasons))],
+      selectedEvidenceIdRecallScores: result.selections.map(
+        (selection) => selection.page.contextPack.contextOS.qualitySignals?.evidenceIdRecallScore ?? 1,
+      ),
+      missingEvidenceReasonCount: result.selections.filter((selection) =>
+        selection.reasons.includes('missing_evidence_ids'),
+      ).length,
       supersededPageCount: result.supersededCount,
     };
   }
@@ -299,6 +315,13 @@ export class ContextOSManager {
       compacted_page_count: injection.pages.filter((page) => page.profileName !== 'full').length,
       top_score: selected[0]?.score ?? 0,
       top_recall_eval_score: selected[0]?.page.contextPack.contextOS.qualitySignals?.recallEvalScore,
+      top_evidence_id_recall_score:
+        selected[0]?.page.contextPack.contextOS.qualitySignals?.evidenceIdRecallScore,
+      missing_evidence_reason_count: selected.filter((selection) =>
+        selection.reasons.includes('missing_evidence_ids'),
+      ).length,
+      context_os_missing_evidence_page_count: health.missingEvidencePageCount,
+      context_os_evidence_id_recall_score: health.evidenceIdRecallScore,
       top_structured_item_count:
         selected[0]?.page.contextPack.contextOS.retrievalSignalCounts?.structuredItemCount,
       top_retrieval_query_count:
@@ -400,6 +423,29 @@ function filterByDistinctiveQueryTerms(
     .map(({ page }) => page);
 }
 
+/** Compact one-line health for TUI/status dashboards. */
+export function formatContextOSHealthLine(health: ContextOSHealthSnapshot): string {
+  if (health.pageCount <= 0) return 'no pages';
+  const evidence =
+    health.missingEvidencePageCount > 0
+      ? `evidence ${health.evidenceIdRecallScore.toFixed(2)} (missing ${String(health.missingEvidencePageCount)})`
+      : `evidence ${health.evidenceIdRecallScore.toFixed(2)}`;
+  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}`;
+}
+
+export function formatContextOSDiagnoseLine(diagnostics: ContextOSRetrievalDiagnostics): string {
+  const health = formatContextOSHealthLine(diagnostics.health);
+  const reasons =
+    diagnostics.selectedReasons.length === 0
+      ? 'none'
+      : diagnostics.selectedReasons.slice(0, 4).join(',');
+  const evidenceMissing =
+    diagnostics.missingEvidenceReasonCount > 0
+      ? ` · evidence-miss selections ${String(diagnostics.missingEvidenceReasonCount)}`
+      : '';
+  return `${health} · selected ${String(diagnostics.selectedPageCount)}/${String(diagnostics.candidatePageCount)} · reasons ${reasons}${evidenceMissing}`;
+}
+
 function buildHealthSnapshot(
   revision: number,
   pages: readonly ContextOSPage[],
@@ -409,6 +455,9 @@ function buildHealthSnapshot(
   let needsRehydrationPageCount = 0;
   let atRiskPageCount = 0;
   let rawRefCount = 0;
+  let missingEvidencePageCount = 0;
+  let evidenceScoreSum = 0;
+  let evidenceScoreCount = 0;
 
   for (const page of pages) {
     const contextOS = page.contextPack.contextOS;
@@ -423,6 +472,14 @@ function buildHealthSnapshot(
     } else {
       atRiskPageCount += 1;
     }
+    const evidenceScore = contextOS.qualitySignals?.evidenceIdRecallScore;
+    if (evidenceScore !== undefined) {
+      evidenceScoreSum += evidenceScore;
+      evidenceScoreCount += 1;
+      if (evidenceScore < 1) missingEvidencePageCount += 1;
+    } else if (contextOS.continuity.reasons.includes('missing_evidence_ids')) {
+      missingEvidencePageCount += 1;
+    }
   }
 
   const latestPage = pages.at(-1);
@@ -434,6 +491,11 @@ function buildHealthSnapshot(
     atRiskPageCount,
     fileHintCount: fileHints.size,
     rawRefCount,
+    missingEvidencePageCount,
+    evidenceIdRecallScore:
+      evidenceScoreCount === 0
+        ? 1
+        : Number((evidenceScoreSum / evidenceScoreCount).toFixed(2)),
     latestContinuityStatus: latestPage?.contextPack.contextOS.continuity.status ?? 'none',
     lastPageSequence: latestPage?.sequence ?? 0,
   };
@@ -535,8 +597,14 @@ function scorePage(
   const distanceFromNewest = Math.max(0, totalPages - index - 1);
   const recency = totalPages <= 1 ? 1 : 0.5 ** (distanceFromNewest / 4);
   const qualityScore = contextOS.qualitySignals?.recallEvalScore ?? 0.75;
+  const evidenceScore = contextOS.qualitySignals?.evidenceIdRecallScore ?? 1;
 
-  let score = recency * 0.12 + contextOS.continuity.score * 0.08 + qualityScore * 0.08;
+  // Evidence fidelity is a first-class continuity signal for harness resume (T4).
+  let score =
+    recency * 0.11 +
+    contextOS.continuity.score * 0.08 +
+    qualityScore * 0.07 +
+    evidenceScore * 0.08;
   const reasons: string[] = [];
 
   if (overlap > 0) {
@@ -554,6 +622,12 @@ function scorePage(
   if (contextOS.continuity.status !== 'ready') {
     score += 0.05;
     reasons.push(contextOS.continuity.status);
+  }
+  if (evidenceScore < 1) {
+    score -= Math.min(0.12, (1 - evidenceScore) * 0.12);
+    reasons.push('missing_evidence_ids');
+  } else if (contextOS.qualitySignals?.evidenceIdRecallScore !== undefined) {
+    reasons.push('evidence_ids_preserved');
   }
   if (
     !reasons.includes('query_overlap') &&

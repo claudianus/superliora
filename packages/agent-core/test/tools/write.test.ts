@@ -23,6 +23,8 @@ describe('WriteTool', () => {
     // The prompt steers the agent toward Edit for partial changes to an
     // existing file. Pin the prohibition so accidental weakening is caught.
     expect(tool.description).toContain('Write is NOT ALLOWED for incremental changes');
+    // Always-on coding tool — keep description compact.
+    expect(tool.description.length).toBeLessThan(1100);
     // Spontaneous doc/README creation is a known anti-pattern; pin the guard.
     expect(tool.description).toContain('documentation files');
     expect(tool.description).toContain('README');

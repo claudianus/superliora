@@ -3,7 +3,6 @@ import {
   NativeInputRouter,
   rendererViewportActionForInput,
   type NativeInputEvent,
-  type NativeInputMouseEvent,
   type NativeInputRouteResult,
 } from '#/tui/renderer';
 

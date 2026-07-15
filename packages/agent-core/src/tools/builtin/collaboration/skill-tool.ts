@@ -117,6 +117,7 @@ export class SkillTool implements BuiltinTool<SkillToolInput> {
     if (skills === null) {
       return missingSkillResult(args.skill);
     }
+    await skills.registry.ensureCatalogLoaded?.();
     const skill = resolveSkillAlias(args.skill, skills.registry.listInvocableSkills(), (name) =>
       skills.registry.getSkill(name),
     );

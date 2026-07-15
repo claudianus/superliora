@@ -38,7 +38,6 @@ import {
   type RendererRect,
   type RendererRegionVfxPreset,
   type RendererRegionId,
-  type NativeRenderCause,
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
@@ -862,8 +861,20 @@ function nativeTranscriptRegionLines(
       );
   const range = state.transcriptSelection.rangeForRender();
   if (range === undefined) return lines;
+  const palette = currentTheme.palette;
   const editorStyles = resolveRendererEditorSurfaceStyles({
-    palette: currentTheme.palette,
+    palette: {
+      text: palette.text,
+      textMuted: palette.textMuted,
+      textStrong: palette.textStrong,
+      border: palette.border,
+      borderFocus: palette.borderFocus,
+      command: palette.shellMode,
+      surfaceSunken: palette.surfaceSunken,
+      background: palette.background,
+      selectionBg: palette.selectionBg,
+      selectionText: palette.selectionText,
+    },
     canvasBackground: currentTheme.canvasBackgroundEnabled,
   });
   return applyTranscriptSelectionOverlay(

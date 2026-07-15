@@ -1,5 +1,6 @@
 import type { AgentConfigData } from '#/agent/config';
 import type { AgentContextData } from '#/agent/context';
+import type { ContextOSRetrievalDiagnostics } from '#/agent/context-os';
 import type { BackgroundTaskInfo } from '#/agent/background';
 import type {
   GoalBudgetLimits,
@@ -117,6 +118,11 @@ export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'vi
 export type PromptInput = readonly PromptPart[];
 
 export type EmptyPayload = {};
+
+export interface DiagnoseContextOSPayload {
+  readonly query?: string;
+  readonly limit?: number;
+}
 
 export interface EnterPlanPayload {
   readonly ultra?: boolean;
@@ -579,6 +585,7 @@ export interface AgentAPI {
   cancelUltrawork: (payload: CancelUltraworkPayload) => UltraworkRunSnapshot | null;
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
+  diagnoseContextOS: (payload: DiagnoseContextOSPayload) => ContextOSRetrievalDiagnostics;
   getConfig: (payload: EmptyPayload) => AgentConfigData;
   getPermission: (payload: EmptyPayload) => PermissionData;
   getPlan: (payload: EmptyPayload) => PlanData;

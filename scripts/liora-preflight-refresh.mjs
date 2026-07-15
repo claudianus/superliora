@@ -429,7 +429,7 @@ function evaluateRuntimeChannel(channel, context) {
   return evaluateCapabilityChannel(channel, context);
 }
 
-function evaluateLlmWikiChannel({ workDir, evidenceRoot, wikiRoot, nowMs, maxAgeMs }) {
+function evaluateLlmWikiChannel({ _workDir, evidenceRoot, wikiRoot, nowMs, maxAgeMs }) {
   const manifestPath = path.join(wikiRoot, 'manifest.json');
   const indexPath = path.join(wikiRoot, 'index.md');
   const manifest = readJson(manifestPath);
@@ -590,7 +590,7 @@ function hasEvidenceProof(text) {
   return /\b(?:PASS|passed|status|screenshot|transcript|action log|observation|validator|cleanup)\b/i.test(text);
 }
 
-function auditRuntimeEvidence(root, maxAgeMs) {
+function _auditRuntimeEvidence(root, maxAgeMs) {
   const files = collectFiles(root, MAX_SCAN_FILES);
   const nowMs = Date.now();
   return Object.fromEntries(CHANNELS.map((channel) => {

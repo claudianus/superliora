@@ -62,6 +62,7 @@ function createSessionRpc(events: Array<Record<string, unknown>>): SDKSessionRPC
     }),
     requestApproval: vi.fn(async () => ({ decision: 'approved', selectedLabel: 'approve' })),
     requestQuestion: vi.fn(async () => null),
+    requestCredential: vi.fn(async () => null),
     toolCall: vi.fn(async () => ({ output: '', isError: true })),
   } as unknown as SDKSessionRPC;
 }

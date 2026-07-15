@@ -15,7 +15,7 @@ import type { BuiltinTool } from '../../../agent/tool/types';
 import type { Agent } from '../../../agent';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ToolAccesses, type ToolExecution } from '../../../loop';
-import { parseDiff, resolveLineBySnippet, type DiffFile } from './diff-parser';
+import { parseDiff, type DiffFile } from './diff-parser';
 
 const inputSchema = z.object({
   diff_source: z.enum(['workspace', 'commit', 'range']).describe('Where to get the diff.'),

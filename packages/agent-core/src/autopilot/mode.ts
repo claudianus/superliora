@@ -50,7 +50,7 @@ export class AutopilotMode {
     } catch (e) { lastError = e instanceof Error ? e.message : String(e); run = { ...run, status: 'failed', lastError, updatedAt: new Date().toISOString() }; this.runs.set(runId, run); this.upd(card.id, { status: 'failed', lastError }); return run; }
     finally { await removeWorktree(this.agent.kaos, root, wt).catch(() => {}); }
   }
-  private async verify(cwd: string): Promise<AutopilotVerificationResult> {
+  private async verify(_cwd: string): Promise<AutopilotVerificationResult> {
     const unsafe = findUnsafeVerificationCommand(this.policy.verificationCommands);
     if (unsafe) return { passed: false, output: `Rejected unsafe: ${typeof unsafe === 'string' ? unsafe : unsafe.command}` };
     const outs: string[] = [];

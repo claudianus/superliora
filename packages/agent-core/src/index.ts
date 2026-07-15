@@ -149,3 +149,12 @@ export { Emitter } from './base/common/event';
 // canonical protocol shapes already exported via `./rpc` (`rpc/sdk-api.ts`),
 // and re-exporting them again would collide (TS2308).
 export * from './services';
+
+export type {
+  ContextOSHealthSnapshot,
+  ContextOSRetrievalDiagnostics,
+} from './agent/context-os';
+export {
+  formatContextOSDiagnoseLine,
+  formatContextOSHealthLine,
+} from './agent/context-os';

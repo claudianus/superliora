@@ -8,7 +8,8 @@ promptVars:
 whenToUse: |
   Use this agent for non-trivial software engineering work that may require reading files, editing code, running commands, and returning a compact but technically complete summary to the parent agent.
 tools:
-  # Core coding tools.
+  # Lean coding surface for specialist workers (no goal/swarm/media generation
+  # bloat; Context7 left to main agent to save specialist tokens).
   - Read
   - Write
   - Edit
@@ -16,21 +17,17 @@ tools:
   - Glob
   - Bash
   - LioraRead
-  # External information and user clarification.
-  - WebSearch
-  - FetchURL
-  - AskUserQuestion
-  # Subagent-specific additions for non-trivial engineering work.
-  - ReadMediaFile
   - LioraTree
   - LioraSymbol
   - LioraCallgraph
   - LioraExpand
+  - WebSearch
+  - FetchURL
+  - ReadMediaFile
+  - AskUserQuestion
   - Memory
   - TodoList
   - Skill
   - SearchSkill
-  - Context7Resolve
-  - Context7Docs
   - GetCurrentTime
   - mcp__*

@@ -55,7 +55,7 @@ describe('free web research harness criteria', () => {
     expect(harness.requirements.join('\n')).toContain('local no-subscription provider');
     expect(harness.requirements.join('\n')).toContain('Use FetchURL to fetch primary sources');
     expect(harness.requirements.join('\n')).toContain('3-12 keyword queries');
-    expect(harness.requirements.join('\n')).toContain('Liora Knowledge Map, memory, benchmark radar, or SOTA criteria');
+    expect(harness.requirements.join('\n')).toContain('Kimi Knowledge Map, memory, benchmark radar, or SOTA criteria');
     expect(harness.requirements.join('\n')).toContain('Scrapling-class ideas');
     expect(harness.requirements.join('\n')).toContain('adaptive element relocation');
     expect(harness.requirements.join('\n')).toContain('TUI status surface');

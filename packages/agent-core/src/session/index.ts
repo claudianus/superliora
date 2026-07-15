@@ -41,7 +41,6 @@ import {
 import type { ProviderManager } from './provider-manager';
 import {
   registerBuiltinSkills,
-  registerCatalogSkills,
   SessionSkillRegistry,
   resolveSkillRoots,
   summarizeSkill,
@@ -800,6 +799,7 @@ export class Session {
 
   async listSkills(): Promise<readonly SkillSummary[]> {
     await this.skillsReady;
+    await this.skills.ensureCatalogLoaded();
     return this.skills.listSkills().map(summarizeSkill);
   }
 
@@ -827,7 +827,7 @@ export class Session {
     });
     await this.skills.loadRoots(roots);
     registerBuiltinSkills(this.skills);
-    await registerCatalogSkills(this.skills);
+    // Builtin catalog skills load lazily on first SearchSkill/Skill use.
   }
 
   private async loadMcpServers(): Promise<void> {

@@ -9,7 +9,7 @@ import type { Agent } from '../../../src/agent';
 
 function makeRecord(id: string, subject: string, content: string): MemoryRecord {
   const now = Date.now();
-  return { id, kind: 'semantic', scope: 'workspace', subject, content, tags: [], confidence: 0.8, importance: 0.5, status: 'active', source: { kind: 'auto' }, createdAt: now, updatedAt: now, accessCount: 0, supersedes: [] };
+  return { id, kind: 'semantic', scope: 'workspace', subject, content, tags: [], confidence: 0.8, importance: 0.5, status: 'active', source: { kind: 'auto' }, createdAt: now, updatedAt: now, accessCount: 0, supersedes: [], metadata: {} };
 }
 function fakeAgent(o: Partial<Agent> = {}): Agent {
   return { experimentalFlags: { enabled: () => true, enabledIds: () => [] }, log: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }, kimiConfig: {}, config: { provider: { withThinking: () => ({}) } }, modelProvider: undefined, generate: vi.fn(), ...o } as unknown as Agent;
@@ -37,7 +37,7 @@ describe('AutoDreamService', () => {
     await store.remember({ kind: 'semantic', scope: 'workspace', subject: 'B', content: 'b' });
     const orig = readFileSync(store.getStorePath());
     const agent = fakeAgent({ generate: vi.fn().mockRejectedValue(new Error('LLM down')) });
-    const svc = new AutoDreamService(agent, store, { minActiveRecords: 2, minHours: 0 });
+    const svc = new AutoDreamService(agent, store, { minActiveRecords: 2, minHoursSinceLastDream: 0 });
     await expect(svc['runDream']()).rejects.toThrow('LLM down');
     expect(readFileSync(store.getStorePath()).equals(orig)).toBe(true);
   });
@@ -48,7 +48,7 @@ describe('AutoDreamService', () => {
     const c = await store.remember({ kind: 'semantic', scope: 'workspace', subject: 'friday', content: 'ship friday' });
     const plan = JSON.stringify({ merges: [{ keeperId: a.id, duplicateIds: [b.id] }] });
     const agent = fakeAgent({ generate: vi.fn().mockResolvedValue({ message: { content: [{ type: 'text', text: plan }] }, finishReason: 'stop', usage: null }) });
-    const svc = new AutoDreamService(agent, store, { minActiveRecords: 2, minHours: 0 });
+    const svc = new AutoDreamService(agent, store, { minActiveRecords: 2, minHoursSinceLastDream: 0 });
     const result = await svc['runDream']();
     expect(result?.semanticMerged).toBe(1);
     expect((await store.get(b.id))?.status).toBe('superseded');

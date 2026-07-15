@@ -8,44 +8,71 @@ import { PREMIUM_VISUAL_HARNESS } from './visual-harness';
 
 export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
 
-Premium Quality mode is ON. Treat ultra-super-premium, god-tier, world-#1 quality elevation as a continuous, non-negotiable, hyper-obsessive obligation — not a final polish pass.
+Premium Quality mode is ON. Treat premium, screenshot-proof quality as a continuous obligation — not a final polish pass.
 
-Mission:
-- Push every deliverable toward ultra-premium, hyper-elite, world-class, bleeding-edge, modern, trending, jaw-dropping, museum-grade quality: code, UX, visuals, copy, performance, reliability, accessibility, and evidence.
-- Visual quality is the supreme, king-god-general, #1 highest-priority lens for web, app UI, dashboards, marketing pages, and games — obsess over what humans see on screen until it looks insanely premium.
-- Work like a bulldozer toward the most defensible, screenshot-proof, portfolio-shredding outcome; do not stop at "good enough", "fine", or "MVP-looking" while any material quality gap remains.
-- Before shipping a slice, ask: "Would a principal designer vomit at this screenshot?" If yes, iterate until it is devastatingly beautiful.
+Mission: push code, UX, visuals, copy, performance, reliability, a11y, and evidence toward premium. Visual quality is the primary lens for web, app UI, dashboards, marketing pages, and games. If a principal designer would reject the screenshot, iterate.
 
 ${PREMIUM_QUALITY_HYPE_MANTRA}
 
-Multi-lens review (rotate every meaningful step):
-- Visual & UX (PRIMARY — ULTRA PREMIUM): hierarchy, spacing, motion, feedback, empty/error states, readability, brand consistency, asset quality, anti-generic layout — all at hyper-polished, luxury-grade standard.
-- Code quality: naming, boundaries, tests, types, dead-code removal, failure handling, observability — impeccably clean.
-- Performance: hot paths, bundle/size, latency, memory, unnecessary work, caching where evidence supports it — blazing and refined.
-- Accessibility: keyboard flow, contrast, labels, focus order, screen-reader text, touch targets — flawless inclusive craft.
-- Product & trust: clarity of value, honest claims, security/privacy posture, recovery paths, edge cases — premium-trustworthy.
-- Evidence: screenshots, tests, benchmarks, or primary sources before claiming improvement — screenshot-proof or it did not happen.
+Review lenses (rotate each meaningful step): Visual & UX (PRIMARY: hierarchy, spacing, motion, states, brand); Code (naming, boundaries, tests, types, failures); Performance/a11y/trust; Evidence (screenshots, tests, benchmarks, sources) before claiming improvement.
 
-Methodology (apply actively):
-- Rubric-first: define what "ultra-super-premium god-tier" means for this task, then iterate relentlessly until the rubric passes — especially the Premium Visual rubric for visible work.
-- Research-backed upgrades: WebSearch/FetchURL for current best practices, design references, and benchmarks when uncertain — steal from the best, execute better.
-- Chain-of-verification: after a draft answer or implementation plan, list likely failure modes and verify or fix them — no cowardly hand-waving.
-- Small high-leverage passes: prefer focused, hyper-premium quality iterations over sprawling rewrites.
-- Prompt-quality discipline for user-visible text: specific claims, concrete nouns/verbs, no template slop; match response_language.
-- Definition of Done: relevant tests, lint/typecheck/build when applicable, real-surface screenshot verification for UI/browser/game work — visually transcendent or not done.
-
-Execution stance:
-- Propose upgrade paths when they materially improve outcomes; preserve user agency with baseline/defer options.
-- When Premium Quality conflicts with speed, surface the trade-off briefly, then execute the chosen ultra-premium quality bar with brutal relentlessness.
-- Record durable quality decisions in the plan, todos, or evidence ledger — not only in chat.
+Method: rubric-first for visible work; small high-leverage passes; research when taste/API/benchmarks are uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game work. When quality conflicts with speed, surface the trade-off briefly, then execute the chosen bar.
 
 ${PREMIUM_VISUAL_HARNESS}`;
 
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
-  'Premium Quality mode still ON — keep elevating visuals (PRIMARY ULTRA GOD-TIER), UX, code, performance, accessibility, and evidence before you claim done.',
+  'Premium Quality mode still ON — keep elevating visuals (PRIMARY), UX, code, performance, accessibility, and evidence before you claim done.',
   PREMIUM_QUALITY_HYPE_SPARSE,
   PREMIUM_VISUAL_SPARSE_CHECKPOINT,
 ].join('\n');
 
+/**
+ * Non-visual Premium density: Ultrawork/Goal often force Premium ON for backend/CLI/infra.
+ * Keep code/evidence bar without the full visual harness flood.
+ */
+export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [
+  'Premium Quality mode is ON (code/evidence density — no visible UI surface detected in the active objective).',
+  'Raise code quality, correctness, tests, types, failure handling, performance, and security. Prefer small high-leverage diffs.',
+  'DoD: inspect relevant files/tests first; run focused verification; finish only with evidence (test output, typecheck, real CLI/API proof) and remaining risks.',
+  'If the work later adds a user-visible surface (web/app/dashboard/game), switch to visual Premium bar: art direction, anti-slop, screenshot proof.',
+  'Skip frontend design skill loads while there is zero user-visible surface change.',
+].join('\n');
+
+export const PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE =
+  'Premium Quality still ON (code/evidence density) — keep correctness, tests, types, and real-surface verification tight; no visual-harness flood while the objective stays non-visual.';
+
 export const PREMIUM_QUALITY_EXIT_GUIDANCE =
   'Premium Quality mode is OFF. Continue with normal quality expectations unless the user asks for premium polish again.';
+
+/** Same visual-surface heuristic as Ultrawork capability detection (keep in sync). */
+const PREMIUM_VISUAL_SURFACE_PATTERN =
+  /\b(?:ui|ux|visual|screen|canvas|animation|motion|layout|design|brand|game|interactive|browser|dashboard|frontend|css|webpage|website|landing)\b|(?:시각|비주얼|화면|캔버스|애니메이션|레이아웃|디자인|브랜드|게임|인터랙티브|브라우저|대시보드|프론트|웹페이지|랜딩)/i;
+
+export type PremiumInjectionDensity = 'visual' | 'code';
+
+/**
+ * Returns whether the objective implies a user-visible surface that needs the full visual harness.
+ */
+export function detectPremiumVisualSurface(objective: string): boolean {
+  return PREMIUM_VISUAL_SURFACE_PATTERN.test(objective);
+}
+
+/**
+ * Resolve injection density for an active Premium session.
+ * - No goal/ultrawork objective (manual Premium): keep full visual bar.
+ * - Objective with visual surface signals: visual.
+ * - Otherwise: code/evidence compact density.
+ */
+export function resolvePremiumInjectionDensity(objective: string | undefined | null): PremiumInjectionDensity {
+  const text = objective?.trim() ?? '';
+  if (text.length === 0) return 'visual';
+  return detectPremiumVisualSurface(text) ? 'visual' : 'code';
+}
+
+export function selectPremiumFullGuidance(density: PremiumInjectionDensity): string {
+  return density === 'visual' ? PREMIUM_QUALITY_FULL_GUIDANCE : PREMIUM_QUALITY_CODE_FULL_GUIDANCE;
+}
+
+export function selectPremiumSparseGuidance(density: PremiumInjectionDensity): string {
+  return density === 'visual' ? PREMIUM_QUALITY_SPARSE_GUIDANCE : PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE;
+}

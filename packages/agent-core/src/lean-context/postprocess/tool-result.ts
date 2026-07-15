@@ -58,10 +58,11 @@ function postprocessRead(
   if (typeof output !== 'string') return input.result;
   if (output.length < READ_TOKEN_THRESHOLD && pressureMode === 'normal') return input.result;
 
-  const pathArg =
-    typeof input.args === 'object' && input.args !== null
-      ? String((input.args as { path?: unknown }).path ?? 'unknown')
-      : 'unknown';
+  const pathArg = (() => {
+    if (typeof input.args !== 'object' || input.args === null) return 'unknown';
+    const path = (input.args as { path?: unknown }).path;
+    return typeof path === 'string' ? path : 'unknown';
+  })();
   if (bounceRateForPath(store, pathArg) > 0.35) {
     recordReadAccess(store, pathArg, 'full');
     return appendHint(input.result, '[liora-gate] bounce detected — kept Read output verbatim.');
