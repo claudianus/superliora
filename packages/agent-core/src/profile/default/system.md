@@ -78,7 +78,7 @@ For research, data processing, or media generation: understand requirements; pla
 
 Long conversations may be summarized. Treat summaries as maps, not live state.
 
-- Do not redo work the summary clearly captures unless evidence suggests it is stale or wrong.
+- Do not redo summary-captured work unless evidence suggests it is stale or wrong.
 - Re-establish transient facts from the current project: files, commands, background work, artifacts, validation.
 - Recover missing context with tools or questions; do not guess.
 - Treat "done"/"verified" claims in summaries as unverified until re-checked.
