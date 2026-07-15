@@ -93,7 +93,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL ready \(LocalResearchStack when no managed search\)/);
+    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(LocalResearchStack fallback\)/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE_API_KEY\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP setup\)/,
     );
@@ -183,7 +183,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL ready \(LocalResearchStack when no managed search\)/);
+    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(LocalResearchStack fallback\)/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE_API_KEY\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP setup\)/,
     );
@@ -323,6 +323,37 @@ describe('status panel report lines', () => {
       expect(line).not.toContain('...');
     }
   });
+  it('surfaces Context7 readiness when research tools are active', () => {
+    const lines = buildStatusReportLines({
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null,
+      thinking: true,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      availableModels: {},
+      activeToolNames: ['WebSearch', 'FetchURL', 'Context7Resolve', 'Context7Docs'],
+      humanWriting: {
+        ready: true,
+        advisoryOnly: true,
+        nextAction: 'ready',
+      },
+    }).map(strip);
+
+    // Prefer the readiness Research row over the Engine gate that also contains the word Research.
+    const researchRow =
+      lines.find((line) => /Research\s+ready ·/.test(line) || /Research\s+WebSearch/.test(line) || /Research\s+partial/.test(line) || /Research\s+unavailable/.test(line)) ??
+      lines.find((line) => line.includes('WebSearch + FetchURL'));
+    expect(researchRow).toBeDefined();
+    expect(researchRow ?? '').toContain('WebSearch + FetchURL active');
+    expect(researchRow ?? '').toContain('Context7 on');
+  });
+
 
   it('surfaces ready recovery evidence in the harness radar row', () => {
     const lines = buildStatusReportLines({
