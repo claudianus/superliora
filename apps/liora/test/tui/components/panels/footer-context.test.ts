@@ -131,7 +131,7 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(out).not.toContain('plan-first');
     expect(out).not.toContain('plan  k2');
     expect(strip(line2 ?? '')).toContain(
-      'Workflow research -> interview -> goal -> swarm decision -> integrate -> verify -> learn',
+      'Workflow: research → interview → goal → swarm → integrate → verify → learn',
     );
     expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
     expect(strip(line2 ?? '')).not.toContain('helpers');
@@ -145,7 +145,7 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(line1 ?? '')).toContain('ultrawork');
     expect(strip(line1 ?? '')).not.toContain('plan');
     expect(strip(line2 ?? '')).toContain(
-      'Workflow research -> interview -> goal -> swarm decision -> integrate -> verify -> learn',
+      'Workflow: research → interview → goal → swarm → integrate → verify → learn',
     );
   });
 
@@ -157,7 +157,7 @@ describe('FooterComponent — context NaN resilience', () => {
     const [, line2] = footer.render(120);
 
     expect(strip(line2 ?? '')).toContain(
-      'Workflow research -> interview -> goal -> swarm decision -> integrate -> verify -> learn',
+      'Workflow: research → interview → goal → swarm → integrate → verify → learn',
     );
   });
 
