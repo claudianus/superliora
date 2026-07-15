@@ -160,6 +160,45 @@ const lioraCallgraphGlance: GlanceFn = (toolCall, result) => {
   const head = symbol.length > 0 ? `${symbol} · ` : '';
   return `${head}${samples.join(' · ')}`;
 };
+const context7ResolveGlance: GlanceFn = (_toolCall, result) => {
+  if (result.output.includes('No libraries found')) return 'no libraries';
+  const samples: string[] = [];
+  let pendingTitle: string | undefined;
+  for (const line of result.output.split('\n')) {
+    const title = /^\s*-?\s*Title:\s+(.+)$/i.exec(line)?.[1]?.trim();
+    if (title !== undefined) {
+      pendingTitle = title;
+      continue;
+    }
+    const id = /library ID:\s*(\/\S+)/i.exec(line)?.[1];
+    if (id !== undefined) {
+      samples.push(pendingTitle !== undefined ? `${pendingTitle} (${id})` : id);
+      pendingTitle = undefined;
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length === 0 && pendingTitle !== undefined) samples.push(pendingTitle);
+  return samples.join(' · ');
+};
+
+const context7DocsGlance: GlanceFn = (toolCall, result) => {
+  if (result.output.includes('No documentation snippets matched')) return 'no snippets';
+  const libraryId = typeof toolCall.args['library_id'] === 'string' ? toolCall.args['library_id'] : '';
+  const titles: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^\s*Title:\s+(.+)$/i.exec(line) ?? /^\s*#\s+(.+)$/.exec(line);
+    if (m && m[1] !== undefined) titles.push(m[1].trim());
+    if (titles.length >= GLANCE_SAMPLES) break;
+  }
+  if (titles.length === 0) {
+    const preview = result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+    if (libraryId.length > 0 && preview.length > 0) return `${libraryId} · ${preview}${result.output.trim().length > 72 ? '…' : ''}`;
+    return libraryId.length > 0 ? libraryId : preview;
+  }
+  const head = libraryId.length > 0 ? `${libraryId} · ` : '';
+  return `${head}${titles.join(' · ')}`;
+};
+
 
 
 // ── Exports ──────────────────────────────────────────────────────────
@@ -220,3 +259,5 @@ export const lioraSymbolSummary: ResultRenderer = withGlance(lioraSymbolGlance);
 export const lioraTreeSummary: ResultRenderer = withGlance(lioraTreeGlance);
 export const lioraExpandSummary: ResultRenderer = withGlance(lioraExpandGlance);
 export const lioraCallgraphSummary: ResultRenderer = withGlance(lioraCallgraphGlance);
+export const context7ResolveSummary: ResultRenderer = withGlance(context7ResolveGlance);
+export const context7DocsSummary: ResultRenderer = withGlance(context7DocsGlance);

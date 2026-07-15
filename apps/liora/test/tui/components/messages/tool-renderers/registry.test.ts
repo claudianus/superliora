@@ -189,6 +189,45 @@ describe('tool-result registry', () => {
     expect(out).toContain('+1 more');
     expect(isGenericToolResult('LioraTree')).toBe(false);
   });
+  it('Context7Resolve glance lists library titles and ids', () => {
+    const renderer = pickResultRenderer('Context7Resolve');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('Context7Resolve', { library_name: 'react', query: 'hooks' }),
+          result(
+            [
+              '- Title: React',
+              '- Context7-compatible library ID: /reactjs/react.dev',
+              '- Title: React Router',
+              '- Context7-compatible library ID: /remix-run/react-router',
+            ].join('\n'),
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('React');
+    expect(out).toContain('/reactjs/react.dev');
+    expect(isGenericToolResult('Context7Resolve')).toBe(false);
+  });
+
+  it('Context7Docs glance lists library id and snippet titles', () => {
+    const renderer = pickResultRenderer('Context7Docs');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('Context7Docs', { library_id: '/reactjs/react.dev', query: 'useEffect' }),
+          result('Title: useEffect\nSOURCE: https://react.dev\n\nTitle: Rules of Hooks\nSOURCE: https://react.dev/rules'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('/reactjs/react.dev');
+    expect(out).toContain('useEffect');
+    expect(isGenericToolResult('Context7Docs')).toBe(false);
+  });
+
 
 
   it('Grep glance lists path samples below the chip', () => {
