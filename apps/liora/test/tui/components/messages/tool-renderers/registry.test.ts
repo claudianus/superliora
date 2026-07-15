@@ -304,6 +304,43 @@ describe('tool-result registry', () => {
     expect(out).toContain('Lang');
     expect(isGenericToolResult('Memory')).toBe(false);
   });
+  it('NextPhase glance shows phase transition', () => {
+    const renderer = pickResultRenderer('NextPhase');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('NextPhase', { phase: 'interview' }),
+          result('Advanced from research phase to interview phase.\n\nInterview Phase: expert leader'),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('research → interview');
+    expect(isGenericToolResult('NextPhase')).toBe(false);
+  });
+
+  it('GetCurrentTime glance shows local time and timezone', () => {
+    const renderer = pickResultRenderer('GetCurrentTime');
+    const out = strip(
+      joinRender(
+        renderer(
+          call('GetCurrentTime', {}),
+          result(
+            JSON.stringify(
+              { iso: '2026-07-07T14:51:00.000+09:00', local: '2026-07-07 14:51:00', timezone: 'Asia/Seoul' },
+              null,
+              2,
+            ),
+          ),
+          ctx,
+        ),
+      ),
+    );
+    expect(out).toContain('2026-07-07 14:51:00');
+    expect(out).toContain('Asia/Seoul');
+    expect(isGenericToolResult('GetCurrentTime')).toBe(false);
+  });
+
 
 
 

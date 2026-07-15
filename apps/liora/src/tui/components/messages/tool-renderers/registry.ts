@@ -17,8 +17,11 @@ import {
   context7DocsSummary,
   context7ResolveSummary,
   editSummary,
+  enterPlanModeSummary,
+  exitPlanModeSummary,
   fetchSummary,
   generateMediaSummary,
+  getCurrentTimeSummary,
   globSummary,
   grepSummary,
   lioraCallgraphSummary,
@@ -27,7 +30,9 @@ import {
   lioraSymbolSummary,
   lioraTreeSummary,
   memorySummary,
+  nextPhaseSummary,
   readSummary,
+  recordInterviewFindingSummary,
   searchExpertSummary,
   searchSkillSummary,
   skillSummary,
@@ -84,6 +89,16 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return skillSummary;
     case 'Memory':
       return memorySummary;
+    case 'NextPhase':
+      return nextPhaseSummary;
+    case 'RecordInterviewFinding':
+      return recordInterviewFindingSummary;
+    case 'GetCurrentTime':
+      return getCurrentTimeSummary;
+    case 'EnterPlanMode':
+      return enterPlanModeSummary;
+    case 'ExitPlanMode':
+      return exitPlanModeSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':
