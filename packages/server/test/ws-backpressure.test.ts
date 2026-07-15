@@ -73,7 +73,7 @@ const stubBroadcast: BufferReplaySource = {
 
 function makeConnection(socket: StubSocket, opts: { maxBufferedBytes?: number } = {}): WsConnection {
   return new WsConnection({
-    socket: socket as unknown as Parameters<typeof WsConnection>[0]['socket'],
+    socket: socket as never,
     logger: noopLogger(),
     sessionClients: {
       _serviceBrand: undefined,
@@ -86,7 +86,7 @@ function makeConnection(socket: StubSocket, opts: { maxBufferedBytes?: number } 
       subscriberCount(): number {
         return 0;
       },
-    } as unknown as Parameters<typeof WsConnection>[0]['sessionClients'],
+    } as never,
     wsBroadcast: stubBroadcast,
     maxBufferedBytes: opts.maxBufferedBytes,
     // Suppress the constructor's ping/pong heartbeat timers so the test
