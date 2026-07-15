@@ -12,7 +12,7 @@ export type NoAiSlopSkillName =
 
 /** When anti-slop work should not run — avoid bottlenecking code-first or low-stakes turns. */
 export const NO_AI_SLOP_SKIP_WHEN = [
-  'Skip anti-slop skill loads and heavy rewrite passes when:',
+  'Skip anti-slop skill loads and heavy rewrites when:',
   '- The turn is code, commands, paths, identifiers, or tool output with no user-facing prose.',
   '- The reply is a one-line confirmation, status, or error with no marketing/doc tone.',
   '- System.md rules plus a quick inline scan are enough (short answers under ~120 words with no slop tells).',

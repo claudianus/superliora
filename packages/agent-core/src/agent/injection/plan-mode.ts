@@ -148,7 +148,7 @@ function withResponseLanguage(body: string, agent: Agent): string {
 }
 
 const PLAN_MODE_BLOCKED_TOOLS =
-  'TaskStop, CronCreate, and CronDelete are blocked in plan mode — call ExitPlanMode first if you need them.';
+  'TaskStop, CronCreate, and CronDelete are blocked in plan mode — call ExitPlanMode first if needed.';
 
 const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. You MUST NOT make any edits (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools. Bash only when needed; Bash follows normal permission rules. This supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
 
@@ -231,6 +231,6 @@ No plan file path in this host. Re-evaluate the request, AskUserQuestion for gap
 }
 
 function exitReminder(): string {
-  return `Plan mode is no longer active. The read-only and plan-file-only restrictions from plan mode no longer apply. Continue with the approved plan using the normal tool and permission rules.`;
+  return `Plan mode is no longer active. Read-only and plan-file-only restrictions no longer apply. Continue with the approved plan using normal tool and permission rules.`;
 }
 
