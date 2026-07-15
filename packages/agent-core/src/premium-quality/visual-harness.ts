@@ -17,13 +17,13 @@ export const PREMIUM_VISUAL_SUPREMACY_MANDATE = [
 /** Art direction gate — must happen before visual implementation. */
 export const PREMIUM_VISUAL_ART_DIRECTION_GATE = [
   '### Art direction before code (mandatory)',
-  'Before the first visual implementation pass, write a short Art Direction Brief: 3 vibe adjectives; 1 neutral + 1 accent (sat < 80%, ban AI purple/blue neon); display/body/mono type (no browser defaults/Inter-by-default); asymmetric/split hero when fit; max-width container; `min-h-[100dvh]` not `100vh`; motion + assets + evidence target (BrowserScreenshot / Playwright).',
+  'Before first visual implementation, write a short Art Direction Brief: 3 vibe adjectives; 1 neutral + 1 accent (sat < 80%, ban AI purple/blue neon); display/body/mono type (no browser defaults/Inter-by-default); asymmetric/split hero when fit; max-width container; `min-h-[100dvh]` not `100vh`; motion + assets + evidence target (BrowserScreenshot / Playwright).',
 ].join('\n');
 
 /** Cheat-key prompt patterns distilled from proven anti-slop / design-taste skills. */
 export const PREMIUM_VISUAL_CHEAT_KEYS = [
   '### Visual cheat keys (apply by default)',
-  'Type: tight display tracking; body `max-w-[65ch] leading-relaxed`; ban naked Inter — use Geist/Outfit/Cabinet/Satoshi. Color: off-black/off-white; tinted shadows; one accent; ban #000 large fields + purple AI gradients. Layout: CSS Grid; break 3-equal-card rows; optical spacing/depth. Surfaces: purposeful elevation; skeletons; tactile active; focus rings. Content/game: real copy; themed HUD/assets; no emoji-as-UI or primitive placeholders.',
+  'Type: tight display tracking; body `max-w-[65ch] leading-relaxed`; ban naked Inter — use Geist/Outfit/Cabinet/Satoshi. Color: off-black/off-white; tinted shadows; one accent; ban #000 large fields + purple AI gradients. Layout: CSS Grid; break 3-equal-card rows; optical spacing/depth. Surfaces: purposeful elevation; skeletons; tactile active; focus rings. Content/game: real copy; themed HUD/assets; no emoji-as-UI/primitive placeholders.',
 ].join('\n');
 
 /** Banned placeholder patterns that must never ship as "done". */
