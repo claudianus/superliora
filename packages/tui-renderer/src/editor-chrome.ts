@@ -87,6 +87,7 @@ export interface RendererEditorSurfaceOptions
   readonly overlays?: readonly RendererRegionLine[];
   readonly scrollbar?: RendererEditorSurfaceScrollbarOptions | false;
   readonly slashTokenStyle?: RendererCellStyle;
+  readonly textStyle?: RendererCellStyle;
 }
 
 export interface RendererEditorSurfaceResult {
