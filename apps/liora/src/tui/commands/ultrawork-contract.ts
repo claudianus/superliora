@@ -91,8 +91,8 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
 /** Compact always-on operating rules (merged former multi-block dump). */
 const ULTRAWORK_CORE_OPERATING_GUIDANCE = [
   'Core operating rules:',
-  '- Liora Lean Context: prefer LioraRead (signatures/map/lines), LioraSymbol, LioraTree, LioraCallgraph, and Grep before broad Read dumps; cite paths; keep context small; memory only for durable prefs/decisions.',
-  '- Liora Knowledge Map: map from LioraRead/LioraSymbol/LioraTree, Grep, memory, and artifact summaries before broad exploration. Prefer EXTRACTED edges over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.',
+  '- Liora Lean Context: prefer LioraRead (signatures/map/lines), LioraSymbol, LioraTree, LioraCallgraph, Grep before broad Read dumps; cite paths; keep context small; memory only for durable prefs/decisions.',
+  '- Liora Knowledge Map: map from LioraRead/LioraSymbol/LioraTree, Grep, memory, artifact summaries before broad exploration. Prefer EXTRACTED edges over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.',
   '- Workflow transparency: maintain `workflow-report.md` + `workflow-stages.json`; fill each stage narrative before leaving. Knowledge persistence ledger: final reports need `liora_recall`/`llm_wiki` rows with wrote|skipped|blocked + reason/path/id/evidence (`.superliora/wiki`); promote seed wiki/knowledge-map only in Learn with evidenceState verified.',
   '- UltraResearch / free web research: prefer Context7Resolve/Context7Docs; WebSearch + FetchURL for primary sources; LocalResearchStack free fallback. Re-search on new uncertainty; label stale/offline if live search fails; never defeat CAPTCHA/paywall/login/rate-limits.',
   '- Capability Coverage Matrix: criterion/risk -> expertise -> evidence -> expert -> owner from UltraGoal + AC Tree. Prefer UltraSwarm auto_select; ENGAGE when >1 material lane, subjective quality, high risk, hard-to-observe behavior, or independent review; DEFER only if main agent owns every lane. Report matrix, specialist usage, evidence paths, risks.',
@@ -102,14 +102,14 @@ const ULTRAWORK_CORE_OPERATING_GUIDANCE = [
 
 const ULTRAWORK_GUI_USE_GUIDANCE = [
   'Browser / computer-use verification (surface-relevant):',
-  '- Use BrowserUse/ComputerUse for rendered pages, visual QA, downloads, and desktop evidence when useful; prefer headless/background capture.',
+  '- Use BrowserUse/ComputerUse for rendered pages, visual QA, downloads, desktop evidence when useful; prefer headless/background capture.',
   '- Prefer BrowserObserve refs and ComputerCapture SOM indexes over raw coordinates; screenshot before claiming visual/interactive done.',
-  '- Safe GUI may auto-run in auto/yolo; high-risk GUI still needs approval. If blocked, record the blocker and use next-best evidence.',
+  '- Safe GUI may auto-run in auto/yolo; high-risk GUI still needs approval. If blocked, record blocker and use next-best evidence.',
 ].join('\n');
 
 const ULTRAWORK_BENCH_GUIDANCE = [
   'LioraBench (surface-relevant):',
-  '- For harness/TUI benchmark or SOTA claims, use `node scripts/liora-agent-sota-gate.mjs` or `node scripts/qa-superliora-autonomous.mjs --phase sota-gate` (C001 system score, C002 live TUI surface, C003 budget/cleanup/secret scan). Do not treat browser-only UI as TUI success.',
+  '- For harness/TUI benchmark or SOTA claims, use `node scripts/liora-agent-sota-gate.mjs` or `node scripts/qa-superliora-autonomous.mjs --phase sota-gate` (C001 system, C002 live TUI, C003 budget/cleanup/secret scan). Do not treat browser-only UI as TUI success.',
 ].join('\n');
 
 /** Shared with coverage matrix UX lane — keep Premium visual heuristic in sync. */

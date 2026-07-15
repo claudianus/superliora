@@ -63,10 +63,10 @@ export function formatCurrentTimeSnapshot(now: Date = new Date()): CurrentTimeSn
 
 export function buildCurrentTimeReminder(snapshot: CurrentTimeSnapshot): string {
   return `<current_time>
-Authoritative host clock (do not guess date from pretrained knowledge):
+Authoritative host clock (do not guess from pretrained knowledge):
 - Today: ${snapshot.today}
 - Local: ${snapshot.local} (${snapshot.timezone}, ${snapshot.utcOffset})
 - ISO: ${snapshot.iso}
-For time-sensitive WebSearch/FetchURL, include the correct year. Call GetCurrentTime if this may be stale.
+For time-sensitive WebSearch/FetchURL, include the correct year. Call GetCurrentTime if stale.
 </current_time>`;
 }

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.recovery-resume-token.v1",
+  "title": "Record an Ultrawork recovery resume token contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "recovery",
+    "token",
+    "ultrawork",
+    "deterministic-check"
+  ],
+  "prompt": "Create reports/recovery-resume-token-contract.md with sections for Checkpoint resume, Skip interview, Evidence proof, and Tool schema budget.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/recovery-resume-token-contract.md",
+      "content": "# Recovery Resume Token Contract\n\n## Checkpoint resume\nResume from last durable checkpoint; do not restart from scratch unless unusable\n\n## Skip interview\nSkip UltraPlan interview when phase already advanced; continue design/implementation/verification\n\n## Evidence proof\nPrefer tests/typecheck/real-surface proof; mark AC/nodes done only with evidence\n\n## Tool schema budget\nKeep Grep/Glob/Bash/web contracts while compressing always-on tool copy\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/recovery-resume-token-contract.md",
+      "text": "Checkpoint resume",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recovery-resume-token-contract.md",
+      "text": "Skip interview",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recovery-resume-token-contract.md",
+      "text": "Evidence proof",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recovery-resume-token-contract.md",
+      "text": "Tool schema budget",
+      "weight": 1
+    }
+  ]
+}
