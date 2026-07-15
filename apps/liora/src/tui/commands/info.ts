@@ -198,6 +198,43 @@ function loadPrivacySnapshot(host: SlashCommandHost): {
   }
 }
 
+
+function nonEmptyEnv(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function imageProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (
+    nonEmptyEnv(env['OPENAI_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GOOGLE_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GEMINI_API_KEY']) !== undefined
+  );
+}
+
+function videoProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (
+    nonEmptyEnv(env['GOOGLE_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GEMINI_API_KEY']) !== undefined
+  );
+}
+
+function formatMediaReadinessLines(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  const imageReady = imageProviderKeyReady(env);
+  const videoReady = videoProviderKeyReady(env);
+  return [
+    'Media & research (zero-config when keys already exist)',
+    '  Web: WebSearch + FetchURL + LocalResearchStack (built-in).',
+    imageReady
+      ? '  Images: ready · GenerateImage (OPENAI_API_KEY or GOOGLE/GEMINI key detected).'
+      : '  Images: set OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY to enable GenerateImage.',
+    videoReady
+      ? '  Video: ready · GenerateVideo (GOOGLE/GEMINI key detected).'
+      : '  Video: set GOOGLE_API_KEY/GEMINI_API_KEY to enable GenerateVideo.',
+  ];
+}
+
 export function buildContextOsReportLines(
   diagnostics: ContextOSRetrievalDiagnostics,
   privacy: { readonly telemetryEnabled: boolean; readonly configPath: string },
@@ -227,10 +264,7 @@ export function buildContextOsReportLines(
     '  Tip: product telemetry is off by default. Set `telemetry = true` in config.toml only if you want usage analytics.',
     '  Session transcripts still stay local to this machine unless you export them.',
     '',
-    'Media & research (no extra setup when keys already exist)',
-    '  Web: WebSearch + FetchURL + LocalResearchStack (built-in).',
-    '  Images: GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set.',
-    '  Video: GenerateVideo when GOOGLE_API_KEY/GEMINI_API_KEY is set (also SearchSkill → gemini-omni-flash-api).',
+    ...formatMediaReadinessLines(),
   );
   return lines;
 }

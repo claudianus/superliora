@@ -56,4 +56,41 @@ describe('buildContextOsReportLines', () => {
     expect(lines).toContain('Telemetry: OFF');
     expect(lines).toContain('ZDR-friendly');
   });
+
+  it('reflects image/video key readiness from the environment', () => {
+    const prev = {
+      openai: process.env['OPENAI_API_KEY'],
+      google: process.env['GOOGLE_API_KEY'],
+      gemini: process.env['GEMINI_API_KEY'],
+    };
+    try {
+      delete process.env['OPENAI_API_KEY'];
+      delete process.env['GOOGLE_API_KEY'];
+      delete process.env['GEMINI_API_KEY'];
+      const missing = buildContextOsReportLines(
+        sample,
+        { telemetryEnabled: false, configPath: '/tmp/config.toml' },
+        '',
+      ).join('\n');
+      expect(missing).toContain('set OPENAI_API_KEY');
+      expect(missing).toContain('set GOOGLE_API_KEY/GEMINI_API_KEY');
+
+      process.env['OPENAI_API_KEY'] = 'sk-test';
+      process.env['GOOGLE_API_KEY'] = 'google-test';
+      const ready = buildContextOsReportLines(
+        sample,
+        { telemetryEnabled: false, configPath: '/tmp/config.toml' },
+        '',
+      ).join('\n');
+      expect(ready).toContain('Images: ready');
+      expect(ready).toContain('Video: ready');
+    } finally {
+      if (prev.openai === undefined) delete process.env['OPENAI_API_KEY'];
+      else process.env['OPENAI_API_KEY'] = prev.openai;
+      if (prev.google === undefined) delete process.env['GOOGLE_API_KEY'];
+      else process.env['GOOGLE_API_KEY'] = prev.google;
+      if (prev.gemini === undefined) delete process.env['GEMINI_API_KEY'];
+      else process.env['GEMINI_API_KEY'] = prev.gemini;
+    }
+  });
 });
