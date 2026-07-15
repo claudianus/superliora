@@ -66,7 +66,7 @@ export const MemoryInputSchema: z.ZodType<MemoryInput> = z.object({
 export class MemoryTool implements BuiltinTool<MemoryInput> {
   readonly name = MEMORY_TOOL_NAME;
   readonly description =
-    'Read, search, write, and forget durable Liora Recall memories that persist across sessions and context compactions. Use this for stable user preferences, project decisions, reminders, and important work continuity notes.';
+    'Read, search, write, and forget durable Liora Recall memories that persist across sessions and context compactions. Use for stable user preferences, project decisions, reminders, and important work continuity notes.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(MemoryInputSchema);
 
   constructor(private readonly memory: AgentMemoryRuntime) {}
