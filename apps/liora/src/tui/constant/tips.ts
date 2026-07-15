@@ -50,6 +50,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'media: set OPENAI_API_KEY or GOOGLE_API_KEY, then GenerateImage/GenerateVideo — no MCP setup', priority: 2, solo: true },
   { text: 'research: Context7 for library docs; WebSearch + FetchURL for papers/CVEs — no MCP setup', priority: 2, solo: true },
   { text: '/status: privacy/ZDR, web/Context7 readiness, and image/video keys at a glance', priority: 3, solo: true },
+  { text: 'browser/computer tools are built-in for screenshot proof — no MCP setup', priority: 2, solo: true },
   { text: 'first run: /login then type a task — no complex config required', priority: 3, solo: true },
   { text: 'footer badges warn when context is high or durable evidence went missing after compact', priority: 2, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },

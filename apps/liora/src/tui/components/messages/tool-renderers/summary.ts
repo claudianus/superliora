@@ -469,6 +469,67 @@ const ultraSwarmGlance: GlanceFn = (_toolCall, result) => {
   if (samples.length > 0) return samples.join(' · ');
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
+const browserStatusGlance: GlanceFn = (_toolCall, result) => {
+  const json = (() => {
+    const start = result.output.indexOf('{');
+    if (start < 0) return undefined;
+    try {
+      return JSON.parse(result.output.slice(start)) as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  })();
+  if (json === undefined) return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+  const url = typeof json['url'] === 'string' ? json['url'] : '';
+  const title = typeof json['title'] === 'string' ? json['title'] : '';
+  if (url.length > 0 && title.length > 0) {
+    try {
+      return `${new URL(url).host} · ${title.slice(0, 40)}`;
+    } catch {
+      return `${url.slice(0, 40)} · ${title.slice(0, 40)}`;
+    }
+  }
+  if (url.length > 0) return url.slice(0, 72);
+  if (title.length > 0) return title.slice(0, 72);
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const browserObserveGlance: GlanceFn = (_toolCall, result) => {
+  const start = result.output.indexOf('{');
+  if (start < 0) return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+  try {
+    const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
+    const title = typeof json['title'] === 'string' ? json['title'] : '';
+    const refs = Array.isArray(json['refs']) ? json['refs'].length : undefined;
+    const parts: string[] = [];
+    if (title.length > 0) parts.push(title.slice(0, 40));
+    if (refs !== undefined) parts.push(`${refs} refs`);
+    if (parts.length > 0) return parts.join(' · ');
+  } catch {
+    // fall through
+  }
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const computerCaptureGlance: GlanceFn = (_toolCall, result) => {
+  const start = result.output.indexOf('{');
+  if (start < 0) return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+  try {
+    const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
+    const mode = typeof json['mode'] === 'string' ? json['mode'] : '';
+    const app = typeof json['app'] === 'string' ? json['app'] : '';
+    const title = typeof json['windowTitle'] === 'string' ? json['windowTitle'] : '';
+    const parts: string[] = [];
+    if (mode.length > 0) parts.push(mode);
+    if (app.length > 0) parts.push(app);
+    if (title.length > 0) parts.push(title.slice(0, 40));
+    if (parts.length > 0) return parts.join(' · ');
+  } catch {
+    // fall through
+  }
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 
 
 
@@ -562,3 +623,11 @@ export const swarmChannelSummary: ResultRenderer = withGlance(swarmChannelGlance
 export const agentSummary: ResultRenderer = withGlance(agentGlance);
 export const agentSwarmSummary: ResultRenderer = withGlance(agentSwarmGlance);
 export const ultraSwarmSummary: ResultRenderer = withGlance(ultraSwarmGlance);
+export const browserStatusSummary: ResultRenderer = withGlance(browserStatusGlance);
+export const browserObserveSummary: ResultRenderer = withGlance(browserObserveGlance);
+export const browserScreenshotSummary: ResultRenderer = withGlance(null);
+export const browserActSummary: ResultRenderer = withGlance(null);
+export const browserConsoleSummary: ResultRenderer = withGlance(null);
+export const computerCaptureSummary: ResultRenderer = withGlance(computerCaptureGlance);
+export const computerActSummary: ResultRenderer = withGlance(null);
+export const computerStatusSummary: ResultRenderer = withGlance(null);
