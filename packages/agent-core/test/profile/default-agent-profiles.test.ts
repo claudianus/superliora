@@ -138,7 +138,7 @@ describe('default agent profiles', () => {
       expect(prompt).toContain('domain-appropriate and polished by default');
       expect(prompt).toContain('first runnable surface looks intentionally designed');
       expect(prompt).toContain('verify the actual rendered output');
-      expect(prompt).toContain('a missing optional automation package is not proof');
+      expect(prompt).toContain('missing optional automation packages do not prove');
       expect(prompt).toContain('Do not inflate scope just to look premium');
     }
   });
@@ -147,7 +147,7 @@ describe('default agent profiles', () => {
     for (const name of ['agent', 'coder', 'explore', 'plan']) {
       const prompt = DEFAULT_AGENT_PROFILES[name]?.systemPrompt(promptContext) ?? '';
       expect(prompt).toContain('# Practical Engineering Principles');
-      expect(prompt).toContain('what problem actually needs to be solved');
+      expect(prompt).toContain('what problem actually needs solving');
       expect(prompt).toContain('Delete or simplify before optimizing');
       expect(prompt).toContain('Automate only after the workflow is understood and stable');
       expect(prompt).toContain('Minimize dependencies, indirection, and configuration');
