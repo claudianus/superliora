@@ -967,7 +967,7 @@ describe('ReadTool description and schema parity', () => {
     const tool = toolWithContent('');
 
     expect(tool.description).toMatch(/parallel/i);
-    expect(tool.description).toMatch(/multiple `Read` calls in a single response/i);
+    expect(tool.description).toMatch(/parallel Reads in one response/i);
   });
 
   it('explains the trailing tool_meta status block', () => {

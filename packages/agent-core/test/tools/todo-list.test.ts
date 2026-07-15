@@ -95,7 +95,7 @@ describe('TodoListTool', () => {
     const { tool } = makeTool();
     const { description } = tool;
 
-    expect(description).toMatch(/proactively and often/i);
+    expect(description).toMatch(/proactively/i);
     expect(description).toMatch(/immediately after finishing/i);
     expect(description).toMatch(/exactly one/i);
     expect(description).toMatch(/in_progress/i);

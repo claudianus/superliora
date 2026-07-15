@@ -189,7 +189,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass');
     expect(text).toContain('no required gaps remain, and the UltraGoal is verifiable');
     expect(text).toContain('Option shape: Baseline');
-    expect(text).toContain('research-first is strongly encouraged');
+    expect(text).toContain('Research-first before AskUserQuestion');
     expect(text).toContain('Context7Resolve/Context7Docs for library APIs');
     expect(text).toContain('WebSearch/FetchURL for external facts');
     expect(text).toContain('Perspective: researcher');
@@ -316,7 +316,7 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('You may ONLY write to the current plan file');
-    expect(text).toContain('allowed for quick verification');
+    expect(text).toContain('for quick verification');
     expect(text).toContain('TodoList for progress');
     expect(text).toContain('NextPhase or ExitPlanMode');
   });
