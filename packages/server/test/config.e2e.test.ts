@@ -26,8 +26,19 @@ afterEach(async () => {
     // ignore
   }
   server = undefined;
-  rmSync(tmpDir, { recursive: true, force: true });
-  rmSync(bridgeHome, { recursive: true, force: true });
+  // Best-effort cleanup: coreProcess may still hold files under bridgeHome briefly
+  // after close(), so ENOTEMPTY can race on CI. Retry a few times before giving up.
+  for (const dir of [tmpDir, bridgeHome]) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+        break;
+      } catch (error) {
+        if (attempt === 4) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+      }
+    }
+  }
 });
 
 async function bootDaemon(): Promise<RunningServer> {
