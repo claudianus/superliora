@@ -168,7 +168,7 @@ At most 2–3 meaningfully different options; do not pad minor variants. If pref
 Multiple approaches in the plan → pass \`options\` to ExitPlanMode for user choice.
 NEVER write multiple approaches and call ExitPlanMode without \`options\`.
 
-AskUserQuestion: missing requirements/preferences only — never plan approval (user cannot see the plan until ExitPlanMode).
+AskUserQuestion: missing requirements/preferences only — never plan approval (plan is invisible until ExitPlanMode).
 End every turn with AskUserQuestion (clarify) or ExitPlanMode (approve).`;
 
 function fullReminder(planFilePath: PlanFilePath): string {
@@ -203,7 +203,7 @@ function reentryReminder(planFilePath: PlanFilePath): string {
 ## Re-entering Plan Mode
 A plan file from a prior session exists. Before proceeding:
   1. Read the existing plan file.
-  2. Compare to the current request — new task: replace; same task: update.
+  2. Compare to the current request — replace if new, update if same.
   3. Write/Edit the plan file (Write if missing).
   4. AskUserQuestion for missing preferences; edit before ExitPlanMode.
 
