@@ -326,6 +326,20 @@ describe('chip registry', () => {
       chipFor('TaskOutput', { task_id: 'bash-1' }, result('task_id: bash-1\nstatus: running\noutput_path: /tmp/out')),
     ).toBe('running');
   });
+  it('CronList chip counts jobs', () => {
+    expect(chipFor('CronList', {}, result('cron_jobs: 2\nid: abcd1234\n---\nid: efgh5678'))).toBe('2 jobs');
+  });
+
+  it('CronCreate chip shows job id', () => {
+    expect(
+      chipFor(
+        'CronCreate',
+        { cron: '0 9 * * *' },
+        result('id: abcd1234\ncron: 0 9 * * *\nhumanSchedule: At 09:00\nrecurring: true\nnextFireAt: 2026-07-16T09:00:00+09:00'),
+      ),
+    ).toBe('abcd1234');
+  });
+
 
 
 

@@ -17,6 +17,9 @@ import {
   askUserQuestionSummary,
   context7DocsSummary,
   context7ResolveSummary,
+  cronCreateSummary,
+  cronDeleteSummary,
+  cronListSummary,
   editSummary,
   enterPlanModeSummary,
   exitPlanModeSummary,
@@ -114,6 +117,12 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return taskOutputSummary;
     case 'TaskStop':
       return taskStopSummary;
+    case 'CronList':
+      return cronListSummary;
+    case 'CronCreate':
+      return cronCreateSummary;
+    case 'CronDelete':
+      return cronDeleteSummary;
     case 'Bash':
       return shellExecutionResultRenderer;
     case 'Think':

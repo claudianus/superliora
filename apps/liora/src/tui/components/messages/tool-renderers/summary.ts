@@ -362,6 +362,29 @@ const taskOutputGlance: GlanceFn = (toolCall, result) => {
   if (parts.length > 0) return parts.join(' · ');
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
+const cronListGlance: GlanceFn = (_toolCall, result) => {
+  const m = /cron_jobs:\s*(\d+)/i.exec(result.output);
+  if (m) {
+    const n = Number(m[1]);
+    if (n === 0) return 'no cron jobs';
+    return `${n} cron job${n === 1 ? '' : 's'}`;
+  }
+  if (/No cron jobs scheduled/i.test(result.output)) return 'no cron jobs';
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const cronCreateGlance: GlanceFn = (_toolCall, result) => {
+  const id = /^id:\s*(\S+)/m.exec(result.output)?.[1];
+  const cron = /^cron:\s*(.+)$/m.exec(result.output)?.[1]?.trim();
+  const next = /^nextFireAt:\s*(.+)$/m.exec(result.output)?.[1]?.trim();
+  const parts: string[] = [];
+  if (id !== undefined) parts.push(id);
+  if (cron !== undefined) parts.push(cron);
+  if (next !== undefined && next !== 'null') parts.push(`next ${next}`);
+  if (parts.length > 0) return parts.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 
 
 
@@ -444,3 +467,6 @@ export const lioraReviewSummary: ResultRenderer = withGlance(lioraReviewGlance);
 export const taskListSummary: ResultRenderer = withGlance(taskListGlance);
 export const taskOutputSummary: ResultRenderer = withGlance(taskOutputGlance);
 export const taskStopSummary: ResultRenderer = withGlance(null);
+export const cronListSummary: ResultRenderer = withGlance(cronListGlance);
+export const cronCreateSummary: ResultRenderer = withGlance(cronCreateGlance);
+export const cronDeleteSummary: ResultRenderer = withGlance(null);

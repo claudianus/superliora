@@ -450,6 +450,9 @@ function extractKeyArgument(
     TaskList: ['active_only', 'limit'],
     TaskOutput: ['task_id'],
     TaskStop: ['task_id'],
+    CronList: [],
+    CronCreate: ['cron', 'prompt'],
+    CronDelete: ['id'],
     // Prefer the short `description` so the header preview never spills a
     // multi-line `prompt` into the TUI chrome.
     Agent: ['description', 'prompt'],
