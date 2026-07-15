@@ -229,8 +229,8 @@ export function buildContextOsReportLines(
     '',
     'Media & research (no extra setup when keys already exist)',
     '  Web: WebSearch + FetchURL + LocalResearchStack (built-in).',
-    '  Images: GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set (also SearchSkill → workspace-imagen).',
-    '  Video: SearchSkill → gemini-omni-flash-api when video generation is available.',
+    '  Images: GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set.',
+    '  Video: GenerateVideo when GOOGLE_API_KEY/GEMINI_API_KEY is set (also SearchSkill → gemini-omni-flash-api).',
   );
   return lines;
 }

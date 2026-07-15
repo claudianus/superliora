@@ -58,6 +58,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return editSummary;
     case 'Write':
     case 'GenerateImage':
+    case 'GenerateVideo':
       return writeSummary;
     case 'CreateGoal':
     case 'GetGoal':

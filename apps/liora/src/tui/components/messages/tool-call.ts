@@ -424,6 +424,7 @@ function extractKeyArgument(
     Read: ['path', 'file_path'],
     Write: ['path', 'file_path'],
     GenerateImage: ['path', 'prompt'],
+    GenerateVideo: ['path', 'prompt'],
     Edit: ['path', 'file_path'],
     Grep: ['pattern'],
     Glob: ['pattern'],

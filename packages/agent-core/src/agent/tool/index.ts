@@ -570,6 +570,9 @@ export class ToolManager {
       this.shouldCreateBuiltin('GenerateImage') &&
         b.isGenerateImageAvailable() &&
         new b.GenerateImageTool(kaos, workspace),
+      this.shouldCreateBuiltin('GenerateVideo') &&
+        b.isGenerateVideoAvailable() &&
+        new b.GenerateVideoTool(kaos, workspace),
     ];
   }
 

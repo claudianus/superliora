@@ -48,7 +48,7 @@ export const PREMIUM_VISUAL_PHOTO_CATALOG = [
   '- `https://api.dicebear.com/10.x/shapes/svg?seed={unique-id}` — abstract brand marks.',
   '- `https://api.dicebear.com/10.x/initials/svg?seed={name}` — initials badges.',
   '**Rules:** one seed namespace per project; never reuse the same seed for different people; add real `alt` text.',
-  '**When Picsum is too generic:** SearchSkill → workspace-imagen for subject-specific hero/icons/sprites.',
+  '**When Picsum is too generic:** prefer GenerateImage (OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY) for subject-specific hero/icons/sprites; SearchSkill → workspace-imagen only if GenerateImage is unavailable.',
 ].join('\n');
 
 /** Premium Google Font stacks — paste into HTML or @import. */

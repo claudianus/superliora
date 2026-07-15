@@ -18,6 +18,7 @@ export const PREMIUM_VISUAL_SKILL_ROUTING = [
   '- Trigger: any web/app UI, landing, dashboard, game surface, marketing site, component library, or visual refresh — even without the word "design".',
   '- Before visual markup/styles or shipping a visible slice: SearchSkill → Skill best match. Reuse loaded skills; do not reload the same skill.',
   '- Keywords (3–12 words): "frontend design distinctive anti template"; "premium frontend design taste anti slop"; "redesign existing project premium visual audit"; "minimalist ui premium utilitarian design"; "stitch design taste semantic design system"; "develop web game visual polish playwright screenshot"; "workspace imagen generate ui assets icons".',
+  '- Subject-specific assets: GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set; otherwise SearchSkill → workspace-imagen.',
   '- Load ≥1 visual skill before the first visual implementation pass. For games, load develop-web-game plus a design skill.',
   '- Skill text is constraints, not optional inspiration. AGENTS.md and harness contracts override conflicts.',
 ].join('\n');
@@ -31,4 +32,4 @@ export const PREMIUM_VISUAL_SKIP_SKILL_WHEN = [
 
 /** Compact reminder injected on sparse premium turns. */
 export const PREMIUM_VISUAL_SPARSE_CHECKPOINT =
-  'Premium Visual still ON — art direction before code; SearchSkill → frontend-design if needed; BrowserScreenshot before done; use picsum/dicebear/font stacks/bento templates.';
+  'Premium Visual still ON — art direction before code; SearchSkill → frontend-design if needed; GenerateImage for custom assets when keys exist; BrowserScreenshot before done; use picsum/dicebear/font stacks/bento templates.';

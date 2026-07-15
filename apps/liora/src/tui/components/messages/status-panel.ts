@@ -153,7 +153,8 @@ const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion for plain
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL ready (LocalResearchStack when no managed search)';
-const MEDIA_GATE = 'GenerateImage when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set';
+const MEDIA_GATE =
+  'GenerateImage/GenerateVideo when OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY is set';
 const MEMORY_GATE = 'prefs | session recall | long-run notes';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
@@ -191,12 +192,16 @@ function formatResearchGate(options: StatusReportOptions): string {
 }
 
 function formatMediaGate(options: StatusReportOptions): string {
-  const generate = hasActiveTool(options, 'GenerateImage');
-  if (generate === true) return 'GenerateImage active · provider key detected';
-  if (imageProviderKeyReady()) {
-    return 'Provider key present · GenerateImage registers when profile allows it';
+  const image = hasActiveTool(options, 'GenerateImage');
+  const video = hasActiveTool(options, 'GenerateVideo');
+  if (image === true && video === true) {
+    return 'GenerateImage + GenerateVideo active · provider keys detected';
   }
-  if (generate === false) return MEDIA_GATE;
+  if (image === true) return 'GenerateImage active · provider key detected';
+  if (video === true) return 'GenerateVideo active · Google/Gemini key detected';
+  if (imageProviderKeyReady()) {
+    return 'Provider key present · GenerateImage/GenerateVideo register when profile allows';
+  }
   return MEDIA_GATE;
 }
 

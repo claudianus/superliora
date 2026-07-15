@@ -26,6 +26,7 @@ tools:
   - CronDelete
   - ReadMediaFile
   - GenerateImage
+  - GenerateVideo
   - TodoList
   - UltraworkGraph
   - Memory
