@@ -147,9 +147,9 @@ function formatWorktreeStatus(status: GitStatus): string {
 }
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
-const WORKFLOW_GATE = 'research -> interview -> goal -> swarm decision -> integrate -> verify -> learn';
+const WORKFLOW_GATE = 'research → interview → goal → swarm → integrate → verify → learn';
 const ENGINE_GATE = 'UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn';
-const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks';
+const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (LocalResearchStack fallback)';

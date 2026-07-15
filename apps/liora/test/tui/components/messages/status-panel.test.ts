@@ -87,9 +87,9 @@ describe('status panel report lines', () => {
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+research -> interview -> goal -> swarm decision -> integrate -> verify -> learn/);
+    expect(output).toMatch(/Workflow\s+research → interview → goal → swarm → integrate → verify → learn/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion for plain tasks/);
+    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
@@ -177,9 +177,9 @@ describe('status panel report lines', () => {
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+research -> interview -> goal -> swarm decision -> integrate -> verify -> learn/);
+    expect(output).toMatch(/Workflow\s+research → interview → goal → swarm → integrate → verify → learn/);
     expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion for plain tasks/);
+    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
