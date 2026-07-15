@@ -96,8 +96,7 @@ function buildGoalReminder(goal: GoalSnapshot): string {
   }
   lines.push(
     '',
-    `Status: ${goal.status}`,
-    `Progress: ${goal.turnsUsed} turns, ${goal.tokensUsed} tokens, ${formatElapsed(goal.wallClockMs)} elapsed.`,
+    `Status: ${goal.status} · Progress: ${goal.turnsUsed} turns, ${goal.tokensUsed} tokens, ${formatElapsed(goal.wallClockMs)} elapsed.`,
   );
 
   const budget = goal.budget;
@@ -122,7 +121,7 @@ function buildGoalReminder(goal: GoalSnapshot): string {
     '',
     'If objective/latest request states an explicit hard budget that is not recorded, call SetGoalBudget first. Do not invent budgets. If a requested budget is not reasonable, do not set it; tell the user.',
     '',
-    'Goal mode is iterative. Keep the self-audit brief. Do not explore unrelated interpretations once the goal can be decided. If the objective is simple, already answered, impossible, unsafe, or contradictory, do not run another goal turn — explain if useful, then call UpdateGoal with `complete` or `blocked` in the same turn. Otherwise do one coherent slice of work. Call UpdateGoal with `complete` only when all required work is done, validation passed, and no useful next action remains. Do not mark complete after only producing a plan, summary, first pass, or partial result. If blocked by external conditions or missing user input, call UpdateGoal with `blocked`. Call UpdateGoal as soon as genuinely done or stuck.',
+    'Goal mode is iterative. Keep the self-audit brief. Do not explore unrelated interpretations once the goal can be decided. If simple, already answered, impossible, unsafe, or contradictory: explain if useful, then UpdateGoal `complete` or `blocked` in the same turn. Otherwise do one coherent slice. UpdateGoal `complete` only when all required work is done, validation passed, and no useful next action remains — not after only a plan, summary, first pass, or partial result. If blocked by external conditions or missing user input, UpdateGoal `blocked`. Call UpdateGoal as soon as genuinely done or stuck.',
   );
   return lines.join('\n');
 }

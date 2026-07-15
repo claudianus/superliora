@@ -4474,7 +4474,7 @@ function normalizeInputText(text: string): string {
   if (text.includes('Auto permission mode is active.')) return '<auto-mode-enter-reminder>';
   if (text.includes('Auto permission mode is no longer active.')) return '<auto-mode-exit-reminder>';
   if (
-    text.includes('Plan mode is active. You MUST NOT make any edits') &&
+    text.includes('Plan mode is active. MUST NOT edit') &&
     text.includes('Plan file:')
   ) {
     return '<plan-mode-reminder>';

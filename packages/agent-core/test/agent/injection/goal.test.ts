@@ -174,8 +174,8 @@ describe('GoalInjector content', () => {
     await store.createGoal({ objective: 'fix the bugs' });
     const text = (await injectOnce(store))!;
     expect(text).toContain('Goal mode is iterative');
-    expect(text).toContain('one coherent slice of work');
-    expect(text).toContain('Do not mark complete after only producing a plan');
+    expect(text).toContain('one coherent slice');
+    expect(text).toContain('not after only a plan, summary, first pass, or partial result');
   });
 
   it('tells the model to decide simple or impossible goals in the same turn', async () => {
@@ -184,8 +184,8 @@ describe('GoalInjector content', () => {
     const text = (await injectOnce(store))!;
     expect(text).toContain('Keep the self-audit brief');
     expect(text).toContain('Do not explore unrelated interpretations once the goal can be decided');
-    expect(text).toContain('do not run another goal turn');
-    expect(text).toContain('call UpdateGoal with `complete` or `blocked` in the same turn');
+    expect(text).toContain('If simple, already answered, impossible, unsafe, or contradictory');
+    expect(text).toContain('UpdateGoal `complete` or `blocked` in the same turn');
   });
 
   it('tells the model to set explicit hard budgets but ignore unreasonable ones', async () => {

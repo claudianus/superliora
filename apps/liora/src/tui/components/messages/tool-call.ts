@@ -593,6 +593,7 @@ export class ToolCallComponent extends Container {
   private lastStreamingProgressTickMs = 0;
   private lastSubagentElapsedTickMs = 0;
   private subagentStartedAtMs: number | undefined;
+  private finishedAtMs: number | undefined;
   private subagentEndedAtMs: number | undefined;
   private subagentSpinnerFrame = 0;
 
@@ -635,6 +636,9 @@ export class ToolCallComponent extends Container {
     super();
     this.toolCall = toolCall;
     this.result = result;
+    if (result !== undefined) {
+      this.finishedAtMs = Date.now();
+    }
     this.ui = ui;
     this.applySubagentReplay(toolCall.subagent);
 
@@ -736,6 +740,7 @@ export class ToolCallComponent extends Container {
 
   setResult(result: ToolResultBlockData): void {
     this.result = result;
+    this.finishedAtMs ??= Date.now();
     // Result supersedes any live progress chatter; the result body is the
     // authoritative final state. Without this clear, a finished tool would
     // show both the streamed status lines and the final output stacked.
@@ -1504,12 +1509,28 @@ export class ToolCallComponent extends Container {
 
   private buildHeaderChip(result: ToolResultBlockData): string {
     const provider = pickChip(this.toolCall.name);
-    if (provider === undefined) return '';
-    const text = provider(this.toolCall, result);
-    if (text.length === 0) return '';
-    const chip = formatRendererToolHeaderChip({ text });
+    const parts: string[] = [];
+    if (provider !== undefined) {
+      const text = provider(this.toolCall, result);
+      if (text.length > 0) parts.push(text);
+    }
+    const durationChip = this.formatToolDurationChip();
+    if (durationChip !== undefined) parts.push(durationChip);
+    if (parts.length === 0) return '';
+    const chip = formatRendererToolHeaderChip({ text: parts.join(' · ') });
     if (result.is_error) return currentTheme.fg('error', chip);
     return currentTheme.dim(chip);
+  }
+
+  private formatToolDurationChip(): string | undefined {
+    const startedAtMs = this.toolCall.streamingStartedAtMs;
+    if (startedAtMs === undefined) return undefined;
+    const endedAtMs = this.finishedAtMs ?? (this.result === undefined ? Date.now() : undefined);
+    if (endedAtMs === undefined) return undefined;
+    const elapsedSeconds = Math.max(0, Math.floor((endedAtMs - startedAtMs) / 1000));
+    // Keep sub-second tools quiet; duration noise hurts glanceability.
+    if (elapsedSeconds < 1) return undefined;
+    return formatElapsed(elapsedSeconds);
   }
 
   private rebuildContent(): void {
