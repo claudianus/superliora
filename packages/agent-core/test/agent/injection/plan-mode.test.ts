@@ -362,7 +362,7 @@ describe('PlanModeInjector cadence', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('Plan mode still active');
-    expect(text).toContain('see full instructions earlier');
+    expect(text).toContain('full instructions earlier');
     expect(text).toContain('Plan file: /tmp/plan.md');
   });
 

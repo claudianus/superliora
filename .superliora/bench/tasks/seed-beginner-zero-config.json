@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "seed.beginner-zero-config.v1",
+  "title": "Record a beginner zero-config onboarding contract",
+  "suite": "seed",
+  "kind": "onboarding",
+  "risk": "low",
+  "tags": [
+    "beginner",
+    "zero-config",
+    "ux",
+    "deterministic-check"
+  ],
+  "prompt": "Create reports/beginner-zero-config-contract.md with sections for Login, Status gates, Media keys, and Bench path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/beginner-zero-config-contract.md",
+      "content": "# Beginner Zero-Config Contract\n\n## Login\n/login connects providers; no complex config required\n\n## Status gates\n/status shows Research, Media, Bench, Privacy/ZDR\n\n## Media keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY enables image/video without MCP\n\n## Bench path\n/bench or node scripts/liora-agent-bench.mjs --suite seed for LioraBench\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/beginner-zero-config-contract.md",
+      "text": "Login",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/beginner-zero-config-contract.md",
+      "text": "Status gates",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/beginner-zero-config-contract.md",
+      "text": "Media keys",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/beginner-zero-config-contract.md",
+      "text": "Bench path",
+      "weight": 1
+    }
+  ]
+}
