@@ -1,8 +1,7 @@
-Generate a short video clip from a text prompt (and optional first-frame image) when a video-capable provider key is available.
+Generate a short video from a text prompt (optional first-frame image).
 
-Use for product demos, motion mockups, and short UI/animation previews. Prefer this over ad-hoc scripts when `GOOGLE_API_KEY` / `GEMINI_API_KEY` is already set.
+Use for product demos, motion mockups, and short UI/animation previews when `GOOGLE_API_KEY`/`GEMINI_API_KEY` is set.
 
-Provider:
-- Google Gemini Omni Flash preview (`gemini-omni-flash-preview`) via the Interactions-style generateContent path when available.
+Provider: Google Gemini video path when available.
 
-Writes under `.superliora/generated/videos/<timestamp>.mp4` by default. Report the path; use ReadMediaFile when the model supports video_in.
+Default path: `.superliora/generated/videos/<timestamp>.mp4`. Report the path; use ReadMediaFile when the model supports video input.
