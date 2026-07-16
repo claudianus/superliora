@@ -2,6 +2,11 @@ import type { PluginInfo, PluginSummary } from '@superliora/sdk';
 
 import { currentTheme } from '#/tui/theme';
 import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
+import {
   CURATED_BADGE,
   OFFICIAL_BADGE,
   THIRD_PARTY_BADGE,
@@ -34,7 +39,13 @@ export function buildPluginsListLines(input: PluginsListPanelInput): readonly st
   };
   const lines: string[] = [];
   for (const plugin of input.plugins) {
-    const enabled = plugin.enabled ? success('enabled') : muted('disabled');
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const enabled = plugin.enabled
+      ? animated
+        ? renderPulseText('enabled', `plugins:enabled:${plugin.id}`, 'success')
+        : success('enabled')
+      : muted('disabled');
     const state = plugin.state === 'ok' ? '' : ` [${plugin.state}]`;
     const version = plugin.version ?? '-';
     const diagnostics = plugin.hasErrors ? warning(' | diagnostics: see /plugins info') : '';
