@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro15-hard40-tool10.v1",
+  "title": "Record micro15 hard40 and tool10 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "tool", "visible-evidence"],
+  "prompt": "Create reports/micro15-hard40-tool10.md with sections for Micro 15, Hard 40, Tool 10, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/micro15-hard40-tool10.md",
+    "content": "# Micro15 Hard40 Tool10 Contract\n\n## Micro 15\nmicro compaction usage pressure defaults to 0.15 so tool-result clearing starts earlier\n\n## Hard 40\nhard compaction block ratio densifies to 0.40 with absolute trigger 12k\n\n## Tool 10\nmodel-facing tool result budgets default to 10 chars with 2-char previews\n\n## Evidence path\nLioraBench holdout + micro/tool/strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/micro15-hard40-tool10.md", "text": "Micro 15", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro15-hard40-tool10.md", "text": "Hard 40", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro15-hard40-tool10.md", "text": "Tool 10", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro15-hard40-tool10.md", "text": "Evidence path", "weight": 1}
+  ]
+}
