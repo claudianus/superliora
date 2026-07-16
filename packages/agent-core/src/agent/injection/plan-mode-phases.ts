@@ -30,7 +30,7 @@ AskUserQuestion, ${ULTRA_PLAN_BLOCKED_MUTATORS}
 
 Goal: source-backed context + improvement levers before UltraPlan interview elevates goals.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths. Research is product-write read-only — no plan file Write/Edit.
+Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths. Research is product-write read-only — no plan-file Write/Edit.
 Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
@@ -48,9 +48,9 @@ Routing:
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 
 UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
-Hard gate for NextPhase to Design: verifiable UltraGoal only. Soft seed gaps, ambiguity floors, and open_gaps are recommendations — they do not hard-block Design.
+Hard gate for NextPhase to Design: verifiable UltraGoal only. Soft seed gaps, ambiguity floors, and open_gaps are recommendations and do not hard-block Design.
 Follow the live readiness checklist below; do not guess or repeat resolved topics.
-Prefer not to Write the formal plan file during Interview (Seed Spec auto-extracts on Design). Product-file Write/Edit for investigation prototypes is allowed under planMode.
+Prefer not to Write the formal plan file during Interview (Seed Spec auto-extracts on Design). Product Write/Edit for investigation prototypes is allowed under planMode.
 
 Round {{round}} | Perspective: {{perspective}} — {{perspectiveDescription}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
@@ -74,7 +74,7 @@ Your turn MUST end with a verification summary, then call NextPhase({ phase: 'wr
 You may ONLY write to the current plan file. All other file edits BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
 
 Before writing user-visible plan prose: ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
-No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if light pass fails.
+No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if the light pass fails.
 
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
 Include: \`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>\`
@@ -83,7 +83,7 @@ ExitPlanMode only after a complete Seed Spec.`,
 
   exit: `## Exit Phase
 Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver.
-No-AI-Slop skill routing: light pass on user-visible plan text; SearchSkill with response language only if prose still reads generic.
+No-AI-Slop skill routing: light pass on user-visible plan text; SearchSkill with response language only if prose still looks generic.
 If ExitPlanMode reports missing sections, Read/fix only that plan file and retry. Other reads for quick verification allowed.`,
 };
 
@@ -92,7 +92,7 @@ const INTERVIEW_SPARSE_ESSENTIALS = [
   '- Teach one brief insight/unknown-unknown when it helps decide.',
   '- AskUserQuestion: Baseline + Upgrades (payoff/trade-off) + Defer; research-first when options need evidence.',
   '- Close the open gap below through the current perspective lens — not a bare checklist question.',
-  '- Same-turn read-only research is fine when it improves the next question.',
+  '- Same-turn read-only research is fine when it improves the next AskUserQuestion.',
 ].join('\n');
 
 export function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): Promise<string> {

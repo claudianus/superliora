@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.recompact35-ultra-plan-density.v1",
+  "title": "Record recompact 3.5% growth and denser Ultra Plan phase copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "plan",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/recompact35-ultra-plan-density.md with sections for Recompact 3.5, Ultra Plan densify, Ladder tip, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/recompact35-ultra-plan-density.md",
+      "content": "# Recompact35 Ultra Plan Density Contract\n\n## Recompact 3.5\nmin recompact growth defaults to 3.5% so long sessions can reclaim sooner after prior compaction\n\n## Ultra Plan densify\nUltra Plan phase reminders stay contract-complete (expert leader who teaches, call NextPhase) with denser always-on wording\n\n## Ladder tip\ncontext ladder tips surface recompact3.5 alongside the progressive reclaim ladder\n\n## Evidence path\nLioraBench holdout + strategy/plan-mode vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/recompact35-ultra-plan-density.md",
+      "text": "Recompact 3.5",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recompact35-ultra-plan-density.md",
+      "text": "Ultra Plan densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recompact35-ultra-plan-density.md",
+      "text": "Ladder tip",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recompact35-ultra-plan-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
