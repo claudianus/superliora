@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft24-handoff26-hard56.v1",
+  "title": "Record soft24 handoff26 and hard56 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "hard-block", "visible-evidence"],
+  "prompt": "Create reports/soft24-handoff26-hard56.md with sections for Soft 24, Handoff 26, Hard 56, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft24-handoff26-hard56.md",
+    "content": "# Soft24 Handoff26 Hard56 Contract\n\n## Soft 24\nsoft compaction trigger defaults to 0.24 with quality bias floor 0.22 so reclaim can tighten after emergency backstops\n\n## Handoff 26\nswarm handoff compaction ratio defaults to 0.26 so pre-swarm reclaim runs earlier\n\n## Hard 56\nhard block defaults to 0.56 with absolute trigger 40k and floored ratio thresholds for denser long-horizon reclaim\n\n## Evidence path\nLioraBench holdout + strategy/status/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft24-handoff26-hard56.md", "text": "Soft 24", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft24-handoff26-hard56.md", "text": "Handoff 26", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft24-handoff26-hard56.md", "text": "Hard 56", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft24-handoff26-hard56.md", "text": "Evidence path", "weight": 1}
+  ]
+}
