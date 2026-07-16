@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.reserved24-pblock12-status-density.v1",
+  "title": "Record reserved24 pblock12 and denser Bench gate",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/reserved24-pblock12-status-density.md with sections for Reserved 24k, Pblock 12/6, Bench gate, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/reserved24-pblock12-status-density.md",
+    "content": "# Reserved24 Pblock12 Status Density Contract\n\n## Reserved 24k\nreserved context headroom defaults to 24k tokens for denser usable windows before hard block\n\n## Pblock 12/6\nparallel summarize block threshold/target defaults to 12k/6k for denser multi-chunk compaction\n\n## Bench gate\nstatus panel Bench gate densifies to a42/m2/sw550/s54 markers for narrow terminals\n\n## Evidence path\nLioraBench holdout + strategy/status-panel vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/reserved24-pblock12-status-density.md", "text": "Reserved 24k", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved24-pblock12-status-density.md", "text": "Pblock 12/6", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved24-pblock12-status-density.md", "text": "Bench gate", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved24-pblock12-status-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
