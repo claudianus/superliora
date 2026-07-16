@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro32-tool50-swarm70.v1",
+  "title": "Record micro32 tool50 and swarm70 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "swarm", "visible-evidence"],
+  "prompt": "Create reports/micro32-tool50-swarm70.md with sections for Micro 32, Tool 50, Swarm 70, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/micro32-tool50-swarm70.md",
+    "content": "# Micro32 Tool50 Swarm70 Contract\n\n## Micro 32\nmicro compaction usage pressure defaults to 0.32 with min content tokens 2 so tool-result clearing starts earlier\n\n## Tool 50\nmodel-facing tool result budgets default to 50 chars with 2-char previews\n\n## Swarm 70\nswarm expert body / total / inline densify to 70 / 2k / 14 for thriftier multi-agent handoffs\n\n## Evidence path\nLioraBench holdout + micro/tool/boundary vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/micro32-tool50-swarm70.md", "text": "Micro 32", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro32-tool50-swarm70.md", "text": "Tool 50", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro32-tool50-swarm70.md", "text": "Swarm 70", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro32-tool50-swarm70.md", "text": "Evidence path", "weight": 1}
+  ]
+}
