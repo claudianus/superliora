@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft38-handoff36-micro42.v1",
+  "title": "Record soft38 handoff36 and micro42 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "swarm", "visible-evidence"],
+  "prompt": "Create reports/soft38-handoff36-micro42.md with sections for Soft 38, Handoff 36, Micro 42, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft38-handoff36-micro42.md",
+    "content": "# Soft38 Handoff36 Micro42 Contract\n\n## Soft 38\nsoft compaction trigger defaults to 0.38 with quality bias floor 0.36 so reclaim can tighten after emergency backstops\n\n## Handoff 36\nswarm handoff compaction ratio defaults to 0.36 so pre-swarm reclaim runs earlier\n\n## Micro 42\nmicro minContextUsageRatio defaults to 0.42 and minContentTokens to 5 so tool-result clearing starts earlier\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft38-handoff36-micro42.md", "text": "Soft 38", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft38-handoff36-micro42.md", "text": "Handoff 36", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft38-handoff36-micro42.md", "text": "Micro 42", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft38-handoff36-micro42.md", "text": "Evidence path", "weight": 1}
+  ]
+}
