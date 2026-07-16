@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard90-media-context-density.v1",
+  "title": "Record hard-block 0.90 and denser media/context tool copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/hard90-media-context-density.md with sections for Hard 90, Media densify, Context densify, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard90-media-context-density.md",
+    "content": "# Hard90 Media Context Density Contract\n\n## Hard 90\nfull compaction hard block defaults to 0.90 so long sessions stop earlier near the window while still leaving summary room\n\n## Media densify\nReadMedia always-on tool description stays contract-complete with denser wording\n\n## Context densify\nContext7Docs/current-time/background-agent always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard90-media-context-density.md", "text": "Hard 90", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard90-media-context-density.md", "text": "Media densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard90-media-context-density.md", "text": "Context densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard90-media-context-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}

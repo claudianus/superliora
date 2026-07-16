@@ -180,8 +180,8 @@ describe('DefaultCompactionStrategy', () => {
     expect(strategy.shouldCompact(55_000)).toBe(false);
     expect(strategy.shouldBlock(55_000)).toBe(false);
     expect(strategy.shouldCompact(81_000)).toBe(true);
-    expect(strategy.shouldBlock(91_999)).toBe(false);
-    expect(strategy.shouldBlock(92_000)).toBe(true);
+    expect(strategy.shouldBlock(89_999)).toBe(false);
+    expect(strategy.shouldBlock(90_000)).toBe(true);
   });
 
   it('starts async compaction between the async threshold and soft trigger', () => {
@@ -280,13 +280,13 @@ describe('DefaultCompactionStrategy', () => {
     expect(strategy.effectiveTriggerRatio).toBe(0.7);
     expect(strategy.shouldCompact(69_999)).toBe(false);
     expect(strategy.shouldCompact(70_000)).toBe(true);
-    expect(strategy.shouldBlock(91_999)).toBe(false);
-    expect(strategy.shouldBlock(92_000)).toBe(true);
+    expect(strategy.shouldBlock(89_999)).toBe(false);
+    expect(strategy.shouldBlock(90_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
   });
 
   it('resolves block ratio above trigger when only trigger is configured', () => {
-    expect(resolveCompactionBlockRatio(0.7)).toBe(0.92);
+    expect(resolveCompactionBlockRatio(0.7)).toBe(0.9);
     expect(resolveCompactionBlockRatio(0.9)).toBeCloseTo(0.95);
     expect(resolveCompactionBlockRatio(0.8, 0.88)).toBe(0.88);
   });
