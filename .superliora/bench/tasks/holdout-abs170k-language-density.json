@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.abs170k-language-density.v1",
+  "title": "Record absolute 170k soft trigger and denser language/lean injection",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "language",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/abs170k-language-density.md with sections for Absolute 170k, Language densify, Lean densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/abs170k-language-density.md",
+      "content": "# Abs170k Language Density Contract\n\n## Absolute 170k\nlarge-window absolute soft trigger defaults to 170k tokens so long sessions compact earlier before attention rot\n\n## Language densify\nresponse-language lock directives stay contract-complete with denser always-on wording\n\n## Lean densify\nLiora Lean Context guidance stays tool-routing complete with denser always-on wording\n\n## Evidence path\nLioraBench holdout + strategy/response-language/lean-context vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/abs170k-language-density.md",
+      "text": "Absolute 170k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/abs170k-language-density.md",
+      "text": "Language densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/abs170k-language-density.md",
+      "text": "Lean densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/abs170k-language-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
