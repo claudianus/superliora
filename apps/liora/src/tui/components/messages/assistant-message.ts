@@ -26,7 +26,10 @@ import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
   motionEffectsAllowed,
+  renderPulseText,
+  renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
+  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
 type AssistantMarkdownOptions = {
@@ -121,7 +124,17 @@ export class AssistantMessageComponent implements Component {
       cacheEpoch: streaming ? renderCacheEpoch() : undefined,
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
-        const prefix = this.showBullet ? currentTheme.fg('text', STATUS_BULLET) : MESSAGE_INDENT;
+        const appearance = getActiveAppearancePreferences();
+        const prefix = !this.showBullet
+          ? MESSAGE_INDENT
+          : shouldRenderAmbientEffects(appearance)
+            ? this.markdownTransient
+              ? renderPulseText(STATUS_BULLET, 'assistant:bullet:live', 'text', appearance)
+              : renderSpectacularText(STATUS_BULLET, 'assistant:bullet', appearance, {
+                  intense: false,
+                  pace: 'slow',
+                })
+            : currentTheme.fg('text', STATUS_BULLET);
         // Reserve a column for the pulsing caret while streaming so it does not
         // get truncated off the end of the last content line.
         const caretReserve = streaming ? 1 : 0;
