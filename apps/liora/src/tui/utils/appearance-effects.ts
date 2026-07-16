@@ -34,8 +34,8 @@ const PARTICLE_TOKENS: readonly ColorToken[] = [
 ];
 const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
 const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
-/** How often ambient animation frames repaint (~20fps). */
-const PREMIUM_AMBIENT_RENDER_TICK_MS = 42;
+/** How often ambient animation frames repaint (~28fps premium floor). */
+const PREMIUM_AMBIENT_RENDER_TICK_MS = 36;
 const SUBTLE_AMBIENT_RENDER_TICK_MS = 140;
 const PULSE_GLYPH_INTERVAL_MS = 280;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
@@ -140,7 +140,7 @@ export function appearanceAnimationFrameIntervalMs(
       requested: 'premium',
       quality: 'full',
       health: 'healthy',
-      maxFps: 24,
+      maxFps: 30,
       defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
       premiumMs: PREMIUM_AMBIENT_RENDER_TICK_MS,
       offMs: 1000,
@@ -220,8 +220,8 @@ export function renderParticleRail(
     cells[x] = currentTheme.fg(token, char);
 
     if (premium && safeWidth > 14) {
-      // 7-cell comet trail for denser continuous motion on demo terminals.
-      for (let step = 1; step <= 7; step++) {
+      // 8-cell comet trail for denser continuous motion on demo terminals.
+      for (let step = 1; step <= 8; step++) {
         const trail = rendererPositiveModulo(x - direction * step, safeWidth);
         if (cells[trail] !== ' ') continue;
         if (step === 1) cells[trail] = currentTheme.dimFg('particle', '•');

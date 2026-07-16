@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.premium-ambient-36ms-trail8.v1",
+  "title": "Record premium ambient 36ms and 8-cell trail densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["tui", "premium", "visible-evidence"],
+  "prompt": "Create reports/premium-ambient-36ms-trail8.md with sections for Ambient 36ms, Trail 8, Zero Config, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/premium-ambient-36ms-trail8.md",
+    "content": "# Premium Ambient 36ms Trail8 Contract\n\n## Ambient 36ms\npremium ambient render tick densifies to 36ms for smoother zero-config spectacle\n\n## Trail 8\npremium particle rails densify to 8-step comet trails for denser continuous motion\n\n## Zero Config\nno settings required — default premium particles keep the denser motion path\n\n## Evidence path\nLioraBench holdout + appearance vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/premium-ambient-36ms-trail8.md", "text": "Ambient 36ms", "weight": 1},
+    {"type": "file_contains", "path": "reports/premium-ambient-36ms-trail8.md", "text": "Trail 8", "weight": 1},
+    {"type": "file_contains", "path": "reports/premium-ambient-36ms-trail8.md", "text": "Zero Config", "weight": 1},
+    {"type": "file_contains", "path": "reports/premium-ambient-36ms-trail8.md", "text": "Evidence path", "weight": 1}
+  ]
+}
