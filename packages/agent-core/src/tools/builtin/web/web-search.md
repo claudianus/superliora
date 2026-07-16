@@ -1,3 +1,3 @@
 Search the web for current facts.
 
-Include the year from the latest `<current_time>` reminder or `GetCurrentTime` for releases, CVEs, news. Results: title, date when known, URL, snippet; `include_content` may add page text (token-heavy). Host may fall back to a local search provider. For implementation claims, follow hits with FetchURL and cite primary source URLs — never snippets alone.
+Year from latest `<current_time>` or `GetCurrentTime` for releases/CVEs/news. Hits: title, date when known, URL, snippet; `include_content` adds page text (token-heavy). Host may use a local search provider. For claims, FetchURL + cite primary source URLs — never snippets alone.

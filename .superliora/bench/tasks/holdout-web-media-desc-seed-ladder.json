@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.web-media-desc-seed-ladder.v1",
+  "title": "Record denser web/media tool descs and seed ladder",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["web", "media", "token", "visible-evidence"],
+  "prompt": "Create reports/web-media-desc-seed-ladder.md with sections for Web densify, Media densify, Seed ladder, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/web-media-desc-seed-ladder.md",
+    "content": "# Web Media Desc Seed Ladder Contract\n\n## Web densify\nWebSearch/FetchURL always-on descriptions stay contract-complete with denser wording (local search provider, primary source URLs, extracted/verbatim)\n\n## Media densify\nGenerateImage/GenerateVideo/ReadMediaFile keep key paths and Read tool contract phrases while denser\n\n## Seed ladder\nseed-token-efficiency-contract tracks async42/soft54/reserved24/pblock12/tool7k/swarm550 densify\n\n## Evidence path\nLioraBench holdout + fetch-url/web-search/read-media vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/web-media-desc-seed-ladder.md", "text": "Web densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/web-media-desc-seed-ladder.md", "text": "Media densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/web-media-desc-seed-ladder.md", "text": "Seed ladder", "weight": 1},
+    {"type": "file_contains", "path": "reports/web-media-desc-seed-ladder.md", "text": "Evidence path", "weight": 1}
+  ]
+}
