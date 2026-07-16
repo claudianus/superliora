@@ -337,10 +337,10 @@ export function formatWebFooterBadge(): {
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
   if (ratio >= 0.9) return 'danger';
-  // Ladder: soft 0.05 · handoff 0.16 · hard 0.50 · abs34k.
+  // Ladder: soft 0.04 · handoff 0.16 · hard 0.50 · abs34k.
   // Soft → info (reclaim soon); hard → warning (stop before rot); ≥0.9 → danger.
   if (ratio >= 0.5) return 'warning';
-  if (ratio >= 0.05) return 'info';
+  if (ratio >= 0.04) return 'info';
   return 'muted';
 }
 
@@ -358,7 +358,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (state.isBackgroundCompacting) return ttui('tui.footer.compacting.background');
   if (state.isReplaying) return ttui('tui.footer.replaying');
   if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
-  if (safeUsage(state.contextUsage) >= 0.05) return ttui('tui.footer.next.compact');
+  if (safeUsage(state.contextUsage) >= 0.04) return ttui('tui.footer.next.compact');
   if (
     state.contextOS !== undefined &&
     state.contextOS !== null &&
