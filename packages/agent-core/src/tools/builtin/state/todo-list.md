@@ -1,6 +1,6 @@
 Live Kanban for multi-step work — use proactively when tracking helps. Update when the work shape changes. In plan mode, write the durable plan to the plan file; TodoList is the execution board only.
 
-**Use when:** multi-step tasks, large searches, edit sequences, 2+ file edits, test→fix loops, swarm orchestration. **Skip when:** one–two call tasks or pure conversation.
+**Use when:** multi-step tasks, large searches, 2+ file edits, test→fix loops, swarm orchestration. **Skip when:** one–two call tasks or pure conversation.
 
 **Input (strict):** `todos` is `{ "title", "status": pending|in_progress|done }[]` only. Other fields/statuses rejected. Omit `todos` (no `todos` argument) to query; `[]` clears.
 

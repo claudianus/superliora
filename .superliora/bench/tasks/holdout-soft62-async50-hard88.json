@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft62-async50-hard88.v1",
+  "title": "Record soft62/async50/hard88 compaction ladder",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft62-async50-hard88.md with sections for Soft 62, Async 50, Hard 88, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft62-async50-hard88.md",
+    "content": "# Soft62 Async50 Hard88 Contract\n\n## Soft 62\nfull compaction soft trigger defaults to 0.62 so long sessions reclaim earlier\n\n## Async 50\nasync background compaction and swarm micro pressure start at 0.50 so pre-rot reclaim begins sooner\n\n## Hard 88\nfull compaction hard block defaults to 0.88 so long sessions stop earlier near the window while still leaving summary room\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft62-async50-hard88.md", "text": "Soft 62", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft62-async50-hard88.md", "text": "Async 50", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft62-async50-hard88.md", "text": "Hard 88", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft62-async50-hard88.md", "text": "Evidence path", "weight": 1}
+  ]
+}

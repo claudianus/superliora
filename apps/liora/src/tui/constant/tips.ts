@@ -53,7 +53,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'browser/computer tools are built-in for screenshot proof — no MCP', priority: 2, solo: true },
   { text: 'first run: /login then type a task — no complex config needed', priority: 3, solo: true },
   { text: 'footer badges warn on high context or missing durable evidence after compact', priority: 2, solo: true },
-  { text: 'context ladder: micro50/keep3/min24 · async52 · handoff60 · soft64 · maxRecent10 · reserved36k · spec2.5k · recompact2 · swarm750/26k/inline180 · pblock20/10 · hard90 · abs140k', priority: 3, solo: true },
+  { text: 'context ladder: micro50/keep3/min24 · async50 · handoff60 · soft62 · maxRecent10 · reserved36k · spec2.5k · recompact2 · swarm750/26k/inline180 · pblock20/10 · hard88 · abs140k', priority: 3, solo: true },
   { text: 'tool outputs auto-trim at 16k with 500-char previews — /compact if still high', priority: 2, solo: true },
   { text: 'live thinking shows a 5-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'particle rails densify under premium chrome — demo-grade motion without config', priority: 1, solo: true },
