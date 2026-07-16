@@ -1197,13 +1197,13 @@ describe('ToolCallComponent', () => {
       runInBackground: false,
     });
     // A single long logical line (no newlines) wraps to many display rows;
-    // only the last THINKING_PREVIEW_LINES (3) should remain visible.
+    // only the last THINKING_PREVIEW_LINES (4) should remain visible.
     const segs = Array.from({ length: 30 }, (_, i) => `seg${String(i).padStart(2, '0')}`);
     component.appendSubagentText(segs.join(' '), 'thinking');
 
     const lines = strip(component.render(40).join('\n')).split('\n');
     const thinkingRows = lines.filter((l) => /seg\d\d/.test(l));
-    expect(thinkingRows.length).toBe(3);
+    expect(thinkingRows.length).toBe(4);
     expect(lines.join('\n')).toContain('seg29');
     expect(lines.join('\n')).not.toContain('seg00');
   });
