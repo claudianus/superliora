@@ -135,9 +135,9 @@ describe('contextUsageSeverity', () => {
   it('maps soft/hard/danger bands without dead branches', () => {
     expect(contextUsageSeverity(0.0)).toBe('muted');
     expect(contextUsageSeverity(0.01)).toBe('muted');
-    expect(contextUsageSeverity(0.0101)).toBe('muted');
-    expect(contextUsageSeverity(0.0102)).toBe('info');
-    expect(contextUsageSeverity(0.0108)).toBe('warning');
+    expect(contextUsageSeverity(0.0100)).toBe('muted');
+    expect(contextUsageSeverity(0.0101)).toBe('info');
+    expect(contextUsageSeverity(0.0105)).toBe('warning');
     expect(contextUsageSeverity(0.89)).toBe('warning');
     expect(contextUsageSeverity(0.9)).toBe('danger');
   });
