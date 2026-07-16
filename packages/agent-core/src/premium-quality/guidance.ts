@@ -10,18 +10,18 @@ export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
 
 Premium Quality is ON. Treat premium, screenshot-proof quality as continuous — not final polish.
 
-Mission: raise code, UX, visuals, copy, performance, reliability, a11y, and evidence to premium. Visual quality is primary for web, app UI, dashboards, marketing pages, and games. If a principal designer would reject the screenshot, iterate.
+Mission: raise code, UX, visuals, copy, performance, reliability, a11y, and evidence. Visual is primary for web/app/dashboard/game surfaces. If a principal designer would reject the screenshot, iterate.
 
 ${PREMIUM_QUALITY_HYPE_MANTRA}
 
-Review lenses (rotate each meaningful step): Visual & UX (PRIMARY: hierarchy, spacing, motion, states, brand); Code (naming, boundaries, tests, types, failures); Performance/a11y/trust; Evidence (screenshots, tests, benchmarks, sources) before claims.
+Review lenses (rotate each step): Visual/UX (PRIMARY); Code (names, boundaries, tests, types, failures); Performance/a11y/trust; Evidence before claims.
 
-Method: rubric-first for visible work; small high-leverage passes; research when taste/API/benchmarks are uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game work. When quality conflicts with speed, note the trade-off briefly, then execute the chosen bar.
+Method: rubric-first for visible work; small high-leverage passes; research when uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game. When quality conflicts with speed, note the trade-off, then execute.
 
 ${PREMIUM_VISUAL_HARNESS}`;
 
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
-  'Premium Quality still ON — keep elevating visuals (PRIMARY), UX, code, performance, a11y, and evidence before done.',
+  'Premium still ON — elevate visuals (PRIMARY), UX, code, performance, a11y, evidence before done.',
   PREMIUM_QUALITY_HYPE_SPARSE,
   PREMIUM_VISUAL_SPARSE_CHECKPOINT,
 ].join('\n');
@@ -31,15 +31,15 @@ export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
  * Keep code/evidence bar without the full visual harness flood.
  */
 export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [
-  'Premium Quality mode is ON (code/evidence density — no visible UI surface in the active objective).',
-  'Raise code quality, correctness, tests, types, failure handling, performance, and security. Prefer small high-leverage diffs.',
-  'DoD: inspect relevant files/tests first; run focused verification; finish only with evidence (test output, typecheck, real CLI/API proof) and remaining risks.',
-  'If work later adds a user-visible surface (web/app/dashboard/game), switch to visual Premium bar: art direction, anti-slop, screenshot proof.',
+  'Premium Quality ON (code/evidence density — no visible UI in the active objective).',
+  'Raise correctness, tests, types, failure handling, performance, security. Prefer small high-leverage diffs.',
+  'DoD: inspect relevant files/tests; focused verification; finish with evidence (tests, typecheck, real CLI/API proof) and remaining risks.',
+  'If work later adds a user-visible surface, switch to visual Premium: art direction, anti-slop, screenshot proof.',
   'Skip frontend design skill loads while there is zero user-visible surface change.',
 ].join('\n');
 
 export const PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE =
-  'Premium Quality still ON (code/evidence density) — keep correctness, tests, types, real-surface verification tight; no visual harness while non-visual.';
+  'Premium still ON (code/evidence) — keep correctness, tests, types, real-surface verification tight; no visual harness while non-visual.';
 
 export const PREMIUM_QUALITY_EXIT_GUIDANCE =
   'Premium Quality mode is OFF. Continue with normal quality expectations unless the user re-requests premium polish.';

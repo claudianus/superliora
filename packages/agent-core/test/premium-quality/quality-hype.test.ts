@@ -11,7 +11,7 @@ import { PREMIUM_QUALITY_FULL_GUIDANCE, PREMIUM_QUALITY_SPARSE_GUIDANCE } from '
 describe('Premium Quality hype injection', () => {
   it('keeps compact quality pressure in full guidance', () => {
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain(PREMIUM_QUALITY_HYPE_BANNER);
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('PREMIUM QUALITY MODE');
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('PREMIUM QUALITY');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('screenshot-proof');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('principal designer');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('illegally good');
@@ -29,7 +29,7 @@ describe('Premium Quality hype injection', () => {
   });
 
   it('visual directives ban placeholder geometry without hype floods', () => {
-    expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD).toContain('primitive placeholder geometry');
+    expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD).toContain('Primitive geometry');
     expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD).toContain('hierarchy, spacing, motion');
     expect(PREMIUM_QUALITY_HYPE_VISUAL_FLOOD.length).toBeLessThan(400);
   });

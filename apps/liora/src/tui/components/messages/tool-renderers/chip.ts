@@ -136,7 +136,7 @@ const fetchChip: ChipProvider = (_toolCall, result) =>
   formatBytes(Buffer.byteLength(result.output, 'utf8'));
 
 const webSearchChip: ChipProvider = (_toolCall, result) => {
-  if (result.output.includes('No search results found.')) return 'no results';
+  if (result.output.includes('No search results found.')) return 'web · 0';
   let count = 0;
   for (const line of result.output.split('\n')) {
     if (/^\s*Title:\s+/.test(line)) count++;
@@ -147,8 +147,8 @@ const webSearchChip: ChipProvider = (_toolCall, result) => {
       if (/^\s*(\d+\.|[-*])\s+/.test(line)) count++;
     }
   }
-  if (count === 0) return result.output.trim().length === 0 ? 'no results' : 'web result';
-  return pluralize(count, 'result');
+  if (count === 0) return result.output.trim().length === 0 ? 'web · 0' : 'web';
+  return `web · ${String(count)}`;
 };
 const lioraReadChip: ChipProvider = (_toolCall, result) => {
   if (result.is_error) return '';

@@ -77,12 +77,12 @@ describe('chip registry', () => {
         { query: 'kimi' },
         result('Title: Alpha\nURL: https://a.test\n\n---\n\nTitle: Beta\nURL: https://b.test\n\n---\n\nTitle: Gamma\nURL: https://c.test\n'),
       ),
-    ).toBe('3 results');
+    ).toBe('web · 3');
   });
 
   it('WebSearch chip still counts numbered list fallbacks', () => {
     expect(chipFor('WebSearch', { query: 'kimi' }, result('1. Alpha\n2. Beta\n3. Gamma'))).toBe(
-      '3 results',
+      'web · 3',
     );
   });
 
