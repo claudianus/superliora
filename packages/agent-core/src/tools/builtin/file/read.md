@@ -11,5 +11,5 @@ When you need several files, prefer parallel Reads in one response — not one f
 - Output: `<line-number>	<content>` per line. Trailing `<tool_meta ...>` is appended after the file content; not part of the file itself.
 - Pure CRLF files are displayed with LF; `Edit` matches that and preserves CRLF on write. Mixed/lone CR show as `
 ` and need exact Edit escapes.
-- After a successful Edit/Write, do not re-read only to prove the write.
+- After successful Edit/Write, do not re-read only to prove the write.
 - When the task depends on an exact final external contract, inspect before finishing.

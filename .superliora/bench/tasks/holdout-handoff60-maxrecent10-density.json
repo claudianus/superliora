@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.handoff60-maxrecent10-density.v1",
+  "title": "Record handoff 0.60 and maxRecent 10%/keep-2 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/handoff60-maxrecent10-density.md with sections for Handoff 60, MaxRecent 10, Tool densify, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/handoff60-maxrecent10-density.md",
+    "content": "# Handoff60 MaxRecent10 Density Contract\n\n## Handoff 60\nUltraSwarm pre-handoff compaction targets 0.60 usage so swarm launches start with denser free headroom\n\n## MaxRecent 10\nfull compaction keeps at most 2 recent messages and 10% recent size so long sessions reclaim denser working memory\n\n## Tool densify\nAgentSwarm/Read/Write always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/handoff60-maxrecent10-density.md", "text": "Handoff 60", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff60-maxrecent10-density.md", "text": "MaxRecent 10", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff60-maxrecent10-density.md", "text": "Tool densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff60-maxrecent10-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
