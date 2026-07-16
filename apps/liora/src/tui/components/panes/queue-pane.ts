@@ -5,7 +5,7 @@ import {
   visibleWidth,
 } from '#/tui/renderer';
 
-import { SELECT_POINTER } from '../../constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import type { QueuedMessage } from '../../types';
 import { currentTheme } from '#/tui/theme';
 import {
@@ -81,7 +81,7 @@ export class QueuePaneComponent extends Container {
     for (const item of this.messages) {
       const displayText = item.displayText ?? item.text;
       const singleLine = displayText.replaceAll(/\s+/g, ' ').trim();
-      const prefix = `  ${SELECT_POINTER} `;
+      const prefix = `  ${renderSelectPointer('queue:pointer')} `;
       if (item.mode === 'bash') {
         // Shell commands get a `$ ` prompt and the shell-mode hue so they read
         // as commands, not as plain text that would be sent to the model.

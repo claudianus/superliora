@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro8-shared-pointer.v1",
+  "title": "Record micro keep-8 reclaim and shared selector pointer consistency",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "micro-compaction",
+    "tui",
+    "selector",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/micro8-shared-pointer.md with sections for Micro keep 8, Shared pointers, Queue pulse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/micro8-shared-pointer.md",
+      "content": "# Micro8 Shared Pointer Contract\n\n## Micro keep 8\nmicro-compaction keeps 8 recent messages so older tool results clear earlier in long sessions\n\n## Shared pointers\napproval/palette/model/queue pickers use the shared pulsed select-pointer helper for consistent ambient chrome\n\n## Queue pulse\nqueued message markers pulse under ambient effects so waiting work stays visible\n\n## Evidence path\nLioraBench holdout + micro/queue/status-panel vitest + live TUI pickers\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/micro8-shared-pointer.md",
+      "text": "Micro keep 8",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro8-shared-pointer.md",
+      "text": "Shared pointers",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro8-shared-pointer.md",
+      "text": "Queue pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro8-shared-pointer.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

@@ -29,7 +29,7 @@ export interface MicroCompactionPolicyDecision {
 
 /** Defaults favor tool-result clearing as the primary context mechanism (cheap, reversible). */
 const DEFAULT_CONFIG: MicroCompactionConfig = {
-  keepRecentMessages: 10,
+  keepRecentMessages: 8,
   minContentTokens: 80,
   cacheMissedThresholdMs: 60 * 60 * 1000,
   truncatedMarker: '[Old tool result content cleared]',
