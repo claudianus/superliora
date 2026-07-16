@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro64-shared-question-pointer.v1",
+  "title": "Record micro min64 reclaim and shared question select-pointer",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "micro",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/micro64-shared-question-pointer.md with sections for Micro min64, Shared pointer, Ladder tip, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/micro64-shared-question-pointer.md",
+      "content": "# Micro64 Shared Question Pointer Contract\n\n## Micro min64\nmicro-compaction clears tool results from 64 content tokens so long sessions reclaim more bulky outputs earlier\n\n## Shared pointer\nAskUserQuestion options route through the shared pulsed select-pointer helper for consistent ambient chrome\n\n## Ladder tip\ncontext ladder tips surface micro keep8/min64 reclaim knobs\n\n## Evidence path\nLioraBench holdout + micro/question-dialog vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/micro64-shared-question-pointer.md",
+      "text": "Micro min64",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro64-shared-question-pointer.md",
+      "text": "Shared pointer",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro64-shared-question-pointer.md",
+      "text": "Ladder tip",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro64-shared-question-pointer.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
