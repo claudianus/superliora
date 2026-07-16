@@ -6,8 +6,8 @@ import { join } from 'pathe';
 
 import type { ExecutableToolResult } from '../../loop';
 
-const TOOL_RESULT_MAX_CHARS = 4_500;
-const TOOL_RESULT_PREVIEW_CHARS = 80;
+const TOOL_RESULT_MAX_CHARS = 4_000;
+const TOOL_RESULT_PREVIEW_CHARS = 70;
 
 interface BudgetToolResultOptions {
   readonly homedir?: string;

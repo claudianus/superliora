@@ -25,8 +25,8 @@ import type { ColorToken } from '#/tui/theme';
 const LEFT_MARGIN = 2;
 const SIDE_PADDING = 1;
 const BOX_OVERHEAD = LEFT_MARGIN + 2 + 2 * SIDE_PADDING;
-/** Align with soft compaction trigger (~0.47) and async pre-rot wrap-up (~0.36). */
-const CONTEXT_COMPACT_RATIO = 0.47;
+/** Align with soft compaction trigger (~0.46) and async pre-rot wrap-up (~0.36). */
+const CONTEXT_COMPACT_RATIO = 0.46;
 const CONTEXT_WRAP_UP_RATIO = 0.36;
 const CACHE_READY_RATIO = 0.5;
 
