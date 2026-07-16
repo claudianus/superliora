@@ -12,6 +12,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { SearchableList } from '#/tui/utils/searchable-list';
@@ -342,7 +343,7 @@ export class SessionPickerComponent extends Container implements Focusable {
     isSelected: boolean,
     isCurrent: boolean,
   ): string[] {
-    const pointer = isSelected ? SELECT_POINTER : ' ';
+    const pointer = isSelected ? renderSelectPointer('session:pointer') : ' ';
     const indent = '  ';
     const indentWidth = visibleWidth(indent);
     const titleColor: 'primary' | 'text' = isSelected ? 'primary' : 'text';

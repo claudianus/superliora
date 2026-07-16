@@ -16,7 +16,7 @@ export const PREMIUM_QUALITY_HYPE_MANTRA = [
 
 export const PREMIUM_QUALITY_HYPE_VISUAL_FLOOD = [
   '### Visual directives (PRIMARY)',
-  'Visible surfaces need real hierarchy, spacing, motion, assets, states — not placeholders. Primitive geometry as final art fails Premium Quality.',
+  'Visible surfaces need real hierarchy, spacing, motion, assets, states — not placeholders. Primitive geometry as final art fails Premium.',
 ].join('\n');
 
 /** Compact hype for sparse injection turns. */

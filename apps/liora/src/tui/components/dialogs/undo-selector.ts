@@ -9,6 +9,7 @@ import {
 } from '#/tui/renderer';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { SearchableList } from '#/tui/utils/searchable-list';
@@ -109,7 +110,7 @@ export class UndoSelectorComponent extends Container implements Focusable {
     inUndoRange: boolean,
     width: number,
   ): string {
-    const pointer = isSelected ? SELECT_POINTER : ' ';
+    const pointer = isSelected ? renderSelectPointer('undo:pointer') : ' ';
     const prefix = `  ${pointer} `;
     const labelBudget = Math.max(8, width - visibleWidth(prefix));
     const label = truncateToWidth(choice.label, labelBudget, '…');

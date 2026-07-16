@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.selector-pulse-swarm28k.v1",
+  "title": "Record shared selector pulse and denser swarm total cap",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "swarm",
+    "tui",
+    "selector",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/selector-pulse-swarm28k.md with sections for Shared pointer, Swarm total 28k, Premium densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/selector-pulse-swarm28k.md",
+      "content": "# Selector Pulse Swarm28k Contract\n\n## Shared pointer\nlist pickers share a pulsed select pointer helper so ambient chrome stays consistent without per-dialog duplication\n\n## Swarm total 28k\nUltraSwarm total result compact cap defaults to 28k chars for denser multi-agent recovery\n\n## Premium densify\nPremium visual directives stay screenshot-proof with shorter always-on wording\n\n## Evidence path\nLioraBench holdout + boundary-compaction/choice-picker vitest + live TUI pickers\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/selector-pulse-swarm28k.md",
+      "text": "Shared pointer",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/selector-pulse-swarm28k.md",
+      "text": "Swarm total 28k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/selector-pulse-swarm28k.md",
+      "text": "Premium densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/selector-pulse-swarm28k.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

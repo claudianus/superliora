@@ -10,6 +10,7 @@ import {
 import type { ExperimentalFeatureState } from '@superliora/sdk';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
@@ -170,7 +171,7 @@ export class ExperimentsSelectorComponent extends Container implements Focusable
     selected: boolean,
     width: number,
   ): string[] {
-    const pointer = selected ? SELECT_POINTER : ' ';
+    const pointer = selected ? renderSelectPointer('experiments:pointer') : ' ';
     const prefix = currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `);
     const label = selected ? currentTheme.boldFg('primary', feature.title) : currentTheme.fg('text', feature.title);
     const enabled = this.effectiveEnabled(feature);

@@ -16,6 +16,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
@@ -109,7 +110,7 @@ export class TranscriptSearchDialogComponent extends Container implements Focusa
     for (let i = view.page.start; i < view.page.end; i++) {
       const entry = items[i]!;
       const isSelected = i === view.selectedIndex;
-      const pointer = isSelected ? SELECT_POINTER : ' ';
+      const pointer = isSelected ? renderSelectPointer('transcript:pointer') : ' ';
       const prefix = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
       const maxTextWidth = Math.max(1, width - 5);
       const displayText =

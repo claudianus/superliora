@@ -9,6 +9,7 @@ import {
 } from '#/tui/renderer';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 
 export type StartPermissionChoice = 'auto' | 'yolo' | 'manual' | 'cancel';
@@ -75,7 +76,7 @@ export class StartPermissionPromptComponent<TChoice extends StartPermissionChoic
     for (let i = 0; i < this.opts.options.length; i += 1) {
       const option = this.opts.options[i]!;
       const selected = i === this.selectedIndex;
-      const pointer = selected ? SELECT_POINTER : ' ';
+      const pointer = selected ? renderSelectPointer('permission:pointer') : ' ';
       body.push(
         currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `) +
           styleLabel(option.label, selected),
