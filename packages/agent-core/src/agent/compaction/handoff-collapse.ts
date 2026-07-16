@@ -1,6 +1,6 @@
 /** Shared handoff text collapse policy (phase handoffs and parent boundary compaction). */
 
-export const SWARM_EXPERT_BODY_MAX_CHARS = 10;
+export const SWARM_EXPERT_BODY_MAX_CHARS = 8;
 
 /** Inline summary beside an archive marker — full body lives in ToolStore. */
 export const SWARM_ARCHIVED_INLINE_SUMMARY_MAX_CHARS = 3;
