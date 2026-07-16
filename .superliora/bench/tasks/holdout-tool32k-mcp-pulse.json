@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool32k-mcp-pulse.v1",
+  "title": "Record tighter 32k tool budgets and MCP status pulse",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tools",
+    "mcp",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tool32k-mcp-pulse.md with sections for Tool budget 32k, Preview 1k, MCP pulse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tool32k-mcp-pulse.md",
+      "content": "# Tool32k MCP Pulse Contract\n\n## Tool budget 32k\nlive tool outputs persist earlier at 32k chars to protect long-session context headroom\n\n## Preview 1k\noversize tool previews keep 1k chars so transcripts stay glanceable\n\n## MCP pulse\nMCP status pending/failed/needs-auth labels pulse under ambient effects for live transparency\n\n## Evidence path\nLioraBench holdout + tool budget/mcp-status-panel vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tool32k-mcp-pulse.md",
+      "text": "Tool budget 32k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool32k-mcp-pulse.md",
+      "text": "Preview 1k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool32k-mcp-pulse.md",
+      "text": "MCP pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool32k-mcp-pulse.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

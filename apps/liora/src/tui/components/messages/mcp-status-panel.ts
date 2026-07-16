@@ -1,6 +1,11 @@
 import type { McpServerInfo } from '@superliora/sdk';
 
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export interface McpStatusReportOptions {
   readonly servers: readonly McpServerInfo[];
@@ -33,14 +38,18 @@ const SUMMARY_ORDER: readonly McpServerInfo['status'][] = [
 function statusPainter(
   status: McpServerInfo['status'],
 ): (text: string) => string {
+  const appearance = getActiveAppearancePreferences();
+  const animated = shouldRenderAmbientEffects(appearance);
   switch (status) {
     case 'connected':
       return (text) => currentTheme.fg('success', text);
     case 'failed':
-      return (text) => currentTheme.fg('error', text);
+      return (text) =>
+        animated ? renderPulseText(text, `mcp:status:${status}`, 'error') : currentTheme.fg('error', text);
     case 'needs-auth':
     case 'pending':
-      return (text) => currentTheme.fg('warning', text);
+      return (text) =>
+        animated ? renderPulseText(text, `mcp:status:${status}`, 'warning') : currentTheme.fg('warning', text);
     case 'disabled':
       return (text) => currentTheme.fg('textDim', text);
   }
