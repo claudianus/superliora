@@ -144,7 +144,7 @@ describe('GrepTool', () => {
     const tool = new GrepTool(createFakeKaos(), workspace);
 
     expect(tool.name).toBe('Grep');
-    expect(tool.description).toContain('unknown content or unknown file locations');
+    expect(tool.description).toContain('Unknown content/location only');
     expect(tool.description).toContain('ALWAYS use Grep instead of shell `grep`/`rg`');
     expect(tool.parameters).toMatchObject({
       type: 'object',

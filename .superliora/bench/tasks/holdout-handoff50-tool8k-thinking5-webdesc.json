@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.handoff50-tool8k-thinking5-webdesc.v1",
+  "title": "Record handoff50 tool8k thinking5 and web/media densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/handoff50-tool8k-thinking5-webdesc.md with sections for Handoff 50, Tool 8k, Thinking 5, Swarm densify, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/handoff50-tool8k-thinking5-webdesc.md",
+    "content": "# Handoff50 Tool8k Thinking5 Webdesc Contract\n\n## Handoff 50\nswarm handoff compaction ratio defaults to 0.50 so pre-swarm reclaim runs earlier under long sessions\n\n## Tool 8k\ntool result budgets default to 8k max chars with 250-char previews for denser context\n\n## Thinking 5\nlive thinking glance defaults to a 5-line tail for transparent progress with less chrome\n\n## Swarm densify\nswarm expert body 650 / total 22k / inline 150 keep multi-expert handoffs lean\n\n## Evidence path\nLioraBench holdout + strategy/boundary/tool vitest + status-panel\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/handoff50-tool8k-thinking5-webdesc.md", "text": "Handoff 50", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff50-tool8k-thinking5-webdesc.md", "text": "Tool 8k", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff50-tool8k-thinking5-webdesc.md", "text": "Thinking 5", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff50-tool8k-thinking5-webdesc.md", "text": "Swarm densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff50-tool8k-thinking5-webdesc.md", "text": "Evidence path", "weight": 1}
+  ]
+}
