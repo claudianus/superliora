@@ -8,6 +8,4 @@ Use when ANY apply:
 
 When NOT to use: tiny fixes, very specific instructions, or pure exploration.
 
-Permission: enters without approval in all modes; ExitPlanMode shows plan in yolo/manual; auto skips AskUserQuestion on exit. Do not enter while plan mode is active; in Ultra Plan use NextPhase, never EnterPlanMode(phase).
-
-Once active, a runtime reminder enforces read-only workflow. For unknown structure, spawn `Agent(subagent_type="explore")` first when available.
+Permission: enters without approval in all modes; ExitPlanMode shows plan in yolo/manual; auto skips AskUserQuestion on exit. Do not enter while plan mode is active; in Ultra Plan use NextPhase, never EnterPlanMode(phase). Once active, a runtime reminder enforces read-only workflow. For unknown structure, spawn `Agent(subagent_type="explore")` first when available.

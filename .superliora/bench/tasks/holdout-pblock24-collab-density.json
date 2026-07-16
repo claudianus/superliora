@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.pblock24-collab-density.v1",
+  "title": "Record parallel-block 24k/12k and denser collab/plan tool copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/pblock24-collab-density.md with sections for Pblock 24, Collab densify, Plan densify, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/pblock24-collab-density.md",
+    "content": "# Pblock24 Collab Density Contract\n\n## Pblock 24\nparallel compaction block threshold defaults to 24k with a 12k target so large histories summarize in denser chunks\n\n## Collab densify\nAgent/AgentSwarm/AskUser always-on tool descriptions stay contract-complete with denser wording\n\n## Plan densify\nEnterPlanMode always-on tool description stays contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/pblock24-collab-density.md", "text": "Pblock 24", "weight": 1},
+    {"type": "file_contains", "path": "reports/pblock24-collab-density.md", "text": "Collab densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/pblock24-collab-density.md", "text": "Plan densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/pblock24-collab-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
