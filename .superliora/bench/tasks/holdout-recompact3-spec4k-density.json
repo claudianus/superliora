@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.recompact3-spec4k-density.v1",
+  "title": "Record recompact3 growth, speculative 4k buffer, denser plan/swarm/todo copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tools",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/recompact3-spec4k-density.md with sections for Recompact 3, Spec 4k, Tool densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/recompact3-spec4k-density.md",
+      "content": "# Recompact3 Spec4k Density Contract\n\n## Recompact 3\nfull compaction min recompact growth defaults to 3% so long sessions can reclaim again sooner after a compact\n\n## Spec 4k\nspeculative pre-turn buffer defaults to 4k tokens for earlier preemptive compact without over-triggering\n\n## Tool densify\nExitPlanMode/UltraSwarm/TodoList/UpdateGoal always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/recompact3-spec4k-density.md",
+      "text": "Recompact 3",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recompact3-spec4k-density.md",
+      "text": "Spec 4k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recompact3-spec4k-density.md",
+      "text": "Tool densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/recompact3-spec4k-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
