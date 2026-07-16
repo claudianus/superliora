@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.maxrecent7-density.v1",
+  "title": "Record maxRecent 7% densify keep-2",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/maxrecent7-density.md with sections for MaxRecent 7 and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/maxrecent7-density.md",
+    "content": "# MaxRecent7 Density Contract\n\n## MaxRecent 7\nfull compaction keeps at most 2 recent messages and 7% recent size so long sessions reclaim denser working memory\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/maxrecent7-density.md", "text": "MaxRecent 7", "weight": 1},
+    {"type": "file_contains", "path": "reports/maxrecent7-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
