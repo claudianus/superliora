@@ -18,6 +18,7 @@ import {
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
 import type { ChoiceOption } from './choice-picker';
@@ -227,12 +228,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
         if (choice === undefined) continue;
         const isSelected = i === view.selectedIndex;
         const isCurrent = choice.alias === this.opts.currentValue;
-        const appearance = getActiveAppearancePreferences();
-        const pointer = isSelected
-          ? shouldRenderAmbientEffects(appearance)
-            ? renderPulseText(SELECT_POINTER, 'model:pointer', 'primary')
-            : SELECT_POINTER
-          : ' ';
+        const pointer = isSelected ? renderSelectPointer('model:pointer') : ' ';
         const truncatedName = truncateToWidth(choice.name, nameWidth, '…');
         const namePad = ' '.repeat(Math.max(0, nameWidth - visibleWidth(truncatedName)));
         let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);

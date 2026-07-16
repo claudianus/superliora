@@ -16,6 +16,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
@@ -115,12 +116,7 @@ export class CommandPaletteComponent extends Container implements Focusable {
     for (let i = view.page.start; i < view.page.end; i++) {
       const entry = items[i]!;
       const isSelected = i === view.selectedIndex;
-      const appearance = getActiveAppearancePreferences();
-      const pointer = isSelected
-        ? shouldRenderAmbientEffects(appearance)
-          ? renderPulseText(SELECT_POINTER, 'palette:pointer', 'primary')
-          : SELECT_POINTER
-        : ' ';
+      const pointer = isSelected ? renderSelectPointer('palette:pointer') : ' ';
       const category = currentTheme.fg('accent', CATEGORY_LABEL[entry.kind]);
       const prefix = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
       const label = currentTheme.fg(isSelected ? 'primary' : 'text', entry.label);
