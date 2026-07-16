@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard82-abs95k-maxrecent5.v1",
+  "title": "Record hard82 abs95k and maxRecent5 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard82-abs95k-maxrecent5.md with sections for Hard 82, Abs 95k, MaxRecent 5, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard82-abs95k-maxrecent5.md",
+    "content": "# Hard82 Abs95 MaxRecent5 Contract\n\n## Hard 82\nhard compaction block ratio defaults to 0.82 so long sessions stop earlier before attention rot\n\n## Abs 95k\nabsolute trigger tokens default to 95000 so large-context models reclaim sooner\n\n## MaxRecent 5\nmax recent size ratio defaults to 0.05 so recent windows stay denser after compaction\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard82-abs95k-maxrecent5.md", "text": "Hard 82", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard82-abs95k-maxrecent5.md", "text": "Abs 95k", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard82-abs95k-maxrecent5.md", "text": "MaxRecent 5", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard82-abs95k-maxrecent5.md", "text": "Evidence path", "weight": 1}
+  ]
+}
