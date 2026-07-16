@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro48-thinking2-swarm500.v1",
+  "title": "Record micro48 thinking2 and swarm500 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "tui", "visible-evidence"],
+  "prompt": "Create reports/micro48-thinking2-swarm500.md with sections for Micro 48, Thinking 2, Swarm 500, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/micro48-thinking2-swarm500.md",
+    "content": "# Micro48 Thinking2 Swarm500 Contract\n\n## Micro 48\nmicro minContextUsageRatio defaults to 0.48 so tool-result clearing starts earlier\n\n## Thinking 2\nTUI thinking previews default to 2 lines for denser chrome during long reasoning\n\n## Swarm 500\nswarm expert bodies default to 500 chars, total 16k, inline 90 for denser multi-agent handoffs\n\n## Evidence path\nLioraBench holdout + boundary/thinking/tool-call vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/micro48-thinking2-swarm500.md", "text": "Micro 48", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro48-thinking2-swarm500.md", "text": "Thinking 2", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro48-thinking2-swarm500.md", "text": "Swarm 500", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro48-thinking2-swarm500.md", "text": "Evidence path", "weight": 1}
+  ]
+}

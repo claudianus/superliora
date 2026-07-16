@@ -32,7 +32,7 @@ describe('ThinkingComponent', () => {
     expect(out).not.toContain('line2');
     expect(out).not.toContain('line3');
     expect(out).not.toContain('line4');
-    expect(out).toContain('line5');
+    expect(out).not.toContain('line5');
     expect(out).toContain('line6');
     expect(out).toContain('line7');
     expect(out).not.toContain('ctrl+o to expand');
