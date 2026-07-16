@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tui-status-particle-seed-soft30.v1",
+  "title": "Record denser particle trails and soft30 ladder evidence",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "media",
+    "token",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tui-status-particle-seed-soft30.md with sections for Particle densify, Soft30 ladder, Zero-config media, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1200
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tui-status-particle-seed-soft30.md",
+      "content": "# TUI Status Particle Seed Soft30 Contract\n\n## Particle densify\npremium particle rails use denser comets and 5-cell trails by default for demo-grade chrome without config\n\n## Soft30 ladder\ncontext ladder tip tracks soft30/async18/hard60 densify for long-horizon reclaim\n\n## Zero-config media\nfooter img·vid + zdr badges remain beginner-readable without MCP\n\n## Evidence path\nLioraBench holdout + particle densify + tips/status vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tui-status-particle-seed-soft30.md",
+      "text": "Particle densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-status-particle-seed-soft30.md",
+      "text": "Soft30 ladder",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-status-particle-seed-soft30.md",
+      "text": "Zero-config media",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-status-particle-seed-soft30.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
