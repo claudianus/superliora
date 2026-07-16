@@ -19,8 +19,8 @@ describe('status panel report lines', () => {
       planMode: false,
       swarmMode: true,
       goalStatus: 'active',
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {
         k2: {
@@ -47,7 +47,7 @@ describe('status panel report lines', () => {
         planMode: true,
         contextTokens: 1440,
         maxContextTokens: 12000,
-        contextUsage: 0.03,
+        contextUsage: 0.02,
       },
       gitStatus: {
         branch: 'main',
@@ -82,7 +82,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('Session      ses-1');
     expect(output).toContain('Title        Implement status');
     expect(output).toContain('Context window');
-    expect(output).toContain('3.0%');
+    expect(output).toContain('2.0%');
     expect(output).toContain('(1.4K / 12.0K)');
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
@@ -94,7 +94,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a1\/m2\/sw100\/s4/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a1\/m2\/sw100\/s3/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -185,7 +185,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a1\/m2\/sw100\/s4/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a1\/m2\/sw100\/s3/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -218,8 +218,8 @@ describe('status panel report lines', () => {
         thinking: true,
         permissionMode: 'manual',
         planMode: false,
-        contextUsage: 0.03,
-        contextTokens: 300,
+        contextUsage: 0.02,
+        contextTokens: 200,
         maxContextTokens: 10000,
         availableModels: {},
         providerRouteStatus: {
@@ -284,8 +284,8 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'manual',
       planMode: true,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       humanWriting: {
@@ -336,8 +336,8 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'manual',
       planMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       activeToolNames: ['WebSearch', 'FetchURL', 'Context7Resolve', 'Context7Docs'],
@@ -368,8 +368,8 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'auto',
       planMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       recovery: {
@@ -393,8 +393,8 @@ describe('status panel report lines', () => {
       permissionMode: 'auto',
       planMode: false,
       swarmMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
     }).map(strip);
@@ -446,8 +446,8 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'manual',
       planMode: true,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       gitStatus: {
@@ -480,8 +480,8 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'manual',
       planMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       humanWriting: {
@@ -518,8 +518,8 @@ describe('status panel report lines', () => {
       planMode: true,
       swarmMode: false,
       goalStatus: 'blocked',
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
     }).map(strip);
@@ -542,8 +542,8 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual',
       planMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       contextOS: {
@@ -573,8 +573,8 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual',
       planMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       microCompaction: {
@@ -600,8 +600,8 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual',
       planMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       privacyTelemetryEnabled: true,
@@ -618,8 +618,8 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual',
       planMode: false,
-      contextUsage: 0.03,
-      contextTokens: 300,
+      contextUsage: 0.02,
+      contextTokens: 200,
       maxContextTokens: 10000,
       availableModels: {},
       privacyTelemetryEnabled: false,
