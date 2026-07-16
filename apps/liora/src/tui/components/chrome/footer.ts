@@ -288,6 +288,18 @@ export function mediaProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boo
 }
 
 /** Compact footer badge for beginner-visible media readiness (no MCP). */
+/** Compact footer badge for default ZDR-friendly local posture (telemetry off). */
+export function formatZdrFooterBadge(
+  env: NodeJS.ProcessEnv = process.env,
+): { readonly label: string; readonly severity: FooterBadgeSeverity } | null {
+  // Product telemetry is opt-in. Absence of SUPERLIORA_TELEMETRY=1 keeps ZDR-friendly local mode.
+  const raw = nonEmptyEnv(env['SUPERLIORA_TELEMETRY'] ?? env['TELEMETRY']);
+  if (raw !== undefined && ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())) {
+    return { label: 'tel', severity: 'warning' };
+  }
+  return { label: 'zdr', severity: 'info' };
+}
+
 export function formatMediaFooterBadge(
   env: NodeJS.ProcessEnv = process.env,
 ): { readonly label: string; readonly severity: FooterBadgeSeverity } | null {
@@ -456,6 +468,12 @@ export class FooterComponent implements Component {
     if (mediaBadge !== null) {
       modes.push(
         renderPulseText(mediaBadge.label, `footer:${mediaBadge.label}`, 'accent', appearance),
+      );
+    }
+    const zdrBadge = formatZdrFooterBadge();
+    if (zdrBadge !== null) {
+      modes.push(
+        renderPulseText(zdrBadge.label, `footer:${zdrBadge.label}`, 'primary', appearance),
       );
     }
     if (modes.length > 0) left.push(modes.join(' '));
