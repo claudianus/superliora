@@ -1,9 +1,9 @@
 /** Shared handoff text collapse policy (phase handoffs and parent boundary compaction). */
 
-export const SWARM_EXPERT_BODY_MAX_CHARS = 600;
+export const SWARM_EXPERT_BODY_MAX_CHARS = 550;
 
 /** Inline summary beside an archive marker — full body lives in ToolStore. */
-export const SWARM_ARCHIVED_INLINE_SUMMARY_MAX_CHARS = 120;
+export const SWARM_ARCHIVED_INLINE_SUMMARY_MAX_CHARS = 100;
 
 export function collapseForHandoff(text: string, maxChars: number = SWARM_EXPERT_BODY_MAX_CHARS): string {
   const collapsed = text.replaceAll(/\s+/g, ' ').trim();

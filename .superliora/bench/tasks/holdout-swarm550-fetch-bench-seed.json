@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.swarm550-fetch-bench-seed.v1",
+  "title": "Record swarm550 densify and refreshed seed ladder",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "web", "visible-evidence"],
+  "prompt": "Create reports/swarm550-fetch-bench-seed.md with sections for Swarm 550, Fetch densify, Seed ladder, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/swarm550-fetch-bench-seed.md",
+    "content": "# Swarm550 Fetch Bench Seed Contract\n\n## Swarm 550\nswarm expert bodies default to 550 chars, total result 18k, inline archive 100 for denser multi-agent handoffs\n\n## Fetch densify\nFetchURL keeps extracted/verbatim contract phrases and steers primary source URLs\n\n## Seed ladder\nLioraBench seed-token-efficiency-contract tracks hard82/abs95/tool7k/swarm550 densify\n\n## Evidence path\nLioraBench holdout + boundary-compaction vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/swarm550-fetch-bench-seed.md", "text": "Swarm 550", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm550-fetch-bench-seed.md", "text": "Fetch densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm550-fetch-bench-seed.md", "text": "Seed ladder", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm550-fetch-bench-seed.md", "text": "Evidence path", "weight": 1}
+  ]
+}
