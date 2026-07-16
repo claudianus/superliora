@@ -12,6 +12,11 @@ import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export interface RenderTabStripOptions {
   readonly labels: readonly string[];
@@ -24,9 +29,13 @@ export interface RenderTabStripOptions {
  * switching never shifts the layout. */
 function styleTab(label: string, isActive: boolean, colors: ColorPalette): string {
   const cell = ` ${label} `;
-  return isActive
-    ? chalk.bgHex(colors.primary).hex(colors.text).bold(cell)
-    : chalk.hex(colors.textMuted)(cell);
+  if (!isActive) return chalk.hex(colors.textMuted)(cell);
+  const appearance = getActiveAppearancePreferences();
+  if (shouldRenderAmbientEffects(appearance)) {
+    // Keep bg fill + pulsed label so tab width stays stable while ambient chrome demos.
+    return chalk.bgHex(colors.primary)(renderPulseText(cell, `tab:${label}`, 'text'));
+  }
+  return chalk.bgHex(colors.primary).hex(colors.text).bold(cell);
 }
 
 export function renderTabStrip(opts: RenderTabStripOptions): string {

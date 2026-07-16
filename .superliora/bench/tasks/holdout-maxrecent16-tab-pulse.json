@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.maxrecent16-tab-pulse.v1",
+  "title": "Record denser maxRecent 16% and pulsed tab-strip chrome",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/maxrecent16-tab-pulse.md with sections for MaxRecent 16, Tab pulse, Todo densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/maxrecent16-tab-pulse.md",
+      "content": "# MaxRecent16 Tab Pulse Contract\n\n## MaxRecent 16\nfull compaction preserves at most 16% of the window as recent messages so long sessions reclaim earlier\n\n## Tab pulse\nactive tab labels pulse under ambient effects while keeping stable tab widths\n\n## Todo densify\nTodoList Live Kanban reminders stay contract-complete with denser always-on wording\n\n## Evidence path\nLioraBench holdout + strategy/tab-strip/todo vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent16-tab-pulse.md",
+      "text": "MaxRecent 16",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent16-tab-pulse.md",
+      "text": "Tab pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent16-tab-pulse.md",
+      "text": "Todo densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent16-tab-pulse.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
