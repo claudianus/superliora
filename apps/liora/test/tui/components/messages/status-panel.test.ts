@@ -19,8 +19,8 @@ describe('status panel report lines', () => {
       planMode: false,
       swarmMode: true,
       goalStatus: 'active',
-      contextUsage: 0.11,
-      contextTokens: 1100,
+      contextUsage: 0.10,
+      contextTokens: 1000,
       maxContextTokens: 10000,
       availableModels: {
         k2: {
@@ -47,7 +47,7 @@ describe('status panel report lines', () => {
         planMode: true,
         contextTokens: 1440,
         maxContextTokens: 12000,
-        contextUsage: 0.11,
+        contextUsage: 0.10,
       },
       gitStatus: {
         branch: 'main',
@@ -82,7 +82,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('Session      ses-1');
     expect(output).toContain('Title        Implement status');
     expect(output).toContain('Context window');
-    expect(output).toContain('11.0%');
+    expect(output).toContain('10.0%');
     expect(output).toContain('(1.4K / 12.0K)');
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
@@ -94,7 +94,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a2\/m2\/sw100\/s12/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a1\/m2\/sw100\/s11/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -185,7 +185,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a2\/m2\/sw100\/s12/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a1\/m2\/sw100\/s11/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
