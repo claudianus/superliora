@@ -10,7 +10,7 @@ import {
   SWARM_EXPERT_BODY_MAX_CHARS,
 } from './handoff-collapse';
 
-export const SWARM_TOTAL_RESULT_MAX_CHARS = 12_000;
+export const SWARM_TOTAL_RESULT_MAX_CHARS = 10_000;
 
 export interface BoundaryCompactionOptions {
   readonly expertBodyMaxChars?: number;
