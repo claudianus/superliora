@@ -17,6 +17,11 @@ import { USER_MESSAGE_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
 import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
+import {
+  getActiveAppearancePreferences,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export class UserMessageComponent implements Component {
   private text: string;
@@ -53,7 +58,16 @@ export class UserMessageComponent implements Component {
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
         const marker = this.bullet ?? USER_MESSAGE_BULLET;
-        const bullet = marker.length > 0 ? currentTheme.boldFg('roleUser', marker) : '';
+        const appearance = getActiveAppearancePreferences();
+        const bullet =
+          marker.length === 0
+            ? ''
+            : shouldRenderAmbientEffects(appearance)
+              ? renderSpectacularText(marker, 'user:bullet', appearance, {
+                  intense: true,
+                  pace: 'slow',
+                })
+              : currentTheme.boldFg('roleUser', marker);
         const bulletWidth = visibleWidth(bullet);
         const contentWidth = measureRendererTranscriptContentWidth({
           width: safeWidth,

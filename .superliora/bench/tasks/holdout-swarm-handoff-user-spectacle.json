@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.swarm-handoff-user-spectacle.v1",
+  "title": "Record earlier swarm handoff reclaim and spectacular user bullets",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "swarm",
+    "handoff",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/swarm-handoff-user-spectacle.md with sections for Swarm handoff, Async flag copy, User bullet spectacle, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/swarm-handoff-user-spectacle.md",
+      "content": "# Swarm Handoff User Spectacle Contract\n\n## Swarm handoff\npre-swarm handoff compaction target is 65% so specialist waves reclaim context earlier\n\n## Async flag copy\nasync_compaction flag description stays dense and zero-config readable\n\n## User bullet spectacle\nuser message bullets use spectacular ambient motion when effects are on\n\n## Evidence path\nLioraBench holdout + user-message/strategy vitest + live TUI transcript\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-handoff-user-spectacle.md",
+      "text": "Swarm handoff",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-handoff-user-spectacle.md",
+      "text": "Async flag copy",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-handoff-user-spectacle.md",
+      "text": "User bullet spectacle",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-handoff-user-spectacle.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
