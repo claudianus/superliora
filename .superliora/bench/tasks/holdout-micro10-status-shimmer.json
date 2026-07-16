@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro10-status-shimmer.v1",
+  "title": "Record shorter micro-clear window and denser status shimmer",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "micro-compaction",
+    "tui",
+    "status",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/micro10-status-shimmer.md with sections for Micro window, Content threshold, Status shimmer, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/micro10-status-shimmer.md",
+      "content": "# Micro10 Status Shimmer Contract\n\n## Micro window\nmicro-compaction keeps 10 recent messages so older tool results clear earlier in long sessions\n\n## Content threshold\nminContentTokens default is 80 so medium tool results also clear under pressure\n\n## Status shimmer\nstatus/notice lines shimmer under ambient effects for continuous demo-grade chrome\n\n## Evidence path\nLioraBench holdout + micro/status-panel/notice vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/micro10-status-shimmer.md",
+      "text": "Micro window",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro10-status-shimmer.md",
+      "text": "Content threshold",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro10-status-shimmer.md",
+      "text": "Status shimmer",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro10-status-shimmer.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
