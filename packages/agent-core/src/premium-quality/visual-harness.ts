@@ -23,7 +23,7 @@ export const PREMIUM_VISUAL_ART_DIRECTION_GATE = [
 /** Cheat-key prompt patterns distilled from proven anti-slop / design-taste skills. */
 export const PREMIUM_VISUAL_CHEAT_KEYS = [
   '### Visual cheat keys (apply by default)',
-  'Type: tight display tracking; body `max-w-[65ch] leading-relaxed`; ban naked Inter (Geist/Outfit/Cabinet/Satoshi). Color: off-black/off-white; tinted shadows; one accent; ban #000 fields + purple AI gradients. Layout: CSS Grid; break 3-equal-card rows. Surfaces: elevation, skeletons, tactile active, focus rings. Content/game: real copy; themed HUD/assets; no emoji-as-UI/primitive placeholders.',
+  'Type: tight display tracking; body `max-w-[65ch] leading-relaxed`; ban naked Inter (Geist/Outfit/Cabinet/Satoshi). Color: off-black/off-white; tinted shadows; one accent; ban #000 fields + purple AI gradients. Layout: CSS Grid; break 3-equal-card rows. Surfaces: elevation, skeletons, tactile active, focus rings. Content/game: real copy; themed HUD/assets; no emoji-as-UI or primitive placeholders.',
 ].join('\n');
 
 /** Banned placeholder patterns that must never ship as "done". */
