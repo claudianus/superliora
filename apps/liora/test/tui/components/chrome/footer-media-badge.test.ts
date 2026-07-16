@@ -34,11 +34,11 @@ describe('footer media readiness badges', () => {
     expect(formatMediaFooterBadge()?.label).toBe('img');
   });
 
-  it('reports media when image and video keys are present', () => {
+  it('reports img+vid when image and video keys are present', () => {
     clearKeys();
     process.env['OPENAI_API_KEY'] = 'sk-test';
     process.env['GOOGLE_API_KEY'] = 'g-test';
-    expect(formatMediaFooterBadge()?.label).toBe('media');
+    expect(formatMediaFooterBadge()?.label).toBe('img+vid');
   });
 
   it('returns null when no media keys exist', () => {

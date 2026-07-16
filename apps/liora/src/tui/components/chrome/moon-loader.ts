@@ -140,7 +140,7 @@ export class MoonLoader extends Text {
 
   private renderCometGlyph(): string {
     // Dense demo-grade trail: ··•◦○● with head pulsing on the shared clock.
-    const trail = ['·', '·', '•', '◦', '○'] as const;
+    const trail = ['·', '·', '•', '•', '◦', '○'] as const;
     const head = '●';
     const phase = Math.floor(appearanceAnimationNow() / this.interval) % (trail.length + 1);
     const dim = (s: string) => currentTheme.fg('textDim', s);

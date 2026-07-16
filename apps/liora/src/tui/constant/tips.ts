@@ -57,7 +57,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'tool outputs auto-trim at 8k with 200-char previews — /compact if still high', priority: 2, solo: true },
   { text: 'live reasoning shows a 5-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — denser pressure glance', priority: 1, solo: true },
-  { text: 'particle rails densify under premium chrome — demo-grade motion without config', priority: 1, solo: true },
+  { text: 'particle rails densify under premium chrome — denser comet trails, zero config', priority: 1, solo: true },
   { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
   { text: 'footer micro: badges shorten cache-miss/swarm triggers for denser chrome', priority: 1, solo: true },
   { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },

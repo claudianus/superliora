@@ -204,8 +204,8 @@ export function renderParticleRail(
   const tick = Math.floor(appearanceAnimationNow() / tickMs);
   // Dense demo-grade rails on premium; subtle ambient on default.
   const density = premium
-    ? Math.max(9, Math.min(40, Math.floor(safeWidth / 2.8)))
-    : Math.max(3, Math.min(16, Math.floor(safeWidth / 8)));
+    ? Math.max(12, Math.min(48, Math.floor(safeWidth / 2.2)))
+    : Math.max(4, Math.min(18, Math.floor(safeWidth / 7)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const cells = Array.from({ length: safeWidth }, () => ' ');
   const base = hashRendererEffectSeed(seed);
@@ -219,12 +219,14 @@ export function renderParticleRail(
     const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + tick + i * 3, PARTICLE_TOKENS.length)]!;
     cells[x] = currentTheme.fg(token, char);
 
-    if (premium && safeWidth > 18) {
+    if (premium && safeWidth > 14) {
       // Multi-cell comet trail for denser, more continuous motion.
       const trail1 = rendererPositiveModulo(x - direction, safeWidth);
       const trail2 = rendererPositiveModulo(x - direction * 2, safeWidth);
-      if (cells[trail1] === ' ') cells[trail1] = currentTheme.dimFg('particle', '·');
-      if (cells[trail2] === ' ') cells[trail2] = currentTheme.dimFg('textMuted', '·');
+      const trail3 = rendererPositiveModulo(x - direction * 3, safeWidth);
+      if (cells[trail1] === ' ') cells[trail1] = currentTheme.dimFg('particle', '•');
+      if (cells[trail2] === ' ') cells[trail2] = currentTheme.dimFg('particle', '·');
+      if (cells[trail3] === ' ') cells[trail3] = currentTheme.dimFg('textMuted', '·');
     }
   }
 
@@ -261,8 +263,8 @@ export function renderParticleDivider(
   const premium = mode === 'premium';
   const tick = Math.floor(appearanceAnimationNow() / rendererEffectFrameIntervalMs(mode));
   const density = premium
-    ? Math.max(6, Math.min(22, Math.floor(safeWidth / 4.5)))
-    : Math.max(3, Math.min(12, Math.floor(safeWidth / 12)));
+    ? Math.max(8, Math.min(28, Math.floor(safeWidth / 3.6)))
+    : Math.max(3, Math.min(14, Math.floor(safeWidth / 10)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const base = hashRendererEffectSeed(seed);
   for (let i = 0; i < density; i++) {
