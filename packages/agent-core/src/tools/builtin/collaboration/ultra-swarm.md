@@ -6,4 +6,4 @@ UltraSwarm — auto-assemble expert subagents (400+ / 16 divisions) for complex 
 
 **TodoList sync:** WorkGraph nodes mirror as `[nodeId] title` (UltraworkGraph `sync_todos`). Each expert keeps a live TodoList — create within the first 2 tool calls.
 
-**Divisions:** Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, Game Development, GIS, Paid Media, Project Management, Sales, Spatial Computing, Specialized, Support.
+**Divisions:** Engineering, Design, Security, Product, Marketing, Testing, Academic, Finance, Game Dev, GIS, Paid Media, Project Management, Sales, Spatial Computing, Specialized, Support.

@@ -5,6 +5,4 @@ Use only for implementation planning, not for research tasks (searching/reading 
 A good plan lists verifiable steps with real files and commands. For Ultra Plan include:
 `Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>`
 
-Multiple approaches: pass them via the `options` parameter so the user can choose alongside Reject and Revise controls.
-
-Before calling: in auto mode decide without AskUserQuestion; in yolo/manual resolve questions first — not AskUserQuestion for "is this plan OK?". If rejected, revise based on feedback and call again.
+Multiple approaches: pass them via the `options` parameter so the user can choose alongside Reject and Revise controls. Before calling: in auto mode decide without AskUserQuestion; in yolo/manual resolve questions first — not AskUserQuestion for "is this plan OK?". If rejected, revise based on feedback and call again.
