@@ -45,16 +45,16 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 /**
  * Soft trigger for full (lossy) compaction.
  * Compact before attention rot: 0.011 sits between async pre-rot (~0.01) /
- * swarm handoff (~0.02) and hard block (~0.43), so summaries generate while
+ * swarm handoff (~0.02) and hard block (~0.42), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
 export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.011;
 /** Hard block near the window; leaves headroom for compaction summary output. */
-export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.43;
+export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.42;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
-export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 200;
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 180;
 /** Minimum context growth since the last compaction before auto may fire again. */
-export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.003;
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.0025;
 /** Pre-swarm handoff ceiling: force reclaim before UltraSwarm if usage is above this ratio. */
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.02;
 /**
@@ -72,14 +72,14 @@ const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 600,
+  reservedContextSize: 500,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 2,
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.02,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 18_000,
+  absoluteTriggerTokens: 16_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 2_800,
   parallelBlockTarget: 1_000,
