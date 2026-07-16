@@ -25,6 +25,7 @@ import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
@@ -151,7 +152,12 @@ export class ThinkingComponent implements Component {
           return lines;
         }
 
-        const marker = this.showMarker ? currentTheme.fg('textDim', STATUS_BULLET) : MESSAGE_INDENT;
+        const appearance = getActiveAppearancePreferences();
+        const marker = !this.showMarker
+          ? MESSAGE_INDENT
+          : shouldRenderAmbientEffects(appearance)
+            ? renderPulseText(STATUS_BULLET, 'thinking:complete', 'textDim')
+            : currentTheme.fg('textDim', STATUS_BULLET);
         const elapsed = this.renderElapsedSuffix();
         const summary = `${marker}${renderThinkingStatusLabel(`thinking complete${elapsed}`)}`;
         const hint = `... (${String(contentLines.length)} lines hidden, ctrl+o to expand)`;

@@ -376,7 +376,7 @@ function renderBoardMeta(
     total > 0
       ? `${renderRendererRatioProgressBar({
           ratio,
-          width: 6,
+          width: 8,
           filledStyle: (text) => chalk.hex(colors.success)(text),
           emptyStyle: (text) => chalk.hex(colors.textMuted)(text),
         })}${chalk.hex(colors.textDim)(` ${String(Math.round(ratio * 100))}%`)}`

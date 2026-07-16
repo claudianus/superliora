@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.web-media-todo-thinking-density.v1",
+  "title": "Record denser web/media tools, todo progress, and thinking markers",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "web",
+    "media",
+    "todo",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/web-media-todo-thinking-density.md with sections for Web densify, Media densify, Todo bar 8, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/web-media-todo-thinking-density.md",
+      "content": "# Web Media Todo Thinking Density Contract\n\n## Web densify\nWebSearch/FetchURL/Context7 always-on descriptions stay zero-config and denser\n\n## Media densify\nGenerateImage/GenerateVideo keep provider key paths without MCP and stay short\n\n## Todo bar 8\nTodo Board completion progress bar uses 8 cells for denser glanceable progress\n\n## Evidence path\nLioraBench holdout + web/media/todo-panel/thinking vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/web-media-todo-thinking-density.md",
+      "text": "Web densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-media-todo-thinking-density.md",
+      "text": "Media densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-media-todo-thinking-density.md",
+      "text": "Todo bar 8",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-media-todo-thinking-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
