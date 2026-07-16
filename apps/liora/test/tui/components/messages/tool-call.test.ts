@@ -271,8 +271,8 @@ describe('ToolCallComponent', () => {
       const collapsed = strip(component.render(100).join('\n'));
       expect(collapsed).toContain('Using Bash');
       expect(collapsed).toContain('echo step1');
-      expect(collapsed).toContain('echo step10');
-      expect(collapsed).not.toContain('echo step11');
+      expect(collapsed).toContain('echo step8');
+      expect(collapsed).not.toContain('echo step9');
 
       component.setExpanded(true);
 
@@ -1554,13 +1554,13 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Write');
-    // Streaming preview caps at COMMAND_PREVIEW_LINES (10) and shows the tail.
+    // Streaming preview caps at COMMAND_PREVIEW_LINES (8) and shows the tail.
     expect(out).not.toContain('line1');
-    expect(out).not.toContain('line20');
-    expect(out).toContain('line21');
+    expect(out).not.toContain('line22');
+    expect(out).toContain('line23');
     expect(out).toContain('line30');
     // Line numbers should reflect actual file positions.
-    expect(out).toContain('  21');
+    expect(out).toContain('  23');
     expect(out).toContain('  30');
     expect(out).not.toContain('ctrl+o to expand');
   });
@@ -1652,8 +1652,8 @@ describe('ToolCallComponent', () => {
     );
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('line1');
-    expect(out).toContain('line10');
-    expect(out).not.toContain('line11');
+    expect(out).toContain('line8');
+    expect(out).not.toContain('line9');
     expect(out).not.toContain('line25');
     expect(out).toContain('ctrl+o to expand');
   });
@@ -1835,7 +1835,7 @@ describe('ToolCallComponent', () => {
 
     const collapsed = strip(component.render(100).join('\n'));
     expect(collapsed).toContain('line1');
-    expect(collapsed).toContain('line10');
+    expect(collapsed).toContain('line8');
     expect(collapsed).not.toContain('line25');
     expect(collapsed).toContain('ctrl+o to expand');
 
