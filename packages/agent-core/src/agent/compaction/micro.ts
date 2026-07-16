@@ -35,7 +35,7 @@ const DEFAULT_CONFIG: MicroCompactionConfig = {
   truncatedMarker: '[Old tool result content cleared]',
   // Fire once usage is meaningful; full compaction still waits for triggerRatio.
   // Keep window short so long sessions clear bulky tool output before soft-trigger.
-  minContextUsageRatio: 0.02,
+  minContextUsageRatio: 0.015,
 };
 
 export type MicroTriggerKind =
