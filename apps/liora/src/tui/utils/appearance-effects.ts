@@ -35,7 +35,7 @@ const PARTICLE_TOKENS: readonly ColorToken[] = [
 const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
 const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
 /** How often ambient animation frames repaint (~20fps). */
-const PREMIUM_AMBIENT_RENDER_TICK_MS = 50;
+const PREMIUM_AMBIENT_RENDER_TICK_MS = 42;
 const SUBTLE_AMBIENT_RENDER_TICK_MS = 140;
 const PULSE_GLYPH_INTERVAL_MS = 280;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
