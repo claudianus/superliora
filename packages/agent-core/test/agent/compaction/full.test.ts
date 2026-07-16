@@ -1754,14 +1754,19 @@ describe('FullCompaction', () => {
         (_unused, index) =>
           `- Updated \`packages/agent-core/src/agent/context-os/${label}-${String(index)}-${'segment-'.repeat(18)}.ts\`.`,
       );
+    // Parallel-block densify may issue multiple LLM calls per compaction (blocks + merge).
+    const queueCompactionText = (text: string, copies = 12) => {
+      for (let i = 0; i < copies; i += 1) {
+        ctx.mockNextResponse({ type: 'text', text });
+      }
+    };
 
     ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
     ctx.appendExchange(2, 'recent user two', 'recent assistant two', 80);
     const firstCompacted = ctx.once('context.apply_compaction');
     const firstCompleted = ctx.once('compaction.completed');
-    ctx.mockNextResponse({
-      type: 'text',
-      text: [
+    queueCompactionText(
+      [
         '## Current Focus',
         `${'Budget-pack-harness alpha '.repeat(40)}.`,
         '## Changes Made',
@@ -1773,7 +1778,7 @@ describe('FullCompaction', () => {
         `- ${longAction} alpha four`,
         `- ${longAction} alpha five`,
       ].join('\n'),
-    });
+    );
     await ctx.rpc.beginCompaction({});
     await firstCompacted;
     await firstCompleted;
@@ -1781,9 +1786,8 @@ describe('FullCompaction', () => {
     ctx.appendExchange(3, 'continue budget pack harness', 'second page ready', 80);
     const secondCompacted = ctx.once('context.apply_compaction');
     const secondCompleted = ctx.once('compaction.completed');
-    ctx.mockNextResponse({
-      type: 'text',
-      text: [
+    queueCompactionText(
+      [
         '## Current Focus',
         `${'Budget-pack-harness beta '.repeat(40)}.`,
         '## Changes Made',
@@ -1795,11 +1799,10 @@ describe('FullCompaction', () => {
         `- ${longAction} beta four`,
         `- ${longAction} beta five`,
       ].join('\n'),
-    });
+    );
     await ctx.rpc.beginCompaction({});
     await secondCompacted;
     await secondCompleted;
-
     ctx.mockNextResponse({ type: 'text', text: 'Budgeted Context OS page used.' });
     await ctx.rpc.prompt({
       input: [{ type: 'text', text: 'What is next for budget-pack-harness?' }],
