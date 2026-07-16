@@ -193,9 +193,15 @@ function formatContextStatus(usage: number, tokens?: number, maxTokens?: number)
 }
 
 function renderContextUsageBar(ratio: number): string {
-  const width = 8;
-  const filled = Math.max(0, Math.min(width, Math.round(ratio * width)));
-  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+  // 10-cell high-res bar with eighths partial fill for demo-grade pressure glance.
+  const width = 10;
+  const totalEighths = Math.max(0, Math.min(width * 8, Math.round(ratio * width * 8)));
+  const fullCells = Math.floor(totalEighths / 8);
+  const rem = totalEighths % 8;
+  const PARTIAL = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉'] as const;
+  const partial = PARTIAL[rem] ?? '';
+  const usedCells = fullCells + (partial.length > 0 ? 1 : 0);
+  return `${'█'.repeat(fullCells)}${partial}${'░'.repeat(Math.max(0, width - usedCells))}`;
 }
 
 export type FooterBadgeSeverity = 'muted' | 'info' | 'warning' | 'danger';

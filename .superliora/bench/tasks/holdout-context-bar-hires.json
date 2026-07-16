@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.context-bar-hires.v1",
+  "title": "Record hi-res footer context bar",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["tui", "visible-evidence"],
+  "prompt": "Create reports/context-bar-hires.md with sections for Context bar and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/context-bar-hires.md",
+    "content": "# Context Bar Hires Contract\n\n## Context bar\nfooter context usage bar defaults to 10 cells with Unicode eighths partial fill for denser pressure glance without config\n\n## Evidence path\nLioraBench holdout + footer-context vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/context-bar-hires.md", "text": "Context bar", "weight": 1},
+    {"type": "file_contains", "path": "reports/context-bar-hires.md", "text": "Evidence path", "weight": 1}
+  ]
+}

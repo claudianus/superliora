@@ -111,6 +111,8 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(out).toContain('kimi-k2-5');
     expect(out).not.toContain(' k2 ');
     expect(out).toMatch(/context:.*50\.0%/);
+    // Hi-res bar: 10 cells with eighths partials (50% → 5 full blocks).
+    expect(out).toMatch(/context: █████░░░░░ 50\.0%/);
   });
 
   it('shows "thinking" label when thinking is enabled, hides it when disabled', () => {
