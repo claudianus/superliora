@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool75k-thinking4-swarm600.v1",
+  "title": "Record tool7.5k thinking4 and swarm600 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tools", "tui", "visible-evidence"],
+  "prompt": "Create reports/tool75k-thinking4-swarm600.md with sections for Tool 7.5k, Thinking 4, Swarm 600, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/tool75k-thinking4-swarm600.md",
+    "content": "# Tool75k Thinking4 Swarm600 Contract\n\n## Tool 7.5k\ntool result budgets default to 7.5k max chars with 180-char previews\n\n## Thinking 4\nlive thinking glance defaults to a 4-line tail for denser chrome\n\n## Swarm 600\nswarm expert body 600 / total 20k / inline 120 keep multi-expert handoffs lean\n\n## Evidence path\nLioraBench holdout + tool/boundary/thinking vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/tool75k-thinking4-swarm600.md", "text": "Tool 7.5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool75k-thinking4-swarm600.md", "text": "Thinking 4", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool75k-thinking4-swarm600.md", "text": "Swarm 600", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool75k-thinking4-swarm600.md", "text": "Evidence path", "weight": 1}
+  ]
+}

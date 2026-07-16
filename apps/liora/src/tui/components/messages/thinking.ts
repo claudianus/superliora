@@ -116,7 +116,7 @@ export class ThinkingComponent implements Component {
           // without waiting for Ctrl+O expand.
           const visibleLines = projectRendererLineWindow({
             lines: contentLines,
-            maxLines: this.expanded ? Math.max(THINKING_PREVIEW_LINES, 5) : THINKING_PREVIEW_LINES,
+            maxLines: this.expanded ? Math.max(THINKING_PREVIEW_LINES, 4) : THINKING_PREVIEW_LINES,
             tail: true,
           }).lines;
           const spinnerFrame =

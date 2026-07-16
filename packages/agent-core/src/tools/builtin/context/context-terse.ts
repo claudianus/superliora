@@ -19,7 +19,7 @@ export interface TerseReadResult {
   readonly overflow: string | undefined;
 }
 
-const DEFAULT_MAX_CHARS = 8_000;
+const DEFAULT_MAX_CHARS = 7_500;
 const AUTO_FULL_LINE_THRESHOLD = 120;
 
 export function renderTerseRead(input: TerseReadInput): TerseReadResult {
