@@ -17,7 +17,7 @@ export const PREMIUM_VISUAL_SUPREMACY_MANDATE = [
 /** Art direction gate — must happen before visual implementation. */
 export const PREMIUM_VISUAL_ART_DIRECTION_GATE = [
   '### Art direction before code (mandatory)',
-  'Before first visual implementation, write a short Art Direction Brief: 3 vibe adjectives; 1 neutral + 1 accent (sat < 80%, ban AI purple/blue neon); display/body/mono type (no browser defaults/Inter-by-default); asymmetric/split hero when fit; max-width container; `min-h-[100dvh]` not `100vh`; motion + assets + evidence target (BrowserScreenshot / Playwright).',
+  'Before first visual implementation, write a short Art Direction Brief: 3 vibe adjectives; 1 neutral + 1 accent (sat < 80%, ban AI purple/blue neon); display/body/mono type (no browser defaults/Inter-by-default); asymmetric/split hero when fit; max-width container; `min-h-[100dvh]` not `100vh`; motion + assets + evidence (BrowserScreenshot / Playwright).',
 ].join('\n');
 
 /** Cheat-key prompt patterns distilled from proven anti-slop / design-taste skills. */

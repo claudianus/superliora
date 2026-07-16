@@ -13,4 +13,4 @@ Live Kanban board for multi-step work — use proactively when tracking helps. U
 
 **Granularity:** verb + target (+ path). Keep exactly one `in_progress` unless true parallel tracks.
 
-**Avoid churn:** do not re-call when nothing meaningful changed since last write. When unsure, query first (no `todos` argument). If stuck, tell the user instead of endless reordering.
+**Avoid churn:** do not re-call when nothing meaningful changed since last write. When unsure, query first (no `todos` argument). If stuck, tell the user — no endless reordering.

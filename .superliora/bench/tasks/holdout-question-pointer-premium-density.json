@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.question-pointer-premium-density.v1",
+  "title": "Record question-dialog pointer pulse and denser premium/todo copy",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "interview",
+    "premium",
+    "todo",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/question-pointer-premium-density.md with sections for Question pulse, Art direction densify, Todo churn densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/question-pointer-premium-density.md",
+      "content": "# Question Pointer Premium Density Contract\n\n## Question pulse\nAskUserQuestion selected pointers pulse under ambient effects for denser interactive interview UX\n\n## Art direction densify\nPremium Visual art-direction gate stays screenshot-proof with shorter always-on wording\n\n## Todo churn densify\nTodoList anti-churn guidance stays contract-complete with denser always-on schema text\n\n## Evidence path\nLioraBench holdout + question-dialog/todo-list/premium vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/question-pointer-premium-density.md",
+      "text": "Question pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/question-pointer-premium-density.md",
+      "text": "Art direction densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/question-pointer-premium-density.md",
+      "text": "Todo churn densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/question-pointer-premium-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
