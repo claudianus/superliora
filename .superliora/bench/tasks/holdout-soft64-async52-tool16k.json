@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft64-async52-tool16k.v1",
+  "title": "Record soft64/async52 compaction and 16k/500 tool budgets",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/soft64-async52-tool16k.md with sections for Soft 64, Async 52, Tool 16k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft64-async52-tool16k.md",
+    "content": "# Soft64 Async52 Tool16k Contract\n\n## Soft 64\nfull compaction soft trigger defaults to 0.64 so long sessions reclaim earlier while hard block stays at 0.90\n\n## Async 52\nasync background compaction and swarm micro pressure start at 0.52 so pre-rot reclaim begins sooner\n\n## Tool 16k\ntool-result budgets trim at 16k chars with 500-char previews for denser long-horizon context\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft64-async52-tool16k.md", "text": "Soft 64", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft64-async52-tool16k.md", "text": "Async 52", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft64-async52-tool16k.md", "text": "Tool 16k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft64-async52-tool16k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
