@@ -53,11 +53,9 @@ export function buildUltraworkRecoveryPrompt(
   const lines = [
     '<ultrawork_recovery>',
     'Resume from last durable checkpoint. Do not restart from scratch unless unusable.',
-    `Run id: ${report.run.id}`,
+    `Run: ${report.run.id} · stage=${report.run.stage} · status=${report.run.status}`,
     `Objective: ${report.run.objective}`,
-    `Stage: ${report.run.stage}`,
-    `Status: ${report.run.status}`,
-    `Last updated: ${report.run.updatedAt}`,
+    `Updated: ${report.run.updatedAt}`,
   ];
 
   if (report.interruptReason !== undefined) {
@@ -146,7 +144,7 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`- ${action}`);
   }
   lines.push(
-    'Continue from stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof over claims; mark AC/nodes done only with evidence. Preserve durable ids.',
+    'Continue from stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof; mark AC/nodes done only with evidence. Preserve durable ids.',
   );
   lines.push('</ultrawork_recovery>');
   return lines.join('\n');
