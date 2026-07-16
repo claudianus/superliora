@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft20-handoff22-reserved4k.v1",
+  "title": "Record soft20 handoff22 and reserved4k densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "reserved", "visible-evidence"],
+  "prompt": "Create reports/soft20-handoff22-reserved4k.md with sections for Soft 20, Handoff 22, Reserved 4k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft20-handoff22-reserved4k.md",
+    "content": "# Soft20 Handoff22 Reserved4k Contract\n\n## Soft 20\nsoft compaction trigger defaults to 0.20 with quality bias floor 0.18 so reclaim can tighten after emergency backstops\n\n## Handoff 22\nswarm handoff compaction ratio defaults to 0.22 so pre-swarm reclaim runs earlier\n\n## Reserved 4k\nreserved context for hard blocking defaults to 4k for denser long-horizon reclaim\n\n## Evidence path\nLioraBench holdout + strategy/status/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft20-handoff22-reserved4k.md", "text": "Soft 20", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft20-handoff22-reserved4k.md", "text": "Handoff 22", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft20-handoff22-reserved4k.md", "text": "Reserved 4k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft20-handoff22-reserved4k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
