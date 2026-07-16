@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.web-search-default4.v1",
+  "title": "Record WebSearch default 4 hits",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["web", "token", "visible-evidence"],
+  "prompt": "Create reports/web-search-default4.md with sections for WebSearch 4 and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/web-search-default4.md",
+    "content": "# WebSearch Default4 Contract\n\n## WebSearch 4\nWebSearch defaults to 4 results and steers agents to refine the query before raising limit\n\n## Evidence path\nLioraBench holdout + web-search vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/web-search-default4.md", "text": "WebSearch 4", "weight": 1},
+    {"type": "file_contains", "path": "reports/web-search-default4.md", "text": "Evidence path", "weight": 1}
+  ]
+}
