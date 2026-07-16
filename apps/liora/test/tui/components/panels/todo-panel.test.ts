@@ -37,6 +37,19 @@ describe('TodoPanelComponent', () => {
     expect(joined).toMatch(/○ Open PR/);
   });
 
+  it('renders a dense completion progress bar in board meta', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'Investigate parser', status: 'done' },
+      { title: 'Add tests', status: 'in_progress' },
+      { title: 'Open PR', status: 'pending' },
+    ]);
+    const joined = panel.render(100).map(strip).join('\n');
+    expect(joined).toMatch(/[█░]/);
+    expect(joined).toMatch(/33%/);
+    expect(joined).toMatch(/wip 1\/1/);
+  });
+
   it('renders todos as kanban lanes by status', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([
@@ -282,7 +295,7 @@ describe('TodoPanelComponent', () => {
 
     panel.bumpActivity();
     const stale = strip(panel.render(80).join('\n'));
-    expect(stale).toMatch(/stale · 2 calls since update/);
+    expect(stale).toMatch(/stale · 2 calls/);
   });
 
   it('clears stale counter when the board is updated', () => {

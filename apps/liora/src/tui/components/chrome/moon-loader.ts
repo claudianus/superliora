@@ -12,7 +12,7 @@ import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderPulseText } from '#/tui/utils/appearance-effects';
 
-export type SpinnerStyle = 'moon' | 'braille';
+export type SpinnerStyle = 'moon' | 'braille' | 'comet';
 
 export class MoonLoader extends Text {
   private ui: RendererRootUI;
@@ -20,6 +20,7 @@ export class MoonLoader extends Text {
   private interval: number;
   private colorFn?: (s: string) => string;
   private label: string;
+  private readonly style: SpinnerStyle;
   private displayText = '';
   // Inline text is embedded into dense status lines such as swarm progress.
   // Keep tips on the activity-pane row only so they do not crowd progress bars.
@@ -39,8 +40,14 @@ export class MoonLoader extends Text {
   ) {
     super('', 1, 0);
     this.ui = ui;
+    this.style = style;
     this.frames = style === 'moon' ? [...MOON_SPINNER_FRAMES] : [...BRAILLE_SPINNER_FRAMES];
-    this.interval = style === 'moon' ? MOON_SPINNER_INTERVAL_MS : BRAILLE_SPINNER_INTERVAL_MS;
+    this.interval =
+      style === 'moon'
+        ? MOON_SPINNER_INTERVAL_MS
+        : style === 'comet'
+          ? Math.max(48, BRAILLE_SPINNER_INTERVAL_MS - 16)
+          : BRAILLE_SPINNER_INTERVAL_MS;
     this.colorFn = colorFn;
     this.label = label;
     this.refreshDisplay();
@@ -85,6 +92,7 @@ export class MoonLoader extends Text {
 
   /** Spinner glyph only — for dense embeds such as the swarm status line. */
   renderGlyph(): string {
+    if (this.style === 'comet') return this.renderCometGlyph();
     const frameIndex =
       Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
     const frame = this.frames[frameIndex]!;
@@ -104,10 +112,15 @@ export class MoonLoader extends Text {
   }
 
   private computeDisplay(): void {
-    const frameIndex =
-      Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
-    const frame = this.frames[frameIndex]!;
-    const coloredFrame = this.colorFn ? this.colorFn(frame) : frame;
+    const coloredFrame =
+      this.style === 'comet'
+        ? this.renderCometGlyph()
+        : (() => {
+            const frameIndex =
+              Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
+            const frame = this.frames[frameIndex]!;
+            return this.colorFn ? this.colorFn(frame) : frame;
+          })();
     const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt)}`);
     const label = this.label.length > 0
       ? renderPulseText(this.label, `loader:${this.label}`, 'text')
@@ -124,6 +137,26 @@ export class MoonLoader extends Text {
     }
     this.displayText = text;
     this.setText(this.displayText);
+  }
+
+  private renderCometGlyph(): string {
+    // Dense demo-grade trail: ··•◦○● with head pulsing on the shared clock.
+    const trail = ['·', '·', '•', '◦', '○'] as const;
+    const head = '●';
+    const phase = Math.floor(appearanceAnimationNow() / this.interval) % (trail.length + 1);
+    const dim = (s: string) => currentTheme.fg('textDim', s);
+    const mid = (s: string) => currentTheme.fg('text', s);
+    const hot = this.colorFn ?? ((s: string) => currentTheme.fg('primary', s));
+    const chars: string[] = [];
+    for (let i = 0; i < trail.length; i++) {
+      const age = (phase - i + trail.length + 1) % (trail.length + 1);
+      const glyph = trail[i]!;
+      if (age === 0) chars.push(hot(glyph));
+      else if (age === 1) chars.push(mid(glyph));
+      else chars.push(dim(glyph));
+    }
+    chars.push(hot(head));
+    return chars.join('');
   }
 
   private refreshDisplay(): void {

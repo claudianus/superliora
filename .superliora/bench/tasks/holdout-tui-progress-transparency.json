@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tui-progress-transparency.v1",
+  "title": "Record TUI progress transparency contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "ux",
+    "progress",
+    "todo",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tui-progress-transparency.md with sections for Todo progress bar, Comet spinner, Work transparency, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tui-progress-transparency.md",
+      "content": "# TUI Progress Transparency Contract\n\n## Todo progress bar\nTodo Board meta shows ratio progress (█░) plus percent done without extra config\n\n## Comet spinner\ncomposing phase uses multi-cell comet trail spinner for denser live motion\n\n## Work transparency\nwip/next/done counts stay visible with flow change flashes on the board\n\n## Evidence path\nLioraBench holdout + todo-panel/moon-loader vitest + live TUI board render\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tui-progress-transparency.md",
+      "text": "Todo progress bar",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-progress-transparency.md",
+      "text": "Comet spinner",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-progress-transparency.md",
+      "text": "Work transparency",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tui-progress-transparency.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
