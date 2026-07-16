@@ -335,7 +335,7 @@ describe('FooterComponent — context NaN resilience', () => {
       }),
     );
     const joined = footer.render(120).map(strip).join('\n');
-    expect(joined).toContain('micro:usage_pressure×3');
+    expect(joined).toContain('μ:usage_pressure×3');
     expect(
       formatMicroCompactionFooterBadge({
         total: 3,
@@ -343,7 +343,7 @@ describe('FooterComponent — context NaN resilience', () => {
         lastContextUsageRatio: 0.62,
         byTrigger: { usage_pressure: 2 },
       }),
-    ).toEqual({ text: 'micro:usage_pressure×3', severity: 'info' });
+    ).toEqual({ text: 'μ:usage_pressure×3', severity: 'info' });
     expect(
       formatMicroCompactionFooterBadge({
         total: 2,
@@ -351,7 +351,7 @@ describe('FooterComponent — context NaN resilience', () => {
         lastContextUsageRatio: 0.8,
         byTrigger: { swarm_pressure: 2 },
       }),
-    ).toEqual({ text: 'micro:swarm×2', severity: 'warning' });
+    ).toEqual({ text: 'μ:swarm×2', severity: 'warning' });
     expect(formatMicroCompactionFooterBadge(null)).toBeNull();
   });
 
