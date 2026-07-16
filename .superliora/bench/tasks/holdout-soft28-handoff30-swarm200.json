@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft28-handoff30-swarm200.v1",
+  "title": "Record soft28 handoff30 and swarm200 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft28-handoff30-swarm200.md with sections for Soft 28, Handoff 30, Swarm 200, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft28-handoff30-swarm200.md",
+    "content": "# Soft28 Handoff30 Swarm200 Contract\n\n## Soft 28\nsoft compaction trigger defaults to 0.28 with quality bias floor 0.26 so reclaim can tighten after emergency backstops\n\n## Handoff 30\nswarm handoff compaction ratio defaults to 0.30 so pre-swarm reclaim runs earlier\n\n## Swarm 200\nswarm expert bodies default to 200 chars, total 5k, inline 35, with hard floor total budget enforcement for denser multi-agent handoffs\n\n## Evidence path\nLioraBench holdout + strategy/boundary/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft28-handoff30-swarm200.md", "text": "Soft 28", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft28-handoff30-swarm200.md", "text": "Handoff 30", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft28-handoff30-swarm200.md", "text": "Swarm 200", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft28-handoff30-swarm200.md", "text": "Evidence path", "weight": 1}
+  ]
+}

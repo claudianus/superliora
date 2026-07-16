@@ -10,7 +10,7 @@ import {
   SWARM_EXPERT_BODY_MAX_CHARS,
 } from './handoff-collapse';
 
-export const SWARM_TOTAL_RESULT_MAX_CHARS = 6_000;
+export const SWARM_TOTAL_RESULT_MAX_CHARS = 5_000;
 
 export interface BoundaryCompactionOptions {
   readonly expertBodyMaxChars?: number;
@@ -59,6 +59,20 @@ export function compactSwarmToolResult(
 
   output = enforceTotalBudget(output, store, runId, expertBodyMaxChars, archiveIds, totalResultMaxChars);
   output = injectArchiveGuidance(output, archiveIds);
+  // Guidance injection can re-grow the payload; re-apply the densify hard floor last
+  // while preserving a short LioraExpand trailer for archived expert recovery.
+  if (output.length > totalResultMaxChars) {
+    const trailer =
+      archiveIds.length > 0
+        ? `
+[LioraExpand archives: ${archiveIds.slice(0, 6).join(',')}${archiveIds.length > 6 ? '…' : ''}]`
+        : '';
+    const headBudget = Math.max(0, totalResultMaxChars - trailer.length);
+    output = collapseForHandoff(output, headBudget) + trailer;
+    if (output.length > totalResultMaxChars) {
+      output = output.slice(0, totalResultMaxChars);
+    }
+  }
 
   return {
     output,
@@ -185,10 +199,13 @@ function enforceTotalBudget(
   totalResultMaxChars: number,
 ): string {
   if (output.length <= totalResultMaxChars) return output;
-  if (ULTRA_SWARM_ROOT_RE.test(output)) {
-    return compactExpertBlocks(output, store, runId, Math.min(expertBodyMaxChars, 400), archiveIds);
-  }
-  return compactSubagentBlocks(output, store, runId, Math.min(expertBodyMaxChars, 400), archiveIds);
+  // Re-compact expert/subagent bodies more aggressively under denser total caps.
+  let next = ULTRA_SWARM_ROOT_RE.test(output)
+    ? compactExpertBlocks(output, store, runId, Math.min(expertBodyMaxChars, 120), archiveIds)
+    : compactSubagentBlocks(output, store, runId, Math.min(expertBodyMaxChars, 120), archiveIds);
+  if (next.length <= totalResultMaxChars) return next;
+  // Hard floor: preserve a head+tail window so multi-expert metadata stays navigable.
+  return collapseForHandoff(next, totalResultMaxChars);
 }
 
 function injectArchiveGuidance(output: string, archiveIds: readonly string[]): string {
