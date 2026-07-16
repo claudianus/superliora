@@ -33,9 +33,10 @@ describe('ShellExecutionComponent', () => {
 
     const collapsedOutput = collapsed.render(100).map(strip).join('\n');
     expect(collapsedOutput).toContain('line1');
+    expect(collapsedOutput).not.toContain('line2');
     expect(collapsedOutput).not.toContain('line3');
     expect(collapsedOutput).not.toContain('line4');
-    expect(collapsedOutput).toContain('... (3 more lines, ctrl+o to expand)');
+    expect(collapsedOutput).toContain('... (4 more lines, ctrl+o to expand)');
 
     const expanded = new ShellExecutionComponent({
       result: {
@@ -88,11 +89,11 @@ describe('ShellExecutionComponent', () => {
       },
     });
 
-    // Collapsed preview is RESULT_PREVIEW_LINES (2): keep a + blank, hide b.
+    // Collapsed preview is RESULT_PREVIEW_LINES (1): keep a, hide blank+b.
     const collapsedOut = collapsed.render(100).map(strip).join('\n');
     expect(collapsedOut).toContain('a');
     expect(collapsedOut).not.toContain('b');
-    expect(collapsedOut).toContain('... (1 more lines');
+    expect(collapsedOut).toContain('... (2 more lines');
 
     const expanded = new ShellExecutionComponent({
       result: {
