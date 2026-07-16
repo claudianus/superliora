@@ -1035,7 +1035,7 @@ describe('GrepTool', () => {
     expect(result.output).toContain('Use offset=3 to see more');
   });
 
-  it('limits grep output to 12 lines by default', async () => {
+  it('limits grep output to 10 lines by default', async () => {
     const paths = Array.from({ length: 251 }, (_, index) => `/workspace/src/${String(index)}.ts`);
     const displayPaths = Array.from({ length: 251 }, (_, index) => `src/${String(index)}.ts`);
     const stdout = [...paths, ''].join('\n');
@@ -1048,17 +1048,17 @@ describe('GrepTool', () => {
     const output = toolContentBody(result);
     const lines = output.split('\n');
 
-    expect(lines.slice(0, 12)).toEqual(displayPaths.slice(0, 12));
-    expect(output).not.toContain(displayPaths[12]);
+    expect(lines.slice(0, 10)).toEqual(displayPaths.slice(0, 10));
+    expect(output).not.toContain(displayPaths[10]);
     expect(output).toContain(
-      'Results truncated to 12 lines (total: 251). Use offset=12 to see more.',
+      'Results truncated to 10 lines (total: 251). Use offset=10 to see more.',
     );
   });
 
   it('treats head_limit zero as unlimited', async () => {
     // Keep under tool-result budget so unlimited head_limit is observable.
-    const paths = Array.from({ length: 11 }, (_, index) => `/workspace/src/${String(index)}.ts`);
-    const displayPaths = Array.from({ length: 11 }, (_, index) => `src/${String(index)}.ts`);
+    const paths = Array.from({ length: 9 }, (_, index) => `/workspace/src/${String(index)}.ts`);
+    const displayPaths = Array.from({ length: 9 }, (_, index) => `src/${String(index)}.ts`);
     const stdout = [...paths, ''].join('\n');
     const tool = new GrepTool(
       createFakeKaos({ exec: vi.fn().mockResolvedValue(processWithOutput(stdout)) }),
