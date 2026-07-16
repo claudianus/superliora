@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard115-abs2.v1",
+  "title": "Record hard1.15 abs2 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard115-abs2.md with sections for Hard 1.15, Abs 2, Soft Floor, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard115-abs2.md",
+    "content": "# Hard115 Abs2 Contract\n\n## Hard 1.15\nhard compaction block ratio densifies to 0.0115 so blocking reclaim starts earlier while staying above soft 0.011\n\n## Abs 2\nabsolute compaction trigger densifies to 2 tokens on large windows\n\n## Soft Floor\nsoft/async/handoff stay at 0.011/0.01/0.011 so the densify ladder order is preserved\n\n## Evidence path\nLioraBench holdout + strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard115-abs2.md", "text": "Hard 1.15", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard115-abs2.md", "text": "Abs 2", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard115-abs2.md", "text": "Soft Floor", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard115-abs2.md", "text": "Evidence path", "weight": 1}
+  ]
+}
