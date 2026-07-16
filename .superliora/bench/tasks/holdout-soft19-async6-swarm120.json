@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft19-async6-swarm120.v1",
+  "title": "Record soft19 async6 and swarm120 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft19-async6-swarm120.md with sections for Soft 19, Async 6, Swarm 120, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft19-async6-swarm120.md",
+    "content": "# Soft19 Async6 Swarm120 Contract\n\n## Soft 19\nsoft compaction trigger defaults to 0.19 with quality bias floor 0.17 so reclaim can tighten after emergency backstops\n\n## Async 6\nasync pre-rot and swarm micro pressure default to 0.06 so reclaim starts earlier\n\n## Swarm 120\nswarm expert bodies default to 120 chars, total 3.5k, inline 25 for denser multi-agent handoffs\n\n## Evidence path\nLioraBench holdout + strategy/boundary/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft19-async6-swarm120.md", "text": "Soft 19", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft19-async6-swarm120.md", "text": "Async 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft19-async6-swarm120.md", "text": "Swarm 120", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft19-async6-swarm120.md", "text": "Evidence path", "weight": 1}
+  ]
+}
