@@ -153,7 +153,7 @@ const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'LioraBench seed/holdout + media/web/ZDR/token/TUI + a42/m2/sw650/s54/dream';
+const BENCH_GATE = 'LioraBench seed/holdout · media/web/ZDR/TUI · a42/m2/sw550/s54';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const MEMORY_GATE = 'prefs | session recall | long-run notes | auto-dream';
