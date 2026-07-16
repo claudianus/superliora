@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro6-thinking4-spectacle.v1",
+  "title": "Record micro keep6/min48, 4-line thinking glance, denser particle rails",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/micro6-thinking4-spectacle.md with sections for Micro 6, Thinking 4, Spectacle, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/micro6-thinking4-spectacle.md",
+      "content": "# Micro6 Thinking4 Spectacle Contract\n\n## Micro 6\nmicro compaction keeps the last 6 messages and clears tool results from 48 tokens so long sessions reclaim bulky output earlier\n\n## Thinking 4\nlive thinking shows a 4-line tail glance so agent work stays transparent without expand\n\n## Spectacle\nparticle rails and dividers use denser ambient motion for demo-grade TUI chrome\n\n## Evidence path\nLioraBench holdout + thinking/tool-call/status vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/micro6-thinking4-spectacle.md",
+      "text": "Micro 6",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro6-thinking4-spectacle.md",
+      "text": "Thinking 4",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro6-thinking4-spectacle.md",
+      "text": "Spectacle",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro6-thinking4-spectacle.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
