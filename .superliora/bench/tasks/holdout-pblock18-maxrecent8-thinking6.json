@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.pblock18-maxrecent8-thinking6.v1",
+  "title": "Record pblock18/9, maxRecent 8%, and 6-line thinking glance",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/pblock18-maxrecent8-thinking6.md with sections for Pblock 18, MaxRecent 8, Thinking 6, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/pblock18-maxrecent8-thinking6.md",
+    "content": "# Pblock18 MaxRecent8 Thinking6 Contract\n\n## Pblock 18\nparallel compaction block threshold defaults to 18k with a 9k target so large histories summarize in denser chunks\n\n## MaxRecent 8\nfull compaction keeps at most 2 recent messages and 8% recent size so long sessions reclaim denser working memory\n\n## Thinking 6\nlive thinking shows a 6-line tail glance so agent work stays transparent without expand\n\n## Evidence path\nLioraBench holdout + strategy/thinking vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/pblock18-maxrecent8-thinking6.md", "text": "Pblock 18", "weight": 1},
+    {"type": "file_contains", "path": "reports/pblock18-maxrecent8-thinking6.md", "text": "MaxRecent 8", "weight": 1},
+    {"type": "file_contains", "path": "reports/pblock18-maxrecent8-thinking6.md", "text": "Thinking 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/pblock18-maxrecent8-thinking6.md", "text": "Evidence path", "weight": 1}
+  ]
+}
