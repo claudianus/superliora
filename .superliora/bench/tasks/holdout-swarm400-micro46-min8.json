@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.swarm400-micro46-min8.v1",
+  "title": "Record swarm400 micro46 min8 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "micro", "visible-evidence"],
+  "prompt": "Create reports/swarm400-micro46-min8.md with sections for Micro 46, Min 8, Swarm 400, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/swarm400-micro46-min8.md",
+    "content": "# Swarm400 Micro46 Min8 Contract\n\n## Micro 46\nmicro minContextUsageRatio defaults to 0.46 so tool-result clearing starts earlier\n\n## Min 8\nmicro minContentTokens defaults to 8 so smaller bulky tool results clear sooner\n\n## Swarm 400\nswarm expert bodies default to 400 chars, total 12k, inline 70 for denser multi-agent handoffs\n\n## Evidence path\nLioraBench holdout + boundary/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/swarm400-micro46-min8.md", "text": "Micro 46", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm400-micro46-min8.md", "text": "Min 8", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm400-micro46-min8.md", "text": "Swarm 400", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm400-micro46-min8.md", "text": "Evidence path", "weight": 1}
+  ]
+}
