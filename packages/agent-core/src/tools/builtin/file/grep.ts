@@ -98,7 +98,7 @@ export const GrepInputSchema = z.object({
     .nonnegative()
     .optional()
     .describe(
-      'Limit output to the first N lines/entries after offset. Defaults to 50. Pass 0 for unlimited.',
+      'Limit output to the first N lines/entries after offset. Defaults to 40. Pass 0 for unlimited.',
     ),
   offset: z
     .number()
@@ -151,7 +151,7 @@ async function disposeProcess(proc: KaosProcess): Promise<void> {
 // Column cap applied to non-content output modes only; `content` mode returns
 // matching lines in full so the cap is intentionally skipped there.
 const RG_MAX_COLUMNS = 500;
-const DEFAULT_HEAD_LIMIT = 50;
+const DEFAULT_HEAD_LIMIT = 40;
 const MTIME_STAT_CONCURRENCY = 32;
 const VCS_DIRECTORIES_TO_EXCLUDE = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'] as const;
 // This is a conservative prefilter. The authoritative sensitive-file check
