@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.permission-web-media-density.v1",
+  "title": "Record permission, web, and media density contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "permission",
+    "web",
+    "media",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/permission-web-media-density.md with sections for Auto permission, Web tools, Media tools, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/permission-web-media-density.md",
+      "content": "# Permission Web Media Density Contract\n\n## Auto permission\nauto-mode enter/exit reminders stay contract-complete with denser Ultra Plan interview guidance\n\n## Web tools\nWebSearch/FetchURL/Context7 always-on descriptions stay zero-config and short\n\n## Media tools\nGenerateImage/GenerateVideo descriptions keep provider key paths without MCP and stay dense\n\n## Evidence path\nLioraBench holdout + permission/response-language/web tool tests\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/permission-web-media-density.md",
+      "text": "Auto permission",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/permission-web-media-density.md",
+      "text": "Web tools",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/permission-web-media-density.md",
+      "text": "Media tools",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/permission-web-media-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
