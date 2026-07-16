@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.swarm80-inline16.v1",
+  "title": "Record swarm80 total2.5k and inline16 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "visible-evidence"],
+  "prompt": "Create reports/swarm80-inline16.md with sections for Swarm 80, Total 2.5k, Inline 16, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/swarm80-inline16.md",
+    "content": "# Swarm80 Inline16 Contract\n\n## Swarm 80\nswarm expert body max chars default to 80 for denser handoff bodies\n\n## Total 2.5k\nswarm total result budget densifies to 2500 chars before archive-only collapse\n\n## Inline 16\nswarm archived inline summaries default to 16 chars beside archive markers\n\n## Evidence path\nLioraBench holdout + boundary-compaction vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/swarm80-inline16.md", "text": "Swarm 80", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm80-inline16.md", "text": "Total 2.5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm80-inline16.md", "text": "Inline 16", "weight": 1},
+    {"type": "file_contains", "path": "reports/swarm80-inline16.md", "text": "Evidence path", "weight": 1}
+  ]
+}
