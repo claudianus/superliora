@@ -8,27 +8,13 @@
  * `onCancel`, and the host tears it down.
  */
 
-import {
-  Container,
-  matchesKey,
-  Key,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
-import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { currentTheme, type ColorToken } from '#/tui/theme';
-import {
-  getActiveAppearancePreferences,
-  renderAnimatedGradientText,
-  renderParticleDivider,
-  renderPremiumHeadline,
-  renderShimmerPrefix,
-  shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
-import { printableChar } from '#/tui/utils/printable-key';
-import { SearchableList } from '#/tui/utils/searchable-list';
+import {Container, matchesKey, Key, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
+import {CURRENT_MARK} from '#/tui/constant/symbols';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {currentTheme, type ColorToken} from '#/tui/theme';
+import {getActiveAppearancePreferences, renderAnimatedGradientText, renderParticleDivider, renderPremiumHeadline, renderShimmerPrefix, shouldRenderAmbientEffects} from '#/tui/utils/appearance-effects';
+import {printableChar} from '#/tui/utils/printable-key';
+import {SearchableList} from '#/tui/utils/searchable-list';
 
 export interface ChoiceOption {
   /** Value passed to onSelect (e.g. the actual editor command string). */

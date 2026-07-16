@@ -1,27 +1,17 @@
-import {
-  Container,
-  Key,
-  matchesKey,
-  renderRendererFrameRows,
-  renderRendererPanelChromeRows,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
+import {Container, Key, matchesKey, renderRendererFrameRows, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import type { PluginInfo, PluginMcpServerInfo, PluginSummary } from '@superliora/sdk';
-import { Input } from './input';
+import {Input} from './input';
 import chalk from 'chalk';
 
-import { SELECT_POINTER } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { currentTheme } from '#/tui/theme';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {currentTheme} from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { formatPluginSourceLabel, pluginTrustLabel } from '#/tui/utils/plugin-source-label';
-import { printableChar } from '#/tui/utils/printable-key';
-import { renderTabStrip } from '#/tui/utils/tab-strip';
-import { computeUpdateStatus, type PluginMarketplaceEntry } from '#/utils/plugin-marketplace';
+import {formatPluginSourceLabel, pluginTrustLabel} from '#/tui/utils/plugin-source-label';
+import {printableChar} from '#/tui/utils/printable-key';
+import {renderTabStrip} from '#/tui/utils/tab-strip';
+import {computeUpdateStatus, type PluginMarketplaceEntry} from '#/utils/plugin-marketplace';
 
-import { ChoicePickerComponent } from './choice-picker';
+import {ChoicePickerComponent} from './choice-picker';
 
 const MCP_SERVER_PREFIX = 'mcp:';
 

@@ -1,25 +1,12 @@
 import type { ModelAlias } from '@superliora/sdk';
-import {
-  Container,
-  Key,
-  matchesKey,
-  renderRendererPanelChromeRows,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
+import {Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 
-import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '#/constant/app';
-import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
-import { currentTheme } from '#/tui/theme';
-import {
-  getActiveAppearancePreferences,
-  renderPremiumHeadline,
-  renderPulseText,
-  shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { SearchableList } from '#/tui/utils/searchable-list';
+import {DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME} from '#/constant/app';
+import {CURRENT_MARK} from '#/tui/constant/symbols';
+import {currentTheme} from '#/tui/theme';
+import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {SearchableList} from '#/tui/utils/searchable-list';
 
 import type { ChoiceOption } from './choice-picker';
 

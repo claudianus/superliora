@@ -2,20 +2,12 @@
  * SessionPicker — pi-tui version of the session selection dialog.
  */
 
-import {
-  Container,
-  matchesKey,
-  Key,
-  renderRendererPanelChromeRows,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
-import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
-import { SearchableList } from '#/tui/utils/searchable-list';
+import {Container, matchesKey, Key, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
+import {CURRENT_MARK} from '#/tui/constant/symbols';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {currentTheme} from '#/tui/theme';
+import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {SearchableList} from '#/tui/utils/searchable-list';
 
 export interface SessionRow {
   readonly id: string;

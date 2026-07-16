@@ -1,20 +1,11 @@
-import {
-  Container,
-  Key,
-  matchesKey,
-  renderRendererPanelChromeRows,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
+import {Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import type { ExperimentalFeatureState } from '@superliora/sdk';
 
-import { SELECT_POINTER } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
-import { printableChar } from '#/tui/utils/printable-key';
-import { SearchableList } from '#/tui/utils/searchable-list';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {currentTheme} from '#/tui/theme';
+import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {printableChar} from '#/tui/utils/printable-key';
+import {SearchableList} from '#/tui/utils/searchable-list';
 
 const ELLIPSIS = '…';
 

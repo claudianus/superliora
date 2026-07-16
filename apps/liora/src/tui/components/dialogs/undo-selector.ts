@@ -1,18 +1,9 @@
-import {
-  Container,
-  Key,
-  matchesKey,
-  renderRendererPanelChromeRows,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
+import {Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 
-import { SELECT_POINTER } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
-import { SearchableList } from '#/tui/utils/searchable-list';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {currentTheme} from '#/tui/theme';
+import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {SearchableList} from '#/tui/utils/searchable-list';
 
 const MAX_VISIBLE_CHOICES = 5;
 const PREFERRED_SELECTED_OFFSET = 2;
