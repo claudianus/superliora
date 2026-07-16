@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.maxrecent14-plan-swarm-density.v1",
+  "title": "Record maxRecent14 reclaim and denser plan/swarm tool copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tools",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/maxrecent14-plan-swarm-density.md with sections for MaxRecent 14, Plan densify, Swarm densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/maxrecent14-plan-swarm-density.md",
+      "content": "# MaxRecent14 Plan Swarm Density Contract\n\n## MaxRecent 14\nfull compaction max recent size ratio defaults to 0.14 so long sessions keep a denser recent window after summary\n\n## Plan densify\nEnterPlanMode/AskUserQuestion always-on tool descriptions stay contract-complete with denser wording\n\n## Swarm densify\nAgentSwarm/SearchExpert/CreateGoal always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent14-plan-swarm-density.md",
+      "text": "MaxRecent 14",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent14-plan-swarm-density.md",
+      "text": "Plan densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent14-plan-swarm-density.md",
+      "text": "Swarm densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent14-plan-swarm-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
