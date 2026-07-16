@@ -5,6 +5,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { HeaderComponent } from '#/tui/components/chrome/header';
 import type { AppState } from '#/tui/types';
 import {
+  advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
@@ -75,9 +76,13 @@ describe('HeaderComponent', () => {
     delete process.env['NO_COLOR'];
 
     try {
+      // Freeze the ambient clock so brand space-sparkles are deterministic.
+      advanceAppearanceAnimationClock(0);
       const header = new HeaderComponent(baseState());
       const out = strip(header.render(100).join('\n'));
-      expect(out).toContain('◆ SuperLiora');
+      // Brand may interleave particle glyphs into spaces under premium effects.
+      expect(out).toContain('◆');
+      expect(out).toContain('SuperLiora');
       expect(out).toContain('Kimi K2');
       // Particle/divider glyphs should appear between brand and model.
       expect(out).toMatch(/[─━═·∙✧✦✺•]/);
