@@ -187,10 +187,10 @@ describe('DefaultCompactionStrategy', () => {
   it('starts async compaction between the async threshold and soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000);
 
-    // asyncTriggerRatio=0.46 → 46k; soft trigger=0.56 → 56k
-    expect(strategy.shouldAsyncCompact(45_999)).toBe(false);
-    expect(strategy.shouldAsyncCompact(46_000)).toBe(true);
-    expect(strategy.shouldCompact(46_000)).toBe(false);
+    // asyncTriggerRatio=0.44 → 44k; soft trigger=0.56 → 56k
+    expect(strategy.shouldAsyncCompact(43_999)).toBe(false);
+    expect(strategy.shouldAsyncCompact(44_000)).toBe(true);
+    expect(strategy.shouldCompact(44_000)).toBe(false);
     // Once the soft trigger fires, async path yields to blocking compact.
     expect(strategy.shouldAsyncCompact(80_000)).toBe(false);
     expect(strategy.shouldCompact(80_000)).toBe(true);

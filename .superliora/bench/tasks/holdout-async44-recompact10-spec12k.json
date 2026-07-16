@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.async44-recompact10-spec12k.v1",
+  "title": "Record async44 recompact1.0 and speculative 1.2k",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/async44-recompact10-spec12k.md with sections for Async 44, Recompact 1.0, Spec 1.2k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/async44-recompact10-spec12k.md",
+    "content": "# Async44 Recompact10 Spec12k Contract\n\n## Async 44\nasync pre-rot compaction and swarm micro pressure default to 0.44 so background reclaim starts earlier\n\n## Recompact 1.0\nmin recompact growth defaults to 1.0% so long sessions can reclaim again sooner after a compact\n\n## Spec 1.2k\nspeculative pre-turn buffer defaults to 1.2k tokens for earlier preemptive compact without over-triggering\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/async44-recompact10-spec12k.md", "text": "Async 44", "weight": 1},
+    {"type": "file_contains", "path": "reports/async44-recompact10-spec12k.md", "text": "Recompact 1.0", "weight": 1},
+    {"type": "file_contains", "path": "reports/async44-recompact10-spec12k.md", "text": "Spec 1.2k", "weight": 1},
+    {"type": "file_contains", "path": "reports/async44-recompact10-spec12k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
