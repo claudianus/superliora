@@ -72,7 +72,7 @@ const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 50_000,
+  reservedContextSize: 48_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 4,
