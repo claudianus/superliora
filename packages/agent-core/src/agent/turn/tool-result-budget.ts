@@ -6,7 +6,7 @@ import { join } from 'pathe';
 
 import type { ExecutableToolResult } from '../../loop';
 
-const TOOL_RESULT_MAX_CHARS = 24_000;
+const TOOL_RESULT_MAX_CHARS = 20_000;
 const TOOL_RESULT_PREVIEW_CHARS = 700;
 
 interface BudgetToolResultOptions {

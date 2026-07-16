@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.abs150k-tool20k-density.v1",
+  "title": "Record abs150k absolute trigger and 20k tool-result budgets",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/abs150k-tool20k-density.md with sections for Abs 150k, Tool 20k, Media densify, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/abs150k-tool20k-density.md",
+    "content": "# Abs150k Tool20k Density Contract\n\n## Abs 150k\nfull compaction absolute soft trigger defaults to 150k tokens so long sessions reclaim earlier on large windows\n\n## Tool 20k\ntool-result budgets trim at 20k chars with 700-char previews for denser long-horizon context\n\n## Media densify\nGenerateImage/GenerateVideo/SwarmChannel/Context7Resolve/UltraworkGraph always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/abs150k-tool20k-density.md", "text": "Abs 150k", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs150k-tool20k-density.md", "text": "Tool 20k", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs150k-tool20k-density.md", "text": "Media densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs150k-tool20k-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
