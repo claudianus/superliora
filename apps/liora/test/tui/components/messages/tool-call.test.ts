@@ -271,8 +271,8 @@ describe('ToolCallComponent', () => {
       const collapsed = strip(component.render(100).join('\n'));
       expect(collapsed).toContain('Using Bash');
       expect(collapsed).toContain('echo step1');
-      expect(collapsed).toContain('echo step6');
-      expect(collapsed).not.toContain('echo step7');
+      expect(collapsed).toContain('echo step5');
+      expect(collapsed).not.toContain('echo step6');
 
       component.setExpanded(true);
 
@@ -1554,13 +1554,13 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Write');
-    // Streaming preview caps at COMMAND_PREVIEW_LINES (6) and shows the tail.
+    // Streaming preview caps at COMMAND_PREVIEW_LINES (5) and shows the tail.
     expect(out).not.toContain('line1');
-    expect(out).not.toContain('line24');
-    expect(out).toContain('line25');
+    expect(out).not.toContain('line25');
+    expect(out).toContain('line26');
     expect(out).toContain('line30');
     // Line numbers should reflect actual file positions.
-    expect(out).toContain('  25');
+    expect(out).toContain('  26');
     expect(out).toContain('  30');
     expect(out).not.toContain('ctrl+o to expand');
   });
@@ -1652,8 +1652,8 @@ describe('ToolCallComponent', () => {
     );
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('line1');
-    expect(out).toContain('line6');
-    expect(out).not.toContain('line7');
+    expect(out).toContain('line5');
+    expect(out).not.toContain('line6');
     expect(out).not.toContain('line25');
     expect(out).toContain('ctrl+o to expand');
   });
@@ -1671,7 +1671,7 @@ describe('ToolCallComponent', () => {
       },
       undefined,
     );
-    expect(strip(component.render(100).join('\n'))).toContain('line25');
+    expect(strip(component.render(100).join('\n'))).toContain('line26');
 
     component.setResult({
       tool_call_id: 'call_write_snap',
@@ -1835,8 +1835,8 @@ describe('ToolCallComponent', () => {
 
     const collapsed = strip(component.render(100).join('\n'));
     expect(collapsed).toContain('line1');
-    expect(collapsed).toContain('line6');
-    expect(collapsed).not.toContain('line7');
+    expect(collapsed).toContain('line5');
+    expect(collapsed).not.toContain('line6');
     expect(collapsed).not.toContain('line25');
     expect(collapsed).toContain('ctrl+o to expand');
 
