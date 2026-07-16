@@ -1,5 +1,5 @@
 export const LIBRARY_DOCS_RESEARCH_GUIDANCE = [
-  'For library/framework/API docs: prefer Context7Resolve → Context7Docs (version-specific official docs) before WebSearch/FetchURL.',
-  'Use WebSearch/FetchURL for papers, CVEs, release blogs, benchmarks without a clear library target, and facts outside indexed docs.',
-  'When the user names a library ID (`/org/project`), skip Context7Resolve and call Context7Docs directly.',
+  'Library/framework APIs: Context7Resolve → Context7Docs before WebSearch/FetchURL.',
+  'Use WebSearch/FetchURL for papers, CVEs, release blogs, benchmarks without a clear library target, and non-doc facts.',
+  'When the user gives a library ID (`/org/project`), skip Context7Resolve and call Context7Docs directly.',
 ].join(' ');

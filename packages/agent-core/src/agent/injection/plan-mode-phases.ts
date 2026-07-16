@@ -35,7 +35,7 @@ Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
   interview: `## Interview Phase
-Mission: interview quality drives plan quality. Do not merely execute the user's prompt — act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrade paths.
+Mission: interview quality drives plan quality. Do not merely execute the prompt — act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrades.
 
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase, product Write/Edit for investigation prototypes.
 ${ULTRA_PLAN_INTERVIEW_BLOCKED_MUTATORS}
@@ -54,9 +54,9 @@ Prefer not to Write the formal plan file during Interview (Seed Spec auto-extrac
 
 Round {{round}} | Perspective: {{perspective}} — {{perspectiveDescription}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
-AskUserQuestion: 1-2 focused assumption-led questions — Baseline (original scope) + 1-3 Upgrades (named payoff + trade-off) + Defer/minimal when relevant. Prioritize decisions that lock a verifiable UltraGoal; soft seed gaps are optional guidance. Lead with a short insight when helpful. Do not advance just because the task feels actionable. Do not call EnterPlanMode while already in Ultra Plan; use NextPhase.
+AskUserQuestion: 1-2 focused assumption-led questions — Baseline + 1-3 Upgrades (payoff/trade-off) + Defer/minimal. Prioritize decisions that lock a verifiable UltraGoal. Lead with a short insight when helpful. Do not advance just because the task feels actionable. Do not call EnterPlanMode while already in Ultra Plan; use NextPhase.
 
-Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Investigation (including product Write/Edit prototypes) in the same turn is allowed.`,
+Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Same-turn investigation (including product Write/Edit prototypes) is allowed.`,
 
   design: `## Design Phase
 Allowed: ${ULTRA_PLAN_READ_TOOLS}. Write/Edit BLOCKED.

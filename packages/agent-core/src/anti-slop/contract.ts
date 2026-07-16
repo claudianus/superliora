@@ -16,14 +16,14 @@ export const NO_AI_SLOP_SKIP_WHEN = [
   '- The turn is code, commands, paths, identifiers, or tool output with no user-facing prose.',
   '- The reply is a one-line confirmation, status, or error with no marketing/doc tone.',
   '- System.md rules plus a quick inline scan are enough (short answers under ~120 words with no slop tells).',
-  '- The matching no-ai-slop skill is already loaded in context — reuse it; do not reload.',
+  '- The matching no-ai-slop skill is already loaded — reuse it; do not reload.',
   '- A second pass would flatten voice, drop meaning, or block shipping verified work.',
 ].join('\n');
 
 /** Lightweight pass — default for most replies; no skill round-trip. */
 export const NO_AI_SLOP_LIGHT_PASS = [
   'Light anti-slop (default): follow system.md writing rules; vary rhythm; ban Tier-1 AI-isms; no template intros/outros.',
-  'Run a 5-second inline scan for buzzwords and filler before send. Load a skill only if the light pass is insufficient.',
+  '5-second inline scan for buzzwords/filler before send. Load a skill only if the light pass is insufficient.',
 ].join('\n');
 
 /**
