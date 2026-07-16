@@ -55,7 +55,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'first run: /login then type a task — no complex config needed', priority: 3, solo: true },
   { text: 'footer badges warn on high context or missing durable evidence after compact', priority: 2, solo: true },
   { text: 'context ladder: micro40/keep2/min4 · async5 · handoff18 · soft16 · maxRecent3 · reserved4k · spec800 · recompact1.0 · swarm100/3k/inline20 · pblock6/3 · hard52 · abs36k · tool1k/18 · cmdPreview4 · resultPreview1 · thinking1', priority: 3, solo: true },
-  { text: 'tool outputs auto-trim at 1.8k with 30-char previews — /compact if still high', priority: 2, solo: true },
+  { text: 'tool outputs auto-trim at 1k with 18-char previews — /compact if still high', priority: 2, solo: true },
   { text: 'live reasoning shows a 4-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — denser pressure glance', priority: 1, solo: true },
   { text: 'premium particle rails push denser comets + 5-cell trails — zero config spectacle', priority: 1, solo: true },
