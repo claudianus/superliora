@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.reserved48k-file-tool-density.v1",
+  "title": "Record reserved 48k headroom and denser file/library tool copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tools",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/reserved48k-file-tool-density.md with sections for Reserved 48k, File densify, Library densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/reserved48k-file-tool-density.md",
+      "content": "# Reserved48k File Tool Density Contract\n\n## Reserved 48k\nfull compaction reserved context headroom defaults to 48k tokens so long sessions reclaim earlier while keeping summary room\n\n## File densify\nEdit/Glob always-on tool descriptions stay contract-complete with denser wording\n\n## Library densify\nContext7 research guidance stays contract-complete with denser always-on wording\n\n## Evidence path\nLioraBench holdout + strategy/grep vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/reserved48k-file-tool-density.md",
+      "text": "Reserved 48k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/reserved48k-file-tool-density.md",
+      "text": "File densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/reserved48k-file-tool-density.md",
+      "text": "Library densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/reserved48k-file-tool-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
