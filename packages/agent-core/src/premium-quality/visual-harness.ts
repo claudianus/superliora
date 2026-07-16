@@ -8,8 +8,8 @@ import { PREMIUM_VISUAL_REFERENCE_COMPACT } from './references';
 /** Hard visual mandate — injected on every full Premium Quality refresh. */
 export const PREMIUM_VISUAL_SUPREMACY_MANDATE = [
   '## PREMIUM VISUAL (PRIMARY while Premium Quality is ON)',
-  'Visual quality is top priority for any user-visible surface — especially web, dashboards, and games. Premium means screenshot-proof craft — NOT "works in the browser".',
-  'A functional MVP with flat shapes, default fonts, or placeholder geometry fails Premium Quality unless the user asked for a wireframe/prototype. Fix until a principal designer would not reject the screenshot.',
+  'Visual quality is top priority for user-visible surfaces (web, dashboards, games). Premium means screenshot-proof craft — NOT "works in the browser".',
+  'MVP with flat shapes, default fonts, or placeholder geometry fails unless the user asked for a wireframe. Fix until a principal designer would not reject the screenshot.',
   '',
   PREMIUM_QUALITY_HYPE_VISUAL_FLOOD,
 ].join('\n');
@@ -23,7 +23,7 @@ export const PREMIUM_VISUAL_ART_DIRECTION_GATE = [
 /** Cheat-key prompt patterns distilled from proven anti-slop / design-taste skills. */
 export const PREMIUM_VISUAL_CHEAT_KEYS = [
   '### Visual cheat keys (apply by default)',
-  'Type: tight display tracking; body `max-w-[65ch] leading-relaxed`; ban naked Inter — use Geist/Outfit/Cabinet/Satoshi. Color: off-black/off-white; tinted shadows; one accent; ban #000 large fields + purple AI gradients. Layout: CSS Grid; break 3-equal-card rows; optical spacing/depth. Surfaces: purposeful elevation; skeletons; tactile active; focus rings. Content/game: real copy; themed HUD/assets; no emoji-as-UI/primitive placeholders.',
+  'Type: tight display tracking; body `max-w-[65ch] leading-relaxed`; ban naked Inter (Geist/Outfit/Cabinet/Satoshi). Color: off-black/off-white; tinted shadows; one accent; ban #000 fields + purple AI gradients. Layout: CSS Grid; break 3-equal-card rows. Surfaces: elevation, skeletons, tactile active, focus rings. Content/game: real copy; themed HUD/assets; no emoji-as-UI/primitive placeholders.',
 ].join('\n');
 
 /** Banned placeholder patterns that must never ship as "done". */

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.premium-harness-density.v1",
+  "title": "Record Premium Visual harness and goal reminder density contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "premium",
+    "goal",
+    "visual",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/premium-harness-density.md with sections for Visual harness, Goal reminder, Skill routing, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/premium-harness-density.md",
+      "content": "# Premium Harness Density Contract\n\n## Visual harness\nPremium Visual full injection stays screenshot-proof while densified under the periodic size budget\n\n## Goal reminder\nactive goal injection keeps iterative complete/blocked rules without exploratory filler\n\n## Skill routing\nSearchSkill visual skill routing stays mandatory with shorter asset/load rules\n\n## Evidence path\nLioraBench holdout + premium-quality/goal injection vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/premium-harness-density.md",
+      "text": "Visual harness",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/premium-harness-density.md",
+      "text": "Goal reminder",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/premium-harness-density.md",
+      "text": "Skill routing",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/premium-harness-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
