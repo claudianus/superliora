@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard66-abs55k-pblock6.v1",
+  "title": "Record hard66 abs55k and pblock6 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard66-abs55k-pblock6.md with sections for Hard 66, Abs 55k, Pblock 6/3, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard66-abs55k-pblock6.md",
+    "content": "# Hard66 Abs55 Pblock6 Contract\n\n## Hard 66\nhard compaction block ratio defaults to 0.66 so long sessions stop earlier before attention rot\n\n## Abs 55k\nabsolute trigger tokens default to 55000 so large-context models reclaim sooner\n\n## Pblock 6/3\nparallel summarize block threshold/target defaults to 6k/3k for denser multi-chunk compaction\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard66-abs55k-pblock6.md", "text": "Hard 66", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard66-abs55k-pblock6.md", "text": "Abs 55k", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard66-abs55k-pblock6.md", "text": "Pblock 6/3", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard66-abs55k-pblock6.md", "text": "Evidence path", "weight": 1}
+  ]
+}
