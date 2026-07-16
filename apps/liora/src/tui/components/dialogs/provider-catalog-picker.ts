@@ -27,6 +27,7 @@ import {
 } from '#/tui/renderer';
 
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme, type ColorToken } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
 import { SearchableList } from '#/tui/utils/searchable-list';
@@ -191,7 +192,7 @@ function renderProviderRow(
   ctx: { isSelected: boolean; isCurrent: boolean; width: number; nameWidth: number },
 ): string[] {
   const { isSelected, isCurrent, nameWidth } = ctx;
-  const pointer = isSelected ? SELECT_POINTER : ' ';
+  const pointer = isSelected ? renderSelectPointer('provider:pointer') : ' ';
   const truncatedName = truncateToWidth(option.label, nameWidth, '…');
   const namePad = ' '.repeat(Math.max(0, nameWidth - visibleWidth(truncatedName)));
 

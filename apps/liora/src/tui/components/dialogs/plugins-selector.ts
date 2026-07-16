@@ -13,6 +13,7 @@ import { Input } from './input';
 import chalk from 'chalk';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { formatPluginSourceLabel, pluginTrustLabel } from '#/tui/utils/plugin-source-label';
@@ -141,7 +142,7 @@ export class PluginMcpSelectorComponent extends Container implements Focusable {
   private renderItem(item: PluginsOverviewItem, index: number, width: number): string[] {
     const colors = currentTheme.palette;
     const selected = index === this.selectedIndex;
-    const pointer = selected ? SELECT_POINTER : ' ';
+    const pointer = selected ? renderSelectPointer('plugins:pointer') : ' ';
     const labelStyle = selected ? chalk.hex(colors.primary).bold : chalk.hex(colors.text);
     const prefix = chalk.hex(selected ? colors.primary : colors.textDim)(`  ${pointer} `);
     let line = prefix + labelStyle(item.label);
@@ -608,7 +609,7 @@ export class PluginsPanelComponent extends Container implements Focusable {
   private renderInstalledRow(plugin: PluginSummary, index: number, width: number): string[] {
     const colors = currentTheme.palette;
     const selected = index === this.selectedIndex;
-    const pointer = selected ? SELECT_POINTER : ' ';
+    const pointer = selected ? renderSelectPointer('plugins:pointer') : ' ';
     const labelStyle = selected ? chalk.hex(colors.primary).bold : chalk.hex(colors.text);
     const prefix = chalk.hex(selected ? colors.primary : colors.textDim)(`  ${pointer} `);
     const status = pluginStatus(plugin);
@@ -673,7 +674,7 @@ export class PluginsPanelComponent extends Container implements Focusable {
   private renderMarketplaceRow(entry: PluginMarketplaceEntry, index: number, width: number): string[] {
     const colors = currentTheme.palette;
     const selected = index === this.selectedIndex;
-    const pointer = selected ? SELECT_POINTER : ' ';
+    const pointer = selected ? renderSelectPointer('plugins:pointer') : ' ';
     const labelStyle = selected ? chalk.hex(colors.primary).bold : chalk.hex(colors.text);
     const prefix = chalk.hex(selected ? colors.primary : colors.textDim)(`  ${pointer} `);
     const status = marketplaceEntryStatus(entry, this.installedVersions);

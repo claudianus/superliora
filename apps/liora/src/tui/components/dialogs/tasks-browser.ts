@@ -29,6 +29,7 @@ import {
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@superliora/sdk';
 
 import { SELECT_POINTER } from '@/tui/constant/symbols';
+import { renderSelectPointer } from '@/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '@/tui/utils/printable-key';
 
@@ -479,7 +480,7 @@ export class TasksBrowserApp extends Container implements Focusable {
   }
 
   private renderListRow(task: BackgroundTaskInfo, selected: boolean, innerWidth: number): string {
-    const pointer = selected ? `${SELECT_POINTER} ` : '  ';
+    const pointer = selected ? `${renderSelectPointer('tasks:pointer')} ` : '  ';
     const pointerStyled = currentTheme.fg(selected ? 'primary' : 'textDim', pointer);
 
     const idColor = selected

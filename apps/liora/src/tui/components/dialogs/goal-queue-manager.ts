@@ -12,6 +12,7 @@ import {
 import chalk from 'chalk';
 
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import type {
   GoalQueueMoveDirection,
   GoalQueueSnapshot,
@@ -153,7 +154,7 @@ export class GoalQueueManagerComponent extends Container implements Focusable {
 
   private renderGoal(goal: UpcomingGoal, index: number, selected: boolean, width: number): string {
     const moving = goal.id === this.movingGoalId;
-    const pointer = selected ? SELECT_POINTER : ' ';
+    const pointer = selected ? renderSelectPointer('goal-queue:pointer') : ' ';
     const prefix = currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `);
     const labelPrefix = `${String(index + 1)}. `;
     const stateLabel = moving ? '  selected' : '';
