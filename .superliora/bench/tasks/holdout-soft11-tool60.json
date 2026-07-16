@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft11-tool60.v1",
+  "title": "Record soft1.1 and tool60 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft11-tool60.md with sections for Soft 1.1, Tool 60, Hard 48, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft11-tool60.md",
+    "content": "# Soft1.1 Tool60 Contract\n\n## Soft 1.1\nsoft compaction trigger defaults to 0.011 so reclaim starts earlier on long sessions\n\n## Tool 60\nmodel-facing tool result budgets default to 60 chars with 2-char previews\n\n## Hard 48\nhard block remains 0.48 with absolute trigger 28k\n\n## Evidence path\nLioraBench holdout + strategy/tool/status/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft11-tool60.md", "text": "Soft 1.1", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft11-tool60.md", "text": "Tool 60", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft11-tool60.md", "text": "Hard 48", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft11-tool60.md", "text": "Evidence path", "weight": 1}
+  ]
+}

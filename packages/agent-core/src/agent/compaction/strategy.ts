@@ -44,11 +44,11 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.012 sits between async pre-rot (~0.01) /
+ * Compact before attention rot: 0.011 sits between async pre-rot (~0.01) /
  * swarm handoff (~0.04) and hard block (~0.48), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.012;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.011;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.48;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
