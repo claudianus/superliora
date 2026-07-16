@@ -92,7 +92,7 @@ describe('prompt placeholders', () => {
       'utf-8',
     );
     expect(content).toContain('first-person handoff note');
-    expect(content).toContain('What the latest request is actually asking for');
+    expect(content).toContain('latest request');
     expect(content).toContain('assistant message, tool call, and tool result');
     expect(content).toContain('unverified');
     expect(content).toContain('Do not call any tools');

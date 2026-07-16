@@ -64,6 +64,12 @@ type GoalCommandHost = Pick<
 export interface GoalStartOptions {
   readonly beforeSend?: () => boolean | Promise<boolean>;
   readonly sendInput?: (objective: string) => void;
+  /**
+   * When true, skip the interactive Auto/YOLO/Manual chooser and start with the
+   * current session permission mode. Used by queued-goal promotion and other
+   * non-interactive starters that already have a mode.
+   */
+  readonly skipPermissionPrompt?: boolean;
 }
 
 export type ParsedGoalCommand =
@@ -343,8 +349,11 @@ export async function createGoal(
     return false;
   }
 
-  // Always-on Ultrawork interview-mode chooser (Option A: PermissionMode).
-  // Do not skip when already in auto — user must explicitly pick Auto/YOLO/Manual.
+  // Interactive /goal create always mounts the interview-mode chooser.
+  // Programmatic starters (queued promotion) pass skipPermissionPrompt.
+  if (options.skipPermissionPrompt === true) {
+    return startGoal(host, parsed, options);
+  }
   showGoalStartPermissionPrompt(host, parsed, rawArgs ?? parsed.objective, options);
   return false;
 }

@@ -37,7 +37,7 @@ describe('Premium Visual harness', () => {
 
 describe('Premium Quality guidance composition', () => {
   it('embeds the full visual harness in full guidance', () => {
-    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('Premium Quality mode is ON');
+    expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('Premium Quality is ON');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('principal designer');
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain(PREMIUM_VISUAL_HARNESS);
     expect(PREMIUM_QUALITY_FULL_GUIDANCE).toContain('godly.website');

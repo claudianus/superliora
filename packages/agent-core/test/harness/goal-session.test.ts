@@ -407,6 +407,7 @@ describe('goal session end-to-end', () => {
   });
 
   it('pauses the goal on provider rate limits', async () => {
+    const sleepSpy = vi.spyOn(await import('../../src/loop/retry'), 'sleepForRetry').mockResolvedValue(undefined);
     const sessionDir = await makeTempDir();
     const events: Array<Record<string, unknown>> = [];
     const { session, agent } = await setupSession(sessionDir, events, ['GetGoal'], async () => {
@@ -415,12 +416,16 @@ describe('goal session end-to-end', () => {
     const api = new SessionAPIImpl(session);
     await api.createGoal({ agentId: 'main', objective: 'work' });
 
-    agent.turn.prompt([{ type: 'text', text: 'work' }]);
-    await agent.turn.waitForCurrentTurn();
+    try {
+      agent.turn.prompt([{ type: 'text', text: 'work' }]);
+      await agent.turn.waitForCurrentTurn();
 
-    const goal = (await api.getGoal({ agentId: 'main' })).goal;
-    expect(goal?.status).toBe('paused');
-    expect(goal?.terminalReason).toBe('Paused after provider rate limit');
+      const goal = (await api.getGoal({ agentId: 'main' })).goal;
+      expect(goal?.status).toBe('paused');
+      expect(goal?.terminalReason).toBe('Paused after provider rate limit');
+    } finally {
+      sleepSpy.mockRestore();
+    }
   });
 
   it('pauses the goal on provider connection errors', async () => {
