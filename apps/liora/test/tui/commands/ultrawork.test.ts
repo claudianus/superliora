@@ -59,22 +59,14 @@ async function chooseUltraworkStartMode(
   await vi.waitFor(() => {
     expect(session.setPermission).toHaveBeenCalled();
   });
+  // Terminal outcomes only: prompt sent, or start failed after permission.
+  // Do not treat createUltraworkRun alone as done — evidence seed is still
+  // async and sendNormalUserInput comes after it (CI race).
   await vi.waitFor(() => {
-    const started =
-      session.createUltraworkRun.mock.calls.length > 0 ||
-      (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.length > 0;
-    const failedAfterPermission =
-      (host.showError as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
-      session.setPlanMode.mock.calls.length > 0;
-    expect(started || failedAfterPermission).toBe(true);
-  });
-  // Drain remaining microtasks from startUltrawork (evidence seed, marker, prompt).
-  await vi.waitFor(() => {
-    const done =
-      session.createUltraworkRun.mock.calls.length > 0 ||
-      (host.showError as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
-      (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.length > 0;
-    expect(done).toBe(true);
+    const prompted = (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.length > 0;
+    const failed =
+      (host.showError as ReturnType<typeof vi.fn>).mock.calls.length > 0;
+    expect(prompted || failed).toBe(true);
   });
 }
 
