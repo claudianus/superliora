@@ -78,6 +78,24 @@ function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
+/** Always-on Ultrawork interview-mode chooser: select Auto (first) and flush create. */
+async function confirmGoalStart(
+  host: GoalCommandHost,
+  session: { createGoal: ReturnType<typeof vi.fn>; setPermission: ReturnType<typeof vi.fn> },
+  choice: 'auto' | 'yolo' | 'manual' = 'auto',
+): Promise<void> {
+  const picker = mountedPicker(host);
+  if (choice === 'yolo') picker.handleInput(DOWN);
+  if (choice === 'manual') {
+    picker.handleInput(DOWN);
+    picker.handleInput(DOWN);
+  }
+  picker.handleInput(ENTER);
+  await vi.waitFor(() => {
+    expect(session.createGoal).toHaveBeenCalled();
+  });
+}
+
 function makeHost(
   overrides: {
     model?: string;
@@ -268,6 +286,7 @@ describe('handleGoalCommand', () => {
 
   it('/goal <objective> creates a goal and sends the Ultrawork contract with the objective displayed', async () => {
     await handleGoalCommand(host, 'Ship feature X');
+    await confirmGoalStart(host, session, 'auto');
     expect(session.createGoal).toHaveBeenCalledWith(
       expect.objectContaining({ objective: 'Ship feature X', replace: false }),
     );
@@ -293,6 +312,7 @@ describe('handleGoalCommand', () => {
     };
 
     await handleGoalCommand(host, 'Ship feature X');
+    await confirmGoalStart(host, session, 'auto');
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.receiver).toBe(host);
@@ -331,7 +351,7 @@ describe('handleGoalCommand', () => {
     expectGoalWorkflowPrompt(manualHost, 'Ship feature X');
   });
 
-  it('can start a Manual-mode goal without changing permission', async () => {
+  it('can start a Manual-mode goal and applies Manual permission', async () => {
     const { host: manualHost, session: s } = makeHost({ permissionMode: 'manual' });
 
     await handleGoalCommand(manualHost, 'Ship feature X');
@@ -345,7 +365,7 @@ describe('handleGoalCommand', () => {
         expect.objectContaining({ objective: 'Ship feature X' }),
       );
     });
-    expect(s.setPermission).not.toHaveBeenCalled();
+    expect(s.setPermission).toHaveBeenCalledWith('manual');
     expectGoalWorkflowPrompt(manualHost, 'Ship feature X');
   });
 
@@ -400,9 +420,10 @@ describe('handleGoalCommand', () => {
     expect(s.createGoal).not.toHaveBeenCalled();
     expect(yoloHost.sendNormalUserInput).not.toHaveBeenCalled();
     const text = stripAnsi(mountedPicker(yoloHost).render(80).join('\n'));
-    expect(text).toContain('YOLO mode can still stop for questions');
-    expect(text).toContain('Keep YOLO and start');
-    expect(text).not.toContain('Start in Manual');
+    expect(text).toContain('Start a goal with approvals on?');
+    expect(text).toContain('structured questions are auto-answered');
+    expect(text).toContain('Start in Manual');
+    expect(text).toContain('Switch to YOLO and start');
   });
 
   it('defaults to Auto when confirming a YOLO-mode goal start', async () => {
@@ -436,7 +457,7 @@ describe('handleGoalCommand', () => {
         expect.objectContaining({ objective: 'Ship feature X' }),
       );
     });
-    expect(s.setPermission).not.toHaveBeenCalled();
+    expect(s.setPermission).toHaveBeenCalledWith('yolo');
     expectGoalWorkflowPrompt(yoloHost, 'Ship feature X');
   });
 
@@ -445,6 +466,8 @@ describe('handleGoalCommand', () => {
 
     await handleGoalCommand(yoloHost, 'replace Ship feature Y');
     const picker = mountedPicker(yoloHost);
+    // Manual-first menu: Auto, YOLO, Manual, Do not start → Down x3 to cancel
+    picker.handleInput(DOWN);
     picker.handleInput(DOWN);
     picker.handleInput(DOWN);
     picker.handleInput(ENTER);
@@ -455,6 +478,7 @@ describe('handleGoalCommand', () => {
 
   it('does not pass budget limits (flags were removed)', async () => {
     await handleGoalCommand(host, 'Ship feature X');
+    await confirmGoalStart(host, session, 'auto');
     const arg = (session.createGoal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as Record<
       string,
       unknown
@@ -470,6 +494,7 @@ describe('handleGoalCommand', () => {
 
   it('/goal replace passes replace: true', async () => {
     await handleGoalCommand(host, 'replace Ship feature Y');
+    await confirmGoalStart(host, session, 'auto');
     expect(session.createGoal).toHaveBeenCalledWith(
       expect.objectContaining({ objective: 'Ship feature Y', replace: true }),
     );
@@ -500,6 +525,7 @@ describe('handleGoalCommand', () => {
 
   it('/goal next starts immediately when there is no current goal', async () => {
     await handleGoalCommand(host, 'next Ship release notes');
+    await confirmGoalStart(host, session, 'auto');
 
     expect(session.getGoal).toHaveBeenCalledOnce();
     expect(appendGoalQueueItem).not.toHaveBeenCalled();
@@ -627,7 +653,10 @@ describe('handleGoalCommand', () => {
       new LioraError(ErrorCodes.GOAL_ALREADY_EXISTS, 'exists'),
     );
     await handleGoalCommand(host, 'Ship feature X');
-    expect(host.showError).toHaveBeenCalledWith(expect.stringContaining('/goal replace'));
+    await confirmGoalStart(host, session, 'auto');
+    await vi.waitFor(() => {
+      expect(host.showError).toHaveBeenCalledWith(expect.stringContaining('/goal replace'));
+    });
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
   });
 
@@ -735,6 +764,7 @@ describe('dispatchInput /goal integration', () => {
     const { host, session } = makeHost();
 
     dispatchInput(host, '/goal Ship feature X');
+    await confirmGoalStart(host, session, 'auto');
 
     await vi.waitFor(() => {
       expect(session.createGoal).toHaveBeenCalledWith(

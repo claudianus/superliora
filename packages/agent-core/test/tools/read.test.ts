@@ -103,7 +103,7 @@ describe('ReadTool', () => {
     const tool = toolWithContent('');
 
     expect(tool.name).toBe('Read');
-    expect(tool.description).toContain('concrete file path');
+    expect(tool.description).toContain('concrete text-file path');
     expect(tool.description).toContain('Pure CRLF files are displayed with LF');
     expect(tool.description).not.toContain('skip the verification re-read');
     expect(tool.description).toContain('final external contract');

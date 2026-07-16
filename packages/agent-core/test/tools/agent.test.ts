@@ -169,7 +169,7 @@ describe('AgentTool', () => {
     expect(tool.description.toLowerCase()).toContain('only visible to you');
     expect(tool.description.toLowerCase()).toContain('when not to');
     // Moved here from system.md: the context-hygiene reason to delegate.
-    expect(tool.description.toLowerCase()).toContain('out of your own context');
+    expect(tool.description.toLowerCase()).toContain('out of your context');
     expect(tool.description).toContain('Context7Resolve/Context7Docs');
     expect(tool.description).toContain('WebSearch/FetchURL');
     expect(tool.description).toContain('open-source implementations');

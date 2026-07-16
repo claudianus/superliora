@@ -281,14 +281,14 @@ describe('approval adapter', () => {
         response: 'approved',
         selected_label: 'auto',
         description:
-          'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and questions are skipped.',
+          'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and structured questions are auto-answered.',
       },
       {
         label: 'Switch to YOLO and start',
         response: 'approved',
         selected_label: 'yolo',
         description:
-          'Tools and plan changes are approved automatically. SuperLiora may still ask you questions.',
+          'Tools and plan changes are approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
       },
       {
         label: 'Start in Manual',
@@ -325,14 +325,14 @@ describe('approval adapter', () => {
         response: 'approved',
         selected_label: 'auto',
         description:
-          'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and questions are skipped.',
+          'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and structured questions are auto-answered.',
       },
       {
         label: 'Keep YOLO and start',
         response: 'approved',
         selected_label: 'yolo',
         description:
-          'Tools and plan changes stay approved automatically. SuperLiora may still ask you questions.',
+          'Tools and plan changes stay approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
       },
       {
         label: 'Do not start',

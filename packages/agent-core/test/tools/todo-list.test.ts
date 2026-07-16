@@ -83,7 +83,7 @@ describe('TodoListTool', () => {
 
     expect(description).toContain('**Avoid churn:**');
     // (1) do not re-call the tool when nothing meaningful changed between calls.
-    expect(description).toMatch(/nothing meaningful has changed/i);
+    expect(description).toMatch(/nothing meaningful changed/i);
     expect(description).toMatch(/scope or priority change/i);
     // (2) when unsure of the current state, use query mode first.
     expect(description).toMatch(/query mode/i);
