@@ -49,8 +49,8 @@ function buildUltraSwarmXml(expertCount: number, bodySize: number): string {
 }
 
 describe('boundary compaction', () => {
-  it('collapseForHandoff caps at 300 chars by default', () => {
-    expect(collapseForHandoff('a'.repeat(2_000)).length).toBe(300);
+  it('collapseForHandoff caps at 250 chars by default', () => {
+    expect(collapseForHandoff('a'.repeat(2_000)).length).toBe(250);
   });
 
   it('detects swarm tool results', () => {
