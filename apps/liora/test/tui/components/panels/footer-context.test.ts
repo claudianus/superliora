@@ -346,7 +346,7 @@ describe('FooterComponent — context NaN resilience', () => {
         lastContextUsageRatio: 0.8,
         byTrigger: { swarm_pressure: 2 },
       }),
-    ).toEqual({ text: 'micro:swarm_pressure×2', severity: 'warning' });
+    ).toEqual({ text: 'micro:swarm×2', severity: 'warning' });
     expect(formatMicroCompactionFooterBadge(null)).toBeNull();
   });
 

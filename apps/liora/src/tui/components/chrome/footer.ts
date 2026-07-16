@@ -252,8 +252,14 @@ export function formatMicroCompactionFooterBadge(
   const last = micro.lastTrigger ?? 'micro';
   const severity: FooterBadgeSeverity =
     last === 'swarm_pressure' || last === 'usage_and_cache_miss' ? 'warning' : 'info';
+  const short =
+    last === 'usage_and_cache_miss'
+      ? 'cache-miss'
+      : last === 'swarm_pressure'
+        ? 'swarm'
+        : last;
   return {
-    text: `micro:${last}×${String(micro.total)}`,
+    text: `micro:${short}×${String(micro.total)}`,
     severity,
   };
 }

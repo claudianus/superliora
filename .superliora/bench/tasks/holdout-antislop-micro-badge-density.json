@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.antislop-micro-badge-density.v1",
+  "title": "Record denser anti-slop/premium copy and shorter micro badges",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tui",
+    "premium",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/antislop-micro-badge-density.md with sections for Anti-slop densify, Premium densify, Micro badge, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/antislop-micro-badge-density.md",
+      "content": "# AntiSlop Micro Badge Density Contract\n\n## Anti-slop densify\nNo-AI-Slop always-on light-pass and compact mandates stay contract-complete with denser wording\n\n## Premium densify\nPremium sparse hype stays screenshot-proof with denser always-on wording\n\n## Micro badge\nfooter micro badges shorten swarm/cache-miss trigger labels for denser chrome transparency\n\n## Evidence path\nLioraBench holdout + footer/anti-slop/premium vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/antislop-micro-badge-density.md",
+      "text": "Anti-slop densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/antislop-micro-badge-density.md",
+      "text": "Premium densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/antislop-micro-badge-density.md",
+      "text": "Micro badge",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/antislop-micro-badge-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
