@@ -56,6 +56,21 @@ describe('CompactionComponent', () => {
     }
   });
 
+  it('promotes a background compaction label to blocking', () => {
+    const component = new CompactionComponent(undefined, undefined, undefined, {
+      background: true,
+    });
+
+    try {
+      component.promoteToBlocking();
+      const text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('Compacting context...');
+      expect(text).not.toContain('Compacting in background...');
+    } finally {
+      component.dispose();
+    }
+  });
+
   it('does not render a tip after compaction completes', () => {
     const component = new CompactionComponent(undefined, undefined, 'ctrl+s: steer mid-turn');
 
