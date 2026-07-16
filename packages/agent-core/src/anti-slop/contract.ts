@@ -23,7 +23,7 @@ export const NO_AI_SLOP_SKIP_WHEN = [
 /** Lightweight pass — default for most replies; no skill round-trip. */
 export const NO_AI_SLOP_LIGHT_PASS = [
   'Light anti-slop (default): follow system.md writing rules; vary rhythm; ban Tier-1 AI-isms; no template intros/outros.',
-  '5-second inline scan for buzzwords/filler before send. Load a skill only if the light pass is insufficient.',
+  '5-second inline scan for buzzwords/filler before send. Load a skill only if the light pass is not enough.',
 ].join('\n');
 
 /**
@@ -41,7 +41,7 @@ export const NO_AI_SLOP_SKILL_ROUTING = [
   '  - Prompts/briefs: "anti slop meta prompt CRISP"',
   '  - Unsure: SearchSkill "no ai slop" → Skill("no-ai-slop")',
   '- Load best hit via Skill; prefer avoid-ai-writing for language-agnostic audit. Locale-specific skills only when SearchSkill returns them; do not assume any default locale.',
-  '- Apply selectively; AGENTS.md and harness contracts override skill text. Detectors are advisory only.',
+  '- Apply selectively; AGENTS.md and harness contracts override skill text. Detectors are advisory.',
 ].join('\n');
 
 /** Full guidance block for write/review/exit and ultrawork prose gates. */
@@ -53,7 +53,7 @@ export const NO_AI_SLOP_PROSE_GATE = [
 
 /** Compact reminder for plan-mode sparse refreshes. */
 export const NO_AI_SLOP_SKILL_MANDATE_COMPACT =
-  'No-AI-Slop: light pass by default; SearchSkill → Skill only when shipping user-visible prose (use response language in keywords).';
+  'No-AI-Slop: light pass by default; SearchSkill → Skill only when shipping user-visible prose (include response language in keywords).';
 
 /** @deprecated alias — use NO_AI_SLOP_PROSE_GATE */
 export const NO_AI_SLOP_SKILL_MANDATE = NO_AI_SLOP_PROSE_GATE;

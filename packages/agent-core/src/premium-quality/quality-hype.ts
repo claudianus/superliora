@@ -21,4 +21,4 @@ export const PREMIUM_QUALITY_HYPE_VISUAL_FLOOD = [
 
 /** Compact hype for sparse injection turns. */
 export const PREMIUM_QUALITY_HYPE_SPARSE =
-  'Premium still ON — keep visuals screenshot-proof and anti-slop until principal-designer approval.';
+  'Premium still ON — keep visuals screenshot-proof and anti-slop until principal-designer bar is met.';
