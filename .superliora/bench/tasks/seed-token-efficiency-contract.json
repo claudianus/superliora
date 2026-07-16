@@ -29,7 +29,7 @@
     {
       "type": "writeFile",
       "path": "reports/token-efficiency-contract.md",
-      "content": "# Token Efficiency Contract\n\n## Context ladder\nmicro44/keep2/min6 · async30 · handoff38 · soft40 · maxRecent3 · reserved14k · spec800 · recompact1.0 · pblock8/4 · hard68 · abs60k\n\n## Tool budgets\ntool results 3k/50 · command preview 4 · result preview 1 · thinking glance 1 · swarm 300/8k/inline50\n\n## Research defaults\nWebSearch defaults to 4 hits; sharpen query before raising limit; FetchURL for primary sources\n\n## Proof path\nfocused vitest + /bench loop evidence under .superliora/bench\n\n## Rollback note\nrevert denser defaults if routing or recall quality regresses\n"
+      "content": "# Token Efficiency Contract\n\n## Context ladder\nmicro42/keep2/min5 · async28 · handoff36 · soft38 · maxRecent3 · reserved12k · spec800 · recompact1.0 · pblock8/4 · hard68 · abs60k\n\n## Tool budgets\ntool results 3k/50 · command preview 4 · result preview 1 · thinking glance 1 · swarm 300/8k/inline50\n\n## Research defaults\nWebSearch defaults to 4 hits; sharpen query before raising limit; FetchURL for primary sources\n\n## Proof path\nfocused vitest + /bench loop evidence under .superliora/bench\n\n## Rollback note\nrevert denser defaults if routing or recall quality regresses\n"
     }
   ],
   "contamination": {
