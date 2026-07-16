@@ -25,6 +25,12 @@ import { Container, Spacer, Text } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 import type { ToolCallComponent, ToolCallReadSnapshot } from './tool-call';
 
@@ -134,7 +140,10 @@ export class ReadGroupComponent extends Container {
     const dim = (text: string): string => currentTheme.dim(text);
 
     if (pending > 0) {
-      const bullet = currentTheme.fg('text', STATUS_BULLET);
+      const appearance = getActiveAppearancePreferences();
+      const bullet = shouldRenderAmbientEffects(appearance)
+        ? renderPulseText(STATUS_BULLET, 'read-group:pending', 'text')
+        : currentTheme.fg('text', STATUS_BULLET);
       const label = currentTheme.boldFg('primary', `Reading ${String(total)} files…`);
       return `${bullet}${label}`;
     }
@@ -146,7 +155,13 @@ export class ReadGroupComponent extends Container {
       return `${bullet}${label}${currentTheme.fg('error', ' · failed')}`;
     }
 
-    const bullet = currentTheme.fg('success', STATUS_BULLET);
+    const appearance = getActiveAppearancePreferences();
+    const bullet = shouldRenderAmbientEffects(appearance)
+      ? renderSpectacularText(STATUS_BULLET.trimEnd(), 'read-group:done', appearance, {
+          intense: false,
+          pace: 'slow',
+        }) + ' '
+      : currentTheme.fg('success', STATUS_BULLET);
     const label = currentTheme.boldFg('primary', `Read ${String(total)} files`);
     const linesPart = dim(` · ${String(totalLines)} ${totalLines === 1 ? 'line' : 'lines'}`);
     const failPart = failed > 0 ? currentTheme.fg('error', ` · ${String(failed)} failed`) : '';

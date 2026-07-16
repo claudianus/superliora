@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.speculative-bg-read-spectacle.v1",
+  "title": "Record earlier speculative buffer and background/read spectacle",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tui",
+    "background",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/speculative-bg-read-spectacle.md with sections for Speculative buffer, Background bullets, Read-group bullets, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/speculative-bg-read-spectacle.md",
+      "content": "# Speculative Bg Read Spectacle Contract\n\n## Speculative buffer\npre-turn speculative step buffer defaults to 6k tokens so long sessions reclaim earlier before the next LLM step\n\n## Background bullets\nbackground agent status markers pulse/spectacular under ambient effects\n\n## Read-group bullets\nRead group headers pulse while pending and spectacular when complete\n\n## Evidence path\nLioraBench holdout + background-agent-status/strategy vitest + live TUI chrome\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/speculative-bg-read-spectacle.md",
+      "text": "Speculative buffer",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/speculative-bg-read-spectacle.md",
+      "text": "Background bullets",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/speculative-bg-read-spectacle.md",
+      "text": "Read-group bullets",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/speculative-bg-read-spectacle.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
