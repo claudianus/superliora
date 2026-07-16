@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.maxrecent12-preview700-density.v1",
+  "title": "Record maxRecent 12% / keep-3 and 700-char tool previews",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/maxrecent12-preview700-density.md with sections for MaxRecent 12, Preview 700, Tool densify, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/maxrecent12-preview700-density.md",
+    "content": "# MaxRecent12 Preview700 Density Contract\n\n## MaxRecent 12\nfull compaction keeps at most 3 recent messages and 12% recent size so long sessions reclaim denser working memory\n\n## Preview 700\ntool-result previews trim to 700 chars after the 24k budget for denser long-horizon context\n\n## Tool densify\nExitPlanMode/UpdateGoal always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/maxrecent12-preview700-density.md", "text": "MaxRecent 12", "weight": 1},
+    {"type": "file_contains", "path": "reports/maxrecent12-preview700-density.md", "text": "Preview 700", "weight": 1},
+    {"type": "file_contains", "path": "reports/maxrecent12-preview700-density.md", "text": "Tool densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/maxrecent12-preview700-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
