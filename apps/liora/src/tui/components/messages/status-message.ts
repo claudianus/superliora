@@ -51,7 +51,11 @@ export class StatusMessageComponent extends Container {
     const appearance = getActiveAppearancePreferences();
     const shimmer =
       shouldRenderAmbientEffects(appearance) &&
-      (this.color === 'success' || this.color === 'warning')
+      (this.color === undefined ||
+        this.color === 'success' ||
+        this.color === 'warning' ||
+        this.color === 'primary' ||
+        this.color === 'error')
         ? renderShimmerPrefix(appearance)
         : '';
     const content = shimmer + this.content;
