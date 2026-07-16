@@ -183,11 +183,19 @@ function safeUsage(usage: number): number {
 }
 
 function formatContextStatus(usage: number, tokens?: number, maxTokens?: number): string {
-  const pct = `${(safeUsage(usage) * 100).toFixed(1)}%`;
+  const ratio = safeUsage(usage);
+  const pct = `${(ratio * 100).toFixed(1)}%`;
+  const bar = renderContextUsageBar(ratio);
   if (maxTokens && maxTokens > 0 && tokens !== undefined) {
-    return `context: ${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
+    return `context: ${bar} ${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
   }
-  return `context: ${pct}`;
+  return `context: ${bar} ${pct}`;
+}
+
+function renderContextUsageBar(ratio: number): string {
+  const width = 6;
+  const filled = Math.max(0, Math.min(width, Math.round(ratio * width)));
+  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
 }
 
 export type FooterBadgeSeverity = 'muted' | 'info' | 'warning' | 'danger';
@@ -295,7 +303,9 @@ export function formatMediaFooterBadge(
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
   if (ratio >= 0.9) return 'danger';
-  if (ratio >= 0.75) return 'warning';
+  // Align with earlier micro-compaction (0.5) and soft-trigger headroom (~0.6+).
+  if (ratio >= 0.6) return 'warning';
+  if (ratio >= 0.5) return 'info';
   return 'muted';
 }
 
@@ -313,7 +323,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (state.isBackgroundCompacting) return ttui('tui.footer.compacting.background');
   if (state.isReplaying) return ttui('tui.footer.replaying');
   if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
-  if (safeUsage(state.contextUsage) >= 0.75) return ttui('tui.footer.next.compact');
+  if (safeUsage(state.contextUsage) >= 0.6) return ttui('tui.footer.next.compact');
   if (
     state.contextOS !== undefined &&
     state.contextOS !== null &&

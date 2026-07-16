@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.context-bar-pressure.v1",
+  "title": "Record footer context bar and earlier pressure contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "context",
+    "token",
+    "footer",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/context-bar-pressure.md with sections for Context bar, Pressure thresholds, Micro alignment, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/context-bar-pressure.md",
+      "content": "# Context Bar Pressure Contract\n\n## Context bar\nfooter context status shows a dense █░ usage bar beside percent and token counts\n\n## Pressure thresholds\nwarning starts at 60% and next-action compact guidance aligns with that headroom\n\n## Micro alignment\ninfo severity starts at 50% to match earlier micro-compaction pressure\n\n## Evidence path\nLioraBench holdout + footer-context vitest + live TUI footer\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar-pressure.md",
+      "text": "Context bar",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar-pressure.md",
+      "text": "Pressure thresholds",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar-pressure.md",
+      "text": "Micro alignment",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar-pressure.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
