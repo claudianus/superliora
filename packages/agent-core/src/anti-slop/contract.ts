@@ -35,7 +35,7 @@ export const NO_AI_SLOP_SKILL_ROUTING = [
   '- Trigger: final answers, docs, PR/changelog, TUI copy, plan text, reports — not every turn.',
   '- SearchSkill keywords (always include response language when not English):',
   '  - General audit: "avoid ai writing anti slop" + language',
-  '  - Locale/UX copy: "anti slop locale voice UX copy" + language',
+  '  - Locale/UX: "anti slop locale voice UX" + language',
   '  - Visual/UI: "anti slop ui design"',
   '  - Changelog/PR: "anti slop changelog pr"',
   '  - Prompts/briefs: "anti slop meta prompt CRISP"',

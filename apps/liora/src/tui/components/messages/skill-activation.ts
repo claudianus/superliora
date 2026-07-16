@@ -19,6 +19,7 @@ import type { SkillActivationTrigger } from '#/tui/types';
 import {
   getActiveAppearancePreferences,
   renderPremiumHeadline,
+  renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
@@ -73,7 +74,7 @@ export class SkillActivationComponent extends Container {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
     const prefix = animated
-      ? renderPremiumHeadline('▶ Activated skill:', 'skill:prefix', appearance)
+      ? renderPulseText('▶', 'skill:arrow', 'primary') + ' ' + renderPremiumHeadline('Activated skill:', 'skill:prefix', appearance)
       : currentTheme.boldFg('primary', '▶ Activated skill: ');
     const name = animated
       ? renderPremiumHeadline(this.name, `skill:name:${this.name}`, appearance)

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.premium-skill-activation-density.v1",
+  "title": "Record denser premium routing and skill/plugin activation pulse",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "premium",
+    "skills",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/premium-skill-activation-density.md with sections for Premium keywords, Anti-slop densify, Activation pulse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/premium-skill-activation-density.md",
+      "content": "# Premium Skill Activation Density Contract\n\n## Premium keywords\nPremium Visual skill-routing keywords stay mandatory and denser for always-on injection\n\n## Anti-slop densify\nNo-AI-Slop skill routing stays selective with shorter locale/UX keyword lines\n\n## Activation pulse\nskill/plugin activation cards pulse their ▶ markers under ambient effects\n\n## Evidence path\nLioraBench holdout + premium/anti-slop vitest + live TUI activation cards\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/premium-skill-activation-density.md",
+      "text": "Premium keywords",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/premium-skill-activation-density.md",
+      "text": "Anti-slop densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/premium-skill-activation-density.md",
+      "text": "Activation pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/premium-skill-activation-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

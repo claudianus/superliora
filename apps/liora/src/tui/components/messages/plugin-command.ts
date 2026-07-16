@@ -5,6 +5,7 @@ import type { PluginCommandTrigger } from '#/tui/types';
 import {
   getActiveAppearancePreferences,
   renderPremiumHeadline,
+  renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
@@ -56,7 +57,7 @@ export class PluginCommandComponent extends Container {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
     const prefix = animated
-      ? renderPremiumHeadline('▶ Ran command:', 'plugin-cmd:prefix', appearance)
+      ? renderPulseText('▶', 'plugin-cmd:arrow', 'primary') + ' ' + renderPremiumHeadline('Ran command:', 'plugin-cmd:prefix', appearance)
       : currentTheme.boldFg('primary', '▶ Ran command: ');
     const command = animated
       ? renderPremiumHeadline(`/${this.commandLabel}`, `plugin-cmd:${this.commandLabel}`, appearance)
