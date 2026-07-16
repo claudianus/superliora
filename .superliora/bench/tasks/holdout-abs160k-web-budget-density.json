@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.abs160k-web-budget-density.v1",
+  "title": "Record abs160k soft absolute trigger and denser web/budget tool copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tools",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/abs160k-web-budget-density.md with sections for Abs 160k, Web densify, Budget densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/abs160k-web-budget-density.md",
+      "content": "# Abs160k Web Budget Density Contract\n\n## Abs 160k\nfull compaction absolute soft trigger defaults to 160k tokens so long sessions reclaim earlier on large windows\n\n## Web densify\nWebSearch/FetchURL always-on tool descriptions stay contract-complete with denser wording\n\n## Budget densify\nSetGoalBudget always-on tool description stays contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/web/goal vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/abs160k-web-budget-density.md",
+      "text": "Abs 160k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/abs160k-web-budget-density.md",
+      "text": "Web densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/abs160k-web-budget-density.md",
+      "text": "Budget densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/abs160k-web-budget-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
