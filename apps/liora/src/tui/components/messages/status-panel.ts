@@ -156,7 +156,7 @@ const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
 const BENCH_GATE = 'LioraBench seed/holdout + media/web/ZDR/token/secret/TUI + async compact';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
-const MEMORY_GATE = 'prefs | session recall | long-run notes';
+const MEMORY_GATE = 'prefs | session recall | long-run notes | auto-dream';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
 const WRITING_GATE = 'human voice lanes; detectors advisory-only';

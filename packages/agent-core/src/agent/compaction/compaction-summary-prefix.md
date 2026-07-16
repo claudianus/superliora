@@ -1,2 +1,2 @@
-Earlier conversation was compacted. Below is your working summary — continue from it, do not restart. Treat "done"/"passed" claims as unverified until you re-check. User messages above are verbatim; omitted middle sections are covered by this summary.
+Earlier conversation was compacted. Below is your working summary — continue from it, do not restart. Treat "done"/"passed" claims as unverified until you re-check. User messages above are verbatim; omitted middle sections are covered by this summary. Latest user message after this summary wins; do not wrap up historical pending work unless asked.
 Prefer re-running mechanical checks before treating prior success claims as fact.
