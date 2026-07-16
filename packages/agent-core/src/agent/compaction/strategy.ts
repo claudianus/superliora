@@ -44,11 +44,11 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.41 sits between async pre-rot (~0.30) /
+ * Compact before attention rot: 0.40 sits between async pre-rot (~0.30) /
  * swarm handoff (~0.38) and hard block (~0.68), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.41;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.40;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.68;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
@@ -77,7 +77,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 2,
   maxRecentUserMessages: Infinity,
-  maxRecentSizeRatio: 0.04,
+  maxRecentSizeRatio: 0.03,
   minOverflowReductionRatio: 0.05,
   absoluteTriggerTokens: 60_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
@@ -118,7 +118,7 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   }
 
   get effectiveTriggerRatio(): number {
-    return Math.max(0.40, this.config.triggerRatio - this.qualityTriggerBias);
+    return Math.max(0.38, this.config.triggerRatio - this.qualityTriggerBias);
   }
 
   get speculativeStepBufferTokens(): number {

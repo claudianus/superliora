@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft40-maxrecent3-seed.v1",
+  "title": "Record soft40 maxRecent3 and seed densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "bench", "visible-evidence"],
+  "prompt": "Create reports/soft40-maxrecent3-seed.md with sections for Soft 40, MaxRecent 3, Seed ladder, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft40-maxrecent3-seed.md",
+    "content": "# Soft40 MaxRecent3 Seed Contract\n\n## Soft 40\nsoft compaction trigger defaults to 0.40 with quality bias floor 0.38 so reclaim can tighten after emergency backstops\n\n## MaxRecent 3\nmax recent size ratio defaults to 0.03 so recent windows stay denser after compaction\n\n## Seed ladder\nseed-token-efficiency-contract tracks soft40/maxRecent3/hard68/tool3k densify\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft40-maxrecent3-seed.md", "text": "Soft 40", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft40-maxrecent3-seed.md", "text": "MaxRecent 3", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft40-maxrecent3-seed.md", "text": "Seed ladder", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft40-maxrecent3-seed.md", "text": "Evidence path", "weight": 1}
+  ]
+}
