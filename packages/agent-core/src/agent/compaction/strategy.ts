@@ -66,7 +66,7 @@ export const SWARM_MICRO_PRESSURE_RATIO = 0.01;
 /** Default ratio at which async background compaction may start (pre-rot). */
 export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.01;
 /** Default number of leading messages (system + initial user) kept frozen. */
-export const DEFAULT_FROZEN_ZONE_SIZE = 2;
+export const DEFAULT_FROZEN_ZONE_SIZE = 1;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {

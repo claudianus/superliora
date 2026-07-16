@@ -42,9 +42,9 @@ export const WebSearchInputSchema = z.object({
     .int()
     .min(1)
     .max(20)
-    .default(2)
+    .default(1)
     .describe(
-      'Results to return (default 2). Prefer a sharper query over raising limit; large limits + include_content burn tokens.',
+      'Results to return (default 1). Prefer a sharper query over raising limit; large limits + include_content burn tokens.',
     )
     .optional(),
   include_content: z

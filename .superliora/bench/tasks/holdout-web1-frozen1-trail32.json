@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.web1-frozen1-trail32.v1",
+  "title": "Record web1 frozen1 and trail32 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "web", "tui", "visible-evidence"],
+  "prompt": "Create reports/web1-frozen1-trail32.md with sections for Web 1, Frozen 1, Trail 32, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/web1-frozen1-trail32.md",
+    "content": "# Web1 Frozen1 Trail32 Contract\n\n## Web 1\nWebSearch default limit densifies to 1 so research results enter context thriftier\n\n## Frozen 1\ncompaction frozen zone densifies to 1 leading message for thriftier long-session reclaim\n\n## Trail 32\npremium particle rails densify to 32-step comet trails for denser continuous motion\n\n## Evidence path\nLioraBench holdout + web/strategy/appearance vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/web1-frozen1-trail32.md", "text": "Web 1", "weight": 1},
+    {"type": "file_contains", "path": "reports/web1-frozen1-trail32.md", "text": "Frozen 1", "weight": 1},
+    {"type": "file_contains", "path": "reports/web1-frozen1-trail32.md", "text": "Trail 32", "weight": 1},
+    {"type": "file_contains", "path": "reports/web1-frozen1-trail32.md", "text": "Evidence path", "weight": 1}
+  ]
+}
