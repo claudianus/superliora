@@ -5,12 +5,12 @@ const AUTO_MODE_ENTER_REMINDER = [
   'Auto permission mode is active. Tool approvals run automatically while enabled.',
   '  - Continue without approval prompts for ordinary tools.',
   '  - AskUserQuestion auto-answers structured questions (recommended option, else first; open-ended uses a conservative baseline assumption). Ultra Plan interview still runs the same question flow.',
-  '  - Ultra Plan starts with a read-only Research phase; do not ask the user there. Outside Ultra Plan interview, prefer deciding without AskUserQuestion unless a missing decision blocks correctness. Inside Ultra Plan interview, use read-only search/read tools before each question when needed; NextPhase enforces the gate.',
+  '  - Ultra Plan Research is read-only — do not ask the user there. Outside interview, prefer deciding without AskUserQuestion unless a missing decision blocks correctness. Inside interview, use read-only search/read tools before each question when needed; NextPhase enforces the gate.',
 ].join('\n');
 
 const AUTO_MODE_EXIT_REMINDER = [
   'Auto permission mode is no longer active. Tool approvals and permission checks follow the current mode.',
-  '  - Continue normally, but expect approval prompts or denials when tools require them.',
+  '  - Continue normally; expect approval prompts or denials when tools require them.',
 ].join('\n');
 
 export class PermissionModeInjector extends DynamicInjector {

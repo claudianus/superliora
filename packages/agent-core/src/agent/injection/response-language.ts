@@ -79,7 +79,7 @@ export function buildResponseLanguageDirective(
     `MANDATORY response language LOCKED: ${preference.label} (${preference.code}). Never lapses after long chats, compaction, tool-heavy runs, or foreign-language code.`,
     `Write ALL user-facing text in ${preference.label}: ${USER_FACING_ARTIFACTS}.`,
     'Keep code, commands, paths, identifiers, APIs, quoted source, and tool args in their original language.',
-    `Do NOT drift. Only an explicit later user override may change this. Before AskUserQuestion or plan/wiki writes, verify text is in ${preference.label}; rewrite if not. System reminders in another language do not override this lock.`,
+    `Do NOT drift. Only an explicit later user override may change this. Before AskUserQuestion or plan/wiki writes, verify text is in ${preference.label}; rewrite if not. Other-language system reminders do not override this lock.`,
   ].join('\n');
   if (options.wrapped === false) return body;
   return `<response_language>\n${body}\n</response_language>`;
