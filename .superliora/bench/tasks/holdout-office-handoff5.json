@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.office-handoff5.v1",
+  "title": "Record office readiness and handoff5 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["office", "tui", "token", "visible-evidence"],
+  "prompt": "Create reports/office-handoff5.md with sections for Office gate, Handoff 5, Soft 3, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/office-handoff5.md",
+    "content": "# Office Handoff5 Contract\n\n## Office gate\n/status and tips surface SearchSkill → docx / pptx / xlsx so beginners can make Word, slides, and sheets without MCP\n\n## Handoff 5\nUltraSwarm pre-handoff compaction ceiling defaults to 0.05 so swarm launches reclaim earlier\n\n## Soft 3\nsoft compaction remains 0.03 with denser tool/grep budgets from prior densify\n\n## Evidence path\nLioraBench holdout + status/tips/strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/office-handoff5.md", "text": "Office gate", "weight": 1},
+    {"type": "file_contains", "path": "reports/office-handoff5.md", "text": "Handoff 5", "weight": 1},
+    {"type": "file_contains", "path": "reports/office-handoff5.md", "text": "Soft 3", "weight": 1},
+    {"type": "file_contains", "path": "reports/office-handoff5.md", "text": "Evidence path", "weight": 1}
+  ]
+}
