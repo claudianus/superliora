@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft66-async55-preview600.v1",
+  "title": "Record soft66/async55 compaction and 600-char tool previews",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/soft66-async55-preview600.md with sections for Soft 66, Async 55, Preview 600, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft66-async55-preview600.md",
+    "content": "# Soft66 Async55 Preview600 Contract\n\n## Soft 66\nfull compaction soft trigger defaults to 0.66 so long sessions reclaim earlier while hard block stays at 0.90\n\n## Async 55\nasync background compaction and swarm micro pressure start at 0.55 so pre-rot reclaim begins sooner\n\n## Preview 600\ntool-result previews trim to 600 chars after the 20k budget for denser long-horizon context\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft66-async55-preview600.md", "text": "Soft 66", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft66-async55-preview600.md", "text": "Async 55", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft66-async55-preview600.md", "text": "Preview 600", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft66-async55-preview600.md", "text": "Evidence path", "weight": 1}
+  ]
+}
