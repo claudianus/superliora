@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro30-pblock4-spec400.v1",
+  "title": "Record micro30 pblock4 and spec400 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "tui", "visible-evidence"],
+  "prompt": "Create reports/micro30-pblock4-spec400.md with sections for Micro 30, Pblock 4, Spec 400, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/micro30-pblock4-spec400.md",
+    "content": "# Micro30 Pblock4 Spec400 Contract\n\n## Micro 30\nmicro compaction usage pressure defaults to 0.30 so tool-result clearing starts earlier\n\n## Pblock 4\nparallel block threshold/target densify to 4k/1.8k for thriftier multi-prefix summarize\n\n## Spec 400\nspeculative step buffer densifies to 400 tokens so pre-turn compaction fires earlier\n\n## Evidence path\nLioraBench holdout + micro/strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/micro30-pblock4-spec400.md", "text": "Micro 30", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro30-pblock4-spec400.md", "text": "Pblock 4", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro30-pblock4-spec400.md", "text": "Spec 400", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro30-pblock4-spec400.md", "text": "Evidence path", "weight": 1}
+  ]
+}
