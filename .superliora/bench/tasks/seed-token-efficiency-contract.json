@@ -11,7 +11,7 @@
     "prompt",
     "deterministic-check"
   ],
-  "prompt": "Create reports/token-efficiency-contract.md with sections for High-frequency injections, Tool description budget, Proof path, and Rollback note.",
+  "prompt": "Create reports/token-efficiency-contract.md with sections for Context ladder, Tool budgets, Research defaults, Proof path, and Rollback note.",
   "budgets": {
     "maxWallMs": 120000,
     "maxCommands": 8,
@@ -29,7 +29,7 @@
     {
       "type": "writeFile",
       "path": "reports/token-efficiency-contract.md",
-      "content": "# Token Efficiency Contract\n\n## High-frequency injections\ntrim goal/plan/premium recovery copy\n\n## Tool description budget\nkeep schema contracts while compressing prose\n\n## Proof path\nfocused vitest + /bench loop evidence\n\n## Rollback note\nrevert denser copy if routing contracts regress\n"
+      "content": "# Token Efficiency Contract\n\n## Context ladder\nmicro50/keep2/min12 \u00b7 async44 \u00b7 handoff48 \u00b7 soft56 \u00b7 maxRecent6 \u00b7 reserved28k \u00b7 spec1.2k \u00b7 recompact1.0 \u00b7 pblock14/7 \u00b7 hard84 \u00b7 abs100k\n\n## Tool budgets\ntool results 7.5k/180 \u00b7 command preview 8 \u00b7 thinking glance 4 \u00b7 swarm 600/20k/inline120\n\n## Research defaults\nWebSearch defaults to 4 hits; sharpen query before raising limit; FetchURL for primary sources\n\n## Proof path\nfocused vitest + /bench loop evidence under .superliora/bench\n\n## Rollback note\nrevert denser defaults if routing or recall quality regresses\n"
     }
   ],
   "contamination": {
@@ -42,13 +42,19 @@
     {
       "type": "file_contains",
       "path": "reports/token-efficiency-contract.md",
-      "text": "High-frequency injections",
+      "text": "Context ladder",
       "weight": 1
     },
     {
       "type": "file_contains",
       "path": "reports/token-efficiency-contract.md",
-      "text": "Tool description budget",
+      "text": "Tool budgets",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/token-efficiency-contract.md",
+      "text": "Research defaults",
       "weight": 1
     },
     {
