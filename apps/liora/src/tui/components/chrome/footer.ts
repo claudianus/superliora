@@ -318,8 +318,8 @@ export function formatMediaFooterBadge(
   const image = mediaImageKeyReady(env);
   const video = mediaVideoKeyReady(env);
   if (!image && !video) return null;
-  // Beginner-readable: show which modalities are zero-config ready (no MCP).
-  if (image && video) return { label: 'img+vid', severity: 'info' };
+  // Beginner-readable dense badges: modalities that are zero-config ready (no MCP).
+  if (image && video) return { label: 'img·vid', severity: 'info' };
   if (image) return { label: 'img', severity: 'info' };
   return { label: 'vid', severity: 'info' };
 }

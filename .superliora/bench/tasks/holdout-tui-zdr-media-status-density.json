@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tui-zdr-media-status-density.v1",
+  "title": "Record denser particle rails and img·vid media badges",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["tui", "media", "zdr", "visible-evidence"],
+  "prompt": "Create reports/tui-zdr-media-status-density.md with sections for Particle rails, Media badges, ZDR, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/tui-zdr-media-status-density.md",
+    "content": "# TUI ZDR Media Status Density Contract\n\n## Particle rails\npremium particle rails use denser comets and longer trails by default for demo-grade chrome without config\n\n## Media badges\nfooter shows img, vid, or img·vid when OPENAI/GOOGLE keys exist so beginners see readiness without MCP\n\n## ZDR\nfooter defaults to zdr when telemetry is unset; tel only when SUPERLIORA_TELEMETRY is on\n\n## Evidence path\nLioraBench holdout + footer-media-badge + appearance densify vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/tui-zdr-media-status-density.md", "text": "Particle rails", "weight": 1},
+    {"type": "file_contains", "path": "reports/tui-zdr-media-status-density.md", "text": "Media badges", "weight": 1},
+    {"type": "file_contains", "path": "reports/tui-zdr-media-status-density.md", "text": "ZDR", "weight": 1},
+    {"type": "file_contains", "path": "reports/tui-zdr-media-status-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
