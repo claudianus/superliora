@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft44-micro44-min6.v1",
+  "title": "Record soft44 micro44 min6 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft44-micro44-min6.md with sections for Soft 44, Micro 44, Min 6, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft44-micro44-min6.md",
+    "content": "# Soft44 Micro44 Min6 Contract\n\n## Soft 44\nsoft compaction trigger defaults to 0.44 with quality bias floor 0.42 so reclaim can tighten after emergency backstops\n\n## Micro 44\nmicro minContextUsageRatio defaults to 0.44 so tool-result clearing starts earlier\n\n## Min 6\nmicro minContentTokens defaults to 6 so smaller bulky tool results clear sooner\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft44-micro44-min6.md", "text": "Soft 44", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft44-micro44-min6.md", "text": "Micro 44", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft44-micro44-min6.md", "text": "Min 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft44-micro44-min6.md", "text": "Evidence path", "weight": 1}
+  ]
+}

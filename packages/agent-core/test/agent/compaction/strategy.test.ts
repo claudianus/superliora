@@ -177,7 +177,7 @@ describe('DefaultCompactionStrategy', () => {
       reservedContextSize: 50_000,
     });
 
-    expect(strategy.shouldCompact(44_999)).toBe(false);
+    expect(strategy.shouldCompact(43_999)).toBe(false);
     expect(strategy.shouldBlock(55_000)).toBe(false);
     expect(strategy.shouldCompact(81_000)).toBe(true);
     expect(strategy.shouldBlock(71_999)).toBe(false);
@@ -187,7 +187,7 @@ describe('DefaultCompactionStrategy', () => {
   it('starts async compaction between the async threshold and soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000);
 
-    // asyncTriggerRatio=0.34 → 34k; soft trigger=0.45 → 45k
+    // asyncTriggerRatio=0.34 → 34k; soft trigger=0.44 → 44k
     expect(strategy.shouldAsyncCompact(33_999)).toBe(false);
     expect(strategy.shouldAsyncCompact(34_000)).toBe(true);
     expect(strategy.shouldCompact(34_000)).toBe(false);
@@ -277,9 +277,9 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.effectiveTriggerRatio).toBe(0.45);
-    expect(strategy.shouldCompact(44_999)).toBe(false);
-    expect(strategy.shouldCompact(45_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBe(0.44);
+    expect(strategy.shouldCompact(43_999)).toBe(false);
+    expect(strategy.shouldCompact(44_000)).toBe(true);
     expect(strategy.shouldBlock(71_999)).toBe(false);
     expect(strategy.shouldBlock(72_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
@@ -296,8 +296,8 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.shouldSpeculativelyCompact(44_999)).toBe(false);
-    expect(strategy.shouldSpeculativelyCompact(45_000)).toBe(true);
+    expect(strategy.shouldSpeculativelyCompact(43_999)).toBe(false);
+    expect(strategy.shouldSpeculativelyCompact(44_000)).toBe(true);
 
     const lateTrigger = new DefaultCompactionStrategy(() => 100_000, {
       ...DEFAULT_COMPACTION_CONFIG,
@@ -316,9 +316,9 @@ describe('DefaultCompactionStrategy', () => {
       reservedContextSize: 0,
     });
     strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
-    expect(strategy.effectiveTriggerRatio).toBe(0.45);
+    expect(strategy.effectiveTriggerRatio).toBe(0.44);
     strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.45);
+    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.44);
     expect(strategy.shouldCompact(73_000)).toBe(true);
   });
 });
@@ -440,7 +440,7 @@ describe('PipelineStrategy quality controls', () => {
     });
     const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
     const before = trigger.effectiveTriggerRatio;
-    expect(before).toBe(0.45);
+    expect(before).toBe(0.44);
     const bias = pipeline.applyQualityFeedback({ usedEmergencyBackstop: true });
     expect(bias).toBeGreaterThan(0);
     expect(trigger.effectiveTriggerRatio).toBeLessThan(before);
