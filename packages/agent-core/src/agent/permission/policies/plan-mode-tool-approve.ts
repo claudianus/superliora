@@ -17,12 +17,24 @@ export class PlanModeToolApprovePermissionPolicy implements PermissionPolicy {
 
     if (
       (toolName === 'Write' || toolName === 'Edit') &&
-      this.agent.planMode.isActive &&
-      writesOnlyPlanFile(context, this.agent.planMode.planFilePath)
+      this.agent.planMode.isActive
     ) {
-      return {
-        kind: 'approve',
-      };
+      if (writesOnlyPlanFile(context, this.agent.planMode.planFilePath)) {
+        return {
+          kind: 'approve',
+        };
+      }
+      // Auto/yolo: approve interview product writes so Auto does not stall on FallbackAsk.
+      // Manual falls through to FallbackAsk (human gate for product writes).
+      if (
+        this.agent.planMode.isUltraMode &&
+        this.agent.planMode.phase === 'interview' &&
+        (this.agent.permission.mode === 'auto' || this.agent.permission.mode === 'yolo')
+      ) {
+        return {
+          kind: 'approve',
+        };
+      }
     }
 
     if (toolName === 'ExitPlanMode') {

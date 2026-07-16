@@ -221,6 +221,142 @@ describe('Ultrawork recovery', () => {
     expect(result.skippedInterview).toBe(true);
     expect(agent.planMode.phase).toBe('design');
   });
+  it('exits plan mode on resume once a goal exists instead of parking in design', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-resume-goal-exits-plan',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-resume-goal-exits-plan',
+        workDir: '/tmp',
+      },
+    });
+    await agent.goal.createGoal({ objective: 'Ship feature' });
+    await agent.planMode.enter('resume-plan', false, true, true, 'Ship feature');
+    agent.planMode.setPhase('design');
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+
+    const result = applyUltraworkResumeSkipInterview(agent, agent.ultrawork.getRun()!, {
+      phase: 'design',
+      interviewRoundCount: 2,
+    });
+
+    expect(result.skippedInterview).toBe(true);
+    expect(agent.planMode.isActive).toBe(false);
+    expect(result.planContext).toBeUndefined();
+    expect(result.run.stage).toBe('goal');
+  });
+
+  it('exits plan mode on resume when WorkGraph already has pending nodes', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-resume-graph-exits-plan',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-resume-graph-exits-plan',
+        workDir: '/tmp',
+      },
+    });
+    await agent.planMode.enter('resume-plan', false, true, true, 'Ship feature');
+    agent.planMode.setPhase('design');
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
+      id: 'run-resume-graph-exits-plan:work_graph',
+      runId: 'run-resume-graph-exits-plan',
+      nodes: [
+        { id: 'node-1', title: 'Implement API', stage: 'integrate', status: 'running' },
+      ],
+    });
+    agent.ultrawork.syncWorkGraphFromStore();
+
+    const result = applyUltraworkResumeSkipInterview(agent, agent.ultrawork.getRun()!, {
+      phase: 'design',
+      interviewRoundCount: 1,
+    });
+
+    expect(result.skippedInterview).toBe(true);
+    expect(agent.planMode.isActive).toBe(false);
+    expect(result.run.stage).toBe('integrate');
+  });
+
+  it('preserves write phase on resume when still planning (no goal/work graph)', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-resume-write-phase',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-resume-write-phase',
+        workDir: '/tmp',
+      },
+    });
+    await agent.planMode.enter('resume-plan', false, true, true, 'Ship feature');
+    agent.planMode.setPhase('write');
+
+    const result = applyUltraworkResumeSkipInterview(agent, agent.ultrawork.getRun()!, {
+      phase: 'write',
+      interviewRoundCount: 2,
+    });
+
+    expect(result.skippedInterview).toBe(true);
+    expect(agent.planMode.isActive).toBe(true);
+    expect(agent.planMode.phase).toBe('write');
+    expect(result.planContext?.phase).toBe('write');
+  });
+
+  it('does not keep plan mode once WorkGraph progress exists', () => {
+    const run = sampleRun({
+      stage: 'plan',
+      workGraph: {
+        id: 'run-1:work_graph',
+        runId: 'run-1',
+        nodes: [{ id: 'wg1', title: 'Scaffold', stage: 'integrate', status: 'queued' }],
+      },
+    });
+    expect(shouldKeepPlanModeForUltraworkRun(run)).toBe(false);
+  });
+  it('resume() exits design-phase plan mode when execution has already started', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-resume-api-design-trap',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-resume-api-design-trap',
+        workDir: '/tmp',
+      },
+    });
+    await agent.goal.createGoal({ objective: 'Ship feature' });
+    await agent.planMode.enter('resume-plan', false, true, true, 'Ship feature');
+    agent.planMode.setPhase('design');
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
+      id: 'run-resume-api-design-trap:work_graph',
+      runId: 'run-resume-api-design-trap',
+      nodes: [
+        { id: 'node-1', title: 'Implement API', stage: 'integrate', status: 'running' },
+      ],
+    });
+    agent.ultrawork.syncWorkGraphFromStore();
+    await agent.ultrawork.markInterrupted({ reason: 'Paused after provider rate limit' });
+
+    const resumed = await agent.ultrawork.resume();
+
+    expect(resumed).not.toBeNull();
+    expect(agent.planMode.isActive).toBe(false);
+    expect(resumed?.run.stage).toBe('integrate');
+    expect(resumed?.run.status).toBe('running');
+    expect(resumed?.recoveryPrompt).toContain('Continue WorkGraph node node-1');
+    expect(resumed?.recoveryPrompt).not.toContain('UltraPlan phase:');
+    expect(resumed?.recoveryPrompt).not.toContain('plan_phase:');
+  });
 
   it('builds a recovery prompt that skips interview on resume', () => {
     const prompt = buildUltraworkRecoveryPrompt(

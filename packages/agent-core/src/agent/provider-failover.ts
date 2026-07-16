@@ -5,7 +5,18 @@ import { retryBackoffDelays, sleepForRetry } from '../loop/retry';
 import { normalizeQuestionAnswers } from '../rpc/question-result';
 import type { QuestionOption, QuestionResult } from '../rpc/sdk-api';
 
-export const GOAL_PROVIDER_AUTO_RETRIES = 2;
+/** Auto-retries for ordinary transient provider failures (5xx, empty, etc.). */
+export const GOAL_PROVIDER_AUTO_RETRIES = 3;
+/**
+ * Rate-limit / quota bursts need more patience — providers often recover after
+ * a short window, and Ultrawork runs should wait instead of pausing the goal.
+ */
+export const GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES = 5;
+/** Cap how long we honor a provider Retry-After before falling back. */
+const MAX_PROVIDER_RETRY_AFTER_MS = 120_000;
+const MIN_PROVIDER_RETRY_AFTER_MS = 500;
+/** Default wait for rate-limit / quota when no Retry-After is present. */
+const DEFAULT_RATE_LIMIT_RETRY_MS = 15_000;
 
 export type ProviderRecoveryOutcome =
   | { readonly type: 'auto_retry' }
@@ -36,6 +47,12 @@ export function isRetryableProviderFailure(error: LioraErrorPayload | undefined)
     error.code === ErrorCodes.PROVIDER_CONNECTION_ERROR ||
     error.code === ErrorCodes.PROVIDER_API_ERROR
   );
+}
+
+export function isRateLimitOrQuotaFailure(error: LioraErrorPayload | undefined): boolean {
+  if (error === undefined) return false;
+  if (error.code === ErrorCodes.PROVIDER_RATE_LIMIT) return true;
+  return isQuotaMessage(error.message);
 }
 
 export function listSwitchableFailoverModels(agent: Agent): readonly FailoverModelOption[] {
@@ -72,9 +89,13 @@ export async function resolveProviderRecovery(
     readonly state: ProviderRecoveryState;
   },
 ): Promise<ProviderRecoveryOutcome> {
-  if (input.state.autoRetryCount < GOAL_PROVIDER_AUTO_RETRIES) {
-    const delays = retryBackoffDelays(GOAL_PROVIDER_AUTO_RETRIES + 1);
-    const delayMs = delays[input.state.autoRetryCount] ?? delays.at(-1) ?? 1000;
+  const rateLimited = isRateLimitOrQuotaFailure(input.error);
+  const maxAutoRetries = rateLimited
+    ? GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES
+    : GOAL_PROVIDER_AUTO_RETRIES;
+
+  if (input.state.autoRetryCount < maxAutoRetries) {
+    const delayMs = resolveProviderRetryDelayMs(input.error, input.state.autoRetryCount, rateLimited);
     await sleepForRetry(delayMs, input.signal);
     return { type: 'auto_retry' };
   }
@@ -84,7 +105,15 @@ export async function resolveProviderRecovery(
   }
 
   const fallbacks = listSwitchableFailoverModels(agent);
-  if (fallbacks.length === 0 || agent.rpc?.requestQuestion === undefined) {
+  // Prefer silent model switch after auto-retries so Ultrawork/goal runs keep
+  // moving without blocking on a human when a fallback is configured.
+  if (fallbacks.length > 0) {
+    return { type: 'switch', modelAlias: fallbacks[0]!.alias };
+  }
+
+  if (agent.rpc?.requestQuestion === undefined) {
+    // No interactive prompt available. Keep retrying rate-limits a bit longer;
+    // the auto-retry budget above already handled the primary wait window.
     return { type: 'pause' };
   }
 
@@ -95,6 +124,87 @@ export async function resolveProviderRecovery(
     currentAlias: agent.config.modelAlias ?? 'current',
     fallbacks,
   });
+}
+
+/**
+ * Prefer the provider's Retry-After / retryAfterMs, then exponential backoff.
+ * Rate-limit failures use a longer default so Ultrawork does not thrash.
+ */
+export function resolveProviderRetryDelayMs(
+  error: LioraErrorPayload,
+  autoRetryCount: number,
+  rateLimited: boolean,
+): number {
+  const retryAfter = extractRetryAfterMs(error);
+  if (retryAfter !== undefined) {
+    return clampRetryDelayMs(retryAfter);
+  }
+
+  if (rateLimited) {
+    // 15s, 30s, 60s, 90s, 120s …
+    const scaled = DEFAULT_RATE_LIMIT_RETRY_MS * Math.pow(2, Math.min(autoRetryCount, 3));
+    return clampRetryDelayMs(scaled);
+  }
+
+  const delays = retryBackoffDelays(GOAL_PROVIDER_AUTO_RETRIES + 1);
+  return delays[autoRetryCount] ?? delays.at(-1) ?? 1000;
+}
+
+export function extractRetryAfterMs(error: LioraErrorPayload): number | undefined {
+  const details = error.details;
+  if (details === undefined) return undefined;
+
+  const direct = details['retryAfterMs'];
+  if (typeof direct === 'number' && Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
+
+  const retryAt = details['retryAt'];
+  if (typeof retryAt === 'number' && Number.isFinite(retryAt)) {
+    const remaining = retryAt - Date.now();
+    if (remaining > 0) return remaining;
+  }
+
+  const retryAfter = details['retryAfter'];
+  if (typeof retryAfter === 'number' && Number.isFinite(retryAfter) && retryAfter > 0) {
+    // Providers sometimes report seconds.
+    return retryAfter < 1_000 ? retryAfter * 1000 : retryAfter;
+  }
+  if (typeof retryAfter === 'string' && retryAfter.trim().length > 0) {
+    const asNumber = Number(retryAfter);
+    if (Number.isFinite(asNumber) && asNumber > 0) {
+      return asNumber < 1_000 ? asNumber * 1000 : asNumber;
+    }
+  }
+
+  return undefined;
+}
+
+function clampRetryDelayMs(delayMs: number): number {
+  return Math.min(Math.max(Math.ceil(delayMs), MIN_PROVIDER_RETRY_AFTER_MS), MAX_PROVIDER_RETRY_AFTER_MS);
+}
+
+const QUOTA_MESSAGE_PATTERNS = [
+  /insufficient[_\s-]?quota/i,
+  /quota\s+exceed/i,
+  /exceed(?:ed|s|ing)?\s+(?:your\s+)?(?:current\s+)?quota/i,
+  /credit[_\s-]?balance[_\s-]?too[_\s-]?low/i,
+  /credit balance is too low/i,
+  /insufficient.*(?:credit|balance|funds|quota)/i,
+  /(?:credit|credits).*(?:exhausted|depleted|expired|limit|spent)/i,
+  /(?:no|zero)\s+(?:credit|credits)\s+(?:remaining|left|available)/i,
+  /usage.*limit.*(?:reached|exceed)/i,
+  /spend.*limit.*(?:reached|exceed)/i,
+  /billing.*(?:limit|quota|credit|payment)/i,
+  /monthly.*(?:budget|spend).*limit/i,
+  /hard[_\s-]?limit/i,
+  /rate[_\s-]?limit/i,
+  /too many requests/i,
+] as const;
+
+function isQuotaMessage(message: string | undefined): boolean {
+  if (message === undefined || message.length === 0) return false;
+  return QUOTA_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
 }
 
 async function requestProviderFailoverChoice(

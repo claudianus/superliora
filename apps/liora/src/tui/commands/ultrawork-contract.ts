@@ -82,10 +82,12 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
   '- One workflow: UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn. Stages ordered; normalize 울트라플랜/리서치/골/스웜 into the same run.',
   '- Activation: force Ultra Plan Research first; source-backed evidence before AskUserQuestion; interview until UltraGoal is true/false-verifiable.',
   '- Shift-Tab turns Ultrawork mode ON; cannot turn mode off while a run is active. /ultrawork overrides; /plan is separate steering.',
-  '- UltraPlan must write Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan, then ExitPlanMode, before product-file edits. Advance Design -> Review -> Write -> Exit via NextPhase / ExitPlanMode first.',
+  '- Dual source-of-truth for product edits: Research is investigation-only (read-only product tree). Interview allows product Write/Edit for investigation prototypes under planMode; formal plan file is preferred/deferred guidance, not a hard lock. UltraGoal verifiable is the hard interview→design gate.',
+  '- UltraPlan should still produce Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan; ExitPlanMode remains the approval gate before post-plan implementation. Advance Design -> Review -> Write -> Exit via NextPhase / ExitPlanMode first for the formal plan path.',
   '- UltraGoal: create/replace only after plan approval, unless /goal already created the active goal — then harden that seed and finish with UpdateGoal complete/blocked (never CreateGoal again for the same work).',
-  '- UltraSwarm after UltraGoal: emit exactly `Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>`. ENGAGE: after ExitPlanMode + UltraGoal, call UltraSwarm as the only tool call before product-file edits; DEFER needs a visible waiver.',
+  '- After ExitPlanMode + UltraGoal: UltraworkGraph seeds from WorkGraph. UltraSwarm after UltraGoal: emit exactly `Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>`. ENGAGE: call UltraSwarm as the only tool call before further product implementation edits; DEFER needs a visible waiver.',
   '- Subagents may use Context7Resolve/Context7Docs and WebSearch/FetchURL unless internet is forbidden. Integrate before editing; Verify real surfaces; Learn only verified durable findings. Do not ask the user to choose /ultraplan, /ultraresearch, /ultragoal, or /ultraswarm.',
+  '- Start mode: TUI always shows Auto/YOLO/Manual chooser on create (default Manual, no memory). Headless/auto without TUI defaults to Manual. Resume inherits the current permission mode and skips the chooser.',
 ].join('\n');
 
 /** Compact always-on operating rules (merged former multi-block dump). */
@@ -250,8 +252,8 @@ export function buildUltraworkPrompt(
       : []),
     `- ${ULTRAWORK_CORE_OPERATING_GUIDANCE.replaceAll('\n', '\n  ')}`,
     ...capabilityBlocks,
-    '- Interview when the UltraGoal is not yet true/false-verifiable, a missing decision blocks correctness, or evidence-backed upgrades materially improve the plan; otherwise record the safe assumption. Research: read-only tools + TodoList + NextPhase only; no AskUserQuestion until evidence pack exists. Interview: expert-leader Baseline + Upgrade options; research before AskUserQuestion when needed; end turns with AskUserQuestion/RecordInterviewFinding/NextPhase; no mutating edits.',
-    '- After research pack: NextPhase({ phase: "interview" }). After final needed answers: NextPhase({ phase: "design" }). No product-file edits until Write/Exit, ExitPlanMode approval, and UltraGoal exist. After ExitPlanMode, UltraworkGraph seeds from WorkGraph; on ENGAGE call UltraSwarm first with work_node_ids. Finish with real-surface verification and UpdateGoal complete/blocked.',
+    '- Interview when the UltraGoal is not yet true/false-verifiable, a missing decision blocks correctness, or evidence-backed upgrades materially improve the plan; otherwise record the safe assumption. Research: investigation read-only (Read/Grep/Glob/Web/Context7/Liora*/RO Bash + TodoList + NextPhase); no product Write/Edit; no AskUserQuestion until evidence pack exists. Interview: expert-leader Baseline + Upgrade options; research before AskUserQuestion when needed; end turns with AskUserQuestion/RecordInterviewFinding/NextPhase; product Write/Edit allowed under planMode for investigation prototypes (formal plan file preferred but not forced before every edit).',
+    '- After research pack: NextPhase({ phase: "interview" }). After final needed answers and verifiable UltraGoal: NextPhase({ phase: "design" }). Research stays product-tree read-only; Interview may mutate product files under planMode. After ExitPlanMode + UltraGoal, UltraworkGraph seeds from WorkGraph; on ENGAGE call UltraSwarm first with work_node_ids before further product implementation edits. Finish with real-surface verification and UpdateGoal complete/blocked.',
     '</ultrawork_flow>',
   ].join('\n');
 }

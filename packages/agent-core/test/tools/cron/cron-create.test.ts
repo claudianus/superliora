@@ -138,7 +138,7 @@ describe('CronCreateTool', () => {
     const params = tool.parameters as { properties: Record<string, { description?: string }> };
     expect(params.properties['prompt']?.description).toContain('8 KiB');
     // Returned fields include `cron` (CronCreateOutput.cron), which formatOutput emits.
-    expect(tool.description).toContain('the normalized expression');
+    expect(tool.description).toContain('cron` (normalized)');
   });
 
   it('schedules a recurring task and emits cron_scheduled', async () => {

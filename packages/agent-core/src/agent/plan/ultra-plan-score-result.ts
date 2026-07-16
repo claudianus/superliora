@@ -77,22 +77,26 @@ export function buildAmbiguityScoreResult(input: BuildAmbiguityScoreInput): Buil
           ? 'progress'
           : 'initial';
 
-  let isReady =
+  // Soft seed completeness (guidance only — does not hard-gate Design).
+  const isReadyForSeed =
     gatedOverall <= AMBIGUITY_THRESHOLD &&
     openGaps.length === 0 &&
     verifiableGoal &&
     floorFailures.length === 0;
 
-  // Monotonic ready: once locked, stay ready until evidence changes.
+  // Hard design readiness = verifiable UltraGoal only. Monotonic lock keeps
+  // Design ready once the UltraGoal has been verifiable for this evidence era;
+  // soft seed floors cannot re-block Design after that.
+  let hardReady = verifiableGoal;
   if (interviewState.monotonicReadyLocked === true) {
-    isReady = true;
+    hardReady = true;
   }
 
   const progressMessages: string[] = [];
   const hitMaxRounds = totalRounds >= MAX_INTERVIEW_ROUNDS;
-  if (hitMaxRounds && !isReady) {
+  if (hitMaxRounds && !hardReady) {
     progressMessages.push(
-      `Interview round cap (${MAX_INTERVIEW_ROUNDS}) reached — Design remains blocked until blockers close.`,
+      `Interview round cap (${MAX_INTERVIEW_ROUNDS}) reached — Design remains blocked until UltraGoal is verifiable.`,
     );
   }
 
@@ -100,24 +104,24 @@ export function buildAmbiguityScoreResult(input: BuildAmbiguityScoreInput): Buil
   const hasNewRoundSinceLastReady = interviewState.rounds.length > lastReadyRoundCount;
   const evidenceChanged = interviewState.lastReadyEvidenceHash !== evidenceHash;
 
-  if (isReady && (evidenceChanged || hasNewRoundSinceLastReady)) {
+  // Completion streak tracks hardReady (verifiableGoal) stability, not soft seed floors.
+  if (hardReady && (evidenceChanged || hasNewRoundSinceLastReady)) {
     interviewState = {
       ...interviewState,
       completionCandidateStreak: interviewState.completionCandidateStreak + 1,
       lastReadyEvidenceHash: evidenceHash,
       lastReadyRoundCount: interviewState.rounds.length,
-      // Lock monotonic ready so subsequent calls with the same evidence
-      // cannot un-ready the gate due to LLM non-determinism.
+      // Lock hard design readiness so LLM non-determinism cannot un-ready Design.
       monotonicReadyLocked: true,
     };
   } else {
     interviewState = {
       ...interviewState,
-      completionCandidateStreak: isReady ? interviewState.completionCandidateStreak : 0,
-      lastReadyEvidenceHash: isReady ? interviewState.lastReadyEvidenceHash : undefined,
-      lastReadyRoundCount: isReady ? interviewState.lastReadyRoundCount : -1,
-      // Only unlock when a genuinely new round makes isReady false.
-      monotonicReadyLocked: isReady ? interviewState.monotonicReadyLocked : false,
+      completionCandidateStreak: hardReady ? interviewState.completionCandidateStreak : 0,
+      lastReadyEvidenceHash: hardReady ? interviewState.lastReadyEvidenceHash : undefined,
+      lastReadyRoundCount: hardReady ? interviewState.lastReadyRoundCount : -1,
+      // Only unlock when a genuinely new round makes hardReady false.
+      monotonicReadyLocked: hardReady ? interviewState.monotonicReadyLocked : false,
     };
   }
 
@@ -155,7 +159,7 @@ export function buildAmbiguityScoreResult(input: BuildAmbiguityScoreInput): Buil
         justification: 'UltraGoal must be judgeable as complete or incomplete.',
       },
     ],
-    isReadyForSeed: isReady,
+    isReadyForSeed,
     milestone,
     floorFailures,
     usedHeuristicFallback,
@@ -176,9 +180,11 @@ export function buildAmbiguityScoreResult(input: BuildAmbiguityScoreInput): Buil
     progressMessages.push(`Dimension floor failures: ${floorFailures.join('; ')}`);
   }
   progressMessages.push(
-    result.isReadyForSeed
+    isReadyForSeed
       ? 'Seed Spec is ready. Preparing next question...'
-      : 'Preparing next question...',
+      : hardReady
+        ? 'UltraGoal is verifiable (Design hard-ready). Soft seed gaps remain — Preparing next question...'
+        : 'Preparing next question...',
   );
 
   return { result, nextInterviewState: interviewState, progressMessages };

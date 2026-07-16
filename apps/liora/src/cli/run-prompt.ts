@@ -288,6 +288,10 @@ async function prepareHeadlessUltrawork(
     status.swarmMode === true,
     status.premiumQualityMode === true,
   );
+  // Spec/contract: headless Ultrawork defaults to Manual interview mode (no TUI chooser).
+  if (status.permission !== 'manual') {
+    await session.setPermission('manual');
+  }
   await prepareUltraworkSession(session, setup, initialContext, options);
   return setup;
 }

@@ -120,7 +120,7 @@ export function isDriftAcceptable(metrics: DriftMetrics): boolean {
   return combinedDrift(metrics) <= ULTRA_PLAN_DRIFT_THRESHOLD;
 }
 
-export type InterviewAnswerOrigin = 'user' | 'code' | 'research';
+export type InterviewAnswerOrigin = 'user' | 'code' | 'research' | 'auto';
 
 export type InterviewPerspective =
   | 'researcher'
@@ -139,7 +139,8 @@ export interface InterviewRound {
   readonly userResponse: string;
   readonly timestamp: number;
   /** Where the answer came from. 'user' = user decided via AskUserQuestion;
-   *  'code' = agent answered from codebase evidence; 'research' = external research. */
+   *  'code' = agent answered from codebase evidence; 'research' = external research;
+   *  'auto' = Auto/YOLO short-circuited AskUserQuestion (non-user for rhythm). */
   readonly origin: InterviewAnswerOrigin;
 }
 
@@ -153,6 +154,10 @@ export interface AmbiguityScoreBreakdown {
 export interface AmbiguityScoreResult {
   readonly overallScore: number;
   readonly breakdown: readonly AmbiguityScoreBreakdown[];
+  /**
+   * Soft seed completeness: ambiguity floors + closed seed gaps + verifiable
+   * UltraGoal. Guidance for seed quality only — does not hard-gate Design.
+   */
   readonly isReadyForSeed: boolean;
   readonly milestone: AmbiguityMilestone;
   readonly floorFailures: readonly string[];
@@ -173,8 +178,9 @@ export interface InterviewState {
   readonly lastScoredEvidenceHash?: string;
   /** Cached LLM ambiguity result for the current evidence hash. */
   readonly cachedLlmResult?: LLMAmbiguityResult;
-  /** Once true, the interview stays "ready" until a new round is added —
-   *  LLM non-determinism cannot un-ready an already-passed gate. */
+  /** Once true, Design hard-readiness (verifiable UltraGoal) stays locked until
+   *  a new interview round changes evidence — LLM non-determinism cannot
+   *  un-ready the Design gate. Soft seed floors are not monotonic. */
   readonly monotonicReadyLocked?: boolean;
   /** Consecutive rounds where origin was 'code' or 'research' (not 'user').
    *  Reset to 0 on each 'user' answer. Drives the Dialectic Rhythm Guard. */
@@ -190,12 +196,17 @@ const COMPLETION_STREAK_REQUIRED = 1;
  *  does not bypass the Design gate. */
 
 export interface UltraPlanReadiness {
+  /** Hard design readiness — true iff the UltraGoal is verifiable. */
   readonly ready: boolean;
+  /** Hard ready held for the required completion streak. */
   readonly stableReady: boolean;
+  /** Soft seed guidance: required sections still open. */
   readonly openGaps: readonly UltraPlanRequiredSection[];
   readonly ambiguityScore: AmbiguityScoreResult;
+  /** Same as design hard-ready (verifiable UltraGoal, monotonic-adjusted). */
   readonly verifiableGoal: boolean;
   readonly completionCandidateStreak: number;
+  /** Soft seed guidance: clarity floor failures. */
   readonly floorFailures: readonly string[];
   /** True when the ambiguity score was derived from the heuristic fallback. */
   readonly usedHeuristicFallback?: boolean;
@@ -473,10 +484,12 @@ export class UltraPlanModeEngine {
   recordInterviewAnswers(
     questions: ReadonlyArray<{ readonly question: string; readonly header?: string }>,
     answers: Record<string, string | true>,
+    origin: InterviewAnswerOrigin = 'user',
   ): void {
     this.addInterviewRound(
       formatInterviewQuestionText(questions),
       formatInterviewAnswerText(answers),
+      origin,
     );
   }
 
@@ -489,11 +502,12 @@ export class UltraPlanModeEngine {
    * - **Evidence-keyed cache**: if the evidence text has not changed since the
    *   last LLM call, the cached result is reused — no new LLM round, so the
    *   score cannot oscillate between calls.
-   * - **Monotonic ready**: once `isReadyForSeed` is true for a given evidence
-   *   hash, it stays true until a new interview round changes the evidence.
-   *   LLM non-determinism cannot un-ready an already-passed gate.
+   * - **Monotonic hard ready**: once the UltraGoal is verifiable for a given
+   *   evidence era, Design hard-readiness stays true until a new interview
+   *   round changes the evidence. Soft seed floors (`isReadyForSeed`) are
+   *   not locked and do not re-block Design.
    * - **Max rounds**: after MAX_INTERVIEW_ROUNDS the readiness guide warns
-   *   that the soft cap was hit; the Design gate still requires real closure.
+   *   that the soft cap was hit; Design still requires a verifiable UltraGoal.
    */
   async calculateAmbiguityScore(
     signal?: AbortSignal,
@@ -590,7 +604,8 @@ export class UltraPlanModeEngine {
   }
 
   /**
-   * Check if interview can auto-complete (ready score with stable streak).
+   * Soft seed auto-complete: full seed floors closed with stable hard-ready streak.
+   * Design gate uses {@link interviewReadiness}.ready (verifiable UltraGoal only).
    */
   async canAutoComplete(): Promise<boolean> {
     await this.calculateAmbiguityScore();
@@ -604,16 +619,20 @@ export class UltraPlanModeEngine {
     const rescore = options?.rescore ?? true;
     const ambiguityScore = await this.resolveAmbiguityScore(rescore);
     const openGaps = this.openSeedGapsFromCache();
-    const verifiableGoal = this._lastAmbiguityResult?.verifiableGoal ?? false;
+    const rawVerifiableGoal = this._lastAmbiguityResult?.verifiableGoal ?? false;
+    // Hard design gate ≡ verifiable UltraGoal (monotonic-adjusted). Soft seed
+    // gaps / floors / isReadyForSeed do not clear ready.
+    const hardReady =
+      this._interviewState.monotonicReadyLocked === true || rawVerifiableGoal;
     const stableReady =
-      ambiguityScore.isReadyForSeed &&
+      hardReady &&
       this._interviewState.completionCandidateStreak >= COMPLETION_STREAK_REQUIRED;
     return {
-      ready: ambiguityScore.isReadyForSeed && openGaps.length === 0 && verifiableGoal,
+      ready: hardReady,
       stableReady,
       openGaps,
       ambiguityScore,
-      verifiableGoal,
+      verifiableGoal: hardReady,
       completionCandidateStreak: this._interviewState.completionCandidateStreak,
       floorFailures: ambiguityScore.floorFailures,
       usedHeuristicFallback: ambiguityScore.usedHeuristicFallback,

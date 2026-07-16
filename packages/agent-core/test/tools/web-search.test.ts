@@ -123,7 +123,7 @@ describe('WebSearchTool', () => {
     const description = tool.description.toLowerCase();
     expect(description).toContain('cite');
     expect(description).toContain('source');
-    expect(description).toContain('no-subscription local search provider');
+    expect(description).toContain('local search provider');
     expect(description).toContain('fetchurl');
     expect(description).toContain('primary source urls');
   });

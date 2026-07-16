@@ -15,13 +15,13 @@ const OPTIONS: readonly StartPermissionOption<SwarmStartPermissionChoice>[] = [
     value: 'auto',
     label: 'Switch to Auto and start',
     description:
-      'Best for swarm tasks. Tools are approved automatically, and questions are skipped.',
+      'Best for swarm tasks. Tools are approved automatically, and structured questions are auto-answered.',
   },
   {
     value: 'yolo',
     label: 'Switch to YOLO and start',
     description:
-      'Tools and plan changes are approved automatically. SuperLiora may still ask you questions.',
+      'Tools and plan changes are approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
   },
   {
     value: 'manual',

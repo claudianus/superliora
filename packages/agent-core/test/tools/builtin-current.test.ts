@@ -362,12 +362,13 @@ describe('current builtin file and shell tools', () => {
 });
 
 describe('current builtin collaboration tools', () => {
-  it('AskUserQuestion exposes parameters and asks through rpc in yolo mode', async () => {
+  it('AskUserQuestion exposes parameters and auto-answers in yolo mode', async () => {
+    const requestQuestion = vi.fn(async () => ({ 'Which path?': 'A' }));
     const tool = new AskUserQuestionTool({
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
       permission: { mode: 'yolo' },
       rpc: {
-        requestQuestion: vi.fn(async () => ({ 'Which path?': 'A' })),
+        requestQuestion,
       },
       telemetry: { track: vi.fn() },
     } as unknown as Agent);
@@ -392,7 +393,10 @@ describe('current builtin collaboration tools', () => {
     });
 
     const result = await executeTool(tool, context(input));
-    expect(result.output).toBe(JSON.stringify({ answers: { 'Which path?': 'A' } }));
+    expect(result.output).toBe(
+      JSON.stringify({ answers: { 'Which path?': 'A' }, method: 'auto' }),
+    );
+    expect(requestQuestion).not.toHaveBeenCalled();
   });
 
   it('AskUserQuestion documents the answers result shape and dismissal handling', () => {

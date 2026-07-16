@@ -49,12 +49,9 @@ describe('SensitiveFileAccessDenyPermissionPolicy', () => {
     });
   });
 
-  it('denies sensitive-file read under yolo mode', () => {
+  it('defers sensitive-file read under yolo mode so the ask policy runs', () => {
     const policy = new SensitiveFileAccessDenyPermissionPolicy(agentWithMode('yolo'));
-    expect(policy.evaluate(contextWithFileAccess('/home/u/.ssh/config'))).toMatchObject({
-      kind: 'deny',
-      reason: { sensitive_path: true, permission_mode: 'yolo' },
-    });
+    expect(policy.evaluate(contextWithFileAccess('/home/u/.ssh/config'))).toBeUndefined();
   });
 
   it('denies sensitive-file write under auto mode', () => {

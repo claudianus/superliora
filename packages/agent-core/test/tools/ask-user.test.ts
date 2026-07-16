@@ -146,43 +146,131 @@ describe('AskUserQuestionTool', () => {
     expect(JSON.stringify(tool.parameters)).toContain('background');
   });
 
-  it.each(['manual', 'yolo'] as const)(
-    'dispatches questions through the agent rpc in %s mode',
+  it('dispatches questions through the agent rpc in manual mode', async () => {
+    const { tool, requestQuestion, telemetryTrack } = makeTool({ mode: 'manual' });
+
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_question',
+      args: input({ multi_select: true }),
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(result.output).toBe(JSON.stringify({ answers: { Postgres: true } }));
+    expect(requestQuestion).toHaveBeenCalledWith(
+      {
+        turnId: 0,
+        toolCallId: 'call_question',
+        questions: [
+          {
+            question: 'Which database?',
+            header: 'Storage',
+            options: [
+              { label: 'Postgres', description: 'Relational storage' },
+              { label: 'SQLite', description: 'Embedded storage' },
+            ],
+            multiSelect: true,
+          },
+        ],
+      },
+      { signal },
+    );
+    expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
+      answered: 1,
+    });
+  });
+
+  it.each(['auto', 'yolo'] as const)(
+    'auto-answers recommended options without rpc in %s mode',
     async (mode) => {
       const { tool, requestQuestion, telemetryTrack } = makeTool({ mode });
 
       const result = await executeTool(tool, {
         turnId: '0',
-        toolCallId: 'call_question',
-        args: input({ multi_select: true }),
+        toolCallId: 'call_auto_question',
+        args: input({
+          options: [
+            { label: 'Postgres (Recommended)', description: 'Relational storage' },
+            { label: 'SQLite', description: 'Embedded storage' },
+          ],
+        }),
         signal,
       });
 
       expect(result.isError).toBe(false);
-      expect(result.output).toBe(JSON.stringify({ answers: { Postgres: true } }));
-      expect(requestQuestion).toHaveBeenCalledWith(
-        {
-          turnId: 0,
-          toolCallId: 'call_question',
-          questions: [
-            {
-              question: 'Which database?',
-              header: 'Storage',
-              options: [
-                { label: 'Postgres', description: 'Relational storage' },
-                { label: 'SQLite', description: 'Embedded storage' },
-              ],
-              multiSelect: true,
-            },
-          ],
-        },
-        { signal },
+      expect(result.output).toBe(
+        JSON.stringify({
+          answers: { 'Which database?': 'Postgres (Recommended)' },
+          method: 'auto',
+        }),
       );
+      expect(requestQuestion).not.toHaveBeenCalled();
       expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
         answered: 1,
+        method: 'auto',
       });
     },
   );
+
+  it('auto-answers open-ended questions with a conservative assumption under auto', async () => {
+    const { tool, requestQuestion, telemetryTrack } = makeTool({ mode: 'auto' });
+
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_open_auto',
+      args: {
+        questions: [{ question: 'What features define full version?' }],
+      },
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(requestQuestion).not.toHaveBeenCalled();
+    const output = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
+    expect(output.method).toBe('auto');
+    expect(output.answers['What features define full version?']).toContain('Assumption:');
+    expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
+      answered: 1,
+      method: 'auto',
+    });
+  });
+
+  it('records auto origin for ultra interview answers under auto mode', async () => {
+    const recordUltraInterviewAnswers = vi.fn(async () => {});
+    const requestQuestion = vi.fn();
+    const telemetryTrack = vi.fn();
+    const agent = {
+      permission: { mode: 'auto' },
+      rpc: { requestQuestion },
+      telemetry: { track: telemetryTrack },
+      planMode: {
+        isUltraMode: true,
+        phase: 'interview',
+        recordUltraInterviewAnswers,
+      },
+    } as unknown as Agent;
+    const tool = new AskUserQuestionTool(agent);
+
+    await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_auto_origin',
+      args: input({
+        options: [
+          { label: 'A (Recommended)', description: 'rec' },
+          { label: 'B', description: 'alt' },
+        ],
+      }),
+      signal,
+    });
+
+    expect(recordUltraInterviewAnswers).toHaveBeenCalledWith(
+      expect.any(Array),
+      { 'Which database?': 'A (Recommended)' },
+      'auto',
+    );
+    expect(requestQuestion).not.toHaveBeenCalled();
+  });
 
   it('normalizes open-ended questions without explicit options', async () => {
     const { tool, requestQuestion } = makeTool({

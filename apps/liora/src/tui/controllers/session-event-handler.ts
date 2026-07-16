@@ -978,6 +978,7 @@ export class SessionEventHandler {
       { kind: 'create', objective: next.objective, replace: false },
       next.objective,
       {
+        skipPermissionPrompt: true,
         beforeSend: async () => {
           if (!this.isReadyForQueuedGoalPromotion(session)) {
             await this.cancelStartedQueuedGoal(session);

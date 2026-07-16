@@ -145,7 +145,7 @@ describe('GrepTool', () => {
 
     expect(tool.name).toBe('Grep');
     expect(tool.description).toContain('unknown content or unknown file locations');
-    expect(tool.description).toContain('Do not use shell `grep` or `rg` directly');
+    expect(tool.description).toContain('ALWAYS use Grep instead of shell `grep`/`rg`');
     expect(tool.parameters).toMatchObject({
       type: 'object',
       properties: {
@@ -289,7 +289,7 @@ describe('GrepTool', () => {
     it('explains hidden files, include_ignored, and sensitive-file behavior', () => {
       const tool = new GrepTool(createFakeKaos(), workspace);
       expect(tool.description).toContain('include_ignored');
-      expect(tool.description.toLowerCase()).toContain('hidden file');
+      expect(tool.description.toLowerCase()).toContain('hidden/dotfiles');
       expect(tool.description).toContain('.env');
     });
   });
@@ -1925,10 +1925,10 @@ describe('GrepTool', () => {
     const tool = new GrepTool(createFakeKaos(), workspace);
 
     expect(tool.description).toContain('ripgrep');
-    expect(tool.description).toContain('Hidden files');
+    expect(tool.description.toLowerCase()).toContain('hidden/dotfiles');
     expect(tool.description).toContain('include_ignored');
     expect(tool.description).toMatch(/sensitive/i);
-    expect(tool.description).toMatch(/ALWAYS use Grep tool instead of running `grep` or `rg`/);
+    expect(tool.description).toMatch(/ALWAYS use Grep instead of shell `grep`\/`rg`/);
   });
 
   it('aborts and kills ripgrep after the process has spawned', async () => {

@@ -27,15 +27,20 @@ export interface StartPermissionPromptOptions<
   readonly options: readonly StartPermissionOption<TChoice>[];
   readonly onSelect: (choice: TChoice) => void;
   readonly onCancel: () => void;
+  readonly initialSelectedIndex?: number;
 }
 
 export class StartPermissionPromptComponent<TChoice extends StartPermissionChoice = StartPermissionChoice>
   implements Component, Focusable
 {
   focused = false;
-  private selectedIndex = 0;
+  private selectedIndex: number;
 
-  constructor(private readonly opts: StartPermissionPromptOptions<TChoice>) {}
+  constructor(private readonly opts: StartPermissionPromptOptions<TChoice>) {
+    const maxIndex = Math.max(0, opts.options.length - 1);
+    const requested = opts.initialSelectedIndex ?? 0;
+    this.selectedIndex = Math.max(0, Math.min(requested, maxIndex));
+  }
 
   invalidate(): void {}
 

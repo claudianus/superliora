@@ -64,6 +64,12 @@ type GoalCommandHost = Pick<
 export interface GoalStartOptions {
   readonly beforeSend?: () => boolean | Promise<boolean>;
   readonly sendInput?: (objective: string) => void;
+  /**
+   * When true, skip the interactive Auto/YOLO/Manual chooser and start with the
+   * current session permission mode. Used by queued-goal promotion and other
+   * non-interactive starters that already have a mode.
+   */
+  readonly skipPermissionPrompt?: boolean;
 }
 
 export type ParsedGoalCommand =
@@ -343,15 +349,13 @@ export async function createGoal(
     return false;
   }
 
-  if (
-    host.state.appState.permissionMode === 'manual' ||
-    host.state.appState.permissionMode === 'yolo'
-  ) {
-    showGoalStartPermissionPrompt(host, parsed, rawArgs ?? parsed.objective, options);
-    return false;
+  // Interactive /goal create always mounts the interview-mode chooser.
+  // Programmatic starters (queued promotion) pass skipPermissionPrompt.
+  if (options.skipPermissionPrompt === true) {
+    return startGoal(host, parsed, options);
   }
-
-  return startGoal(host, parsed, options);
+  showGoalStartPermissionPrompt(host, parsed, rawArgs ?? parsed.objective, options);
+  return false;
 }
 
 function showGoalStartPermissionPrompt(
@@ -367,7 +371,8 @@ function showGoalStartPermissionPrompt(
   };
   host.mountEditorReplacement(
     new GoalStartPermissionPromptComponent({
-      mode: host.state.appState.permissionMode === 'yolo' ? 'yolo' : 'manual',
+      // Always present Manual-first Ultrawork-style choice set (not YOLO-keep framing).
+      mode: 'manual',
       onSelect: (choice) => {
         if (choice === 'cancel') {
           cancelStart();
@@ -387,7 +392,8 @@ async function startGoalWithPermission(
   choice: GoalStartPermissionChoice,
   options: GoalStartOptions,
 ): Promise<void> {
-  if (choice !== host.state.appState.permissionMode && (choice === 'auto' || choice === 'yolo')) {
+  // Always apply the chosen mode, including Manual when prior was auto/yolo.
+  if (choice === 'auto' || choice === 'yolo' || choice === 'manual') {
     if (!(await setPermissionForGoal(host, choice))) return;
   }
   await startGoal(host, parsed, options);

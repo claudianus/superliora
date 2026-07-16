@@ -20,6 +20,8 @@ const ULTRA_PLAN_READ_TOOLS =
   'Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking';
 
 const ULTRA_PLAN_BLOCKED_MUTATORS = 'Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED.';
+const ULTRA_PLAN_INTERVIEW_BLOCKED_MUTATORS =
+  'TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED. Product Write/Edit allowed for investigation prototypes under planMode; plan-file Write/Edit still deferred to Write phase (Seed Spec auto-extracts on Design).';
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
@@ -28,14 +30,15 @@ AskUserQuestion, ${ULTRA_PLAN_BLOCKED_MUTATORS}
 
 Goal: source-backed context + improvement levers before UltraPlan interview elevates goal/upgrade choices.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Prefer Grep, LioraSymbol, Glob, LioraRead before broad Read. Distill an evidence pack; do not ask the user.
+Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths in the evidence pack. Research stays product-write read-only — no plan file Write/Edit.
+Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
   interview: `## Interview Phase
 Mission: interview quality drives plan quality. Do not merely execute the user's prompt — act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrade paths.
 
-Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase.
-${ULTRA_PLAN_BLOCKED_MUTATORS}
+Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase, product Write/Edit for investigation prototypes.
+${ULTRA_PLAN_INTERVIEW_BLOCKED_MUTATORS}
 
 Routing:
 - PATH 1 auto-answer from code/config via RecordInterviewFinding(origin="code").
@@ -45,15 +48,15 @@ Routing:
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 
 UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
-NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass, no required gaps remain, and the UltraGoal is verifiable.
+Hard gate for NextPhase to Design: verifiable UltraGoal only. Soft seed gaps, ambiguity floors, and open_gaps are recommendations — they do not hard-block Design.
 Follow the live readiness checklist below; do not guess or repeat resolved topics.
-Do not Write or Edit the plan file during Interview. Seed Spec is auto-extracted on Design transition.
+Prefer not to Write the formal plan file during Interview (Seed Spec auto-extracts on Design). Product-file Write/Edit for investigation prototypes is allowed under planMode.
 
 Round {{round}} | Perspective: {{perspective}} — {{perspectiveDescription}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
-AskUserQuestion: 1-2 focused questions when a missing decision blocks a verifiable UltraGoal or Seed section. Option shape: Baseline (original scope) + 1-3 Upgrades (named payoff + trade-off) + Defer/minimal when relevant. Lead with a short insight when helpful. Do not advance just because the task feels actionable. Do not call EnterPlanMode while already in Ultra Plan; use NextPhase.
+AskUserQuestion: 1-2 focused assumption-led questions — Baseline (original scope) + 1-3 Upgrades (named payoff + trade-off) + Defer/minimal when relevant. Prioritize decisions that lock a verifiable UltraGoal; soft seed gaps are optional guidance. Lead with a short insight when helpful. Do not advance just because the task feels actionable. Do not call EnterPlanMode while already in Ultra Plan; use NextPhase.
 
-Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Read-only research in the same turn is allowed and encouraged.`,
+Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Investigation (including product Write/Edit prototypes) in the same turn is allowed.`,
 
   design: `## Design Phase
 Allowed: ${ULTRA_PLAN_READ_TOOLS}. Write/Edit BLOCKED.
@@ -155,6 +158,10 @@ function ultraworkResumeGate(
   ];
   if (phase === 'interview' && interviewRounds > 0) {
     lines.push(`- Continue the interview from round ${String(interviewRounds + 1)}.`);
+  } else if (phase === 'design' || phase === 'review' || phase === 'write' || phase === 'exit') {
+    lines.push(
+      `- Resume UltraPlan ${phase} from the checkpoint; do not drop back to interview or redesign from scratch.`,
+    );
   }
   return lines.join('\n');
 }

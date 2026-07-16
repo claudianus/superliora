@@ -16,13 +16,13 @@ export const GOAL_START_MANUAL_OPTIONS: readonly StartPermissionOption[] = [
     value: 'auto',
     label: 'Switch to Auto and start',
     description:
-      'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and questions are skipped.',
+      'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and structured questions are auto-answered.',
   },
   {
     value: 'yolo',
     label: 'Switch to YOLO and start',
     description:
-      'Tools and plan changes are approved automatically. SuperLiora may still ask you questions.',
+      'Tools and plan changes are approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
   },
   {
     value: 'manual',
@@ -42,13 +42,13 @@ export const GOAL_START_YOLO_OPTIONS: readonly StartPermissionOption[] = [
     value: 'auto',
     label: 'Switch to Auto and start',
     description:
-      'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and questions are skipped.',
+      'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and structured questions are auto-answered.',
   },
   {
     value: 'yolo',
     label: 'Keep YOLO and start',
     description:
-      'Tools and plan changes stay approved automatically. SuperLiora may still ask you questions.',
+      'Tools and plan changes stay approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
   },
   {
     value: 'cancel',
@@ -72,9 +72,9 @@ const MANUAL_NOTICE_LINES = [
 ] as const;
 
 const YOLO_NOTICE_LINES = [
-  'YOLO mode approves tools and plan changes automatically.',
-  'YOLO mode can still stop for questions.',
-  'Switch to Auto if you want questions skipped during goal work.',
+  'YOLO mode approves most tools and plan changes automatically.',
+  'Structured questions are auto-answered; YOLO still asks for delete/destructive or credential/secret access.',
+  'Switch to Auto for fully unattended work including structured questions.',
 ] as const;
 
 export class GoalStartPermissionPromptComponent extends StartPermissionPromptComponent {

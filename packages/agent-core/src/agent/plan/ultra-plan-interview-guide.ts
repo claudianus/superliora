@@ -94,8 +94,27 @@ export function formatInterviewReadinessGuide(
   const perspective = options?.perspective ?? 'researcher';
   const interviewRoundCount = options?.interviewRoundCount ?? 0;
   if (readiness.ready) {
+    const softNotes: string[] = [];
+    if (readiness.openGaps.length > 0) {
+      softNotes.push(
+        `Soft seed recommendations (not Design blockers): open_gaps=${readiness.openGaps.join(', ')}`,
+      );
+    }
+    if (readiness.floorFailures.length > 0) {
+      softNotes.push(
+        `Soft clarity floors (not Design blockers): ${readiness.floorFailures.join('; ')}`,
+      );
+    }
+    if (
+      readiness.openGaps.length === 0 &&
+      readiness.floorFailures.length === 0 &&
+      !readiness.ambiguityScore.isReadyForSeed
+    ) {
+      softNotes.push('Soft seed completeness still improving — Design hard gate already passes.');
+    }
     return [
-      'Interview readiness: READY for Design. Call NextPhase({ phase: "design" }). Seed Spec auto-extracts from interview evidence.',
+      'Interview readiness: READY for Design (verifiable UltraGoal). Call NextPhase({ phase: "design" }). Seed Spec auto-extracts from interview evidence.',
+      ...softNotes,
       'Do not Write or Edit the plan file yet — that happens in Write phase.',
     ].join('\n');
   }
@@ -113,53 +132,51 @@ export function formatInterviewReadinessGuide(
     return [
       `Interview readiness: NOT READY | ambiguity=${readiness.ambiguityScore.overallScore.toFixed(2)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${gaps}${more}${rhythm}`,
       `NEXT: ${focus}`,
-      'No plan Write/Edit. No NextPhase until blockers close.',
+      'No plan Write/Edit. Hard blocker: non-verifiable UltraGoal — soft seed gaps are recommendations only.',
     ].join('\n');
   }
 
   const lines: string[] = [
     'Interview readiness: NOT READY for Design.',
-    'Blockers (close before NextPhase):',
+    'Hard blocker (must close before NextPhase):',
   ];
 
   if (readiness.usedHeuristicFallback) {
     lines.push('⚠ Scoring fallback (heuristic); continue or rescore later.');
   }
 
-  let blockerNum = 1;
+  lines.push('1. verifiable_goal=false — capture a true/false Completion Criterion.');
 
-  if (!readiness.verifiableGoal) {
-    lines.push(`${blockerNum++}. verifiable_goal=false — capture a true/false Completion Criterion.`);
-  }
-
+  // Soft seed guidance — never framed as Design hard blockers.
+  const soft: string[] = [];
   if (readiness.openGaps.length > 0) {
-    lines.push(
-      `${blockerNum++}. open_gaps (${readiness.openGaps.length}): ${readiness.openGaps.join(', ')}`,
-    );
+    soft.push(`open_gaps (${readiness.openGaps.length}): ${readiness.openGaps.join(', ')}`);
     for (const gap of readiness.openGaps.slice(0, 3)) {
       const guidance = ULTRA_PLAN_SECTION_GUIDANCE[gap];
-      lines.push(`   - ${guidance.label}: ${guidance.askHint}`);
+      soft.push(`   - ${guidance.label}: ${guidance.askHint}`);
     }
     if (readiness.openGaps.length > 3) {
-      lines.push(`   - …+${readiness.openGaps.length - 3} more`);
+      soft.push(`   - …+${readiness.openGaps.length - 3} more`);
     }
   }
-
   if (readiness.floorFailures.length > 0) {
-    lines.push(
-      `${blockerNum++}. clarity floors: ${readiness.floorFailures.join('; ')} — ask for files/commands/metrics.`,
+    soft.push(
+      `clarity floors: ${readiness.floorFailures.join('; ')} — ask for files/commands/metrics.`,
     );
   }
-
   if (readiness.ambiguityScore.overallScore > AMBIGUITY_THRESHOLD) {
-    lines.push(
-      `${blockerNum++}. ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} (need <= ${AMBIGUITY_THRESHOLD.toFixed(1)})`,
+    soft.push(
+      `ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} (seed guidance <= ${AMBIGUITY_THRESHOLD.toFixed(1)}; not a Design hard gate)`,
     );
+  }
+  if (soft.length > 0) {
+    lines.push('Soft seed recommendations (not Design blockers):');
+    lines.push(...soft);
   }
 
   if (interviewRoundCount >= MAX_INTERVIEW_ROUNDS) {
     lines.push(
-      `Round cap: ${interviewRoundCount}/${MAX_INTERVIEW_ROUNDS} (soft). AskUserQuestion to advance with defaults → NextPhase({ phase: "design", advance_with_defaults: true }), or keep interviewing.`,
+      `Round cap: ${interviewRoundCount}/${MAX_INTERVIEW_ROUNDS} (soft). advance_with_defaults may soft-fill seed gaps only after UltraGoal is verifiable — it never bypasses a non-verifiable goal. Keep interviewing for a true/false Completion Criterion, or call NextPhase({ phase: "design", advance_with_defaults: true }) once verifiable.`,
     );
   }
 
@@ -173,7 +190,7 @@ export function formatInterviewReadinessGuide(
 
   lines.push(
     `Status: perspective=${perspective} | ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ')}`,
-    'Do not Write or Edit the plan file. No NextPhase until blockers close. Target open_gaps via Baseline/Upgrade.',
+    'Do not Write or Edit the plan file. No NextPhase until UltraGoal is verifiable. Soft seed gaps are recommendations — target them via Baseline/Upgrade when helpful.',
     `NEXT TURN — AskUserQuestion through the ${perspective} perspective (one gap):`,
     pickNextInterviewFocus(readiness, perspective),
   );

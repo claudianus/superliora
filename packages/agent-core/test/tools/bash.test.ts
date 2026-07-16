@@ -391,7 +391,7 @@ describe('BashTool', () => {
     expect(tool.description).toContain('cwd');
     expect(tool.description).toContain('absolute paths');
     // The failure trailer is non-zero-exit-specific; timeout/interrupt differ.
-    expect(tool.description).toContain('exits non-zero');
+    expect(tool.description).toContain('Command failed with exit code');
   });
 
   it('runs through execWithEnv, injects cwd, noninteractive env, and closes stdin', async () => {
@@ -1246,10 +1246,10 @@ describe('BashTool', () => {
     expect(description).toContain('**Guidelines for safety and security:**');
     expect(description).toContain('**Guidelines for efficiency:**');
     expect(description).toContain('run_in_background=true');
-    expect(description).toContain('automatically notified');
+    expect(description).toContain('You are notified when the task completes');
     // Moved here from system.md: the "don't block on a background task" nudge belongs in
     // the background-enabled Bash description, the only place that documents it.
-    expect(description).toContain('returning control to the user');
+    expect(description).toContain('return control to the user');
   });
 });
 

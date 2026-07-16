@@ -1,19 +1,16 @@
 import type { Agent } from '../..';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 
+/**
+ * Historical auto-mode AskUserQuestion deny. Kept as a no-op so policy chain
+ * order / names remain stable; Auto now auto-answers inside the tool instead.
+ */
 export class AutoModeAskUserQuestionDenyPermissionPolicy implements PermissionPolicy {
   readonly name = 'auto-mode-ask-user-question-deny';
 
-  constructor(private readonly agent: Agent) {}
+  constructor(private readonly _agent: Agent) {}
 
-  evaluate(context: PermissionPolicyContext): PermissionPolicyResult | undefined {
-    if (this.agent.permission.mode !== 'auto') return;
-    if (context.toolCall.name !== 'AskUserQuestion') return;
-    if (this.agent.planMode?.isUltraMode && this.agent.planMode.phase === 'interview') return;
-    return {
-      kind: 'deny',
-      message:
-        'AskUserQuestion is disabled while auto permission mode is active. Make a reasonable decision and continue without asking the user.',
-    };
+  evaluate(_context: PermissionPolicyContext): PermissionPolicyResult | undefined {
+    return;
   }
 }
