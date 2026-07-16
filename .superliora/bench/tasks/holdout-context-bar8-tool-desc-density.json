@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.context-bar8-tool-desc-density.v1",
+  "title": "Record denser context bar and Grep/Glob/plan phase density",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tui",
+    "tools",
+    "plan",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/context-bar8-tool-desc-density.md with sections for Context bar 8, Grep densify, Interview densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/context-bar8-tool-desc-density.md",
+      "content": "# Context Bar8 Tool Desc Density Contract\n\n## Context bar 8\nfooter context usage bar uses 8 cells for denser glanceable pressure\n\n## Grep densify\nGrep/Glob always-on descriptions stay contract-complete with shorter schema text\n\n## Interview densify\nUltra Plan interview mission line densifies without losing expert-leader routing\n\n## Evidence path\nLioraBench holdout + grep/plan-mode/footer vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar8-tool-desc-density.md",
+      "text": "Context bar 8",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar8-tool-desc-density.md",
+      "text": "Grep densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar8-tool-desc-density.md",
+      "text": "Interview densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/context-bar8-tool-desc-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
