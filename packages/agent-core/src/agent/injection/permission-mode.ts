@@ -4,7 +4,7 @@ import { DynamicInjector } from './injector';
 const AUTO_MODE_ENTER_REMINDER = [
   'Auto permission mode is active. Tool approvals run automatically while enabled.',
   '  - Continue without approval prompts for ordinary tools.',
-  '  - AskUserQuestion auto-answers structured questions (recommended option, else first; open-ended uses a conservative baseline assumption). Ultra Plan interview still runs the same question flow.',
+  '  - AskUserQuestion auto-answers structured questions (recommended option, else first; open-ended uses a conservative baseline). Ultra Plan interview still runs the same question flow.',
   '  - Ultra Plan Research is read-only — do not ask the user there. Outside interview, prefer deciding without AskUserQuestion unless a missing decision blocks correctness. Inside interview, use read-only search/read tools before each question when needed; NextPhase enforces the gate.',
 ].join('\n');
 
