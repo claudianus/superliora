@@ -29,7 +29,7 @@
     {
       "type": "writeFile",
       "path": "reports/beginner-zero-config-contract.md",
-      "content": "# Beginner Zero-Config Contract\n\n## Login\n/login connects providers; no complex config required\n\n## Status gates\n/status shows Research, Media, Bench, Privacy/ZDR\n\n## Media keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY enables image/video without MCP\n\n## Footer badges\nfooter shows img/vid/img+vid when keys exist; zdr by default; premium particle chrome on without config\n\n## Bench path\n/bench or node scripts/liora-agent-bench.mjs --suite seed for LioraBench\n"
+      "content": "# Beginner Zero-Config Contract\n\n## Login\n/login connects providers; no complex config required\n\n## Status gates\n/status shows Research, Media, Bench, Privacy/ZDR\n\n## Media keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY enables image/video without MCP\n\n## Footer badges\nfooter shows img/vid/img·vid when keys exist; zdr by default; premium particle chrome on without config\n\n## Bench path\n/bench or node scripts/liora-agent-bench.mjs --suite seed for LioraBench\n"
     }
   ],
   "contamination": {
