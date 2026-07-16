@@ -54,7 +54,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'browser/computer tools are built-in for screenshot proof — no MCP', priority: 2, solo: true },
   { text: 'first run: /login then type a task — no complex config needed', priority: 3, solo: true },
   { text: 'footer badges warn on high context or missing durable evidence after compact', priority: 2, solo: true },
-  { text: 'context ladder: micro40/keep2/min4 · async8 · handoff22 · soft20 · maxRecent3 · reserved4k · spec800 · recompact1.0 · swarm150/4k/inline30 · pblock6/3 · hard54 · abs38k · tool1.2k/20 · cmdPreview4 · resultPreview1 · thinking1', priority: 3, solo: true },
+  { text: 'context ladder: micro40/keep2/min4 · async6 · handoff22 · soft19 · maxRecent3 · reserved4k · spec800 · recompact1.0 · swarm120/3.5k/inline25 · pblock6/3 · hard54 · abs38k · tool1.2k/20 · cmdPreview4 · resultPreview1 · thinking1', priority: 3, solo: true },
   { text: 'tool outputs auto-trim at 1.8k with 30-char previews — /compact if still high', priority: 2, solo: true },
   { text: 'live reasoning shows a 4-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — denser pressure glance', priority: 1, solo: true },
