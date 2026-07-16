@@ -452,9 +452,25 @@ describe('Session.prompt events', () => {
         }),
       );
       expect(mainAgentCall(1)?.systemPrompt).toBe(mainAgentCall(0)?.systemPrompt);
-      const btwHistoryText = JSON.stringify(mainAgentCall(1)?.history);
-      expect(btwHistoryText).toContain('main task context');
+      // Under denser default compaction, intermediate generate calls may run
+      // before /btw and the parent context may already be summarized. Find the
+      // side-channel history that carries the btw prompt.
+      const btwCall = fakeProviderState.calls.find((call) => {
+        if (call.systemPrompt.startsWith('You detect the response language')) return false;
+        const historyText = JSON.stringify(call.history);
+        return historyText.includes('What are you working on right now?');
+      });
+      expect(btwCall).toBeDefined();
+      const btwHistoryText = JSON.stringify(btwCall?.history);
       expect(btwHistoryText).toContain('What are you working on right now?');
+      // Projected parent context should still be present either verbatim or as a
+      // compaction summary handoff under denser reclaim defaults.
+      expect(
+        btwHistoryText.includes('main task context') ||
+          btwHistoryText.includes('CONTEXT COMPACTION') ||
+          btwHistoryText.includes('Context Compaction'),
+      ).toBe(true);
+      expect(btwHistoryText).toContain('side-channel conversation');
 
       const statePath = join(session.summary!.sessionDir, 'state.json');
       const state = JSON.parse(await readFile(statePath, 'utf-8')) as Record<string, unknown>;
