@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool28k-goal-injection-density.v1",
+  "title": "Record 28k tool budgets and denser goal injection copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tools",
+    "goal",
+    "premium",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tool28k-goal-injection-density.md with sections for Tool budget 28k, Goal injection densify, Premium densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tool28k-goal-injection-density.md",
+      "content": "# Tool28k Goal Injection Density Contract\n\n## Tool budget 28k\nlive tool outputs persist earlier at 28k chars to protect long-session context headroom\n\n## Goal injection densify\nactive/paused goal reminders stay contract-complete with denser always-on wording\n\n## Premium densify\nPremium visual cheat-key directives stay screenshot-proof with shorter always-on wording\n\n## Evidence path\nLioraBench holdout + tool/goal/premium vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tool28k-goal-injection-density.md",
+      "text": "Tool budget 28k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool28k-goal-injection-density.md",
+      "text": "Goal injection densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool28k-goal-injection-density.md",
+      "text": "Premium densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool28k-goal-injection-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
