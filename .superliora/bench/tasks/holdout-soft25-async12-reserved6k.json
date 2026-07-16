@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft25-async12-reserved6k.v1",
+  "title": "Record soft25 async12 and reserved6k densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "reserved", "visible-evidence"],
+  "prompt": "Create reports/soft25-async12-reserved6k.md with sections for Soft 25, Async 12, Reserved 6k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft25-async12-reserved6k.md",
+    "content": "# Soft25 Async12 Reserved6k Contract\n\n## Soft 25\nsoft compaction trigger defaults to 0.25 with quality bias floor 0.23 so reclaim can tighten after emergency backstops\n\n## Async 12\nasync pre-rot and swarm micro pressure default to 0.12 so reclaim starts earlier\n\n## Reserved 6k\nreserved context for hard blocking defaults to 6k for denser long-horizon reclaim\n\n## Evidence path\nLioraBench holdout + strategy/status/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft25-async12-reserved6k.md", "text": "Soft 25", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft25-async12-reserved6k.md", "text": "Async 12", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft25-async12-reserved6k.md", "text": "Reserved 6k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft25-async12-reserved6k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
