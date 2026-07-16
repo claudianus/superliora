@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard45-abs22k-tool35.v1",
+  "title": "Record hard45 abs22k and tool35 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard45-abs22k-tool35.md with sections for Hard 45, Abs 22k, Tool 35, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard45-abs22k-tool35.md",
+    "content": "# Hard45 Abs22k Tool35 Contract\n\n## Hard 45\nhard compaction block ratio densifies to 0.45 so blocking reclaim starts earlier\n\n## Abs 22k\nabsolute compaction trigger densifies to 22k tokens on large windows\n\n## Tool 35\nmodel-facing tool result budgets default to 35 chars with 2-char previews\n\n## Evidence path\nLioraBench holdout + strategy/tool/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard45-abs22k-tool35.md", "text": "Hard 45", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard45-abs22k-tool35.md", "text": "Abs 22k", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard45-abs22k-tool35.md", "text": "Tool 35", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard45-abs22k-tool35.md", "text": "Evidence path", "weight": 1}
+  ]
+}
