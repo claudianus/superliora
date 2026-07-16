@@ -620,7 +620,7 @@ describe('AgentTool', () => {
       allowBackground: false,
     });
 
-    expect(tool.description).toContain('Background agent execution is disabled for this agent.');
+    expect(tool.description).toContain('Background agent execution is disabled on this agent.');
     expect(tool.description).not.toContain('the subagent runs detached from this turn');
 
     const result = await executeTool(tool,

@@ -19,7 +19,7 @@ describe('WriteTool', () => {
 
     expect(tool.name).toBe('Write');
     expect(tool.description).toContain('append adds content at EOF without adding a newline');
-    expect(tool.description).toContain('\\n stays LF, \\r\\n stays CRLF');
+    expect(tool.description).toContain('`\\n` stays LF, `\\r\\n` stays CRLF');
     // The prompt steers the agent toward Edit for partial changes to an
     // existing file. Pin the prohibition so accidental weakening is caught.
     expect(tool.description).toContain('Write is NOT ALLOWED for incremental changes');
