@@ -57,8 +57,8 @@ export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.92;
 export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 8_000;
 /** Minimum context growth since the last compaction before auto may fire again. */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.05;
-/** Pre-swarm handoff compaction target (below the soft trigger). */
-export const SWARM_HANDOFF_COMPACTION_RATIO = 0.7;
+/** Pre-swarm handoff compaction target (below soft trigger; aligned with async pre-rot headroom). */
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.65;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
