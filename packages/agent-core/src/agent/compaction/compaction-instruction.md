@@ -13,6 +13,7 @@ The next turn sees only your recent user messages and this note—every assistan
 - Forward plan: exact next command/tool call, remaining sequence, decisions made, foreseeable obstacles, required final format, any patch/query/answer shape you can commit to now.
 - Durable ids when present: WorkGraph/Ultrawork node ids, AC ids, evidence_ids, archive markers (`liora-archived`), plan file paths, goal status. Prefer concrete ids over "see above".
 - Settled vs open: keep DECIDED/chosen approaches and rejected alternatives that still constrain the next step.
+- Label completed/pending items as historical when they are not the active ask — the next turn must not "finish" stale work unless the latest user message requests it.
 
 Your TODO list re-attaches from live source—do not transcribe it. Record reasoning between tasks (reorder, drops, cross-task decisions) instead.
 
