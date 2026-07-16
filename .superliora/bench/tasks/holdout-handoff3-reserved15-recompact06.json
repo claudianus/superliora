@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.handoff3-reserved15-recompact06.v1",
+  "title": "Record handoff3 reserved1.5k and recompact0.6 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "swarm", "visible-evidence"],
+  "prompt": "Create reports/handoff3-reserved15-recompact06.md with sections for Handoff 3, Reserved 1.5k, Recompact 0.6, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/handoff3-reserved15-recompact06.md",
+    "content": "# Handoff3 Reserved15 Recompact06 Contract\n\n## Handoff 3\nUltraSwarm pre-handoff compaction ceiling defaults to 0.03 so swarm launches reclaim earlier\n\n## Reserved 1.5k\nreserved context for hard blocking densifies to 1500 tokens for denser long-horizon reclaim\n\n## Recompact 0.6\nminimum recompact growth ratio densifies to 0.006 so auto reclaim can fire sooner after a compact\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/handoff3-reserved15-recompact06.md", "text": "Handoff 3", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff3-reserved15-recompact06.md", "text": "Reserved 1.5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff3-reserved15-recompact06.md", "text": "Recompact 0.6", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff3-reserved15-recompact06.md", "text": "Evidence path", "weight": 1}
+  ]
+}
