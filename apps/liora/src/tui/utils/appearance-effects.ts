@@ -213,8 +213,8 @@ export function renderParticleRail(
     cells[x] = currentTheme.fg(token, char);
 
     if (premium && safeWidth > 14) {
-      // 28-cell comet trail for denser continuous motion on demo terminals.
-      for (let step = 1; step <= 28; step++) {
+      // 32-cell comet trail for denser continuous motion on demo terminals.
+      for (let step = 1; step <= 32; step++) {
         const trail = rendererPositiveModulo(x - direction * step, safeWidth);
         if (cells[trail] !== ' ') continue;
         if (step === 1) cells[trail] = currentTheme.dimFg('particle', '•');
