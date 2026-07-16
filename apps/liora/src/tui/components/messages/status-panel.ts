@@ -153,9 +153,11 @@ const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'LioraBench seed/holdout · web/media/ZDR · a1/m2/sw100/s3';
+const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · a1/m2/sw100/s3';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
+const OFFICE_GATE =
+  'SearchSkill → docx / pptx / xlsx for Word, slides, and sheets (zero MCP)';
 const MEMORY_GATE = 'prefs | session recall | long-run notes | auto-dream';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
@@ -498,6 +500,7 @@ function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
     { label: 'Research', value: formatResearchGate(options) },
     { label: 'Bench', value: BENCH_GATE },
     { label: 'Media', value: formatMediaGate(options) },
+    { label: 'Office', value: OFFICE_GATE },
     { label: 'Catalog', value: formatModelCatalogGate(options) },
     { label: 'Memory', value: MEMORY_GATE },
     formatUltraworkFlow(options),

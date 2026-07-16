@@ -233,6 +233,7 @@ function formatMediaReadinessLines(env: NodeJS.ProcessEnv = process.env): readon
     videoReady
       ? '  Video: ready · GenerateVideo (GOOGLE/GEMINI key detected).'
       : '  Video: set GOOGLE_API_KEY/GEMINI_API_KEY to enable GenerateVideo.',
+    '  Office: SearchSkill → docx / pptx / xlsx (Word, slides, sheets · zero MCP).',
   ];
 }
 
