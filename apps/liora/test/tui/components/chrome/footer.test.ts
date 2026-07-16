@@ -136,8 +136,8 @@ describe('contextUsageSeverity', () => {
     expect(contextUsageSeverity(0.0)).toBe('muted');
     expect(contextUsageSeverity(0.01)).toBe('muted');
     expect(contextUsageSeverity(0.011)).toBe('info');
-    expect(contextUsageSeverity(0.28)).toBe('info');
-    expect(contextUsageSeverity(0.29)).toBe('warning');
+    expect(contextUsageSeverity(0.27)).toBe('info');
+    expect(contextUsageSeverity(0.28)).toBe('warning');
     expect(contextUsageSeverity(0.89)).toBe('warning');
     expect(contextUsageSeverity(0.9)).toBe('danger');
   });
