@@ -244,9 +244,9 @@ describe('AppearanceController', () => {
     };
     const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
 
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(12);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(12);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(12);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(8);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(8);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(8);
 
     setAppearanceRenderHealth('watch');
     const controller = new AppearanceController({
@@ -256,7 +256,7 @@ describe('AppearanceController', () => {
       shouldRenderAnimation: () => true,
     });
 
-    vi.advanceTimersByTime(11);
+    vi.advanceTimersByTime(7);
     expect(requestRender).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(requestRender).toHaveBeenCalledTimes(1);

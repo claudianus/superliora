@@ -22,7 +22,7 @@ export class AnimationScheduler {
       onTick: options.requestRender,
       defaultFps: 12,
       maxFps: 24,
-      minIntervalMs: 12,
+      minIntervalMs: 8,
     });
   }
 

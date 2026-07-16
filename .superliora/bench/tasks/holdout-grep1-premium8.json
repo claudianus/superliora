@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.grep1-premium8.v1",
+  "title": "Record grep1 and premium8 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tui", "grep", "visible-evidence"],
+  "prompt": "Create reports/grep1-premium8.md with sections for Grep 1, Premium 8ms, Trail 18, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/grep1-premium8.md",
+    "content": "# Grep1 Premium8 Contract\n\n## Grep 1\nGrep default head_limit densifies to 1 so search results enter context thriftier\n\n## Premium 8ms\npremium ambient render tick densifies to 8ms for smoother zero-config spectacle\n\n## Trail 18\npremium particle rails densify to 18-step comet trails for denser continuous motion\n\n## Evidence path\nLioraBench holdout + appearance/grep vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/grep1-premium8.md", "text": "Grep 1", "weight": 1},
+    {"type": "file_contains", "path": "reports/grep1-premium8.md", "text": "Premium 8ms", "weight": 1},
+    {"type": "file_contains", "path": "reports/grep1-premium8.md", "text": "Trail 18", "weight": 1},
+    {"type": "file_contains", "path": "reports/grep1-premium8.md", "text": "Evidence path", "weight": 1}
+  ]
+}
