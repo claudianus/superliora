@@ -180,17 +180,17 @@ describe('DefaultCompactionStrategy', () => {
     expect(strategy.shouldCompact(47_999)).toBe(false);
     expect(strategy.shouldBlock(55_000)).toBe(false);
     expect(strategy.shouldCompact(81_000)).toBe(true);
-    expect(strategy.shouldBlock(75_999)).toBe(false);
-    expect(strategy.shouldBlock(76_000)).toBe(true);
+    expect(strategy.shouldBlock(73_999)).toBe(false);
+    expect(strategy.shouldBlock(74_000)).toBe(true);
   });
 
   it('starts async compaction between the async threshold and soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000);
 
-    // asyncTriggerRatio=0.38 → 38k; soft trigger=0.48 → 48k
-    expect(strategy.shouldAsyncCompact(37_999)).toBe(false);
-    expect(strategy.shouldAsyncCompact(38_000)).toBe(true);
-    expect(strategy.shouldCompact(38_000)).toBe(false);
+    // asyncTriggerRatio=0.36 → 36k; soft trigger=0.48 → 48k
+    expect(strategy.shouldAsyncCompact(35_999)).toBe(false);
+    expect(strategy.shouldAsyncCompact(36_000)).toBe(true);
+    expect(strategy.shouldCompact(36_000)).toBe(false);
     // Once the soft trigger fires, async path yields to blocking compact.
     expect(strategy.shouldAsyncCompact(80_000)).toBe(false);
     expect(strategy.shouldCompact(80_000)).toBe(true);
@@ -280,13 +280,13 @@ describe('DefaultCompactionStrategy', () => {
     expect(strategy.effectiveTriggerRatio).toBe(0.48);
     expect(strategy.shouldCompact(47_999)).toBe(false);
     expect(strategy.shouldCompact(48_000)).toBe(true);
-    expect(strategy.shouldBlock(75_999)).toBe(false);
-    expect(strategy.shouldBlock(76_000)).toBe(true);
+    expect(strategy.shouldBlock(73_999)).toBe(false);
+    expect(strategy.shouldBlock(74_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
   });
 
   it('resolves block ratio above trigger when only trigger is configured', () => {
-    expect(resolveCompactionBlockRatio(0.7)).toBe(0.76);
+    expect(resolveCompactionBlockRatio(0.7)).toBe(0.75);
     expect(resolveCompactionBlockRatio(0.9)).toBeCloseTo(0.95);
     expect(resolveCompactionBlockRatio(0.8, 0.88)).toBe(0.88);
   });
