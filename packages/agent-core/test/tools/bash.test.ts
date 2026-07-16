@@ -1243,8 +1243,8 @@ describe('BashTool', () => {
     expect(description).toContain('`bash`');
     expect(description).toContain('TaskOutput');
     expect(description).toContain('TaskStop');
-    expect(description).toContain('**Guidelines for safety and security:**');
-    expect(description).toContain('**Guidelines for efficiency:**');
+    expect(description).toContain('**Safety:**');
+    expect(description).toContain('**Efficiency:**');
     expect(description).toContain('run_in_background=true');
     expect(description).toContain('You are notified when the task completes');
     // Moved here from system.md: the "don't block on a background task" nudge belongs in
