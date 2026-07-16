@@ -204,8 +204,8 @@ export function renderParticleRail(
   const tick = Math.floor(appearanceAnimationNow() / tickMs);
   // Dense demo-grade rails on premium; subtle ambient on default.
   const density = premium
-    ? Math.max(6, Math.min(28, Math.floor(safeWidth / 4)))
-    : Math.max(2, Math.min(10, Math.floor(safeWidth / 12)));
+    ? Math.max(7, Math.min(32, Math.floor(safeWidth / 3.5)))
+    : Math.max(2, Math.min(12, Math.floor(safeWidth / 10)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const cells = Array.from({ length: safeWidth }, () => ' ');
   const base = hashRendererEffectSeed(seed);
@@ -261,8 +261,8 @@ export function renderParticleDivider(
   const premium = mode === 'premium';
   const tick = Math.floor(appearanceAnimationNow() / rendererEffectFrameIntervalMs(mode));
   const density = premium
-    ? Math.max(3, Math.min(16, Math.floor(safeWidth / 7)))
-    : Math.max(1, Math.min(6, Math.floor(safeWidth / 20)));
+    ? Math.max(4, Math.min(18, Math.floor(safeWidth / 6)))
+    : Math.max(2, Math.min(8, Math.floor(safeWidth / 16)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const base = hashRendererEffectSeed(seed);
   for (let i = 0; i < density; i++) {

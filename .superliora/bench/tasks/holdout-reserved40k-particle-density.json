@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.reserved40k-particle-density.v1",
+  "title": "Record reserved 40k headroom and denser particle rails",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/reserved40k-particle-density.md with sections for Reserved 40k, Particle densify, Ladder, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/reserved40k-particle-density.md",
+    "content": "# Reserved40k Particle Density Contract\n\n## Reserved 40k\nfull compaction reserved context headroom defaults to 40k tokens so long sessions reclaim earlier while keeping summary room\n\n## Particle densify\npremium/ambient particle rails and dividers use denser motion for demo-grade TUI chrome without config\n\n## Ladder\ntip ladder reports reserved40k with the current soft/async/micro reclaim stack\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/reserved40k-particle-density.md", "text": "Reserved 40k", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved40k-particle-density.md", "text": "Particle densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved40k-particle-density.md", "text": "Ladder", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved40k-particle-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
