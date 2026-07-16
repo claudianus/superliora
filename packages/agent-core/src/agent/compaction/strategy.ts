@@ -56,7 +56,7 @@ export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 4_000;
 /** Minimum context growth since the last compaction before auto may fire again. */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.03;
 /** Pre-swarm handoff compaction target (below soft trigger; aligned with async pre-rot headroom). */
-export const SWARM_HANDOFF_COMPACTION_RATIO = 0.65;
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.62;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
@@ -72,7 +72,7 @@ const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 48_000,
+  reservedContextSize: 44_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 4,

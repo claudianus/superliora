@@ -4,7 +4,7 @@ Live Kanban for multi-step work — use proactively when tracking helps. Update 
 
 **Input (strict):** `todos` is `{ "title", "status": pending|in_progress|done }[]` only. Other fields/statuses rejected. Omit `todos` (no `todos` argument) to query; `[]` clears.
 
-**Replace semantics:** every write replaces the whole board—include unchanged items still active.
+**Replace semantics:** every write replaces the whole board — keep still-active unchanged items.
 
 **Start:** for 3+ step work, create 5–10 actionable cards before first tool call.
 

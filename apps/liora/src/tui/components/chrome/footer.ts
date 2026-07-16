@@ -321,7 +321,7 @@ export function formatMediaFooterBadge(
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
   if (ratio >= 0.9) return 'danger';
-  // Ladder: micro 0.50/min48 · async/swarm-micro 0.60 · handoff 0.65 · soft 0.70 · hard 0.92 · abs160k.
+  // Ladder: micro 0.50/min48 · async/swarm-micro 0.60 · handoff 0.62 · soft 0.70 · hard 0.92 · abs160k.
   if (ratio >= 0.6) return 'warning';
   if (ratio >= 0.5) return 'info';
   return 'muted';
