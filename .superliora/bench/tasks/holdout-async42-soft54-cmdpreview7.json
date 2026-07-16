@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.async42-soft54-cmdpreview7.v1",
+  "title": "Record async42 soft54 and cmdPreview7 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/async42-soft54-cmdpreview7.md with sections for Async 42, Soft 54, Cmd preview 7, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/async42-soft54-cmdpreview7.md",
+    "content": "# Async42 Soft54 CmdPreview7 Contract\n\n## Async 42\nasync pre-rot compaction and swarm micro pressure default to 0.42 so reclaim starts earlier\n\n## Soft 54\nsoft compaction trigger defaults to 0.54 for denser long-horizon context control\n\n## Cmd preview 7\nTUI command/write previews default to 7 lines for denser chrome\n\n## Evidence path\nLioraBench holdout + strategy/tool-call vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/async42-soft54-cmdpreview7.md", "text": "Async 42", "weight": 1},
+    {"type": "file_contains", "path": "reports/async42-soft54-cmdpreview7.md", "text": "Soft 54", "weight": 1},
+    {"type": "file_contains", "path": "reports/async42-soft54-cmdpreview7.md", "text": "Cmd preview 7", "weight": 1},
+    {"type": "file_contains", "path": "reports/async42-soft54-cmdpreview7.md", "text": "Evidence path", "weight": 1}
+  ]
+}
