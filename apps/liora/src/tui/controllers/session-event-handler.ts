@@ -1194,13 +1194,23 @@ export class SessionEventHandler {
   }
 
   private handleCompactionBegin(event: CompactionStartedEvent): void {
-    this.host.streamingUI.finalizeLiveTextBuffers('waiting');
-    this.host.setAppState({
-      isCompacting: true,
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
+    const background = event.mode === 'background';
+    if (background) {
+      // Async pre-rot: keep the live turn interactive; only surface a badge.
+      // Do not flush live thinking/assistant buffers mid-turn.
+      this.host.setAppState({ isBackgroundCompacting: true });
+    } else {
+      this.host.streamingUI.finalizeLiveTextBuffers('waiting');
+      this.host.setAppState({
+        isCompacting: true,
+        isBackgroundCompacting: false,
+        streamingPhase: 'waiting',
+        streamingStartTime: Date.now(),
+      });
+    }
+    this.host.streamingUI.beginCompaction(event.instruction, {
+      background,
     });
-    this.host.streamingUI.beginCompaction(event.instruction);
   }
 
   private handleCompactionEnd(
@@ -1231,6 +1241,7 @@ export class SessionEventHandler {
     if (!hasActiveTurn) {
       this.host.setAppState({
         isCompacting: false,
+        isBackgroundCompacting: false,
         streamingPhase: 'idle',
       });
       this.host.resetLivePane();
@@ -1241,7 +1252,7 @@ export class SessionEventHandler {
         }, 0);
       }
     } else {
-      this.host.setAppState({ isCompacting: false });
+      this.host.setAppState({ isCompacting: false, isBackgroundCompacting: false });
     }
   }
 

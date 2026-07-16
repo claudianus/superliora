@@ -44,7 +44,7 @@ export const FLAG_DEFINITIONS = [
     description:
       'Launch background compaction at a lower context threshold (default 60%) while the turn continues, falling back to synchronous compaction at the regular soft trigger (default 75%). Keeps the first two messages (system + initial user) in a frozen zone that is never compacted.',
     env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
-    default: false,
+    default: true,
     surface: 'core',
   },
   {

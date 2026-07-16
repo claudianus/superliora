@@ -241,6 +241,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
+    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -2017,6 +2018,7 @@ export class LioraTUI {
       ultraworkPriorState: null,
       activityTip: null,
       isCompacting: false,
+      isBackgroundCompacting: false,
       streamingPhase: 'idle',
     });
     await this.setSession(session);

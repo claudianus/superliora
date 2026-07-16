@@ -285,6 +285,7 @@ function formatTranscriptViewportBadge(
 
 function footerNextAction(state: AppState, git: GitStatus | null): string | null {
   if (state.isCompacting) return ttui('tui.footer.compacting');
+  if (state.isBackgroundCompacting) return ttui('tui.footer.compacting.background');
   if (state.isReplaying) return ttui('tui.footer.replaying');
   if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
   if (safeUsage(state.contextUsage) >= 0.75) return ttui('tui.footer.next.compact');
@@ -410,6 +411,11 @@ export class FooterComponent implements Component {
     }
     if (state.premiumQualityMode) {
       modes.push(renderAnimatedGradientText('premium', 'footer:premium', appearance));
+    }
+    if (state.isBackgroundCompacting) {
+      modes.push(renderPulseText('compact-bg', 'footer:compact-bg', 'warning', appearance));
+    } else if (state.isCompacting) {
+      modes.push(renderPulseText('compact', 'footer:compact', 'primary', appearance));
     }
     if (modes.length > 0) left.push(modes.join(' '));
 

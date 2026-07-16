@@ -82,6 +82,7 @@ function fakeInitialAppState(): AppState {
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
+    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,

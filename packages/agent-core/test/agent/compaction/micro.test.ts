@@ -41,6 +41,10 @@ describe('MicroCompaction', () => {
     expect(new FlagResolver({}, FLAG_DEFINITIONS).enabled('micro_compaction')).toBe(true);
   });
 
+  it('defaults the async_compaction flag on', () => {
+    expect(new FlagResolver({}, FLAG_DEFINITIONS).enabled('async_compaction')).toBe(true);
+  });
+
   it('truncates old tool results after cache miss', () => {
     vi.useFakeTimers();
     const ctx = testAgent({

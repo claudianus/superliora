@@ -74,6 +74,7 @@ function makeThinkingHost(
     thinking: false,
     streamingPhase: 'idle',
     isCompacting: false,
+    isBackgroundCompacting: false,
     availableModels: {
       k2: {
         provider: 'managed:kimi-api',

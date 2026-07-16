@@ -41,6 +41,7 @@ function createHarness(
       appState: {
         streamingPhase: options.streamingPhase ?? 'idle',
         isCompacting: options.isCompacting ?? false,
+        isBackgroundCompacting: false,
         planMode: options.planMode ?? false,
         ultraworkMode: options.ultraworkMode ?? false,
       },
