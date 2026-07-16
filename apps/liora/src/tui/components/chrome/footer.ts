@@ -193,7 +193,7 @@ function formatContextStatus(usage: number, tokens?: number, maxTokens?: number)
 }
 
 function renderContextUsageBar(ratio: number): string {
-  const width = 6;
+  const width = 8;
   const filled = Math.max(0, Math.min(width, Math.round(ratio * width)));
   return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
 }

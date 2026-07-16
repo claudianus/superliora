@@ -35,7 +35,7 @@ Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
   interview: `## Interview Phase
-Mission: interview quality drives plan quality. Do not merely execute the prompt — act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrades.
+Mission: interview quality drives plan quality. Act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrades.
 
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase, product Write/Edit for investigation prototypes.
 ${ULTRA_PLAN_INTERVIEW_BLOCKED_MUTATORS}
