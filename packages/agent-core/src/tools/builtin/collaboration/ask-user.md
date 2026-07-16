@@ -1,6 +1,6 @@
 Ask the user questions with structured options — preferences, ambiguous requirements, or concrete approach choices.
 
-**Do not use when:** you can infer the answer, or the decision is trivial and does not change next action. Overuse interrupts flow.
+**Do not use when:** you can infer the answer, or the decision is trivial and does not change next action. Overuse breaks flow.
 
 **Usage:**
 - Users always have "Other" for free text — do not invent that option

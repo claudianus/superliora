@@ -1,6 +1,6 @@
 UltraSwarm — auto-assemble expert subagents (400+ / 16 divisions) for complex multi-domain work. Cap concurrency with `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY`.
 
-**How:** analyze → BM25+fuzzy expert search → spawn parallel/phased experts → collect tagged results.
+**How:** analyze → BM25 + fuzzy expert search → spawn parallel/phased experts → collect tagged results.
 
 **Usage:** specific description; optional `experts`/`required_experts`; default `auto_select`. For Ultrawork, include a Capability Coverage Matrix (AC, risks, lanes, evidence).
 

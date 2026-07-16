@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool-desc-density-wave.v1",
+  "title": "Record denser high-traffic tool descriptions",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tools",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tool-desc-density-wave.md with sections for Tool densify, Parallel Read, AskUser flow, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tool-desc-density-wave.md",
+      "content": "# Tool Desc Density Wave Contract\n\n## Tool densify\nhigh-traffic tool descriptions stay contract-complete with denser always-on wording for lower schema tax\n\n## Parallel Read\nRead tool description keeps multi-file parallel Reads as the default multi-path pull pattern\n\n## AskUser flow\nAskUserQuestion description keeps structured options and overuse guard with denser wording\n\n## Evidence path\nLioraBench holdout + enter/exit plan + tool description vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-density-wave.md",
+      "text": "Tool densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-density-wave.md",
+      "text": "Parallel Read",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-density-wave.md",
+      "text": "AskUser flow",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-density-wave.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
