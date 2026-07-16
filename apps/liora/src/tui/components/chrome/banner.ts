@@ -5,6 +5,7 @@ import { currentTheme } from '#/tui/theme';
 import type { BannerState } from '#/tui/types';
 import {
   getActiveAppearancePreferences,
+  renderParticleRail,
   renderPremiumAccentLine,
   renderPremiumHeadline,
   shouldRenderAmbientEffects,
@@ -85,6 +86,9 @@ export class BannerComponent implements Component {
 
     // Add a blank line below the banner so the following transcript content
     // (e.g. the input prompt / status messages) is visually separated.
+    if (animated && width >= 24) {
+      result.push(renderParticleRail(width, appearance, 'banner:rail'));
+    }
     result.push('');
 
     return result;

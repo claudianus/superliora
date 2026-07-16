@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.historical-handoff-banner.v1",
+  "title": "Record historical compaction handoff and banner particle contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "handoff",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/historical-handoff-banner.md with sections for Reference-only handoff, Historical labels, Banner rails, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/historical-handoff-banner.md",
+      "content": "# Historical Handoff Banner Contract\n\n## Reference-only handoff\ncompaction summary prefix marks compacted history as REFERENCE ONLY and latest user message wins\n\n## Historical labels\ncompaction instruction tells the model to label stale completed/pending work as historical\n\n## Banner rails\nstatus banners render particle rails under ambient effects for continuous chrome motion\n\n## Evidence path\nLioraBench holdout + compaction full/handoff vitest + banner chrome render\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/historical-handoff-banner.md",
+      "text": "Reference-only handoff",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/historical-handoff-banner.md",
+      "text": "Historical labels",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/historical-handoff-banner.md",
+      "text": "Banner rails",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/historical-handoff-banner.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
