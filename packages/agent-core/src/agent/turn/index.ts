@@ -38,6 +38,7 @@ import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events
 import type { TelemetryPropertyValue } from '../../telemetry';
 import type { TurnCancelSource } from '../../rpc/core-api';
 import { abortable, isUserCancellation, userCancellationReason } from '../../utils/abort';
+import { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../../session/hooks';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
@@ -121,6 +122,8 @@ export class TurnFlow {
   private readonly toolCallDupType = new Map<string, 'normal' | 'cross_step'>();
   private readonly stepToolCallKeys = new Map<number, Set<string>>();
   private readonly telemetryModeByTurn = new Map<number, 'agent' | 'plan'>();
+  /** Suppress leaked `<think>`/`<reasoning>` tags in assistant text deltas. */
+  private readonly assistantThinkScrubber = new StreamingThinkScrubber();
   private readonly currentStepByTurn = new Map<number, number>();
   private readonly interruptedTelemetryTurnIds = new Set<number>();
   private readonly stepFailureByTurn = new Map<number, LoopTurnInterruptedEvent>();
@@ -583,6 +586,7 @@ export class TurnFlow {
     this.currentStep = 0;
     this.stepToolCallKeys.clear();
     this.toolCallDupType.clear();
+    this.assistantThinkScrubber.reset();
     const telemetryMode = this.telemetryMode();
     this.telemetryModeByTurn.set(turnId, telemetryMode);
     this.currentStepByTurn.set(turnId, 0);
@@ -1016,10 +1020,23 @@ export class TurnFlow {
       emitLiveEvent: (event: LoopEvent) => {
         this.noteFirstRequestEvent(event);
         this.trackLoopTelemetry(event, turnId);
-        const mapped = mapLoopEvent(event, turnId);
+        const mapped = this.mapLiveLoopEvent(event, turnId);
         if (mapped !== undefined) this.agent.emitEvent(mapped);
       },
     });
+  }
+
+  private mapLiveLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined {
+    if (event.type === 'text.delta') {
+      const scrubbed = this.assistantThinkScrubber.feed(event.delta);
+      if (scrubbed.length === 0) return undefined;
+      return {
+        type: 'assistant.delta',
+        turnId,
+        delta: scrubbed,
+      };
+    }
+    return mapLoopEvent(event, turnId);
   }
 
   private noteFirstRequestEvent(event: LoopEvent): void {

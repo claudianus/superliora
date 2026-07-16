@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.think-scrub-transparency.v1",
+  "title": "Record think-scrub and live thinking transparency contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "thinking",
+    "scrub",
+    "tui",
+    "token",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/think-scrub-transparency.md with sections for Stream scrub, Live density, Boundary safety, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/think-scrub-transparency.md",
+      "content": "# Think Scrub Transparency Contract\n\n## Stream scrub\nassistant text deltas strip leaked <think>/<reasoning> blocks before TUI/ACP consumers\n\n## Live density\nlive thinking header shows spectacular spinner, elapsed time, and character density without expand\n\n## Boundary safety\nprose mentioning think tags mid-line is preserved; only boundary openers start suppression\n\n## Evidence path\nLioraBench holdout + think-scrubber vitest + thinking component vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/think-scrub-transparency.md",
+      "text": "Stream scrub",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/think-scrub-transparency.md",
+      "text": "Live density",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/think-scrub-transparency.md",
+      "text": "Boundary safety",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/think-scrub-transparency.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
