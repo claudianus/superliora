@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.swarm750-system-density.v1",
+  "title": "Record denser swarm handoff 750 and system/tool description densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "swarm",
+    "system",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/swarm750-system-density.md with sections for Swarm 750, System densify, Tool densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/swarm750-system-density.md",
+      "content": "# Swarm750 System Density Contract\n\n## Swarm 750\nUltraSwarm expert handoff bodies collapse at 750 chars by default for denser parent context\n\n## System densify\ndefault system prompt context and tool-routing always-on copy stay contract-complete with denser wording\n\n## Tool densify\nBash/UltraworkGraph/AgentSwarm descriptions stay contract-complete with denser always-on wording\n\n## Evidence path\nLioraBench holdout + boundary-compaction/profile vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/swarm750-system-density.md",
+      "text": "Swarm 750",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm750-system-density.md",
+      "text": "System densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm750-system-density.md",
+      "text": "Tool densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm750-system-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
