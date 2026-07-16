@@ -2587,7 +2587,7 @@ export class LioraTUI {
         break;
       }
       case 'composing': {
-        const spinner = this.ensureActivitySpinner('braille', 'working...', (s) =>
+        const spinner = this.ensureActivitySpinner('comet', 'working...', (s) =>
           currentTheme.fg('primary', s),
         );
         this.syncAgentSwarmActivitySpinner(undefined);

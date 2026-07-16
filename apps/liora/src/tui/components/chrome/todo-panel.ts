@@ -11,6 +11,7 @@
 
 import {
   renderRendererDividerRow,
+  renderRendererRatioProgressBar,
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
@@ -364,12 +365,24 @@ function renderBoardMeta(
   callsSinceUpdate: number,
 ): string {
   const counts = countTodos(todos);
+  const total = todos.length;
+  const ratio = total > 0 ? counts.done / total : 0;
   const wipText = `wip ${String(counts.in_progress)}/1`;
   const wip =
     counts.in_progress > 1
       ? chalk.hex(colors.warning).bold(wipText)
       : chalk.hex(colors.textDim)(wipText);
+  const progress =
+    total > 0
+      ? `${renderRendererRatioProgressBar({
+          ratio,
+          width: 6,
+          filledStyle: (text) => chalk.hex(colors.success)(text),
+          emptyStyle: (text) => chalk.hex(colors.textMuted)(text),
+        })}${chalk.hex(colors.textDim)(` ${String(Math.round(ratio * 100))}%`)}`
+      : undefined;
   const parts = [
+    ...(progress !== undefined ? [progress] : []),
     wip,
     chalk.hex(colors.textDim)(`next ${String(counts.pending)}`),
     chalk.hex(colors.textDim)(`done ${String(counts.done)}`),

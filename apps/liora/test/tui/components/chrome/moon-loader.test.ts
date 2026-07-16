@@ -83,4 +83,15 @@ describe('MoonLoader', () => {
     const row = strip(loader.render(80).join('\n'));
     expect(row).toContain('Tip: ctrl+s: steer mid-turn');
   });
+
+  it('renders a multi-cell comet trail for the comet style', () => {
+    const loader = createLoader('comet', undefined, 'working...');
+    const glyph = strip(loader.renderGlyph());
+    const inline = strip(loader.renderInline());
+
+    expect(glyph.length).toBeGreaterThan(1);
+    expect(glyph).toMatch(/[·•◦○●]/);
+    expect(inline).toContain('working...');
+    expect(inline).toMatch(/[·•◦○●]/);
+  });
 });
