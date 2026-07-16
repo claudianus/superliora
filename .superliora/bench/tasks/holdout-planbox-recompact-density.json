@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.planbox-recompact-density.v1",
+  "title": "Record plan-box particle rails and earlier recompact growth",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "plan",
+    "tui",
+    "compaction",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/planbox-recompact-density.md with sections for Plan-box rails, Recompact growth, Write densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/planbox-recompact-density.md",
+      "content": "# Planbox Recompact Density Contract\n\n## Plan-box rails\napproved plan boxes render ambient particle rails so long planning stays visually alive\n\n## Recompact growth\nmin recompact growth ratio defaults to 0.04 so full compaction can re-fire sooner after meaningful growth\n\n## Write densify\nWrite tool description keeps Edit-vs-Write contracts with denser always-on schema text\n\n## Evidence path\nLioraBench holdout + plan-box/strategy vitest + live TUI plan cards\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/planbox-recompact-density.md",
+      "text": "Plan-box rails",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/planbox-recompact-density.md",
+      "text": "Recompact growth",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/planbox-recompact-density.md",
+      "text": "Write densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/planbox-recompact-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

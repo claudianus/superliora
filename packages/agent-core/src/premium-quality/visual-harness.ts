@@ -40,7 +40,7 @@ export const PREMIUM_VISUAL_BANNED_SHIP_STATES = [
 /** Verification loop — proof before done. */
 export const PREMIUM_VISUAL_VERIFICATION_LOOP = [
   '### Visual verification loop (mandatory before done)',
-  '1. Ship one visual slice → 2. Open real surface → 3. BrowserScreenshot / BrowserUse / Playwright / develop-web-game capture → 4. Inspect; iterate if still placeholder → 5. Rubric score; FAIL = another pass → 6. Record evidence path (not only chat). Missing optional npm packages do NOT prove browser verification is impossible; use harness BrowserUse paths first.',
+  '1. Ship one visual slice → 2. Open real surface → 3. BrowserScreenshot / BrowserUse / Playwright / develop-web-game capture → 4. Inspect; iterate if still placeholder → 5. Rubric score; FAIL = another pass → 6. Record evidence path (not only chat). Missing optional packages do NOT block harness BrowserUse paths.',
 ].join('\n');
 
 /** 10-point rubric for self-audit. */
