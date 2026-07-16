@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft35-async24-hard64.v1",
+  "title": "Record soft35 async24 and hard64 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft35-async24-hard64.md with sections for Soft 35, Async 24, Hard 64, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft35-async24-hard64.md",
+    "content": "# Soft35 Async24 Hard64 Contract\n\n## Soft 35\nsoft compaction trigger defaults to 0.35 with quality bias floor 0.33 so reclaim can tighten after emergency backstops\n\n## Async 24\nasync pre-rot and swarm micro pressure default to 0.24 so reclaim starts earlier\n\n## Hard 64\nhard compaction block ratio defaults to 0.64 and absolute trigger to 50k so long sessions reclaim earlier\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft35-async24-hard64.md", "text": "Soft 35", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft35-async24-hard64.md", "text": "Async 24", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft35-async24-hard64.md", "text": "Hard 64", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft35-async24-hard64.md", "text": "Evidence path", "weight": 1}
+  ]
+}
