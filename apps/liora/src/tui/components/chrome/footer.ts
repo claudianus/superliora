@@ -321,8 +321,8 @@ export function formatMediaFooterBadge(
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
   if (ratio >= 0.9) return 'danger';
-  // Ladder: micro 0.50/min24 · async/swarm-micro 0.50 · handoff 0.58 · soft 0.62 · hard 0.88 · abs130k.
-  if (ratio >= 0.5) return 'warning';
+  // Ladder: micro 0.50/min16 · async/swarm-micro 0.48 · handoff 0.58 · soft 0.60 · hard 0.88 · abs130k.
+  if (ratio >= 0.48) return 'warning';
   if (ratio >= 0.5) return 'info';
   return 'muted';
 }
@@ -341,7 +341,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (state.isBackgroundCompacting) return ttui('tui.footer.compacting.background');
   if (state.isReplaying) return ttui('tui.footer.replaying');
   if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
-  if (safeUsage(state.contextUsage) >= 0.5) return ttui('tui.footer.next.compact');
+  if (safeUsage(state.contextUsage) >= 0.48) return ttui('tui.footer.next.compact');
   if (
     state.contextOS !== undefined &&
     state.contextOS !== null &&
