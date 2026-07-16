@@ -174,14 +174,17 @@ describe('DefaultCompactionStrategy', () => {
   it('uses reserved context only for hard blocking on smaller windows', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000, {
       ...DEFAULT_COMPACTION_CONFIG,
+      // Keep hard ratio above the reserved threshold so this fixture isolates
+      // reserved-size blocking after densify ladders.
+      blockRatio: 0.90,
       reservedContextSize: 50_000,
     });
 
     expect(strategy.shouldCompact(1_199)).toBe(false);
-    // reserved 50k + hard50 → max(50k, floor(100k*0.50)=50k) = 50k
+    // reserved 50k + hard90 → max(50k, floor(100k*0.90)=90k) = 90k
     expect(strategy.shouldBlock(49_999)).toBe(false);
     expect(strategy.shouldCompact(81_000)).toBe(true);
-    expect(strategy.shouldBlock(50_000)).toBe(true);
+    expect(strategy.shouldBlock(90_000)).toBe(true);
   });
 
   it('starts async compaction between the async threshold and soft trigger', () => {
@@ -282,8 +285,8 @@ describe('DefaultCompactionStrategy', () => {
     expect(strategy.effectiveTriggerRatio).toBe(0.012);
     expect(strategy.shouldCompact(1_199)).toBe(false);
     expect(strategy.shouldCompact(1_200)).toBe(true);
-    expect(strategy.shouldBlock(49_999)).toBe(false);
-    expect(strategy.shouldBlock(50_000)).toBe(true);
+    expect(strategy.shouldBlock(47_999)).toBe(false);
+    expect(strategy.shouldBlock(48_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
   });
 
