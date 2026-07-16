@@ -265,7 +265,7 @@ export function formatMicroCompactionFooterBadge(
         ? 'swarm'
         : last;
   return {
-    text: `micro:${short}×${String(micro.total)}`,
+    text: `μ:${short}×${String(micro.total)}`,
     severity,
   };
 }
@@ -328,7 +328,7 @@ export function formatMediaFooterBadge(
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
   if (ratio >= 0.9) return 'danger';
-  // Ladder: micro 0.50/min12 · async/swarm-micro 0.44 · handoff 0.48 · soft 0.55 · hard 0.84 · abs100k.
+  // Ladder: micro 0.50/min10 · async/swarm-micro 0.44 · handoff 0.46 · soft 0.55 · hard 0.84 · abs100k.
   if (ratio >= 0.44) return 'warning';
   if (ratio >= 0.5) return 'info';
   return 'muted';

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.handoff46-micro10-footer-mu.v1",
+  "title": "Record handoff46 micro10 and footer μ badges",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/handoff46-micro10-footer-mu.md with sections for Handoff 46, Micro 10, Footer mu, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/handoff46-micro10-footer-mu.md",
+    "content": "# Handoff46 Micro10 FooterMu Contract\n\n## Handoff 46\nswarm handoff compaction ratio defaults to 0.46 so pre-swarm reclaim runs earlier\n\n## Micro 10\nmicro minContentTokens defaults to 10 so smaller bulky tool results clear sooner\n\n## Footer mu\nfooter micro badges densify to μ:trigger×N for denser chrome without config\n\n## Evidence path\nLioraBench holdout + strategy/footer-context vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/handoff46-micro10-footer-mu.md", "text": "Handoff 46", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff46-micro10-footer-mu.md", "text": "Micro 10", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff46-micro10-footer-mu.md", "text": "Footer mu", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff46-micro10-footer-mu.md", "text": "Evidence path", "weight": 1}
+  ]
+}
