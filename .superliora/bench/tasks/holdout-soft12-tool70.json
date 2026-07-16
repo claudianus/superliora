@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft12-tool70.v1",
+  "title": "Record soft1.2 and tool70 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft12-tool70.md with sections for Soft 1.2, Tool 70, Micro 35, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft12-tool70.md",
+    "content": "# Soft1.2 Tool70 Contract\n\n## Soft 1.2\nsoft compaction trigger defaults to 0.012 so reclaim starts earlier on long sessions\n\n## Tool 70\nmodel-facing tool result budgets default to 70 chars with 2-char previews\n\n## Micro 35\nmicro clearing remains at 0.35 usage with min content tokens 3\n\n## Evidence path\nLioraBench holdout + strategy/tool/status/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft12-tool70.md", "text": "Soft 1.2", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft12-tool70.md", "text": "Tool 70", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft12-tool70.md", "text": "Micro 35", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft12-tool70.md", "text": "Evidence path", "weight": 1}
+  ]
+}

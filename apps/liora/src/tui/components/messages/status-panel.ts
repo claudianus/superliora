@@ -153,7 +153,7 @@ const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · a1/m2/sw80/s1';
+const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · a1/m2/sw80/s1.2';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const OFFICE_GATE =
@@ -228,7 +228,7 @@ function verifyBlockedByReadiness(options: StatusReportOptions): boolean {
   const { ratio, maxTokens } = contextValues(options);
   return (
     model.length === 0 ||
-    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.015) ||
+    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.012) ||
     options.gitStatus?.dirty === true ||
     options.goalStatus === 'blocked' ||
     humanWritingBlocked(options)
@@ -342,7 +342,7 @@ function formatReadinessBlockers(options: StatusReportOptions): string {
   const model = (options.status?.model ?? options.model).trim();
   if (model.length === 0) blockers.push('model setup');
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.015) blockers.push('context high');
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.012) blockers.push('context high');
   if (options.gitStatus?.dirty === true) blockers.push('worktree dirty');
   if (options.goalStatus === 'blocked') blockers.push('goal blocked');
   if (humanWritingBlocked(options)) blockers.push('writing guidance');
@@ -526,7 +526,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   }
 
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.015) {
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.012) {
     return [
       { label: 'State', value: 'Context high' },
       ...gateRows,
