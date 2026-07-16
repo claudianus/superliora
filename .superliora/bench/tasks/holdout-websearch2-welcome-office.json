@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.websearch2-welcome-office.v1",
+  "title": "Record WebSearch2 and welcome office readiness",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["web", "tui", "office", "visible-evidence"],
+  "prompt": "Create reports/websearch2-welcome-office.md with sections for WebSearch 2, Welcome office, Soft2 align, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/websearch2-welcome-office.md",
+    "content": "# WebSearch2 Welcome Office Contract\n\n## WebSearch 2\nWebSearch defaults to 2 hits so research loops stay thrifty; sharpen the query before raising limit\n\n## Welcome office\nwelcome prompt surfaces office readiness beside media/web/ZDR for zero-config beginners\n\n## Soft2 align\nlive reclaim ladder remains soft2 with denser tool/grep budgets from prior densify\n\n## Evidence path\nLioraBench holdout + web-search/welcome vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/websearch2-welcome-office.md", "text": "WebSearch 2", "weight": 1},
+    {"type": "file_contains", "path": "reports/websearch2-welcome-office.md", "text": "Welcome office", "weight": 1},
+    {"type": "file_contains", "path": "reports/websearch2-welcome-office.md", "text": "Soft2 align", "weight": 1},
+    {"type": "file_contains", "path": "reports/websearch2-welcome-office.md", "text": "Evidence path", "weight": 1}
+  ]
+}
