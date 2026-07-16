@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.spec5k-plan-density.v1",
+  "title": "Record speculative 5k buffer and denser plan-mode injection",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "plan",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/spec5k-plan-density.md with sections for Speculative 5k, Plan densify, Ladder tip, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/spec5k-plan-density.md",
+      "content": "# Spec5k Plan Density Contract\n\n## Speculative 5k\nspeculative pre-turn compaction projects the next step with a leaner 5k token buffer so long sessions reclaim earlier\n\n## Plan densify\nplan-mode full/sparse/exit reminders stay contract-complete with denser always-on wording\n\n## Ladder tip\ncontext ladder tips surface maxRecent16 and spec5k alongside the progressive reclaim ladder\n\n## Evidence path\nLioraBench holdout + strategy/plan-mode vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/spec5k-plan-density.md",
+      "text": "Speculative 5k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/spec5k-plan-density.md",
+      "text": "Plan densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/spec5k-plan-density.md",
+      "text": "Ladder tip",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/spec5k-plan-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
