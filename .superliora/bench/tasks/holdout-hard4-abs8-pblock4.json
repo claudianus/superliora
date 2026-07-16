@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard4-abs8-pblock4.v1",
+  "title": "Record hard4 abs8 and pblock4 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard4-abs8-pblock4.md with sections for Hard 4, Abs 8, Pblock 4, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard4-abs8-pblock4.md",
+    "content": "# Hard4 Abs8 Pblock4 Contract\n\n## Hard 4\nhard compaction block ratio densifies to 0.04 so blocking reclaim starts earlier\n\n## Abs 8\nabsolute compaction trigger densifies to 8 tokens on large windows\n\n## Pblock 4\nparallel block threshold densifies to 4 with target 2 for thriftier multi-tool turns\n\n## Evidence path\nLioraBench holdout + strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard4-abs8-pblock4.md", "text": "Hard 4", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard4-abs8-pblock4.md", "text": "Abs 8", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard4-abs8-pblock4.md", "text": "Pblock 4", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard4-abs8-pblock4.md", "text": "Evidence path", "weight": 1}
+  ]
+}
