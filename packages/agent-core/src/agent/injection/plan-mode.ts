@@ -150,9 +150,9 @@ function withResponseLanguage(body: string, agent: Agent): string {
 const PLAN_MODE_BLOCKED_TOOLS =
   'TaskStop, CronCreate, CronDelete blocked — call ExitPlanMode first if needed.';
 
-const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. MUST NOT edit (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed (normal permission rules). Supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
+const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. MUST NOT edit (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed. Supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
 
-const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. MUST NOT edit or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed (normal permission rules). Supersedes other instructions.`;
+const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. MUST NOT edit or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed. Supersedes other instructions.`;
 
 const PLAN_WORKFLOW = `Workflow:
   1. Understand — Glob, Grep, Read; Context7Resolve/Docs for library docs; WebSearch/FetchURL for external evidence.
@@ -168,7 +168,7 @@ At most 2–3 different options; do not pad minor variants. If preference matter
 Multiple approaches in the plan → pass \`options\` to ExitPlanMode for user choice.
 NEVER write multiple approaches and call ExitPlanMode without \`options\`.
 
-AskUserQuestion: missing requirements/preferences only — never plan approval (invisible until ExitPlanMode).
+AskUserQuestion: missing requirements/preferences only — never plan approval.
 End every turn with AskUserQuestion (clarify) or ExitPlanMode (approve).`;
 
 function fullReminder(planFilePath: PlanFilePath): string {
@@ -189,7 +189,7 @@ function sparseReminder(planFilePath: PlanFilePath): string {
     return inlineSparseReminder();
   }
 
-  const body = `Plan mode still active (full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode for multiple approaches. End with AskUserQuestion or ExitPlanMode — never text plan approval.`;
+  const body = `Plan mode still active (full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode for multiple approaches. End with AskUserQuestion or ExitPlanMode.`;
   return withPlanFileFooter(body, planFilePath);
 }
 
