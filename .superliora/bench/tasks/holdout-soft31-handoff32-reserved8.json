@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft31-handoff32-reserved8.v1",
+  "title": "Record soft31 handoff32 and reserved8 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft31-handoff32-reserved8.md with sections for Soft 31, Handoff 32, Reserved 8k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft31-handoff32-reserved8.md",
+    "content": "# Soft31 Handoff32 Reserved8 Contract\n\n## Soft 31\nsoft compaction trigger defaults to 0.31 with quality bias floor 0.29 so reclaim can tighten after emergency backstops\n\n## Handoff 32\nswarm handoff compaction ratio defaults to 0.32 so pre-swarm reclaim runs earlier\n\n## Reserved 8k\nreserved context headroom defaults to 8k tokens for denser usable windows before hard block\n\n## Evidence path\nLioraBench holdout + strategy/status/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft31-handoff32-reserved8.md", "text": "Soft 31", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft31-handoff32-reserved8.md", "text": "Handoff 32", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft31-handoff32-reserved8.md", "text": "Reserved 8k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft31-handoff32-reserved8.md", "text": "Evidence path", "weight": 1}
+  ]
+}
