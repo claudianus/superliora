@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft51-handoff42-swarm450.v1",
+  "title": "Record soft51 handoff42 and swarm450 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft51-handoff42-swarm450.md with sections for Soft 51, Handoff 42, Swarm 450, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft51-handoff42-swarm450.md",
+    "content": "# Soft51 Handoff42 Swarm450 Contract\n\n## Soft 51\nsoft compaction trigger defaults to 0.51 so full summaries start earlier under long sessions\n\n## Handoff 42\nswarm handoff compaction ratio defaults to 0.42 so pre-swarm reclaim runs earlier\n\n## Swarm 450\nswarm expert bodies default to 450 chars, total 14k, inline 80 for denser multi-agent handoffs\n\n## Evidence path\nLioraBench holdout + strategy/boundary/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft51-handoff42-swarm450.md", "text": "Soft 51", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft51-handoff42-swarm450.md", "text": "Handoff 42", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft51-handoff42-swarm450.md", "text": "Swarm 450", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft51-handoff42-swarm450.md", "text": "Evidence path", "weight": 1}
+  ]
+}
