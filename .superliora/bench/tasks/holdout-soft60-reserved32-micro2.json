@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft60-reserved32-micro2.v1",
+  "title": "Record soft60/async48, reserved 32k, micro keep2/min16",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft60-reserved32-micro2.md with sections for Soft 60, Reserved 32k, Micro 2, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft60-reserved32-micro2.md",
+    "content": "# Soft60 Reserved32 Micro2 Contract\n\n## Soft 60\nfull compaction soft trigger defaults to 0.60 and async/swarm-micro to 0.48 so long sessions reclaim earlier\n\n## Reserved 32k\nfull compaction reserved context headroom defaults to 32k tokens so long sessions reclaim earlier while keeping summary room\n\n## Micro 2\nmicro compaction keeps the last 2 messages and clears tool results from 16 tokens so bulky tool output reclaims earlier\n\n## Evidence path\nLioraBench holdout + strategy/micro/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft60-reserved32-micro2.md", "text": "Soft 60", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft60-reserved32-micro2.md", "text": "Reserved 32k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft60-reserved32-micro2.md", "text": "Micro 2", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft60-reserved32-micro2.md", "text": "Evidence path", "weight": 1}
+  ]
+}
