@@ -45,7 +45,7 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 /**
  * Soft trigger for full (lossy) compaction.
  * Compact before attention rot: 0.60 sits between async pre-rot (~0.48) /
- * swarm handoff (~0.55) and hard block (~0.86), so summaries generate while
+ * swarm handoff (~0.52) and hard block (~0.86), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
 export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.6;
@@ -56,7 +56,7 @@ export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 2_000;
 /** Minimum context growth since the last compaction before auto may fire again. */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.015;
 /** Pre-swarm handoff compaction target (below soft trigger; aligned with async pre-rot headroom). */
-export const SWARM_HANDOFF_COMPACTION_RATIO = 0.55;
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.52;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
@@ -79,7 +79,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.08,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 120_000,
+  absoluteTriggerTokens: 110_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 18_000,
   parallelBlockTarget: 9_000,
