@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft33-async22-micro40.v1",
+  "title": "Record soft33 async22 and micro40 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft33-async22-micro40.md with sections for Soft 33, Async 22, Micro 40, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft33-async22-micro40.md",
+    "content": "# Soft33 Async22 Micro40 Contract\n\n## Soft 33\nsoft compaction trigger defaults to 0.33 with quality bias floor 0.31 so reclaim can tighten after emergency backstops\n\n## Async 22\nasync pre-rot and swarm micro pressure default to 0.22 so reclaim starts earlier\n\n## Micro 40\nmicro minContextUsageRatio defaults to 0.40 and minContentTokens to 4 so tool-result clearing starts earlier\n\n## Evidence path\nLioraBench holdout + strategy/status/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft33-async22-micro40.md", "text": "Soft 33", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft33-async22-micro40.md", "text": "Async 22", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft33-async22-micro40.md", "text": "Micro 40", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft33-async22-micro40.md", "text": "Evidence path", "weight": 1}
+  ]
+}
