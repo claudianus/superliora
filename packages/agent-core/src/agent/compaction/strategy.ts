@@ -79,7 +79,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.16,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 180_000,
+  absoluteTriggerTokens: 170_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 30_000,
   parallelBlockTarget: 15_000,
