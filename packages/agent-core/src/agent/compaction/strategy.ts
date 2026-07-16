@@ -44,11 +44,11 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.40 sits between async pre-rot (~0.30) /
+ * Compact before attention rot: 0.39 sits between async pre-rot (~0.28) /
  * swarm handoff (~0.38) and hard block (~0.68), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.40;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.39;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.68;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
@@ -60,11 +60,11 @@ export const SWARM_HANDOFF_COMPACTION_RATIO = 0.38;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
- * for cost and fidelity; start at async pre-rot (~0.30) before soft trigger.
+ * for cost and fidelity; start at async pre-rot (~0.28) before soft trigger.
  */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.30;
+export const SWARM_MICRO_PRESSURE_RATIO = 0.28;
 /** Default ratio at which async background compaction may start (pre-rot). */
-export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.30;
+export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.28;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
@@ -72,7 +72,7 @@ const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 14_000,
+  reservedContextSize: 12_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 2,
@@ -118,7 +118,7 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   }
 
   get effectiveTriggerRatio(): number {
-    return Math.max(0.38, this.config.triggerRatio - this.qualityTriggerBias);
+    return Math.max(0.37, this.config.triggerRatio - this.qualityTriggerBias);
   }
 
   get speculativeStepBufferTokens(): number {
