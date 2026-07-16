@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.absolute180-approval-spark.v1",
+  "title": "Record earlier absolute trigger, plan refresh, and approval/spark density",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "plan",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/absolute180-approval-spark.md with sections for Absolute 180k, Plan refresh 4, Approval pulse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/absolute180-approval-spark.md",
+      "content": "# Absolute180 Approval Spark Contract\n\n## Absolute 180k\nlarge-window absolute soft trigger defaults to 180k tokens so long sessions compact earlier before attention rot\n\n## Plan refresh 4\nnon-ultra plan-mode full reminder refresh every 4 assistant turns\n\n## Approval pulse\napproval panel selected pointers pulse under ambient effects; step summaries use denser 6-cell spark bars\n\n## Evidence path\nLioraBench holdout + strategy/plan-mode/approval/step-summary vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/absolute180-approval-spark.md",
+      "text": "Absolute 180k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/absolute180-approval-spark.md",
+      "text": "Plan refresh 4",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/absolute180-approval-spark.md",
+      "text": "Approval pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/absolute180-approval-spark.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

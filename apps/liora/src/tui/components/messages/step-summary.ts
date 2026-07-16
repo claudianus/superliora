@@ -47,10 +47,10 @@ function buildSparkBar(total: number, appearance: ReturnType<typeof getActiveApp
   const animated = shouldRenderAmbientEffects(appearance);
   const phase = animated ? Math.floor(appearanceAnimationNow() / 400) % SPARK.length : 0;
   const intensity = Math.min(3, Math.max(0, Math.floor(Math.log2(total + 1))));
-  const cells = Array.from({ length: 4 }, (_, i) => {
-    const level = Math.max(0, intensity - (3 - i));
+  const cells = Array.from({ length: 6 }, (_, i) => {
+    const level = Math.max(0, intensity - (5 - i));
     const glyph = SPARK[Math.min(SPARK.length - 1, (level + phase) % SPARK.length)] ?? '░';
-    return i <= intensity ? glyph : '░';
+    return i <= intensity + 1 ? glyph : '░';
   });
   return `${cells.join('')} `;
 }
