@@ -153,7 +153,7 @@ const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'LioraBench seed/holdout + media/web/ZDR/token/TUI + async/micro6/sw750/soft70/dream';
+const BENCH_GATE = 'LioraBench seed/holdout + media/web/ZDR/token/TUI + async/micro6/sw750/soft68/dream';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const MEMORY_GATE = 'prefs | session recall | long-run notes | auto-dream';
@@ -226,7 +226,7 @@ function verifyBlockedByReadiness(options: StatusReportOptions): boolean {
   const { ratio, maxTokens } = contextValues(options);
   return (
     model.length === 0 ||
-    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.7) ||
+    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.68) ||
     options.gitStatus?.dirty === true ||
     options.goalStatus === 'blocked' ||
     humanWritingBlocked(options)
@@ -340,7 +340,7 @@ function formatReadinessBlockers(options: StatusReportOptions): string {
   const model = (options.status?.model ?? options.model).trim();
   if (model.length === 0) blockers.push('model setup');
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.7) blockers.push('context high');
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.68) blockers.push('context high');
   if (options.gitStatus?.dirty === true) blockers.push('worktree dirty');
   if (options.goalStatus === 'blocked') blockers.push('goal blocked');
   if (humanWritingBlocked(options)) blockers.push('writing guidance');
@@ -523,7 +523,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   }
 
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.7) {
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.68) {
     return [
       { label: 'State', value: 'Context high' },
       ...gateRows,

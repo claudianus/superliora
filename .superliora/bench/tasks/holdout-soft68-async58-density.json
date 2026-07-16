@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft68-async58-density.v1",
+  "title": "Record soft68 and async58 compaction with denser skill/file tool copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/soft68-async58-density.md with sections for Soft 68, Async 58, Tool densify, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft68-async58-density.md",
+    "content": "# Soft68 Async58 Density Contract\n\n## Soft 68\nfull compaction soft trigger defaults to 0.68 so long sessions reclaim earlier while hard block stays at 0.90\n\n## Async 58\nasync background compaction and swarm micro pressure start at 0.58 so pre-rot reclaim begins sooner\n\n## Tool densify\nSearchSkill/Grep/Glob always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft68-async58-density.md", "text": "Soft 68", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft68-async58-density.md", "text": "Async 58", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft68-async58-density.md", "text": "Tool densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft68-async58-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
