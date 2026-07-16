@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.plan-todo-status-density.v1",
+  "title": "Record plan-mode, TodoList, and status-gate density contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "plan",
+    "todo",
+    "status",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/plan-todo-status-density.md with sections for Plan reminders, TodoList schema, Status gates, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/plan-todo-status-density.md",
+      "content": "# Plan Todo Status Density Contract\n\n## Plan reminders\nplan-mode full/sparse reminders stay contract-complete with denser read-only and multi-approach copy\n\n## TodoList schema\nTodoList always-on description keeps plan-file/query/anti-churn rules under the size budget\n\n## Status gates\n/status Bench gate names async/micro/dream holdouts for long-horizon context recovery\n\n## Evidence path\nLioraBench holdout + plan-mode/todo-list/status-panel vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/plan-todo-status-density.md",
+      "text": "Plan reminders",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/plan-todo-status-density.md",
+      "text": "TodoList schema",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/plan-todo-status-density.md",
+      "text": "Status gates",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/plan-todo-status-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
