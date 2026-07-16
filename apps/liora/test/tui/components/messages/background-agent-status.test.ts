@@ -2,10 +2,9 @@ import { visibleWidth } from '#/tui/renderer';
 import { describe, expect, it } from 'vitest';
 
 import { BackgroundAgentStatusComponent } from '#/tui/components/messages/background-agent-status';
-import { STATUS_BULLET } from '#/tui/constant/symbols';
 
 function strip(text: string): string {
-  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '').replaceAll(/[✦✧✺∙•]/g, '');
 }
 
 describe('BackgroundAgentStatusComponent', () => {
@@ -34,11 +33,11 @@ describe('BackgroundAgentStatusComponent', () => {
     expect(completedLines[0]).toBe('');
     expect(failedLines[0]).toBe('');
 
-    expect(startedLines[1]).toBe(
-      `${STATUS_BULLET}explore agent started in background (Explore project structure)`,
+    expect(startedLines[1]).toMatch(
+      /●\s*explore agent started in background \(Explore project structure\)/,
     );
-    expect(completedLines[1]).toBe(
-      `${STATUS_BULLET}explore agent completed in background (Explore project structure)`,
+    expect(completedLines[1]).toMatch(
+      /●\s*explore agent completed in background \(Explore project structure\)/,
     );
     expect(failedLines[1]).toBe(
       '✗ explore agent failed in background (Explore project structure · boom)',

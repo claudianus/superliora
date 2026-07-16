@@ -3,6 +3,12 @@ import { Text, truncateToWidth, type Component } from '#/tui/renderer';
 import { MESSAGE_INDENT } from '#/tui/constant/rendering';
 import { FAILURE_MARK, STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { BackgroundAgentStatusData } from '#/tui/types';
 
@@ -22,8 +28,19 @@ export class BackgroundAgentStatusComponent implements Component {
           ? 'success'
           : 'error';
 
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     const bullet =
-      this.data.phase === 'failed' ? currentTheme.fg(tone, FAILURE_MARK) : currentTheme.fg(tone, STATUS_BULLET);
+      this.data.phase === 'failed'
+        ? currentTheme.fg(tone, FAILURE_MARK)
+        : animated
+          ? this.data.phase === 'started'
+            ? renderPulseText(STATUS_BULLET, `bg-agent:${this.data.phase}`, tone)
+            : renderSpectacularText(STATUS_BULLET.trimEnd(), `bg-agent:${this.data.phase}`, appearance, {
+                intense: true,
+                pace: 'slow',
+              }) + ' '
+          : currentTheme.fg(tone, STATUS_BULLET);
     const text =
       currentTheme.fg(tone, this.data.headline) +
       (this.data.detail !== undefined && this.data.detail.length > 0
