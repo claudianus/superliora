@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.plan-anti-slop-particle-density.v1",
+  "title": "Record plan-mode, anti-slop, and particle-rail density contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "plan",
+    "anti-slop",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/plan-anti-slop-particle-density.md with sections for Library docs, Interview densify, Particle rails, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/plan-anti-slop-particle-density.md",
+      "content": "# Plan Anti-Slop Particle Density Contract\n\n## Library docs\nContext7-first library research guidance stays short and always-on cheap\n\n## Interview densify\nUltra Plan interview phase keeps expert-leader routing without filler\n\n## Particle rails\nwelcome particle rails use denser premium motion with multi-cell trails\n\n## Evidence path\nLioraBench holdout + plan-mode/anti-slop/welcome vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/plan-anti-slop-particle-density.md",
+      "text": "Library docs",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/plan-anti-slop-particle-density.md",
+      "text": "Interview densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/plan-anti-slop-particle-density.md",
+      "text": "Particle rails",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/plan-anti-slop-particle-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

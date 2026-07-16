@@ -184,7 +184,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('interview quality drives plan quality');
     expect(text).toContain('expert leader who teaches');
     expect(text).toContain('unknown-unknowns');
-    expect(text).toContain('Baseline (original scope)');
+    expect(text).toContain('Baseline + 1-3 Upgrades');
     expect(text).toContain('UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail');
     expect(text).toContain('Hard gate for NextPhase to Design: verifiable UltraGoal only');
     expect(text).toContain('Soft seed gaps, ambiguity floors, and open_gaps are recommendations');
@@ -196,7 +196,7 @@ describe('PlanModeInjector content', () => {
     expect(text).not.toContain('{{perspective}}');
     expect(text).toContain('benchmarks, best practices');
     expect(text).toContain('Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase');
-    expect(text).toContain('Investigation (including product Write/Edit prototypes) in the same turn is allowed');
+    expect(text).toContain('Same-turn investigation (including product Write/Edit prototypes) is allowed');
     expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');
     expect(text).toContain('Do not advance just because the task feels actionable');
     expect(text).toContain('live readiness checklist below');

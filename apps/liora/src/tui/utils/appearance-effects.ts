@@ -202,9 +202,10 @@ export function renderParticleRail(
   const premium = mode === 'premium';
   const tickMs = rendererEffectFrameIntervalMs(mode);
   const tick = Math.floor(appearanceAnimationNow() / tickMs);
+  // Dense demo-grade rails on premium; subtle ambient on default.
   const density = premium
-    ? Math.max(3, Math.min(18, Math.floor(safeWidth / 7)))
-    : Math.max(1, Math.min(6, Math.floor(safeWidth / 18)));
+    ? Math.max(5, Math.min(24, Math.floor(safeWidth / 5)))
+    : Math.max(1, Math.min(8, Math.floor(safeWidth / 14)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const cells = Array.from({ length: safeWidth }, () => ' ');
   const base = hashRendererEffectSeed(seed);
@@ -218,9 +219,12 @@ export function renderParticleRail(
     const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + tick + i * 3, PARTICLE_TOKENS.length)]!;
     cells[x] = currentTheme.fg(token, char);
 
-    if (premium && safeWidth > 24) {
-      const trail = rendererPositiveModulo(x - direction, safeWidth);
-      if (cells[trail] === ' ') cells[trail] = currentTheme.dimFg('particle', '·');
+    if (premium && safeWidth > 18) {
+      // Multi-cell comet trail for denser, more continuous motion.
+      const trail1 = rendererPositiveModulo(x - direction, safeWidth);
+      const trail2 = rendererPositiveModulo(x - direction * 2, safeWidth);
+      if (cells[trail1] === ' ') cells[trail1] = currentTheme.dimFg('particle', '·');
+      if (cells[trail2] === ' ') cells[trail2] = currentTheme.dimFg('textMuted', '·');
     }
   }
 
