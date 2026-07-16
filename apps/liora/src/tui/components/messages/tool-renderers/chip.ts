@@ -84,18 +84,23 @@ const editChip: ChipProvider = (toolCall) => {
 const writeChip: ChipProvider = (toolCall) => formatWriteChip(computeWriteStats(toolCall.args));
 
 /** Parse GenerateImage/GenerateVideo tool output: Path / Bytes / MIME lines. */
-function generateMediaChip(result: ToolResultBlockData): string {
+function generateMediaChip(result: ToolResultBlockData, kind: 'image' | 'video'): string {
   if (result.is_error) return '';
   let path: string | undefined;
   let bytes: string | undefined;
   let mime: string | undefined;
+  let provider: string | undefined;
   for (const line of result.output.split('\n')) {
     const trimmed = line.trim();
     if (trimmed.startsWith('Path:')) path = trimmed.slice('Path:'.length).trim();
     else if (trimmed.startsWith('Bytes:')) bytes = trimmed.slice('Bytes:'.length).trim();
     else if (trimmed.startsWith('MIME:')) mime = trimmed.slice('MIME:'.length).trim();
+    else if (trimmed.startsWith('Provider:')) provider = trimmed.slice('Provider:'.length).trim();
   }
-  const parts: string[] = [];
+  const parts: string[] = [kind === 'image' ? 'img' : 'vid'];
+  if (provider !== undefined && provider.length > 0) {
+    parts.push(provider.toLowerCase());
+  }
   if (path !== undefined && path.length > 0) {
     const base = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
     parts.push(base);
@@ -109,8 +114,8 @@ function generateMediaChip(result: ToolResultBlockData): string {
   return parts.join(' · ');
 }
 
-const generateImageChip: ChipProvider = (_toolCall, result) => generateMediaChip(result);
-const generateVideoChip: ChipProvider = (_toolCall, result) => generateMediaChip(result);
+const generateImageChip: ChipProvider = (_toolCall, result) => generateMediaChip(result, 'image');
+const generateVideoChip: ChipProvider = (_toolCall, result) => generateMediaChip(result, 'video');
 
 const readChip: ChipProvider = (_toolCall, result) =>
   pluralize(countNonEmptyLines(result.output), 'line');
