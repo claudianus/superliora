@@ -12,6 +12,7 @@ import {
   getAppearanceRenderQuality,
   getActiveAppearancePreferences,
   renderParticleDivider,
+  renderParticleRail,
   renderPulseGlyph,
   renderShimmerPrefix,
   renderSpectacularText,
@@ -432,3 +433,46 @@ function setStdoutTty(value: boolean): void {
     value,
   });
 }
+
+describe('renderParticleRail densify', () => {
+  const previous = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+  };
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('high');
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('fills premium rails with denser comet trails', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const line = renderParticleRail(
+      48,
+      {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      },
+      'rail-densify',
+    );
+    const plain = strip(line);
+    expect(visibleWidth(line)).toBe(48);
+    const filled = [...plain].filter((ch) => ch !== ' ').length;
+    expect(filled).toBeGreaterThan(20);
+    expect(plain).toMatch(/[✦✧✺∙•·]/);
+  });
+});

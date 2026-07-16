@@ -204,7 +204,7 @@ export function renderParticleRail(
   const tick = Math.floor(appearanceAnimationNow() / tickMs);
   // Dense demo-grade rails on premium; subtle ambient on default.
   const density = premium
-    ? Math.max(16, Math.min(64, Math.floor(safeWidth / 1.7)))
+    ? Math.max(20, Math.min(72, Math.floor(safeWidth / 1.45)))
     : Math.max(6, Math.min(26, Math.floor(safeWidth / 5.2)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const cells = Array.from({ length: safeWidth }, () => ' ');
@@ -220,17 +220,14 @@ export function renderParticleRail(
     cells[x] = currentTheme.fg(token, char);
 
     if (premium && safeWidth > 14) {
-      // Multi-cell comet trail for denser, more continuous motion.
-      const trail1 = rendererPositiveModulo(x - direction, safeWidth);
-      const trail2 = rendererPositiveModulo(x - direction * 2, safeWidth);
-      const trail3 = rendererPositiveModulo(x - direction * 3, safeWidth);
-      const trail4 = rendererPositiveModulo(x - direction * 4, safeWidth);
-      const trail5 = rendererPositiveModulo(x - direction * 5, safeWidth);
-      if (cells[trail1] === ' ') cells[trail1] = currentTheme.dimFg('particle', '•');
-      if (cells[trail2] === ' ') cells[trail2] = currentTheme.dimFg('particle', '·');
-      if (cells[trail3] === ' ') cells[trail3] = currentTheme.dimFg('textMuted', '·');
-      if (cells[trail4] === ' ') cells[trail4] = currentTheme.dimFg('textMuted', '·');
-      if (cells[trail5] === ' ') cells[trail5] = currentTheme.dimFg('textMuted', '·');
+      // 7-cell comet trail for denser continuous motion on demo terminals.
+      for (let step = 1; step <= 7; step++) {
+        const trail = rendererPositiveModulo(x - direction * step, safeWidth);
+        if (cells[trail] !== ' ') continue;
+        if (step === 1) cells[trail] = currentTheme.dimFg('particle', '•');
+        else if (step === 2) cells[trail] = currentTheme.dimFg('particle', '·');
+        else cells[trail] = currentTheme.dimFg('textMuted', '·');
+      }
     }
   }
 
@@ -267,7 +264,7 @@ export function renderParticleDivider(
   const premium = mode === 'premium';
   const tick = Math.floor(appearanceAnimationNow() / rendererEffectFrameIntervalMs(mode));
   const density = premium
-    ? Math.max(12, Math.min(40, Math.floor(safeWidth / 2.7)))
+    ? Math.max(14, Math.min(48, Math.floor(safeWidth / 2.3)))
     : Math.max(5, Math.min(18, Math.floor(safeWidth / 7.5)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const base = hashRendererEffectSeed(seed);

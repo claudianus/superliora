@@ -1554,13 +1554,13 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Write');
-    // Streaming preview caps at COMMAND_PREVIEW_LINES (4) and shows the tail.
+    // Streaming preview caps at COMMAND_PREVIEW_LINES (3) and shows the tail.
     expect(out).not.toContain('line1');
-    expect(out).not.toContain('line26');
-    expect(out).toContain('line27');
+    expect(out).not.toContain('line27');
+    expect(out).toContain('line28');
     expect(out).toContain('line30');
     // Line numbers should reflect actual file positions.
-    expect(out).toContain('  27');
+    expect(out).toContain('  28');
     expect(out).toContain('  30');
     expect(out).not.toContain('ctrl+o to expand');
   });
