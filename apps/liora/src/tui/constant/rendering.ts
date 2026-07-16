@@ -9,7 +9,7 @@ export const CHROME_GUTTER = 1;
 
 // Shared preview caps used by thinking, tool results, and shell snippets.
 export const RESULT_PREVIEW_LINES = 1;
-export const THINKING_PREVIEW_LINES = 2;
+export const THINKING_PREVIEW_LINES = 1;
 export const COMMAND_PREVIEW_LINES = 4;
 
 // Animation frames are shared by the login/update loaders and live thinking.
