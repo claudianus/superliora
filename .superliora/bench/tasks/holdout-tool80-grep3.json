@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool80-grep3.v1",
+  "title": "Record tool80 and grep3 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "visible-evidence"],
+  "prompt": "Create reports/tool80-grep3.md with sections for Tool 80, Grep 3, Soft1.5, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/tool80-grep3.md",
+    "content": "# Tool80 Grep3 Contract\n\n## Tool 80\nmodel-facing tool result budgets default to 80 chars with 2-char previews for denser reclaim\n\n## Grep 3\nGrep head defaults to 3 lines for denser search results\n\n## Soft1.5\nsoft compaction remains 0.015 with denser reserved/spec/abs defaults\n\n## Evidence path\nLioraBench holdout + tool/grep vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/tool80-grep3.md", "text": "Tool 80", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool80-grep3.md", "text": "Grep 3", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool80-grep3.md", "text": "Soft1.5", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool80-grep3.md", "text": "Evidence path", "weight": 1}
+  ]
+}
