@@ -52,9 +52,9 @@ export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.64;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.9;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
-export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 3_000;
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 2_500;
 /** Minimum context growth since the last compaction before auto may fire again. */
-export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.025;
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.02;
 /** Pre-swarm handoff compaction target (below soft trigger; aligned with async pre-rot headroom). */
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.6;
 /**
@@ -72,7 +72,7 @@ const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 40_000,
+  reservedContextSize: 36_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 2,
