@@ -1,7 +1,12 @@
 import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 import { formatBashOutputForDisplay, sanitizeShellOutput } from '#/tui/utils/shell-output';
 
@@ -119,7 +124,13 @@ export class ShellRunComponent extends Container {
         extra = preview.hiddenLineCount;
         body = preview.lines.map((line) => `  ${dim(line)}`).join('\n');
       }
-      const timing = `  ${dim(`${extra > 0 ? `+${extra} lines ` : ''}(${elapsed}s)`)}`;
+      const appearance = getActiveAppearancePreferences();
+      const timingRaw = `${extra > 0 ? `+${extra} lines ` : ''}(${elapsed}s)`;
+      const timing = `  ${
+        shouldRenderAmbientEffects(appearance)
+          ? renderPulseText(timingRaw, 'shell-run:elapsed', 'textDim')
+          : dim(timingRaw)
+      }`;
       const hint = `  ${dim('(ctrl+b to run in background)')}`;
       return `${body}\n${timing}\n${hint}`;
     } catch {
