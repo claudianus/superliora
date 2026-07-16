@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard84-abs100k-preview200.v1",
+  "title": "Record hard84 abs100k and 200-char tool previews",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard84-abs100k-preview200.md with sections for Hard 84, Abs 100k, Preview 200, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard84-abs100k-preview200.md",
+    "content": "# Hard84 Abs100k Preview200 Contract\n\n## Hard 84\nhard compaction block ratio defaults to 0.84 so long sessions reclaim earlier while leaving summary headroom\n\n## Abs 100k\nabsolute compaction trigger defaults to 100k tokens on large-context models\n\n## Preview 200\ntool-result previews default to 200 chars under the 8k budget for denser context\n\n## Evidence path\nLioraBench holdout + strategy vitest + tips ladder\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard84-abs100k-preview200.md", "text": "Hard 84", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard84-abs100k-preview200.md", "text": "Abs 100k", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard84-abs100k-preview200.md", "text": "Preview 200", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard84-abs100k-preview200.md", "text": "Evidence path", "weight": 1}
+  ]
+}
