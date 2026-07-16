@@ -20,6 +20,12 @@ import { Container, Spacer, Text } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 import type { ToolCallComponent, ToolCallSubagentSnapshot } from './tool-call';
 
@@ -151,9 +157,18 @@ export class AgentGroupComponent extends Container {
     const total = snapshots.length;
     const counts = countPhases(snapshots);
     const allDone = counts.terminal === total;
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     const bullet = allDone
-      ? currentTheme.fg('success', STATUS_BULLET)
-      : currentTheme.fg('text', STATUS_BULLET);
+      ? animated
+        ? renderSpectacularText(STATUS_BULLET.trimEnd(), 'agent-group:done', appearance, {
+            intense: false,
+            pace: 'slow',
+          }) + ' '
+        : currentTheme.fg('success', STATUS_BULLET)
+      : animated
+        ? renderPulseText(STATUS_BULLET, 'agent-group:running', 'text')
+        : currentTheme.fg('text', STATUS_BULLET);
     const elapsedSeconds = maxElapsedSeconds(snapshots);
 
     if (allDone) {

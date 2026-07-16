@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.agent-group-ultrawork-density.v1",
+  "title": "Record agent-group spectacle and denser Ultrawork markers",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "swarm",
+    "ultrawork",
+    "agents",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/agent-group-ultrawork-density.md with sections for Agent-group bullets, Ultrawork markers, Visual densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/agent-group-ultrawork-density.md",
+      "content": "# Agent Group Ultrawork Density Contract\n\n## Agent-group bullets\nmulti-agent group headers pulse while running and spectacular when finished\n\n## Ultrawork markers\nUltrawork lifecycle marker copy stays denser without losing pipeline meaning\n\n## Visual densify\nPremium visual supremacy line stays screenshot-proof with shorter always-on wording\n\n## Evidence path\nLioraBench holdout + ultrawork command/agent-group vitest + live TUI markers\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/agent-group-ultrawork-density.md",
+      "text": "Agent-group bullets",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/agent-group-ultrawork-density.md",
+      "text": "Ultrawork markers",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/agent-group-ultrawork-density.md",
+      "text": "Visual densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/agent-group-ultrawork-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
