@@ -19,8 +19,8 @@ describe('status panel report lines', () => {
       planMode: false,
       swarmMode: true,
       goalStatus: 'active',
-      contextUsage: 0.15,
-      contextTokens: 1500,
+      contextUsage: 0.12,
+      contextTokens: 1200,
       maxContextTokens: 10000,
       availableModels: {
         k2: {
@@ -45,9 +45,9 @@ describe('status panel report lines', () => {
         thinkingLevel: 'high',
         permission: 'auto',
         planMode: true,
-        contextTokens: 1800,
+        contextTokens: 1440,
         maxContextTokens: 12000,
-        contextUsage: 0.15,
+        contextUsage: 0.12,
       },
       gitStatus: {
         branch: 'main',
@@ -82,8 +82,8 @@ describe('status panel report lines', () => {
     expect(output).toContain('Session      ses-1');
     expect(output).toContain('Title        Implement status');
     expect(output).toContain('Context window');
-    expect(output).toContain('15.0%');
-    expect(output).toContain('(1.8K / 12.0K)');
+    expect(output).toContain('12.0%');
+    expect(output).toContain('(1.4K / 12.0K)');
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
@@ -94,7 +94,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a5\/m2\/sw100\/s16/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a4\/m2\/sw100\/s15/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -185,7 +185,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a5\/m2\/sw100\/s16/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a4\/m2\/sw100\/s15/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
