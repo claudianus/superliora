@@ -75,7 +75,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   reservedContextSize: 1,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
-  maxRecentMessages: 2,
+  maxRecentMessages: 1,
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.02,
   minOverflowReductionRatio: 0.05,

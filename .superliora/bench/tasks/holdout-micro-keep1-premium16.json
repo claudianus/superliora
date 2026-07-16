@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro-keep1-premium16.v1",
+  "title": "Record micro keep1 and premium16 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "tui", "visible-evidence"],
+  "prompt": "Create reports/micro-keep1-premium16.md with sections for Micro Keep 1, Premium 16ms, Trail 14, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/micro-keep1-premium16.md",
+    "content": "# Micro Keep1 Premium16 Contract\n\n## Micro Keep 1\nmicro compaction keeps 1 recent message and min content tokens 1 so tool-result clearing starts thriftier\n\n## Premium 16ms\npremium ambient render tick densifies to 16ms for smoother zero-config spectacle\n\n## Trail 14\npremium particle rails densify to 14-step comet trails for denser continuous motion\n\n## Evidence path\nLioraBench holdout + micro/appearance vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/micro-keep1-premium16.md", "text": "Micro Keep 1", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro-keep1-premium16.md", "text": "Premium 16ms", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro-keep1-premium16.md", "text": "Trail 14", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro-keep1-premium16.md", "text": "Evidence path", "weight": 1}
+  ]
+}
