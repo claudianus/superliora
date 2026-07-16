@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.abs26k-pblock45-spec500.v1",
+  "title": "Record abs26k pblock4.5 and spec500 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/abs26k-pblock45-spec500.md with sections for Abs 26k, Pblock 4.5, Spec 500, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/abs26k-pblock45-spec500.md",
+    "content": "# Abs26k Pblock45 Spec500 Contract\n\n## Abs 26k\nabsolute compaction trigger densifies to 26k tokens on large windows\n\n## Pblock 4.5\nparallel block threshold/target densify to 4.5k/2k for thriftier multi-prefix summarize\n\n## Spec 500\nspeculative step buffer densifies to 500 tokens so pre-turn compaction fires earlier\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/abs26k-pblock45-spec500.md", "text": "Abs 26k", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs26k-pblock45-spec500.md", "text": "Pblock 4.5", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs26k-pblock45-spec500.md", "text": "Spec 500", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs26k-pblock45-spec500.md", "text": "Evidence path", "weight": 1}
+  ]
+}
