@@ -12,7 +12,12 @@ import {
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '#/constant/app';
 import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
 import type { ChoiceOption } from './choice-picker';
@@ -222,7 +227,12 @@ export class ModelSelectorComponent extends Container implements Focusable {
         if (choice === undefined) continue;
         const isSelected = i === view.selectedIndex;
         const isCurrent = choice.alias === this.opts.currentValue;
-        const pointer = isSelected ? SELECT_POINTER : ' ';
+        const appearance = getActiveAppearancePreferences();
+        const pointer = isSelected
+          ? shouldRenderAmbientEffects(appearance)
+            ? renderPulseText(SELECT_POINTER, 'model:pointer', 'primary')
+            : SELECT_POINTER
+          : ' ';
         const truncatedName = truncateToWidth(choice.name, nameWidth, '…');
         const namePad = ' '.repeat(Math.max(0, nameWidth - visibleWidth(truncatedName)));
         let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);

@@ -21,6 +21,7 @@ import {
   getActiveAppearancePreferences,
   renderParticleDivider,
   renderPremiumHeadline,
+  renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { ttui } from '#/tui/utils/tui-i18n';
@@ -114,7 +115,12 @@ export class CommandPaletteComponent extends Container implements Focusable {
     for (let i = view.page.start; i < view.page.end; i++) {
       const entry = items[i]!;
       const isSelected = i === view.selectedIndex;
-      const pointer = isSelected ? SELECT_POINTER : ' ';
+      const appearance = getActiveAppearancePreferences();
+      const pointer = isSelected
+        ? shouldRenderAmbientEffects(appearance)
+          ? renderPulseText(SELECT_POINTER, 'palette:pointer', 'primary')
+          : SELECT_POINTER
+        : ' ';
       const category = currentTheme.fg('accent', CATEGORY_LABEL[entry.kind]);
       const prefix = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
       const label = currentTheme.fg(isSelected ? 'primary' : 'text', entry.label);

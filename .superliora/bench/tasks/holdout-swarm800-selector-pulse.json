@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.swarm800-selector-pulse.v1",
+  "title": "Record denser swarm handoff collapse and selector pointer pulse",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "swarm",
+    "tui",
+    "selector",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/swarm800-selector-pulse.md with sections for Swarm body 800, Inline summary 200, Selector pulse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/swarm800-selector-pulse.md",
+      "content": "# Swarm800 Selector Pulse Contract\n\n## Swarm body 800\nUltraSwarm expert body collapse defaults to 800 chars for denser multi-agent handoffs\n\n## Inline summary 200\narchived swarm inline summaries default to 200 chars\n\n## Selector pulse\ncommand palette and model selector selected pointers pulse under ambient effects\n\n## Evidence path\nLioraBench holdout + boundary-compaction/model-selector vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/swarm800-selector-pulse.md",
+      "text": "Swarm body 800",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm800-selector-pulse.md",
+      "text": "Inline summary 200",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm800-selector-pulse.md",
+      "text": "Selector pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm800-selector-pulse.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
