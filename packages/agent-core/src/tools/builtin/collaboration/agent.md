@@ -4,4 +4,4 @@ Launch a subagent for a task — same-process loop, own context. Delegating keep
 
 **Notes:** prefer resume (`resume` id) over respawn; results only visible to you — summarize for the user; fixed 30-minute timeout — resume on timeout. Once running, do not redo its work or finish manually.
 
-**When NOT to use:** trivial one–two step work you can do directly — delegation has handoff cost.
+**When NOT to use:** trivial one–two step work you can do directly — handoff cost is not worth it.

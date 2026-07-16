@@ -55,6 +55,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'footer badges warn on high context or missing durable evidence after compact', priority: 2, solo: true },
   { text: 'context ladder: micro50/keep8 · async60 · handoff65 · soft72 · maxRecent16 · spec5k · hard92 · abs170k', priority: 3, solo: true },
   { text: 'tool outputs auto-trim at 28k with 1k previews — /compact if still high', priority: 2, solo: true },
+  { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
