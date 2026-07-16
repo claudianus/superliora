@@ -44,27 +44,27 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.60 sits between async pre-rot (~0.48) /
+ * Compact before attention rot: 0.58 sits between async pre-rot (~0.46) /
  * swarm handoff (~0.52) and hard block (~0.86), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.6;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.58;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.86;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
-export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 2_000;
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 1_500;
 /** Minimum context growth since the last compaction before auto may fire again. */
-export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.015;
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.012;
 /** Pre-swarm handoff compaction target (below soft trigger; aligned with async pre-rot headroom). */
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.52;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
- * for cost and fidelity; start at async pre-rot (~0.48) before soft trigger.
+ * for cost and fidelity; start at async pre-rot (~0.46) before soft trigger.
  */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.48;
+export const SWARM_MICRO_PRESSURE_RATIO = 0.46;
 /** Default ratio at which async background compaction may start (pre-rot). */
-export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.48;
+export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.46;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
@@ -72,17 +72,17 @@ const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 32_000,
+  reservedContextSize: 30_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 2,
   maxRecentUserMessages: Infinity,
-  maxRecentSizeRatio: 0.08,
+  maxRecentSizeRatio: 0.07,
   minOverflowReductionRatio: 0.05,
   absoluteTriggerTokens: 110_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
-  parallelBlockThreshold: 18_000,
-  parallelBlockTarget: 9_000,
+  parallelBlockThreshold: 16_000,
+  parallelBlockTarget: 8_000,
   speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
   minRecompactGrowthRatio: DEFAULT_MIN_RECOMPACT_GROWTH_RATIO,
   asyncTriggerRatio: DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,

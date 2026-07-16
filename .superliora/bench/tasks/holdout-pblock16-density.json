@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.pblock16-density.v1",
+  "title": "Record pblock16/8 parallel summarize densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/pblock16-density.md with sections for Pblock 16 and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/pblock16-density.md",
+    "content": "# Pblock16 Density Contract\n\n## Pblock 16\nparallel summarize blocks kick in at 16k compacted tokens with 8k targets so large prefixes summarize denser and earlier\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/pblock16-density.md", "text": "Pblock 16", "weight": 1},
+    {"type": "file_contains", "path": "reports/pblock16-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.recompact12-spec15k.v1",
+  "title": "Record recompact 1.2% and speculative 1.5k buffer",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/recompact12-spec15k.md with sections for Recompact 1.2, Spec 1.5k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/recompact12-spec15k.md",
+    "content": "# Recompact12 Spec15k Contract\n\n## Recompact 1.2\nfull compaction min recompact growth defaults to 1.2% so long sessions can reclaim again sooner after a compact\n\n## Spec 1.5k\nspeculative pre-turn buffer defaults to 1.5k tokens for earlier preemptive compact without over-triggering\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/recompact12-spec15k.md", "text": "Recompact 1.2", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact12-spec15k.md", "text": "Spec 1.5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact12-spec15k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
