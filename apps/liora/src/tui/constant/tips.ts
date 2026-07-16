@@ -63,7 +63,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
   { text: 'footer μ badges show micro clears (cache-miss/swarm) without config', priority: 1, solo: true },
   { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },
-  { text: 'footer web + img·vid + zdr badges show research/media/privacy readiness without MCP or config', priority: 1, solo: true },
+  { text: 'footer web + office + img·vid + zdr badges show research/office/media/privacy readiness without MCP or config', priority: 1, solo: true },
   { text: 'background Agent only for independent work — never TaskOutput-wait after bg launch', priority: 1, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },

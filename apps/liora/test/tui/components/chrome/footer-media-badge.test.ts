@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   formatMediaFooterBadge,
+  formatOfficeFooterBadge,
   formatWebFooterBadge,
   formatZdrFooterBadge,
   mediaImageKeyReady,
@@ -81,5 +82,12 @@ describe('footer web readiness badges', () => {
   it('always reports web for built-in research tools', () => {
     expect(formatWebFooterBadge().label).toBe('web');
     expect(formatWebFooterBadge().severity).toBe('info');
+  });
+});
+
+describe('footer office readiness badges', () => {
+  it('always reports office for catalog docx/pptx/xlsx skills', () => {
+    expect(formatOfficeFooterBadge().label).toBe('office');
+    expect(formatOfficeFooterBadge().severity).toBe('info');
   });
 });

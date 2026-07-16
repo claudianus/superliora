@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.footer-office-badge.v1",
+  "title": "Record footer office readiness badge",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["tui", "office", "visible-evidence"],
+  "prompt": "Create reports/footer-office-badge.md with sections for Office badge, Web badge, Soft1.5, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/footer-office-badge.md",
+    "content": "# Footer Office Badge Contract\n\n## Office badge\nfooter always shows an office badge for SearchSkill → docx/pptx/xlsx readiness without MCP\n\n## Web badge\nfooter keeps the always-on web research badge beside office/media/ZDR\n\n## Soft1.5\nlive reclaim ladder remains soft 0.015 with denser tool/grep budgets\n\n## Evidence path\nLioraBench holdout + footer-media-badge vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Office badge", "weight": 1},
+    {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Web badge", "weight": 1},
+    {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Soft1.5", "weight": 1},
+    {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Evidence path", "weight": 1}
+  ]
+}

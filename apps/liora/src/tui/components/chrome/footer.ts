@@ -333,6 +333,15 @@ export function formatWebFooterBadge(): {
   return { label: 'web', severity: 'info' };
 }
 
+/** Compact footer badge for office skills via SearchSkill (no MCP). */
+export function formatOfficeFooterBadge(): {
+  readonly label: string;
+  readonly severity: FooterBadgeSeverity;
+} {
+  // docx / pptx / xlsx skills are catalog-ready for Word, slides, sheets.
+  return { label: 'office', severity: 'info' };
+}
+
 /** Context usage line severity aligned with soft/hard reclaim ladder. */
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
@@ -495,6 +504,8 @@ export class FooterComponent implements Component {
     }
     const webBadge = formatWebFooterBadge();
     modes.push(renderPulseText(webBadge.label, `footer:${webBadge.label}`, 'accent', appearance));
+    const officeBadge = formatOfficeFooterBadge();
+    modes.push(renderPulseText(officeBadge.label, `footer:${officeBadge.label}`, 'accent', appearance));
     const zdrBadge = formatZdrFooterBadge();
     if (zdrBadge !== null) {
       modes.push(
