@@ -1,12 +1,8 @@
-import { Container, Spacer, Text } from '#/tui/renderer';
+import {Container, Spacer} from '#/tui/renderer';
 
 import type { MoonLoader } from '#/tui/components/chrome/moon-loader';
-import { currentTheme } from '#/tui/theme';
-import {
-  getActiveAppearancePreferences,
-  renderParticleRail,
-  shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+import {currentTheme} from '#/tui/theme';
+import {getActiveAppearancePreferences, renderParticleRail, shouldRenderAmbientEffects} from '#/tui/utils/appearance-effects';
 
 export type ActivityPaneMode = 'hidden' | 'waiting' | 'thinking' | 'composing' | 'tool';
 
