@@ -203,9 +203,9 @@ describe('ToolCallComponent', () => {
     const collapsed = strip(component.render(100).join('\n'));
     expect(collapsed).toContain('line1');
     expect(collapsed).toContain('line2');
-    expect(collapsed).toContain('line3');
+    expect(collapsed).not.toContain('line3');
     expect(collapsed).not.toContain('line4');
-    expect(collapsed).toContain('... (2 more lines, ctrl+o to expand)');
+    expect(collapsed).toContain('... (3 more lines, ctrl+o to expand)');
 
     component.setExpanded(true);
 
@@ -1236,9 +1236,9 @@ describe('ToolCallComponent', () => {
     let out = strip(component.render(120).join('\n'));
     expect(out).toContain('Used Bash (ls -la)');
     expect(out).toContain('bash-line-0');
-    expect(out).toContain('bash-line-2');
-    expect(out).not.toContain('bash-line-3');
-    expect(out).toContain('... (7 more lines)');
+    expect(out).toContain('bash-line-1');
+    expect(out).not.toContain('bash-line-2');
+    expect(out).toContain('... (8 more lines)');
     // Subagent output is fixed-truncated: no ctrl+o promise.
     expect(out).not.toContain('ctrl+o');
 
@@ -1246,7 +1246,7 @@ describe('ToolCallComponent', () => {
     component.setExpanded(true);
     out = strip(component.render(120).join('\n'));
     expect(out).not.toContain('bash-line-9');
-    expect(out).toContain('... (7 more lines)');
+    expect(out).toContain('... (8 more lines)');
   });
 
   it('truncates unknown subagent tool output but leaves recognized tools as rows', () => {
@@ -1289,9 +1289,9 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('recognized-read-body');
     // Unknown/MCP tool: truncated output body, no ctrl+o promise.
     expect(out).toContain('mcp-line-0');
-    expect(out).toContain('mcp-line-2');
-    expect(out).not.toContain('mcp-line-3');
-    expect(out).toContain('... (2 more lines)');
+    expect(out).toContain('mcp-line-1');
+    expect(out).not.toContain('mcp-line-2');
+    expect(out).toContain('... (3 more lines)');
     expect(out).not.toContain('ctrl+o');
   });
 
