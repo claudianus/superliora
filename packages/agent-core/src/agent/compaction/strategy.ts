@@ -44,19 +44,19 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.01005 sits between async pre-rot (~0.01) /
- * swarm handoff (~0.0102) and hard block (~0.0103), so summaries generate while
+ * Compact before attention rot: 0.01002 sits between async pre-rot (~0.01) /
+ * swarm handoff (~0.0101) and hard block (~0.01015), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.01005;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.01002;
 /** Hard block near the window; leaves headroom for compaction summary output. */
-export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.0103;
+export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.01015;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
 export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 1;
 /** Minimum context growth since the last compaction before auto may fire again. */
-export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.00000001;
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.000000008;
 /** Pre-swarm handoff ceiling: force reclaim before UltraSwarm if usage is above this ratio. */
-export const SWARM_HANDOFF_COMPACTION_RATIO = 0.0102;
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.0101;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
