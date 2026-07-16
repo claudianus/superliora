@@ -14,11 +14,13 @@ export interface WorkflowStep {
 export interface ThemeCard {
   title: string;
   body: string;
+  swatches: string[];
 }
 
 export interface FeatureItem {
   title: string;
   body: string;
+  tag: string;
 }
 
 export interface InstallCommand {
@@ -31,6 +33,11 @@ export interface TerminalStep {
   output: string;
 }
 
+export interface StatItem {
+  value: string;
+  label: string;
+}
+
 export interface Translation {
   lang: Lang;
   dir: 'ltr';
@@ -41,10 +48,10 @@ export interface Translation {
   };
   skip: string;
   nav: {
+    workflow: string;
     harness: string;
-    ultra: string;
     memory: string;
-    themes: string;
+    capabilities: string;
     install: string;
   };
   hero: {
@@ -53,7 +60,9 @@ export interface Translation {
     lead: string;
     install: string;
     github: string;
-    stats: string[];
+    secondary: string;
+    stats: StatItem[];
+    chips: { title: string; body: string }[];
   };
   problem: {
     kicker: string;
@@ -65,6 +74,7 @@ export interface Translation {
     kicker: string;
     title: string;
     body: string;
+    note: string;
   };
   terminal: TerminalStep[];
   ultra: {
@@ -88,7 +98,7 @@ export interface Translation {
     kicker: string;
     title: string;
     body: string;
-    copyList: string[];
+    cards: { title: string; body: string }[];
   };
   themes: {
     kicker: string;
@@ -99,6 +109,7 @@ export interface Translation {
   capabilities: {
     kicker: string;
     title: string;
+    body: string;
     items: FeatureItem[];
   };
   install: {
@@ -106,6 +117,7 @@ export interface Translation {
     title: string;
     body: string;
     cta: string;
+    requirements: string;
     commands: InstallCommand[];
   };
   cta: {
@@ -118,354 +130,564 @@ export interface Translation {
     copyright: string;
     github: string;
     english: string;
+    korean: string;
     issues: string;
     security: string;
+    docs: string;
   };
 }
+
+export const PRODUCT_VERSION = '0.20.1';
 
 export const translations: Record<Lang, Translation> = {
   ko: {
     lang: 'ko',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora - Blood Moon 터미널 AI 코딩 하네스',
+      title: 'SuperLiora — Blood Moon 터미널 AI 코딩 하네스',
       description:
-        'SuperLiora는 Blood Moon 브랜드의 터미널 중심 AI 코딩 하네스입니다. 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화를 하나의 시네마틱 작업 흐름으로 연결합니다.',
+        'SuperLiora는 Blood Moon(#E63946) 브랜드의 터미널 AI 코딩 하네스입니다. Ultrawork로 조사·계획·목표·스웜·검증·학습을 한 흐름에 묶고, Liora Recall·LLM Wiki·브라우저/컴퓨터 사용까지 같은 조종석에서 다룹니다.',
       ogLocale: 'ko_KR',
     },
     skip: '본문으로 이동',
     nav: {
+      workflow: 'Ultrawork',
       harness: 'Harness',
-      ultra: 'Ultra System',
-      memory: 'Memory & Wiki',
-      themes: 'Themes',
+      memory: 'Memory',
+      capabilities: 'Capabilities',
       install: 'Install',
     },
     hero: {
-      eyebrow: 'Blood Moon · AI coding harness',
-      h1: '붉은 달 아래, 긴 개발 흐름을 터미널에서 끝까지 이어갑니다',
-      lead: 'SuperLiora는 계획, 조사, 목표 관리, 병렬 실행, 검증, 기억, 문서화, 브라우저/컴퓨터 사용을 하나의 작업 흐름으로 묶습니다. Blood Moon 팔레트로 시인성을 높이고, 긴 세션에서도 맥락과 근거를 잃지 않게 합니다.',
-      install: '바로 설치',
-      github: 'GitHub 보기',
-      stats: ['v0.20.1', 'MIT 라이선스', '12개 핵심 기능', 'Node.js >= 24'],
+      eyebrow: 'Blood Moon · terminal harness v0.20.1',
+      h1: '긴 개발 작업을 터미널에서 끝까지 이어 붙입니다',
+      lead:
+        'SuperLiora는 계획, 조사, 목표, 병렬 실행, 검증, 기억, 문서화, 브라우저·컴퓨터 사용을 하나의 Ultrawork 흐름으로 묶습니다. Blood Moon 팔레트 위에서 근거와 완료 기준을 잃지 않게 합니다.',
+      install: '설치하기',
+      github: 'GitHub',
+      secondary: '라이브 데모',
+      stats: [
+        { value: '0.20.1', label: 'liora release' },
+        { value: '128', label: 'max specialists' },
+        { value: '7', label: 'Ultrawork stages' },
+        { value: 'MIT', label: 'open license' },
+      ],
+      chips: [
+        {
+          title: 'UltraPlan',
+          body: '목표가 true/false로 검증 가능해질 때까지 요구를 좁힙니다.',
+        },
+        {
+          title: 'UltraSwarm',
+          body: 'ENGAGE/DEFER gate 뒤에서 최대 128명의 specialist를 운용합니다.',
+        },
+        {
+          title: 'Liora Recall',
+          body: 'semantic·episodic·procedural·prospective 기억을 세션 밖으로 남깁니다.',
+        },
+        {
+          title: 'Browser + Desktop',
+          body: 'CloakBrowser/Playwright와 CUA/MCP를 같은 하네스에서 호출합니다.',
+        },
+      ],
     },
     problem: {
-      kicker: 'Problem',
-      title: '긴 작업은 맥락을 잃고, 결정은 흩어집니다',
-      body: '복잡한 구현, 마이그레이션, 리팩터링은 중간에 목표가 흐려지고, 근거가 사라지며, 같은 질문을 반복하게 됩니다. 도구가 많아질수록 오히려 흐름이 끊깁니다.',
+      kicker: 'Friction',
+      title: '긴 작업일수록 목표, 근거, 맥락이 먼저 무너집니다',
+      body: '마이그레이션, 리팩터, 장애 대응은 중간에 완료 기준이 흐려지고 같은 조사를 반복합니다. 도구가 늘어날수록 흐름이 끊기고 결정 기록이 흩어집니다.',
       cases: [
         {
-          title: 'Migration & refactoring',
-          body: '대규모 변경에서 계획, 영향 범위, 검증을 하나의 흐름으로 유지합니다.',
+          title: 'Migration & refactor',
+          body: '영향 범위, 계획, 검증 명령을 한 세션 안에서 유지합니다.',
         },
         {
-          title: 'Feature implementation',
-          body: '요구사항을 명확히 고정하고, 구현 중에도 완료 기준을 잃지 않습니다.',
+          title: 'Feature delivery',
+          body: '요구사항과 acceptance criteria를 UltraGoal로 고정한 채 구현합니다.',
         },
         {
-          title: 'Incident & debugging',
-          body: '조사 근거와 시도한 방법을 정리하며 루트 원인에 집중합니다.',
+          title: 'Incident response',
+          body: '시도한 가설과 증거를 남기며 루트 원인에 집중합니다.',
         },
         {
-          title: 'Documentation & knowledge',
-          body: '검증된 결정을 다음 작업에서 다시 사용할 수 있는 자산으로 남깁니다.',
+          title: 'Knowledge carry-over',
+          body: '검증된 결정을 LLM Wiki와 Recall에 남겨 다음 세션이 같은 출발점에서 시작합니다.',
         },
       ],
     },
     solution: {
-      kicker: 'Solution',
-      title: 'Shift-Tab 한 번으로 Ultrawork 시작',
-      body: '일반 프롬프트는 가볍게, 복잡한 작업은 인터랙티브 세션 안에서 Ultrawork로 전환합니다. UltraPlan interview부터 research, Swarm decision, verification, learning까지 Blood Moon 조종석 안에서 이어집니다.',
+      kicker: 'Operator path',
+      title: 'Shift-Tab 한 번으로 Ultrawork',
+      body: '가벼운 질문은 일반 프롬프트로, 복잡한 작업은 인터랙티브 세션에서 Ultrawork로 전환합니다. research → UltraPlan interview → UltraGoal → research loop → Swarm decision → integrate → verify → learn 순서로 진행합니다.',
+      note: 'Shift + Tab · /ultrawork · liora --plan',
     },
     terminal: [
       { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
-      { cmd: 'liora', output: 'Interactive session started.' },
-      { cmd: 'liora --plan', output: 'Plan mode enabled. UltraPlan interview ready.' },
-      { cmd: 'liora -p "explain this repo"', output: 'Single-turn answer returned.' },
-      { cmd: 'liora --continue', output: 'Resumed last session in cwd.' },
+      { cmd: 'liora', output: 'Interactive session ready · Blood Moon TUI' },
+      { cmd: 'liora --plan', output: 'Plan steering on · UltraPlan interview armed' },
+      {
+        cmd: 'liora -p "/ultrawork harden auth refresh path"',
+        output: 'Ultrawork: research → interview → goal → swarm → verify',
+      },
+      { cmd: 'liora --continue', output: 'Resumed last session in cwd' },
       { cmd: 'liora server run --foreground', output: 'Server listening on 127.0.0.1:58627' },
-      { cmd: 'liora provider list', output: 'Available models and credentials.' },
+      { cmd: 'liora provider list', output: 'Routes ranked by quota · cooldown · latency' },
     ],
     ultra: {
-      kicker: 'Ultra workflow',
-      title: '계획부터 검증까지 이어지는 실행 구조',
-      body: '인터랙티브 세션에서 Shift-Tab Ultrawork mode는 복잡한 요청을 UltraPlan interview로 먼저 좁히고, true/false로 검증 가능한 목표를 만든 뒤 research, Swarm decision, integration, verification 순서로 진행합니다.',
-      copyTitle: 'Plan → Goal → Research → Swarm → Verify → Learn',
+      kicker: 'Ultrawork spine',
+      title: '조사에서 학습까지 끊기지 않는 실행 구조',
+      body: 'Ultrawork는 모호한 요청을 인터뷰로 좁히고, 검증 가능한 목표를 잠근 뒤, 필요하면 Swarm을 켜고, 통합·검증·학습까지 한 런으로 남깁니다.',
+      copyTitle: 'Research → Plan → Goal → Swarm → Verify → Learn',
       copyBody:
-        '각 단계는 이전 단계의 결과를 근거로 시작하며, 완료 여부를 명확히 기록합니다. 모호한 목표는 UltraPlan interview로 구체화되고, 리스크가 큰 결정은 Swarm gate를 통과합니다.',
+        '각 단계는 이전 단계의 산출물을 입력으로 받습니다. 리스크가 크면 UltraSwarm ENGAGE, 단독으로 충분하면 DEFER. 완료는 테스트·런타임 증거로 닫습니다.',
       copyList: [
-        'UltraPlan interview로 요구사항, 제약, 위험을 끝까지 좁힙니다.',
-        'UltraGoal로 구체적 목표와 검증 기준을 고정합니다.',
-        'UltraSwarm에서 ENGAGE/DEFER 결정을 먼저 기록합니다.',
+        'UltraPlan interview로 요구·제약·비목표·위험을 true/false 기준까지 좁힙니다.',
+        'UltraGoal이 목표, 예산, acceptance criteria를 고정합니다.',
+        'UltraSwarm은 ENGAGE/DEFER를 먼저 기록한 뒤 specialist를 붙입니다.',
+        'Learn 단계에서 프로젝트 로컬 LLM Wiki와 필요한 Recall 항목을 갱신합니다.',
       ],
       steps: [
-        { num: '01', title: 'Plan', body: '요구를 정리합니다.' },
-        { num: '02', title: 'Goal', body: '완료 기준을 고정합니다.' },
-        { num: '03', title: 'Research', body: '근거를 확인합니다.' },
-        { num: '04', title: 'Swarm', body: '전문가를 투입합니다.' },
-        { num: '05', title: 'Verify', body: '테스트와 위험을 점검합니다.' },
-        { num: '06', title: 'Learn', body: '검증된 지식을 남깁니다.' },
+        { num: '01', title: 'Research', body: 'API, 릴리스 노트, 코드 사실을 먼저 확인합니다.' },
+        { num: '02', title: 'Plan', body: 'UltraPlan interview로 요구를 검증 가능하게 만듭니다.' },
+        { num: '03', title: 'Goal', body: 'UltraGoal로 완료 기준과 예산을 잠급니다.' },
+        { num: '04', title: 'Swarm', body: 'ENGAGE/DEFER 뒤 전문 에이전트를 배치합니다.' },
+        { num: '05', title: 'Verify', body: '테스트, 런타임, 레드팀으로 닫습니다.' },
+        { num: '06', title: 'Learn', body: 'Wiki·Recall에 검증된 지식만 남깁니다.' },
       ],
     },
     harness: {
-      kicker: 'Harness capabilities',
-      title: '브라우저와 데스크톱까지 같은 흐름에 담습니다',
-      body: 'SuperLiora는 에디터 안에서 끝나지 않습니다. CloakBrowser + Playwright로 웹을 탐색하고, CUA/MCP로 네이티브 데스크톱을 조작하며, provider routing, context, memory, ACP를 같은 하네스에서 다룹니다.',
-      copyTitle: '하나의 터미널에서 웹, 데스크톱, 코드 모두 다루기',
+      kicker: 'Full harness',
+      title: '코드 밖 표면까지 같은 권한·기억 모델로',
+      body: 'Browser-use와 computer-use는 부가 기능이 아니라 하네스의 일부입니다. provider routing, Context OS, ACP, Premium Quality가 같은 세션 상태를 공유합니다.',
+      copyTitle: '웹, 데스크톱, 에디터를 한 터미널에서',
       copyBody:
-        'Browser-use와 computer-use는 별도 도구가 아니라 동일한 harness의 일부입니다. 권한, 기억, 검증 모델을 공유하며 작업 맥락을 유지합니다.',
+        'CloakBrowser + Playwright로 페이지를 관찰·조작하고, CUA/MCP로 네이티브 창을 캡처합니다. quota·cooldown·latency 기반 fallback으로 모델을 고르고, ACP로 IDE에 같은 워크플로를 노출합니다.',
       copyList: [
-        'CloakBrowser + Playwright로 웹 기반 흐름을 관찰하고 조작합니다.',
-        'CUA/MCP로 네이티브 창을 캡처하고 클릭, 입력, 드래그를 수행합니다.',
-        'Provider routing으로 quota, cooldown, latency를 기준으로 fallback합니다.',
+        'Browser-use: CloakBrowser + Playwright 웹 자동화',
+        'Computer-use: CUA/MCP 네이티브 데스크톱 제어',
+        'Provider routing: 경로 건강·할당량 기준 fallback',
+        'ACP + Premium Quality: IDE 연동과 시각 품질 게이트',
       ],
     },
     memory: {
-      kicker: 'Memory & LLM Wiki',
-      title: '작업의 맥락을 기록하고 다시 활용합니다',
-      body: 'Liora Recall은 프로젝트 사실, 결정, 절차, 후속 작업을 기억합니다. LLM Wiki는 코드베이스와 검증 근거를 문서화해 다음 작업이 같은 출발점을 공유하도록 돕습니다.',
-      copyList: [
-        'Semantic memory: 프로젝트 구조, API 제약, 운영 규칙.',
-        'Procedural memory: 빌드, 배포, 검증 루틴.',
-        'Governance memory: 정책, 하드 제약, 의사결정 기록.',
+      kicker: 'Memory stack',
+      title: '세션이 끝나도 맥락이 남습니다',
+      body: 'Context OS가 긴 대화를 압축·복구하고, Liora Recall이 장기 기억을 관리하며, LLM Wiki가 프로젝트 로컬 검토 문서를 만듭니다. 코드와 테스트가 최종 진실입니다.',
+      cards: [
+        {
+          title: 'Context OS',
+          body: 'structured working memory, repair, bounded rehydration으로 긴 세션 연속성을 유지합니다.',
+        },
+        {
+          title: 'Liora Recall',
+          body: 'semantic · episodic · procedural · prospective 기억을 검색 가능하게 보관합니다.',
+        },
+        {
+          title: 'LLM Wiki',
+          body: 'Ultrawork 런 근거와 코드 지식을 프로젝트 로컬 위키로 남겨 사람이 검토합니다.',
+        },
       ],
     },
     themes: {
       kicker: 'Premium TUI',
       title: 'Blood Moon 조종석으로 터미널을 맞춥니다',
-      body: 'Blood Moon, Daylight, Prism Syntax, Recall Green, Executive Gold 등 팔레트를 바꾸고 외부 터미널 색상을 가져올 수 있습니다. 키보드 중심 탐색과 세션별 시각 디버깅을 지원합니다.',
+      body: 'Blood Moon 기본 다크, Daylight 라이트, 코드/장시간 세션용 보조 팔레트를 지원합니다. 키보드 중심 탐색과 세션 시각 디버깅(vis)을 함께 제공합니다.',
       cards: [
         {
           title: 'Blood Moon',
-          body: '기본 다크 팔레트. #E63946 프라이머리와 높은 대비의 시네마틱 강조.',
+          body: '기본 다크. #E63946 primary, 시네마틱 대비, 장시간 상태 가독성.',
+          swatches: ['#0B0B0C', '#E63946', '#ECEAE7', '#34D399'],
+        },
+        {
+          title: 'Daylight',
+          body: '오프화이트 라이트 테마. 문서·리뷰 작업용 높은 가독성.',
+          swatches: ['#F4F1EC', '#C62828', '#161513', '#166534'],
         },
         {
           title: 'Prism Syntax',
-          body: '코드 중심 작업에 최적화된 구문 강조 팔레트.',
+          body: '구문 강조 중심 팔레트. 코드 밀도가 높은 작업에 맞춤.',
+          swatches: ['#10131A', '#E63946', '#F5B041', '#A78BFA'],
         },
         {
           title: 'Recall Green',
-          body: '장시간 세션에서 눈의 피로를 줄이는 녹색 계열.',
-        },
-        {
-          title: 'Executive Gold',
-          body: '앰버·골드 계열로 전환한 고급스러운 라이트 팔레트.',
+          body: '장시간 세션용 저자극 그린 계열. 눈 피로를 줄입니다.',
+          swatches: ['#0C1210', '#34D399', '#A8A6A1', '#E63946'],
         },
       ],
     },
     capabilities: {
-      kicker: 'Capabilities',
-      title: '긴 세션을 일관되게 만드는 핵심 기능',
+      kicker: 'Capability map',
+      title: '긴 세션을 일관되게 만드는 표면들',
+      body: '아래는 코드에 실제로 존재하는 SuperLiora 표면입니다. 마케팅용 가상 기능이 아닙니다.',
       items: [
-        { title: 'UltraPlan', body: '목표가 true/false로 검증 가능해질 때까지 요구사항을 인터뷰합니다.' },
-        { title: 'UltraResearch', body: 'API, 논문, 릴리스 노트, 보안 권고를 확인하고 근거를 남깁니다.' },
-        { title: 'UltraGoal', body: '조사 근거를 반영한 계획 뒤에 목표와 예산을 고정합니다.' },
-        { title: 'UltraSwarm', body: '최대 128개의 specialist subagent를 ENGAGE/DEFER gate와 함께 운용합니다.' },
-        { title: 'Context OS', body: 'structured working memory, repair, bounded rehydration으로 세션을 관리합니다.' },
-        { title: 'Liora Recall', body: 'semantic, episodic, procedural, prospective, governance memory를 보존합니다.' },
-        { title: 'Browser-use', body: 'CloakBrowser + Playwright로 웹 페이지를 관찰하고 조작합니다.' },
-        { title: 'Computer-use', body: 'CUA/MCP로 네이티브 데스크톱을 캡처하고 조작합니다.' },
-        { title: 'Provider routing', body: 'quota, cooldown, latency, route health를 기준으로 fallback 후보를 선택합니다.' },
-        { title: 'LLM Wiki', body: '코드베이스 지식과 검증 근거를 프로젝트 로컬에서 검토할 수 있는 위키로 전환합니다.' },
-        { title: 'Premium TUI', body: 'Blood Moon / Daylight 팔레트와 키보드 중심 탐색으로 터미널 작업 환경을 조종합니다.' },
-        { title: 'ACP', body: '동일한 SuperLiora workflow를 stdio로 ACP 호환 editor와 IDE에 노출합니다.' },
+        {
+          title: 'UltraPlan',
+          tag: 'interview',
+          body: '목표가 true/false로 검증 가능해질 때까지 요구·제약·위험을 인터뷰합니다.',
+        },
+        {
+          title: 'UltraResearch',
+          tag: 'evidence',
+          body: 'API, 논문, 릴리스 노트, 보안 권고를 확인하고 근거를 남깁니다.',
+        },
+        {
+          title: 'UltraGoal',
+          tag: 'budget',
+          body: '조사 뒤 목표와 예산, acceptance criteria를 잠급니다.',
+        },
+        {
+          title: 'UltraSwarm',
+          tag: 'parallel',
+          body: '최대 128 specialist를 ENGAGE/DEFER gate 뒤에서 운용합니다.',
+        },
+        {
+          title: 'Context OS',
+          tag: 'session',
+          body: 'compaction, working memory, continuity repair, rehydration.',
+        },
+        {
+          title: 'Liora Recall',
+          tag: 'memory',
+          body: 'semantic · episodic · procedural · prospective 장기 기억.',
+        },
+        {
+          title: 'Browser-use',
+          tag: 'web',
+          body: 'CloakBrowser + Playwright로 페이지를 관찰하고 조작합니다.',
+        },
+        {
+          title: 'Computer-use',
+          tag: 'desktop',
+          body: 'CUA/MCP로 네이티브 데스크톱을 캡처하고 조작합니다.',
+        },
+        {
+          title: 'Provider routing',
+          tag: 'fallback',
+          body: 'quota, cooldown, latency, route health로 fallback 후보를 고릅니다.',
+        },
+        {
+          title: 'LLM Wiki',
+          tag: 'docs',
+          body: '코드베이스 지식과 검증 근거를 프로젝트 로컬 위키로 남깁니다.',
+        },
+        {
+          title: 'Premium TUI',
+          tag: 'cockpit',
+          body: 'Blood Moon / Daylight 팔레트와 키보드 중심 네비게이션.',
+        },
+        {
+          title: 'ACP',
+          tag: 'ide',
+          body: '같은 SuperLiora workflow를 stdio로 ACP 호환 에디터에 노출합니다.',
+        },
       ],
     },
     install: {
       kicker: 'Install',
-      title: '소스에서 설치',
-      body: 'GitHub 저장소를 clone하고 빌드합니다. Node.js >=24.15.0과 Corepack이 설치된 pnpm 10.33.0이 필요합니다.',
-      cta: 'GitHub 보기',
+      title: '수 분 안에 조종석을 띄웁니다',
+      body: '공식 설치 스크립트 또는 소스 빌드. Node.js ≥24.15.0, pnpm 10.33.0(Corepack)이 필요합니다.',
+      cta: '저장소 열기',
+      requirements: 'Node.js ≥24.15.0 · pnpm 10.33.0 · macOS / Linux / Windows',
       commands: [
-        { label: 'curl install', cmd: 'curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash' },
-        { label: 'powershell install', cmd: 'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex' },
-        { label: 'version check', cmd: 'liora --version' },
+        {
+          label: 'macOS / Linux',
+          cmd: 'curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash',
+        },
+        {
+          label: 'Windows PowerShell',
+          cmd: 'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex',
+        },
+        { label: '버전 확인', cmd: 'liora --version' },
+        { label: 'Plan mode', cmd: 'liora --plan' },
       ],
     },
     cta: {
       title: '복잡한 작업도 한 흐름으로 끝까지',
-      body: 'SuperLiora를 설치하고 Blood Moon 조종석에서 첫 Ultrawork session을 시작해 보세요.',
+      body: 'SuperLiora를 설치하고 Blood Moon 조종석에서 첫 Ultrawork 세션을 시작하세요.',
       install: '지금 설치',
       github: 'GitHub 보기',
     },
     footer: {
-      copyright: '© SuperLiora Contributors. MIT License.',
+      copyright: '© SuperLiora Contributors · MIT',
       github: 'GitHub',
       english: 'English',
+      korean: '한국어',
       issues: 'Issues',
       security: 'Security',
+      docs: 'Reference docs',
     },
   },
   en: {
     lang: 'en',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora - Blood Moon Terminal AI Coding Harness',
+      title: 'SuperLiora — Blood Moon terminal AI coding harness',
       description:
-        'SuperLiora is a Blood Moon-branded, terminal-centric AI coding harness. It connects planning, research, goal management, parallel execution, verification, memory, and documentation into one cinematic workflow.',
+        'SuperLiora is a Blood Moon (#E63946) terminal AI coding harness. Ultrawork binds research, planning, goals, swarm execution, verification, and learning — with Liora Recall, LLM Wiki, browser-use, and computer-use in one cockpit.',
       ogLocale: 'en_US',
     },
     skip: 'Skip to main content',
     nav: {
+      workflow: 'Ultrawork',
       harness: 'Harness',
-      ultra: 'Ultra System',
-      memory: 'Memory & Wiki',
-      themes: 'Themes',
+      memory: 'Memory',
+      capabilities: 'Capabilities',
       install: 'Install',
     },
     hero: {
-      eyebrow: 'Blood Moon · AI coding harness',
-      h1: 'Under a blood moon, carry long development flows to the finish in your terminal',
-      lead: 'SuperLiora connects planning, research, goal management, parallel execution, verification, memory, documentation, browser, and computer use into one workflow. The Blood Moon palette keeps dense status readable while long sessions keep context and evidence intact.',
-      install: 'Install now',
-      github: 'View on GitHub',
-      stats: ['v0.20.1', 'MIT License', '12 capabilities', 'Node.js >= 24'],
+      eyebrow: 'Blood Moon · terminal harness v0.20.1',
+      h1: 'Carry long development work to the finish in your terminal',
+      lead:
+        'SuperLiora binds planning, research, goals, parallel execution, verification, memory, documentation, browser-use, and computer-use into one Ultrawork flow. The Blood Moon palette keeps dense status readable without losing evidence.',
+      install: 'Install',
+      github: 'GitHub',
+      secondary: 'Live demo',
+      stats: [
+        { value: '0.20.1', label: 'liora release' },
+        { value: '128', label: 'max specialists' },
+        { value: '7', label: 'Ultrawork stages' },
+        { value: 'MIT', label: 'open license' },
+      ],
+      chips: [
+        {
+          title: 'UltraPlan',
+          body: 'Interview requirements until the goal is true/false verifiable.',
+        },
+        {
+          title: 'UltraSwarm',
+          body: 'Run up to 128 specialists behind an ENGAGE/DEFER gate.',
+        },
+        {
+          title: 'Liora Recall',
+          body: 'Keep semantic, episodic, procedural, and prospective memory durable.',
+        },
+        {
+          title: 'Browser + Desktop',
+          body: 'Call CloakBrowser/Playwright and CUA/MCP from the same harness.',
+        },
+      ],
     },
     problem: {
-      kicker: 'Problem',
-      title: 'Long work loses context, and decisions scatter',
-      body: 'Complex implementations, migrations, and refactoring blur goals mid-flight, erase rationale, and force the same questions again. More tools often mean more broken flow.',
+      kicker: 'Friction',
+      title: 'Long work fails when goals, evidence, and context drift first',
+      body: 'Migrations, refactors, and incidents blur completion criteria mid-flight and force the same investigation twice. More tools often mean more broken flow and scattered decisions.',
       cases: [
         {
-          title: 'Migration & refactoring',
-          body: 'Keep plan, scope, and verification in a single flow for large-scale changes.',
+          title: 'Migration & refactor',
+          body: 'Keep scope, plan, and verification commands alive in one session.',
         },
         {
-          title: 'Feature implementation',
-          body: 'Lock requirements and keep completion criteria visible while you build.',
+          title: 'Feature delivery',
+          body: 'Lock requirements and acceptance criteria with UltraGoal while you build.',
         },
         {
-          title: 'Incident & debugging',
-          body: 'Organize investigation evidence and attempted fixes to focus on root cause.',
+          title: 'Incident response',
+          body: 'Record hypotheses and evidence while you chase the root cause.',
         },
         {
-          title: 'Documentation & knowledge',
-          body: 'Turn verified decisions into reusable assets for the next session.',
+          title: 'Knowledge carry-over',
+          body: 'Leave verified decisions in LLM Wiki and Recall so the next session starts warm.',
         },
       ],
     },
     solution: {
-      kicker: 'Solution',
-      title: 'Start Ultrawork with one Shift-Tab',
-      body: 'Use normal prompts for light tasks, and switch to Ultrawork inside an interactive session for complex ones. From UltraPlan interview through research, Swarm decision, verification, and learning—all from the Blood Moon cockpit.',
+      kicker: 'Operator path',
+      title: 'One Shift-Tab into Ultrawork',
+      body: 'Use normal prompts for light questions. For hard work, flip Ultrawork inside an interactive session: research → UltraPlan interview → UltraGoal → research loop → Swarm decision → integrate → verify → learn.',
+      note: 'Shift + Tab · /ultrawork · liora --plan',
     },
     terminal: [
       { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
-      { cmd: 'liora', output: 'Interactive session started.' },
-      { cmd: 'liora --plan', output: 'Plan mode enabled. UltraPlan interview ready.' },
-      { cmd: 'liora -p "explain this repo"', output: 'Single-turn answer returned.' },
-      { cmd: 'liora --continue', output: 'Resumed last session in cwd.' },
+      { cmd: 'liora', output: 'Interactive session ready · Blood Moon TUI' },
+      { cmd: 'liora --plan', output: 'Plan steering on · UltraPlan interview armed' },
+      {
+        cmd: 'liora -p "/ultrawork harden auth refresh path"',
+        output: 'Ultrawork: research → interview → goal → swarm → verify',
+      },
+      { cmd: 'liora --continue', output: 'Resumed last session in cwd' },
       { cmd: 'liora server run --foreground', output: 'Server listening on 127.0.0.1:58627' },
-      { cmd: 'liora provider list', output: 'Available models and credentials.' },
+      { cmd: 'liora provider list', output: 'Routes ranked by quota · cooldown · latency' },
     ],
     ultra: {
-      kicker: 'Ultra workflow',
-      title: 'An execution structure from plan to verification',
-      body: 'Inside an interactive session, Shift-Tab Ultrawork mode first narrows complex requests with an UltraPlan interview, creates a true/false verifiable goal, then proceeds through research, Swarm decision, integration, and verification.',
-      copyTitle: 'Plan → Goal → Research → Swarm → Verify → Learn',
+      kicker: 'Ultrawork spine',
+      title: 'An execution structure that does not drop the thread',
+      body: 'Ultrawork narrows fuzzy asks with an interview, locks a verifiable goal, engages Swarm only when needed, then closes with integrate, verify, and learn — as one durable run.',
+      copyTitle: 'Research → Plan → Goal → Swarm → Verify → Learn',
       copyBody:
-        'Each stage starts from the previous result and records completion clearly. Fuzzy goals are sharpened by the UltraPlan interview, and high-risk decisions pass through the Swarm gate.',
+        'Each stage consumes the previous artifact. High risk means UltraSwarm ENGAGE; otherwise DEFER. Completion is closed with tests and runtime evidence.',
       copyList: [
-        'UltraPlan interview narrows requirements, constraints, and risks.',
-        'UltraGoal locks concrete objectives and verification criteria.',
-        'UltraSwarm records the ENGAGE/DEFER decision first.',
+        'UltraPlan interview narrows requirements, constraints, non-goals, and risks to true/false criteria.',
+        'UltraGoal locks objectives, budgets, and acceptance criteria.',
+        'UltraSwarm records ENGAGE/DEFER first, then attaches specialists.',
+        'Learn updates the project-local LLM Wiki and only the Recall facts that deserve durability.',
       ],
       steps: [
-        { num: '01', title: 'Plan', body: 'Clarify the request.' },
-        { num: '02', title: 'Goal', body: 'Lock completion criteria.' },
-        { num: '03', title: 'Research', body: 'Confirm the evidence.' },
-        { num: '04', title: 'Swarm', body: 'Engage specialists.' },
-        { num: '05', title: 'Verify', body: 'Check tests and risks.' },
-        { num: '06', title: 'Learn', body: 'Leave verified knowledge.' },
+        { num: '01', title: 'Research', body: 'Ground in APIs, release notes, and code facts.' },
+        { num: '02', title: 'Plan', body: 'Make the ask verifiable with UltraPlan interview.' },
+        { num: '03', title: 'Goal', body: 'Lock completion criteria and budget with UltraGoal.' },
+        { num: '04', title: 'Swarm', body: 'Place specialists after ENGAGE/DEFER.' },
+        { num: '05', title: 'Verify', body: 'Close with tests, runtime, and red-team checks.' },
+        { num: '06', title: 'Learn', body: 'Write only verified knowledge into Wiki/Recall.' },
       ],
     },
     harness: {
-      kicker: 'Harness capabilities',
-      title: 'Bring browser and desktop into the same flow',
-      body: 'SuperLiora does not stop inside the editor. It explores the web with CloakBrowser + Playwright, manipulates native desktops with CUA/MCP, and handles provider routing, context, memory, and ACP in the same harness.',
-      copyTitle: 'Handle web, desktop, and code from one terminal',
+      kicker: 'Full harness',
+      title: 'Surfaces beyond code, same permission and memory model',
+      body: 'Browser-use and computer-use are part of the harness, not bolt-ons. Provider routing, Context OS, ACP, and Premium Quality share the same session state.',
+      copyTitle: 'Web, desktop, and editors from one terminal',
       copyBody:
-        'Browser-use and computer-use are not separate tools; they are part of the same harness. They share permissions, memory, and verification models to keep work context intact.',
+        'Observe and drive pages with CloakBrowser + Playwright. Capture native windows with CUA/MCP. Pick models by quota, cooldown, and latency. Expose the same workflow to IDEs over ACP.',
       copyList: [
-        'CloakBrowser + Playwright observe and manipulate web flows.',
-        'CUA/MCP capture native windows and perform clicks, input, and drag.',
-        'Provider routing falls back by quota, cooldown, and latency.',
+        'Browser-use: CloakBrowser + Playwright web automation',
+        'Computer-use: CUA/MCP native desktop control',
+        'Provider routing: health- and quota-aware fallback',
+        'ACP + Premium Quality: IDE bridge and visual quality gate',
       ],
     },
     memory: {
-      kicker: 'Memory & LLM Wiki',
-      title: 'Record context and reuse it',
-      body: 'Liora Recall remembers project facts, decisions, procedures, and follow-ups. LLM Wiki documents codebase knowledge and verification evidence so the next session starts from the same baseline.',
-      copyList: [
-        'Semantic memory: project structure, API constraints, operational rules.',
-        'Procedural memory: build, deploy, and verification routines.',
-        'Governance memory: policies, hard constraints, decision records.',
+      kicker: 'Memory stack',
+      title: 'Context that survives the session boundary',
+      body: 'Context OS compresses and repairs long chats, Liora Recall stores durable memory, and LLM Wiki leaves project-local review docs. Code and tests remain the final source of truth.',
+      cards: [
+        {
+          title: 'Context OS',
+          body: 'Structured working memory, repair, and bounded rehydration for long-session continuity.',
+        },
+        {
+          title: 'Liora Recall',
+          body: 'Searchable semantic, episodic, procedural, and prospective memory.',
+        },
+        {
+          title: 'LLM Wiki',
+          body: 'Project-local Ultrawork evidence and codebase knowledge for human review.',
+        },
       ],
     },
     themes: {
       kicker: 'Premium TUI',
       title: 'Tune the terminal as a Blood Moon cockpit',
-      body: 'Switch palettes such as Blood Moon, Daylight, Prism Syntax, Recall Green, and Executive Gold, or import external terminal colors. Keyboard-first navigation and per-session visual debugging are built in.',
+      body: 'Blood Moon dark by default, Daylight for light review work, plus helper palettes for dense code and long sessions. Keyboard-first navigation and session visual debugging (vis) ship with the harness.',
       cards: [
         {
           title: 'Blood Moon',
-          body: 'Default dark palette. #E63946 primary with high-contrast cinematic accents.',
+          body: 'Default dark. #E63946 primary, cinematic contrast, dense status readability.',
+          swatches: ['#0B0B0C', '#E63946', '#ECEAE7', '#34D399'],
+        },
+        {
+          title: 'Daylight',
+          body: 'Off-white light theme for docs and review-heavy work.',
+          swatches: ['#F4F1EC', '#C62828', '#161513', '#166534'],
         },
         {
           title: 'Prism Syntax',
-          body: 'A syntax-highlighting palette optimized for code-heavy work.',
+          body: 'Syntax-forward palette for high code density.',
+          swatches: ['#10131A', '#E63946', '#F5B041', '#A78BFA'],
         },
         {
           title: 'Recall Green',
-          body: 'A green-leaning scheme that reduces eye strain in long sessions.',
-        },
-        {
-          title: 'Executive Gold',
-          body: 'A refined light palette shifted toward amber and gold.',
+          body: 'Lower-stimulus green lean for long sessions.',
+          swatches: ['#0C1210', '#34D399', '#A8A6A1', '#E63946'],
         },
       ],
     },
     capabilities: {
-      kicker: 'Capabilities',
-      title: 'Core capabilities that keep long sessions consistent',
+      kicker: 'Capability map',
+      title: 'Surfaces that keep long sessions coherent',
+      body: 'These are real SuperLiora surfaces present in the monorepo — not brochure fiction.',
       items: [
-        { title: 'UltraPlan', body: 'Interview requirements until the goal becomes true/false verifiable.' },
-        { title: 'UltraResearch', body: 'Check APIs, papers, release notes, and security advisories, then cite evidence.' },
-        { title: 'UltraGoal', body: 'Lock objectives and budgets after the research-backed plan.' },
-        { title: 'UltraSwarm', body: 'Run up to 128 specialist subagents behind an ENGAGE/DEFER gate.' },
-        { title: 'Context OS', body: 'Manage sessions with structured working memory, repair, and bounded rehydration.' },
-        { title: 'Liora Recall', body: 'Preserve semantic, episodic, procedural, prospective, and governance memory.' },
-        { title: 'Browser-use', body: 'Observe and manipulate web pages with CloakBrowser + Playwright.' },
-        { title: 'Computer-use', body: 'Capture and manipulate native desktops with CUA/MCP.' },
-        { title: 'Provider routing', body: 'Choose fallback candidates by quota, cooldown, latency, and route health.' },
-        { title: 'LLM Wiki', body: 'Turn codebase knowledge and verification evidence into a local project wiki.' },
-        { title: 'Premium TUI', body: 'Pilot the terminal with Blood Moon / Daylight palettes and keyboard-first navigation.' },
-        { title: 'ACP', body: 'Expose the same SuperLiora workflow over stdio to ACP-compatible editors and IDEs.' },
+        {
+          title: 'UltraPlan',
+          tag: 'interview',
+          body: 'Interview requirements until the goal is true/false verifiable.',
+        },
+        {
+          title: 'UltraResearch',
+          tag: 'evidence',
+          body: 'Check APIs, papers, release notes, and advisories; leave citations.',
+        },
+        {
+          title: 'UltraGoal',
+          tag: 'budget',
+          body: 'Lock objectives, budgets, and acceptance criteria after research.',
+        },
+        {
+          title: 'UltraSwarm',
+          tag: 'parallel',
+          body: 'Run up to 128 specialists behind ENGAGE/DEFER.',
+        },
+        {
+          title: 'Context OS',
+          tag: 'session',
+          body: 'Compaction, working memory, continuity repair, rehydration.',
+        },
+        {
+          title: 'Liora Recall',
+          tag: 'memory',
+          body: 'Semantic, episodic, procedural, and prospective durable memory.',
+        },
+        {
+          title: 'Browser-use',
+          tag: 'web',
+          body: 'Observe and drive pages with CloakBrowser + Playwright.',
+        },
+        {
+          title: 'Computer-use',
+          tag: 'desktop',
+          body: 'Capture and control native desktops with CUA/MCP.',
+        },
+        {
+          title: 'Provider routing',
+          tag: 'fallback',
+          body: 'Choose fallbacks by quota, cooldown, latency, and route health.',
+        },
+        {
+          title: 'LLM Wiki',
+          tag: 'docs',
+          body: 'Turn codebase knowledge and verification evidence into a local wiki.',
+        },
+        {
+          title: 'Premium TUI',
+          tag: 'cockpit',
+          body: 'Blood Moon / Daylight palettes with keyboard-first navigation.',
+        },
+        {
+          title: 'ACP',
+          tag: 'ide',
+          body: 'Expose the same workflow over stdio to ACP-compatible editors.',
+        },
       ],
     },
     install: {
       kicker: 'Install',
-      title: 'Install from source',
-      body: 'Clone the GitHub repository and build. Requires Node.js >=24.15.0 and pnpm 10.33.0 with Corepack enabled.',
-      cta: 'View on GitHub',
+      title: 'Bring the cockpit up in minutes',
+      body: 'Use the official install scripts or build from source. Requires Node.js ≥24.15.0 and pnpm 10.33.0 with Corepack.',
+      cta: 'Open repository',
+      requirements: 'Node.js ≥24.15.0 · pnpm 10.33.0 · macOS / Linux / Windows',
       commands: [
-        { label: 'curl install', cmd: 'curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash' },
-        { label: 'powershell install', cmd: 'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex' },
-        { label: 'version check', cmd: 'liora --version' },
+        {
+          label: 'macOS / Linux',
+          cmd: 'curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash',
+        },
+        {
+          label: 'Windows PowerShell',
+          cmd: 'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex',
+        },
+        { label: 'Version check', cmd: 'liora --version' },
+        { label: 'Plan mode', cmd: 'liora --plan' },
       ],
     },
     cta: {
-      title: 'One flow from start to finish, even for complex work',
+      title: 'One flow from first ask to verified finish',
       body: 'Install SuperLiora and start your first Ultrawork session from the Blood Moon cockpit.',
       install: 'Install now',
       github: 'View on GitHub',
     },
     footer: {
-      copyright: '© SuperLiora Contributors. MIT License.',
+      copyright: '© SuperLiora Contributors · MIT',
       github: 'GitHub',
       english: 'English',
+      korean: '한국어',
       issues: 'Issues',
       security: 'Security',
+      docs: 'Reference docs',
     },
   },
 };

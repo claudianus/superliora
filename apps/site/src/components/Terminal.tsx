@@ -5,10 +5,10 @@ interface TerminalProps {
   steps: TerminalStep[];
 }
 
-const CHAR_DELAY = 40;
-const OUTPUT_DELAY = 700;
-const STEP_DELAY = 350;
-const LOOP_DELAY = 2200;
+const CHAR_DELAY = 28;
+const OUTPUT_DELAY = 520;
+const STEP_DELAY = 280;
+const LOOP_DELAY = 2400;
 
 type Phase = 'typing' | 'output' | 'waiting' | 'done';
 
@@ -110,12 +110,11 @@ export function Terminal({ steps }: TerminalProps) {
     }
 
     let colorClass = 'text-muted';
-    if (line.includes('UltraPlan interview')) colorClass = 'text-cyan-dim';
-    if (line.includes('UltraGoal locked')) colorClass = 'text-emerald';
-    if (line.includes('Research loop')) colorClass = 'text-teal';
-    if (line.includes('Ultrawork session')) colorClass = 'text-violet';
-    if (line.includes('Verification:')) colorClass = 'text-amber';
-    if (line.includes('Saved to')) colorClass = 'text-soft';
+    if (line.includes('UltraPlan') || line.includes('interview')) colorClass = 'text-soft';
+    if (line.includes('goal locked') || line.includes('passed')) colorClass = 'text-emerald';
+    if (line.includes('Ultrawork') || line.includes('Routes')) colorClass = 'text-rose';
+    if (line.includes('Server listening') || line.includes('Resumed')) colorClass = 'text-soft';
+    if (line.includes('Blood Moon')) colorClass = 'text-cyan-dim';
 
     return (
       <div key={i} className={colorClass}>
@@ -126,7 +125,7 @@ export function Terminal({ steps }: TerminalProps) {
 
   return (
     <div
-      className="terminal-glow rounded-2xl border border-line bg-bg-2/80 shadow-2xl backdrop-blur"
+      className="terminal-glow overflow-hidden rounded-2xl border border-line bg-bg-2/90 shadow-2xl backdrop-blur instrument"
       role="img"
       aria-label="Live terminal simulation"
     >
@@ -134,12 +133,16 @@ export function Terminal({ steps }: TerminalProps) {
         <span className="h-3 w-3 rounded-full bg-rose" aria-hidden="true" />
         <span className="h-3 w-3 rounded-full bg-amber" aria-hidden="true" />
         <span className="h-3 w-3 rounded-full bg-emerald" aria-hidden="true" />
-        <span className="ml-2 text-xs font-medium text-muted">SuperLiora</span>
+        <span className="ml-2 font-mono text-xs font-medium text-muted">liora · blood-moon</span>
+        <span className="ml-auto hidden items-center gap-1.5 font-mono text-[10px] text-muted sm:inline-flex">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald pulse-dot" />
+          live
+        </span>
       </div>
-      <div className="min-h-[16rem] p-5 font-mono text-sm leading-relaxed text-soft">
+      <div className="min-h-[18rem] p-5 font-mono text-sm leading-relaxed text-soft">
         <div aria-live="polite" aria-atomic="false">
           {lines.map(renderLine)}
-          {lineIndex < steps.length && (
+          {lineIndex < steps.length && phase !== 'done' && (
             <div className="mt-1">
               <span className="text-amber">$</span>{' '}
               <span className="text-text">
