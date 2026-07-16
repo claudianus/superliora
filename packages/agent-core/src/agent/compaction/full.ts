@@ -285,6 +285,7 @@ export class FullCompaction {
       type: 'compaction.started',
       trigger: data.source,
       instruction: data.instruction,
+      mode: this.agent.turn.hasActiveTurn ? 'background' : 'blocking',
     });
     const abortController = new AbortController();
     this.compacting = {

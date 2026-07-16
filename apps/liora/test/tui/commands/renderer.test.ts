@@ -15,6 +15,7 @@ function makeHost() {
       appState: {
         streamingPhase: 'idle',
         isCompacting: false,
+        isBackgroundCompacting: false,
       },
     },
     skillCommandMap: new Map<string, string>(),

@@ -717,13 +717,18 @@ export class StreamingUIController {
     requestTUILayoutRender(state);
   }
 
-  beginCompaction(instruction?: string): void {
+  beginCompaction(
+    instruction?: string,
+    options?: { readonly background?: boolean },
+  ): void {
     const { state } = this.host;
     if (this._activeCompactionBlock !== undefined) {
       this._activeCompactionBlock.markDone();
       this._activeCompactionBlock = undefined;
     }
-    const block = new CompactionComponent(state.ui, instruction, currentWorkingTip()?.text);
+    const block = new CompactionComponent(state.ui, instruction, currentWorkingTip()?.text, {
+      background: options?.background === true,
+    });
     this._activeCompactionBlock = block;
     state.transcriptContainer.addChild(block);
     requestTUILayoutRender(state);

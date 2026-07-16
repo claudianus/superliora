@@ -3,7 +3,7 @@
  *
  * Lifecycle:
  *   - constructed on `compaction.started` → blinking white bullet +
- *     "Compacting context..." and optional custom instruction
+ *     "Compacting context..." (or background variant) and optional custom instruction
  *   - `markDone()` on `compaction.completed` → solid green bullet +
  *     "Compaction complete (X → Y tokens)"
  *   - `markCanceled()` on `compaction.cancelled` → solid warning bullet +
@@ -32,16 +32,23 @@ export class CompactionComponent extends Container {
   private readonly headerText: Text;
   private readonly instruction: string | undefined;
   private readonly tip: string | undefined;
+  private readonly background: boolean;
   private done = false;
   private canceled = false;
   private tokensBefore: number | undefined;
   private tokensAfter: number | undefined;
 
-  constructor(ui?: RendererRootUI, instruction?: string | undefined, tip?: string) {
+  constructor(
+    ui?: RendererRootUI,
+    instruction?: string | undefined,
+    tip?: string,
+    options?: { readonly background?: boolean },
+  ) {
     super();
     this.ui = ui;
     this.instruction = instruction;
     this.tip = tip;
+    this.background = options?.background === true;
 
     // Top margin so the block isn't glued to the previous transcript
     // entry (status line, tool result, etc.).
@@ -127,9 +134,16 @@ export class CompactionComponent extends Container {
     // Derive the blink phase from the animation clock — no private timer.
     const blinkOn = Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0;
     const bullet = blinkOn ? currentTheme.fg('text', STATUS_BULLET) : '  ';
+    const activeLabel = this.background
+      ? 'Compacting in background...'
+      : 'Compacting context...';
     const label = animated
-      ? renderPremiumHeadline('Compacting context...', 'compaction:active', appearance)
-      : currentTheme.boldFg('primary', 'Compacting context...');
+      ? renderPremiumHeadline(
+          activeLabel,
+          this.background ? 'compaction:bg' : 'compaction:active',
+          appearance,
+        )
+      : currentTheme.boldFg(this.background ? 'warning' : 'primary', activeLabel);
     const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
     return `${bullet}${label}${tip}`;
   }

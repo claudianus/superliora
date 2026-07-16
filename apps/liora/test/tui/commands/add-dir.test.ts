@@ -20,6 +20,7 @@ function makeHost(additionalDirs: readonly string[] = []) {
       additionalDirs,
       streamingPhase: 'idle',
       isCompacting: false,
+      isBackgroundCompacting: false,
     },
   };
   let mountedPanel: MountedPanel | null = null;

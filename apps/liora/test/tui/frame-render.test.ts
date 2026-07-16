@@ -17,6 +17,7 @@ function fakeAppState(): AppState {
     ultraworkMode: false,
     streamingPhase: 'idle',
     isCompacting: false,
+    isBackgroundCompacting: false,
     inputMode: 'prompt',
   } as AppState;
 }

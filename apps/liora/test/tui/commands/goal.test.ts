@@ -130,6 +130,7 @@ function makeHost(
         swarmMode: false,
         streamingPhase: overrides.streaming ? 'streaming' : 'idle',
         isCompacting: false,
+        isBackgroundCompacting: false,
       },
       swarmModeEntry: undefined,
       transcriptContainer,

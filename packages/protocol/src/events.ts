@@ -760,6 +760,12 @@ export interface CompactionStartedEvent {
   readonly type: 'compaction.started';
   readonly trigger: 'manual' | 'auto';
   readonly instruction?: string;
+  /**
+   * `background` means full compaction is summarizing while the turn continues
+   * (async pre-rot). Omitted / `blocking` means the UI should treat the session
+   * as busy until completion.
+   */
+  readonly mode?: 'blocking' | 'background';
 }
 
 export interface CompactionBlockedEvent {
@@ -1596,6 +1602,7 @@ export const compactionStartedEventSchema = z.object({
   type: z.literal('compaction.started'),
   trigger: z.enum(['manual', 'auto']),
   instruction: z.string().optional(),
+  mode: z.enum(['blocking', 'background']).optional(),
 }) satisfies z.ZodType<CompactionStartedEvent>;
 
 export const compactionBlockedEventSchema = z.object({

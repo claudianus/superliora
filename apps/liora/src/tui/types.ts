@@ -73,6 +73,11 @@ export interface AppState {
     readonly byTrigger: Readonly<Record<string, number>>;
   } | null;
   isCompacting: boolean;
+  /**
+   * Background (async) full compaction is summarizing while the turn may continue.
+   * Distinct from `isCompacting`, which means the session is blocked on compaction.
+   */
+  isBackgroundCompacting: boolean;
   isReplaying: boolean;
   streamingPhase: 'idle' | 'waiting' | 'thinking' | 'composing' | 'shell';
   streamingStartTime: number;
