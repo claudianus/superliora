@@ -52,7 +52,7 @@ export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.011;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.45;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
-export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 400;
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 350;
 /** Minimum context growth since the last compaction before auto may fire again. */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.005;
 /** Pre-swarm handoff ceiling: force reclaim before UltraSwarm if usage is above this ratio. */
@@ -81,8 +81,8 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   minOverflowReductionRatio: 0.05,
   absoluteTriggerTokens: 22_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
-  parallelBlockThreshold: 4_000,
-  parallelBlockTarget: 1_800,
+  parallelBlockThreshold: 3_500,
+  parallelBlockTarget: 1_500,
   speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
   minRecompactGrowthRatio: DEFAULT_MIN_RECOMPACT_GROWTH_RATIO,
   asyncTriggerRatio: DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
