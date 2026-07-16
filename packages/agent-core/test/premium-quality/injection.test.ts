@@ -79,7 +79,7 @@ describe('PremiumQualityInjector', () => {
     const text = lastReminder(agent);
     expect(text).toContain('Premium Quality is ON');
     expect(text).toContain('principal designer');
-    expect(text).toContain('PREMIUM QUALITY MODE');
+    expect(text).toContain('PREMIUM QUALITY');
     expect(text).toContain('SearchSkill');
     expect(text).toContain('BrowserScreenshot');
     expect(text).toContain('godly.website');

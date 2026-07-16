@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.token-prompt-density.v1",
+  "title": "Record always-on prompt density contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "prompt",
+    "premium",
+    "web",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/token-prompt-density.md with sections for Premium hype, Code density, Web chips, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/token-prompt-density.md",
+      "content": "# Token Prompt Density Contract\n\n## Premium hype\nPremium Quality always-on and sparse guidance stay compact without synonym floods\n\n## Code density\nnon-visual Premium mode keeps code/evidence bar without visual harness flood\n\n## Web chips\nWebSearch chips render dense web · N glances for transparent research work\n\n## Evidence path\nLioraBench holdout + premium-quality/chip vitest + focused system profile checks\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/token-prompt-density.md",
+      "text": "Premium hype",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/token-prompt-density.md",
+      "text": "Code density",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/token-prompt-density.md",
+      "text": "Web chips",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/token-prompt-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
