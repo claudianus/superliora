@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro-tool-budget-density.v1",
+  "title": "Record earlier micro-compaction and tighter tool-result budget contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "micro-compaction",
+    "tool-result",
+    "long-horizon",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/micro-tool-budget-density.md with sections for Micro trigger, Recent window, Tool-result budget, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/micro-tool-budget-density.md",
+      "content": "# Micro Tool Budget Density Contract\n\n## Micro trigger\nmicro-compaction usage pressure defaults to 50% so bulky tool results clear earlier in long sessions\n\n## Recent window\nkeepRecentMessages default is 12 so older tool results clear sooner while recent work stays intact\n\n## Tool-result budget\nlive tool outputs persist and preview earlier at 40k/1.5k chars to protect context headroom\n\n## Evidence path\nLioraBench holdout + micro/tool budget vitest + /status micro-clear badge\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/micro-tool-budget-density.md",
+      "text": "Micro trigger",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro-tool-budget-density.md",
+      "text": "Recent window",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro-tool-budget-density.md",
+      "text": "Tool-result budget",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/micro-tool-budget-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
