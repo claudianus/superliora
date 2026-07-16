@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft49-async38-tool5k.v1",
+  "title": "Record soft49 async38 and tool5k densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft49-async38-tool5k.md with sections for Soft 49, Async 38, Tool 5k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft49-async38-tool5k.md",
+    "content": "# Soft49 Async38 Tool5k Contract\n\n## Soft 49\nsoft compaction trigger defaults to 0.49 so full summaries start earlier under long sessions\n\n## Async 38\nasync pre-rot and swarm micro pressure default to 0.38 so reclaim starts earlier\n\n## Tool 5k\ntool result budgets default to 5000 chars with 90-char previews for denser reclaim\n\n## Evidence path\nLioraBench holdout + strategy/tool/status-panel vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft49-async38-tool5k.md", "text": "Soft 49", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft49-async38-tool5k.md", "text": "Async 38", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft49-async38-tool5k.md", "text": "Tool 5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft49-async38-tool5k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
