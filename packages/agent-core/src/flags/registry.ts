@@ -52,7 +52,7 @@ export const FLAG_DEFINITIONS = [
     title: 'Auto-dream memory consolidation',
     description: 'After each user turn, fire a cheap-gated background job that consolidates long-term memory with an LLM without blocking the live session.',
     env: 'SUPERLIORA_EXPERIMENTAL_AUTO_DREAM',
-    default: false,
+    default: true,
     surface: 'core',
   },
   {

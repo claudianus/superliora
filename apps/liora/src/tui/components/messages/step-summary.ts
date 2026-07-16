@@ -1,12 +1,19 @@
 import type { Component } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 /**
  * A collapsed summary of older steps within a turn. Accumulates counts of
  * merged steps (thinking blocks and tool calls) and renders them as a single
- * muted line, e.g. `… thinking 5 times, call 50 tools`.
+ * dense, demo-grade line, e.g. `… ░░▒▓ thinking×5 · tools×50`.
  */
+const SPARK = ['░', '▒', '▓', '█'] as const;
+
 export class StepSummaryComponent implements Component {
   private thinking = 0;
   private tool = 0;
@@ -24,9 +31,26 @@ export class StepSummaryComponent implements Component {
 
   render(_width: number): string[] {
     const parts: string[] = [];
-    if (this.thinking > 0) parts.push(`thinking ${this.thinking} times`);
-    if (this.tool > 0) parts.push(`call ${this.tool} tools`);
+    if (this.thinking > 0) parts.push(`thinking×${String(this.thinking)}`);
+    if (this.tool > 0) parts.push(`tools×${String(this.tool)}`);
     if (parts.length === 0) return [];
-    return [currentTheme.dim(`\u2026 ${parts.join(', ')}`)];
+
+    const appearance = getActiveAppearancePreferences();
+    const spark = buildSparkBar(this.thinking + this.tool, appearance);
+    const body = currentTheme.dim(`\u2026 ${spark}${parts.join(' · ')}`);
+    return [body];
   }
+}
+
+function buildSparkBar(total: number, appearance: ReturnType<typeof getActiveAppearancePreferences>): string {
+  if (total <= 0) return '';
+  const animated = shouldRenderAmbientEffects(appearance);
+  const phase = animated ? Math.floor(appearanceAnimationNow() / 400) % SPARK.length : 0;
+  const intensity = Math.min(3, Math.max(0, Math.floor(Math.log2(total + 1))));
+  const cells = Array.from({ length: 4 }, (_, i) => {
+    const level = Math.max(0, intensity - (3 - i));
+    const glyph = SPARK[Math.min(SPARK.length - 1, (level + phase) % SPARK.length)] ?? '░';
+    return i <= intensity ? glyph : '░';
+  });
+  return `${cells.join('')} `;
 }

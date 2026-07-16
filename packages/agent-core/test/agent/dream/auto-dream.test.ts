@@ -30,6 +30,13 @@ describe('parseDreamPlan', () => {
   });
 });
 
+
+describe('auto_dream flag', () => {
+  it('defaults the auto_dream flag on', async () => {
+    const { FLAG_DEFINITIONS, FlagResolver } = await import('../../../src/flags');
+    expect(new FlagResolver({}, FLAG_DEFINITIONS).enabled('auto_dream')).toBe(true);
+  });
+});
 describe('AutoDreamService', () => {
   it('restores store on LLM failure', async () => {
     const { store } = createStore();

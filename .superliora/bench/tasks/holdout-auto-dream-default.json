@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.auto-dream-default.v1",
+  "title": "Record auto-dream long-horizon memory contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "memory",
+    "auto-dream",
+    "long-horizon",
+    "zero-config",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/auto-dream-default.md with sections for Default on, Cheap gates, Compaction handoff, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/auto-dream-default.md",
+      "content": "# Auto-Dream Default Contract\n\n## Default on\nauto_dream experimental flag defaults true for long-horizon memory hygiene\n\n## Cheap gates\nmin hours + min active records; fire-and-forget after each user turn without blocking\n\n## Compaction handoff\nsummary is reference-only; latest user message after summary wins over historical pending work\n\n## Evidence path\nLioraBench holdout + dream/compaction vitest + /status Memory gate\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/auto-dream-default.md",
+      "text": "Default on",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/auto-dream-default.md",
+      "text": "Cheap gates",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/auto-dream-default.md",
+      "text": "Compaction handoff",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/auto-dream-default.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
