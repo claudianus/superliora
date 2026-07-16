@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.bench-seed-ladder-soft49-imgvid.v1",
+  "title": "Record soft49 ladder seed and img·vid badge contracts",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "bench",
+    "token",
+    "media",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/bench-seed-ladder-soft49-imgvid.md with sections for Soft49 ladder, Tool 5k, Media img·vid, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1200
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/bench-seed-ladder-soft49-imgvid.md",
+      "content": "# Bench Seed Ladder Soft49 ImgVid Contract\n\n## Soft49 ladder\nseed-token-efficiency-contract tracks async38/soft49/hard76/abs80k densify\n\n## Tool 5k\ntool budgets seed records 5k/90 command preview 5 thinking 2 swarm450\n\n## Media img·vid\nbeginner/media contracts use denser img·vid footer badge wording for zero-config readiness\n\n## Evidence path\nLioraBench seed refresh + holdout fixture\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/bench-seed-ladder-soft49-imgvid.md",
+      "text": "Soft49 ladder",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/bench-seed-ladder-soft49-imgvid.md",
+      "text": "Tool 5k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/bench-seed-ladder-soft49-imgvid.md",
+      "text": "Media img·vid",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/bench-seed-ladder-soft49-imgvid.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
