@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.inline180-time-density.v1",
+  "title": "Record denser swarm inline 180 and current-time injection",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "swarm",
+    "time",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/inline180-time-density.md with sections for Inline 180, Time densify, Ladder tip, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/inline180-time-density.md",
+      "content": "# Inline180 Time Density Contract\n\n## Inline 180\nUltraSwarm archived inline summaries collapse at 180 chars so parent context stays denser after expert handoffs\n\n## Time densify\ncurrent-time always-on injection stays authoritative with denser wording\n\n## Ladder tip\ncontext ladder tips surface inline180 alongside swarm750/26k reclaim knobs\n\n## Evidence path\nLioraBench holdout + boundary-compaction/current-time vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/inline180-time-density.md",
+      "text": "Inline 180",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/inline180-time-density.md",
+      "text": "Time densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/inline180-time-density.md",
+      "text": "Ladder tip",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/inline180-time-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
