@@ -50,7 +50,7 @@ async function chooseUltraworkStartMode(
   await vi.waitFor(() => {
     expect(host.restoreEditor).toHaveBeenCalled();
   });
-  const session = host.requireSession() as {
+  const session = host.requireSession() as unknown as {
     setPermission: ReturnType<typeof vi.fn>;
     setPlanMode: ReturnType<typeof vi.fn>;
     createUltraworkRun: ReturnType<typeof vi.fn>;
