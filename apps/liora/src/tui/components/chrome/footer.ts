@@ -346,9 +346,9 @@ export function formatOfficeFooterBadge(): {
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
   if (ratio >= 0.9) return 'danger';
-  // Ladder: soft 0.011 · handoff 0.02 · hard 0.39 · abs11k.
+  // Ladder: soft 0.011 · handoff 0.018 · hard 0.38 · abs10k.
   // Soft → info (reclaim soon); hard → warning (stop before rot); ≥0.9 → danger.
-  if (ratio >= 0.39) return 'warning';
+  if (ratio >= 0.38) return 'warning';
   if (ratio >= 0.011) return 'info';
   return 'muted';
 }

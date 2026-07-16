@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.micro10-hard38-abs10k.v1",
+  "title": "Record micro10 hard38 and abs10k densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "micro", "compaction", "visible-evidence"],
+  "prompt": "Create reports/micro10-hard38-abs10k.md with sections for Micro 10, Hard 38, Abs 10k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/micro10-hard38-abs10k.md",
+    "content": "# Micro10 Hard38 Abs10k Contract\n\n## Micro 10\nmicro compaction usage pressure defaults to 0.10 so tool-result clearing starts earlier\n\n## Hard 38\nhard compaction block ratio densifies to 0.38 with absolute trigger 10k\n\n## Abs 10k\nabsolute compaction trigger densifies to 10k tokens on large windows\n\n## Evidence path\nLioraBench holdout + micro/strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/micro10-hard38-abs10k.md", "text": "Micro 10", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro10-hard38-abs10k.md", "text": "Hard 38", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro10-hard38-abs10k.md", "text": "Abs 10k", "weight": 1},
+    {"type": "file_contains", "path": "reports/micro10-hard38-abs10k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
