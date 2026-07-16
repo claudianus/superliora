@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.activity-todo-recovery-density.v1",
+  "title": "Record activity-pane, todo reminder, and recovery density contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "todo",
+    "recovery",
+    "activity",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/activity-todo-recovery-density.md with sections for Activity rail, Todo reminder, Stage recovery, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/activity-todo-recovery-density.md",
+      "content": "# Activity Todo Recovery Density Contract\n\n## Activity rail\nlive waiting/composing/tool activity pane renders a particle rail under the spinner for continuous motion\n\n## Todo reminder\nTodoList reminder keeps Kanban update rules while densifying always-on injection text\n\n## Stage recovery\nUltrawork stage continuation guidance stays short for post-compaction resume\n\n## Evidence path\nLioraBench holdout + todo-list/recovery vitest + activity pane render checks\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/activity-todo-recovery-density.md",
+      "text": "Activity rail",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/activity-todo-recovery-density.md",
+      "text": "Todo reminder",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/activity-todo-recovery-density.md",
+      "text": "Stage recovery",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/activity-todo-recovery-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

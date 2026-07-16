@@ -133,7 +133,7 @@ function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean):
   }
   switch (stage) {
     case 'plan':
-      return 'Continue the UltraPlan interview or plan gate from the saved checkpoint. Do not create a new plan file.';
+      return 'Continue UltraPlan interview/plan gate from checkpoint. Do not create a new plan file.';
     case 'research':
       return 'Refresh or extend the evidence pack as needed. Do not restart UltraResearch from scratch.';
     case 'staff':
@@ -142,7 +142,7 @@ function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean):
     case 'integrate':
       return 'Merge specialist output and resolve conflicts before more product edits.';
     case 'verify':
-      return 'Re-run mechanical checks and capture runtime evidence for open acceptance criteria. Prefer deterministic proof over model-claimed success.';
+      return 'Re-run mechanical checks and capture runtime evidence for open AC. Prefer deterministic proof over claimed success.';
     case 'learn':
       return 'Promote only verified findings to Liora Recall or LLM Wiki.';
     default:
