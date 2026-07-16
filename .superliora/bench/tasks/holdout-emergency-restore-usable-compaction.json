@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.emergency-restore-usable-compaction.v1",
+  "title": "Record emergency restore of usable compaction defaults",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "high",
+  "tags": ["token", "compaction", "regression-fix", "visible-evidence"],
+  "prompt": "Create reports/emergency-restore-usable-compaction.md with sections for Soft 8, Tool 4k, Hard 50, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/emergency-restore-usable-compaction.md",
+    "content": "# Emergency Restore Usable Compaction Contract\n\n## Soft 8\nsoft compaction trigger restores to 0.08 so auto-compact no longer fires every tiny growth\n\n## Tool 4k\nmodel-facing tool result budgets restore to 4000 chars with 80-char previews so tools remain usable\n\n## Hard 50\nhard block restores to 0.50 with abs 34k / reserved 3k / recompact 1% growth\n\n## Evidence path\nLioraBench holdout + strategy/tool/grep/web/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/emergency-restore-usable-compaction.md", "text": "Soft 8", "weight": 1},
+    {"type": "file_contains", "path": "reports/emergency-restore-usable-compaction.md", "text": "Tool 4k", "weight": 1},
+    {"type": "file_contains", "path": "reports/emergency-restore-usable-compaction.md", "text": "Hard 50", "weight": 1},
+    {"type": "file_contains", "path": "reports/emergency-restore-usable-compaction.md", "text": "Evidence path", "weight": 1}
+  ]
+}

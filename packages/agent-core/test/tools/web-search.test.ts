@@ -47,7 +47,7 @@ describe('WebSearchTool', () => {
     const tool = new WebSearchTool(fakeProvider());
     const limit = (tool.parameters as { properties: Record<string, { description?: string }> })
       .properties['limit'];
-    expect(limit?.description).toContain('default 1');
+    expect(limit?.description).toContain('default 3');
     expect(limit?.description).toContain('Prefer a sharper query');
   });
 
@@ -65,8 +65,8 @@ describe('WebSearchTool', () => {
 
   it('returns formatted results from provider', async () => {
     const provider = fakeProvider([
-      { title: 'Result 1', url: 'https://example.com/1', snippet: 'Snippet 1', date: '2024-01-01' },
-      { title: 'Result 2', url: 'https://example.com/2', snippet: 'Snippet 2', date: '2024-02-02' },
+      { title: 'Result 1', url: 'https://example.com/1', snippet: 'Snippet 1' },
+      { title: 'Result 2', url: 'https://example.com/2', snippet: 'Snippet 2', date: '2024-01-01' },
     ]);
     const tool = new WebSearchTool(provider);
     const result = await executeTool(tool, {
@@ -77,11 +77,10 @@ describe('WebSearchTool', () => {
     });
     expect(result.isError).toBe(false);
     const content = toolContentString(result);
-    // Default densify limit is 1 — only the first hit enters the model-facing body.
     expect(content).toContain('Result 1');
     expect(content).toContain('https://example.com/1');
+    expect(content).toContain('Result 2');
     expect(content).toContain('2024-01-01');
-    expect(content).not.toContain('Result 2');
   });
 
   it('renders the snippet under a "Snippet:" label consistent with the schema term', async () => {
