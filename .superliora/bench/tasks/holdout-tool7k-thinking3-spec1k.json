@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool7k-thinking3-spec1k.v1",
+  "title": "Record tool7k thinking3 and speculative 1.0k",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "tui", "visible-evidence"],
+  "prompt": "Create reports/tool7k-thinking3-spec1k.md with sections for Tool 7k, Thinking 3, Spec 1.0k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/tool7k-thinking3-spec1k.md",
+    "content": "# Tool7k Thinking3 Spec1k Contract\n\n## Tool 7k\ntool result budgets default to 7000 chars with 160-char previews so bulky tool dumps reclaim earlier\n\n## Thinking 3\nTUI thinking previews default to 3 lines for denser chrome during long reasoning\n\n## Spec 1.0k\nspeculative step buffer defaults to 1000 tokens for earlier pre-turn compaction\n\n## Evidence path\nLioraBench holdout + tool/thinking/strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/tool7k-thinking3-spec1k.md", "text": "Tool 7k", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool7k-thinking3-spec1k.md", "text": "Thinking 3", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool7k-thinking3-spec1k.md", "text": "Spec 1.0k", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool7k-thinking3-spec1k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
