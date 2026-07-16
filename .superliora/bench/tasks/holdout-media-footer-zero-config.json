@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.media-footer-zero-config.v1",
+  "title": "Record zero-config media footer and chip transparency contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "media",
+    "zero-config",
+    "tui",
+    "footer",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/media-footer-zero-config.md with sections for Footer badge, Media chips, Lean context, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/media-footer-zero-config.md",
+      "content": "# Media Footer Zero-Config Contract\n\n## Footer badge\nfooter pulses img/media/vid when OPENAI/GOOGLE/GEMINI keys exist — no MCP\n\n## Media chips\nGenerateImage/GenerateVideo chips label img/vid and optional provider for glanceable proof\n\n## Lean context\nlean guidance stays denser so long sessions spend fewer tokens on always-on context\n\n## Evidence path\nLioraBench holdout + footer-media/chip vitest + /status media gate\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/media-footer-zero-config.md",
+      "text": "Footer badge",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-footer-zero-config.md",
+      "text": "Media chips",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-footer-zero-config.md",
+      "text": "Lean context",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-footer-zero-config.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

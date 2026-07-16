@@ -118,6 +118,7 @@ describe('chip registry', () => {
         'Generated image with openai.\nPath: .superliora/generated/images/x.png\nBytes: 2048\nMIME: image/png',
       ),
     );
+    expect(text).toContain('img');
     expect(text).toContain('x.png');
     expect(text).toMatch(/2(\.0)? KB|2048 B/);
   });

@@ -258,12 +258,37 @@ function nonEmptyEnv(value: string | undefined): string | undefined {
 }
 
 /** True when a zero-config image provider key is present in the process env. */
-function mediaProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+export function mediaImageKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
   return (
     nonEmptyEnv(env['OPENAI_API_KEY']) !== undefined ||
     nonEmptyEnv(env['GOOGLE_API_KEY']) !== undefined ||
     nonEmptyEnv(env['GEMINI_API_KEY']) !== undefined
   );
+}
+
+/** True when a zero-config video provider key is present (Google/Gemini). */
+export function mediaVideoKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (
+    nonEmptyEnv(env['GOOGLE_API_KEY']) !== undefined ||
+    nonEmptyEnv(env['GEMINI_API_KEY']) !== undefined
+  );
+}
+
+/** True when any zero-config media key is present. */
+export function mediaProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  return mediaImageKeyReady(env) || mediaVideoKeyReady(env);
+}
+
+/** Compact footer badge for beginner-visible media readiness (no MCP). */
+export function formatMediaFooterBadge(
+  env: NodeJS.ProcessEnv = process.env,
+): { readonly label: string; readonly severity: FooterBadgeSeverity } | null {
+  const image = mediaImageKeyReady(env);
+  const video = mediaVideoKeyReady(env);
+  if (!image && !video) return null;
+  if (image && video) return { label: 'media', severity: 'info' };
+  if (image) return { label: 'img', severity: 'info' };
+  return { label: 'vid', severity: 'info' };
 }
 
 /** Context usage line severity for high pre-rot pressure. */
@@ -416,6 +441,12 @@ export class FooterComponent implements Component {
       modes.push(renderPulseText('compact-bg', 'footer:compact-bg', 'warning', appearance));
     } else if (state.isCompacting) {
       modes.push(renderPulseText('compact', 'footer:compact', 'primary', appearance));
+    }
+    const mediaBadge = formatMediaFooterBadge();
+    if (mediaBadge !== null) {
+      modes.push(
+        renderPulseText(mediaBadge.label, `footer:${mediaBadge.label}`, 'accent', appearance),
+      );
     }
     if (modes.length > 0) left.push(modes.join(' '));
 
