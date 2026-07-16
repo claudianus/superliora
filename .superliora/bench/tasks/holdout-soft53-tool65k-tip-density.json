@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft53-tool65k-tip-density.v1",
+  "title": "Record soft53 and tool6.5k densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft53-tool65k-tip-density.md with sections for Soft 53, Tool 6.5k, Tip density, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft53-tool65k-tip-density.md",
+    "content": "# Soft53 Tool65k Tip Density Contract\n\n## Soft 53\nsoft compaction trigger defaults to 0.53 so full summaries start earlier under long sessions\n\n## Tool 6.5k\ntool result budgets default to 6500 chars with 140-char previews for denser reclaim\n\n## Tip density\ncontext ladder tip tracks soft53/tool6.5k/140 densify without config knobs\n\n## Evidence path\nLioraBench holdout + strategy/tool/status-panel vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft53-tool65k-tip-density.md", "text": "Soft 53", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft53-tool65k-tip-density.md", "text": "Tool 6.5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft53-tool65k-tip-density.md", "text": "Tip density", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft53-tool65k-tip-density.md", "text": "Evidence path", "weight": 1}
+  ]
+}
