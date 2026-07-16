@@ -45,7 +45,12 @@ export class CronMessageComponent implements Component {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
     const titleToken: keyof ColorPalette = this.data.stale === true || missed ? 'warning' : 'accent';
-    const bullet = currentTheme.boldFg(titleToken, STATUS_BULLET);
+    const bullet = animated
+      ? renderSpectacularText(STATUS_BULLET.trimEnd(), `cron:${titleToken}`, appearance, {
+          intense: true,
+          pace: 'slow',
+        }) + ' '
+      : currentTheme.boldFg(titleToken, STATUS_BULLET);
     const bulletWidth = visibleWidth(bullet);
     const contentWidth = Math.max(1, safeWidth - bulletWidth);
     const continuationIndent = ' '.repeat(bulletWidth);

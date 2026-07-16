@@ -18,7 +18,7 @@ import summaryPrefixTemplate from './compaction-summary-prefix.md?raw';
  */
 
 export const COMPACTION_SUMMARY_PREFIX = summaryPrefixTemplate.trimEnd();
-export const COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000;
+export const COMPACT_USER_MESSAGE_MAX_TOKENS = 16_000;
 
 /**
  * Fraction of the model window that the kept-user budget is capped at on small
@@ -48,7 +48,7 @@ export function resolveCompactionUserMessageBudget(maxContextTokens?: number): n
  * usually carry the original task statement, which a tail-only selection
  * would drop entirely.
  */
-export const COMPACT_USER_MESSAGE_HEAD_TOKENS = 2_000;
+export const COMPACT_USER_MESSAGE_HEAD_TOKENS = 1_600;
 
 /**
  * `InjectionOrigin.variant` of the elision marker inserted between the head
