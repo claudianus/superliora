@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard17-abs150-pblock70.v1",
+  "title": "Record hard17 abs150 and pblock70 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard17-abs150-pblock70.md with sections for Hard 17, Abs 150, Pblock 70, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard17-abs150-pblock70.md",
+    "content": "# Hard17 Abs150 Pblock70 Contract\n\n## Hard 17\nhard compaction block ratio densifies to 0.17 so blocking reclaim starts earlier\n\n## Abs 150\nabsolute compaction trigger densifies to 150 tokens on large windows\n\n## Pblock 70\nparallel block threshold densifies to 70 with target 15 for thriftier multi-tool turns\n\n## Evidence path\nLioraBench holdout + strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard17-abs150-pblock70.md", "text": "Hard 17", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard17-abs150-pblock70.md", "text": "Abs 150", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard17-abs150-pblock70.md", "text": "Pblock 70", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard17-abs150-pblock70.md", "text": "Evidence path", "weight": 1}
+  ]
+}
