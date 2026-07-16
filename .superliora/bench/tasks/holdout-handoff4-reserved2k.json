@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.handoff4-reserved2k.v1",
+  "title": "Record handoff4 and reserved2k densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "swarm", "visible-evidence"],
+  "prompt": "Create reports/handoff4-reserved2k.md with sections for Handoff 4, Reserved 2k, Soft 1.2, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/handoff4-reserved2k.md",
+    "content": "# Handoff4 Reserved2k Contract\n\n## Handoff 4\nUltraSwarm pre-handoff compaction ceiling defaults to 0.04 so swarm launches reclaim earlier\n\n## Reserved 2k\nreserved context for hard blocking densifies to 2000 tokens for denser long-horizon reclaim\n\n## Soft 1.2\nsoft compaction remains 0.012 with denser tool/micro budgets\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/handoff4-reserved2k.md", "text": "Handoff 4", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff4-reserved2k.md", "text": "Reserved 2k", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff4-reserved2k.md", "text": "Soft 1.2", "weight": 1},
+    {"type": "file_contains", "path": "reports/handoff4-reserved2k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
