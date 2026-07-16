@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.abs30k-pblock5-comet.v1",
+  "title": "Record abs30k pblock5 and comet densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tui", "compaction", "visible-evidence"],
+  "prompt": "Create reports/abs30k-pblock5-comet.md with sections for Abs 30k, Pblock 5, Comet, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/abs30k-pblock5-comet.md",
+    "content": "# Abs30k Pblock5 Comet Contract\n\n## Abs 30k\nabsolute compaction trigger defaults to 30k tokens on large windows for earlier reclaim\n\n## Pblock 5\nparallel block threshold/target densify to 5k/2.5k for thriftier multi-prefix summarize\n\n## Comet\ncomet spinner interval densifies for livelier zero-config activity chrome\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/abs30k-pblock5-comet.md", "text": "Abs 30k", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs30k-pblock5-comet.md", "text": "Pblock 5", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs30k-pblock5-comet.md", "text": "Comet", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs30k-pblock5-comet.md", "text": "Evidence path", "weight": 1}
+  ]
+}
