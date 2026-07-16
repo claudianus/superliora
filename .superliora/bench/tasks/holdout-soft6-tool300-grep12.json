@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft6-tool300-grep12.v1",
+  "title": "Record soft6 tool300 and grep12 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft6-tool300-grep12.md with sections for Soft 6, Tool 300, Grep 12, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft6-tool300-grep12.md",
+    "content": "# Soft6 Tool300 Grep12 Contract\n\n## Soft 6\nsoft compaction trigger defaults to 0.06 with quality bias floor 0.04 so reclaim can tighten after emergency backstops\n\n## Tool 300\ntool result budgets default to 300 chars with 3-char previews for denser reclaim\n\n## Grep 12\nGrep head defaults to 12 lines for denser search results\n\n## Evidence path\nLioraBench holdout + strategy/tool/grep/status/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft6-tool300-grep12.md", "text": "Soft 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft6-tool300-grep12.md", "text": "Tool 300", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft6-tool300-grep12.md", "text": "Grep 12", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft6-tool300-grep12.md", "text": "Evidence path", "weight": 1}
+  ]
+}
