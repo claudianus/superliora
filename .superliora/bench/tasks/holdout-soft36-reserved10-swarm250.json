@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft36-reserved10-swarm250.v1",
+  "title": "Record soft36 reserved10 and swarm250 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "swarm", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft36-reserved10-swarm250.md with sections for Soft 36, Reserved 10k, Swarm 250, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft36-reserved10-swarm250.md",
+    "content": "# Soft36 Reserved10 Swarm250 Contract\n\n## Soft 36\nsoft compaction trigger defaults to 0.36 with quality bias floor 0.34 so reclaim can tighten after emergency backstops\n\n## Reserved 10k\nreserved context headroom defaults to 10k tokens for denser usable windows before hard block\n\n## Swarm 250\nswarm expert bodies default to 250 chars, total 6k, inline 40 for denser multi-agent handoffs\n\n## Evidence path\nLioraBench holdout + strategy/boundary/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft36-reserved10-swarm250.md", "text": "Soft 36", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft36-reserved10-swarm250.md", "text": "Reserved 10k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft36-reserved10-swarm250.md", "text": "Swarm 250", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft36-reserved10-swarm250.md", "text": "Evidence path", "weight": 1}
+  ]
+}
