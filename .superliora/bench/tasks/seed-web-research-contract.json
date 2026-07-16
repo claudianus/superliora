@@ -29,7 +29,7 @@
     {
       "type": "writeFile",
       "path": "reports/web-research-contract.md",
-      "content": "# Web Research Contract\n\n## Current-time year\nprefer GetCurrentTime / <current_time> before year-sensitive claims\n\n## Context7 library docs\nContext7Resolve \u2192 Context7Docs for library APIs\n\n## WebSearch primary sources\nWebSearch defaults to 3 hits then FetchURL for CVEs, releases, papers\n\n## FetchURL citation\ncite primary source URLs; do not rely only on snippets\n"
+      "content": "# Web Research Contract\n\n## Current-time year\nprefer GetCurrentTime / <current_time> before year-sensitive claims\n\n## Context7 library docs\nContext7Resolve \u2192 Context7Docs for library APIs\n\n## WebSearch primary sources\nWebSearch defaults to 2 hits then FetchURL for CVEs, releases, papers\n\n## FetchURL citation\ncite primary source URLs; do not rely only on snippets\n"
     }
   ],
   "contamination": {
