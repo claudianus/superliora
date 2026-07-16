@@ -8,7 +8,7 @@ import { PREMIUM_VISUAL_REFERENCE_COMPACT } from './references';
 /** Hard visual mandate — injected on every full Premium Quality refresh. */
 export const PREMIUM_VISUAL_SUPREMACY_MANDATE = [
   '## PREMIUM VISUAL (PRIMARY while Premium Quality is ON)',
-  'Visual quality is top priority for user-visible surfaces (web, dashboards, games). Premium means screenshot-proof craft — NOT "works in the browser".',
+  'Visual quality is top priority for user-visible surfaces (web, dashboards, games). Premium = screenshot-proof craft — NOT "works in the browser".',
   'MVP with flat shapes, default fonts, or placeholder geometry fails unless the user asked for a wireframe. Fix until a principal designer would not reject the screenshot.',
   '',
   PREMIUM_QUALITY_HYPE_VISUAL_FLOOD,

@@ -21,11 +21,11 @@ export interface UltraworkModeMarkerOptions {
 
 const ULTRAWORK_PIPELINE = 'Research -> UltraPlan -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn';
 const ULTRAWORK_COMPACT_PIPELINE = 'Research>UltraPlan>UltraGoal>Swarm?>Integrate>Verify>Learn';
-const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: source-backed questions, verifiable goal, decide team, verify';
-const ULTRAWORK_RESEARCH_STATUS = 'Research: local fallback + provider/MCP accelerators; verified sources only';
-const ULTRAWORK_NEXT_ACTION = 'Next: research evidence pack before UltraPlan questions';
+const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: source-backed questions → verifiable goal → team → verify';
+const ULTRAWORK_RESEARCH_STATUS = 'Research: local + provider/MCP accelerators; verified sources only';
+const ULTRAWORK_NEXT_ACTION = 'Next: evidence pack before UltraPlan questions';
 const ULTRAWORK_COMPLETION_STATUS =
-  'Goal complete — Research, UltraPlan, Swarm, Integrate, Verify, and Learn finished.';
+  'Goal complete — Research → UltraPlan → Swarm → Integrate → Verify → Learn finished.';
 const ULTRAWORK_COMPLETION_NEXT = 'Ultrawork mode is off. Continue with normal prompts or Shift-Tab for a new run.';
 
 export class UltraworkModeMarkerComponent implements Component {

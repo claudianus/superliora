@@ -444,13 +444,13 @@ describe('handleUltraworkCommand', () => {
     expect(renderedMarker(host)).toContain('Ultrawork activated');
     expect(renderedMarker(host)).toContain('Research>UltraPlan>UltraGoal>Swarm?>Integrate>Verify>Learn');
     expect(renderedMarker(host)).toContain(
-      'One Ultrawork: source-backed questions, verifiable goal, decide team, verify',
+      'One Ultrawork: source-backed questions → verifiable goal → team → verify',
     );
     expect(renderedMarker(host)).toContain(
-      'Research: local fallback + provider/MCP accelerators; verified sources only',
+      'Research: local + provider/MCP accelerators; verified sources only',
     );
     expect(renderedMarker(host)).toContain(
-      'Next: research evidence pack before UltraPlan questions',
+      'Next: evidence pack before UltraPlan questions',
     );
     expect(renderedMarker(host)).toContain('Ship feature X');
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
