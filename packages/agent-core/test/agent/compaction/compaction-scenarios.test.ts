@@ -497,7 +497,11 @@ describe('compaction — head/tail user-message retention', () => {
     const ctx = await compactedOversizedPool();
 
     ctx.agent.context.appendUserMessage([{ type: 'text', text: 'd'.repeat(8_000) }]);
-    ctx.mockNextResponse({ type: 'text', text: 'Second summary.' });
+    // Second pass can take the parallel summarize path (block + merge generates).
+    // Queue enough responses so the test does not hang waiting on the mock LLM.
+    for (let i = 0; i < 8; i++) {
+      ctx.mockNextResponse({ type: 'text', text: `Second summary ${String(i)}.` });
+    }
     await ctx.rpc.beginCompaction({});
     await ctx.once('compaction.completed');
 

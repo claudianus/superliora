@@ -8,9 +8,8 @@ import {
   MOON_SPINNER_INTERVAL_MS,
 } from '#/tui/constant/rendering';
 import { currentTheme } from '#/tui/theme';
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import { appearanceAnimationNow, renderPulseText } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
-import { renderPulseText } from '#/tui/utils/appearance-effects';
 
 export type SpinnerStyle = 'moon' | 'braille' | 'comet';
 

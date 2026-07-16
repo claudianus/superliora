@@ -13,25 +13,12 @@
  * fire the `on*` callbacks back to the controller.
  */
 
-import {
-  Container,
-  Key,
-  matchesKey,
-  projectRendererScrollableLineWindow,
-  RendererSelectableListViewport,
-  renderRendererFrameRows,
-  renderRendererVerticalScrollbar,
-  type RendererTerminalHost,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
+import {Container, Key, matchesKey, projectRendererScrollableLineWindow, RendererSelectableListViewport, renderRendererFrameRows, renderRendererVerticalScrollbar, type RendererTerminalHost, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@superliora/sdk';
 
-import { SELECT_POINTER } from '@/tui/constant/symbols';
-import { renderSelectPointer } from '@/tui/utils/select-pointer';
-import { currentTheme } from '#/tui/theme';
-import { printableChar } from '@/tui/utils/printable-key';
+import {renderSelectPointer} from '@/tui/utils/select-pointer';
+import {currentTheme} from '#/tui/theme';
+import {printableChar} from '@/tui/utils/printable-key';
 
 const ELLIPSIS = '…';
 

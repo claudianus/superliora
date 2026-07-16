@@ -16,27 +16,14 @@
  * search)` suffix, hint, search line, list, scroll indicator.
  */
 
-import {
-  Container,
-  Key,
-  matchesKey,
-  renderRendererPanelChromeRows,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
+import {Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 
-import { CURRENT_MARK, SELECT_POINTER } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { currentTheme, type ColorToken } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
-import { SearchableList } from '#/tui/utils/searchable-list';
-import {
-  type ProviderCatalogOption,
-  type ProviderAuthKind,
-  type ProviderCatalogSelection,
-  resolveProviderSelection,
-} from '#/tui/utils/provider-catalog-options';
+import {CURRENT_MARK} from '#/tui/constant/symbols';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {currentTheme, type ColorToken} from '#/tui/theme';
+import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {SearchableList} from '#/tui/utils/searchable-list';
+import {type ProviderCatalogOption, type ProviderAuthKind, type ProviderCatalogSelection, resolveProviderSelection} from '#/tui/utils/provider-catalog-options';
 
 const AUTH_BADGE: ReadonlyMap<ProviderAuthKind, string> = new Map<ProviderAuthKind, string>([
   ['oauth', 'OAuth'],

@@ -9,25 +9,12 @@
  * passed in as `items`, so this component stays a pure presentational layer.
  */
 
-import {
-  Container,
-  Key,
-  matchesKey,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from '#/tui/renderer';
-import { SELECT_POINTER } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { currentTheme } from '#/tui/theme';
-import {
-  getActiveAppearancePreferences,
-  renderParticleDivider,
-  renderPremiumHeadline,
-  shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
-import { ttui } from '#/tui/utils/tui-i18n';
-import { SearchableList } from '#/tui/utils/searchable-list';
+import {Container, Key, matchesKey, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
+import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {currentTheme} from '#/tui/theme';
+import {getActiveAppearancePreferences, renderParticleDivider, renderPremiumHeadline, shouldRenderAmbientEffects} from '#/tui/utils/appearance-effects';
+import {ttui} from '#/tui/utils/tui-i18n';
+import {SearchableList} from '#/tui/utils/searchable-list';
 
 export interface HistorySearchDialogOptions {
   readonly items: readonly string[];
