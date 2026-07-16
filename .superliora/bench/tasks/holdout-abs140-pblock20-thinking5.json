@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.abs140-pblock20-thinking5.v1",
+  "title": "Record abs140k, pblock20/10, and 5-line thinking glance",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/abs140-pblock20-thinking5.md with sections for Abs 140k, Pblock 20, Thinking 5, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/abs140-pblock20-thinking5.md",
+    "content": "# Abs140 Pblock20 Thinking5 Contract\n\n## Abs 140k\nfull compaction absolute soft trigger defaults to 140k tokens so long sessions reclaim earlier on large windows\n\n## Pblock 20\nparallel compaction block threshold defaults to 20k with a 10k target so large histories summarize in denser chunks\n\n## Thinking 5\nlive thinking shows a 5-line tail glance so agent work stays transparent without expand\n\n## Evidence path\nLioraBench holdout + strategy/thinking vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/abs140-pblock20-thinking5.md", "text": "Abs 140k", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs140-pblock20-thinking5.md", "text": "Pblock 20", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs140-pblock20-thinking5.md", "text": "Thinking 5", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs140-pblock20-thinking5.md", "text": "Evidence path", "weight": 1}
+  ]
+}
