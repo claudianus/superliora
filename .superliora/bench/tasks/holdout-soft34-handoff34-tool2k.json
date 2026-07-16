@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft34-handoff34-tool2k.v1",
+  "title": "Record soft34 handoff34 and tool2k densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft34-handoff34-tool2k.md with sections for Soft 34, Handoff 34, Tool 2k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft34-handoff34-tool2k.md",
+    "content": "# Soft34 Handoff34 Tool2k Contract\n\n## Soft 34\nsoft compaction trigger defaults to 0.34 with quality bias floor 0.32 so reclaim can tighten after emergency backstops\n\n## Handoff 34\nswarm handoff compaction ratio defaults to 0.34 so pre-swarm reclaim runs earlier\n\n## Tool 2k\ntool result budgets default to 2000 chars with 35-char previews; Grep default head_limit is 150 so searches stay inside the denser budget\n\n## Evidence path\nLioraBench holdout + strategy/tool/grep/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft34-handoff34-tool2k.md", "text": "Soft 34", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft34-handoff34-tool2k.md", "text": "Handoff 34", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft34-handoff34-tool2k.md", "text": "Tool 2k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft34-handoff34-tool2k.md", "text": "Evidence path", "weight": 1}
+  ]
+}

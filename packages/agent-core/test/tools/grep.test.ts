@@ -1035,7 +1035,7 @@ describe('GrepTool', () => {
     expect(result.output).toContain('Use offset=3 to see more');
   });
 
-  it('limits grep output to 200 lines by default', async () => {
+  it('limits grep output to 150 lines by default', async () => {
     const paths = Array.from({ length: 251 }, (_, index) => `/workspace/src/${String(index)}.ts`);
     const displayPaths = Array.from({ length: 251 }, (_, index) => `src/${String(index)}.ts`);
     const stdout = [...paths, ''].join('\n');
@@ -1048,10 +1048,10 @@ describe('GrepTool', () => {
     const output = toolContentBody(result);
     const lines = output.split('\n');
 
-    expect(lines.slice(0, 200)).toEqual(displayPaths.slice(0, 200));
-    expect(output).not.toContain(displayPaths[200]);
+    expect(lines.slice(0, 150)).toEqual(displayPaths.slice(0, 150));
+    expect(output).not.toContain(displayPaths[150]);
     expect(output).toContain(
-      'Results truncated to 200 lines (total: 251). Use offset=200 to see more.',
+      'Results truncated to 150 lines (total: 251). Use offset=150 to see more.',
     );
   });
 

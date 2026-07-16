@@ -44,11 +44,11 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.35 sits between async pre-rot (~0.24) /
- * swarm handoff (~0.36) and hard block (~0.64), so summaries generate while
+ * Compact before attention rot: 0.34 sits between async pre-rot (~0.24) /
+ * swarm handoff (~0.34) and hard block (~0.64), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.35;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.34;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.64;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
@@ -56,7 +56,7 @@ export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 800;
 /** Minimum context growth since the last compaction before auto may fire again. */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.010;
 /** Pre-swarm handoff compaction target (below soft trigger; aligned with async pre-rot headroom). */
-export const SWARM_HANDOFF_COMPACTION_RATIO = 0.36;
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.34;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
@@ -118,7 +118,7 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   }
 
   get effectiveTriggerRatio(): number {
-    return Math.max(0.33, this.config.triggerRatio - this.qualityTriggerBias);
+    return Math.max(0.32, this.config.triggerRatio - this.qualityTriggerBias);
   }
 
   get speculativeStepBufferTokens(): number {
