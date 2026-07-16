@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.reserved25-spec600.v1",
+  "title": "Record reserved2.5k and spec600 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/reserved25-spec600.md with sections for Reserved 2.5k, Spec 600, Soft1.5, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/reserved25-spec600.md",
+    "content": "# Reserved2.5k Spec600 Contract\n\n## Reserved 2.5k\nreserved context for hard blocking defaults to 2500 tokens for denser long-horizon reclaim\n\n## Spec 600\nspeculative step buffer defaults to 600 tokens so pre-turn compaction fires earlier on lean steps\n\n## Soft1.5\nsoft compaction remains 0.015 with denser tool/grep budgets\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/reserved25-spec600.md", "text": "Reserved 2.5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved25-spec600.md", "text": "Spec 600", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved25-spec600.md", "text": "Soft1.5", "weight": 1},
+    {"type": "file_contains", "path": "reports/reserved25-spec600.md", "text": "Evidence path", "weight": 1}
+  ]
+}
