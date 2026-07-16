@@ -29,7 +29,7 @@
     {
       "type": "writeFile",
       "path": "reports/token-efficiency-contract.md",
-      "content": "# Token Efficiency Contract\n\n## Context ladder\nmicro50/keep2/min12 \u00b7 async44 \u00b7 handoff48 \u00b7 soft56 \u00b7 maxRecent6 \u00b7 reserved28k \u00b7 spec1.2k \u00b7 recompact1.0 \u00b7 pblock14/7 \u00b7 hard84 \u00b7 abs100k\n\n## Tool budgets\ntool results 7.5k/180 \u00b7 command preview 8 \u00b7 thinking glance 4 \u00b7 swarm 600/20k/inline120\n\n## Research defaults\nWebSearch defaults to 4 hits; sharpen query before raising limit; FetchURL for primary sources\n\n## Proof path\nfocused vitest + /bench loop evidence under .superliora/bench\n\n## Rollback note\nrevert denser defaults if routing or recall quality regresses\n"
+      "content": "# Token Efficiency Contract\n\n## Context ladder\nmicro50/keep2/min10 \u00b7 async44 \u00b7 handoff46 \u00b7 soft55 \u00b7 maxRecent5 \u00b7 reserved26k \u00b7 spec1.0k \u00b7 recompact1.0 \u00b7 pblock14/7 \u00b7 hard82 \u00b7 abs95k\n\n## Tool budgets\ntool results 7k/160 \u00b7 command preview 8 \u00b7 result preview 2 \u00b7 thinking glance 3 \u00b7 swarm 550/18k/inline100\n\n## Research defaults\nWebSearch defaults to 4 hits; sharpen query before raising limit; FetchURL for primary sources\n\n## Proof path\nfocused vitest + /bench loop evidence under .superliora/bench\n\n## Rollback note\nrevert denser defaults if routing or recall quality regresses\n"
     }
   ],
   "contamination": {
