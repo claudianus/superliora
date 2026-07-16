@@ -67,7 +67,7 @@ describe('chip registry', () => {
 
   it('FetchURL chip shows size and is non-empty', () => {
     const out = chipFor('FetchURL', { url: 'https://example.com' }, result('hello world'));
-    expect(out).toMatch(/\d+\s*B/);
+    expect(out).toMatch(/^fetch · \d+\s*B/);
   });
 
   it('WebSearch chip shows result count from Title lines', () => {
@@ -197,7 +197,7 @@ describe('chip registry', () => {
         ].join('\n'),
       ),
     );
-    expect(out).toBe('2 libraries');
+    expect(out).toBe('c7 · 2');
   });
 
   it('Context7Docs chip counts snippet titles', () => {
@@ -206,7 +206,7 @@ describe('chip registry', () => {
       { library_id: '/reactjs/react.dev', query: 'useEffect' },
       result('Title: useEffect\nSOURCE: https://react.dev\n\nTitle: Rules of Hooks\nSOURCE: https://react.dev/rules'),
     );
-    expect(out).toBe('2 snippets');
+    expect(out).toBe('c7 · 2 snips');
   });
   it('SearchSkill chip counts skill candidates', () => {
     const out = chipFor(

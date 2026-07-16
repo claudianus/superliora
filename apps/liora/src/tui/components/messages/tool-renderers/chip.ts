@@ -132,8 +132,10 @@ const globChip: ChipProvider = (_toolCall, result) => {
   return pluralize(files, 'file');
 };
 
-const fetchChip: ChipProvider = (_toolCall, result) =>
-  formatBytes(Buffer.byteLength(result.output, 'utf8'));
+const fetchChip: ChipProvider = (_toolCall, result) => {
+  const size = formatBytes(Buffer.byteLength(result.output, 'utf8'));
+  return `fetch · ${size}`;
+};
 
 const webSearchChip: ChipProvider = (_toolCall, result) => {
   if (result.output.includes('No search results found.')) return 'web · 0';
@@ -207,7 +209,7 @@ const lioraCallgraphChip: ChipProvider = (toolCall, result) => {
 };
 const context7ResolveChip: ChipProvider = (_toolCall, result) => {
   if (result.is_error) return '';
-  if (result.output.includes('No libraries found')) return 'no libraries';
+  if (result.output.includes('No libraries found')) return 'c7 · 0';
   let count = 0;
   for (const line of result.output.split('\n')) {
     // Prefer library IDs so Title+ID pairs are not double-counted.
@@ -223,22 +225,22 @@ const context7ResolveChip: ChipProvider = (_toolCall, result) => {
       if (/^\s*[-*]\s+\S/.test(line)) count++;
     }
   }
-  if (count === 0) return result.output.trim().length === 0 ? 'no libraries' : 'library match';
-  return pluralize(count, 'library', 'libraries');
+  if (count === 0) return result.output.trim().length === 0 ? 'c7 · 0' : 'c7';
+  return `c7 · ${String(count)}`;
 };
 
 const context7DocsChip: ChipProvider = (_toolCall, result) => {
   if (result.is_error) return '';
-  if (result.output.includes('No documentation snippets matched')) return 'no snippets';
+  if (result.output.includes('No documentation snippets matched')) return 'c7 · 0 snips';
   let count = 0;
   for (const line of result.output.split('\n')) {
     if (/^\s*Title:\s+/i.test(line) || /^\s*#\s+\S/.test(line)) count++;
   }
   if (count === 0) {
     const lines = countNonEmptyLines(result.output);
-    return lines === 0 ? 'no snippets' : pluralize(lines, 'line');
+    return lines === 0 ? 'c7 · 0 snips' : `c7 · ${String(lines)} lines`;
   }
-  return pluralize(count, 'snippet');
+  return `c7 · ${String(count)} snips`;
 };
 
 const searchSkillChip: ChipProvider = (_toolCall, result) => {

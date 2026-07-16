@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.web-research-chip-density.v1",
+  "title": "Record dense web/Context7 research chip and recovery contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "web",
+    "context7",
+    "research",
+    "recovery",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/web-research-chip-density.md with sections for Research chips, Welcome ZDR, Recovery densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/web-research-chip-density.md",
+      "content": "# Web Research Chip Density Contract\n\n## Research chips\nFetchURL/WebSearch/Context7 chips use dense fetch · / web · / c7 · glances without MCP\n\n## Welcome ZDR\nwelcome prompt surfaces media · web/Context7 · ZDR readiness for beginners\n\n## Recovery densify\nUltrawork recovery prompt keeps stage/status compact for long-horizon resume\n\n## Evidence path\nLioraBench holdout + chip/welcome/recovery vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-chip-density.md",
+      "text": "Research chips",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-chip-density.md",
+      "text": "Welcome ZDR",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-chip-density.md",
+      "text": "Recovery densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-chip-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
