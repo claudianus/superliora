@@ -19,6 +19,19 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
+
+function pulseSelectPointer(): string {
+  const appearance = getActiveAppearancePreferences();
+  return shouldRenderAmbientEffects(appearance)
+    ? renderPulseText(SELECT_POINTER, 'question:pointer', 'primary')
+    : SELECT_POINTER;
+}
+
 import { Input } from './input';
 import type {
   PendingQuestion,
@@ -503,10 +516,10 @@ export class QuestionDialogComponent extends Container implements Focusable {
         else if (isCursor) tone = accent;
         else tone = dim;
       } else if (isSelected && this.isAnswered(questionIdx)) {
-        prefix = isCursor ? `  ${SELECT_POINTER} [${String(num)}] ` : `    [${String(num)}] `;
+        prefix = isCursor ? `  ${pulseSelectPointer()} [${String(num)}] ` : `    [${String(num)}] `;
         tone = isCursor ? (s) => currentTheme.boldFg('success', s) : success;
       } else if (isCursor) {
-        prefix = `  ${SELECT_POINTER} [${String(num)}] `;
+        prefix = `  ${pulseSelectPointer()} [${String(num)}] `;
         tone = accent;
       } else {
         prefix = `    [${String(num)}] `;
@@ -593,7 +606,7 @@ export class QuestionDialogComponent extends Container implements Focusable {
       if (label === undefined) continue;
       const num = i + 1;
       if (i === this.submitActionIdx) {
-        body.push(accent(`  ${SELECT_POINTER} [${String(num)}] ${label}`));
+        body.push(accent(`  ${pulseSelectPointer()} [${String(num)}] ${label}`));
       } else {
         body.push(dim(`    [${String(num)}] ${label}`));
       }
@@ -756,7 +769,7 @@ export class QuestionDialogComponent extends Container implements Focusable {
         ? currentTheme.boldFg('success', body)
         : currentTheme.fg('primary', body);
     } else {
-      const body = `  ${SELECT_POINTER} [${String(num)}] ${option.label}: `;
+      const body = `  ${pulseSelectPointer()} [${String(num)}] ${option.label}: `;
       prefix =
         isSelected && this.isAnswered(questionIdx)
           ? currentTheme.boldFg('success', body)
