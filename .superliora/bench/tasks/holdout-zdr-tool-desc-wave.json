@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.zdr-tool-desc-wave.v1",
+  "title": "Record denser ZDR tip and remaining always-on tool descriptions",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "zdr",
+    "tools",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/zdr-tool-desc-wave.md with sections for ZDR tip, Tool densify, Ladder comment, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/zdr-tool-desc-wave.md",
+      "content": "# ZDR Tool Desc Wave Contract\n\n## ZDR tip\nTUI tips explain footer zdr vs tel badges for default local privacy posture\n\n## Tool densify\nContext7Resolve/UpdateGoal/Skill/CurrentTime always-on descriptions stay contract-complete with denser wording\n\n## Ladder comment\nfooter context severity comments surface micro min64 and abs170k reclaim ladder knobs\n\n## Evidence path\nLioraBench holdout + focused tool/footer vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-tool-desc-wave.md",
+      "text": "ZDR tip",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-tool-desc-wave.md",
+      "text": "Tool densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-tool-desc-wave.md",
+      "text": "Ladder comment",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/zdr-tool-desc-wave.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
