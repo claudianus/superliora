@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.usage-soft72-shell-pulse.v1",
+  "title": "Record /usage soft72 alignment and shell-run elapsed pulse",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "usage",
+    "shell",
+    "token",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/usage-soft72-shell-pulse.md with sections for Usage soft72, Wrap-up 60, Shell pulse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/usage-soft72-shell-pulse.md",
+      "content": "# Usage Soft72 Shell Pulse Contract\n\n## Usage soft72\n/usage panel suggests /compact from 72% soft-trigger headroom\n\n## Wrap-up 60\n/usage wrap-up guidance starts at 60% async pre-rot headroom\n\n## Shell pulse\nlive ! shell-run elapsed timing pulses under ambient effects for continuous motion\n\n## Evidence path\nLioraBench holdout + usage-panel vitest + live TUI shell cards\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/usage-soft72-shell-pulse.md",
+      "text": "Usage soft72",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/usage-soft72-shell-pulse.md",
+      "text": "Wrap-up 60",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/usage-soft72-shell-pulse.md",
+      "text": "Shell pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/usage-soft72-shell-pulse.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
