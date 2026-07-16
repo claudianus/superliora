@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool-bullet-budget-density.v1",
+  "title": "Record live tool bullet spectacle and tighter tool-result budgets",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tui",
+    "tools",
+    "budget",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tool-bullet-budget-density.md with sections for Live tool bullets, Result budget, Preview budget, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tool-bullet-budget-density.md",
+      "content": "# Tool Bullet Budget Density Contract\n\n## Live tool bullets\nin-flight tool cards use gradient/pulse bullets so long work stays visibly alive without expand\n\n## Result budget\nlive tool outputs persist earlier at 36k chars to protect long-session context headroom\n\n## Preview budget\noversize tool previews keep 1.2k chars so transcripts stay glanceable\n\n## Evidence path\nLioraBench holdout + tool-call/tool budget vitest + live TUI tool cards\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tool-bullet-budget-density.md",
+      "text": "Live tool bullets",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-bullet-budget-density.md",
+      "text": "Result budget",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-bullet-budget-density.md",
+      "text": "Preview budget",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-bullet-budget-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
