@@ -60,18 +60,9 @@ export function compactSwarmToolResult(
   output = enforceTotalBudget(output, store, runId, expertBodyMaxChars, archiveIds, totalResultMaxChars);
   output = injectArchiveGuidance(output, archiveIds);
   // Guidance injection can re-grow the payload; re-apply the densify hard floor last
-  // while preserving a short LioraExpand trailer for archived expert recovery.
+  // while preserving integration tags and a short LioraExpand trailer.
   if (output.length > totalResultMaxChars) {
-    const trailer =
-      archiveIds.length > 0
-        ? `
-[LioraExpand archives: ${archiveIds.slice(0, 6).join(',')}${archiveIds.length > 6 ? '…' : ''}]`
-        : '';
-    const headBudget = Math.max(0, totalResultMaxChars - trailer.length);
-    output = collapseForHandoff(output, headBudget) + trailer;
-    if (output.length > totalResultMaxChars) {
-      output = output.slice(0, totalResultMaxChars);
-    }
+    output = applyHardFloorWithIntegration(output, archiveIds, totalResultMaxChars);
   }
 
   return {
@@ -204,8 +195,54 @@ function enforceTotalBudget(
     ? compactExpertBlocks(output, store, runId, Math.min(expertBodyMaxChars, 120), archiveIds)
     : compactSubagentBlocks(output, store, runId, Math.min(expertBodyMaxChars, 120), archiveIds);
   if (next.length <= totalResultMaxChars) return next;
-  // Hard floor: preserve a head+tail window so multi-expert metadata stays navigable.
-  return collapseForHandoff(next, totalResultMaxChars);
+  // Hard floor with integration preservation — never drop Ultrawork handoff tags.
+  return applyHardFloorWithIntegration(next, archiveIds, totalResultMaxChars);
+}
+
+function extractIntegrationChunks(output: string): { readonly chunks: string[]; readonly without: string } {
+  const chunks: string[] = [];
+  let without = output;
+  for (const tag of ['integration_report', 'integration_handoff'] as const) {
+    const re = new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}>`, 'gi');
+    without = without.replace(re, (match) => {
+      chunks.push(match);
+      return '';
+    });
+  }
+  return { chunks, without };
+}
+
+function applyHardFloorWithIntegration(
+  output: string,
+  archiveIds: readonly string[],
+  totalResultMaxChars: number,
+): string {
+  // Keep parent-agent integration tags even under denser total caps. Head+tail
+  // collapse alone can drop the closing integration blocks that Ultrawork needs.
+  const extracted = extractIntegrationChunks(output);
+  const integrationTail =
+    extracted.chunks.length > 0 ? `\n${extracted.chunks.join('\n')}` : '';
+  const expandTrailer =
+    archiveIds.length > 0
+      ? `\n[LioraExpand archives: ${archiveIds.slice(0, 6).join(',')}${archiveIds.length > 6 ? '…' : ''}]`
+      : '';
+  const fixedTail = `${integrationTail}${expandTrailer}`;
+  const headBudget = Math.max(0, totalResultMaxChars - fixedTail.length);
+  let next = collapseForHandoff(extracted.without.trim(), headBudget) + fixedTail;
+  if (next.length > totalResultMaxChars) {
+    // Prefer keeping the integration tail over a longer head when the densify
+    // budget is extremely tight.
+    const minTail = fixedTail.trimStart();
+    if (minTail.length >= totalResultMaxChars) {
+      next = minTail.slice(0, totalResultMaxChars);
+    } else {
+      const remaining = totalResultMaxChars - minTail.length;
+      const prefix = remaining > 0 ? collapseForHandoff(extracted.without.trim(), remaining) : '';
+      next = `${prefix}${minTail.length > 0 ? `\n${minTail}` : ''}`;
+      if (next.length > totalResultMaxChars) next = next.slice(0, totalResultMaxChars);
+    }
+  }
+  return next;
 }
 
 function injectArchiveGuidance(output: string, archiveIds: readonly string[]): string {
