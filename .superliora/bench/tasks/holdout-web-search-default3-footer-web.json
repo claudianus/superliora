@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.web-search-default3-footer-web.v1",
+  "title": "Record WebSearch default3 and footer web badge",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "web", "tui", "visible-evidence"],
+  "prompt": "Create reports/web-search-default3-footer-web.md with sections for WebSearch 3, Footer web, ZDR, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/web-search-default3-footer-web.md",
+    "content": "# WebSearch Default3 Footer Web Contract\n\n## WebSearch 3\nWebSearch defaults to 3 results and steers agents to refine the query before raising limit\n\n## Footer web\nfooter always shows a web badge for built-in WebSearch/FetchURL/Context7 readiness without MCP\n\n## ZDR\nfooter keeps zdr when telemetry is off by default\n\n## Evidence path\nLioraBench holdout + web-search/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/web-search-default3-footer-web.md", "text": "WebSearch 3", "weight": 1},
+    {"type": "file_contains", "path": "reports/web-search-default3-footer-web.md", "text": "Footer web", "weight": 1},
+    {"type": "file_contains", "path": "reports/web-search-default3-footer-web.md", "text": "ZDR", "weight": 1},
+    {"type": "file_contains", "path": "reports/web-search-default3-footer-web.md", "text": "Evidence path", "weight": 1}
+  ]
+}
