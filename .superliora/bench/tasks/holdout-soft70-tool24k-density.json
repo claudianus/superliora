@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft70-tool24k-density.v1",
+  "title": "Record soft70 compaction and denser 24k tool-result budgets",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tools",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/soft70-tool24k-density.md with sections for Soft 70, Tool 24k, Tool densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/soft70-tool24k-density.md",
+      "content": "# Soft70 Tool24k Density Contract\n\n## Soft 70\nfull compaction soft trigger defaults to 0.70 so long sessions reclaim earlier while async pre-rot stays at 0.60\n\n## Tool 24k\ntool-result budgets trim at 24k chars with 800-char previews for denser long-horizon context\n\n## Tool densify\nRead/Write/TodoList/Agent always-on tool descriptions stay contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/status vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/soft70-tool24k-density.md",
+      "text": "Soft 70",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft70-tool24k-density.md",
+      "text": "Tool 24k",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft70-tool24k-density.md",
+      "text": "Tool densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft70-tool24k-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
