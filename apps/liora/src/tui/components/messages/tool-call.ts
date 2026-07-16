@@ -1427,9 +1427,12 @@ export class ToolCallComponent extends Container {
     } else if (phase === 'truncated') {
       bullet = currentTheme.fg('error', '✗ ');
     } else {
-      // Solid bullet for in-flight tools — the previous marker ↔ blank
-      // toggle caused visible flicker on every re-render.
-      bullet = renderPulseText(STATUS_BULLET, `tool:${toolCall.id}:bullet`, 'text');
+      // Live tools: spectacular/pulse bullet keeps work visibly in motion
+      // without the old marker ↔ blank flicker.
+      const appearance = getActiveAppearancePreferences();
+      bullet = shouldRenderAmbientEffects(appearance)
+        ? renderAnimatedGradientText(STATUS_BULLET.trimEnd(), `tool:${toolCall.id}:bullet`) + ' '
+        : renderPulseText(STATUS_BULLET, `tool:${toolCall.id}:bullet`, 'text');
     }
 
     if (toolCall.name === 'ExitPlanMode') {
