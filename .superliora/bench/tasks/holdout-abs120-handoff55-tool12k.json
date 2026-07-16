@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.abs120-handoff55-tool12k.v1",
+  "title": "Record abs120k, handoff 0.55, and 12k/350 tool budgets",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/abs120-handoff55-tool12k.md with sections for Abs 120k, Handoff 55, Tool 12k, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/abs120-handoff55-tool12k.md",
+    "content": "# Abs120 Handoff55 Tool12k Contract\n\n## Abs 120k\nfull compaction absolute soft trigger defaults to 120k tokens so long sessions reclaim earlier on large windows\n\n## Handoff 55\nUltraSwarm pre-handoff compaction targets 0.55 usage so swarm launches start with denser free headroom\n\n## Tool 12k\ntool-result budgets trim at 12k chars with 350-char previews for denser long-horizon context\n\n## Evidence path\nLioraBench holdout + strategy/tool vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/abs120-handoff55-tool12k.md", "text": "Abs 120k", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs120-handoff55-tool12k.md", "text": "Handoff 55", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs120-handoff55-tool12k.md", "text": "Tool 12k", "weight": 1},
+    {"type": "file_contains", "path": "reports/abs120-handoff55-tool12k.md", "text": "Evidence path", "weight": 1}
+  ]
+}
