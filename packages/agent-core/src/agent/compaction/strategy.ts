@@ -44,11 +44,11 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.53 sits between async pre-rot (~0.42) /
+ * Compact before attention rot: 0.52 sits between async pre-rot (~0.40) /
  * swarm handoff (~0.44) and hard block (~0.80), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.53;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.52;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.80;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
@@ -60,11 +60,11 @@ export const SWARM_HANDOFF_COMPACTION_RATIO = 0.44;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
- * for cost and fidelity; start at async pre-rot (~0.42) before soft trigger.
+ * for cost and fidelity; start at async pre-rot (~0.40) before soft trigger.
  */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.42;
+export const SWARM_MICRO_PRESSURE_RATIO = 0.40;
 /** Default ratio at which async background compaction may start (pre-rot). */
-export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.42;
+export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.40;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
