@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.recompact08-maxrecent25.v1",
+  "title": "Record recompact0.8 and maxRecent size 2.5% densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/recompact08-maxrecent25.md with sections for Recompact 0.8, MaxRecent 2.5, Soft1.5, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/recompact08-maxrecent25.md",
+    "content": "# Recompact08 MaxRecent25 Contract\n\n## Recompact 0.8\nminimum recompact growth ratio defaults to 0.008 so auto reclaim can fire sooner after a compact\n\n## MaxRecent 2.5\nmax recent size ratio densifies to 0.025 so preserved tails stay leaner under pressure\n\n## Soft1.5\nsoft compaction remains 0.015 with denser tool/swarm budgets\n\n## Evidence path\nLioraBench holdout + strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/recompact08-maxrecent25.md", "text": "Recompact 0.8", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact08-maxrecent25.md", "text": "MaxRecent 2.5", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact08-maxrecent25.md", "text": "Soft1.5", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact08-maxrecent25.md", "text": "Evidence path", "weight": 1}
+  ]
+}

@@ -54,7 +54,7 @@ export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.50;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
 export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 600;
 /** Minimum context growth since the last compaction before auto may fire again. */
-export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.010;
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.008;
 /** Pre-swarm handoff ceiling: force reclaim before UltraSwarm if usage is above this ratio. */
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.05;
 /**
@@ -77,7 +77,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxOverflowCompactionAttempts: 3,
   maxRecentMessages: 2,
   maxRecentUserMessages: Infinity,
-  maxRecentSizeRatio: 0.03,
+  maxRecentSizeRatio: 0.025,
   minOverflowReductionRatio: 0.05,
   absoluteTriggerTokens: 30_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
