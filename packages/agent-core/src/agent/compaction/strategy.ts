@@ -52,9 +52,9 @@ export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.68;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.9;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
-export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 4_000;
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 3_000;
 /** Minimum context growth since the last compaction before auto may fire again. */
-export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.03;
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.025;
 /** Pre-swarm handoff compaction target (below soft trigger; aligned with async pre-rot headroom). */
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.62;
 /**
