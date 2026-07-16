@@ -34,8 +34,8 @@ const PARTICLE_TOKENS: readonly ColorToken[] = [
 ];
 const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
 const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
-/** How often ambient animation frames repaint (~28fps premium floor). */
-const PREMIUM_AMBIENT_RENDER_TICK_MS = 36;
+/** How often ambient animation frames repaint (~33fps premium floor). */
+const PREMIUM_AMBIENT_RENDER_TICK_MS = 30;
 const SUBTLE_AMBIENT_RENDER_TICK_MS = 140;
 const PULSE_GLYPH_INTERVAL_MS = 280;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
@@ -135,16 +135,9 @@ export function appearanceAnimationFrameIntervalMs(
   health: NativeFrameStatsHealth = appearanceRenderHealth,
 ): number {
   if (pinsPremiumAppearanceEffects(appearance)) {
-    return rendererAnimationFrameIntervalMs({
-      fps: appearance.animationFps,
-      requested: 'premium',
-      quality: 'full',
-      health: 'healthy',
-      maxFps: 30,
-      defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
-      premiumMs: PREMIUM_AMBIENT_RENDER_TICK_MS,
-      offMs: 1000,
-    });
+    // Premium spectacle pins the densify floor directly so animationFps max(30→33ms)
+    // cannot slow zero-config particle rails past PREMIUM_AMBIENT_RENDER_TICK_MS.
+    return PREMIUM_AMBIENT_RENDER_TICK_MS;
   }
   return rendererAnimationFrameIntervalMs({
     fps: appearance.animationFps,
@@ -220,8 +213,8 @@ export function renderParticleRail(
     cells[x] = currentTheme.fg(token, char);
 
     if (premium && safeWidth > 14) {
-      // 8-cell comet trail for denser continuous motion on demo terminals.
-      for (let step = 1; step <= 8; step++) {
+      // 9-cell comet trail for denser continuous motion on demo terminals.
+      for (let step = 1; step <= 9; step++) {
         const trail = rendererPositiveModulo(x - direction * step, safeWidth);
         if (cells[trail] !== ' ') continue;
         if (step === 1) cells[trail] = currentTheme.dimFg('particle', '•');
