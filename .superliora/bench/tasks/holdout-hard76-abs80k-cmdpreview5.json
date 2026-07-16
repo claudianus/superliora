@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard76-abs80k-cmdpreview5.v1",
+  "title": "Record hard76 abs80k and cmdPreview5 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/hard76-abs80k-cmdpreview5.md with sections for Hard 76, Abs 80k, Cmd preview 5, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard76-abs80k-cmdpreview5.md",
+    "content": "# Hard76 Abs80 CmdPreview5 Contract\n\n## Hard 76\nhard compaction block ratio defaults to 0.76 so long sessions stop earlier before attention rot\n\n## Abs 80k\nabsolute trigger tokens default to 80000 so large-context models reclaim sooner\n\n## Cmd preview 5\nTUI command/write previews default to 5 lines for denser chrome\n\n## Evidence path\nLioraBench holdout + strategy/tool-call vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard76-abs80k-cmdpreview5.md", "text": "Hard 76", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard76-abs80k-cmdpreview5.md", "text": "Abs 80k", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard76-abs80k-cmdpreview5.md", "text": "Cmd preview 5", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard76-abs80k-cmdpreview5.md", "text": "Evidence path", "weight": 1}
+  ]
+}
