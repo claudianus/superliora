@@ -2,6 +2,6 @@ Post a short UltraSwarm bus message (status, questions, blockers, standup, @ment
 
 Channels: `standup`, `lane`, `direct` (needs `to_expert_id`), `blocker`, `council`.
 
-Keep under 500 characters. Mention peers with `@expert_id` or `@Expert Name`.
+Keep under 500 characters. Mention peers via `@expert_id` or `@Expert Name`.
 
 `artifact` publishes typed handoffs (`decision`, `risk`, `patch_plan`) and emits `artifact_ref` for peers to list.

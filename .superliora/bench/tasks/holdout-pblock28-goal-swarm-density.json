@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.pblock28-goal-swarm-density.v1",
+  "title": "Record parallel-block 28k/14k and denser goal/swarm tool copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "goal",
+    "swarm",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/pblock28-goal-swarm-density.md with sections for Parallel block 28/14, Goal densify, Swarm channel densify, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/pblock28-goal-swarm-density.md",
+      "content": "# PBlock28 Goal Swarm Density Contract\n\n## Parallel block 28/14\nfull compaction parallel-block threshold/target defaults to 28k/14k tokens so long sessions reclaim earlier under parallel pressure\n\n## Goal densify\nGetGoal/SetGoalBudget always-on descriptions stay contract-complete with denser wording\n\n## Swarm channel densify\nSwarmChannel always-on description stays contract-complete with denser wording\n\n## Evidence path\nLioraBench holdout + strategy/exit-plan vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/pblock28-goal-swarm-density.md",
+      "text": "Parallel block 28/14",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/pblock28-goal-swarm-density.md",
+      "text": "Goal densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/pblock28-goal-swarm-density.md",
+      "text": "Swarm channel densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/pblock28-goal-swarm-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
