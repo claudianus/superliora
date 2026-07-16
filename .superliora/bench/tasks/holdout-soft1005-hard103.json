@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft1005-hard103.v1",
+  "title": "Record soft1.005 hard1.03 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "soft", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft1005-hard103.md with sections for Soft 1.005, Hard 1.03, Handoff 1.02, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft1005-hard103.md",
+    "content": "# Soft1005 Hard103 Contract\n\n## Soft 1.005\nsoft compaction trigger densifies to 0.01005 while staying above async pre-rot 0.01\n\n## Hard 1.03\nhard compaction block ratio densifies to 0.0103 so blocking reclaim starts earlier above soft\n\n## Handoff 1.02\nswarm handoff compaction densifies to 0.0102 between soft and hard\n\n## Evidence path\nLioraBench holdout + strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft1005-hard103.md", "text": "Soft 1.005", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft1005-hard103.md", "text": "Hard 1.03", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft1005-hard103.md", "text": "Handoff 1.02", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft1005-hard103.md", "text": "Evidence path", "weight": 1}
+  ]
+}
