@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.cmdpreview6-reserved22-seed-refresh.v1",
+  "title": "Record cmdPreview6 reserved22 and seed refresh",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tui", "visible-evidence"],
+  "prompt": "Create reports/cmdpreview6-reserved22-seed-refresh.md with sections for Cmd preview 6, Reserved 22k, Seed ladder, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/cmdpreview6-reserved22-seed-refresh.md",
+    "content": "# CmdPreview6 Reserved22 Seed Refresh Contract\n\n## Cmd preview 6\nTUI command/write previews default to 6 lines for denser chrome\n\n## Reserved 22k\nreserved context headroom defaults to 22k tokens for denser usable windows before hard block\n\n## Seed ladder\nseed-token-efficiency-contract tracks micro48/soft53/tool6.5k/swarm500/cmdPreview6 densify\n\n## Evidence path\nLioraBench holdout + strategy/tool-call vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/cmdpreview6-reserved22-seed-refresh.md", "text": "Cmd preview 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/cmdpreview6-reserved22-seed-refresh.md", "text": "Reserved 22k", "weight": 1},
+    {"type": "file_contains", "path": "reports/cmdpreview6-reserved22-seed-refresh.md", "text": "Seed ladder", "weight": 1},
+    {"type": "file_contains", "path": "reports/cmdpreview6-reserved22-seed-refresh.md", "text": "Evidence path", "weight": 1}
+  ]
+}

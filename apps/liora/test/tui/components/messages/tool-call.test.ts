@@ -271,8 +271,8 @@ describe('ToolCallComponent', () => {
       const collapsed = strip(component.render(100).join('\n'));
       expect(collapsed).toContain('Using Bash');
       expect(collapsed).toContain('echo step1');
-      expect(collapsed).toContain('echo step7');
-      expect(collapsed).not.toContain('echo step8');
+      expect(collapsed).toContain('echo step6');
+      expect(collapsed).not.toContain('echo step7');
 
       component.setExpanded(true);
 
@@ -1554,13 +1554,13 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Write');
-    // Streaming preview caps at COMMAND_PREVIEW_LINES (7) and shows the tail.
+    // Streaming preview caps at COMMAND_PREVIEW_LINES (6) and shows the tail.
     expect(out).not.toContain('line1');
-    expect(out).not.toContain('line23');
-    expect(out).toContain('line24');
+    expect(out).not.toContain('line24');
+    expect(out).toContain('line25');
     expect(out).toContain('line30');
     // Line numbers should reflect actual file positions.
-    expect(out).toContain('  24');
+    expect(out).toContain('  25');
     expect(out).toContain('  30');
     expect(out).not.toContain('ctrl+o to expand');
   });
@@ -1652,8 +1652,8 @@ describe('ToolCallComponent', () => {
     );
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('line1');
-    expect(out).toContain('line7');
-    expect(out).not.toContain('line8');
+    expect(out).toContain('line6');
+    expect(out).not.toContain('line7');
     expect(out).not.toContain('line25');
     expect(out).toContain('ctrl+o to expand');
   });
@@ -1835,8 +1835,8 @@ describe('ToolCallComponent', () => {
 
     const collapsed = strip(component.render(100).join('\n'));
     expect(collapsed).toContain('line1');
-    expect(collapsed).toContain('line7');
-    expect(collapsed).not.toContain('line8');
+    expect(collapsed).toContain('line6');
+    expect(collapsed).not.toContain('line7');
     expect(collapsed).not.toContain('line25');
     expect(collapsed).toContain('ctrl+o to expand');
 
