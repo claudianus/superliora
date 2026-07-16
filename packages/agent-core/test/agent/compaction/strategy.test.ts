@@ -187,7 +187,7 @@ describe('DefaultCompactionStrategy', () => {
   it('starts async compaction between the async threshold and soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000);
 
-    // asyncTriggerRatio=0.40 → 40k; soft trigger=0.52 → 52k
+    // asyncTriggerRatio=0.40 → 40k; soft trigger=0.51 → 51k
     expect(strategy.shouldAsyncCompact(39_999)).toBe(false);
     expect(strategy.shouldAsyncCompact(40_000)).toBe(true);
     expect(strategy.shouldCompact(40_000)).toBe(false);
@@ -277,9 +277,9 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.effectiveTriggerRatio).toBe(0.52);
-    expect(strategy.shouldCompact(51_999)).toBe(false);
-    expect(strategy.shouldCompact(52_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBe(0.51);
+    expect(strategy.shouldCompact(50_999)).toBe(false);
+    expect(strategy.shouldCompact(51_000)).toBe(true);
     expect(strategy.shouldBlock(77_999)).toBe(false);
     expect(strategy.shouldBlock(78_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
@@ -296,8 +296,8 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.shouldSpeculativelyCompact(51_999)).toBe(false);
-    expect(strategy.shouldSpeculativelyCompact(52_000)).toBe(true);
+    expect(strategy.shouldSpeculativelyCompact(50_999)).toBe(false);
+    expect(strategy.shouldSpeculativelyCompact(51_000)).toBe(true);
 
     const lateTrigger = new DefaultCompactionStrategy(() => 100_000, {
       ...DEFAULT_COMPACTION_CONFIG,
@@ -316,9 +316,9 @@ describe('DefaultCompactionStrategy', () => {
       reservedContextSize: 0,
     });
     strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
-    expect(strategy.effectiveTriggerRatio).toBe(0.52);
+    expect(strategy.effectiveTriggerRatio).toBe(0.51);
     strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.52);
+    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.51);
     expect(strategy.shouldCompact(73_000)).toBe(true);
   });
 });
@@ -440,7 +440,7 @@ describe('PipelineStrategy quality controls', () => {
     });
     const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
     const before = trigger.effectiveTriggerRatio;
-    expect(before).toBe(0.52);
+    expect(before).toBe(0.51);
     const bias = pipeline.applyQualityFeedback({ usedEmergencyBackstop: true });
     expect(bias).toBeGreaterThan(0);
     expect(trigger.effectiveTriggerRatio).toBeLessThan(before);
