@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.welcome-select-spectacle.v1",
+  "title": "Record welcome and selector spectacle densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["tui", "beginner", "visible-evidence"],
+  "prompt": "Create reports/welcome-select-spectacle.md with sections for Welcome, Selector, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/welcome-select-spectacle.md",
+    "content": "# Welcome Select Spectacle Contract\n\n## Welcome\nlogged-in welcome points at /status img/vid·web·ZDR, /bench, and Shift-Tab Ultrawork without complex config\n\n## Selector\npremium list selectors animate pointer glyphs for demo-grade chrome by default\n\n## Evidence path\nLioraBench holdout + welcome vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/welcome-select-spectacle.md", "text": "Welcome", "weight": 1},
+    {"type": "file_contains", "path": "reports/welcome-select-spectacle.md", "text": "Selector", "weight": 1},
+    {"type": "file_contains", "path": "reports/welcome-select-spectacle.md", "text": "Evidence path", "weight": 1}
+  ]
+}
