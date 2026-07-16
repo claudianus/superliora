@@ -16,12 +16,12 @@ ${PREMIUM_QUALITY_HYPE_MANTRA}
 
 Review lenses (rotate each step): Visual/UX (PRIMARY); Code (names, boundaries, tests, types, failures); Performance/a11y/trust; Evidence before claims.
 
-Method: rubric-first for visible work; small high-leverage passes; research when uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game. When quality conflicts with speed, note the trade-off, then execute.
+Method: rubric-first for visible work; small high-leverage passes; research when uncertain; DoD = relevant checks + real-surface screenshot proof for UI/browser/game. When quality conflicts with speed, note the trade-off and execute.
 
 ${PREMIUM_VISUAL_HARNESS}`;
 
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
-  'Premium still ON — elevate visuals (PRIMARY), UX, code, performance, a11y, evidence before done.',
+  'Premium still ON — elevate visuals (PRIMARY), UX, code, performance, a11y, and evidence before done.',
   PREMIUM_QUALITY_HYPE_SPARSE,
   PREMIUM_VISUAL_SPARSE_CHECKPOINT,
 ].join('\n');
@@ -32,7 +32,7 @@ export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
  */
 export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [
   'Premium Quality ON (code/evidence density — no visible UI in the active objective).',
-  'Raise correctness, tests, types, failure handling, performance, security. Prefer small high-leverage diffs.',
+  'Raise correctness, tests, types, failure handling, performance, and security. Prefer small high-leverage diffs.',
   'DoD: inspect relevant files/tests; focused verification; finish with evidence (tests, typecheck, real CLI/API proof) and remaining risks.',
   'If work later adds a user-visible surface, switch to visual Premium: art direction, anti-slop, screenshot proof.',
   'Skip frontend design skill loads while there is zero user-visible surface change.',

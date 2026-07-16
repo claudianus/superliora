@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.preview900-premium-status.v1",
+  "title": "Record 900-char tool previews and denser premium/status chrome",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tools",
+    "premium",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/preview900-premium-status.md with sections for Preview 900, Premium densify, Status sw750, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/preview900-premium-status.md",
+      "content": "# Preview900 Premium Status Contract\n\n## Preview 900\nlive oversized tool results show 900-char previews so long sessions keep less bulk after auto-trim\n\n## Premium densify\nPremium full/sparse/code always-on guidance stays screenshot-proof with denser wording\n\n## Status sw750\nstatus readiness bench gate surfaces sw750 handoff density in compact chrome\n\n## Evidence path\nLioraBench holdout + tool/premium/status vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/preview900-premium-status.md",
+      "text": "Preview 900",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/preview900-premium-status.md",
+      "text": "Premium densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/preview900-premium-status.md",
+      "text": "Status sw750",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/preview900-premium-status.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
