@@ -121,12 +121,19 @@ export class ThinkingComponent implements Component {
           const spinnerFrame =
             Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
             BRAILLE_SPINNER_FRAMES.length;
-          const spinner = currentTheme.fg(
-            'textDim',
-            `${BRAILLE_SPINNER_FRAMES[spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
-          );
+          const spinnerGlyph = BRAILLE_SPINNER_FRAMES[spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0];
+          const appearance = getActiveAppearancePreferences();
+          const spinner = shouldRenderAmbientEffects(appearance)
+            ? renderSpectacularText(`${spinnerGlyph} `, `thinking:spin:${spinnerGlyph}`, appearance, {
+                intense: true,
+                pace: 'fast',
+              })
+            : currentTheme.fg('textDim', `${spinnerGlyph} `);
           const elapsed = this.renderElapsedSuffix();
-          const thinkingLabel = renderThinkingStatusLabel(`thinking...${elapsed}`);
+          const charCount = this.text.length;
+          const density =
+            charCount > 0 ? currentTheme.fg('textMuted', ` · ${String(charCount)}c`) : '';
+          const thinkingLabel = renderThinkingStatusLabel(`thinking...${elapsed}${density}`);
           return [
             '',
             spinner + thinkingLabel,
