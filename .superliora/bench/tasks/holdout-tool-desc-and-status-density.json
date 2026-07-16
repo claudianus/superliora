@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool-desc-and-status-density.v1",
+  "title": "Record tool-description and status/tip density contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tools",
+    "status",
+    "tips",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/tool-desc-and-status-density.md with sections for Tool descriptions, Status gates, Tips density, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/tool-desc-and-status-density.md",
+      "content": "# Tool Desc and Status Density Contract\n\n## Tool descriptions\nhigh-frequency Read/Edit/Grep/Bash/TodoList descriptions stay contract-complete while densified for always-on tool schema budget\n\n## Status gates\n/status Bench gate names LioraBench holdouts including async compact/dream without secret noise\n\n## Tips density\nfooter tips keep beginner media/web/ZDR/LioraBench paths short enough to rotate cleanly\n\n## Evidence path\nLioraBench holdout + status-panel vitest + focused tool description tests\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-and-status-density.md",
+      "text": "Tool descriptions",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-and-status-density.md",
+      "text": "Status gates",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-and-status-density.md",
+      "text": "Tips density",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/tool-desc-and-status-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
