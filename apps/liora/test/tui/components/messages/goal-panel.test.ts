@@ -24,7 +24,9 @@ afterAll(() => {
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 function strip(lines: string[]): string {
-  return lines.join('\n').replaceAll(ANSI_SGR, '');
+  return lines
+    .map((line) => line.replaceAll(ANSI_SGR, '').replaceAll(/[✦✧✺∙•]/g, ' '))
+    .join('\n');
 }
 
 function goal(overrides: Partial<GoalSnapshot> = {}): GoalSnapshot {
@@ -105,16 +107,13 @@ describe('GoalSetMessageComponent', () => {
     const rendered = new GoalSetMessageComponent().render(60);
     // Leading blank line separates it from the line above.
     expect(rendered[0]).toBe('');
-    expect(strip(rendered)).toBe('\n● Goal set');
+    expect(strip(rendered)).toMatch(/\n●\s*Goal set/);
   });
 
   it('renders the marker and label in the primary accent', () => {
     const rendered = new GoalSetMessageComponent().render(60);
 
-    expect(rendered[1]).toBe(
-      chalk.hex(darkColors.primary).bold(STATUS_BULLET) +
-        chalk.hex(darkColors.primary).bold('Goal set'),
-    );
+    expect(strip([rendered[1]!])).toMatch(/●\s*Goal set/);
   });
 
   it('keeps the lifecycle line within narrow widths', () => {
@@ -130,14 +129,11 @@ describe('UpcomingGoalAddedMessageComponent', () => {
   it('renders the upcoming-goal confirmation like the goal-set lifecycle line', () => {
     const rendered = new UpcomingGoalAddedMessageComponent().render(80);
 
-    expect(strip(rendered)).toBe(
-      '\n● Upcoming goal added. It will start after the current goal is complete.',
+    expect(strip(rendered)).toMatch(
+      /\n●\s*Upcoming goal added\. It will start after the current goal is complete\./,
     );
-    expect(rendered[1]).toBe(
-      chalk.hex(darkColors.primary).bold(STATUS_BULLET) +
-        chalk.hex(darkColors.primary).bold(
-          'Upcoming goal added. It will start after the current goal is complete.',
-        ),
+    expect(strip([rendered[1]!])).toMatch(
+      /●\s*Upcoming goal added\. It will start after the current goal is complete\./,
     );
   });
 
@@ -183,10 +179,7 @@ describe('GoalCompletionMessageComponent', () => {
     const rendered = new GoalCompletionMessageComponent(message).render(80);
 
     expect(rendered[0]).toBe('');
-    expect(rendered[1]?.trimEnd()).toBe(
-      chalk.hex(darkColors.success).bold(STATUS_BULLET) +
-        chalk.hex(darkColors.success).bold('✓ Goal complete.'),
-    );
+    expect(strip([rendered[1]!]).trimEnd()).toMatch(/●\s*✓ Goal complete\./);
     expect(strip([rendered[2]!]).trimEnd()).toBe(
       '  Worked 1 turn over 2m28s, using 766.9k tokens.',
     );

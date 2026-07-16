@@ -40,8 +40,7 @@ export const NO_AI_SLOP_SKILL_ROUTING = [
   '  - Changelog/PR: "anti slop changelog pr"',
   '  - Prompts/briefs: "anti slop meta prompt CRISP"',
   '  - Unsure: SearchSkill "no ai slop" → Skill("no-ai-slop")',
-  '- Load best hit via Skill; prefer avoid-ai-writing for language-agnostic audit.',
-  '- If SearchSkill returns a locale-specific skill for the target language, use it; do not assume any default locale.',
+  '- Load best hit via Skill; prefer avoid-ai-writing for language-agnostic audit. Locale-specific skills only when SearchSkill returns them; do not assume any default locale.',
   '- Apply selectively; AGENTS.md and harness contracts override skill text. Detectors are advisory only.',
 ].join('\n');
 

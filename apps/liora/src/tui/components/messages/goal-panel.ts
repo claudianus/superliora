@@ -24,6 +24,12 @@ import type { GoalSnapshot, GoalStatus } from '@superliora/sdk';
 import { MESSAGE_INDENT } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import type { ColorToken } from '#/tui/theme';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 import { formatGoalElapsed } from './goal-format';
@@ -37,7 +43,13 @@ const LABEL_WIDTH = 11;
 function renderLifecycleLine(label: string, width: number): string[] {
   if (width <= 0) return [''];
 
-  const marker = currentTheme.boldFg('primary', STATUS_BULLET);
+  const appearance = getActiveAppearancePreferences();
+  const marker = shouldRenderAmbientEffects(appearance)
+    ? renderSpectacularText(STATUS_BULLET.trimEnd(), 'goal:lifecycle', appearance, {
+        intense: true,
+        pace: 'slow',
+      }) + ' '
+    : currentTheme.boldFg('primary', STATUS_BULLET);
   const text = new Text(currentTheme.boldFg('primary', label), 0, 0);
   const contentWidth = Math.max(1, width - visibleWidth(STATUS_BULLET));
   return [
@@ -81,7 +93,13 @@ export class GoalCompletionMessageComponent implements Component {
     const [headline = '', ...details] = this.message.trim().split(/\r?\n/);
     if (headline.length === 0) return [];
 
-    const bullet = currentTheme.boldFg('success', STATUS_BULLET);
+    const appearance = getActiveAppearancePreferences();
+    const bullet = shouldRenderAmbientEffects(appearance)
+      ? renderSpectacularText(STATUS_BULLET.trimEnd(), 'goal:complete', appearance, {
+          intense: true,
+          pace: 'slow',
+        }) + ' '
+      : currentTheme.boldFg('success', STATUS_BULLET);
     const bulletWidth = visibleWidth(STATUS_BULLET);
     const contentWidth = Math.max(1, width - bulletWidth);
     const lines: string[] = [''];
