@@ -28,9 +28,9 @@ const PHASE_INSTRUCTIONS: Record<string, string> = {
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, NextPhase.
 AskUserQuestion, ${ULTRA_PLAN_BLOCKED_MUTATORS}
 
-Goal: source-backed context + improvement levers before UltraPlan interview elevates goal/upgrade choices.
+Goal: source-backed context + improvement levers before UltraPlan interview elevates goals.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths in the evidence pack. Research stays product-write read-only — no plan file Write/Edit.
+Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths. Research is product-write read-only — no plan file Write/Edit.
 Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
@@ -61,20 +61,20 @@ Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. S
   design: `## Design Phase
 Allowed: ${ULTRA_PLAN_READ_TOOLS}. Write/Edit BLOCKED.
 Converge on one approach. TodoList for the live design board; SearchSkill/Skill when useful; SearchExpert for UltraSwarm candidates.
-Cannot write the plan file or call ExitPlanMode. Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
+Cannot write the plan file or call ExitPlanMode. Your turn MUST end with a design summary, then NextPhase({ phase: 'review' }). Do not skip to write.`,
 
   review: `## Review Phase
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, TaskList, TaskOutput. Write, Edit, general Bash BLOCKED.
 Verify design against code. Re-search when external claims stay uncertain. TodoList for verification gaps.
 Bash read-only: cat, sed -n, head/tail, grep/rg, read-only git (+ ls/find/jq as needed).
 Cannot write the plan file or call ExitPlanMode.
-Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
+Your turn MUST end with a verification summary, then NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
 You may ONLY write to the current plan file. All other file edits BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
 
 Before writing user-visible plan prose: ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
-No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if light pass fails.
+No-AI-Slop: SearchSkill with response language + surface keywords → Skill only if light pass fails.
 
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
 Include: \`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>\`
@@ -84,7 +84,7 @@ ExitPlanMode only after a complete Seed Spec.`,
   exit: `## Exit Phase
 Plan complete — call ExitPlanMode for approval. Ensure complete Seed Spec, Swarm decision audit line, and any DEFER waiver.
 No-AI-Slop skill routing: light pass on user-visible plan text; SearchSkill with response language only if prose still reads generic.
-If ExitPlanMode reports missing sections, Read/fix only that plan file and retry. Other reads for quick verification allowed; stay focused on finalizing the plan.`,
+If ExitPlanMode reports missing sections, Read/fix only that plan file and retry. Other reads for quick verification allowed.`,
 };
 
 const INTERVIEW_SPARSE_ESSENTIALS = [
