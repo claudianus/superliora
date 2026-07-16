@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.recompact25-spec3k-micro4.v1",
+  "title": "Record recompact 2.5%, speculative 3k, micro keep4/min32",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tools", "visible-evidence"],
+  "prompt": "Create reports/recompact25-spec3k-micro4.md with sections for Recompact 2.5, Spec 3k, Micro 4, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/recompact25-spec3k-micro4.md",
+    "content": "# Recompact25 Spec3k Micro4 Contract\n\n## Recompact 2.5\nfull compaction min recompact growth defaults to 2.5% so long sessions can reclaim again sooner after a compact\n\n## Spec 3k\nspeculative pre-turn buffer defaults to 3k tokens for earlier preemptive compact without over-triggering\n\n## Micro 4\nmicro compaction keeps the last 4 messages and clears tool results from 32 tokens so bulky tool output reclaims earlier\n\n## Evidence path\nLioraBench holdout + strategy/micro/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/recompact25-spec3k-micro4.md", "text": "Recompact 2.5", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact25-spec3k-micro4.md", "text": "Spec 3k", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact25-spec3k-micro4.md", "text": "Micro 4", "weight": 1},
+    {"type": "file_contains", "path": "reports/recompact25-spec3k-micro4.md", "text": "Evidence path", "weight": 1}
+  ]
+}
