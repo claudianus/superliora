@@ -15,6 +15,11 @@ import type {
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme, type ColorToken } from '#/tui/theme';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import {
+  getActiveAppearancePreferences,
+  renderParticleRail,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const ULTRAWORK_THEATRE_EVENT_TYPES = new Set<Event['type']>([
   'ultrawork.stage.changed',
@@ -146,16 +151,19 @@ export class UltraworkTheatreComponent implements Component {
       return ['', ...content];
     }
 
-    return [
-      '',
-      ...renderRoundedPanel({
-        title: ' Ultrawork ',
-        content,
-        width: safeWidth,
-        borderToken: 'success',
-        minBoxWidth: profile === 'compact' ? 60 : 24,
-      }),
-    ];
+    const appearance = getActiveAppearancePreferences();
+    const panel = renderRoundedPanel({
+      title: ' Ultrawork ',
+      content,
+      width: safeWidth,
+      borderToken: 'success',
+      minBoxWidth: profile === 'compact' ? 60 : 24,
+    });
+    if (!shouldRenderAmbientEffects(appearance) || safeWidth < 24) {
+      return ['', ...panel];
+    }
+    const rail = renderParticleRail(safeWidth, appearance, 'ultrawork:theatre');
+    return ['', rail, ...panel, rail];
   }
 
   private isSwarmStage(): boolean {

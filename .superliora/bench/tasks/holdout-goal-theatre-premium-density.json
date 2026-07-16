@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.goal-theatre-premium-density.v1",
+  "title": "Record goal/theatre spectacle and denser premium refresh contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "goal",
+    "ultrawork",
+    "premium",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/goal-theatre-premium-density.md with sections for Goal bullets, Theatre rails, Premium sparse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/goal-theatre-premium-density.md",
+      "content": "# Goal Theatre Premium Density Contract\n\n## Goal bullets\ngoal lifecycle and completion markers use spectacular ambient motion when effects are on\n\n## Theatre rails\nUltrawork theatre panels get particle rails for continuous demo-grade motion outside swarm\n\n## Premium sparse\nPremium Quality sparse checkpoints refresh every 4 assistant turns to keep long sessions pressured without full guidance floods\n\n## Evidence path\nLioraBench holdout + goal-panel/ultrawork-theatre vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/goal-theatre-premium-density.md",
+      "text": "Goal bullets",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/goal-theatre-premium-density.md",
+      "text": "Theatre rails",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/goal-theatre-premium-density.md",
+      "text": "Premium sparse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/goal-theatre-premium-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
