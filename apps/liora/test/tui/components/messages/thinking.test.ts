@@ -29,7 +29,7 @@ describe('ThinkingComponent', () => {
     const out = strip(component.render(80).join('\n'));
 
     expect(out).not.toContain('line1');
-    expect(out).not.toContain('line2');
+    expect(out).toContain('line2');
     expect(out).toContain('line3');
     expect(out).toContain('line4');
     expect(out).toContain('line5');
