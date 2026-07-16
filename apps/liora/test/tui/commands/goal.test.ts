@@ -80,7 +80,7 @@ function stripAnsi(text: string): string {
 
 /** Always-on Ultrawork interview-mode chooser: select Auto (first) and flush create. */
 async function confirmGoalStart(
-  host: GoalCommandHost,
+  host: SlashCommandHost,
   session: { createGoal: ReturnType<typeof vi.fn>; setPermission: ReturnType<typeof vi.fn> },
   choice: 'auto' | 'yolo' | 'manual' = 'auto',
 ): Promise<void> {
