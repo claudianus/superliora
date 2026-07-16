@@ -7,6 +7,7 @@ import { APIStatusError, type Message, type ToolCall } from '@superliora/kosong'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent, AgentOptions } from '../../src/agent';
+import { FLAG_DEFINITIONS, FlagResolver } from '../../src/flags';
 import { AGENT_WIRE_PROTOCOL_VERSION } from '../../src/agent/records';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SDKSessionRPC } from '../../src/rpc';
@@ -787,7 +788,14 @@ describe('SessionSubagentHost', () => {
     parent.newEvents();
 
     const longSummary = 'Detailed findings: '.repeat(20);
-    const child = testAgent();
+    // Densify async pre-rot (~1%) would otherwise reclaim mid-test and steal
+    // the second generate mock for compaction handoff.
+    const child = testAgent({
+      experimentalFlags: new FlagResolver(
+        { SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION: '0' },
+        FLAG_DEFINITIONS,
+      ),
+    });
     child.mockNextResponse({ type: 'text', text: 'done' });
     child.mockNextResponse({ type: 'text', text: longSummary });
     const session = fakeSession(parent.agent, child.agent);
@@ -1161,9 +1169,17 @@ describe('SessionSubagentHost', () => {
     };
     const child = testAgent({
       generate,
+      experimentalFlags: new FlagResolver(
+        { SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION: '0' },
+        FLAG_DEFINITIONS,
+      ),
       initialConfig: {
-        providers: {},
-        loopControl: { maxRetriesPerStep: 1 },
+        loopControl: {
+          maxRetriesPerStep: 1,
+          compactionTriggerRatio: 0.85,
+          compactionTriggerTokens: 2_000_000,
+          reservedContextSize: 0,
+        },
       },
     });
     child.configure();
