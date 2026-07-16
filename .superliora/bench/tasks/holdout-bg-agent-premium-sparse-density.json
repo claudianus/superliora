@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.bg-agent-premium-sparse-density.v1",
+  "title": "Record denser background-agent and premium sparse always-on copy",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "agent",
+    "premium",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/bg-agent-premium-sparse-density.md with sections for Background agent densify, Premium sparse densify, Tip, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/bg-agent-premium-sparse-density.md",
+      "content": "# Background Agent Premium Sparse Density Contract\n\n## Background agent densify\nAgent background-enabled/disabled always-on descriptions stay contract-complete with denser wording\n\n## Premium sparse densify\nPremium Visual sparse checkpoint and skill-routing always-on copy stay screenshot-proof with denser wording\n\n## Tip\nTUI tips warn not to TaskOutput-wait after background Agent launches\n\n## Evidence path\nLioraBench holdout + premium vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/bg-agent-premium-sparse-density.md",
+      "text": "Background agent densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/bg-agent-premium-sparse-density.md",
+      "text": "Premium sparse densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/bg-agent-premium-sparse-density.md",
+      "text": "Tip",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/bg-agent-premium-sparse-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
