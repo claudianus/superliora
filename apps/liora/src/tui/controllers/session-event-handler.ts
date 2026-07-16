@@ -5,6 +5,7 @@ import type {
   BackgroundTaskInfo,
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
+  CompactionBlockedEvent,
   CompactionCancelledEvent,
   CompactionCompletedEvent,
   CompactionStartedEvent,
@@ -323,7 +324,7 @@ export class SessionEventHandler {
       case 'warning': this.handleSessionWarning(event); break;
       case 'compaction.started': this.handleCompactionBegin(event); break;
       case 'compaction.completed': this.handleCompactionEnd(event, sendQueued); break;
-      case 'compaction.blocked': break;
+      case 'compaction.blocked': this.handleCompactionBlocked(event); break;
       case 'compaction.cancelled': this.handleCompactionCancel(event, sendQueued); break;
       case 'subagent.spawned':
       case 'subagent.started':
@@ -1211,6 +1212,21 @@ export class SessionEventHandler {
     this.host.streamingUI.beginCompaction(event.instruction, {
       background,
     });
+  }
+
+  private handleCompactionBlocked(_event: CompactionBlockedEvent): void {
+    // Background pre-rot has been awaited by the turn: promote to blocking UX.
+    if (!this.host.state.appState.isBackgroundCompacting && !this.host.state.appState.isCompacting) {
+      return;
+    }
+    this.host.streamingUI.finalizeLiveTextBuffers('waiting');
+    this.host.setAppState({
+      isCompacting: true,
+      isBackgroundCompacting: false,
+      streamingPhase: 'waiting',
+      streamingStartTime: Date.now(),
+    });
+    this.host.streamingUI.promoteCompactionToBlocking();
   }
 
   private handleCompactionEnd(

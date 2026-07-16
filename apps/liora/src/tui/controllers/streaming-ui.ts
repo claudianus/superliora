@@ -750,6 +750,13 @@ export class StreamingUIController {
     requestTUILayoutRender(this.host.state);
   }
 
+  promoteCompactionToBlocking(): void {
+    const block = this._activeCompactionBlock;
+    if (block === undefined) return;
+    block.promoteToBlocking();
+    requestTUILayoutRender(this.host.state);
+  }
+
   // ---------------------------------------------------------------------------
   // Tool call grouping
   // ---------------------------------------------------------------------------

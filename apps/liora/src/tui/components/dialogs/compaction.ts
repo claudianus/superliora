@@ -32,7 +32,7 @@ export class CompactionComponent extends Container {
   private readonly headerText: Text;
   private readonly instruction: string | undefined;
   private readonly tip: string | undefined;
-  private readonly background: boolean;
+  private background: boolean;
   private done = false;
   private canceled = false;
   private tokensBefore: number | undefined;
@@ -104,6 +104,13 @@ export class CompactionComponent extends Container {
   markCanceled(): void {
     if (this.done || this.canceled) return;
     this.canceled = true;
+    this.headerText.setText(this.buildHeader());
+    this.ui?.requestRender();
+  }
+
+  promoteToBlocking(): void {
+    if (this.done || this.canceled || !this.background) return;
+    this.background = false;
     this.headerText.setText(this.buildHeader());
     this.ui?.requestRender();
   }
