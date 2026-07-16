@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard6-abs12-pblock6.v1",
+  "title": "Record hard6 abs12 and pblock6 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard6-abs12-pblock6.md with sections for Hard 6, Abs 12, Pblock 6, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard6-abs12-pblock6.md",
+    "content": "# Hard6 Abs12 Pblock6 Contract\n\n## Hard 6\nhard compaction block ratio densifies to 0.06 so blocking reclaim starts earlier\n\n## Abs 12\nabsolute compaction trigger densifies to 12 tokens on large windows\n\n## Pblock 6\nparallel block threshold densifies to 6 with target 2 for thriftier multi-tool turns\n\n## Evidence path\nLioraBench holdout + strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard6-abs12-pblock6.md", "text": "Hard 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard6-abs12-pblock6.md", "text": "Abs 12", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard6-abs12-pblock6.md", "text": "Pblock 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard6-abs12-pblock6.md", "text": "Evidence path", "weight": 1}
+  ]
+}
