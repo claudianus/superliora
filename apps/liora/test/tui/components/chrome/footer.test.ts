@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { FooterComponent } from '#/tui/components/chrome/footer';
+import { contextUsageSeverity, FooterComponent } from '#/tui/components/chrome/footer';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
 
@@ -72,7 +72,6 @@ describe('FooterComponent', () => {
       currentTheme.setPalette(darkColors);
     }
   });
-});
 
   it('suggests media keys in the next-action line when no image/video key is set', () => {
     const previous = {
@@ -118,3 +117,28 @@ describe('FooterComponent', () => {
     }
   });
 
+  it('suggests /compact once usage reaches the soft reclaim threshold', () => {
+    const previous = process.env['OPENAI_API_KEY'];
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    try {
+      const footer = new FooterComponent({ ...appState, contextUsage: 0.13 });
+      const [, line2 = ''] = footer.render(160);
+      expect(line2).toMatch(/\/compact before long work/i);
+    } finally {
+      if (previous === undefined) delete process.env['OPENAI_API_KEY'];
+      else process.env['OPENAI_API_KEY'] = previous;
+    }
+  });
+});
+
+describe('contextUsageSeverity', () => {
+  it('maps soft/hard/danger bands without dead branches', () => {
+    expect(contextUsageSeverity(0.0)).toBe('muted');
+    expect(contextUsageSeverity(0.12)).toBe('muted');
+    expect(contextUsageSeverity(0.13)).toBe('info');
+    expect(contextUsageSeverity(0.44)).toBe('info');
+    expect(contextUsageSeverity(0.5)).toBe('warning');
+    expect(contextUsageSeverity(0.89)).toBe('warning');
+    expect(contextUsageSeverity(0.9)).toBe('danger');
+  });
+});

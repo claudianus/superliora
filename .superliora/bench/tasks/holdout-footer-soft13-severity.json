@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.footer-soft13-severity.v1",
+  "title": "Record footer soft13 severity alignment",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tui", "compaction", "visible-evidence"],
+  "prompt": "Create reports/footer-soft13-severity.md with sections for Soft severity, Hard severity, Next compact, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/footer-soft13-severity.md",
+    "content": "# Footer Soft13 Severity Contract\n\n## Soft severity\nfooter context badge uses info severity from soft reclaim ratio 0.13 so operators see pressure at the real compact trigger\n\n## Hard severity\nfooter context badge uses warning severity from hard block ratio 0.50 (danger at 0.90) without a dead 0.44→0.50 branch\n\n## Next compact\nfooter next-action suggests /compact from soft 0.13, matching usage-panel and status readiness\n\n## Evidence path\nLioraBench holdout + footer/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/footer-soft13-severity.md", "text": "Soft severity", "weight": 1},
+    {"type": "file_contains", "path": "reports/footer-soft13-severity.md", "text": "Hard severity", "weight": 1},
+    {"type": "file_contains", "path": "reports/footer-soft13-severity.md", "text": "Next compact", "weight": 1},
+    {"type": "file_contains", "path": "reports/footer-soft13-severity.md", "text": "Evidence path", "weight": 1}
+  ]
+}
