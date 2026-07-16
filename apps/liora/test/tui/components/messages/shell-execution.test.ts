@@ -33,9 +33,9 @@ describe('ShellExecutionComponent', () => {
 
     const collapsedOutput = collapsed.render(100).map(strip).join('\n');
     expect(collapsedOutput).toContain('line1');
-    expect(collapsedOutput).toContain('line3');
+    expect(collapsedOutput).not.toContain('line3');
     expect(collapsedOutput).not.toContain('line4');
-    expect(collapsedOutput).toContain('... (2 more lines, ctrl+o to expand)');
+    expect(collapsedOutput).toContain('... (3 more lines, ctrl+o to expand)');
 
     const expanded = new ShellExecutionComponent({
       result: {
@@ -80,7 +80,7 @@ describe('ShellExecutionComponent', () => {
   });
 
   it('preserves internal empty lines while trimming only trailing ones', () => {
-    const component = new ShellExecutionComponent({
+    const collapsed = new ShellExecutionComponent({
       result: {
         tool_call_id: 'call_shell',
         output: 'a\n\nb\n\n\n', // 1 internal empty line + 2 trailing empty lines
@@ -88,10 +88,24 @@ describe('ShellExecutionComponent', () => {
       },
     });
 
-    const output = component.render(100).map(strip).join('\n');
-    expect(output).toContain('a');
-    expect(output).toContain('b');
-    expect(output).not.toContain('... (2 more lines');
+    // Collapsed preview is RESULT_PREVIEW_LINES (2): keep a + blank, hide b.
+    const collapsedOut = collapsed.render(100).map(strip).join('\n');
+    expect(collapsedOut).toContain('a');
+    expect(collapsedOut).not.toContain('b');
+    expect(collapsedOut).toContain('... (1 more lines');
+
+    const expanded = new ShellExecutionComponent({
+      result: {
+        tool_call_id: 'call_shell',
+        output: 'a\n\nb\n\n\n',
+        is_error: false,
+      },
+      expanded: true,
+    });
+    const expandedOut = expanded.render(100).map(strip).join('\n');
+    expect(expandedOut).toContain('a');
+    expect(expandedOut).toContain('b');
+    expect(expandedOut).not.toContain('... (1 more lines');
   });
 
   it('truncates long single-line output by wrapped visual lines', () => {
