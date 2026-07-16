@@ -26,6 +26,7 @@ import {
   UserConfiguredDenyPermissionPolicy,
 } from './user-configured-rules';
 import { YoloModeApprovePermissionPolicy } from './yolo-mode-approve';
+import { YoloHighRiskAskPermissionPolicy } from './yolo-high-risk-ask';
 
 /** Permission policies run in order; the first non-undefined result wins. */
 export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy[] {
@@ -36,7 +37,7 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new AgentSwarmExclusiveDenyPermissionPolicy(),
     // Approved Ultra Plan ENGAGE decisions require the next execution step to be UltraSwarm.
     new UltraSwarmEngageGateDenyPermissionPolicy(agent),
-    // auto mode + AskUserQuestion → deny.
+    // auto mode + AskUserQuestion historically denied; now no-op (tool auto-answers).
     new AutoModeAskUserQuestionDenyPermissionPolicy(agent),
     // plan mode: Write/Edit outside the plan file, or TaskStop → deny.
     new PlanModeGuardDenyPermissionPolicy(agent),
@@ -44,7 +45,8 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new UserConfiguredDenyPermissionPolicy(agent),
     // GUI-use risk policy must run before auto/yolo approval so risky desktop/browser actions still gate.
     new GuiUseSafetyPermissionPolicy(agent),
-    // Access touches a sensitive file (keys, .env, cloud credentials) → deny under auto/yolo (beats auto/yolo approval). In manual mode the ask policy below still runs.
+    // Access touches a sensitive file (keys, .env, cloud credentials) → hard-deny under auto only.
+    // YOLO/manual fall through to SensitiveFileAccessAsk below.
     new SensitiveFileAccessDenyPermissionPolicy(agent),
     // auto mode → approve (any auto-mode block must be a deny rule above this).
     new AutoModeApprovePermissionPolicy(agent),
@@ -66,6 +68,8 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new SensitiveFileAccessAskPermissionPolicy(),
     // Access touches .git or a git control-dir path → ask.
     new GitControlPathAccessAskPermissionPolicy(agent),
+    // yolo high-risk Bash (delete/destructive/secrets) → ask before yolo approve.
+    new YoloHighRiskAskPermissionPolicy(agent),
     // yolo mode → approve.
     new YoloModeApprovePermissionPolicy(agent),
     // Swarm mode keeps AgentSwarm available without making it a globally default-approved tool.

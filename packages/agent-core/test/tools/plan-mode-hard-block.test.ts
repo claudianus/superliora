@@ -433,7 +433,7 @@ describe('Plan mode permission policy', () => {
     expect(planMode.interviewRoundCount).toBe(3);
   });
 
-  it('blocks actionable ultra plans from advancing until the seed ledger is ready', async () => {
+  it('blocks actionable ultra plans from advancing until UltraGoal is verifiable', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
@@ -446,10 +446,35 @@ describe('Plan mode permission policy', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('NOT READY for Design');
-    expect(result.output).toContain('open_gaps');
+    expect(result.output).toContain('verifiable_goal=false');
     expect(result.output).toContain('NEXT TURN');
     expect(planMode.phase).toBe('interview');
     expect(planMode.interviewRoundCount).toBe(0);
+  });
+
+  it('never lets advance_with_defaults bypass a non-verifiable UltraGoal at max rounds', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('interview');
+    // Force non-verifiable scoring path via empty evidence + default blocked scorer in activePlanAgent.
+    for (let round = 1; round <= 8; round++) {
+      planMode.ultraEngine.addInterviewRound(`Round ${round}`, `Partial answer ${round}`);
+    }
+    await planMode.ultraEngine.calculateAmbiguityScore();
+    const readiness = await planMode.ultraEngine.interviewReadiness();
+    expect(readiness.ready).toBe(false);
+    expect(readiness.verifiableGoal).toBe(false);
+
+    const result = await executeTool(new NextPhaseTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_next_phase_defaults',
+      args: { phase: 'design', advance_with_defaults: true },
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('NOT READY for Design');
+    expect(result.output).toContain('verifiable_goal=false');
+    expect(planMode.phase).toBe('interview');
   });
 
   it('lets ultra interview advance once the seed ledger and verifiable goal are closed', async () => {
@@ -646,14 +671,30 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'Grep', { pattern: 'interview', path: '/workspace' })).toBeUndefined();
   });
 
-  it('blocks mutating tools during Ultra Plan interview', async () => {
+  it('allows product Write and Edit during Ultra Plan interview', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, 'Write', { path: '/workspace/plan.md', content: '# Plan' }));
+    expect(
+      evaluatePlanPolicy(agent, 'Write', { path: '/workspace/src/main.ts', content: 'x' }),
+    ).toBeUndefined();
+    expect(
+      evaluatePlanPolicy(agent, 'Edit', {
+        path: '/workspace/src/main.ts',
+        old_string: 'A',
+        new_string: 'B',
+      }),
+    ).toBeUndefined();
+  });
 
-    expect(deny.message ?? '').toContain('Interview phase');
-    expect(deny.message ?? '').toContain('read-only research tools');
+  it('still blocks product Write during Ultra Plan research', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    planMode.setPhase('research');
+
+    const deny = expectDeny(
+      evaluatePlanPolicy(agent, 'Write', { path: '/workspace/src/main.ts', content: 'x' }),
+    );
+    expect(deny.message ?? '').toContain('Research phase');
   });
 
   it('explains that EnterPlanMode is not a phase transition tool in ultra interview', async () => {

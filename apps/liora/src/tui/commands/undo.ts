@@ -504,7 +504,7 @@ function reassertPermissionModeNotice(host: SlashCommandHost): void {
   if (mode === 'auto') {
     host.showNotice(
       'Auto mode: ON',
-      'Tools auto-approved. Agent will not ask questions.',
+      'Tools auto-approved. Structured questions are auto-answered.',
       { coalesceKey: 'permission-mode-auto' },
     );
     return;
@@ -512,7 +512,7 @@ function reassertPermissionModeNotice(host: SlashCommandHost): void {
   if (mode === 'yolo') {
     host.showNotice(
       'YOLO mode: ON',
-      'Workspace tools auto-approved.',
+      'Most tools auto-approved. Structured questions auto-answered; still asks for delete/secrets.',
       { coalesceKey: 'permission-mode-yolo' },
     );
   }

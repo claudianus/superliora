@@ -169,7 +169,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('response language');
   });
 
-  it('keeps Ultra Plan interview gated on seed gaps even when the task is actionable', async () => {
+  it('keeps Ultra Plan interview hard-gated on verifiable UltraGoal only', async () => {
     const agent = planAgent({
       isActive: true,
       isUltraMode: true,
@@ -186,9 +186,9 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('unknown-unknowns');
     expect(text).toContain('Baseline (original scope)');
     expect(text).toContain('UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail');
-    expect(text).toContain('NextPhase to Design is blocked until ambiguity <= 0.2, all per-dimension clarity floors pass');
-    expect(text).toContain('no required gaps remain, and the UltraGoal is verifiable');
-    expect(text).toContain('Option shape: Baseline');
+    expect(text).toContain('Hard gate for NextPhase to Design: verifiable UltraGoal only');
+    expect(text).toContain('Soft seed gaps, ambiguity floors, and open_gaps are recommendations');
+    expect(text).toContain('assumption-led');
     expect(text).toContain('Research-first before AskUserQuestion');
     expect(text).toContain('Context7Resolve/Context7Docs for library APIs');
     expect(text).toContain('WebSearch/FetchURL for external facts');
@@ -196,11 +196,11 @@ describe('PlanModeInjector content', () => {
     expect(text).not.toContain('{{perspective}}');
     expect(text).toContain('benchmarks, best practices');
     expect(text).toContain('Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase');
-    expect(text).toContain('Read-only research in the same turn is allowed and encouraged');
+    expect(text).toContain('Investigation (including product Write/Edit prototypes) in the same turn is allowed');
     expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');
     expect(text).toContain('Do not advance just because the task feels actionable');
     expect(text).toContain('live readiness checklist below');
-    expect(text).toContain('Do not Write or Edit the plan file during Interview');
+    expect(text).toContain('Prefer not to Write the formal plan file during Interview');
     expect(text).toContain('Interview readiness:');
     expect(text).toContain('through the researcher perspective');
   });

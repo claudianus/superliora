@@ -7,6 +7,7 @@ import { maybeAdvanceUltraworkStage } from '../../ultrawork';
 import {
   UltraPlanModeEngine,
   type DriftMetrics,
+  type InterviewAnswerOrigin,
   type UltraPlanData,
   type UltraPlanPhase,
 } from './ultra-plan-mode';
@@ -216,9 +217,10 @@ export class PlanMode {
   async recordUltraInterviewAnswers(
     questions: ReadonlyArray<{ readonly question: string; readonly header?: string }>,
     answers: Record<string, string | true>,
+    origin: InterviewAnswerOrigin = 'user',
   ): Promise<void> {
     if (!this._isActive || !this._isUltraMode || this._phase !== 'interview') return;
-    this.ultraEngine.recordInterviewAnswers(questions, answers);
+    this.ultraEngine.recordInterviewAnswers(questions, answers, origin);
     await this.ultraEngine.calculateAmbiguityScore(undefined, (delta) => {
       this.emitThinkingDelta(delta);
     });

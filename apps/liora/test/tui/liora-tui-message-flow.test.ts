@@ -829,7 +829,7 @@ command = "vim"
 
     await vi.waitFor(() => {
       expect(stripSgr(renderTranscript(driver))).toContain(
-        'Tools auto-approved. Agent will not ask questions.',
+        'Tools auto-approved. Structured questions are auto-answered.',
       );
     });
 
@@ -853,7 +853,7 @@ command = "vim"
         expect(transcript).not.toContain('hello');
         expect(transcript).not.toContain('Cannot undo 10 prompts');
         // Command notices are session-scoped and must survive undo of user turns.
-        expect(transcript).toContain('Tools auto-approved. Agent will not ask questions.');
+        expect(transcript).toContain('Tools auto-approved. Structured questions are auto-answered.');
         expect(driver.state.appState.permissionMode).toBe('auto');
       },
       { timeout: 5_000 },

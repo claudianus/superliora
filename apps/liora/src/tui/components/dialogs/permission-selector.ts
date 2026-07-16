@@ -13,13 +13,13 @@ const PERMISSION_OPTIONS: readonly ChoiceOption[] = [
     value: 'auto',
     label: 'Auto',
     description:
-      'Run fully non-interactively. Tool actions are approved automatically, and agent questions are skipped so it can decide on its own.',
+      'Run fully non-interactively. Tool actions are approved automatically, and structured agent questions are auto-answered so it can decide on its own.',
   },
   {
     value: 'yolo',
     label: 'YOLO',
     description:
-      'Automatically approve tool actions and plan transitions. The agent can still ask you explicit questions when your input is needed.',
+      'Automatically approve most tool actions and plan transitions. Structured questions are auto-answered; SuperLiora still asks you for delete/destructive or credential/secret access.',
   },
 ];
 

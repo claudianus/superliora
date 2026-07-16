@@ -301,7 +301,7 @@ describe('UltraPlanModeEngine', () => {
       expect(progress).toContain('Seed Spec extracted.');
     });
 
-    it('keeps interview blocked until every required seed ledger gap is closed', async () => {
+    it('treats open seed gaps as soft guidance when UltraGoal is verifiable', async () => {
       const engine = new UltraPlanModeEngine(
         createMockAgent(
           ambiguityResponse({
@@ -322,17 +322,19 @@ describe('UltraPlanModeEngine', () => {
 
       const readiness = await engine.interviewReadiness();
 
-      expect(readiness.ready).toBe(false);
+      // Hard design gate = verifiableGoal only; soft seed gaps do not clear ready.
+      expect(readiness.ready).toBe(true);
       expect(readiness.verifiableGoal).toBe(true);
       expect(readiness.openGaps).toContain('actors');
       expect(readiness.openGaps).toContain('inputs');
       expect(readiness.openGaps).toContain('runtime_context');
       expect(readiness.ambiguityScore.overallScore).toBeGreaterThan(0.2);
-      const blocker = await engine.readinessBlockerMessage();
-      expect(blocker).toContain('NOT READY for Design');
-      expect(blocker).toContain('open_gaps');
-      expect(blocker).toContain('NEXT TURN');
-      expect(blocker).toContain('Write or Edit the plan file');
+      expect(readiness.ambiguityScore.isReadyForSeed).toBe(false);
+      const guide = await engine.readinessBlockerMessage();
+      expect(guide).toContain('READY for Design');
+      expect(guide).toContain('Soft seed recommendations');
+      expect(guide).toContain('open_gaps');
+      expect(guide).toContain('Write or Edit the plan file');
     });
 
     it('does not close seed gaps from section labels in the question text alone', async () => {
@@ -475,6 +477,22 @@ describe('UltraPlanModeEngine', () => {
       expect(engine.interviewState.consecutiveNonUserAnswers).toBe(0);
     });
 
+    it('treats auto origin as non-user for consecutiveNonUserAnswers', () => {
+      const engine = new UltraPlanModeEngine(mockAgent);
+      engine.startInterview('Ship feature X');
+
+      engine.addInterviewRound('What framework?', 'Next.js 14', 'code');
+      expect(engine.interviewState.consecutiveNonUserAnswers).toBe(1);
+
+      engine.recordInterviewAnswers(
+        [{ question: 'Prefer Postgres?' }],
+        { 'Prefer Postgres?': 'Postgres (Recommended)' },
+        'auto',
+      );
+      expect(engine.interviewState.consecutiveNonUserAnswers).toBe(2);
+      expect(engine.interviewState.rounds.at(-1)?.origin).toBe('auto');
+    });
+
     it('records origin on interview rounds', () => {
       const engine = new UltraPlanModeEngine(mockAgent);
       engine.startInterview('Ship feature X');
@@ -522,7 +540,7 @@ describe('UltraPlanModeEngine', () => {
       expect(guide).toContain('AskUserQuestion');
     });
 
-    it('does not force-ready after the interview round cap when blockers remain', async () => {
+    it('does not force-ready after the interview round cap when UltraGoal is non-verifiable', async () => {
       let callCount = 0;
       const engine = new UltraPlanModeEngine(
         createMockAgent(() => {
@@ -549,12 +567,39 @@ describe('UltraPlanModeEngine', () => {
       expect(engine.interviewState.rounds).toHaveLength(MAX_INTERVIEW_ROUNDS);
       expect(scored.isReadyForSeed).toBe(false);
       expect(readiness.ready).toBe(false);
-      expect(
-        formatInterviewReadinessGuide(readiness, {
-          perspective: engine.currentPerspective,
-          interviewRoundCount: engine.interviewState.rounds.length,
-        }),
-      ).toContain(`Round cap: ${MAX_INTERVIEW_ROUNDS}`);
+      expect(readiness.verifiableGoal).toBe(false);
+      const guide = formatInterviewReadinessGuide(readiness, {
+        perspective: engine.currentPerspective,
+        interviewRoundCount: engine.interviewState.rounds.length,
+      });
+      expect(guide).toContain(`Round cap: ${MAX_INTERVIEW_ROUNDS}`);
+      expect(guide).toContain('never bypasses a non-verifiable');
+    });
+
+    it('keeps readiness.ready false when only soft seed floors fail is not applicable — hardReady tracks verifiableGoal only', async () => {
+      const engine = new UltraPlanModeEngine(
+        createMockAgent(
+          ambiguityResponse({
+            present_sections: ['goal'],
+            verifiable_goal: true,
+            goal_clarity_score: 0.5,
+            constraint_clarity_score: 0.5,
+            success_criteria_clarity_score: 0.5,
+            specificity_score: 0.4,
+          }),
+        ),
+      );
+      engine.startInterview('Ship with verifiable goal but open seed gaps');
+      engine.addInterviewRound(
+        'What is the goal?',
+        'Goal: ship feature X. Completion Criterion: true when tests pass, false otherwise.',
+      );
+
+      const readiness = await engine.interviewReadiness();
+      expect(readiness.verifiableGoal).toBe(true);
+      expect(readiness.ready).toBe(true);
+      expect(readiness.openGaps.length).toBeGreaterThan(0);
+      expect(readiness.ambiguityScore.isReadyForSeed).toBe(false);
     });
 
     it('reuses cached ambiguity scoring for injection-style readiness checks', async () => {

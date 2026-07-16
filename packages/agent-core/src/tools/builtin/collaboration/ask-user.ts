@@ -153,6 +153,19 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
     }: Pick<ExecutableToolContext, 'toolCallId' | 'signal' | 'turnId'>,
   ): Promise<ExecutableToolResult> {
     try {
+      const autoAnswer = tryAutoAnswerQuestions(args, this.agent.permission?.mode);
+      if (autoAnswer !== undefined) {
+        await this.recordUltraInterviewAnswers(args.questions, autoAnswer.answers, 'auto');
+        this.agent.telemetry.track('question_answered', {
+          answered: Object.keys(autoAnswer.answers).length,
+          method: 'auto',
+        });
+        return {
+          isError: false,
+          output: JSON.stringify({ answers: autoAnswer.answers, method: 'auto' }),
+        };
+      }
+
       const result = await this.agent.rpc!.requestQuestion!(
         {
           turnId: numericTurnId(turnId),
@@ -175,7 +188,7 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
         this.agent.telemetry.track('question_dismissed');
         return dismissedQuestionResult();
       }
-      await this.recordUltraInterviewAnswers(args.questions, normalized.answers);
+      await this.recordUltraInterviewAnswers(args.questions, normalized.answers, 'user');
 
       const properties: Record<string, TelemetryPropertyValue> = {
         answered: Object.keys(normalized.answers).length,
@@ -252,11 +265,12 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
   private async recordUltraInterviewAnswers(
     questions: NormalizedAskUserQuestionInput['questions'],
     answers: QuestionAnswers,
+    origin: 'user' | 'auto' = 'user',
   ): Promise<void> {
     const planMode = (this.agent as Partial<Pick<Agent, 'planMode'>>).planMode;
     if (planMode?.isUltraMode !== true || planMode.phase !== 'interview') return;
     try {
-      await planMode.recordUltraInterviewAnswers(questions, answers);
+      await planMode.recordUltraInterviewAnswers(questions, answers, origin);
     } catch {
       // Recording interview context must not turn a valid user answer into a dismissal.
     }
@@ -312,5 +326,30 @@ function normalizeQuestionResult(
     };
   }
   return { answers: result };
+}
+
+const AUTO_ANSWER_ASSUMPTION =
+  'Assumption: proceed with baseline/minimal scope; refine if blocked.';
+
+function tryAutoAnswerQuestions(
+  args: NormalizedAskUserQuestionInput,
+  mode: string | undefined,
+): { readonly answers: QuestionAnswers } | undefined {
+  if (mode !== 'auto' && mode !== 'yolo') return undefined;
+
+  const answers: QuestionAnswers = {};
+  for (const question of args.questions) {
+    const key = question.question;
+    if (question.options.length === 0) {
+      answers[key] = AUTO_ANSWER_ASSUMPTION;
+      continue;
+    }
+    const recommended = question.options.find((option) =>
+      option.label.includes('(Recommended)'),
+    );
+    const chosen = recommended ?? question.options[0];
+    answers[key] = chosen?.label ?? AUTO_ANSWER_ASSUMPTION;
+  }
+  return { answers };
 }
 

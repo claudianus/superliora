@@ -28,8 +28,12 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
       if (phaseResult !== undefined) return phaseResult;
     }
 
-    // Normal plan mode guards (and ultra write-phase plan-file guard)
-    if (toolName === 'Write' || toolName === 'Edit') {
+    // Normal plan mode guards (and ultra write-phase plan-file guard).
+    // Ultra interview product Write/Edit already returned undefined above.
+    if (
+      (toolName === 'Write' || toolName === 'Edit') &&
+      !(isUltraMode && phase === 'interview')
+    ) {
       const planFilePath = this.agent.planMode.planFilePath;
       if (planFilePath === null) {
         return {
@@ -107,6 +111,9 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         };
       }
       case 'interview': {
+        // Product Write/Edit is open in Interview (sensitive handled later by
+        // SensitiveFileAccessDeny/Ask — do not filter sensitive paths here).
+        if (toolName === 'Write' || toolName === 'Edit') return;
         if (toolName === 'AskUserQuestion') {
           this.agent.planMode.incrementInterviewRound();
           return;
@@ -148,7 +155,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         }
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Interview phase. Use read-only research tools to sharpen the next question, then AskUserQuestion or NextPhase. NextPhase will remain blocked until the UltraGoal is true/false verifiable and required Seed gaps are closed.`,
+          message: `${toolName} is blocked in Interview phase. Use read-only research tools to sharpen the next question, then AskUserQuestion or NextPhase. Product Write/Edit is allowed; NextPhase to Design is hard-blocked only until the UltraGoal is true/false verifiable; soft seed gaps are recommendations, not Design blockers.`,
         };
       }
       case 'design': {

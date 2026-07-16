@@ -37,7 +37,7 @@ export interface QuestionItem {
   readonly otherDescription?: string;
 }
 
-export type QuestionAnswerMethod = 'enter' | 'space' | 'number_key';
+export type QuestionAnswerMethod = 'enter' | 'space' | 'number_key' | 'auto';
 export type QuestionAnswers = Record<string, string | true>;
 
 export interface QuestionResponse {

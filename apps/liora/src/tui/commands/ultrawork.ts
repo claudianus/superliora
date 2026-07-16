@@ -7,9 +7,9 @@ import {
 } from '@superliora/sdk';
 
 import {
-  SwarmStartPermissionPromptComponent,
-  type SwarmStartPermissionChoice,
-} from '../components/dialogs/swarm-start-permission-prompt';
+  UltraworkStartModePromptComponent,
+  type UltraworkStartModeChoice,
+} from '../components/dialogs/ultrawork-start-mode-prompt';
 import { UltraworkModeMarkerComponent } from '../components/messages/ultrawork-markers';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';
@@ -115,20 +115,25 @@ export async function handleUltraworkCommand(
     return;
   }
 
-  if (host.state.appState.permissionMode === 'manual') {
-    const commandText = source === 'auto' ? args : `/ultrawork ${args.trim()}`;
-    showUltraworkStartPermissionPrompt(
-      host,
-      commandText,
-      'Ultrawork not started.',
-      async (choice) => {
-        await startUltraworkWithPermission(host, parsed, source, choice);
-      },
-    );
+  // Always-on chooser for every Ultrawork create (no memory of prior choice).
+  // Resume paths return earlier. Headless has no TUI chooser → Manual.
+  if (source === 'headless') {
+    if (!(await setPermissionForUltrawork(host, 'manual'))) {
+      return;
+    }
+    await startUltrawork(host, parsed, source);
     return;
   }
 
-  await startUltrawork(host, parsed, source);
+  const commandText = source === 'auto' ? args : `/ultrawork ${args.trim()}`;
+  showUltraworkStartModePrompt(
+    host,
+    commandText,
+    'Ultrawork not started.',
+    async (choice) => {
+      await startUltraworkWithPermission(host, parsed, source, choice);
+    },
+  );
 }
 
 export async function handleUltraworkModeToggle(
@@ -183,18 +188,18 @@ export async function handleUltraworkModeToggle(
   );
 }
 
-function showUltraworkStartPermissionPrompt(
+function showUltraworkStartModePrompt(
   host: SlashCommandHost,
   commandText: string,
   cancelStatus: string,
-  onSelect: (choice: SwarmStartPermissionChoice) => Promise<void>,
+  onSelect: (choice: UltraworkStartModeChoice) => Promise<void>,
 ): void {
   const cancelStart = (): void => {
     host.restoreInputText(commandText);
     host.showStatus(cancelStatus);
   };
   host.mountEditorReplacement(
-    new SwarmStartPermissionPromptComponent({
+    new UltraworkStartModePromptComponent({
       onSelect: (choice) => {
         host.restoreEditor();
         void onSelect(choice);
@@ -208,9 +213,10 @@ async function startUltraworkWithPermission(
   host: SlashCommandHost,
   request: UltraworkCreateRequest,
   source: UltraworkActivationSource,
-  choice: SwarmStartPermissionChoice,
+  choice: UltraworkStartModeChoice,
 ): Promise<void> {
-  if ((choice === 'auto' || choice === 'yolo') && !(await setPermissionForUltrawork(host, choice))) {
+  // Always apply the chosen mode, including Manual when prior was auto/yolo.
+  if (!(await setPermissionForUltrawork(host, choice))) {
     return;
   }
   await startUltrawork(host, request, source);

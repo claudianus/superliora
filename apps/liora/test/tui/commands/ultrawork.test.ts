@@ -17,8 +17,65 @@ import {
 import type { SlashCommandHost } from '#/tui/commands/dispatch';
 import { currentTheme } from '#/tui/theme';
 
+const ENTER = '\r';
+const ESCAPE = '\u001B';
+const DOWN = '\u001B[B';
+
 function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
+
+interface TestPicker {
+  handleInput(data: string): void;
+  render(width: number): string[];
+}
+
+function mountedPicker(host: SlashCommandHost): TestPicker {
+  const mock = host.mountEditorReplacement as ReturnType<typeof vi.fn>;
+  return mock.mock.calls[0]?.[0] as TestPicker;
+}
+
+/** Select Manual (default) or Auto/YOLO via Down then Enter, then flush start chain. */
+async function chooseUltraworkStartMode(
+  host: SlashCommandHost,
+  choice: 'manual' | 'auto' | 'yolo' = 'manual',
+): Promise<void> {
+  const picker = mountedPicker(host);
+  if (choice === 'auto') picker.handleInput(DOWN);
+  if (choice === 'yolo') {
+    picker.handleInput(DOWN);
+    picker.handleInput(DOWN);
+  }
+  picker.handleInput(ENTER);
+  await vi.waitFor(() => {
+    expect(host.restoreEditor).toHaveBeenCalled();
+  });
+  const session = host.requireSession() as {
+    setPermission: ReturnType<typeof vi.fn>;
+    setPlanMode: ReturnType<typeof vi.fn>;
+    createUltraworkRun: ReturnType<typeof vi.fn>;
+  };
+  // Always applies setPermission; then start may succeed or fail after prepare.
+  await vi.waitFor(() => {
+    expect(session.setPermission).toHaveBeenCalled();
+  });
+  await vi.waitFor(() => {
+    const started =
+      session.createUltraworkRun.mock.calls.length > 0 ||
+      (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.length > 0;
+    const failedAfterPermission =
+      (host.showError as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
+      session.setPlanMode.mock.calls.length > 0;
+    expect(started || failedAfterPermission).toBe(true);
+  });
+  // Drain remaining microtasks from startUltrawork (evidence seed, marker, prompt).
+  await vi.waitFor(() => {
+    const done =
+      session.createUltraworkRun.mock.calls.length > 0 ||
+      (host.showError as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
+      (host.sendNormalUserInput as ReturnType<typeof vi.fn>).mock.calls.length > 0;
+    expect(done).toBe(true);
+  });
 }
 
 interface TestComponent {
@@ -211,7 +268,14 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('cannot turn mode off while a run is active');
     expect(prompt).toContain('Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan');
     expect(prompt).toContain('Swarm decision: ENGAGE|DEFER');
-    expect(prompt).toContain('call UltraSwarm as the only tool call before product-file edits');
+    expect(prompt).toContain('call UltraSwarm as the only tool call before further product implementation edits');
+    expect(prompt).toContain('Dual source-of-truth for product edits');
+    expect(prompt).toContain('Interview allows product Write/Edit');
+    expect(prompt).toContain('Research is investigation-only');
+    expect(prompt).toContain('Headless/auto without TUI defaults to Manual');
+    expect(prompt).not.toContain('No product-file edits until Write/Exit');
+    expect(prompt).not.toContain('no mutating edits');
+    expect(prompt).toContain('product Write/Edit allowed under planMode');
     expect(prompt).toContain('Do not ask the user to choose /ultraplan, /ultraresearch, /ultragoal, or /ultraswarm');
     expect(prompt).toContain('울트라플랜');
     expect(prompt).toContain('ultra-plan');
@@ -353,7 +417,10 @@ describe('handleUltraworkCommand', () => {
     const { host, session } = makeHost();
 
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    await chooseUltraworkStartMode(host, 'manual');
 
+    expect(session.setPermission).toHaveBeenCalledWith('manual');
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expect(host.setAppState).toHaveBeenCalledWith({
@@ -396,6 +463,69 @@ describe('handleUltraworkCommand', () => {
     );
   });
 
+  it('always shows Manual-default chooser and applies Manual setPermission from prior auto', async () => {
+    const { host, session } = makeHost({ permissionMode: 'auto' });
+
+    await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    expect(session.createUltraworkRun).not.toHaveBeenCalled();
+    const text = stripAnsi(mountedPicker(host).render(80).join('\n'));
+    expect(text).toContain('How should Ultrawork interview and approvals run?');
+    expect(text).toContain('Manual (default)');
+    expect(text).toContain('You answer every AskUserQuestion');
+    expect(text).toContain('not remembered');
+
+    await chooseUltraworkStartMode(host, 'manual');
+
+    expect(session.setPermission).toHaveBeenCalledWith('manual');
+    expect(host.setAppState).toHaveBeenCalledWith({ permissionMode: 'manual' });
+    expect(session.createUltraworkRun).toHaveBeenCalled();
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith(
+      expect.stringContaining('<ultrawork_flow>'),
+      { displayText: 'Ship feature X' },
+    );
+  });
+
+  it('applies Auto or YOLO when chosen even if prior mode differs', async () => {
+    const { host, session } = makeHost({ permissionMode: 'manual' });
+
+    await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+    await chooseUltraworkStartMode(host, 'yolo');
+
+    expect(session.setPermission).toHaveBeenCalledWith('yolo');
+    expect(host.setAppState).toHaveBeenCalledWith({ permissionMode: 'yolo' });
+    expect(session.createUltraworkRun).toHaveBeenCalled();
+  });
+
+  it('defaults headless create to Manual without showing the chooser', async () => {
+    const { host, session } = makeHost({ permissionMode: 'auto' });
+
+    await handleUltraworkCommand(host, 'Ship feature X', 'headless');
+
+    expect(host.mountEditorReplacement).not.toHaveBeenCalled();
+    expect(session.setPermission).toHaveBeenCalledWith('manual');
+    expect(host.setAppState).toHaveBeenCalledWith({ permissionMode: 'manual' });
+    expect(session.createUltraworkRun).toHaveBeenCalled();
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith(
+      expect.stringContaining('activation: headless'),
+      { displayText: 'Ship feature X' },
+    );
+  });
+
+  it('cancels create without starting when chooser is dismissed', async () => {
+    const { host, session } = makeHost({ permissionMode: 'yolo' });
+
+    await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+    mountedPicker(host).handleInput(ESCAPE);
+
+    expect(host.restoreInputText).toHaveBeenCalledWith('/ultrawork Ship feature X');
+    expect(host.showStatus).toHaveBeenCalledWith('Ultrawork not started.');
+    expect(session.setPermission).not.toHaveBeenCalled();
+    expect(session.createUltraworkRun).not.toHaveBeenCalled();
+    expect(host.sendNormalUserInput).not.toHaveBeenCalled();
+  });
+
   it('creates project-local LLM Wiki, knowledge-map, coverage, and review seed evidence', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-ultrawork-seed-'));
     try {
@@ -406,6 +536,7 @@ describe('handleUltraworkCommand', () => {
         '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
         'manual',
       );
+      await chooseUltraworkStartMode(host, 'manual');
 
       const runsRoot = join(workDir, '.superliora/evidence/ultrawork-runs');
       const runDirs = readdirSync(runsRoot);
@@ -479,6 +610,7 @@ describe('handleUltraworkCommand', () => {
     session.setPlanMode.mockRejectedValueOnce(new Error('plan denied'));
 
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+    await chooseUltraworkStartMode(host, 'manual');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.createGoal).not.toHaveBeenCalled();
@@ -491,6 +623,7 @@ describe('handleUltraworkCommand', () => {
     session.setPlanMode.mockRejectedValueOnce(new Error('Already in plan mode'));
 
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+    await chooseUltraworkStartMode(host, 'manual');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
@@ -508,6 +641,7 @@ describe('handleUltraworkCommand', () => {
     session.setPlanMode.mockRejectedValueOnce(new Error('Already in plan mode'));
 
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+    await chooseUltraworkStartMode(host, 'manual');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
@@ -538,6 +672,7 @@ describe('handleUltraworkCommand', () => {
     session.createGoal.mockRejectedValueOnce(new Error('goal denied'));
 
     await handleUltraworkCommand(host, 'Ship feature X', 'manual');
+    await chooseUltraworkStartMode(host, 'manual');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
     expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
@@ -551,6 +686,7 @@ describe('handleUltraworkCommand', () => {
     const { host, session } = makeHost();
 
     await handleUltraworkCommand(host, 'replace Ship feature Y', 'manual');
+    await chooseUltraworkStartMode(host, 'manual');
 
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
@@ -598,6 +734,8 @@ describe('handleUltraworkCommand', () => {
 
     await handleUltraworkCommand(host, 'resume', 'manual');
 
+    expect(host.mountEditorReplacement).not.toHaveBeenCalled();
+    expect(session.setPermission).not.toHaveBeenCalled();
     expect(session.setPlanMode).not.toHaveBeenCalledWith(false, false);
     expect(session.resumeUltrawork).toHaveBeenCalled();
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(

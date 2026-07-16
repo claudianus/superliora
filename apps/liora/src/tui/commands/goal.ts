@@ -343,15 +343,10 @@ export async function createGoal(
     return false;
   }
 
-  if (
-    host.state.appState.permissionMode === 'manual' ||
-    host.state.appState.permissionMode === 'yolo'
-  ) {
-    showGoalStartPermissionPrompt(host, parsed, rawArgs ?? parsed.objective, options);
-    return false;
-  }
-
-  return startGoal(host, parsed, options);
+  // Always-on Ultrawork interview-mode chooser (Option A: PermissionMode).
+  // Do not skip when already in auto — user must explicitly pick Auto/YOLO/Manual.
+  showGoalStartPermissionPrompt(host, parsed, rawArgs ?? parsed.objective, options);
+  return false;
 }
 
 function showGoalStartPermissionPrompt(
@@ -367,7 +362,8 @@ function showGoalStartPermissionPrompt(
   };
   host.mountEditorReplacement(
     new GoalStartPermissionPromptComponent({
-      mode: host.state.appState.permissionMode === 'yolo' ? 'yolo' : 'manual',
+      // Always present Manual-first Ultrawork-style choice set (not YOLO-keep framing).
+      mode: 'manual',
       onSelect: (choice) => {
         if (choice === 'cancel') {
           cancelStart();
@@ -387,7 +383,8 @@ async function startGoalWithPermission(
   choice: GoalStartPermissionChoice,
   options: GoalStartOptions,
 ): Promise<void> {
-  if (choice !== host.state.appState.permissionMode && (choice === 'auto' || choice === 'yolo')) {
+  // Always apply the chosen mode, including Manual when prior was auto/yolo.
+  if (choice === 'auto' || choice === 'yolo' || choice === 'manual') {
     if (!(await setPermissionForGoal(host, choice))) return;
   }
   await startGoal(host, parsed, options);
