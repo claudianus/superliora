@@ -222,11 +222,16 @@ function applyHardFloorWithIntegration(
   const extracted = extractIntegrationChunks(output);
   const integrationTail =
     extracted.chunks.length > 0 ? `\n${extracted.chunks.join('\n')}` : '';
+  // Preserve adaptive-restaff signal text that would otherwise fall out of the
+  // collapsed expert head under denser total budgets.
+  const restaffNote = /Restaffed after revision gaps\./i.test(output)
+    ? '\nRestaffed after revision gaps.'
+    : '';
   const expandTrailer =
     archiveIds.length > 0
       ? `\n[LioraExpand archives: ${archiveIds.slice(0, 6).join(',')}${archiveIds.length > 6 ? '…' : ''}]`
       : '';
-  const fixedTail = `${integrationTail}${expandTrailer}`;
+  const fixedTail = `${integrationTail}${restaffNote}${expandTrailer}`;
   const headBudget = Math.max(0, totalResultMaxChars - fixedTail.length);
   let next = collapseForHandoff(extracted.without.trim(), headBudget) + fixedTail;
   if (next.length > totalResultMaxChars) {
