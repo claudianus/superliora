@@ -43,7 +43,7 @@ import {
 } from '../../../src/agent/compaction/full-helpers';
 import { CompactionQualityTracker } from '../../../src/agent/compaction/quality';
 import type { LioraConfig } from '../../../src/config';
-import { FLAG_DEFINITIONS, MASTER_ENV } from '../../../src/flags';
+import { FLAG_DEFINITIONS, FlagResolver, MASTER_ENV } from '../../../src/flags';
 import type { AgentMemoryRuntime, MemoryCreateInput, MemoryRecord } from '../../../src/memory';
 import { HookEngine, type HookEngineTriggerArgs } from '../../../src/session/hooks';
 import { estimateTokensForMessages } from '../../../src/utils/tokens';
@@ -3160,9 +3160,19 @@ describe('FullCompaction', () => {
 
   it('does not auto compact small contexts when reserved size exceeds the model window', async () => {
     const ctx = testAgent({
+      experimentalFlags: new FlagResolver(
+        { SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION: '0' },
+        FLAG_DEFINITIONS,
+      ),
       initialConfig: {
         providers: {},
-        loopControl: { reservedContextSize: 50_000 },
+        loopControl: {
+          reservedContextSize: 50_000,
+          // Keep soft reclaim far above this small fixture so the test isolates
+          // the reserved-size-exceeds-window path after densify ladders.
+          compactionTriggerRatio: 0.85,
+          compactionTriggerTokens: 2_000_000,
+        },
       },
     });
     ctx.configure({
