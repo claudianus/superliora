@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.premium1ms-hard10011.v1",
+  "title": "Record premium1ms and hard1.0011 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["tui", "premium", "compaction", "visible-evidence"],
+  "prompt": "Create reports/premium1ms-hard10011.md with sections for Premium 1ms, Trail 28, Hard 1.0011, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/premium1ms-hard10011.md",
+    "content": "# Premium1ms Hard10011 Contract\n\n## Premium 1ms\npremium ambient render tick densifies to 1ms for maximum zero-config spectacle density\n\n## Trail 28\npremium particle rails densify to 28-step comet trails for denser continuous motion\n\n## Hard 1.0011\nhard compaction block densifies to 0.010011 above soft 0.01001 and handoff 0.0100105\n\n## Evidence path\nLioraBench holdout + appearance/strategy vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/premium1ms-hard10011.md", "text": "Premium 1ms", "weight": 1},
+    {"type": "file_contains", "path": "reports/premium1ms-hard10011.md", "text": "Trail 28", "weight": 1},
+    {"type": "file_contains", "path": "reports/premium1ms-hard10011.md", "text": "Hard 1.0011", "weight": 1},
+    {"type": "file_contains", "path": "reports/premium1ms-hard10011.md", "text": "Evidence path", "weight": 1}
+  ]
+}
