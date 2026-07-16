@@ -43,10 +43,11 @@ export class ActivityPaneComponent extends Container {
     const appearance = getActiveAppearancePreferences();
     if (!shouldRenderAmbientEffects(appearance) || width < 24) return lines;
 
-    // Demo-grade rail under live activity so long waits still feel alive.
+    // Dual particle rails: live activity stays visually dense during long waits.
     if (this.mode === 'waiting' || this.mode === 'composing' || this.mode === 'tool') {
-      const rail = renderParticleRail(width, appearance, `activity:${this.mode}`);
-      return [...lines, currentTheme.dim(rail)];
+      const railA = renderParticleRail(width, appearance, `activity:${this.mode}:a`);
+      const railB = renderParticleRail(width, appearance, `activity:${this.mode}:b`);
+      return [...lines, currentTheme.dim(railA), currentTheme.dim(railB)];
     }
     return lines;
   }

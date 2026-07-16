@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tui-step-spark-dual-rail.v1",
+  "title": "Record denser TUI step spark and dual activity rails",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["tui", "ux", "visible-evidence"],
+  "prompt": "Create reports/tui-step-spark-dual-rail.md with sections for Step spark, Dual rails, Soft3 align, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/tui-step-spark-dual-rail.md",
+    "content": "# TUI Step Spark Dual Rail Contract\n\n## Step spark\ncollapsed step summary uses an 8-cell spark bar and n=total so long turns stay glanceable\n\n## Dual rails\nactivity pane draws two ambient particle rails under waiting/composing/tool modes for demo-grade motion\n\n## Soft3 align\nlive reclaim ladder remains soft3 with denser observation budgets after prior densify PRs\n\n## Evidence path\nLioraBench holdout + step-summary/activity-pane vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/tui-step-spark-dual-rail.md", "text": "Step spark", "weight": 1},
+    {"type": "file_contains", "path": "reports/tui-step-spark-dual-rail.md", "text": "Dual rails", "weight": 1},
+    {"type": "file_contains", "path": "reports/tui-step-spark-dual-rail.md", "text": "Soft3 align", "weight": 1},
+    {"type": "file_contains", "path": "reports/tui-step-spark-dual-rail.md", "text": "Evidence path", "weight": 1}
+  ]
+}
