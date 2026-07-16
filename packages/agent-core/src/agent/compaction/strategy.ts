@@ -44,13 +44,11 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Production context-engineering guidance: compact before attention rot
- * (~70% of effective window), not at hard exhaustion. 0.75 sits between
- * the pre-rot zone and the old 0.8 late trigger so summaries are generated
- * while the model still attends well (see context-engineering practice 2026;
- * async path still starts earlier via asyncTriggerRatio).
+ * Compact before attention rot: 0.72 sits between async pre-rot (~0.6) /
+ * swarm handoff (~0.65) and hard block (~0.92), so summaries generate while
+ * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.75;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.72;
 /** Hard block near the window; leaves headroom for compaction summary output. */
 export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.92;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction. */

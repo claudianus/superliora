@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft-trigger-assistant-spectacle.v1",
+  "title": "Record earlier soft-trigger compaction and spectacular assistant bullets",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "tui",
+    "assistant",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/soft-trigger-assistant-spectacle.md with sections for Soft trigger, Ladder alignment, Assistant spectacle, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/soft-trigger-assistant-spectacle.md",
+      "content": "# Soft Trigger Assistant Spectacle Contract\n\n## Soft trigger\nfull compaction soft trigger defaults to 72% so long sessions summarize earlier after async pre-rot\n\n## Ladder alignment\nasync 60% / micro 50–60% / swarm handoff 65% / soft 72% / hard 92% form a progressive reclaim ladder\n\n## Assistant spectacle\nassistant transcript bullets pulse while streaming and use spectacular ambient motion when finalized\n\n## Evidence path\nLioraBench holdout + strategy/assistant-message vitest + live TUI transcript\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/soft-trigger-assistant-spectacle.md",
+      "text": "Soft trigger",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft-trigger-assistant-spectacle.md",
+      "text": "Ladder alignment",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft-trigger-assistant-spectacle.md",
+      "text": "Assistant spectacle",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft-trigger-assistant-spectacle.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

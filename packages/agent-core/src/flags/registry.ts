@@ -42,7 +42,7 @@ export const FLAG_DEFINITIONS = [
     id: 'async_compaction',
     title: 'Async background compaction',
     description:
-      'Background full compaction at ~60% usage while the turn continues; sync at soft trigger (~75%). Frozen zone keeps the first two messages (system + initial user).',
+      'Background full compaction at ~60% usage while the turn continues; sync at soft trigger (~72%). Frozen zone keeps the first two messages (system + initial user).',
     env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
     default: true,
     surface: 'core',
