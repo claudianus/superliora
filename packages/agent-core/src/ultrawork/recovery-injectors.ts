@@ -62,8 +62,8 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     [
       '<ultrawork_post_swarm>',
       'UltraSwarm finished. Continue this Ultrawork run in order:',
-      '1. Integrate — merge specialist output, resolve conflicts, and pick an integration owner before more product edits.',
-      '2. Verify — run mechanical checks and real surface checks for acceptance criteria.',
+      '1. Integrate — merge specialist output, resolve conflicts, pick an integration owner before more product edits.',
+      '2. Verify — mechanical + real-surface checks for acceptance criteria.',
       '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
       'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
       '</ultrawork_post_swarm>',
@@ -87,9 +87,8 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
 
   const lines = [
     '<ultrawork_post_compaction>',
-    'Context was compacted during an active Ultrawork run. Continue from the durable checkpoint — do not restart UltraPlan, UltraResearch, or open a new Ultrawork run.',
-    `Run id: ${run.id}`,
-    `Stage: ${run.stage}`,
+    'Context compacted during active Ultrawork. Continue from the durable checkpoint — do not restart UltraPlan/UltraResearch or open a new Ultrawork run.',
+    `Run: ${run.id} · stage=${run.stage}`,
   ];
   if (effectiveStage !== run.stage) {
     lines.push(`Effective stage: ${effectiveStage}`);
