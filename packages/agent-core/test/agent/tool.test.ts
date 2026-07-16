@@ -512,7 +512,7 @@ describe('Agent tools', () => {
 
       const toolText = ctx.compactHistory().find((message) => message.role === 'tool')?.text ?? '';
       const outputPath = /^output_path: (.+)$/m.exec(toolText)?.[1];
-      expect(toolText).toContain('Tool output exceeded 3500 characters');
+      expect(toolText).toContain('Tool output exceeded 3000 characters');
       expect(toolText).not.toContain('tail survives');
       expect(outputPath).toBeTruthy();
       expect(readFileSync(outputPath!, 'utf8')).toBe(largeOutput);
