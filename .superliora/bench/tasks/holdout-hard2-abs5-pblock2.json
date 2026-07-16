@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard2-abs5-pblock2.v1",
+  "title": "Record hard2 abs5 and pblock2 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard2-abs5-pblock2.md with sections for Hard 2, Abs 5, Pblock 2, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard2-abs5-pblock2.md",
+    "content": "# Hard2 Abs5 Pblock2 Contract\n\n## Hard 2\nhard compaction block ratio densifies to 0.02 so blocking reclaim starts earlier\n\n## Abs 5\nabsolute compaction trigger densifies to 5 tokens on large windows\n\n## Pblock 2\nparallel block threshold densifies to 2 with target 2 for thriftier multi-tool turns\n\n## Evidence path\nLioraBench holdout + strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard2-abs5-pblock2.md", "text": "Hard 2", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard2-abs5-pblock2.md", "text": "Abs 5", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard2-abs5-pblock2.md", "text": "Pblock 2", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard2-abs5-pblock2.md", "text": "Evidence path", "weight": 1}
+  ]
+}
