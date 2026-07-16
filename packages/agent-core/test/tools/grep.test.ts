@@ -392,7 +392,7 @@ describe('GrepTool', () => {
 
   it('limits concurrent mtime stats while sorting files_with_matches', async () => {
     const filePaths = Array.from(
-      { length: 40 },
+      { length: 20 },
       (_, index) => `/workspace/src/file-${String(index).padStart(2, '0')}.ts`,
     );
     let activeStats = 0;
@@ -423,13 +423,13 @@ describe('GrepTool', () => {
 
     expect(stat).toHaveBeenCalledTimes(filePaths.length);
     expect(maxActiveStats).toBeLessThanOrEqual(32);
-    expect(lines.at(0)).toBe('src/file-39.ts');
+    expect(lines.at(0)).toBe('src/file-19.ts');
     expect(lines.at(-1)).toBe('src/file-00.ts');
   });
 
   it('stops scheduling mtime stats when aborted during files_with_matches sorting', async () => {
     const filePaths = Array.from(
-      { length: 40 },
+      { length: 20 },
       (_, index) => `/workspace/src/file-${String(index).padStart(2, '0')}.ts`,
     );
     const abortController = new AbortController();
@@ -1035,7 +1035,7 @@ describe('GrepTool', () => {
     expect(result.output).toContain('Use offset=3 to see more');
   });
 
-  it('limits grep output to 40 lines by default', async () => {
+  it('limits grep output to 30 lines by default', async () => {
     const paths = Array.from({ length: 251 }, (_, index) => `/workspace/src/${String(index)}.ts`);
     const displayPaths = Array.from({ length: 251 }, (_, index) => `src/${String(index)}.ts`);
     const stdout = [...paths, ''].join('\n');
@@ -1048,17 +1048,17 @@ describe('GrepTool', () => {
     const output = toolContentBody(result);
     const lines = output.split('\n');
 
-    expect(lines.slice(0, 40)).toEqual(displayPaths.slice(0, 40));
-    expect(output).not.toContain(displayPaths[40]);
+    expect(lines.slice(0, 30)).toEqual(displayPaths.slice(0, 30));
+    expect(output).not.toContain(displayPaths[30]);
     expect(output).toContain(
-      'Results truncated to 40 lines (total: 251). Use offset=40 to see more.',
+      'Results truncated to 30 lines (total: 251). Use offset=30 to see more.',
     );
   });
 
   it('treats head_limit zero as unlimited', async () => {
     // Keep under tool-result budget so unlimited head_limit is observable.
-    const paths = Array.from({ length: 35 }, (_, index) => `/workspace/src/${String(index)}.ts`);
-    const displayPaths = Array.from({ length: 35 }, (_, index) => `src/${String(index)}.ts`);
+    const paths = Array.from({ length: 28 }, (_, index) => `/workspace/src/${String(index)}.ts`);
+    const displayPaths = Array.from({ length: 28 }, (_, index) => `src/${String(index)}.ts`);
     const stdout = [...paths, ''].join('\n');
     const tool = new GrepTool(
       createFakeKaos({ exec: vi.fn().mockResolvedValue(processWithOutput(stdout)) }),

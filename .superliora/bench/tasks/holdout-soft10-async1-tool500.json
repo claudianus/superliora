@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft10-async1-tool500.v1",
+  "title": "Record soft10 async1 and tool500 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft10-async1-tool500.md with sections for Soft 10, Async 1, Tool 500, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft10-async1-tool500.md",
+    "content": "# Soft10 Async1 Tool500 Contract\n\n## Soft 10\nsoft compaction trigger defaults to 0.10 with quality bias floor 0.08 so reclaim can tighten after emergency backstops\n\n## Async 1\nasync pre-rot and swarm micro pressure default to 0.01 so reclaim starts earlier\n\n## Tool 500\ntool result budgets default to 500 chars with 8-char previews; Grep head defaults to 30 for denser reclaim\n\n## Evidence path\nLioraBench holdout + strategy/tool/grep/status/usage/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft10-async1-tool500.md", "text": "Soft 10", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft10-async1-tool500.md", "text": "Async 1", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft10-async1-tool500.md", "text": "Tool 500", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft10-async1-tool500.md", "text": "Evidence path", "weight": 1}
+  ]
+}
