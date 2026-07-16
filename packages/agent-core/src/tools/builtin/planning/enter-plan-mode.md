@@ -3,7 +3,7 @@ Enter plan mode before non-trivial implementation to get user sign-off.
 Use when ANY apply:
 1. New Feature Implementation
 2. Multiple Valid Approaches
-3. Code modifications, architectural decisions, or multi-file changes (3+ files)
+3. Architectural or multi-file changes (3+ files)
 4. Unclear requirements or preferences that materially change the approach
 
 When NOT to use: tiny fixes, very specific instructions, or pure exploration.
