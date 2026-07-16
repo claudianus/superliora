@@ -606,7 +606,7 @@ describe('GrepTool', () => {
       const exec = vi.fn().mockResolvedValue(processWithOutput('/workspace/src/a.ts:2\n'));
       const tool = new GrepTool(createFakeKaos({ exec }), workspace);
 
-      await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches' }));
+      await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches', head_limit: 0 }));
 
       const [, ...args] = exec.mock.calls[0] ?? [];
       expect(args).toContain('--max-columns');
@@ -1033,7 +1033,7 @@ describe('GrepTool', () => {
     expect(result.output).toContain('Use offset=3 to see more');
   });
 
-  it('limits grep output to 2 lines by default', async () => {
+  it('limits grep output to 1 line by default', async () => {
     const paths = Array.from({ length: 251 }, (_, index) => `/workspace/src/${String(index)}.ts`);
     const displayPaths = Array.from({ length: 251 }, (_, index) => `src/${String(index)}.ts`);
     const stdout = [...paths, ''].join('\n');
@@ -1046,9 +1046,9 @@ describe('GrepTool', () => {
     const output = toolContentBody(result);
     const lines = output.split('\n');
 
-    expect(lines.slice(0, 2)).toEqual(displayPaths.slice(0, 2));
-    expect(output).not.toContain(displayPaths[2]);
-    expect(output).toMatch(/Results truncated to 2 lines|truncated/);
+    expect(lines.slice(0, 1)).toEqual(displayPaths.slice(0, 1));
+    expect(output).not.toContain(displayPaths[1]);
+    expect(output).toMatch(/Results truncated to 1 lines|truncated/);
 
   });
 
@@ -1220,7 +1220,7 @@ describe('GrepTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches' }));
+    const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches', head_limit: 0 }));
 
     expect(toolContentBody(result)).toBe(
       ['Found 10 total occurrences across 2 files.', 'src/a.ts:3', 'src/b.ts:7'].join('\n'),
@@ -1236,7 +1236,7 @@ describe('GrepTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches' }));
+    const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches', head_limit: 0 }));
 
     expect(toolContentBody(result)).toBe(
       [
@@ -1302,7 +1302,7 @@ describe('GrepTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches' }));
+    const result = await executeTool(tool, context({ pattern: 'hit', output_mode: 'count_matches', head_limit: 0 }));
 
     expect(toolContentBody(result)).toBe(
       [
@@ -1780,7 +1780,7 @@ describe('GrepTool', () => {
       additionalDirs: [],
     });
 
-    const result = await executeTool(tool, context({ pattern: 'code', output_mode: 'content' }));
+    const result = await executeTool(tool, context({ pattern: 'code', output_mode: 'content', head_limit: 0 }));
 
     const lines = toolContentBody(result).split('\n');
     expect(lines[0]).toBe('src/a.py:42:code');
@@ -1800,7 +1800,7 @@ describe('GrepTool', () => {
       { workspaceDir: 'C:\\repo', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'code', output_mode: 'content' }));
+    const result = await executeTool(tool, context({ pattern: 'code', output_mode: 'content', head_limit: 0 }));
 
     const lines = toolContentBody(result).split('\n');
     expect(lines[0]).toBe('src/a.py:42:code');
@@ -1832,10 +1832,10 @@ describe('GrepTool', () => {
     );
 
     const withSepResult = await executeTool(withSep,
-      context({ pattern: 'x', output_mode: 'files_with_matches' }),
+      context({ pattern: 'x', output_mode: 'files_with_matches', head_limit: 0 }),
     );
     const noSepResult = await executeTool(noSep,
-      context({ pattern: 'x', output_mode: 'files_with_matches' }),
+      context({ pattern: 'x', output_mode: 'files_with_matches', head_limit: 0 }),
     );
 
     expect(toolContentBody(withSepResult)).toContain('file.py');
@@ -1853,7 +1853,7 @@ describe('GrepTool', () => {
     });
 
     const result = await executeTool(tool,
-      context({ pattern: 'x', output_mode: 'files_with_matches' }),
+      context({ pattern: 'x', output_mode: 'files_with_matches', head_limit: 0 }),
     );
     const output = toolContentBody(result);
     expect(output).toContain('/tmp/abc/file.py');
