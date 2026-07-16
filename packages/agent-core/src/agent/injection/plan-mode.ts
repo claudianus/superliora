@@ -13,7 +13,7 @@ import {
 
 const PLAN_MODE_DEDUP_MIN_TURNS = 2;
 /** Non-ultra periodic full refresh. Ultra Plan uses phase-stable sparse instead (see getUltraVariant). */
-const PLAN_MODE_FULL_REFRESH_TURNS = 5;
+const PLAN_MODE_FULL_REFRESH_TURNS = 4;
 
 /**
  * Plan-mode reminder variants.

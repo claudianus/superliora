@@ -27,6 +27,11 @@ import type {
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { printableChar } from '#/tui/utils/printable-key';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export interface ApprovalPanelResponse {
   readonly response: 'approved' | 'approved_for_session' | 'rejected' | 'cancelled';
@@ -373,7 +378,12 @@ export class ApprovalPanelComponent extends Container implements Focusable {
       const num = idx + 1;
 
       const labelWithNum = `${String(num)}. ${option.label}`;
-      const pointer = isSelected ? SELECT_POINTER : ' ';
+      const appearance = getActiveAppearancePreferences();
+      const pointer = isSelected
+        ? shouldRenderAmbientEffects(appearance)
+          ? renderPulseText(SELECT_POINTER, 'approval:pointer', 'primary')
+          : SELECT_POINTER
+        : ' ';
       if (this.feedbackMode && option.requires_feedback === true && isSelected) {
         body.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum, pointer)));
       } else if (isSelected) {
