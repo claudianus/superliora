@@ -324,6 +324,15 @@ export function formatMediaFooterBadge(
   return { label: 'vid', severity: 'info' };
 }
 
+/** Compact footer badge for always-on web research (no MCP). */
+export function formatWebFooterBadge(): {
+  readonly label: string;
+  readonly severity: FooterBadgeSeverity;
+} {
+  // WebSearch + FetchURL + Context7 are built-in zero-config research tools.
+  return { label: 'web', severity: 'info' };
+}
+
 /** Context usage line severity aligned with soft/hard reclaim ladder. */
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
@@ -484,6 +493,8 @@ export class FooterComponent implements Component {
         renderPulseText(mediaBadge.label, `footer:${mediaBadge.label}`, 'accent', appearance),
       );
     }
+    const webBadge = formatWebFooterBadge();
+    modes.push(renderPulseText(webBadge.label, `footer:${webBadge.label}`, 'accent', appearance));
     const zdrBadge = formatZdrFooterBadge();
     if (zdrBadge !== null) {
       modes.push(

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   formatMediaFooterBadge,
+  formatWebFooterBadge,
   formatZdrFooterBadge,
   mediaImageKeyReady,
   mediaVideoKeyReady,
@@ -73,5 +74,12 @@ describe('footer ZDR readiness badges', () => {
     clearTelemetry();
     process.env['SUPERLIORA_TELEMETRY'] = '1';
     expect(formatZdrFooterBadge()?.label).toBe('tel');
+  });
+});
+
+describe('footer web readiness badges', () => {
+  it('always reports web for built-in research tools', () => {
+    expect(formatWebFooterBadge().label).toBe('web');
+    expect(formatWebFooterBadge().severity).toBe('info');
   });
 });

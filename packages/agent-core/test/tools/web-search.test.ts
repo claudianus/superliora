@@ -47,7 +47,7 @@ describe('WebSearchTool', () => {
     const tool = new WebSearchTool(fakeProvider());
     const limit = (tool.parameters as { properties: Record<string, { description?: string }> })
       .properties['limit'];
-    expect(limit?.description).toContain('default 4');
+    expect(limit?.description).toContain('default 3');
     expect(limit?.description).toContain('Prefer a sharper query');
   });
 
