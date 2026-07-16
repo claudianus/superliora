@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.hard23-abs600-reserved6.v1",
+  "title": "Record hard23 abs600 and reserved6 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/hard23-abs600-reserved6.md with sections for Hard 23, Abs 600, Reserved 6, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/hard23-abs600-reserved6.md",
+    "content": "# Hard23 Abs600 Reserved6 Contract\n\n## Hard 23\nhard compaction block ratio densifies to 0.23 so blocking reclaim starts earlier\n\n## Abs 600\nabsolute compaction trigger densifies to 600 tokens on large windows\n\n## Reserved 6\nreserved context size densifies to 6 tokens for thriftier headroom\n\n## Evidence path\nLioraBench holdout + strategy/footer vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/hard23-abs600-reserved6.md", "text": "Hard 23", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard23-abs600-reserved6.md", "text": "Abs 600", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard23-abs600-reserved6.md", "text": "Reserved 6", "weight": 1},
+    {"type": "file_contains", "path": "reports/hard23-abs600-reserved6.md", "text": "Evidence path", "weight": 1}
+  ]
+}

@@ -285,8 +285,8 @@ describe('DefaultCompactionStrategy', () => {
     expect(strategy.effectiveTriggerRatio).toBe(0.011);
     expect(strategy.shouldCompact(1_099)).toBe(false);
     expect(strategy.shouldCompact(1_100)).toBe(true);
-    expect(strategy.shouldBlock(23_999)).toBe(false);
-    expect(strategy.shouldBlock(24_000)).toBe(true);
+    expect(strategy.shouldBlock(22_999)).toBe(false);
+    expect(strategy.shouldBlock(23_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
   });
 
