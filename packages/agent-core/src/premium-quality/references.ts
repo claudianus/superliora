@@ -106,7 +106,7 @@ export const PREMIUM_VISUAL_REFERENCE_COMPACT = [
   '- Inspiration: godly.website, awwwards.com, bentogrids.com, dark.design; study 2–3, do not clone.',
   '- Layouts: bento hero, split narrative, oversized type, product-in-hero, dark craft, game frame. Ban centered 3-card + purple gradient.',
   '- Imagery: `https://picsum.photos/seed/{project}-hero/1920/1080.webp`; dicebear notionists SVG seeds.',
-  '- Fonts: Outfit+JetBrains Mono, Newsreader+Outfit, Space Grotesk+IBM Plex Mono, Fredoka+Nunito. Ban naked Inter.',
+  '- Fonts: Outfit+JetBrains Mono, Newsreader+Outfit, Space Grotesk+IBM Plex Mono. Ban naked Inter.',
   '- Components: aceternity, magicui, reactbits, shadcn; verify deps first.',
   '- Self-critique: 3 AI-slop tells, one signature element, last screenshot defect before claiming done.',
 ].join('\n');

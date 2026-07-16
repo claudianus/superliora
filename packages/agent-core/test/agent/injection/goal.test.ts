@@ -183,7 +183,7 @@ describe('GoalInjector content', () => {
     await store.createGoal({ objective: 'prove 1+1=3' });
     const text = (await injectOnce(store))!;
     expect(text).toContain('Keep the self-audit brief');
-    expect(text).toContain('Do not explore unrelated interpretations once the goal can be decided');
+    expect(text).toContain('Goal mode is iterative');
     expect(text).toContain('If simple, already answered, impossible, unsafe, or contradictory');
     expect(text).toContain('UpdateGoal `complete` or `blocked` in the same turn');
   });

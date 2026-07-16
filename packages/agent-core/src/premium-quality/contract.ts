@@ -18,8 +18,8 @@ export const PREMIUM_VISUAL_SKILL_ROUTING = [
   '- Trigger: any web/app UI, landing, dashboard, game, marketing site, component library, or visual refresh — even without "design".',
   '- Before visual markup/styles or shipping a visible slice: SearchSkill → Skill best match. Reuse loaded skills; do not reload the same skill.',
   '- Keywords (3–12 words): "frontend design distinctive anti template"; "premium frontend design taste anti slop"; "redesign existing project premium visual audit"; "minimalist ui premium utilitarian design"; "stitch design taste semantic design system"; "develop web game visual polish playwright screenshot"; "workspace imagen generate ui assets icons".',
-  '- Subject-specific assets: GenerateImage when OPENAI/GOOGLE/GEMINI keys exist; otherwise SearchSkill → workspace-imagen.',
-  '- Load ≥1 visual skill before first visual implementation. For games, load develop-web-game plus a design skill.',
+  '- Assets: GenerateImage when OPENAI/GOOGLE/GEMINI keys exist; else SearchSkill → workspace-imagen.',
+  '- Load ≥1 visual skill before first visual implementation. Games: develop-web-game + a design skill.',
   '- Skill text is constraints, not optional inspiration. AGENTS.md and harness contracts override conflicts.',
 ].join('\n');
 
