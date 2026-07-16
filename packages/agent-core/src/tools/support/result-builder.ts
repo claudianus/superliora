@@ -3,8 +3,8 @@ import type {
   ExecutableToolSuccessResult,
 } from '../../loop/types';
 
-const DEFAULT_MAX_CHARS = 2_000;
-const DEFAULT_MAX_LINE_LENGTH = 2000;
+const DEFAULT_MAX_CHARS = 1_800;
+const DEFAULT_MAX_LINE_LENGTH = 1800;
 const TRUNCATION_MARKER = '[...truncated]';
 const TRUNCATION_MESSAGE = 'Output is truncated to fit in the message.';
 

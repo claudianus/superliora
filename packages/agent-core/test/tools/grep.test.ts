@@ -1057,8 +1057,8 @@ describe('GrepTool', () => {
 
   it('treats head_limit zero as unlimited', async () => {
     // Keep under tool-result budget so unlimited head_limit is observable.
-    const paths = Array.from({ length: 180 }, (_, index) => `/workspace/src/${String(index)}.ts`);
-    const displayPaths = Array.from({ length: 180 }, (_, index) => `src/${String(index)}.ts`);
+    const paths = Array.from({ length: 120 }, (_, index) => `/workspace/src/${String(index)}.ts`);
+    const displayPaths = Array.from({ length: 120 }, (_, index) => `src/${String(index)}.ts`);
     const stdout = [...paths, ''].join('\n');
     const tool = new GrepTool(
       createFakeKaos({ exec: vi.fn().mockResolvedValue(processWithOutput(stdout)) }),
