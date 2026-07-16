@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.tool-desc-density-wave2.v1",
+  "title": "Record denser Bash/Read/Write/Edit always-on tool descriptions",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tools", "visible-evidence"],
+  "prompt": "Create reports/tool-desc-density-wave2.md with sections for Tool densify and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1000},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/tool-desc-density-wave2.md",
+    "content": "# Tool Desc Density Wave2 Contract\n\n## Tool densify\nBash/Read/Write/Edit always-on tool descriptions stay contract-complete with denser wording for long-horizon token efficiency\n\n## Evidence path\nLioraBench holdout + bash/edit/read/write vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/tool-desc-density-wave2.md", "text": "Tool densify", "weight": 1},
+    {"type": "file_contains", "path": "reports/tool-desc-density-wave2.md", "text": "Evidence path", "weight": 1}
+  ]
+}
