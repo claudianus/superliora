@@ -45,7 +45,7 @@ export class MoonLoader extends Text {
       style === 'moon'
         ? MOON_SPINNER_INTERVAL_MS
         : style === 'comet'
-          ? Math.max(30, BRAILLE_SPINNER_INTERVAL_MS - 32)
+          ? Math.max(24, BRAILLE_SPINNER_INTERVAL_MS - 40)
           : BRAILLE_SPINNER_INTERVAL_MS;
     this.colorFn = colorFn;
     this.label = label;
