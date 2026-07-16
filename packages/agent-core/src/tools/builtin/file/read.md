@@ -8,7 +8,7 @@ When you need several files, prefer parallel Reads in one response — not one f
 - Up to {{ MAX_LINES }} lines or {{ MAX_BYTES_KB }} KB per call; lines > {{ MAX_LINE_LENGTH }} chars truncate.
 - Page with `line_offset` (1-based) and `n_lines`. Negative `line_offset` reads from the end (abs ≤ {{ MAX_LINES }}).
 - Sensitive files (`.env`, credentials, SSH keys) and binary/NUL are refused—use `ReadMediaFile` for media.
-- Output: `<line-number>	<content>` per line. A trailing `<tool_meta ...>` block is appended after the file content; it is not part of the file itself.
+- Output: `<line-number>	<content>` per line. Trailing `<tool_meta ...>` is appended after the file content; not part of the file itself.
 - Pure CRLF files are displayed with LF; `Edit` matches that and preserves CRLF on write. Mixed/lone CR show as `
 ` and need exact Edit escapes.
 - After a successful Edit/Write, do not re-read only to prove the write.
