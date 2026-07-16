@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.kept-user-cron-spectacle.v1",
+  "title": "Record denser kept-user budgets and spectacular cron markers",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "cron",
+    "tui",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/kept-user-cron-spectacle.md with sections for Kept-user budget, Head tokens, Cron spectacle, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/kept-user-cron-spectacle.md",
+      "content": "# Kept User Cron Spectacle Contract\n\n## Kept-user budget\npost-compaction kept user message budget defaults to 16k tokens so long sessions reclaim more headroom\n\n## Head tokens\noldest-user head reservation is 1.6k tokens inside the kept-user budget\n\n## Cron spectacle\ncron reminder markers use spectacular ambient motion when effects are on\n\n## Evidence path\nLioraBench holdout + handoff/cron vitest + live TUI cron markers\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/kept-user-cron-spectacle.md",
+      "text": "Kept-user budget",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/kept-user-cron-spectacle.md",
+      "text": "Head tokens",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/kept-user-cron-spectacle.md",
+      "text": "Cron spectacle",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/kept-user-cron-spectacle.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

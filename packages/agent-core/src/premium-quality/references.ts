@@ -108,7 +108,7 @@ export const PREMIUM_VISUAL_REFERENCE_COMPACT = [
   '- Imagery: `https://picsum.photos/seed/{project}-hero/1920/1080.webp`; dicebear notionists SVG seeds.',
   '- Fonts: Outfit+JetBrains Mono, Newsreader+Outfit, Space Grotesk+IBM Plex Mono. Ban naked Inter.',
   '- Components: aceternity, magicui, reactbits, shadcn; verify deps first.',
-  '- Self-critique: 3 AI-slop tells, one signature element, last screenshot defect before claiming done.',
+  '- Self-critique: 3 AI-slop tells, one signature element, last screenshot defect before done.',
 ].join('\n');
 
 /** Offline full reference catalog — not part of the Premium injection hot path. */

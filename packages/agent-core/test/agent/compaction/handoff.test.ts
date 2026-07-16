@@ -374,7 +374,7 @@ describe('resolveCompactionUserMessageBudget', () => {
   });
 
   it('keeps the default when the window is large enough', () => {
-    // 256K window: 0.15 * 256_000 = 38_400 > 20_000, so the cap wins.
+    // 256K window: 0.15 * 256_000 = 38_400 > 16_000, so the cap wins.
     expect(resolveCompactionUserMessageBudget(256_000)).toBe(COMPACT_USER_MESSAGE_MAX_TOKENS);
   });
 
