@@ -6,7 +6,7 @@ Use when ANY apply:
 3. Code modifications, architectural decisions, or multi-file changes (3+ files)
 4. Unclear requirements or preferences that materially change the approach
 
-When NOT to use: tiny fixes, very specific instructions, pure exploration.
+When NOT to use: tiny fixes, very specific instructions, or pure exploration.
 
 Permission: enters without approval in all modes; ExitPlanMode shows plan in yolo/manual; auto mode skips AskUserQuestion on exit. Do not enter while plan mode is active; in Ultra Plan use NextPhase, never EnterPlanMode(phase).
 

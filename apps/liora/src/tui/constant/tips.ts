@@ -57,6 +57,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'tool outputs auto-trim at 28k with 900-char previews — /compact if still high', priority: 2, solo: true },
   { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
   { text: 'footer micro: badges shorten cache-miss/swarm triggers for denser chrome', priority: 1, solo: true },
+  { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },

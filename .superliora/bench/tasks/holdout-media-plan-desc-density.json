@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.media-plan-desc-density.v1",
+  "title": "Record denser media and enter-plan tool descriptions",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "media",
+    "plan",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/media-plan-desc-density.md with sections for Media densify, Plan densify, Zero-config tip, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/media-plan-desc-density.md",
+      "content": "# Media Plan Desc Density Contract\n\n## Media densify\nGenerateImage/GenerateVideo always-on descriptions stay zero-config and contract-complete with denser wording\n\n## Plan densify\nEnterPlanMode description stays contract-complete with denser always-on wording\n\n## Zero-config tip\nTUI tips surface media generation readiness when OPENAI/GOOGLE keys are present\n\n## Evidence path\nLioraBench holdout + enter-plan-mode vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/media-plan-desc-density.md",
+      "text": "Media densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-plan-desc-density.md",
+      "text": "Plan densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-plan-desc-density.md",
+      "text": "Zero-config tip",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-plan-desc-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
