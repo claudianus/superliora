@@ -119,11 +119,11 @@ describe('FooterComponent — context NaN resilience', () => {
     const on = new FooterComponent(baseState({ model: 'k2', thinking: true }));
     const off = new FooterComponent(baseState({ model: 'k2', thinking: false }));
 
-    // Model badge only (line1 also hosts rotating tips — ignore tip text).
-    const onModel = strip(on.render(120)[0]!).split(/\s{2,}/)[0] ?? '';
-    const offModel = strip(off.render(120)[0]!).split(/\s{2,}/)[0] ?? '';
-    expect(onModel).toContain('thinking');
-    expect(offModel).not.toContain('thinking');
+    // Match the model badge phrase so rotating tips cannot false-positive.
+    const onLine = strip(on.render(120)[0]!);
+    const offLine = strip(off.render(120)[0]!);
+    expect(onLine).toContain('k2 thinking');
+    expect(offLine).not.toContain('k2 thinking');
   });
 
   it('labels Ultrawork mode separately from plain plan mode in the footer', () => {
