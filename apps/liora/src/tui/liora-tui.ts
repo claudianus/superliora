@@ -1670,6 +1670,7 @@ export class LioraTUI {
     if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
     if ('appearance' in patch) this.appearanceController.apply();
     this.state.footer.setState(this.state.appState);
+    this.state.header.setState(this.state.appState);
     this.updateActivityPane();
     if (busyChanged) {
       this.updateQueueDisplay();
