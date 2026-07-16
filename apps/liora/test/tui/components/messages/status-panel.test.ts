@@ -94,7 +94,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a16\/m2\/sw200\/s28/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a14\/m2\/sw200\/s27/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -185,7 +185,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a16\/m2\/sw200\/s28/);
+    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/ZDR · a14\/m2\/sw200\/s27/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
