@@ -190,7 +190,7 @@ describe('DefaultCompactionStrategy', () => {
   it('starts async compaction between the async threshold and soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000);
 
-    // asyncTriggerRatio=0.01 → 1k; soft trigger=0.01002 → floor 1001
+    // asyncTriggerRatio=0.01 → 1k; soft trigger=0.01001 → floor 1001
     expect(strategy.shouldAsyncCompact(999)).toBe(false);
     expect(strategy.shouldAsyncCompact(1_000)).toBe(true);
     expect(strategy.shouldCompact(1_000)).toBe(false);
@@ -282,11 +282,11 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.effectiveTriggerRatio).toBe(0.01002);
+    expect(strategy.effectiveTriggerRatio).toBe(0.01001);
     expect(strategy.shouldCompact(1_000)).toBe(false);
     expect(strategy.shouldCompact(1_001)).toBe(true);
-    expect(strategy.shouldBlock(1_013)).toBe(false);
-    expect(strategy.shouldBlock(1_014)).toBe(true);
+    expect(strategy.shouldBlock(1_009)).toBe(false);
+    expect(strategy.shouldBlock(1_010)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
   });
 
@@ -321,9 +321,9 @@ describe('DefaultCompactionStrategy', () => {
       reservedContextSize: 0,
     });
     strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
-    expect(strategy.effectiveTriggerRatio).toBe(0.01002);
+    expect(strategy.effectiveTriggerRatio).toBe(0.01001);
     strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.01002);
+    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.01001);
     expect(strategy.shouldCompact(73_000)).toBe(true);
   });
 });
@@ -445,7 +445,7 @@ describe('PipelineStrategy quality controls', () => {
     });
     const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
     const before = trigger.effectiveTriggerRatio;
-    expect(before).toBe(0.01002);
+    expect(before).toBe(0.01001);
     const bias = pipeline.applyQualityFeedback({ usedEmergencyBackstop: true });
     expect(bias).toBeGreaterThan(0);
     expect(trigger.effectiveTriggerRatio).toBeLessThan(before);
