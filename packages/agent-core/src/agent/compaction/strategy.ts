@@ -44,13 +44,13 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: 0.16 sits between async pre-rot (~0.05) /
- * swarm handoff (~0.18) and hard block (~0.52), so summaries generate while
+ * Compact before attention rot: 0.15 sits between async pre-rot (~0.04) /
+ * swarm handoff (~0.18) and hard block (~0.50), so summaries generate while
  * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.16;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.15;
 /** Hard block near the window; leaves headroom for compaction summary output. */
-export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.52;
+export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.50;
 /** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
 export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 800;
 /** Minimum context growth since the last compaction before auto may fire again. */
@@ -60,11 +60,11 @@ export const SWARM_HANDOFF_COMPACTION_RATIO = 0.18;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
- * for cost and fidelity; start at async pre-rot (~0.05) before soft trigger.
+ * for cost and fidelity; start at async pre-rot (~0.04) before soft trigger.
  */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.05;
+export const SWARM_MICRO_PRESSURE_RATIO = 0.04;
 /** Default ratio at which async background compaction may start (pre-rot). */
-export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.05;
+export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.04;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
@@ -79,7 +79,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.03,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 36_000,
+  absoluteTriggerTokens: 34_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 6_000,
   parallelBlockTarget: 3_000,
@@ -118,7 +118,7 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   }
 
   get effectiveTriggerRatio(): number {
-    return Math.max(0.14, this.config.triggerRatio - this.qualityTriggerBias);
+    return Math.max(0.13, this.config.triggerRatio - this.qualityTriggerBias);
   }
 
   get speculativeStepBufferTokens(): number {

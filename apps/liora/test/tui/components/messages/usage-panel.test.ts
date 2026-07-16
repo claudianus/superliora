@@ -25,8 +25,8 @@ describe('UsagePanelComponent', () => {
           },
         },
       } as never,
-      contextUsage: 0.04,
-      contextTokens: 400,
+      contextUsage: 0.03,
+      contextTokens: 300,
       maxContextTokens: 10000,
       managedUsage: {
         summary: {
@@ -47,8 +47,8 @@ describe('UsagePanelComponent', () => {
     expect(lines.join('\n')).toMatch(/r 500 · w 500/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; cache is ready for long work\./);
     expect(lines).toContain('Context window');
-    expect(lines.join('\n')).toContain('4.0%');
-    expect(lines.join('\n')).toMatch(/Remaining\s+9\.6K tokens/);
+    expect(lines.join('\n')).toContain('3.0%');
+    expect(lines.join('\n')).toMatch(/Remaining\s+9\.7K tokens/);
     expect(lines.join('\n')).toMatch(/Next\s+Continue; plenty of room for long work\./);
     expect(lines).toContain('Plan usage');
     expect(lines.join('\n')).toContain('20% used');
