@@ -1,4 +1,4 @@
-Fetch up-to-date, version-specific docs and code examples for a library via its Context7-compatible ID.
+Fetch version-specific docs and code examples for a library via its Context7-compatible ID.
 
 Use after Context7Resolve unless you already have a library ID such as `/vercel/next.js` or `/mongodb/docs`. Provide `library_id` exactly as returned by Context7Resolve (or from the user) and a `query` for the task/API surface.
 
