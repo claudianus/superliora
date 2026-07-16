@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft56-reserved28-cmdpreview8.v1",
+  "title": "Record soft56 reserved28k and 8-line command previews",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "tui", "visible-evidence"],
+  "prompt": "Create reports/soft56-reserved28-cmdpreview8.md with sections for Soft 56, Reserved 28k, Cmd preview 8, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft56-reserved28-cmdpreview8.md",
+    "content": "# Soft56 Reserved28 CmdPreview8 Contract\n\n## Soft 56\nsoft compaction trigger defaults to 0.56 so full summaries start earlier under long sessions\n\n## Reserved 28k\nreserved context headroom defaults to 28k tokens for denser usable window before hard block\n\n## Cmd preview 8\nTUI command/write previews default to 8 lines for denser tool chrome without expand\n\n## Evidence path\nLioraBench holdout + strategy/status/tool-call vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft56-reserved28-cmdpreview8.md", "text": "Soft 56", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft56-reserved28-cmdpreview8.md", "text": "Reserved 28k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft56-reserved28-cmdpreview8.md", "text": "Cmd preview 8", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft56-reserved28-cmdpreview8.md", "text": "Evidence path", "weight": 1}
+  ]
+}
