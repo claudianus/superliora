@@ -1,7 +1,7 @@
 import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
 
-const INTEGRATION_SECTION_MAX_CHARS = 480;
-const INTEGRATION_OPEN_GAPS_MAX_CHARS = 1_200;
+const INTEGRATION_SECTION_MAX_CHARS = 360;
+const INTEGRATION_OPEN_GAPS_MAX_CHARS = 900;
 
 export interface UltraSwarmHandoffDigest {
   readonly summary?: string;
