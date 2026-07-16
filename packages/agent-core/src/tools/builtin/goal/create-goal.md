@@ -2,7 +2,7 @@ Create a durable, structured goal that the runtime will pursue across multiple t
 
 Call `CreateGoal` only when the user explicitly starts a goal/autonomous outcome, or a host goal-intake prompt asks for one.
 
-Do NOT create goals for greetings, ordinary questions, or vague requests without a verifiable completion condition.
+Do NOT create goals for greetings, ordinary questions, or vague requests that lack a verifiable completion condition.
 
 If vague, ask for the missing completion criterion first. If the user insists after a vagueness/risk warning, create it.
 
