@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft13-async3-tool800.v1",
+  "title": "Record soft13 async3 and tool800 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft13-async3-tool800.md with sections for Soft 13, Async 3, Tool 800, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft13-async3-tool800.md",
+    "content": "# Soft13 Async3 Tool800 Contract\n\n## Soft 13\nsoft compaction trigger defaults to 0.13 with quality bias floor 0.11 so reclaim can tighten after emergency backstops\n\n## Async 3\nasync pre-rot and swarm micro pressure default to 0.03 so reclaim starts earlier\n\n## Tool 800\ntool result budgets default to 800 chars with 15-char previews; Grep head defaults to 60 for denser reclaim\n\n## Evidence path\nLioraBench holdout + strategy/tool/grep/status/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft13-async3-tool800.md", "text": "Soft 13", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft13-async3-tool800.md", "text": "Async 3", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft13-async3-tool800.md", "text": "Tool 800", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft13-async3-tool800.md", "text": "Evidence path", "weight": 1}
+  ]
+}
