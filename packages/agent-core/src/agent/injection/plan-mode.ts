@@ -161,10 +161,10 @@ const PLAN_WORKFLOW = `Workflow:
   4. Write Plan — Write or Edit the plan file (Write if missing). ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
   5. Exit — ExitPlanMode for approval.
 
-TodoList is the live execution board during planning — durable content stays in the plan file only.`;
+TodoList is the live board during planning — durable content stays in the plan file only.`;
 
 const PLAN_MULTI_APPROACH = `## Multiple approaches
-At most 2–3 different options; do not pad minor variants. If preference matters, AskUserQuestion first.
+At most 2–3 options; do not pad minor variants. If preference matters, AskUserQuestion first.
 Multiple approaches in the plan → pass \`options\` to ExitPlanMode for user choice.
 NEVER write multiple approaches and call ExitPlanMode without \`options\`.
 
@@ -189,7 +189,7 @@ function sparseReminder(planFilePath: PlanFilePath): string {
     return inlineSparseReminder();
   }
 
-  const body = `Plan mode still active (full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode for multiple approaches. End with AskUserQuestion or ExitPlanMode.`;
+  const body = `Plan mode still active (full instructions earlier). Read-only except the plan file — Write/Edit it (Write if missing). Bash when needed. AskUserQuestion for preferences; pass \`options\` to ExitPlanMode for multi-approach choice. End with AskUserQuestion or ExitPlanMode.`;
   return withPlanFileFooter(body, planFilePath);
 }
 
@@ -231,6 +231,6 @@ No plan file path in this host. Re-evaluate the request, AskUserQuestion for gap
 }
 
 function exitReminder(): string {
-  return `Plan mode is no longer active. Read-only and plan-file-only restrictions no longer apply. Continue the approved plan under normal tool and permission rules.`;
+  return `Plan mode is no longer active. Read-only and plan-file-only restrictions no longer apply. Continue the approved plan under normal tool/permission rules.`;
 }
 
