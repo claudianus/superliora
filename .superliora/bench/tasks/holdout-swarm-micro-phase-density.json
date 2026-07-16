@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.swarm-micro-phase-density.v1",
+  "title": "Record earlier swarm micro-pressure and denser Ultra Plan phases",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "swarm",
+    "micro-compaction",
+    "plan",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/swarm-micro-phase-density.md with sections for Swarm micro pressure, Research densify, Phase contracts, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/swarm-micro-phase-density.md",
+      "content": "# Swarm Micro Phase Density Contract\n\n## Swarm micro pressure\nUltraSwarm tool-result clearing starts at 60% usage so specialist waves reclaim context before soft compaction\n\n## Research densify\nUltra Plan research phase keeps evidence-first routing with shorter always-on copy\n\n## Phase contracts\ndesign/review/write/exit phase instructions stay gate-complete while densified\n\n## Evidence path\nLioraBench holdout + plan-mode/status-panel vitest + micro swarm_pressure path\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-micro-phase-density.md",
+      "text": "Swarm micro pressure",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-micro-phase-density.md",
+      "text": "Research densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-micro-phase-density.md",
+      "text": "Phase contracts",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/swarm-micro-phase-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

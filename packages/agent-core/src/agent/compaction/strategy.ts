@@ -62,9 +62,9 @@ export const SWARM_HANDOFF_COMPACTION_RATIO = 0.7;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
- * for cost and fidelity; start earlier than the soft compaction trigger.
+ * for cost and fidelity; start at async pre-rot (~0.6) before soft trigger.
  */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.7;
+export const SWARM_MICRO_PRESSURE_RATIO = 0.6;
 /** Default ratio at which async background compaction may start (pre-rot). */
 export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.6;
 /** Default number of leading messages (system + initial user) kept frozen. */
