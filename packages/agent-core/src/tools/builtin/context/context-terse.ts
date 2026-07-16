@@ -19,7 +19,7 @@ export interface TerseReadResult {
   readonly overflow: string | undefined;
 }
 
-const DEFAULT_MAX_CHARS = 6_000;
+const DEFAULT_MAX_CHARS = 5_500;
 const AUTO_FULL_LINE_THRESHOLD = 120;
 
 export function renderTerseRead(input: TerseReadInput): TerseReadResult {
@@ -185,7 +185,7 @@ export function compressShellOutput(
   if (input.exitCode !== undefined && input.exitCode !== 0) {
     return { text: raw, savedPercent: 0, overflow: undefined };
   }
-  const maxChars = input.maxChars ?? 16_000;
+  const maxChars = input.maxChars ?? 15_500;
   const normalized = collapseRepeatedBlankLines(raw);
   const patternCompressed = applyShellPatterns(normalized, input.command);
   const deduped = collapseConsecutiveDuplicateLines(patternCompressed);

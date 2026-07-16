@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft50-tool55k-spec800.v1",
+  "title": "Record soft50 tool5.5k and spec800 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "tool", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft50-tool55k-spec800.md with sections for Soft 50, Tool 5.5k, Spec 800, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft50-tool55k-spec800.md",
+    "content": "# Soft50 Tool55k Spec800 Contract\n\n## Soft 50\nsoft compaction trigger defaults to 0.50 with quality bias floor 0.48 so reclaim can tighten after emergency backstops\n\n## Tool 5.5k\ntool result budgets default to 5500 chars with 100-char previews for denser reclaim\n\n## Spec 800\nspeculative step buffer defaults to 800 tokens for earlier pre-turn compaction\n\n## Evidence path\nLioraBench holdout + strategy/tool/status vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft50-tool55k-spec800.md", "text": "Soft 50", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft50-tool55k-spec800.md", "text": "Tool 5.5k", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft50-tool55k-spec800.md", "text": "Spec 800", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft50-tool55k-spec800.md", "text": "Evidence path", "weight": 1}
+  ]
+}
