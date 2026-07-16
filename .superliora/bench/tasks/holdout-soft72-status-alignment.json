@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft72-status-alignment.v1",
+  "title": "Record soft72 ladder alignment across status and footer pressure",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "status",
+    "footer",
+    "compaction",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/soft72-status-alignment.md with sections for Soft72 ladder, Status blockers, Bench gate, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/soft72-status-alignment.md",
+      "content": "# Soft72 Status Alignment Contract\n\n## Soft72 ladder\nmicro 50 · async/swarm-micro 60 · handoff 65 · soft 72 · hard 92 progressive reclaim ladder is user-visible\n\n## Status blockers\n/status marks context high and suggests /compact from 72% soft-trigger headroom\n\n## Bench gate\nBench readiness text names async/micro/swarm/soft72/dream holdouts\n\n## Evidence path\nLioraBench holdout + status-panel/footer-context vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/soft72-status-alignment.md",
+      "text": "Soft72 ladder",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft72-status-alignment.md",
+      "text": "Status blockers",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft72-status-alignment.md",
+      "text": "Bench gate",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/soft72-status-alignment.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
