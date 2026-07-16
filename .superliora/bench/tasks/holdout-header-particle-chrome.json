@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.header-particle-chrome.v1",
+  "title": "Record spectacular header particle chrome contract",
+  "suite": "holdout",
+  "kind": "tui-ux",
+  "risk": "low",
+  "tags": [
+    "tui",
+    "header",
+    "particles",
+    "demo",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/header-particle-chrome.md with sections for Brand spectacle, Particle divider, Tiny collapse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/header-particle-chrome.md",
+      "content": "# Header Particle Chrome Contract\n\n## Brand spectacle\nheader brand mark uses spectacular animated text when ambient effects are on\n\n## Particle divider\nheader fills remaining width with a live particle divider between brand and model\n\n## Tiny collapse\nheader collapses on tiny/narrow terminals so it does not steal vertical space\n\n## Evidence path\nLioraBench holdout + header vitest + live TUI chrome render\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/header-particle-chrome.md",
+      "text": "Brand spectacle",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/header-particle-chrome.md",
+      "text": "Particle divider",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/header-particle-chrome.md",
+      "text": "Tiny collapse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/header-particle-chrome.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}

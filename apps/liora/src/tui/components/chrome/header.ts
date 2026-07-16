@@ -2,18 +2,24 @@
  * Header bar — a single-line chrome region pinned above the transcript.
  *
  * Shows a compact brand mark on the left and the active model name on the right,
- * separated by a divider that fills the remaining width. The header is purely
- * presentational: it reads `AppState` and renders, it never touches the session
- * or SDK. It degrades to an empty render on tiny/compact layouts so it does not
- * eat vertical space on small terminals.
+ * separated by a live particle divider that fills the remaining width. The header
+ * is purely presentational: it reads `AppState` and renders, it never touches the
+ * session or SDK. It degrades to an empty render on tiny/compact layouts so it does
+ * not eat vertical space on small terminals.
  */
 
 import type { Component } from '#/tui/renderer';
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
+import {
+  renderParticleDivider,
+  renderSpectacularText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const BRAND_MARK = '◆ SuperLiora';
 
@@ -21,6 +27,10 @@ export class HeaderComponent implements Component {
   private state: AppState;
 
   constructor(state: AppState) {
+    this.state = state;
+  }
+
+  setState(state: AppState): void {
     this.state = state;
   }
 
@@ -33,10 +43,24 @@ export class HeaderComponent implements Component {
     // reached, but guard anyway).
     if (safeWidth < 60 || resolveResponsiveLayout({ width: safeWidth }) === 'tiny') return [];
 
-    const brand = currentTheme.boldFg('primary', BRAND_MARK);
+    const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+    const brand = shouldRenderAmbientEffects(appearance)
+      ? renderSpectacularText(BRAND_MARK, 'header:brand', appearance, {
+          intense: true,
+          pace: 'slow',
+        })
+      : currentTheme.boldFg('primary', BRAND_MARK);
     const activeModel = this.state.availableModels[this.state.model];
     const modelLabel = activeModel?.displayName ?? activeModel?.model ?? this.state.model ?? '';
-    const modelText = modelLabel.length > 0 ? currentTheme.dimFg('textMuted', modelLabel) : '';
+    const modelText =
+      modelLabel.length > 0
+        ? shouldRenderAmbientEffects(appearance)
+          ? renderSpectacularText(modelLabel, `header:model:${modelLabel}`, appearance, {
+              intense: false,
+              pace: 'slow',
+            })
+          : currentTheme.dimFg('textMuted', modelLabel)
+        : '';
 
     const brandWidth = visibleWidth(BRAND_MARK);
     const modelWidth = visibleWidth(modelLabel);
@@ -48,7 +72,10 @@ export class HeaderComponent implements Component {
       return [truncateToWidth(brand, safeWidth, '…')];
     }
 
-    const divider = currentTheme.fg('border', '─'.repeat(available + minDivider));
+    const dividerWidth = available + minDivider;
+    const divider = shouldRenderAmbientEffects(appearance)
+      ? renderParticleDivider(dividerWidth, 'header:divider', appearance)
+      : currentTheme.fg('border', '─'.repeat(dividerWidth));
     return [`${brand}${divider}${modelText}`];
   }
 }
