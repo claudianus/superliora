@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.write-media-recovery-density.v1",
+  "title": "Record Write/ReadMedia and Ultrawork recovery density contract",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "tools",
+    "media",
+    "recovery",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/write-media-recovery-density.md with sections for Write densify, ReadMedia densify, Post-compaction recovery, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/write-media-recovery-density.md",
+      "content": "# Write Media Recovery Density Contract\n\n## Write densify\nWrite tool description keeps Edit-vs-Write contract while densifying always-on schema text\n\n## ReadMedia densify\nReadMediaFile tips stay complete for mime/size/coordinates with shorter always-on copy\n\n## Post-compaction recovery\nUltrawork post-compaction and post-swarm injectors pack run/stage guidance densely\n\n## Evidence path\nLioraBench holdout + recovery/tool description vitest\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/write-media-recovery-density.md",
+      "text": "Write densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/write-media-recovery-density.md",
+      "text": "ReadMedia densify",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/write-media-recovery-density.md",
+      "text": "Post-compaction recovery",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/write-media-recovery-density.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
