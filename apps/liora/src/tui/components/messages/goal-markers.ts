@@ -16,6 +16,7 @@ import type { ColorToken } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
   renderPremiumHeadline,
+  renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -63,7 +64,10 @@ export class GoalMarkerComponent implements Component {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
     const prominent = this.textToken !== 'textDim';
-    const dot = currentTheme.fg(this.accentToken, this.marker);
+    const dot =
+      prominent && animated
+        ? renderPulseText(this.marker, `goal:dot:${this.headline}`, this.accentToken)
+        : currentTheme.fg(this.accentToken, this.marker);
     const head = prominent && animated
       ? renderPremiumHeadline(this.headline, `goal:${this.headline}`, appearance)
       : currentTheme.fg(this.textToken, this.headline);

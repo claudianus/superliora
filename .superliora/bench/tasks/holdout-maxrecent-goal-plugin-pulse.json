@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.maxrecent-goal-plugin-pulse.v1",
+  "title": "Record denser maxRecent ratio and goal/plugin pulse markers",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "token",
+    "compaction",
+    "goal",
+    "plugins",
+    "visible-evidence"
+  ],
+  "prompt": "Create reports/maxrecent-goal-plugin-pulse.md with sections for Max recent 0.18, Goal pulse, Plugin pulse, and Evidence path.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/maxrecent-goal-plugin-pulse.md",
+      "content": "# Maxrecent Goal Plugin Pulse Contract\n\n## Max recent 0.18\nfull compaction keeps at most 18% of context as recent messages so long sessions reclaim more prefix bulk\n\n## Goal pulse\nprominent goal lifecycle markers pulse under ambient effects\n\n## Plugin pulse\nenabled plugin rows pulse under ambient effects for live transparency\n\n## Evidence path\nLioraBench holdout + goal-markers/strategy vitest + live TUI markers\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      ".superliora/evidence/stale-pass.json",
+      "answers/solution.txt"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent-goal-plugin-pulse.md",
+      "text": "Max recent 0.18",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent-goal-plugin-pulse.md",
+      "text": "Goal pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent-goal-plugin-pulse.md",
+      "text": "Plugin pulse",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/maxrecent-goal-plugin-pulse.md",
+      "text": "Evidence path",
+      "weight": 1
+    }
+  ]
+}
