@@ -121,7 +121,7 @@ describe('FooterComponent', () => {
     const previous = process.env['OPENAI_API_KEY'];
     process.env['OPENAI_API_KEY'] = 'test-key';
     try {
-      const footer = new FooterComponent({ ...appState, contextUsage: 0.04 });
+      const footer = new FooterComponent({ ...appState, contextUsage: 0.03 });
       const [, line2 = ''] = footer.render(160);
       expect(line2).toMatch(/\/compact before long work/i);
     } finally {
@@ -134,8 +134,8 @@ describe('FooterComponent', () => {
 describe('contextUsageSeverity', () => {
   it('maps soft/hard/danger bands without dead branches', () => {
     expect(contextUsageSeverity(0.0)).toBe('muted');
-    expect(contextUsageSeverity(0.03)).toBe('muted');
-    expect(contextUsageSeverity(0.04)).toBe('info');
+    expect(contextUsageSeverity(0.02)).toBe('muted');
+    expect(contextUsageSeverity(0.03)).toBe('info');
     expect(contextUsageSeverity(0.44)).toBe('info');
     expect(contextUsageSeverity(0.5)).toBe('warning');
     expect(contextUsageSeverity(0.89)).toBe('warning');
