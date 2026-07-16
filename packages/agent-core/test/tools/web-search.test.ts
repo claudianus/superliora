@@ -47,8 +47,8 @@ describe('WebSearchTool', () => {
     const tool = new WebSearchTool(fakeProvider());
     const limit = (tool.parameters as { properties: Record<string, { description?: string }> })
       .properties['limit'];
-    expect(limit?.description).toContain('Typically you do not need to set this value');
-    expect(limit?.description).toContain('more concrete query');
+    expect(limit?.description).toContain('default 4');
+    expect(limit?.description).toContain('Prefer a sharper query');
   });
 
   it('include_content description warns about token cost at large limits', () => {

@@ -42,9 +42,9 @@ export const WebSearchInputSchema = z.object({
     .int()
     .min(1)
     .max(20)
-    .default(5)
+    .default(4)
     .describe(
-      'The number of results to return. Typically you do not need to set this value. When the results do not contain what you need, you probably want to give a more concrete query.',
+      'Results to return (default 4). Prefer a sharper query over raising limit; large limits + include_content burn tokens.',
     )
     .optional(),
   include_content: z
