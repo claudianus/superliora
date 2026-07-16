@@ -18,13 +18,17 @@ function strip(text: string): string {
     .replaceAll(new RegExp(`${ESC}\\]8;;[^${BEL}]*${BEL}`, 'g'), '');
 }
 
+function topBorder(out: string): string {
+  return out.split('\n').find((line) => line.includes('┌') || line.includes('╭')) ?? out.split('\n')[0]!;
+}
+
 const theme = createMarkdownTheme();
 
 describe('PlanBoxComponent', () => {
   it('falls back to bare " plan " title when no path is provided', () => {
     const box = new PlanBoxComponent('# Hello', theme, darkColors.success);
     const out = strip(box.render(60).join('\n'));
-    const top = out.split('\n')[0]!;
+    const top = topBorder(out);
     expect(top).toContain('┌ plan ');
     expect(top).not.toContain('plan:');
   });
@@ -37,7 +41,7 @@ describe('PlanBoxComponent', () => {
       '/tmp/projects/foo/.superliora/plans/very-long-slug-name.md',
     );
     const out = strip(box.render(80).join('\n'));
-    const top = out.split('\n')[0]!;
+    const top = topBorder(out);
     expect(top).toContain(' plan: very-long-slug-name.md ');
     expect(top).not.toContain('/tmp/');
     expect(top).not.toContain('…/');
@@ -48,7 +52,7 @@ describe('PlanBoxComponent', () => {
       status: { label: 'Rejected', colorHex: darkColors.error },
     });
     const out = strip(box.render(60).join('\n'));
-    const top = out.split('\n')[0]!;
+    const top = topBorder(out);
     expect(top).toContain(' plan · Rejected ');
   });
 
@@ -63,7 +67,7 @@ describe('PlanBoxComponent', () => {
       },
     );
     const out = strip(box.render(80).join('\n'));
-    const top = out.split('\n')[0]!;
+    const top = topBorder(out);
     expect(top).toContain(' plan: rejected-plan.md · Rejected ');
     expect(top).not.toContain('/tmp/');
     expect(top).not.toContain('…/');
@@ -87,7 +91,7 @@ describe('PlanBoxComponent', () => {
   it('degrades to bare " plan " when even the basename does not fit', () => {
     const box = new PlanBoxComponent('# Hello', theme, darkColors.success, '/tmp/plan.md');
     const out = strip(box.render(14).join('\n'));
-    const top = out.split('\n')[0]!;
+    const top = topBorder(out);
     expect(top).toContain(' plan ');
     expect(top).not.toContain('plan:');
   });

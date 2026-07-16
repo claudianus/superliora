@@ -18,6 +18,12 @@ import {
 } from '#/tui/renderer';
 import chalk from 'chalk';
 
+import {
+  getActiveAppearancePreferences,
+  renderParticleRail,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
+
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 
 const LEFT_MARGIN = 2; // two-space indent matching other tool call children
@@ -66,7 +72,10 @@ export class PlanBoxComponent implements Component {
       return this.markdown.render(Math.max(1, safeWidth)).map((line) => truncateToWidth(line, safeWidth, '…'));
     }
 
-    if (this.cachedLines !== undefined && this.cachedWidth === width) {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    // Particle rails animate from the shared clock — skip the static cache when ambient.
+    if (!animated && this.cachedLines !== undefined && this.cachedWidth === width) {
       return this.cachedLines;
     }
 
@@ -91,6 +100,10 @@ export class PlanBoxComponent implements Component {
     const lines = frame.map((line) => indent + line);
 
     const fitted = lines.map((line) => truncateToWidth(line, safeWidth, '…'));
+    if (animated && safeWidth >= 28) {
+      const rail = renderParticleRail(safeWidth, appearance, 'plan-box:rail');
+      return ['', rail, ...fitted, rail];
+    }
     this.cachedWidth = width;
     this.cachedLines = fitted;
     return fitted;
