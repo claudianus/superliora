@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.soft30-async18-hard60.v1",
+  "title": "Record soft30 async18 and hard60 densify",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": ["token", "compaction", "visible-evidence"],
+  "prompt": "Create reports/soft30-async18-hard60.md with sections for Soft 30, Async 18, Hard 60, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/soft30-async18-hard60.md",
+    "content": "# Soft30 Async18 Hard60 Contract\n\n## Soft 30\nsoft compaction trigger defaults to 0.30 with quality bias floor 0.28 so reclaim can tighten after emergency backstops\n\n## Async 18\nasync pre-rot and swarm micro pressure default to 0.18 so reclaim starts earlier\n\n## Hard 60\nhard compaction block ratio defaults to 0.60 and absolute trigger to 45k so long sessions reclaim earlier\n\n## Evidence path\nLioraBench holdout + strategy/status/usage vitest\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
+  "checks": [
+    {"type": "file_contains", "path": "reports/soft30-async18-hard60.md", "text": "Soft 30", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft30-async18-hard60.md", "text": "Async 18", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft30-async18-hard60.md", "text": "Hard 60", "weight": 1},
+    {"type": "file_contains", "path": "reports/soft30-async18-hard60.md", "text": "Evidence path", "weight": 1}
+  ]
+}
