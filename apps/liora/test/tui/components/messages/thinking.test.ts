@@ -30,7 +30,7 @@ describe('ThinkingComponent', () => {
 
     expect(out).not.toContain('line1');
     expect(out).not.toContain('line2');
-    expect(out).toContain('line3');
+    expect(out).not.toContain('line3');
     expect(out).toContain('line4');
     expect(out).toContain('line5');
     expect(out).toContain('line6');
@@ -44,9 +44,10 @@ describe('ThinkingComponent', () => {
     const out = strip(component.render(80).join('\n'));
 
     expect(out).not.toContain('line1');
-    // Expanded live thinking is height-capped to max(preview, 5).
+    // Expanded live thinking is height-capped to max(preview, 4).
     expect(out).not.toContain('line2');
-    expect(out).toContain('line3');
+    expect(out).not.toContain('line3');
+    expect(out).toContain('line4');
     expect(out).toContain('line6');
     expect(out).toContain('line7');
     expect(out).not.toContain('ctrl+o to expand');
