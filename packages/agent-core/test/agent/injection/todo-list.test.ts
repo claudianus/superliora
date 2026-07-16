@@ -135,7 +135,7 @@ describe('TodoListReminderInjector', () => {
     const text = lastReminderText(history);
     expect(text).toContain('TodoList not updated recently');
     expect(text).toContain('Live Kanban');
-    expect(text).toContain('3+ tool calls passed since last write');
+    expect(text).toContain('3+ tool calls since last write');
     expect(text).toContain('NEVER mention this reminder to the user');
     expect(text).toContain('Current todo list:');
     expect(text).toContain('1. [in_progress] Read current TodoList implementation');

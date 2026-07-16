@@ -1,6 +1,12 @@
-import { Container, Spacer } from '#/tui/renderer';
+import { Container, Spacer, Text } from '#/tui/renderer';
 
 import type { MoonLoader } from '#/tui/components/chrome/moon-loader';
+import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderParticleRail,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export type ActivityPaneMode = 'hidden' | 'waiting' | 'thinking' | 'composing' | 'tool';
 
@@ -12,10 +18,12 @@ export interface ActivityPaneOptions {
 
 export class ActivityPaneComponent extends Container {
   private spinnerRef?: MoonLoader;
+  private readonly mode: ActivityPaneMode;
 
   constructor(options: ActivityPaneOptions) {
     super();
     this.spinnerRef = options.spinner;
+    this.mode = options.mode;
 
     if (
       (options.mode === 'waiting' || options.mode === 'tool' || options.mode === 'composing') &&
@@ -33,6 +41,17 @@ export class ActivityPaneComponent extends Container {
     if (this.spinnerRef && 'setAvailableWidth' in this.spinnerRef) {
       this.spinnerRef.setAvailableWidth(width);
     }
-    return super.render(width);
+    const lines = super.render(width);
+    if (lines.length === 0) return lines;
+
+    const appearance = getActiveAppearancePreferences();
+    if (!shouldRenderAmbientEffects(appearance) || width < 24) return lines;
+
+    // Demo-grade rail under live activity so long waits still feel alive.
+    if (this.mode === 'waiting' || this.mode === 'composing' || this.mode === 'tool') {
+      const rail = renderParticleRail(width, appearance, `activity:${this.mode}`);
+      return [...lines, currentTheme.dim(rail)];
+    }
+    return lines;
   }
 }
