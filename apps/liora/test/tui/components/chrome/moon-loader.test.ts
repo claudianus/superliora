@@ -1,4 +1,7 @@
 import type { RendererRootUI } from '#/tui/renderer';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MoonLoader } from '#/tui/components/chrome/moon-loader';
@@ -82,6 +85,16 @@ describe('MoonLoader', () => {
 
     const row = strip(loader.render(80).join('\n'));
     expect(row).toContain('Tip: ctrl+s: steer mid-turn');
+  });
+
+  it('keeps comet spinner interval near premium ambient floor, not 2ms thrash', () => {
+    const sourcePath = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../../../src/tui/components/chrome/moon-loader.ts',
+    );
+    const source = readFileSync(sourcePath, 'utf8');
+    expect(source).toContain('Math.max(BRAILLE_SPINNER_INTERVAL_MS, 33)');
+    expect(source).not.toContain('BRAILLE_SPINNER_INTERVAL_MS - 88');
   });
 
   it('renders a multi-cell comet trail for the comet style', () => {

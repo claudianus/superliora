@@ -10,7 +10,7 @@ Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, process
 
 Dedicated tools keep output capped and the permission UI clear.
 
-**Output:** combined stdout/stderr; may truncate. Non-zero exit appends `Command failed with exit code: N`. Long foreground work: set `timeout` seconds (default {{ DEFAULT_TIMEOUT_S }}s, max {{ MAX_TIMEOUT_S }}s).
+**Output:** combined stdout/stderr; may truncate. Non-zero exit appends `Command failed with exit code: N`. Long foreground work: set `timeout` seconds (default {{ DEFAULT_TIMEOUT_S }}s, max {{ MAX_TIMEOUT_S }}s). Successful stdout soft-caps ~4k after pattern collapse; use LioraExpand for archived dumps.
 
 **Background:** `run_in_background=true` returns a task ID (short `description` required). Background default {{ DEFAULT_BACKGROUND_TIMEOUT_S }}s, max {{ MAX_BACKGROUND_TIMEOUT_S }}s; `disable_timeout=true` only when unbounded. You are notified when the task completes. Use `TaskOutput` for a non-blocking status/output snapshot; set `block=true` only when you must wait. Use `TaskStop` only to cancel. Users inspect tasks via `/tasks`. Prefer return control to the user over blocking the conversation on a background task.
 
