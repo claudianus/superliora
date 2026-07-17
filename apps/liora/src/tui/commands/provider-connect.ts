@@ -22,9 +22,12 @@ import {
 } from '@superliora/sdk';
 import {
   allocateManagedKimiOAuthAccountKey,
+  allocateProviderOAuthAccountKey,
   applyCustomRegistryEntries,
   fetchCustomRegistry,
   getProviderProfile,
+  listProviderOAuthRefs,
+  mergeProviderOAuthLogin,
   OAuthProviderManager,
   SUPERLIORA_PROVIDER_NAME,
   type CustomRegistrySource,
@@ -424,10 +427,11 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
 
 function promptManagedAccountAction(
   host: SlashCommandHost,
+  title: string = ttui('tui.provider.addAccountTitle'),
 ): Promise<'refresh' | 'add' | undefined> {
   return new Promise((resolve) => {
     const picker = new ChoicePickerComponent({
-      title: ttui('tui.provider.addAccountTitle'),
+      title,
       options: [
         {
           value: 'refresh',
@@ -514,6 +518,35 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
   }
 
   const manager = new OAuthProviderManager();
+  const defaultStorageKey = manager.storageName(providerId);
+  const existingConfig = await host.harness.getConfig({ reload: true });
+  const existingProvider = existingConfig.providers[providerId] as
+    | Record<string, unknown>
+    | undefined;
+  const existingRefs = listProviderOAuthRefs(existingProvider);
+  const alreadyLoggedIn =
+    existingRefs.length > 0 || (await manager.hasToken(providerId, existingRefs[0]?.key ?? defaultStorageKey));
+
+  let addAccount = false;
+  if (alreadyLoggedIn) {
+    const choice = await promptManagedAccountAction(
+      host,
+      ttui('tui.provider.addAccountProviderTitle', { name: profile.displayName }),
+    );
+    if (choice === undefined) return;
+    addAccount = choice === 'add';
+  }
+
+  const allocated = allocateProviderOAuthAccountKey(providerId, existingProvider, {
+    defaultKey: defaultStorageKey,
+  });
+  // Refresh reuses the primary storage key; add-account allocates a fresh key
+  // only when accounts already exist.
+  const storageKey =
+    addAccount || existingRefs.length === 0
+      ? allocated.key
+      : (existingRefs[0]?.key ?? defaultStorageKey);
+
   const controller = new AbortController();
   const cancelLogin = (): void => {
     controller.abort();
@@ -522,7 +555,6 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
 
   let spinner: LoginProgressSpinnerHandle | undefined;
   try {
-    const storageKey = manager.storageName(providerId);
     spinner = host.showProgressSpinner(`Authorizing with ${profile.displayName}`);
     await manager.login(
       providerId,
@@ -580,24 +612,32 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
           return pasted;
         },
       },
-      { signal: controller.signal },
+      { signal: controller.signal, storageKey },
     );
     spinner?.stop({ ok: true, label: 'Logged in.' });
     spinner = undefined;
 
     // Persist a provider config that references the OAuth token via an
-    // OAuthRef. The runtime auth layer resolves the Bearer token from storage
-    // using the `key` (storage name).
-    const config = await host.harness.getConfig();
-    if (config.providers[providerId] !== undefined) {
-      await host.harness.removeProvider(providerId);
-    }
+    // OAuthRef. Multi-account logins push previous accounts into `oauths` so
+    // the runtime route pool can fail over on quota/rate-limit errors.
     const freshConfig = await host.harness.getConfig();
-    freshConfig.providers[providerId] = {
-      type: profile.wire,
-      baseUrl: profile.apiBaseUrl,
-      oauth: { storage: 'file', key: storageKey },
+    const loginRef = {
+      storage: 'file' as const,
+      key: storageKey,
     };
+    const mergedProvider = mergeProviderOAuthLogin(
+      freshConfig.providers[providerId] as Record<string, unknown> | undefined,
+      loginRef,
+      {
+        addAccount,
+        type: profile.wire,
+        baseUrl: profile.apiBaseUrl,
+        ...(profile.customHeaders !== undefined
+          ? { customHeaders: { ...profile.customHeaders } }
+          : {}),
+      },
+    );
+    freshConfig.providers[providerId] = mergedProvider as (typeof freshConfig.providers)[string];
 
     // Resolve the model list from the models.dev catalog when possible
     // (so new models like Grok 4.5 appear without a release), falling back
@@ -618,8 +658,23 @@ async function connectOAuthProvider(host: SlashCommandHost, providerId: string):
     });
 
     await host.authFlow.refreshConfigAfterLogin();
-    host.track('login', { provider: providerId, method: 'oauth' });
-    host.showStatus(ttui('tui.provider.connected', { name: profile.displayName }));
+    host.track('login', {
+      provider: providerId,
+      method: 'oauth',
+      already_logged_in: alreadyLoggedIn,
+      add_account: addAccount,
+    });
+    if (addAccount) {
+      host.showStatus(
+        ttui('tui.provider.accountAdded', {
+          fingerprint: fingerprintOAuthKey(storageKey),
+        }),
+      );
+    } else if (alreadyLoggedIn) {
+      host.showStatus(ttui('tui.provider.alreadyLoggedIn'));
+    } else {
+      host.showStatus(ttui('tui.provider.connected', { name: profile.displayName }));
+    }
     host.showNotice(ttui('tui.provider.mediaHint'));
 
     // Offer the model picker so the user can choose a default.

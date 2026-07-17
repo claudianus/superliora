@@ -70,6 +70,11 @@ export interface ProviderProfile {
   readonly wire: OAuthProviderWire;
   /** Base URL persisted into the provider config for runtime requests. */
   readonly apiBaseUrl?: string;
+  /**
+   * Static request headers written into the provider config on connect
+   * (for example Grok Build's `X-XAI-Token-Auth` CLI session marker).
+   */
+  readonly customHeaders?: Readonly<Record<string, string>>;
   /** Where a user signs up / obtains access. */
   readonly signupUrl?: string;
   /** Favicon/docs link shown in the picker. */

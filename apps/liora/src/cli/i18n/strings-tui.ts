@@ -228,6 +228,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.provider.connected': 'Connected: {name}',
   'tui.provider.alreadyLoggedIn': 'Already logged in. Model configuration refreshed.',
   'tui.provider.addAccountTitle': 'Managed SuperLiora account',
+  'tui.provider.addAccountProviderTitle': '{name} account',
   'tui.provider.addAccountRefresh': 'Refresh current account',
   'tui.provider.addAccountRefreshDesc':
     'Re-authorize the current primary account and refresh models.',
@@ -546,6 +547,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.connected': '연결됨: {name}',
   'tui.provider.alreadyLoggedIn': '이미 로그인되어 있습니다. 모델 설정을 새로고침했습니다.',
   'tui.provider.addAccountTitle': '관리 SuperLiora 계정',
+  'tui.provider.addAccountProviderTitle': '{name} 계정',
   'tui.provider.addAccountRefresh': '현재 계정 새로고침',
   'tui.provider.addAccountRefreshDesc':
     '현재 primary 계정을 다시 인증하고 모델을 새로고침합니다.',
