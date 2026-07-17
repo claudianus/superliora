@@ -306,11 +306,16 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
       }
     }
 
-    if (entry.debounceTimer === undefined) {
-      const timer = setTimeout(() => { this.flushWindow(sessionId); }, this.debounceMs);
-      timer.unref?.();
-      entry.debounceTimer = timer;
+    // Trailing debounce: restart the window on each event so a long burst
+    // that spans > debounceMs still coalesces into one flush (and can hit
+    // the overflow threshold) instead of emitting multiple partial windows.
+    if (entry.debounceTimer !== undefined) {
+      clearTimeout(entry.debounceTimer);
+      entry.debounceTimer = undefined;
     }
+    const timer = setTimeout(() => { this.flushWindow(sessionId); }, this.debounceMs);
+    timer.unref?.();
+    entry.debounceTimer = timer;
   }
 
   private flushWindow(sessionId: string): void {

@@ -110,6 +110,7 @@ class FakeWatcher {
   readonly unwatched: string[][] = [];
   readonly unwatchErrors = new Map<string, Error>();
   closeCalls = 0;
+  private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
   add(paths: string | string[]): this {
     this.added.push(Array.isArray(paths) ? paths : [paths]);
@@ -124,8 +125,18 @@ class FakeWatcher {
     return this;
   }
 
-  on(): this {
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    let set = this.listeners.get(event);
+    if (set === undefined) {
+      set = new Set();
+      this.listeners.set(event, set);
+    }
+    set.add(listener);
     return this;
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    for (const listener of this.listeners.get(event) ?? []) listener(...args);
   }
 
   async close(): Promise<void> {
@@ -457,6 +468,45 @@ describe('WSBroadcastService (WS transport pump)', () => {
 });
 
 describe('FsWatcherService', () => {
+  it('marks a burst above maxChangesPerWindow as truncated after trailing debounce', async () => {
+    vi.useFakeTimers();
+    const watcher = new FakeWatcher();
+    const frames: Array<Record<string, unknown>> = [];
+    const service = new FsWatcherService(
+      {
+        resolve: () => ({
+          send: (frame: Record<string, unknown>) => {
+            frames.push(frame);
+          },
+        }),
+      },
+      {
+        watcherFactory: () => watcher as unknown as TestFsWatcher,
+        debounceMs: 50,
+        maxChangesPerWindow: 5,
+      },
+      testLogger,
+      {} as ISessionService,
+    );
+
+    service.bindSessionCwd('sid', '/workspace');
+    service.addPaths('sid', 'conn-a', ['/workspace']);
+
+    for (let i = 0; i < 8; i++) {
+      watcher.emit('all', 'add', `/workspace/f${i}.txt`);
+      // Spread over more than one leading-edge window; trailing debounce still coalesces.
+      await vi.advanceTimersByTimeAsync(20);
+    }
+    await vi.advanceTimersByTimeAsync(60);
+
+    expect(frames.length).toBe(1);
+    const payload = frames[0]?.['payload'] as { truncated?: boolean; count?: number };
+    expect(payload.truncated).toBe(true);
+    expect(payload.count).toBeGreaterThan(5);
+    service.dispose();
+    vi.useRealTimers();
+  });
+
   it('shares watched paths and releases the underlying watcher on the last reference', () => {
     const watcher = new FakeWatcher();
     const service = new FsWatcherService(
