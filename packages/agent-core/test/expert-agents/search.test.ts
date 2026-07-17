@@ -142,3 +142,43 @@ describe('Expert catalog lazy persona hydration', () => {
     expect(EXPERT_CATALOG_BY_ID['engineering-frontend-developer']?.personaText.length).toBeGreaterThan(100);
   });
 });
+
+describe('UltraSwarmOrchestrator fail-closed expert ids', () => {
+  it('throws when an explicit expert id is missing from the catalog', async () => {
+    await globalExpertSearchEngine.initialize();
+    await expect(
+      globalUltraSwarmOrchestrator.buildSwarmPlan('Ship a feature', [
+        'engineering-frontend-developer',
+        'not-a-real-expert-id',
+      ]),
+    ).rejects.toThrow(/Unknown expert id\(s\): not-a-real-expert-id/);
+  });
+
+  it('passes totalExperts into assignment prompts for multi-expert selections', async () => {
+    await globalExpertSearchEngine.initialize();
+    // Two known catalog ids so totalExperts > 1 enables multi-expert collaboration copy.
+    const plan = await globalUltraSwarmOrchestrator.buildSwarmPlan(
+      'Ship a feature',
+      ['engineering-frontend-developer', 'engineering-backend-architect'],
+    );
+    expect(plan.experts.length).toBeGreaterThanOrEqual(2);
+    for (const expert of plan.experts) {
+      expect(expert.prompt).toContain('multi-expert assignment');
+    }
+  });
+});
+
+describe('ExpertSearchEngine initialize single-flight', () => {
+  it('shares concurrent initialize calls without throwing', async () => {
+    await Promise.all([
+      globalExpertSearchEngine.initialize(),
+      globalExpertSearchEngine.initialize(),
+      globalExpertSearchEngine.initialize(),
+    ]);
+    const results = globalExpertSearchEngine.search({
+      query: 'TypeScript frontend',
+      topK: 3,
+    });
+    expect(results.length).toBeGreaterThan(0);
+  });
+});

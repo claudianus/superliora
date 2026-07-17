@@ -94,6 +94,9 @@ export type {
   LioraAuthLoginResult,
   LioraAuthLogoutResult,
   LioraAuthSubmitFeedbackInput,
+  ManagedAccountUsageError,
+  ManagedAccountUsageOk,
+  ManagedAccountUsageResult,
 } from '#/auth';
 
 export * from '#/events';

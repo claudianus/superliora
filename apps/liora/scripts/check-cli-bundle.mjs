@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const bundlePath = resolve(appRoot, 'dist', 'main.mjs');
+const personasPath = resolve(appRoot, 'dist', 'catalog-personas.json');
 
 const text = readFileSync(bundlePath, 'utf-8');
 const errors = [];
@@ -35,6 +36,25 @@ function inspectImportLine(line) {
 
 for (const line of executableLines()) {
   inspectImportLine(line);
+}
+
+// Persona bodies stay external (~4MB) and must ship beside main.mjs so
+// UltraSwarm hydration (createRequire relative to the bundle) can load them.
+// Require the sidecar for any real CLI bundle (large main.mjs), not only when
+// the string "catalog-personas.json" is still visible after minify.
+const bundleBytes = statSync(bundlePath).size;
+const isCliBundle = bundleBytes > 1_000_000 || text.includes('catalog-personas.json');
+if (isCliBundle) {
+  if (!existsSync(personasPath)) {
+    errors.push(
+      `missing dist/catalog-personas.json (required for UltraSwarm expert personas; run scripts/copy-expert-personas.mjs)`,
+    );
+  } else {
+    const size = statSync(personasPath).size;
+    if (size < 1_000) {
+      errors.push(`dist/catalog-personas.json is too small (${size} bytes)`);
+    }
+  }
 }
 
 if (errors.length > 0) {

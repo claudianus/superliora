@@ -4,7 +4,12 @@
 
 import type { WorkGraphNode } from '@superliora/protocol';
 import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
-import type { ExpertAssignment, ExpertSwarmPlan } from '../../../expert-agents/types';
+import { buildExpertAssignmentPrompt } from '../../../expert-agents/expert-persona';
+import type {
+  ExpertAssignment,
+  ExpertCatalogEntry,
+  ExpertSwarmPlan,
+} from '../../../expert-agents/types';
 
 export const MAX_ULTRA_SWARM_SUBAGENTS = 128;
 
@@ -163,6 +168,62 @@ export function mergePlans(primary: ExpertSwarmPlan, secondary: ExpertSwarmPlan)
     strategy: experts.length > 3 ? 'mixed' : experts.length > 1 ? 'parallel' : 'sequential',
     experts,
   };
+}
+
+/**
+ * Build a swarm plan from LLM-synthesized experts (catalog miss fallback).
+ */
+export function planFromSyntheticExperts(
+  taskDescription: string,
+  experts: readonly ExpertCatalogEntry[],
+): ExpertSwarmPlan {
+  const assignments: ExpertAssignment[] = experts.map((expert, index) => {
+    const prev = experts[index - 1];
+    const strategyHint =
+      experts.length > 3 ? 'mixed' : experts.length > 1 ? 'parallel' : 'sequential';
+    return {
+      expertId: expert.id,
+      expertName: expert.name,
+      division: expert.division,
+      divisionLabel: expert.divisionLabel,
+      emoji: expert.emoji,
+      color: expert.color,
+      prompt: buildExpertAssignmentPrompt(expert, {
+        taskDescription,
+        swarmIndex: index,
+        totalExperts: experts.length,
+      }),
+      dependsOn:
+        strategyHint === 'sequential' && index > 0 && prev !== undefined
+          ? [prev.id]
+          : undefined,
+      coverageLane: coverageLaneFromSyntheticTags(expert),
+      selectionReason: 'LLM-synthesized specialist (static catalog miss)',
+    };
+  });
+
+  return {
+    taskDescription,
+    experts: assignments,
+    strategy:
+      experts.length > 3 ? 'mixed' : experts.length > 1 ? 'parallel' : 'sequential',
+  };
+}
+
+function coverageLaneFromSyntheticTags(expert: ExpertCatalogEntry): string | undefined {
+  const known = new Set([
+    'architecture_implementation',
+    'product_requirements',
+    'testing_evidence',
+    'ux_visual_content',
+    'security_privacy',
+    'performance_reliability',
+    'domain_subject_matter',
+  ]);
+  for (const tag of expert.tags) {
+    if (known.has(tag)) return tag;
+  }
+  return undefined;
 }
 
 export function capPlan(plan: ExpertSwarmPlan, maxExperts: number): ExpertSwarmPlan {

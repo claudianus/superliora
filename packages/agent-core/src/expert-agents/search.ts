@@ -23,6 +23,7 @@ export class ExpertSearchEngine {
   private readonly index: MiniSearch<ExpertCatalogEntry>;
   private readonly expertById: Map<string, ExpertCatalogEntry>;
   private initialized = false;
+  private initPromise?: Promise<void>;
   private embeddingCache?: Map<string, readonly number[]>;
 
   constructor() {
@@ -40,6 +41,20 @@ export class ExpertSearchEngine {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
+    if (this.initPromise !== undefined) return this.initPromise;
+    this.initPromise = this.doInitialize();
+    try {
+      await this.initPromise;
+    } finally {
+      // Keep the resolved promise so late awaiters still share completion; clear
+      // only on failure so a later call can retry.
+      if (!this.initialized) {
+        this.initPromise = undefined;
+      }
+    }
+  }
+
+  private async doInitialize(): Promise<void> {
     const docs = ALL_EXPERTS.map((expert) => {
       const enriched = enrichExpertForCatalog(expert);
       return {
@@ -80,13 +95,15 @@ export class ExpertSearchEngine {
       return { expert, score: r.score };
     }).filter((r): r is ExpertSearchResult => r !== undefined);
 
-    // 2. Dense search (cosine similarity on embeddings) if available
+    // 2. Optional secondary lexical pass over experts that have real embedding
+    // vectors cached. Catalog currently ships zero embeddings, so this path is
+    // inactive unless embeddings are added later — not a cosine hybrid ranker.
     let denseResults: ExpertSearchResult[] = [];
     if (useEmbedding) {
-      denseResults = this.denseSearch(options.query, topK * 2, taskProfile);
+      denseResults = this.secondaryLexicalSearch(options.query, topK * 2, taskProfile);
     }
 
-    // 3. RRF fusion
+    // 3. RRF fusion (dense half is empty when no embeddings)
     const fused = this.rrfFusion(miniResults, denseResults, topK * 3);
 
     // 4. Apply filters and task-aware reranking
@@ -109,12 +126,18 @@ export class ExpertSearchEngine {
     return results.slice(0, topK);
   }
 
-  private denseSearch(query: string, topK: number, taskProfile: ExpertTaskProfile): ExpertSearchResult[] {
+  /**
+   * Secondary term-overlap ranking restricted to experts that have embedding
+   * vectors. Not cosine similarity — kept only for future embedding-backed
+   * catalogs so RRF wiring stays stable.
+   */
+  private secondaryLexicalSearch(
+    query: string,
+    topK: number,
+    taskProfile: ExpertTaskProfile,
+  ): ExpertSearchResult[] {
     if (!this.embeddingCache || this.embeddingCache.size === 0) return [];
 
-    // For dense search without a query embedding model, we use a simple approach:
-    // compute a pseudo-embedding from the query by averaging keyword-matched expert embeddings
-    // This is a lightweight fallback when no query embedding is available at search time.
     const queryTerms = query.toLowerCase().split(/\s+/).filter((term) => term.length > 2);
     if (queryTerms.length === 0) return [];
 
@@ -123,7 +146,8 @@ export class ExpertSearchEngine {
       const expert = this.expertById.get(id);
       if (expert === undefined) continue;
       if (taskProfile.excludedDivisions.includes(expert.division)) continue;
-      const text = `${expert.name} ${expert.description} ${expert.vibe} ${expert.tags.join(' ')} ${expert.capabilities.join(' ')}`.toLowerCase();
+      const text =
+        `${expert.name} ${expert.description} ${expert.vibe} ${expert.tags.join(' ')} ${expert.capabilities.join(' ')}`.toLowerCase();
       const matches = queryTerms.filter((term) => text.includes(term)).length;
       if (matches > 0) {
         scores.set(id, matches / queryTerms.length);

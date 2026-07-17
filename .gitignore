@@ -11,6 +11,7 @@ coverage/
 .playwright-mcp/
 .claude
 .conductor
+.gjc/
 .kimi-stash-dir
 plugins/cdn/
 .worktrees/

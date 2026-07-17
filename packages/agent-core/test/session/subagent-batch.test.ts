@@ -644,24 +644,20 @@ describe('SubagentBatch scheduling contract', () => {
 });
 
 describe('resolveSwarmMaxConcurrency', () => {
-  it('returns undefined when the variable is unset', () => {
-    expect(resolveSwarmMaxConcurrency({})).toBeUndefined();
+  it('returns default 16 when the variable is unset', () => {
+    expect(resolveSwarmMaxConcurrency({})).toBe(16);
   });
 
-  it('returns undefined for empty or whitespace-only values', () => {
-    expect(
-      resolveSwarmMaxConcurrency({ SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY: '' }),
-    ).toBeUndefined();
-    expect(
-      resolveSwarmMaxConcurrency({ SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY: '   ' }),
-    ).toBeUndefined();
+  it('returns default 16 for empty or whitespace-only values', () => {
+    expect(resolveSwarmMaxConcurrency({ SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY: '' })).toBe(16);
+    expect(resolveSwarmMaxConcurrency({ SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY: '   ' })).toBe(16);
   });
 
-  it('throws for non-positive, non-integer, or non-numeric values', () => {
+  it('returns default 16 for non-positive, non-integer, or non-numeric values', () => {
     for (const raw of ['0', '-1', '2.5', 'abc']) {
-      expect(() =>
+      expect(
         resolveSwarmMaxConcurrency({ SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY: raw }),
-      ).toThrow(/SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY.*positive integer/);
+      ).toBe(16);
     }
   });
 

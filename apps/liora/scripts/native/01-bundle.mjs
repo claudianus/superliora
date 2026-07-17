@@ -7,6 +7,7 @@ const requireFromScript = createRequire(import.meta.url);
 const tsdownCliPath = requireFromScript.resolve('tsdown/run');
 const checkBundlePath = resolve(import.meta.dirname, 'check-bundle.mjs');
 const buildVisAssetPath = resolve(import.meta.dirname, '..', 'build-vis-asset.mjs');
+const copyPersonasPath = resolve(import.meta.dirname, '..', 'copy-expert-personas.mjs');
 
 export async function runBundleStep() {
   // Generate the embedded `liora vis` web asset before bundling. The native
@@ -15,6 +16,9 @@ export async function runBundleStep() {
   // miss it (npm builds get it via the `prebuild` script).
   await run(process.execPath, [buildVisAssetPath]);
   await run(process.execPath, [tsdownCliPath, '--config', 'tsdown.native.config.ts']);
+  // Persona bodies stay external (~4MB). Copy next to apps/liora/dist before SEA
+  // packaging so runtime hydrate and native sidecars can find the JSON.
+  await run(process.execPath, [copyPersonasPath]);
   await run(process.execPath, [checkBundlePath]);
 }
 

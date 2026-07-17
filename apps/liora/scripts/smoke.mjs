@@ -69,4 +69,14 @@ assertIncludes(helpOutput, 'liora', '--help');
 const exportHelpOutput = await runBundle(['export', '--help']);
 assertIncludes(exportHelpOutput, 'Usage: liora export', 'export --help');
 
+// UltraSwarm expert hydration: persona JSON must resolve next to the bundle.
+const personasPath = resolve(appRoot, 'dist', 'catalog-personas.json');
+try {
+  await stat(personasPath);
+} catch {
+  fail(
+    `Expert personas missing at ${personasPath}. Build must run scripts/copy-expert-personas.mjs so UltraSwarm can hydrate experts.`,
+  );
+}
+
 console.log(`Bundle smoke passed: ${bundlePath}`);

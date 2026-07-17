@@ -21,6 +21,12 @@ import {
 } from '#/utils/usage/usage-format';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 const LEFT_MARGIN = 2;
 const SIDE_PADDING = 1;
@@ -29,6 +35,9 @@ const BOX_OVERHEAD = LEFT_MARGIN + 2 + 2 * SIDE_PADDING;
 const CONTEXT_COMPACT_RATIO = 0.70;
 const CONTEXT_WRAP_UP_RATIO = 0.55;
 const CACHE_READY_RATIO = 0.5;
+/** Fill animation for plan bars after data arrives (clock-driven; no setInterval). */
+const USAGE_FILL_MS = 400;
+const USAGE_FRAME_INTERVAL_MS = 80;
 
 type Colorize = (text: string) => string;
 
@@ -39,9 +48,20 @@ export interface ManagedUsageRow {
   readonly resetHint?: string;
 }
 
+export interface ManagedAccountUsageReport {
+  readonly accountKey: string;
+  readonly label?: string;
+  readonly isPrimary?: boolean;
+  readonly summary: ManagedUsageRow | null;
+  readonly limits: readonly ManagedUsageRow[];
+  readonly error?: string;
+  readonly status?: 'ok' | 'error' | 'loading';
+}
+
 export interface ManagedUsageReport {
   readonly summary: ManagedUsageRow | null;
   readonly limits: readonly ManagedUsageRow[];
+  readonly accounts?: readonly ManagedAccountUsageReport[];
 }
 
 export interface UsageReportOptions {
@@ -52,11 +72,14 @@ export interface UsageReportOptions {
   readonly maxContextTokens: number;
   readonly managedUsage?: ManagedUsageReport;
   readonly managedUsageError?: string;
+  /** 0..1 multiplier applied to plan usage bars during ambient fill animation. */
+  readonly managedUsageFillProgress?: number;
 }
 
 export interface ManagedUsageReportLineOptions {
   readonly managedUsage?: ManagedUsageReport;
   readonly managedUsageError?: string;
+  readonly managedUsageFillProgress?: number;
 }
 
 function usageNumber(value: unknown): number {
@@ -179,6 +202,72 @@ function buildSessionUsageSection(
   return lines;
 }
 
+function usedRatio(row: ManagedUsageRow): number {
+  return row.limit > 0 ? Math.max(0, Math.min(row.used / row.limit, 1)) : 0;
+}
+
+function severityColorToken(sev: 'ok' | 'warn' | 'danger'): 'success' | 'warning' | 'error' {
+  return sev === 'danger' ? 'error' : sev === 'warn' ? 'warning' : 'success';
+}
+
+function shortAccountKey(accountKey: string): string {
+  const trimmed = accountKey.trim();
+  if (trimmed.length === 0) return 'account';
+  const slash = trimmed.lastIndexOf('/');
+  return slash >= 0 ? trimmed.slice(slash + 1) : trimmed;
+}
+
+function accountDisplayName(account: ManagedAccountUsageReport): string {
+  const label = account.label?.trim();
+  if (label !== undefined && label.length > 0) return label;
+  return shortAccountKey(account.accountKey);
+}
+
+function renderManagedUsageRows(
+  rows: readonly ManagedUsageRow[],
+  value: Colorize,
+  muted: Colorize,
+  fillProgress: number,
+  indent: string,
+): string[] {
+  if (rows.length === 0) return [muted(`${indent}No usage data available.`)];
+  const labelWidth = Math.max(10, ...rows.map((r) => r.label.length));
+  const pctWidth = Math.max(...rows.map((r) => `${Math.round(usedRatio(r) * 100)}% used`.length));
+  const out: string[] = [];
+  for (const row of rows) {
+    const ratioUsed = usedRatio(row);
+    const displayRatio = Math.max(0, Math.min(1, ratioUsed * fillProgress));
+    const pct = `${Math.round(ratioUsed * 100)}% used`;
+    const barColor = severityColorToken(ratioSeverity(ratioUsed));
+    const barColoured = renderRendererRatioProgressBar({
+      ratio: displayRatio,
+      width: 20,
+      filledStyle: (text) => currentTheme.fg(barColor, text),
+      emptyStyle: (text) => currentTheme.fg(barColor, text),
+    });
+    const label = row.label.padEnd(labelWidth, ' ');
+    const resetStr = row.resetHint ? `  ${muted(row.resetHint)}` : '';
+    out.push(
+      `${indent}${muted(label)}  ${barColoured}  ${value(pct.padEnd(pctWidth, ' '))}${resetStr}`,
+    );
+  }
+  return out;
+}
+
+function renderLoadingManagedBars(muted: Colorize, fillProgress: number, indent: string): string[] {
+  const shimmerRatio =
+    0.15 +
+    0.35 *
+      (0.5 + 0.5 * Math.sin(fillProgress * Math.PI * 2 + appearanceAnimationNow() / 180));
+  const barColoured = renderRendererRatioProgressBar({
+    ratio: Math.max(0, Math.min(1, shimmerRatio)),
+    width: 20,
+    filledStyle: (text) => currentTheme.fg('textDim', text),
+    emptyStyle: (text) => currentTheme.fg('textDim', text),
+  });
+  return [`${indent}${muted('loading…'.padEnd(10, ' '))}  ${barColoured}  ${muted('…')}`];
+}
+
 function buildManagedUsageSection(
   usage: ManagedUsageReport | undefined,
   error: string | undefined,
@@ -186,9 +275,41 @@ function buildManagedUsageSection(
   value: Colorize,
   muted: Colorize,
   errorStyle: Colorize,
+  fillProgress = 1,
 ): string[] {
   if (error !== undefined) return [accent('Plan usage'), errorStyle(`  ${error}`)];
   if (usage === undefined) return [];
+
+  const accounts = usage.accounts;
+  if (accounts !== undefined && accounts.length > 0) {
+    const out: string[] = [accent('Plan usage')];
+    for (let i = 0; i < accounts.length; i += 1) {
+      const account = accounts[i]!;
+      if (i > 0) out.push('');
+      const name = accountDisplayName(account);
+      const primaryBadge = account.isPrimary ? muted(' · primary') : '';
+      out.push(`  ${value(name)}${primaryBadge}`);
+      const status = account.status ?? (account.error !== undefined ? 'error' : 'ok');
+      if (status === 'loading') {
+        out.push(...renderLoadingManagedBars(muted, fillProgress, '    '));
+        continue;
+      }
+      if (status === 'error' || account.error !== undefined) {
+        out.push(errorStyle(`    ${account.error ?? 'Failed to load usage.'}`));
+        continue;
+      }
+      const rows: ManagedUsageRow[] = [];
+      if (account.summary !== null) rows.push(account.summary);
+      rows.push(...account.limits);
+      if (rows.length === 0) {
+        out.push(muted('    No usage data available.'));
+        continue;
+      }
+      out.push(...renderManagedUsageRows(rows, value, muted, fillProgress, '    '));
+    }
+    return out;
+  }
+
   const { summary, limits } = usage;
   if (summary === null && limits.length === 0) {
     return [accent('Plan usage'), muted('  No usage data available.')];
@@ -197,28 +318,7 @@ function buildManagedUsageSection(
   const rows: ManagedUsageRow[] = [];
   if (summary !== null) rows.push(summary);
   rows.push(...limits);
-  const usedRatio = (r: ManagedUsageRow): number =>
-    r.limit > 0 ? Math.max(0, Math.min(r.used / r.limit, 1)) : 0;
-  const labelWidth = Math.max(10, ...rows.map((r) => r.label.length));
-  const pctWidth = Math.max(...rows.map((r) => `${Math.round(usedRatio(r) * 100)}% used`.length));
-  const severityColor = (sev: 'ok' | 'warn' | 'danger'): 'success' | 'warning' | 'error' =>
-    sev === 'danger' ? 'error' : sev === 'warn' ? 'warning' : 'success';
-  const out: string[] = [accent('Plan usage')];
-  for (const row of rows) {
-    const ratioUsed = usedRatio(row);
-    const pct = `${Math.round(ratioUsed * 100)}% used`;
-    const barColor = severityColor(ratioSeverity(ratioUsed));
-    const barColoured = renderRendererRatioProgressBar({
-      ratio: ratioUsed,
-      width: 20,
-      filledStyle: (text) => currentTheme.fg(barColor, text),
-      emptyStyle: (text) => currentTheme.fg(barColor, text),
-    });
-    const label = row.label.padEnd(labelWidth, ' ');
-    const resetStr = row.resetHint ? `  ${muted(row.resetHint)}` : '';
-    out.push(`  ${muted(label)}  ${barColoured}  ${value(pct.padEnd(pctWidth, ' '))}${resetStr}`);
-  }
-  return out;
+  return [accent('Plan usage'), ...renderManagedUsageRows(rows, value, muted, fillProgress, '  ')];
 }
 
 export function buildManagedUsageReportLines(options: ManagedUsageReportLineOptions): string[] {
@@ -226,6 +326,10 @@ export function buildManagedUsageReportLines(options: ManagedUsageReportLineOpti
   const value = (text: string) => currentTheme.fg('text', text);
   const muted = (text: string) => currentTheme.fg('textDim', text);
   const errorStyle = (text: string) => currentTheme.fg('error', text);
+  const fill =
+    options.managedUsageFillProgress === undefined
+      ? 1
+      : Math.max(0, Math.min(1, options.managedUsageFillProgress));
 
   return buildManagedUsageSection(
     options.managedUsage,
@@ -234,6 +338,7 @@ export function buildManagedUsageReportLines(options: ManagedUsageReportLineOpti
     value,
     muted,
     errorStyle,
+    fill,
   );
 }
 
@@ -315,6 +420,7 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
   const managedSection = buildManagedUsageReportLines({
     managedUsage: options.managedUsage,
     managedUsageError: options.managedUsageError,
+    managedUsageFillProgress: options.managedUsageFillProgress,
   });
   if (managedSection.length > 0) {
     lines.push('');
@@ -324,30 +430,89 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
   return lines;
 }
 
+export type UsagePanelPhase = 'loading' | 'ready';
+
+export interface UsagePanelComponentOptions {
+  readonly buildLines: (fillProgress: number) => readonly string[];
+  readonly borderToken?: ColorToken;
+  readonly title?: string;
+  /** Request a layout/content re-render for clock-driven animation frames. */
+  readonly requestRender?: (() => void) | undefined;
+  readonly phase?: UsagePanelPhase;
+  readonly fillStartedAtMs?: number | undefined;
+}
+
+/**
+ * Bordered `/usage` panel. Supports optional loading → filled animation for
+ * Plan usage bars via the shared appearance animation clock (no private timers).
+ */
 export class UsagePanelComponent implements Component {
   /** Cached coloured lines; rebuilt from `buildLines` on every invalidate. */
   private lines: readonly string[];
+  private phase: UsagePanelPhase;
+  private fillStartedAtMs: number | undefined;
+  private lastFrameTickMs = 0;
+  private readonly buildLines: (fillProgress: number) => readonly string[];
+  private readonly borderToken: ColorToken;
+  private readonly title: string;
+  private readonly requestRender: (() => void) | undefined;
 
   constructor(
-    private readonly buildLines: () => readonly string[],
-    private readonly borderToken: ColorToken,
-    private readonly title: string = ' Usage ',
+    buildLines: (() => readonly string[]) | UsagePanelComponentOptions,
+    borderToken: ColorToken = 'primary',
+    title: string = ' Usage ',
   ) {
-    this.lines = buildLines();
+    if (typeof buildLines === 'function') {
+      this.buildLines = (_fillProgress: number) => buildLines();
+      this.borderToken = borderToken;
+      this.title = title;
+      this.requestRender = undefined;
+      this.phase = 'ready';
+      this.fillStartedAtMs = undefined;
+    } else {
+      this.buildLines = buildLines.buildLines;
+      this.borderToken = buildLines.borderToken ?? 'primary';
+      this.title = buildLines.title ?? ' Usage ';
+      this.requestRender = buildLines.requestRender;
+      this.phase = buildLines.phase ?? 'ready';
+      this.fillStartedAtMs = buildLines.fillStartedAtMs;
+    }
+    this.lines = this.buildLines(this.resolveFillProgress());
+  }
+
+  setPhase(phase: UsagePanelPhase, options: { readonly fillStartedAtMs?: number } = {}): void {
+    this.phase = phase;
+    if (options.fillStartedAtMs !== undefined) {
+      this.fillStartedAtMs = options.fillStartedAtMs;
+    } else if (phase === 'ready' && this.fillStartedAtMs === undefined) {
+      this.fillStartedAtMs = appearanceAnimationNow();
+    } else if (phase === 'loading') {
+      this.fillStartedAtMs = undefined;
+    }
+    this.lastFrameTickMs = 0;
+    this.lines = this.buildLines(this.resolveFillProgress());
   }
 
   invalidate(): void {
     // Report bodies embed palette colours, so a theme switch must re-run the
     // builder to repaint the cached lines (the data itself is captured).
-    this.lines = this.buildLines();
+    this.lines = this.buildLines(this.resolveFillProgress());
   }
 
   render(width: number): string[] {
+    this.tickClockDrivenAnimation();
+    // Rebuild when ambient fill progress advances between frames.
+    this.lines = this.buildLines(this.resolveFillProgress());
+
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
     const paint = (s: string): string => currentTheme.fg(this.borderToken, s);
     const availableInterior = safeWidth - BOX_OVERHEAD;
+    const titleText =
+      this.phase === 'loading' && shouldRenderAmbientEffects(getActiveAppearancePreferences())
+        ? renderPulseText(this.title, 'usage-panel:title', this.borderToken)
+        : this.title;
     if (availableInterior < 1) {
       return [
         truncateToWidth(this.title.trim(), safeWidth, '…'),
@@ -362,7 +527,7 @@ export class UsagePanelComponent implements Component {
       Math.min(availableInterior, Math.max(longestLine, visibleWidth(this.title))),
     );
     const horzLen = contentWidth + 2 * SIDE_PADDING;
-    const title = fitRendererFrameTitle(this.title, horzLen, '…');
+    const title = fitRendererFrameTitle(titleText, horzLen, '…');
     const frame = renderRendererFrameRows({
       title,
       titlePlacement: 'flush',
@@ -376,5 +541,34 @@ export class UsagePanelComponent implements Component {
       ellipsis: '…',
     });
     return frame.map((line) => truncateToWidth(indent + line, safeWidth, '…'));
+  }
+
+  private resolveFillProgress(): number {
+    const appearance = getActiveAppearancePreferences();
+    if (!shouldRenderAmbientEffects(appearance)) return 1;
+    if (this.phase === 'loading') {
+      const t = appearanceAnimationNow() / 500;
+      return 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2));
+    }
+    if (this.fillStartedAtMs === undefined) return 1;
+    const elapsed = appearanceAnimationNow() - this.fillStartedAtMs;
+    if (elapsed >= USAGE_FILL_MS) return 1;
+    return Math.max(0, Math.min(1, elapsed / USAGE_FILL_MS));
+  }
+
+  private needsAnimationFrame(): boolean {
+    if (this.requestRender === undefined) return false;
+    if (!shouldRenderAmbientEffects(getActiveAppearancePreferences())) return false;
+    if (this.phase === 'loading') return true;
+    if (this.fillStartedAtMs === undefined) return false;
+    return appearanceAnimationNow() - this.fillStartedAtMs < USAGE_FILL_MS;
+  }
+
+  private tickClockDrivenAnimation(): void {
+    if (!this.needsAnimationFrame() || this.requestRender === undefined) return;
+    const now = appearanceAnimationNow();
+    if (this.lastFrameTickMs !== 0 && now - this.lastFrameTickMs < USAGE_FRAME_INTERVAL_MS) return;
+    this.lastFrameTickMs = now;
+    this.requestRender();
   }
 }

@@ -21,14 +21,43 @@ export {
 /** Meta-only catalog for search/indexing (personaText empty). */
 export const EXPERT_CATALOG: readonly ExpertCatalogEntry[] = EXPERT_CATALOG_META;
 
+/**
+ * Minimal persona when catalog JSON is missing a body for a known meta id.
+ * Keeps UltraSwarm spawn usable instead of running with a blank specialist prompt.
+ */
+export function fallbackExpertPersonaText(entry: ExpertCatalogEntry): string {
+  const tags = entry.tags.length > 0 ? entry.tags.join(', ') : 'general';
+  const capabilities =
+    entry.capabilities.length > 0 ? entry.capabilities.join(', ') : entry.description;
+  return [
+    `# ${entry.name}`,
+    '',
+    `You are **${entry.name}** (${entry.divisionLabel}).`,
+    entry.description,
+    '',
+    `## Focus`,
+    `- Division: ${entry.division}`,
+    `- Tags: ${tags}`,
+    `- Capabilities: ${capabilities}`,
+    entry.vibe.length > 0 ? `- Vibe: ${entry.vibe}` : '',
+    '',
+    'Stay inside this specialty. Prefer concrete evidence over generic advice.',
+  ]
+    .filter((line) => line !== undefined)
+    .join('\n');
+}
+
 export function hydrateExpertCatalogEntry(
   entry: ExpertCatalogEntry | undefined,
 ): ExpertCatalogEntry | undefined {
   if (entry === undefined) return undefined;
   if (entry.personaText.length > 0) return entry;
   const personaText = loadExpertPersonaText(entry.id);
-  if (personaText === undefined || personaText.length === 0) return entry;
-  return { ...entry, personaText };
+  if (personaText !== undefined && personaText.length > 0) {
+    return { ...entry, personaText };
+  }
+  // Known catalog entry but missing JSON body — do not spawn blank.
+  return { ...entry, personaText: fallbackExpertPersonaText(entry) };
 }
 
 /** Lazy-hydrating lookup used by spawn/resolution paths. */

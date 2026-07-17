@@ -1,5 +1,6 @@
 import type { ExpertCatalogEntry } from './types';
 import { EXPERT_CATALOG_META_BY_ID, hydrateExpertCatalogEntry } from './catalog';
+import { getSyntheticExpert } from './synthetic-expert-registry';
 
 /** Local catalog extensions not present in the upstream agency-agents repository. */
 export const EXPERT_CATALOG_EXTENSIONS: readonly ExpertCatalogEntry[] = [
@@ -67,5 +68,10 @@ You are **Terminal UI Engineer**, a specialist in building readable, high-densit
 ];
 
 export function resolveExpertCatalogEntry(id: string): ExpertCatalogEntry | undefined {
-  return hydrateExpertCatalogEntry(EXPERT_CATALOG_META_BY_ID[id] ?? EXPERT_CATALOG_EXTENSIONS.find((expert) => expert.id === id));
+  const fromMeta = hydrateExpertCatalogEntry(
+    EXPERT_CATALOG_META_BY_ID[id] ?? EXPERT_CATALOG_EXTENSIONS.find((expert) => expert.id === id),
+  );
+  if (fromMeta !== undefined) return fromMeta;
+  // LLM-synthesized experts registered for this process (UltraSwarm fallback).
+  return getSyntheticExpert(id);
 }
