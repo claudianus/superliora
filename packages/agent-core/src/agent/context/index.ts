@@ -466,6 +466,7 @@ export class ContextMemory {
               lastContextUsageRatio: micro.lastContextUsageRatio,
               byTrigger: micro.byTrigger,
             },
+      autoDream: this.agent.dream === null ? undefined : this.agent.dream.snapshot(),
     };
   }
 

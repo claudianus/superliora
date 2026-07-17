@@ -533,5 +533,20 @@ describe('agentStatusUpdatedEventSchema', () => {
     });
     expect(cleared.contextOS).toBeNull();
     expect(cleared.microCompaction).toBeNull();
+
+    const withDream = agentStatusUpdatedEventSchema.parse({
+      type: 'agent.status.updated',
+      autoDream: {
+        enabled: true,
+        inFlight: false,
+        runs: 1,
+        lastDreamAt: 1_700_000_000_000,
+        lastExamined: 10,
+        lastMerged: 2,
+        minHours: 4,
+        minActiveRecords: 8,
+      },
+    });
+    expect(withDream.autoDream?.runs).toBe(1);
   });
 });

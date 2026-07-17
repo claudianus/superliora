@@ -13,15 +13,44 @@ interface MergeGroup { readonly keeperId: string; readonly duplicateIds: readonl
 interface DreamPlan { readonly merges: readonly MergeGroup[]; }
 interface DreamResult { readonly examined: number; readonly semanticMerged: number; }
 
+export interface AutoDreamSnapshot {
+  readonly enabled: boolean;
+  readonly inFlight: boolean;
+  readonly runs: number;
+  readonly lastDreamAt: number | null;
+  readonly lastExamined: number | null;
+  readonly lastMerged: number | null;
+  readonly minHours: number;
+  readonly minActiveRecords: number;
+}
+
 export class AutoDreamService {
   private inFlight = false;
   private lastDreamAt = 0;
+  private runs = 0;
+  private lastExamined: number | null = null;
+  private lastMerged: number | null = null;
   private readonly minHours: number;
   private readonly minActiveRecords: number;
   constructor(private readonly agent: Agent, private readonly store: LioraRecallStore, options: AutoDreamOptions = {}) {
     this.minHours = options.minHoursSinceLastDream ?? DEFAULT_MIN_HOURS_SINCE_LAST_DREAM;
     this.minActiveRecords = options.minActiveRecords ?? DEFAULT_MIN_ACTIVE_RECORDS;
   }
+
+  /** Operator-facing snapshot for /status Memory transparency. */
+  snapshot(): AutoDreamSnapshot {
+    return {
+      enabled: this.agent.experimentalFlags.enabled('auto_dream'),
+      inFlight: this.inFlight,
+      runs: this.runs,
+      lastDreamAt: this.lastDreamAt > 0 ? this.lastDreamAt : null,
+      lastExamined: this.lastExamined,
+      lastMerged: this.lastMerged,
+      minHours: this.minHours,
+      minActiveRecords: this.minActiveRecords,
+    };
+  }
+
   maybeSchedule(): void {
     if (!this.agent.experimentalFlags.enabled('auto_dream')) return;
     if (this.inFlight) return;
@@ -36,11 +65,24 @@ export class AutoDreamService {
     const backupPath = this.backupStore();
     try {
       const active = await this.store.list({ status: 'active', limit: MAX_RECORDS_PER_DREAM });
-      if (active.length < this.minActiveRecords) return { examined: active.length, semanticMerged: 0 };
+      if (active.length < this.minActiveRecords) {
+        this.lastExamined = active.length;
+        this.lastMerged = 0;
+        return { examined: active.length, semanticMerged: 0 };
+      }
       const plan = await this.planConsolidation(active);
-      if (plan.merges.length === 0) { this.lastDreamAt = Date.now(); return { examined: active.length, semanticMerged: 0 }; }
+      if (plan.merges.length === 0) {
+        this.lastDreamAt = Date.now();
+        this.runs += 1;
+        this.lastExamined = active.length;
+        this.lastMerged = 0;
+        return { examined: active.length, semanticMerged: 0 };
+      }
       const merged = await this.applyPlan(plan);
       this.lastDreamAt = Date.now();
+      this.runs += 1;
+      this.lastExamined = active.length;
+      this.lastMerged = merged;
       this.discardBackup(backupPath);
       return { examined: active.length, semanticMerged: merged };
     } catch (e) { this.restoreBackup(backupPath); throw e; }

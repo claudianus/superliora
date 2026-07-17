@@ -168,4 +168,14 @@ export interface AgentContextData {
     readonly lastContextUsageRatio: number | null;
     readonly byTrigger: Readonly<Record<string, number>>;
   };
+  autoDream?: {
+    readonly enabled: boolean;
+    readonly inFlight: boolean;
+    readonly runs: number;
+    readonly lastDreamAt: number | null;
+    readonly lastExamined: number | null;
+    readonly lastMerged: number | null;
+    readonly minHours: number;
+    readonly minActiveRecords: number;
+  };
 }

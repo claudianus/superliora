@@ -63,6 +63,17 @@
       "path": "reports/auto-dream-default.md",
       "text": "Evidence path",
       "weight": 1
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst flags=readFileSync('packages/agent-core/src/flags/registry.ts','utf8');\nconst dream=readFileSync('packages/agent-core/src/agent/dream/auto-dream.ts','utf8');\nconst status=readFileSync('apps/liora/src/tui/components/messages/status-panel.ts','utf8');\nconst fails=[];\nif (!flags.includes(\"id: 'auto_dream'\")) fails.push('flag');\nif (!flags.includes('default: true')) fails.push('default-on');\nif (!dream.includes('maybeSchedule')) fails.push('schedule');\nif (!dream.includes('snapshot()')) fails.push('snapshot');\nif (!dream.includes('DEFAULT_MIN_HOURS_SINCE_LAST_DREAM = 4')) fails.push('hours4');\nif (!dream.includes('DEFAULT_MIN_ACTIVE_RECORDS = 8')) fails.push('records8');\nif (!status.includes('formatMemoryGate')) fails.push('memory-gate');\nif (!status.includes('auto-dream\u00d7')) fails.push('status-runs');\nif (fails.length){console.error(fails.join(',')); process.exit(1);} console.log('auto-dream-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
     }
   ]
 }
