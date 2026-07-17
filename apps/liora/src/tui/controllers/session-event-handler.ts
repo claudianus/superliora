@@ -804,6 +804,7 @@ export class SessionEventHandler {
     if (event.maxContextTokens !== undefined) patch.maxContextTokens = event.maxContextTokens;
     if ('contextOS' in event) patch.contextOS = event.contextOS ?? null;
     if ('microCompaction' in event) patch.microCompaction = event.microCompaction ?? null;
+    if ('autoDream' in event) patch.autoDream = event.autoDream ?? null;
     if (event.planMode !== undefined) {
       patch.planMode = event.planMode;
     }

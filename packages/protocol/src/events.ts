@@ -365,6 +365,17 @@ export interface AgentStatusMicroCompaction {
   readonly byTrigger: Readonly<Record<string, number>>;
 }
 
+export interface AgentStatusAutoDream {
+  readonly enabled: boolean;
+  readonly inFlight: boolean;
+  readonly runs: number;
+  readonly lastDreamAt: number | null;
+  readonly lastExamined: number | null;
+  readonly lastMerged: number | null;
+  readonly minHours: number;
+  readonly minActiveRecords: number;
+}
+
 export interface AgentStatusUpdatedEvent {
   readonly type: 'agent.status.updated';
   readonly model?: string;
@@ -381,6 +392,7 @@ export interface AgentStatusUpdatedEvent {
   readonly contextOS?: AgentStatusContextOS | null;
   /** Present when micro-compaction has fired; null clears prior badge. */
   readonly microCompaction?: AgentStatusMicroCompaction | null;
+  readonly autoDream?: AgentStatusAutoDream | null;
 }
 
 export interface SessionMetaUpdatedEvent {
@@ -1218,6 +1230,17 @@ export const agentStatusMicroCompactionSchema = z.object({
   byTrigger: z.record(z.string(), z.number().int().nonnegative()),
 });
 
+export const agentStatusAutoDreamSchema = z.object({
+  enabled: z.boolean(),
+  inFlight: z.boolean(),
+  runs: z.number().int().nonnegative(),
+  lastDreamAt: z.number().int().nonnegative().nullable(),
+  lastExamined: z.number().int().nonnegative().nullable(),
+  lastMerged: z.number().int().nonnegative().nullable(),
+  minHours: z.number().positive(),
+  minActiveRecords: z.number().int().positive(),
+});
+
 export const agentStatusUpdatedEventSchema = z.object({
   type: z.literal('agent.status.updated'),
   model: z.string().optional(),
@@ -1232,6 +1255,7 @@ export const agentStatusUpdatedEventSchema = z.object({
   providerRoute: providerRouteStatusSchema.nullable().optional(),
   contextOS: agentStatusContextOSSchema.nullable().optional(),
   microCompaction: agentStatusMicroCompactionSchema.nullable().optional(),
+  autoDream: agentStatusAutoDreamSchema.nullable().optional(),
 }) satisfies z.ZodType<AgentStatusUpdatedEvent>;
 
 export const sessionMetaUpdatedEventSchema = z.object({

@@ -90,6 +90,16 @@ export interface StatusReportOptions {
     readonly lastContextUsageRatio: number | null;
     readonly byTrigger: Readonly<Record<string, number>>;
   };
+  readonly autoDream?: {
+    readonly enabled: boolean;
+    readonly inFlight: boolean;
+    readonly runs: number;
+    readonly lastDreamAt: number | null;
+    readonly lastExamined: number | null;
+    readonly lastMerged: number | null;
+    readonly minHours: number;
+    readonly minActiveRecords: number;
+  } | null;
   /** Product telemetry enabled (false ≈ ZDR-friendlier local posture). */
   readonly privacyTelemetryEnabled?: boolean;
   /** Active tool names from the session (for research/media readiness). */
@@ -159,7 +169,23 @@ const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const OFFICE_GATE =
   'SearchSkill → docx / pptx / xlsx for Word, slides, and sheets (zero MCP)';
-const MEMORY_GATE = 'prefs | inject≤6×480 | auto-dream on | long-run notes';
+function formatMemoryGate(options: StatusReportOptions): string {
+  const dream = options.autoDream ?? options.status?.autoDream;
+  let dreamPart = 'auto-dream on';
+  if (dream !== undefined && dream !== null) {
+    if (!dream.enabled) {
+      dreamPart = 'auto-dream off';
+    } else if (dream.inFlight) {
+      dreamPart = 'auto-dream…';
+    } else if (dream.runs > 0) {
+      dreamPart = `auto-dream×${String(dream.runs)}`;
+    } else {
+      dreamPart = `auto-dream ≥${String(dream.minHours)}h/${String(dream.minActiveRecords)}rec`;
+    }
+  }
+  // Keep ≤80-col with "  Memory  " label padding.
+  return `prefs | inject≤6×480 | ${dreamPart}`;
+}
 const SCOPE_GATE = 'small focused diff; no broad refactor';
 const COVERAGE_GATE = 'test public behavior changes';
 const WRITING_GATE = 'human voice lanes; detectors advisory-only';
@@ -507,7 +533,7 @@ function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
     { label: 'Media', value: formatMediaGate(options) },
     { label: 'Office', value: OFFICE_GATE },
     { label: 'Catalog', value: formatModelCatalogGate(options) },
-    { label: 'Memory', value: MEMORY_GATE },
+    { label: 'Memory', value: formatMemoryGate(options) },
     formatUltraworkFlow(options),
     { label: 'Stages', value: formatUltraworkStageStatus(options) },
     { label: 'Blockers', value: formatReadinessBlockers(options) },

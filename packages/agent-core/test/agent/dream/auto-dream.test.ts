@@ -62,3 +62,15 @@ describe('AutoDreamService', () => {
     expect((await store.get(c.id))?.status).toBe('active');
   });
 });
+  it('exposes operator snapshot for /status Memory', () => {
+    const { store } = createStore();
+    const agent = fakeAgent();
+    const svc = new AutoDreamService(agent, store, { minActiveRecords: 8, minHoursSinceLastDream: 4 });
+    const snap = svc.snapshot();
+    expect(snap.enabled).toBe(true);
+    expect(snap.runs).toBe(0);
+    expect(snap.minHours).toBe(4);
+    expect(snap.minActiveRecords).toBe(8);
+    expect(snap.lastDreamAt).toBeNull();
+  });
+
