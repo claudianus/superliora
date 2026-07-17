@@ -8,9 +8,10 @@ export const MESSAGE_INDENT = '  ';
 export const CHROME_GUTTER = 1;
 
 // Shared preview caps used by thinking, tool results, and shell snippets.
-export const RESULT_PREVIEW_LINES = 1;
-export const THINKING_PREVIEW_LINES = 1;
-export const COMMAND_PREVIEW_LINES = 2;
+// Research-aligned glances: enough context without densify 1-line thrash.
+export const RESULT_PREVIEW_LINES = 3;
+export const THINKING_PREVIEW_LINES = 4;
+export const COMMAND_PREVIEW_LINES = 4;
 
 // Animation frames are shared by the login/update loaders and live thinking.
 export const BRAILLE_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
