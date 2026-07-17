@@ -59,7 +59,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'tool outputs auto-trim at 4000 with 80-char previews — /compact if still high', priority: 2, solo: true },
   { text: 'live reasoning shows a 4-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — denser pressure glance', priority: 1, solo: true },
-  { text: 'premium particle rails push denser comets + 32-cell trails at 1ms — zero config spectacle', priority: 1, solo: true },
+  { text: 'premium particle rails: short 3-cell comet trails at ~30fps — cinematic without 1ms thrash', priority: 1, solo: true },
   { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
   { text: 'footer μ badges show micro clears (cache-miss/swarm) without config', priority: 1, solo: true },
   { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },
@@ -69,4 +69,5 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
   { text: 'TUI glances: thinking 4 · command 4 · result 3 (not densify 1/1/2)', priority: 2, solo: true },
+  { text: 'comet spinner trails animate at ≥33ms (~30fps) — same floor as premium ambient rails', priority: 1, solo: true },
 ];

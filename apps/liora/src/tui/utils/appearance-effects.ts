@@ -35,7 +35,8 @@ const PARTICLE_TOKENS: readonly ColorToken[] = [
 const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
 const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
 /** How often ambient animation frames repaint (~1000fps premium floor). */
-const PREMIUM_AMBIENT_RENDER_TICK_MS = 1;
+/** ~30fps cinematic floor — 1ms densify thrash burns CPU without better motion. */
+const PREMIUM_AMBIENT_RENDER_TICK_MS = 33;
 const SUBTLE_AMBIENT_RENDER_TICK_MS = 140;
 const PULSE_GLYPH_INTERVAL_MS = 280;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
@@ -195,9 +196,9 @@ export function renderParticleRail(
   const premium = mode === 'premium';
   const tickMs = rendererEffectFrameIntervalMs(mode);
   const tick = Math.floor(appearanceAnimationNow() / tickMs);
-  // Dense demo-grade rails on premium; subtle ambient on default.
+  // Premium rails stay cinematic without 1ms densify fill spam.
   const density = premium
-    ? Math.max(20, Math.min(72, Math.floor(safeWidth / 1.45)))
+    ? Math.max(10, Math.min(28, Math.floor(safeWidth / 3)))
     : Math.max(6, Math.min(26, Math.floor(safeWidth / 5.2)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const cells = Array.from({ length: safeWidth }, () => ' ');
@@ -213,8 +214,8 @@ export function renderParticleRail(
     cells[x] = currentTheme.fg(token, char);
 
     if (premium && safeWidth > 14) {
-      // 32-cell comet trail for denser continuous motion on demo terminals.
-      for (let step = 1; step <= 32; step++) {
+      // Short comet trail — readable motion without O(width) fill every particle.
+      for (let step = 1; step <= 3; step++) {
         const trail = rendererPositiveModulo(x - direction * step, safeWidth);
         if (cells[trail] !== ' ') continue;
         if (step === 1) cells[trail] = currentTheme.dimFg('particle', '•');
