@@ -471,7 +471,7 @@ describe('renderParticleRail densify', () => {
     );
     const plain = strip(line);
     expect(visibleWidth(line)).toBe(48);
-    const filled = [...plain].filter((ch) => ch !== ' ').length;
+    const filled = Array.from(plain).filter((ch) => ch !== ' ').length;
     expect(filled).toBeGreaterThan(20);
     expect(plain).toMatch(/[✦✧✺∙•·]/);
   });
