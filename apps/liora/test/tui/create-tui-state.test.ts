@@ -245,9 +245,11 @@ describe('createTUIState', () => {
     const frame = renderTUIStateNativeFrame(state);
 
     expect(state.editor.isShowingAutocomplete()).toBe(true);
-    expect(rowText(frame.renderer.frame, 3)).toContain('❯ help');
-    expect(rowText(frame.renderer.frame, 3)).toContain('Show help');
-    expect(rowText(frame.renderer.frame, 4)).toBe('╰──────────────────────╯');
+    // Editor region is bottom-stacked in a 6-row frame: top border, input,
+    // selected suggestion, bottom border (no blank spacer row).
+    expect(rowText(frame.renderer.frame, 4)).toContain('❯ help');
+    expect(rowText(frame.renderer.frame, 4)).toContain('Show help');
+    expect(rowText(frame.renderer.frame, 5)).toBe('╰──────────────────────╯');
 
     const editorRegion = frame.regions.find((region) => region.id === 'editor');
     const plainLines = (editorRegion?.lines ?? []).map((line) =>
@@ -603,6 +605,39 @@ describe('createTUIState', () => {
     expect(first.renderer.frame.getCell(12, 4).char).toBe(' ');
     expect(first.cursor).toMatchObject({ x: 9, y: 4, visible: true, shape: 'bar' });
     expect(first.renderer.frame.getCell(0, 3).style?.fg).toBe(state.theme.palette.border);
+  });
+  it('paints root-level fullscreen takeover children instead of chrome layout', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 8 });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 20 });
+    // Mount normal chrome first, then replace the root tree the same way splash does.
+    state.ui.addChild(state.transcriptContainer);
+    state.ui.addChild(state.editorContainer);
+    state.editorContainer.addChild(state.editor);
+    state.ui.clear();
+    state.ui.addChild({
+      render(width: number): string[] {
+        return Array.from({ length: 8 }, (_, row) =>
+          `SPLASH-${String(row)}`.padEnd(width, ' ').slice(0, width),
+        );
+      },
+      invalidate(): void {},
+    } satisfies Component);
+
+    const regions = buildTUIStateNativeFrameRegions(state, 20, 8);
+    expect(regions.map((region) => region.id)).toEqual(['fullscreen-takeover']);
+    const frame = renderTUIStateNativeFrame(state, { width: 20, height: 8 });
+    expect(rowText(frame.renderer.frame, 0)).toContain('SPLASH-0');
+    expect(rowText(frame.renderer.frame, 3)).toContain('SPLASH-3');
+    expect(rowText(frame.renderer.frame, 7)).toContain('SPLASH-7');
   });
 
   it('attaches adaptive renderer VFX to highlighted native editor regions', () => {

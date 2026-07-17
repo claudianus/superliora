@@ -373,13 +373,14 @@ export class ApprovalPanelComponent extends Container implements Focusable {
       const num = idx + 1;
 
       const labelWithNum = `${String(num)}. ${option.label}`;
+      // Pointer is already ambient-styled; do not wrap it in chalk again.
       const pointer = isSelected ? renderSelectPointer('approval:pointer') : ' ';
       if (this.feedbackMode && option.requires_feedback === true && isSelected) {
         body.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum, pointer)));
       } else if (isSelected) {
-        body.push(indent(selectColorBold(`  ${pointer} ${labelWithNum}`)));
+        body.push(indent(`  ${pointer} ${selectColorBold(labelWithNum)}`));
       } else {
-        body.push(indent(strong(`  ${pointer} ${labelWithNum}`)));
+        body.push(indent(`  ${pointer} ${strong(labelWithNum)}`));
       }
 
       // Optional helper text under the label, aligned past the pointer/number.
@@ -446,7 +447,8 @@ export class ApprovalPanelComponent extends Container implements Focusable {
   }
 
   private renderInlineFeedbackLine(width: number, labelWithNum: string, pointer: string): string {
-    const prefix = `${currentTheme.boldFg('accent', `  ${pointer} ${labelWithNum}`)}  `;
+    // Keep pointer outside chalk so nested SGR never re-enters a plain-text sink.
+    const prefix = `  ${pointer} ${currentTheme.boldFg('accent', labelWithNum)}  `;
     const inputWidth = Math.max(4, width - visibleWidth(prefix) + 2);
     const inputLine = this.feedbackInput.render(inputWidth)[0] ?? '> ';
     const inlineInput = inputLine.startsWith('> ') ? inputLine.slice(2) : inputLine;

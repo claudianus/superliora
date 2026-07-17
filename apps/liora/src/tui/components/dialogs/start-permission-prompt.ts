@@ -67,9 +67,12 @@ export class StartPermissionPromptComponent<TChoice extends StartPermissionChoic
     for (let i = 0; i < this.opts.options.length; i += 1) {
       const option = this.opts.options[i]!;
       const selected = i === this.selectedIndex;
+      // Pointer is already ambient-styled; only paint the surrounding gutter.
       const pointer = selected ? renderSelectPointer('permission:pointer') : ' ';
       body.push(
-        currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `) +
+        currentTheme.fg(selected ? 'primary' : 'textDim', '  ') +
+          pointer +
+          currentTheme.fg(selected ? 'primary' : 'textDim', ' ') +
           styleLabel(option.label, selected),
       );
       for (const line of wrapPlain(option.description, Math.max(20, width - 4))) {

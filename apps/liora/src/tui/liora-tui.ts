@@ -2229,7 +2229,8 @@ export class LioraTUI {
       appearance: this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
       getRows: () => Math.max(8, this.state.terminal.rows),
       requestRender: () => {
-        this.state.renderer.requestRender('animation');
+        // Layout invalidation so the native frame path repaints the takeover.
+        requestTUILayoutRender(this.state);
       },
     });
     // Fast path: do not steal the UI tree when motion is off.
@@ -2243,7 +2244,7 @@ export class LioraTUI {
     this.splashSavedChildren = savedChildren;
     this.state.ui.clear();
     this.state.ui.addChild(splash);
-    this.state.ui.requestRender(true);
+    requestTUILayoutRender(this.state);
     try {
       await splash.play();
     } finally {
@@ -2263,7 +2264,7 @@ export class LioraTUI {
         this.state.ui.addChild(child);
       }
       this.state.ui.setFocus(this.state.editor);
-      this.state.ui.requestRender(true);
+      requestTUILayoutRender(this.state);
       return;
     }
     // Splash never stole the tree (skip path) — nothing to restore.
@@ -2876,7 +2877,8 @@ export class LioraTUI {
     if (isBash) {
       this.state.editor.borderColor = (s: string) => currentTheme.fg('shellMode', s);
     } else if (ultrawork) {
-      // Re-bind each call so animation ticks refresh the chalk hex without stale closures.
+      // Native layout resolves the live glow hex on animation frames. Do not
+      // re-bind chalk + force a second full paint on every keystroke.
       const hex = resolveUltraworkBorderGlowHex(appearanceAnimationNow());
       this.state.editor.borderColor = (s: string) => chalk.hex(hex).bold(s);
     } else if (highlighted) {
@@ -2884,8 +2886,9 @@ export class LioraTUI {
     } else {
       this.state.editor.borderColor = (s: string) => currentTheme.fg('border', s);
     }
-    // Ultrawork always re-renders so the chase/hue keeps moving even when highlight stays on.
-    if (prevHighlighted === highlighted && !ultrawork) return;
+    // Only repaint when the highlight *state* flips (plan/slash/bash/ultrawork).
+    // Ultrawork chase is driven by the animation scheduler, not onChange.
+    if (prevHighlighted === highlighted) return;
     requestTUIContentRender(this.state);
   }
 

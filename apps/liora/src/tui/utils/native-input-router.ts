@@ -12,6 +12,7 @@ import {
   handleNativeEditorMouseInput,
   handleNativeEditorTextInput,
 } from './native-editor-text-input';
+import { noteTUIInputInteraction } from './input-interaction';
 import { getTUIStateNativeEditorRect } from './native-layout-frame';
 import { handleTranscriptSelectionMouseInput } from './transcript-selection-mouse';
 import type { TranscriptScrollAction } from './transcript-viewport';
@@ -131,6 +132,9 @@ export class TUIStateNativeInputRouter {
   }
 
   private requestRenderAfterInput(): void {
+    // Mark typing holdoff before scheduling so ambient ticks drop out of the
+    // same event turn and stop fighting the editor for the render loop.
+    noteTUIInputInteraction();
     if (this.options.requestRender !== false) this.state.renderer.requestRender('input');
   }
 }

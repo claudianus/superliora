@@ -375,7 +375,11 @@ function renderAutocompleteOverlayLine(
   const descriptionStyle = styles.description ?? textStyle;
   const pointer = selected ? RENDERER_SELECT_POINTER : ' ';
   const label = item.label || item.value;
-  const description = item.description?.replaceAll(/[\r\n]+/g, ' ').trim();
+  // Descriptions only on the selected row — bare `/` lists 40+ commands and
+  // repeating long hints on every row made the editor feel noisy and cramped.
+  const description = selected
+    ? item.description?.replaceAll(/[\r\n]+/g, ' ').trim()
+    : undefined;
   const runs: RendererStyledTextRun[] = [
     { text: '  ', style: textStyle },
     { text: pointer, style: selected ? selectedStyle : textStyle },

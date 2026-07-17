@@ -151,7 +151,7 @@ export class SplashComponent implements Component {
   private readonly durationMs: number;
   private readonly forcePlay: boolean | undefined;
   private readonly nowFn: () => number;
-  private readonly startedAt: number;
+  private startedAt: number;
   private scheduler: AnimationScheduler | undefined;
   private playResolve: (() => void) | undefined;
   private finished = false;
@@ -166,6 +166,8 @@ export class SplashComponent implements Component {
     );
     this.forcePlay = options.forcePlay;
     this.nowFn = options.now ?? (() => appearanceAnimationNow());
+    // Timeline starts in play(); constructor only stores the clock source so
+    // long initMainTui() work does not burn the cinematic window early.
     this.startedAt = this.nowFn();
   }
 
@@ -222,10 +224,13 @@ export class SplashComponent implements Component {
       return Promise.resolve();
     }
 
+    this.startedAt = this.nowFn();
+    advanceAppearanceAnimationClock(this.startedAt);
+
     return new Promise<void>((resolve) => {
       this.playResolve = resolve;
       this.scheduler = new AnimationScheduler({
-        fps: this.appearance.animationFps,
+        fps: Math.max(12, this.appearance.animationFps || 20),
         enabled: true,
         requestRender: () => {
           if (this.disposed || this.finished) return;
@@ -235,6 +240,7 @@ export class SplashComponent implements Component {
             this.finish();
           }
         },
+        shouldRender: () => !this.disposed && !this.finished,
       });
       // Kick first frame immediately.
       this.requestRender();

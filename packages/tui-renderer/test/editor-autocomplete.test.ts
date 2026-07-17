@@ -60,8 +60,12 @@ describe('RendererEditorAutocompleteController', () => {
 
     expect(controller.isOpen()).toBe(true);
     expect(requestRender).toHaveBeenCalledOnce();
-    expect(controller.overlayLines(24).map(cellsToText)[0]).toContain('❯ help');
-    expect(controller.overlayLines(24).map(cellsToText)[1]).toContain('history');
+    const rows = controller.overlayLines(24).map(cellsToText);
+    expect(rows[0]).toContain('❯ help');
+    // Selected row shows the hint; non-selected rows stay label-only.
+    expect(rows[0]).toContain('Show help');
+    expect(rows[1]).toContain('history');
+    expect(rows[1]).not.toContain('Show history');
     expect(controller.lines(24)[2]).toBe('  (1/3)');
   });
 

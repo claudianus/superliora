@@ -172,4 +172,63 @@ describe('NativeTUIEditor', () => {
     expect(editor.getNativeLayoutRowCount(24)).toBe(5);
     expect(editor.render(24)).toHaveLength(5);
   });
+
+  it('skips autocomplete provider work for plain prose keystrokes', async () => {
+    vi.useFakeTimers();
+    const requestRender = vi.fn();
+    const editor = new NativeTUIEditor({ requestRender, autocompleteDebounceMs: 0 });
+    const getSuggestions = vi.fn(async () => null);
+    editor.setAutocompleteProvider({
+      getSuggestions,
+      applyCompletion: (lines, cursorLine, cursorCol) => ({
+        lines,
+        cursorLine,
+        cursorCol,
+      }),
+    });
+
+    editor.handleInput('h');
+    editor.handleInput('e');
+    editor.handleInput('l');
+    editor.handleInput('l');
+    editor.handleInput('o');
+    await vi.runAllTimersAsync();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(editor.getText()).toBe('hello');
+    expect(getSuggestions).not.toHaveBeenCalled();
+    expect(editor.isShowingAutocomplete()).toBe(false);
+  });
+
+  it('grows layout rows when slash autocomplete opens without changing text', async () => {
+    vi.useFakeTimers();
+    const editor = new NativeTUIEditor({ autocompleteDebounceMs: 0 });
+    const provider = providerReturning([
+      { value: 'help', label: 'help', description: 'Show help' },
+      { value: 'history', label: 'history', description: 'Show history' },
+      { value: 'status', label: 'status', description: 'Show status' },
+    ]);
+    editor.setAutocompleteProvider(provider);
+
+    // Warm the layout cache on plain text first (empty → still 3 rows).
+    expect(editor.getNativeLayoutRowCount(24)).toBe(3);
+
+    editor.handleInput('/');
+    // Text is now `/` but suggestions are async; after flush the overlay opens
+    // with the same text and must bust the (width, text) layout cache.
+    await vi.runAllTimersAsync();
+    await flushAutocomplete();
+
+    expect(editor.isShowingAutocomplete()).toBe(true);
+    expect(editor.getText()).toBe('/');
+    const rows = editor.getNativeLayoutRowCount(24);
+    // top + input + 3 suggestions + bottom border
+    expect(rows).toBe(6);
+    expect(editor.render(24)).toHaveLength(6);
+    const rendered = editor.render(24).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
+    // Prompt/`/` must remain visible — not only a top border stub.
+    expect(rendered.some((line) => line.includes('> /') || line.includes('/'))).toBe(true);
+    expect(rendered.join('\n')).toContain('help');
+  });
 });
