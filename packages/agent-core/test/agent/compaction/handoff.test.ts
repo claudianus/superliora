@@ -379,7 +379,7 @@ describe('resolveCompactionUserMessageBudget', () => {
   });
 
   it('scales the budget down on small windows so post-compaction context converges below the trigger', () => {
-    // 64K window: 0.15 * 64_000 = 9_600 — well inside the 80% soft trigger,
+    // 64K window: 0.15 * 64_000 = 9_600 — well inside the 0.70 soft trigger,
     // unlike the old 0.5 ratio that kept 32K (50% of a 64K window).
     expect(resolveCompactionUserMessageBudget(64_000)).toBe(
       Math.floor(64_000 * COMPACT_USER_MESSAGE_WINDOW_RATIO),

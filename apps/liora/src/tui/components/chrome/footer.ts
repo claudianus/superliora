@@ -345,11 +345,11 @@ export function formatOfficeFooterBadge(): {
 /** Context usage line severity aligned with soft/hard reclaim ladder. */
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
   const ratio = safeUsage(usage);
-  if (ratio >= 0.9) return 'danger';
-  // Ladder: soft 0.08 · handoff 0.16 · hard 0.50 · abs34k.
-  // Soft → info (reclaim soon); hard → warning (stop before rot); ≥0.9 → danger.
-  if (ratio >= 0.50) return 'warning';
-  if (ratio >= 0.08) return 'info';
+  if (ratio >= 0.95) return 'danger';
+  // Ladder: async 0.55 · soft 0.70 · hard 0.90.
+  // Soft → info (reclaim soon); hard → warning (stop before overflow); ≥0.95 → danger.
+  if (ratio >= 0.90) return 'warning';
+  if (ratio >= 0.70) return 'info';
   return 'muted';
 }
 
@@ -367,7 +367,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (state.isBackgroundCompacting) return ttui('tui.footer.compacting.background');
   if (state.isReplaying) return ttui('tui.footer.replaying');
   if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
-  if (safeUsage(state.contextUsage) >= 0.011) return ttui('tui.footer.next.compact');
+  if (safeUsage(state.contextUsage) >= 0.70) return ttui('tui.footer.next.compact');
   if (
     state.contextOS !== undefined &&
     state.contextOS !== null &&
