@@ -1,6 +1,7 @@
 import type { UltraworkStage } from '@superliora/protocol';
 
 import type { Agent } from '../agent';
+import { formatContinuityOperatorNote } from '../agent/context-os';
 import { maybeFinishUltraworkRun } from './finish-run';
 import {
   inferEffectiveUltraworkStage,
@@ -13,7 +14,6 @@ import {
   buildUltraworkResumeCursor,
   inferResumeStageFloor,
 } from './recovery-resume';
-import { formatContinuityOperatorNote } from '../agent/context-os';
 
 export function maybeAdvanceUltraworkStage(
   agent: Agent,
@@ -62,12 +62,6 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   if (run === null || run.status !== 'running') return;
   if (run.stage !== 'integrate') return;
 
-  const planContext = ultrawork.isModeEnabled()
-    ? capturePlanRecoveryContextFromAgent(agent)
-    : undefined;
-  const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
-  const nextActions = suggestNextActions(run, 'UltraSwarm finished', planContext, resumeCursor);
-
   const lines = [
     '<ultrawork_post_swarm>',
     'UltraSwarm finished. Continue this Ultrawork run in order:',
@@ -77,19 +71,41 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
     `Run: ${run.id} · stage=${run.stage}`,
   ];
-  if (resumeCursor.workGraphNodeId !== undefined) {
-    lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
-  }
-  const continuityNote = formatContinuityOperatorNote(agent.contextOS.health());
-  if (continuityNote !== undefined) {
-    lines.push(continuityNote);
-  }
-  if (nextActions.length > 0) {
-    lines.push('Next actions:');
-    for (const action of nextActions.slice(0, 3)) {
-      lines.push(`- ${action}`);
+
+  try {
+    const planContext =
+      typeof ultrawork.isModeEnabled === 'function' && ultrawork.isModeEnabled()
+        ? capturePlanRecoveryContextFromAgent(agent)
+        : undefined;
+    const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
+    if (resumeCursor.workGraphNodeId !== undefined) {
+      lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
     }
+    const nextActions = suggestNextActions(run, 'UltraSwarm finished', planContext, resumeCursor);
+    if (nextActions.length > 0) {
+      lines.push('Next actions:');
+      for (const action of nextActions.slice(0, 3)) {
+        lines.push(`- ${action}`);
+      }
+    }
+  } catch {
+    // Partial Agent mocks / incomplete session state must not fail UltraSwarm completion.
   }
+
+  try {
+    const health =
+      agent.contextOS !== undefined && typeof agent.contextOS.health === 'function'
+        ? agent.contextOS.health()
+        : undefined;
+    const continuityNote =
+      health === undefined ? undefined : formatContinuityOperatorNote(health);
+    if (continuityNote !== undefined) {
+      lines.push(continuityNote);
+    }
+  } catch {
+    // Continuity health is optional enrichment.
+  }
+
   lines.push('</ultrawork_post_swarm>');
 
   agent.context.appendSystemReminder(lines.join('\n'), {
@@ -104,41 +120,60 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   const run = ultrawork.getRun();
   if (run === null || run.status !== 'running') return;
 
-  const planContext = ultrawork.isModeEnabled()
-    ? capturePlanRecoveryContextFromAgent(agent)
-    : undefined;
-  const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
-  const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
-  const nextActions = suggestNextActions(run, 'Context compacted', planContext, resumeCursor);
-
   const lines = [
     '<ultrawork_post_compaction>',
     'Context compacted during active Ultrawork. Continue from the durable checkpoint — do not restart UltraPlan/UltraResearch or open a new Ultrawork run.',
     `Run: ${run.id} · stage=${run.stage}`,
   ];
-  if (effectiveStage !== run.stage) {
-    lines.push(`Effective stage: ${effectiveStage}`);
-  }
-  if (resumeCursor.workGraphNodeId !== undefined) {
-    lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
-  }
 
-  const continuityNote = formatContinuityOperatorNote(agent.contextOS.health());
-  if (continuityNote !== undefined) {
-    lines.push(continuityNote);
-  }
+  try {
+    const planContext =
+      typeof ultrawork.isModeEnabled === 'function' && ultrawork.isModeEnabled()
+        ? capturePlanRecoveryContextFromAgent(agent)
+        : undefined;
+    const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+    const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
+    const nextActions = suggestNextActions(run, 'Context compacted', planContext, resumeCursor);
 
-  const stageGuidance = stageContinuationGuidance(effectiveStage, agent.ultraSwarmRun !== undefined);
-  if (stageGuidance !== undefined) {
-    lines.push(stageGuidance);
-  }
-
-  if (nextActions.length > 0) {
-    lines.push('Next actions:');
-    for (const action of nextActions.slice(0, 3)) {
-      lines.push(`- ${action}`);
+    if (effectiveStage !== run.stage) {
+      lines.push(`Effective stage: ${effectiveStage}`);
     }
+    if (resumeCursor.workGraphNodeId !== undefined) {
+      lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+    }
+
+    const stageGuidance = stageContinuationGuidance(
+      effectiveStage,
+      agent.ultraSwarmRun !== undefined,
+    );
+    if (stageGuidance !== undefined) {
+      lines.push(stageGuidance);
+    }
+
+    if (nextActions.length > 0) {
+      lines.push('Next actions:');
+      for (const action of nextActions.slice(0, 3)) {
+        lines.push(`- ${action}`);
+      }
+    }
+  } catch {
+    // Partial Agent mocks / incomplete session state must not fail compaction.
   }
+
+  try {
+    const health =
+      agent.contextOS !== undefined && typeof agent.contextOS.health === 'function'
+        ? agent.contextOS.health()
+        : undefined;
+    const continuityNote =
+      health === undefined ? undefined : formatContinuityOperatorNote(health);
+    if (continuityNote !== undefined) {
+      lines.push(continuityNote);
+    }
+  } catch {
+    // Continuity health is optional enrichment.
+  }
+
   lines.push('</ultrawork_post_compaction>');
 
   agent.context.appendSystemReminder(lines.join('\n'), {
@@ -147,7 +182,9 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   });
 }
 
-export function capturePlanRecoveryContextFromAgent(agent: Agent): UltraworkPlanRecoveryContext | undefined {
+export function capturePlanRecoveryContextFromAgent(
+  agent: Agent,
+): UltraworkPlanRecoveryContext | undefined {
   const planMode = agent.planMode;
   if (!planMode.isActive || !planMode.isUltraMode) return undefined;
   return {
@@ -158,7 +195,10 @@ export function capturePlanRecoveryContextFromAgent(agent: Agent): UltraworkPlan
   };
 }
 
-function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean): string | undefined {
+function stageContinuationGuidance(
+  stage: UltraworkStage,
+  duringSwarm: boolean,
+): string | undefined {
   if (duringSwarm) {
     return 'UltraSwarm is active. Let the current wave finish; integrate/verify after swarm completes.';
   }
