@@ -133,7 +133,7 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     const trimmed = query.trim();
     if (trimmed.length === 0) return [];
 
-    const limit = clampInt(options?.limit ?? 5, 1, 20);
+    const limit = clampInt(options?.limit ?? 3, 1, 20);
     const includeContent = options?.includeContent === true;
     const cacheKey = this.cacheKey(trimmed, limit, includeContent);
     const now = Date.now();

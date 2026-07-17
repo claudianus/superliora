@@ -59,7 +59,7 @@ export class MoonshotWebSearchProvider implements WebSearchProvider {
   ): Promise<WebSearchResult[]> {
     const body = {
       text_query: query,
-      limit: options?.limit ?? 5,
+      limit: options?.limit ?? 3,
       enable_page_crawling: options?.includeContent ?? false,
       timeout_seconds: 30,
     };
