@@ -559,6 +559,8 @@ describe('status panel report lines', () => {
     const joined = lines.join('\n');
     expect(joined).toContain('Context OS');
     expect(joined).toContain('needs_rehydration');
+    expect(joined).toContain('inject≤3 pages');
+    expect(joined).toContain('expand raw refs only on failure');
     expect(joined).toContain('evidence 0.50');
     expect(joined).toContain('missing 1');
   });

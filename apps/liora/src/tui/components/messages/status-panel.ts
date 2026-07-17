@@ -580,7 +580,16 @@ function formatContextOSStatus(options: StatusReportOptions): string | undefined
     health.missingEvidencePageCount > 0
       ? `evidence ${health.evidenceIdRecallScore.toFixed(2)} (missing ${String(health.missingEvidencePageCount)})`
       : `evidence ${health.evidenceIdRecallScore.toFixed(2)}`;
-  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}`;
+  // Continuity next-action: keep Context OS hot pages in budget (≤3 / ≤3.5k).
+  const next =
+    health.latestContinuityStatus === 'missing_evidence'
+      ? ' · verify IDs before resume · inject≤3 pages'
+      : health.latestContinuityStatus === 'needs_rehydration'
+        ? ' · expand raw refs only on failure · inject≤3 pages'
+        : health.latestContinuityStatus === 'at_risk'
+          ? ' · do not assume omitted details · inject≤3 pages'
+          : '';
+  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}${next}`;
 }
 
 
