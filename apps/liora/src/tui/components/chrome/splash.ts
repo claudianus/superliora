@@ -20,7 +20,6 @@ import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
-  appearanceAnimationNow,
   renderMeteorField,
   renderParticleRail,
   renderSpectacularText,
@@ -151,7 +150,7 @@ export class SplashComponent implements Component {
   private readonly durationMs: number;
   private readonly forcePlay: boolean | undefined;
   private readonly nowFn: () => number;
-  private startedAt: number;
+  private startedAt = 0;
   private scheduler: AnimationScheduler | undefined;
   private playResolve: (() => void) | undefined;
   private finished = false;
@@ -165,10 +164,9 @@ export class SplashComponent implements Component {
       options.durationMs ?? DEFAULT_SPLASH_DURATION_MS,
     );
     this.forcePlay = options.forcePlay;
-    this.nowFn = options.now ?? (() => appearanceAnimationNow());
-    // Timeline starts in play(); constructor only stores the clock source so
-    // long initMainTui() work does not burn the cinematic window early.
-    this.startedAt = this.nowFn();
+    // Wall clock only. appearanceAnimationNow() is driven by the native frame
+    // loop (performance.now) and freezes/regresses splash elapsed when mixed in.
+    this.nowFn = options.now ?? (() => Date.now());
   }
 
   get phase(): SplashPhase {
@@ -234,9 +232,12 @@ export class SplashComponent implements Component {
         enabled: true,
         requestRender: () => {
           if (this.disposed || this.finished) return;
-          advanceAppearanceAnimationClock(this.nowFn());
+          // Push wall time into the ambient clock so meteors/rails advance,
+          // then repaint. Do not read appearanceAnimationNow() here.
+          const now = this.nowFn();
+          advanceAppearanceAnimationClock(now);
           this.requestRender();
-          if (this.elapsedMs >= this.durationMs) {
+          if (now - this.startedAt >= this.durationMs) {
             this.finish();
           }
         },
