@@ -166,4 +166,5 @@ export type {
 export {
   formatContextOSDiagnoseLine,
   formatContextOSHealthLine,
+  formatContinuityOperatorNote,
 } from './agent/context-os';

@@ -66,6 +66,7 @@ export { loadRuntimeConfigSafe, resolveConfigPath } from '@superliora/agent-core
 export {
   formatContextOSDiagnoseLine,
   formatContextOSHealthLine,
+  formatContinuityOperatorNote,
 } from '@superliora/agent-core';
 export type {
   ContextOSHealthSnapshot,

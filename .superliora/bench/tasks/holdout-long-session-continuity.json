@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.long-session-continuity.v1",
+  "title": "Long-session continuity and reclaim ladder must stay operator-visible",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "continuity",
+    "compaction",
+    "long-session",
+    "source-command",
+    "holdout"
+  ],
+  "prompt": "Create reports/long-session-continuity.md documenting async70/soft80 reclaim, Context OS continuity notes, and missing-evidence footer badge.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 8,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/long-session-continuity.md",
+      "content": "# Long-Session Continuity Contract\n\n## Reclaim ladder\nasync 0.70 \u00b7 soft 0.80 \u00b7 hard 0.92 (research-aligned)\n\n## Context OS injection\nbounded rehydration (\u22643500 chars) with Continuity operator note when evidence is missing or pages need rehydration\n\n## Footer transparency\nctx-os:missing-ev\u00d7N danger badge + next-action durable evidence hint\n\n## Evidence path\nLioraBench holdout + context-os/footer vitest + source checks\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/long-session-continuity.md",
+      "text": "async 0.70",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/long-session-continuity.md",
+      "text": "soft 0.80",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/long-session-continuity.md",
+      "text": "missing-ev",
+      "weight": 1
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst strategy=readFileSync('packages/agent-core/src/agent/compaction/strategy.ts','utf8');\nconst cos=readFileSync('packages/agent-core/src/agent/context-os/index.ts','utf8');\nconst footer=readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst fails=[];\nif (!strategy.includes('DEFAULT_COMPACTION_TRIGGER_RATIO = 0.80')) fails.push('soft80');\nif (!strategy.includes('DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.70')) fails.push('async70');\nif (!cos.includes('formatContinuityOperatorNote')) fails.push('continuity-note');\nif (!cos.includes('missing durable evidence')) fails.push('missing-ev-note');\nif (!cos.includes('MAX_INJECTION_CHARS = 3_500')) fails.push('inject-budget');\nif (!footer.includes('ctx-os:missing-ev\u00d7')) fails.push('footer-missing-ev');\nif (fails.length){console.error(fails.join(',')); process.exit(1);} console.log('long-session-continuity-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
+    }
+  ]
+}
