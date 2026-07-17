@@ -446,7 +446,7 @@ describe('renderParticleRail densify', () => {
     delete process.env['CI'];
     delete process.env['NO_COLOR'];
     setAppearanceRenderHealth('healthy');
-    setAppearanceRenderQuality('high');
+    setAppearanceRenderQuality('full');
   });
 
   afterEach(() => {
