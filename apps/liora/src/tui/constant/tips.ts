@@ -61,7 +61,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'live tool cards keep a 16k stdout ring — expand/ctrl+o for more; model budget remains 4k', priority: 1, solo: true },
   { text: 'live reasoning shows a 4-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — glanceable pressure', priority: 1, solo: true },
-  { text: 'premium particle rails: short comet trails at ~30fps — cinematic without 1ms thrash', priority: 1, solo: true },
+  { text: 'premium particle rails: short 3-cell comet trails at ~30fps — cinematic without thrash', priority: 1, solo: true },
   { text: 'comet spinner trails animate at ≥33ms (~30fps) — same floor as premium ambient rails', priority: 1, solo: true },
   { text: 'LioraRead auto→signatures @80 lines; Grep default 20 (postprocess archives >25 lines)', priority: 1, solo: true },
   { text: 'Liora Recall injects ≤6 memories · 480 chars each — durable prefs only, not transcript dumps', priority: 1, solo: true },

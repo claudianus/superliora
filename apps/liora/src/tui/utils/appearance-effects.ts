@@ -196,7 +196,7 @@ export function renderParticleRail(
   const tick = Math.floor(appearanceAnimationNow() / tickMs);
   // Premium rails stay cinematic without 1ms densify fill spam.
   const density = premium
-    ? Math.max(12, Math.min(40, Math.floor(safeWidth / 2.5)))
+    ? Math.max(10, Math.min(28, Math.floor(safeWidth / 3)))
     : Math.max(6, Math.min(26, Math.floor(safeWidth / 5.2)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const cells = Array.from({ length: safeWidth }, () => ' ');
@@ -213,7 +213,7 @@ export function renderParticleRail(
 
     if (premium && safeWidth > 14) {
       // Short comet trail — readable motion without O(width) fill every particle.
-      for (let step = 1; step <= 6; step++) {
+      for (let step = 1; step <= 3; step++) {
         const trail = rendererPositiveModulo(x - direction * step, safeWidth);
         if (cells[trail] !== ' ') continue;
         if (step === 1) cells[trail] = currentTheme.dimFg('particle', '•');
@@ -256,7 +256,7 @@ export function renderParticleDivider(
   const premium = mode === 'premium';
   const tick = Math.floor(appearanceAnimationNow() / rendererEffectFrameIntervalMs(mode));
   const density = premium
-    ? Math.max(14, Math.min(48, Math.floor(safeWidth / 2.3)))
+    ? Math.max(10, Math.min(32, Math.floor(safeWidth / 3.2)))
     : Math.max(5, Math.min(18, Math.floor(safeWidth / 7.5)));
   const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
   const base = hashRendererEffectSeed(seed);
