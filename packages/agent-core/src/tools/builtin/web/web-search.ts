@@ -86,11 +86,12 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
     }: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
     try {
-      const opts: { limit?: number; includeContent?: boolean; toolCallId?: string } = {
+      // Always pass concrete defaults so host providers cannot reintroduce denser limits.
+      const opts = {
         toolCallId,
+        limit: args.limit ?? 3,
+        includeContent: args.include_content === true,
       };
-      if (args.limit !== undefined) opts.limit = args.limit;
-      if (args.include_content !== undefined) opts.includeContent = args.include_content;
       const results = await this.provider.search(args.query, opts);
       const builder = new ToolResultBuilder({ maxLineLength: null });
 

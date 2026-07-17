@@ -63,6 +63,24 @@ describe('WebSearchTool', () => {
     expect(includeContent?.description).not.toContain('True');
   });
 
+
+  it('passes concrete default limit 3 when the model omits limit', async () => {
+    const provider = fakeProvider([
+      { title: 'A', url: 'https://a.test', snippet: 'sa' },
+    ]);
+    const tool = new WebSearchTool(provider);
+    await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c1',
+      args: { query: 'superliora release' },
+      signal: new AbortController().signal,
+    });
+    expect(provider.search).toHaveBeenCalledWith(
+      'superliora release',
+      expect.objectContaining({ limit: 3, includeContent: false }),
+    );
+  });
+
   it('returns formatted results from provider', async () => {
     const provider = fakeProvider([
       { title: 'Result 1', url: 'https://example.com/1', snippet: 'Snippet 1' },
