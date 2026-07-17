@@ -23,6 +23,14 @@ describe('ExpertSearchEngine', () => {
     expect(results.some((result) => result.expert.id === 'sales-coach')).toBe(false);
   });
 
+  it('surfaces exact expert id tokens from multi-word queries', async () => {
+    await globalExpertSearchEngine.initialize();
+    const query = 'staff design-brand-guardian for launch visual QA';
+    const results = globalExpertSearchEngine.search({ query, topK: 5, taskDescription: query });
+    expect(results.some((result) => result.expert.id === 'design-brand-guardian')).toBe(true);
+    expect(results[0]?.expert.id).toBe('design-brand-guardian');
+  });
+
   it('still returns sales coaches for explicit coaching queries', async () => {
     await globalExpertSearchEngine.initialize();
     const query = 'sales coaching pipeline review rep development';

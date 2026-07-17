@@ -80,6 +80,18 @@ export class ExpertSearchEngine {
       return { expert, score: r.score };
     }).filter((r): r is ExpertSearchResult => r !== undefined);
 
+    // Exact expert-id / short-name tokens in multi-word queries (required_experts discovery).
+    const exactTokenHits = exactExpertTokenHits(options.query, this.expertById);
+    const miniWithExact =
+      exactTokenHits.length === 0
+        ? miniResults
+        : [
+            ...exactTokenHits,
+            ...miniResults.filter(
+              (hit) => !exactTokenHits.some((exact) => exact.expert.id === hit.expert.id),
+            ),
+          ];
+
     // 2. Dense search (cosine similarity on embeddings) if available
     let denseResults: ExpertSearchResult[] = [];
     if (useEmbedding) {
@@ -87,7 +99,7 @@ export class ExpertSearchEngine {
     }
 
     // 3. RRF fusion
-    const fused = this.rrfFusion(miniResults, denseResults, topK * 3);
+    const fused = this.rrfFusion(miniWithExact, denseResults, topK * 3);
 
     // 4. Apply filters and task-aware reranking
     let results = fused
@@ -212,6 +224,27 @@ export class ExpertSearchEngine {
   listAll(): ExpertCatalogEntry[] {
     return [...ALL_EXPERTS];
   }
+}
+
+
+/** Prefer exact expert ids when the full id appears as a token (required_experts discovery). */
+function exactExpertTokenHits(
+  query: string,
+  expertById: ReadonlyMap<string, ExpertCatalogEntry>,
+): ExpertSearchResult[] {
+  const normalized = query.toLowerCase();
+  // Multi-segment ids need contiguous token spans (e.g. design-brand-guardian).
+  const hits: ExpertSearchResult[] = [];
+  for (const expert of expertById.values()) {
+    const id = expert.id.toLowerCase();
+    if (id.length < 6) continue;
+    // Word-boundary style: id must appear as its own token run in the query.
+    const pattern = new RegExp(`(?:^|[^a-z0-9])${id.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[^a-z0-9])`);
+    if (pattern.test(normalized)) {
+      hits.push({ expert, score: 1_000_000 });
+    }
+  }
+  return hits.toSorted((a, b) => b.score - a.score || a.expert.id.localeCompare(b.expert.id));
 }
 
 function resolveTaskProfile(options: ExpertSearchOptions): ExpertTaskProfile {
