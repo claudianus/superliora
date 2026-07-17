@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { StepSummaryComponent, buildSparkBar } from '#/tui/components/messages/step-summary';
-import {
-  DEFAULT_APPEARANCE_PREFERENCES,
-  setActiveAppearancePreferences,
-} from '#/tui/utils/appearance-effects';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { setActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -28,7 +26,7 @@ describe('StepSummaryComponent', () => {
   });
 
   it('buildSparkBar grows denser for larger totals', () => {
-    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, ambientEffects: false });
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off', particles: 'off' });
     const small = buildSparkBar(1, DEFAULT_APPEARANCE_PREFERENCES);
     const large = buildSparkBar(64, DEFAULT_APPEARANCE_PREFERENCES);
     expect(small.length).toBeGreaterThan(0);

@@ -59,11 +59,11 @@ describe('ActivityPaneComponent ambient rail', () => {
   it('renders one ambient particle rail while waiting', () => {
     setActiveAppearancePreferences({
       ...getActiveAppearancePreferences(),
-      ambientEffects: true,
-      reducedMotion: false,
+      profile: 'premium',
+      particles: 'premium',
     });
     setAppearanceRenderHealth('healthy');
-    setAppearanceRenderQuality('high');
+    setAppearanceRenderQuality('full');
     const pane = new ActivityPaneComponent({
       mode: 'waiting',
       spinner: {
