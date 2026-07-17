@@ -341,6 +341,35 @@ describe('SplashComponent full-screen cinematic', () => {
       splash.dispose();
     });
   });
+  it('advances phases from wall clock, not the frozen appearance animation clock', async () => {
+    await withSafeTerminalEnv(async () => {
+      vi.useFakeTimers();
+      const start = new Date('2026-01-01T00:00:00Z').getTime();
+      vi.setSystemTime(start);
+      // Leave the ambient clock stuck at a stale value to prove splash ignores it.
+      advanceAppearanceAnimationClock(12);
+      const splash = new SplashComponent({
+        appearance: DEFAULT_APPEARANCE_PREFERENCES,
+        requestRender: () => {},
+        forcePlay: true,
+        durationMs: 1000,
+        getRows: () => 24,
+      });
+      const playPromise = splash.play();
+      expect(splash.phase).toBe('void');
+
+      vi.setSystemTime(start + 200);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(splash.phase).toBe('rise');
+      expect(splash.elapsedMs).toBeGreaterThanOrEqual(200);
+
+      vi.setSystemTime(start + 1000);
+      await vi.advanceTimersByTimeAsync(100);
+      await playPromise;
+      expect(splash.isDone).toBe(true);
+      splash.dispose();
+    });
+  });
 
   it('paints moon during rise and brand figlet on full-height canvas', async () => {
     await withSafeTerminalEnv(async () => {
