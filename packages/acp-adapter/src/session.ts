@@ -400,7 +400,7 @@ export class AcpSession {
    * Phase 12.2 supports the full 4-mode taxonomy (PLAN D9 at
    * `PLAN.md:85-106`):
    *
-   *  - `'default'` → `setPlanMode(false)` + `setPermission('manual')`
+   *  - `'default'` → `setPlanMode(false)` + `setPermission('yolo')`
    *  - `'plan'`    → `setPlanMode(true)`  + `setPermission('manual')`
    *  - `'auto'`    → `setPlanMode(false)` + `setPermission('auto')`
    *  - `'yolo'`    → `setPlanMode(false)` + `setPermission('yolo')`

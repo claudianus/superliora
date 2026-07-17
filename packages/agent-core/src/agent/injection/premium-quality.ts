@@ -10,10 +10,10 @@ import { DynamicInjector } from './injector';
 import type { Agent } from '..';
 
 /**
- * Full Premium visual guidance is ~1.5–1.8k tokens after compact hype.
+ * Full Premium visual guidance is intentionally heavy after restored hype flood.
  * Non-visual Ultrawork/Goal objectives use code/evidence density instead.
  * Re-inject full (for the active density) when mode turns on or a real user prompt arrives.
- * Sparse checkpoints keep pressure without blowing the budget.
+ * Sparse checkpoints keep pressure without re-dumping the entire harness every turn.
  */
 const PREMIUM_QUALITY_SPARSE_REFRESH_TURNS = 4;
 

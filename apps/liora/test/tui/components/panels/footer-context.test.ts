@@ -358,12 +358,12 @@ describe('FooterComponent — context NaN resilience', () => {
 describe('buildWeightedTips — weighted rotation', () => {
   it('repeats higher-priority tips more often (length = sum of weights)', () => {
     const seq = buildWeightedTips([
-      { text: 'a' }, // weight 1 (default)
-      { text: 'b', priority: 3 },
-      { text: 'c', priority: 2 },
+      { key: 'a' }, // weight 1 (default)
+      { key: 'b', priority: 3 },
+      { key: 'c', priority: 2 },
     ]);
 
-    const count = (t: string) => seq.filter((x) => x.text === t).length;
+    const count = (t: string) => seq.filter((x) => x.key === t).length;
     expect(seq).toHaveLength(6);
     expect(count('a')).toBe(1);
     expect(count('b')).toBe(3);
@@ -373,28 +373,28 @@ describe('buildWeightedTips — weighted rotation', () => {
 
   it('keeps duplicates spread out — no tip sits next to itself', () => {
     const seq = buildWeightedTips([
-      { text: 'a' },
-      { text: 'b', priority: 3 },
-      { text: 'c', priority: 2 },
+      { key: 'a' },
+      { key: 'b', priority: 3 },
+      { key: 'c', priority: 2 },
     ]);
 
     for (let i = 1; i < seq.length; i++) {
-      expect(seq[i]!.text).not.toBe(seq[i - 1]!.text);
+      expect(seq[i]!.key).not.toBe(seq[i - 1]!.key);
     }
   });
 
   it('preserves array order when all weights are the default (1)', () => {
-    const seq = buildWeightedTips([{ text: 'x' }, { text: 'y' }, { text: 'z' }]);
-    expect(seq.map((t) => t.text)).toEqual(['x', 'y', 'z']);
+    const seq = buildWeightedTips([{ key: 'x' }, { key: 'y' }, { key: 'z' }]);
+    expect(seq.map((t) => t.key)).toEqual(['x', 'y', 'z']);
   });
 
   it('clamps non-positive / fractional priorities to a weight of at least 1', () => {
     const seq = buildWeightedTips([
-      { text: 'a', priority: 0 },
-      { text: 'b', priority: -5 },
-      { text: 'c', priority: 1.9 },
+      { key: 'a', priority: 0 },
+      { key: 'b', priority: -5 },
+      { key: 'c', priority: 1.9 },
     ]);
     expect(seq).toHaveLength(3);
-    expect(seq.map((t) => t.text).toSorted()).toEqual(['a', 'b', 'c']);
+    expect(seq.map((t) => t.key).toSorted()).toEqual(['a', 'b', 'c']);
   });
 });

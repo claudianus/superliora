@@ -93,7 +93,7 @@ export interface AcpModeToggles {
 export function acpModeToToggles(id: AcpModeId): AcpModeToggles {
   switch (id) {
     case 'default':
-      return { plan: false, permission: 'manual' };
+      return { plan: false, permission: 'yolo' };
     case 'plan':
       return { plan: true, permission: 'manual' };
     case 'auto':

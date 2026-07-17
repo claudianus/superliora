@@ -11,7 +11,7 @@ describe('currentWorkingTip', () => {
     const now = Date.now();
     const tip = currentWorkingTip(now);
     expect(tip).toBeDefined();
-    expect(WORKING_TIPS.some((t) => t.text === tip!.text)).toBe(true);
+    expect(WORKING_TIPS.some((t) => t.key === tip!.key)).toBe(true);
   });
 
   it('returns the same tip for the same timestamp', () => {
@@ -26,15 +26,15 @@ describe('pickRandomWorkingTip', () => {
   it('returns a tip from WORKING_TIPS', () => {
     const tip = pickRandomWorkingTip();
     expect(tip).toBeDefined();
-    expect(WORKING_TIPS.some((t) => t.text === tip!.text)).toBe(true);
+    expect(WORKING_TIPS.some((t) => t.key === tip!.key)).toBe(true);
   });
 
   it('avoids the excluded text when possible', () => {
     const first = pickRandomWorkingTip()!;
     let different = false;
     for (let i = 0; i < 50; i++) {
-      const next = pickRandomWorkingTip(first.text);
-      if (next !== undefined && next.text !== first.text) {
+      const next = pickRandomWorkingTip(first.key);
+      if (next !== undefined && next.key !== first.key) {
         different = true;
         break;
       }
@@ -47,8 +47,8 @@ describe('pickRandomWorkingTip', () => {
   it('falls back to the rotation when every tip would be excluded', () => {
     // If all working tips share the same text, exclusion cannot be satisfied.
     const onlyTip = WORKING_TIPS[0];
-    if (onlyTip !== undefined && WORKING_TIPS.every((t) => t.text === onlyTip.text)) {
-      expect(pickRandomWorkingTip(onlyTip.text)).toBeDefined();
+    if (onlyTip !== undefined && WORKING_TIPS.every((t) => t.key === onlyTip.key)) {
+      expect(pickRandomWorkingTip(onlyTip.key)).toBeDefined();
     }
   });
 });

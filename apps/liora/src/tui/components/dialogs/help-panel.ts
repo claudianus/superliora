@@ -18,6 +18,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface KeyboardShortcut {
   readonly keys: string;
@@ -31,35 +32,56 @@ export interface HelpPanelCommand {
 }
 
 /** Static list — keep in sync with the global editor bindings. */
-const ULTRAWORK_PLANNING_SHORTCUT: KeyboardShortcut = {
-  keys: 'Shift-Tab',
-  description: 'Toggle Ultrawork / off',
-};
+function ultraworkPlanningShortcut(): KeyboardShortcut {
+  return {
+    keys: 'Shift-Tab',
+    description: ttui('tui.help.shortcut.shiftTab'),
+  };
+}
 
-export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
-  ULTRAWORK_PLANNING_SHORTCUT,
-  { keys: 'Ctrl-G', description: 'Edit in external editor ($VISUAL / $EDITOR)' },
-  { keys: 'Ctrl-O', description: 'Toggle tool output expansion (recent turns)' },
-  { keys: 'Ctrl-B', description: 'Background a long-running shell task · /tasks' },
-  { keys: 'Ctrl-T', description: 'Expand / collapse the todo list (when truncated)' },
-  { keys: 'Ctrl-S', description: 'Steer — inject a follow-up during streaming' },
-  { keys: 'Shift-Enter / Ctrl-J', description: 'Insert newline' },
-  { keys: 'Ctrl-C', description: 'Interrupt stream / clear input' },
-  { keys: 'Ctrl-D', description: 'Exit (on empty input)' },
-  { keys: 'Esc', description: 'Close dialogs / interrupt streaming' },
-  { keys: 'Esc Esc', description: 'Open undo selector (idle prompt)' },
-  { keys: '↑ / ↓', description: 'Browse input history' },
-  { keys: 'Enter', description: 'Submit' },
-];
-export const ADVANCED_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
-  ULTRAWORK_PLANNING_SHORTCUT,
-  { keys: 'Ctrl-Shift-Tab', description: 'Steer UltraPlan' },
-  ...DEFAULT_KEYBOARD_SHORTCUTS.slice(1),
-];
-const DEFAULT_HELP_INTRO =
-  'Shift-Tab toggles Ultrawork and off.\n/status shows media, web/Context7, ZDR, LioraBench readiness.\nNormal messages stay lightweight unless Ultrawork is on.';
-export const ADVANCED_HELP_INTRO =
-  'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.\nShift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.\n/status shows media, web/Context7, ZDR, LioraBench readiness.';
+export function defaultKeyboardShortcuts(): readonly KeyboardShortcut[] {
+  return [
+    ultraworkPlanningShortcut(),
+    { keys: 'Ctrl-G', description: ttui('tui.help.shortcut.ctrlG') },
+    { keys: 'Ctrl-O', description: ttui('tui.help.shortcut.ctrlO') },
+    { keys: 'Ctrl-B', description: ttui('tui.help.shortcut.ctrlB') },
+    { keys: 'Ctrl-T', description: ttui('tui.help.shortcut.ctrlT') },
+    { keys: 'Ctrl-S', description: ttui('tui.help.shortcut.ctrlS') },
+    { keys: 'Shift-Enter / Ctrl-J', description: ttui('tui.help.shortcut.newline') },
+    { keys: 'Ctrl-C', description: ttui('tui.help.shortcut.ctrlC') },
+    { keys: 'Ctrl-D', description: ttui('tui.help.shortcut.ctrlD') },
+    { keys: 'Esc', description: ttui('tui.help.shortcut.esc') },
+    { keys: 'Esc Esc', description: ttui('tui.help.shortcut.escEsc') },
+    { keys: '↑ / ↓', description: ttui('tui.help.shortcut.history') },
+    { keys: 'Enter', description: ttui('tui.help.shortcut.enter') },
+  ];
+}
+
+export function advancedKeyboardShortcuts(): readonly KeyboardShortcut[] {
+  const defaults = defaultKeyboardShortcuts();
+  return [
+    ultraworkPlanningShortcut(),
+    { keys: 'Ctrl-Shift-Tab', description: ttui('tui.help.shortcut.ctrlShiftTab') },
+    ...defaults.slice(1),
+  ];
+}
+
+/** @deprecated Prefer defaultKeyboardShortcuts() for live locale. */
+export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = defaultKeyboardShortcuts();
+/** @deprecated Prefer advancedKeyboardShortcuts() for live locale. */
+export const ADVANCED_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = advancedKeyboardShortcuts();
+
+export function defaultHelpIntro(): string {
+  return ttui('tui.help.intro.default');
+}
+
+export function advancedHelpIntro(): string {
+  return ttui('tui.help.intro.advanced');
+}
+
+/** Live intro helpers — prefer these over frozen constants so locale applies after setCliLocale. */
+export const ADVANCED_HELP_INTRO = advancedHelpIntro();
+const DEFAULT_HELP_INTRO = defaultHelpIntro();
 
 export interface HelpPanelOptions {
   readonly commands: readonly HelpPanelCommand[];
@@ -116,7 +138,7 @@ export class HelpPanelComponent extends Container implements Focusable {
     const kbdColor = (text: string) => currentTheme.fg('warning', text);
     const slashColor = (text: string) => currentTheme.fg('primary', text);
 
-    const shortcuts = this.opts.shortcuts ?? DEFAULT_KEYBOARD_SHORTCUTS;
+    const shortcuts = this.opts.shortcuts ?? defaultKeyboardShortcuts();
     const kbdWidth = Math.max(8, ...shortcuts.map((s) => s.keys.length));
     const sortedCmds = this.opts.commands
       .map((command, index) => ({ command, index }))
@@ -127,7 +149,7 @@ export class HelpPanelComponent extends Container implements Focusable {
       return `/${c.name}${aliases}`;
     });
     const cmdWidth = Math.max(12, ...cmdLabels.map((l) => l.length));
-    const introLines = (this.opts.intro ?? DEFAULT_HELP_INTRO).split('\n');
+    const introLines = (this.opts.intro ?? defaultHelpIntro()).split('\n');
     const commandSectionTitle = this.opts.commandSectionTitle ?? 'Slash commands';
     const body: string[] = [
       // Greeting

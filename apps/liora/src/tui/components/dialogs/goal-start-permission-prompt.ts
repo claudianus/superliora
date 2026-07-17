@@ -1,3 +1,5 @@
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import {
   StartPermissionPromptComponent,
   type StartPermissionOption,
@@ -11,81 +13,67 @@ export interface GoalStartPermissionPromptOptions {
   readonly onCancel: () => void;
 }
 
-export const GOAL_START_MANUAL_OPTIONS: readonly StartPermissionOption[] = [
-  {
-    value: 'auto',
-    label: 'Switch to Auto and start',
-    description:
-      'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and structured questions are auto-answered.',
-  },
-  {
-    value: 'yolo',
-    label: 'Switch to YOLO and start',
-    description:
-      'Tools and plan changes are approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
-  },
-  {
-    value: 'manual',
-    label: 'Start in Manual',
-    description:
-      'Keep approvals on. SuperLiora will ask before risky actions, so the goal may stop and wait for you.',
-  },
-  {
-    value: 'cancel',
-    label: 'Do not start',
-    description: 'Return to the input box with your goal command.',
-  },
-];
-
-export const GOAL_START_YOLO_OPTIONS: readonly StartPermissionOption[] = [
-  {
-    value: 'auto',
-    label: 'Switch to Auto and start',
-    description:
-      'Best if you want SuperLiora to keep working while you are away. Tools are approved automatically, and structured questions are auto-answered.',
-  },
-  {
-    value: 'yolo',
-    label: 'Keep YOLO and start',
-    description:
-      'Tools and plan changes stay approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
-  },
-  {
-    value: 'cancel',
-    label: 'Do not start',
-    description: 'Return to the input box with your goal command.',
-  },
-];
-
 export function goalStartOptions(mode: 'manual' | 'yolo'): readonly StartPermissionOption[] {
-  return mode === 'yolo' ? GOAL_START_YOLO_OPTIONS : GOAL_START_MANUAL_OPTIONS;
+  const auto: StartPermissionOption = {
+    value: 'auto',
+    label: ttui('tui.goal.start.option.auto'),
+    description: ttui('tui.goal.start.option.auto.desc'),
+  };
+  const cancel: StartPermissionOption = {
+    value: 'cancel',
+    label: ttui('tui.goal.start.option.cancel'),
+    description: ttui('tui.goal.start.option.cancel.desc'),
+  };
+  if (mode === 'yolo') {
+    return [
+      auto,
+      {
+        value: 'yolo',
+        label: ttui('tui.goal.start.option.keepYolo'),
+        description: ttui('tui.goal.start.option.keepYolo.desc'),
+      },
+      cancel,
+    ];
+  }
+  return [
+    auto,
+    {
+      value: 'yolo',
+      label: ttui('tui.goal.start.option.yolo'),
+      description: ttui('tui.goal.start.option.yolo.desc'),
+    },
+    {
+      value: 'manual',
+      label: ttui('tui.goal.start.option.manual'),
+      description: ttui('tui.goal.start.option.manual.desc'),
+    },
+    cancel,
+  ];
 }
 
-const MANUAL_OPTIONS = GOAL_START_MANUAL_OPTIONS;
-
-const YOLO_OPTIONS = GOAL_START_YOLO_OPTIONS;
-
-const MANUAL_NOTICE_LINES = [
-  'Manual mode asks you before SuperLiora runs commands, edits files, or takes other risky actions.',
-  'Manual mode is not suitable for unattended goal work.',
-  'You can go back without losing your command.',
-] as const;
-
-const YOLO_NOTICE_LINES = [
-  'YOLO mode approves most tools and plan changes automatically.',
-  'Structured questions are auto-answered; YOLO still asks for delete/destructive or credential/secret access.',
-  'Switch to Auto for fully unattended work including structured questions.',
-] as const;
+export const GOAL_START_MANUAL_OPTIONS: readonly StartPermissionOption[] = goalStartOptions('manual');
+export const GOAL_START_YOLO_OPTIONS: readonly StartPermissionOption[] = goalStartOptions('yolo');
 
 export class GoalStartPermissionPromptComponent extends StartPermissionPromptComponent {
   constructor(opts: GoalStartPermissionPromptOptions) {
     super({
       title:
         opts.mode === 'yolo'
-          ? 'Start a goal in YOLO mode?'
-          : 'Start a goal with approvals on?',
-      noticeLines: opts.mode === 'yolo' ? YOLO_NOTICE_LINES : MANUAL_NOTICE_LINES,
-      options: opts.mode === 'yolo' ? YOLO_OPTIONS : MANUAL_OPTIONS,
+          ? ttui('tui.goal.start.title.yolo')
+          : ttui('tui.goal.start.title.manual'),
+      noticeLines:
+        opts.mode === 'yolo'
+          ? [
+              ttui('tui.goal.start.notice.yolo.1'),
+              ttui('tui.goal.start.notice.yolo.2'),
+              ttui('tui.goal.start.notice.yolo.3'),
+            ]
+          : [
+              ttui('tui.goal.start.notice.manual.1'),
+              ttui('tui.goal.start.notice.manual.2'),
+              ttui('tui.goal.start.notice.manual.3'),
+            ],
+      options: goalStartOptions(opts.mode),
       onSelect: opts.onSelect,
       onCancel: opts.onCancel,
     });

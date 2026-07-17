@@ -1,3 +1,5 @@
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import {
   StartPermissionPromptComponent,
   type StartPermissionOption,
@@ -16,41 +18,39 @@ export interface UltraworkStartModePromptOptions {
  * Ultrawork starts. Framing is interview-mode: who answers AskUserQuestion and
  * high-risk human gates, not a different interview script.
  */
-export const ULTRAWORK_START_MODE_OPTIONS: readonly StartPermissionOption<UltraworkStartModeChoice>[] =
-  [
+export function ultraworkStartModeOptions(): StartPermissionOption<UltraworkStartModeChoice>[] {
+  return [
     {
       value: 'manual',
-      label: 'Manual (default)',
-      description:
-        'You answer every AskUserQuestion and approve tools, edits, and high-risk gates. Best when you want full control during the Ultrawork interview.',
+      label: ttui('tui.ultrawork.start.option.manual'),
+      description: ttui('tui.ultrawork.start.option.manual.desc'),
     },
     {
       value: 'auto',
-      label: 'Auto',
-      description:
-        'SuperLiora auto-answers AskUserQuestion and auto-approves tools. Same interview questions as Manual; only the responder changes.',
+      label: ttui('tui.ultrawork.start.option.auto'),
+      description: ttui('tui.ultrawork.start.option.auto.desc'),
     },
     {
       value: 'yolo',
-      label: 'YOLO',
-      description:
-        'SuperLiora auto-answers AskUserQuestion and most tools. Humans still gate delete/destructive actions and credential/secret access.',
+      label: ttui('tui.ultrawork.start.option.yolo'),
+      description: ttui('tui.ultrawork.start.option.yolo.desc'),
     },
   ];
+}
 
-const NOTICE_LINES = [
-  'Choose who answers the Ultrawork interview and high-risk gates.',
-  'The interview script is the same in every mode — only the responder and tool approvals change.',
-  'This choice is not remembered; Manual is selected by default on every new Ultrawork start.',
-  'Headless/auto runs without a TUI chooser default to Manual.',
-] as const;
+export const ULTRAWORK_START_MODE_OPTIONS: readonly StartPermissionOption<UltraworkStartModeChoice>[] =
+  ultraworkStartModeOptions();
 
 export class UltraworkStartModePromptComponent extends StartPermissionPromptComponent<UltraworkStartModeChoice> {
   constructor(opts: UltraworkStartModePromptOptions) {
     super({
-      title: 'How should Ultrawork interview and approvals run?',
-      noticeLines: NOTICE_LINES,
-      options: ULTRAWORK_START_MODE_OPTIONS,
+      title: ttui('tui.ultrawork.start.title'),
+      noticeLines: [
+        ttui('tui.ultrawork.start.notice.1'),
+        ttui('tui.ultrawork.start.notice.2'),
+        ttui('tui.ultrawork.start.notice.3'),
+      ],
+      options: ultraworkStartModeOptions(),
       // Manual is first; keep index explicit for future reordering safety.
       initialSelectedIndex: 0,
       onSelect: opts.onSelect,

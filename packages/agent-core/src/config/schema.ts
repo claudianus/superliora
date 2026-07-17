@@ -536,6 +536,8 @@ export type LioraConfigPatch = z.infer<typeof LioraConfigPatchSchema>;
 export function getDefaultConfig(): LioraConfig {
   return {
     providers: {},
+    // Product default: YOLO — tools auto-approved, still asks for high-risk deletes/secrets.
+    defaultPermissionMode: 'yolo',
   };
 }
 

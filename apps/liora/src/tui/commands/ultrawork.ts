@@ -175,15 +175,13 @@ export async function handleUltraworkModeToggle(
     try {
       await host.requireSession().setPremiumQuality(true);
     } catch (error) {
-      host.showError(`Failed to enable Premium Quality mode: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.premium.enableFailed', { message: formatErrorMessage(error) }));
       return;
     }
   }
   host.showNotice(
-    enabled ? 'Ultrawork mode: ON' : 'Ultrawork mode: OFF',
-    enabled
-      ? 'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.'
-      : undefined,
+    enabled ? ttui('tui.ultrawork.on.title') : ttui('tui.ultrawork.off.title'),
+    enabled ? ttui('tui.ultrawork.on.detail') : undefined,
     { coalesceKey: 'ultrawork-mode' },
   );
 }
@@ -292,7 +290,7 @@ async function setPermissionForUltrawork(
   try {
     await host.requireSession().setPermission(mode);
   } catch (error) {
-    host.showError(`Failed to set permission mode: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.permission.setFailed', { message: formatErrorMessage(error) }));
     return false;
   }
   host.setAppState({ permissionMode: mode });
