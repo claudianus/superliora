@@ -81,7 +81,6 @@ export class DeviceCodeBoxComponent implements Component {
           '',
           ...contentLines,
           '',
-          renderParticleRail(safeWidth - 2, appearance, 'device-code-bottom'),
         ],
         width: safeWidth,
         height: contentLines.length + 4,

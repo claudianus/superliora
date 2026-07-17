@@ -87,7 +87,6 @@ export class WelcomeComponent implements Component {
         content: [
           renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
           ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
-          renderParticleRail(safeWidth - 2, appearance, 'welcome-bottom'),
         ],
         width: safeWidth,
         height: contentLines.length + 4,
