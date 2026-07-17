@@ -149,6 +149,26 @@ describe('skill search', () => {
     expect(description[0]?.name).toBe('api-helper');
   });
 
+  
+  it('surfaces short skill names matched as tokens in multi-word queries', async () => {
+    const registry = makeRegistry([
+      makeSkill('docx', 'builtin', 'Create and edit Word documents (.docx)'),
+      makeSkill('pptx', 'builtin', 'Build PowerPoint slide decks (.pptx)'),
+      makeSkill('xlsx', 'builtin', 'Work with Excel spreadsheets (.xlsx)'),
+      makeSkill('docx-processing-openai', 'builtin', 'Alternate Word document pipeline'),
+      makeSkill('react-performance', 'user', 'Optimize React rendering'),
+    ]);
+
+    const docxHits = await registry.searchByQuery('Word docx report');
+    expect(docxHits[0]?.name).toBe('docx');
+
+    const pptxHits = await registry.searchByQuery('PowerPoint pptx slides');
+    expect(pptxHits[0]?.name).toBe('pptx');
+
+    const xlsxHits = await registry.searchByQuery('Excel xlsx spreadsheet');
+    expect(xlsxHits[0]?.name).toBe('xlsx');
+  });
+
   it('excludes private, high-risk, sub-skill, and non-inline skills from model search', async () => {
     const registry = makeRegistry([
       makeSkill('safe-match', 'user', 'secret audit helper'),
