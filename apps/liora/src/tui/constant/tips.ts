@@ -61,6 +61,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'footer context bar is 10-cell with eighths partial fill — denser pressure glance', priority: 1, solo: true },
   { text: 'premium particle rails push denser comets + 32-cell trails at 1ms — zero config spectacle', priority: 1, solo: true },
   { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
+  { text: '/status Memory shows auto-dream on/×N (default on, ≥4h/8 records) — long-horizon recall hygiene', priority: 1, solo: true },
   { text: 'footer μ badges show micro clears (cache-miss/swarm) without config', priority: 1, solo: true },
   { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },
   { text: 'footer web + office + img·vid + zdr badges show research/office/media/privacy readiness without MCP or config', priority: 1, solo: true },
