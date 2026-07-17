@@ -11,8 +11,8 @@ import { DynamicInjector } from './injector';
 const TODO_LIST_REMINDER_VARIANT = 'todo_list_reminder';
 const TODO_LIST_REMINDER_TURNS_SINCE_WRITE = 2;
 const TODO_LIST_REMINDER_CALLS_SINCE_WRITE = 3;
-const TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS = 3;
-const TODO_LIST_REMINDER_CALLS_BETWEEN_REMINDERS = 5;
+const TODO_LIST_REMINDER_TURNS_BETWEEN_REMINDERS = 4;
+const TODO_LIST_REMINDER_CALLS_BETWEEN_REMINDERS = 6;
 
 interface TodoListReminderCounts {
   readonly turnsSinceLastWrite: number;

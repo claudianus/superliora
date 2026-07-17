@@ -65,6 +65,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'comet spinner trails animate at ≥33ms (~30fps) — same floor as premium ambient rails', priority: 1, solo: true },
   { text: 'LioraRead auto→signatures @80 lines; Grep default 20 (postprocess archives >25 lines)', priority: 1, solo: true },
   { text: 'Liora Recall injects ≤6 memories · 480 chars each — durable prefs only, not transcript dumps', priority: 1, solo: true },
+  { text: 'inject cadence: plan full@6 · todo space@4 · lean@10 · language@4 — less thrash on multi-tool loops', priority: 1, solo: true },
   { text: 'LioraExpand pages 120 lines by default — pass start_line/limit; full dumps thrash long sessions', priority: 1, solo: true },
   { text: 'Bash stdout soft-caps at 4k after pattern collapse — matches tool-result budget; LioraExpand recovers archives', priority: 1, solo: true },
   { text: 'footer μ badges show micro clears (cache-miss/swarm) without config', priority: 1, solo: true },
