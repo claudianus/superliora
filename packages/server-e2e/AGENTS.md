@@ -1,26 +1,31 @@
 # server-e2e Agent Guide
 
-This file contains package-local rules for `packages/server-e2e`.
+Package-local rules for `packages/server-e2e`.
 
-## Testing Principle
+## Observability
 
-- Keep observability inside each server-e2e case. Do not add a separate "observable" test or scenario as a substitute for making the existing cases explain what they drove and what the server returned.
-- Every live server case should print structured, case-scoped details for the flow it exercises: key REST requests, response envelopes or unwrapped responses, WebSocket handshakes / acks / replay summaries, prompt terminal frames, and error envelopes.
-- Prefer a shared logging helper over ad hoc `console.log` formatting. Logs must be visible for passing Vitest cases, so write through stdout when Vitest would otherwise capture console output.
-- Keep logs factual and diagnostic. Print enough detail to debug the wire contract, but avoid unrelated narration.
+- Keep diagnostics **inside** each case. Do not add a separate “observable” scenario instead of making existing cases print what they drove and what came back.
+- Live cases should log case-scoped wire detail: key REST calls, envelopes/unwrapped bodies, WS handshake/ack/replay summaries, prompt terminal frames, error envelopes.
+- Prefer a shared logging helper. Passing Vitest cases must still show logs (write stdout if Vitest captures `console`).
+- Factual diagnostics only — enough to debug the contract, no narration.
 
 ## Workflow
 
-- When adding or changing a server-e2e case, update that case's observability at the same time.
-- Do not add a new scenario solely to print data that an existing scenario or Vitest case should already expose.
-- Run the relevant server-e2e tests against `SUPERLIORA_SERVER_URL=http://127.0.0.1:58627` when a server is available, and confirm the output includes the case-scoped diagnostic blocks.
-- Run Docker e2e with `pnpm --filter @superliora/server-e2e docker:e2e`; each run must derive its Docker runner name/namespace from the current workspace to avoid cross-workspace conflicts.
+- Changing a case updates its observability in the same change.
+- Default live base: `SUPERLIORA_SERVER_URL=http://127.0.0.1:58627` (start server with root `pnpm dev:server` when needed).
+- Docker e2e: `pnpm --filter @superliora/server-e2e docker:e2e` — runner name/namespace from the current workspace so runs do not collide.
 
-## Command Reference
+## Commands
 
-- Start a local server from the repo root before validating live cases: `pnpm dev:server`.
-- Run only the undo helper/live e2e coverage: `SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test -- test/client.test.ts -t undoSession`.
-- Run the full server client Vitest file: `SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test -- test/client.test.ts`.
-- Run all server-e2e Vitest tests: `SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test`.
-- Run all executable scenarios against the local server: `SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test:scenarios`.
-- Run type checking for this package: `pnpm --filter @superliora/server-e2e typecheck`.
+```bash
+# Full client file
+SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test -- test/client.test.ts
+
+# One focus (example)
+SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test -- test/client.test.ts -t undoSession
+
+# All package tests / scenarios / types
+SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test
+SUPERLIORA_SERVER_URL=http://127.0.0.1:58627 pnpm --filter @superliora/server-e2e test:scenarios
+pnpm --filter @superliora/server-e2e typecheck
+```

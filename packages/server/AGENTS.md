@@ -4,53 +4,55 @@ Package-local rules for `packages/server` (`@superliora/server`).
 
 ## What it is
 
-The SuperLiora server. It hosts `agent-core` sessions and exposes them over REST + WebSocket under a single `/api/v1` prefix. It is consumed by `apps/liora` (the CLI/TUI) — **do not add a reverse dependency** on the CLI app.
+Hosts `agent-core` sessions over REST + WebSocket under `/api/v1`. Consumed by `apps/liora` — **no reverse dependency** on the CLI app.
 
-## Entry points & launch
+## Entry / launch
 
-- Bootstrap: `src/start.ts` exports `startServer(opts): Promise<RunningServer>`. The public surface is re-exported from `src/index.ts`.
-- Dev: run from the **repo root** with `pnpm dev:server` (auto-restart variant `pnpm dev:server:restart`). This shells into `liora server run` via `apps/liora`. This package has **no `dev` script** of its own.
-- Prod: the CLI command `liora server run` (`apps/liora/src/cli/sub/server/run.ts`) imports `startServer`.
+- Bootstrap: `src/start.ts` → `startServer(opts): Promise<RunningServer>`; public re-exports in `src/index.ts`.
+- Dev from **repo root**: `pnpm dev:server` (or `pnpm dev:server:restart`). This package has no own `dev` script; it goes through `liora server run`.
+- Prod: `liora server run` (`apps/liora/src/cli/sub/server/run.ts`) imports `startServer`.
 
 ## Layout (`src/`)
 
-- Top level: `start.ts`, `index.ts`, `envelope.ts`, `error-handler.ts`, `lock.ts`, `request-id.ts`, `version.ts`.
-- `routes/` — REST domain modules, the `registerApiV1Routes.ts` aggregator, and `action-suffix.ts`.
-- `services/` — server-owned DI adapters: `approval/`, `question/`, `gateway/` (`rest`/`ws`/`broadcast`/`connectionRegistry`/`sessionClients`/`sessionEventJournal`/`inFlightTurnTracker`), `pinoLoggerService.ts`, `serviceCollection.ts`.
-- `ws/` — `connection.ts` (`WsConnection`), `protocol.ts` (frame builders), `rawData.ts`.
-- `middleware/` — `defineRoute.ts`, `schema.ts`, `validate.ts`. `openapi/transforms.ts`.
-- `svc/` — OS service managers (launchd / systemd / schtasks) backing `liora server install/start`.
+- Top: `start.ts`, `index.ts`, `envelope.ts`, `error-handler.ts`, `lock.ts`, `request-id.ts`, `version.ts`
+- `routes/` — REST domains + `registerApiV1Routes.ts` + `action-suffix.ts`
+- `services/` — server DI adapters (`approval/`, `question/`, `gateway/`, logger, `serviceCollection.ts`)
+- `ws/` — connection, frame protocol, raw data
+- `middleware/` — `defineRoute`, schema/validate; OpenAPI transforms
+- `svc/` — OS service managers (launchd / systemd / schtasks)
 
-## DI: how it consumes `@superliora/agent-core`
+## DI
 
-Service conventions (naming, file layout, registration) live in `packages/agent-core/src/services/AGENTS.md` — read that before adding or changing a service. This package only wires the container:
+Service conventions: `packages/agent-core/src/services/AGENTS.md`. This package only wires the container:
 
-- `src/services/serviceCollection.ts` `createServerServiceCollection(...)` seeds a `ServiceCollection` with `...getSingletonServiceDescriptors()` plus server-owned gateway singletons (`ConnectionRegistry`, `SessionClientsService`, `WSBroadcastService`) and overrides `IApprovalService` / `IQuestionService`.
-- `services.set(...)` overrides: `ILogService` (Pino adapter), `IRestGateway` (`FastifyRestGateway(app)`), `IEnvironmentService`; then `IWSGateway` / `ICoreProcessService` as `SyncDescriptor`s with options; then `server.serviceOverrides` last (the test seam — later registration wins).
-- `start.ts` builds `new InstantiationService(services)`, eagerly resolves services inside `ix.invokeFunction(...)`, wires `wsGw.setAbortHandler/setTerminalHandler/setFsWatchHandler`, manually creates + registers `FsWatcherService`, awaits `coreProcess.ready()`, then binds via `listenWithPortRetry(...)` (wraps `IRestGateway.listen`).
+- `createServerServiceCollection(...)` seeds `...getSingletonServiceDescriptors()` plus server gateway singletons and overrides `IApprovalService` / `IQuestionService`.
+- `services.set(...)` for `ILogService`, `IRestGateway`, `IEnvironmentService`, then `IWSGateway` / `ICoreProcessService` descriptors, then `server.serviceOverrides` last (test seam).
+- `start.ts` builds `InstantiationService`, resolves inside `invokeFunction`, wires abort/terminal/fs-watch handlers, manually constructs `FsWatcherService` (ordering-sensitive), awaits `coreProcess.ready()`, binds via `listenWithPortRetry`.
 
 ## Wire layer
 
-- REST is **Fastify**. All v1 routes are registered under `/api/v1` in `routes/registerApiV1Routes.ts`. Declare routes with `middleware/defineRoute.ts`: one object carries the Zod validators and the OpenAPI response schema; the `200` schema is expanded into the envelope `oneOf`.
-- `start.ts` neuters Fastify's validator/serializer compilers — validation happens in `defineRoute` preHandlers, not in Fastify's own pipeline.
-- Doc/meta endpoints in `start.ts`: `/openapi.json` (`@fastify/swagger`, lazily imported), `/asyncapi.json` (`createAsyncApiDocument` from `@superliora/protocol`), `/healthz`.
-- WebSocket uses the `ws` package; frames/envelopes live in `ws/protocol.ts` (`server_hello`, `ack`, `event`, `resync_required`, per-session `seq`).
+- REST: Fastify, all v1 under `/api/v1` via `registerApiV1Routes`. Declare with `defineRoute` (Zod + OpenAPI; `200` expands into envelope `oneOf`). Fastify’s own validator/serializer compilers are neutered — validation is in `defineRoute` preHandlers.
+- Meta: `/openapi.json`, `/asyncapi.json`, `/healthz`.
+- WS: `ws` package; frames in `ws/protocol.ts` (`server_hello`, `ack`, `event`, `resync_required`, per-session `seq`).
 
 ## Commands
 
-- `pnpm --filter @superliora/server build` — `tsdown`.
-- `pnpm --filter @superliora/server typecheck` — `tsc -p tsconfig.json --noEmit`.
-- `pnpm --filter @superliora/server test` — `vitest run`.
-- `pnpm --filter @superliora/server clean` — `rm -rf dist`.
-- Dev server: `pnpm dev:server` at the repo root.
-- E2E: in-process tests live in `test/*.e2e.test.ts` and boot `startServer` directly. Live e2e against a running server lives in `packages/server-e2e` (default `http://127.0.0.1:58627`, override with `SUPERLIORA_SERVER_URL` or legacy `KIMI_SERVER_URL`).
+```bash
+pnpm --filter @superliora/server build      # tsdown
+pnpm --filter @superliora/server typecheck
+pnpm --filter @superliora/server test       # vitest run
+pnpm --filter @superliora/server clean
+pnpm dev:server                            # repo root
+```
 
-## Gotchas / hard rules
+In-process e2e: `test/*.e2e.test.ts` (boots `startServer`). Live e2e: `packages/server-e2e`.
 
-- **Path alias:** `#/*` maps to `./src/*.ts` (with `#/services/...` variants). Use `#/...`, not `@/`.
-- **Single-instance lock:** `start.ts` calls `acquireLock`; a second start throws `ServerLockedError`. Tests must pass a unique `lockPath`/`port` and use `serviceOverrides`.
-- **Port-busy policy:** the lock is acquired *before* binding, so any `EADDRINUSE` from `listen` is a third-party listener (never another liora server). `listenWithPortRetry` then walks `port + 1`, `+ 2`, … (capped by `PORT_RETRY_LIMIT`) and calls `lockHandle.updatePort(boundPort)` so the lock advertises the real port. Port `0` (ephemeral) is never retried. The daemon spawner mirrors this in `resolveDaemonPort` (`apps/liora`).
-- **Uniform response envelope** `{ code, msg, data, request_id }` (`envelope.ts`, `error-handler.ts`); request id comes from `request-id.ts` / `genReqId`.
-- **`:action` URL convention** is handled by `routes/action-suffix.ts` (`parseActionSuffix`) — Fastify cannot disambiguate `:id` from `:id:action` on its own.
-- **`FsWatcherService` is created manually and `services.set`-registered after the collection is built** — this is ordering-sensitive; keep the boot wiring in `start.ts`.
-- `debugEndpoints` is opt-in: only register `registerDebugRoutes` when `opts.debugEndpoints === true`. Swagger plugins are dynamically imported.
+## Hard rules
+
+- Path alias: `#/*` → `./src/*` (use `#/…`, not `@/`).
+- Single-instance lock via `acquireLock`; second start → `ServerLockedError`. Tests need unique `lockPath`/`port` and `serviceOverrides`.
+- Lock is taken **before** bind: `EADDRINUSE` means a third-party listener. `listenWithPortRetry` walks `port+1…` (cap `PORT_RETRY_LIMIT`) and updates the lock’s advertised port. Port `0` is never retried.
+- Envelope `{ code, msg, data, request_id }` everywhere.
+- `:action` URLs: `parseActionSuffix` in `routes/action-suffix.ts` (Fastify alone cannot disambiguate).
+- Keep `FsWatcherService` boot order in `start.ts`.
+- `debugEndpoints` opt-in only; Swagger plugins are dynamic imports.
