@@ -3,6 +3,7 @@ import {
   type AppearancePreferences,
 } from '#/tui/config';
 import {
+  ansiTextToCells,
   rendererAnimationFrameIntervalMs,
   rendererEffectFrameIntervalMs,
   hashRendererEffectSeed,
@@ -741,9 +742,14 @@ export function paintUltraworkEditorBorderGlow(
 ): RendererRegionLine[] {
   if (lines.length === 0) return [];
 
+  // Editor-replacement dialogs (approval / permission prompts) still yield ANSI
+  // strings. Never Array.from() those — ESC bodies become visible `[0;1;38;2…`.
   const rows: RendererCell[][] = lines.map((line) => {
     if (typeof line === 'string') {
-      return Array.from(line).map((char) => ({ char }));
+      return ansiTextToCells(line).map((cell) => ({
+        ...cell,
+        style: cell.style === undefined ? undefined : { ...cell.style },
+      }));
     }
     return line.map((cell) => ({ ...cell, style: cell.style === undefined ? undefined : { ...cell.style } }));
   });

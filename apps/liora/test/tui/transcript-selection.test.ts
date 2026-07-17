@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { shouldRenderAmbientAnimationFrame } from '#/tui/controllers/appearance';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
+import { resetTUIInputInteractionForTests } from '#/tui/utils/input-interaction';
 import { Text } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
 import {
@@ -206,6 +207,7 @@ describe('animation gate', () => {
     expect(
       shouldHoldTranscriptAnimation({ followOutput: true, transcriptSelection: selection }),
     ).toBe(true);
+    resetTUIInputInteractionForTests();
     expect(shouldRenderAmbientAnimationFrame(true, 24, true)).toBe(false);
     expect(shouldRenderAmbientAnimationFrame(true, 24, false)).toBe(true);
   });

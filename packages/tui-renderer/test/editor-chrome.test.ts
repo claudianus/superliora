@@ -189,6 +189,58 @@ describe('renderer editor chrome helpers', () => {
     expect(surface.cursor).toMatchObject({ x: 9, y: 1, visible: true });
   });
 
+  it('keeps the prompt line when autocomplete omits the bottom border at frameRows=2', () => {
+    // Slash suggestions attach below the input and defer the bottom border.
+    // frameRows=2 must still paint the prompt/`/` row — not only the top edge.
+    const frame = renderRendererEditorFrame({
+      width: 16,
+      height: 2,
+      omitBottomBorder: true,
+      inputLines: [[
+        { char: '/' },
+        { char: 'h' },
+        { char: 'e' },
+        { char: 'l' },
+        { char: 'p' },
+      ]],
+      inputCursor: { x: 5, y: 0, visible: true, shape: 'bar' },
+      prompt: '>',
+    });
+
+    expect(frame.lines.map(rowText)).toEqual([
+      '╭──────────────╮',
+      '│ > /help      │',
+    ]);
+    expect(frame.cursor).toMatchObject({ x: 9, y: 1, visible: true });
+
+    const surface = renderRendererEditorSurface({
+      width: 16,
+      frameRows: 2,
+      content: {
+        lines: [[
+          { char: '/' },
+        ]],
+        cursor: { x: 1, y: 0, visible: true, shape: 'bar' },
+        contentRows: 1,
+        viewportRow: 0,
+      },
+      overlays: ['❯ help', '  history'],
+    });
+
+    expect(surface.lines.map(rowText)).toEqual([
+      '╭──────────────╮',
+      '│ > /          │',
+      '│   ❯ help     │',
+      '│     history  │',
+      '╰──────────────╯',
+    ]);
+    expect(surface.frameLines.map(rowText)).toEqual([
+      '╭──────────────╮',
+      '│ > /          │',
+    ]);
+    expect(surface.cursor).toMatchObject({ x: 5, y: 1, visible: true });
+  });
+
   it('projects native editor surface cursors into the frame viewport', () => {
     const surface = renderRendererEditorSurface({
       width: 10,

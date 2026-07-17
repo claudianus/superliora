@@ -294,8 +294,10 @@ describe('QuestionDialogComponent', () => {
     dialog.handleInput('\u001B[D');
 
     const out = dialog.render(80).join('\n');
-    expect(out).toContain(currentTheme.boldFg('success', `  ${SELECT_POINTER} [1] A`));
-    expect(out).not.toContain(currentTheme.fg('primary', `  ${SELECT_POINTER} [1] A`));
+    // Pointer stays outside tone() so ambient/SGR never double-wraps; only the
+    // numbered label is success-green when the cursor returns to a selected row.
+    expect(out).toContain(`  ${SELECT_POINTER} ${currentTheme.boldFg('success', '[1] A')}`);
+    expect(out).not.toContain(currentTheme.fg('primary', '[1] A'));
   });
 
   it('stretches the border to the full available width', () => {

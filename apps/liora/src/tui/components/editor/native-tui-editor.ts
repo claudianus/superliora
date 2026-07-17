@@ -85,7 +85,9 @@ export class NativeTUIEditor implements TUIEditor {
   private readonly history: string[] = [];
   private historyIndex: number | undefined;
   private argumentHints: ReadonlyMap<string, string> = new Map();
-  private layoutRowCountCache: { width: number; text: string; rows: number } | undefined;
+  private layoutRowCountCache:
+    | { width: number; text: string; overlayCount: number; rows: number }
+    | undefined;
 
   constructor(private readonly options: NativeTUIEditorOptions = {}) {
     this.autocomplete = new RendererEditorAutocompleteController({
@@ -295,14 +297,29 @@ export class NativeTUIEditor implements TUIEditor {
   getNativeLayoutRowCount(width: number): number {
     const safeWidth = Math.max(1, Math.floor(width));
     const text = this.getText();
-    // Memoize on (width, text) — this is called from the layout measurement
-    // path on every keystroke, and input.render() re-segments the full text
-    // with Intl.Segmenter which is expensive for Korean grapheme clusters.
+    // Overlay open/close must bust the cache: typing `/` keeps the same text
+    // while slash suggestions arrive async, and a stale 3-row height clips the
+    // prompt + autocomplete into a broken stub frame.
+    const overlayOpen = this.autocomplete.isOpen();
+    // Closed autocomplete: avoid building styled overlay cells just to count 0.
+    const overlayCount = overlayOpen ? this.getNativeOverlayLines(safeWidth).length : 0;
     const cached = this.layoutRowCountCache;
-    if (cached !== undefined && cached.width === safeWidth && cached.text === text) {
+    if (
+      cached !== undefined &&
+      cached.width === safeWidth &&
+      cached.text === text &&
+      cached.overlayCount === overlayCount
+    ) {
       return cached.rows;
     }
-    const overlayLines = this.getNativeOverlayLines(safeWidth);
+    // Single-line prompt with no suggestions is always a closed 3-row box.
+    // Skip Intl.Segmenter re-layout of the full text on every keystroke.
+    if (overlayCount === 0 && !text.includes('\n')) {
+      const rows = 3;
+      this.layoutRowCountCache = { width: safeWidth, text, overlayCount, rows };
+      return rows;
+    }
+    const overlayLines = overlayOpen ? this.getNativeOverlayLines(safeWidth) : [];
     const contentWidth = Math.max(
       1,
       safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
@@ -313,7 +330,7 @@ export class NativeTUIEditor implements TUIEditor {
       focused: this.focused,
     });
     const rows = measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows);
-    this.layoutRowCountCache = { width: safeWidth, text, rows };
+    this.layoutRowCountCache = { width: safeWidth, text, overlayCount, rows };
     return rows;
   }
 
@@ -498,7 +515,41 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private async requestAutocomplete(options: { readonly force?: boolean } = {}): Promise<void> {
+    // Plain prose has no autocomplete trigger. Skip the debounce timer + provider
+    // round-trip that used to fire on every printable keystroke.
+    if (options.force !== true && !this.shouldQueryAutocomplete()) {
+      if (this.autocomplete.isOpen()) this.autocomplete.close(true);
+      return;
+    }
     await this.autocomplete.request(this, options);
+  }
+
+  /**
+   * Cheap pre-filter before the autocomplete provider runs.
+   * Keep this sync and allocation-light — it sits on the keystroke path.
+   */
+  private shouldQueryAutocomplete(): boolean {
+    if (this.inputMode === 'bash') return true;
+    if (this.autocomplete.isOpen()) return true;
+    const cursor = this.getCursor();
+    const lines = this.getText().split('\n');
+    const line = lines[cursor.line] ?? '';
+    const before = line.slice(0, cursor.col);
+    if (before.length === 0) return false;
+    // Slash commands / args
+    if (before.startsWith('/')) return true;
+    // @file mentions
+    if (before.includes('@')) return true;
+    // Relative / home / absolute path fragments after whitespace
+    const tokenStart = Math.max(before.lastIndexOf(' '), before.lastIndexOf('\t')) + 1;
+    const token = before.slice(tokenStart);
+    if (token.startsWith('./') || token.startsWith('../') || token.startsWith('~/')) return true;
+    if (token.startsWith('/') && token.length > 1) return true;
+    // Continuation of a path token (foo/bar)
+    if (token.includes('/') && !token.startsWith('http://') && !token.startsWith('https://')) {
+      return true;
+    }
+    return false;
   }
 
   private closeAutocomplete(requestRender: boolean): boolean {

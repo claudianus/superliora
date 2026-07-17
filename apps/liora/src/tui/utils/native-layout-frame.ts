@@ -58,6 +58,7 @@ import {
 
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers/appearance';
 import type { TUIState } from '../tui-state';
+import { isTUIInputInteractionActive } from './input-interaction';
 import {
   resolveTUIStateNativeFramePolicy,
   shouldForceTUIStateNativeLayoutFrame,
@@ -251,11 +252,22 @@ export function detectTUIStateNativeLayoutShift(
   };
 }
 
+interface TUIStateNativeChromeCache {
+  readonly width: number;
+  readonly header: readonly RendererRegionLine[];
+  readonly activity: readonly RendererRegionLine[];
+  readonly todo: readonly RendererRegionLine[];
+  readonly queue: readonly RendererRegionLine[];
+  readonly btw: readonly RendererRegionLine[];
+  readonly footer: readonly RendererRegionLine[];
+}
+
 export function createTUIStateNativeRenderCallback(
   state: TUIState,
   options: TUIStateNativeRenderCallbackOptions,
 ): NativeTerminalRendererRender {
   let layoutTracking: TUIStateNativeLayoutTracking = {};
+  let chromeCache: TUIStateNativeChromeCache | undefined;
   return ({ frame, runtime, size, quality }) => {
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
     advanceAppearanceAnimationClock(frame.timestamp);
@@ -272,6 +284,7 @@ export function createTUIStateNativeRenderCallback(
         state.transcriptViewport.followOutput,
         size.rows,
         state.transcriptSelection.isDragging || state.transcriptSelection.hasSelection,
+        { nowMs: frame.timestamp },
       );
     const policy = resolveTUIStateNativeFramePolicy({
       causes: frame.causes,
@@ -289,10 +302,38 @@ export function createTUIStateNativeRenderCallback(
     }
     layoutTracking = layoutShift.next;
     if (policy.refreshTerminalPalette) options.onAuthoritativeFrame?.();
+    // Pure keystroke frames only rewrite the editor. Reuse chrome lines so we
+    // do not re-render header/footer/queue on every character.
+    const pureInputFrame =
+      frame.causes.length > 0 &&
+      frame.causes.every((cause) => cause === 'input') &&
+      !layoutShift.structuralShift &&
+      !layoutShift.viewportScrolled;
+    const reuseChrome =
+      pureInputFrame &&
+      chromeCache !== undefined &&
+      chromeCache.width === size.columns
+        ? chromeCache
+        : undefined;
+    const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
+      reuseChrome,
+      // Skip Ultrawork perimeter repaint while typing — animation resumes after holdoff.
+      skipDecorativeEditorEffects: typingHoldoff || pureInputFrame,
     });
+    if (!pureInputFrame || chromeCache === undefined || chromeCache.width !== size.columns) {
+      chromeCache = {
+        width: size.columns,
+        header: nativeFrame.chrome.header,
+        activity: nativeFrame.chrome.activity,
+        todo: nativeFrame.chrome.todo,
+        queue: nativeFrame.chrome.queue,
+        btw: nativeFrame.chrome.btw,
+        footer: nativeFrame.chrome.footer,
+      };
+    }
     const result = runtime.renderLayoutFrame(nativeFrame.regions, {
       fill: options.fill ?? currentTheme.canvasBackgroundCell(),
       force: policy.force,
@@ -456,9 +497,96 @@ export function measureTUIStateNativeFrameHeight(
   return terminalRows - (layout.transcriptRows - desiredTranscriptRows);
 }
 
+interface TUIStateNativeFrameChrome {
+  readonly header: readonly RendererRegionLine[];
+  readonly activity: readonly RendererRegionLine[];
+  readonly todo: readonly RendererRegionLine[];
+  readonly queue: readonly RendererRegionLine[];
+  readonly btw: readonly RendererRegionLine[];
+  readonly footer: readonly RendererRegionLine[];
+}
+
 interface TUIStateNativeFrame {
   readonly regions: readonly RendererFrameRegion[];
   readonly cursor: RendererCursorState;
+  readonly chrome: TUIStateNativeFrameChrome;
+}
+function isNativeFullscreenTakeover(state: TUIState): boolean {
+  // Splash / tasks browser / approval preview replace the root tree. The native
+  // layout path owns painting via container fields, so without this gate the
+  // takeover child never reaches the frame and the alternate screen stays empty.
+  return (
+    state.ui.children.length > 0 &&
+    !state.ui.children.includes(state.transcriptContainer)
+  );
+}
+
+function emptyNativeFrameChrome(): TUIStateNativeFrameChrome {
+  return {
+    header: [],
+    activity: [],
+    todo: [],
+    queue: [],
+    btw: [],
+    footer: [],
+  };
+}
+
+function buildNativeFullscreenTakeoverFrame(
+  state: TUIState,
+  width: number,
+  height: number,
+  options: {
+    readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
+    readonly diagnostics?: RendererDiagnosticsSnapshot;
+    readonly skipDecorativeEditorEffects?: boolean;
+  },
+): TUIStateNativeFrame {
+  const canvasBackground = currentTheme.canvasBackgroundCell();
+  const lines: RendererRegionLine[] = [];
+  for (const child of state.ui.children) {
+    const rendered = child.render(width);
+    for (const line of rendered) {
+      lines.push(line);
+    }
+  }
+  // Clip or pad to the terminal height so the takeover owns the full surface.
+  const clipped = lines.slice(0, height);
+  while (clipped.length < height) {
+    clipped.push(' '.repeat(Math.max(0, width)));
+  }
+  const rect = { x: 0, y: 0, width, height };
+  const projected = projectRendererCursorMarkerLines({
+    lines: clipped,
+    rect,
+    viewport: { x: 0, y: 0, width, height },
+  });
+  const content = promoteRendererRegionLinesToCells(projected.lines);
+  const regions: RendererFrameRegion[] = [
+    {
+      id: 'fullscreen-takeover',
+      rect,
+      content,
+      clear: true,
+      background: canvasBackground,
+      zIndex: 1_000,
+    },
+  ];
+  const skipDecorative = options.skipDecorativeEditorEffects === true;
+  const diagnosticsOverlay = skipDecorative
+    ? undefined
+    : createTUIStateDiagnosticsOverlayRegion(
+        state,
+        options.diagnosticsOverlay,
+        options.diagnostics,
+        width,
+        height,
+      );
+  return {
+    regions: diagnosticsOverlay === undefined ? regions : [...regions, diagnosticsOverlay],
+    cursor: projected.cursor ?? hiddenNativeCursor(),
+    chrome: emptyNativeFrameChrome(),
+  };
 }
 
 function buildTUIStateNativeFrame(
@@ -468,15 +596,30 @@ function buildTUIStateNativeFrame(
   options: {
     readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
     readonly diagnostics?: RendererDiagnosticsSnapshot;
+    readonly reuseChrome?: TUIStateNativeFrameChrome;
+    /** Skip Ultrawork perimeter chase / focus VFX (typing hot path). */
+    readonly skipDecorativeEditorEffects?: boolean;
   } = {},
 ): TUIStateNativeFrame {
-  const headerLines = state.headerContainer.render(width);
-  const activityLines = state.activityContainer.render(width);
-  const todoLines = state.todoPanelContainer.render(width);
-  const queueLines = state.queueContainer.render(width);
-  const btwLines = state.btwPanelContainer.render(width);
+  if (isNativeFullscreenTakeover(state)) {
+    return buildNativeFullscreenTakeoverFrame(state, width, height, options);
+  }
+  const reuse = options.reuseChrome;
+  const headerLines = reuse?.header ?? state.headerContainer.render(width);
+  const activityLines = reuse?.activity ?? state.activityContainer.render(width);
+  const todoLines = reuse?.todo ?? state.todoPanelContainer.render(width);
+  const queueLines = reuse?.queue ?? state.queueContainer.render(width);
+  const btwLines = reuse?.btw ?? state.btwPanelContainer.render(width);
   const editorLines = nativeEditorFallbackRegionLines(state, width);
-  const footerLines = state.footerContainer.render(width);
+  const footerLines = reuse?.footer ?? state.footerContainer.render(width);
+  const chrome: TUIStateNativeFrameChrome = {
+    header: headerLines,
+    activity: activityLines,
+    todo: todoLines,
+    queue: queueLines,
+    btw: btwLines,
+    footer: footerLines,
+  };
   const fixedRowsWithoutEditor =
     headerLines.length +
     activityLines.length +
@@ -517,6 +660,7 @@ function buildTUIStateNativeFrame(
 
   let cursor = hiddenNativeCursor();
   const canvasBackground = currentTheme.canvasBackgroundCell();
+  const skipDecorative = options.skipDecorativeEditorEffects === true;
   const regions = createRendererStackFrameRegions(
     layout,
     layout.regions.flatMap((region) => {
@@ -542,19 +686,21 @@ function buildTUIStateNativeFrame(
       const ultraworkBorder =
         region.id === 'editor' &&
         state.appState.ultraworkMode === true &&
-        motionEffectsAllowed();
-      const rawContent = region.id === 'editor'
-        ? projected.lines
-        : region.id === 'transcript'
-          ? promoteTranscriptRegionLinesToCells(projected.lines)
-          : promoteRendererRegionLinesToCells(projected.lines);
+        motionEffectsAllowed() &&
+        !skipDecorative;
+      // Promote ANSI strings to cells before Ultrawork border paint. Approval /
+      // permission dialogs replace the editor and still emit chalk strings —
+      // raw Array.from on those lines used to leak SGR bodies as visible text.
+      const rawContent = region.id === 'transcript'
+        ? promoteTranscriptRegionLinesToCells(projected.lines)
+        : promoteRendererRegionLinesToCells(projected.lines);
       const content =
         ultraworkBorder && rawContent.length > 0
           ? paintUltraworkEditorBorderGlow(rawContent, appearanceAnimationNow())
           : rawContent;
       if (content.length === 0 && region.id !== 'transcript') return [];
       const vfx =
-        region.id === 'editor' && state.editor.borderHighlighted
+        region.id === 'editor' && state.editor.borderHighlighted && !skipDecorative
           ? ultraworkBorder
             ? createTUIStateNativeRegionVfx(state, 'loading-shimmer', {
                 color: resolveUltraworkBorderGlowHex(appearanceAnimationNow()),
@@ -580,16 +726,19 @@ function buildTUIStateNativeFrame(
       }];
     }),
   );
-  const diagnosticsOverlay = createTUIStateDiagnosticsOverlayRegion(
-    state,
-    options.diagnosticsOverlay,
-    options.diagnostics,
-    width,
-    height,
-  );
+  const diagnosticsOverlay = skipDecorative
+    ? undefined
+    : createTUIStateDiagnosticsOverlayRegion(
+        state,
+        options.diagnosticsOverlay,
+        options.diagnostics,
+        width,
+        height,
+      );
   return {
     regions: diagnosticsOverlay === undefined ? regions : [...regions, diagnosticsOverlay],
     cursor,
+    chrome,
   };
 }
 
@@ -722,7 +871,13 @@ function nativeEditorRegionRowsForLayout(
     ?? (overlayLines.length > 0
       ? measureRendererEditorSurfaceNaturalRows(overlayLines)
       : editorRows);
-  const minEditorRows = Math.min(desiredRows, 3);
+  // Closed box needs 3 rows; open autocomplete needs at least 4
+  // (top + input + ≥1 suggestion + bottom). Capping the floor at 3 used to
+  // clip slash suggestions in short terminals even when a 4th row was free.
+  const minEditorRows = Math.min(
+    desiredRows,
+    overlayLines.length > 0 ? 4 : 3,
+  );
   const availableRows = Math.max(
     0,
     Math.floor(terminalRows) - fixedRowsWithoutEditor - NATIVE_LAYOUT_MIN_TRANSCRIPT_ROWS,

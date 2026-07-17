@@ -10,6 +10,7 @@ import {
   resolveAmbientEffectMode,
   setActiveAppearancePreferences,
 } from '#/tui/utils/appearance-effects';
+import { isTUIInputInteractionActive } from '#/tui/utils/input-interaction';
 
 import { AnimationScheduler } from './animation-scheduler';
 
@@ -120,10 +121,14 @@ export function shouldRenderAmbientAnimationFrame(
   followOutput: boolean,
   terminalRows: number,
   transcriptSelectionActive = false,
+  options: { readonly nowMs?: number } = {},
 ): boolean {
   if (transcriptSelectionActive) return false;
   if (!followOutput) return false;
   if (!Number.isFinite(terminalRows) || terminalRows <= 0) return false;
+  // Typing and ambient ticks share the same render loop. Hold decorative
+  // frames for a short window after input so prompt keystrokes stay snappy.
+  if (isTUIInputInteractionActive(options.nowMs)) return false;
   return true;
 }
 

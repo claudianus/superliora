@@ -363,7 +363,14 @@ export function renderRendererEditorFrame(
     label: options.topLabel,
   }));
 
-  for (let row = 0; row < height - 2; row++) {
+  // When autocomplete overlays attach below the input, the bottom border is
+  // deferred to the overlay chrome. Content must then use height - 1 (top only),
+  // not height - 2 — otherwise frameRows=2 paints only the top edge and the
+  // prompt/`/` line vanishes the moment slash suggestions open.
+  const bottomBorderRows = options.omitBottomBorder === true ? 0 : 1;
+  const contentRows = Math.max(0, height - 1 - bottomBorderRows);
+
+  for (let row = 0; row < contentRows; row++) {
     const cells = createRendererEditorBlankLine(width, options.surfaceStyle);
     cells[0] = { char: '│', style: options.borderStyle };
     cells[width - 1] = { char: '│', style: options.borderStyle };
@@ -411,6 +418,7 @@ export function renderRendererEditorFrame(
       width,
       height,
       contentX,
+      contentRows,
       inputCursor: options.inputCursor,
       hasScrollbar: scrollbarLines.length > 0,
     }),
@@ -420,10 +428,16 @@ export function renderRendererEditorFrame(
 export function renderRendererEditorSurface(
   options: RendererEditorSurfaceOptions,
 ): RendererEditorSurfaceResult {
-  const frameRows = normalizeEditorFrameSize(
-    options.frameRows ?? options.content.lines.length + 2,
-  );
-  const viewportRows = Math.max(0, frameRows - 2);
+  const overlayLines = options.overlays ?? [];
+  const hasOverlays = overlayLines.length > 0;
+  // Overlays defer the bottom border, so the input frame is top + content only
+  // (contentRows + 1), not the closed box height (contentRows + 2). Defaulting
+  // to +2 left a blank content row between the prompt and slash suggestions.
+  const defaultFrameRows =
+    Math.max(1, options.content.lines.length) + (hasOverlays ? 1 : 2);
+  const frameRows = normalizeEditorFrameSize(options.frameRows ?? defaultFrameRows);
+  const bottomBorderRows = hasOverlays ? 0 : 1;
+  const viewportRows = Math.max(0, frameRows - 1 - bottomBorderRows);
   const contentX = normalizeEditorFrameCoordinate(
     options.contentX,
     RENDERER_EDITOR_CONTENT_X,
@@ -454,8 +468,6 @@ export function renderRendererEditorSurface(
     options.scrollbar !== false && options.scrollbar !== undefined
       ? options.scrollbar
       : undefined;
-  const overlayLines = options.overlays ?? [];
-  const hasOverlays = overlayLines.length > 0;
   const frame = renderRendererEditorFrame({
     ...options,
     height: frameRows,
@@ -534,10 +546,11 @@ export function measureRendererEditorSurfaceNaturalRows(
   overlays: readonly RendererRegionLine[] = [],
   contentRows = 1,
 ): number {
-  if (overlays.length > 0) {
-    return 2 + overlays.length + 1;
-  }
   const normalizedContentRows = Math.max(1, Math.floor(contentRows));
+  if (overlays.length > 0) {
+    // top border + input rows + suggestion rows + bottom border (on overlay chrome)
+    return 1 + normalizedContentRows + overlays.length + 1;
+  }
   return Math.max(3, 2 + normalizedContentRows);
 }
 
@@ -561,16 +574,21 @@ export function measureRendererEditorSurfaceLayout(
     };
   }
 
+  // Keep the prompt/input frame (top + content) and shrink suggestions first.
+  // frameRows is the open-top frame only (bottom border lives on overlay chrome).
   const minFrameRows = Math.min(
     rows,
-    normalizeEditorFrameSize(options.minFrameRows ?? 2),
+    Math.max(2, normalizeEditorFrameSize(options.minFrameRows ?? 2)),
   );
   const overlayBottomRows = 1;
+  // Reserve at least one row for the bottom border when height allows; if the
+  // region is only 3 tall we still keep the prompt and drop suggestions.
+  const frameRows =
+    rows === 0 ? 0 : Math.min(minFrameRows, Math.max(2, rows - overlayBottomRows));
   const overlayRows = Math.min(
     overlays.length,
-    Math.max(0, rows - minFrameRows - overlayBottomRows),
+    Math.max(0, rows - frameRows - overlayBottomRows),
   );
-  const frameRows = rows === 0 ? 0 : minFrameRows;
   return {
     rows,
     frameRows,
@@ -654,15 +672,20 @@ function projectRendererEditorFrameCursor(options: {
   readonly width: number;
   readonly height: number;
   readonly contentX: number;
+  readonly contentRows: number;
   readonly inputCursor: RendererCursorState | undefined;
   readonly hasScrollbar: boolean;
 }): RendererCursorState | undefined {
   const cursor = options.inputCursor;
   if (cursor === undefined || cursor.visible === false) return undefined;
+  if (options.contentRows <= 0) return undefined;
   const maxX = Math.max(0, options.width - (options.hasScrollbar ? 3 : 2));
   const x = Math.min(maxX, Math.floor(options.contentX + cursor.x));
   const y = Math.floor(1 + cursor.y);
-  if (x < 0 || y < 0 || x >= options.width || y >= options.height) return undefined;
+  // Keep the caret inside painted content rows (not the deferred overlay area).
+  if (x < 0 || y < 1 || y > options.contentRows || x >= options.width || y >= options.height) {
+    return undefined;
+  }
   return { ...cursor, x, y };
 }
 

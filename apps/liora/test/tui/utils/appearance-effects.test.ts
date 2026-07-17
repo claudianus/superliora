@@ -167,6 +167,30 @@ describe('soft ambient particles', () => {
     expect(b).toMatch(/^#[0-9A-Fa-f]{6}$/);
     expect(a.toLowerCase()).not.toBe(b.toLowerCase());
   });
+
+  it('parses ANSI string editor lines instead of Array.from SGR explosion', () => {
+    // Approval / permission dialogs replace the editor and still emit chalk
+    // strings. Ultrawork border paint must parse CSI, not split ESC into cells.
+    const ansiChoice =
+      '\u001B[38;2;122;162;247m\u001B[1m  \u001B[0;1;38;2;230;57;70m❯\u001B[0m 1. Approve once\u001B[22m\u001B[39m';
+    const frame = [
+      '╭' + '─'.repeat(28) + '╮',
+      ansiChoice,
+      '╰' + '─'.repeat(28) + '╯',
+    ];
+    const painted = paintUltraworkEditorBorderGlow(frame, 0);
+    expect(painted).toHaveLength(3);
+    const mid = painted[1] as Array<{ char: string }>;
+    const midText = mid.map((cell) => cell.char).join('');
+    // Visible payload survives; SGR bodies must not become plain text cells.
+    expect(midText).toContain('Approve once');
+    expect(midText).toContain('❯');
+    expect(midText).not.toMatch(/\[0;1;38/);
+    expect(midText).not.toContain('38;2;230;57;70');
+    // Cell count stays near the printable width, not the raw ANSI byte length.
+    expect(mid.length).toBeLessThan(40);
+    expect(mid.length).toBeGreaterThan(10);
+  });
 });
 
 describe('spectacular text ANSI safety', () => {

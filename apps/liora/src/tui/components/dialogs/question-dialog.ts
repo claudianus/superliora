@@ -504,11 +504,45 @@ export class QuestionDialogComponent extends Container implements Focusable {
         else if (isCursor) tone = accent;
         else tone = dim;
       } else if (isSelected && this.isAnswered(questionIdx)) {
-        prefix = isCursor ? `  ${renderSelectPointer('question:pointer')} [${String(num)}] ` : `    [${String(num)}] `;
+        // Keep ambient pointer outside tone() — chalk rewrap used to leak SGR.
+        prefix = isCursor
+          ? `  ${renderSelectPointer('question:pointer')} `
+          : '    ';
+        const numbered = `[${String(num)}] `;
         tone = isCursor ? (s) => currentTheme.boldFg('success', s) : success;
+        const continuation = ' '.repeat(visibleWidth(prefix) + visibleWidth(numbered));
+        appendWrapped(body, prefix, continuation, numbered + label, renderWidth, (s) => {
+          // Style only the plain payload after the already-styled pointer.
+          if (isCursor && s.startsWith(prefix)) {
+            return prefix + tone(s.slice(prefix.length));
+          }
+          return tone(s);
+        });
+        if (
+          option.description !== undefined &&
+          option.description.length > 0 &&
+          !(this.isEditingOther() && isCursor && isOther)
+        ) {
+          appendWrapped(body, '        ', '        ', option.description, renderWidth, dim);
+        }
+        continue;
       } else if (isCursor) {
-        prefix = `  ${renderSelectPointer('question:pointer')} [${String(num)}] `;
+        prefix = `  ${renderSelectPointer('question:pointer')} `;
+        const numbered = `[${String(num)}] `;
         tone = accent;
+        const continuation = ' '.repeat(visibleWidth(prefix) + visibleWidth(numbered));
+        appendWrapped(body, prefix, continuation, numbered + label, renderWidth, (s) => {
+          if (s.startsWith(prefix)) return prefix + tone(s.slice(prefix.length));
+          return tone(s);
+        });
+        if (
+          option.description !== undefined &&
+          option.description.length > 0 &&
+          !(this.isEditingOther() && isCursor && isOther)
+        ) {
+          appendWrapped(body, '        ', '        ', option.description, renderWidth, dim);
+        }
+        continue;
       } else {
         prefix = `    [${String(num)}] `;
         tone = dim;
@@ -594,7 +628,9 @@ export class QuestionDialogComponent extends Container implements Focusable {
       if (label === undefined) continue;
       const num = i + 1;
       if (i === this.submitActionIdx) {
-        body.push(accent(`  ${renderSelectPointer('question:pointer')} [${String(num)}] ${label}`));
+        body.push(
+          `  ${renderSelectPointer('question:pointer')} ${accent(`[${String(num)}] ${label}`)}`,
+        );
       } else {
         body.push(dim(`    [${String(num)}] ${label}`));
       }
@@ -757,11 +793,14 @@ export class QuestionDialogComponent extends Container implements Focusable {
         ? currentTheme.boldFg('success', body)
         : currentTheme.fg('primary', body);
     } else {
-      const body = `  ${renderSelectPointer('question:pointer')} [${String(num)}] ${option.label}: `;
-      prefix =
+      // Pointer is already ambient-styled; only paint the plain label suffix.
+      const pointer = renderSelectPointer('question:pointer');
+      const plain = `[${String(num)}] ${option.label}: `;
+      const styled =
         isSelected && this.isAnswered(questionIdx)
-          ? currentTheme.boldFg('success', body)
-          : currentTheme.fg('primary', body);
+          ? currentTheme.boldFg('success', plain)
+          : currentTheme.fg('primary', plain);
+      prefix = `  ${pointer} ${styled}`;
     }
 
     const inputWidth = Math.max(4, width - visibleWidth(prefix) + 2);

@@ -20,6 +20,10 @@ import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
+import {
+  noteTUIInputInteraction,
+  resetTUIInputInteractionForTests,
+} from '#/tui/utils/input-interaction';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 
@@ -148,11 +152,19 @@ describe('AppearanceController', () => {
   });
 
   it('keeps ambient animation gating independent of transcript message count', () => {
+    resetTUIInputInteractionForTests();
     expect(shouldRenderAmbientAnimationFrame(true, 24)).toBe(true);
     expect(shouldRenderAmbientAnimationFrame(true, 1)).toBe(true);
     expect(shouldRenderAmbientAnimationFrame(false, 24)).toBe(false);
     expect(shouldRenderAmbientAnimationFrame(true, 0)).toBe(false);
     expect(shouldRenderAmbientAnimationFrame(true, Number.NaN)).toBe(false);
+  });
+
+  it('suppresses ambient animation for a short window after prompt input', () => {
+    resetTUIInputInteractionForTests();
+    noteTUIInputInteraction(1_000);
+    expect(shouldRenderAmbientAnimationFrame(true, 24, false, { nowMs: 1_050 })).toBe(false);
+    expect(shouldRenderAmbientAnimationFrame(true, 24, false, { nowMs: 1_250 })).toBe(true);
   });
 
   it('blocks terminal palette mutation in unsafe environments', () => {

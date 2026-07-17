@@ -185,10 +185,15 @@ export class ChoicePickerComponent extends Container implements Focusable {
       const opt = options[i]!;
       const isSelected = i === view.selectedIndex;
       const isCurrent = opt.value === this.opts.currentValue;
+      // Pointer / shimmer prefix are already styled; do not chalk-wrap them again.
       const pointer = isSelected ? renderSelectPointer('choice:pointer') : ' ';
       const labelStyle = optionLabelStyle(opt, isSelected);
       const pulse = animated && isSelected ? renderShimmerPrefix(appearance) : '';
-      let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pulse}${pointer} `);
+      let line =
+        currentTheme.fg(isSelected ? 'primary' : 'textDim', '  ') +
+        pulse +
+        pointer +
+        currentTheme.fg(isSelected ? 'primary' : 'textDim', ' ');
       line += animated && isSelected && opt.tone !== 'danger'
         ? renderAnimatedGradientText(opt.label, `choice:row:${opt.value}`, appearance)
         : labelStyle(opt.label);
