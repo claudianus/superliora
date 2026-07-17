@@ -1,3 +1,4 @@
+import { setCliLocale } from '#/cli/i18n';
 import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -96,6 +97,7 @@ describe('WelcomeComponent', () => {
   });
 
   it('leads logged-in users to describe the task first', () => {
+    setCliLocale('en');
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
     expect(output).toContain('____  ___');

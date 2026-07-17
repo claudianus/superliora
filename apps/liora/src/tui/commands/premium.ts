@@ -1,6 +1,7 @@
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './dispatch';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export async function handlePremiumQualityCommand(
   host: SlashCommandHost,
@@ -17,7 +18,7 @@ export async function handlePremiumQualityCommand(
 
   if (subcmd === 'on') {
     if (current) {
-      host.showNotice('Premium Quality mode is already on');
+      host.showNotice(ttui('tui.premium.alreadyOn'));
       return;
     }
     await applyPremiumQuality(host, true);
@@ -26,7 +27,7 @@ export async function handlePremiumQualityCommand(
 
   if (subcmd === 'off') {
     if (!current) {
-      host.showNotice('Premium Quality mode is already off');
+      host.showNotice(ttui('tui.premium.alreadyOff'));
       return;
     }
     await applyPremiumQuality(host, false);
@@ -35,15 +36,13 @@ export async function handlePremiumQualityCommand(
 
   if (subcmd === 'status' || subcmd.length === 0) {
     host.showNotice(
-      current ? 'Premium Quality mode: ON' : 'Premium Quality mode: OFF',
-      current
-        ? 'Visual-first premium harness active — art direction, anti-slop visuals, skill routing, screenshot proof.'
-        : 'Use /premium on to enable continuous visual-first premium-quality pursuit.',
+      current ? ttui('tui.premium.on.title') : ttui('tui.premium.off.title'),
+      current ? ttui('tui.premium.on.detail') : undefined,
     );
     return;
   }
 
-  host.showError('Usage: /premium [on|off|status]');
+  host.showError(ttui('tui.premium.usage'));
 }
 
 export async function applyPremiumQuality(
@@ -59,13 +58,11 @@ export async function applyPremiumQuality(
     await session.setPremiumQuality(enabled);
     host.setAppState({ premiumQualityMode: enabled });
     host.showNotice(
-      enabled ? 'Premium Quality mode: ON' : 'Premium Quality mode: OFF',
-      enabled
-        ? 'Visual-first premium harness active — art direction, skill routing, rubric, screenshot verification.'
-        : undefined,
+      enabled ? ttui('tui.premium.on.title') : ttui('tui.premium.off.title'),
+      enabled ? ttui('tui.premium.on.detail.apply') : undefined,
       { coalesceKey: 'premium-quality-mode' },
     );
   } catch (error) {
-    host.showError(`Failed to set Premium Quality mode: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.premium.setFailed', { message: formatErrorMessage(error) }));
   }
 }

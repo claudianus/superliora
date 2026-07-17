@@ -2,14 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   formatMediaFooterBadge,
-  formatOfficeFooterBadge,
-  formatWebFooterBadge,
-  formatZdrFooterBadge,
   mediaImageKeyReady,
   mediaVideoKeyReady,
 } from '#/tui/components/chrome/footer';
 
-const KEYS = ['OPENAI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'SUPERLIORA_TELEMETRY', 'TELEMETRY'] as const;
+const KEYS = ['OPENAI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'] as const;
 
 describe('footer media readiness badges', () => {
   const prev: Record<string, string | undefined> = {};
@@ -46,48 +43,5 @@ describe('footer media readiness badges', () => {
   it('returns null when no media keys exist', () => {
     clearKeys();
     expect(formatMediaFooterBadge()).toBeNull();
-  });
-});
-
-describe('footer ZDR readiness badges', () => {
-  const prev: Record<string, string | undefined> = {};
-
-  afterEach(() => {
-    for (const key of ['SUPERLIORA_TELEMETRY', 'TELEMETRY'] as const) {
-      if (prev[key] === undefined) delete process.env[key];
-      else process.env[key] = prev[key];
-    }
-  });
-
-  function clearTelemetry(): void {
-    for (const key of ['SUPERLIORA_TELEMETRY', 'TELEMETRY'] as const) {
-      prev[key] = process.env[key];
-      delete process.env[key];
-    }
-  }
-
-  it('defaults to zdr when telemetry is unset', () => {
-    clearTelemetry();
-    expect(formatZdrFooterBadge()?.label).toBe('zdr');
-  });
-
-  it('reports tel when SUPERLIORA_TELEMETRY is on', () => {
-    clearTelemetry();
-    process.env['SUPERLIORA_TELEMETRY'] = '1';
-    expect(formatZdrFooterBadge()?.label).toBe('tel');
-  });
-});
-
-describe('footer web readiness badges', () => {
-  it('always reports web for built-in research tools', () => {
-    expect(formatWebFooterBadge().label).toBe('web');
-    expect(formatWebFooterBadge().severity).toBe('info');
-  });
-});
-
-describe('footer office readiness badges', () => {
-  it('always reports office for catalog docx/pptx/xlsx skills', () => {
-    expect(formatOfficeFooterBadge().label).toBe('office');
-    expect(formatOfficeFooterBadge().severity).toBe('info');
   });
 });

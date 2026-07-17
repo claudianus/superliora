@@ -30,6 +30,7 @@ import { showUsage } from './info';
 import { setExperimentalFeatures } from './experimental-flags';
 import type { SlashCommandHost } from './dispatch';
 import { isActiveUltraworkRun, ultraworkModeDisableBlockedMessage } from './ultrawork-contract';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 // ---------------------------------------------------------------------------
 // Plan / Config commands
@@ -211,23 +212,23 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
 
   if (subcmd === 'on') {
     if (currentMode === 'yolo') {
-      host.showNotice('YOLO mode is already on');
+      host.showNotice(ttui('tui.permission.yolo.alreadyOn'));
       return;
     }
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
-    host.showNotice('YOLO mode: ON', 'Most tools auto-approved. Structured questions auto-answered; still asks for delete/secrets.', { coalesceKey: 'permission-mode-yolo' });
+    host.showNotice(ttui('tui.permission.yolo.on.title'), ttui('tui.permission.yolo.on.detail'), { coalesceKey: 'permission-mode-yolo' });
     return;
   }
 
   if (subcmd === 'off') {
     if (currentMode !== 'yolo') {
-      host.showNotice('YOLO mode is already off');
+      host.showNotice(ttui('tui.permission.yolo.alreadyOff'));
       return;
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('YOLO mode: OFF', undefined, { coalesceKey: 'permission-mode-yolo' });
+    host.showNotice(ttui('tui.permission.yolo.off.title'), undefined, { coalesceKey: 'permission-mode-yolo' });
     return;
   }
 
@@ -235,11 +236,11 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'yolo') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('YOLO mode: OFF', undefined, { coalesceKey: 'permission-mode-yolo' });
+    host.showNotice(ttui('tui.permission.yolo.off.title'), undefined, { coalesceKey: 'permission-mode-yolo' });
   } else {
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
-    host.showNotice('YOLO mode: ON', 'Most tools auto-approved. Structured questions auto-answered; still asks for delete/secrets.', { coalesceKey: 'permission-mode-yolo' });
+    host.showNotice(ttui('tui.permission.yolo.on.title'), ttui('tui.permission.yolo.on.detail'), { coalesceKey: 'permission-mode-yolo' });
   }
 }
 
@@ -255,23 +256,23 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
 
   if (subcmd === 'on') {
     if (currentMode === 'auto') {
-      host.showNotice('Auto mode is already on');
+      host.showNotice(ttui('tui.permission.auto.alreadyOn'));
       return;
     }
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
-    host.showNotice('Auto mode: ON', 'Tools auto-approved. Structured questions are auto-answered.', { coalesceKey: 'permission-mode-auto' });
+    host.showNotice(ttui('tui.permission.auto.on.title'), ttui('tui.permission.auto.on.detail'), { coalesceKey: 'permission-mode-auto' });
     return;
   }
 
   if (subcmd === 'off') {
     if (currentMode !== 'auto') {
-      host.showNotice('Auto mode is already off');
+      host.showNotice(ttui('tui.permission.auto.alreadyOff'));
       return;
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('Auto mode: OFF', undefined, { coalesceKey: 'permission-mode-auto' });
+    host.showNotice(ttui('tui.permission.auto.off.title'), undefined, { coalesceKey: 'permission-mode-auto' });
     return;
   }
 
@@ -279,11 +280,11 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'auto') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    host.showNotice('Auto mode: OFF', undefined, { coalesceKey: 'permission-mode-auto' });
+    host.showNotice(ttui('tui.permission.auto.off.title'), undefined, { coalesceKey: 'permission-mode-auto' });
   } else {
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
-    host.showNotice('Auto mode: ON', 'Tools auto-approved. Structured questions are auto-answered.', { coalesceKey: 'permission-mode-auto' });
+    host.showNotice(ttui('tui.permission.auto.on.title'), ttui('tui.permission.auto.on.detail'), { coalesceKey: 'permission-mode-auto' });
   }
 }
 
@@ -767,7 +768,7 @@ export async function applyUpdatePreferenceChoice(
 
 async function applyPermissionChoice(host: SlashCommandHost, mode: PermissionMode): Promise<void> {
   if (mode === host.state.appState.permissionMode) {
-    host.showStatus(`Permission mode unchanged: ${mode}.`);
+    host.showStatus(ttui('tui.permission.mode.unchanged', { mode }));
     return;
   }
 
@@ -780,7 +781,7 @@ async function applyPermissionChoice(host: SlashCommandHost, mode: PermissionMod
   }
 
   host.setAppState({ permissionMode: mode });
-  host.showNotice(`Permission mode: ${mode}`);
+  host.showNotice(ttui('tui.permission.mode.set', { mode }));
 }
 
 export function showSettingsSelector(host: SlashCommandHost): void {

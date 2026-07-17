@@ -56,6 +56,7 @@ import type { SessionEventHandler } from './session-event-handler';
 import type { TUIState } from '../tui-state';
 import { autoResumeUltraworkFromSession } from '../commands/ultrawork';
 import type { SlashCommandHost } from '../commands/dispatch';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
 type CompactionReplayRecord = Extract<AgentReplayRecord, { type: 'compaction' }>;
@@ -605,8 +606,8 @@ export class SessionReplayRenderer {
   private renderPermissionUpdate(context: ReplayRenderContext, mode: PermissionMode): void {
     if (mode === 'yolo') {
       this.host.appendTranscriptEntry(
-        replayEntry(context, 'status', 'YOLO mode: ON', 'notice', {
-          detail: 'All actions will be approved automatically. Use with caution.',
+        replayEntry(context, 'status', ttui('tui.permission.yolo.on.title'), 'notice', {
+          detail: ttui('tui.permission.replay.yoloOn.detail'),
         }),
       );
       return;
@@ -615,7 +616,7 @@ export class SessionReplayRenderer {
       replayEntry(
         context,
         'status',
-        mode === 'manual' ? 'YOLO mode: OFF' : `Permission mode: ${mode}`,
+        mode === 'manual' ? ttui('tui.permission.yolo.off.title') : ttui('tui.permission.mode.set', { mode }),
         'notice',
       ),
     );

@@ -96,10 +96,12 @@ function tipsForIndex(index: number): { primary: string; pair: string | null } {
   if (n === 0) return { primary: '', pair: null };
   const offset = ((index % n) + n) % n;
   const current = ROTATION[offset]!;
-  if (n === 1 || current.solo) return { primary: current.text, pair: null };
+  const currentText = ttui(current.key);
+  if (n === 1 || current.solo) return { primary: currentText, pair: null };
   const next = ROTATION[(offset + 1) % n]!;
-  if (next.solo || next.text === current.text) return { primary: current.text, pair: null };
-  return { primary: current.text, pair: current.text + TIP_SEPARATOR + next.text };
+  const nextText = ttui(next.key);
+  if (next.solo || next.key === current.key) return { primary: currentText, pair: null };
+  return { primary: currentText, pair: currentText + TIP_SEPARATOR + nextText };
 }
 
 /**
@@ -300,18 +302,6 @@ export function mediaProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boo
 }
 
 /** Compact footer badge for beginner-visible media readiness (no MCP). */
-/** Compact footer badge for default ZDR-friendly local posture (telemetry off). */
-export function formatZdrFooterBadge(
-  env: NodeJS.ProcessEnv = process.env,
-): { readonly label: string; readonly severity: FooterBadgeSeverity } | null {
-  // Product telemetry is opt-in. Absence of SUPERLIORA_TELEMETRY=1 keeps ZDR-friendly local mode.
-  const raw = nonEmptyEnv(env['SUPERLIORA_TELEMETRY'] ?? env['TELEMETRY']);
-  if (raw !== undefined && ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())) {
-    return { label: 'tel', severity: 'warning' };
-  }
-  return { label: 'zdr', severity: 'info' };
-}
-
 export function formatMediaFooterBadge(
   env: NodeJS.ProcessEnv = process.env,
 ): { readonly label: string; readonly severity: FooterBadgeSeverity } | null {
@@ -322,24 +312,6 @@ export function formatMediaFooterBadge(
   if (image && video) return { label: 'img·vid', severity: 'info' };
   if (image) return { label: 'img', severity: 'info' };
   return { label: 'vid', severity: 'info' };
-}
-
-/** Compact footer badge for always-on web research (no MCP). */
-export function formatWebFooterBadge(): {
-  readonly label: string;
-  readonly severity: FooterBadgeSeverity;
-} {
-  // WebSearch + FetchURL + Context7 are built-in zero-config research tools.
-  return { label: 'web', severity: 'info' };
-}
-
-/** Compact footer badge for office skills via SearchSkill (no MCP). */
-export function formatOfficeFooterBadge(): {
-  readonly label: string;
-  readonly severity: FooterBadgeSeverity;
-} {
-  // docx / pptx / xlsx skills are catalog-ready for Word, slides, sheets.
-  return { label: 'office', severity: 'info' };
 }
 
 /** Context usage line severity aligned with soft/hard reclaim ladder. */
@@ -500,16 +472,6 @@ export class FooterComponent implements Component {
     if (mediaBadge !== null) {
       modes.push(
         renderPulseText(mediaBadge.label, `footer:${mediaBadge.label}`, 'accent', appearance),
-      );
-    }
-    const webBadge = formatWebFooterBadge();
-    modes.push(renderPulseText(webBadge.label, `footer:${webBadge.label}`, 'accent', appearance));
-    const officeBadge = formatOfficeFooterBadge();
-    modes.push(renderPulseText(officeBadge.label, `footer:${officeBadge.label}`, 'accent', appearance));
-    const zdrBadge = formatZdrFooterBadge();
-    if (zdrBadge !== null) {
-      modes.push(
-        renderPulseText(zdrBadge.label, `footer:${zdrBadge.label}`, 'primary', appearance),
       );
     }
     if (modes.length > 0) left.push(modes.join(' '));

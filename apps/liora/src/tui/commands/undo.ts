@@ -26,6 +26,7 @@ import { requestTUILayoutRender } from '../utils/frame-render';
 import { getTranscriptComponentEntry } from '../utils/transcript-component-metadata';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { SlashCommandHost } from './dispatch';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 // ---------------------------------------------------------------------------
 // Undo command
@@ -503,16 +504,16 @@ function reassertPermissionModeNotice(host: SlashCommandHost): void {
   const mode = host.state.appState.permissionMode;
   if (mode === 'auto') {
     host.showNotice(
-      'Auto mode: ON',
-      'Tools auto-approved. Structured questions are auto-answered.',
+      ttui('tui.permission.auto.on.title'),
+      ttui('tui.permission.auto.on.detail'),
       { coalesceKey: 'permission-mode-auto' },
     );
     return;
   }
   if (mode === 'yolo') {
     host.showNotice(
-      'YOLO mode: ON',
-      'Most tools auto-approved. Structured questions auto-answered; still asks for delete/secrets.',
+      ttui('tui.permission.yolo.on.title'),
+      ttui('tui.permission.yolo.on.detail'),
       { coalesceKey: 'permission-mode-yolo' },
     );
   }

@@ -17,6 +17,7 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface DeviceCodeBoxParams {
   readonly title: string;
@@ -51,13 +52,13 @@ export class DeviceCodeBoxComponent implements Component {
       '…',
     );
     const promptLine = truncateToWidth(
-      currentTheme.fg('textDim', 'Visit the URL below in your browser to authorize:'),
+      currentTheme.fg('textDim', ttui('tui.device.visitUrl')),
       innerWidth,
       '…',
     );
     const urlLine = truncateToWidth(currentTheme.fg('primary', url), innerWidth, '…');
 
-    const codeLabel = currentTheme.boldFg('textDim', 'Verification code:  ');
+    const codeLabel = currentTheme.boldFg('textDim', ttui('tui.device.codeLabel'));
     const codeValue = animated
       ? renderSpectacularText(code, 'device-code:code', appearance, { intense: true })
       : currentTheme.boldFg('accent', code);

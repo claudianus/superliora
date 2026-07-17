@@ -70,8 +70,8 @@ import { CommandPaletteComponent, type PaletteEntry } from './components/dialogs
 import { HistorySearchDialogComponent } from './components/dialogs/history-search-dialog';
 import { TranscriptSearchDialogComponent } from './components/dialogs/transcript-search';
 import {
-  ADVANCED_HELP_INTRO,
-  ADVANCED_KEYBOARD_SHORTCUTS,
+  advancedHelpIntro,
+  advancedKeyboardShortcuts,
   HelpPanelComponent,
 } from './components/dialogs/help-panel';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
@@ -220,11 +220,8 @@ type MutableCreateSessionOptions = {
 };
 
 function createInitialAppState(input: LioraTUIStartupInput): AppState {
-  const startupPermission: PermissionMode = input.cliOptions.auto
-    ? 'auto'
-    : input.cliOptions.yolo
-      ? 'yolo'
-      : 'manual';
+  // Product default is YOLO; only --auto overrides at startup.
+  const startupPermission: PermissionMode = input.cliOptions.auto ? 'auto' : 'yolo';
   return {
     model: '',
     workDir: input.workDir,
@@ -3110,14 +3107,14 @@ export class LioraTUI {
         intro: mode === 'diagnostics'
           ? 'Advanced QA commands for SuperLiora harness development.'
           : mode === 'advanced'
-            ? ADVANCED_HELP_INTRO
+            ? advancedHelpIntro()
           : undefined,
         commandSectionTitle: mode === 'diagnostics'
           ? 'Diagnostic commands'
           : mode === 'advanced'
             ? 'Advanced Ultrawork controls'
             : undefined,
-        shortcuts: mode === 'advanced' ? ADVANCED_KEYBOARD_SHORTCUTS : undefined,
+        shortcuts: mode === 'advanced' ? advancedKeyboardShortcuts() : undefined,
         onClose: () => {
           this.hideHelpPanel();
         },

@@ -146,7 +146,7 @@ describe('AcpServer session/set_mode', () => {
     expectedPlan: boolean;
     expectedPermission: PermissionMode;
   }> = [
-    { modeId: 'default', expectedPlan: false, expectedPermission: 'manual' },
+    { modeId: 'default', expectedPlan: false, expectedPermission: 'yolo' },
     { modeId: 'plan', expectedPlan: true, expectedPermission: 'manual' },
     { modeId: 'auto', expectedPlan: false, expectedPermission: 'auto' },
     { modeId: 'yolo', expectedPlan: false, expectedPermission: 'yolo' },

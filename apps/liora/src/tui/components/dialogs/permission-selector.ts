@@ -1,27 +1,28 @@
 import type { PermissionMode } from '@superliora/sdk';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 
-const PERMISSION_OPTIONS: readonly ChoiceOption[] = [
-  {
-    value: 'manual',
-    label: 'Manual',
-    description:
-      'Ask before commands, edits, and other risky actions. Read/search tools run directly; session approval rules are respected.',
-  },
-  {
-    value: 'auto',
-    label: 'Auto',
-    description:
-      'Run fully non-interactively. Tool actions are approved automatically, and structured agent questions are auto-answered so it can decide on its own.',
-  },
-  {
-    value: 'yolo',
-    label: 'YOLO',
-    description:
-      'Automatically approve most tool actions and plan transitions. Structured questions are auto-answered; SuperLiora still asks you for delete/destructive or credential/secret access.',
-  },
-];
+function permissionOptions(): ChoiceOption[] {
+  return [
+    {
+      value: 'manual',
+      label: ttui('tui.permission.manual.label'),
+      description: ttui('tui.permission.manual.desc'),
+    },
+    {
+      value: 'auto',
+      label: ttui('tui.permission.auto.label'),
+      description: ttui('tui.permission.auto.desc'),
+    },
+    {
+      value: 'yolo',
+      label: ttui('tui.permission.yolo.label'),
+      description: ttui('tui.permission.yolo.desc'),
+    },
+  ];
+}
 
 function isPermissionModeChoice(value: string): value is PermissionMode {
   return value === 'manual' || value === 'auto' || value === 'yolo';
@@ -36,8 +37,8 @@ export interface PermissionSelectorOptions {
 export class PermissionSelectorComponent extends ChoicePickerComponent {
   constructor(opts: PermissionSelectorOptions) {
     super({
-      title: 'Select permission mode',
-      options: [...PERMISSION_OPTIONS],
+      title: ttui('tui.permission.selector.title'),
+      options: permissionOptions(),
       currentValue: opts.currentValue,
       onSelect: (value) => {
         if (isPermissionModeChoice(value)) opts.onSelect(value);

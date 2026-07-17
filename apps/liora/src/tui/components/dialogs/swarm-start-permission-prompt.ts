@@ -1,3 +1,5 @@
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import {
   StartPermissionPromptComponent,
   type StartPermissionOption,
@@ -10,39 +12,36 @@ export interface SwarmStartPermissionPromptOptions {
   readonly onCancel: () => void;
 }
 
-const OPTIONS: readonly StartPermissionOption<SwarmStartPermissionChoice>[] = [
-  {
-    value: 'auto',
-    label: 'Switch to Auto and start',
-    description:
-      'Best for swarm tasks. Tools are approved automatically, and structured questions are auto-answered.',
-  },
-  {
-    value: 'yolo',
-    label: 'Switch to YOLO and start',
-    description:
-      'Tools and plan changes are approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
-  },
-  {
-    value: 'manual',
-    label: 'Start in Manual',
-    description:
-      'Keep approvals on. SuperLiora may stop and wait for you during the swarm task.',
-  },
-];
-
-const NOTICE_LINES = [
-  'Manual mode asks you before SuperLiora runs commands, edits files, or takes other risky actions.',
-  'Manual mode can block swarm work while agents are running.',
-  'You can go back without losing your command.',
-] as const;
+function swarmStartOptions(): StartPermissionOption<SwarmStartPermissionChoice>[] {
+  return [
+    {
+      value: 'auto',
+      label: ttui('tui.swarm.start.option.auto'),
+      description: ttui('tui.swarm.start.option.auto.desc'),
+    },
+    {
+      value: 'yolo',
+      label: ttui('tui.swarm.start.option.yolo'),
+      description: ttui('tui.swarm.start.option.yolo.desc'),
+    },
+    {
+      value: 'manual',
+      label: ttui('tui.swarm.start.option.manual'),
+      description: ttui('tui.swarm.start.option.manual.desc'),
+    },
+  ];
+}
 
 export class SwarmStartPermissionPromptComponent extends StartPermissionPromptComponent<SwarmStartPermissionChoice> {
   constructor(opts: SwarmStartPermissionPromptOptions) {
     super({
-      title: 'Start a swarm task with approvals on?',
-      noticeLines: NOTICE_LINES,
-      options: OPTIONS,
+      title: ttui('tui.swarm.start.title'),
+      noticeLines: [
+        ttui('tui.swarm.start.notice.1'),
+        ttui('tui.swarm.start.notice.2'),
+        ttui('tui.swarm.start.notice.3'),
+      ],
+      options: swarmStartOptions(),
       onSelect: opts.onSelect,
       onCancel: opts.onCancel,
     });

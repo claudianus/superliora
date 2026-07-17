@@ -12,11 +12,8 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import { renderParticleRail } from '#/tui/utils/appearance-effects';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { renderWelcomeBanner } from './welcome-banner';
-
-const LOGGED_IN_PROMPT =
-  'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork';
-const LOGGED_OUT_PROMPT = 'Run /login or paste an API key — media/web/office ready after that, no MCP.';
 
 export class WelcomeComponent implements Component {
   private state: AppState;
@@ -34,16 +31,19 @@ export class WelcomeComponent implements Component {
     const activeModel = this.state.availableModels[this.state.model];
     const layout = resolveResponsiveLayout({ width: safeWidth });
     const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+    const loggedInPrompt = ttui('tui.welcome.prompt.loggedIn');
+    const loggedOutPrompt = ttui('tui.welcome.prompt.loggedOut');
+    const modelUnset = ttui('tui.welcome.modelUnset');
 
     if (safeWidth < 24 || layout === 'tiny') {
       const banner = renderWelcomeBanner(layout, appearance, safeWidth);
       const prompt = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)(LOGGED_OUT_PROMPT)
-        : chalk.hex(currentTheme.palette.textDim)(LOGGED_IN_PROMPT);
+        ? chalk.hex(currentTheme.palette.warning)(loggedOutPrompt)
+        : chalk.hex(currentTheme.palette.textDim)(loggedInPrompt);
       const model = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)('not set, run /login')
+        ? chalk.hex(currentTheme.palette.warning)(modelUnset)
         : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
-      return ['', ...banner, prompt, `Model: ${model}`].map((line) =>
+      return ['', ...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`].map((line) =>
         truncateToWidth(line, safeWidth, '…'),
       );
     }
@@ -53,24 +53,24 @@ export class WelcomeComponent implements Component {
     const dim = chalk.hex(currentTheme.palette.textDim);
     const labelStyle = chalk.bold.hex(currentTheme.palette.textDim);
     const promptLine = truncateToWidth(
-      dim(isLoggedOut ? LOGGED_OUT_PROMPT : LOGGED_IN_PROMPT),
+      dim(isLoggedOut ? loggedOutPrompt : loggedInPrompt),
       innerWidth,
       '…',
     );
 
     const modelValue = isLoggedOut
-      ? chalk.hex(currentTheme.palette.warning)('not set, run /login')
+      ? chalk.hex(currentTheme.palette.warning)(modelUnset)
       : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
 
     const infoLines = [
-      labelStyle('Directory: ') + this.state.workDir,
-      labelStyle('Session:   ') + this.state.sessionId,
-      labelStyle('Model:     ') + modelValue,
-      labelStyle('Version:   ') + this.state.version,
+      labelStyle(ttui('tui.welcome.label.directory')) + this.state.workDir,
+      labelStyle(ttui('tui.welcome.label.session')) + this.state.sessionId,
+      labelStyle(ttui('tui.welcome.label.model')) + modelValue,
+      labelStyle(ttui('tui.welcome.label.version')) + this.state.version,
     ];
 
     if (this.state.mcpServersSummary) {
-      infoLines.push(labelStyle('MCP:       ') + this.state.mcpServersSummary);
+      infoLines.push(labelStyle(ttui('tui.welcome.label.mcp')) + this.state.mcpServersSummary);
     }
 
     const contentLines: string[] = [

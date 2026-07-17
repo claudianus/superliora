@@ -42,6 +42,7 @@ export class PermissionManager {
   }
 
   get mode(): PermissionMode {
+    // Bare Agent unit paths fall back here; product sessions set mode from config.defaultPermissionMode.
     return this.modeOverride ?? this.parent?.mode ?? 'manual';
   }
 
