@@ -122,6 +122,22 @@ describe('LioraRecallStore', () => {
     expect(injection).toContain('Liora Recall');
   });
 
+  it('soft-caps injected memory bodies so long-term prefs stay token-cheap', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    const longBody = `Pref note: ${'x'.repeat(1_200)}`;
+    await runtime.remember({
+      kind: 'semantic',
+      subject: 'long preference',
+      content: longBody,
+      importance: 0.9,
+    });
+
+    const injection = await runtime.getInjection('long preference');
+    expect(injection).toContain('<liora_recall_memories>');
+    expect(injection).toContain('…');
+    expect(injection).not.toContain('x'.repeat(600));
+  });
+
   it('writes readable markdown records for saved memories', async () => {
     const { root, runtime } = makeRuntime('s1', '/repo');
 

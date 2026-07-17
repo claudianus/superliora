@@ -98,7 +98,8 @@ export interface LioraRecallStoreOptions {
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_LIMIT = 20;
-const DEFAULT_INJECTION_LIMIT = 8;
+/** Top-k memories per inject — enough for prefs, not a transcript dump. */
+const DEFAULT_INJECTION_LIMIT = 6;
 const MAX_LIMIT = 100;
 const STORE_RELATIVE_PATH = 'memory/kimi-recall.sqlite';
 const RECORDS_DIR_NAME = 'records';

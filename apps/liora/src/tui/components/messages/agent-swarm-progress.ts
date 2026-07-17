@@ -51,7 +51,8 @@ const AGENT_SWARM_RIGHT_GAP = 1;
 const AGENT_SWARM_NON_GRID_LINES = 14;
 /** Extra transcript rows reserved for the UltraSwarm feed box (border + feed + padding). */
 export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 10;
-const SWARM_OPS_FEED_MAX_ENTRIES = 48;
+/** Ring of recent bus/ops events; render shows only SWARM_OPS_FEED_RENDER_LINES. */
+const SWARM_OPS_FEED_MAX_ENTRIES = 24;
 const SWARM_OPS_FEED_RENDER_LINES = 8;
 const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
 const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block', 'council']);
