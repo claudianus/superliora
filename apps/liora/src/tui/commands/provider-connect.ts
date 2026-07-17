@@ -21,10 +21,12 @@ import {
   type ModelAlias,
 } from '@superliora/sdk';
 import {
+  allocateManagedKimiOAuthAccountKey,
   applyCustomRegistryEntries,
   fetchCustomRegistry,
   getProviderProfile,
   OAuthProviderManager,
+  SUPERLIORA_PROVIDER_NAME,
   type CustomRegistrySource,
   type ManagedKimiConfigShape,
   type ProviderModelPreset,
@@ -57,6 +59,7 @@ import {
   promptProviderCatalog,
 } from './prompts';
 import type { SlashCommandHost } from './dispatch';
+import { ChoicePickerComponent } from '../components/dialogs/choice-picker';
 
 export { DEFAULT_CATALOG_URL, fetchCatalog };
 
@@ -325,11 +328,19 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
   // Inline the managed Kimi OAuth login flow so this module owns every connect
   // branch without a circular dependency back into auth.ts. The flow mirrors
   // the original handleKimiCodeOAuthLogin: device-code authorization, config
-  // refresh, and telemetry.
+  // refresh, and telemetry. When already logged in, offer adding another
+  // account so quota/rate-limit failures can auto-switch across the pool.
   const status = await host.harness.auth.status(DEFAULT_OAUTH_PROVIDER_NAME);
   const alreadyLoggedIn = status.providers.some(
     (provider) => provider.providerName === DEFAULT_OAUTH_PROVIDER_NAME && provider.hasToken,
   );
+
+  let addAccount = false;
+  if (alreadyLoggedIn) {
+    const choice = await promptManagedAccountAction(host);
+    if (choice === undefined) return;
+    addAccount = choice === 'add';
+  }
 
   let spinner: LoginProgressSpinnerHandle | undefined;
   const controller = new AbortController();
@@ -338,8 +349,27 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
   };
   host.cancelInFlight = cancelLogin;
   try {
+    let oauthRef:
+      | {
+          key: string;
+          oauthHost?: string;
+        }
+      | undefined;
+    if (addAccount) {
+      const config = await host.harness.getConfig({ reload: true });
+      const provider = config.providers?.[SUPERLIORA_PROVIDER_NAME];
+      const allocated = allocateManagedKimiOAuthAccountKey(provider, {
+        baseUrl: typeof provider?.baseUrl === 'string' ? provider.baseUrl : undefined,
+      });
+      oauthRef = {
+        key: allocated.key,
+        ...(allocated.oauthHost === undefined ? {} : { oauthHost: allocated.oauthHost }),
+      };
+    }
+
     await host.harness.auth.login(DEFAULT_OAUTH_PROVIDER_NAME, {
       signal: controller.signal,
+      ...(oauthRef === undefined ? {} : { oauthRef }),
       onDeviceCode: (data) => {
         spinner = host.showLoginAuthorizationPrompt(data);
       },
@@ -357,8 +387,15 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
       provider: DEFAULT_OAUTH_PROVIDER_NAME,
       method: 'oauth',
       already_logged_in: alreadyLoggedIn,
+      add_account: addAccount,
     });
-    if (alreadyLoggedIn) {
+    if (addAccount && oauthRef !== undefined) {
+      host.showStatus(
+        ttui('tui.provider.accountAdded', {
+          fingerprint: fingerprintOAuthKey(oauthRef.key),
+        }),
+      );
+    } else if (alreadyLoggedIn) {
       host.showStatus(ttui('tui.provider.alreadyLoggedIn'));
     }
   } catch (error) {
@@ -372,6 +409,7 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
     log.warn('login failed', {
       providerName: DEFAULT_OAUTH_PROVIDER_NAME,
       alreadyLoggedIn,
+      addAccount,
       sessionId: host.session?.id,
       error,
     });
@@ -382,6 +420,43 @@ async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
       host.cancelInFlight = undefined;
     }
   }
+}
+
+function promptManagedAccountAction(
+  host: SlashCommandHost,
+): Promise<'refresh' | 'add' | undefined> {
+  return new Promise((resolve) => {
+    const picker = new ChoicePickerComponent({
+      title: ttui('tui.provider.addAccountTitle'),
+      options: [
+        {
+          value: 'refresh',
+          label: ttui('tui.provider.addAccountRefresh'),
+          description: ttui('tui.provider.addAccountRefreshDesc'),
+        },
+        {
+          value: 'add',
+          label: ttui('tui.provider.addAccountAdd'),
+          description: ttui('tui.provider.addAccountAddDesc'),
+        },
+      ],
+      currentValue: 'add',
+      onSelect: (value) => {
+        host.restoreEditor();
+        resolve(value === 'add' ? 'add' : 'refresh');
+      },
+      onCancel: () => {
+        host.restoreEditor();
+        resolve(undefined);
+      },
+    });
+    host.mountEditorReplacement(picker);
+  });
+}
+
+function fingerprintOAuthKey(key: string): string {
+  if (key.length <= 18) return key;
+  return `${key.slice(0, 12)}…${key.slice(-4)}`;
 }
 
 /** Builds a model alias from a hardcoded profile preset. */

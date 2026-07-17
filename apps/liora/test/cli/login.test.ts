@@ -85,6 +85,40 @@ describe('liora login', () => {
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
 
+  it('passes --add with a generated OAuth account key for multi-account pools', async () => {
+    mockLogin.mockResolvedValue({ providerName: 'kimi-code', ok: true });
+    vi.mocked(createLioraHarness).mockReturnValueOnce({
+      auth: { login: mockLogin },
+      getConfig: vi.fn(async () => ({
+        providers: {
+          'managed:kimi-api': {
+            type: 'kimi',
+            apiKey: '',
+            oauth: { storage: 'file', key: 'oauth/kimi-code' },
+          },
+        },
+      })),
+    } as never);
+
+    const program = new Command('kimi').exitOverride();
+    registerLoginCommand(program);
+
+    await expect(
+      program.parseAsync(['node', 'kimi', 'login', '--add', '--label', 'backup']),
+    ).rejects.toThrow(ExitCalled);
+
+    expect(mockLogin).toHaveBeenCalledTimes(1);
+    expect(mockLogin).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        oauthRef: expect.objectContaining({
+          key: 'oauth/kimi-code-backup',
+        }),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
   it('passes an explicit OAuth account key to the login flow', async () => {
     mockLogin.mockResolvedValue({ providerName: 'kimi-code', ok: true });
 

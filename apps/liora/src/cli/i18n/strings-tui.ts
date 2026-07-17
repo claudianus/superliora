@@ -85,6 +85,15 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.provider.authorizing': 'Authorizing with {name}',
   'tui.provider.connected': 'Connected: {name}',
   'tui.provider.alreadyLoggedIn': 'Already logged in. Model configuration refreshed.',
+  'tui.provider.addAccountTitle': 'Managed SuperLiora account',
+  'tui.provider.addAccountRefresh': 'Refresh current account',
+  'tui.provider.addAccountRefreshDesc':
+    'Re-authorize the current primary account and refresh models.',
+  'tui.provider.addAccountAdd': 'Add another account',
+  'tui.provider.addAccountAddDesc':
+    'Log in with a different account for automatic quota/rate-limit fallback.',
+  'tui.provider.accountAdded':
+    'Added OAuth account (slot {fingerprint}). Quota failures auto-switch across the account pool.',
   'tui.provider.loggedOut': 'Logged out.',
   'tui.provider.defaultModelSet': 'Default model set to {model} with thinking {state}.',
   'tui.provider.customEndpointAdded': 'Custom endpoint added: {model}',
@@ -189,6 +198,15 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.authorizing': '{name}(으)로 인증 중',
   'tui.provider.connected': '연결됨: {name}',
   'tui.provider.alreadyLoggedIn': '이미 로그인되어 있습니다. 모델 설정을 새로고침했습니다.',
+  'tui.provider.addAccountTitle': '관리 SuperLiora 계정',
+  'tui.provider.addAccountRefresh': '현재 계정 새로고침',
+  'tui.provider.addAccountRefreshDesc':
+    '현재 primary 계정을 다시 인증하고 모델을 새로고침합니다.',
+  'tui.provider.addAccountAdd': '다른 계정 추가',
+  'tui.provider.addAccountAddDesc':
+    '쿼타/레이트리밋 자동 폴백을 위해 다른 계정으로 로그인합니다.',
+  'tui.provider.accountAdded':
+    'OAuth 계정을 추가했습니다(슬롯 {fingerprint}). 쿼타 실패 시 계정 풀에서 자동 전환됩니다.',
   'tui.provider.loggedOut': '로그아웃됨.',
   'tui.provider.defaultModelSet': '기본 모델이 {model}(으)로 설정됨 (사고 {state}).',
   'tui.provider.customEndpointAdded': '커스텀 엔드포인트 추가됨: {model}',

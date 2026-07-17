@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes as nodeRandomBytes } from 'node:crypto';
 
 import { readApiErrorMessage } from './api-error';
 import { DEFAULT_SUPERLIORA_OAUTH_HOST } from './constants';
@@ -310,6 +310,85 @@ function sameManagedOAuthRef(left: ManagedKimiOAuthRef, right: ManagedKimiOAuthR
     left.key === right.key &&
     (left.oauthHost ?? '') === (right.oauthHost ?? '')
   );
+}
+export function listManagedKimiOAuthRefs(
+  provider: ManagedKimiProviderConfig | Record<string, unknown> | undefined,
+): ManagedKimiOAuthRef[] {
+  if (!isRecord(provider)) return [];
+  const refs: ManagedKimiOAuthRef[] = [];
+  const primary = configuredOAuthRef(provider['oauth'] as ManagedKimiOAuthRefInput);
+  if (primary !== undefined) refs.push(primary);
+  if (Array.isArray(provider['oauths'])) {
+    for (const entry of provider['oauths']) {
+      const ref = configuredOAuthRef(entry as ManagedKimiOAuthRefInput);
+      if (ref !== undefined) refs.push(ref);
+    }
+  }
+  return uniqueManagedOAuthRefs(refs);
+}
+
+/**
+ * Allocate a fresh OAuth storage key for an additional login account so the
+ * existing primary/fallback refs stay intact. When no provider accounts exist
+ * yet, returns the canonical default key so the first login stays stable.
+ */
+export function allocateManagedKimiOAuthAccountKey(
+  provider: ManagedKimiProviderConfig | Record<string, unknown> | undefined,
+  options: {
+    readonly oauthHost?: string | undefined;
+    readonly baseUrl?: string | undefined;
+    readonly label?: string | undefined;
+    readonly now?: (() => number) | undefined;
+    readonly randomBytes?: ((size: number) => Uint8Array) | undefined;
+  } = {},
+): ManagedKimiOAuthRef {
+  const existing = listManagedKimiOAuthRefs(provider);
+  const oauthHost = options.oauthHost;
+  const baseUrl = options.baseUrl;
+  if (existing.length === 0) {
+    return managedOAuthRef({
+      key: resolveKimiCodeOAuthKey({ oauthHost, baseUrl }),
+      oauthHost,
+    });
+  }
+
+  const used = new Set(existing.map((ref) => ref.key));
+  const labelSlug = sanitizeOAuthAccountLabel(options.label);
+  if (labelSlug !== undefined) {
+    const labeledKey = `oauth/kimi-code-${labelSlug}`;
+    if (!used.has(labeledKey)) {
+      return managedOAuthRef({ key: labeledKey, oauthHost });
+    }
+  }
+
+  const now = options.now ?? Date.now;
+  const randomBytes = options.randomBytes ?? ((size: number) => nodeRandomBytes(size));
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const stamp = now().toString(36);
+    const entropy = Buffer.from(randomBytes(4)).toString('hex');
+    const key = `oauth/kimi-code-account-${stamp}${attempt === 0 ? '' : `-${String(attempt)}`}-${entropy}`;
+    if (!used.has(key)) {
+      return managedOAuthRef({ key, oauthHost });
+    }
+  }
+
+  // Extremely unlikely collision path: fall back to a full sha digest.
+  const digest = createHash('sha256')
+    .update(JSON.stringify({ used: [...used], at: now() }))
+    .digest('hex')
+    .slice(0, 16);
+  return managedOAuthRef({ key: `oauth/kimi-code-account-${digest}`, oauthHost });
+}
+
+function sanitizeOAuthAccountLabel(label: string | undefined): string | undefined {
+  const trimmed = label?.trim().toLowerCase();
+  if (trimmed === undefined || trimmed.length === 0) return undefined;
+  const slug = trimmed
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  return slug.length === 0 ? undefined : slug;
 }
 
 export function kimiCodeEnvBaseUrl(env: ManagedKimiEnv = process.env): string | undefined {
