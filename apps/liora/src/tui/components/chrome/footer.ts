@@ -31,6 +31,10 @@ import {
   type GitStatus,
   type GitStatusCache,
 } from '#/utils/git/git-status';
+import {
+  contextNeedsCompact,
+  contextUsageSeverity as ladderContextUsageSeverity,
+} from '#/utils/usage/context-ladder';
 import { formatTokenCount, safeUsageRatio } from '#/utils/usage/usage-format';
 import { ttui } from '#/tui/utils/tui-i18n';
 
@@ -344,13 +348,7 @@ export function formatOfficeFooterBadge(): {
 
 /** Context usage line severity aligned with soft/hard reclaim ladder. */
 export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
-  const ratio = safeUsage(usage);
-  if (ratio >= 0.9) return 'danger';
-  // Ladder: soft 0.08 · handoff 0.16 · hard 0.50 · abs34k.
-  // Soft → info (reclaim soon); hard → warning (stop before rot); ≥0.9 → danger.
-  if (ratio >= 0.50) return 'warning';
-  if (ratio >= 0.08) return 'info';
-  return 'muted';
+  return ladderContextUsageSeverity(usage);
 }
 
 function formatTranscriptViewportBadge(
@@ -367,7 +365,7 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   if (state.isBackgroundCompacting) return ttui('tui.footer.compacting.background');
   if (state.isReplaying) return ttui('tui.footer.replaying');
   if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
-  if (safeUsage(state.contextUsage) >= 0.011) return ttui('tui.footer.next.compact');
+  if (contextNeedsCompact(state.contextUsage)) return ttui('tui.footer.next.compact');
   if (
     state.contextOS !== undefined &&
     state.contextOS !== null &&

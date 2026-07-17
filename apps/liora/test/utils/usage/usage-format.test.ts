@@ -41,17 +41,17 @@ describe('safeUsageRatio', () => {
 });
 
 describe('ratioSeverity', () => {
-  it('green below 0.5', () => {
+  it('ok below async reclaim band', () => {
     expect(ratioSeverity(0)).toBe('ok');
-    expect(ratioSeverity(0.49)).toBe('ok');
+    expect(ratioSeverity(0.69)).toBe('ok');
   });
-  it('yellow in [0.5, 0.85)', () => {
-    expect(ratioSeverity(0.5)).toBe('warn');
+  it('warn from async through soft', () => {
     expect(ratioSeverity(0.7)).toBe('warn');
-    expect(ratioSeverity(0.849)).toBe('warn');
+    expect(ratioSeverity(0.8)).toBe('warn');
+    expect(ratioSeverity(0.89)).toBe('warn');
   });
-  it('red at or above 0.85', () => {
-    expect(ratioSeverity(0.85)).toBe('danger');
+  it('danger at or above near-hard band', () => {
+    expect(ratioSeverity(0.9)).toBe('danger');
     expect(ratioSeverity(1)).toBe('danger');
   });
 });

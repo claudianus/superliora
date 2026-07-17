@@ -9,7 +9,9 @@
     "token",
     "context",
     "prompt",
-    "deterministic-check"
+    "deterministic-check",
+    "research-aligned",
+    "source-command"
   ],
   "prompt": "Create reports/token-efficiency-contract.md with sections for Context ladder, Tool budgets, Research defaults, Proof path, and Rollback note.",
   "budgets": {
@@ -29,7 +31,7 @@
     {
       "type": "writeFile",
       "path": "reports/token-efficiency-contract.md",
-      "content": "# Token Efficiency Contract\n\n## Context ladder\nmicro40/keep2/min4 \u00b7 async1 \u00b7 handoff16 \u00b7 soft8 \u00b7 maxRecent2 \u00b7 reserved3k \u00b7 spec800 \u00b7 recompact1 \u00b7 pblock6k/3k \u00b7 hard50 \u00b7 abs34k \u00b7 tool4k/80 \u00b7 grep20 \u00b7 web3\n"
+      "content": "# Token Efficiency Contract\n\n## Context ladder\nresearch-aligned · micro40/keep2/min4 · async70 · soft/handoff80 · hard92 · maxRecent4 · reserved50k · abs200k · recompact1 · pblock6k/3k · tool4k/80 · grep20 · web3\n\n## Tool budgets\nTool results auto-trim at 4000 chars with 80-char preview; Grep head_limit defaults to 20 (0 = unlimited).\n\n## Research defaults\nWebSearch default limit 3 (prefer sharper query over raising limit); include_content off by default; Context7 before raw web for library APIs.\n\n## Proof path\nassertCompactionLadderSafety rejects densify soft≈async; /status Bench gate async70 soft80 hard92; focused vitest + liora smoke.\n\n## Rollback note\nIf reclaim thrash returns, restore DEFAULT_COMPACTION_CONFIG from docs (soft 0.80 / hard 0.92) and re-run seed.token-efficiency-contract + holdout.research-aligned-compaction-ladder.\n"
     }
   ],
   "contamination": {
@@ -48,26 +50,25 @@
     {
       "type": "file_contains",
       "path": "reports/token-efficiency-contract.md",
-      "text": "Tool budgets",
+      "text": "async70",
       "weight": 1
     },
     {
       "type": "file_contains",
       "path": "reports/token-efficiency-contract.md",
-      "text": "Research defaults",
+      "text": "hard92",
       "weight": 1
     },
     {
-      "type": "file_contains",
-      "path": "reports/token-efficiency-contract.md",
-      "text": "Proof path",
-      "weight": 1
-    },
-    {
-      "type": "file_contains",
-      "path": "reports/token-efficiency-contract.md",
-      "text": "Rollback note",
-      "weight": 1
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst s = readFileSync('packages/agent-core/src/agent/compaction/strategy.ts','utf8');\nconst g = readFileSync('packages/agent-core/src/tools/builtin/file/grep.ts','utf8');\nconst w = readFileSync('packages/agent-core/src/tools/builtin/web/web-search.ts','utf8');\nconst b = readFileSync('packages/agent-core/src/agent/turn/tool-result-budget.ts','utf8');\nconst fails=[];\nif (!s.includes('DEFAULT_COMPACTION_TRIGGER_RATIO = 0.80')) fails.push('soft');\nif (!s.includes('DEFAULT_COMPACTION_BLOCK_RATIO = 0.92')) fails.push('hard');\nif (!s.includes('DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.70')) fails.push('async');\nif (!g.includes('const DEFAULT_HEAD_LIMIT = 20')) fails.push('grep20');\nif (!g.includes('Defaults to 20')) fails.push('grep-desc');\nif (!w.includes('.default(3)')) fails.push('web3');\nif (!b.includes('TOOL_RESULT_MAX_CHARS = 4_000')) fails.push('tool4k');\nif (fails.length) { console.error(fails.join(',')); process.exit(1);} console.log('token-efficiency-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
     }
   ]
 }

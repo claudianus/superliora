@@ -5,20 +5,30 @@
   "suite": "holdout",
   "kind": "token-efficiency",
   "risk": "low",
-  "tags": ["tui", "office", "visible-evidence"],
-  "prompt": "Create reports/footer-office-badge.md with sections for Office badge, Web badge, Soft1.5, and Evidence path.",
+  "tags": ["tui", "office", "visible-evidence", "source-command"],
+  "prompt": "Create reports/footer-office-badge.md with sections for Office badge, Web badge, Catalog skills, and Evidence path.",
   "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
   "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
   "fixtureActions": [{
     "type": "writeFile",
     "path": "reports/footer-office-badge.md",
-    "content": "# Footer Office Badge Contract\n\n## Office badge\nfooter always shows an office badge for SearchSkill → docx/pptx/xlsx readiness without MCP\n\n## Web badge\nfooter keeps the always-on web research badge beside office/media/ZDR\n\n## Soft1.5\nlive reclaim ladder remains soft 0.015 with denser tool/grep budgets\n\n## Evidence path\nLioraBench holdout + footer-media-badge vitest\n"
+    "content": "# Footer Office Badge Contract\n\n## Office badge\nfooter always shows an office badge for SearchSkill → docx/pptx/xlsx readiness without MCP\n\n## Web badge\nfooter keeps the always-on web research badge beside office/media/ZDR\n\n## Catalog skills\ncatalog index includes docx, pptx, and xlsx skills for Word, slides, and sheets\n\n## Evidence path\nLioraBench holdout + footer-media-badge vitest + source catalog check\n"
   }],
   "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
   "checks": [
     {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Office badge", "weight": 1},
     {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Web badge", "weight": 1},
-    {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Soft1.5", "weight": 1},
-    {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Evidence path", "weight": 1}
+    {"type": "file_contains", "path": "reports/footer-office-badge.md", "text": "Catalog skills", "weight": 1},
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst footer = readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst status = readFileSync('apps/liora/src/tui/components/messages/status-panel.ts','utf8');\nconst idx = JSON.parse(readFileSync('packages/agent-core/src/skill/catalog-search-index.json','utf8'));\nconst names = new Set((idx.skills||[]).map(s=>String(s.name||'').toLowerCase()));\nconst fails=[];\nif (!footer.includes('formatOfficeFooterBadge')) fails.push('footer-fn');\nif (!footer.includes(\"label: 'office'\")) fails.push('office-label');\nif (!footer.includes('formatWebFooterBadge')) fails.push('web-badge');\nif (!status.includes('docx / pptx / xlsx')) fails.push('status-office');\nfor (const n of ['docx','pptx','xlsx']) if (!names.has(n)) fails.push('catalog-'+n);\nif (fails.length) { console.error(fails.join(',')); process.exit(1);} console.log('office-zero-config-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
+    }
   ]
 }

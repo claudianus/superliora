@@ -17,6 +17,7 @@ import type {
 import { PRODUCT_NAME } from '#/constant/app';
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { contextIsHigh } from '#/utils/usage/context-ladder';
 import {
   formatTokenCount,
   ratioSeverity,
@@ -153,7 +154,7 @@ const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · a1/m2/sw800/s8';
+const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · async70 soft80 hard92';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const OFFICE_GATE =
@@ -228,7 +229,7 @@ function verifyBlockedByReadiness(options: StatusReportOptions): boolean {
   const { ratio, maxTokens } = contextValues(options);
   return (
     model.length === 0 ||
-    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.011) ||
+    contextIsHigh(ratio, maxTokens) ||
     options.gitStatus?.dirty === true ||
     options.goalStatus === 'blocked' ||
     humanWritingBlocked(options)
@@ -342,7 +343,7 @@ function formatReadinessBlockers(options: StatusReportOptions): string {
   const model = (options.status?.model ?? options.model).trim();
   if (model.length === 0) blockers.push('model setup');
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.011) blockers.push('context high');
+  if (contextIsHigh(ratio, maxTokens)) blockers.push('context high');
   if (options.gitStatus?.dirty === true) blockers.push('worktree dirty');
   if (options.goalStatus === 'blocked') blockers.push('goal blocked');
   if (humanWritingBlocked(options)) blockers.push('writing guidance');
@@ -526,7 +527,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   }
 
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.011) {
+  if (contextIsHigh(ratio, maxTokens)) {
     return [
       { label: 'State', value: 'Context high' },
       ...gateRows,

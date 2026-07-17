@@ -43,43 +43,145 @@ export function resolveCompactionBlockRatio(
 const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
- * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: soft 0.08 sits between async pre-rot (~0.01) /
- * swarm handoff (~0.16) and hard block (~0.50), so summaries generate while
- * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
+ * Research / product-contract compaction ladder (full, lossy summary).
+ *
+ * Evidence used when setting defaults (not densify numerology):
+ * - Liu et al. 2023 "Lost in the Middle" (arXiv:2307.03172): long contexts show
+ *   U-shaped use; middle evidence is under-used. Prefer reclaim before the window
+ *   is saturated, but keep a large working set so mid-context facts still exist.
+ * - Packer et al. 2023 MemGPT (arXiv:2310.08560): hierarchical memory — page out
+ *   cold history, keep a hot working set. Full summary is the OS "swap"; micro /
+ *   tool-result trim is the cheaper page-out path.
+ * - Jiang et al. 2023 LongLLMLingua (arXiv:2310.06839): density/position of key
+ *   info matter more than raw length; thrashing with ultra-early full compact
+ *   destroys density.
+ * - OpenCode session overflow: compact at usable window (context − reserved
+ *   output buffer ~20k), prune tool tails with multi-10k protect floors — late
+ *   pressure, not 1% usage.
+ * - Anthropic server-side compaction docs: trigger on an explicit high token
+ *   threshold (min 50k), preserve continuation state; not continuous recompact.
+ * - SuperLiora public contract: `docs/.../configuration/config-files.md` and
+ *   `LoopControlSchema` (trigger/block in 0.5..0.99) document soft 0.80 /
+ *   hard 0.92 / reserved 50k / abs 200k / maxRecent 4.
+ *
+ * Ladder (must stay ordered): async before soft, soft at or below handoff, handoff before hard,
+ * with reserved headroom for model output. Micro tool-result clearing may start earlier.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.08;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.80;
 /** Hard block near the window; leaves headroom for compaction summary output. */
-export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.50;
-/** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
+export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.92;
+/** Estimated tokens the next agent step may add for speculative pre-turn compaction. */
 export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 800;
 /** Minimum context growth since the last compaction before auto may fire again. */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.010;
-/** Pre-swarm handoff ceiling: force reclaim before UltraSwarm if usage is above this ratio. */
-export const SWARM_HANDOFF_COMPACTION_RATIO = 0.16;
+/**
+ * Pre-swarm handoff ceiling: force reclaim before UltraSwarm only when usage is
+ * already at the soft product threshold (avoid compacting healthy sessions).
+ */
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.80;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
- * Observation masking / tool-result clearing is preferred over full summarization
- * for cost and fidelity; start at async pre-rot (~0.01) before soft trigger.
+ * Observation masking is preferred over full summarization (MemGPT-style page-out).
  */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.01;
-/** Default ratio at which async background compaction may start (pre-rot). */
-export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.01;
+export const SWARM_MICRO_PRESSURE_RATIO = 0.40;
+/**
+ * Async background full compaction may start here — slightly before soft — so a
+ * summary is ready before hard block, without thrashing early turns.
+ */
+export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.70;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 
+/**
+ * Hard floors that block densify-style regressions. User overrides may still
+ * tighten within `LoopControlSchema` (min 0.5), but defaults and CI must clear this.
+ */
+export const COMPACTION_LADDER_SAFETY = {
+  /** Matches LoopControlSchema.compactionTriggerRatio.min and public docs. */
+  minSoftTriggerRatio: 0.5,
+  /** Soft must stay strictly below hard with usable gap. */
+  minSoftToHardGap: 0.05,
+  /** Async pre-rot must leave a real band before soft (no soft≈async loops). */
+  minAsyncToSoftGap: 0.05,
+  /** Output headroom floor (OpenCode ~20k; product docs default 50k). */
+  minReservedContextSize: 8_000,
+  /** Absolute trigger only on large windows; floor matches Anthropic min spirit. */
+  minAbsoluteTriggerTokens: 50_000,
+  /** Keep enough verbatim tail for tool-call continuity after summary. */
+  minMaxRecentMessages: 2,
+} as const;
+
+export function assertCompactionLadderSafety(
+  config: CompactionConfig,
+  label = 'compaction ladder',
+): void {
+  const {
+    minSoftTriggerRatio,
+    minSoftToHardGap,
+    minAsyncToSoftGap,
+    minReservedContextSize,
+    minAbsoluteTriggerTokens,
+    minMaxRecentMessages,
+  } = COMPACTION_LADDER_SAFETY;
+
+  if (config.triggerRatio < minSoftTriggerRatio) {
+    throw new Error(
+      `${label}: soft triggerRatio=${config.triggerRatio} < safety floor ${minSoftTriggerRatio} (schema/docs contract)`,
+    );
+  }
+  if (config.blockRatio < config.triggerRatio + minSoftToHardGap) {
+    throw new Error(
+      `${label}: blockRatio=${config.blockRatio} must be >= triggerRatio+${minSoftToHardGap} (got trigger=${config.triggerRatio})`,
+    );
+  }
+  if (
+    config.asyncTriggerRatio > 0 &&
+    config.triggerRatio - config.asyncTriggerRatio < minAsyncToSoftGap
+  ) {
+    throw new Error(
+      `${label}: asyncTriggerRatio=${config.asyncTriggerRatio} too close to soft ${config.triggerRatio}; need >=${minAsyncToSoftGap} gap`,
+    );
+  }
+  if (config.asyncTriggerRatio >= config.triggerRatio) {
+    throw new Error(
+      `${label}: asyncTriggerRatio must be < triggerRatio (async=${config.asyncTriggerRatio}, soft=${config.triggerRatio})`,
+    );
+  }
+  if (
+    config.reservedContextSize > 0 &&
+    config.reservedContextSize < minReservedContextSize
+  ) {
+    throw new Error(
+      `${label}: reservedContextSize=${config.reservedContextSize} < safety floor ${minReservedContextSize}`,
+    );
+  }
+  if (
+    config.absoluteTriggerTokens > 0 &&
+    config.absoluteTriggerTokens < minAbsoluteTriggerTokens
+  ) {
+    throw new Error(
+      `${label}: absoluteTriggerTokens=${config.absoluteTriggerTokens} < safety floor ${minAbsoluteTriggerTokens}`,
+    );
+  }
+  if (config.maxRecentMessages < minMaxRecentMessages) {
+    throw new Error(
+      `${label}: maxRecentMessages=${config.maxRecentMessages} < safety floor ${minMaxRecentMessages}`,
+    );
+  }
+}
+
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 3_000,
+  reservedContextSize: 50_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
-  maxRecentMessages: 2,
+  maxRecentMessages: 4,
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.02,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 34_000,
+  absoluteTriggerTokens: 200_000,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 6_000,
   parallelBlockTarget: 3_000,
@@ -88,6 +190,9 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   asyncTriggerRatio: DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
   frozenZoneSize: DEFAULT_FROZEN_ZONE_SIZE,
 };
+
+// Fail fast if defaults ever densify below research/product floors.
+assertCompactionLadderSafety(DEFAULT_COMPACTION_CONFIG, 'DEFAULT_COMPACTION_CONFIG');
 
 export interface CompactionStrategy {
   shouldCompact(usedSize: number): boolean;

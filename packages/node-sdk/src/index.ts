@@ -73,6 +73,17 @@ export type {
 } from '@superliora/agent-core';
 
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';
+export {
+  COMPACTION_LADDER_SAFETY,
+  DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
+  DEFAULT_COMPACTION_BLOCK_RATIO,
+  DEFAULT_COMPACTION_CONFIG,
+  DEFAULT_COMPACTION_TRIGGER_RATIO,
+  DEFAULT_FROZEN_ZONE_SIZE,
+  SWARM_HANDOFF_COMPACTION_RATIO,
+  SWARM_MICRO_PRESSURE_RATIO,
+  assertCompactionLadderSafety,
+} from '@superliora/agent-core';
 
 export type {
   ExperimentalFeatureState,

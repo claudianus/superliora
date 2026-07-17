@@ -3,66 +3,31 @@
   "id": "holdout.zdr-footer-badge.v1",
   "title": "Record default ZDR footer badge contract",
   "suite": "holdout",
-  "kind": "tui-ux",
+  "kind": "privacy-zdr",
   "risk": "low",
-  "tags": [
-    "zdr",
-    "privacy",
-    "footer",
-    "zero-config",
-    "visible-evidence"
-  ],
+  "tags": ["privacy", "zdr", "tui", "source-command"],
   "prompt": "Create reports/zdr-footer-badge.md with sections for Default ZDR, Telemetry opt-in, Privacy status, and Evidence path.",
-  "budgets": {
-    "maxWallMs": 120000,
-    "maxCommands": 8,
-    "maxPromptChars": 1000
-  },
-  "setup": {
-    "files": [
-      {
-        "path": "reports/.gitkeep",
-        "content": ""
-      }
-    ]
-  },
-  "fixtureActions": [
-    {
-      "type": "writeFile",
-      "path": "reports/zdr-footer-badge.md",
-      "content": "# ZDR Footer Badge Contract\n\n## Default ZDR\nfooter shows a zdr badge by default when telemetry is unset — zero-config privacy posture\n\n## Telemetry opt-in\nfooter switches to tel when SUPERLIORA_TELEMETRY is explicitly enabled\n\n## Privacy status\n/status privacy rows stay dense and ZDR-friendly by default\n\n## Evidence path\nLioraBench holdout + footer-media-badge/status-panel vitest\n"
-    }
-  ],
-  "contamination": {
-    "blockedFiles": [
-      ".superliora/evidence/stale-pass.json",
-      "answers/solution.txt"
-    ]
-  },
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/zdr-footer-badge.md",
+    "content": "# ZDR Footer Badge Contract\n\n## Default ZDR\nfooter shows a zdr badge by default when telemetry is unset — zero-config privacy posture\n\n## Telemetry opt-in\nfooter switches to tel when SUPERLIORA_TELEMETRY is explicitly enabled\n\n## Privacy status\n/status privacy rows stay ZDR-friendly by default (telemetry OFF)\n\n## Evidence path\nLioraBench holdout + footer-media-badge/status-panel vitest + source telemetry check\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
   "checks": [
+    {"type": "file_contains", "path": "reports/zdr-footer-badge.md", "text": "Default ZDR", "weight": 1},
+    {"type": "file_contains", "path": "reports/zdr-footer-badge.md", "text": "Telemetry opt-in", "weight": 1},
     {
-      "type": "file_contains",
-      "path": "reports/zdr-footer-badge.md",
-      "text": "Default ZDR",
-      "weight": 1
-    },
-    {
-      "type": "file_contains",
-      "path": "reports/zdr-footer-badge.md",
-      "text": "Telemetry opt-in",
-      "weight": 1
-    },
-    {
-      "type": "file_contains",
-      "path": "reports/zdr-footer-badge.md",
-      "text": "Privacy status",
-      "weight": 1
-    },
-    {
-      "type": "file_contains",
-      "path": "reports/zdr-footer-badge.md",
-      "text": "Evidence path",
-      "weight": 1
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst footer = readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst tele = readFileSync('apps/liora/src/cli/telemetry.ts','utf8');\nconst status = readFileSync('apps/liora/src/tui/components/messages/status-panel.ts','utf8');\nconst fails=[];\nif (!footer.includes('formatZdrFooterBadge')) fails.push('footer');\nif (!footer.includes(\"'zdr'\")) fails.push('zdr-label');\nif (!tele.includes('config.telemetry === true')) fails.push('opt-in');\nif (!status.includes('ZDR-friendly local')) fails.push('status');\nif (fails.length) { console.error(fails.join(',')); process.exit(1);} console.log('zdr-footer-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
     }
   ]
 }

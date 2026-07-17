@@ -98,7 +98,7 @@ export const GrepInputSchema = z.object({
     .nonnegative()
     .optional()
     .describe(
-      'Limit output to the first N lines/entries after offset. Defaults to 3. Pass 0 for unlimited.',
+      'Limit output to the first N lines/entries after offset. Defaults to 20. Pass 0 for unlimited.',
     ),
   offset: z
     .number()

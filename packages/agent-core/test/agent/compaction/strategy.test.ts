@@ -3,6 +3,7 @@ import type { Message } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertCompactionLadderSafety,
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
   PipelineStrategy,
@@ -190,13 +191,13 @@ describe('DefaultCompactionStrategy', () => {
   it('starts async compaction between the async threshold and soft trigger', () => {
     const strategy = new DefaultCompactionStrategy(() => 100_000);
 
-    // asyncTriggerRatio=0.01 → 1k; soft trigger=0.08 → 8k
-    expect(strategy.shouldAsyncCompact(999)).toBe(false);
-    expect(strategy.shouldAsyncCompact(1_000)).toBe(true);
-    expect(strategy.shouldCompact(1_000)).toBe(false);
+    // asyncTriggerRatio=0.70 → 70k; soft trigger=0.80 → 80k
+    expect(strategy.shouldAsyncCompact(69_999)).toBe(false);
+    expect(strategy.shouldAsyncCompact(70_000)).toBe(true);
+    expect(strategy.shouldCompact(70_000)).toBe(false);
     // Once the soft trigger fires, async path yields to blocking compact.
-    expect(strategy.shouldAsyncCompact(8_000)).toBe(false);
-    expect(strategy.shouldCompact(8_000)).toBe(true);
+    expect(strategy.shouldAsyncCompact(80_000)).toBe(false);
+    expect(strategy.shouldCompact(80_000)).toBe(true);
   });
 
   it('ignores reserved context when the reserve is not smaller than the model window', () => {
@@ -282,16 +283,17 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.effectiveTriggerRatio).toBe(0.08);
-    expect(strategy.shouldCompact(7_999)).toBe(false);
-    expect(strategy.shouldCompact(8_000)).toBe(true);
-    expect(strategy.shouldBlock(49_999)).toBe(false);
-    expect(strategy.shouldBlock(50_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBe(0.80);
+    expect(strategy.shouldCompact(79_999)).toBe(false);
+    expect(strategy.shouldCompact(80_000)).toBe(true);
+    expect(strategy.shouldBlock(91_999)).toBe(false);
+    expect(strategy.shouldBlock(92_000)).toBe(true);
     expect(strategy.checkAfterStep).toBe(true);
   });
 
   it('resolves block ratio above trigger when only trigger is configured', () => {
-    expect(resolveCompactionBlockRatio(0.7)).toBe(0.75);
+    // Floor is DEFAULT_COMPACTION_BLOCK_RATIO (0.92), else trigger+0.05.
+    expect(resolveCompactionBlockRatio(0.7)).toBe(0.92);
     expect(resolveCompactionBlockRatio(0.9)).toBeCloseTo(0.95);
     expect(resolveCompactionBlockRatio(0.8, 0.88)).toBe(0.88);
   });
@@ -301,8 +303,8 @@ describe('DefaultCompactionStrategy', () => {
       ...DEFAULT_COMPACTION_CONFIG,
       reservedContextSize: 0,
     });
-    expect(strategy.shouldSpeculativelyCompact(7_999)).toBe(false);
-    expect(strategy.shouldSpeculativelyCompact(8_000)).toBe(true);
+    expect(strategy.shouldSpeculativelyCompact(79_999)).toBe(false);
+    expect(strategy.shouldSpeculativelyCompact(80_000)).toBe(true);
 
     const lateTrigger = new DefaultCompactionStrategy(() => 100_000, {
       ...DEFAULT_COMPACTION_CONFIG,
@@ -321,10 +323,11 @@ describe('DefaultCompactionStrategy', () => {
       reservedContextSize: 0,
     });
     strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
-    expect(strategy.effectiveTriggerRatio).toBe(0.08);
+    expect(strategy.effectiveTriggerRatio).toBe(0.80);
     strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.08);
-    expect(strategy.shouldCompact(73_000)).toBe(true);
+    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.80);
+    // bias 0.02 → effective 0.78 → floor(100k*0.78)=78_000
+    expect(strategy.shouldCompact(78_000)).toBe(true);
   });
 });
 
@@ -445,7 +448,7 @@ describe('PipelineStrategy quality controls', () => {
     });
     const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
     const before = trigger.effectiveTriggerRatio;
-    expect(before).toBe(0.08);
+    expect(before).toBe(0.80);
     const bias = pipeline.applyQualityFeedback({ usedEmergencyBackstop: true });
     expect(bias).toBeGreaterThan(0);
     expect(trigger.effectiveTriggerRatio).toBeLessThan(before);
@@ -593,3 +596,35 @@ describe('full compaction pure policy', () => {
     ).toBe(true);
   });
 });
+
+describe('assertCompactionLadderSafety', () => {
+  it('accepts DEFAULT_COMPACTION_CONFIG', () => {
+    expect(() => assertCompactionLadderSafety(DEFAULT_COMPACTION_CONFIG)).not.toThrow();
+  });
+
+  it('rejects densify-style soft≈async and sub-floor budgets', () => {
+    expect(() =>
+      assertCompactionLadderSafety({
+        ...DEFAULT_COMPACTION_CONFIG,
+        triggerRatio: 0.01001,
+        blockRatio: 0.010011,
+        asyncTriggerRatio: 0.01,
+        reservedContextSize: 1,
+        absoluteTriggerTokens: 1,
+        maxRecentMessages: 1,
+      }),
+    ).toThrow(/soft triggerRatio/);
+  });
+
+  it('rejects async threshold that collides with soft', () => {
+    expect(() =>
+      assertCompactionLadderSafety({
+        ...DEFAULT_COMPACTION_CONFIG,
+        triggerRatio: 0.80,
+        blockRatio: 0.92,
+        asyncTriggerRatio: 0.78,
+      }),
+    ).toThrow(/asyncTriggerRatio/);
+  });
+});
+

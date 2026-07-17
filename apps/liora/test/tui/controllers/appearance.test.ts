@@ -233,7 +233,7 @@ describe('AppearanceController', () => {
     expect(writes.at(-1)).toContain('\u001B]104');
   });
 
-  it('keeps premium animation ticks at the configured fps regardless of renderer health', () => {
+  it('keeps premium animation ticks near 30fps regardless of renderer health', () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const appearance = {
@@ -244,9 +244,9 @@ describe('AppearanceController', () => {
     };
     const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
 
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(1);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(1);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(1);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(33);
 
     setAppearanceRenderHealth('watch');
     const controller = new AppearanceController({
@@ -258,7 +258,7 @@ describe('AppearanceController', () => {
 
     vi.advanceTimersByTime(0);
     expect(requestRender).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(33);
     expect(requestRender).toHaveBeenCalledTimes(1);
 
     controller.dispose();
@@ -434,7 +434,7 @@ function setStdoutTty(value: boolean): void {
   });
 }
 
-describe('renderParticleRail densify', () => {
+describe('renderParticleRail premium motion', () => {
   const previous = {
     TERM: process.env['TERM'],
     CI: process.env['CI'],
@@ -456,7 +456,7 @@ describe('renderParticleRail densify', () => {
     }
   });
 
-  it('fills premium rails with denser comet trails', () => {
+  it('fills premium rails with short comet trails', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
     advanceAppearanceAnimationClock(Date.now());
@@ -467,7 +467,7 @@ describe('renderParticleRail densify', () => {
         profile: 'premium',
         particles: 'premium',
       },
-      'rail-densify',
+      'rail-premium',
     );
     const plain = strip(line);
     expect(visibleWidth(line)).toBe(48);

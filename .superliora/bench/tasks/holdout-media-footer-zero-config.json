@@ -3,66 +3,31 @@
   "id": "holdout.media-footer-zero-config.v1",
   "title": "Record zero-config media footer and chip transparency contract",
   "suite": "holdout",
-  "kind": "tui-ux",
+  "kind": "media-readiness",
   "risk": "low",
-  "tags": [
-    "media",
-    "zero-config",
-    "tui",
-    "footer",
-    "visible-evidence"
-  ],
-  "prompt": "Create reports/media-footer-zero-config.md with sections for Footer badge, Media chips, Lean context, and Evidence path.",
-  "budgets": {
-    "maxWallMs": 120000,
-    "maxCommands": 8,
-    "maxPromptChars": 1000
-  },
-  "setup": {
-    "files": [
-      {
-        "path": "reports/.gitkeep",
-        "content": ""
-      }
-    ]
-  },
-  "fixtureActions": [
-    {
-      "type": "writeFile",
-      "path": "reports/media-footer-zero-config.md",
-      "content": "# Media Footer Zero-Config Contract\n\n## Footer badge\nfooter pulses img/media/vid when OPENAI/GOOGLE/GEMINI keys exist — no MCP\n\n## Media chips\nGenerateImage/GenerateVideo chips label img/vid and optional provider for glanceable proof\n\n## Lean context\nlean guidance stays denser so long sessions spend fewer tokens on always-on context\n\n## Evidence path\nLioraBench holdout + footer-media/chip vitest + /status media gate\n"
-    }
-  ],
-  "contamination": {
-    "blockedFiles": [
-      ".superliora/evidence/stale-pass.json",
-      "answers/solution.txt"
-    ]
-  },
+  "tags": ["media", "tui", "zero-config", "source-command"],
+  "prompt": "Create reports/media-footer-zero-config.md with sections for Footer badge, Media chips, Provider keys, and Evidence path.",
+  "budgets": {"maxWallMs": 120000, "maxCommands": 8, "maxPromptChars": 1200},
+  "setup": {"files": [{"path": "reports/.gitkeep", "content": ""}]},
+  "fixtureActions": [{
+    "type": "writeFile",
+    "path": "reports/media-footer-zero-config.md",
+    "content": "# Media Footer Zero-Config Contract\n\n## Footer badge\nfooter pulses img / vid / img·vid when OPENAI/GOOGLE/GEMINI keys exist — no MCP\n\n## Media chips\nGenerateImage/GenerateVideo chips label img/vid for glanceable proof in the transcript\n\n## Provider keys\nOPENAI_API_KEY enables images; GOOGLE_API_KEY/GEMINI_API_KEY enables images and video\n\n## Evidence path\nLioraBench holdout + footer-media/chip vitest + source registration check\n"
+  }],
+  "contamination": {"blockedFiles": [".superliora/evidence/stale-pass.json", "answers/solution.txt"]},
   "checks": [
+    {"type": "file_contains", "path": "reports/media-footer-zero-config.md", "text": "Footer badge", "weight": 1},
+    {"type": "file_contains", "path": "reports/media-footer-zero-config.md", "text": "Media chips", "weight": 1},
     {
-      "type": "file_contains",
-      "path": "reports/media-footer-zero-config.md",
-      "text": "Footer badge",
-      "weight": 1
-    },
-    {
-      "type": "file_contains",
-      "path": "reports/media-footer-zero-config.md",
-      "text": "Media chips",
-      "weight": 1
-    },
-    {
-      "type": "file_contains",
-      "path": "reports/media-footer-zero-config.md",
-      "text": "Lean context",
-      "weight": 1
-    },
-    {
-      "type": "file_contains",
-      "path": "reports/media-footer-zero-config.md",
-      "text": "Evidence path",
-      "weight": 1
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst img = readFileSync('packages/agent-core/src/tools/builtin/media/generate-image.ts','utf8');\nconst vid = readFileSync('packages/agent-core/src/tools/builtin/media/generate-video.ts','utf8');\nconst footer = readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst tools = readFileSync('packages/agent-core/src/agent/tool/index.ts','utf8');\nconst fails=[];\nif (!img.includes('isGenerateImageAvailable')) fails.push('img');\nif (!vid.includes('isGenerateVideoAvailable')) fails.push('vid');\nif (!footer.includes('formatMediaFooterBadge')) fails.push('footer');\nif (!tools.includes(\"shouldCreateBuiltin('GenerateImage')\")) fails.push('reg-img');\nif (!tools.includes(\"shouldCreateBuiltin('GenerateVideo')\")) fails.push('reg-vid');\nif (fails.length) { console.error(fails.join(',')); process.exit(1);} console.log('media-footer-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
     }
   ]
 }

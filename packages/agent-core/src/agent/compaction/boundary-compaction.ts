@@ -59,7 +59,7 @@ export function compactSwarmToolResult(
 
   output = enforceTotalBudget(output, store, runId, expertBodyMaxChars, archiveIds, totalResultMaxChars);
   output = injectArchiveGuidance(output, archiveIds);
-  // Guidance injection can re-grow the payload; re-apply the densify hard floor last
+  // Guidance can re-grow the payload; re-apply the total budget last
   // while preserving integration tags and a short LioraExpand trailer.
   if (output.length > totalResultMaxChars) {
     output = applyHardFloorWithIntegration(output, archiveIds, totalResultMaxChars);
@@ -217,13 +217,13 @@ function applyHardFloorWithIntegration(
   archiveIds: readonly string[],
   totalResultMaxChars: number,
 ): string {
-  // Keep parent-agent integration tags even under denser total caps. Head+tail
+  // Keep parent-agent integration tags even under tight total caps. Head+tail
   // collapse alone can drop the closing integration blocks that Ultrawork needs.
   const extracted = extractIntegrationChunks(output);
   const integrationTail =
     extracted.chunks.length > 0 ? `\n${extracted.chunks.join('\n')}` : '';
   // Preserve adaptive-restaff signal text that would otherwise fall out of the
-  // collapsed expert head under denser total budgets.
+  // collapsed expert head under tight total budgets.
   const restaffNote = /Restaffed after revision gaps\./i.test(output)
     ? '\nRestaffed after revision gaps.'
     : '';
@@ -235,7 +235,7 @@ function applyHardFloorWithIntegration(
   const headBudget = Math.max(0, totalResultMaxChars - fixedTail.length);
   let next = collapseForHandoff(extracted.without.trim(), headBudget) + fixedTail;
   if (next.length > totalResultMaxChars) {
-    // Prefer keeping the integration tail over a longer head when the densify
+    // Prefer keeping the integration tail over a longer head when the total
     // budget is extremely tight.
     const minTail = fixedTail.trimStart();
     if (minTail.length >= totalResultMaxChars) {
