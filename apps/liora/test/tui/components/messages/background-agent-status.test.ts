@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { BackgroundAgentStatusComponent } from '#/tui/components/messages/background-agent-status';
 
 function strip(text: string): string {
-  return text.replaceAll(/\u001B\[[0-9;]*m/g, '').replaceAll(/[✦✧✺∙•]/g, '');
+  // Drop ambient sparkles only — keep semantic middle-dot separators in status copy.
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '').replaceAll(/[∙•◦*]/g, '');
 }
 
 describe('BackgroundAgentStatusComponent', () => {

@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
+import chalk from 'chalk';
 import {
   detectNativeTerminalImageProtocol,
   encodeRendererClearInlineImages,
@@ -130,6 +131,10 @@ import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
 import { currentTheme, getColorPalette, getBuiltInPalette, isBuiltInTheme } from './theme';
 import type { ColorToken, ResolvedTheme, ThemeName } from './theme';
 import { createTUIState, type TUIState } from './tui-state';
+import {
+  appearanceAnimationNow,
+  resolveUltraworkBorderGlowHex,
+} from './utils/appearance-effects';
 import {
   createTUIStateNativeInputRouter,
   type TUIStateNativeInputRouter,
@@ -2802,16 +2807,25 @@ export class LioraTUI {
   updateEditorBorderHighlight(text?: string): void {
     const trimmed = (text ?? this.state.editor.getText()).trimStart();
     const isBash = this.state.appState.inputMode === 'bash';
+    const ultrawork = this.state.appState.ultraworkMode === true;
     const highlighted =
-      this.state.appState.planMode ||
-      (this.state.appState.ultraworkMode ?? false) ||
-      isBash ||
-      trimmed.startsWith('/');
-    if (this.state.editor.borderHighlighted === highlighted) return;
+      this.state.appState.planMode || ultrawork || isBash || trimmed.startsWith('/');
+    const prevHighlighted = this.state.editor.borderHighlighted;
     this.state.editor.borderHighlighted = highlighted;
-    // Shell mode gets its own hue; plan-mode and slash context stay primary.
-    const borderToken = isBash ? 'shellMode' : highlighted ? 'primary' : 'border';
-    this.state.editor.borderColor = (s: string) => currentTheme.fg(borderToken, s);
+    // Shell mode: fixed hue. Ultrawork: live multi-hue glow. Plan/slash: primary.
+    if (isBash) {
+      this.state.editor.borderColor = (s: string) => currentTheme.fg('shellMode', s);
+    } else if (ultrawork) {
+      // Re-bind each call so animation ticks refresh the chalk hex without stale closures.
+      const hex = resolveUltraworkBorderGlowHex(appearanceAnimationNow());
+      this.state.editor.borderColor = (s: string) => chalk.hex(hex).bold(s);
+    } else if (highlighted) {
+      this.state.editor.borderColor = (s: string) => currentTheme.fg('primary', s);
+    } else {
+      this.state.editor.borderColor = (s: string) => currentTheme.fg('border', s);
+    }
+    // Ultrawork always re-renders so the chase/hue keeps moving even when highlight stays on.
+    if (prevHighlighted === highlighted && !ultrawork) return;
     requestTUIContentRender(this.state);
   }
 

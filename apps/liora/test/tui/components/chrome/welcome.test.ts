@@ -130,8 +130,9 @@ describe('WelcomeComponent', () => {
     try {
       const lines = new WelcomeComponent(appState).render(80);
 
-      // Single top rail (bottom densify rail removed).
-      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧✦✺•]/);
+      // Soft top rail + optional idle meteor dust under the banner.
+      const joined = lines.map((line) => strip(line)).join('\n');
+      expect(joined).toMatch(/[·∙•◦*]/);
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];

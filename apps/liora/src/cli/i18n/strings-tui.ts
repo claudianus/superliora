@@ -310,7 +310,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.contextBar':
     'footer context bar is 10-cell with eighths partial fill — denser pressure glance',
   'tui.tip.particleRails':
-    'premium particle rails push denser comets + 32-cell trails at 1ms — zero config spectacle',
+    'premium rails drift soft comets + quiet star dust — no marquee thrash',
   'tui.tip.toolDescs':
     'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls',
   'tui.tip.autoDream':
@@ -627,7 +627,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.contextBar':
     'footer context bar는 10칸 + 1/8 부분 채움 — 더 조밀한 압력 표시',
   'tui.tip.particleRails':
-    '프리미엄 파티클 레일은 더 조밀한 혜성 + 32칸 trail, 1ms — 설정 없이 스펙터클',
+    '프리미엄 레일은 부드러운 혜성 + 조용한 별먼지 — 마퀴 thrash 없음',
   'tui.tip.toolDescs':
     '도구 설명은 조밀하게 — shell rg 대신 Grep; Read는 다중 파일 병렬',
   'tui.tip.autoDream':

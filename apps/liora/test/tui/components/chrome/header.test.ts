@@ -85,7 +85,7 @@ describe('HeaderComponent', () => {
       expect(out).toContain('SuperLiora');
       expect(out).toContain('Kimi K2');
       // Particle/divider glyphs should appear between brand and model.
-      expect(out).toMatch(/[─━═·∙✧✦✺•]/);
+      expect(out).toMatch(/[─━═·∙•◦*]/);
     } finally {
       if (previousEnv.TERM === undefined) delete process.env['TERM'];
       else process.env['TERM'] = previousEnv.TERM;

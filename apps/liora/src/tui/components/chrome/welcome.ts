@@ -11,7 +11,12 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
-import { renderParticleRail } from '#/tui/utils/appearance-effects';
+import {
+  renderMeteorField,
+  renderParticleRail,
+  resolveQualityAdjustedAmbientEffectMode,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { renderWelcomeBanner } from './welcome-banner';
 
@@ -81,15 +86,30 @@ export class WelcomeComponent implements Component {
       ...infoLines,
     ];
 
+    // Idle sky under the banner: a few diagonal meteors (premium/subtle only).
+    const showMeteors =
+      shouldRenderAmbientEffects(appearance) &&
+      resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
+    const meteorRows = showMeteors
+      ? Math.min(3, Math.max(2, Math.floor(innerWidth / 36)))
+      : 0;
+    const meteorField =
+      meteorRows > 0
+        ? renderMeteorField(innerWidth, meteorRows, 'welcome:meteors', appearance).map(
+            (row) => `  ${row}`,
+          )
+        : [];
+
     return [
       '',
       ...renderRendererFrameRows({
         content: [
           renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
           ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
+          ...(meteorField.length > 0 ? ['', ...meteorField] : []),
         ],
         width: safeWidth,
-        height: contentLines.length + 4,
+        height: contentLines.length + 4 + (meteorField.length > 0 ? meteorField.length + 1 : 0),
         borderKind: 'rounded',
         borderStyle: primary,
         ellipsis: '…',

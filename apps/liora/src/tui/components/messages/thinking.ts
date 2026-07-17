@@ -132,8 +132,9 @@ export class ThinkingComponent implements Component {
             : currentTheme.fg('textDim', `${spinnerGlyph} `);
           const elapsed = this.renderElapsedSuffix();
           const charCount = this.text.length;
-          const density =
-            charCount > 0 ? currentTheme.fg('textMuted', ` · ${String(charCount)}c`) : '';
+          // Keep density plain — spectacular restyles the whole label.
+          // Pre-styling here used to leak SGR bodies as `[0;1;38;2…` after escape.
+          const density = charCount > 0 ? ` · ${String(charCount)}c` : '';
           const thinkingLabel = renderThinkingStatusLabel(`thinking...${elapsed}${density}`);
           return [
             '',
