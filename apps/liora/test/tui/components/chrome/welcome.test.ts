@@ -128,8 +128,8 @@ describe('WelcomeComponent', () => {
     try {
       const lines = new WelcomeComponent(appState).render(80);
 
-      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧]/);
-      expect(strip(lines.at(-3) ?? '')).toMatch(/[·∙✧]/);
+      // Single top rail (bottom densify rail removed).
+      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧✦✺•]/);
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];
