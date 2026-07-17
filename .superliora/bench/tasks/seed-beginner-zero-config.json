@@ -9,7 +9,10 @@
     "beginner",
     "zero-config",
     "ux",
-    "deterministic-check"
+    "deterministic-check",
+    "source-command",
+    "office",
+    "research"
   ],
   "prompt": "Create reports/beginner-zero-config-contract.md with sections for Login, Status gates, Media keys, Footer badges, and Bench path.",
   "budgets": {
@@ -29,7 +32,7 @@
     {
       "type": "writeFile",
       "path": "reports/beginner-zero-config-contract.md",
-      "content": "# Beginner Zero-Config Contract\n\n## Login\n/login connects providers; no complex config required\n\n## Status gates\n/status shows Research, Media, Bench, Privacy/ZDR\n\n## Media keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY enables image/video without MCP\n\n## Footer badges\nfooter shows img/vid/img·vid when keys exist; zdr by default; premium particle chrome on without config\n\n## Bench path\n/bench or node scripts/liora-agent-bench.mjs --suite seed for LioraBench\n"
+      "content": "# Beginner Zero-Config Contract\n\n## Login\n/login connects providers; no complex config required\n\n## Status gates\n/status shows Research, Media, Bench, Privacy/ZDR, Office\n\n## Media keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY enables image/video without MCP\n\n## Footer badges\nfooter shows img/vid/img\u00b7vid when keys exist; web + office always; zdr by default; premium particle chrome on without config\n\n## Office path\nSearchSkill \"Word docx report\" / pptx slides / xlsx sheet \u2014 catalog skills, zero MCP\n\n## Research path\nWebSearch defaults to 3 hits; Context7 for library docs; include_content capped; FetchURL for deep reads\n\n## Bench path\n/bench or node scripts/liora-agent-bench.mjs --suite seed for LioraBench\n"
     }
   ],
   "contamination": {
@@ -66,8 +69,31 @@
     {
       "type": "file_contains",
       "path": "reports/beginner-zero-config-contract.md",
+      "text": "Office path",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/beginner-zero-config-contract.md",
+      "text": "Research path",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/beginner-zero-config-contract.md",
       "text": "Bench path",
       "weight": 1
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst footer=readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst web=readFileSync('packages/agent-core/src/tools/builtin/web/web-search.ts','utf8');\nconst search=readFileSync('packages/agent-core/src/tools/builtin/collaboration/search-skill.ts','utf8');\nconst c7=readFileSync('packages/agent-core/src/tools/providers/context7.ts','utf8');\nconst fails=[];\nif (!footer.includes('formatZdrFooterBadge')) fails.push('zdr');\nif (!footer.includes('formatOfficeFooterBadge')) fails.push('office');\nif (!footer.includes('formatWebFooterBadge')) fails.push('web');\nif (!web.includes('limit: args.limit ?? 3')) fails.push('web3');\nif (!search.includes('Word docx report')) fails.push('office-hint');\nif (!c7.includes('CONTEXT7_RESOLVE_MAX_MATCHES = 8')) fails.push('c7-resolve-cap');\nif (!c7.includes('CONTEXT7_DOCS_TEXT_MAX_CHARS = 12_000')) fails.push('c7-docs-cap');\nif (fails.length){console.error(fails.join(',')); process.exit(1);} console.log('beginner-zero-config-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
     }
   ]
 }
