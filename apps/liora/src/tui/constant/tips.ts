@@ -68,4 +68,5 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
+  { text: 'UltraSwarm handoff: expert body 1600 · total result 6k · bus body 800 · archive inline 120', priority: 1, solo: true },
 ];

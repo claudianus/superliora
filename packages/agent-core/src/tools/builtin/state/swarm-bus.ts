@@ -19,7 +19,8 @@ const SWARM_BUS_MAX_MESSAGES = 256;
 const SWARM_BUS_LIST_DEFAULT_LIMIT = 24;
 const SWARM_BUS_RATE_LIMIT_WINDOW_MS = 60_000;
 const SWARM_BUS_RATE_LIMIT_MAX_POSTS = 12;
-const SWARM_BUS_BODY_MAX_CHARS = 500;
+// Expert standups need room for verdict + evidence_ids without flooding the bus.
+const SWARM_BUS_BODY_MAX_CHARS = 800;
 
 declare module '../../store' {
   interface ToolStoreData {

@@ -1,7 +1,8 @@
 import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
 
-const INTEGRATION_SECTION_MAX_CHARS = 360;
-const INTEGRATION_OPEN_GAPS_MAX_CHARS = 900;
+// Keep section digests proportional to expert handoff bodies (1.6k).
+const INTEGRATION_SECTION_MAX_CHARS = 480;
+const INTEGRATION_OPEN_GAPS_MAX_CHARS = 1_200;
 
 export interface UltraSwarmHandoffDigest {
   readonly summary?: string;
