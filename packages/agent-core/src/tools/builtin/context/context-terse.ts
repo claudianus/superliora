@@ -20,7 +20,7 @@ export interface TerseReadResult {
 }
 
 const DEFAULT_MAX_CHARS = 4000;
-const AUTO_FULL_LINE_THRESHOLD = 120;
+const AUTO_FULL_LINE_THRESHOLD = 80;
 
 export function renderTerseRead(input: TerseReadInput): TerseReadResult {
   const lines = input.content.split(/\r?\n/);
@@ -326,7 +326,7 @@ function compressTestOutput(text: string): string {
 
 function compressGitOutput(text: string): string {
   const lines = text.split('\n');
-  if (lines.length <= 120) return text;
+  if (lines.length <= AUTO_FULL_LINE_THRESHOLD) return text;
   const head = lines.slice(0, 60);
   const tail = lines.slice(-40);
   return [...head, `[... ${String(lines.length - 100)} git lines omitted ...]`, ...tail].join('\n');

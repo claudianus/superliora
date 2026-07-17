@@ -91,6 +91,27 @@ describe('Liora lean context tools', () => {
     expect(output).not.toContain('filler150');
   });
 
+
+  it('LioraRead auto switches to signatures above 80 lines', async () => {
+    const shortFile = Array.from({ length: 80 }, (_, index) => `const line${index} = ${index};`).join('\n');
+    const longFile = Array.from({ length: 81 }, (_, index) => `const line${index} = ${index};`).join('\n');
+    const { store } = makeStore();
+    const tool = new LioraReadTool(
+      makeKaos({
+        '/workspace/src/short.ts': shortFile,
+        '/workspace/src/long.ts': longFile,
+      }),
+      workspace,
+      store,
+    );
+
+    const shortResult = await executeTool(tool, context({ path: 'src/short.ts', mode: 'auto' }, 'call_short'));
+    const longResult = await executeTool(tool, context({ path: 'src/long.ts', mode: 'auto' }, 'call_long'));
+
+    expect(toolContentString(shortResult)).toContain('<liora_read mode="full"');
+    expect(toolContentString(longResult)).toContain('<liora_read mode="signatures"');
+  });
+
   it('compressShellOutput collapses repetitive passing test lines', () => {
     const stdout = [
       'PASS test/a',
