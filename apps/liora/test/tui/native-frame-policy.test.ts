@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   frameInvalidationIntentToCause,
+  isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
+  shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
 } from '#/tui/utils/native-frame-policy';
@@ -103,5 +105,51 @@ describe('native-frame-policy', () => {
     });
 
     expect(policy.clearTranscriptSelection).toBe(true);
+  });
+
+  it('treats pure keystroke frames as incremental (no force/clear) while forceCursor stays on', () => {
+    expect(isPureInputFrame(['input'], false, false)).toBe(true);
+    expect(isPureInputFrame(['input', 'request'], false, false)).toBe(false);
+    expect(isPureInputFrame(['input'], true, false)).toBe(false);
+    expect(isPureInputFrame(['input'], false, true)).toBe(false);
+
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['input'],
+      viewportScrolled: false,
+      structuralShift: false,
+      nextTranscriptStart: 0,
+      ambientAnimationAllowed: true,
+    });
+
+    // force/clear stay off on pure input even when ambient is allowed —
+    // ambient is only forced when the frame cause is animation.
+    expect(policy.force).toBe(false);
+    expect(policy.clear).toBe(false);
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['input'], false, {
+        ambientAnimation: true,
+        viewportScrolled: false,
+      }),
+    ).toBe(false);
+    // IME path: cursor re-emit is independent of force/clear.
+    expect(shouldForceNativeCursor({ causes: ['input'] })).toBe(true);
+  });
+
+  it('keeps forceCursor on for animation-only frames without coupling it to force', () => {
+    // Animation + ambient → force/clear true (surface VFX), forceCursor still true.
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
+        ambientAnimation: true,
+      }),
+    ).toBe(true);
+    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
+
+    // Animation without ambient allowance → no force, still forceCursor (IME).
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
+        ambientAnimation: false,
+      }),
+    ).toBe(false);
+    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
   });
 });

@@ -34,6 +34,46 @@ export function isPureTranscriptScrollFrame(
   );
 }
 
+/**
+ * Pure keystroke frames only rewrite the editor surface. Layout has not
+ * scrolled and chrome geometry is stable, so header/footer/queue can be
+ * reused and Ultrawork perimeter paint can be skipped.
+ */
+export function isPureInputFrame(
+  causes: readonly NativeRenderCause[],
+  structuralShift: boolean,
+  viewportScrolled: boolean,
+): boolean {
+  return (
+    causes.length > 0 &&
+    causes.every((cause) => cause === 'input') &&
+    !structuralShift &&
+    !viewportScrolled
+  );
+}
+
+/**
+ * Whether present() must re-emit CUP (cursor position).
+ *
+ * Independent of force/clear:
+ * - pure-input frames keep force=false (incremental damage) but still need
+ *   forceCursor so OS IME (e.g. hangul preedit) stays on the caret;
+ * - pure animation-only frames may force/clear the surface for ambient VFX
+ *   without coupling that decision to cursor re-emit.
+ *
+ * Always true while the editor caret is live: skipping CUP lets the
+ * terminal cursor drift to the last painted cell (often footer).
+ */
+export function shouldForceNativeCursor(
+  _options: {
+    readonly causes?: readonly NativeRenderCause[];
+    readonly structuralShift?: boolean;
+    readonly viewportScrolled?: boolean;
+  } = {},
+): boolean {
+  return true;
+}
+
 export function shouldForceTUIStateNativeLayoutFrame(
   causes: readonly NativeRenderCause[],
   structuralShift: boolean,
@@ -49,6 +89,12 @@ export function shouldForceTUIStateNativeLayoutFrame(
       structuralShift,
     )
   ) {
+    return false;
+  }
+
+  // Pure keystroke frames must stay incremental — force/clear would repaint
+  // the whole buffer and fight typing latency. forceCursor is separate.
+  if (isPureInputFrame(causes, structuralShift, options.viewportScrolled === true)) {
     return false;
   }
 
