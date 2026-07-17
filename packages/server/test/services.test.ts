@@ -475,8 +475,8 @@ describe('FsWatcherService', () => {
     const service = new FsWatcherService(
       {
         resolve: () => ({
-          send: (frame: Record<string, unknown>) => {
-            frames.push(frame);
+          send: (frame: { type: string; payload?: Record<string, unknown> }) => {
+            frames.push(frame as Record<string, unknown>);
           },
         }),
       },
