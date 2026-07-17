@@ -66,6 +66,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'footer web + office + img·vid + zdr badges show research/office/media/privacy readiness without MCP or config', priority: 1, solo: true },
   { text: 'background Agent only for independent work — never TaskOutput-wait after bg launch', priority: 1, solo: true },
   { text: 'Ultrawork resume: /ultrawork resume after compact/swarm — Continuity notes keep the checkpoint', priority: 2, solo: true },
+  { text: 'UltraSwarm handoff: expert body 1600 · total result 6k · archive inline 120 (LioraExpand full bodies)', priority: 1, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
