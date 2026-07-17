@@ -226,7 +226,7 @@ function formatMediaReadinessLines(env: NodeJS.ProcessEnv = process.env): readon
   const videoReady = videoProviderKeyReady(env);
   return [
     'Media & research (zero-config when keys already exist)',
-    '  Web: WebSearch + FetchURL + LocalResearchStack (built-in).',
+    '  Web: multi-provider WebSearch (Brave/Tavily/Exa/Serper env keys + free DuckDuckGo) + FetchURL.',
     '  Docs: Context7Resolve → Context7Docs for library APIs (built-in).',
     imageReady
       ? '  Images: ready · GenerateImage (OPENAI/GOOGLE/GEMINI key detected).'

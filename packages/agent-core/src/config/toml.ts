@@ -474,8 +474,21 @@ function transformResearchData(data: Record<string, unknown>): Record<string, un
   if (isPlainObject(out['localSearch'])) {
     out['localSearch'] = transformResearchLocalSearchData(out['localSearch']);
   }
+  if (isPlainObject(out['search'])) {
+    out['search'] = transformResearchSearchData(out['search']);
+  }
   if (isPlainObject(out['context7'])) {
     out['context7'] = transformPlainObject(out['context7']);
+  }
+  return out;
+}
+
+function transformResearchSearchData(data: Record<string, unknown>): Record<string, unknown> {
+  const out = transformPlainObject(data);
+  if (Array.isArray(out['providers'])) {
+    out['providers'] = out['providers'].map((entry) =>
+      isPlainObject(entry) ? transformPlainObject(entry) : entry,
+    );
   }
   return out;
 }
@@ -731,8 +744,24 @@ function researchToToml(research: ResearchConfig, rawResearch: unknown): Record<
   for (const [key, value] of Object.entries(research)) {
     if (key === 'localSearch' && value !== undefined) {
       out['local_search'] = researchLocalSearchToToml(value as ResearchLocalSearchConfig);
+    } else if (key === 'search' && value !== undefined) {
+      out['search'] = researchSearchToToml(value as import('./schema').ResearchSearchConfig);
     } else if (key === 'context7' && value !== undefined) {
       out['context7'] = researchContext7ToToml(value as ResearchContext7Config);
+    } else {
+      setDefined(out, camelToSnake(key), value);
+    }
+  }
+  return out;
+}
+
+function researchSearchToToml(search: import('./schema').ResearchSearchConfig): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(search)) {
+    if (key === 'providers' && Array.isArray(value)) {
+      out['providers'] = value.map((entry) =>
+        isPlainObject(entry) ? plainObjectToToml(entry as Record<string, unknown>) : entry,
+      );
     } else {
       setDefined(out, camelToSnake(key), value);
     }

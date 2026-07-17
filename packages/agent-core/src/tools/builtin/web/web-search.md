@@ -1,3 +1,3 @@
-Search the web for current facts.
+Search the web for current facts via the multi-provider research engine (cost-aware cascade by default).
 
-Year from latest `<current_time>` or `GetCurrentTime` for releases/CVEs/news. Hits: title, date when known, URL, snippet; `include_content` adds page text (token-heavy). Host may use a local search provider. For claims, FetchURL + cite primary source URLs — never snippets alone.
+Year from latest `<current_time>` or `GetCurrentTime` for releases/CVEs/news. Default: 3 snippet hits from the cheapest ready provider; escalate only if thin. Hits: title, date when known, URL, snippet. `include_content` fetches cleaned bodies for top 1–2 only (token-heavy) — prefer snippets then FetchURL on cite targets / primary source URLs. Env keys (`BRAVE_API_KEY`, `TAVILY_API_KEY`, `EXA_API_KEY`, `SERPER_API_KEY`) auto-detected; free DuckDuckGo is last-resort local search provider fallback. Never raise limit just to “be thorough”.

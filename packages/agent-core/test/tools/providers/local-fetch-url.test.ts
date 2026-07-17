@@ -66,7 +66,7 @@ describe('LocalFetchURLProvider content kind', () => {
     expect(result.content).toContain('quick brown fox');
   });
 
-  it('uses internal selector extraction for common documentation containers', () => {
+  it('uses Defuddle markdown extraction for common documentation containers', async () => {
     const html = [
       '<html><head><title>SDK Guide</title></head><body>',
       '<nav>',
@@ -75,18 +75,50 @@ describe('LocalFetchURLProvider content kind', () => {
       '<div class="markdown-body">',
       '<h1>Install</h1>',
       '<p>Use the built-in fetch path for source-backed research.</p>',
+      '<pre><code class="language-js">const ok = true;</code></pre>',
       '</div>',
       '<footer>Footer noise</footer>',
       '</body></html>',
     ].join('');
 
-    const result = extractLocalMainContent(html);
+    const result = await extractLocalMainContent(html, { url: 'https://example.com/sdk' });
 
     expect(result.source).toBe('selector');
     expect(result.selector).toBe('.markdown-body');
     expect(result.content).toContain('# SDK Guide');
     expect(result.content).toContain('Use the built-in fetch path');
+    expect(result.content).toContain('```');
+    expect(result.content).toContain('const ok = true;');
     expect(result.content).not.toContain('Navigation noise');
+    expect(result.content).not.toContain('<div');
+  });
+
+  it('preserves structure and strips chrome on article pages', async () => {
+    const html = [
+      '<!doctype html><html><head><title>Sample Bug Report</title>',
+      '<style>.nav{display:block}</style><script>var x=1</script></head><body>',
+      '<nav>Home Docs Blog Login</nav>',
+      '<aside>Related posts Sponsored</aside>',
+      '<article>',
+      '<h1>Sample Bug Report</h1>',
+      '<p>The default parameter value for <code>optimizer</code> should probably be <code>adamw</code> instead of <code>adamW</code>.</p>',
+      '<pre><code class="language-js">const x = 1;\nconsole.log(x);</code></pre>',
+      '<ul><li>one</li><li>two</li></ul>',
+      '</article>',
+      '<footer>Copyright 2026</footer>',
+      '</body></html>',
+    ].join('');
+
+    const result = await extractLocalMainContent(html, { url: 'https://example.com/bug' });
+
+    expect(result.content).toContain('optimizer');
+    expect(result.content).toContain('adamw');
+    expect(result.content).toContain('```');
+    expect(result.content).toContain('console.log(x);');
+    expect(result.content).toMatch(/- one/);
+    expect(result.content).not.toContain('<article>');
+    expect(result.content).not.toContain('<script>');
+    expect(result.content).not.toContain('Related posts');
   });
 });
 

@@ -302,17 +302,15 @@ describe('LocalWebSearchProvider', () => {
 
     const results = await provider.search('kimi code latest docs', { limit: 1 });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalled();
     const requestUrl = fetchImpl.mock.calls[0]?.[0] as URL;
-    expect(requestUrl.hostname).toBe('duckduckgo.com');
-    expect(requestUrl.searchParams.get('q')).toBe('kimi code latest docs');
-    expect(results).toEqual([
-      {
-        title: 'Example Docs',
-        url: 'https://example.com/docs',
-        snippet: 'Official docs snippet',
-      },
-    ]);
+    expect(requestUrl.hostname).toContain('duckduckgo.com');
+    expect(requestUrl.searchParams.get('q')).toContain('kimi code latest docs');
+    expect(results[0]).toMatchObject({
+      title: 'Example Docs',
+      url: 'https://example.com/docs',
+    });
+    expect(results[0]?.snippet).toContain('Official docs snippet');
   });
 
   it('rejects oversized local search responses before parsing', async () => {
@@ -328,7 +326,7 @@ describe('LocalWebSearchProvider', () => {
   it('falls back to direct public sources when the HTML search endpoint fails', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
       const url = input as URL;
-      if (url.hostname === 'duckduckgo.com') {
+      if (url.hostname.includes('duckduckgo.com')) {
         return new Response('unavailable', { status: 503 });
       }
       if (url.hostname === 'api.github.com') {
@@ -356,6 +354,7 @@ describe('LocalWebSearchProvider', () => {
 
     const results = await provider.search('local research fallback', { limit: 3 });
 
+    expect(results.length).toBeGreaterThan(0);
     expect(results[0]).toMatchObject({
       title: 'example/research-tool',
       url: 'https://github.com/example/research-tool',
@@ -374,10 +373,19 @@ describe('LocalWebSearchProvider', () => {
       ].join('')),
       '</body></html>',
     ].join('');
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(html, {
-      status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-    }));
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = input as URL;
+      if (url.hostname.includes('duckduckgo.com')) {
+        return new Response(html, {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      }
+      return new Response(JSON.stringify({ items: [], objects: [], crates: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
     let active = 0;
     let maxActive = 0;
     const urlFetcher: UrlFetcher = {
@@ -402,6 +410,103 @@ describe('LocalWebSearchProvider', () => {
     expect(results).toHaveLength(4);
     expect(results.every((result) => result.content?.startsWith('Fetched https://example.com/docs-'))).toBe(true);
     expect(maxActive).toBeLessThanOrEqual(2);
+  });
+  it('runs direct tech sources in parallel for package-intent free search', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = input as URL;
+      if (url.hostname === 'duckduckgo.com' || url.hostname === 'lite.duckduckgo.com') {
+        return new Response(
+          [
+            '<html><body>',
+            '<div class="result">',
+            '<a class="result__a" href="https://example.com/blog">SEO Blog</a>',
+            '<a class="result__snippet">generic blog post</a>',
+            '</div>',
+            '</body></html>',
+          ].join(''),
+          { status: 200, headers: { 'content-type': 'text/html' } },
+        );
+      }
+      if (url.hostname === 'registry.npmjs.org') {
+        return new Response(
+          JSON.stringify({
+            objects: [
+              {
+                package: {
+                  name: 'zod',
+                  version: '3.23.0',
+                  description: 'TypeScript-first schema validation',
+                  links: { npm: 'https://www.npmjs.com/package/zod' },
+                  date: '2026-01-01T00:00:00.000Z',
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.hostname === 'api.github.com') {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                full_name: 'colinhacks/zod',
+                html_url: 'https://github.com/colinhacks/zod',
+                description: 'TypeScript-first schema declaration',
+                updated_at: '2026-01-02T00:00:00Z',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      searchUrl: 'https://duckduckgo.com/html/',
+      directSources: { github: true, npm: true, arxiv: false, pypi: false, crates: false },
+    });
+
+    const results = await provider.search('zod typescript npm schema', { limit: 5 });
+    const urls = results.map((r) => r.url);
+    expect(urls).toContain('https://www.npmjs.com/package/zod');
+    expect(urls).toContain('https://github.com/colinhacks/zod');
+    // Primary source ranking should beat generic blog for package intent.
+    expect(urls[0]).not.toBe('https://example.com/blog');
+  });
+
+  it('skips expensive direct APIs for general non-tech free queries', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = input as URL;
+      if (url.hostname.includes('duckduckgo.com')) {
+        return new Response(
+          [
+            '<html><body>',
+            '<div class="result">',
+            '<a class="result__a" href="https://example.com/weather">Weather</a>',
+            '<a class="result__snippet">today weather</a>',
+            '</div>',
+            '</body></html>',
+          ].join(''),
+          { status: 200, headers: { 'content-type': 'text/html' } },
+        );
+      }
+      return new Response('should-not-call', { status: 500 });
+    });
+
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      searchUrl: 'https://duckduckgo.com/html/',
+      directSources: { github: true, npm: true, arxiv: true, pypi: true, crates: true },
+    });
+
+    const results = await provider.search('what is the weather today', { limit: 3 });
+    expect(results[0]?.url).toContain('example.com/weather');
+    const hosts = fetchImpl.mock.calls.map((call) => (call[0] as URL).hostname);
+    expect(hosts.some((h) => h === 'api.github.com')).toBe(false);
+    expect(hosts.some((h) => h === 'registry.npmjs.org')).toBe(false);
   });
 });
 

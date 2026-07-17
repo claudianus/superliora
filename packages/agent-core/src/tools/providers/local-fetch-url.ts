@@ -7,44 +7,22 @@
  *   3. Reject responses larger than `maxBytes` (content-length first,
  *      then measured body length as a defensive second check).
  *   4. `text/plain` / `text/markdown` → passthrough verbatim.
- *   5. Otherwise (assumed HTML) → extract the main text through the
- *      built-in research extractor: common documentation/content selectors,
- *      then Readability, then `<body>` as the last fallback.
+ *   5. Otherwise (assumed HTML) → extract main content via Defuddle
+ *      (Obsidian Web Clipper extractor) into LLM-clean markdown:
+ *      strip chrome, keep structure (headings/lists/code), drop tags.
  */
 
 import { promises as dns } from 'node:dns';
 
-import { Readability } from '@mozilla/readability';
-import { parseHTML as rawParseHTML } from 'linkedom';
-
 import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin/web/fetch-url';
-
-// Readability's .d.ts references the global `Document` type, but this
-// package compiles with `lib: ES2023` (no DOM). Extracting the
-// constructor parameter type keeps us off the global `Document` name
-// while still accepting whatever Readability wants.
-type ReadabilityDocument = ConstructorParameters<typeof Readability>[0];
-
-// linkedom's published types depend on DOM libs we don't load. Declare
-// the minimal surface we actually use so the rest of the file stays
-// type-safe without pulling lib.dom.d.ts into the host build.
-interface DomElementLike {
-  textContent: string | null;
-  querySelector(selector: string): DomElementLike | null;
-  querySelectorAll(selector: string): Iterable<DomElementLike>;
-}
-interface DomParseResult {
-  document: DomElementLike;
-}
-const parseHTML = rawParseHTML as unknown as (html: string) => DomParseResult;
+import { htmlToLlmText } from '../support/html-to-llm-text';
 
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
-const MIN_SELECTOR_TEXT_LENGTH = 20;
-
+/** Prefer these containers when Defuddle auto-detection is weak. */
 export const LOCAL_WEB_RESEARCH_CONTENT_SELECTORS = Object.freeze([
   'article',
   'main',
@@ -60,8 +38,9 @@ export const LOCAL_WEB_RESEARCH_CONTENT_SELECTORS = Object.freeze([
 
 export interface LocalMainContentExtraction {
   readonly content: string;
-  readonly source: 'selector' | 'readability' | 'body';
+  readonly source: 'defuddle' | 'selector' | 'body';
   readonly selector?: string;
+  readonly title?: string;
 }
 
 export interface LocalFetchURLProviderOptions {
@@ -267,83 +246,91 @@ export class LocalFetchURLProvider implements UrlFetcher {
       return { content: body, kind: 'passthrough' };
     }
 
-    return { content: extractLocalMainContent(body).content, kind: 'extracted' };
+    const extracted = await extractLocalMainContent(body, { url: currentUrl });
+    return { content: extracted.content, kind: 'extracted' };
   }
 }
 
-export function extractLocalMainContent(html: string): LocalMainContentExtraction {
-  const selector = extractByContentSelector(html);
-  if (selector !== undefined) return selector;
+/**
+ * Extract LLM-clean markdown from an HTML page body.
+ *
+ * Uses Defuddle for article detection + markdown conversion. When a known
+ * documentation/content selector matches and yields more text than auto
+ * detection, that container is preferred via `contentSelector`.
+ */
+export async function extractLocalMainContent(
+  html: string,
+  options: { readonly url?: string } = {},
+): Promise<LocalMainContentExtraction> {
+  const preferredSelector = findPreferredContentSelector(html);
 
-  const readability = extractByReadability(html);
-  if (readability !== undefined) return readability;
-
-  const { document } = parseHTML(html);
-  const titleText = normalizeText(document.querySelector('title')?.textContent ?? '');
-  const fallbackText = normalizeText(document.querySelector('body')?.textContent ?? '');
-
-  if (fallbackText.length === 0) {
-    throw new Error(
-      'Failed to extract meaningful content from the page. The page may require JavaScript to render.',
-    );
-  }
-
-  return {
-    content: withTitle(titleText, fallbackText),
-    source: 'body',
-  };
-}
-
-function extractByContentSelector(html: string): LocalMainContentExtraction | undefined {
-  const { document } = parseHTML(html);
-  const titleText = normalizeText(document.querySelector('title')?.textContent ?? '');
-  let best: { selector: string; text: string } | undefined;
-
-  for (const selector of LOCAL_WEB_RESEARCH_CONTENT_SELECTORS) {
-    for (const element of document.querySelectorAll(selector)) {
-      const text = normalizeText(element.textContent ?? '');
-      if (text.length < MIN_SELECTOR_TEXT_LENGTH) continue;
-      if (best === undefined || text.length > best.text.length) {
-        best = { selector, text };
-      }
-    }
-  }
-
-  if (best === undefined) return undefined;
-  return {
-    content: withTitle(titleText, best.text),
-    source: 'selector',
-    selector: best.selector,
-  };
-}
-
-function extractByReadability(html: string): LocalMainContentExtraction | undefined {
-  const primary = parseHTML(html);
   try {
-    const reader = new Readability(primary.document as unknown as ReadabilityDocument, {
-      charThreshold: 0,
+    const result = await htmlToLlmText(html, {
+      url: options.url,
+      contentSelector: preferredSelector,
+      removeImages: true,
     });
-    const article = reader.parse();
-    if (article !== null) {
-      const text = normalizeText(article.textContent ?? '');
-      if (text.length > 0) {
-        const title = normalizeText(article.title ?? '');
-        return {
-          content: withTitle(title, text),
-          source: 'readability',
-        };
-      }
+    if (result.content.trim().length > 0) {
+      const titleHeading = result.title.length > 0 ? `# ${result.title}` : '';
+      const content =
+        titleHeading.length > 0 && !result.content.startsWith(titleHeading)
+          ? `${titleHeading}\n\n${result.content}`
+          : result.content;
+      return {
+        content,
+        source: preferredSelector !== undefined ? 'selector' : 'defuddle',
+        selector: preferredSelector,
+        title: result.title.length > 0 ? result.title : undefined,
+      };
     }
   } catch {
-    return undefined;
+    // Fall through to the body-text failure path below.
+  }
+
+  // Last-ditch: Defuddle returned empty / threw. Surface a clear error so the
+  // tool can tell the model the page likely needs JS rendering or a browser.
+  throw new Error(
+    'Failed to extract meaningful content from the page. The page may require JavaScript to render.',
+  );
+}
+
+function findPreferredContentSelector(html: string): string | undefined {
+  // Cheap string probe — avoids a second full DOM parse just to pick a selector.
+  // Prefer the first selector whose marker appears; Defuddle will refine content.
+  for (const selector of LOCAL_WEB_RESEARCH_CONTENT_SELECTORS) {
+    if (selector.startsWith('.')) {
+      const className = selector.slice(1);
+      if (
+        html.includes(`class="${className}"`) ||
+        html.includes(`class='${className}'`) ||
+        new RegExp(`class=["'][^"']*\\b${className}\\b`).test(html)
+      ) {
+        return selector;
+      }
+      continue;
+    }
+    if (selector.startsWith('#')) {
+      const id = selector.slice(1);
+      if (html.includes(`id="${id}"`) || html.includes(`id='${id}'`)) {
+        return selector;
+      }
+      continue;
+    }
+    if (selector.startsWith('[')) {
+      // Attribute selectors like [role="main"].
+      const roleMatch = /\[role=["']([^"']+)["']\]/.exec(selector);
+      if (roleMatch?.[1] !== undefined) {
+        const role = roleMatch[1];
+        if (html.includes(`role="${role}"`) || html.includes(`role='${role}'`)) {
+          return selector;
+        }
+      }
+      continue;
+    }
+    // Tag name.
+    if (new RegExp(`<${selector}\\b`, 'i').test(html)) {
+      return selector;
+    }
   }
   return undefined;
-}
-
-function normalizeText(text: string): string {
-  return text.replaceAll(/\s+/g, ' ').trim();
-}
-
-function withTitle(title: string, text: string): string {
-  return title.length > 0 ? `# ${title}\n\n${text}` : text;
 }
