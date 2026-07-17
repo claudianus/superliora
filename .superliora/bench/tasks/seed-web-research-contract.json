@@ -9,7 +9,9 @@
     "web",
     "research",
     "context7",
-    "deterministic-check"
+    "deterministic-check",
+    "source-command",
+    "token-efficiency"
   ],
   "prompt": "Create reports/web-research-contract.md with sections for Current-time year, Context7 library docs, WebSearch primary sources, and FetchURL citation.",
   "budgets": {
@@ -29,7 +31,7 @@
     {
       "type": "writeFile",
       "path": "reports/web-research-contract.md",
-      "content": "# Web Research Contract\n\n## Current-time year\nprefer GetCurrentTime / <current_time> before year-sensitive claims\n\n## Context7 library docs\nContext7Resolve \u2192 Context7Docs for library APIs\n\n## WebSearch primary sources\nWebSearch defaults to 2 hits then FetchURL for CVEs, releases, papers\n\n## FetchURL citation\ncite primary source URLs; do not rely only on snippets\n"
+      "content": "# Web Research Contract\n\n## Current-time year\nprefer GetCurrentTime / <current_time> before year-sensitive claims\n\n## Context7 library docs\nContext7Resolve \u2192 Context7Docs for library APIs (built-in, no MCP); resolve caps at 8 matches and docs text at 12k chars\n\n## WebSearch primary sources\nWebSearch defaults to 3 hits then FetchURL for CVEs, releases, papers; prefer a sharper query over raising limit; include_content capped at 8k/page\n\n## FetchURL citation\ncite primary source URLs; do not rely only on snippets\n"
     }
   ],
   "contamination": {
@@ -61,6 +63,35 @@
       "type": "file_contains",
       "path": "reports/web-research-contract.md",
       "text": "FetchURL citation",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-contract.md",
+      "text": "defaults to 3 hits",
+      "weight": 1
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst web=readFileSync('packages/agent-core/src/tools/builtin/web/web-search.ts','utf8');\nconst local=readFileSync('packages/agent-core/src/tools/providers/local-web-search.ts','utf8');\nconst c7=readFileSync('packages/agent-core/src/tools/providers/context7.ts','utf8');\nconst fetchUrl=readFileSync('packages/agent-core/src/tools/builtin/web/fetch-url.ts','utf8');\nconst fails=[];\nif (!web.includes('limit: args.limit ?? 3')) fails.push('web3');\nif (!local.includes('INCLUDE_CONTENT_MAX_CHARS = 8_000')) fails.push('include8k');\nif (!local.includes('INCLUDE_CONTENT_MAX_CHARS')) fails.push('include-const');\nif (!(local.includes('slice(0, INCLUDE_CONTENT_MAX_CHARS)') || local.includes('> INCLUDE_CONTENT_MAX_CHARS'))) fails.push('include-apply');\nif (!c7.includes('CONTEXT7_RESOLVE_MAX_MATCHES = 8')) fails.push('c7-8');\nif (!c7.includes('CONTEXT7_DOCS_TEXT_MAX_CHARS = 12_000')) fails.push('c7-12k');\nif (!fetchUrl.includes('FETCH_URL_CONTENT_MAX_CHARS = 16_000')) fails.push('fetch16k');\nif (!(fetchUrl.includes('> FETCH_URL_CONTENT_MAX_CHARS') || fetchUrl.includes('slice(0, FETCH_URL_CONTENT_MAX_CHARS)'))) fails.push('fetch-apply');\nif (fails.length){console.error(fails.join(','));process.exit(1);} console.log('web-research-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-contract.md",
+      "text": "12k chars",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/web-research-contract.md",
+      "text": "include_content capped",
       "weight": 1
     }
   ]

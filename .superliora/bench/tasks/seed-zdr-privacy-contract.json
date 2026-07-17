@@ -9,7 +9,8 @@
     "privacy",
     "zdr",
     "telemetry",
-    "deterministic-check"
+    "deterministic-check",
+    "source-command"
   ],
   "prompt": "Create reports/zdr-privacy-contract.md with sections for Default telemetry, Opt-in analytics, /status privacy gate, and Local evidence only.",
   "budgets": {
@@ -29,7 +30,7 @@
     {
       "type": "writeFile",
       "path": "reports/zdr-privacy-contract.md",
-      "content": "# ZDR Privacy Contract\n\n## Default telemetry\nproduct telemetry is OFF by default (ZDR-friendly)\n\n## Opt-in analytics\nset telemetry = true in config.toml only when usage analytics are wanted\n\n## /status privacy gate\n/status and /context show Privacy / ZDR posture without secrets\n\n## Local evidence only\nkeep secrets out of chat/logs; redacted bench evidence before sharing\n"
+      "content": "# ZDR Privacy Contract\n\n## Default telemetry\nTelemetry OFF by default for ZDR-friendly local runs.\n\n## Opt-in analytics\nSUPERLIORA_TELEMETRY=1 enables opt-in analytics; otherwise local-only.\n\n## /status privacy gate\n/status shows Privacy telemetry ON/OFF and footer `zdr` badge when offline.\n\n## Local evidence only\nEvidence stays in project-local paths; no remote exfil by default.\n"
     }
   ],
   "contamination": {
@@ -62,6 +63,17 @@
       "path": "reports/zdr-privacy-contract.md",
       "text": "Local evidence only",
       "weight": 1
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst toml = readFileSync('packages/agent-core/src/config/toml.ts','utf8');\nconst tele = readFileSync('apps/liora/src/cli/telemetry.ts','utf8');\nconst footer = readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst status = readFileSync('apps/liora/src/tui/components/messages/status-panel.ts','utf8');\nconst fails=[];\nif (!toml.includes('Product telemetry is off by default (ZDR-friendly)')) fails.push('toml-default');\nif (!tele.includes('config.telemetry === true')) fails.push('opt-in-only');\nif (!tele.includes('return { telemetry: false }')) fails.push('safe-default');\nif (!footer.includes('formatZdrFooterBadge')) fails.push('footer-zdr');\nif (!status.includes('ZDR-friendly local')) fails.push('status-zdr');\nif (fails.length) { console.error(fails.join(',')); process.exit(1);} console.log('zdr-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
     }
   ]
 }

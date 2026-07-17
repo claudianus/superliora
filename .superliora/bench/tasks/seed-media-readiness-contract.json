@@ -10,7 +10,8 @@
     "image",
     "video",
     "provider",
-    "deterministic-check"
+    "deterministic-check",
+    "source-command"
   ],
   "prompt": "Create reports/media-readiness-contract.md with sections for Provider keys, /status Media gate, GenerateImage path, and GenerateVideo path.",
   "budgets": {
@@ -30,7 +31,7 @@
     {
       "type": "writeFile",
       "path": "reports/media-readiness-contract.md",
-      "content": "# Media Readiness Contract\n\n## Provider keys\nOPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY\n\n## /status Media gate\nshow ready/key/missing without MCP\n\n## GenerateImage path\n.superliora/generated/images/<timestamp>.png\n\n## GenerateVideo path\n.superliora/generated/videos/<timestamp>.mp4\n"
+      "content": "# Media Readiness Contract\n\n## Provider keys\nOPENAI_API_KEY / GOOGLE_API_KEY / GEMINI_API_KEY enable zero-config media.\n\n## /status Media gate\n/status Media shows image/video readiness without MCP.\n\n## GenerateImage path\nDefault `.superliora/generated/images/<timestamp>.png` at 1024x1024.\n\n## GenerateVideo path\nDefault `.superliora/generated/videos/<timestamp>.mp4` at 16:9 \u00b7 5s.\n\n## Zero-config registration\nTools register when keys present \u2014 no MCP.\n"
     }
   ],
   "contamination": {
@@ -49,13 +50,31 @@
     {
       "type": "file_contains",
       "path": "reports/media-readiness-contract.md",
-      "text": "/status Media gate",
+      "text": "GenerateImage path",
       "weight": 1
     },
     {
       "type": "file_contains",
       "path": "reports/media-readiness-contract.md",
-      "text": "GenerateImage path",
+      "text": "1024x1024",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-readiness-contract.md",
+      "text": "16:9",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-readiness-contract.md",
+      "text": "Zero-config registration",
+      "weight": 1
+    },
+    {
+      "type": "file_contains",
+      "path": "reports/media-readiness-contract.md",
+      "text": "/status Media gate",
       "weight": 1
     },
     {
@@ -63,6 +82,17 @@
       "path": "reports/media-readiness-contract.md",
       "text": "GenerateVideo path",
       "weight": 1
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst img = readFileSync('packages/agent-core/src/tools/builtin/media/generate-image.ts','utf8');\nconst vid = readFileSync('packages/agent-core/src/tools/builtin/media/generate-video.ts','utf8');\nconst tools = readFileSync('packages/agent-core/src/agent/tool/index.ts','utf8');\nconst footer = readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst fails=[];\nif (!img.includes('OPENAI_API_KEY')) fails.push('img-openai');\nif (!img.includes('GOOGLE_API_KEY')) fails.push('img-google');\nif (!img.includes('isGenerateImageAvailable')) fails.push('img-avail');\nif (!img.includes(\"args.size ?? '1024x1024'\")) fails.push('img-size-default');\nif (!img.includes(\"args.provider ?? 'auto'\")) fails.push('img-provider-auto');\nif (!vid.includes('isGenerateVideoAvailable')) fails.push('vid-avail');\nif (!vid.includes(\"args.aspect_ratio ?? '16:9'\")) fails.push('vid-aspect');\nif (!vid.includes('args.duration_seconds ?? 5')) fails.push('vid-duration');\nif (!tools.includes(\"shouldCreateBuiltin('GenerateImage')\")) fails.push('reg-img');\nif (!tools.includes(\"shouldCreateBuiltin('GenerateVideo')\")) fails.push('reg-vid');\nif (!footer.includes('formatMediaFooterBadge')) fails.push('footer-media');\nif (fails.length) { console.error(fails.join(',')); process.exit(1);} console.log('media-zero-config-source-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
     }
   ]
 }

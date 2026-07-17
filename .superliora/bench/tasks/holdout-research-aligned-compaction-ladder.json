@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "holdout.research-aligned-compaction-ladder.v1",
+  "title": "Research-aligned compaction ladder must stay above densify floors",
+  "suite": "holdout",
+  "kind": "token-efficiency",
+  "risk": "low",
+  "tags": [
+    "compaction",
+    "research",
+    "safety-floor",
+    "holdout",
+    "source-command"
+  ],
+  "prompt": "Verify DEFAULT_COMPACTION_CONFIG stays research-aligned (soft 0.80, hard 0.92, async 0.70) and UI ladder imports the same SDK defaults.",
+  "budgets": {
+    "maxWallMs": 120000,
+    "maxCommands": 12,
+    "maxPromptChars": 1000
+  },
+  "setup": {
+    "files": [
+      {
+        "path": "reports/.gitkeep",
+        "content": ""
+      }
+    ]
+  },
+  "fixtureActions": [
+    {
+      "type": "writeFile",
+      "path": "reports/research-aligned-compaction-ladder.md",
+      "content": "# Research-Aligned Compaction Ladder\n\n## Soft trigger\nDEFAULT_COMPACTION_TRIGGER_RATIO = 0.80\n\n## Hard block\nDEFAULT_COMPACTION_BLOCK_RATIO = 0.92\n\n## Async pre-rot\nDEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.70\n\n## Budgets\nreservedContextSize = 50000 · absoluteTriggerTokens = 200000 · maxRecentMessages = 4\n\n## Safety floor\nassertCompactionLadderSafety rejects densify soft 0.01001 and async≈soft collisions\n\n## UI coupling\nTUI context-ladder imports the same SDK defaults (async70 / soft80 / danger90)\n"
+    }
+  ],
+  "contamination": {
+    "blockedFiles": [
+      "answers/solution.txt",
+      ".superliora/evidence/stale-pass.json"
+    ]
+  },
+  "checks": [
+    {
+      "type": "file_contains",
+      "path": "reports/research-aligned-compaction-ladder.md",
+      "text": "0.80",
+      "weight": 1
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst strategy = readFileSync('packages/agent-core/src/agent/compaction/strategy.ts', 'utf8');\nconst ladder = readFileSync('apps/liora/src/utils/usage/context-ladder.ts', 'utf8');\nconst sdk = readFileSync('packages/node-sdk/src/index.ts', 'utf8');\nconst fails = [];\nif (!strategy.includes('export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.80')) fails.push('soft');\nif (!strategy.includes('export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.92')) fails.push('hard');\nif (!strategy.includes('export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.70')) fails.push('async');\nif (!strategy.includes('reservedContextSize: 50_000')) fails.push('reserved');\nif (!strategy.includes('absoluteTriggerTokens: 200_000')) fails.push('absolute');\nif (!strategy.includes('maxRecentMessages: 4')) fails.push('maxRecent');\nif (!strategy.includes('assertCompactionLadderSafety(DEFAULT_COMPACTION_CONFIG')) fails.push('assert');\nif (!ladder.includes(\"from '@superliora/sdk'\")) fails.push('ladder-sdk');\nif (!ladder.includes('DEFAULT_COMPACTION_TRIGGER_RATIO')) fails.push('ladder-soft');\nif (!sdk.includes('DEFAULT_COMPACTION_TRIGGER_RATIO')) fails.push('sdk-export');\nif (fails.length) { console.error(fails.join(',')); process.exit(1); }\nconsole.log('research-aligned-ladder-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 3
+    },
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst strategy = readFileSync('packages/agent-core/src/agent/compaction/strategy.ts', 'utf8');\nconst densifySoft = /DEFAULT_COMPACTION_TRIGGER_RATIO\\s*=\\s*0\\.0[0-4]/;\nconst densifyAsync = /DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO\\s*=\\s*0\\.0[0-4]/;\nif (densifySoft.test(strategy) || densifyAsync.test(strategy)) {\n  console.error('densify-soft-or-async-detected');\n  process.exit(1);\n}\nconsole.log('no-densify-soft-async');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 2
+    }
+  ]
+}
