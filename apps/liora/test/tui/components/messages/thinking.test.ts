@@ -24,16 +24,16 @@ describe('ThinkingComponent', () => {
     expect(out).toContain('working it out');
   });
 
-  it('shows only the live thinking tail while collapsed', () => {
+  it('shows a 4-line live thinking tail while collapsed', () => {
     const component = new ThinkingComponent(longThinking, true, 'live');
     const out = strip(component.render(80).join('\n'));
 
     expect(out).not.toContain('line1');
     expect(out).not.toContain('line2');
     expect(out).not.toContain('line3');
-    expect(out).not.toContain('line4');
-    expect(out).not.toContain('line5');
-    expect(out).not.toContain('line6');
+    expect(out).toContain('line4');
+    expect(out).toContain('line5');
+    expect(out).toContain('line6');
     expect(out).toContain('line7');
     expect(out).not.toContain('ctrl+o to expand');
   });
@@ -43,9 +43,8 @@ describe('ThinkingComponent', () => {
     component.setExpanded(true);
     const out = strip(component.render(80).join('\n'));
 
+    // Expanded live thinking is height-capped to max(preview, 4) → last 4 lines.
     expect(out).not.toContain('line1');
-    // Expanded live thinking is height-capped to max(preview, 4).
-    expect(out).not.toContain('line2');
     expect(out).not.toContain('line3');
     expect(out).toContain('line4');
     expect(out).toContain('line6');

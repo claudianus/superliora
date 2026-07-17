@@ -202,10 +202,10 @@ describe('ToolCallComponent', () => {
 
     const collapsed = strip(component.render(100).join('\n'));
     expect(collapsed).toContain('line1');
-    expect(collapsed).not.toContain('line2');
-    expect(collapsed).not.toContain('line3');
+    expect(collapsed).toContain('line2');
+    expect(collapsed).toContain('line3');
     expect(collapsed).not.toContain('line4');
-    expect(collapsed).toContain('... (4 more lines, ctrl+o to expand)');
+    expect(collapsed).toContain('... (2 more lines, ctrl+o to expand)');
 
     component.setExpanded(true);
 
@@ -230,7 +230,8 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Bash');
-    expect(out).not.toContain('line1');
+    // Live bash shows a short tail of streaming output (RESULT_PREVIEW_LINES=3).
+    expect(out).toContain('line1');
     expect(out).toContain('line2');
   });
 
@@ -991,10 +992,11 @@ describe('ToolCallComponent', () => {
     out = strip(component.render(120).join('\n'));
     expect(out).toContain('Explore Agent Running (explore project xxx) · 1 tool · 10s');
     expect(out).toContain('Using Read (apps/liora/src/tui/utils/background-agent-status.ts)');
-    expect(out).not.toContain('think1');
-    expect(out).not.toContain('think2');
+    // Live subagent thinking uses THINKING_PREVIEW_LINES (4) tail glance.
+    expect(out).toContain('think1');
+    expect(out).toContain('think2');
     expect(out).toContain('think3');
-    expect(out).toContain('◌ think3');
+    expect(out).toContain('◌ think1');
     expect(out).not.toContain('answer1');
     expect(out).not.toContain('answer2');
     expect(out).toContain('answer3');
@@ -1197,14 +1199,14 @@ describe('ToolCallComponent', () => {
       runInBackground: false,
     });
     // A single long logical line (no newlines) wraps to many display rows;
-    // only the last THINKING_PREVIEW_LINES (1) should remain visible.
+    // only the last THINKING_PREVIEW_LINES (4) should remain visible.
     // Enough segments to wrap past the preview window at width 40.
     const segs = Array.from({ length: 60 }, (_, i) => `seg${String(i).padStart(2, '0')}`);
     component.appendSubagentText(segs.join(' '), 'thinking');
 
     const lines = strip(component.render(40).join('\n')).split('\n');
     const thinkingRows = lines.filter((l) => /seg\d\d/.test(l));
-    expect(thinkingRows.length).toBe(1);
+    expect(thinkingRows.length).toBe(4);
     expect(lines.join('\n')).toContain('seg59');
     expect(lines.join('\n')).not.toContain('seg00');
   });
@@ -1236,9 +1238,9 @@ describe('ToolCallComponent', () => {
     let out = strip(component.render(120).join('\n'));
     expect(out).toContain('Used Bash (ls -la)');
     expect(out).toContain('bash-line-0');
-    expect(out).not.toContain('bash-line-1');
-    expect(out).not.toContain('bash-line-2');
-    expect(out).toContain('... (9 more lines)');
+    expect(out).toContain('bash-line-1');
+    expect(out).toContain('bash-line-2');
+    expect(out).toContain('... (7 more lines)');
     // Subagent output is fixed-truncated: no ctrl+o promise.
     expect(out).not.toContain('ctrl+o');
 
@@ -1246,7 +1248,7 @@ describe('ToolCallComponent', () => {
     component.setExpanded(true);
     out = strip(component.render(120).join('\n'));
     expect(out).not.toContain('bash-line-9');
-    expect(out).toContain('... (9 more lines)');
+    expect(out).toContain('... (7 more lines)');
   });
 
   it('truncates unknown subagent tool output but leaves recognized tools as rows', () => {
@@ -1289,9 +1291,9 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('recognized-read-body');
     // Unknown/MCP tool: truncated output body, no ctrl+o promise.
     expect(out).toContain('mcp-line-0');
-    expect(out).not.toContain('mcp-line-1');
-    expect(out).not.toContain('mcp-line-2');
-    expect(out).toContain('... (4 more lines)');
+    expect(out).toContain('mcp-line-1');
+    expect(out).toContain('mcp-line-2');
+    expect(out).toContain('... (2 more lines)');
     expect(out).not.toContain('ctrl+o');
   });
 
@@ -1554,9 +1556,11 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Write');
-    // Streaming preview caps at COMMAND_PREVIEW_LINES (2) and shows the tail.
+    // Streaming preview caps at COMMAND_PREVIEW_LINES (4) and shows the tail.
     expect(out).not.toContain('line1');
-    expect(out).not.toContain('line28');
+    expect(out).not.toContain('line26');
+    expect(out).toContain('line27');
+    expect(out).toContain('line28');
     expect(out).toContain('line29');
     expect(out).toContain('line30');
     // Line numbers should reflect actual file positions.
