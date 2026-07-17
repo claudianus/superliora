@@ -1940,8 +1940,9 @@ command = "vim"
     const panel = stripSgr(renderBtwPanel(driver));
     expect(transcript).not.toContain('line7');
     expect(panel).not.toContain('line1');
-    // Collapsed thinking preview is THINKING_PREVIEW_LINES (1): only the tail.
-    expect(panel).not.toContain('line6');
+    // Collapsed thinking preview is THINKING_PREVIEW_LINES (4): short tail glance.
+    expect(panel).not.toContain('line3');
+    expect(panel).toContain('line6');
     expect(panel).toContain('line7');
   });
 
