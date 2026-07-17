@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "system.ultrawork-recovery-continuity.v1",
+  "title": "Ultrawork recovery injectors keep Continuity + resume checkpoints",
+  "suite": "system",
+  "kind": "tui-contract",
+  "risk": "low",
+  "tags": [
+    "ultrawork",
+    "continuity",
+    "recovery",
+    "source-command",
+    "system"
+  ],
+  "prompt": "Verify Ultrawork post-swarm and post-compaction injectors share Continuity notes and resume checkpoints.",
+  "budgets": {
+    "maxWallMs": 60000,
+    "maxCommands": 4,
+    "maxPromptChars": 800
+  },
+  "checks": [
+    {
+      "type": "source_command",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import { readFileSync } from 'node:fs';\nconst recovery=readFileSync('packages/agent-core/src/ultrawork/recovery-injectors.ts','utf8');\nconst cos=readFileSync('packages/agent-core/src/agent/context-os/index.ts','utf8');\nconst fails=[];\nif (!recovery.includes('injectUltraworkPostSwarmContinuation')) fails.push('post-swarm-fn');\nif (!recovery.includes('injectUltraworkPostCompactionContinuation')) fails.push('post-compact-fn');\nconst hits=recovery.split('formatContinuityOperatorNote(agent.contextOS.health())').length-1;\nif (hits < 2) fails.push('continuity-both-paths');\nif (!cos.includes('export function formatContinuityOperatorNote')) fails.push('continuity-export');\nif (!recovery.includes('Resume node:')) fails.push('resume-node');\nif (!recovery.includes('Next actions:')) fails.push('next-actions');\nif (fails.length){console.error(fails.join(',')); process.exit(1);} console.log('ultrawork-recovery-continuity-ok');\n"
+      ],
+      "timeoutMs": 15000,
+      "weight": 2
+    },
+    {
+      "type": "source_command",
+      "command": "corepack",
+      "args": [
+        "pnpm",
+        "--filter",
+        "@superliora/agent-core",
+        "exec",
+        "vitest",
+        "run",
+        "test/ultrawork/recovery.test.ts",
+        "-t",
+        "post-swarm|post-compaction"
+      ],
+      "timeoutMs": 120000,
+      "weight": 2
+    }
+  ]
+}

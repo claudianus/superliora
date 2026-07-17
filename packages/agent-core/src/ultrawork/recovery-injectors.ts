@@ -56,21 +56,46 @@ export function maybeAdvanceUltraworkOnGoalComplete(agent: Agent): void {
 }
 
 export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
-  const run = agent.ultrawork?.getRun();
-  if (run === null || run === undefined || run.status !== 'running') return;
+  const ultrawork = agent.ultrawork;
+  if (ultrawork === undefined) return;
+  const run = ultrawork.getRun();
+  if (run === null || run.status !== 'running') return;
   if (run.stage !== 'integrate') return;
-  agent.context.appendSystemReminder(
-    [
-      '<ultrawork_post_swarm>',
-      'UltraSwarm finished. Continue this Ultrawork run in order:',
-      '1. Integrate — merge specialist output, resolve conflicts, pick an integration owner before more product edits.',
-      '2. Verify — mechanical + real-surface checks for acceptance criteria.',
-      '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
-      'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
-      '</ultrawork_post_swarm>',
-    ].join('\n'),
-    { kind: 'injection', variant: 'ultrawork_post_swarm' },
-  );
+
+  const planContext = ultrawork.isModeEnabled()
+    ? capturePlanRecoveryContextFromAgent(agent)
+    : undefined;
+  const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
+  const nextActions = suggestNextActions(run, 'UltraSwarm finished', planContext, resumeCursor);
+
+  const lines = [
+    '<ultrawork_post_swarm>',
+    'UltraSwarm finished. Continue this Ultrawork run in order:',
+    '1. Integrate — merge specialist output, resolve conflicts, pick an integration owner before more product edits.',
+    '2. Verify — mechanical + real-surface checks for acceptance criteria.',
+    '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
+    'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
+    `Run: ${run.id} · stage=${run.stage}`,
+  ];
+  if (resumeCursor.workGraphNodeId !== undefined) {
+    lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
+  const continuityNote = formatContinuityOperatorNote(agent.contextOS.health());
+  if (continuityNote !== undefined) {
+    lines.push(continuityNote);
+  }
+  if (nextActions.length > 0) {
+    lines.push('Next actions:');
+    for (const action of nextActions.slice(0, 3)) {
+      lines.push(`- ${action}`);
+    }
+  }
+  lines.push('</ultrawork_post_swarm>');
+
+  agent.context.appendSystemReminder(lines.join('\n'), {
+    kind: 'injection',
+    variant: 'ultrawork_post_swarm',
+  });
 }
 
 export function injectUltraworkPostCompactionContinuation(agent: Agent): void {

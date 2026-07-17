@@ -30,7 +30,7 @@
     {
       "type": "writeFile",
       "path": "reports/long-session-continuity.md",
-      "content": "# Long-Session Continuity Contract\n\n## Reclaim ladder\nasync 0.70 \u00b7 soft 0.80 \u00b7 hard 0.92 (research-aligned)\n\n## Context OS injection\nbounded rehydration (\u22643500 chars) with Continuity operator note when evidence is missing or pages need rehydration\n\n## Ultrawork post-compaction\npost-compaction system reminder includes Continuity note + durable checkpoint guidance\n\n## Footer transparency\nctx-os:missing-ev\u00d7N danger badge + next-action durable evidence hint\n\n## Token-efficient tool surfaces\nBash tool desc stays dense with dedicated-tool routing (no command laundry list thrash)\n\n## Evidence path\nLioraBench holdout + context-os/footer/ultrawork recovery vitest + source checks\n"
+      "content": "# Long-Session Continuity Contract\n\n## Reclaim ladder\nasync 0.70 \u00b7 soft 0.80 \u00b7 hard 0.92 (research-aligned)\n\n## Context OS injection\nbounded rehydration (\u22643500 chars) with Continuity operator note when evidence is missing or pages need rehydration\n\n## Ultrawork post-compaction\npost-compaction system reminder includes Continuity note + durable checkpoint guidance\n\n## Ultrawork post-swarm\npost-swarm integrate reminder includes run id, resume node, Continuity note, and next actions\n\n## Footer transparency\nctx-os:missing-ev\u00d7N danger badge + next-action durable evidence hint\n\n## Token-efficient tool surfaces\nBash tool desc stays dense with dedicated-tool routing (no command laundry list thrash)\n\n## Evidence path\nLioraBench holdout + context-os/footer/ultrawork recovery vitest + source checks\n"
     }
   ],
   "contamination": {
@@ -65,12 +65,18 @@
       "weight": 1
     },
     {
+      "type": "file_contains",
+      "path": "reports/long-session-continuity.md",
+      "text": "post-swarm",
+      "weight": 1
+    },
+    {
       "type": "source_command",
       "command": "node",
       "args": [
         "--input-type=module",
         "-e",
-        "import { readFileSync } from 'node:fs';\nconst strategy=readFileSync('packages/agent-core/src/agent/compaction/strategy.ts','utf8');\nconst cos=readFileSync('packages/agent-core/src/agent/context-os/index.ts','utf8');\nconst footer=readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst recovery=readFileSync('packages/agent-core/src/ultrawork/recovery-injectors.ts','utf8');\nconst bash=readFileSync('packages/agent-core/src/tools/builtin/shell/bash.md','utf8');\nconst fails=[];\nif (!strategy.includes('DEFAULT_COMPACTION_TRIGGER_RATIO = 0.80')) fails.push('soft80');\nif (!strategy.includes('DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.70')) fails.push('async70');\nif (!cos.includes('formatContinuityOperatorNote')) fails.push('continuity-note');\nif (!cos.includes('missing durable evidence')) fails.push('missing-ev-note');\nif (!cos.includes('MAX_INJECTION_CHARS = 3_500')) fails.push('inject-budget');\nif (!footer.includes('ctx-os:missing-ev\u00d7')) fails.push('footer-missing-ev');\nif (!recovery.includes('formatContinuityOperatorNote(agent.contextOS.health())')) fails.push('post-compact-continuity');\nif (bash.length > 2200) fails.push('bash-desc-bloat');\nif (!bash.includes('Prefer dedicated tools')) fails.push('bash-routing');\nif (fails.length){console.error(fails.join(',')); process.exit(1);} console.log('long-session-continuity-ok');\n"
+        "import { readFileSync } from 'node:fs';\nconst strategy=readFileSync('packages/agent-core/src/agent/compaction/strategy.ts','utf8');\nconst cos=readFileSync('packages/agent-core/src/agent/context-os/index.ts','utf8');\nconst footer=readFileSync('apps/liora/src/tui/components/chrome/footer.ts','utf8');\nconst recovery=readFileSync('packages/agent-core/src/ultrawork/recovery-injectors.ts','utf8');\nconst bash=readFileSync('packages/agent-core/src/tools/builtin/shell/bash.md','utf8');\nconst fails=[];\nif (!strategy.includes('DEFAULT_COMPACTION_TRIGGER_RATIO = 0.80')) fails.push('soft80');\nif (!strategy.includes('DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.70')) fails.push('async70');\nif (!cos.includes('formatContinuityOperatorNote')) fails.push('continuity-note');\nif (!cos.includes('missing durable evidence')) fails.push('missing-ev-note');\nif (!cos.includes('MAX_INJECTION_CHARS = 3_500')) fails.push('inject-budget');\nif (!footer.includes('ctx-os:missing-ev\u00d7')) fails.push('footer-missing-ev');\nif (!recovery.includes(\"variant: 'ultrawork_post_swarm'\")) fails.push('post-swarm');\nconst continuityHits = recovery.split('formatContinuityOperatorNote(agent.contextOS.health())').length - 1;\nif (continuityHits < 2) fails.push('post-swarm-continuity');\nif (bash.length > 2200) fails.push('bash-desc-bloat');\nif (!bash.includes('Prefer dedicated tools')) fails.push('bash-routing');\nif (fails.length){console.error(fails.join(',')); process.exit(1);} console.log('long-session-continuity-ok');\n"
       ],
       "timeoutMs": 15000,
       "weight": 3

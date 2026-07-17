@@ -684,6 +684,14 @@ describe('Ultrawork recovery', () => {
       expect.stringContaining('<ultrawork_post_swarm>'),
       expect.objectContaining({ variant: 'ultrawork_post_swarm' }),
     );
+    const swarmCall = append.mock.calls.find((call) =>
+      String(call[0]).includes('<ultrawork_post_swarm>'),
+    );
+    const swarmText = String(swarmCall?.[0] ?? '');
+    expect(swarmText).toContain('run-integrate');
+    expect(swarmText).toContain('Integrate');
+    expect(swarmText).toContain('Verify');
+    expect(swarmText).toContain('Learn');
   });
 
   it('injects post-compaction continuation for an active ultrawork run', () => {
