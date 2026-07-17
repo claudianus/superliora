@@ -127,6 +127,25 @@ function makeHost(
     setPremiumQuality: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
     setSwarmMode: vi.fn(async () => {}),
+    classifyUltraworkAutoActivation: vi.fn(async () => ({
+      activate: false,
+      confidence: 0,
+      reason: 'test default',
+    })),
+    classifyUltraworkObjectiveProfile: vi.fn(async (text: string) => ({
+      visualSurface: false,
+      benchSurface: false,
+      premiumDensity: 'code' as const,
+      lanes: [
+        'product_requirements',
+        'architecture_implementation',
+        'testing_evidence',
+        'integration_ownership',
+      ],
+      confidence: 0,
+      reason: `test fallback for ${text.slice(0, 40)}`,
+      source: 'fallback' as const,
+    })),
   };
   const hasSession = overrides.hasSession ?? true;
   const host = {
@@ -166,61 +185,80 @@ function renderedMarker(host: SlashCommandHost): string {
 }
 
 describe('shouldAutoActivateUltrawork', () => {
-  it('activates for explicit ultrawork branding and complex autonomous work', () => {
-    expect(shouldAutoActivateUltrawork('Use ultrawork to ship the memory workflow')).toBe(true);
-    expect(
-      shouldAutoActivateUltrawork(
-        'Use UltraPlan and UltraSwarm to implement this refactor, verify it, and finish automatically',
-      ),
-    ).toBe(true);
-    expect(
-      shouldAutoActivateUltrawork(
-        '울트라플랜, 울트라 골, 울트라 스웜이 자동으로 연동되어 하나의 워크플로우로 작업을 완수하게 해줘',
-      ),
-    ).toBe(true);
-    expect(
-      shouldAutoActivateUltrawork(
-        '울트라플랜 울트라 스웜 울트라 골이 모두 자동으로 연동및 발동되서 하나의 워크플로우(울트라워크)를 형성하여 훌륭하게 작업을 완수하게 해줘',
-      ),
-    ).toBe(true);
-    expect(shouldAutoActivateUltrawork('울트라워크로 이 기능 구현하고 검증까지 끝내줘')).toBe(true);
+  it('activates when the session classifier returns activate=true', async () => {
+    const classify = vi.fn(async () => ({
+      activate: true,
+      confidence: 0.91,
+      reason: 'Multi-stage autonomous workflow requested',
+    }));
+    const host = {
+      session: { classifyUltraworkAutoActivation: classify },
+    } as unknown as Pick<SlashCommandHost, 'session'>;
+
+    await expect(
+      shouldAutoActivateUltrawork(host, 'Ship this feature end-to-end with plan and verification'),
+    ).resolves.toBe(true);
+    expect(classify).toHaveBeenCalledWith(
+      'Ship this feature end-to-end with plan and verification',
+    );
   });
 
-  it('does not activate for plain actionable requests without Ultrawork mode or explicit branding', () => {
-    expect(shouldAutoActivateUltrawork('Implement the settings panel and verify it works')).toBe(false);
-    expect(shouldAutoActivateUltrawork('Fix the TUI status panel bug and run tests')).toBe(false);
-    expect(shouldAutoActivateUltrawork('Add a login screen')).toBe(false);
-    expect(shouldAutoActivateUltrawork('Create an API endpoint for checkout')).toBe(false);
-    expect(shouldAutoActivateUltrawork('Install the latest version and make a Galaga game')).toBe(false);
-    expect(shouldAutoActivateUltrawork('이 기능 만들어서 테스트까지 돌려줘')).toBe(false);
-    expect(shouldAutoActivateUltrawork('TUI 자동완성 버그 고치고 검수해줘')).toBe(false);
-    expect(shouldAutoActivateUltrawork('로그인 화면 만들어줘')).toBe(false);
-    expect(shouldAutoActivateUltrawork('최신버전 깔아서 갤러그 만들어줘')).toBe(false);
-    expect(shouldAutoActivateUltrawork('브라우저 게임 만들어줘')).toBe(false);
-    expect(
+  it('does not activate when classifier declines or session is unavailable', async () => {
+    await expect(
+      shouldAutoActivateUltrawork({ session: undefined }, 'Implement the settings panel'),
+    ).resolves.toBe(false);
+
+    const declined = vi.fn(async () => ({
+      activate: false,
+      confidence: 0.88,
+      reason: 'Simple one-shot request',
+    }));
+    await expect(
       shouldAutoActivateUltrawork(
-        'Research latest best practices, design the architecture, implement it, run tests, and finish the goal automatically',
+        { session: { classifyUltraworkAutoActivation: declined } } as never,
+        'Fix this typo',
       ),
-    ).toBe(false);
+    ).resolves.toBe(false);
+
+    const failing = vi.fn(async () => {
+      throw new Error('classifier offline');
+    });
+    await expect(
+      shouldAutoActivateUltrawork(
+        { session: { classifyUltraworkAutoActivation: failing } } as never,
+        'Use ultrawork to ship the memory workflow',
+      ),
+    ).resolves.toBe(false);
   });
 
-  it('does not activate for simple prompts', () => {
-    expect(shouldAutoActivateUltrawork('fix this typo')).toBe(false);
-    expect(shouldAutoActivateUltrawork('rename this sentence')).toBe(false);
-    expect(shouldAutoActivateUltrawork('what does this file do?')).toBe(false);
-    expect(shouldAutoActivateUltrawork('what is ultrawork?')).toBe(false);
-    expect(shouldAutoActivateUltrawork('ultrawork 뭐야?')).toBe(false);
-    expect(shouldAutoActivateUltrawork('what is ultraswarm?')).toBe(false);
-    expect(shouldAutoActivateUltrawork('울트라 스웜이 뭐야?')).toBe(false);
-    expect(shouldAutoActivateUltrawork('explain ultrawork')).toBe(false);
-    expect(shouldAutoActivateUltrawork('do not use ultrawork, just answer normally')).toBe(false);
+  it('fails closed for empty prompts', async () => {
+    const classify = vi.fn(async () => ({ activate: true, confidence: 1, reason: 'x' }));
+    await expect(
+      shouldAutoActivateUltrawork(
+        { session: { classifyUltraworkAutoActivation: classify } } as never,
+        '   ',
+      ),
+    ).resolves.toBe(false);
+    expect(classify).not.toHaveBeenCalled();
   });
 });
 
 describe('buildUltraworkCoverageMatrix', () => {
-  it('derives generic specialist lanes without making visual work the only special case', () => {
+  it('uses LLM profile lanes without keyword guessing', () => {
     const gameLanes = buildUltraworkCoverageMatrix(
       '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
+      {
+        visualSurface: true,
+        lanes: [
+          'product_requirements',
+          'architecture_implementation',
+          'domain_subject_matter',
+          'ux_visual_content',
+          'testing_evidence',
+          'integration_ownership',
+          'independent_review_loop',
+        ],
+      },
     ).map((lane) => lane.id);
 
     expect(gameLanes).toContain('product_requirements');
@@ -232,11 +270,27 @@ describe('buildUltraworkCoverageMatrix', () => {
 
     const securityLanes = buildUltraworkCoverageMatrix(
       'OAuth 로그인 보안 취약점을 고치고 권한 회귀 테스트를 추가해줘',
+      {
+        visualSurface: false,
+        lanes: [
+          'product_requirements',
+          'architecture_implementation',
+          'security_privacy',
+          'testing_evidence',
+          'integration_ownership',
+        ],
+      },
     ).map((lane) => lane.id);
 
     expect(securityLanes).toContain('security_privacy');
     expect(securityLanes).toContain('testing_evidence');
     expect(securityLanes).not.toContain('ux_visual_content');
+
+    const fallbackLanes = buildUltraworkCoverageMatrix(
+      'Redesign the dashboard UI with browser screenshots',
+    ).map((lane) => lane.id);
+    expect(fallbackLanes).toContain('product_requirements');
+    expect(fallbackLanes).not.toContain('ux_visual_content');
   });
 });
 
@@ -302,15 +356,25 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt.length).toBeLessThan(8_000);
   });
 
-  it('includes GUI verification only for visual-surface objectives', () => {
-    const prompt = buildUltraworkPrompt('Redesign the dashboard UI with browser screenshots', 'manual');
+  it('includes GUI verification only when capabilities mark a visual surface', () => {
+    const prompt = buildUltraworkPrompt(
+      'Redesign the dashboard UI with browser screenshots',
+      'manual',
+      false,
+      { capabilities: { visualSurface: true, benchSurface: false } },
+    );
     expect(prompt).toContain('capability_visual_surface: true');
     expect(prompt).toContain('Browser / computer-use verification');
     expect(prompt).not.toContain('LioraBench');
   });
 
-  it('includes bench guidance only for harness/SOTA objectives', () => {
-    const prompt = buildUltraworkPrompt('Run the SuperLiora agent SOTA harness benchmark gate', 'manual');
+  it('includes bench guidance only when capabilities mark a bench surface', () => {
+    const prompt = buildUltraworkPrompt(
+      'Run the SuperLiora agent SOTA harness benchmark gate',
+      'manual',
+      false,
+      { capabilities: { visualSurface: false, benchSurface: true } },
+    );
     expect(prompt).toContain('capability_bench_surface: true');
     expect(prompt).toContain('LioraBench');
     expect(prompt).toContain('node scripts/liora-agent-sota-gate.mjs');
@@ -521,7 +585,28 @@ describe('handleUltraworkCommand', () => {
   it('creates project-local LLM Wiki, knowledge-map, coverage, and review seed evidence', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-ultrawork-seed-'));
     try {
-      const { host } = makeHost({ workDir });
+      const { host, session } = makeHost({ workDir });
+      (
+        session as {
+          classifyUltraworkObjectiveProfile: ReturnType<typeof vi.fn>;
+        }
+      ).classifyUltraworkObjectiveProfile = vi.fn(async () => ({
+        visualSurface: true,
+        benchSurface: false,
+        premiumDensity: 'visual' as const,
+        lanes: [
+          'product_requirements',
+          'architecture_implementation',
+          'domain_subject_matter',
+          'ux_visual_content',
+          'testing_evidence',
+          'integration_ownership',
+          'independent_review_loop',
+        ],
+        confidence: 0.94,
+        reason: 'test visual game profile',
+        source: 'llm' as const,
+      }));
 
       await handleUltraworkCommand(
         host,

@@ -41,6 +41,16 @@ import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
 import { UltraworkMode } from '../ultrawork';
+import {
+  detectUltraworkAutoActivationWithLlm,
+  shouldActOnUltraworkAutoActivation,
+} from '../ultrawork/auto-activate-llm';
+import { UltraworkObjectiveProfileCache } from '../ultrawork/objective-profile-cache';
+import {
+  detectUltraworkObjectiveProfileWithLlm,
+  fallbackUltraworkObjectiveProfile,
+  resolveUltraworkObjectiveProfile,
+} from '../ultrawork/objective-profile-llm';
 import { AutoDreamService } from './dream/auto-dream';
 import { AutopilotMode } from '../autopilot';
 import { LioraRecallStore } from '../memory/store';
@@ -167,6 +177,7 @@ export class Agent {
   readonly dream: AutoDreamService | null;
   readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
+  readonly ultraworkObjectiveProfile: UltraworkObjectiveProfileCache;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
 
@@ -243,6 +254,7 @@ export class Agent {
       options.dreamStore !== undefined ? new AutoDreamService(this, options.dreamStore) : null;
     this.autopilot = new AutopilotMode(this);
     this.premiumQuality = new PremiumQualityMode(this);
+    this.ultraworkObjectiveProfile = new UltraworkObjectiveProfileCache();
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
   }
@@ -586,6 +598,52 @@ export class Agent {
       pauseUltrawork: (payload) => this.ultrawork.pause(payload),
       resumeUltrawork: () => this.ultrawork.resume(),
       cancelUltrawork: (payload) => this.ultrawork.cancel(payload.reason),
+      classifyUltraworkAutoActivation: async (payload) => {
+        const text = payload.text.trim();
+        if (text.length === 0) {
+          return { activate: false, confidence: 1, reason: 'Empty prompt' };
+        }
+        const provider = this.config.provider;
+        if (provider === undefined || typeof this.generate !== 'function') {
+          return {
+            activate: false,
+            confidence: 0,
+            reason: 'LLM provider unavailable for Ultrawork auto-activation',
+          };
+        }
+        const intent = await detectUltraworkAutoActivationWithLlm(
+          { generate: this.generate, provider },
+          { text, signal: AbortSignal.timeout(8_000) },
+        );
+        const activate = shouldActOnUltraworkAutoActivation(intent);
+        return {
+          activate,
+          confidence: intent?.confidence ?? 0,
+          reason: intent?.reason ?? 'Ultrawork auto-activation declined or unavailable',
+        };
+      },
+      classifyUltraworkObjectiveProfile: async (payload) => {
+        const text = payload.text.trim();
+        if (text.length === 0) {
+          return fallbackUltraworkObjectiveProfile('');
+        }
+        const provider = this.config.provider;
+        if (provider === undefined || typeof this.generate !== 'function') {
+          const fallback = fallbackUltraworkObjectiveProfile(
+            text,
+            'LLM provider unavailable for Ultrawork objective profile',
+          );
+          this.ultraworkObjectiveProfile.set(text, fallback);
+          return fallback;
+        }
+        const detected = await detectUltraworkObjectiveProfileWithLlm(
+          { generate: this.generate, provider },
+          { text, signal: AbortSignal.timeout(8_000) },
+        );
+        const profile = resolveUltraworkObjectiveProfile(detected, text);
+        this.ultraworkObjectiveProfile.set(text, profile);
+        return profile;
+      },
       getBackgroundOutput: (payload) => this.background.readOutput(payload.taskId, payload.tail),
       getContext: () => this.context.data(),
       diagnoseContextOS: (payload) =>

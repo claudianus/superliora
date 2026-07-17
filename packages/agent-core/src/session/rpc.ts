@@ -14,6 +14,10 @@ import type {
   CancelUltraworkPayload,
   CreateGoalPayload,
   CreateUltraworkRunPayload,
+  ClassifyUltraworkAutoActivationPayload,
+  UltraworkAutoActivationDecision,
+  ClassifyUltraworkObjectiveProfilePayload,
+  UltraworkObjectiveProfileDecision,
   DetachBackgroundPayload,
   EmptyPayload,
   DiagnoseContextOSPayload,
@@ -306,6 +310,18 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async cancelUltrawork({ agentId, ...payload }: AgentScopedPayload<CancelUltraworkPayload>) {
     return (await this.getAgent(agentId)).cancelUltrawork(payload);
+  }
+  async classifyUltraworkAutoActivation({
+    agentId,
+    ...payload
+  }: AgentScopedPayload<ClassifyUltraworkAutoActivationPayload>): Promise<UltraworkAutoActivationDecision> {
+    return (await this.getAgent(agentId)).classifyUltraworkAutoActivation(payload);
+  }
+  async classifyUltraworkObjectiveProfile({
+    agentId,
+    ...payload
+  }: AgentScopedPayload<ClassifyUltraworkObjectiveProfilePayload>): Promise<UltraworkObjectiveProfileDecision> {
+    return (await this.getAgent(agentId)).classifyUltraworkObjectiveProfile(payload);
   }
 
   async getBackgroundOutput({

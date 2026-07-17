@@ -37,6 +37,8 @@ import type {
   CreateUltraworkRunInput,
   PauseUltraworkInput,
   CancelUltraworkInput,
+  UltraworkAutoActivationDecision,
+  UltraworkObjectiveProfileDecision,
   ForkSessionInput,
   GetConfigOptions,
   GoalSnapshot,
@@ -777,6 +779,26 @@ export abstract class SDKRpcClientBase {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       reason: input.reason,
+    });
+  }
+  async classifyUltraworkAutoActivation(
+    input: SessionIdRpcInput & { readonly text: string },
+  ): Promise<UltraworkAutoActivationDecision> {
+    const rpc = await this.getRpc();
+    return rpc.classifyUltraworkAutoActivation({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      text: input.text,
+    });
+  }
+  async classifyUltraworkObjectiveProfile(
+    input: SessionIdRpcInput & { readonly text: string },
+  ): Promise<UltraworkObjectiveProfileDecision> {
+    const rpc = await this.getRpc();
+    return rpc.classifyUltraworkObjectiveProfile({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      text: input.text,
     });
   }
 

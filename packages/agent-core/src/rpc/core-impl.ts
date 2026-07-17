@@ -78,6 +78,10 @@ import type {
   CoreInfo,
   CreateGoalPayload,
   CreateUltraworkRunPayload,
+  ClassifyUltraworkAutoActivationPayload,
+  UltraworkAutoActivationDecision,
+  ClassifyUltraworkObjectiveProfilePayload,
+  UltraworkObjectiveProfileDecision,
   CancelUltraworkPayload,
   PauseUltraworkPayload,
   ResumeUltraworkPayloadResult,
@@ -1036,6 +1040,18 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     ...payload
   }: SessionAgentPayload<CancelUltraworkPayload>): Promise<UltraworkRunSnapshot | null> {
     return Promise.resolve(this.sessionApi(sessionId).cancelUltrawork(payload));
+  }
+  async classifyUltraworkAutoActivation({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<ClassifyUltraworkAutoActivationPayload>): Promise<UltraworkAutoActivationDecision> {
+    return this.sessionApi(sessionId).classifyUltraworkAutoActivation(payload);
+  }
+  async classifyUltraworkObjectiveProfile({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<ClassifyUltraworkObjectiveProfilePayload>): Promise<UltraworkObjectiveProfileDecision> {
+    return this.sessionApi(sessionId).classifyUltraworkObjectiveProfile(payload);
   }
 
   async installPlugin(payload: InstallPluginPayload): Promise<PluginSummary> {

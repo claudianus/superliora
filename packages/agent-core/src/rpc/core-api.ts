@@ -485,6 +485,29 @@ export interface CancelUltraworkPayload {
   readonly reason?: string;
 }
 
+export interface ClassifyUltraworkAutoActivationPayload {
+  readonly text: string;
+}
+
+export interface UltraworkAutoActivationDecision {
+  readonly activate: boolean;
+  readonly confidence: number;
+  readonly reason: string;
+}
+export interface ClassifyUltraworkObjectiveProfilePayload {
+  readonly text: string;
+}
+
+export interface UltraworkObjectiveProfileDecision {
+  readonly visualSurface: boolean;
+  readonly benchSurface: boolean;
+  readonly premiumDensity: 'visual' | 'code';
+  readonly lanes: readonly string[];
+  readonly confidence: number;
+  readonly reason: string;
+  readonly source: 'llm' | 'fallback';
+}
+
 export type UltraworkRunSnapshot = import('@superliora/protocol').UltraworkRun;
 
 export interface ResumeUltraworkPayloadResult {
@@ -583,6 +606,12 @@ export interface AgentAPI {
   pauseUltrawork: (payload: PauseUltraworkPayload) => UltraworkRunSnapshot | null;
   resumeUltrawork: (payload: EmptyPayload) => ResumeUltraworkPayloadResult | null;
   cancelUltrawork: (payload: CancelUltraworkPayload) => UltraworkRunSnapshot | null;
+  classifyUltraworkAutoActivation: (
+    payload: ClassifyUltraworkAutoActivationPayload,
+  ) => Promise<UltraworkAutoActivationDecision>;
+  classifyUltraworkObjectiveProfile: (
+    payload: ClassifyUltraworkObjectiveProfilePayload,
+  ) => Promise<UltraworkObjectiveProfileDecision>;
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
   diagnoseContextOS: (payload: DiagnoseContextOSPayload) => ContextOSRetrievalDiagnostics;

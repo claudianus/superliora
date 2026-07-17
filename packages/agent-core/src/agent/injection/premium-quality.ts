@@ -72,5 +72,10 @@ export class PremiumQualityInjector extends DynamicInjector {
 export function resolveActivePremiumDensity(agent: Agent): PremiumInjectionDensity {
   const goalObjective = agent.goal?.getGoal?.().goal?.objective;
   const runObjective = agent.ultrawork?.getRun?.()?.objective;
-  return resolvePremiumInjectionDensity(goalObjective ?? runObjective);
+  const objective = goalObjective ?? runObjective;
+  const profile =
+    agent.ultraworkObjectiveProfile.get(objective) ??
+    agent.ultraworkObjectiveProfile.get(goalObjective) ??
+    agent.ultraworkObjectiveProfile.get(runObjective);
+  return resolvePremiumInjectionDensity(objective, profile);
 }
