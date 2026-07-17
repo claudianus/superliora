@@ -583,11 +583,11 @@ function formatContextOSStatus(options: StatusReportOptions): string | undefined
       : `evidence ${health.evidenceIdRecallScore.toFixed(2)}`;
   const next =
     health.missingEvidencePageCount > 0
-      ? ' · verify IDs before resume'
+      ? ' · verify IDs before resume · inject≤3 pages'
       : health.latestContinuityStatus === 'needs_rehydration'
-        ? ' · expand raw refs only on failure'
+        ? ' · expand raw refs only on failure · inject≤3 pages'
         : health.latestContinuityStatus === 'at_risk'
-          ? ' · do not assume omitted details'
+          ? ' · do not assume omitted details · inject≤3 pages'
           : '';
   return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}${next}`;
 }

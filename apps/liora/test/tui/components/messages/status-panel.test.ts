@@ -562,6 +562,7 @@ describe('status panel report lines', () => {
     expect(joined).toContain('evidence 0.50');
     expect(joined).toContain('missing 1');
     expect(joined).toContain('verify IDs before resume');
+    expect(joined).toContain('inject≤3 pages');
   });
 
   it('includes Micro clear when micro-compaction has fired', () => {
