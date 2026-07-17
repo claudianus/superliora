@@ -8,6 +8,8 @@ Live Kanban for multi-step work — use proactively when tracking helps. Update 
 
 **Start:** for 3+ step work, create 5–10 actionable cards before first tool call.
 
-**Update when (not churn):** (1) new sub-work, (2) switching `in_progress`, (3) mark done immediately when complete, (4) drop cancelled items. Do not rewrite the board every turn.
+**Update when (not churn):** (1) new sub-work, (2) switching `in_progress`, (3) mark done immediately after finishing a tracked task when fully verified — not when tests are failing or work is partial, (4) after a batch of 3+ tool calls, (5) scope or priority change. If nothing changed, query mode (omit `todos`).
 
-**Rules:** exactly one `in_progress` when possible; keep titles short and actionable; never invent statuses.
+**Granularity:** verb + target (+ path). Keep exactly one `in_progress` unless true parallel tracks.
+
+**Avoid churn:** do not re-call when nothing meaningful changed since last write. When unsure, query first (no `todos` argument). If stuck, tell the user — no endless reordering.
