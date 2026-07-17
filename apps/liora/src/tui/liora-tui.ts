@@ -56,6 +56,7 @@ import * as slashCommands from './commands/dispatch';
 import { BannerComponent } from './components/chrome/banner';
 import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
+import { SplashComponent } from './components/chrome/splash';
 import { WelcomeComponent } from './components/chrome/welcome';
 import { pickRandomWorkingTip } from './components/chrome/working-tips';
 import {
@@ -303,6 +304,8 @@ export class LioraTUI {
   private readonly disposables = new DisposableRegistry();
   private eventLoopStarted = false;
   private startupNotice: string | undefined;
+  /** Startup cinematic splash; disposed after play or on shutdown. */
+  private splash: SplashComponent | undefined;
   private lastActivityMode: string | undefined;
   private currentLoadingTip: { kind: LoadingTipKind; tip: string | undefined; pinned: boolean } | undefined =
     undefined;
@@ -555,9 +558,14 @@ export class LioraTUI {
       const shouldReplayHistory = await this.initMainTui();
       this.startEventLoop();
       try {
+        // Cinematic splash after the renderer loop is live, before Welcome.
+        await this.playStartupSplash();
+        this.renderWelcome();
+        void this.loadBanner();
         this.startBackgroundFdAutocomplete();
         await this.finishStartup(shouldReplayHistory);
       } catch (error) {
+        this.disposeStartupSplash();
         this.disposeTerminalTracking();
         this.state.renderer.stop();
         throw error;
@@ -619,10 +627,9 @@ export class LioraTUI {
     const shouldReplayHistory = await this.init();
 
     // Mount only after init() succeeds; see mountFooter() / mountHeader().
+    // Welcome is deferred until after the startup splash in start().
     this.mountFooter();
     this.mountHeader();
-    this.renderWelcome();
-    void this.loadBanner();
     this.setupAutocomplete();
     void this.loadPersistedInputHistory();
     this.state.editorContainer.clear();
@@ -1020,6 +1027,7 @@ export class LioraTUI {
     }
     this.reverseRpcDisposers.length = 0;
     this.disposeTerminalTracking();
+    this.disposeStartupSplash();
     this.appearanceController.dispose();
     // BUG-2: dispose the footer's goal-timer interval.
     this.state.footer.dispose();
@@ -2207,6 +2215,39 @@ export class LioraTUI {
     }
     const welcome = new WelcomeComponent(this.state.appState);
     this.state.transcriptContainer.addChild(welcome);
+  }
+
+  /**
+   * Mount and play the startup cinematic splash, then remove it.
+   * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
+   */
+  private async playStartupSplash(): Promise<void> {
+    this.disposeStartupSplash();
+    const splash = new SplashComponent({
+      appearance: this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+      requestRender: () => {
+        this.state.renderer.requestRender('animation');
+      },
+    });
+    this.splash = splash;
+    this.state.transcriptContainer.addChild(splash);
+    this.state.transcriptContainer.invalidate();
+    requestTUILayoutRender(this.state);
+    try {
+      await splash.play();
+    } finally {
+      this.disposeStartupSplash();
+      requestTUILayoutRender(this.state);
+    }
+  }
+
+  private disposeStartupSplash(): void {
+    const splash = this.splash;
+    if (splash === undefined) return;
+    this.splash = undefined;
+    splash.dispose();
+    this.state.transcriptContainer.removeChild(splash);
+    this.state.transcriptContainer.invalidate();
   }
 
   private clearTerminalInlineImages(): void {
