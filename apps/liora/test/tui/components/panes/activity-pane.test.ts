@@ -50,7 +50,7 @@ describe('ActivityPaneComponent', () => {
     });
     const out = strip(pane.render(80).join('\n'));
     expect(out).toContain('working...');
-    expect(out).toMatch(/[·∙✧✦✺•]/);
+    expect(out).toMatch(/[·∙•◦*]/);
   });
 
   it('renders a single ambient particle rail while waiting', () => {
@@ -73,7 +73,7 @@ describe('ActivityPaneComponent', () => {
     const lines = pane.render(48).map(strip);
     expect(lines.length).toBeGreaterThanOrEqual(2);
     expect((lines.at(-1) ?? '').length).toBeGreaterThan(0);
-    const particleish = lines.filter((line) => /[·∙✧✦✺•]/.test(line));
+    const particleish = lines.filter((line) => /[·∙•◦*]/.test(line));
     expect(particleish.length).toBe(1);
   });
 });

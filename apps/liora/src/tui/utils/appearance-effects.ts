@@ -13,10 +13,13 @@ import {
   resolveRendererSeededIndex,
   resolveRendererEffectLevel,
   splitDisplayClusters,
+  stripAnsiControls,
   type NativeFrameStatsHealth,
   type RendererEffectLevel,
   type RendererQualityLevel,
+  type RendererCell,
   type RendererCellStyle,
+  type RendererRegionLine,
   type RendererStyledTextRun,
 } from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
@@ -24,20 +27,31 @@ import { currentTheme } from '#/tui/theme';
 
 export type AmbientEffectMode = RendererEffectLevel;
 
-const SUBTLE_PARTICLES = ['·', '∙', '✧'] as const;
-const PREMIUM_PARTICLES = ['✦', '✧', '✺', '∙', '•'] as const;
+/**
+ * Monospace-safe ambient glyphs only.
+ * Dingbats (✦✧✺) break on common Nerd Font + kitty symbol_map setups.
+ */
+const PREMIUM_PARTICLES = ['•', '∙', '·', '*', '◦'] as const;
 const PARTICLE_TOKENS: readonly ColorToken[] = [
   'particle',
   'accent',
   'primary',
   'gradientEnd',
 ];
-const SHIMMER_FRAMES = ['✦', '✧', '∙', '·'] as const;
-const PREMIUM_DIVIDER_FRAMES = ['─', '━', '═'] as const;
-/** ~30fps cinematic floor — 1ms densify thrash burns CPU without better motion. */
+const SHIMMER_FRAMES = ['•', '∙', '·', '◦'] as const;
+const PREMIUM_DIVIDER_FRAMES = ['─', '─', '━'] as const;
+/** Soft comet heads / trail dust — never flashy multi-star spam. */
+const COMET_HEAD = '•';
+const COMET_MID = '∙';
+const COMET_TAIL = '·';
+const STAR_DUST = ['·', '∙', '◦'] as const;
+/** ~30fps cinematic floor — dense 1ms thrash burns CPU without better motion. */
 const PREMIUM_AMBIENT_RENDER_TICK_MS = 33;
 const SUBTLE_AMBIENT_RENDER_TICK_MS = 140;
 const PULSE_GLYPH_INTERVAL_MS = 280;
+/** Header/divider comet cadence — slow enough to read as drift, not scroll. */
+const COMET_TICK_MS_PREMIUM = 48;
+const COMET_TICK_MS_SUBTLE = 96;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
 const SPECTACULAR_TOKENS: readonly ColorToken[] = [
   'gradientStart',
@@ -182,6 +196,57 @@ export function shouldRenderAmbientEffects(appearance: AppearancePreferences): b
   return motionEffectsAllowed() && resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
 }
 
+function paintCellIfEmpty(cells: string[], index: number, styled: string): void {
+  if (index < 0 || index >= cells.length) return;
+  const current = cells[index];
+  // Overwrite empty sky or the soft base divider stroke only — never clobber other heads.
+  if (current === ' ' || (current !== undefined && isBaseDividerCell(current))) {
+    cells[index] = styled;
+  }
+}
+
+function isBaseDividerCell(cell: string): boolean {
+  // Base strokes are single-style box glyphs; comet paint may replace them.
+  const plain = cell.replaceAll(/\u001B\[[0-9;]*m/g, '');
+  return plain === '─' || plain === '━' || plain === '═';
+}
+
+/** Soft decaying trail behind a moving head (fractional phase → smoother than integer steps). */
+function paintCometTrail(
+  cells: string[],
+  headX: number,
+  direction: 1 | -1,
+  trailLen: number,
+  headToken: ColorToken,
+  premium: boolean,
+): void {
+  const safeWidth = cells.length;
+  if (safeWidth === 0) return;
+  const head = rendererPositiveModulo(Math.round(headX), safeWidth);
+  paintCellIfEmpty(cells, head, currentTheme.fg(headToken, COMET_HEAD));
+
+  for (let step = 1; step <= trailLen; step++) {
+    const t = step / Math.max(1, trailLen);
+    const x = rendererPositiveModulo(head - direction * step, safeWidth);
+    // Near head: mid dust; far: mute pinpricks. Dim tokens fake optical falloff.
+    if (t < 0.34) {
+      paintCellIfEmpty(
+        cells,
+        x,
+        premium ? currentTheme.fg('particle', COMET_MID) : currentTheme.dimFg('particle', COMET_MID),
+      );
+    } else if (t < 0.7) {
+      paintCellIfEmpty(cells, x, currentTheme.dimFg('particle', COMET_TAIL));
+    } else {
+      paintCellIfEmpty(cells, x, currentTheme.dimFg('textMuted', COMET_TAIL));
+    }
+  }
+}
+
+/**
+ * Sparse ambient rail — a few drifting pinpricks + rare long comets.
+ * Intentionally low density so motion reads as atmosphere, not marquee.
+ */
 export function renderParticleRail(
   width: number,
   appearance: AppearancePreferences,
@@ -193,40 +258,58 @@ export function renderParticleRail(
 
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const premium = mode === 'premium';
-  const tickMs = rendererEffectFrameIntervalMs(mode);
-  const tick = Math.floor(appearanceAnimationNow() / tickMs);
-  // Premium rails stay cinematic without 1ms densify fill spam.
-  const density = premium
-    ? Math.max(10, Math.min(28, Math.floor(safeWidth / 3)))
-    : Math.max(6, Math.min(26, Math.floor(safeWidth / 5.2)));
-  const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
+  const tickMs = premium ? COMET_TICK_MS_PREMIUM : COMET_TICK_MS_SUBTLE;
+  const now = appearanceAnimationNow();
+  // Sub-cell phase keeps trails from "jumping" a full column each tick.
+  const phase = now / tickMs;
   const cells = Array.from({ length: safeWidth }, () => ' ');
   const base = hashRendererEffectSeed(seed);
 
-  for (let i = 0; i < density; i++) {
-    const direction = i % 2 === 0 ? 1 : -1;
-    const speed = 1 + (i % 3);
-    const origin = base + i * 17 + (i % 5) * 11;
-    const x = rendererPositiveModulo(origin + direction * tick * speed, safeWidth);
-    const char = chars[rendererPositiveModulo(origin + tick + i, chars.length)]!;
-    const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + tick + i * 3, PARTICLE_TOKENS.length)]!;
-    cells[x] = currentTheme.fg(token, char);
+  // Comets first so dust never steals the soft trail cells.
+  const cometCount = premium
+    ? safeWidth >= 48
+      ? 2
+      : 1
+    : safeWidth >= 40
+      ? 1
+      : 0;
+  for (let i = 0; i < cometCount; i++) {
+    const origin = base * (i + 3) + i * 91;
+    const direction: 1 | -1 = 1; // unified drift — opposing traffic looks jittery
+    const speed = premium ? 0.55 + (i % 2) * 0.2 : 0.35;
+    const headX = rendererPositiveModulo(origin + direction * phase * speed, safeWidth);
+    const trailLen = premium
+      ? Math.min(10, Math.max(5, Math.floor(safeWidth / 10)))
+      : Math.min(6, Math.max(3, Math.floor(safeWidth / 16)));
+    const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + i * 2, PARTICLE_TOKENS.length)]!;
+    paintCometTrail(cells, headX, direction, trailLen, token, premium);
+  }
 
-    if (premium && safeWidth > 14) {
-      // Short comet trail — readable motion without O(width) fill every particle.
-      for (let step = 1; step <= 3; step++) {
-        const trail = rendererPositiveModulo(x - direction * step, safeWidth);
-        if (cells[trail] !== ' ') continue;
-        if (step === 1) cells[trail] = currentTheme.dimFg('particle', '•');
-        else if (step === 2) cells[trail] = currentTheme.dimFg('particle', '·');
-        else cells[trail] = currentTheme.dimFg('textMuted', '·');
-      }
-    }
+  // Still dust — slow twinkle into empty sky only.
+  const dustCount = premium
+    ? Math.max(2, Math.min(7, Math.floor(safeWidth / 18)))
+    : Math.max(1, Math.min(4, Math.floor(safeWidth / 28)));
+  for (let i = 0; i < dustCount; i++) {
+    const origin = base + i * 47;
+    // Drift ~1 cell every ~12–20 ticks — glacial, not busy.
+    const drift = Math.floor(phase / (12 + (i % 5)));
+    const x = rendererPositiveModulo(origin + drift, safeWidth);
+    if (cells[x] !== ' ') continue;
+    const twinkle = rendererPositiveModulo(Math.floor(phase / 3) + origin, 5);
+    if (twinkle === 0) continue; // intentional gaps = breathing sky
+    const char = STAR_DUST[rendererPositiveModulo(origin + twinkle, STAR_DUST.length)]!;
+    const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + i, PARTICLE_TOKENS.length)]!;
+    cells[x] =
+      twinkle >= 3 ? currentTheme.dimFg(token, char) : currentTheme.dimFg('textMuted', char);
   }
 
   return cells.join('');
 }
 
+/**
+ * Header/queue divider: quiet base stroke + optional soft highlight band + rare comet.
+ * Replaces the old "dense particles marching right" look.
+ */
 export function renderParticleDivider(
   width: number,
   seed: string,
@@ -241,35 +324,168 @@ export function renderParticleDivider(
       style: (text) => currentTheme.fg('primary', text),
     });
   }
-  const baseChar =
-    mode === 'premium'
-      ? PREMIUM_DIVIDER_FRAMES[
-          rendererPositiveModulo(
-            Math.floor(appearanceAnimationNow() / 260) + hashRendererEffectSeed(seed),
-            PREMIUM_DIVIDER_FRAMES.length,
-          )
-        ]!
-      : '─';
-  const baseToken: ColorToken = mode === 'premium' ? 'glow' : 'primary';
-  const cells = Array.from({ length: safeWidth }, () => currentTheme.fg(baseToken, baseChar));
-  if (safeWidth < 8) return cells.join('');
 
   const premium = mode === 'premium';
-  const tick = Math.floor(appearanceAnimationNow() / rendererEffectFrameIntervalMs(mode));
-  const density = premium
-    ? Math.max(14, Math.min(48, Math.floor(safeWidth / 2.3)))
-    : Math.max(5, Math.min(18, Math.floor(safeWidth / 7.5)));
-  const chars = premium ? PREMIUM_PARTICLES : SUBTLE_PARTICLES;
+  const now = appearanceAnimationNow();
   const base = hashRendererEffectSeed(seed);
-  for (let i = 0; i < density; i++) {
-    const origin = base + i * 29;
-    const x = rendererPositiveModulo(origin + tick * (1 + (i % 2)), safeWidth);
-    const char = chars[rendererPositiveModulo(origin + tick + i, chars.length)]!;
-    const token = PARTICLE_TOKENS[rendererPositiveModulo(origin + i * 3 + tick, PARTICLE_TOKENS.length)]!;
-    cells[x] = currentTheme.fg(token, char);
+  // Very slow weight cycle — almost static, avoids ─/━/═ strobing.
+  const baseChar =
+    premium && rendererPositiveModulo(Math.floor(now / 900) + base, 5) === 0
+      ? PREMIUM_DIVIDER_FRAMES[2]!
+      : PREMIUM_DIVIDER_FRAMES[0]!;
+  const baseToken: ColorToken = premium ? 'border' : 'primary';
+  const cells = Array.from({ length: safeWidth }, () => currentTheme.dimFg(baseToken, baseChar));
+  if (safeWidth < 8) return cells.join('');
+
+  const tickMs = premium ? COMET_TICK_MS_PREMIUM : COMET_TICK_MS_SUBTLE;
+  const phase = now / tickMs;
+
+  // Soft traveling highlight band (wide, dim) — reads as light, not dots.
+  if (premium && safeWidth >= 16) {
+    const bandWidth = Math.min(14, Math.max(6, Math.floor(safeWidth / 7)));
+    const bandSpeed = 0.22;
+    const bandHead = rendererPositiveModulo(base + phase * bandSpeed, safeWidth);
+    for (let step = 0; step < bandWidth; step++) {
+      const x = rendererPositiveModulo(Math.round(bandHead) - step, safeWidth);
+      const edge = step / Math.max(1, bandWidth - 1);
+      // Center of band slightly brighter.
+      const styled =
+        edge < 0.35
+          ? currentTheme.fg('glow', '─')
+          : edge < 0.7
+            ? currentTheme.dimFg('particle', '─')
+            : currentTheme.dimFg('border', '─');
+      cells[x] = styled;
+    }
+  }
+
+  // Sparse twinkles on the stroke — no lateral marquee of stars.
+  // Always keep ≥1 pinprick so short dividers still read as "alive".
+  const twinkleCount = premium
+    ? Math.max(1, Math.min(4, Math.floor(safeWidth / 22)))
+    : Math.max(1, Math.min(2, Math.floor(safeWidth / 30)));
+  let paintedTwinkles = 0;
+  for (let i = 0; i < twinkleCount; i++) {
+    const origin = base + i * 53;
+    const x = rendererPositiveModulo(origin + Math.floor(phase / 18), safeWidth);
+    // First twinkle is sticky; later ones may blink off for breathing room.
+    const on = i === 0 || rendererPositiveModulo(Math.floor(phase / 4) + origin, 4) !== 0;
+    if (!on) continue;
+    const char = STAR_DUST[rendererPositiveModulo(origin, STAR_DUST.length)]!;
+    cells[x] = currentTheme.dimFg(
+      PARTICLE_TOKENS[rendererPositiveModulo(origin, PARTICLE_TOKENS.length)]!,
+      char,
+    );
+    paintedTwinkles += 1;
+  }
+  if (paintedTwinkles === 0) {
+    const x = rendererPositiveModulo(base, safeWidth);
+    cells[x] = currentTheme.dimFg('particle', COMET_TAIL);
+  }
+
+  // At most one comet on the divider — the "why is this moving" should be one answer.
+  if (safeWidth >= 20) {
+    const direction: 1 | -1 = 1;
+    const speed = premium ? 0.48 : 0.3;
+    const headX = rendererPositiveModulo(base * 3 + direction * phase * speed, safeWidth);
+    const trailLen = premium
+      ? Math.min(12, Math.max(6, Math.floor(safeWidth / 8)))
+      : Math.min(7, Math.max(4, Math.floor(safeWidth / 14)));
+    paintCometTrail(cells, headX, direction, trailLen, 'particle', premium);
   }
 
   return cells.join('');
+}
+
+/**
+ * Welcome/idle meteor field — sparse diagonal streaks over empty rows.
+ * Not a full-screen backdrop; only paints the rows you ask for.
+ */
+export function renderMeteorField(
+  width: number,
+  height: number,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string[] {
+  const safeWidth = Math.max(0, Math.trunc(width));
+  const safeHeight = Math.max(0, Math.trunc(height));
+  if (safeWidth === 0 || safeHeight === 0) return [];
+  if (!shouldRenderAmbientEffects(appearance)) {
+    return Array.from({ length: safeHeight }, () => ' '.repeat(safeWidth));
+  }
+
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  const premium = mode === 'premium';
+  const now = appearanceAnimationNow();
+  const tickMs = premium ? COMET_TICK_MS_PREMIUM : COMET_TICK_MS_SUBTLE;
+  const phase = now / tickMs;
+  const base = hashRendererEffectSeed(seed);
+
+  const rows: string[][] = Array.from({ length: safeHeight }, () =>
+    Array.from({ length: safeWidth }, () => ' '),
+  );
+
+  // Background star dust — mostly static with rare blinks.
+  const dust = premium
+    ? Math.max(3, Math.min(14, Math.floor((safeWidth * safeHeight) / 48)))
+    : Math.max(2, Math.min(8, Math.floor((safeWidth * safeHeight) / 70)));
+  for (let i = 0; i < dust; i++) {
+    const h = base + i * 59;
+    const x = rendererPositiveModulo(h, safeWidth);
+    const y = rendererPositiveModulo(h * 3 + i * 7, safeHeight);
+    const blink = rendererPositiveModulo(Math.floor(phase / 5) + h, 6);
+    if (blink === 0) continue;
+    const char = STAR_DUST[rendererPositiveModulo(h, STAR_DUST.length)]!;
+    rows[y]![x] =
+      blink >= 4
+        ? currentTheme.dimFg('particle', char)
+        : currentTheme.dimFg('textMuted', char);
+  }
+
+  // Diagonal meteors (down-right). Lifecycle: enter → streak → fade out of field.
+  const meteorCount = premium
+    ? safeHeight >= 3
+      ? 3
+      : 2
+    : safeHeight >= 2
+      ? 1
+      : 0;
+  for (let m = 0; m < meteorCount; m++) {
+    const h = base * (m + 2) + m * 131;
+    // Period in phase units — staggered so they don't sync.
+    const period = premium ? 42 + (m % 3) * 11 : 56 + (m % 2) * 14;
+    const local = rendererPositiveModulo(phase + (h % period), period);
+    // Only visible for part of the cycle (quiet sky between showers).
+    const activeFor = premium ? 16 : 12;
+    if (local > activeFor) continue;
+
+    const startX = rendererPositiveModulo(h, Math.max(1, safeWidth));
+    const startY = -Math.floor((h % 5) + 1); // spawn slightly above field
+    const speed = premium ? 0.7 + (m % 3) * 0.12 : 0.5;
+    // Diagonal: x increases slower than y for a natural fall angle.
+    const headX = startX + local * speed * 1.15;
+    const headY = startY + local * speed;
+    const trailLen = premium ? 5 : 3;
+    const token = PARTICLE_TOKENS[rendererPositiveModulo(h, PARTICLE_TOKENS.length)]!;
+
+    for (let step = 0; step <= trailLen; step++) {
+      const x = Math.round(headX - step * 1.1);
+      const y = Math.round(headY - step * 0.85);
+      if (y < 0 || y >= safeHeight || x < 0 || x >= safeWidth) continue;
+      const t = step / Math.max(1, trailLen);
+      if (step === 0) {
+        rows[y]![x] = currentTheme.fg(token, COMET_HEAD);
+      } else if (t < 0.4) {
+        rows[y]![x] = currentTheme.fg('particle', COMET_MID);
+      } else if (t < 0.75) {
+        rows[y]![x] = currentTheme.dimFg('particle', COMET_TAIL);
+      } else {
+        rows[y]![x] = currentTheme.dimFg('textMuted', COMET_TAIL);
+      }
+    }
+  }
+
+  return rows.map((cells) => cells.join(''));
 }
 
 export function renderAnimatedGradientText(
@@ -277,9 +493,10 @@ export function renderAnimatedGradientText(
   seed: string,
   appearance: AppearancePreferences = activeAppearance,
 ): string {
+  const plainText = stripAnsiControls(text);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-  if (!motionEffectsAllowed() || mode === 'off') return currentTheme.boldFg('primary', text);
-  return renderSpectacularText(text, seed, appearance, {
+  if (!motionEffectsAllowed() || mode === 'off') return currentTheme.boldFg('primary', plainText);
+  return renderSpectacularText(plainText, seed, appearance, {
     intense: mode === 'premium',
     pace: mode === 'premium' ? 'fast' : 'slow',
   });
@@ -291,11 +508,12 @@ export function renderPulseText(
   fallbackToken: ColorToken = 'primary',
   appearance: AppearancePreferences = activeAppearance,
 ): string {
+  const plainText = stripAnsiControls(text);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (!motionEffectsAllowed() || mode === 'off') {
-    return currentTheme.boldFg(fallbackToken, text);
+    return currentTheme.boldFg(fallbackToken, plainText);
   }
-  return renderSpectacularText(text, seed, appearance, {
+  return renderSpectacularText(plainText, seed, appearance, {
     intense: mode === 'premium',
     pace: 'fast',
   });
@@ -327,9 +545,13 @@ export function renderSpectacularText(
   appearance: AppearancePreferences = activeAppearance,
   options: SpectacularTextOptions = {},
 ): string {
+  // Callers sometimes pass already-styled chalk/ANSI fragments (queue pointer,
+  // thinking density, etc.). Strip controls first so per-cluster restyling
+  // never re-escapes SGR bodies into visible `[0;1;38;2…` garbage.
+  const plainText = stripAnsiControls(text);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (!motionEffectsAllowed() || mode === 'off') {
-    return currentTheme.boldFg('primary', text);
+    return currentTheme.boldFg('primary', plainText);
   }
 
   const rowIndex = options.rowIndex ?? 0;
@@ -345,7 +567,7 @@ export function renderSpectacularText(
   const runs: RendererStyledTextRun[] = [];
   let clusterIndex = 0;
 
-  for (const cluster of splitDisplayClusters(text)) {
+  for (const cluster of splitDisplayClusters(plainText)) {
     const char = cluster.text;
     if (char === ' ') {
       if (
@@ -399,10 +621,11 @@ export function renderPremiumHeadline(
   seed: string,
   appearance: AppearancePreferences = activeAppearance,
 ): string {
+  const plainText = stripAnsiControls(text);
   if (!shouldRenderAmbientEffects(appearance)) {
-    return currentTheme.boldFg('textStrong', text);
+    return currentTheme.boldFg('textStrong', plainText);
   }
-  return `${renderShimmerPrefix(appearance)}${renderSpectacularText(text, seed, appearance, { intense: true })}`;
+  return `${renderShimmerPrefix(appearance)}${renderSpectacularText(plainText, seed, appearance, { intense: true })}`;
 }
 
 export function renderPremiumAccentLine(
@@ -410,10 +633,11 @@ export function renderPremiumAccentLine(
   seed: string,
   appearance: AppearancePreferences = activeAppearance,
 ): string {
+  const plainText = stripAnsiControls(text);
   if (!shouldRenderAmbientEffects(appearance)) {
-    return currentTheme.fg('primary', text);
+    return currentTheme.fg('primary', plainText);
   }
-  return renderSpectacularText(text, seed, appearance, { intense: true, pace: 'slow' });
+  return renderSpectacularText(plainText, seed, appearance, { intense: true, pace: 'slow' });
 }
 
 export function renderShimmerPrefix(appearance: AppearancePreferences = activeAppearance): string {
@@ -463,4 +687,123 @@ function withSpectacularCanvasBackground(
   if (style === undefined) return { bg };
   if (style.bg !== undefined) return style;
   return { ...style, bg };
+}
+
+/** Ultrawork editor border — multi-hue chase that stays monospace-safe. */
+const ULTRAWORK_GLOW_TOKENS: readonly ColorToken[] = [
+  'particle',
+  'glow',
+  'primary',
+  'accent',
+  'gradientEnd',
+  'gradientStart',
+];
+const EDITOR_BORDER_CHARS = new Set(['╭', '╮', '╰', '╯', '│', '─', '├', '┤', '┬', '┴', '┼']);
+/** ~24 border-cells/sec — readable chase without strobe. */
+const ULTRAWORK_BORDER_CHASE_MS_PER_CELL = 42;
+const ULTRAWORK_BORDER_HUE_CYCLE_MS = 880;
+
+/**
+ * Smooth multi-token hue for Ultrawork chrome (border + region VFX).
+ * Blends adjacent palette tokens so the edge never snaps between solids.
+ */
+export function resolveUltraworkBorderGlowHex(nowMs: number = appearanceAnimationNow()): string {
+  const count = ULTRAWORK_GLOW_TOKENS.length;
+  const phase = (Math.max(0, nowMs) / ULTRAWORK_BORDER_HUE_CYCLE_MS) % count;
+  const i0 = Math.floor(phase) % count;
+  const i1 = (i0 + 1) % count;
+  const t = phase - Math.floor(phase);
+  // Smoothstep — eases the mid-blend so the hue feels liquid, not linear RGB crawl.
+  const s = t * t * (3 - 2 * t);
+  return mixHexColor(
+    currentTheme.color(ULTRAWORK_GLOW_TOKENS[i0]!),
+    currentTheme.color(ULTRAWORK_GLOW_TOKENS[i1]!),
+    s,
+  );
+}
+
+export function resolveUltraworkEditorBorderStyle(
+  nowMs: number = appearanceAnimationNow(),
+): RendererCellStyle {
+  return {
+    fg: resolveUltraworkBorderGlowHex(nowMs),
+    bold: true,
+  };
+}
+
+/**
+ * Paint a traveling highlight along the editor frame perimeter.
+ * Only touches box-drawing border glyphs — prompt/text stay untouched.
+ */
+export function paintUltraworkEditorBorderGlow(
+  lines: readonly RendererRegionLine[],
+  nowMs: number = appearanceAnimationNow(),
+): RendererRegionLine[] {
+  if (lines.length === 0) return [];
+
+  const rows: RendererCell[][] = lines.map((line) => {
+    if (typeof line === 'string') {
+      return Array.from(line).map((char) => ({ char }));
+    }
+    return line.map((cell) => ({ ...cell, style: cell.style === undefined ? undefined : { ...cell.style } }));
+  });
+
+  const height = rows.length;
+  const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  if (width === 0) return lines.slice();
+
+  for (const row of rows) {
+    while (row.length < width) row.push({ char: ' ' });
+  }
+
+  const path: Array<{ readonly x: number; readonly y: number }> = [];
+  if (height === 1) {
+    for (let x = 0; x < width; x++) path.push({ x, y: 0 });
+  } else {
+    for (let x = 0; x < width; x++) path.push({ x, y: 0 });
+    for (let y = 1; y < height - 1; y++) path.push({ x: width - 1, y });
+    for (let x = width - 1; x >= 0; x--) path.push({ x, y: height - 1 });
+    for (let y = height - 2; y >= 1; y--) path.push({ x: 0, y });
+  }
+  if (path.length === 0) return rows;
+
+  const head = resolveUltraworkBorderGlowHex(nowMs);
+  const mid = mixHexColor(head, currentTheme.color('primary'), 0.32);
+  const soft = mixHexColor(head, currentTheme.color('border'), 0.58);
+  const dim = mixHexColor(soft, currentTheme.color('border'), 0.4);
+  const headIndex = rendererPositiveModulo(
+    Math.floor(nowMs / ULTRAWORK_BORDER_CHASE_MS_PER_CELL),
+    path.length,
+  );
+  const trailLen = Math.min(16, Math.max(7, Math.floor(path.length / 4)));
+
+  // Base: whole border gently tinted so Ultrawork never looks "off".
+  for (const { x, y } of path) {
+    const cell = rows[y]![x]!;
+    if (!EDITOR_BORDER_CHARS.has(cell.char)) continue;
+    rows[y]![x] = {
+      ...cell,
+      style: { ...cell.style, fg: dim, bold: false },
+    };
+  }
+
+  // Chase head + decaying trail (clockwise).
+  for (let step = 0; step <= trailLen; step++) {
+    const idx = rendererPositiveModulo(headIndex - step, path.length);
+    const { x, y } = path[idx]!;
+    const cell = rows[y]![x]!;
+    if (!EDITOR_BORDER_CHARS.has(cell.char)) continue;
+    const t = step / Math.max(1, trailLen);
+    const fg = t < 0.12 ? head : t < 0.4 ? mid : t < 0.72 ? soft : dim;
+    rows[y]![x] = {
+      ...cell,
+      style: {
+        ...cell.style,
+        fg,
+        bold: t < 0.35,
+      },
+    };
+  }
+
+  return rows;
 }

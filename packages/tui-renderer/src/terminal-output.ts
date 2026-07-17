@@ -298,10 +298,31 @@ export function styleToAnsi(
   return `\u001B[${params.join(';')}m`;
 }
 
+/**
+ * Make text safe for cell/glyph sinks that must not carry control sequences.
+ *
+ * Important: strip full CSI/OSC sequences **before** filtering ESC. Replacing
+ * only `\u001B` leaves the SGR body (`[0;1;38;2;…m`) visible as plain text —
+ * the exact leak users see as `[0;1;38;2>` / `[0;1;38;2;…m` in animations.
+ */
 export function escapeTerminalText(text: string): string {
-  return splitDisplayClusters(text)
+  const plain = stripTerminalControlSequences(text);
+  return splitDisplayClusters(plain)
     .map((cluster) => (isSafePrintableCluster(cluster.text) ? cluster.text : ' '))
     .join('');
+}
+
+/** Drop CSI / OSC / other short ESC sequences; leave printable payload only. */
+export function stripTerminalControlSequences(text: string): string {
+  if (text.length === 0 || !text.includes('\u001B')) return text;
+  return text
+    // CSI: ESC [ … final byte in @-~
+    .replaceAll(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
+    // OSC: ESC ] … BEL or ST
+    .replaceAll(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+    // Other 2-byte ESC sequences (e.g. ESC c) and any leftover ESC
+    .replaceAll(/\u001B./g, '')
+    .replaceAll('\u001B', '');
 }
 
 function normalizeOrigin(value: number | undefined): number {

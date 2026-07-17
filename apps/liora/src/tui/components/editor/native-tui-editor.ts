@@ -517,16 +517,22 @@ export class NativeTUIEditor implements TUIEditor {
 
   private resolveEditorSurfaceStyles() {
     const palette = currentTheme.palette;
+    // When Ultrawork (or any highlight) is active, borderHighlighted is true and
+    // borderColor carries the live glow hex. Prefer that over static primary.
+    const focusHex =
+      this.borderHighlighted && this.inputMode !== 'bash'
+        ? extractHexFromBorderColor(this.borderColor) ?? palette.primary
+        : palette.primary;
     return resolveRendererEditorSurfaceStyles({
       commandMode: this.inputMode === 'bash',
-      focused: this.focused,
+      focused: this.focused || this.borderHighlighted,
       canvasBackground: currentTheme.canvasBackgroundEnabled,
       palette: {
         text: palette.text,
         textMuted: palette.textMuted,
         textStrong: palette.textStrong,
         border: palette.border,
-        borderFocus: palette.primary,
+        borderFocus: focusHex,
         command: palette.shellMode,
         surfaceSunken: palette.surfaceSunken,
         background: palette.background,
@@ -585,3 +591,19 @@ function regionLineToText(line: RendererRegionLine): string {
   if (typeof line === 'string') return line;
   return line.map((cell) => cell.char).join('');
 }
+
+function extractHexFromBorderColor(borderColor: (text: string) => string): string | undefined {
+  // borderColor is chalk-styled; sample a single glyph and recover #RRGGBB.
+  // chalk.hex() emits truecolor SGR (`38;2;r;g;b`) — not a literal `#` token.
+  const sample = borderColor('x');
+  const hexLiteral = /#([0-9A-Fa-f]{6})/.exec(sample);
+  if (hexLiteral !== null) return `#${hexLiteral[1]!}`;
+  const truecolor = /\x1b\[(?:38|48);2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(sample);
+  if (truecolor === null) return undefined;
+  const toByte = (raw: string): string => {
+    const n = Math.max(0, Math.min(255, Number.parseInt(raw, 10)));
+    return n.toString(16).padStart(2, '0');
+  };
+  return `#${toByte(truecolor[1]!)}${toByte(truecolor[2]!)}${toByte(truecolor[3]!)}`;
+}
+

@@ -3221,6 +3221,11 @@ describe('terminal output encoder', () => {
 
     expect(output).toBe('\u001B[1;1H한👩‍💻');
     expect(escapeTerminalText('👩‍💻\u001B')).toBe('👩‍💻 ');
+    // Full SGR/OSC must be stripped as sequences — never leave `[0;1;38;2…` bodies.
+    expect(escapeTerminalText('\u001B[0;1;38;2;230;57;70mhi\u001B[0m')).toBe('hi');
+    expect(escapeTerminalText('\u001B[0;1;38;2;230;57;70m')).toBe('');
+    expect(escapeTerminalText('\u001B[0;1;38;2;230;57;70m')).not.toContain('38;2');
+    expect(escapeTerminalText('\u001B[0;1;38;2;230;57;70m')).not.toContain('[');
   });
 
   it('encodes short and long hex truecolor styles', () => {

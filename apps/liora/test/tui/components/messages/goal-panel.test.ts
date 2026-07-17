@@ -25,7 +25,8 @@ afterAll(() => {
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 function strip(lines: string[]): string {
   return lines
-    .map((line) => line.replaceAll(ANSI_SGR, '').replaceAll(/[✦✧✺∙•]/g, ' '))
+    // Strip ambient sparkles only — keep semantic middle-dot (·) in titles like "Goal · active".
+    .map((line) => line.replaceAll(ANSI_SGR, '').replaceAll(/[∙•◦*]/g, ' '))
     .join('\n');
 }
 

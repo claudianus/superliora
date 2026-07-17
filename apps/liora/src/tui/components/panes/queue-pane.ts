@@ -49,12 +49,15 @@ export class QueuePaneComponent extends Container {
   override render(width: number): string[] {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
-    const accent = (text: string) =>
-      animated
-        ? renderSpectacularText(text, `queue:accent:${text}`, appearance, { intense: true })
-        : currentTheme.fg('accent', text);
+    // Accent only paints plain text. Pointer glyphs are already ambient-styled;
+    // wrapping them again used to leak SGR as visible `[0;1;38;2…`.
+    const accent = (text: string) => currentTheme.fg('accent', text);
     const shell = (text: string) => currentTheme.fg('shellMode', text);
     const dim = (text: string) => currentTheme.fg('textDim', text);
+    const ambientLabel = (text: string, seed: string) =>
+      animated
+        ? renderSpectacularText(text, seed, appearance, { intense: false })
+        : dim(text);
     const lines: string[] = [
       animated
         ? renderParticleDivider(width, 'queue:divider', appearance)
@@ -72,27 +75,34 @@ export class QueuePaneComponent extends Container {
       if (promptCount > 0) parts.push(`${String(promptCount)} prompt${promptCount === 1 ? '' : 's'}`);
       if (bashCount > 0) parts.push(`${String(bashCount)} shell`);
       const label = parts.join(' · ');
-      const countLine = animated
-        ? `  ${renderSpectacularText(label, 'queue:count:' + label, appearance, { intense: false })}`
-        : `  ${label}`;
-      lines.push(dim(truncateToWidth(countLine, width, ELLIPSIS)));
+      const countLine = `  ${ambientLabel(label, `queue:count:${label}`)}`;
+      // Truncate plain geometry first only when not animated; animated labels
+      // are already width-stable short chrome. Never dim() over ANSI.
+      lines.push(
+        animated
+          ? truncateToWidth(countLine, width, ELLIPSIS)
+          : dim(truncateToWidth(`  ${label}`, width, ELLIPSIS)),
+      );
     }
 
     for (const item of this.messages) {
       const displayText = item.displayText ?? item.text;
       const singleLine = displayText.replaceAll(/\s+/g, ' ').trim();
-      const prefix = `  ${renderSelectPointer('queue:pointer')} `;
+      const pointer = renderSelectPointer('queue:pointer');
+      const prefixPlain = '  ';
+      // pointer is already ambient-styled; do not wrap it in accent/spectacular again.
+      const chromeWidth = visibleWidth(`${prefixPlain}${pointer} `);
       if (item.mode === 'bash') {
         // Shell commands get a `$ ` prompt and the shell-mode hue so they read
         // as commands, not as plain text that would be sent to the model.
         const prompt = '$ ';
-        const availableWidth = Math.max(1, width - visibleWidth(prefix) - visibleWidth(prompt));
+        const availableWidth = Math.max(1, width - chromeWidth - visibleWidth(prompt));
         const truncated = truncateToWidth(singleLine, availableWidth, ELLIPSIS);
-        lines.push(accent(prefix) + shell(prompt + truncated));
+        lines.push(`${prefixPlain}${pointer} ${shell(prompt + truncated)}`);
       } else {
-        const availableWidth = Math.max(1, width - visibleWidth(prefix));
+        const availableWidth = Math.max(1, width - chromeWidth);
         const truncated = truncateToWidth(singleLine, availableWidth, ELLIPSIS);
-        lines.push(accent(prefix + truncated));
+        lines.push(`${prefixPlain}${pointer} ${accent(truncated)}`);
       }
     }
 

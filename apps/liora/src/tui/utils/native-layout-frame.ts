@@ -48,7 +48,10 @@ import {
   getAppearanceRenderHealth,
   getAppearanceRenderQuality,
   motionEffectsAllowed,
+  paintUltraworkEditorBorderGlow,
   resolveAmbientEffectMode,
+  resolveUltraworkBorderGlowHex,
+  resolveUltraworkEditorBorderStyle,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
@@ -536,18 +539,38 @@ function buildTUIStateNativeFrame(
       if (region.id === 'editor' && projected.cursor !== undefined) {
         cursor = projected.cursor;
       }
-      const content = region.id === 'editor'
+      const ultraworkBorder =
+        region.id === 'editor' &&
+        state.appState.ultraworkMode === true &&
+        motionEffectsAllowed();
+      const rawContent = region.id === 'editor'
         ? projected.lines
         : region.id === 'transcript'
           ? promoteTranscriptRegionLinesToCells(projected.lines)
           : promoteRendererRegionLinesToCells(projected.lines);
+      const content =
+        ultraworkBorder && rawContent.length > 0
+          ? paintUltraworkEditorBorderGlow(rawContent, appearanceAnimationNow())
+          : rawContent;
       if (content.length === 0 && region.id !== 'transcript') return [];
-      const vfx = region.id === 'editor' && state.editor.borderHighlighted
-        ? createTUIStateNativeRegionVfx(state, 'focus-pulse', {
-            color: currentTheme.palette.primary,
-            seed: 'native-editor-focus',
-          })
-        : undefined;
+      const vfx =
+        region.id === 'editor' && state.editor.borderHighlighted
+          ? ultraworkBorder
+            ? createTUIStateNativeRegionVfx(state, 'loading-shimmer', {
+                color: resolveUltraworkBorderGlowHex(appearanceAnimationNow()),
+                seed: 'native-editor-ultrawork',
+                // Faster, brighter chase across the frame perimeter feel.
+                premiumIntervalMs: 720,
+                subtleIntervalMs: 980,
+                minIntensity: 0.18,
+                maxIntensity: 0.72,
+                width: 4,
+              })
+            : createTUIStateNativeRegionVfx(state, 'focus-pulse', {
+                color: currentTheme.palette.primary,
+                seed: 'native-editor-focus',
+              })
+          : undefined;
       return [{
         id: region.id,
         content,
@@ -629,21 +652,36 @@ function createTUIStateNativeRegionVfx(
     readonly color: string;
     readonly seed: string;
     readonly rect?: RendererRect;
+    readonly premiumIntervalMs?: number;
+    readonly subtleIntervalMs?: number;
+    readonly minIntensity?: number;
+    readonly maxIntensity?: number;
+    readonly width?: number;
   },
 ): ReturnType<typeof createRendererRegionVfx> {
   if (!state.transcriptViewport.followOutput) return undefined;
   if (!motionEffectsAllowed()) return undefined;
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
-  const premiumPinned = resolveAmbientEffectMode(appearance) === 'premium';
+  // Ultrawork / premium spectacle pins full quality so the glow does not freeze under load.
+  const premiumPinned =
+    resolveAmbientEffectMode(appearance) === 'premium' || state.appState.ultraworkMode === true;
   return createRendererRegionVfx({
     preset,
-    requested: resolveAmbientEffectMode(appearance),
+    requested:
+      state.appState.ultraworkMode === true
+        ? 'premium'
+        : resolveAmbientEffectMode(appearance),
     quality: premiumPinned ? 'full' : getAppearanceRenderQuality(),
     health: premiumPinned ? 'healthy' : getAppearanceRenderHealth(),
     nowMs: appearanceAnimationNow(),
     seed: options.seed,
     color: options.color,
     rect: options.rect,
+    premiumIntervalMs: options.premiumIntervalMs,
+    subtleIntervalMs: options.subtleIntervalMs,
+    minIntensity: options.minIntensity,
+    maxIntensity: options.maxIntensity,
+    width: options.width,
   });
 }
 
@@ -719,16 +757,25 @@ function projectNativeEditorRegion(
 
   const palette = currentTheme.palette;
   const isBash = state.editor.inputMode === 'bash';
+  const ultraworkGlow =
+    state.appState.ultraworkMode === true && motionEffectsAllowed();
+  const ultraworkBorderStyle = ultraworkGlow
+    ? resolveUltraworkEditorBorderStyle(appearanceAnimationNow())
+    : undefined;
   const editorStyles = resolveRendererEditorSurfaceStyles({
     commandMode: isBash,
-    focused: state.editor.borderHighlighted,
+    focused: state.editor.borderHighlighted || ultraworkGlow,
     canvasBackground: currentTheme.canvasBackgroundEnabled,
     palette: {
       text: palette.text,
       textMuted: palette.textMuted,
       textStrong: palette.textStrong,
       border: palette.border,
-      borderFocus: palette.primary,
+      // Ultrawork replaces the static focus color with a liquid multi-hue base;
+      // paintUltraworkEditorBorderGlow then adds the perimeter chase on top.
+      borderFocus: ultraworkGlow
+        ? resolveUltraworkBorderGlowHex(appearanceAnimationNow())
+        : palette.primary,
       command: palette.shellMode,
       surfaceSunken: palette.surfaceSunken,
       background: palette.background,
@@ -781,8 +828,8 @@ function projectNativeEditorRegion(
     topLabel: isBash ? RENDERER_EDITOR_SHELL_MODE_LABEL : undefined,
     overlays: surfaceLayout.overlayLines,
     scrollbar: {},
-    connectedAbove: state.editor.connectedAbove && !state.editor.borderHighlighted,
-    borderStyle: editorStyles.borderStyle,
+    connectedAbove: state.editor.connectedAbove && !state.editor.borderHighlighted && !ultraworkGlow,
+    borderStyle: ultraworkBorderStyle ?? editorStyles.borderStyle,
     promptStyle: editorStyles.promptStyle,
     surfaceStyle: editorStyles.surfaceStyle,
     scrollbarTrackStyle: editorStyles.scrollbarTrackStyle,
