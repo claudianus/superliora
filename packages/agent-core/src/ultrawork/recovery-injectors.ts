@@ -13,6 +13,7 @@ import {
   buildUltraworkResumeCursor,
   inferResumeStageFloor,
 } from './recovery-resume';
+import { formatContinuityOperatorNote } from '../agent/context-os';
 
 export function maybeAdvanceUltraworkStage(
   agent: Agent,
@@ -95,6 +96,11 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   }
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
+
+  const continuityNote = formatContinuityOperatorNote(agent.contextOS.health());
+  if (continuityNote !== undefined) {
+    lines.push(continuityNote);
   }
 
   const stageGuidance = stageContinuationGuidance(effectiveStage, agent.ultraSwarmRun !== undefined);
