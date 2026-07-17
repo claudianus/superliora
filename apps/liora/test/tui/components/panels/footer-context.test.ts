@@ -307,7 +307,7 @@ describe('FooterComponent — context NaN resilience', () => {
     );
     const lines = footer.render(120).map(strip);
     const joined = lines.join('\n');
-    expect(joined).toContain('ctx-os:evidence↓0.50');
+    expect(joined).toContain('ctx-os:missing-ev×1');
     expect(formatContextOSFooterBadge({
       pageCount: 2,
       readyPageCount: 1,
@@ -316,7 +316,7 @@ describe('FooterComponent — context NaN resilience', () => {
       missingEvidencePageCount: 1,
       evidenceIdRecallScore: 0.5,
       latestContinuityStatus: 'needs_rehydration',
-    })).toEqual({ text: 'ctx-os:evidence↓0.50', severity: 'danger' });
+    })).toEqual({ text: 'ctx-os:missing-ev×1', severity: 'danger' });
     expect(formatContextOSFooterBadge(null)).toBeNull();
   });
 

@@ -241,7 +241,7 @@ export function formatContextOSFooterBadge(
   }
   if (contextOS.missingEvidencePageCount > 0) {
     return {
-      text: `ctx-os:evidence↓${contextOS.evidenceIdRecallScore.toFixed(2)}`,
+      text: `ctx-os:missing-ev×${String(contextOS.missingEvidencePageCount)}`,
       severity: 'danger',
     };
   }
