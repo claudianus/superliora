@@ -366,13 +366,29 @@ describe('PlanModeInjector cadence', () => {
     expect(text).toContain('Plan file: /tmp/plan.md');
   });
 
+  it('stays sparse mid-loop before the long full-refresh threshold', async () => {
+    const agent = planAgent({ isActive: true, planFilePath: '/tmp/plan.md' });
+    const injector = new PlanModeInjector(agent);
+
+    await injector.inject();
+    const messages = history(agent);
+    for (let i = 0; i < 4; i += 1) {
+      messages.push({ role: 'assistant' });
+    }
+    await injector.inject();
+
+    const text = lastReminder(agent);
+    expect(text).toContain('Plan mode still active');
+    expect(text).toContain('full instructions earlier');
+  });
+
   it('refreshes the full reminder after the long assistant-turn threshold', async () => {
     const agent = planAgent({ isActive: true, planFilePath: '/tmp/plan.md' });
     const injector = new PlanModeInjector(agent);
 
     await injector.inject();
     const messages = history(agent);
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 7; i += 1) {
       messages.push({ role: 'assistant' });
     }
     await injector.inject();
