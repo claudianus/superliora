@@ -61,7 +61,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'live reasoning shows a 4-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — glanceable pressure', priority: 1, solo: true },
   { text: 'premium particle rails: short comet trails at ~30fps — cinematic without 1ms thrash', priority: 1, solo: true },
-  { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
+  { text: 'LioraRead auto→signatures after 80 lines; Grep default 20; parallelize independent reads', priority: 1, solo: true },
   { text: 'footer μ badges show micro clears (cache-miss/swarm) without config', priority: 1, solo: true },
   { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },
   { text: 'footer web + office + img·vid + zdr badges show research/office/media/privacy readiness without MCP or config', priority: 1, solo: true },

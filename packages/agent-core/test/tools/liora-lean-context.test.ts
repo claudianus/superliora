@@ -91,6 +91,28 @@ describe('Liora lean context tools', () => {
     expect(output).not.toContain('filler150');
   });
 
+  
+  it('LioraRead auto mode uses signatures for medium files above 80 lines', async () => {
+    const file = [
+      'export function targetNeedle() { return 1; }',
+      ...Array.from({ length: 100 }, (_, index) => `const filler${index} = ${index};`),
+    ].join('\n');
+    const { store } = makeStore();
+    const tool = new LioraReadTool(
+      makeKaos({ '/workspace/src/medium.ts': file }),
+      workspace,
+      store,
+    );
+
+    const result = await executeTool(tool, context({ path: 'src/medium.ts', mode: 'auto' }));
+    const output = toolContentString(result);
+
+    expect(result.isError).toBeFalsy();
+    expect(output).toContain('<liora_read mode="signatures"');
+    expect(output).toContain('targetNeedle');
+    expect(output).not.toContain('filler90');
+  });
+
   it('compressShellOutput collapses repetitive passing test lines', () => {
     const stdout = [
       'PASS test/a',
