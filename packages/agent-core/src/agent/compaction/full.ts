@@ -70,6 +70,7 @@ import {
   renderUltraworkRunsMemorySection,
 } from '../../ultrawork/envelope';
 import {
+  injectMissingDurableEvidenceIds,
   mergeCompactionQualityResults,
   validateInitialCompactionSummary,
   validateRenderedCompactionSummary,
@@ -106,6 +107,7 @@ import {
   mergeTokenUsage,
   mergeTokenUsageOrNull,
   shouldIncludeCompactionQualitySignals,
+  stripResolvedEvidenceCriticals,
 } from './full-helpers';
 import {
   handoffThresholdTokens,
@@ -820,7 +822,13 @@ export class FullCompaction {
           signals: repairedQuality.signals ?? initialQuality.signals,
         };
         if (repairedQuality.critical.length > 0) {
-          throw new CompactionQualityError(repairedQuality.critical);
+          const evidenceOnly =
+            isMissingEvidenceQualityFailure(repairedQuality) &&
+            repairedQuality.critical.every((item) => item.includes('durable evidence'));
+          if (!evidenceOnly) {
+            throw new CompactionQualityError(repairedQuality.critical);
+          }
+          // Evidence-id gaps are recovered deterministically after enrichment.
         }
       }
 
@@ -891,6 +899,42 @@ export class FullCompaction {
       retained = evidenceRepair.retained;
       retainedTokens = evidenceRepair.retainedTokens;
       tokensAfter = evidenceRepair.tokensAfter;
+
+      // Last-resort: splice missing durable IDs from the compacted history into the
+      // summary. Hard-failing auto-compaction here freezes long sessions forever.
+      if (
+        quality.critical.length > 0 &&
+        !usedEmergencyBackstop &&
+        isMissingEvidenceQualityFailure(quality)
+      ) {
+        const injected = injectMissingDurableEvidenceIds(summary, messagesToCompact);
+        if (injected.injectedIds.length > 0) {
+          this.agent.telemetry.track('compaction_evidence_ids_injected', {
+            injected_count: injected.injectedIds.length,
+            injected_ids: injected.injectedIds.join(','),
+          });
+          const revalidated = this.revalidateAfterEvidenceRepair({
+            summary: injected.summary,
+            plan,
+            messagesToCompact,
+            archiveGuidance,
+            compactedCount,
+            priorQuality: quality,
+            ultraworkSnapshot,
+          });
+          summary = revalidated.summary;
+          quality = stripResolvedEvidenceCriticals(
+            revalidated.quality,
+          ) as CompactionQualityResult;
+          contextSummary = revalidated.contextSummary;
+          summaryTokens = revalidated.summaryTokens;
+          retained = revalidated.retained;
+          retainedTokens = revalidated.retainedTokens;
+          tokensAfter = revalidated.tokensAfter;
+          repairAttempted = true;
+        }
+      }
+
       if (quality.critical.length > 0 && !usedEmergencyBackstop) {
         throw new CompactionQualityError(quality.critical);
       }

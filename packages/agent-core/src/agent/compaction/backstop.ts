@@ -1,3 +1,4 @@
+import { extractEvidenceIdsFromText } from './quality';
 import { extractText, type Message } from '@superliora/kosong';
 
 import { estimateTokens } from '../../utils/tokens';
@@ -55,6 +56,7 @@ export function buildEmergencyBackstopSummary(
             `- ${ref.kind} messages[${String(ref.messageStart)}..${String(ref.messageEnd)}] (~${String(ref.tokens)} tokens)`,
         )
       : ['- (not captured during compaction.)']),
+    ...collectEvidenceLines(messages),
     '',
     '## Emergency extractive transcript',
     'The LLM compaction summarizer failed after retries. This deterministic snapshot preserves continuity.',
@@ -156,6 +158,20 @@ function truncateToTokenBudget(text: string, maxTokens: number): string {
   }
   const truncated = text.slice(0, low);
   return truncated.length < text.length ? `${truncated}\n…[transcript truncated]` : truncated;
+}
+
+
+function collectEvidenceLines(messages: readonly Message[]): string[] {
+  const sourceText = messages.map((message) => extractText(message, ' ')).join('\n');
+  const ids = extractEvidenceIdsFromText(sourceText);
+  if (ids.length === 0) return [];
+  return [
+    'evidence_ids:',
+    `- ${ids.join(',')}`,
+    ...ids
+      .filter((id) => /^[a-f0-9]+$/i.test(id) && id.length >= 8)
+      .map((id) => `- [liora-archived id=${id}]`),
+  ];
 }
 
 function uniqueList(items: readonly string[]): string[] {

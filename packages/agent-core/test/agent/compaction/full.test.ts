@@ -23,6 +23,7 @@ import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
   evaluateCompactionQualitySignals,
+  injectMissingDurableEvidenceIds,
   validateInitialCompactionSummary,
   validateRenderedCompactionSummary,
   type CompactionPlan,
@@ -38,6 +39,7 @@ import {
   emergencyBackstopWarnings,
   evidenceRepairSucceeded,
   isMissingEvidenceQualityFailure,
+  stripResolvedEvidenceCriticals,
   mergeQualityWarningLists,
   shouldIncludeCompactionQualitySignals,
 } from '../../../src/agent/compaction/full-helpers';
@@ -1493,6 +1495,45 @@ describe('FullCompaction', () => {
         warningCategories: ['missing_evidence_ids'],
       }),
     ).toBe(true);
+  });
+
+  it('injectMissingDurableEvidenceIds restores omitted durable identifiers', () => {
+    const messages = [
+      textMessage(
+        'user',
+        'Continue WorkGraph node_id=wg-42 with evidence_ids: ev-a,ev-b and [liora-archived id=abc123def]',
+      ),
+    ];
+    const summary = [
+      '# SuperLiora Context Compaction v2 Memory',
+      'current_goal:',
+      '- Continue the active user task.',
+      'next_actions:',
+      '- Continue WorkGraph progress.',
+    ].join('\n');
+    const injected = injectMissingDurableEvidenceIds(summary, messages);
+    expect(injected.injectedIds).toEqual(expect.arrayContaining(['wg-42', 'ev-a', 'ev-b', 'abc123def']));
+    expect(injected.summary).toContain('evidence_ids:');
+    expect(injected.summary).toContain('wg-42');
+    expect(injected.summary).toContain('[liora-archived id=abc123def]');
+    const signals = evaluateCompactionQualitySignals({
+      summary: injected.summary,
+      compactedMessages: messages,
+      tokensBefore: 1_000,
+      tokensAfter: 400,
+    });
+    expect(signals.evidenceIdRecallScore).toBe(1);
+    const stripped = stripResolvedEvidenceCriticals({
+      critical: [
+        'summary is missing durable evidence/node/archive identifiers present in compacted history',
+        'other critical',
+      ],
+      warnings: ['summary did not preserve durable evidence/node/archive identifiers from compacted work'],
+      warningCategories: ['missing_evidence_ids', 'missing_next_actions'],
+      signals: { evidenceIdRecallScore: 1 },
+    });
+    expect(stripped.critical).toEqual(['other critical']);
+    expect(stripped.warningCategories).toEqual(['missing_next_actions']);
   });
 
   it('isMissingEvidenceQualityFailure detects durable id criticals', () => {
