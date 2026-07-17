@@ -788,7 +788,7 @@ describe('SessionSubagentHost', () => {
     parent.newEvents();
 
     const longSummary = 'Detailed findings: '.repeat(20);
-    // Densify async pre-rot (~1%) would otherwise reclaim mid-test and steal
+    // Async pre-rot at research ladder (0.70) would otherwise reclaim mid-test and steal
     // the second generate mock for compaction handoff.
     const child = testAgent({
       experimentalFlags: new FlagResolver(

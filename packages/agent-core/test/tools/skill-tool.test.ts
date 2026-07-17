@@ -151,6 +151,33 @@ describe('SkillTool metadata and schema', () => {
 });
 
 describe('SearchSkillTool execution', () => {
+  it('documents office deliverable keywords in the query schema', () => {
+    const tool = searchSkillTool(registry([]));
+    const query = (
+      tool.parameters as { properties: Record<string, { description?: string }> }
+    ).properties['query'];
+    expect(query?.description ?? '').toContain('Word docx report');
+    expect(query?.description ?? '').toContain('PowerPoint pptx slides');
+    expect(query?.description ?? '').toContain('Excel xlsx spreadsheet');
+  });
+
+  it('passes concrete default top_k 5 when omitted', async () => {
+    const base = registry([skill('docx')]);
+    const searchByQuery = vi.fn(async () => [
+      {
+        name: 'docx',
+        description: 'Word documents',
+        path: '/tmp/docx',
+        source: 'catalog' as const,
+        score: 0.9,
+        matchReason: 'name',
+      },
+    ]);
+    const tool = searchSkillTool({ ...base, searchByQuery } as never);
+    await executeSearch(tool, { query: 'Word docx report' });
+    expect(searchByQuery).toHaveBeenCalledWith('Word docx report', 5);
+  });
+
   it('presents SearchSkill as a top-level discovery tool', () => {
     const tool = searchSkillTool(registry([skill('write-tui')]));
 
