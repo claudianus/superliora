@@ -57,7 +57,12 @@ export class SkillSearchEngine {
       return summarizeSkillSearchHit(skill, result.score, matchReason(result.terms));
     }).filter((result): result is SkillSearchHit => result !== undefined);
 
-    const exact = exactNameHits(query, this.skillById, options.filter);
+    // Prefer exact/prefix name hits, then token-exact short skill names
+    // (e.g. query "Word docx report" must surface skill "docx" first).
+    const exact = [
+      ...exactNameHits(query, this.skillById, options.filter),
+      ...tokenExactNameHits(query, this.skillById, options.filter),
+    ];
     if (exact.length > 0) {
       const seen = new Set(exact.map((hit) => hit.name.toLowerCase()));
       results = [
@@ -123,6 +128,34 @@ function exactNameHits(
     } else if (normalizedName.startsWith(normalizedQuery)) {
       hits.push(summarizeSkillSearchHit(skill, 10_000, 'name prefix'));
     }
+  }
+  return hits.toSorted((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+}
+
+/** Token-level exact name boost for short skill ids inside multi-word queries. */
+function tokenExactNameHits(
+  query: string,
+  skills: ReadonlyMap<string, SkillDefinition>,
+  filter: ((skill: SkillDefinition) => boolean) | undefined,
+): SkillSearchHit[] {
+  const tokens = new Set(
+    query
+      .toLowerCase()
+      .split(/[^a-z0-9.+_-]+/i)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3 && token.length <= 24),
+  );
+  if (tokens.size === 0) return [];
+  const hits: SkillSearchHit[] = [];
+  for (const skill of skills.values()) {
+    if (filter !== undefined && !filter(skill)) continue;
+    const normalizedName = skill.name.toLowerCase();
+    if (!tokens.has(normalizedName)) continue;
+    // Prefer short primary skill names (docx/pptx/xlsx/pdf) over long aliases.
+    const lengthBoost = Math.max(0, 24 - normalizedName.length);
+    hits.push(
+      summarizeSkillSearchHit(skill, 100_000 + lengthBoost, `token name:${normalizedName}`),
+    );
   }
   return hits.toSorted((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }

@@ -49,7 +49,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/context: memory continuity + privacy (ZDR)', priority: 3, solo: true },
   { text: 'media: OPENAI/GOOGLE key → GenerateImage 1024² / GenerateVideo 16:9·5s — no MCP', priority: 2, solo: true },
   { text: 'research: Context7 (8 matches · 12k docs) + WebSearch/FetchURL — no MCP', priority: 2, solo: true },
-  { text: 'office: SearchSkill "Word docx report" / pptx slides / xlsx sheet — zero MCP', priority: 2, solo: true },
+  { text: 'office: SearchSkill "Word docx report" / pptx slides / xlsx sheet ranks primary skills first — zero MCP', priority: 2, solo: true },
   { text: 'WebSearch defaults to 3 hits; include_content caps pages at 8k — prefer FetchURL for deep reads', priority: 1, solo: true },
   { text: '/bench: LioraBench score · loop · next rerun', priority: 2, solo: true },
   { text: 'browser/computer tools are built-in for screenshot proof — no MCP', priority: 2, solo: true },
