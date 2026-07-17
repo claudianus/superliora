@@ -15,7 +15,7 @@ import { renderParticleRail } from '#/tui/utils/appearance-effects';
 import { renderWelcomeBanner } from './welcome-banner';
 
 const LOGGED_IN_PROMPT =
-  'Type a task · /status img/vid·web·office·ZDR · /bench · Shift-Tab Ultrawork';
+  'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork';
 const LOGGED_OUT_PROMPT = 'Run /login or paste an API key — media/web/office ready after that, no MCP.';
 
 export class WelcomeComponent implements Component {
