@@ -14,7 +14,7 @@
     "office",
     "research"
   ],
-  "prompt": "Create reports/beginner-zero-config-contract.md with sections for Login, Status gates, Media keys, Footer badges, and Bench path.",
+  "prompt": "Create reports/beginner-zero-config-contract.md with sections for Login, Status gates, Media keys, Footer badges, Office path, Research path, and Bench path.",
   "budgets": {
     "maxWallMs": 120000,
     "maxCommands": 8,
