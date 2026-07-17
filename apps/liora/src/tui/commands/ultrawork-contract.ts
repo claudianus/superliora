@@ -93,14 +93,14 @@ const ULTRAWORK_ORCHESTRATION_GUIDANCE = [
 /** Compact always-on operating rules (merged former multi-block dump). */
 const ULTRAWORK_CORE_OPERATING_GUIDANCE = [
   'Core operating rules:',
-  '- Liora Lean Context: prefer LioraRead (signatures/map/lines), LioraSymbol, LioraTree, LioraCallgraph, Grep before broad Read dumps; cite paths; keep context small; memory only for durable prefs/decisions.',
-  '- Liora Knowledge Map: map from LioraRead/LioraSymbol/LioraTree, Grep, memory, artifact summaries before broad exploration. Prefer EXTRACTED edges over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.',
-  '- Workflow transparency: maintain `workflow-report.md` + `workflow-stages.json`; fill each stage narrative before leaving. Knowledge persistence ledger: final reports need `liora_recall`/`llm_wiki` rows with wrote|skipped|blocked + reason/path/id/evidence (`.superliora/wiki`); promote seed wiki/knowledge-map only in Learn with evidenceState verified.',
-  '- UltraResearch / free web research: prefer Context7Resolve/Context7Docs; WebSearch + FetchURL for primary sources; LocalResearchStack free fallback. Re-search on new uncertainty; label stale/offline if live search fails; never defeat CAPTCHA/paywall/login/rate-limits.',
-  '- Capability Coverage Matrix: criterion/risk -> expertise -> evidence -> expert -> owner from UltraGoal + AC Tree. Prefer UltraSwarm auto_select; ENGAGE when >1 material lane, subjective quality, high risk, hard-to-observe behavior, or independent review; DEFER only if main agent owns every lane. Report matrix, specialist usage, evidence paths, risks.',
-  '- Definition of Done: inspect files/tests/rules first; small changes; focused tests when practical; relevant checks; finish only with evidence and remaining risks. Prefer deterministic verification over model claims.',
+  '- Liora Lean Context: LioraRead(signatures|map|lines)/LioraSymbol/LioraTree/LioraCallgraph + Grep before broad dumps; cite paths; memory only for durable prefs/decisions.',
+  '- Liora Knowledge Map: map from lean tools + Grep + memory/artifact summaries before broad exploration. Prefer EXTRACTED over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.',
+  '- Workflow transparency: keep `workflow-report.md` + `workflow-stages.json` filled per stage. Knowledge persistence ledger: final reports need `liora_recall`/`llm_wiki` wrote|skipped|blocked + path/id/evidence (`.superliora/wiki`); promote seed wiki/knowledge-map only with evidenceState verified.',
+  '- UltraResearch / free web research: Context7Resolve/Context7Docs first; WebSearch + FetchURL for primary sources; LocalResearchStack fallback. Re-search on new uncertainty; label stale/offline; never defeat CAPTCHA/paywall/login/rate-limits.',
+  '- Capability Coverage Matrix: criterion/risk → expertise → evidence → expert → owner from UltraGoal + AC Tree. Prefer UltraSwarm auto_select; ENGAGE when >1 material lane, subjective quality, high risk, hard-to-observe behavior, or independent review; DEFER only if main agent owns every lane.',
+  '- Definition of Done: inspect files/tests/rules first; small changes; focused tests; finish only with evidence and remaining risks. Prefer deterministic verification over model claims.',
   '- Continuity after compact/swarm: honor Continuity notes and Context OS pages (inject ≤3, ≤3.5k). Expand raw refs only on failure; verify evidence IDs; /ultrawork resume from checkpoint — do not restart UltraPlan/UltraResearch.',
-  '- Premium Quality (default ON in Ultrawork): Premium injector owns the full bar. For web/app/dashboard/game surfaces, write an Art Direction Brief before visual work; SearchSkill for design skills; screenshot-proof before done. Human Writing / Anti-Slop: light pass by default; SearchSkill -> Skill only for docs/PR/changelog/TUI/plan prose; plain specific claims over hype.',
+  '- Premium Quality (default ON in Ultrawork): Premium injector owns the bar. Visual surfaces need Art Direction Brief + SearchSkill design skills + screenshot proof. Human Writing / Anti-Slop: light pass by default; SearchSkill→Skill for docs/PR/changelog/TUI/plan prose; plain specific claims over hype.',
 ].join('\n');
 
 const ULTRAWORK_GUI_USE_GUIDANCE = [
