@@ -68,6 +68,8 @@ export interface FsWatcherConnectionLookup {
 
 export interface FsWatcherServiceOptions {
   debounceMs?: number;
+  /** Hard max open coalesce window (ms); defaults to 2000. */
+  maxCoalesceMs?: number;
   maxChangesPerWindow?: number;
   maxPathsPerConnection?: number;
   watcherFactory?: () => FSWatcher;
