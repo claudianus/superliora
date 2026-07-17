@@ -9,7 +9,7 @@ import { DynamicInjector } from './injector';
  * of the context so the model does not drift back to English as the
  * conversation grows long or after context compaction.
  */
-const RESPONSE_LANGUAGE_REFRESH_ASSISTANT_TURNS = 2;
+const RESPONSE_LANGUAGE_REFRESH_ASSISTANT_TURNS = 4;
 
 export class ResponseLanguageInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'response_language';
