@@ -260,28 +260,32 @@ function formatUltraworkFlow(options: StatusReportOptions): FieldRow {
   const planMode = options.status?.planMode ?? options.planMode;
   const blocked = verifyBlockedByReadiness(options);
   const verify = formatVerifyStatus(options.goalStatus, planMode, blocked);
+  const stage =
+    options.ultraworkRun !== undefined && options.ultraworkRun !== null
+      ? ` · ${options.ultraworkRun.stage.replaceAll('_', ' ')}`
+      : '';
   if (verify === 'passed') {
     return {
       label: 'Flow',
-      value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 verified`,
+      value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 verified${stage}`,
     };
   }
   if (verify === 'blocked') {
     return {
       label: 'Flow',
-      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify blocked`,
+      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify blocked${stage}`,
       severity: 'error',
     };
   }
   if (verify === 'queued') {
     return {
       label: 'Flow',
-      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify queued`,
+      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify queued${stage}`,
     };
   }
   return {
     label: 'Flow',
-    value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 ready to run`,
+    value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 ready to run${stage}`,
   };
 }
 

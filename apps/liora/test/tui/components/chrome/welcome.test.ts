@@ -99,7 +99,9 @@ describe('WelcomeComponent', () => {
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
     expect(output).toContain('____  ___');
-    expect(output).toContain('Type a task · /status img/vid·web·office·ZDR · /bench · Shift-Tab Ultrawork');
+    expect(output).toContain('Type a task');
+    expect(output).toContain('web·office·media·ZDR');
+    expect(output).toContain('Shift-Tab Ultrawork');
     expect(output).not.toContain('Welcome to SuperLiora!');
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');

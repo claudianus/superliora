@@ -532,6 +532,28 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Next\s+Resolve or replace the blocked goal before continuing\./);
   });
 
+
+  it('appends Ultrawork stage onto the Flow row when a run is active', () => {
+    const lines = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10_000,
+      availableModels: {},
+      ultraworkMode: true,
+      ultraworkRun: { stage: 'integrate' },
+    });
+    const joined = lines.join('\n');
+    expect(joined).toMatch(/Flow\s+.+integrate/);
+  });
+
   it('includes Context OS health when compacted pages exist', () => {
     const lines = buildStatusReportLines({
       version: '0.0.0-test',
