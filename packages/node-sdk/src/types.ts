@@ -115,6 +115,28 @@ export interface CreateUltraworkRunInput {
   readonly evidenceRoot: string;
   readonly workDir: string;
 }
+export interface ClassifyUltraworkAutoActivationInput {
+  readonly text: string;
+}
+
+export interface UltraworkAutoActivationDecision {
+  readonly activate: boolean;
+  readonly confidence: number;
+  readonly reason: string;
+}
+export interface ClassifyUltraworkObjectiveProfileInput {
+  readonly text: string;
+}
+
+export interface UltraworkObjectiveProfileDecision {
+  readonly visualSurface: boolean;
+  readonly benchSurface: boolean;
+  readonly premiumDensity: 'visual' | 'code';
+  readonly lanes: readonly string[];
+  readonly confidence: number;
+  readonly reason: string;
+  readonly source: 'llm' | 'fallback';
+}
 
 export interface PauseUltraworkInput {
   readonly reason?: string;

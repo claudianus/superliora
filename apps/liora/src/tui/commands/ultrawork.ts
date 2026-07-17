@@ -27,7 +27,6 @@ import {
   buildUltraworkPrompt,
   isActiveUltraworkRun,
   parseUltraworkCommand,
-  shouldAutoActivateUltrawork,
   ultraworkModeDisableBlockedMessage,
   type UltraworkEvidenceSeed,
   type UltraworkActivationSource,
@@ -54,11 +53,79 @@ export {
   buildUltraworkPrompt,
   isActiveUltraworkRun,
   parseUltraworkCommand,
-  shouldAutoActivateUltrawork,
   ultraworkModeDisableBlockedMessage,
   type UltraworkEvidenceSeed,
   type UltraworkActivationSource,
 };
+
+/**
+ * LLM-backed Ultrawork auto-activation gate.
+ * Fail-closed when session/model/classifier is unavailable.
+ */
+export async function shouldAutoActivateUltrawork(
+  host: Pick<SlashCommandHost, 'session'>,
+  prompt: string,
+): Promise<boolean> {
+  const text = prompt.trim();
+  if (text.length === 0) return false;
+  const session = host.session;
+  if (session === undefined) return false;
+  if (typeof session.classifyUltraworkAutoActivation !== 'function') return false;
+  try {
+    const decision = await session.classifyUltraworkAutoActivation(text);
+    return decision.activate === true;
+  } catch {
+    return false;
+  }
+}
+async function resolveUltraworkObjectiveProfile(
+  host: Pick<SlashCommandHost, 'session'>,
+  objective: string,
+): Promise<{
+  readonly visualSurface: boolean;
+  readonly benchSurface: boolean;
+  readonly lanes: readonly string[];
+  readonly premiumDensity: 'visual' | 'code';
+  readonly confidence: number;
+  readonly reason: string;
+  readonly source: 'llm' | 'fallback';
+}> {
+  const session = host.session;
+  if (session === undefined || typeof session.classifyUltraworkObjectiveProfile !== 'function') {
+    return {
+      visualSurface: false,
+      benchSurface: false,
+      lanes: [
+        'product_requirements',
+        'architecture_implementation',
+        'testing_evidence',
+        'integration_ownership',
+      ],
+      premiumDensity: 'code',
+      confidence: 0,
+      reason: 'Session unavailable for objective profile classification',
+      source: 'fallback',
+    };
+  }
+  try {
+    return await session.classifyUltraworkObjectiveProfile(objective);
+  } catch {
+    return {
+      visualSurface: false,
+      benchSurface: false,
+      lanes: [
+        'product_requirements',
+        'architecture_implementation',
+        'testing_evidence',
+        'integration_ownership',
+      ],
+      premiumDensity: 'code',
+      confidence: 0,
+      reason: 'Objective profile classification failed',
+      source: 'fallback',
+    };
+  }
+}
 
 export async function handleUltraworkCommand(
   host: SlashCommandHost,
@@ -237,6 +304,7 @@ async function startUltrawork(
   host.track('ultrawork_start', { source, replace: request.replace });
   const runId = buildUltraworkRunId(request.objective);
   const evidenceRoot = join(resolveUltraworkEvidenceRoot(host.state.appState.workDir), runId);
+  const objectiveProfile = await resolveUltraworkObjectiveProfile(host, request.objective);
   try {
     await host.requireSession().createUltraworkRun({
       id: runId,
@@ -260,6 +328,8 @@ async function startUltrawork(
       source,
       request.replace,
       runId,
+      new Date(),
+      objectiveProfile,
     );
     host.showStatus(`Ultrawork evidence seed: ${evidenceSeed.root}`);
   } catch (error) {
@@ -278,6 +348,10 @@ async function startUltrawork(
     buildUltraworkPrompt(request.objective, source, request.replace, {
       evidenceSeed,
       evidenceSeedError,
+      capabilities: {
+        visualSurface: objectiveProfile.visualSurface,
+        benchSurface: objectiveProfile.benchSurface,
+      },
     }),
     { displayText: request.objective },
   );

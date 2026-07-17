@@ -191,13 +191,25 @@ export function dispatchInput(host: SlashCommandHost, text: string): void {
     void executeSlashCommand(host, text);
     return;
   }
-  if (
-    host.state.appState.streamingPhase === 'idle' &&
-    !host.state.appState.isCompacting &&
-    (host.state.appState.ultraworkMode || shouldAutoActivateUltrawork(text))
-  ) {
+  if (host.state.appState.streamingPhase !== 'idle' || host.state.appState.isCompacting) {
+    host.sendNormalUserInput(text);
+    return;
+  }
+  if (host.state.appState.ultraworkMode) {
     void handleUltraworkCommand(host, text, 'auto');
     return;
+  }
+  void maybeAutoActivateUltrawork(host, text);
+}
+
+async function maybeAutoActivateUltrawork(host: SlashCommandHost, text: string): Promise<void> {
+  try {
+    if (await shouldAutoActivateUltrawork(host, text)) {
+      await handleUltraworkCommand(host, text, 'auto');
+      return;
+    }
+  } catch {
+    // Fail closed: send as a normal prompt when classification fails.
   }
   host.sendNormalUserInput(text);
 }

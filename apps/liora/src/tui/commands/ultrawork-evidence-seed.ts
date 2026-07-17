@@ -25,6 +25,7 @@ export async function createUltraworkEvidenceSeed(
   replaceGoal: boolean,
   runId = buildUltraworkRunId(objective),
   now = new Date(),
+  profile?: Parameters<typeof buildUltraworkCoverageMatrix>[1],
 ): Promise<UltraworkEvidenceSeed> {
   const createdAt = now.toISOString();
   const root = join(resolveUltraworkEvidenceRoot(workDir), runId);
@@ -32,7 +33,7 @@ export async function createUltraworkEvidenceSeed(
   mkdirSync(absoluteRoot, { recursive: true });
 
   const safeObjective = redactEvidenceText(objective);
-  const coverageMatrix = buildUltraworkCoverageMatrix(objective);
+  const coverageMatrix = buildUltraworkCoverageMatrix(objective, profile);
   const wikiRunPath = `${resolveLlmWikiPaths(workDir).wikiRootPath}/runs/${runId}.md`;
   const files = {
     llmWikiPath: wikiRunPath,

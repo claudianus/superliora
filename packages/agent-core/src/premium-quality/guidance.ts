@@ -65,29 +65,35 @@ export const PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE =
 export const PREMIUM_QUALITY_EXIT_GUIDANCE =
   'Premium Quality mode is OFF. Continue with normal quality expectations unless the user re-requests premium polish.';
 
-/** Same visual-surface heuristic as Ultrawork capability detection (keep in sync). */
-const PREMIUM_VISUAL_SURFACE_PATTERN =
-  /\b(?:ui|ux|visual|screen|canvas|animation|motion|layout|design|brand|game|interactive|browser|dashboard|frontend|css|webpage|website|landing)\b|(?:시각|비주얼|화면|캔버스|애니메이션|레이아웃|디자인|브랜드|게임|인터랙티브|브라우저|대시보드|프론트|웹페이지|랜딩)/i;
-
 export type PremiumInjectionDensity = 'visual' | 'code';
-
-/**
- * Returns whether the objective implies a user-visible surface that needs the full visual harness.
- */
-export function detectPremiumVisualSurface(objective: string): boolean {
-  return PREMIUM_VISUAL_SURFACE_PATTERN.test(objective);
+/** Prefer a precomputed LLM objective profile over any keyword surface guess. */
+export function detectPremiumVisualSurface(
+  objective: string,
+  profile?: { readonly visualSurface?: boolean; readonly premiumDensity?: PremiumInjectionDensity },
+): boolean {
+  if (profile?.premiumDensity === 'visual' || profile?.visualSurface === true) return true;
+  if (profile?.premiumDensity === 'code') return false;
+  // No keyword fallback: unknown objectives stay non-visual unless a profile says otherwise.
+  return objective.trim().length === 0;
 }
 
 /**
  * Resolve injection density for an active Premium session.
- * - No goal/ultrawork objective (manual Premium): keep full visual bar.
- * - Objective with visual surface signals: visual.
- * - Otherwise: code/evidence compact density.
+ * Prefer an LLM objective profile when available.
  */
-export function resolvePremiumInjectionDensity(objective: string | undefined | null): PremiumInjectionDensity {
+export function resolvePremiumInjectionDensity(
+  objective: string | undefined | null,
+  profile?: { readonly premiumDensity?: PremiumInjectionDensity; readonly visualSurface?: boolean },
+): PremiumInjectionDensity {
+  if (profile?.premiumDensity === 'visual' || profile?.premiumDensity === 'code') {
+    return profile.premiumDensity;
+  }
+  if (profile?.visualSurface === true) return 'visual';
+  if (profile?.visualSurface === false) return 'code';
   const text = objective?.trim() ?? '';
+  // Empty objective defaults visual so pure premium mode still ships craft guidance.
   if (text.length === 0) return 'visual';
-  return detectPremiumVisualSurface(text) ? 'visual' : 'code';
+  return 'code';
 }
 
 export function selectPremiumFullGuidance(density: PremiumInjectionDensity): string {

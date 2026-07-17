@@ -453,9 +453,19 @@ async function startGoal(
   if (options.sendInput !== undefined) {
     options.sendInput(parsed.objective);
   } else {
+    const profile =
+      typeof host.session?.classifyUltraworkObjectiveProfile === 'function'
+        ? await host.session.classifyUltraworkObjectiveProfile(parsed.objective).catch(() => undefined)
+        : undefined;
     host.sendNormalUserInput(
       buildUltraworkPrompt(parsed.objective, 'goal', parsed.replace, {
         activeGoalAlreadyCreated: true,
+        capabilities: profile === undefined
+          ? undefined
+          : {
+              visualSurface: profile.visualSurface,
+              benchSurface: profile.benchSurface,
+            },
       }),
       { displayText: parsed.objective },
     );

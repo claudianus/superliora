@@ -11,6 +11,7 @@ export interface UltraworkPromptOptions {
   readonly activeGoalAlreadyCreated?: boolean;
   readonly evidenceSeed?: UltraworkEvidenceSeed;
   readonly evidenceSeedError?: string;
+  readonly capabilities?: UltraworkPromptCapabilities;
 }
 
 export interface UltraworkEvidenceSeed {
@@ -48,32 +49,6 @@ export function ultraworkModeDisableBlockedMessage(run: UltraworkRun): string {
   ].join(' ');
 }
 
-const ULTRA_WORKFLOW_TERM_PATTERN =
-  String.raw`(?:ultrawork|ultra[-\s]?work|ultragoal|ultra[-\s]?goal|ultraplan|ultra[-\s]?plan|ultraresearch|ultra[-\s]?research|ultraswarm|ultra[-\s]?swarm|울트라\s?워크|울트라\s?골|울트라\s?플랜|울트라\s?리서치|울트라\s?스웜)`;
-const EXPLICIT_ULTRAWORK_PATTERN = new RegExp(
-  ULTRA_WORKFLOW_TERM_PATTERN,
-  'i',
-);
-
-const BUILD_PATTERN =
-  /\b(?:build|ship|implement|design|develop|refactor|integrate)\b|(?:구현|개발|설계|통합|작업|진행|완수|완성|만들|고도화)/i;
-const AUTONOMY_PATTERN =
-  /\b(?:end[-\s]?to[-\s]?end|autonomous|automatically|auto|finish|verify|tests?|plan|swarm|goal)\b|(?:자동|자율|연동|발동|완료|검증|테스트|계획|스웜|골)/i;
-const SIMPLE_COPY_EDIT_PATTERN =
-  /\b(?:typo|spelling|sentence|wording|copy)\b|(?:오타|맞춤법|문장|문구만|표현만)/i;
-const QUESTION_ONLY_ULTRAWORK_PATTERN =
-  new RegExp(
-    String.raw`^(?:what|how|why|explain|describe|tell me|뭐|무엇|어떻게|설명|알려)\b.*${ULTRA_WORKFLOW_TERM_PATTERN}`,
-    'i',
-  );
-const QUESTION_MARK_PATTERN = /[?？]/;
-const QUESTION_WORD_PATTERN =
-  /\b(?:what|how|why|explain|describe|tell me)\b|(?:뭐|무엇|어떻게|설명|알려)/i;
-const ULTRAWORK_OPT_OUT_PATTERN =
-  new RegExp(
-    String.raw`\b(?:do\s+not|don't|dont|without|no)\s+(?:use|activate|start|run)?\s*${ULTRA_WORKFLOW_TERM_PATTERN}\b`,
-    'i',
-  );
 const MAX_ULTRAWORK_OBJECTIVE_LENGTH = 4000;
 const _ULTRAWORK_CONTROL_SUBCOMMANDS = new Set(['status', 'pause', 'resume', 'cancel']);
 /** Always-on Ultrawork spine — keep contracts, drop synonym/detail floods. */
@@ -114,21 +89,22 @@ const ULTRAWORK_BENCH_GUIDANCE = [
   '- For harness/TUI benchmark or SOTA claims, use `node scripts/liora-agent-sota-gate.mjs` or `node scripts/qa-superliora-autonomous.mjs --phase sota-gate` (C001 system, C002 live TUI, C003 budget/cleanup/secret scan). Do not treat browser-only UI as TUI success.',
 ].join('\n');
 
-/** Shared with coverage matrix UX lane — keep Premium visual heuristic in sync. */
-export const ULTRAWORK_VISUAL_SURFACE_PATTERN =
-  /\b(?:ui|ux|visual|screen|canvas|animation|motion|layout|design|brand|game|interactive|browser|dashboard|frontend|css|webpage|website|landing)\b|(?:시각|비주얼|화면|캔버스|애니메이션|레이아웃|디자인|브랜드|게임|인터랙티브|브라우저|대시보드|프론트|웹페이지|랜딩)/i;
-const VISUAL_SURFACE_PATTERN = ULTRAWORK_VISUAL_SURFACE_PATTERN;
-const BENCH_SURFACE_PATTERN =
-  /\b(?:bench|benchmark|sota|harness|tui\s*gate|agent\s*gate|latency|throughput)\b|(?:벤치|벤치마크|소타|하네스|성능\s*게이트|에이전트\s*게이트)/i;
-
-/** Capability flags derived from the untrusted objective for conditional prompt blocks. */
-export function detectUltraworkPromptCapabilities(objective: string): {
+export interface UltraworkPromptCapabilities {
   readonly visualSurface: boolean;
   readonly benchSurface: boolean;
-} {
+}
+
+/**
+ * Capability flags for conditional Ultrawork prompt blocks.
+ * Prefer an LLM objective profile; never keyword-guess when absent.
+ */
+export function detectUltraworkPromptCapabilities(
+  _objective: string,
+  profile?: Partial<UltraworkPromptCapabilities>,
+): UltraworkPromptCapabilities {
   return {
-    visualSurface: VISUAL_SURFACE_PATTERN.test(objective),
-    benchSurface: BENCH_SURFACE_PATTERN.test(objective),
+    visualSurface: profile?.visualSurface === true,
+    benchSurface: profile?.benchSurface === true,
   };
 }
 
@@ -187,26 +163,6 @@ export function parseUltraworkCommand(rawArgs: string): ParsedUltraworkCommand {
   return { kind: 'create', objective, replace };
 }
 
-export function shouldAutoActivateUltrawork(prompt: string): boolean {
-  const text = prompt.trim();
-  if (text.length === 0) return false;
-  if (ULTRAWORK_OPT_OUT_PATTERN.test(text)) return false;
-  if (QUESTION_ONLY_ULTRAWORK_PATTERN.test(text)) return false;
-  if (SIMPLE_COPY_EDIT_PATTERN.test(text) && !EXPLICIT_ULTRAWORK_PATTERN.test(text)) return false;
-  if (QUESTION_MARK_PATTERN.test(text) && QUESTION_WORD_PATTERN.test(text) && !EXPLICIT_ULTRAWORK_PATTERN.test(text)) {
-    return false;
-  }
-  if (EXPLICIT_ULTRAWORK_PATTERN.test(text)) {
-    if (QUESTION_MARK_PATTERN.test(text) && QUESTION_WORD_PATTERN.test(text) && !BUILD_PATTERN.test(text)) {
-      return false;
-    }
-    if (QUESTION_MARK_PATTERN.test(text) && !BUILD_PATTERN.test(text) && !AUTONOMY_PATTERN.test(text)) {
-      return false;
-    }
-    return true;
-  }
-  return false;
-}
 
 export function buildUltraworkPrompt(
   objective: string,
@@ -216,7 +172,7 @@ export function buildUltraworkPrompt(
 ): string {
   const escapedObjective = escapeUntrustedText(objective);
   const activeGoalAlreadyCreated = options.activeGoalAlreadyCreated === true;
-  const capabilities = detectUltraworkPromptCapabilities(objective);
+  const capabilities = detectUltraworkPromptCapabilities(objective, options.capabilities);
   const capabilityBlocks: string[] = [];
   if (capabilities.visualSurface) {
     capabilityBlocks.push(`- ${ULTRAWORK_GUI_USE_GUIDANCE.replaceAll('\n', '\n  ')}`);

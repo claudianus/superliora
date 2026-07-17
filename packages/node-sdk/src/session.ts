@@ -23,6 +23,8 @@ import type {
   CreateUltraworkRunInput,
   PauseUltraworkInput,
   CancelUltraworkInput,
+  UltraworkAutoActivationDecision,
+  UltraworkObjectiveProfileDecision,
   GoalSnapshot,
   GoalToolResult,
   McpServerInfo,
@@ -535,6 +537,18 @@ export class Session {
   async cancelUltrawork(input: CancelUltraworkInput = {}): Promise<UltraworkRun | null> {
     this.ensureOpen();
     return this.rpc.cancelUltrawork({ sessionId: this.id, ...input });
+  }
+  async classifyUltraworkAutoActivation(
+    text: string,
+  ): Promise<UltraworkAutoActivationDecision> {
+    this.ensureOpen();
+    return this.rpc.classifyUltraworkAutoActivation({ sessionId: this.id, text });
+  }
+  async classifyUltraworkObjectiveProfile(
+    text: string,
+  ): Promise<UltraworkObjectiveProfileDecision> {
+    this.ensureOpen();
+    return this.rpc.classifyUltraworkObjectiveProfile({ sessionId: this.id, text });
   }
 
   async listMcpServers(): Promise<readonly McpServerInfo[]> {

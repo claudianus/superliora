@@ -23,6 +23,26 @@ export {
   shouldActOnResumeIntent,
 } from './resume-intent-llm';
 export {
+  detectUltraworkAutoActivationWithLlm,
+  shouldActOnUltraworkAutoActivation,
+} from './auto-activate-llm';
+export type {
+  UltraworkAutoActivationIntent,
+  UltraworkAutoActivationLlmDeps,
+} from './auto-activate-llm';
+export {
+  detectUltraworkObjectiveProfileWithLlm,
+  fallbackUltraworkObjectiveProfile,
+  resolveUltraworkObjectiveProfile,
+  shouldTrustUltraworkObjectiveProfile,
+} from './objective-profile-llm';
+export type {
+  UltraworkCoverageLaneId,
+  UltraworkObjectiveProfile,
+  UltraworkObjectiveProfileLlmDeps,
+} from './objective-profile-llm';
+export { UltraworkObjectiveProfileCache } from './objective-profile-cache';
+export {
   maybeTransformPromptForInterruptedWorkResume,
   readInterruptedWorkResumeContext,
 } from './interrupted-work-resume';
