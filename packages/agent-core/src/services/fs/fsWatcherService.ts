@@ -22,6 +22,8 @@ import {
 } from './fsWatcher';
 
 const DEFAULT_DEBOUNCE_MS = 200;
+/** Hard cap so continuous activity cannot starve event.fs.changed forever. */
+const DEFAULT_MAX_COALESCE_MS = 2_000;
 
 const DEFAULT_MAX_CHANGES_PER_WINDOW = 500;
 
@@ -63,6 +65,8 @@ class SessionEntry implements IDisposable {
   pendingRawCount = 0;
   truncated = false;
   debounceTimer: NodeJS.Timeout | undefined = undefined;
+  /** Wall-clock start of the open coalesce window (first event in the burst). */
+  windowStartedAtMs: number | undefined = undefined;
   seq = 0;
   private _disposed = false;
 
@@ -95,6 +99,7 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
   readonly _serviceBrand: undefined;
 
   private readonly debounceMs: number;
+  private readonly maxCoalesceMs: number;
   private readonly maxChangesPerWindow: number;
   private readonly maxPathsPerConnection: number;
   private readonly makeWatcher: () => FSWatcher;
@@ -114,6 +119,10 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
     super();
     this.sessions = this._register(new DisposableMap<string, SessionEntry>());
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
+    this.maxCoalesceMs = Math.max(
+      this.debounceMs,
+      options.maxCoalesceMs ?? DEFAULT_MAX_COALESCE_MS,
+    );
     this.maxChangesPerWindow =
       options.maxChangesPerWindow ?? DEFAULT_MAX_CHANGES_PER_WINDOW;
     this.maxPathsPerConnection =
@@ -306,11 +315,33 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
       }
     }
 
-    if (entry.debounceTimer === undefined) {
-      const timer = setTimeout(() => { this.flushWindow(sessionId); }, this.debounceMs);
-      timer.unref?.();
-      entry.debounceTimer = timer;
+    // Trailing debounce with a hard max window: restart quiet-period on each
+    // event so short bursts coalesce, but continuous activity must flush by
+    // maxCoalesceMs so event.fs.changed is never starved indefinitely.
+    const now = Date.now();
+    if (entry.windowStartedAtMs === undefined) {
+      entry.windowStartedAtMs = now;
     }
+    const elapsed = now - entry.windowStartedAtMs;
+    if (elapsed >= this.maxCoalesceMs) {
+      if (entry.debounceTimer !== undefined) {
+        clearTimeout(entry.debounceTimer);
+        entry.debounceTimer = undefined;
+      }
+      this.flushWindow(sessionId);
+      return;
+    }
+    if (entry.debounceTimer !== undefined) {
+      clearTimeout(entry.debounceTimer);
+      entry.debounceTimer = undefined;
+    }
+    // Quiet period = debounceMs, but clamp so the open window never exceeds maxCoalesceMs.
+    const remainingInMaxWindow = Math.max(1, this.maxCoalesceMs - elapsed);
+    const timer = setTimeout(() => {
+      this.flushWindow(sessionId);
+    }, Math.min(this.debounceMs, remainingInMaxWindow));
+    timer.unref?.();
+    entry.debounceTimer = timer;
   }
 
   private flushWindow(sessionId: string): void {
@@ -321,10 +352,16 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
     const truncated = entry.truncated;
     const rawCount = entry.pendingRawCount;
     const pending = entry.pendingChanges;
+    const startedAt = entry.windowStartedAtMs;
+    const coalescedWindowMs =
+      startedAt === undefined
+        ? this.debounceMs
+        : Math.max(this.debounceMs, Math.min(this.maxCoalesceMs, Date.now() - startedAt));
 
     entry.pendingChanges = [];
     entry.pendingRawCount = 0;
     entry.truncated = false;
+    entry.windowStartedAtMs = undefined;
 
     for (const [connectionId, connPathRefs] of entry.connectionPathRefs) {
       const sink = this.lookup.resolve(connectionId);
@@ -353,7 +390,7 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
         timestamp: new Date().toISOString(),
         payload: {
           changes: perConnChanges,
-          coalesced_window_ms: this.debounceMs,
+          coalesced_window_ms: coalescedWindowMs,
           ...(truncated ? { truncated: true, count: rawCount } : {}),
         },
       };

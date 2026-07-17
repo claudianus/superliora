@@ -258,7 +258,10 @@ describe('WS fs watch (W12 / Chain 14)', () => {
       coalesced_window_ms: number;
       truncated?: boolean;
     };
-    expect(payload.coalesced_window_ms).toBe(200);
+    // Actual open-window duration (truthful after max-coalesce fix); quiet
+    // single-event flush is ~debounceMs but timer skew can be a few ms over.
+    expect(payload.coalesced_window_ms).toBeGreaterThanOrEqual(200);
+    expect(payload.coalesced_window_ms).toBeLessThanOrEqual(2_000);
     expect(payload.truncated).toBeUndefined();
     expect(payload.changes.length).toBeGreaterThanOrEqual(1);
     // Path is POSIX-relative to cwd; should mention `src/new.ts` or the dir
@@ -272,7 +275,7 @@ describe('WS fs watch (W12 / Chain 14)', () => {
   // Windows ReadDirectoryChangesW coalesces/spreads the burst, so no single
   // 200ms window reliably crosses the 500-event overflow threshold. The
   // truncation logic itself is covered by this same test on POSIX.
-  it.skipIf(process.platform === 'win32')('AC #2: burst > 500 changes inside 200ms window → truncated:true', { timeout: 5000 }, async () => {
+  it.skipIf(process.platform === 'win32')('AC #2: burst > 500 changes inside 200ms window → truncated:true', { timeout: 8000 }, async () => {
     const r = await bootDaemon();
     const sid = await createSession(r);
     const conn = await openConn(wsUrl(r.address));
@@ -299,7 +302,7 @@ describe('WS fs watch (W12 / Chain 14)', () => {
     }
 
     // Drain frames until we see truncated:true OR run out of time.
-    const deadline = Date.now() + (process.platform === 'win32' ? 8000 : 4000);
+    const deadline = Date.now() + (process.platform === 'win32' ? 8000 : 6000);
     let sawTruncated = false;
     while (Date.now() < deadline) {
       const remaining = deadline - Date.now();
