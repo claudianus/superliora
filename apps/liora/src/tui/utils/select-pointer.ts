@@ -10,7 +10,7 @@ const PREMIUM_POINTERS = ['❯', '❱', '❯', '➢'] as const;
 
 /**
  * Shared selected-row pointer for list pickers.
- * Pulses under ambient effects so every selector stays demo-grade without
+ * Pulses under ambient effects so every selector stays lively without
  * re-implementing the same clock-driven styling in each dialog.
  */
 export function renderSelectPointer(seed: string): string {

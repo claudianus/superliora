@@ -9,7 +9,7 @@ import {
 
 /**
  * Collapsed summary of older steps within a turn.
- * Dense demo-grade line: `… ░░▒▓█ thinking×5 · tools×50 · n=55`.
+ * Glanceable line: `… ░░▒▓█ thinking×5 · tools×50 · n=55`.
  */
 const SPARK = ['░', '▒', '▓', '█'] as const;
 
@@ -51,7 +51,7 @@ export function buildSparkBar(
   if (total <= 0) return '';
   const animated = shouldRenderAmbientEffects(appearance);
   const phase = animated ? Math.floor(appearanceAnimationNow() / 280) % SPARK.length : 0;
-  // log2 intensity: 1→0, 2→1, 4→2, 8→3 — denser 8-cell bar for demo-grade collapse.
+  // log2 intensity: 1→0, 2→1, 4→2, 8→3 — 8-cell bar for collapse glance.
   const intensity = Math.min(3, Math.max(0, Math.floor(Math.log2(total + 1))));
   const width = 8;
   const cells = Array.from({ length: width }, (_, i) => {

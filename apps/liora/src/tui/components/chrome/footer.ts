@@ -197,7 +197,7 @@ function formatContextStatus(usage: number, tokens?: number, maxTokens?: number)
 }
 
 function renderContextUsageBar(ratio: number): string {
-  // 10-cell high-res bar with eighths partial fill for demo-grade pressure glance.
+  // 10-cell high-res bar with eighths partial fill for glanceable pressure.
   const width = 10;
   const totalEighths = Math.max(0, Math.min(width * 8, Math.round(ratio * width * 8)));
   const fullCells = Math.floor(totalEighths / 8);

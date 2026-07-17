@@ -55,8 +55,8 @@ describe('ActivityPaneComponent', () => {
   });
 });
 
-describe('ActivityPaneComponent dual rails', () => {
-  it('renders two ambient particle rails while waiting', () => {
+describe('ActivityPaneComponent ambient rail', () => {
+  it('renders one ambient particle rail while waiting', () => {
     setActiveAppearancePreferences({
       ...getActiveAppearancePreferences(),
       ambientEffects: true,
@@ -74,8 +74,9 @@ describe('ActivityPaneComponent dual rails', () => {
       } as never,
     });
     const lines = pane.render(48).map(strip);
-    expect(lines.length).toBeGreaterThanOrEqual(3);
+    // spinner line + single particle rail
+    expect(lines.length).toBeGreaterThanOrEqual(2);
     expect((lines.at(-1) ?? '').length).toBeGreaterThan(0);
-    expect((lines.at(-2) ?? '').length).toBeGreaterThan(0);
+    expect(strip(lines.at(-1) ?? '')).toMatch(/[·∙✧✦✺• ]/);
   });
 });
