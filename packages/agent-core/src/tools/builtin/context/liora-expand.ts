@@ -16,9 +16,12 @@ export const LioraExpandInputSchema = z.object({
 
 export type LioraExpandInput = z.infer<typeof LioraExpandInputSchema>;
 
+/** Default page size for unscoped expand — full dumps thrash long sessions. */
+export const LIORA_EXPAND_DEFAULT_LIMIT = 120;
+
 const DESCRIPTION = [
   'Recover reversibly archived lean-context bytes.',
-  'Use when LioraRead/Bash compressed output and you need the omitted section.',
+  'Use when LioraRead/Bash compressed output and you need the omitted section. Unscoped expand pages 120 lines — pass start_line/limit for more.',
 ].join(' ');
 
 export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {
@@ -47,23 +50,26 @@ export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {
       return { isError: true, output: `Archive id "${input.id}" was not found in this session.` };
     }
     const lines = expanded.entry.content.split(/\r?\n/);
-    if (input.start_line !== undefined || input.limit !== undefined) {
-      const start = Math.max(1, input.start_line ?? 1);
-      const limit = input.limit ?? 120;
-      const slice = lines.slice(start - 1, start - 1 + limit);
-      return {
-        output: [
-          `<liora_expand id="${input.id}" label="${expanded.entry.label}">`,
-          `window: ${String(start)}-${String(start + slice.length - 1)} of ${String(lines.length)}`,
-          ...slice.map((line, index) => `${String(start + index)}\t${line}`),
-          '</liora_expand>',
-        ].join('\n'),
-      };
+    const start = Math.max(1, input.start_line ?? 1);
+    const limit = input.limit ?? LIORA_EXPAND_DEFAULT_LIMIT;
+    const windowed = input.start_line !== undefined || input.limit !== undefined;
+    // Unscoped expand still pages — full archive dumps thrash long-horizon context.
+    const effectiveLimit = windowed ? limit : Math.min(limit, LIORA_EXPAND_DEFAULT_LIMIT);
+    const slice = lines.slice(start - 1, start - 1 + effectiveLimit);
+    const truncated = start - 1 + slice.length < lines.length;
+    const header = [
+      `<liora_expand id="${input.id}" label="${expanded.entry.label}">`,
+      `window: ${String(start)}-${String(start + slice.length - 1)} of ${String(lines.length)}`,
+    ];
+    if (truncated) {
+      header.push(
+        `truncated: pass start_line/limit to page (default ${String(LIORA_EXPAND_DEFAULT_LIMIT)} lines)`,
+      );
     }
     return {
       output: [
-        `<liora_expand id="${input.id}" label="${expanded.entry.label}">`,
-        expanded.entry.content,
+        ...header,
+        ...slice.map((line, index) => `${String(start + index)}\t${line}`),
         '</liora_expand>',
       ].join('\n'),
     };

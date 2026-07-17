@@ -113,6 +113,23 @@ describe('Liora lean context tools', () => {
     expect(output).not.toContain('filler90');
   });
 
+
+  it('LioraExpand pages unscoped archives instead of dumping full bodies', async () => {
+    const { store } = makeStore();
+    const { archiveContent } = await import('../../src/tools/builtin/context/context-archive');
+    const body = Array.from({ length: 200 }, (_, i) => `line-${String(i)}`).join('\n');
+    const archived = archiveContent({ store, content: body, label: 'big-archive' });
+    const tool = new LioraExpandTool(store);
+    const result = await executeTool(tool, context({ id: archived.id }));
+    const output = toolContentString(result);
+    expect(result.isError).toBeFalsy();
+    expect(output).toContain('<liora_expand');
+    expect(output).toContain('window: 1-120 of 200');
+    expect(output).toContain('truncated:');
+    expect(output).toContain('line-0');
+    expect(output).not.toContain('line-150');
+  });
+
   it('compressShellOutput collapses repetitive passing test lines', () => {
     const stdout = [
       'PASS test/a',
