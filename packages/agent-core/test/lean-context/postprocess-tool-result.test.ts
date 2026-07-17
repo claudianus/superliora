@@ -35,7 +35,8 @@ describe('postprocessLeanToolResult', () => {
       args: { pattern: 'ok' },
       result: { output: lines.join('\n') },
     });
-    const output = String(result.output);
+    expect(typeof result.output).toBe('string');
+    const output = result.output as string;
     expect(output).toContain('match-0: ok');
     expect(output).toContain('match-39: ok');
     expect(output).toContain('lines archived');

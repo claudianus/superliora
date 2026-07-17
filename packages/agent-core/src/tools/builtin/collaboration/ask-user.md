@@ -1,4 +1,4 @@
-Ask the user structured questions for preferences, ambiguity, or approach choices.
+Ask the user questions with structured options — preferences, ambiguous requirements, or concrete approach choices.
 
 Do not use when you can infer the answer or the decision is trivial.
 
