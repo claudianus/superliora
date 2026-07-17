@@ -244,9 +244,10 @@ describe('AppearanceController', () => {
     };
     const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
 
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(1);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(1);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(1);
+    // Premium pins the cinematic ~30fps floor (33ms), not densify 1ms thrash.
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(33);
 
     setAppearanceRenderHealth('watch');
     const controller = new AppearanceController({
@@ -257,6 +258,8 @@ describe('AppearanceController', () => {
     });
 
     vi.advanceTimersByTime(0);
+    expect(requestRender).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(32);
     expect(requestRender).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(requestRender).toHaveBeenCalledTimes(1);
