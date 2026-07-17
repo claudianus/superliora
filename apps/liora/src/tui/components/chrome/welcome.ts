@@ -85,12 +85,11 @@ export class WelcomeComponent implements Component {
       '',
       ...renderRendererFrameRows({
         content: [
-          renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
           ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
-          renderParticleRail(safeWidth - 2, appearance, 'welcome-bottom'),
+          renderParticleRail(safeWidth - 2, appearance, 'welcome-rail'),
         ],
         width: safeWidth,
-        height: contentLines.length + 4,
+        height: contentLines.length + 3,
         borderKind: 'rounded',
         borderStyle: primary,
         ellipsis: '…',

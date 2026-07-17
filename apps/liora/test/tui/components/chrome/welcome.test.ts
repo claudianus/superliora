@@ -128,7 +128,7 @@ describe('WelcomeComponent', () => {
     try {
       const lines = new WelcomeComponent(appState).render(80);
 
-      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧]/);
+      // Single cinematic rail under welcome content (no dual-rail thrash).
       expect(strip(lines.at(-3) ?? '')).toMatch(/[·∙✧]/);
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {

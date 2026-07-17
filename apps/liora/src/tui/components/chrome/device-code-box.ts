@@ -77,14 +77,13 @@ export class DeviceCodeBoxComponent implements Component {
       '',
       ...renderRendererFrameRows({
         content: [
-          renderParticleRail(safeWidth - 2, appearance, 'device-code-top'),
           '',
           ...contentLines,
           '',
-          renderParticleRail(safeWidth - 2, appearance, 'device-code-bottom'),
+          renderParticleRail(safeWidth - 2, appearance, 'device-code-rail'),
         ],
         width: safeWidth,
-        height: contentLines.length + 4,
+        height: contentLines.length + 3,
         borderKind: 'rounded',
         paddingLeft: 2,
         paddingRight: 0,
