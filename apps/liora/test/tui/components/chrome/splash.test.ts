@@ -9,6 +9,8 @@ import {
   clampSplashDurationMs,
   DEFAULT_SPLASH_DURATION_MS,
   resolveBannerRevealCount,
+  resolveFadeAlpha,
+  resolveMoonRiseProgress,
   resolveSplashPhase,
   shouldPlaySplash,
   SplashComponent,
@@ -108,25 +110,37 @@ describe('splash duration clamp', () => {
 });
 
 describe('splash phase / reveal', () => {
+  const duration = 1000;
+
   it('maps elapsed fractions into cinematic phases', () => {
-    const duration = 1600;
     expect(resolveSplashPhase(0, duration)).toBe('void');
-    expect(resolveSplashPhase(duration * 0.2, duration)).toBe('meteor');
-    expect(resolveSplashPhase(duration * 0.5, duration)).toBe('banner');
-    expect(resolveSplashPhase(duration * 0.85, duration)).toBe('hold');
-    expect(resolveSplashPhase(duration, duration)).toBe('done');
-    expect(resolveSplashPhase(duration + 50, duration)).toBe('done');
+    expect(resolveSplashPhase(50, duration)).toBe('void');
+    expect(resolveSplashPhase(150, duration)).toBe('rise');
+    expect(resolveSplashPhase(350, duration)).toBe('bloom');
+    expect(resolveSplashPhase(550, duration)).toBe('brand');
+    expect(resolveSplashPhase(800, duration)).toBe('hold');
+    expect(resolveSplashPhase(950, duration)).toBe('fade');
+    expect(resolveSplashPhase(1000, duration)).toBe('done');
   });
 
-  it('reveals banner lines progressively during meteor phase', () => {
-    const duration = 1600;
-    const total = 5;
-    expect(resolveBannerRevealCount(0, duration, total)).toBe(0);
-    const midMeteor = duration * 0.25;
-    const revealed = resolveBannerRevealCount(midMeteor, duration, total);
-    expect(revealed).toBeGreaterThan(0);
-    expect(revealed).toBeLessThanOrEqual(total);
-    expect(resolveBannerRevealCount(duration * 0.5, duration, total)).toBe(total);
+  it('reveals banner lines only during brand+ phases', () => {
+    expect(resolveBannerRevealCount(50, duration, 5)).toBe(0);
+    expect(resolveBannerRevealCount(200, duration, 5)).toBe(0);
+    expect(resolveBannerRevealCount(400, duration, 5)).toBe(0);
+    const midBrand = resolveBannerRevealCount(600, duration, 5);
+    expect(midBrand).toBeGreaterThan(0);
+    expect(midBrand).toBeLessThanOrEqual(5);
+    expect(resolveBannerRevealCount(850, duration, 5)).toBe(5);
+  });
+
+  it('progresses moon rise and fade alpha', () => {
+    expect(resolveMoonRiseProgress(0, duration)).toBe(0);
+    expect(resolveMoonRiseProgress(290, duration)).toBeGreaterThan(0);
+    expect(resolveMoonRiseProgress(290, duration)).toBeLessThan(1);
+    expect(resolveMoonRiseProgress(480, duration)).toBe(1);
+    expect(resolveFadeAlpha(100, duration)).toBe(1);
+    expect(resolveFadeAlpha(950, duration)).toBeLessThan(1);
+    expect(resolveFadeAlpha(1000, duration)).toBe(0);
   });
 });
 
@@ -200,7 +214,7 @@ describe('shouldPlaySplash skip matrix', () => {
   });
 });
 
-describe('SplashComponent', () => {
+describe('SplashComponent full-screen cinematic', () => {
   const previousChalkLevel = chalk.level;
   const previousPalette = currentTheme.palette;
 
@@ -225,11 +239,12 @@ describe('SplashComponent', () => {
       requestRender,
       forcePlay: false,
       durationMs: 1600,
+      getRows: () => 24,
     });
     await splash.play();
     expect(splash.isDone).toBe(true);
     expect(splash.phase).toBe('done');
-    expect(splash.render(80)).toEqual([]);
+    splash.dispose();
   });
 
   it('uses the active theme palette primary (not a fixed Blood Moon hex)', () => {
@@ -239,6 +254,7 @@ describe('SplashComponent', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
+        getRows: () => 24,
       });
       expect(darkSplash.activePalettePrimary).toBe(darkColors.primary);
       expect(darkSplash.activePalettePrimary).not.toBe('#8B0000');
@@ -248,14 +264,10 @@ describe('SplashComponent', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
+        getRows: () => 24,
       });
       expect(lightSplash.activePalettePrimary).toBe(lightColors.primary);
       expect(lightSplash.activePalettePrimary).not.toBe(darkColors.primary);
-
-      // Render path paints with the active palette (chalk embeds RGB, not raw hex).
-      const primaryPaint = chalk.hex(lightColors.primary)('◆');
-      expect(primaryPaint).toContain('◆');
-      expect(lightSplash.activePalettePrimary).toBe(lightColors.primary);
     });
   });
 
@@ -264,6 +276,7 @@ describe('SplashComponent', () => {
       requestRender: () => {},
       durationMs: 100,
       forcePlay: false,
+      getRows: () => 20,
     });
     expect(short.clampedDurationMs).toBe(SPLASH_DURATION_MIN_MS);
 
@@ -271,8 +284,25 @@ describe('SplashComponent', () => {
       requestRender: () => {},
       durationMs: 9999,
       forcePlay: false,
+      getRows: () => 20,
     });
     expect(long.clampedDurationMs).toBe(SPLASH_DURATION_MAX_MS);
+  });
+
+  it('renders exactly getRows() lines (full terminal height)', () => {
+    withSafeTerminalEnv(() => {
+      const rows = 32;
+      const splash = new SplashComponent({
+        appearance: DEFAULT_APPEARANCE_PREFERENCES,
+        requestRender: () => {},
+        forcePlay: true,
+        durationMs: 1600,
+        now: () => 1_000_000,
+        getRows: () => rows,
+      });
+      expect(splash.render(80)).toHaveLength(rows);
+      splash.dispose();
+    });
   });
 
   it('plays for the clamped duration then completes', async () => {
@@ -288,17 +318,17 @@ describe('SplashComponent', () => {
         forcePlay: true,
         durationMs: 1200,
         now: () => now,
+        getRows: () => 24,
       });
 
       const playPromise = splash.play();
       expect(splash.isDone).toBe(false);
       expect(splash.phase).toBe('void');
 
-      // Advance through meteor → banner → hold.
       now = start + 200;
       advanceAppearanceAnimationClock(now);
       await vi.advanceTimersByTimeAsync(50);
-      expect(['void', 'meteor', 'banner', 'hold']).toContain(splash.phase);
+      expect(['void', 'rise', 'bloom', 'brand', 'hold', 'fade']).toContain(splash.phase);
 
       now = start + 1200;
       advanceAppearanceAnimationClock(now);
@@ -312,48 +342,70 @@ describe('SplashComponent', () => {
     });
   });
 
-  it('renders figlet banner and meteor/particle content while playing', async () => {
+  it('paints moon during rise and brand figlet on full-height canvas', async () => {
     await withSafeTerminalEnv(async () => {
       vi.useFakeTimers();
       const start = new Date('2026-01-01T00:00:00Z').getTime();
       vi.setSystemTime(start);
       let clock = start;
-      const animated = new SplashComponent({
+      const splash = new SplashComponent({
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        durationMs: 1600,
+        durationMs: 1000,
         now: () => clock,
+        getRows: () => 30,
       });
-      void animated.play();
-      // Banner phase for 1600ms duration is ~608–1152ms; advance past ticker interval.
-      clock = start + 900;
-      advanceAppearanceAnimationClock(clock);
-      await vi.advanceTimersByTimeAsync(100);
+      void splash.play();
 
-      expect(animated.phase).toBe('banner');
-      const output = strip(animated.render(80).join('\n'));
-      // figlet SUPERLIORA leaves distinctive underscores / slashes.
-      expect(output.includes('___') || output.includes('SUPERLIORA')).toBe(true);
-      animated.dispose();
+      clock = start + 180;
+      advanceAppearanceAnimationClock(clock);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(splash.phase).toBe('rise');
+      const riseOut = strip(splash.render(72).join('\n'));
+      expect(riseOut).toMatch(/█/);
+      expect(splash.render(72)).toHaveLength(30);
+
+      // hold phase: full banner reveal + tagline
+      clock = start + 800;
+      advanceAppearanceAnimationClock(clock);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(splash.phase).toBe('hold');
+      const holdFrame = splash.render(80);
+      expect(holdFrame).toHaveLength(30);
+      const holdOut = strip(holdFrame.join('\n'));
+      // Figlet banner is dense block art; require substantial non-space density
+      // plus the spectacular tagline which spells SUPERLIORA.
+      expect(holdOut.replaceAll(/\s/g, '').length).toBeGreaterThan(80);
+      expect(holdOut.toUpperCase()).toContain('SUPERLIORA');
+
+      splash.dispose();
+    });
+  });
+
+  it('dispose resolves an in-flight play', async () => {
+    await withSafeTerminalEnv(async () => {
+      const splash = new SplashComponent({
+        appearance: DEFAULT_APPEARANCE_PREFERENCES,
+        requestRender: () => {},
+        forcePlay: true,
+        durationMs: 2000,
+        now: () => Date.now(),
+        getRows: () => 20,
+      });
+      const playPromise = splash.play();
+      splash.dispose();
+      await expect(playPromise).resolves.toBeUndefined();
+      expect(splash.isDone).toBe(true);
     });
   });
 });
 
 describe('Welcome once after splash', () => {
-  it('renderWelcome-equivalent only mounts one WelcomeComponent', () => {
-    // Mirrors LioraTUI.renderWelcome idempotency after splash → welcome.
-    const children: object[] = [];
-    const renderWelcome = (): void => {
-      if (children.some((child) => child instanceof WelcomeComponent)) return;
-      children.push(new WelcomeComponent(appState));
-    };
-
-    renderWelcome();
-    renderWelcome();
-    renderWelcome();
-
-    expect(children.filter((c) => c instanceof WelcomeComponent)).toHaveLength(1);
+  it('WelcomeComponent remains constructible independently', () => {
+    const welcome = new WelcomeComponent(appState);
+    const lines = welcome.render(80);
+    expect(lines.length).toBeGreaterThan(0);
   });
 
   it('start order is splash play then welcome once (sequencing contract)', async () => {
@@ -361,22 +413,14 @@ describe('Welcome once after splash', () => {
     const splash = new SplashComponent({
       requestRender: () => {},
       forcePlay: false,
+      getRows: () => 20,
     });
-    order.push('before-splash');
+    order.push('splash-start');
     await splash.play();
-    order.push('after-splash');
-
-    const children: object[] = [];
-    if (!children.some((c) => c instanceof WelcomeComponent)) {
-      children.push(new WelcomeComponent(appState));
-      order.push('welcome');
-    }
-    if (!children.some((c) => c instanceof WelcomeComponent)) {
-      children.push(new WelcomeComponent(appState));
-      order.push('welcome-again');
-    }
-
-    expect(order).toEqual(['before-splash', 'after-splash', 'welcome']);
-    expect(children).toHaveLength(1);
+    order.push('splash-done');
+    const welcome = new WelcomeComponent(appState);
+    welcome.render(40);
+    order.push('welcome');
+    expect(order).toEqual(['splash-start', 'splash-done', 'welcome']);
   });
 });

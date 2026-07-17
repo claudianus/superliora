@@ -56,7 +56,7 @@ import * as slashCommands from './commands/dispatch';
 import { BannerComponent } from './components/chrome/banner';
 import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
-import { SplashComponent } from './components/chrome/splash';
+import { SplashComponent, shouldPlaySplash } from './components/chrome/splash';
 import { WelcomeComponent } from './components/chrome/welcome';
 import { pickRandomWorkingTip } from './components/chrome/working-tips';
 import {
@@ -306,6 +306,8 @@ export class LioraTUI {
   private startupNotice: string | undefined;
   /** Startup cinematic splash; disposed after play or on shutdown. */
   private splash: SplashComponent | undefined;
+  /** UI children saved while the full-screen splash owns the tree. */
+  private splashSavedChildren: (typeof this.state.ui.children)[number][] | undefined;
   private lastActivityMode: string | undefined;
   private currentLoadingTip: { kind: LoadingTipKind; tip: string | undefined; pinned: boolean } | undefined =
     undefined;
@@ -2218,36 +2220,53 @@ export class LioraTUI {
   }
 
   /**
-   * Mount and play the startup cinematic splash, then remove it.
+   * Take over the full UI for a cinematic splash, then restore chrome.
    * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
    */
   private async playStartupSplash(): Promise<void> {
     this.disposeStartupSplash();
     const splash = new SplashComponent({
       appearance: this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+      getRows: () => Math.max(8, this.state.terminal.rows),
       requestRender: () => {
         this.state.renderer.requestRender('animation');
       },
     });
+    // Fast path: do not steal the UI tree when motion is off.
+    if (!shouldPlaySplash(this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES)) {
+      splash.dispose();
+      return;
+    }
+
     this.splash = splash;
-    this.state.transcriptContainer.addChild(splash);
-    this.state.transcriptContainer.invalidate();
-    requestTUILayoutRender(this.state);
+    const savedChildren = [...this.state.ui.children];
+    this.splashSavedChildren = savedChildren;
+    this.state.ui.clear();
+    this.state.ui.addChild(splash);
+    this.state.ui.requestRender(true);
     try {
       await splash.play();
     } finally {
       this.disposeStartupSplash();
-      requestTUILayoutRender(this.state);
     }
   }
 
   private disposeStartupSplash(): void {
     const splash = this.splash;
-    if (splash === undefined) return;
+    const saved = this.splashSavedChildren;
     this.splash = undefined;
-    splash.dispose();
-    this.state.transcriptContainer.removeChild(splash);
-    this.state.transcriptContainer.invalidate();
+    this.splashSavedChildren = undefined;
+    splash?.dispose();
+    if (saved !== undefined) {
+      this.state.ui.clear();
+      for (const child of saved) {
+        this.state.ui.addChild(child);
+      }
+      this.state.ui.setFocus(this.state.editor);
+      this.state.ui.requestRender(true);
+      return;
+    }
+    // Splash never stole the tree (skip path) — nothing to restore.
   }
 
   private clearTerminalInlineImages(): void {
