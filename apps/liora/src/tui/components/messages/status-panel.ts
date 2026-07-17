@@ -254,7 +254,7 @@ function verifyBlockedByReadiness(options: StatusReportOptions): boolean {
   const { ratio, maxTokens } = contextValues(options);
   return (
     model.length === 0 ||
-    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.011) ||
+    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) ||
     options.gitStatus?.dirty === true ||
     options.goalStatus === 'blocked' ||
     humanWritingBlocked(options)
@@ -368,7 +368,7 @@ function formatReadinessBlockers(options: StatusReportOptions): string {
   const model = (options.status?.model ?? options.model).trim();
   if (model.length === 0) blockers.push('model setup');
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.011) blockers.push('context high');
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) blockers.push('context high');
   if (options.gitStatus?.dirty === true) blockers.push('worktree dirty');
   if (options.goalStatus === 'blocked') blockers.push('goal blocked');
   if (humanWritingBlocked(options)) blockers.push('writing guidance');
@@ -552,7 +552,7 @@ function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
   }
 
   const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.011) {
+  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) {
     return [
       { label: 'State', value: 'Context high' },
       ...gateRows,

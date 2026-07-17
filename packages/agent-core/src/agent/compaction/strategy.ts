@@ -44,27 +44,37 @@ const DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS = 256_000;
 
 /**
  * Soft trigger for full (lossy) compaction.
- * Compact before attention rot: soft 0.08 sits between async pre-rot (~0.01) /
- * swarm handoff (~0.16) and hard block (~0.50), so summaries generate while
- * the model still attends well. Async path still starts earlier via asyncTriggerRatio.
+ *
+ * Industry / paper guidance (MemGPT-style hierarchical memory, lost-in-the-middle,
+ * long-horizon agent compaction): keep the full working set until the window is
+ * mostly full, then summarize with headroom left for the summary call itself.
+ *
+ * Soft 0.70 sits above the kept-user budget (`COMPACT_USER_MESSAGE_WINDOW_RATIO`
+ * 0.15 and `COMPACT_USER_MESSAGE_MAX_TOKENS` 16k) so post-compaction residual
+ * cannot immediately re-arm auto-compact (the old 0.08 default hit ~20k on a
+ * 256k window and looped forever). Async pre-rot and micro clearing still run
+ * earlier; hard block stays near the ceiling.
  */
-export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.08;
+export const DEFAULT_COMPACTION_TRIGGER_RATIO = 0.70;
 /** Hard block near the window; leaves headroom for compaction summary output. */
-export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.50;
-/** Estimated tokens the next agent step may add for speculative pre-turn compaction (lean default). */
-export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 800;
-/** Minimum context growth since the last compaction before auto may fire again. */
-export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.010;
+export const DEFAULT_COMPACTION_BLOCK_RATIO = 0.90;
+/** Estimated tokens the next agent step may add for speculative pre-turn compaction. */
+export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 2_000;
+/**
+ * Minimum context growth since the last compaction before auto may fire again.
+ * ~5% of the window — hysteresis so a successful compact cannot thrash.
+ */
+export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.05;
 /** Pre-swarm handoff ceiling: force reclaim before UltraSwarm if usage is above this ratio. */
-export const SWARM_HANDOFF_COMPACTION_RATIO = 0.16;
+export const SWARM_HANDOFF_COMPACTION_RATIO = 0.65;
 /**
  * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
- * for cost and fidelity; start at async pre-rot (~0.01) before soft trigger.
+ * for cost and fidelity; start well before soft trigger.
  */
-export const SWARM_MICRO_PRESSURE_RATIO = 0.01;
+export const SWARM_MICRO_PRESSURE_RATIO = 0.40;
 /** Default ratio at which async background compaction may start (pre-rot). */
-export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.01;
+export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.55;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 const MAX_QUALITY_TRIGGER_BIAS = 0.05;
@@ -72,17 +82,19 @@ const MAX_QUALITY_TRIGGER_BIAS = 0.05;
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
   blockRatio: DEFAULT_COMPACTION_BLOCK_RATIO,
-  reservedContextSize: 3_000,
+  reservedContextSize: 16_000,
   maxCompactionPerTurn: Infinity,
   maxOverflowCompactionAttempts: 3,
-  maxRecentMessages: 2,
+  maxRecentMessages: 12,
   maxRecentUserMessages: Infinity,
-  maxRecentSizeRatio: 0.02,
+  maxRecentSizeRatio: 0.12,
   minOverflowReductionRatio: 0.05,
-  absoluteTriggerTokens: 34_000,
+  // Disabled by default: ratio thresholds already scale with window size.
+  // Absolute floors previously re-armed soft compact far too early on large models.
+  absoluteTriggerTokens: 0,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
-  parallelBlockThreshold: 6_000,
-  parallelBlockTarget: 3_000,
+  parallelBlockThreshold: 12_000,
+  parallelBlockTarget: 6_000,
   speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
   minRecompactGrowthRatio: DEFAULT_MIN_RECOMPACT_GROWTH_RATIO,
   asyncTriggerRatio: DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,

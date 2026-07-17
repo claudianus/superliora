@@ -533,7 +533,7 @@ describe('status panel report lines', () => {
   });
 
 
-  it('appends Ultrawork stage onto the Flow row when a run is active', () => {
+  it('appends Ultrawork stage onto the Stages row when a run is active', () => {
     const lines = buildStatusReportLines({
       version: '0.0.0-test',
       model: 'test-model',
@@ -551,7 +551,7 @@ describe('status panel report lines', () => {
       ultraworkRun: { stage: 'integrate' },
     });
     const joined = lines.join('\n');
-    expect(joined).toMatch(/Flow\s+.+integrate/);
+    expect(joined).toMatch(/Stages\s+.+Stage: integrate/);
   });
 
 

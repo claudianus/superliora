@@ -24,8 +24,8 @@ export const COMPACT_USER_MESSAGE_MAX_TOKENS = 16_000;
  * Fraction of the model window that the kept-user budget is capped at on small
  * context windows. Kept-user messages are verbatim, so an oversized budget
  * pushes the post-compaction context back toward the auto-compaction trigger
- * (PROBE #3) and can prevent convergence below it. 0.15 keeps the cap well
- * inside the soft compaction trigger even on a 64K window (9.6K vs the old 32K).
+ * (PROBE #3) and can prevent convergence below it. 0.15 stays well under the
+ * soft trigger (0.70) even on a 64K window (9.6K kept vs 44.8K soft floor).
  */
 export const COMPACT_USER_MESSAGE_WINDOW_RATIO = 0.15;
 
