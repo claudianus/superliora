@@ -9,7 +9,7 @@ import { PluginManager } from '#/plugin';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { LocalWebSearchProvider } from '#/tools/providers/local-web-search';
 import { MoonshotFetchURLProvider } from '#/tools/providers/moonshot-fetch-url';
-import { MoonshotWebSearchProvider } from '#/tools/providers/moonshot-web-search';
+import { ResearchSearchEngine } from '#/tools/providers/research-search';
 import {
   createContext7Provider,
   isContext7Enabled,
@@ -1327,24 +1327,44 @@ async function createRuntimeConfig(input: {
 }): Promise<ToolServices> {
   const localFetcher = new LocalFetchURLProvider();
   const localSearch = input.config.research?.localSearch;
+  const localOptions = {
+    urlFetcher: localFetcher,
+    concurrency: localSearch?.concurrency,
+    timeoutMs: localSearch?.timeoutMs,
+    searxngUrl: localSearch?.searxngUrl,
+    yacyUrl: localSearch?.yacyUrl,
+    directSources: localSearch?.directSources,
+    offlineMode: localSearch?.offlineMode,
+    cachePath:
+      input.homeDir === undefined
+        ? undefined
+        : join(input.homeDir, 'research', 'local-search.sqlite'),
+  };
   const localSearcher =
-    localSearch?.enabled === false
-      ? undefined
-      : new LocalWebSearchProvider({
-          urlFetcher: localFetcher,
-          concurrency: localSearch?.concurrency,
-          timeoutMs: localSearch?.timeoutMs,
-          searxngUrl: localSearch?.searxngUrl,
-          yacyUrl: localSearch?.yacyUrl,
-          directSources: localSearch?.directSources,
-          offlineMode: localSearch?.offlineMode,
-          cachePath:
-            input.homeDir === undefined
-              ? undefined
-              : join(input.homeDir, 'research', 'local-search.sqlite'),
-        });
+    localSearch?.enabled === false ? undefined : new LocalWebSearchProvider(localOptions);
   const searchService = input.config.services?.moonshotSearch;
   const fetchService = input.config.services?.moonshotFetch;
+  const moonshotCreds =
+    searchService === undefined
+      ? undefined
+      : serviceCredentials(searchService, input.resolveOAuthTokenProvider);
+  const researchSearcher =
+    localSearch?.enabled === false
+      ? undefined
+      : new ResearchSearchEngine({
+          search: input.config.research?.search,
+          local: localOptions,
+          urlFetcher: localFetcher,
+          moonshot:
+            searchService?.baseUrl === undefined
+              ? undefined
+              : {
+                  baseUrl: searchService.baseUrl,
+                  apiKey: moonshotCreds?.apiKey,
+                  defaultHeaders: input.kimiRequestHeaders,
+                  tokenProvider: moonshotCreds?.tokenProvider,
+                },
+        });
 
   return {
     urlFetcher:
@@ -1356,14 +1376,7 @@ async function createRuntimeConfig(input: {
             defaultHeaders: input.kimiRequestHeaders,
             ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
           }),
-    webSearcher:
-      searchService?.baseUrl === undefined
-        ? localSearcher
-        : new MoonshotWebSearchProvider({
-            baseUrl: searchService.baseUrl,
-            defaultHeaders: input.kimiRequestHeaders,
-            ...serviceCredentials(searchService, input.resolveOAuthTokenProvider),
-          }),
+    webSearcher: researchSearcher ?? localSearcher,
     browserUse:
       input.config.browserUse?.enabled === false
         ? undefined

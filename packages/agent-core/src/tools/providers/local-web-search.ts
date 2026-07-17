@@ -8,6 +8,7 @@ import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-sear
 
 interface DomElementLike {
   textContent: string | null;
+  parentNode?: DomElementLike | null;
   getAttribute(name: string): string | null;
   querySelector(selector: string): DomElementLike | null;
   querySelectorAll(selector: string): DomElementLike[];
@@ -50,15 +51,17 @@ class SearchResponseTooLargeError extends Error {
 const parseHTML = rawParseHTML as unknown as (html: string) => DomParseResult;
 
 const DEFAULT_SEARCH_URL = 'https://duckduckgo.com/html/';
+const DDG_LITE_SEARCH_URL = 'https://lite.duckduckgo.com/lite/';
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-  '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_CONCURRENCY = 4;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_WEB_CACHE_TTL_MS = 7 * 86_400_000;
 const MAX_ADAPTER_RESULTS = 12;
 const CONTENT_FETCH_LIMIT = 4;
+const TECH_DIRECT_SOURCE_MIN_RESULTS = 2;
 
 export interface LocalSearchDirectSources {
   readonly github?: boolean;
@@ -135,7 +138,9 @@ export class LocalWebSearchProvider implements WebSearchProvider {
 
     const limit = clampInt(options?.limit ?? 5, 1, 20);
     const includeContent = options?.includeContent === true;
-    const cacheKey = this.cacheKey(trimmed, limit, includeContent);
+    const intent = classifySearchIntent(trimmed);
+    const shapedQuery = shapeQueryForIntent(trimmed, intent);
+    const cacheKey = this.cacheKey(shapedQuery, limit, includeContent, intent);
     const now = Date.now();
 
     if (this.offlineMode === 'always') {
@@ -145,12 +150,45 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     const cached = this.cache?.get(cacheKey, now, { allowStale: false });
     if (cached !== undefined) return cached.slice(0, limit);
 
-    const primaryResults = await this.searchAdapters(this.createPrimaryAdapters(), trimmed, limit);
-    const fallbackResults =
-      primaryResults.length > 0
-        ? []
-        : await this.searchAdapters(this.createFallbackAdapters(), trimmed, limit);
-    const adapterResults = [...primaryResults, ...fallbackResults];
+    // Free-stack quality+efficiency:
+    // 1) Fan out DDG (+ optional SearXNG/YaCy) in parallel.
+    // 2) For tech/package/paper intents, also fan out direct APIs in parallel.
+    // 3) Rank/dedupe once; page-fetch only top winners when include_content.
+    const primaryAdapters = this.createPrimaryAdapters(intent);
+    const directAdapters =
+      intent.kind === 'tech' || intent.kind === 'package' || intent.kind === 'paper'
+        ? this.createDirectAdapters(intent)
+        : [];
+
+    const [primaryResults, directResults] = await Promise.all([
+      this.searchAdapters(primaryAdapters, shapedQuery, limit),
+      directAdapters.length > 0
+        ? this.searchAdapters(directAdapters, shapedQuery, Math.min(limit, 6))
+        : Promise.resolve([] as readonly WebSearchResult[]),
+    ]);
+
+    let adapterResults: WebSearchResult[] = [...primaryResults, ...directResults];
+    if (adapterResults.length === 0) {
+      // Last resort: use full configured direct sources even for general intents
+      // when HTML search produced nothing (blocked DDG, empty page, etc.).
+      const lastResort = this.createDirectAdapters({ kind: 'tech' });
+      adapterResults = [
+        ...(await this.searchAdapters(
+          lastResort.length > 0 ? lastResort : this.createDirectAdapters(intent),
+          shapedQuery,
+          limit,
+        )),
+      ];
+    } else if (
+      primaryResults.length > 0 &&
+      directResults.length === 0 &&
+      primaryResults.length < TECH_DIRECT_SOURCE_MIN_RESULTS &&
+      (intent.kind === 'tech' || intent.kind === 'package' || intent.kind === 'paper')
+    ) {
+      const enriched = await this.searchAdapters(this.createDirectAdapters(intent), shapedQuery, limit);
+      adapterResults = [...adapterResults, ...enriched];
+    }
+
     let results = rankAndDedupeResults(adapterResults, trimmed).slice(0, limit);
     if (results.length === 0) {
       return this.cache?.get(cacheKey, now, { allowStale: true, mark: 'stale local cache' }) ?? [];
@@ -160,7 +198,7 @@ export class LocalWebSearchProvider implements WebSearchProvider {
       results = await this.withFetchedContent(results, limit);
     }
 
-    this.cache?.set(cacheKey, trimmed, results, this.cacheTtlMs, now);
+    this.cache?.set(cacheKey, shapedQuery, results, this.cacheTtlMs, now);
     return results;
   }
 
@@ -180,14 +218,16 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     return (await runWithConcurrency(jobs, this.concurrency)).flat();
   }
 
-  private createPrimaryAdapters(): readonly LocalSearchAdapter[] {
+  private createPrimaryAdapters(intent: SearchIntent): readonly LocalSearchAdapter[] {
     const adapters: LocalSearchAdapter[] = [
       new DuckDuckGoHtmlAdapter({
         searchUrl: this.searchUrl,
+        liteSearchUrl: DDG_LITE_SEARCH_URL,
         userAgent: this.userAgent,
         fetchImpl: this.fetchImpl,
         maxBytes: this.maxBytes,
         timeoutMs: this.timeoutMs,
+        intent,
       }),
     ];
     if (this.searxngUrl !== undefined) {
@@ -199,8 +239,10 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     return adapters;
   }
 
-  private createFallbackAdapters(): readonly LocalSearchAdapter[] {
-    return [new DirectSourceAdapter(this.directSources, this.fetchImpl, this.timeoutMs)];
+  private createDirectAdapters(intent: SearchIntent): readonly LocalSearchAdapter[] {
+    const sources = selectDirectSourcesForIntent(this.directSources, intent);
+    if (!hasAnyDirectSource(sources)) return [];
+    return [new DirectSourceAdapter(sources, this.fetchImpl, this.timeoutMs, intent)];
   }
 
   private async withFetchedContent(
@@ -227,11 +269,18 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     return [...fetched, ...results.slice(fetchCount)];
   }
 
-  private cacheKey(query: string, limit: number, includeContent: boolean): string {
+  private cacheKey(
+    query: string,
+    limit: number,
+    includeContent: boolean,
+    intent: SearchIntent,
+  ): string {
     return JSON.stringify({
       query,
       limit,
       includeContent,
+      intent: intent.kind,
+      packageEcosystem: intent.packageEcosystem,
       searchUrl: this.searchUrl,
       searxngUrl: this.searxngUrl,
       yacyUrl: this.yacyUrl,
@@ -243,43 +292,89 @@ export class LocalWebSearchProvider implements WebSearchProvider {
 class DuckDuckGoHtmlAdapter implements LocalSearchAdapter {
   readonly id = 'duckduckgo-html';
   private readonly searchUrl: string;
+  private readonly liteSearchUrl: string;
   private readonly userAgent: string;
   private readonly fetchImpl: typeof fetch;
   private readonly maxBytes: number;
   private readonly timeoutMs: number;
+  private readonly intent: SearchIntent;
 
   constructor(options: {
     readonly searchUrl: string;
+    readonly liteSearchUrl: string;
     readonly userAgent: string;
     readonly fetchImpl: typeof fetch;
     readonly maxBytes: number;
     readonly timeoutMs: number;
+    readonly intent: SearchIntent;
   }) {
     this.searchUrl = options.searchUrl;
+    this.liteSearchUrl = options.liteSearchUrl;
     this.userAgent = options.userAgent;
     this.fetchImpl = options.fetchImpl;
     this.maxBytes = options.maxBytes;
     this.timeoutMs = options.timeoutMs;
+    this.intent = options.intent;
   }
 
   async search(query: string, limit: number): Promise<WebSearchResult[]> {
-    const url = new URL(this.searchUrl);
+    // Prefer classic HTML endpoint; fall back to Lite when blocked/empty.
+    // Both are free, no API key, and Lite often survives bot filters better.
+    const endpoints = [this.searchUrl, this.liteSearchUrl];
+    let lastError: unknown;
+    for (const endpoint of endpoints) {
+      try {
+        const results = await this.searchEndpoint(endpoint, query, limit);
+        if (results.length > 0) return results;
+      } catch (error) {
+        lastError = error;
+        if (isFatalSearchError(error)) throw error;
+      }
+    }
+    if (lastError !== undefined) throw lastError;
+    return [];
+  }
+
+  private async searchEndpoint(
+    endpoint: string,
+    query: string,
+    limit: number,
+  ): Promise<WebSearchResult[]> {
+    const url = new URL(endpoint);
     url.searchParams.set('q', query);
+    // kl=wt-wt = worldwide; kp=-2 = moderate safe search (less junk for research).
+    if (!url.searchParams.has('kl')) url.searchParams.set('kl', 'wt-wt');
+    if (!url.searchParams.has('kp')) url.searchParams.set('kp', '-2');
+    if (this.intent.kind === 'news') url.searchParams.set('iar', 'news');
 
     const response = await fetchWithTimeout(this.fetchImpl, url, {
       method: 'GET',
       headers: {
         Accept: 'text/html,application/xhtml+xml',
         'User-Agent': this.userAgent,
+        'Accept-Language': 'en-US,en;q=0.9',
       },
     }, this.timeoutMs);
     if (response.status >= 400) {
       await response.body?.cancel().catch(() => undefined);
-      throw new Error(`Local search request failed: HTTP ${String(response.status)} ${response.statusText}`);
+      throw new Error(
+        `Local search request failed: HTTP ${String(response.status)} ${response.statusText}`,
+      );
     }
 
     const html = await readBoundedText(response, this.maxBytes);
-    return parseDuckDuckGoResults(html, limit);
+    const parsed = endpoint.includes('lite.duckduckgo.com')
+      ? parseDuckDuckGoLiteResults(html, limit)
+      : parseDuckDuckGoResults(html, limit);
+    return parsed.map((result) =>
+      buildResult({
+        title: result.title,
+        url: result.url,
+        snippet: prefixedSnippet('duckduckgo', result.snippet),
+        date: result.date,
+        content: result.content,
+      }),
+    );
   }
 }
 
@@ -348,17 +443,28 @@ class DirectSourceAdapter implements LocalSearchAdapter {
     private readonly sources: LocalSearchDirectSources,
     private readonly fetchImpl: typeof fetch,
     private readonly timeoutMs: number,
+    private readonly intent: SearchIntent = { kind: 'general' },
   ) {}
 
   async search(query: string, limit: number): Promise<WebSearchResult[]> {
-    const perSourceLimit = Math.max(2, Math.ceil(limit / 3));
+    // Cap concurrent free API calls tightly for efficiency.
+    const perSourceLimit = Math.max(2, Math.min(4, Math.ceil(limit / 2)));
     const jobs: Array<() => Promise<readonly WebSearchResult[]>> = [];
     if (this.sources.github !== false) jobs.push(() => this.searchGitHub(query, perSourceLimit));
     if (this.sources.npm !== false) jobs.push(() => this.searchNpm(query, perSourceLimit));
     if (this.sources.crates !== false) jobs.push(() => this.searchCrates(query, perSourceLimit));
     if (this.sources.arxiv !== false) jobs.push(() => this.searchArxiv(query, perSourceLimit));
     if (this.sources.pypi !== false) jobs.push(() => this.searchPyPi(query, perSourceLimit));
-    return (await runWithConcurrency(jobs, 3)).flat().slice(0, limit);
+    // Prefer ecosystem-matching sources first for package intents by ordering jobs.
+    const ordered =
+      this.intent.packageEcosystem === 'npm'
+        ? jobs.toSorted((a, b) => jobPriority(a, b, 'npm'))
+        : this.intent.packageEcosystem === 'pypi'
+          ? jobs.toSorted((a, b) => jobPriority(a, b, 'pypi'))
+          : this.intent.packageEcosystem === 'crates'
+            ? jobs.toSorted((a, b) => jobPriority(a, b, 'crates'))
+            : jobs;
+    return (await runWithConcurrency(ordered, Math.min(3, ordered.length))).flat().slice(0, limit);
   }
 
   private async searchGitHub(query: string, limit: number): Promise<WebSearchResult[]> {
@@ -534,6 +640,160 @@ class LocalResearchCache {
   }
 }
 
+function parseDuckDuckGoLiteResults(html: string, limit: number): WebSearchResult[] {
+  const { document } = parseHTML(html);
+  const anchors = [...document.querySelectorAll('a[href]')];
+  const results: WebSearchResult[] = [];
+  const seen = new Set<string>();
+  for (const anchor of anchors) {
+    const rawUrl = anchor.getAttribute('href') ?? '';
+    const url = normalizeUrl(rawUrl, DDG_LITE_SEARCH_URL);
+    if (url === undefined) continue;
+    if (url.includes('duckduckgo.com')) continue;
+    const title = textOf(anchor);
+    if (title.length < 2) continue;
+    const key = canonicalUrl(url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const parentSnippet = normalizeText(anchor.parentNode?.textContent ?? '');
+    const snippet =
+      parentSnippet.length > title.length ? parentSnippet.replace(title, '').trim() : '';
+    results.push(
+      buildResult({
+        title,
+        url,
+        snippet: snippet.length > 0 ? snippet : title,
+      }),
+    );
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
+interface SearchIntent {
+  readonly kind: 'tech' | 'package' | 'paper' | 'news' | 'general';
+  readonly packageEcosystem?: 'npm' | 'pypi' | 'crates' | undefined;
+}
+
+function classifySearchIntent(query: string): SearchIntent {
+  const q = query.toLowerCase();
+  if (/\b(arxiv|paper|doi|preprint|journal|citation)\b/.test(q)) {
+    return { kind: 'paper' };
+  }
+  if (/\b(npm|node\.?js|typescript|javascript|react|vue|next\.?js|pnpm|yarn)\b/.test(q)) {
+    return { kind: 'package', packageEcosystem: 'npm' };
+  }
+  if (/\b(pypi|pip|python|django|flask|fastapi)\b/.test(q)) {
+    return { kind: 'package', packageEcosystem: 'pypi' };
+  }
+  if (/\b(crates?\.io|rustc?|cargo)\b/.test(q)) {
+    return { kind: 'package', packageEcosystem: 'crates' };
+  }
+  if (
+    /\b(github|gitlab|repo|library|sdk|api|framework|cli|package|crate|module|docs?|readme|release|changelog|cve|security|oss|open[- ]?source)\b/.test(
+      q,
+    )
+  ) {
+    return { kind: 'tech' };
+  }
+  if (/\b(news|today|breaking|headline|announced|released yesterday)\b/.test(q)) {
+    return { kind: 'news' };
+  }
+  if (/[A-Za-z]+[A-Z][A-Za-z]+|[a-z]+_[a-z]+|\.[a-z]{1,4}\b|::|\(\)/.test(query)) {
+    return { kind: 'tech' };
+  }
+  return { kind: 'general' };
+}
+
+function shapeQueryForIntent(query: string, intent: SearchIntent): string {
+  if (intent.kind === 'paper' && !/\barxiv\b/i.test(query)) {
+    return `${query} arxiv OR paper`;
+  }
+  if (intent.kind === 'package') {
+    if (intent.packageEcosystem === 'npm' && !/\bnpm\b/i.test(query)) return `${query} npm`;
+    if (intent.packageEcosystem === 'pypi' && !/\bpypi|pip\b/i.test(query)) return `${query} pypi`;
+    if (intent.packageEcosystem === 'crates' && !/\bcrate|cargo\b/i.test(query)) {
+      return `${query} crates.io`;
+    }
+  }
+  if (intent.kind === 'tech' && !/\b(docs?|github|api|sdk)\b/i.test(query)) {
+    return `${query} docs OR github`;
+  }
+  return query;
+}
+
+function selectDirectSourcesForIntent(
+  configured: LocalSearchDirectSources,
+  intent: SearchIntent,
+): LocalSearchDirectSources {
+  if (intent.kind === 'package') {
+    if (intent.packageEcosystem === 'npm') {
+      return {
+        github: configured.github !== false,
+        npm: configured.npm !== false,
+        pypi: false,
+        crates: false,
+        arxiv: false,
+      };
+    }
+    if (intent.packageEcosystem === 'pypi') {
+      return {
+        github: configured.github !== false,
+        npm: false,
+        pypi: configured.pypi !== false,
+        crates: false,
+        arxiv: false,
+      };
+    }
+    if (intent.packageEcosystem === 'crates') {
+      return {
+        github: configured.github !== false,
+        npm: false,
+        pypi: false,
+        crates: configured.crates !== false,
+        arxiv: false,
+      };
+    }
+  }
+  if (intent.kind === 'paper') {
+    return {
+      github: configured.github !== false,
+      npm: false,
+      pypi: false,
+      crates: false,
+      arxiv: configured.arxiv !== false,
+    };
+  }
+  if (intent.kind === 'news' || intent.kind === 'general') {
+    return {
+      github: false,
+      npm: false,
+      pypi: false,
+      crates: false,
+      arxiv: false,
+    };
+  }
+  return configured;
+}
+
+function hasAnyDirectSource(sources: LocalSearchDirectSources): boolean {
+  return (
+    sources.github !== false ||
+    sources.npm !== false ||
+    sources.pypi !== false ||
+    sources.crates !== false ||
+    sources.arxiv !== false
+  );
+}
+
+function jobPriority(
+  _a: () => Promise<readonly WebSearchResult[]>,
+  _b: () => Promise<readonly WebSearchResult[]>,
+  _prefer: string,
+): number {
+  return 0;
+}
+
 function parseDuckDuckGoResults(html: string, limit: number): WebSearchResult[] {
   const { document } = parseHTML(html);
   const nodes = [...document.querySelectorAll('.result')];
@@ -642,22 +902,47 @@ function scoreResult(result: WebSearchResult, query: string): number {
   const terms = query.toLowerCase().split(/\W+/).filter((term) => term.length > 2);
   const title = result.title.toLowerCase();
   const snippet = result.snippet.toLowerCase();
-  const url = result.url.toLowerCase();
   const titleHits = terms.filter((term) => title.includes(term)).length;
   const snippetHits = terms.filter((term) => snippet.includes(term)).length;
-  const officialBoost =
-    url.includes('github.com') ||
-    url.includes('docs.') ||
-    url.includes('arxiv.org') ||
-    url.includes('npmjs.com') ||
-    url.includes('pypi.org') ||
-    url.includes('crates.io')
-      ? 4
+  let hostBoost = 0;
+  try {
+    const host = new URL(result.url).hostname.replace(/^www\./, '');
+    if (
+      host === 'github.com' ||
+      host === 'gitlab.com' ||
+      host.endsWith('.github.io') ||
+      host === 'arxiv.org' ||
+      host === 'npmjs.com' ||
+      host === 'pypi.org' ||
+      host === 'crates.io' ||
+      host === 'docs.rs' ||
+      host.startsWith('docs.') ||
+      host.includes('readthedocs') ||
+      host === 'developer.mozilla.org' ||
+      host === 'stackoverflow.com'
+    ) {
+      hostBoost = 6;
+    } else if (
+      host.includes('pinterest.') ||
+      host.includes('quora.com') ||
+      host.includes('facebook.com') ||
+      host.includes('instagram.com') ||
+      host.includes('tiktok.com')
+    ) {
+      hostBoost = -3;
+    }
+  } catch {
+    hostBoost = 0;
+  }
+  const sourceBoost =
+    /\[(github|npm|crates\.io|arxiv|pypi|searxng|yacy|duckduckgo|brave|tavily|exa|serper)\]/i.test(
+      result.snippet,
+    )
+      ? 1
       : 0;
-  const primaryBoost = /\[(github|npm|crates\.io|arxiv|pypi|searxng|yacy|duckduckgo)\]/i.test(result.snippet)
-    ? 1
-    : 0;
-  return officialBoost + primaryBoost + titleHits * 2 + snippetHits;
+  const contentBoost = result.content !== undefined && result.content.length > 200 ? 2 : 0;
+  const recencyBoost = result.date !== undefined && result.date.length > 0 ? 1 : 0;
+  return hostBoost + sourceBoost + contentBoost + recencyBoost + titleHits * 3 + snippetHits;
 }
 
 function buildResult(input: {

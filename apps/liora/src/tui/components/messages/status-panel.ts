@@ -216,7 +216,10 @@ function formatResearchGate(options: StatusReportOptions): string {
   const fetch = hasActiveTool(options, 'FetchURL');
   const c7Resolve = hasActiveTool(options, 'Context7Resolve');
   const c7Docs = hasActiveTool(options, 'Context7Docs');
-  if (web === undefined || fetch === undefined) return RESEARCH_GATE;
+  const searchKeys = formatSearchKeyHint();
+  if (web === undefined || fetch === undefined) {
+    return `${RESEARCH_GATE}${searchKeys}`;
+  }
   const context7 =
     c7Resolve === true || c7Docs === true
       ? ' · Context7 on'
@@ -224,10 +227,30 @@ function formatResearchGate(options: StatusReportOptions): string {
         ? ' · Context7 off'
         : '';
   if (web && fetch) {
-    return `ready · WebSearch + FetchURL active${context7} (local/managed ok)`;
+    return `ready · WebSearch + FetchURL active${context7}${searchKeys}`;
   }
   if (!web && !fetch) return 'unavailable · Web research tools missing in this session';
-  return `partial · WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}${context7}`;
+  return `partial · WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}${context7}${searchKeys}`;
+}
+
+function formatSearchKeyHint(): string {
+  const envNames = [
+    'BRAVE_API_KEY',
+    'BRAVE_SEARCH_API_KEY',
+    'TAVILY_API_KEY',
+    'EXA_API_KEY',
+    'SERPER_API_KEY',
+    'SERPER_DEV_API_KEY',
+  ] as const;
+  const present = envNames.filter((name) => {
+    const value = process.env[name];
+    return value !== undefined && value.trim().length > 0;
+  });
+  if (present.length === 0) return ' · free local (set BRAVE/TAVILY/EXA/SERPER key for multi-provider)';
+  const short = present
+    .map((name) => name.replace(/_API_KEY$/u, '').replace(/_SEARCH$/u, '').toLowerCase())
+    .join('+');
+  return ` · paid:${short}`;
 }
 
 function formatMediaGate(options: StatusReportOptions): string {

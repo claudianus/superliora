@@ -41,17 +41,17 @@ export const WebSearchInputSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(20)
+    .max(10)
     .default(3)
     .describe(
-      'Results to return (default 3). Prefer a sharper query over raising limit; large limits + include_content burn tokens.',
+      'Results to return (default 3, max 10). Prefer a sharper query over raising limit; each extra hit costs quota and tokens.',
     )
     .optional(),
   include_content: z
     .boolean()
     .default(false)
     .describe(
-      'Whether to include the content of the web pages in the results. It can consume a large amount of tokens when this is set to true. You should avoid enabling this when `limit` is set to a large value.',
+      'Fetch cleaned page bodies for the top 1–2 hits only (can consume a large amount of tokens when this is set to true). Default false — use snippets first, then FetchURL on the 1–2 URLs you will cite. You should avoid enabling this when `limit` is set to a large value.',
     )
     .optional(),
 });
@@ -92,7 +92,11 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
       if (args.limit !== undefined) opts.limit = args.limit;
       if (args.include_content !== undefined) opts.includeContent = args.include_content;
       const results = await this.provider.search(args.query, opts);
-      const builder = new ToolResultBuilder({ maxLineLength: null });
+      // Hard token budget even when include_content is on.
+      const builder = new ToolResultBuilder({
+        maxChars: args.include_content === true ? 8_000 : 4_000,
+        maxLineLength: null,
+      });
 
       if (results.length === 0) {
         builder.write('No search results found.');
