@@ -258,7 +258,10 @@ describe('WS fs watch (W12 / Chain 14)', () => {
       coalesced_window_ms: number;
       truncated?: boolean;
     };
-    expect(payload.coalesced_window_ms).toBe(200);
+    // Actual open-window duration (truthful after max-coalesce fix); quiet
+    // single-event flush is ~debounceMs but timer skew can be a few ms over.
+    expect(payload.coalesced_window_ms).toBeGreaterThanOrEqual(200);
+    expect(payload.coalesced_window_ms).toBeLessThanOrEqual(2_000);
     expect(payload.truncated).toBeUndefined();
     expect(payload.changes.length).toBeGreaterThanOrEqual(1);
     // Path is POSIX-relative to cwd; should mention `src/new.ts` or the dir
