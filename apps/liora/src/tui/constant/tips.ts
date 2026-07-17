@@ -68,6 +68,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'background Agent only for independent work — never TaskOutput-wait after bg launch', priority: 1, solo: true },
   { text: 'Ultrawork resume: /ultrawork resume after compact/swarm — Continuity notes keep the checkpoint', priority: 2, solo: true },
   { text: 'UltraSwarm handoff: expert body 1600 · integration 480/1200 · bus body 800 · total 6k · archive inline 120', priority: 1, solo: true },
+  { text: 'UltraSwarm panel keeps a 480-char model ring per expert — latest line only in the grid', priority: 1, solo: true },
   { text: 'shift-tab again turns Ultrawork back off', priority: 2 },
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },

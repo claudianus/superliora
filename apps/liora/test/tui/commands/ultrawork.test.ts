@@ -274,6 +274,8 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('kanban');
     expect(prompt).toContain('Core operating rules');
     expect(prompt).toContain('Liora Lean Context');
+    expect(prompt).toContain('honor Continuity notes');
+    expect(prompt).toContain('Context OS pages');
     expect(prompt).toContain('LioraRead');
     expect(prompt).toContain('LioraCallgraph');
     expect(prompt).toContain('Liora Knowledge Map');

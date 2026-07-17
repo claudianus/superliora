@@ -36,7 +36,8 @@ const TEXT_BRAILLE_BAR_MIN_WIDTH = 6;
 const BRAILLE_BAR_MAX_WIDTH = 8;
 const PHASE_LABEL_WIDTH = 'Completed'.length;
 const MIN_LABEL_WIDTH = PHASE_LABEL_WIDTH;
-const MAX_LATEST_MODEL_CHARS = 2_000;
+/** Ring buffer for streaming expert text; render uses latestNonEmptyLine only. */
+const MAX_LATEST_MODEL_CHARS = 480;
 const COMPLETE_FILL_MS = 360;
 const FAILED_PLACEHOLDER_RED_FACTOR = 0.75;
 const FAILED_PLACEHOLDER_NON_RED_FACTOR = 0.25;
