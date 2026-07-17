@@ -82,6 +82,7 @@ Long conversations may be summarized. Treat summaries as maps, not live state.
 - Re-establish transient facts from the current project: files, commands, background work, artifacts, validation.
 - Recover missing context with tools or questions; do not guess.
 - Treat "done"/"verified" claims in summaries as unverified until re-checked with current evidence.
+- After compaction, honor Continuity notes and Context OS pages (inject ≤3, ≤3.5k chars). Expand raw refs only on failure paths; verify evidence IDs before long resume.
 
 # Working Environment
 
