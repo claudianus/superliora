@@ -7,6 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  FETCH_URL_CONTENT_MAX_CHARS,
   FetchURLInputSchema,
   FetchURLTool,
   HttpFetchError,
@@ -209,6 +210,22 @@ describe('FetchURLTool', () => {
     expect(content).not.toContain('<code>');
     expect(content.toLowerCase()).toContain('title:');
     expect(content.toLowerCase()).toContain('description:');
+  });
+
+  it('soft-caps oversized page bodies with a truncation note', async () => {
+    const huge = 'x'.repeat(FETCH_URL_CONTENT_MAX_CHARS + 2_000);
+    const tool = new FetchURLTool(fakeFetcher(huge, 'extracted'));
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c1',
+      args: { url: 'https://example.com/long' },
+      signal,
+    });
+    const text = toolContentString(result);
+    expect(text).toContain('truncated to');
+    expect(text).toContain(String(FETCH_URL_CONTENT_MAX_CHARS));
+    expect(text.length).toBeLessThan(FETCH_URL_CONTENT_MAX_CHARS + 400);
+    expect(text).not.toContain('x'.repeat(FETCH_URL_CONTENT_MAX_CHARS + 100));
   });
 
   it('surfaces HTTP status in the error message for 404 responses', async () => {

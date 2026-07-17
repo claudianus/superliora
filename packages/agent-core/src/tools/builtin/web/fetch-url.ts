@@ -62,6 +62,9 @@ export const FetchURLInputSchema = z.object({
 
 export type FetchURLInput = z.Infer<typeof FetchURLInputSchema>;
 
+/** Soft cap for returned page text — deep reads stay useful under tool 4k + persist path. */
+export const FETCH_URL_CONTENT_MAX_CHARS = 16_000;
+
 // ── Implementation ───────────────────────────────────────────────────
 
 export class FetchURLTool implements BuiltinTool<FetchURLInput> {
@@ -109,7 +112,16 @@ export class FetchURLTool implements BuiltinTool<FetchURLInput> {
         kind === 'passthrough'
           ? 'The returned content is the full response body, returned verbatim.'
           : 'The returned content is the main text extracted from the page.';
-      builder.write(`${note}\n\n${content}`);
+      let body = content;
+      let truncated = false;
+      if (body.length > FETCH_URL_CONTENT_MAX_CHARS) {
+        body = `${body.slice(0, FETCH_URL_CONTENT_MAX_CHARS)}…`;
+        truncated = true;
+      }
+      const truncateNote = truncated
+        ? `\n[truncated to ${String(FETCH_URL_CONTENT_MAX_CHARS)} chars — prefer a more specific URL or section for the rest]`
+        : '';
+      builder.write(`${note}${truncateNote}\n\n${body}`);
       return builder.ok();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

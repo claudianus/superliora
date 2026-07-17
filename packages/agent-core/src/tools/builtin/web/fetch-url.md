@@ -1,1 +1,2 @@
 Fetch a public `http`/`https` URL. HTML → extracted main article text; plain/markdown → full body returned verbatim. Result states which form. No private/loopback/other schemes. Large pages may truncate/refuse. Incomplete extract → Scrapling-compatible MCP/CLI/browser for authorized public pages. Prefer primary source URLs.
+Large pages soft-cap at 16k chars with a truncation note; tool-result budget may persist longer outputs.
