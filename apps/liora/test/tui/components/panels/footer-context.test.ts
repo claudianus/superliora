@@ -320,6 +320,18 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(formatContextOSFooterBadge(null)).toBeNull();
   });
 
+  it('shows ready Context OS badge with page count for long-session glance', () => {
+    expect(formatContextOSFooterBadge({
+      pageCount: 3,
+      readyPageCount: 3,
+      needsRehydrationPageCount: 0,
+      atRiskPageCount: 0,
+      missingEvidencePageCount: 0,
+      evidenceIdRecallScore: 1,
+      latestContinuityStatus: 'ready',
+    })).toEqual({ text: 'ctx-os:ready×3', severity: 'info' });
+  });
+
   it('shows micro-clear badge when tool-result clearing has fired', () => {
     const footer = new FooterComponent(
       baseState({

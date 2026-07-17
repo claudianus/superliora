@@ -251,7 +251,11 @@ export function formatContextOSFooterBadge(
       severity: 'warning',
     };
   }
-  return null;
+  // Ready pages stay visible so long sessions keep Continuity in the glance strip.
+  return {
+    text: `ctx-os:ready×${String(contextOS.readyPageCount)}`,
+    severity: 'info',
+  };
 }
 
 /** Micro tool-result clearing badge (primary cheap context path). */

@@ -54,7 +54,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/bench: LioraBench score · loop · next rerun', priority: 2, solo: true },
   { text: 'browser/computer tools are built-in for screenshot proof — no MCP', priority: 2, solo: true },
   { text: 'first run: /login then type a task — no complex config needed', priority: 3, solo: true },
-  { text: 'footer ctx-os:missing-ev×N warns after compact — verify evidence IDs before long resume', priority: 2, solo: true },
+  { text: 'footer ctx-os:missing-ev×N / ready×N after compact — verify IDs; inject≤3 pages on /status', priority: 2, solo: true },
   { text: 'Context OS injects up to 3 ranked memory pages (≤3.5k chars) after compact — verify raw refs on failure paths', priority: 1, solo: true },
   { text: 'context ladder (research): micro40/keep2/min4 · async70 · soft/handoff80 · hard92 · maxRecent4 · reserved50k · abs200k · recompact1 · tool4k/80 · grep20 · web3', priority: 3, solo: true },
   { text: 'transcript glances: thinking 4 · command 4 · result 3 lines — ctrl+o expands; tools trim at 4000 chars', priority: 2, solo: true },
