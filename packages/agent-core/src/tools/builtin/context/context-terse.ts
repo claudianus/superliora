@@ -20,6 +20,8 @@ export interface TerseReadResult {
 }
 
 const DEFAULT_MAX_CHARS = 4000;
+/** Shell stdout/stderr after pattern collapse — match tool-result 4k budget (was 11.5k densify thrash). */
+export const SHELL_COMPRESS_DEFAULT_MAX_CHARS = 4_000;
 /** Prefer signatures/map sooner — full dumps thrash long-horizon context (Lost-in-the-Middle). */
 const AUTO_FULL_LINE_THRESHOLD = 80;
 
@@ -186,7 +188,7 @@ export function compressShellOutput(
   if (input.exitCode !== undefined && input.exitCode !== 0) {
     return { text: raw, savedPercent: 0, overflow: undefined };
   }
-  const maxChars = input.maxChars ?? 11_500;
+  const maxChars = input.maxChars ?? SHELL_COMPRESS_DEFAULT_MAX_CHARS;
   const normalized = collapseRepeatedBlankLines(raw);
   const patternCompressed = applyShellPatterns(normalized, input.command);
   const deduped = collapseConsecutiveDuplicateLines(patternCompressed);

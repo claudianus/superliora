@@ -64,6 +64,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'LioraRead auto→signatures after 80 lines; Grep default 20; parallelize independent reads', priority: 1, solo: true },
   { text: 'Liora Recall injects ≤6 memories · 480 chars each — durable prefs only, not transcript dumps', priority: 1, solo: true },
   { text: 'LioraExpand pages 120 lines by default — pass start_line/limit; full dumps thrash long sessions', priority: 1, solo: true },
+  { text: 'Bash stdout soft-caps at 4k after pattern collapse — matches tool-result budget; LioraExpand recovers archives', priority: 1, solo: true },
   { text: 'footer μ badges show micro clears (cache-miss/swarm) without config', priority: 1, solo: true },
   { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },
   { text: 'footer web + office + img·vid + zdr badges show research/office/media/privacy readiness without MCP or config', priority: 1, solo: true },

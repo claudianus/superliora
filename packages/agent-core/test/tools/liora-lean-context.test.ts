@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { LioraExpandTool } from '../../src/tools/builtin/context/liora-expand';
 import { LioraReadTool } from '../../src/tools/builtin/context/liora-read';
-import { compressShellOutput } from '../../src/tools/builtin/context/context-terse';
+import { compressShellOutput, SHELL_COMPRESS_DEFAULT_MAX_CHARS } from '../../src/tools/builtin/context/context-terse';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
 import { createFakeKaos, toolContentString } from './fixtures/fake-kaos';
@@ -128,6 +128,15 @@ describe('Liora lean context tools', () => {
     expect(output).toContain('truncated:');
     expect(output).toContain('line-0');
     expect(output).not.toContain('line-150');
+  });
+
+
+  it('compressShellOutput soft-caps oversized successful shell output at the tool budget', () => {
+    const stdout = Array.from({ length: 400 }, (_, i) => `line ${String(i)} unique ${'y'.repeat(40)}`).join('\n');
+    const compressed = compressShellOutput({ stdout, stderr: '', command: 'cat huge.log' });
+    expect(compressed.text.length).toBeLessThanOrEqual(SHELL_COMPRESS_DEFAULT_MAX_CHARS + 80);
+    expect(compressed.text).toContain('chars omitted');
+    expect(compressed.savedPercent).toBeGreaterThan(0);
   });
 
   it('compressShellOutput collapses repetitive passing test lines', () => {
