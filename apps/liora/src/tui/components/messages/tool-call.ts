@@ -65,7 +65,8 @@ const STREAMING_PROGRESS_INTERVAL_MS = 1000;
 const SUBAGENT_ELAPSED_INTERVAL_MS = BRAILLE_SPINNER_INTERVAL_MS;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
 const ABORTED_MARK = '⊘';
-const MAX_LIVE_OUTPUT_CHARS = 50_000;
+/** Ring buffer for live tool stdout in the transcript card (not model context). */
+const MAX_LIVE_OUTPUT_CHARS = 16_000;
 
 /** Delay before a long-running foreground Bash/Agent card advertises Ctrl+B. */
 const DETACH_HINT_DELAY_MS = 6_000;

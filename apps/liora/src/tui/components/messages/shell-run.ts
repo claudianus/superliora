@@ -15,8 +15,9 @@ const RUNNING_TAIL_LINES = 5;
 // grow memory without bound or make every render re-strip a multi-MB string.
 // Only affects the transient running tail; the final view uses the full
 // captured stdout/stderr passed to finish().
-const MAX_COMBINED_CHARS = 256 * 1024;
-const KEEP_COMBINED_CHARS = 64 * 1024;
+// Transient running tail only — final view uses finish() capture.
+const MAX_COMBINED_CHARS = 64 * 1024;
+const KEEP_COMBINED_CHARS = 16 * 1024;
 
 /**
  * Live view for a user-initiated `!` shell command. Two phases:

@@ -58,6 +58,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'Context OS injects up to 3 ranked memory pages (≤3.5k chars) after compact — verify raw refs on failure paths', priority: 1, solo: true },
   { text: 'context ladder (research): micro40/keep2/min4 · async70 · soft/handoff80 · hard92 · maxRecent4 · reserved50k · abs200k · recompact1 · tool4k/80 · grep20 · web3', priority: 3, solo: true },
   { text: 'transcript glances: thinking 4 · command 4 · result 3 lines — ctrl+o expands; tool-result budget 4k (80-char preview)', priority: 2, solo: true },
+  { text: 'live tool cards keep a 16k stdout ring — expand/ctrl+o for more; model budget remains 4k', priority: 1, solo: true },
   { text: 'live reasoning shows a 4-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — glanceable pressure', priority: 1, solo: true },
   { text: 'premium particle rails: short comet trails at ~30fps — cinematic without 1ms thrash', priority: 1, solo: true },
