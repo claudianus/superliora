@@ -12,7 +12,7 @@ import { isUserCancellation } from '../utils/abort';
 Subagent batch scheduling contract:
 Normal phase:
 - Return results in input order; empty input returns an empty list.
-- Start up to 5 tasks immediately, then 1 more every 700 ms while queued work remains. By default active tasks do not cap this ramp; when SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY is set to a positive integer, the ramp additionally stops while active tasks reach that cap, and resumes as tasks complete.
+- Start up to 5 tasks immediately, then 1 more every 700 ms while queued work remains. Active tasks are capped at SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY when set to a positive integer, otherwise at a default of 16; the ramp stops while active tasks reach that cap and resumes as tasks complete.
 - Launch priority: previous agent id saved after a rate limit, explicit resume, then new spawn.
 - Readiness can be reported while the attempt is active. Ready normal launches seed the first rate-limit capacity.
 - The first provider rate limit stops the ramp and enters rate-limit phase.
@@ -660,23 +660,23 @@ export class SubagentBatch<T> {
   }
 }
 
+/** Default normal-phase concurrency when env is unset/empty/invalid. */
+export const DEFAULT_SWARM_MAX_CONCURRENCY = 16;
+
 /**
- * Resolve the optional AgentSwarm normal-phase concurrency cap from the environment.
+ * Resolve the AgentSwarm normal-phase concurrency cap from the environment.
  *
- * Returns `undefined` when the variable is unset/empty. A present value must be a
- * positive integer; invalid input fails fast so a misconfigured cap never silently
- * reverts to the uncapped ramp.
+ * Unset/empty/invalid values fall back to {@link DEFAULT_SWARM_MAX_CONCURRENCY}
+ * so swarms never run fully uncapped by accident. A present positive integer wins.
  */
 export function resolveSwarmMaxConcurrency(
   env: Readonly<Record<string, string | undefined>> = process.env,
-): number | undefined {
+): number {
   const raw = env[AGENT_SWARM_MAX_CONCURRENCY_ENV];
-  if (raw === undefined || raw.trim() === '') return undefined;
+  if (raw === undefined || raw.trim() === '') return DEFAULT_SWARM_MAX_CONCURRENCY;
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(
-      `${AGENT_SWARM_MAX_CONCURRENCY_ENV} must be a positive integer, got ${JSON.stringify(raw)}.`,
-    );
+    return DEFAULT_SWARM_MAX_CONCURRENCY;
   }
   return value;
 }

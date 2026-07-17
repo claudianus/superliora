@@ -81,13 +81,22 @@ export class UltraSwarmOrchestrator {
     let experts: ExpertSearchResult[];
 
     if (expertIds !== undefined && expertIds.length > 0) {
-      // Explicit expert selection
-      experts = expertIds
-        .map((id) => {
-          const expert = globalExpertSearchEngine.getExpertById(id);
-          return expert !== undefined ? { expert, score: 1 } : undefined;
-        })
-        .filter((e): e is ExpertSearchResult => e !== undefined);
+      // Explicit expert selection — fail closed on unknown ids (no silent filter).
+      const missing: string[] = [];
+      experts = [];
+      for (const id of expertIds) {
+        const expert = globalExpertSearchEngine.getExpertById(id);
+        if (expert === undefined) {
+          missing.push(id);
+          continue;
+        }
+        experts.push({ expert, score: 1 });
+      }
+      if (missing.length > 0) {
+        throw new Error(
+          `Unknown expert id(s): ${missing.join(', ')}. Pass catalog expert ids or omit expertIds for auto-select.`,
+        );
+      }
     } else {
       // Auto-select experts based on task analysis
       const analysis = await this.analyzeTask(taskDescription);
@@ -158,7 +167,7 @@ export class UltraSwarmOrchestrator {
         divisionLabel: result.expert.divisionLabel,
         emoji: result.expert.emoji,
         color: result.expert.color,
-        prompt: this.buildExpertPrompt(result.expert, taskDescription, index),
+        prompt: this.buildExpertPrompt(result.expert, taskDescription, index, experts.length),
         dependsOn: strategy === 'sequential' && index > 0 && prev !== undefined ? [prev.expert.id] : undefined,
         coverageLane: coverageLaneForExpert(result.expert, taskDescription),
         selectionReason: selectionReasonForExpert(result.expert),
@@ -172,11 +181,16 @@ export class UltraSwarmOrchestrator {
     };
   }
 
-  private buildExpertPrompt(expert: ExpertCatalogEntry, taskDescription: string, index: number): string {
+  private buildExpertPrompt(
+    expert: ExpertCatalogEntry,
+    taskDescription: string,
+    index: number,
+    totalExperts: number,
+  ): string {
     return buildExpertAssignmentPrompt(expert, {
       taskDescription,
       swarmIndex: index,
-      totalExperts: undefined,
+      totalExperts,
     });
   }
 }

@@ -234,26 +234,136 @@ describe('ultra-swarm restaff/prompt pure builders', () => {
         color: '#00f',
         coverageLane: 'testing_evidence',
       },
+      {
+        expertId: 'plan',
+        expertName: 'Planner',
+        prompt: 'Plan',
+        emoji: '📋',
+        color: '#ff0',
+        coverageLane: 'product_requirements',
+      },
     ] as ExpertAssignment[];
     const specs = buildInitialSpecs({
       experts,
       focus: 'full',
       runId: 'run-2',
-      workNodeIds: ['n1'],
+      workNodeIds: ['n1', 'n2', 'n3'],
       requiredExpertIds: new Set(['impl']),
     });
-    expect(specs).toHaveLength(2);
+    expect(specs).toHaveLength(3);
+    // focus=full must NOT force every expert requiredForCompletion.
     expect(specs[0]).toMatchObject({
       expertId: 'impl',
       phase: 'implement',
       requiredForCompletion: true,
-      workNodeIds: ['n1'],
     });
     expect(specs[1]).toMatchObject({
       expertId: 'rev',
       phase: 'review',
       requiredForCompletion: true,
     });
+    expect(specs[2]).toMatchObject({
+      expertId: 'plan',
+      phase: 'plan',
+      requiredForCompletion: false,
+    });
+    // Work nodes are partitioned (round-robin), not cloned to every expert.
+    const assigned = specs.flatMap((spec) => spec.workNodeIds);
+    expect(assigned.sort()).toEqual(['n1', 'n2', 'n3']);
+    expect(new Set(assigned).size).toBe(3);
+    for (const spec of specs) {
+      expect(spec.workNodeIds.length).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('buildInitialSpecs prefers laneId match when assigning work nodes', () => {
+    const experts = [
+      {
+        expertId: 'impl',
+        expertName: 'Implementer',
+        prompt: 'Implement',
+        emoji: '🔧',
+        color: '#0f0',
+        coverageLane: 'architecture_implementation',
+      },
+      {
+        expertId: 'rev',
+        expertName: 'Reviewer',
+        prompt: 'Review',
+        emoji: '✅',
+        color: '#00f',
+        coverageLane: 'testing_evidence',
+      },
+    ] as ExpertAssignment[];
+    const specs = buildInitialSpecs({
+      experts,
+      focus: 'full',
+      runId: 'run-lane',
+      workNodeIds: ['a', 'b'],
+      workNodes: [
+        {
+          id: 'a',
+          title: 'Review tests',
+          stage: 'verify',
+          status: 'queued',
+          laneId: 'testing_evidence',
+        },
+        {
+          id: 'b',
+          title: 'Implement feature',
+          stage: 'swarm',
+          status: 'queued',
+          laneId: 'implementation_core', // alias → architecture_implementation
+        },
+      ],
+      requiredExpertIds: new Set(),
+    });
+    expect(specs[0]?.workNodeIds).toEqual(['b']);
+    expect(specs[1]?.workNodeIds).toEqual(['a']);
+  });
+
+  it('buildInitialSpecs falls back to stage when laneId is missing', () => {
+    const experts = [
+      {
+        expertId: 'impl',
+        expertName: 'Implementer',
+        prompt: 'Implement',
+        emoji: '🔧',
+        color: '#0f0',
+        coverageLane: 'architecture_implementation',
+      },
+      {
+        expertId: 'rev',
+        expertName: 'Reviewer',
+        prompt: 'Review',
+        emoji: '✅',
+        color: '#00f',
+        coverageLane: 'testing_evidence',
+      },
+    ] as ExpertAssignment[];
+    const specs = buildInitialSpecs({
+      experts,
+      focus: 'full',
+      runId: 'run-stage',
+      workNodeIds: ['v1', 's1'],
+      workNodes: [
+        {
+          id: 'v1',
+          title: 'Verify',
+          stage: 'verify',
+          status: 'queued',
+        },
+        {
+          id: 's1',
+          title: 'Swarm work',
+          stage: 'swarm',
+          status: 'queued',
+        },
+      ],
+      requiredExpertIds: new Set(),
+    });
+    expect(specs[0]?.workNodeIds).toEqual(['s1']);
+    expect(specs[1]?.workNodeIds).toEqual(['v1']);
   });
 
   it('shouldSkipAdaptiveRestaff honors steer pause and solid consensus', () => {

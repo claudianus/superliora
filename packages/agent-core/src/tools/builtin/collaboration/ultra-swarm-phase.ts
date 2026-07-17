@@ -420,7 +420,16 @@ export function buildInitialSpecs(input: {
   readonly runId: string;
   readonly workNodeIds: readonly string[];
   readonly requiredExpertIds: ReadonlySet<string>;
+  /** Optional work-graph nodes for lane-aware ownership (preferred over id-only list). */
+  readonly workNodes?: readonly WorkGraphNode[];
 }): UltraSwarmSpec[] {
+  const expertCount = input.experts.length;
+  const ownership = assignWorkNodeIdsToExperts({
+    experts: input.experts,
+    workNodeIds: input.workNodeIds,
+    workNodes: input.workNodes,
+  });
+
   return input.experts.map((assignment, index) => {
     const phase = phaseForAssignment(assignment, input.focus);
     return {
@@ -437,14 +446,118 @@ export function buildInitialSpecs(input: {
       coverageLane: assignment.coverageLane,
       selectionReason: assignment.selectionReason,
       runId: input.runId,
+      // focus=full no longer marks every expert completion-critical; only required
+      // ids, review-phase experts, and review-only focus do.
       requiredForCompletion:
         input.requiredExpertIds.has(assignment.expertId) ||
         phase === 'review' ||
-        input.focus === 'review' ||
-        input.focus === 'full',
-      workNodeIds: input.workNodeIds,
+        input.focus === 'review',
+      workNodeIds: expertCount === 0 ? [] : (ownership[index] ?? []),
     };
   });
+}
+
+/**
+ * Normalize coverage / work-graph lane ids so plan table shorthand and
+ * orchestrator coverage lanes still match (e.g. implementation_core ↔
+ * architecture_implementation).
+ */
+export function normalizeCoverageLaneKey(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const key = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (key.length === 0) return undefined;
+  const aliases: Record<string, string> = {
+    implementation_core: 'architecture_implementation',
+    implementation: 'architecture_implementation',
+    architecture: 'architecture_implementation',
+    engineering: 'architecture_implementation',
+    product: 'product_requirements',
+    requirements: 'product_requirements',
+    testing: 'testing_evidence',
+    test: 'testing_evidence',
+    qa: 'testing_evidence',
+    review: 'testing_evidence',
+    security: 'security_privacy',
+    privacy: 'security_privacy',
+    performance: 'performance_reliability',
+    reliability: 'performance_reliability',
+    ux: 'ux_visual_content',
+    ui: 'ux_visual_content',
+    visual: 'ux_visual_content',
+    design: 'ux_visual_content',
+    domain: 'domain_subject_matter',
+    research: 'domain_subject_matter',
+  };
+  return aliases[key] ?? key;
+}
+
+/** Map Ultrawork stage → preferred coverage lane when laneId is missing/mismatched. */
+export function coverageLaneForWorkStage(stage: WorkGraphNode['stage'] | undefined): string | undefined {
+  if (stage === undefined) return undefined;
+  switch (stage) {
+    case 'research':
+    case 'intake':
+      return 'domain_subject_matter';
+    case 'plan':
+    case 'goal':
+      return 'product_requirements';
+    case 'staff':
+    case 'swarm':
+    case 'integrate':
+      return 'architecture_implementation';
+    case 'verify':
+      return 'testing_evidence';
+    case 'learn':
+    case 'done':
+      return undefined;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Partition work nodes across experts. Prefer matching normalized `laneId`
+ * (or stage-derived lane) to the expert's coverage lane; remaining nodes go
+ * round-robin by expert index.
+ */
+export function assignWorkNodeIdsToExperts(input: {
+  readonly experts: readonly ExpertAssignment[];
+  readonly workNodeIds: readonly string[];
+  readonly workNodes?: readonly WorkGraphNode[];
+}): readonly (readonly string[])[] {
+  const expertCount = input.experts.length;
+  if (expertCount === 0) return [];
+  const buckets: string[][] = Array.from({ length: expertCount }, () => []);
+  if (input.workNodeIds.length === 0) return buckets;
+
+  const nodeById = new Map((input.workNodes ?? []).map((node) => [node.id, node]));
+  const laneToExpertIndex = new Map<string, number>();
+  for (let i = 0; i < expertCount; i += 1) {
+    const lane = normalizeCoverageLaneKey(input.experts[i]?.coverageLane);
+    if (lane !== undefined && !laneToExpertIndex.has(lane)) {
+      laneToExpertIndex.set(lane, i);
+    }
+  }
+
+  const unassigned: string[] = [];
+  for (const nodeId of input.workNodeIds) {
+    const node = nodeById.get(nodeId);
+    const fromLaneId = normalizeCoverageLaneKey(node?.laneId);
+    const fromStage = coverageLaneForWorkStage(node?.stage);
+    const laneMatch =
+      (fromLaneId !== undefined ? laneToExpertIndex.get(fromLaneId) : undefined) ??
+      (fromStage !== undefined ? laneToExpertIndex.get(fromStage) : undefined);
+    if (laneMatch !== undefined) {
+      buckets[laneMatch]!.push(nodeId);
+    } else {
+      unassigned.push(nodeId);
+    }
+  }
+
+  for (let i = 0; i < unassigned.length; i += 1) {
+    buckets[i % expertCount]!.push(unassigned[i]!);
+  }
+  return buckets;
 }
 
 export function shouldSkipAdaptiveRestaff(input: {

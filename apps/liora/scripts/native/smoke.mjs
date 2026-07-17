@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import { appRoot, nativeBinPath, nativeSmokeHome, targetTriple } from './paths.mjs';
@@ -63,6 +63,14 @@ function assertIncludes(output, expected, command) {
 }
 
 await ensureExecutableExists();
+
+try {
+  await stat(resolve(dirname(executablePath), 'catalog-personas.json'));
+} catch {
+  fail(
+    `Expert personas missing beside native binary at ${resolve(dirname(executablePath), 'catalog-personas.json')}. Inject step must copy catalog-personas.json next to the SEA executable.`,
+  );
+}
 
 const versionOutput = await runKimi(['--version']);
 assertIncludes(versionOutput, expectedVersion, '--version');

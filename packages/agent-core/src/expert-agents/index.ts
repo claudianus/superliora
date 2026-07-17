@@ -6,3 +6,5 @@ export * from './search';
 export * from './orchestrator';
 export * from './expert-persona';
 export * from './task-profile';
+export * from './synthetic-expert-registry';
+export * from './synthetic-expert-llm';

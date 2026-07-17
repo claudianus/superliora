@@ -42,6 +42,7 @@ import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from 
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
+import { synthesizeExpertsWithLlm } from '../../../expert-agents/synthetic-expert-llm';
 import type { ExpertSwarmPlan } from '../../../expert-agents/types';
 import type { SwarmRoutingIntensity } from '../../../agent/plan/ultra-swarm-routing';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
@@ -56,6 +57,7 @@ import {
   mergeReviewResults,
   needsReviewRetry,
   normalizeOptionalString,
+  planFromSyntheticExperts,
   resolveMaxExperts,
   uniqueStrings,
   withWorkNodeSelectionHint,
@@ -251,7 +253,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     }
 
     // Build the swarm plan
-    const plan = await this.buildPlan(
+    let plan = await this.buildPlan(
       withWorkNodeSelectionHint(args.description, workNodeContext?.nodes ?? []),
       autoSelect,
       requestedExperts,
@@ -259,8 +261,18 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       args.intensity,
     );
 
+    // Catalog miss / empty plan: invent elite specialists via the active LLM.
+    if (plan.experts.length === 0 && autoSelect) {
+      plan = await this.synthesizeFallbackPlan({
+        description: args.description,
+        intensity: args.intensity,
+        maxExperts,
+        signal,
+      });
+    }
+
     if (plan.experts.length === 0) {
-      return 'No matching experts found for this task. Try being more specific in your description.';
+      return 'No matching experts found for this task, and synthetic expert generation did not yield a specialist. Try being more specific in your description.';
     }
 
     if (plan.experts.length > MAX_ULTRA_SWARM_SUBAGENTS) {
@@ -276,6 +288,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       focus: args.focus,
       runId,
       workNodeIds: workNodeContext?.nodes.map((node) => node.id) ?? [],
+      workNodes: workNodeContext?.nodes,
       requiredExpertIds,
     });
 
@@ -351,7 +364,18 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       });
     }
     if (workNodeContext !== undefined) {
-      this.finishWorkNodes(workNodeContext.nodes.map((node) => node.id), rendered);
+      const claimed = new Set<string>();
+      for (const result of rendered) {
+        if (result.spec.workNodeIds.length === 0) continue;
+        this.finishWorkNodes(result.spec.workNodeIds, [result]);
+        for (const id of result.spec.workNodeIds) claimed.add(id);
+      }
+      const unclaimed = workNodeContext.nodes
+        .map((node) => node.id)
+        .filter((id) => !claimed.has(id));
+      if (unclaimed.length > 0) {
+        this.finishWorkNodes(unclaimed, rendered);
+      }
     }
     this.agent.ultraSwarmEngageGate?.clear('ultra-swarm-completed');
     maybeAdvanceUltraworkStage(this.agent, 'integrate', 'UltraSwarm completed');
@@ -622,6 +646,34 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       return capPlan(mergePlans(required, base), maxExperts);
     }
     return capPlan(base, maxExperts);
+  }
+
+  /**
+   * When the static catalog cannot staff the task, ask the active model to
+   * invent high-quality specialist personas and register them for spawn.
+   */
+  private async synthesizeFallbackPlan(input: {
+    readonly description: string;
+    readonly intensity: UltraSwarmToolInput['intensity'];
+    readonly maxExperts: number;
+    readonly signal: AbortSignal;
+  }): Promise<ExpertSwarmPlan> {
+    const experts = await synthesizeExpertsWithLlm(
+      {
+        generate: this.agent.generate,
+        provider: this.agent.config.provider,
+      },
+      {
+        taskDescription: input.description,
+        intensity: input.intensity,
+        count: Math.min(input.maxExperts, input.intensity === 'max' ? 3 : input.intensity === 'premium' ? 2 : 1),
+        signal: input.signal,
+      },
+    );
+    if (experts.length === 0) {
+      return { taskDescription: input.description, experts: [], strategy: 'sequential' };
+    }
+    return capPlan(planFromSyntheticExperts(input.description, experts), input.maxExperts);
   }
 
   private async runPhaseExperts(input: {

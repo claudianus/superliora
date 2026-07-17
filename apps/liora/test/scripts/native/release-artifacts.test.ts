@@ -98,8 +98,11 @@ describe('native release artifacts', () => {
 
   it('packages the native binary as a zip archive and checksums the archive', async () => {
     const binaryContent = 'native binary payload\n';
+    const personasContent = '{"synthetic-expert":"# Synthetic\\n"}';
     mkdirSync(resolve(appRoot, 'dist-native/bin', target), { recursive: true });
     writeFileSync(fakeBinary, binaryContent, { mode: 0o755 });
+    // package.mjs requires personas beside the binary (or CLI dist fallback).
+    writeFileSync(resolve(appRoot, 'dist-native/bin', target, 'catalog-personas.json'), personasContent);
 
     await execFileAsync(process.execPath, [packageScript], {
       cwd: appRoot,
@@ -110,8 +113,9 @@ describe('native release artifacts', () => {
     const checksumPath = `${archivePath}.sha256`;
     expect(existsSync(archivePath)).toBe(true);
     expect(existsSync(checksumPath)).toBe(true);
-    expect(zipEntryNames(archivePath)).toEqual([executableName]);
+    expect(zipEntryNames(archivePath).sort()).toEqual([executableName, 'catalog-personas.json'].sort());
     expect(readZipEntry(archivePath, executableName).toString('utf-8')).toBe(binaryContent);
+    expect(readZipEntry(archivePath, 'catalog-personas.json').toString('utf-8')).toBe(personasContent);
     expect(readFileSync(checksumPath, 'utf-8')).toBe(
       `${sha256(readFileSync(archivePath))}  liora-${target}.zip\n`,
     );

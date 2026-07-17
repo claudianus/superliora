@@ -1,5 +1,5 @@
 import { copyFile, mkdir, stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 import { fail, run, tryRun } from './exec.mjs';
 import {
@@ -33,6 +33,28 @@ async function copyNodeExecutable(target) {
   }
 }
 
+async function copyPersonasBesideBinary(target) {
+  const out = nativeBinPath(target);
+  const dest = resolve(dirname(out), 'catalog-personas.json');
+  const candidates = [
+    resolve(appRoot, 'dist', 'catalog-personas.json'),
+    resolve(appRoot, '../..', 'packages/agent-core/src/expert-agents/catalog-personas.json'),
+  ];
+  for (const source of candidates) {
+    try {
+      await stat(source);
+      await copyFile(source, dest);
+      console.log(`Copied expert personas beside native binary: ${dest}`);
+      return;
+    } catch {
+      // try next candidate
+    }
+  }
+  fail(
+    `Expert personas missing for native inject. Expected one of:\n${candidates.map((p) => `  - ${p}`).join('\n')}`,
+  );
+}
+
 async function removeSignatureIfNeeded(target) {
   const out = nativeBinPath(target);
   if (process.platform === 'darwin') {
@@ -56,6 +78,7 @@ export async function runInjectStep() {
   const target = targetTriple();
   await ensureBlobExists();
   await copyNodeExecutable(target);
+  await copyPersonasBesideBinary(target);
   await removeSignatureIfNeeded(target);
   await injectSeaBlob(target);
 }
