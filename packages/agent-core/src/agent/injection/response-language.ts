@@ -8,8 +8,10 @@ import { DynamicInjector } from './injector';
  * even when no new user prompt has arrived. Keeps a fresh copy near the tail
  * of the context so the model does not drift back to English as the
  * conversation grows long or after context compaction.
+ * 2-turn densify thrash burned tokens on multi-tool loops; 4 matches Premium
+ * sparse cadence while still beating Lost-in-the-Middle drift.
  */
-const RESPONSE_LANGUAGE_REFRESH_ASSISTANT_TURNS = 2;
+const RESPONSE_LANGUAGE_REFRESH_ASSISTANT_TURNS = 4;
 
 export class ResponseLanguageInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'response_language';
