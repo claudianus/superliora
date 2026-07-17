@@ -403,6 +403,37 @@ describe('LocalWebSearchProvider', () => {
     expect(results.every((result) => result.content?.startsWith('Fetched https://example.com/docs-'))).toBe(true);
     expect(maxActive).toBeLessThanOrEqual(2);
   });
+
+  it('truncates include_content page text to the token-friendly char cap', async () => {
+    const html = [
+      '<html><body>',
+      '<div class="result">',
+      '<a class="result__a" href="https://example.com/long">Long Doc</a>',
+      '<a class="result__snippet">Snippet</a>',
+      '</div>',
+      '</body></html>',
+    ].join('');
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    );
+    const longBody = 'x'.repeat(12_000);
+    const urlFetcher: UrlFetcher = {
+      fetch: vi.fn(async () => ({ content: longBody, kind: 'extracted' as const })),
+    };
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      urlFetcher,
+      searchUrl: 'https://duckduckgo.com/html/',
+      directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+    });
+    const results = await provider.search('long page', { limit: 1, includeContent: true });
+    expect(results).toHaveLength(1);
+    expect(results[0]?.content?.length).toBeLessThanOrEqual(8_001);
+    expect(results[0]?.content?.endsWith('…')).toBe(true);
+  });
 });
 
 describe('MoonshotWebSearchProvider', () => {

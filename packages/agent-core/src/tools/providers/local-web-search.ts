@@ -59,6 +59,8 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_WEB_CACHE_TTL_MS = 7 * 86_400_000;
 const MAX_ADAPTER_RESULTS = 12;
 const CONTENT_FETCH_LIMIT = 4;
+/** Cap page text when include_content is on — full pages thrash context. */
+const INCLUDE_CONTENT_MAX_CHARS = 8_000;
 
 export interface LocalSearchDirectSources {
   readonly github?: boolean;
@@ -212,12 +214,16 @@ export class LocalWebSearchProvider implements WebSearchProvider {
       try {
         const fetched = await this.urlFetcher?.fetch(result.url, {});
         if (fetched === undefined || fetched.content.trim().length === 0) return result;
+        const content =
+          fetched.content.length > INCLUDE_CONTENT_MAX_CHARS
+            ? `${fetched.content.slice(0, INCLUDE_CONTENT_MAX_CHARS)}…`
+            : fetched.content;
         return buildResult({
           title: result.title,
           url: result.url,
           snippet: result.snippet,
           date: result.date,
-          content: fetched.content,
+          content,
         });
       } catch {
         return result;
