@@ -606,7 +606,7 @@ export class ToolCallComponent extends Container {
   // spinner). Cleared when the result lands — the result is the
   // authoritative final state.
   private progressLines: string[] = [];
-  private static readonly MAX_PROGRESS_LINES = 24;
+  private static readonly MAX_PROGRESS_LINES = 8;
   private liveOutput = '';
   private liveOutputTruncated = false;
 
