@@ -14,7 +14,8 @@ import {
 import { escapeXml, escapeXmlAttr } from '../../utils/xml-escape';
 
 const MAX_CONTEXT_OS_PAGES = 16;
-const MAX_SELECTED_PAGES = 2;
+/** Top-k pages considered for injection; budgeted renderer still clamps to MAX_INJECTION_CHARS. */
+const MAX_SELECTED_PAGES = 3;
 const MAX_INJECTION_CHARS = 3_500;
 const MAX_LIST_ITEMS = 5;
 const MAX_FILE_HINTS = 8;

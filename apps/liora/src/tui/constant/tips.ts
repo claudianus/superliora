@@ -69,4 +69,5 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
   { text: 'TUI glances: thinking 4 · command 4 · result 3 (not densify 1/1/2)', priority: 2, solo: true },
+  { text: 'Context OS injects up to 3 ranked memory pages (≤3.5k chars) after compact — verify raw refs on failure paths', priority: 1, solo: true },
 ];
