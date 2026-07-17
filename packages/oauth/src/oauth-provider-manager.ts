@@ -54,6 +54,12 @@ export interface ProviderLoginOptions extends LoginOptions {
    * PKCE. Defaults to `false` (device-code where available).
    */
   readonly preferBrowser?: boolean;
+  /**
+   * Explicit credential storage key. Used by multi-account login so each
+   * account gets its own `~/.superliora/credentials/<key>.json` file instead
+   * of overwriting the provider default.
+   */
+  readonly storageKey?: string;
 }
 
 export interface ProviderLoginCallbacks {
@@ -86,32 +92,35 @@ export class OAuthProviderManager {
     this.onRefresh = options.onRefresh;
   }
 
-  /** The credential storage name for a provider (also the filename). */
+  /** The default credential storage name for a provider (also the filename). */
   storageName(providerId: string): string {
     return providerId.replace(/^managed:/, '').replaceAll(/[^a-zA-Z0-9._-]/g, '-');
   }
 
-  /** Returns whether a token is persisted for the provider. */
-  async hasToken(providerId: string): Promise<boolean> {
-    return this.managerFor(providerId).hasToken();
+  /** Returns whether a token is persisted for the provider/storage key. */
+  async hasToken(providerId: string, storageKey?: string): Promise<boolean> {
+    return this.managerFor(providerId, storageKey).hasToken();
   }
 
   /** Returns a cached access token without forcing a refresh. */
-  async getCachedAccessToken(providerId: string): Promise<string | undefined> {
-    return this.managerFor(providerId).getCachedAccessToken();
+  async getCachedAccessToken(
+    providerId: string,
+    storageKey?: string,
+  ): Promise<string | undefined> {
+    return this.managerFor(providerId, storageKey).getCachedAccessToken();
   }
 
   /** Returns a valid access token, refreshing when necessary. */
   async ensureFresh(
     providerId: string,
-    options: { readonly force?: boolean } = {},
+    options: { readonly force?: boolean; readonly storageKey?: string } = {},
   ): Promise<string> {
-    return this.managerFor(providerId).ensureFresh(options);
+    return this.managerFor(providerId, options.storageKey).ensureFresh(options);
   }
 
-  /** Removes the persisted token for the provider. */
-  async logout(providerId: string): Promise<void> {
-    await this.managerFor(providerId).logout();
+  /** Removes the persisted token for the provider/storage key. */
+  async logout(providerId: string, storageKey?: string): Promise<void> {
+    await this.managerFor(providerId, storageKey).logout();
   }
 
   /**
@@ -138,22 +147,27 @@ export class OAuthProviderManager {
     }
   }
 
-  /** Builds (and caches) the {@link OAuthManager} for a provider. */
-  managerFor(providerId: string): OAuthManager {
-    let manager = this.managers.get(providerId);
-    if (manager !== undefined) return manager;
-
+  /**
+   * Builds (and caches) the {@link OAuthManager} for a provider + storage key.
+   * Multi-account pools use one manager per storage key so each account has
+   * its own token file and refresh lock.
+   */
+  managerFor(providerId: string, storageKey?: string): OAuthManager {
     const profile = getProviderProfile(providerId);
     if (profile === undefined) {
       throw new OAuthError(`No OAuth profile for provider "${providerId}".`);
     }
-    manager = this.createManager(profile);
-    this.managers.set(providerId, manager);
+    const resolvedKey = storageKey ?? this.storageName(providerId);
+    const cacheKey = `${providerId}\0${resolvedKey}`;
+    let manager = this.managers.get(cacheKey);
+    if (manager !== undefined) return manager;
+
+    manager = this.createManager(profile, resolvedKey);
+    this.managers.set(cacheKey, manager);
     return manager;
   }
 
-  private createManager(profile: ProviderProfile): OAuthManager {
-    const storageName = this.storageName(profile.id);
+  private createManager(profile: ProviderProfile, storageName: string): OAuthManager {
     const flow = profile.flow;
     return new OAuthManager({
       config: { ...flow, name: storageName },
@@ -192,7 +206,8 @@ export class OAuthProviderManager {
       signal: options.signal,
     });
     const tokenInfo = toOpenAiTokenInfo(token);
-    await this.storage.save(this.storageName(profile.id), tokenInfo);
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, tokenInfo);
     return tokenInfo;
   }
 
@@ -225,7 +240,8 @@ export class OAuthProviderManager {
                 signal: options.signal,
               }),
             );
-    await this.storage.save(this.storageName(profile.id), token);
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
     return token;
   }
 }

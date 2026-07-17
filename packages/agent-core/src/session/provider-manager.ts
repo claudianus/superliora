@@ -3,6 +3,10 @@ import type { Logger } from '#/logging/types';
 import type { ProviderConfig as KosongProviderConfig, ModelCapability, ProviderRequestAuth } from '@superliora/kosong';
 import { APIStatusError, getModelCapability, UNKNOWN_CAPABILITY } from '@superliora/kosong';
 import {
+  isXaiGrokBuildBaseUrl,
+  xaiGrokBuildRequestHeaders,
+} from '@superliora/oauth';
+import {
   effectiveModelAlias,
   type LioraConfig,
   type ModelAlias,
@@ -484,7 +488,7 @@ function toKosongProviderConfig(
           providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL', 'provider base_url'),
         apiKey: providerApiKey(provider),
         reasoningKey,
-        ...defaultHeadersField(provider.customHeaders),
+        ...defaultHeadersField(openaiProviderHeaders(provider, model)),
       };
     case 'kimi':
       return {
@@ -564,6 +568,28 @@ function defaultHeadersField(
 ): { defaultHeaders?: Record<string, string> } {
   if (headers === undefined || Object.keys(headers).length === 0) return {};
   return { defaultHeaders: { ...headers } };
+}
+
+/**
+ * OpenAI-compatible providers that use the Grok Build chat proxy need the
+ * CLI session auth marker and a model-override header so traffic bills to
+ * Grok Build instead of the public API. Public-API and non-xAI providers
+ * keep only the configured custom headers.
+ */
+function openaiProviderHeaders(
+  provider: ProviderConfig,
+  model: string,
+): Record<string, string> | undefined {
+  const baseUrl =
+    firstCredentialBaseUrlWhenPrimary(provider) ??
+    providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL', 'provider base_url');
+  if (!isXaiGrokBuildBaseUrl(baseUrl) && !isXaiGrokBuildBaseUrl(provider.baseUrl)) {
+    return provider.customHeaders;
+  }
+  return {
+    ...xaiGrokBuildRequestHeaders(model),
+    ...provider.customHeaders,
+  };
 }
 
 function providerApiKey(provider: ProviderConfig): string | undefined {

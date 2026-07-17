@@ -269,7 +269,7 @@ export class LioraAuthFacade {
   ): Promise<string | undefined> {
     const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
     if (this.isNonKimiOAuthProvider(name)) {
-      return this.providerManager.getCachedAccessToken(name);
+      return this.providerManager.getCachedAccessToken(name, oauthRef?.key);
     }
     return this.toolkit.getCachedAccessToken(
       providerName,
@@ -284,7 +284,10 @@ export class LioraAuthFacade {
     if (this.isNonKimiOAuthProvider(providerName)) {
       return {
         getAccessToken: (options) =>
-          this.providerManager.ensureFresh(providerName, options ?? {}),
+          this.providerManager.ensureFresh(providerName, {
+            ...(options ?? {}),
+            ...(oauthRef?.key === undefined ? {} : { storageKey: oauthRef.key }),
+          }),
       };
     }
     const provider = this.toolkit.tokenProvider(

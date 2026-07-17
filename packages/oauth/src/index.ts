@@ -113,6 +113,13 @@ export type {
 } from './managed-kimi-code';
 
 export {
+  allocateProviderOAuthAccountKey,
+  listProviderOAuthRefs,
+  mergeProviderOAuthLogin,
+} from './provider-oauth-pool';
+export type { ProviderOAuthRef } from './provider-oauth-pool';
+
+export {
   fetchManagedUsage,
   formatDuration,
   formatResetTime,
@@ -211,10 +218,19 @@ export {
   EXPERIMENTAL_PROVIDER_PROFILES,
   getProviderProfile,
   isOAuthProviderId,
+  isXaiGrokApiBaseUrl,
+  isXaiGrokBuildBaseUrl,
   KIMI_PROFILE,
   OPENAI_PROFILE,
   PROVIDER_PROFILES,
+  resolveXaiGrokRoute,
+  XAI_GROK_API_BASE_URL,
+  XAI_GROK_BUILD_BASE_URL,
+  XAI_GROK_BUILD_TOKEN_AUTH,
   XAI_PROFILE,
+  xaiGrokBuildAuthHeaders,
+  xaiGrokBuildRequestHeaders,
+  xaiGrokRouteConfig,
 } from './profiles';
 export type {
   OAuthFlowKind,
@@ -223,6 +239,8 @@ export type {
   ProviderFlowConfig,
   ProviderModelPreset,
   ProviderProfile,
+  XaiGrokRoute,
+  XaiGrokRouteConfig,
 } from './profiles';
 
 export { OAuthProviderManager } from './oauth-provider-manager';

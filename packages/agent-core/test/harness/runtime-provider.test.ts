@@ -565,6 +565,70 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
     });
   });
 
+  it('adds Grok Build CLI headers when the openai base URL is the Build proxy', () => {
+    const resolved = resolveRuntimeProvider({
+      config: {
+        defaultModel: 'xai-grok/grok-4.5',
+        providers: {
+          'xai-grok': {
+            type: 'openai',
+            baseUrl: 'https://cli-chat-proxy.grok.com/v1',
+            oauth: { storage: 'file', key: 'xai-grok' },
+            customHeaders: { 'X-XAI-Token-Auth': 'xai-grok-cli' },
+          },
+        },
+        models: {
+          'xai-grok/grok-4.5': {
+            provider: 'xai-grok',
+            model: 'grok-4.5',
+            maxContextSize: 500000,
+            capabilities: ['thinking', 'tool_use'],
+          },
+        },
+      },
+    });
+
+    expect(resolved.provider).toMatchObject({
+      type: 'openai',
+      baseUrl: 'https://cli-chat-proxy.grok.com/v1',
+      defaultHeaders: {
+        'X-XAI-Token-Auth': 'xai-grok-cli',
+        'x-grok-model-override': 'grok-4.5',
+      },
+    });
+  });
+
+  it('does not inject Grok Build headers for the public xAI API base URL', () => {
+    const resolved = resolveRuntimeProvider({
+      config: {
+        defaultModel: 'xai-grok/grok-4.5',
+        providers: {
+          'xai-grok': {
+            type: 'openai',
+            baseUrl: 'https://api.x.ai/v1',
+            oauth: { storage: 'file', key: 'xai-grok' },
+          },
+        },
+        models: {
+          'xai-grok/grok-4.5': {
+            provider: 'xai-grok',
+            model: 'grok-4.5',
+            maxContextSize: 500000,
+            capabilities: ['thinking', 'tool_use'],
+          },
+        },
+      },
+    });
+
+    expect(resolved.provider).toMatchObject({
+      type: 'openai',
+      baseUrl: 'https://api.x.ai/v1',
+    });
+    expect(
+      (resolved.provider as { defaultHeaders?: Record<string, string> }).defaultHeaders,
+    ).toBeUndefined();
+  });
+
   it('forwards customHeaders to an openai_responses provider', () => {
     const resolved = resolveRuntimeProvider({
       config: {

@@ -4,7 +4,10 @@
  * runtime when a `discoveryUrl` is set, otherwise fall back to the configured
  * authorize/token URLs.
  *
- * The access token is a Bearer token for `https://api.x.ai/v1`.
+ * The access token is a Bearer session token. SuperLiora routes it by default
+ * through the Grok Build chat proxy (`cli-chat-proxy.grok.com`); the public
+ * API host (`api.x.ai`) remains available when the provider base URL is set
+ * there instead.
  */
 
 import { OAuthError, OAuthUnauthorizedError } from './errors';

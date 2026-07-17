@@ -8,7 +8,18 @@ import { ANTHROPIC_PROFILE } from './anthropic';
 import { KIMI_PROFILE } from './kimi';
 import { OPENAI_PROFILE } from './openai';
 import type { OAuthProviderId, ProviderProfile } from './provider-profile';
-import { XAI_PROFILE } from './xai';
+import {
+  isXaiGrokApiBaseUrl,
+  isXaiGrokBuildBaseUrl,
+  resolveXaiGrokRoute,
+  XAI_GROK_API_BASE_URL,
+  XAI_GROK_BUILD_BASE_URL,
+  XAI_GROK_BUILD_TOKEN_AUTH,
+  XAI_PROFILE,
+  xaiGrokBuildAuthHeaders,
+  xaiGrokBuildRequestHeaders,
+  xaiGrokRouteConfig,
+} from './xai';
 
 export type { OAuthFlowKind, OAuthProviderId, OAuthProviderWire, ProviderFlowConfig, ProviderModelPreset, ProviderProfile } from './provider-profile';
 
@@ -50,4 +61,19 @@ export function isOAuthProviderId(id: string): boolean {
   return PROFILE_BY_ID.has(id);
 }
 
-export { ANTHROPIC_PROFILE, KIMI_PROFILE, OPENAI_PROFILE, XAI_PROFILE };
+export {
+  ANTHROPIC_PROFILE,
+  KIMI_PROFILE,
+  OPENAI_PROFILE,
+  XAI_PROFILE,
+  XAI_GROK_API_BASE_URL,
+  XAI_GROK_BUILD_BASE_URL,
+  XAI_GROK_BUILD_TOKEN_AUTH,
+  isXaiGrokApiBaseUrl,
+  isXaiGrokBuildBaseUrl,
+  resolveXaiGrokRoute,
+  xaiGrokBuildAuthHeaders,
+  xaiGrokBuildRequestHeaders,
+  xaiGrokRouteConfig,
+};
+export type { XaiGrokRoute, XaiGrokRouteConfig } from './xai';

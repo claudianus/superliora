@@ -17,9 +17,16 @@ import {
   KIMI_PROFILE,
   OPENAI_PROFILE,
   PROVIDER_PROFILES,
+  XAI_GROK_API_BASE_URL,
+  XAI_GROK_BUILD_BASE_URL,
   XAI_PROFILE,
   getProviderProfile,
   isOAuthProviderId,
+  isXaiGrokApiBaseUrl,
+  isXaiGrokBuildBaseUrl,
+  resolveXaiGrokRoute,
+  xaiGrokBuildRequestHeaders,
+  xaiGrokRouteConfig,
 } from '../src/profiles';
 import {
   requestOpenAiUserCode,
@@ -106,10 +113,27 @@ describe('provider profile registry', () => {
     expect(OPENAI_PROFILE.flow.kind).toBe('device_code_openai');
   });
 
-  it('configures xAI flow with OIDC discovery', () => {
+  it('configures xAI OAuth to the Grok Build proxy by default', () => {
     expect(XAI_PROFILE.flow.discoveryUrl).toContain('.well-known/openid-configuration');
     expect(XAI_PROFILE.flow.kind).toBe('pkce_browser');
-    expect(XAI_PROFILE.apiBaseUrl).toBe('https://api.x.ai/v1');
+    expect(XAI_PROFILE.apiBaseUrl).toBe(XAI_GROK_BUILD_BASE_URL);
+    expect(XAI_PROFILE.customHeaders).toEqual({ 'X-XAI-Token-Auth': 'xai-grok-cli' });
+  });
+
+  it('classifies Grok Build vs Grok API base URLs', () => {
+    expect(resolveXaiGrokRoute()).toBe('build');
+    expect(resolveXaiGrokRoute(XAI_GROK_BUILD_BASE_URL)).toBe('build');
+    expect(resolveXaiGrokRoute(XAI_GROK_API_BASE_URL)).toBe('api');
+    expect(isXaiGrokBuildBaseUrl(XAI_GROK_BUILD_BASE_URL)).toBe(true);
+    expect(isXaiGrokApiBaseUrl(XAI_GROK_API_BASE_URL)).toBe(true);
+    expect(xaiGrokRouteConfig('api')).toEqual({ route: 'api', baseUrl: XAI_GROK_API_BASE_URL });
+    expect(xaiGrokRouteConfig('build').customHeaders).toEqual({
+      'X-XAI-Token-Auth': 'xai-grok-cli',
+    });
+    expect(xaiGrokBuildRequestHeaders('grok-4.5')).toEqual({
+      'X-XAI-Token-Auth': 'xai-grok-cli',
+      'x-grok-model-override': 'grok-4.5',
+    });
   });
 
   it('ships model presets for OpenAI Codex', () => {
