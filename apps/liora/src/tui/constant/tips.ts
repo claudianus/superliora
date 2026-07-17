@@ -48,7 +48,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/status: context · ZDR · web/Context7 · media · office · LioraBench', priority: 3, solo: true },
   { text: '/context: memory continuity + privacy (ZDR)', priority: 3, solo: true },
   { text: 'media: OPENAI/GOOGLE key → GenerateImage 1024² / GenerateVideo 16:9·5s — no MCP', priority: 2, solo: true },
-  { text: 'research: Context7 (8 matches · 12k docs) + WebSearch/FetchURL — no MCP', priority: 2, solo: true },
+  { text: 'research: Context7 (8 matches · 12k chars docs text) + WebSearch/FetchURL — no MCP', priority: 2, solo: true },
   { text: 'office: SearchSkill "Word docx report" / pptx slides / xlsx sheet ranks primary skills first — zero MCP', priority: 2, solo: true },
   { text: 'WebSearch 3 hits · include_content 8k · FetchURL soft-cap 16k — prefer sharper URLs over full dumps', priority: 1, solo: true },
   { text: '/bench: LioraBench score · loop · next rerun', priority: 2, solo: true },
