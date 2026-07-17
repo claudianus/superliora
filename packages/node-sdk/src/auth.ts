@@ -12,6 +12,7 @@ import {
   SUPERLIORA_PROVIDER_NAME,
   isOAuthProviderId,
   KimiOAuthToolkit,
+  listManagedKimiOAuthRefs,
   OAuthProviderManager,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
@@ -95,6 +96,28 @@ export interface LioraAuthFacadeOptions {
   readonly onConfigUpdated?: ((config: LioraConfig) => void) | undefined;
   readonly onRefresh?: ((outcome: OAuthRefreshOutcome) => void) | undefined;
 }
+
+type ManagedUsageOkSummary = Extract<AuthManagedUsageResult, { kind: 'ok' }>['summary'];
+type ManagedUsageOkLimits = Extract<AuthManagedUsageResult, { kind: 'ok' }>['limits'];
+
+export interface ManagedAccountUsageOk {
+  readonly accountKey: string;
+  readonly label?: string | undefined;
+  readonly isPrimary: boolean;
+  readonly kind: 'ok';
+  readonly summary: ManagedUsageOkSummary;
+  readonly limits: ManagedUsageOkLimits;
+}
+
+export interface ManagedAccountUsageError {
+  readonly accountKey: string;
+  readonly label?: string | undefined;
+  readonly isPrimary: boolean;
+  readonly kind: 'error';
+  readonly message: string;
+}
+
+export type ManagedAccountUsageResult = ManagedAccountUsageOk | ManagedAccountUsageError;
 
 type SDKManagedConfig = LioraConfig & ManagedKimiConfigShape;
 
@@ -189,6 +212,74 @@ export class LioraAuthFacade {
       oauthRef: auth.oauthRef,
       baseUrl: auth.baseUrl,
     });
+  }
+
+  /**
+   * Plan usage for every configured managed OAuth account (`oauth` + `oauths[]`).
+   * Fetches sequentially so token refresh stays race-safe. Partial failures keep
+   * successful accounts as `{ kind: 'error' }` entries instead of aborting.
+   */
+  async getManagedUsageForAllAccounts(
+    providerName?: string | undefined,
+  ): Promise<ManagedAccountUsageResult[]> {
+    const name = providerName ?? SUPERLIORA_PROVIDER_NAME;
+    const config = loadRuntimeConfigSafe(this.options.configPath).config;
+    const provider = config.providers[name];
+    const refs = listManagedKimiOAuthRefs(provider);
+    // Prefer runtime base URL (env overrides) while still iterating configured refs.
+    const baseUrl = this.resolveRuntimeManagedAuth(name).baseUrl ?? provider?.baseUrl;
+
+    if (refs.length === 0) {
+      const result = await this.getManagedUsage(name);
+      const primary = this.resolveRuntimeManagedAuth(name).oauthRef;
+      if (result.kind === 'ok') {
+        return [
+          {
+            accountKey: primary.key,
+            isPrimary: true,
+            kind: 'ok',
+            summary: result.summary,
+            limits: result.limits,
+          },
+        ];
+      }
+      return [
+        {
+          accountKey: primary.key,
+          isPrimary: true,
+          kind: 'error',
+          message: result.message,
+        },
+      ];
+    }
+
+    const accounts: ManagedAccountUsageResult[] = [];
+    for (let index = 0; index < refs.length; index += 1) {
+      const ref = refs[index]!;
+      const result = await this.toolkit.getManagedUsage(name, {
+        oauthRef: ref,
+        baseUrl,
+      });
+      if (result.kind === 'ok') {
+        accounts.push({
+          accountKey: ref.key,
+          ...(ref.label === undefined ? {} : { label: ref.label }),
+          isPrimary: index === 0,
+          kind: 'ok',
+          summary: result.summary,
+          limits: result.limits,
+        });
+      } else {
+        accounts.push({
+          accountKey: ref.key,
+          ...(ref.label === undefined ? {} : { label: ref.label }),
+          isPrimary: index === 0,
+          kind: 'error',
+          message: result.message,
+        });
+      }
+    }
+    return accounts;
   }
 
   async submitFeedback(

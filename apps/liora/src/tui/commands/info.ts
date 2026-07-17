@@ -60,18 +60,68 @@ const SOTA_RECOVERY_SCAN_LIMIT = 2_000;
 
 export async function showUsage(host: SlashCommandHost): Promise<void> {
   const sessionUsage = await loadSessionUsageReport(host);
-  const managedUsage = await loadManagedUsageReport(host);
-  const reportArgs = {
-    sessionUsage: sessionUsage.usage,
-    sessionUsageError: sessionUsage.error,
-    contextUsage: host.state.appState.contextUsage,
-    contextTokens: host.state.appState.contextTokens,
-    maxContextTokens: host.state.appState.maxContextTokens,
-    managedUsage: managedUsage?.usage,
-    managedUsageError: managedUsage?.error,
+  const alias = host.state.appState.model;
+  const providerKey = host.state.appState.availableModels[alias]?.provider;
+  const managedProvider = isManagedUsageProvider(providerKey);
+
+  // Show session/context immediately; fill managed Plan usage asynchronously so
+  // multi-account fetches can animate loading → ready without blocking the panel.
+  const reportState: {
+    managedUsage?: ManagedUsageReport;
+    managedUsageError?: string;
+  } = {
+    managedUsage: managedProvider
+      ? {
+          summary: null,
+          limits: [],
+          accounts: [
+            {
+              accountKey: 'loading',
+              summary: null,
+              limits: [],
+              status: 'loading',
+              isPrimary: true,
+            },
+          ],
+        }
+      : undefined,
+    managedUsageError: undefined,
   };
-  const panel = new UsagePanelComponent(() => buildUsageReportLines(reportArgs), 'primary');
+
+  const buildLines = (fillProgress: number) =>
+    buildUsageReportLines({
+      sessionUsage: sessionUsage.usage,
+      sessionUsageError: sessionUsage.error,
+      contextUsage: host.state.appState.contextUsage,
+      contextTokens: host.state.appState.contextTokens,
+      maxContextTokens: host.state.appState.maxContextTokens,
+      managedUsage: reportState.managedUsage,
+      managedUsageError: reportState.managedUsageError,
+      managedUsageFillProgress: fillProgress,
+    });
+
+  const panel = new UsagePanelComponent({
+    buildLines,
+    borderToken: 'primary',
+    phase: managedProvider ? 'loading' : 'ready',
+    requestRender: () => requestTUILayoutRender(host.state),
+  });
   host.state.transcriptContainer.addChild(panel);
+  requestTUILayoutRender(host.state);
+
+  if (!managedProvider) return;
+
+  const managedUsage = await loadManagedUsageReport(host);
+  if (managedUsage === undefined) {
+    reportState.managedUsage = undefined;
+    reportState.managedUsageError = undefined;
+    panel.setPhase('ready');
+    requestTUILayoutRender(host.state);
+    return;
+  }
+  reportState.managedUsage = managedUsage.usage;
+  reportState.managedUsageError = managedUsage.error;
+  panel.setPhase('ready');
   requestTUILayoutRender(host.state);
 }
 
@@ -293,16 +343,84 @@ async function loadManagedUsageReport(host: SlashCommandHost): Promise<ManagedUs
   const providerKey = host.state.appState.availableModels[alias]?.provider;
   if (!isManagedUsageProvider(providerKey)) return undefined;
 
-  let res;
+  const auth = host.harness.auth as {
+    getManagedUsageForAllAccounts?: (
+      providerName?: string,
+    ) => Promise<
+      readonly {
+        readonly accountKey: string;
+        readonly label?: string;
+        readonly isPrimary: boolean;
+        readonly kind: 'ok' | 'error';
+        readonly summary?: ManagedUsageReport['summary'];
+        readonly limits?: ManagedUsageReport['limits'];
+        readonly message?: string;
+      }[]
+    >;
+    getManagedUsage: (providerName?: string) => Promise<{
+      readonly kind: 'ok' | 'error';
+      readonly summary?: ManagedUsageReport['summary'];
+      readonly limits?: ManagedUsageReport['limits'];
+      readonly message?: string;
+    }>;
+  };
+
   try {
-    res = await host.harness.auth.getManagedUsage(providerKey);
+    if (typeof auth.getManagedUsageForAllAccounts === 'function') {
+      const accounts = await auth.getManagedUsageForAllAccounts(providerKey);
+      if (accounts.length === 0) {
+        return { usage: { summary: null, limits: [], accounts: [] } };
+      }
+
+      const mapped = accounts.map((account) => {
+        if (account.kind === 'ok') {
+          return {
+            accountKey: account.accountKey,
+            ...(account.label === undefined ? {} : { label: account.label }),
+            isPrimary: account.isPrimary,
+            summary: account.summary ?? null,
+            limits: account.limits ?? [],
+            status: 'ok' as const,
+          };
+        }
+        return {
+          accountKey: account.accountKey,
+          ...(account.label === undefined ? {} : { label: account.label }),
+          isPrimary: account.isPrimary,
+          summary: null,
+          limits: [],
+          error: account.message ?? 'Failed to load usage.',
+          status: 'error' as const,
+        };
+      });
+
+      const primaryOk = mapped.find((account) => account.isPrimary && account.status === 'ok');
+      const firstOk = mapped.find((account) => account.status === 'ok');
+      const summarySource = primaryOk ?? firstOk;
+      // Partial and total account failures stay in `accounts` so successful
+      // rows still render; avoid a top-level error that would hide the list.
+      return {
+        usage: {
+          summary: summarySource?.summary ?? null,
+          limits: summarySource?.limits ?? [],
+          accounts: mapped,
+        },
+      };
+    }
+
+    const res = await auth.getManagedUsage(providerKey);
+    if (res.kind === 'error') {
+      return { error: res.message ?? 'Failed to load usage.' };
+    }
+    return {
+      usage: {
+        summary: res.summary ?? null,
+        limits: res.limits ?? [],
+      },
+    };
   } catch (error) {
     return { error: formatErrorMessage(error) };
   }
-  if (res.kind === 'error') {
-    return { error: res.message };
-  }
-  return { usage: { summary: res.summary, limits: res.limits } };
 }
 
 export function loadStatusRecoveryReadiness(workDir: string): StatusRecoveryReadiness {

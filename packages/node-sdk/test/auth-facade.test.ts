@@ -675,6 +675,70 @@ max_context_size = 262144
     expect(headers.get('x-msh-platform')).toBeNull();
   });
 
+
+  it('gets managed usage for all oauth + oauths accounts and keeps partial failures', async () => {
+    const storage = new FileTokenStorage(join(homeDir, 'credentials'));
+    await storage.save('kimi-code', { ...freshToken(), accessToken: 'primary-token' });
+    await storage.save(
+      resolveKimiTokenStorageName({ oauthKey: 'oauth/kimi-code-backup' }),
+      { ...freshToken(), accessToken: 'backup-token' },
+    );
+
+    await writeFile(
+      join(homeDir, 'config.toml'),
+      `
+[providers."managed:kimi-api"]
+type = "kimi"
+base_url = "https://api.example.test/coding/v1"
+api_key = ""
+oauth = { storage = "file", key = "oauth/kimi-code", label = "work" }
+
+[[providers."managed:kimi-api".oauths]]
+storage = "file"
+key = "oauth/kimi-code-backup"
+label = "backup"
+`,
+    );
+
+    const fetchMock = vi.fn<FetchMock>(async (_input, init) => {
+      const headers = new Headers((init?.headers ?? {}) as Record<string, string>);
+      const auth = headers.get('authorization') ?? '';
+      if (auth.includes('primary-token')) {
+        return new Response(
+          JSON.stringify({ usage: { used: 2, limit: 10, name: 'Weekly limit' } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (auth.includes('backup-token')) {
+        return new Response(JSON.stringify({ error: 'quota exceeded' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('unexpected', { status: 500 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
+    const accounts = await harness.auth.getManagedUsageForAllAccounts();
+
+    expect(accounts).toHaveLength(2);
+    expect(accounts[0]).toMatchObject({
+      accountKey: 'oauth/kimi-code',
+      label: 'work',
+      isPrimary: true,
+      kind: 'ok',
+      summary: { label: 'Weekly limit', used: 2, limit: 10 },
+    });
+    expect(accounts[1]).toMatchObject({
+      accountKey: 'oauth/kimi-code-backup',
+      label: 'backup',
+      isPrimary: false,
+      kind: 'error',
+    });
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('uses configured scoped OAuth refs and base URLs for managed usage and feedback', async () => {
     const baseUrl = 'https://api.dev.example.test/coding/v1';
     const oauthKey = resolveKimiCodeOAuthKey({

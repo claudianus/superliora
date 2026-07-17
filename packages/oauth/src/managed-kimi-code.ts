@@ -74,12 +74,14 @@ export interface ManagedKimiOAuthRef {
   readonly storage: 'file' | 'keyring';
   readonly key: string;
   readonly oauthHost?: string | undefined;
+  readonly label?: string | undefined;
 }
 
 export interface ManagedKimiOAuthRefInput {
   readonly storage?: 'file' | 'keyring' | undefined;
   readonly key?: string | undefined;
   readonly oauthHost?: string | undefined;
+  readonly label?: string | undefined;
 }
 
 export interface ManagedKimiRuntimeAuth {
@@ -252,12 +254,15 @@ function managedOAuthRef(options: {
   readonly key: string;
   readonly oauthHost?: string | undefined;
   readonly storage?: 'file' | 'keyring' | undefined;
+  readonly label?: string | undefined;
 }): ManagedKimiOAuthRef {
   const oauthHost = persistedOAuthHost(options);
+  const label = options.label?.trim();
   return {
     storage: options.storage ?? 'file',
     key: options.key,
     oauthHost,
+    ...(label === undefined || label.length === 0 ? {} : { label }),
   };
 }
 
@@ -271,6 +276,7 @@ function configuredOAuthRef(
     storage: oauthRef.storage,
     key,
     oauthHost: oauthRef.oauthHost,
+    label: oauthRef.label,
   });
 }
 

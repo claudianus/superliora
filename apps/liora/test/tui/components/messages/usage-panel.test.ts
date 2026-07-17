@@ -1,7 +1,11 @@
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { buildUsageReportLines, UsagePanelComponent } from '#/tui/components/messages/usage-panel';
+import {
+  buildManagedUsageReportLines,
+  buildUsageReportLines,
+  UsagePanelComponent,
+} from '#/tui/components/messages/usage-panel';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 
 afterEach(() => {
@@ -132,5 +136,107 @@ describe('UsagePanelComponent', () => {
     currentTheme.setPalette(lightColors);
     component.invalidate();
     expect(bodyOf()).toContain(lightColors.text);
+  });
+
+  it('renders multi-account plan usage with labels and primary badge', () => {
+    const lines = buildManagedUsageReportLines({
+      managedUsage: {
+        summary: null,
+        limits: [],
+        accounts: [
+          {
+            accountKey: 'oauth/kimi-code',
+            label: 'work',
+            isPrimary: true,
+            summary: { label: 'Weekly limit', used: 20, limit: 100 },
+            limits: [{ label: '5h limit', used: 1, limit: 10 }],
+            status: 'ok',
+          },
+          {
+            accountKey: 'oauth/kimi-code-personal',
+            label: 'personal',
+            isPrimary: false,
+            summary: { label: 'Weekly limit', used: 5, limit: 100 },
+            limits: [],
+            status: 'ok',
+          },
+        ],
+      },
+    }).map(strip);
+
+    expect(lines[0]).toBe('Plan usage');
+    expect(lines).toContain('  work · primary');
+    expect(lines).toContain('  personal');
+    expect(lines.join('\n')).toContain('20% used');
+    expect(lines.join('\n')).toContain('5% used');
+  });
+
+  it('keeps successful accounts when another account fails', () => {
+    const lines = buildManagedUsageReportLines({
+      managedUsage: {
+        summary: { label: 'Weekly limit', used: 20, limit: 100 },
+        limits: [],
+        accounts: [
+          {
+            accountKey: 'oauth/primary',
+            label: 'work',
+            isPrimary: true,
+            summary: { label: 'Weekly limit', used: 20, limit: 100 },
+            limits: [],
+            status: 'ok',
+          },
+          {
+            accountKey: 'oauth/backup',
+            label: 'backup',
+            isPrimary: false,
+            summary: null,
+            limits: [],
+            error: 'token expired',
+            status: 'error',
+          },
+        ],
+      },
+    }).map(strip);
+
+    expect(lines.join('\n')).toContain('work');
+    expect(lines.join('\n')).toContain('20% used');
+    expect(lines.join('\n')).toContain('backup');
+    expect(lines.join('\n')).toContain('token expired');
+  });
+
+  it('keeps single-account plan usage layout without accounts array', () => {
+    const lines = buildManagedUsageReportLines({
+      managedUsage: {
+        summary: { label: 'daily', used: 20, limit: 100, resetHint: 'resets tomorrow' },
+        limits: [],
+      },
+    }).map(strip);
+
+    expect(lines).toContain('Plan usage');
+    expect(lines.join('\n')).toContain('20% used');
+    expect(lines.join('\n')).toContain('resets tomorrow');
+    expect(lines.join('\n')).not.toContain('primary');
+  });
+
+  it('shows loading placeholders for accounts still fetching', () => {
+    const lines = buildManagedUsageReportLines({
+      managedUsage: {
+        summary: null,
+        limits: [],
+        accounts: [
+          {
+            accountKey: 'loading',
+            isPrimary: true,
+            summary: null,
+            limits: [],
+            status: 'loading',
+          },
+        ],
+      },
+      managedUsageFillProgress: 0.5,
+    }).map(strip);
+
+    expect(lines).toContain('Plan usage');
+    expect(lines.join('\n')).toMatch(/loading/);
   });
 });
