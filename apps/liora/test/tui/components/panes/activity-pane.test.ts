@@ -6,7 +6,6 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { MoonLoader } from '#/tui/components/chrome/moon-loader';
 import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
 import {
-  getActiveAppearancePreferences,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
@@ -53,12 +52,10 @@ describe('ActivityPaneComponent', () => {
     expect(out).toContain('working...');
     expect(out).toMatch(/[·∙✧✦✺•]/);
   });
-});
 
-describe('ActivityPaneComponent dual rails', () => {
-  it('renders two ambient particle rails while waiting', () => {
+  it('renders a single ambient particle rail while waiting', () => {
     setActiveAppearancePreferences({
-      ...getActiveAppearancePreferences(),
+      ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium',
       particles: 'premium',
     });
@@ -74,8 +71,9 @@ describe('ActivityPaneComponent dual rails', () => {
       } as never,
     });
     const lines = pane.render(48).map(strip);
-    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines.length).toBeGreaterThanOrEqual(2);
     expect((lines.at(-1) ?? '').length).toBeGreaterThan(0);
-    expect((lines.at(-2) ?? '').length).toBeGreaterThan(0);
+    const particleish = lines.filter((line) => /[·∙✧✦✺•]/.test(line));
+    expect(particleish.length).toBe(1);
   });
 });
