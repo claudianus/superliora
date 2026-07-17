@@ -69,4 +69,5 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
   { text: 'TUI glances: thinking 4 · command 4 · result 3 (not densify 1/1/2)', priority: 2, solo: true },
+  { text: 'Liora Recall injects ≤6 memories · 480 chars each; Bash soft-caps 4k; LioraExpand pages 120 lines', priority: 1, solo: true },
 ];

@@ -1,5 +1,8 @@
 import type { MemorySearchResult } from './types';
 
+/** Per-record body cap — full records stay in store; inject is a map, not a dump. */
+export const MEMORY_INJECTION_CONTENT_MAX_CHARS = 480;
+
 export function renderMemoryInjection(results: readonly MemorySearchResult[]): string | undefined {
   if (results.length === 0) return undefined;
   const lines: string[] = [];
@@ -19,12 +22,18 @@ export function renderMemoryInjection(results: readonly MemorySearchResult[]): s
       lines.push(`<tags>${escapeXml(memory.tags.join(', '))}</tags>`);
     }
     lines.push('<untrusted_memory>');
-    lines.push(escapeXml(memory.content));
+    lines.push(escapeXml(truncateMemoryContent(memory.content)));
     lines.push('</untrusted_memory>');
     lines.push('</memory>');
   }
   lines.push('</liora_recall_memories>');
   return lines.join('\n');
+}
+
+function truncateMemoryContent(content: string): string {
+  const collapsed = content.replaceAll(/\s+/g, ' ').trim();
+  if (collapsed.length <= MEMORY_INJECTION_CONTENT_MAX_CHARS) return collapsed;
+  return `${collapsed.slice(0, MEMORY_INJECTION_CONTENT_MAX_CHARS - 1)}…`;
 }
 
 function formatScore(value: number): string {
