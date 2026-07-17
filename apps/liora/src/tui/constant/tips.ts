@@ -69,4 +69,5 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
   { text: 'TUI glances: thinking 4 · command 4 · result 3 (not densify 1/1/2)', priority: 2, solo: true },
+  { text: 'context ladder (research): async70 · soft80 · hard92 · maxRecent4 · reserved50k · abs200k', priority: 3, solo: true },
 ];
