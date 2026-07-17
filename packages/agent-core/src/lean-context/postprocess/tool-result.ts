@@ -11,8 +11,10 @@ import {
 } from '../gate/bounce';
 import { compressionResistance } from '../gate/density';
 
-const READ_TOKEN_THRESHOLD = 2500;
-const GREP_LINE_THRESHOLD = 40;
+/** Char floor before Read postprocess compresses under normal pressure (not true tokens). */
+const READ_TOKEN_THRESHOLD = 2_000;
+/** Grep overflow page — slightly above DEFAULT_HEAD_LIMIT (20) so default greps stay intact. */
+const GREP_LINE_THRESHOLD = 25;
 
 export interface PostprocessLeanToolResultInput {
   readonly agent: Agent;

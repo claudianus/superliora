@@ -61,7 +61,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'live reasoning shows a 4-line tail glance — ctrl+o expands full reasoning', priority: 2, solo: true },
   { text: 'footer context bar is 10-cell with eighths partial fill — glanceable pressure', priority: 1, solo: true },
   { text: 'premium particle rails: short comet trails at ~30fps — cinematic without 1ms thrash', priority: 1, solo: true },
-  { text: 'LioraRead auto→signatures after 80 lines; Grep default 20; parallelize independent reads', priority: 1, solo: true },
+  { text: 'LioraRead auto→signatures @80 lines; Grep default 20 (postprocess archives >25 lines)', priority: 1, solo: true },
   { text: 'Liora Recall injects ≤6 memories · 480 chars each — durable prefs only, not transcript dumps', priority: 1, solo: true },
   { text: 'LioraExpand pages 120 lines by default — pass start_line/limit; full dumps thrash long sessions', priority: 1, solo: true },
   { text: 'Bash stdout soft-caps at 4k after pattern collapse — matches tool-result budget; LioraExpand recovers archives', priority: 1, solo: true },
