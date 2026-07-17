@@ -117,7 +117,12 @@ describe('provider profile registry', () => {
     expect(XAI_PROFILE.flow.discoveryUrl).toContain('.well-known/openid-configuration');
     expect(XAI_PROFILE.flow.kind).toBe('pkce_browser');
     expect(XAI_PROFILE.apiBaseUrl).toBe(XAI_GROK_BUILD_BASE_URL);
-    expect(XAI_PROFILE.customHeaders).toEqual({ 'X-XAI-Token-Auth': 'xai-grok-cli' });
+    expect(XAI_PROFILE.customHeaders).toMatchObject({
+      'X-XAI-Token-Auth': 'xai-grok-cli',
+      'x-grok-client-version': '0.2.101',
+      'x-grok-client-surface': 'grok-build',
+      'x-grok-client-identifier': 'grok-shell',
+    });
   });
 
   it('classifies Grok Build vs Grok API base URLs', () => {
@@ -127,11 +132,15 @@ describe('provider profile registry', () => {
     expect(isXaiGrokBuildBaseUrl(XAI_GROK_BUILD_BASE_URL)).toBe(true);
     expect(isXaiGrokApiBaseUrl(XAI_GROK_API_BASE_URL)).toBe(true);
     expect(xaiGrokRouteConfig('api')).toEqual({ route: 'api', baseUrl: XAI_GROK_API_BASE_URL });
-    expect(xaiGrokRouteConfig('build').customHeaders).toEqual({
+    expect(xaiGrokRouteConfig('build').customHeaders).toMatchObject({
       'X-XAI-Token-Auth': 'xai-grok-cli',
+      'x-grok-client-version': '0.2.101',
     });
-    expect(xaiGrokBuildRequestHeaders('grok-4.5')).toEqual({
+    expect(xaiGrokBuildRequestHeaders('grok-4.5')).toMatchObject({
       'X-XAI-Token-Auth': 'xai-grok-cli',
+      'x-grok-client-version': '0.2.101',
+      'x-grok-client-surface': 'grok-build',
+      'x-grok-client-identifier': 'grok-shell',
       'x-grok-model-override': 'grok-4.5',
     });
   });

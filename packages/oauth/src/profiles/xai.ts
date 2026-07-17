@@ -36,6 +36,20 @@ export const XAI_GROK_API_BASE_URL = 'https://api.x.ai/v1';
 /** Auth middleware value the Build proxy expects for CLI session tokens. */
 export const XAI_GROK_BUILD_TOKEN_AUTH = 'xai-grok-cli';
 
+/**
+ * Client version advertised to the Build proxy. The proxy rejects requests
+ * without a current `x-grok-client-version` ("your grok cli is outdated").
+ * Keep this aligned with a recent stable official `grok` CLI release.
+ * Override with SUPERLIORA_XAI_GROK_CLIENT_VERSION when needed.
+ */
+export const XAI_GROK_BUILD_CLIENT_VERSION_DEFAULT = '0.2.101';
+
+/** Client surface the Build proxy associates with Grok Build quota. */
+export const XAI_GROK_BUILD_CLIENT_SURFACE = 'grok-build';
+
+/** Client identifier the official CLI uses for Build proxy sessions. */
+export const XAI_GROK_BUILD_CLIENT_IDENTIFIER = 'grok-shell';
+
 export type XaiGrokRoute = 'build' | 'api';
 
 export interface XaiGrokRouteConfig {
@@ -49,9 +63,24 @@ export interface XaiGrokRouteConfig {
   readonly customHeaders?: Readonly<Record<string, string>>;
 }
 
-/** Static headers that identify a Grok Build CLI session token. */
+function resolveXaiGrokBuildClientVersion(): string {
+  const fromEnv = process.env['SUPERLIORA_XAI_GROK_CLIENT_VERSION']?.trim();
+  if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+  return XAI_GROK_BUILD_CLIENT_VERSION_DEFAULT;
+}
+
+/**
+ * Static headers that identify a Grok Build CLI session token.
+ * The Build proxy requires the auth marker *and* a current client version;
+ * missing version headers surface as "your grok cli is outdated".
+ */
 export function xaiGrokBuildAuthHeaders(): Record<string, string> {
-  return { 'X-XAI-Token-Auth': XAI_GROK_BUILD_TOKEN_AUTH };
+  return {
+    'X-XAI-Token-Auth': XAI_GROK_BUILD_TOKEN_AUTH,
+    'x-grok-client-version': resolveXaiGrokBuildClientVersion(),
+    'x-grok-client-surface': XAI_GROK_BUILD_CLIENT_SURFACE,
+    'x-grok-client-identifier': XAI_GROK_BUILD_CLIENT_IDENTIFIER,
+  };
 }
 
 /**
