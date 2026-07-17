@@ -2,111 +2,79 @@
 
 Reply in the same language as the user.
 
-This is a TypeScript monorepo built for agent-assisted development. Keep the root `AGENTS.md` limited to hot-path rules: the project map, hard constraints, and workflow requirements — things every task needs to know.
+Hot-path only: package map, hard constraints, and release/workflow gates every task may hit. Package-local detail lives in the nearest nested `AGENTS.md`; TUI work uses `.agents/skills/write-tui/SKILL.md`.
 
 ## Working Principles
 
-- Think from first principles. Start from real requirements, code facts, and verification results; if the goal is unclear, discuss it with the user first.
-- Treat code, not documentation, as the source of truth. Unless the user explicitly says otherwise, do not read ordinary Markdown just to understand the implementation.
-- Before making code changes, read the relevant code and the most recent constraints, and follow the nearest `AGENTS.md` in the directory tree.
-- Keep changes focused. Do not slip in unrelated refactors along the way.
-- When committing, do not add any co-author attribution, and do not reveal the identity of the agent in commit messages, PR descriptions, or any explanatory text.
+- Prefer code facts and verification over speculation. Do not scan ordinary product docs just to reverse-engineer implementation; read nested `AGENTS.md`, skills, and code that the task actually needs.
+- Keep changes focused. No drive-by refactors.
+- Commits, PR text, and changesets must not reveal agent identity or add co-author attribution for the agent.
 
 ## Project Map
 
-- `apps/liora`: the CLI / TUI application. It consumes core capabilities through `@superliora/sdk` and must not depend directly on `@superliora/agent-core`. When writing or modifying its terminal UI, use the `write-tui` skill (`.agents/skills/write-tui/SKILL.md`).
-- `apps/vis`, `apps/vis/server`, `apps/vis/web`: visual debugging tools for sessions and replays.
-- `packages/agent-core`: the unified agent engine, including Agent, Session, profile, skills, tools, plan, permission, background, records, the in-process DI service layer (`src/services/`), and other core capabilities.
-- `packages/node-sdk`: the public TypeScript SDK and harness.
-- `packages/kosong`: the LLM / provider abstraction layer.
-- `packages/kaos`: the execution environment and file/process abstractions.
-- `packages/oauth`: Kimi OAuth and managed auth utilities.
-- `packages/telemetry`: shared client-side telemetry infrastructure.
-- `packages/protocol`: shared REST + WS protocol schemas (envelope, error codes, pagination, ws-control) consumed by `packages/server` and `apps/liora`.
-- `packages/tui-renderer` (`@harness-kit/tui-renderer`): the reusable native terminal renderer core (cell buffer, diffing, layout, input) used by `apps/liora`'s TUI.
-- `packages/acp-adapter`: Agent Client Protocol adapter for SuperLiora.
-- `packages/gui-use`: browser-use and computer-use runtimes.
-- `packages/server`: the SuperLiora server. Hosts `agent-core` sessions and exposes them over REST + WebSocket (`/api/v1`); bootstrapped from `src/start.ts` and consumed by `apps/liora`. See `packages/server/AGENTS.md`.
-- `packages/server-e2e`: live e2e tests and scenarios against a running server (default `http://127.0.0.1:58627`; override with `SUPERLIORA_SERVER_URL`, legacy alias `KIMI_SERVER_URL`). See `packages/server-e2e/AGENTS.md`.
+- `apps/liora` — CLI / TUI. Depends on `@superliora/sdk` only; **never** import `@superliora/agent-core` from app code. TUI work: `write-tui` skill.
+- `apps/vis`, `apps/vis/server`, `apps/vis/web` — session/replay visual debug tools.
+- `apps/site` — public static site (GitHub Pages). Unpublished reference docs live under `docs/` (see `docs/AGENTS.md`).
+- `packages/agent-core` — agent engine (Agent, Session, tools, plan, DI services under `src/services/`, …).
+- `packages/node-sdk` — public TypeScript SDK / harness (`@superliora/sdk`).
+- `packages/kosong` — LLM / provider abstraction.
+- `packages/kaos` — execution environment and file/process abstractions.
+- `packages/oauth` — managed OAuth and auth utilities.
+- `packages/telemetry` — shared client telemetry.
+- `packages/protocol` — REST + WS schemas shared by server and CLI.
+- `packages/tui-renderer` (`@harness-kit/tui-renderer`) — native terminal renderer used by `apps/liora`.
+- `packages/acp-adapter` — Agent Client Protocol adapter.
+- `packages/gui-use` — browser-use / computer-use runtimes.
+- `packages/server` — hosts agent-core over REST + WebSocket (`/api/v1`). See `packages/server/AGENTS.md`.
+- `packages/server-e2e` — live e2e against a running server (default `http://127.0.0.1:58627`; `SUPERLIORA_SERVER_URL`, legacy `KIMI_SERVER_URL`). See `packages/server-e2e/AGENTS.md`.
 
-## Environment Requirements
+## Environment
 
-- **Node.js**: `>=24.15.0` (from the root `package.json` `engines`; `.nvmrc` is `24.15.0`, used by nvm / fnm / mise to pick the minimum recommended version).
-- **pnpm**: `10.33.0` (from the root `package.json` `packageManager`).
-- `pnpm install` will fail when the Node version is not satisfied, because `.npmrc` sets `engine-strict=true`.
+- Node.js `>=24.15.0` (`.nvmrc` = `24.15.0`); pnpm `10.33.0` (`packageManager`). `.npmrc` has `engine-strict=true`.
 
-## Monorepo Workspace Maintenance
+## Hard Constraints
 
-- `pnpm-workspace.yaml` is the source of truth for workspace membership, but `flake.nix` also contains **hardcoded** `workspacePaths` and `workspaceNames` lists.
-- **Whenever you add or remove a workspace package, you MUST update both `pnpm-workspace.yaml` and `flake.nix` — for every package, including leaf / test / e2e packages that nothing depends on.**
-  - `pnpm-workspace.yaml` uses globs (`packages/*`, `apps/*`), so most packages land there automatically; `flake.nix` is fully manual and is where omissions happen.
-  - Missing a path in `flake.nix`'s `workspacePaths` will silently drop files from the Nix build's `src` fileset.
-  - Missing a name in `flake.nix`'s `workspaceNames` will break `pnpmConfigHook` because dependencies for that workspace will not be fetched.
-- The automated "Check flake.nix workspace sync" (`scripts/check-nix-workspace.mjs`) only validates the transitive dependency **closure of `@superliora/liora`**. A leaf package outside that closure (e.g. an e2e package nobody imports) slips through even when it is missing from `flake.nix`. A green check is therefore NOT proof that `flake.nix` is fully in sync — keep it updated by hand on every add/remove, do not rely on the check to catch omissions.
+- **Agent standalone:** `packages/agent-core/src/agent` `Agent` must construct without a `Session`, `agentId`, or session lifecycle coupling. Optional `sessionId` may be a request-config hint only (e.g. `prompt_cache_key`); the instance must not store session graph state.
+- **Workspace membership:** `pnpm-workspace.yaml` globs cover most packages; `flake.nix` has **manual** `workspacePaths` / `workspaceNames`. On every package add/remove, update **both**. `scripts/check-nix-workspace.mjs` only checks the `@superliora/liora` transitive closure — a green check does not mean leaf packages are listed.
+- **Experimental flags:** gate unreleased behavior in `packages/agent-core/src/flags/registry.ts` via `flags.enabled('…')` (`SUPERLIORA_EXPERIMENTAL_<NAME>` or `SUPERLIORA_EXPERIMENTAL_FLAG`). Flip `default: true` to ship.
+- Prefer existing tests for the module under change; add a new file when the area is new or the suite would become unreadable.
+- Do not weaken code quality for external compatibility unless asked. Breaking user-facing changes need an explicit major decision (below).
 
-## General Coding Rules
+## Workflow
 
-- For optional object properties, pass `undefined` directly instead of using conditional spread.
-  - YES: `{ user }`
-  - NO: `{ ...(user ? { user } : undefined) }`
-- Optional object properties do not need to additionally allow `undefined` in the type.
-  - YES: `interface Options { user?: User }`
-  - NO: `interface Options { user?: User | undefined }`
-- Internal methods with only a single parameter should not be turned into options objects just for stylistic uniformity.
-- Except for a package's `index.ts`, other `index.ts` files should prefer `export * from './module';`.
-- The `Agent` class in `packages/agent-core/src/agent` must be usable on its own. The constructor must not force the caller to create a `Session` instance, nor require an `agentId` or `session`. It may accept an optional `sessionId` as a request-config hint — for example mapped to the provider's `prompt_cache_key` — but the instance must not hold `sessionId`, and must not depend on the Session lifecycle, metadata, or parent/child relationship logic.
-- Do not add too many new test files. Prefer adding tests to the existing test file of the corresponding component or module.
-- When a test fails because of a user modification, default to fixing the test first; do not change the implementation to satisfy an old test unless the implementation truly has a bug.
-- Do not sacrifice code quality for external compatibility unless the user explicitly asks for it. Breaking changes go through changesets and a `major` bump, gated by the rule below.
+- Match local package boundaries and patterns before inventing new ones. Use `#/` imports where the package already does.
+- Public text and fixtures: no real internal hosts/keys — use `example.com`, `example.test`, `YOUR_API_KEY`.
+- PR titles: Conventional Commits (e.g. `fix(liora): …`). Fill `.github/pull_request_template.md` with the problem and what changed; no placeholder or vague AI summary.
+- User-visible prose (PR body, changeset, docs): light no-slop pass; skill at `.agents/skills/no-ai-slop/SKILL.md` when needed.
+- Before opening a PR: run `.agents/skills/gen-changesets/SKILL.md` and add `.changeset/` as required.
+  - **Never write `major` without explicit user approval.** Default `minor`, else `patch` if impact is unclear.
 
-## Experimental Features
+## Source-install gate
 
-- Gate a not-yet-public feature behind an experimental flag. Add the flag to the registry at `packages/agent-core/src/flags/registry.ts`, then check it with `flags.enabled('my-feature')`. Flags are env-driven and default off: `SUPERLIORA_EXPERIMENTAL_<NAME>` toggles one, `SUPERLIORA_EXPERIMENTAL_FLAG` enables all. Release by flipping the entry's `default` to `true`.
+Touches to `packages/agent-core`, `packages/node-sdk`, `packages/acp-adapter`, or the `apps/liora` bundle graph need more than `tsx` / dev-only checks:
 
-## Where to Update Instructions
+1. `pnpm -C packages/node-sdk run build:dts`
+2. `pnpm run build`
+3. `pnpm run check:imports`
+4. `pnpm -C apps/liora run build`
+5. `pnpm -C apps/liora run smoke`
 
-- Hard rules that affect almost every task: update the root `AGENTS.md`.
-- Rules that only affect a specific directory: update the nearest sub-directory `AGENTS.md`.
-- Keep instruction updates focused and supported by code facts.
-
-## Workflow Requirements
-
-- Prefer `rg` / `rg --files` when reading code.
-- When designing changes, follow existing boundaries and local patterns first.
-- In public text and test data, replace real internal identifiers with neutral placeholders such as `example.com`, `example.test`, and `YOUR_API_KEY`. Before opening a PR, ask a read-only agent to audit the diff for context-specific internal identifiers.
-- When creating a PR, the PR title must follow Conventional Commit style, e.g. `chore: remove legacy format commands`.
-- When writing user-visible prose (PR bodies, changesets, docs, replies), apply the no-ai-slop light pass by default; use SearchSkill with response language when a skill pass is needed (see `.agents/skills/no-ai-slop/SKILL.md`).
-- When an AI agent opens or updates a PR, fill in `.github/pull_request_template.md` — link the related issue or explain the problem, then describe what changed. Do not leave placeholder text or submit a generic summary of the diff.
-- Do not submit vague AI-generated PR text. The human author must understand the change well enough to explain the code, edge cases, and why the approach fits this repository.
-- After finishing a task and before submitting a PR, you must run the `gen-changesets` skill (see `.agents/skills/gen-changesets/SKILL.md`) and generate a changeset under `.changeset/` according to its rules.
-- When generating a changeset, **never** decide on a `major` bump on your own. When you judge a change to meet the major criteria (breaking changes, incompatible user configuration, renamed or removed commands/arguments, changed behavior semantics, etc.), you must stop and explain it to the user and ask for confirmation. **Only write `major` after the user has explicitly agreed.** Otherwise default to `minor` (and fall back to `patch` if `minor` is unclear). See the "Hard rule: confirm with the user before writing `major`" section in `.agents/skills/gen-changesets/SKILL.md` for details.
-- Prefer importing via `import ... from '#/...'`, which serves the same purpose as `import ... from '@/...'`.
-
-## Install & Release Verification
-
-Changes that touch `packages/agent-core`, `packages/node-sdk`, `packages/acp-adapter`, or the `apps/liora` bundle graph must pass the source-install path before merge, not just local dev (`tsx` / `dev:cli-only`).
-
-Required checks:
-
-- `pnpm -C packages/node-sdk run build:dts` — fast declaration-only pre-check. Run this first; it catches TS2308 duplicate exports and TS2416/TS2322 type mismatches in `@superliora/agent-core` before the full build.
-- `pnpm run build` — full monorepo build, including `@superliora/sdk` declaration emit (`build:dts`).
-- `pnpm run check:imports` — rejects mistyped workspace package names such as `@superliora/superliora-sdk`.
-- `pnpm -C apps/liora run build` — CLI bundle build plus `check-cli-bundle.mjs` (no runtime `@superliora/*` imports left in `dist/main.mjs`).
-- `pnpm -C apps/liora run smoke` — runs the bundle with `--version` / `--help` after the bundle guard.
-
-When porting upstream (for example Kimi Code), grep for legacy package names (`@superliora/superliora-`, `@kimi-code/`) and split imports by actual package ownership: SDK surface from `@superliora/sdk`, engine internals from `@superliora/agent-core`.
+Upstream ports (e.g. Kimi Code): split imports by ownership (`@superliora/sdk` vs `@superliora/agent-core`); grep leftovers like `@kimi-code/` / `@superliora/superliora-`.
 
 ## Versioning
 
-SuperLiora tracks **two independent version lines**:
+Two independent lines:
 
-- **Release version** — `@superliora/liora` semver in `apps/liora/package.json`. This is the only user-facing version (`liora --version`). Bump it with changesets based on SuperLiora user impact, not upstream semver.
-- **Upstream baseline** — recorded in `meta/upstream.lock.yaml` and embedded into the CLI at build time. It answers “which Kimi Code snapshot did we last port?” without tying our release number to upstream’s.
+| Line | Where | Role |
+|---|---|---|
+| Release | `@superliora/liora` in `apps/liora/package.json` | User-facing (`liora --version`); bump via changesets on SuperLiora impact |
+| Upstream baseline | `meta/upstream.lock.yaml` (+ generated CLI embed) | Last ported Kimi Code snapshot; **not** tied to liora semver |
 
-Rules:
+- Do not copy upstream semver onto `@superliora/liora`.
+- Upstream-port PRs update `meta/upstream.lock.yaml`, refresh via `pnpm -C apps/liora run prebuild` (or `build`), and mention baseline in the changeset when user-visible.
+- SuperLiora-only work leaves `meta/upstream.lock.yaml` alone.
+- Internal package versions stay internal; only `@superliora/liora` is the release number. `/status` may show the baseline; `--version` stays short.
 
-- Never copy upstream semver into `@superliora/liora` (for example, porting kimi-code `0.22.x` does **not** require liora `0.22.x`).
-- Every upstream port PR must update `meta/upstream.lock.yaml`, run `pnpm -C apps/liora run prebuild` (or `build`) to refresh `src/generated/upstream-baseline.generated.ts`, and mention the upstream baseline in the changeset changelog under an **Upstream sync** section when user-visible.
-- SuperLiora-only changes do **not** touch `meta/upstream.lock.yaml`.
-- Internal package versions (`agent-core`, `sdk`, …) stay internal; only `@superliora/liora` matters for releases.
-- `/status` shows the upstream baseline; `liora --version` stays short.
+## Nested guides
+
+Directory-specific rules override this file when both apply: `apps/liora/AGENTS.md`, `packages/server/AGENTS.md`, `packages/server-e2e/AGENTS.md`, `packages/agent-core/src/services/AGENTS.md`, `docs/AGENTS.md`.

@@ -13,6 +13,10 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
     'Session id to export. Defaults to the most recent session.',
 
   // login
+  'cli.sub.login.option.add':
+    'Add another OAuth account for quota/rate-limit fallback without replacing existing accounts.',
+  'cli.sub.login.option.label':
+    'Friendly label used when generating a storage key for --add.',
   'cli.sub.login.option.oauthKey':
     'Use a distinct OAuth storage key, preserving existing accounts as fallback refs.',
   'cli.sub.login.option.oauthHost': 'Override the OAuth host for this login.',
@@ -247,6 +251,10 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
     '내보낼 세션 ID. 기본값은 가장 최근 세션입니다.',
 
   // login
+  'cli.sub.login.option.add':
+    '기존 계정을 교체하지 않고 쿼타/레이트리밋 폴백용 OAuth 계정을 추가합니다.',
+  'cli.sub.login.option.label':
+    '--add 시 저장 키 생성에 사용할 친숙한 레이블.',
   'cli.sub.login.option.oauthKey':
     '별도 OAuth 저장 키를 사용해 기존 계정을 폴백 ref로 유지합니다.',
   'cli.sub.login.option.oauthHost': '이번 로그인의 OAuth 호스트를 재정의합니다.',

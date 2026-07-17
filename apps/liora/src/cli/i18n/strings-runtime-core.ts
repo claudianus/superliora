@@ -71,6 +71,12 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.login.codeExpires': 'Code expires in {seconds}s.',
   'cli.runtime.login.waiting': 'Waiting for authorization to complete...',
   'cli.runtime.login.success': 'Logged in to {provider}.',
+  'cli.runtime.login.addingAccount':
+    'Adding OAuth account slot {fingerprint}; existing accounts stay as fallbacks.',
+  'cli.runtime.login.accountPoolHint':
+    'Account pool updated (primary slot fingerprint {fingerprint}). Quota/rate-limit failures auto-switch to other accounts.',
+  'cli.runtime.login.addWithOAuthKeyConflict':
+    'Use either --add or --oauth-key, not both.',
   'cli.runtime.login.cancelled': 'Login cancelled.',
   'cli.runtime.login.failed': 'Login failed: {message}',
 
@@ -278,6 +284,12 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.login.codeExpires': '코드 만료: {seconds}초.',
   'cli.runtime.login.waiting': '인증 완료를 기다리는 중...',
   'cli.runtime.login.success': '{provider}에 로그인했습니다.',
+  'cli.runtime.login.addingAccount':
+    'OAuth 계정 슬롯 {fingerprint}을(를) 추가합니다. 기존 계정은 폴백으로 유지됩니다.',
+  'cli.runtime.login.accountPoolHint':
+    '계정 풀이 갱신되었습니다(primary 슬롯 fingerprint {fingerprint}). 쿼타/레이트리밋 실패 시 다른 계정으로 자동 전환됩니다.',
+  'cli.runtime.login.addWithOAuthKeyConflict':
+    '--add와 --oauth-key는 함께 사용할 수 없습니다.',
   'cli.runtime.login.cancelled': '로그인을 취소했습니다.',
   'cli.runtime.login.failed': '로그인 실패: {message}',
 

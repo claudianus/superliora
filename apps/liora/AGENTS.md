@@ -1,73 +1,43 @@
 # apps/liora Development Guide
 
-This file only contains rules local to `apps/liora`. For cross-repo rules, see the root `AGENTS.md`.
+Local rules for `apps/liora`. Cross-repo gates: root `AGENTS.md`.
 
-> **Writing or modifying the TUI?** Use the `write-tui` skill (`.agents/skills/write-tui/SKILL.md`). It covers the architecture orientation, where new features go, test placement, theme mechanics, and the dialog interaction/visual spec (`DESIGN.md`). This file keeps only the map, boundaries, and hard constraints.
+> **TUI work:** `.agents/skills/write-tui/SKILL.md` (architecture, placement, tests, theme, dialogs / `DESIGN.md`). This file is the map, boundaries, and CI-enforced hard rules only.
 
-## TUI File Layout
+## Layout
 
-`apps/liora` is the terminal UI / CLI app. The entry chain is:
+Entry: `src/main.ts` → `src/cli/commands.ts` → `src/cli/run-shell.ts` → SDK `LioraHarness` → `src/tui/kimi-tui.ts`.
 
-`src/main.ts` -> `src/cli/commands.ts` -> `src/cli/run-shell.ts` -> SDK `LioraHarness` -> `src/tui/kimi-tui.ts`
+| Path | Role |
+|---|---|
+| `src/constant/` | Shared non-copy constants (product, paths, terminal, updates, …) |
+| `src/cli/` | Args, subcommands, CLI startup |
+| `src/tui/` | Interactive TUI |
+| `src/tui/kimi-tui.ts` | `LioraTUI` coordinator — wire state/layout/editor/session/events/dialogs; heavy logic goes to `controllers/` |
+| `src/tui/tui-state.ts` | `TUIState` / initial app state |
+| `src/tui/controllers/` | Testable slices: session events, streaming UI, replay, tasks browser, editor keyboard, auth |
+| `src/tui/commands/` | Slash commands |
+| `src/tui/components/` | Native-renderer UI by kind (`chrome/`, `dialogs/`, `editor/`, `media/`, `messages/`, `panes/`) |
+| `src/tui/renderer/` | Facade over `@harness-kit/tui-renderer` + local adapters. Import TUI primitives here, not the package directly. No `@earendil-works/pi-tui` (guarded). |
+| `src/tui/constant/` | TUI-only constants |
+| `src/tui/reverse-rpc/` | SDK approval/question ↔ UI |
+| `src/tui/theme/` | Themes / tokens |
+| `src/tui/utils/`, `src/utils/` | TUI-local vs app-wide helpers |
 
-Main directories:
+## Boundaries
 
-- `src/constant/`: non-copy constants shared by CLI/TUI — product, protocol, paths, terminal control, updates, and so on.
-- `src/cli/`: command-line arguments, subcommands, and CLI startup.
-- `src/tui/`: the interactive terminal UI.
-- `src/tui/kimi-tui.ts`: the `LioraTUI` coordinator — wires state, layout, editor, session, SDK events, and dialogs together, and dispatches slash-command handlers. Heavy logic is delegated to `controllers/`, not accumulated here.
-- `src/tui/tui-state.ts`: `TUIState`, `createTUIState`, `createInitialAppState` — the single global UI-state shape.
-- `src/tui/controllers/`: independently-testable responsibilities — `session-event-handler` (SDK event routing), `streaming-ui` (streaming render), `session-replay` (resume/replay), `tasks-browser`, `editor-keyboard`, `auth-flow`.
-- `src/tui/commands/`: slash command definitions, parsing, ordering, and dynamic skill command generation.
-- `src/tui/components/`: UI components rendered through the native renderer facade, organized by UI type.
-- `src/tui/renderer/`: the local renderer facade — re-exports `@harness-kit/tui-renderer` (the native terminal renderer: cell buffer, diffing, layout, input) plus app-local adapters (`native-root-ui.ts`, `region-layout.ts`, `lifecycle.ts`). Prefer importing TUI primitives through this facade rather than the renderer package directly. The former `@earendil-works/pi-tui` backend has been removed; `test/tui/renderer-facade-guard.test.ts` guards against reintroducing direct `pi-tui` imports.
-- `src/tui/constant/`: non-copy constants reused across TUI modules — symbols, terminal sequences, render sizing, streaming-arg match rules, and so on.
-- `src/tui/components/chrome/`: persistent UI chrome — footer, todo panel, welcome, loader, device code.
-- `src/tui/components/dialogs/`: selectors, approval panels, question popups, and settings popups that temporarily replace the editor.
-- `src/tui/components/editor/`: the custom input box and the file mention provider.
-- `src/tui/components/media/`: image, diff, code highlight, and other media displays.
-- `src/tui/components/messages/`: message blocks in the transcript — assistant, user, tool call, thinking, usage, subagent, and so on.
-- `src/tui/components/panes/`: right-side / activity-area panes such as the activity pane and queue pane.
-- `src/tui/reverse-rpc/`: the adapter layer that bridges SDK approval/question callbacks to the UI.
-- `src/tui/theme/`: themes, color tokens, style helpers, terminal-background detection, and the pi-tui markdown theme.
-- `src/tui/utils/`: TUI-only utility functions.
-- `src/utils/`: app-wide utilities — clipboard, git, history, image, process, usage, and so on.
+- `cli` parses input and starts the app; no TUI interaction logic.
+- `LioraTUI` coordinates; put testable work in `controllers`, `commands`, `components`, `reverse-rpc`, or `utils`.
+- `components` are presentation/local interaction only — no direct SDK or session ownership.
+- `reverse-rpc` adapts SDK request/response shapes for dialogs.
+- `theme` owns colors/styles; no chalk named colors in components.
+- `utils` must not depend on `TUIState` / component instances.
+- App code uses `@superliora/sdk` only — **no** `@superliora/agent-core`.
 
-## Module Responsibilities
+## Hard rules (CI-guarded)
 
-- `cli` only interprets command-line input, assembles startup arguments, and invokes the TUI. Do not put TUI interaction logic into the CLI.
-- `LioraTUI` coordinates; it does not accumulate complex business rules. New logic that can be tested independently should be split into `controllers`, `commands`, `components`, `reverse-rpc`, or `utils` first.
-- `controllers` own the heavy, independently-testable slices (event routing, streaming render, session replay, tasks browser, editor keyboard, auth). Event-routing and rendering logic belong here, not on the `LioraTUI` class.
-- `commands` only owns slash-command declaration, parsing, and the parsed-result types. The actual execution can be dispatched from `LioraTUI`, but complex logic should continue to sink downward.
-- `components` only handle presentation and local interaction; they must not call the SDK directly, and must not read or write session state directly.
-- `reverse-rpc` converts SDK approval/question requests into the data shape a UI panel/dialog needs, and converts the user's choice back into an SDK response.
-- `theme` is the single source of truth for colors and styles. Components must not bypass the theme system and use chalk named colors directly.
-- `utils` holds utility functions with no UI-state dependency. Logic that needs `TUIState` or a component instance must not live under app-level `src/utils`.
-- `apps/liora` may only use core capabilities through `@superliora/sdk`. Do not import `@superliora/agent-core` directly in app code.
-
-## TUI Coding Conventions
-
-- Do not over-encapsulate, especially for one- or two-line functions — do not introduce a two-layer wrapper, just inline.
-- Functions with no state / UI side effects do not belong as private methods on the `LioraTUI` class; put them in external utils.
-- Constants must live in the corresponding `constant` directory; they must not be scattered through component or logic code.
-- Inside `handleInput(data)`, when comparing a printable character (letter, digit, space, punctuation), it is **forbidden** to write literal comparisons such as `data === 'q'`. With the Kitty keyboard protocol enabled in terminals like VSCode, these keys are sent as CSI-u sequences (e.g. `\x1b[113u`), and a bare comparison will never match. Decode with `printableChar(data)` from `src/tui/utils/printable-key.ts` first, then compare; function keys continue to use `matchesKey(data, Key.*)`; control characters (codepoint < 32) may still be compared against the raw `data`. `test/tui/printable-key-guard.test.ts` enforces this in CI.
-
-## Color Rules (normative)
-
-The theme apply/switch mechanics live in the `write-tui` skill. The following rules are hard and guard-enforced:
-
-- Do not use chalk named colors such as `chalk.red`, `chalk.cyan`, `chalk.white`, `chalk.gray`, `chalk.dim`, or `chalk.yellow` directly.
-- If a component already has `colors`, use `chalk.hex(colors.<token>)(text)`.
-- If a component already has `state.theme.styles` or styles passed in, prefer helpers such as `styles.error(text)`, `styles.dim(text)`.
-- When new visual semantics have no token, first add a semantic field to `ColorPalette`, and fill in both `darkColors` and `lightColors`.
-- In light themes, text tokens against a white background must be at least 4.5:1; borders and large chrome must be at least 3:1.
-- Do not cache styled chalk functions at module top level. Theme switching must take effect within a single render, so styles must be generated on the render path from the current palette.
-- Non-comment code must not contain chalk named colors such as `chalk.white`, `chalk.cyan`, `chalk.red`, `chalk.green`, `chalk.gray`, `chalk.yellow`, `chalk.blue`, `chalk.magenta`, `chalk.whiteBright`, or `chalk.blackBright`. `test/tui/chalk-named-color-guard.test.ts` enforces this in CI.
-
-## General Coding Requirements
-
-- For optional object properties, pass `undefined` directly — do not use conditional spread.
-- Optional object properties do not need to additionally allow `undefined` in the type.
-- Internal methods with only a single parameter should not be turned into options objects just for stylistic uniformity.
-- Except for a package's own `index.ts`, other `index.ts` files should prefer `export * from './module'`.
-- **Verify TUI/CLI behavior changes before claiming they work.** A change that affects transcript output, rendering, key input, or the bundled CLI must pass either the actual bundled CLI (`pnpm -C apps/liora run build && pnpm -C apps/liora run smoke`) or a focused test that exercises the changed path. Do not rely only on code inspection.
+- In `handleInput(data)`, never compare printable keys with literals (`data === 'q'`). Kitty/CSI-u breaks that. Use `printableChar(data)` from `src/tui/utils/printable-key.ts`; function keys via `matchesKey` / `Key.*`; control chars (codepoint < 32) may use raw `data`. Guard: `test/tui/printable-key-guard.test.ts`.
+- No chalk named colors in non-comment code (`chalk.red`, `chalk.cyan`, …). Prefer `chalk.hex(colors.<token>)` or `styles.*`. New semantics → add a `ColorPalette` field for dark and light. Light-theme text ≥ 4.5:1, large chrome ≥ 3:1. Do not cache styled chalk at module scope. Guard: `test/tui/chalk-named-color-guard.test.ts`.
+- Constants live under `constant/`, not scattered in components.
+- Prefer flat code over one-line wrappers; pure helpers stay off the `LioraTUI` class.
+- Behavior changes to transcript, render, keys, or the bundled CLI need a focused test or `pnpm -C apps/liora run build && pnpm -C apps/liora run smoke` — not inspection alone.

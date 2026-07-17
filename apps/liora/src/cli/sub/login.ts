@@ -15,15 +15,26 @@ export function registerLoginCommand(parent: Command): void {
   parent
     .command('login')
     .description(t('cli.sub.login.description'))
+    .option('--add', t('cli.sub.login.option.add'))
+    .option('--label <label>', t('cli.sub.login.option.label'))
     .option(
       '--oauth-key <key>',
       t('cli.sub.login.option.oauthKey'),
     )
     .option('--oauth-host <host>', t('cli.sub.login.option.oauthHost'))
-    .action(async (options: { oauthKey?: string; oauthHost?: string }) => {
-      await runLoginFlow({
-        ...(options.oauthKey === undefined ? {} : { oauthKey: options.oauthKey }),
-        ...(options.oauthHost === undefined ? {} : { oauthHost: options.oauthHost }),
-      });
-    });
+    .action(
+      async (options: {
+        add?: boolean;
+        label?: string;
+        oauthKey?: string;
+        oauthHost?: string;
+      }) => {
+        await runLoginFlow({
+          ...(options.add === true ? { addAccount: true } : {}),
+          ...(options.label === undefined ? {} : { label: options.label }),
+          ...(options.oauthKey === undefined ? {} : { oauthKey: options.oauthKey }),
+          ...(options.oauthHost === undefined ? {} : { oauthHost: options.oauthHost }),
+        });
+      },
+    );
 }

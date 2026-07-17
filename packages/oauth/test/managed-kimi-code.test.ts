@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  allocateManagedKimiOAuthAccountKey,
   applyManagedKimiCodeLogoutConfig,
   applyManagedKimiCodeConfig,
   clearManagedKimiCodeConfig,
   fetchManagedKimiCodeModels,
+  listManagedKimiOAuthRefs,
   SUPERLIORA_OAUTH_KEY,
   SUPERLIORA_PROVIDER_NAME,
   ManagedKimiCodeModelsAuthError,
@@ -1207,6 +1209,54 @@ describe('managed SuperLiora protocol routing', () => {
         { storage: 'file', key: 'oauth/backup-account' },
       ],
     });
+  });
+  it('allocates the default OAuth key when no accounts exist yet', () => {
+    const ref = allocateManagedKimiOAuthAccountKey(undefined);
+    expect(ref).toEqual({
+      storage: 'file',
+      key: SUPERLIORA_OAUTH_KEY,
+    });
+  });
+
+  it('allocates a labeled OAuth account key that preserves the existing pool', () => {
+    const provider = {
+      type: 'kimi',
+      oauth: { storage: 'file', key: SUPERLIORA_OAUTH_KEY },
+      oauths: [{ storage: 'file', key: 'oauth/kimi-code-work' }],
+    } as const;
+
+    const ref = allocateManagedKimiOAuthAccountKey(provider, {
+      label: 'Backup Account',
+      now: () => 1_700_000_000_000,
+      randomBytes: () => Uint8Array.from([1, 2, 3, 4]),
+    });
+
+    expect(ref).toMatchObject({
+      storage: 'file',
+      key: 'oauth/kimi-code-backup-account',
+    });
+    expect(listManagedKimiOAuthRefs(provider).map((entry) => entry.key)).toEqual([
+      SUPERLIORA_OAUTH_KEY,
+      'oauth/kimi-code-work',
+    ]);
+  });
+
+  it('falls back to an entropy key when the preferred label is already used', () => {
+    const provider = {
+      type: 'kimi',
+      oauth: { storage: 'file', key: SUPERLIORA_OAUTH_KEY },
+      oauths: [{ storage: 'file', key: 'oauth/kimi-code-backup' }],
+    } as const;
+
+    const ref = allocateManagedKimiOAuthAccountKey(provider, {
+      label: 'backup',
+      now: () => 0xabc,
+      randomBytes: () => Uint8Array.from([0xde, 0xad, 0xbe, 0xef]),
+    });
+
+    expect(ref.key).toMatch(/^oauth\/kimi-code-account-/);
+    expect(ref.key).not.toBe(SUPERLIORA_OAUTH_KEY);
+    expect(ref.key).not.toBe('oauth/kimi-code-backup');
   });
 
   it('drops protocol-specific fields when the server stops declaring anthropic', () => {

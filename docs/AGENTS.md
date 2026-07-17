@@ -1,63 +1,33 @@
 # Documentation Agent Guide
 
-`docs/` is **not** the deployed public site and has no live VitePress build
-(`docs/.vitepress/config.ts` no longer exists; only a stale `dist/` cache
-remains). GitHub Pages is served from the Vite-built static site under
-`apps/site/` (see `.github/workflows/docs-deploy.yml`, which uploads
-`apps/site/dist` only). Nothing in `apps/site/` links to `docs/`.
+`docs/` is **not** the public site. GitHub Pages ships `apps/site/dist` (see `.github/workflows/docs-deploy.yml`). Nothing in `apps/site/` links here. `docs/.vitepress/` is gone; ignore any stale `docs/dist/`.
 
-`docs/en/` and `docs/zh/` are kept as an unpublished, English/Chinese-mirrored
-reference — still readable by browsing the repo on GitHub, and still
-cross-referenced by a few in-repo call sites (e.g. the `write-tui` skill's
-custom-theme token table, `docs/en/customization/themes.md`). Treat it as
-low-priority reference material, not an actively marketed product surface:
+`docs/en/` and `docs/zh/` are an unpublished bilingual reference (GitHub browse + a few in-repo links, e.g. write-tui theme tokens). Low-priority accuracy, not a marketed surface.
+
+## Rules
 
 - Do not reintroduce VitePress config, package files, or build tooling.
-- If you touch a page, keep it factually correct and keep `docs/en/` and
-  `docs/zh/` mirrored (same headings, same structure). You do not need to
-  follow a formal editorial style guide to do this — match the tone of the
-  surrounding page.
-- Do not invest in comprehensive rewrites or new pages here; that effort
-  belongs in `apps/site/` (the real public surface) instead.
-- The `gen-docs`, `translate-docs`, and `sync-changelog` skills still know how
-  to edit this tree (terminology, changelog classification, bilingual sync
-  rules); they operate in this same "reference only, keep accurate" mode.
+- Edits: keep facts correct and keep `docs/en/` ↔ `docs/zh/` mirrored (same headings/structure). Match the surrounding page tone; no formal style guide required.
+- No big rewrites or new product docs here — that belongs in `apps/site/`.
+- Skills that still touch this tree (`gen-docs`, `translate-docs`, `sync-changelog`) stay in “reference only, keep accurate” mode. Prose: `.agents/skills/no-ai-slop/SKILL.md` when needed.
 
-## Kimi platform facts
-
-Kept here because pages under `docs/` still state these; keep them correct if
-you touch a page that mentions them.
+## Platform facts (if a page mentions them)
 
 | | SuperLiora platform | Kimi Open Platform |
 |---|---|---|
-| Audience | Individual developers, subscription-based | Enterprise / product integration, pay-per-token |
-| OpenAI-compatible base URL | `https://api.kimi.com/coding/v1` | `https://api.moonshot.cn/v1` |
-| Anthropic-compatible base URL | `https://api.kimi.com/coding/` | Not supported |
-| API key entry | [SuperLiora console](https://www.kimi.com/code/console) | [platform.kimi.com](https://platform.kimi.com) |
+| Audience | Individual devs, subscription | Enterprise / product, pay-per-token |
+| OpenAI-compatible base | `https://api.kimi.com/coding/v1` | `https://api.moonshot.cn/v1` |
+| Anthropic-compatible base | `https://api.kimi.com/coding/` | Not supported |
+| API key | [SuperLiora console](https://www.kimi.com/code/console) | [platform.kimi.com](https://platform.kimi.com) |
 
-Never mix the two: `api.kimi.com/coding/…` for SuperLiora CLI / VS Code, `api.moonshot.cn/v1` for Open Platform integration.
+Do not mix hosts: `api.kimi.com/coding/…` for SuperLiora CLI/IDE; `api.moonshot.cn/v1` for Open Platform.
 
-## Terminology (when editing bilingual pairs)
+## Bilingual terms
 
-Use consistent Chinese/English terms so the two locales stay recognizable as
-mirrors: Agent/agent, Shell/shell, Plan mode/Plan 模式, YOLO mode/YOLO 模式,
-Thinking mode/Thinking 模式, skill/Skill, session/会话, context/上下文,
-API key/API 密钥, tool call/工具调用. Keep `JSON`, `JSONL`, `OAuth`, `macOS`,
-`Node.js`, `npm`, `pnpm`, `TypeScript` as-is in both locales.
+Keep pairs recognizable: Agent/agent, Shell/shell, Plan mode/Plan 模式, YOLO mode/YOLO 模式, Thinking mode/Thinking 模式, skill/Skill, session/会话, context/上下文, API key/API 密钥, tool call/工具调用. Leave `JSON`, `JSONL`, `OAuth`, `macOS`, `Node.js`, `npm`, `pnpm`, `TypeScript` unchanged in both locales.
 
-Chinese typography: full-width punctuation (`，。；：？！（）`), a space
-between Chinese characters and adjacent English/numbers/inline code/links.
-
-## AI Slop Elimination & Writing Style
-
-Strictly avoid generic, machine-like, or overly polished LLM prose ("AI slop") in all documentation:
-
-- **Ban AI Buzzwords:** Do not use words like *leverage, utilize, robust, streamline, pivotal, testament, foster, cutting-edge, seamless, comprehensive, delve*. Use plain verbs like *use, apply, simplify, support, make, design*.
-- **Vary Sentence Structure:** Avoid monotonic rhythms. Combine short sentences with longer ones.
-- **Immediate Value:** Eliminate fluff intros like "In today's development environment..." or outros like "In conclusion...". Start with the immediate feature or behavior.
-- **Natural Translation:** When translating or writing in Chinese or Korean, do not translate English idioms literally. Write as a native developer would (e.g. avoid "~을 활용하여", "~의 역할을 합니다" -> 대신 "~하여", "~합니다" 등 간결하고 명확한 서술 사용).
+Chinese: full-width punctuation; space between CJK and adjacent English/numbers/code/links.
 
 ## Changelog
 
-`docs/en/release-notes/changelog.md` is the English source; the Chinese
-version is translated from it. See the `sync-changelog` skill.
+English source: `docs/en/release-notes/changelog.md`. Chinese is translated from it — `sync-changelog` skill.

@@ -93,6 +93,8 @@ export {
   resolveKimiCodeOAuthKey,
   resolveKimiCodeOAuthRef,
   resolveKimiCodeRuntimeAuth,
+  allocateManagedKimiOAuthAccountKey,
+  listManagedKimiOAuthRefs,
 } from './managed-kimi-code';
 export type {
   FetchManagedKimiCodeModelsOptions,
