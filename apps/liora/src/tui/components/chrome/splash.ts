@@ -1,23 +1,29 @@
 /**
- * Startup cinematic splash: short full-width reveal before Welcome.
- * Plays once for 1.0–2.0s when motion is allowed; otherwise a no-op.
+ * Full-screen cinematic startup splash.
+ *
+ * Owns the entire terminal for 1.0–2.0s when motion is allowed: starfield,
+ * rising moon, meteor rain, horizon bloom, then SUPERLIORA brand reveal.
+ * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
  */
 
-import type { Component } from '#/tui/renderer';
-import { truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import { DEFAULT_APPEARANCE_PREFERENCES, type AppearancePreferences } from '#/tui/config';
+import {
+  DEFAULT_APPEARANCE_PREFERENCES,
+  type AppearancePreferences,
+} from '#/tui/config';
 import { shouldAnimate } from '#/tui/controllers/appearance';
 import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import type { Component } from '#/tui/renderer';
+import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
+  appearanceAnimationNow,
   renderMeteorField,
   renderParticleRail,
   renderSpectacularText,
-  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { renderWelcomeBanner } from './welcome-banner';
 
@@ -25,23 +31,25 @@ import { renderWelcomeBanner } from './welcome-banner';
 export const SPLASH_DURATION_MIN_MS = 1000;
 /** Inclusive upper bound for splash duration. */
 export const SPLASH_DURATION_MAX_MS = 2000;
-/** Default cinematic length (within clamp). */
+/** Default cinematic length (~1.6s). */
 export const DEFAULT_SPLASH_DURATION_MS = 1600;
 
-export type SplashPhase = 'void' | 'meteor' | 'banner' | 'hold' | 'done';
+export type SplashPhase = 'void' | 'rise' | 'bloom' | 'brand' | 'hold' | 'fade' | 'done';
 
 export interface SplashComponentOptions {
   readonly appearance?: AppearancePreferences;
   readonly requestRender: () => void;
-  /** Desired duration; clamped to [1000, 2000]. */
+  /** Terminal row count (full-screen height). Defaults to process.stdout.rows. */
+  readonly getRows?: () => number;
+  /** Optional override duration (clamped to 1.0–2.0s). */
   readonly durationMs?: number;
-  /** Clock for elapsed time (tests inject fake timers). */
-  readonly now?: () => number;
   /**
    * Force play/skip. When omitted, uses shouldPlaySplash(appearance).
    * Tests use this for skip-matrix isolation.
    */
   readonly forcePlay?: boolean;
+  /** Injected clock for tests (ms). */
+  readonly now?: () => number;
 }
 
 /**
@@ -70,10 +78,12 @@ export function resolveSplashPhase(elapsedMs: number, durationMs: number): Splas
   if (duration <= 0) return 'done';
   const t = Math.max(0, elapsedMs) / duration;
   if (t >= 1) return 'done';
-  if (t < 0.12) return 'void';
-  if (t < 0.38) return 'meteor';
-  if (t < 0.72) return 'banner';
-  return 'hold';
+  if (t < 0.1) return 'void';
+  if (t < 0.32) return 'rise';
+  if (t < 0.48) return 'bloom';
+  if (t < 0.72) return 'brand';
+  if (t < 0.9) return 'hold';
+  return 'fade';
 }
 
 /** How many banner lines are revealed for the current phase progress. */
@@ -84,213 +94,389 @@ export function resolveBannerRevealCount(
 ): number {
   if (totalLines <= 0) return 0;
   const phase = resolveSplashPhase(elapsedMs, durationMs);
-  if (phase === 'void' || phase === 'done') return phase === 'done' ? totalLines : 0;
-  if (phase === 'meteor') {
-    const duration = clampSplashDurationMs(durationMs);
-    const start = 0.12 * duration;
-    const end = 0.38 * duration;
-    const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, end - start)));
-    return Math.max(1, Math.ceil(local * totalLines));
-  }
-  return totalLines;
+  if (phase === 'void' || phase === 'rise' || phase === 'bloom') return 0;
+  if (phase === 'done' || phase === 'hold' || phase === 'fade') return totalLines;
+  // brand: progressive reveal
+  const duration = clampSplashDurationMs(durationMs);
+  const start = 0.48 * duration;
+  const end = 0.72 * duration;
+  const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, end - start)));
+  return Math.max(1, Math.ceil(local * totalLines));
 }
+
+/** Progress of the moon rise within the rise+bloom window (0..1). */
+export function resolveMoonRiseProgress(elapsedMs: number, durationMs: number): number {
+  const duration = clampSplashDurationMs(durationMs);
+  const start = 0.1 * duration;
+  const end = 0.48 * duration;
+  return Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, end - start)));
+}
+
+/** Fade-out alpha in the final phase (1 → 0). */
+export function resolveFadeAlpha(elapsedMs: number, durationMs: number): number {
+  const phase = resolveSplashPhase(elapsedMs, durationMs);
+  if (phase === 'done') return 0;
+  if (phase !== 'fade') return 1;
+  const duration = clampSplashDurationMs(durationMs);
+  const start = 0.9 * duration;
+  const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, duration - start)));
+  return 1 - local;
+}
+
+// Large moon glyph (7 rows). Drawn with active theme glow/primary.
+const MOON_LARGE = [
+  '        ████████        ',
+  '     ██████████████     ',
+  '   ██████████████████   ',
+  '  ████████████████████  ',
+  '   ██████████████████   ',
+  '     ██████████████     ',
+  '        ████████        ',
+] as const;
+
+const MOON_COMPACT = [
+  '   ██████   ',
+  ' ██████████ ',
+  '████████████',
+  ' ██████████ ',
+  '   ██████   ',
+] as const;
+
+const STAR_GLYPHS = ['.', '·', '˚', '✦', '✧', '⋆', '+', '*'] as const;
 
 export class SplashComponent implements Component {
   private readonly appearance: AppearancePreferences;
   private readonly requestRender: () => void;
+  private readonly getRows: () => number;
   private readonly durationMs: number;
-  private readonly now: () => number;
   private readonly forcePlay: boolean | undefined;
+  private readonly nowFn: () => number;
+  private readonly startedAt: number;
   private scheduler: AnimationScheduler | undefined;
-  private startedAt = 0;
-  private elapsedMs = 0;
-  private done = false;
-  private resolvePlay: (() => void) | undefined;
+  private playResolve: (() => void) | undefined;
+  private finished = false;
+  private disposed = false;
 
   constructor(options: SplashComponentOptions) {
     this.appearance = options.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
     this.requestRender = options.requestRender;
+    this.getRows = options.getRows ?? (() => Math.max(12, process.stdout.rows ?? 24));
     this.durationMs = clampSplashDurationMs(
       options.durationMs ?? DEFAULT_SPLASH_DURATION_MS,
     );
-    this.now = options.now ?? (() => Date.now());
     this.forcePlay = options.forcePlay;
-  }
-
-  /** Active-theme primary hex — never a hard-coded palette. */
-  get activePalettePrimary(): string {
-    return currentTheme.palette.primary;
+    this.nowFn = options.now ?? (() => appearanceAnimationNow());
+    this.startedAt = this.nowFn();
   }
 
   get phase(): SplashPhase {
-    if (this.done) return 'done';
+    if (this.finished) return 'done';
     return resolveSplashPhase(this.elapsedMs, this.durationMs);
   }
 
+  get elapsedMs(): number {
+    return Math.max(0, this.nowFn() - this.startedAt);
+  }
+
+  get isFinished(): boolean {
+    return this.finished;
+  }
+
+  /** Alias used by older tests / call sites. */
   get isDone(): boolean {
-    return this.done;
+    return this.finished;
   }
 
   get clampedDurationMs(): number {
     return this.durationMs;
   }
 
-  invalidate(): void {}
+  /** Active-theme primary hex — never a hard-coded palette. */
+  get activePrimaryHex(): string {
+    return currentTheme.palette.primary;
+  }
+
+  /** Alias for active theme primary. */
+  get activePalettePrimary(): string {
+    return currentTheme.palette.primary;
+  }
+
+  invalidate(): void {
+    // Stateless frame; parent requests re-render on animation ticks.
+  }
 
   /**
-   * Run the splash until duration elapses (or immediately when skipped).
-   * Safe to call once; subsequent calls resolve immediately.
+   * Start the splash. Resolves when duration elapses, force-skip is set,
+   * or dispose() is called. Always safe to await.
    */
   play(): Promise<void> {
-    if (this.done) return Promise.resolve();
+    if (this.disposed || this.finished) return Promise.resolve();
 
-    const play =
+    const enabled =
       this.forcePlay !== undefined
         ? this.forcePlay
         : shouldPlaySplash(this.appearance);
 
-    if (!play) {
-      this.markDone();
+    if (!enabled) {
+      this.finished = true;
       return Promise.resolve();
     }
 
-    this.startedAt = this.now();
-    this.elapsedMs = 0;
-    advanceAppearanceAnimationClock(this.startedAt);
-
     return new Promise<void>((resolve) => {
-      this.resolvePlay = resolve;
+      this.playResolve = resolve;
       this.scheduler = new AnimationScheduler({
-        fps: Math.max(12, this.appearance.animationFps || 20),
+        fps: this.appearance.animationFps,
         enabled: true,
         requestRender: () => {
-          this.tick();
+          if (this.disposed || this.finished) return;
+          advanceAppearanceAnimationClock(this.nowFn());
           this.requestRender();
-        },
-        shouldRender: () => !this.done,
-        beforeRender: () => {
-          advanceAppearanceAnimationClock(this.now());
+          if (this.elapsedMs >= this.durationMs) {
+            this.finish();
+          }
         },
       });
-      // First paint immediately so the void/meteor frame is not delayed one tick.
-      this.tick();
+      // Kick first frame immediately.
       this.requestRender();
     });
   }
 
   dispose(): void {
-    this.scheduler?.dispose();
-    this.scheduler = undefined;
-    if (!this.done) this.markDone();
+    if (this.disposed) return;
+    this.disposed = true;
+    this.finish();
   }
 
+  private finish(): void {
+    if (this.finished) return;
+    this.finished = true;
+    this.scheduler?.dispose();
+    this.scheduler = undefined;
+    const resolve = this.playResolve;
+    this.playResolve = undefined;
+    resolve?.();
+  }
+
+  /**
+   * Always paints exactly `getRows()` lines so the splash owns the full
+   * terminal surface (not a short banner strip).
+   */
   render(width: number): string[] {
-    const safeWidth = Math.max(0, width);
-    if (safeWidth === 0 || this.done) return [];
-
+    const safeWidth = Math.max(1, Math.floor(width));
+    const rows = Math.max(8, Math.floor(this.getRows()));
     const appearance = this.appearance;
-    const layout = resolveResponsiveLayout({ width: safeWidth });
-    const phase = this.phase;
-    const primaryHex = currentTheme.palette.primary;
-    const dimHex = currentTheme.palette.textDim;
-    const glowHex = currentTheme.palette.glow;
-    const primary = (s: string): string => chalk.hex(primaryHex)(s);
-    const dim = (s: string): string => chalk.hex(dimHex)(s);
+    const elapsed = this.elapsedMs;
+    const phase = resolveSplashPhase(elapsed, this.durationMs);
+    const fade = resolveFadeAlpha(elapsed, this.durationMs);
+    const layout = resolveResponsiveLayout({ width: safeWidth, height: rows });
+    const palette = currentTheme.palette;
+    const primaryHex = palette.primary;
+    const glowHex = palette.glow;
+    const particleHex = palette.particle;
+    const dimHex = palette.textDim;
+    const mutedHex = palette.textMuted;
+    const bgHex = palette.background;
+    const paint = (hex: string, text: string): string => chalk.hex(hex)(text);
+    const dim = (text: string): string => chalk.hex(dimHex)(text);
+    const muted = (text: string): string => chalk.hex(mutedHex)(text);
 
-    if (phase === 'void') {
-      const rail = shouldRenderAmbientEffects(appearance)
-        ? renderParticleRail(safeWidth, appearance, 'splash:void-rail')
-        : ' '.repeat(safeWidth);
-      return ['', dim(truncateToWidth(rail, safeWidth, '…')), ''];
-    }
+    // Build full-height canvas of plain spaces, then paint layers.
+    const canvas: string[] = Array.from({ length: rows }, () => ' '.repeat(safeWidth));
 
-    const bannerAll = renderWelcomeBanner(layout, appearance, safeWidth);
-    const reveal = resolveBannerRevealCount(this.elapsedMs, this.durationMs, bannerAll.length);
-    const bannerLines = bannerAll.slice(0, reveal).map((line, index) => {
-      // Banner already applies spectacular paint; re-paint hold phase with theme glow accent.
-      if (phase === 'hold' && index === 0) {
-        return renderSpectacularText(
-          stripLeadingAnsiKeepWidth(line, safeWidth),
-          `splash:banner:${String(index)}`,
-          appearance,
-          { rowIndex: index, intense: true },
-        );
-      }
-      return truncateToWidth(line, safeWidth, '…');
+    // --- Layer 1: starfield (all phases except pure void early) ---
+    const starDensity =
+      phase === 'void'
+        ? 0.02 + (elapsed / this.durationMs) * 0.08
+        : phase === 'fade'
+          ? 0.04 * fade
+          : 0.12;
+    paintStarfield(canvas, safeWidth, rows, elapsed, starDensity, (glyph, intensity) => {
+      if (fade < 0.15) return ' ';
+      const hex = intensity > 0.7 ? glowHex : intensity > 0.4 ? particleHex : mutedHex;
+      return paint(hex, glyph);
     });
 
-    const lines: string[] = [''];
-
-    if (phase === 'meteor' || phase === 'banner' || phase === 'hold') {
-      const meteorRows =
-        shouldRenderAmbientEffects(appearance) && safeWidth >= 24
-          ? Math.min(4, Math.max(2, Math.floor(safeWidth / 28)))
-          : 0;
-      if (meteorRows > 0) {
-        const field = renderMeteorField(
-          safeWidth,
-          meteorRows,
-          'splash:meteors',
-          appearance,
-        );
-        lines.push(...field.map((row) => truncateToWidth(row, safeWidth, '…')));
-        lines.push('');
+    // --- Layer 2: meteor rain (rise → hold) ---
+    if (phase !== 'void' && phase !== 'done' && fade > 0.2) {
+      const meteorRows = Math.max(3, Math.floor(rows * 0.35));
+      const field = renderMeteorField(safeWidth, meteorRows, 'splash:sky', appearance);
+      // Overlay near the top third
+      const top = Math.max(0, Math.floor(rows * 0.08));
+      for (let i = 0; i < field.length && top + i < rows; i++) {
+        const line = field[i];
+        if (line === undefined || line.trim().length === 0) continue;
+        canvas[top + i] = padOrTrim(line, safeWidth);
       }
     }
 
-    if (bannerLines.length > 0) {
-      lines.push(...bannerLines);
-      lines.push('');
-    }
-
-    if (phase === 'banner' || phase === 'hold') {
-      const tag = renderSpectacularText('SUPERLIORA', 'splash:tagline', appearance, {
-        intense: true,
-        pace: 'fast',
+    // --- Layer 3: rising moon ---
+    const moonProgress = resolveMoonRiseProgress(elapsed, this.durationMs);
+    if (moonProgress > 0 && phase !== 'done') {
+      const moon = safeWidth >= 40 ? MOON_LARGE : MOON_COMPACT;
+      const moonHex =
+        phase === 'bloom' || phase === 'brand' || phase === 'hold' ? glowHex : primaryHex;
+      const moonLines = moon.map((line) => {
+        if (fade < 0.25) return paint(mutedHex, line);
+        return paint(moonHex, line);
       });
-      // Theme glow accent — active palette, not a fixed Blood Moon hex.
-      const accent = chalk.hex(glowHex)(' · ');
-      const tagline = truncateToWidth(`${tag}${accent}${dim('boot')}`, safeWidth, '…');
-      lines.push(tagline);
-      lines.push(
-        truncateToWidth(
-          renderParticleRail(safeWidth, appearance, 'splash:hold-rail'),
+      // Rise: start below center, end at ~28% from top
+      const restingTop = Math.max(1, Math.floor(rows * 0.18));
+      const startTop = rows - moon.length - 1;
+      const moonTop = Math.round(startTop + (restingTop - startTop) * moonProgress);
+      blitCentered(canvas, moonLines, moonTop, safeWidth);
+
+      // Glow ring under moon during bloom+
+      if (moonProgress > 0.6 && fade > 0.4) {
+        const ringY = Math.min(rows - 1, moonTop + moon.length);
+        const ring = centerText(safeWidth, '˚ · ⋆ · ✦ · ⋆ · ˚');
+        canvas[ringY] = padOrTrim(paint(particleHex, ring), safeWidth);
+      }
+    }
+
+    // --- Layer 4: horizon bloom ---
+    if (
+      phase === 'bloom' ||
+      phase === 'brand' ||
+      phase === 'hold' ||
+      (phase === 'fade' && fade > 0.3)
+    ) {
+      const horizonY = Math.min(rows - 2, Math.floor(rows * 0.72));
+      const rail = renderParticleRail(safeWidth, appearance, 'splash:horizon');
+      canvas[horizonY] = padOrTrim(rail, safeWidth);
+      if (horizonY + 1 < rows) {
+        canvas[horizonY + 1] = padOrTrim(
+          paint(primaryHex, '─'.repeat(safeWidth)),
           safeWidth,
-          '…',
-        ),
+        );
+      }
+    }
+
+    // --- Layer 5: SUPERLIORA brand ---
+    if (phase === 'brand' || phase === 'hold' || phase === 'fade') {
+      const bannerAll = renderWelcomeBanner(layout, appearance, safeWidth);
+      const reveal = resolveBannerRevealCount(elapsed, this.durationMs, bannerAll.length);
+      const banner = bannerAll.slice(0, reveal);
+      const brandTop = Math.max(
+        1,
+        Math.floor(rows * 0.42) - Math.floor(banner.length / 2),
       );
+      blitCentered(canvas, banner, brandTop, safeWidth);
+
+      if (reveal >= bannerAll.length && fade > 0.35) {
+        const tagY = Math.min(rows - 1, brandTop + banner.length + 1);
+        const tag = renderSpectacularText('SUPERLIORA', 'splash:tagline', appearance, {
+          intense: true,
+          pace: 'slow',
+        });
+        const sep = paint(glowHex, ' · ');
+        const sub = muted('agent runtime');
+        canvas[tagY] = padOrTrim(centerText(safeWidth, `${tag}${sep}${sub}`), safeWidth);
+      }
     }
 
-    // Palette-token marker so tests can assert the active theme primary hex.
-    lines.push(primary('◆'));
-    lines.push('');
-    return lines;
-  }
-
-  private tick(): void {
-    if (this.done) return;
-    const now = this.now();
-    this.elapsedMs = Math.max(0, now - this.startedAt);
-    advanceAppearanceAnimationClock(now);
-    if (this.elapsedMs >= this.durationMs) {
-      this.markDone();
+    // --- Layer 6: void vignette edges (top/bottom dim bars) ---
+    if (phase === 'void' || phase === 'rise') {
+      canvas[0] = padOrTrim(muted('▄'.repeat(safeWidth)), safeWidth);
+      canvas[rows - 1] = padOrTrim(muted('▀'.repeat(safeWidth)), safeWidth);
     }
-  }
 
-  private markDone(): void {
-    if (this.done) return;
-    this.done = true;
-    this.elapsedMs = this.durationMs;
-    this.scheduler?.dispose();
-    this.scheduler = undefined;
-    const resolve = this.resolvePlay;
-    this.resolvePlay = undefined;
-    resolve?.();
+    // --- Layer 7: fade collapse — blank out edges as fade progresses ---
+    if (phase === 'fade' && fade < 0.85) {
+      const blankRows = Math.floor((1 - fade) * rows * 0.45);
+      for (let i = 0; i < blankRows && i < rows; i++) {
+        canvas[i] = ' '.repeat(safeWidth);
+        canvas[rows - 1 - i] = ' '.repeat(safeWidth);
+      }
+    }
+
+    // Ensure every line is exactly safeWidth (no ANSI-only empty collapse)
+    for (let i = 0; i < canvas.length; i++) {
+      const line = canvas[i] ?? '';
+      if (visibleWidth(line) === 0) {
+        // Keep physical row height with themed empty sky
+        canvas[i] = bgHex ? paint(bgHex, ' '.repeat(safeWidth)) : ' '.repeat(safeWidth);
+        // Prefer plain spaces — chalk on spaces can paint bg when canvasBackground is on
+        canvas[i] = ' '.repeat(safeWidth);
+      } else {
+        canvas[i] = padOrTrim(line, safeWidth);
+      }
+    }
+
+    return canvas;
   }
 }
 
-/** Best-effort strip of SGR for re-paint; keeps display width via truncation later. */
-function stripLeadingAnsiKeepWidth(text: string, maxWidth: number): string {
-  const plain = text.replaceAll(/\u001B\[[0-9;]*m/g, '');
-  return truncateToWidth(plain, maxWidth, '…');
+function paintStarfield(
+  canvas: string[],
+  width: number,
+  rows: number,
+  elapsedMs: number,
+  density: number,
+  style: (glyph: string, intensity: number) => string,
+): void {
+  const count = Math.max(4, Math.floor(width * rows * density * 0.08));
+  for (let i = 0; i < count; i++) {
+    const seed = hash2(i * 17 + 3, Math.floor(elapsedMs / 90));
+    const x = seed % width;
+    const y = hash2(i * 31 + 7, 99) % rows;
+    const twinkle = (Math.sin(elapsedMs / 180 + i) + 1) / 2;
+    if (twinkle < 0.25) continue;
+    const glyph = STAR_GLYPHS[hash2(i, 4) % STAR_GLYPHS.length] ?? '·';
+    const row = canvas[y];
+    if (row === undefined) continue;
+    // Only paint over plain space cells
+    const plain = stripAnsi(row);
+    if (plain[x] !== ' ' && plain[x] !== undefined) continue;
+    const cells = [...plain.padEnd(width, ' ')];
+    cells[x] = '★'; // placeholder then style whole row carefully
+    // Simpler: rebuild row with styled glyph at x
+    const left = plain.slice(0, x);
+    const right = plain.slice(x + 1);
+    canvas[y] = padOrTrim(
+      `${left}${style(glyph, twinkle)}${right}`,
+      width,
+    );
+  }
+}
+
+function blitCentered(
+  canvas: string[],
+  lines: readonly string[],
+  top: number,
+  width: number,
+): void {
+  for (let i = 0; i < lines.length; i++) {
+    const y = top + i;
+    if (y < 0 || y >= canvas.length) continue;
+    const line = lines[i];
+    if (line === undefined) continue;
+    const plainW = visibleWidth(line);
+    const pad = Math.max(0, Math.floor((width - plainW) / 2));
+    const left = ' '.repeat(pad);
+    canvas[y] = padOrTrim(left + line, width);
+  }
+}
+
+function centerText(width: number, text: string): string {
+  const w = visibleWidth(text);
+  if (w >= width) return truncateToWidth(text, width, '…');
+  const pad = Math.floor((width - w) / 2);
+  return `${' '.repeat(pad)}${text}`;
+}
+
+function padOrTrim(text: string, width: number): string {
+  const w = visibleWidth(text);
+  if (w === width) return text;
+  if (w > width) return truncateToWidth(text, width, '…');
+  return text + ' '.repeat(width - w);
+}
+
+function stripAnsi(text: string): string {
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
+
+function hash2(a: number, b: number): number {
+  let h = (a * 374761393 + b * 668265263) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return (h ^ (h >>> 16)) >>> 0;
 }
