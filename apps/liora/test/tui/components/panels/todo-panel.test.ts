@@ -175,7 +175,7 @@ describe('TodoPanelComponent', () => {
     expect(out).not.toMatch(/hacked/);
   });
 
-  it('renders all todos and no overflow footer when count <= 5', () => {
+  it('renders all todos and no overflow footer when count <= 8', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([
       { title: 'a', status: 'done' },
@@ -183,14 +183,17 @@ describe('TodoPanelComponent', () => {
       { title: 'c', status: 'pending' },
       { title: 'd', status: 'pending' },
       { title: 'e', status: 'pending' },
+      { title: 'f', status: 'pending' },
+      { title: 'g', status: 'pending' },
+      { title: 'h', status: 'pending' },
     ]);
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/a/);
-    expect(out).toMatch(/e/);
+    expect(out).toMatch(/h/);
     expect(out).not.toMatch(/\+\d+ more/);
   });
 
-  it('appends "+N more" footer when count > 5', () => {
+  it('appends "+N more" footer when count > 8', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([
       { title: 't0', status: 'done' },
@@ -200,6 +203,9 @@ describe('TodoPanelComponent', () => {
       { title: 't4', status: 'pending' },
       { title: 't5', status: 'pending' },
       { title: 't6', status: 'pending' },
+      { title: 't7', status: 'pending' },
+      { title: 't8', status: 'pending' },
+      { title: 't9', status: 'pending' },
     ]);
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/\+2 more/);
@@ -208,17 +214,17 @@ describe('TodoPanelComponent', () => {
   const many = (n: number): TodoItem[] =>
     Array.from({ length: n }, (_, i) => ({ title: `t${i}`, status: 'pending' as const }));
 
-  it('hasOverflow() is false when count <= 5 and true when count > 5', () => {
+  it('hasOverflow() is false when count <= 8 and true when count > 8', () => {
     const panel = new TodoPanelComponent();
-    panel.setTodos(many(5));
+    panel.setTodos(many(8));
     expect(panel.hasOverflow()).toBe(false);
-    panel.setTodos(many(6));
+    panel.setTodos(many(9));
     expect(panel.hasOverflow()).toBe(true);
   });
 
   it('collapsed footer advertises "ctrl+t to expand"', () => {
     const panel = new TodoPanelComponent();
-    panel.setTodos(many(7));
+    panel.setTodos(many(10));
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/\+2 more/);
     expect(out).toMatch(/ctrl\+t to expand/);
@@ -227,7 +233,7 @@ describe('TodoPanelComponent', () => {
   it('collapsed footer shows hidden status distribution', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([
-      ...Array.from({ length: 6 }, (_, i) => ({
+      ...Array.from({ length: 9 }, (_, i) => ({
         title: `ip${i}`,
         status: 'in_progress' as const,
       })),
@@ -235,6 +241,7 @@ describe('TodoPanelComponent', () => {
       ...Array.from({ length: 3 }, (_, i) => ({ title: `p${i}`, status: 'pending' as const })),
     ]);
     const out = strip(panel.render(80).join('\n'));
+    // MAX_VISIBLE=8 keeps 8 in_progress; hides 1 ip + 3 done + 3 pending.
     expect(out).toMatch(/\+7 more \(3 done · 1 in progress · 3 pending\)/);
     expect(out).toMatch(/ctrl\+t to expand/);
   });
@@ -242,7 +249,7 @@ describe('TodoPanelComponent', () => {
   it('collapsed footer omits zero-count statuses', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos(
-      Array.from({ length: 8 }, (_, i) => ({ title: `d${i}`, status: 'done' as const })),
+      Array.from({ length: 11 }, (_, i) => ({ title: `d${i}`, status: 'done' as const })),
     );
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/\+3 more \(3 done\)/);
@@ -253,28 +260,28 @@ describe('TodoPanelComponent', () => {
   it('expanded footer does not include status distribution', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos(
-      Array.from({ length: 8 }, (_, i) => ({ title: `d${i}`, status: 'done' as const })),
+      Array.from({ length: 11 }, (_, i) => ({ title: `d${i}`, status: 'done' as const })),
     );
     panel.setExpanded(true);
     const out = strip(panel.render(80).join('\n'));
-    expect(out).toMatch(/all 8 items · ctrl\+t to collapse/);
+    expect(out).toMatch(/all 11 items · ctrl\+t to collapse/);
     expect(out).not.toMatch(/\d+ done ·/);
   });
 
   it('renders every todo with a collapse hint when expanded', () => {
     const panel = new TodoPanelComponent();
-    panel.setTodos(many(7));
+    panel.setTodos(many(10));
     panel.setExpanded(true);
     const out = strip(panel.render(80).join('\n'));
     expect(out).toMatch(/t0/);
-    expect(out).toMatch(/t6/);
+    expect(out).toMatch(/t9/);
     expect(out).not.toMatch(/\+\d+ more/);
     expect(out).toMatch(/ctrl\+t to collapse/);
   });
 
   it('toggleExpanded() flips between collapsed and expanded', () => {
     const panel = new TodoPanelComponent();
-    panel.setTodos(many(7));
+    panel.setTodos(many(10));
     expect(strip(panel.render(80).join('\n'))).toMatch(/\+2 more/);
     panel.toggleExpanded();
     expect(strip(panel.render(80).join('\n'))).toMatch(/ctrl\+t to collapse/);
@@ -310,7 +317,7 @@ describe('TodoPanelComponent', () => {
 
   it('setTodos() keeps the expanded state across list updates', () => {
     const panel = new TodoPanelComponent();
-    panel.setTodos(many(7));
+    panel.setTodos(many(10));
     panel.setExpanded(true);
     panel.setTodos([
       { title: 'u0', status: 'pending' },
@@ -320,18 +327,21 @@ describe('TodoPanelComponent', () => {
       { title: 'u4', status: 'pending' },
       { title: 'u5', status: 'pending' },
       { title: 'u6', status: 'pending' },
+      { title: 'u7', status: 'pending' },
+      { title: 'u8', status: 'pending' },
+      { title: 'u9', status: 'pending' },
     ]);
     const out = strip(panel.render(80).join('\n'));
-    expect(out).toMatch(/u6/);
+    expect(out).toMatch(/u9/);
     expect(out).toMatch(/ctrl\+t to collapse/);
   });
 
   it('clear() resets the expanded state', () => {
     const panel = new TodoPanelComponent();
-    panel.setTodos(many(7));
+    panel.setTodos(many(10));
     panel.setExpanded(true);
     panel.clear();
-    panel.setTodos(many(7));
+    panel.setTodos(many(10));
     expect(strip(panel.render(80).join('\n'))).toMatch(/\+2 more/);
   });
 
@@ -354,7 +364,7 @@ describe('TodoPanelComponent', () => {
 describe('selectVisibleTodos', () => {
   const T = (title: string, status: TodoItem['status']): TodoItem => ({ title, status });
 
-  it('returns all items unchanged when count <= 5', () => {
+  it('returns all items unchanged when count <= 8', () => {
     const todos: TodoItem[] = [
       T('a', 'done'),
       T('b', 'in_progress'),
@@ -365,7 +375,7 @@ describe('selectVisibleTodos', () => {
     expect(hidden).toBe(0);
   });
 
-  it('with 1 in_progress: shows 1 done before + in_progress + 3 pending after', () => {
+  it('with 1 in_progress: shows 1 done before + in_progress + pending after up to 8', () => {
     const todos: TodoItem[] = [
       T('d1', 'done'),
       T('d2', 'done'),
@@ -376,9 +386,13 @@ describe('selectVisibleTodos', () => {
       T('p3', 'pending'),
       T('p4', 'pending'),
       T('p5', 'pending'),
+      T('p6', 'pending'),
+      T('p7', 'pending'),
+      T('p8', 'pending'),
     ];
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['d3', 'ip', 'p1', 'p2', 'p3']);
+    // 1 done + 1 in_progress + 6 pending = 8
+    expect(rows.map((r) => r.title)).toEqual(['d3', 'ip', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
     expect(hidden).toBe(4);
   });
 
@@ -391,9 +405,12 @@ describe('selectVisibleTodos', () => {
       T('p4', 'pending'),
       T('p5', 'pending'),
       T('p6', 'pending'),
+      T('p7', 'pending'),
+      T('p8', 'pending'),
+      T('p9', 'pending'),
     ];
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['ip', 'p1', 'p2', 'p3', 'p4']);
+    expect(rows.map((r) => r.title)).toEqual(['ip', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7']);
     expect(hidden).toBe(2);
   });
 
@@ -404,29 +421,33 @@ describe('selectVisibleTodos', () => {
       T('d3', 'done'),
       T('d4', 'done'),
       T('d5', 'done'),
+      T('d6', 'done'),
+      T('d7', 'done'),
+      T('d8', 'done'),
       T('ip', 'in_progress'),
       T('p1', 'pending'),
     ];
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['d3', 'd4', 'd5', 'ip', 'p1']);
+    // remaining=7 after ip: 1 pending + 6 done (most recent)
+    expect(rows.map((r) => r.title)).toEqual(['d3', 'd4', 'd5', 'd6', 'd7', 'd8', 'ip', 'p1']);
     expect(hidden).toBe(2);
   });
 
-  it('all pending: shows first 5', () => {
-    const todos: TodoItem[] = Array.from({ length: 8 }, (_, i) => T(`p${i}`, 'pending'));
+  it('all pending: shows first 8', () => {
+    const todos: TodoItem[] = Array.from({ length: 11 }, (_, i) => T(`p${i}`, 'pending'));
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['p0', 'p1', 'p2', 'p3', 'p4']);
+    expect(rows.map((r) => r.title)).toEqual(['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7']);
     expect(hidden).toBe(3);
   });
 
-  it('all done: shows last 5', () => {
-    const todos: TodoItem[] = Array.from({ length: 8 }, (_, i) => T(`d${i}`, 'done'));
+  it('all done: shows last 8', () => {
+    const todos: TodoItem[] = Array.from({ length: 11 }, (_, i) => T(`d${i}`, 'done'));
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['d3', 'd4', 'd5', 'd6', 'd7']);
+    expect(rows.map((r) => r.title)).toEqual(['d3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10']);
     expect(hidden).toBe(3);
   });
 
-  it('mixed done+pending without in_progress: 1 done + 4 pending', () => {
+  it('mixed done+pending without in_progress: 1 done + 7 pending', () => {
     const todos: TodoItem[] = [
       T('d1', 'done'),
       T('d2', 'done'),
@@ -436,9 +457,12 @@ describe('selectVisibleTodos', () => {
       T('p3', 'pending'),
       T('p4', 'pending'),
       T('p5', 'pending'),
+      T('p6', 'pending'),
+      T('p7', 'pending'),
+      T('p8', 'pending'),
     ];
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['d3', 'p1', 'p2', 'p3', 'p4']);
+    expect(rows.map((r) => r.title)).toEqual(['d3', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7']);
     expect(hidden).toBe(3);
   });
 
@@ -451,9 +475,12 @@ describe('selectVisibleTodos', () => {
       T('p2', 'pending'),
       T('p3', 'pending'),
       T('p4', 'pending'),
+      T('p5', 'pending'),
+      T('p6', 'pending'),
+      T('p7', 'pending'),
     ];
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['ip1', 'ip2', 'ip3', 'p1', 'p2']);
+    expect(rows.map((r) => r.title)).toEqual(['ip1', 'ip2', 'ip3', 'p1', 'p2', 'p3', 'p4', 'p5']);
     expect(hidden).toBe(2);
   });
 
@@ -466,11 +493,15 @@ describe('selectVisibleTodos', () => {
       T('p2', 'pending'),
       T('d2', 'done'),
       T('p3', 'pending'),
+      T('p4', 'pending'),
+      T('p5', 'pending'),
+      T('p6', 'pending'),
+      T('p7', 'pending'),
     ];
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.length).toBe(5);
-    expect(hidden).toBe(2);
-    expect(rows.filter((r) => r.status === 'pending').length).toBe(4);
+    expect(rows.length).toBe(8);
+    expect(hidden).toBe(3);
+    expect(rows.filter((r) => r.status === 'pending').length).toBe(7);
     expect(rows.filter((r) => r.status === 'done').length).toBe(1);
   });
 
@@ -483,26 +514,29 @@ describe('selectVisibleTodos', () => {
       T('p3', 'pending'),
       T('p4', 'pending'),
       T('p5', 'pending'),
+      T('p6', 'pending'),
+      T('p7', 'pending'),
+      T('p8', 'pending'),
     ];
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.length).toBe(5);
+    expect(rows.length).toBe(8);
     expect(hidden).toBe(2);
     expect(rows.some((r) => r.status === 'in_progress')).toBe(true);
     expect(rows.some((r) => r.status === 'done')).toBe(true);
   });
 
-  it('more than 5 in_progress: caps at 5 keeping the earliest', () => {
-    const todos: TodoItem[] = Array.from({ length: 7 }, (_, i) =>
+  it('more than 8 in_progress: caps at 8 keeping the earliest', () => {
+    const todos: TodoItem[] = Array.from({ length: 10 }, (_, i) =>
       T(`ip${i}`, 'in_progress'),
     );
     const { rows, hidden } = selectVisibleTodos(todos);
-    expect(rows.map((r) => r.title)).toEqual(['ip0', 'ip1', 'ip2', 'ip3', 'ip4']);
+    expect(rows.map((r) => r.title)).toEqual(['ip0', 'ip1', 'ip2', 'ip3', 'ip4', 'ip5', 'ip6', 'ip7']);
     expect(hidden).toBe(2);
   });
 
   it('returns hiddenCounts reflecting the hidden items', () => {
     const todos: TodoItem[] = [
-      ...Array.from({ length: 6 }, (_, i) => T(`ip${i}`, 'in_progress')),
+      ...Array.from({ length: 9 }, (_, i) => T(`ip${i}`, 'in_progress')),
       ...Array.from({ length: 3 }, (_, i) => T(`d${i}`, 'done')),
       ...Array.from({ length: 3 }, (_, i) => T(`p${i}`, 'pending')),
     ];
@@ -511,7 +545,7 @@ describe('selectVisibleTodos', () => {
     expect(hiddenCounts).toEqual({ done: 3, in_progress: 1, pending: 3 });
   });
 
-  it('returns zero hiddenCounts when count <= 5', () => {
+  it('returns zero hiddenCounts when count <= 8', () => {
     const todos: TodoItem[] = [T('a', 'done'), T('b', 'in_progress'), T('c', 'pending')];
     const { hidden, hiddenCounts } = selectVisibleTodos(todos);
     expect(hidden).toBe(0);

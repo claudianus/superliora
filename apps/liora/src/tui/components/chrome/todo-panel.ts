@@ -36,7 +36,7 @@ export interface TodoItem {
   readonly status: TodoStatus;
 }
 
-const MAX_VISIBLE = 5;
+const MAX_VISIBLE = 8;
 const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
