@@ -60,15 +60,19 @@ import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers
 import type { TUIState } from '../tui-state';
 import { isTUIInputInteractionActive } from './input-interaction';
 import {
+  isPureInputFrame,
   resolveTUIStateNativeFramePolicy,
+  shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
 } from './native-frame-policy';
 
 export {
   frameInvalidationIntentToCause,
+  isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
+  shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
   type FrameInvalidationIntent,
@@ -304,11 +308,11 @@ export function createTUIStateNativeRenderCallback(
     if (policy.refreshTerminalPalette) options.onAuthoritativeFrame?.();
     // Pure keystroke frames only rewrite the editor. Reuse chrome lines so we
     // do not re-render header/footer/queue on every character.
-    const pureInputFrame =
-      frame.causes.length > 0 &&
-      frame.causes.every((cause) => cause === 'input') &&
-      !layoutShift.structuralShift &&
-      !layoutShift.viewportScrolled;
+    const pureInputFrame = isPureInputFrame(
+      frame.causes,
+      layoutShift.structuralShift,
+      layoutShift.viewportScrolled,
+    );
     const reuseChrome =
       pureInputFrame &&
       chromeCache !== undefined &&
@@ -334,17 +338,19 @@ export function createTUIStateNativeRenderCallback(
         footer: nativeFrame.chrome.footer,
       };
     }
+    // force/clear come from policy (pure input stays incremental). forceCursor
+    // is independent and always on for IME caret stickiness — see shouldForceNativeCursor.
+    const forceCursor = shouldForceNativeCursor({
+      causes: frame.causes,
+      structuralShift: layoutShift.structuralShift,
+      viewportScrolled: layoutShift.viewportScrolled,
+    });
     const result = runtime.renderLayoutFrame(nativeFrame.regions, {
       fill: options.fill ?? currentTheme.canvasBackgroundCell(),
       force: policy.force,
       clear: policy.clear,
       cursor: nativeFrame.cursor,
-      // Always re-emit the cursor position on every frame. Without this,
-      // animation/idle frames skip the CUP sequence (cursor unchanged) and the
-      // terminal's cursor drifts to the last drawn cell — usually the bottom of
-      // the footer — so OS IME renders the composition window (e.g. Korean
-      // hangul preedit) at the wrong screen position.
-      forceCursor: true,
+      forceCursor,
     });
     return result;
   };
