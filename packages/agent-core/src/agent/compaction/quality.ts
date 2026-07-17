@@ -424,7 +424,7 @@ function extractFileHintsFromText(text: string): readonly string[] {
 }
 
 /** Stable durable identifiers that must survive compaction when present in history. */
-function extractEvidenceIdsFromText(text: string): string[] {
+export function extractEvidenceIdsFromText(text: string): string[] {
   const ids = new Set<string>();
   // evidence_ids: a,b  OR evidence_id=x OR evidence_ids="a,b"
   const attr = /\bevidence[_-]?ids?\s*[=:]\s*["']?([A-Za-z0-9_.:/-]+(?:\s*,\s*[A-Za-z0-9_.:/-]+)*)/gi;
@@ -449,6 +449,49 @@ function extractEvidenceIdsFromText(text: string): string[] {
     if (match[1]) ids.add(match[1]);
   }
   return [...ids];
+}
+
+/**
+ * Deterministically splice missing durable IDs into a compaction summary.
+ * Prefer this over hard-failing auto-compaction when the LLM drops load-bearing
+ * evidence/node/archive identifiers after repair attempts.
+ */
+export function injectMissingDurableEvidenceIds(
+  summary: string,
+  compactedMessages: readonly Message[],
+): { summary: string; injectedIds: readonly string[] } {
+  const sourceText = compactedMessages.map((message) => extractText(message, ' ')).join('\n');
+  const expected = uniqueLower(extractEvidenceIdsFromText(sourceText));
+  if (expected.length === 0) {
+    return { summary, injectedIds: [] };
+  }
+  const present = new Set(uniqueLower(extractEvidenceIdsFromText(summary)));
+  const missing = expected.filter((id) => !present.has(id));
+  if (missing.length === 0) {
+    return { summary, injectedIds: [] };
+  }
+
+  // Preserve original casing from the source when possible.
+  const sourceIds = extractEvidenceIdsFromText(sourceText);
+  const byLower = new Map(sourceIds.map((id) => [id.toLowerCase(), id] as const));
+  const renderIds = missing.map((id) => byLower.get(id) ?? id);
+  const evidenceLine = `evidence_ids: ${renderIds.join(',')}`;
+  const archiveLines = renderIds
+    .filter((id) => /^[a-f0-9]+$/i.test(id) && id.length >= 8)
+    .map((id) => `[liora-archived id=${id}]`);
+
+  const block = [
+    '',
+    '## Durable Evidence Continuity',
+    'Deterministically restored identifiers that the summarizer omitted:',
+    evidenceLine,
+    ...archiveLines,
+  ].join('\n');
+
+  return {
+    summary: `${summary.trimEnd()}${block}\n`,
+    injectedIds: renderIds,
+  };
 }
 
 

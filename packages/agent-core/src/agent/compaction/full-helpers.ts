@@ -232,6 +232,32 @@ export function evidenceRepairSucceeded(input: {
   if (input.qualityWarningCategories.includes('missing_evidence_ids')) return false;
   return input.evidenceIdRecallScore === undefined || input.evidenceIdRecallScore >= 1;
 }
+export function stripResolvedEvidenceCriticals(quality: {
+  readonly critical: readonly string[];
+  readonly warnings: readonly string[];
+  readonly warningCategories: readonly string[];
+  readonly signals?: { readonly evidenceIdRecallScore?: number };
+}): {
+  readonly critical: readonly string[];
+  readonly warnings: readonly string[];
+  readonly warningCategories: readonly string[];
+  readonly signals?: { readonly evidenceIdRecallScore?: number };
+} {
+  const evidenceOk =
+    quality.signals?.evidenceIdRecallScore === undefined ||
+    quality.signals.evidenceIdRecallScore >= 1;
+  if (!evidenceOk) return quality;
+  return {
+    ...quality,
+    critical: quality.critical.filter((item) => !item.includes('durable evidence')),
+    warningCategories: quality.warningCategories.filter(
+      (category) => category !== 'missing_evidence_ids',
+    ),
+    warnings: quality.warnings.filter(
+      (item) => !item.includes('durable evidence/node/archive identifiers'),
+    ),
+  };
+}
 
 export function buildEmergencyBackstopActions<T extends { readonly type: string }>(
   planActions: readonly T[],
