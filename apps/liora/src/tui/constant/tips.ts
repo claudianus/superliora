@@ -50,7 +50,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'media: OPENAI/GOOGLE key → GenerateImage/Video — no MCP', priority: 2, solo: true },
   { text: 'research: Context7 + WebSearch/FetchURL — no MCP', priority: 2, solo: true },
   { text: 'office: SearchSkill → docx / pptx / xlsx — Word, slides, sheets with zero MCP setup', priority: 2, solo: true },
-  { text: 'WebSearch defaults to 3 hits — sharpen the query before raising limit', priority: 1, solo: true },
+  { text: 'WebSearch defaults to 3 hits; include_content caps pages at 8k — prefer FetchURL for deep reads', priority: 1, solo: true },
   { text: '/bench: LioraBench score · loop · next rerun', priority: 2, solo: true },
   { text: 'browser/computer tools are built-in for screenshot proof — no MCP', priority: 2, solo: true },
   { text: 'first run: /login then type a task — no complex config needed', priority: 3, solo: true },
