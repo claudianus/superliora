@@ -99,7 +99,7 @@ describe('WelcomeComponent', () => {
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
     expect(output).toContain('____  ___');
-    expect(output).toContain('Type a task · /status img/vid·web·office·ZDR · /bench · Shift-Tab Ultrawork');
+    expect(output).toContain('Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork');
     expect(output).not.toContain('Welcome to SuperLiora!');
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');
@@ -128,8 +128,8 @@ describe('WelcomeComponent', () => {
     try {
       const lines = new WelcomeComponent(appState).render(80);
 
-      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧]/);
-      expect(strip(lines.at(-3) ?? '')).toMatch(/[·∙✧]/);
+      // Single top rail (bottom densify rail removed).
+      expect(strip(lines[2] ?? '')).toMatch(/[·∙✧✦✺•]/);
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];

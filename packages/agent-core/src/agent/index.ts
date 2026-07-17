@@ -676,6 +676,7 @@ export class Agent {
               lastContextUsageRatio: microSnap.lastContextUsageRatio,
               byTrigger: microSnap.byTrigger,
             },
+      autoDream: this.dream === null ? null : this.dream.snapshot(),
     });
   }
 

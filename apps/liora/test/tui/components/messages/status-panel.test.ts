@@ -99,7 +99,7 @@ describe('status panel report lines', () => {
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
     expect(output).toMatch(/Catalog\s+1 models \/ 1 providers; active managed:kimi-api/);
-    expect(output).toMatch(/Memory\s+prefs \| session recall \| long-run notes \| auto-dream/);
+    expect(output).toMatch(/Memory\s+prefs \| session recall \| auto-dream/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify queued/);
     expect(output).toMatch(/Stages\s+Plan on \| Goal active \| Swarm armed \| Verify queued/);
     expect(output).toMatch(/Blockers\s+none detected/);
@@ -189,7 +189,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
-    expect(output).toMatch(/Memory\s+prefs \| session recall \| long-run notes \| auto-dream/);
+    expect(output).toMatch(/Memory\s+prefs \| session recall \| auto-dream/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
     expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm off \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+model setup/);
@@ -530,6 +530,57 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Stages\s+Plan on \| Goal blocked \| Swarm off \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+goal blocked/);
     expect(output).toMatch(/Next\s+Resolve or replace the blocked goal before continuing\./);
+  });
+
+
+  it('appends Ultrawork stage onto the Flow row when a run is active', () => {
+    const lines = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10_000,
+      availableModels: {},
+      ultraworkMode: true,
+      ultraworkRun: { stage: 'integrate' },
+    });
+    const joined = lines.join('\n');
+    expect(joined).toMatch(/Flow\s+.+integrate/);
+  });
+
+
+  it('surfaces auto-dream run counts on the Memory gate when available', () => {
+    const lines = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10_000,
+      availableModels: {},
+      autoDream: {
+        enabled: true,
+        inFlight: false,
+        runs: 3,
+        lastDreamAt: Date.now(),
+        lastExamined: 12,
+        lastMerged: 2,
+        minHours: 4,
+        minActiveRecords: 8,
+      },
+    });
+    expect(lines.join('\n')).toMatch(/Memory\s+prefs \| session recall \| auto-dream×3/);
   });
 
   it('includes Context OS health when compacted pages exist', () => {

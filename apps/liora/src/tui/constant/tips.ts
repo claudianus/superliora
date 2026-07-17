@@ -61,6 +61,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: 'footer context bar is 10-cell with eighths partial fill — denser pressure glance', priority: 1, solo: true },
   { text: 'premium particle rails push denser comets + 32-cell trails at 1ms — zero config spectacle', priority: 1, solo: true },
   { text: 'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls', priority: 1, solo: true },
+  { text: '/status Memory shows auto-dream on/×N (default on, ≥4h/8 records) — long-horizon recall hygiene', priority: 1, solo: true },
   { text: 'footer μ badges show micro clears (cache-miss/swarm) without config', priority: 1, solo: true },
   { text: 'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present', priority: 1, solo: true },
   { text: 'footer web + office + img·vid + zdr badges show research/office/media/privacy readiness without MCP or config', priority: 1, solo: true },
@@ -69,4 +70,5 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { text: '/model: switch model', priority: 2 },
   { text: '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video', priority: 2, solo: true },
   { text: 'TUI glances: thinking 4 · command 4 · result 3 (not densify 1/1/2)', priority: 2, solo: true },
+  { text: 'Liora Recall injects ≤6 memories · 480 chars each; Bash soft-caps 4k; LioraExpand pages 120 lines', priority: 1, solo: true },
 ];

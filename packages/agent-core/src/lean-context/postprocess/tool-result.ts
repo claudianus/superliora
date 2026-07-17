@@ -11,8 +11,8 @@ import {
 } from '../gate/bounce';
 import { compressionResistance } from '../gate/density';
 
-const READ_TOKEN_THRESHOLD = 2500;
-const GREP_LINE_THRESHOLD = 40;
+const READ_TOKEN_THRESHOLD = 2_000;
+const GREP_LINE_THRESHOLD = 25;
 
 export interface PostprocessLeanToolResultInput {
   readonly agent: Agent;

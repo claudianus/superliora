@@ -1,8 +1,12 @@
-import {Container, Spacer} from '#/tui/renderer';
+import { Container, Spacer } from '#/tui/renderer';
 
 import type { MoonLoader } from '#/tui/components/chrome/moon-loader';
-import {currentTheme} from '#/tui/theme';
-import {getActiveAppearancePreferences, renderParticleRail, shouldRenderAmbientEffects} from '#/tui/utils/appearance-effects';
+import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderParticleRail,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export type ActivityPaneMode = 'hidden' | 'waiting' | 'thinking' | 'composing' | 'tool';
 
@@ -43,11 +47,10 @@ export class ActivityPaneComponent extends Container {
     const appearance = getActiveAppearancePreferences();
     if (!shouldRenderAmbientEffects(appearance) || width < 24) return lines;
 
-    // Dual particle rails: live activity stays visually dense during long waits.
+    // Single particle rail: premium motion without dual-rail vertical thrash.
     if (this.mode === 'waiting' || this.mode === 'composing' || this.mode === 'tool') {
-      const railA = renderParticleRail(width, appearance, `activity:${this.mode}:a`);
-      const railB = renderParticleRail(width, appearance, `activity:${this.mode}:b`);
-      return [...lines, currentTheme.dim(railA), currentTheme.dim(railB)];
+      const rail = renderParticleRail(width, appearance, `activity:${this.mode}`);
+      return [...lines, currentTheme.dim(rail)];
     }
     return lines;
   }

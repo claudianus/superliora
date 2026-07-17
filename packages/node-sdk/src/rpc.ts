@@ -628,6 +628,7 @@ export abstract class SDKRpcClientBase {
       providerRouteStatus,
       contextOS: context.contextOS,
       microCompaction: context.microCompaction,
+      autoDream: context.autoDream,
     };
   }
 

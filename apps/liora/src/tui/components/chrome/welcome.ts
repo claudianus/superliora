@@ -15,7 +15,7 @@ import { renderParticleRail } from '#/tui/utils/appearance-effects';
 import { renderWelcomeBanner } from './welcome-banner';
 
 const LOGGED_IN_PROMPT =
-  'Type a task · /status img/vid·web·office·ZDR · /bench · Shift-Tab Ultrawork';
+  'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork';
 const LOGGED_OUT_PROMPT = 'Run /login or paste an API key — media/web/office ready after that, no MCP.';
 
 export class WelcomeComponent implements Component {
@@ -87,7 +87,6 @@ export class WelcomeComponent implements Component {
         content: [
           renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
           ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
-          renderParticleRail(safeWidth - 2, appearance, 'welcome-bottom'),
         ],
         width: safeWidth,
         height: contentLines.length + 4,
