@@ -581,7 +581,15 @@ function formatContextOSStatus(options: StatusReportOptions): string | undefined
     health.missingEvidencePageCount > 0
       ? `evidence ${health.evidenceIdRecallScore.toFixed(2)} (missing ${String(health.missingEvidencePageCount)})`
       : `evidence ${health.evidenceIdRecallScore.toFixed(2)}`;
-  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}`;
+  const next =
+    health.missingEvidencePageCount > 0
+      ? ' · verify IDs before resume'
+      : health.latestContinuityStatus === 'needs_rehydration'
+        ? ' · expand raw refs only on failure'
+        : health.latestContinuityStatus === 'at_risk'
+          ? ' · do not assume omitted details'
+          : '';
+  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}${next}`;
 }
 
 
