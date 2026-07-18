@@ -3,7 +3,7 @@
  *
  * After the cinematic splash, the transcript is just Welcome + empty space.
  * This component fills that void with a self-contained story scene —
- * "Peaceful Aquarium" (cute fish, green seaweed, soft sky-blue water) —
+ * "Jewel Tank" (lead fish, seaweed curtain, coral, air-stone, caustics) —
  * then vanishes the moment real transcript content arrives.
  *
  * Visual language is intentionally distinct from the Blood Moon splash
@@ -144,7 +144,7 @@ export function renderIdleStageLines(
   const chromeBudget = resolveChromeBudget(targetRows, options?.workDir, safeWidth);
   const storyRows = Math.max(5, targetRows - chromeBudget);
 
-  // Story scene: aquarium: fish, seaweed, sky-blue water, sand.
+  // Story scene: Jewel Tank layers (water → plants → fish).
   paintIdleStoryScene({
     canvas,
     width: safeWidth,
