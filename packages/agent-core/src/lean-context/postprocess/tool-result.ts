@@ -171,10 +171,34 @@ function finalizeCompressed(
     return appendHint({ ...original, output: text }, '[liora-compressed] recover with LioraRead(mode=lines|full).');
   }
   const archived = archiveContent({ store, content: overflow, label });
+  const statusLine = summarizeCompressedOutcome(text, original.isError === true);
   return {
     ...original,
-    output: `${text}\n${archived.marker}\nrecover: LioraExpand(id="${archived.id}")\n[liora-compressed]`,
+    output: `${text}\n${statusLine}\n${archived.marker}\nrecover: LioraExpand(id="${archived.id}")\n[liora-compressed]`,
   };
+}
+
+/** One-line gate for agents: smoke/build/test success without reading full archive. */
+function summarizeCompressedOutcome(text: string, isError: boolean): string {
+  const lower = text.toLowerCase();
+  if (
+    /bundle smoke passed/i.test(text) ||
+    /workspace import check passed/i.test(text) ||
+    /cli bundle check passed/i.test(text)
+  ) {
+    return '[liora-summary] pass · smoke/import/bundle gate';
+  }
+  if (/\b(FAIL|failed|Error:|Command failed)\b/i.test(text) || isError) {
+    const failLine = text
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => /fail|error|denied/i.test(line));
+    return `[liora-summary] fail · ${failLine?.slice(0, 120) ?? 'see archived overflow'}`;
+  }
+  if (/\b(✓|✔|passed|pass)\b/i.test(lower) && !/\bfail/i.test(lower)) {
+    return '[liora-summary] pass · see compacted body';
+  }
+  return '[liora-summary] see compacted body + archive for full log';
 }
 
 function appendHint(result: ExecutableToolResult, hint: string): ExecutableToolResult {

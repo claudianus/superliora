@@ -20,6 +20,7 @@ import type {
   TranscriptEntry,
 } from '../types';
 import { formatErrorMessage } from '../utils/event-payload';
+import { handleAccountsCommand } from './accounts';
 import { handleLoginCommand, handleLogoutCommand } from './auth';
 import { handleBtwCommand } from './btw';
 import {
@@ -410,6 +411,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'logout':
       await handleLogoutCommand(host);
+      return;
+    case 'accounts':
+      await handleAccountsCommand(host);
       return;
     case 'undo':
       await handleUndoCommand(host, args);

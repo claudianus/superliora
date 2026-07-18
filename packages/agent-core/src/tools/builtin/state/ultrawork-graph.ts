@@ -203,7 +203,7 @@ function cloneArray(values: readonly string[] | undefined): readonly string[] | 
 }
 
 function todoStatusFromNode(status: WorkGraphNode['status']): TodoStatus {
-  if (status === 'running') return 'in_progress';
+  if (status === 'running' || status === 'needs_integration') return 'in_progress';
   if (status === 'done') return 'done';
   return 'pending';
 }

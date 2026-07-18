@@ -11,14 +11,18 @@
  * refresh is automatic.
  */
 
-import { createHash } from 'node:crypto';
-
 import {
   applyCustomRegistryProvider,
   CustomRegistryApiError,
   fetchCustomRegistry,
+  fingerprintProviderOAuthRef,
+  isValidProviderOAuthCredentialLabel,
+  listProviderOAuthRefs,
+  promoteProviderOAuthSlot,
+  rewriteProviderOAuthRefs as rewriteProviderOAuthRefsShared,
   type CustomRegistrySource,
   type ManagedKimiConfigShape,
+  type ProviderOAuthRef,
 } from '@superliora/oauth';
 import {
   applyCatalogProvider,
@@ -3388,34 +3392,18 @@ function rewriteProviderOAuthRefs(
   provider: LioraConfig['providers'][string],
   refs: readonly ConfigOAuthRef[],
 ): LioraConfig['providers'][string] {
-  const unique = uniqueOAuthRefs(refs);
-  const { oauth: _oauth, oauths: _oauths, ...rest } = provider;
-  if (unique.length === 0) return rest;
-  return {
-    ...rest,
-    oauth: unique[0],
-    oauths: unique.slice(1),
-  };
+  return rewriteProviderOAuthRefsShared(
+    provider as Record<string, unknown>,
+    refs as readonly ProviderOAuthRef[],
+  ) as LioraConfig['providers'][string];
 }
 
 function providerOAuthRefs(provider: LioraConfig['providers'][string]): ConfigOAuthRef[] {
-  return uniqueOAuthRefs([
-    ...(provider.oauth === undefined ? [] : [provider.oauth]),
-    ...(provider.oauths ?? []),
-  ]);
+  return listProviderOAuthRefs(provider as Record<string, unknown>) as ConfigOAuthRef[];
 }
 
 function promoteSlot<T>(values: readonly T[], index: number): T[] {
-  return [values[index]!, ...values.slice(0, index), ...values.slice(index + 1)];
-}
-
-function uniqueOAuthRefs(refs: readonly ConfigOAuthRef[]): ConfigOAuthRef[] {
-  const unique: ConfigOAuthRef[] = [];
-  for (const ref of refs) {
-    if (unique.some((existing) => sameOAuthRef(existing, ref))) continue;
-    unique.push(ref);
-  }
-  return unique;
+  return promoteProviderOAuthSlot(values, index);
 }
 
 function sameOAuthRef(left: ConfigOAuthRef, right: ConfigOAuthRef): boolean {
@@ -3449,7 +3437,7 @@ function uniqueStrings(values: readonly string[]): string[] {
 }
 
 function isValidCredentialLabel(value: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(value);
+  return isValidProviderOAuthCredentialLabel(value);
 }
 
 function parseKeyIndex(indexText: string, deps: ProviderDeps): number {
@@ -3477,10 +3465,7 @@ function parseOAuthStorage(value: string, deps: ProviderDeps): ConfigOAuthRef['s
 }
 
 function fingerprintOAuthRef(ref: ConfigOAuthRef): string {
-  return createHash('sha256')
-    .update(JSON.stringify([ref.storage, ref.key, ref.oauthHost ?? '']))
-    .digest('hex')
-    .slice(0, 12);
+  return fingerprintProviderOAuthRef(ref as ProviderOAuthRef);
 }
 
 function parseFallbackModels(value: string): string[] {

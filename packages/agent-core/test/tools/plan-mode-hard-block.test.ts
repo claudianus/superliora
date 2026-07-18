@@ -882,13 +882,13 @@ describe('Plan mode permission policy', () => {
     'cat package.json',
     "sed -n '1,10p' package.json",
     'rg -n "Review phase" packages/agent-core',
-  ])('keeps Research phase Bash inspection narrow: %s', async (command) => {
+    'pnpm -C packages/agent-core exec vitest run test/ultrawork/harness-friction-fixes.test.ts',
+    'vitest run packages/agent-core/test/ultrawork/harness-friction-fixes.test.ts',
+  ])('allows broader Research phase inspection and focused tests: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('research');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
-
-    expect(deny.message ?? '').toContain('simple read-only workspace inspection');
+    expect(evaluatePlanPolicy(agent, 'Bash', { command })).toBeUndefined();
   });
 
   it.each([
@@ -898,20 +898,21 @@ describe('Plan mode permission policy', () => {
     'pwd & ls',
     'pwd &&',
     '&& pwd',
-    'pwd && cat package.json',
     'pwd && git show --stat HEAD',
     'ls ~/.ssh',
     'which ~/.ssh/id_rsa',
     'command -v ../scripts/dev',
     'git diff --output=/tmp/diff.txt',
     'git log --oneline -5',
-  ])('blocks unsafe or too-broad Research phase Bash inspection: %s', async (command) => {
+    'pnpm install',
+    'npm add lodash',
+  ])('blocks unsafe or mutating Research phase Bash: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('research');
 
     const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
 
-    expect(deny.message ?? '').toContain('simple read-only workspace inspection');
+    expect(deny.message ?? '').toMatch(/read-only inspection|focused test runner|blocked in Research phase/i);
   });
 
   it.each([

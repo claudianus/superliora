@@ -7,6 +7,7 @@ export * from './plugin-commands';
 export * from './types';
 
 export { dispatchInput, type SlashCommandHost } from './dispatch';
+export { handleAccountsCommand, openAccountsManager } from './accounts';
 export { handleLoginCommand, handleLogoutCommand } from './auth';
 export {
   buildBenchStatusLines,

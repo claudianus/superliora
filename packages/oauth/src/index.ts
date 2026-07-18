@@ -114,10 +114,22 @@ export type {
 
 export {
   allocateProviderOAuthAccountKey,
+  fingerprintProviderOAuthRef,
+  isValidProviderOAuthCredentialLabel,
+  labelProviderOAuthRef,
   listProviderOAuthRefs,
   mergeProviderOAuthLogin,
+  promoteProviderOAuthRef,
+  promoteProviderOAuthSlot,
+  removeProviderOAuthRef,
+  rewriteProviderOAuthRefs,
 } from './provider-oauth-pool';
-export type { ProviderOAuthRef } from './provider-oauth-pool';
+export type {
+  LabelProviderOAuthResult,
+  PromoteProviderOAuthResult,
+  ProviderOAuthRef,
+  RemoveProviderOAuthResult,
+} from './provider-oauth-pool';
 
 export {
   fetchManagedUsage,

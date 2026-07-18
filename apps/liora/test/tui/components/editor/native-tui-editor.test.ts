@@ -201,6 +201,46 @@ describe('NativeTUIEditor', () => {
     expect(editor.isShowingAutocomplete()).toBe(false);
   });
 
+  it('moves the cursor by soft-wrapped visual rows with ↑/↓ after a layout measure', () => {
+    const editor = makeEditor();
+    // content width at 24 cols: 24 - 4 - 2 = 18. 40 chars → 3 visual rows
+    // (0–18, 18–36, 36–40).
+    editor.setText('abcdefghijklmnopqrstuvwxyzabcdefghijklmn');
+    // Warm layout width (same path as paint).
+    expect(editor.getNativeLayoutRowCount(24)).toBe(5);
+
+    // Start on the second visual row so ↑ has a soft-wrap target.
+    editor.setCursorPosition({ line: 0, col: 20 });
+    editor.handleInput('\u001b[A'); // CSI A = up
+    expect(editor.getCursor().col).toBeLessThan(18);
+
+    const afterUp = editor.getCursor().col;
+    editor.handleInput('\u001b[B'); // CSI B = down
+    expect(editor.getCursor().col).toBeGreaterThan(afterUp);
+  });
+
+  it('grows layout rows for long soft-wrapped single-line prompts', () => {
+    const editor = makeEditor();
+    // content width at 24 cols: 24 - contentX(4) - rightInset(2) = 18.
+    // 40 ASCII chars soft-wrap to 3 visual rows → frame = 2 + 3 = 5.
+    editor.setText('abcdefghijklmnopqrstuvwxyzabcdefghijklmn');
+    expect(editor.getNativeLayoutRowCount(24)).toBe(5);
+    expect(editor.render(24)).toHaveLength(5);
+
+    // Short single-line stays a closed 3-row box.
+    editor.setText('hi');
+    expect(editor.getNativeLayoutRowCount(24)).toBe(3);
+    expect(editor.render(24)).toHaveLength(3);
+  });
+
+  it('grows layout rows for hard-newline multiline prompts', () => {
+    const editor = makeEditor();
+    editor.setText('line one\nline two\nline three');
+    // 3 content rows → 2 + 3 = 5 frame rows (top/bottom borders).
+    expect(editor.getNativeLayoutRowCount(40)).toBe(5);
+    expect(editor.render(40)).toHaveLength(5);
+  });
+
   it('grows layout rows when slash autocomplete opens without changing text', async () => {
     vi.useFakeTimers();
     const editor = new NativeTUIEditor({ autocompleteDebounceMs: 0 });

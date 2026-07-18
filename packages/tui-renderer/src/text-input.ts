@@ -399,9 +399,17 @@ export class RendererTextInput {
         else this.moveRight(event.shift);
         return true;
       case 'up':
+        if (event.alt || event.ctrl) {
+          this.moveParagraph(-1, event.shift);
+          return true;
+        }
         this.moveVertical(-1, event.shift);
         return true;
       case 'down':
+        if (event.alt || event.ctrl) {
+          this.moveParagraph(1, event.shift);
+          return true;
+        }
         this.moveVertical(1, event.shift);
         return true;
       case 'pageup':
@@ -692,29 +700,66 @@ export class RendererTextInput {
   }
 
   private moveVertical(direction: -1 | 1, extend = false): void {
+    // Prefer soft-wrapped visual rows when width is known so long single-line
+    // prompts and hard-wrapped paragraphs feel continuous under ↑/↓.
     if (this.moveVisualLine(direction, extend)) return;
     const nextLine = this.cursor.line + direction;
     if (nextLine < 0 || nextLine >= this.lines.length) return;
     const targetColumn = this.preferredColumn();
-    const offset = this.textOffsetForLine(nextLine) + columnAtDisplayWidth(this.lines[nextLine] ?? '', targetColumn);
+    const offset =
+      this.textOffsetForLine(nextLine) +
+      columnAtDisplayWidth(this.lines[nextLine] ?? '', targetColumn);
     this.moveCursorToOffset(offset, direction > 0 ? 'forward' : 'backward', extend);
   }
 
   private moveVisualLine(direction: -1 | 1, extend: boolean): boolean {
-    if (this.layoutWidth === undefined) return false;
-    const visualLines = this.createVisualLines(this.layoutWidth);
+    const width = this.layoutWidth;
+    if (width === undefined || width <= 0) return false;
+    const visualLines = this.createVisualLines(width);
+    if (visualLines.length === 0) return false;
     const index = this.visualLineIndexForCursor(visualLines);
     const next = visualLines[index + direction];
     if (next === undefined) return false;
 
-    const targetColumn = this.preferredVisualColumn(visualLines[index]!);
-    const nextOffset = next.start + columnAtDisplayWidth(next.text, targetColumn);
+    const current = visualLines[index]!;
+    const targetColumn = this.preferredVisualColumn(current);
+    // Place the caret on the next visual row at the sticky display column.
+    // Clamp into the visual segment so soft-wrap boundaries stay stable.
+    const columnInNext = columnAtDisplayWidth(next.text, targetColumn);
+    const nextColumn = Math.min(next.end, next.start + columnInNext);
     this.moveCursorToOffset(
-      this.textOffsetForLine(next.logicalLine) + Math.min(next.end, nextOffset),
+      this.textOffsetForLine(next.logicalLine) + nextColumn,
       direction > 0 ? 'forward' : 'backward',
       extend,
     );
     return true;
+  }
+
+  /**
+   * Jump by blank-line paragraph (or to document start/end). Used for Alt/Ctrl+↑/↓
+   * so long multi-line drafts can be scanned quickly without holding the arrow.
+   */
+  private moveParagraph(direction: -1 | 1, extend = false): void {
+    const targetLine = findParagraphTargetLine(this.lines, this.cursor.line, direction);
+    if (targetLine === this.cursor.line && direction < 0 && this.cursor.line === 0) {
+      this.moveCursorToOffset(0, 'forward', extend);
+      this.clearPreferredDisplayColumn();
+      return;
+    }
+    if (
+      targetLine === this.cursor.line &&
+      direction > 0 &&
+      this.cursor.line === this.lines.length - 1
+    ) {
+      this.moveCursorToOffset(this.getText().length, 'backward', extend);
+      this.clearPreferredDisplayColumn();
+      return;
+    }
+    const targetColumn = this.preferredColumn();
+    const offset =
+      this.textOffsetForLine(targetLine) +
+      columnAtDisplayWidth(this.lines[targetLine] ?? '', targetColumn);
+    this.moveCursorToOffset(offset, direction > 0 ? 'forward' : 'backward', extend);
   }
 
   private movePage(direction: -1 | 1, extend = false): void {
@@ -1391,4 +1436,42 @@ function columnAtDisplayWidth(text: string, targetWidth: number): number {
     if (width === targetWidth) return cluster.end;
   }
   return text.length;
+}
+
+/**
+ * Blank-line paragraph navigation: skip empty lines, then land on the first
+ * non-empty line of the next/previous block. Falls back to document edges.
+ */
+function findParagraphTargetLine(
+  lines: readonly string[],
+  fromLine: number,
+  direction: -1 | 1,
+): number {
+  if (lines.length === 0) return 0;
+  const last = lines.length - 1;
+  let line = clampInteger(fromLine, 0, last);
+
+  const isBlank = (index: number): boolean => (lines[index] ?? '').trim().length === 0;
+
+  if (direction < 0) {
+    // Move to the start of the current paragraph, or the previous one.
+    if (line > 0 && !isBlank(line) && !isBlank(line - 1)) {
+      while (line > 0 && !isBlank(line - 1)) line -= 1;
+      return line;
+    }
+    line = Math.max(0, line - 1);
+    while (line > 0 && isBlank(line)) line -= 1;
+    while (line > 0 && !isBlank(line - 1)) line -= 1;
+    return line;
+  }
+
+  // direction > 0: jump past the current paragraph to the next non-empty block.
+  if (line < last && !isBlank(line)) {
+    while (line < last && !isBlank(line + 1)) line += 1;
+    line = Math.min(last, line + 1);
+  } else {
+    line = Math.min(last, line + 1);
+  }
+  while (line < last && isBlank(line)) line += 1;
+  return line;
 }

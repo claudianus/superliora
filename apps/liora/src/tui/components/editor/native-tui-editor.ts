@@ -88,6 +88,8 @@ export class NativeTUIEditor implements TUIEditor {
   private layoutRowCountCache:
     | { width: number; text: string; overlayCount: number; rows: number }
     | undefined;
+  /** Last measured content width so ↑/↓ can navigate soft-wrap rows between paints. */
+  private lastContentWidth: number | undefined;
 
   constructor(private readonly options: NativeTUIEditorOptions = {}) {
     this.autocomplete = new RendererEditorAutocompleteController({
@@ -193,6 +195,13 @@ export class NativeTUIEditor implements TUIEditor {
     if (!matchesKey(normalized, Key.escape)) this.onNonEscapeInput?.();
 
     if (this.handleAppShortcut(normalized)) return;
+
+    // Keep soft-wrap navigation width in sync even when the last frame was
+    // skipped (e.g. pure-input typing holdoff). Without this, ↑/↓ falls back
+    // to logical lines only and feels stuck on long single-line drafts.
+    if (this.lastContentWidth !== undefined) {
+      this.input.setLayoutWidth(this.lastContentWidth);
+    }
 
     const events = this.decoder.decode(normalized);
     if (this.autocomplete.isOpen()) {
@@ -312,21 +321,20 @@ export class NativeTUIEditor implements TUIEditor {
     ) {
       return cached.rows;
     }
-    // Single-line prompt with no suggestions is always a closed 3-row box.
-    // Skip Intl.Segmenter re-layout of the full text on every keystroke.
-    if (overlayCount === 0 && !text.includes('\n')) {
-      const rows = 3;
-      this.layoutRowCountCache = { width: safeWidth, text, overlayCount, rows };
-      return rows;
-    }
     const overlayLines = overlayOpen ? this.getNativeOverlayLines(safeWidth) : [];
     const contentWidth = Math.max(
       1,
       safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
     );
+    this.lastContentWidth = contentWidth;
+    this.input.setLayoutWidth(contentWidth);
+    // Measure natural visual rows (soft-wrap + hard newlines). Do not pass a
+    // fixed height:1 — contentRows still reflects full wrap, but the old
+    // "no newline ⇒ 3 rows" fast path kept long single-line prompts clipped.
+    // Empty / short single-line text still collapses to the 3-row closed box
+    // via measureRendererEditorSurfaceNaturalRows(contentRows=1).
     const content = this.input.render({
       width: contentWidth,
-      height: 1,
       focused: this.focused,
     });
     const rows = measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows);
@@ -599,6 +607,8 @@ export class NativeTUIEditor implements TUIEditor {
       1,
       safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
     );
+    this.lastContentWidth = contentWidth;
+    this.input.setLayoutWidth(contentWidth);
     const editorStyles = this.resolveEditorSurfaceStyles();
     const overlayLines = this.getNativeOverlayLines(safeWidth, {
       text: editorStyles.textStyle,

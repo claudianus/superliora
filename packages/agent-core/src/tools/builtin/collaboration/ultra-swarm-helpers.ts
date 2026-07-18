@@ -45,27 +45,51 @@ export function escapeXml(value: string): string {
 
 export type UltraSwarmOutcomeStatus = 'completed' | 'failed' | 'aborted';
 export type UltraSwarmOutcomeState = 'not_started' | 'running' | 'completed' | 'failed' | 'aborted';
-export type UltraSwarmVerdict = 'PASS' | 'BLOCKED' | 'FAIL' | 'ABORTED' | 'SKIPPED';
+export type UltraSwarmVerdict =
+  | 'PASS'
+  | 'PASS_WITH_ADVICE'
+  | 'BLOCKED'
+  | 'FAIL'
+  | 'ABORTED'
+  | 'SKIPPED';
 
 export function inferVerdict(
   status: UltraSwarmOutcomeStatus,
   text: string,
   state?: UltraSwarmOutcomeState,
+  phase?: string,
 ): UltraSwarmVerdict {
   if (status === 'failed') return 'FAIL';
   if (status === 'aborted') return state === 'not_started' ? 'SKIPPED' : 'ABORTED';
+  const adviceMatch = /\bVERDICT:\s*PASS_WITH_ADVICE\b/i.exec(text);
+  if (adviceMatch !== null) return 'PASS_WITH_ADVICE';
   const verdictMatch = /\bVERDICT:\s*(PASS|BLOCKED|FAIL)\b/i.exec(text);
   if (verdictMatch?.[1] !== undefined) {
-    return verdictMatch[1].toUpperCase() as UltraSwarmVerdict;
+    const base = verdictMatch[1].toUpperCase() as UltraSwarmVerdict;
+    // Plan/research specialists often produce advice without product artifacts.
+    // Keep PASS for explicit implement PASS; map bare plan/research PASS without
+    // evidence markers to PASS_WITH_ADVICE so headlines do not claim implement done.
+    if (
+      base === 'PASS' &&
+      (phase === 'plan' || phase === 'research') &&
+      extractEvidenceIds(text).length === 0 &&
+      !/\b(artifact_paths?|files?\s+changed|implemented)\b/i.test(text)
+    ) {
+      return 'PASS_WITH_ADVICE';
+    }
+    return base;
   }
+  if (/\bPASS_WITH_ADVICE\b/i.test(text)) return 'PASS_WITH_ADVICE';
   if (/\bBLOCKED\b/i.test(text)) return 'BLOCKED';
   if (/\bFAIL(?:ED)?\b/i.test(text)) return 'FAIL';
+  if (phase === 'plan' || phase === 'research') return 'PASS_WITH_ADVICE';
   return 'PASS';
 }
 
 export function extractEvidenceIds(text: string): readonly string[] {
   const ids = new Set<string>();
-  const pattern = /\bevidence(?:[_ -]?ids?)?\s*[:=]\s*([A-Za-z0-9_.:-]+(?:[ ,]+[A-Za-z0-9_.:-]+)*)/gi;
+  const pattern =
+    /\b(?:evidence(?:[_ -]?ids?)?|artifact(?:[_ -]?paths?)?)\s*[:=]\s*([A-Za-z0-9_./:-]+(?:[ ,]+[A-Za-z0-9_./:-]+)*)/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
     for (const rawId of match[1]?.split(/[,\s]+/) ?? []) {

@@ -189,3 +189,145 @@ export function allocateProviderOAuthAccountKey(
     .slice(0, 16);
   return { storage: 'file', key: `${defaultKey}-account-${digest}` };
 }
+
+/**
+ * Display credential label validation (CLI + TUI). Distinct from
+ * {@link sanitizeOAuthAccountLabel}, which only produces storage-key slugs.
+ */
+export function isValidProviderOAuthCredentialLabel(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(value);
+}
+
+/** Short stable fingerprint for an OAuth ref (list rows, CLI output). */
+export function fingerprintProviderOAuthRef(ref: ProviderOAuthRef): string {
+  return createHash('sha256')
+    .update(JSON.stringify([ref.storage, ref.key, ref.oauthHost ?? '']))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+function serializeOAuthRef(ref: ProviderOAuthRef): ProviderOAuthRef {
+  return {
+    storage: ref.storage,
+    key: ref.key,
+    ...(ref.oauthHost === undefined || ref.oauthHost.length === 0
+      ? {}
+      : { oauthHost: ref.oauthHost }),
+    ...(ref.label === undefined || ref.label.length === 0 ? {} : { label: ref.label }),
+  };
+}
+
+/**
+ * Rewrites a provider config so `oauth` is the primary ref and `oauths` holds
+ * the fallbacks. Empty refs drop both fields.
+ */
+export function rewriteProviderOAuthRefs(
+  provider: Record<string, unknown> | undefined,
+  refs: readonly ProviderOAuthRef[],
+): Record<string, unknown> {
+  const base = isRecord(provider) ? { ...provider } : {};
+  delete base['oauth'];
+  delete base['oauths'];
+  const unique = uniqueOAuthRefs(refs.map(serializeOAuthRef));
+  if (unique.length === 0) return base;
+  return {
+    ...base,
+    oauth: unique[0],
+    // Always set oauths (even []) so deep-merge setConfig clears stale fallbacks.
+    oauths: unique.slice(1),
+  };
+}
+
+/** Move `values[index]` to the front (primary). No-op for index 0 / OOB. */
+export function promoteProviderOAuthSlot<T>(values: readonly T[], index: number): T[] {
+  if (index <= 0 || index >= values.length) return [...values];
+  return [values[index]!, ...values.slice(0, index), ...values.slice(index + 1)];
+}
+
+export type PromoteProviderOAuthResult =
+  | { readonly ok: true; readonly provider: Record<string, unknown>; readonly alreadyPrimary: boolean }
+  | { readonly ok: false; readonly reason: 'empty' | 'index_out_of_range' };
+
+/** Promote the OAuth ref at 0-based `index` to primary. */
+export function promoteProviderOAuthRef(
+  provider: Record<string, unknown> | undefined,
+  index: number,
+): PromoteProviderOAuthResult {
+  const refs = listProviderOAuthRefs(provider);
+  if (refs.length === 0) return { ok: false, reason: 'empty' };
+  if (index < 0 || index >= refs.length) return { ok: false, reason: 'index_out_of_range' };
+  if (index === 0) {
+    return {
+      ok: true,
+      alreadyPrimary: true,
+      provider: rewriteProviderOAuthRefs(provider, refs),
+    };
+  }
+  return {
+    ok: true,
+    alreadyPrimary: false,
+    provider: rewriteProviderOAuthRefs(provider, promoteProviderOAuthSlot(refs, index)),
+  };
+}
+
+export type LabelProviderOAuthResult =
+  | { readonly ok: true; readonly provider: Record<string, unknown> }
+  | {
+      readonly ok: false;
+      readonly reason: 'empty' | 'index_out_of_range' | 'invalid_label' | 'duplicate_label';
+    };
+
+/** Set or clear the display label on the OAuth ref at 0-based `index`. */
+export function labelProviderOAuthRef(
+  provider: Record<string, unknown> | undefined,
+  index: number,
+  label: string | undefined,
+): LabelProviderOAuthResult {
+  const refs = listProviderOAuthRefs(provider);
+  if (refs.length === 0) return { ok: false, reason: 'empty' };
+  if (index < 0 || index >= refs.length) return { ok: false, reason: 'index_out_of_range' };
+
+  let nextLabel: string | undefined;
+  if (label !== undefined) {
+    const trimmed = label.trim();
+    if (trimmed.length === 0) {
+      nextLabel = undefined;
+    } else if (!isValidProviderOAuthCredentialLabel(trimmed)) {
+      return { ok: false, reason: 'invalid_label' };
+    } else {
+      const duplicate = refs.some(
+        (ref, refIndex) =>
+          refIndex !== index && ref.label?.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (duplicate) return { ok: false, reason: 'duplicate_label' };
+      nextLabel = trimmed;
+    }
+  }
+
+  const nextRefs = refs.map((ref, refIndex) => {
+    if (refIndex !== index) return ref;
+    const { label: _prev, ...rest } = ref;
+    return nextLabel === undefined ? rest : { ...rest, label: nextLabel };
+  });
+  return { ok: true, provider: rewriteProviderOAuthRefs(provider, nextRefs) };
+}
+
+export type RemoveProviderOAuthResult =
+  | { readonly ok: true; readonly provider: Record<string, unknown>; readonly remaining: number }
+  | { readonly ok: false; readonly reason: 'empty' | 'index_out_of_range' };
+
+/** Remove the OAuth ref at 0-based `index`. */
+export function removeProviderOAuthRef(
+  provider: Record<string, unknown> | undefined,
+  index: number,
+): RemoveProviderOAuthResult {
+  const refs = listProviderOAuthRefs(provider);
+  if (refs.length === 0) return { ok: false, reason: 'empty' };
+  if (index < 0 || index >= refs.length) return { ok: false, reason: 'index_out_of_range' };
+  const nextRefs = refs.filter((_, refIndex) => refIndex !== index);
+  return {
+    ok: true,
+    remaining: nextRefs.length,
+    provider: rewriteProviderOAuthRefs(provider, nextRefs),
+  };
+}

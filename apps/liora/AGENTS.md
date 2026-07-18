@@ -34,6 +34,14 @@ Entry: `src/main.ts` → `src/cli/commands.ts` → `src/cli/run-shell.ts` → SD
 - `utils` must not depend on `TUIState` / component instances.
 - App code uses `@superliora/sdk` only — **no** `@superliora/agent-core`.
 
+## TUI-first accessibility
+
+User-facing features that operators need during an interactive session must be reachable from the TUI (slash command and/or Settings), not only from CLI subcommands.
+
+- **Default:** new operator workflows land in `src/tui/commands/` + dialogs under `src/tui/components/dialogs/`, reusing pure helpers shared with CLI when both exist.
+- **CLI-only exceptions** (document when adding more): non-interactive scripting (`liora provider …` batch/doctor/route dumps), install/update plumbing, headless export/CI helpers, and one-shot auth that cannot complete inside a mounted editor.
+- Shared config mutations (e.g. OAuth pool rewrite/promote/label/remove) live in pure modules (`@superliora/oauth` or `src/utils/`) — CLI and TUI both call them; do not fork private rewrite logic in either surface.
+
 ## Hard rules (CI-guarded)
 
 - In `handleInput(data)`, never compare printable keys with literals (`data === 'q'`). Kitty/CSI-u breaks that. Use `printableChar(data)` from `src/tui/utils/printable-key.ts`; function keys via `matchesKey` / `Key.*`; control chars (codepoint < 32) may use raw `data`. Guard: `test/tui/printable-key-guard.test.ts`.

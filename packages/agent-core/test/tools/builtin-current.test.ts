@@ -1468,14 +1468,14 @@ describe('current builtin collaboration tools', () => {
     const updated = data[ULTRAWORK_GRAPH_STORE_KEY] as WorkGraph;
     expect(updated.nodes[0]).toMatchObject({
       id: 'ac_1',
-      status: 'done',
+      status: 'needs_integration',
       ownerExpertId: 'academic-anthropologist',
       ownerAgentId: 'agent-expert-1',
       evidenceIds: ['ev_1', 'ev_2'],
-      verificationStatus: 'passed',
+      verificationStatus: 'pending',
     });
     expect(data[TODO_STORE_KEY]).toEqual([
-      { title: '[ac_1] Implement graph harness', status: 'done' },
+      { title: '[ac_1] Implement graph harness', status: 'in_progress' },
     ]);
     expect(emitEvent).toHaveBeenCalledWith({
       type: 'ultrawork.task.assigned',
@@ -1485,7 +1485,7 @@ describe('current builtin collaboration tools', () => {
     expect(emitEvent).toHaveBeenCalledWith({
       type: 'ultrawork.task.assigned',
       runId: 'uw_1',
-      task: expect.objectContaining({ id: 'ac_1', status: 'done' }),
+      task: expect.objectContaining({ id: 'ac_1', status: 'needs_integration' }),
     });
   });
 
