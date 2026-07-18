@@ -1,8 +1,8 @@
 import chalk from 'chalk';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { HeaderComponent } from '#/tui/components/chrome/header';
+import { formatLocalClock, HeaderComponent } from '#/tui/components/chrome/header';
 import type { AppState } from '#/tui/types';
 import {
   advanceAppearanceAnimationClock,
@@ -59,13 +59,15 @@ describe('HeaderComponent', () => {
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
     chalk.level = previousChalkLevel;
+    vi.useRealTimers();
   });
 
-  it('renders brand mark, particle divider, and model label on wide terminals', () => {
+  it('renders brand mark, particle divider, model label, and local clock on wide terminals', () => {
     const previousEnv = {
       TERM: process.env['TERM'],
       CI: process.env['CI'],
@@ -78,14 +80,17 @@ describe('HeaderComponent', () => {
     try {
       // Freeze the ambient clock so brand space-sparkles are deterministic.
       advanceAppearanceAnimationClock(0);
-      const header = new HeaderComponent(baseState());
+      const fixedNow = new Date('2026-07-18T13:47:02+09:00').getTime();
+      const header = new HeaderComponent(baseState(), () => {}, () => fixedNow);
       const out = strip(header.render(100).join('\n'));
       // Brand may interleave particle glyphs into spaces under premium effects.
       expect(out).toContain('◆');
       expect(out).toContain('SuperLiora');
       expect(out).toContain('Kimi K2');
+      expect(out).toContain(formatLocalClock(fixedNow));
       // Particle/divider glyphs should appear between brand and model.
       expect(out).toMatch(/[─━═·∙•◦*]/);
+      header.dispose();
     } finally {
       if (previousEnv.TERM === undefined) delete process.env['TERM'];
       else process.env['TERM'] = previousEnv.TERM;
@@ -96,8 +101,32 @@ describe('HeaderComponent', () => {
     }
   });
 
+  it('refreshes when the local clock second changes', () => {
+    let now = new Date('2026-07-18T13:47:02+09:00').getTime();
+    const onRefresh = vi.fn();
+    const header = new HeaderComponent(baseState(), onRefresh, () => now);
+
+    vi.advanceTimersByTime(999);
+    expect(onRefresh).not.toHaveBeenCalled();
+
+    now += 1_000;
+    vi.advanceTimersByTime(1);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    header.dispose();
+    now += 1_000;
+    vi.advanceTimersByTime(1_000);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
   it('hides on tiny terminals', () => {
     const header = new HeaderComponent(baseState());
     expect(header.render(40)).toEqual([]);
+    header.dispose();
+  });
+
+  it('formats a stable HH:mm:ss local clock label', () => {
+    const ms = new Date(2026, 6, 18, 9, 5, 7).getTime();
+    expect(formatLocalClock(ms)).toBe('09:05:07');
   });
 });
