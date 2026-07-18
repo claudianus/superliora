@@ -1,7 +1,8 @@
 /**
- * Shared night-sky canvas primitives for splash and empty-transcript IdleStage.
- * Keeps moon glyphs, starfield paint, and blit helpers in one place so both
- * cinematic surfaces stay visually aligned (Blood Moon language).
+ * Night-sky canvas primitives for the cinematic startup splash.
+ * Blood Moon glyphs, starfield paint, and blit helpers live here.
+ * Empty-transcript IdleStage uses its own story scene (`idle-scene.ts`)
+ * and intentionally does not share this visual language.
  */
 
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
