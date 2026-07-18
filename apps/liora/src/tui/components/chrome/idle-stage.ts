@@ -2,9 +2,12 @@
  * Intelligent empty-transcript stage.
  *
  * After the cinematic splash, the transcript is just Welcome + empty space.
- * This component fills that void with a viewport-filling Blood Moon night sky
- * (starfield, large moon, meteor rain, horizon rail) plus mood/tip chrome —
+ * This component fills that void with a self-contained story scene —
+ * "Paper Fox on the Night River" (fox, fireflies, reeds, floating lanterns) —
  * then vanishes the moment real transcript content arrives.
+ *
+ * Visual language is intentionally distinct from the Blood Moon splash
+ * (no shared moon glyphs / meteor field / splash starfield).
  *
  * Motion reuses the process-wide appearance animation clock (no private
  * scheduler). Gates match splash/welcome ambient effects.
@@ -23,36 +26,33 @@ import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
-  renderMeteorField,
-  renderParticleRail,
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import {
-  blitCentered,
   centerText,
   padOrTrim,
-  paintStarfield,
-  resolveMoonGlyphRows,
+  paintIdleStoryScene,
+  resolveFoxGlyphRows,
   stripAnsi,
-} from '#/tui/utils/night-sky';
+} from '#/tui/utils/idle-scene';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 const IDLE_TIP_ROTATE_MS = 7_200;
 const IDLE_LINE_ROTATE_MS = 4_800;
 
-/** Soft floor so a large moon + rails still fit; no hard ceiling. */
+/** Soft floor so fox + river still fit; no hard ceiling. */
 const IDLE_STAGE_MIN_ROWS = 10;
 /** Default when mount does not pass transcriptRows. */
 const IDLE_STAGE_DEFAULT_ROWS = 12;
 
-/** Mood lines under the moon — short, non-hype, product-flavored. */
+/** Mood lines under the scene — short, story-flavored, non-hype. */
 const IDLE_MOOD_KEYS = [
-  'tui.idle.mood.orbit',
+  'tui.idle.mood.lantern',
   'tui.idle.mood.listen',
   'tui.idle.mood.ready',
-  'tui.idle.mood.night',
+  'tui.idle.mood.river',
   'tui.idle.mood.spark',
 ] as const;
 
@@ -91,7 +91,7 @@ export function resolveIdleStageRows(width: number, preferredRows = IDLE_STAGE_D
   const safeWidth = Math.max(0, Math.trunc(width));
   const preferred = Math.max(0, Math.trunc(preferredRows));
   if (safeWidth < 24) return 0;
-  // Narrow stages cannot host a multi-layer moon — cap for readability.
+  // Narrow stages cannot host multi-layer story art — cap for readability.
   if (safeWidth < 40) return Math.min(preferred > 0 ? preferred : 7, 7);
   // Medium+: fill the requested transcript budget (no absolute row ceiling).
   const target = preferred > 0 ? preferred : IDLE_STAGE_DEFAULT_ROWS;
@@ -140,69 +140,31 @@ export function renderIdleStageLines(
   // Full-height plain canvas — pad-to-target is the height contract.
   const canvas: string[] = Array.from({ length: targetRows }, () => ' '.repeat(safeWidth));
 
-  // --- Layer 1: starfield ---
-  if (showAmbient) {
-    const density = premium ? 0.14 : 0.1;
-    paintStarfield(canvas, safeWidth, targetRows, now, density, (glyph, intensity) => {
-      const hex =
-        intensity > 0.7 ? palette.glow : intensity > 0.4 ? palette.particle : palette.textMuted;
-      return paint(hex, glyph);
-    });
-  }
-
-  // --- Layer 2: meteor rain (upper third) ---
-  if (showAmbient && targetRows >= 8) {
-    const meteorRows = Math.max(3, Math.floor(targetRows * 0.32));
-    const field = renderMeteorField(safeWidth, meteorRows, 'idle:sky', appearance);
-    const top = Math.max(0, Math.floor(targetRows * 0.06));
-    for (let i = 0; i < field.length && top + i < targetRows; i++) {
-      const line = field[i];
-      if (line === undefined || stripAnsi(line).trim().length === 0) continue;
-      // Only replace mostly-empty sky so stars remain where meteors are sparse.
-      const existing = stripAnsi(canvas[top + i] ?? '');
-      if (existing.replaceAll(' ', '').length > safeWidth * 0.35) continue;
-      canvas[top + i] = padOrTrim(line, safeWidth);
-    }
-  }
-
-  // Reserve bottom chrome band (title / mood / tip / dir / rails).
+  // Reserve bottom chrome band (title / mood / tip / dir).
   const chromeBudget = resolveChromeBudget(targetRows, options?.workDir, safeWidth);
-  const skyBudget = Math.max(5, targetRows - chromeBudget);
+  const storyRows = Math.max(5, targetRows - chromeBudget);
 
-  // --- Layer 3: large / compact moon (Blood Moon, ≥5 rows when space allows) ---
-  const moon = resolveMoonGlyphRows(safeWidth, skyBudget);
-  const moonHex = premium ? palette.glow : palette.primary;
-  const moonLines = moon.map((line) =>
-    showAmbient ? paint(moonHex, line) : paint(palette.textDim, line),
-  );
-  // Rest near upper-mid sky so horizon + chrome still fit below.
-  const moonTop = Math.max(1, Math.min(
-    Math.floor(skyBudget * 0.18),
-    skyBudget - moon.length - 1,
-  ));
-  blitCentered(canvas, moonLines, moonTop, safeWidth);
+  // Story scene: fox, fireflies, hills, reeds, river lanterns.
+  paintIdleStoryScene({
+    canvas,
+    width: safeWidth,
+    storyRows,
+    elapsedMs: now,
+    showAmbient,
+    premium,
+    paint,
+    colors: {
+      glow: palette.glow,
+      particle: palette.particle,
+      primary: palette.primary,
+      accent: palette.accent,
+      textDim: palette.textDim,
+      textMuted: palette.textMuted,
+      warning: palette.warning,
+    },
+  });
 
-  if (showAmbient && moon.length >= 5) {
-    const ringY = Math.min(targetRows - chromeBudget - 1, moonTop + moon.length);
-    if (ringY > moonTop) {
-      const ring = centerText(safeWidth, premium ? '˚ · ⋆ · ✦ · ⋆ · ˚' : '· ⋆ · ⋆ ·');
-      canvas[ringY] = padOrTrim(paint(palette.particle, ring), safeWidth);
-    }
-  }
-
-  // --- Layer 4: horizon rail ---
-  const horizonY = Math.min(targetRows - chromeBudget, Math.max(moonTop + moon.length + 1, Math.floor(targetRows * 0.62)));
-  if (horizonY >= 0 && horizonY < targetRows - 2) {
-    const rail = showAmbient
-      ? renderParticleRail(safeWidth, appearance, 'idle:horizon')
-      : paint(palette.textMuted, '·'.repeat(Math.min(safeWidth, 24)).padEnd(safeWidth));
-    canvas[horizonY] = padOrTrim(rail, safeWidth);
-    if (horizonY + 1 < targetRows - chromeBudget + 2) {
-      canvas[horizonY + 1] = padOrTrim(paint(palette.primary, '─'.repeat(safeWidth)), safeWidth);
-    }
-  }
-
-  // --- Layer 5: bottom chrome (title, mood, tip, workdir) ---
+  // --- Bottom chrome (title, mood, tip, workdir) ---
   const title = showAmbient
     ? renderSpectacularText(ttui('tui.idle.title'), 'idle:title', appearance, {
         intense: premium,
@@ -215,10 +177,11 @@ export function renderIdleStageLines(
   const tipKey = resolveIdleTipKey(now);
   const tip = tipKey === undefined ? '' : ttui(tipKey);
   const workDir = options?.workDir?.trim() ?? '';
+  const foxHex = premium ? palette.glow : palette.primary;
 
   const chromeLines: string[] = [
     centerText(safeWidth, title),
-    centerText(safeWidth, `${paint(moonHex, '●')}  ${paint(palette.textDim, mood)}`),
+    centerText(safeWidth, `${paint(foxHex, '◆')}  ${paint(palette.textDim, mood)}`),
   ];
   if (tip.length > 0) {
     const prefix = ttui('tui.idle.tipPrefix');
@@ -240,9 +203,10 @@ export function renderIdleStageLines(
   // Enforce exact width + exact height contract.
   for (let i = 0; i < canvas.length; i++) {
     const line = canvas[i] ?? '';
-    canvas[i] = stripAnsi(line).length === 0 && line.length === 0
-      ? ' '.repeat(safeWidth)
-      : padOrTrim(line, safeWidth);
+    canvas[i] =
+      stripAnsi(line).length === 0 && line.length === 0
+        ? ' '.repeat(safeWidth)
+        : padOrTrim(line, safeWidth);
   }
 
   // Absolute height contract: exactly targetRows.
@@ -258,7 +222,7 @@ function resolveChromeBudget(targetRows: number, workDir: string | undefined, wi
   let budget = 3; // title, mood, spacer
   budget += 1; // tip almost always present
   if ((workDir?.trim().length ?? 0) > 0 && width >= 40) budget += 1;
-  // Keep chrome from eating the moon on short stages.
+  // Keep chrome from eating the fox/river on short stages.
   return Math.min(budget + 1, Math.max(3, Math.floor(targetRows * 0.35)));
 }
 
@@ -286,3 +250,6 @@ export class IdleStageComponent implements Component {
     });
   }
 }
+
+/** @internal exported for tests — multi-row character art contract. */
+export { resolveFoxGlyphRows };

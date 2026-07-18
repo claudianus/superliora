@@ -62,10 +62,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   // ── Empty-transcript idle stage ──────────────────────────────────────────
   'tui.idle.title': 'waiting for the first spark',
   'tui.idle.tipPrefix': 'tip · ',
-  'tui.idle.mood.orbit': 'moon keeps the quiet orbit',
-  'tui.idle.mood.listen': 'listening for a task',
-  'tui.idle.mood.ready': 'runtime warm · editor ready',
-  'tui.idle.mood.night': 'blood-moon night watch',
+  'tui.idle.mood.lantern': 'paper lanterns ferry quiet thoughts',
+  'tui.idle.mood.listen': 'the fox keeps watch for a task',
+  'tui.idle.mood.ready': 'river warm · editor ready',
+  'tui.idle.mood.river': 'night river, unfinished stories',
   'tui.idle.mood.spark': 'one line starts the run',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
@@ -394,10 +394,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   // ── Empty-transcript idle stage ──────────────────────────────────────────
   'tui.idle.title': '첫 불꽃을 기다리는 중',
   'tui.idle.tipPrefix': '팁 · ',
-  'tui.idle.mood.orbit': '달이 고요한 궤도를 돈다',
-  'tui.idle.mood.listen': '할 일을 듣고 있다',
-  'tui.idle.mood.ready': '런타임 예열 · 에디터 준비',
-  'tui.idle.mood.night': '블러드문 야간 감시',
+  'tui.idle.mood.lantern': '종이 등불이 고요한 생각을 실어 나른다',
+  'tui.idle.mood.listen': '여우가 할 일을 지키고 있다',
+  'tui.idle.mood.ready': '강물 예열 · 에디터 준비',
+  'tui.idle.mood.river': '밤강, 아직 끝나지 않은 이야기',
   'tui.idle.mood.spark': '한 줄이면 달리기가 시작된다',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
