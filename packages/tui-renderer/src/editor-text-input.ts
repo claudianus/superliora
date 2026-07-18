@@ -369,7 +369,8 @@ export function isRendererEditorCursorKey(event: NativeInputKeyEvent): boolean {
       return true;
     case 'up':
     case 'down':
-      return !event.ctrl && !event.alt;
+      // Plain ↑/↓: visual-row move. Alt/Ctrl+↑/↓: paragraph jump (handled in text-input).
+      return true;
     case 'home':
     case 'end':
       return !event.alt;

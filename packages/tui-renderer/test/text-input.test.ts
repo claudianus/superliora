@@ -101,6 +101,43 @@ describe('RendererTextInput', () => {
     expect(input.getCursor()).toEqual({ line: 1, column: 1 });
   });
 
+  it('keeps a sticky display column while walking soft-wrapped visual rows', () => {
+    // width 4 → "abcdefghij" wraps as abcd | efgh | ij
+    const input = new RendererTextInput({ text: 'abcdefghij' });
+    input.setLayoutWidth(4);
+    input.setCursor({ line: 0, column: 2 }); // on 'c' (display col 2)
+
+    input.handleInput(key('down'));
+    expect(input.getCursor()).toEqual({ line: 0, column: 6 }); // 'g'
+    input.handleInput(key('down'));
+    expect(input.getCursor()).toEqual({ line: 0, column: 10 }); // end after 'j' (clamped)
+    input.handleInput(key('up'));
+    expect(input.getCursor()).toEqual({ line: 0, column: 6 });
+  });
+
+  it('jumps by blank-line paragraphs with Alt/Ctrl+↑/↓', () => {
+    const input = new RendererTextInput({
+      text: 'alpha\nbeta\n\ngamma\ndelta\n\nepsilon',
+    });
+
+    // Mid-paragraph: Alt+Up → start of current paragraph.
+    input.setCursor({ line: 4, column: 2 }); // "delta"
+    input.handleInput(key('up', { alt: true }));
+    expect(input.getCursor().line).toBe(3); // "gamma" (paragraph start)
+
+    // Already at paragraph start: Alt+Up → previous paragraph.
+    input.handleInput(key('up', { alt: true }));
+    expect(input.getCursor().line).toBe(0); // "alpha"
+
+    // Ctrl+Down from document start → next paragraph.
+    input.setCursor({ line: 0, column: 0 });
+    input.handleInput(key('down', { ctrl: true }));
+    expect(input.getCursor().line).toBe(3); // "gamma"
+
+    input.handleInput(key('down', { alt: true }));
+    expect(input.getCursor().line).toBe(6); // "epsilon"
+  });
+
   it('extends and renders keyboard selections with a caller-owned style', () => {
     const input = new RendererTextInput({
       text: 'abcd',
