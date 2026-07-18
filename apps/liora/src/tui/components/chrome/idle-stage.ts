@@ -3,7 +3,7 @@
  *
  * After the cinematic splash, the transcript is just Welcome + empty space.
  * This component fills that void with a self-contained story scene —
- * "Paper Fox on the Night River" (fox, fireflies, reeds, floating lanterns) —
+ * "Peaceful Aquarium" (school of fish, plants, bubbles, soft water light) —
  * then vanishes the moment real transcript content arrives.
  *
  * Visual language is intentionally distinct from the Blood Moon splash
@@ -34,7 +34,7 @@ import {
   centerText,
   padOrTrim,
   paintIdleStoryScene,
-  resolveFoxGlyphRows,
+  resolveFishGlyphRows,
   stripAnsi,
 } from '#/tui/utils/idle-scene';
 import { ttui } from '#/tui/utils/tui-i18n';
@@ -42,18 +42,18 @@ import { ttui } from '#/tui/utils/tui-i18n';
 const IDLE_TIP_ROTATE_MS = 7_200;
 const IDLE_LINE_ROTATE_MS = 4_800;
 
-/** Soft floor so fox + river still fit; no hard ceiling. */
+/** Soft floor so tank + fish still fit; no hard ceiling. */
 const IDLE_STAGE_MIN_ROWS = 10;
 /** Default when mount does not pass transcriptRows. */
 const IDLE_STAGE_DEFAULT_ROWS = 12;
 
-/** Mood lines under the scene — short, story-flavored, non-hype. */
+/** Mood lines under the scene — short, calm, non-hype. */
 const IDLE_MOOD_KEYS = [
-  'tui.idle.mood.lantern',
-  'tui.idle.mood.listen',
+  'tui.idle.mood.bubbles',
+  'tui.idle.mood.swim',
   'tui.idle.mood.ready',
-  'tui.idle.mood.river',
-  'tui.idle.mood.spark',
+  'tui.idle.mood.tank',
+  'tui.idle.mood.quiet',
 ] as const;
 
 export interface IdleStageOptions {
@@ -111,8 +111,8 @@ export function resolveIdleTipKey(nowMs: number): string | undefined {
 }
 
 /**
- * Build the pure-text idle canvas (no outer chrome). Used by the component
- * and unit tests. Always pads/trims to exactly `targetRows` when non-zero.
+ * Pure render helper — used by the component and unit tests.
+ * Height contract: exactly `resolveIdleStageRows(...)` lines, each ≤ width.
  */
 export function renderIdleStageLines(
   width: number,
@@ -144,7 +144,7 @@ export function renderIdleStageLines(
   const chromeBudget = resolveChromeBudget(targetRows, options?.workDir, safeWidth);
   const storyRows = Math.max(5, targetRows - chromeBudget);
 
-  // Story scene: fox, fireflies, hills, reeds, river lanterns.
+  // Story scene: fish school, plants, bubbles, sand, soft water light.
   paintIdleStoryScene({
     canvas,
     width: safeWidth,
@@ -177,11 +177,11 @@ export function renderIdleStageLines(
   const tipKey = resolveIdleTipKey(now);
   const tip = tipKey === undefined ? '' : ttui(tipKey);
   const workDir = options?.workDir?.trim() ?? '';
-  const foxHex = premium ? palette.glow : palette.primary;
+  const fishHex = premium ? palette.glow : palette.primary;
 
   const chromeLines: string[] = [
     centerText(safeWidth, title),
-    centerText(safeWidth, `${paint(foxHex, '◆')}  ${paint(palette.textDim, mood)}`),
+    centerText(safeWidth, `${paint(fishHex, '✧')}  ${paint(palette.textDim, mood)}`),
   ];
   if (tip.length > 0) {
     const prefix = ttui('tui.idle.tipPrefix');
@@ -222,8 +222,8 @@ function resolveChromeBudget(targetRows: number, workDir: string | undefined, wi
   let budget = 3; // title, mood, spacer
   budget += 1; // tip almost always present
   if ((workDir?.trim().length ?? 0) > 0 && width >= 40) budget += 1;
-  // Keep chrome from eating the fox/river on short stages.
-  return Math.min(budget + 1, Math.max(3, Math.floor(targetRows * 0.35)));
+  // Keep chrome from eating the tank on short stages.
+  return Math.min(budget, Math.max(2, Math.floor(targetRows / 3)));
 }
 
 export class IdleStageComponent implements Component {
@@ -252,4 +252,6 @@ export class IdleStageComponent implements Component {
 }
 
 /** @internal exported for tests — multi-row character art contract. */
-export { resolveFoxGlyphRows };
+export { resolveFishGlyphRows };
+/** @deprecated transitional alias */
+export { resolveFishGlyphRows as resolveFoxGlyphRows };
