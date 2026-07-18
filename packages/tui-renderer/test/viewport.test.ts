@@ -751,6 +751,65 @@ describe('Renderer scrollbar', () => {
     })).toEqual(['.', '#', '.', '.', '.']);
   });
 
+  it('renders a capsule thumb with rounded ends and soft track', () => {
+    // Mid-scroll: content 20, viewport 5, offsetFromBottom 10 → start 5, progress 5/15.
+    // track 6, thumb ~2 → rounded top/bottom when thumbRows ≥ 2.
+    const glyphs = renderRendererVerticalScrollbar({
+      contentRows: 20,
+      viewportRows: 5,
+      offsetFromBottom: 10,
+      trackRows: 6,
+      variant: 'capsule',
+      edgeCues: false,
+    });
+    expect(glyphs).toHaveLength(6);
+    // Soft track (not solid │)
+    expect(glyphs.some((g) => g === '┊')).toBe(true);
+    // Rounded or solid thumb cells present
+    const thumbish = glyphs.filter((g) => g === '▀' || g === '█' || g === '▄');
+    expect(thumbish.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('paints capsule edge cues when not at top/bottom', () => {
+    // At top of content (offsetFromBottom = max) → no top cue, bottom cue if room.
+    const atTop = renderRendererVerticalScrollbar({
+      contentRows: 40,
+      viewportRows: 5,
+      offsetFromBottom: 35,
+      trackRows: 8,
+      variant: 'capsule',
+      minThumbRows: 2,
+    });
+    expect(atTop[0]).not.toBe('▴'); // at top
+    expect(atTop[atTop.length - 1]).toBe('▾'); // more below
+
+    // At bottom
+    const atBottom = renderRendererVerticalScrollbar({
+      contentRows: 40,
+      viewportRows: 5,
+      offsetFromBottom: 0,
+      trackRows: 8,
+      variant: 'capsule',
+      minThumbRows: 2,
+    });
+    expect(atBottom[0]).toBe('▴');
+    expect(atBottom[atBottom.length - 1]).not.toBe('▾');
+  });
+
+  it('applies paintGlyph roles for themed scrollbars', () => {
+    const glyphs = renderRendererVerticalScrollbar({
+      contentRows: 20,
+      viewportRows: 5,
+      offsetFromBottom: 10,
+      trackRows: 5,
+      trackChar: '.',
+      thumbChar: '#',
+      paintGlyph: (role, glyph) => `[${role}:${glyph}]`,
+    });
+    expect(glyphs.some((g) => g.startsWith('[thumb:') || g.startsWith('[track:'))).toBe(true);
+    expect(glyphs.every((g) => g.startsWith('['))).toBe(true);
+  });
+
   it('hides the scrollbar when content fits in the viewport', () => {
     expect(renderRendererVerticalScrollbar({
       contentRows: 5,
@@ -769,6 +828,20 @@ describe('Renderer scrollbar', () => {
       'abcde█',
       'x    ·',
     ]);
+  });
+
+  it('keeps ANSI-styled gutter glyphs as a single cell', () => {
+    const styled = '\u001B[38;2;79;168;255m█\u001B[0m';
+    const lines = renderRendererRightGutterLines({
+      lines: ['hello'],
+      width: 8,
+      glyphs: [styled],
+    });
+    expect(lines).toHaveLength(1);
+    // Visible width stays 8 (content + pad + one display cell).
+    expect(lines[0]!.replaceAll(/\u001B\[[0-9;]*m/g, '').length).toBe(8);
+    expect(lines[0]).toContain('█');
+    expect(lines[0]).toContain('\u001B[');
   });
 });
 

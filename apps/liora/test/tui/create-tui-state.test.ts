@@ -550,7 +550,8 @@ describe('createTUIState', () => {
     expect(first.width).toBe(8);
     expect(first.height).toBe(4);
     expect(first.regions.map((region) => region.id)).toEqual(['transcript', 'editor', 'footer']);
-    expect(rowText(first.renderer.frame, 0).trim()).toBe('t2    │');
+    // Capsule scrollbar: top edge cue when not at top, solid thumb at bottom.
+    expect(rowText(first.renderer.frame, 0).trim()).toBe('t2    ▴');
     expect(rowText(first.renderer.frame, 1).trim()).toBe('t3    █');
     expect(rowText(first.renderer.frame, 2).trim()).toBe('ed');
     expect(rowText(first.renderer.frame, 3).trim()).toBe('ft');
@@ -878,7 +879,8 @@ describe('createTUIState', () => {
     expect(renderer.stats.frames).toBe(1);
     expect(renderer.stats.health).toBe('healthy');
     expect(renderer.stats.last).toBe(renderer.lastFrame?.metrics);
-    expect(rowText(renderer.frameRenderer.frame, 0).trim()).toBe('t2    │');
+    // Capsule scrollbar: top edge cue when not at top, solid thumb at bottom.
+    expect(rowText(renderer.frameRenderer.frame, 0).trim()).toBe('t2    ▴');
     expect(rowText(renderer.frameRenderer.frame, 1).trim()).toBe('t3    █');
     expect(rowText(renderer.frameRenderer.frame, 2).trim()).toBe('ed');
     expect(rowText(renderer.frameRenderer.frame, 3).trim()).toBe('ft');

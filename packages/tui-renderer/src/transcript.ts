@@ -3,6 +3,8 @@ import type { RendererRegionLine } from './compositor';
 import {
   renderRendererRightGutterRegionLines,
   renderRendererVerticalScrollbar,
+  type RendererScrollbarGlyphRole,
+  type RendererScrollbarVariant,
 } from './scrollbar';
 import {
   type RendererTranscriptViewport,
@@ -42,6 +44,13 @@ export interface RendererTranscriptViewportComponentOptions {
   readonly scrollbarTrackChar?: string;
   readonly scrollbarThumbChar?: string;
   readonly minScrollbarThumbRows?: number;
+  /** Visual recipe for the right-gutter scrollbar (`plain` default). */
+  readonly scrollbarVariant?: RendererScrollbarVariant;
+  /** Optional theme paint for scrollbar role glyphs (capsule/plain). */
+  readonly paintScrollbarGlyph?: (
+    role: RendererScrollbarGlyphRole,
+    glyph: string,
+  ) => string;
   readonly paintLine?: RendererTranscriptViewportLinePainter;
   readonly paintRegionLine?: RendererTranscriptViewportRegionLinePainter;
   readonly isCacheEnabled?: () => boolean;
@@ -165,6 +174,10 @@ export class RendererTranscriptViewportComponent extends Container {
   private readonly scrollbarTrackChar: string;
   private readonly scrollbarThumbChar: string;
   private readonly minScrollbarThumbRows: number;
+  private readonly scrollbarVariant: RendererScrollbarVariant;
+  private readonly paintScrollbarGlyph:
+    | ((role: RendererScrollbarGlyphRole, glyph: string) => string)
+    | undefined;
   private readonly paintLine: RendererTranscriptViewportLinePainter | undefined;
   private readonly paintRegionLine: RendererTranscriptViewportRegionLinePainter | undefined;
   private readonly isCacheEnabled: () => boolean;
@@ -201,6 +214,8 @@ export class RendererTranscriptViewportComponent extends Container {
     this.minScrollbarThumbRows = normalizeTranscriptLineCount(
       options.minScrollbarThumbRows ?? 1,
     );
+    this.scrollbarVariant = options.scrollbarVariant ?? 'plain';
+    this.paintScrollbarGlyph = options.paintScrollbarGlyph;
     this.paintLine = options.paintLine;
     this.paintRegionLine = options.paintRegionLine;
     this.isCacheEnabled = options.isCacheEnabled ?? (() => true);
@@ -441,6 +456,8 @@ export class RendererTranscriptViewportComponent extends Container {
       minThumbRows: this.minScrollbarThumbRows,
       trackChar: this.scrollbarTrackChar,
       thumbChar: this.scrollbarThumbChar,
+      variant: this.scrollbarVariant,
+      paintGlyph: this.paintScrollbarGlyph,
     });
     if (glyphs.length === 0) return [...lines];
     return renderRendererRightGutterRegionLines({ lines, width, glyphs });

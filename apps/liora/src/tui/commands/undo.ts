@@ -536,7 +536,10 @@ function renderWelcome(host: SlashCommandHost): void {
     )
   ) {
     host.state.transcriptContainer.addChild(
-      new IdleStageComponent({ state: host.state.appState }),
+      new IdleStageComponent({
+        state: host.state.appState,
+        getPreferredRows: (width) => host.state.transcriptContainer.idleTargetRows(width),
+      }),
     );
   }
 }

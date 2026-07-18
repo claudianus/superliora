@@ -16,7 +16,7 @@ import { shouldAnimate } from '#/tui/controllers/appearance';
 import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { Component } from '#/tui/renderer';
-import { truncateToWidth, visibleWidth } from '#/tui/renderer';
+import { visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
@@ -24,6 +24,14 @@ import {
   renderParticleRail,
   renderSpectacularText,
 } from '#/tui/utils/appearance-effects';
+import {
+  blitCentered,
+  centerText,
+  MOON_COMPACT,
+  MOON_LARGE,
+  padOrTrim,
+  paintStarfield,
+} from '#/tui/utils/night-sky';
 import { renderWelcomeBanner } from './welcome-banner';
 
 /** Inclusive lower bound for splash duration. */
@@ -121,27 +129,6 @@ export function resolveFadeAlpha(elapsedMs: number, durationMs: number): number 
   const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, duration - start)));
   return 1 - local;
 }
-
-// Large moon glyph (7 rows). Drawn with active theme glow/primary.
-const MOON_LARGE = [
-  '        ████████        ',
-  '     ██████████████     ',
-  '   ██████████████████   ',
-  '  ████████████████████  ',
-  '   ██████████████████   ',
-  '     ██████████████     ',
-  '        ████████        ',
-] as const;
-
-const MOON_COMPACT = [
-  '   ██████   ',
-  ' ██████████ ',
-  '████████████',
-  ' ██████████ ',
-  '   ██████   ',
-] as const;
-
-const STAR_GLYPHS = ['.', '·', '˚', '✦', '✧', '⋆', '+', '*'] as const;
 
 export class SplashComponent implements Component {
   private readonly appearance: AppearancePreferences;
@@ -280,11 +267,9 @@ export class SplashComponent implements Component {
     const primaryHex = palette.primary;
     const glowHex = palette.glow;
     const particleHex = palette.particle;
-    const dimHex = palette.textDim;
     const mutedHex = palette.textMuted;
     const bgHex = palette.background;
     const paint = (hex: string, text: string): string => chalk.hex(hex)(text);
-    const dim = (text: string): string => chalk.hex(dimHex)(text);
     const muted = (text: string): string => chalk.hex(mutedHex)(text);
 
     // Build full-height canvas of plain spaces, then paint layers.
@@ -413,77 +398,3 @@ export class SplashComponent implements Component {
   }
 }
 
-function paintStarfield(
-  canvas: string[],
-  width: number,
-  rows: number,
-  elapsedMs: number,
-  density: number,
-  style: (glyph: string, intensity: number) => string,
-): void {
-  const count = Math.max(4, Math.floor(width * rows * density * 0.08));
-  for (let i = 0; i < count; i++) {
-    const seed = hash2(i * 17 + 3, Math.floor(elapsedMs / 90));
-    const x = seed % width;
-    const y = hash2(i * 31 + 7, 99) % rows;
-    const twinkle = (Math.sin(elapsedMs / 180 + i) + 1) / 2;
-    if (twinkle < 0.25) continue;
-    const glyph = STAR_GLYPHS[hash2(i, 4) % STAR_GLYPHS.length] ?? '·';
-    const row = canvas[y];
-    if (row === undefined) continue;
-    // Only paint over plain space cells
-    const plain = stripAnsi(row);
-    if (plain[x] !== ' ' && plain[x] !== undefined) continue;
-    const cells = [...plain.padEnd(width, ' ')];
-    cells[x] = '★'; // placeholder then style whole row carefully
-    // Simpler: rebuild row with styled glyph at x
-    const left = plain.slice(0, x);
-    const right = plain.slice(x + 1);
-    canvas[y] = padOrTrim(
-      `${left}${style(glyph, twinkle)}${right}`,
-      width,
-    );
-  }
-}
-
-function blitCentered(
-  canvas: string[],
-  lines: readonly string[],
-  top: number,
-  width: number,
-): void {
-  for (let i = 0; i < lines.length; i++) {
-    const y = top + i;
-    if (y < 0 || y >= canvas.length) continue;
-    const line = lines[i];
-    if (line === undefined) continue;
-    const plainW = visibleWidth(line);
-    const pad = Math.max(0, Math.floor((width - plainW) / 2));
-    const left = ' '.repeat(pad);
-    canvas[y] = padOrTrim(left + line, width);
-  }
-}
-
-function centerText(width: number, text: string): string {
-  const w = visibleWidth(text);
-  if (w >= width) return truncateToWidth(text, width, '…');
-  const pad = Math.floor((width - w) / 2);
-  return `${' '.repeat(pad)}${text}`;
-}
-
-function padOrTrim(text: string, width: number): string {
-  const w = visibleWidth(text);
-  if (w === width) return text;
-  if (w > width) return truncateToWidth(text, width, '…');
-  return text + ' '.repeat(width - w);
-}
-
-function stripAnsi(text: string): string {
-  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
-}
-
-function hash2(a: number, b: number): number {
-  let h = (a * 374761393 + b * 668265263) | 0;
-  h = (h ^ (h >>> 13)) * 1274126177;
-  return (h ^ (h >>> 16)) >>> 0;
-}
