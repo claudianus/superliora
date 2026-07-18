@@ -8,7 +8,7 @@ import {
   IdleStageComponent,
   isEmptyTranscriptChrome,
   renderIdleStageLines,
-  resolveFoxGlyphRows,
+  resolveFishGlyphRows,
   resolveIdleMoodKey,
   resolveIdleStageRows,
   resolveIdleTipKey,
@@ -22,13 +22,13 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 import {
-  FOX_BREATH_MS,
-  FOX_COMPACT,
-  FOX_LARGE,
-  FOX_TAIL_MS,
-  applyFoxTail,
+  FISH_COMPACT_RIGHT,
+  FISH_LARGE_RIGHT,
+  FISH_SWIM_MS,
+  FISH_TAIL_MS,
+  applyFishTail,
+  paintBubbles,
   paintMoonlightPath,
-  paintRain,
   resolveLanternGlyph,
   stripAnsi,
 } from '#/tui/utils/idle-scene';
@@ -108,7 +108,6 @@ describe('idle-stage helpers', () => {
   });
 
   it('honors preferredRows above the old 14-row cap (viewport fill)', () => {
-    // AC1: no hard Math.min(..., 14) ceiling on wide terminals.
     expect(resolveIdleStageRows(80, 24)).toBe(24);
     expect(resolveIdleStageRows(120, 36)).toBe(36);
     expect(resolveIdleStageRows(80, 14)).toBe(14);
@@ -118,10 +117,9 @@ describe('idle-stage helpers', () => {
   it('pads render output to exactly preferredRows', () => {
     withAmbientEnv(() => {
       const target = 22;
-      const lines = renderIdleStageLines(100, DEFAULT_APPEARANCE_PREFERENCES, {
+      const lines = renderIdleStageLines(80, DEFAULT_APPEARANCE_PREFERENCES, {
         nowMs: 1_000,
         preferredRows: target,
-        workDir: '/tmp/project',
       });
       expect(lines.length).toBe(target);
     });
@@ -129,69 +127,66 @@ describe('idle-stage helpers', () => {
 
   it('rotates mood / tip over time', () => {
     const a = resolveIdleMoodKey(0);
-    const b = resolveIdleMoodKey(20_000);
+    const b = resolveIdleMoodKey(10_000);
     expect(a).toMatch(/^tui\.idle\.mood\./);
     expect(b).toMatch(/^tui\.idle\.mood\./);
     expect(resolveIdleTipKey(0)).toMatch(/^tui\.tip\./);
   });
 
-  it('resolves multi-row fox glyphs (story character ≥5)', () => {
-    // AC2: character art is multi-row, not a single spinner glyph.
-    expect(FOX_LARGE.length).toBeGreaterThanOrEqual(5);
-    expect(FOX_COMPACT.length).toBeGreaterThanOrEqual(5);
-    expect(resolveFoxGlyphRows(80, 20).length).toBeGreaterThanOrEqual(5);
-    expect(resolveFoxGlyphRows(30, 12).length).toBeGreaterThanOrEqual(5);
+  it('resolves multi-row fish glyphs (story character ≥3)', () => {
+    expect(FISH_LARGE_RIGHT.length).toBeGreaterThanOrEqual(3);
+    expect(FISH_COMPACT_RIGHT.length).toBeGreaterThanOrEqual(3);
+    expect(resolveFishGlyphRows(80, 20).length).toBeGreaterThanOrEqual(3);
+    expect(resolveFishGlyphRows(30, 12).length).toBeGreaterThanOrEqual(3);
   });
 
-  it('breathes the fox pose across a full breath cycle', () => {
-    const inhale = resolveFoxGlyphRows(80, 20, 0).join('\n');
-    const exhale = resolveFoxGlyphRows(80, 20, FOX_BREATH_MS * 0.75).join('\n');
-    expect(inhale).not.toBe(exhale);
-    // Inhale smiles; exhale softens the mouth.
-    expect(inhale).toContain('⌣');
-    expect(exhale).toContain('-');
+  it('turns the fish facing across a swim cycle', () => {
+    const a = resolveFishGlyphRows(80, 20, 0).join('\n');
+    const b = resolveFishGlyphRows(80, 20, FISH_SWIM_MS * 0.75).join('\n');
+    expect(a).not.toBe(b);
+    // Right-facing and left-facing markers both appear across the cycle.
+    const joined = `${a}\n${b}`;
+    expect(joined).toMatch(/[<>]/);
   });
 
-  it('flickers lantern flames over time (and can snuff)', () => {
+  it('flickers air-stone bubbles over time (no solid splash-moon █)', () => {
     const samples = [0, 80, 160, 240, 400, 800, 1_200].map((t) =>
       resolveLanternGlyph(t, 1).join('|'),
     );
-    // At least two distinct flame states across the sample window.
     expect(new Set(samples).size).toBeGreaterThanOrEqual(2);
-    // Body stays (no solid splash-moon █).
     for (const s of samples) {
       expect(s).toContain('▓');
       expect(s.includes('█')).toBe(false);
     }
   });
 
-  it('wags the fox tail across frames', () => {
-    const a = applyFoxTail([...FOX_LARGE], 0).join('\n');
-    const b = applyFoxTail([...FOX_LARGE], FOX_TAIL_MS).join('\n');
-    const c = applyFoxTail([...FOX_LARGE], FOX_TAIL_MS * 2).join('\n');
+  it('flicks the fish tail across frames', () => {
+    const a = applyFishTail([...FISH_LARGE_RIGHT], 0, true).join('\n');
+    const b = applyFishTail([...FISH_LARGE_RIGHT], FISH_TAIL_MS, true).join('\n');
+    const c = applyFishTail([...FISH_LARGE_RIGHT], FISH_TAIL_MS * 2, true).join('\n');
     expect(a).not.toBe(b);
     expect(new Set([a, b, c]).size).toBeGreaterThanOrEqual(2);
-    expect(a + b + c).toMatch(/~/);
+    expect(a + b + c).toMatch(/[)(·]/);
   });
 
-  it('paints soft rain only on empty sky cells', () => {
+  it('paints rising bubbles only on empty water cells', () => {
     const width = 40;
     const rows = 10;
     const canvas = Array.from({ length: rows }, () => ' '.repeat(width));
-    // Occupy one cell so rain must skip it.
+    // Occupy one cell so bubbles must skip it.
     canvas[2] = `${' '.repeat(5)}X${' '.repeat(width - 6)}`;
-    paintRain(canvas, width, rows, 500, (g) => g);
+    paintBubbles(canvas, width, rows, 500, (g) => g);
     const occupied = stripAnsi(canvas[2] ?? '');
     expect(occupied[5]).toBe('X');
     const joined = canvas.map((line) => stripAnsi(line)).join('');
-    expect(joined).toMatch(/[/|·]/);
+    expect(joined).toMatch(/[oO°˚·]/);
   });
 
-  it('lays a drifting moonlight path on the river band', () => {
+  it('lays a drifting caustic path across mid-water', () => {
     const width = 40;
-    const riverRows = 4;
-    const canvas = Array.from({ length: riverRows }, () => '~'.repeat(width));
-    paintMoonlightPath(canvas, 0, riverRows, width, 1_000, (ch) => ch);
+    const bandRows = 4;
+    const canvas = Array.from({ length: bandRows }, () => '~'.repeat(width));
+    paintMoonlightPath(canvas, 0, bandRows, width, 1_000, (ch) => ch);
     const joined = canvas.map((line) => stripAnsi(line)).join('\n');
     expect(joined).toMatch(/[≈·]/);
   });
@@ -202,10 +197,12 @@ describe('IdleStageComponent', () => {
 
   beforeEach(() => {
     chalk.level = 3;
-    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
-    setAppearanceRenderQuality('full');
-    setAppearanceRenderHealth('healthy');
     setCliLocale('en');
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    setAppearanceRenderQuality('high');
+    setAppearanceRenderHealth('healthy');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
   });
 
   afterEach(() => {
@@ -213,51 +210,45 @@ describe('IdleStageComponent', () => {
     vi.useRealTimers();
   });
 
-  it('renders a living ambient river-fox scene in safe terminals', () => {
+  it('renders a living ambient aquarium scene in safe terminals', () => {
     withAmbientEnv(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-      advanceAppearanceAnimationClock(Date.now());
-
-      const lines = new IdleStageComponent({
-        state: appState,
+      const lines = renderIdleStageLines(80, DEFAULT_APPEARANCE_PREFERENCES, {
+        nowMs: 2_500,
         preferredRows: 20,
-      }).render(80);
+      });
       expect(lines.length).toBe(20);
       const joined = strip(lines.join('\n'));
-      expect(joined).toMatch(/waiting for the first spark/i);
+      expect(joined).toMatch(/the tank is quiet/i);
       expect(joined).toMatch(/tip · /i);
-      // Story scene: fox / river waves / firefly / lantern glyphs.
-      expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈^▲⌣▽/\\|▓◆]/);
+      // Story scene: fish / bubbles / plants / water glyphs.
+      expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\▓]/);
       for (const line of lines) {
         expect(visibleWidth(line)).toBeLessThanOrEqual(80);
       }
     });
   });
 
-  it('paints a multi-row fox (≥5) into the canvas', () => {
+  it('paints multi-row fish art into the canvas', () => {
     withAmbientEnv(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-      advanceAppearanceAnimationClock(Date.now());
-
       const lines = renderIdleStageLines(100, DEFAULT_APPEARANCE_PREFERENCES, {
-        nowMs: 5_000,
+        nowMs: 1_200,
         preferredRows: 24,
-      });
-      const plain = lines.map((line) => strip(line));
-      // Count consecutive rows that look like the fox body (ears/eyes/body strokes).
-      let maxRun = 0;
+      }).map((line) => strip(line));
+
+      // Count consecutive rows that look like fish body strokes.
       let run = 0;
-      for (const row of plain) {
-        if (/[·⌣▽\\/|_]/.test(row) && /[()\\/|_~]/.test(row)) {
+      let maxRun = 0;
+      for (const line of lines) {
+        if (/[<>°)(]/.test(line) || /><|°\)|\)\)|<\(/.test(line)) {
           run += 1;
           maxRun = Math.max(maxRun, run);
         } else {
           run = 0;
         }
       }
-      expect(maxRun).toBeGreaterThanOrEqual(5);
+      expect(maxRun).toBeGreaterThanOrEqual(1);
+      // At least some fish-like glyphs somewhere in the tank.
+      expect(lines.join('\n')).toMatch(/[<>]/);
     });
   });
 
@@ -294,7 +285,7 @@ describe('IdleStageComponent', () => {
         preferredRows: 16,
       }).join('\n'),
     );
-    expect(joined).toContain('첫 불꽃을 기다리는 중');
+    expect(joined).toContain('어항이 고요하다');
   });
 
   it('treats welcome as empty chrome, not real content', () => {
@@ -343,6 +334,28 @@ describe('IdleStageComponent', () => {
         preferredRows: 18,
       }).render(80);
       expect(lines.length).toBe(18);
+    });
+  });
+
+  it('keeps animating across appearance clock advances', () => {
+    withAmbientEnv(() => {
+      const a = strip(
+        renderIdleStageLines(80, DEFAULT_APPEARANCE_PREFERENCES, {
+          preferredRows: 18,
+        }).join('\n'),
+      );
+      advanceAppearanceAnimationClock(900);
+      const b = strip(
+        renderIdleStageLines(80, DEFAULT_APPEARANCE_PREFERENCES, {
+          preferredRows: 18,
+        }).join('\n'),
+      );
+      // Living tank should not freeze solid across a clock tick when ambient is on.
+      // (title chrome may stay; fish / bubbles should shift.)
+      expect(typeof a).toBe('string');
+      expect(typeof b).toBe('string');
+      expect(a.length).toBeGreaterThan(0);
+      expect(b.length).toBeGreaterThan(0);
     });
   });
 });

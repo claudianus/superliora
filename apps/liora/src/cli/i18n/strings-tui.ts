@@ -60,13 +60,13 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.welcome.modelPrefix': 'Model: ',
 
   // ── Empty-transcript idle stage ──────────────────────────────────────────
-  'tui.idle.title': 'waiting for the first spark',
+  'tui.idle.title': 'the tank is quiet',
   'tui.idle.tipPrefix': 'tip · ',
-  'tui.idle.mood.lantern': 'paper lanterns ferry quiet thoughts',
-  'tui.idle.mood.listen': 'the fox keeps watch for a task',
-  'tui.idle.mood.ready': 'river warm · editor ready',
-  'tui.idle.mood.river': 'night river, unfinished stories',
-  'tui.idle.mood.spark': 'one line starts the run',
+  'tui.idle.mood.bubbles': 'bubbles drift toward the surface',
+  'tui.idle.mood.swim': 'fish circle, unhurried',
+  'tui.idle.mood.ready': 'water warm · editor ready',
+  'tui.idle.mood.tank': 'a still tank, waiting for a line',
+  'tui.idle.mood.quiet': 'soft current, open prompt',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
   'tui.footer.next.login': 'next: /login to add a provider, then /model',
@@ -392,13 +392,13 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.welcome.modelPrefix': '모델: ',
 
   // ── Empty-transcript idle stage ──────────────────────────────────────────
-  'tui.idle.title': '첫 불꽃을 기다리는 중',
+  'tui.idle.title': '어항이 고요하다',
   'tui.idle.tipPrefix': '팁 · ',
-  'tui.idle.mood.lantern': '종이 등불이 고요한 생각을 실어 나른다',
-  'tui.idle.mood.listen': '여우가 할 일을 지키고 있다',
-  'tui.idle.mood.ready': '강물 예열 · 에디터 준비',
-  'tui.idle.mood.river': '밤강, 아직 끝나지 않은 이야기',
-  'tui.idle.mood.spark': '한 줄이면 달리기가 시작된다',
+  'tui.idle.mood.bubbles': '거품이 수면으로 천천히 오른다',
+  'tui.idle.mood.swim': '물고기들이 느긋하게 헤엄친다',
+  'tui.idle.mood.ready': '물결 예열 · 에디터 준비',
+  'tui.idle.mood.tank': '고요한 어항, 한 줄을 기다린다',
+  'tui.idle.mood.quiet': '잔잔한 물결, 열린 프롬프트',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
   'tui.footer.next.login': '다음: /login으로 프로바이더 추가, 그리고 /model',
