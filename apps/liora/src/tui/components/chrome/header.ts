@@ -86,8 +86,10 @@ export class HeaderComponent implements Component {
             })
           : currentTheme.dimFg('textMuted', modelLabel)
         : '';
+    // Keep the clock seed stable across seconds. Seeding with the label made the
+    // hue base jump every tick, which read as random color flicker.
     const clockText = shouldRenderAmbientEffects(appearance)
-      ? renderSpectacularText(clockLabel, `header:clock:${clockLabel}`, appearance, {
+      ? renderSpectacularText(clockLabel, 'header:clock', appearance, {
           intense: false,
           pace: 'slow',
         })
@@ -138,11 +140,18 @@ export class HeaderComponent implements Component {
   }
 }
 
-/** Local wall-clock label for the header, e.g. `13:47:02`. Exported for tests. */
+/**
+ * Local wall-clock label for the header, e.g. `01:47:02 PM`.
+ * Zero-padded 12-hour form keeps the right-side width stable across hours.
+ * Exported for tests.
+ */
 export function formatLocalClock(nowMs: number = Date.now()): string {
   const date = new Date(nowMs);
-  const hours = date.getHours().toString().padStart(2, '0');
+  const hours24 = date.getHours();
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  const hours = hours12.toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const seconds = date.getSeconds().toString().padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
+  return `${hours}:${minutes}:${seconds} ${period}`;
 }
