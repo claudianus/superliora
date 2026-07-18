@@ -162,6 +162,32 @@ describe('NativeInputDecoder', () => {
     expect(isKeyRelease('\u001B[97;6:3;65u')).toBe(true);
   });
 
+  it('matches Ctrl shortcuts via CSI-u base-layout-key under non-Latin IME layouts', () => {
+    // Korean 2-set: physical C key produces ㅊ (U+314A) while base layout is 'c'.
+    const ctrlCHangul = '\u001B[12618::99;5u';
+    // Cyrillic С with base-layout Latin 'c' (empty shifted sub-field).
+    const ctrlCCyrillic = '\u001B[1089::99;5u';
+    // Hangul associated text must not override base-layout shortcut identity.
+    const ctrlVHangulText = '\u001B[12621::118;5;12621u';
+
+    expect(decodeNativeInput(ctrlCHangul)).toEqual([
+      {
+        type: 'key',
+        key: 'character',
+        raw: ctrlCHangul,
+        text: 'c',
+        ctrl: true,
+        alt: false,
+        shift: false,
+      },
+    ]);
+    expect(matchesKey(ctrlCHangul, Key.ctrl('c'))).toBe(true);
+    expect(matchesKey(ctrlCCyrillic, Key.ctrl('c'))).toBe(true);
+    expect(matchesKey(ctrlVHangulText, Key.ctrl('v'))).toBe(true);
+    expect(parseKey(ctrlCHangul)).toBe('ctrl+c');
+    expect(encodeNativeInputAsLegacySequence(decodeNativeInput(ctrlCHangul)[0]!)).toBe('\u0003');
+  });
+
   it('filters fuzzy matches with stable score ordering', () => {
     const items = ['open file', 'open folder', 'provider manager', 'file search'];
 

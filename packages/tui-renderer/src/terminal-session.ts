@@ -71,7 +71,11 @@ export const ANSI_ENABLE_MOUSE_TRACKING = '\u001B[?1000h';
 export const ANSI_DISABLE_MOUSE_TRACKING = '\u001B[?1000l';
 export const ANSI_ENABLE_SGR_MOUSE_MODE = '\u001B[?1006h';
 export const ANSI_DISABLE_SGR_MOUSE_MODE = '\u001B[?1006l';
-export const ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL = '\u001B[>1u';
+// Flags: 0b1 disambiguate + 0b100 report alternate keys (base-layout-key).
+// Alternate keys let Ctrl/Alt shortcuts match the PC-101 Latin key while an
+// IME layout (Korean, Cyrillic, …) is active — without this, Ctrl+C arrives as
+// the layout glyph and shortcut handlers never fire.
+export const ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL = '\u001B[>5u';
 export const ANSI_POP_KITTY_KEYBOARD_PROTOCOL = '\u001B[<u';
 export const ANSI_DISABLE_AUTO_WRAP = '\u001B[?7l';
 export const ANSI_ENABLE_AUTO_WRAP = '\u001B[?7h';
