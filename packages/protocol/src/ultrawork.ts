@@ -130,7 +130,7 @@ export interface WorkGraphNode {
   readonly laneId?: string;
   readonly ownerExpertId?: string;
   readonly ownerAgentId?: string;
-  readonly status: 'queued' | 'running' | 'blocked' | 'done' | 'failed';
+  readonly status: 'queued' | 'running' | 'blocked' | 'needs_integration' | 'done' | 'failed';
   readonly dependsOn?: readonly string[];
   readonly evidenceIds?: readonly string[];
   readonly requiredEvidence?: readonly string[];
@@ -378,7 +378,7 @@ export const workGraphNodeSchema = z.object({
   laneId: z.string().min(1).optional(),
   ownerExpertId: z.string().min(1).optional(),
   ownerAgentId: z.string().min(1).optional(),
-  status: z.enum(['queued', 'running', 'blocked', 'done', 'failed']),
+  status: z.enum(['queued', 'running', 'blocked', 'needs_integration', 'done', 'failed']),
   dependsOn: z.array(z.string().min(1)).optional(),
   evidenceIds: z.array(z.string().min(1)).optional(),
   requiredEvidence: z.array(z.string().min(1)).optional(),

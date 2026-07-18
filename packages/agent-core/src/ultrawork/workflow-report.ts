@@ -64,10 +64,31 @@ export function isUltraworkWorkflowReportWritePath(
   evidenceRoot: string,
   workDir: string,
 ): boolean {
-  const reportPath = resolveUltraworkWorkflowReportPaths(evidenceRoot).reportPath;
+  const paths = resolveUltraworkWorkflowReportPaths(evidenceRoot);
   const normalized = normalize(path);
-  const allowed = [normalize(reportPath), normalize(join(workDir, reportPath))];
-  return allowed.includes(normalized);
+  const allowed = [
+    normalize(paths.reportPath),
+    normalize(join(workDir, paths.reportPath)),
+    normalize(paths.stagesPath),
+    normalize(join(workDir, paths.stagesPath)),
+  ];
+  if (allowed.includes(normalized)) return true;
+
+  // Allow the whole active evidence root + wiki run ledger during ENGAGE /
+  // plan-mode transparency fills (not product source).
+  const absoluteRoot = normalize(join(workDir, evidenceRoot));
+  if (normalized === absoluteRoot || normalized.startsWith(`${absoluteRoot}/`)) {
+    return true;
+  }
+  const relativeRoot = normalize(evidenceRoot);
+  if (normalized === relativeRoot || normalized.startsWith(`${relativeRoot}/`)) {
+    return true;
+  }
+  const wikiMarker = `${normalize('.superliora/wiki')}/`;
+  if (normalized.includes(wikiMarker) || normalized.includes('/.superliora/wiki/')) {
+    return true;
+  }
+  return false;
 }
 
 export function ensureUltraworkWorkflowArtifacts(agent: Agent): void {

@@ -27,7 +27,10 @@ export function inferEffectiveUltraworkStage(
 ): UltraworkStage {
   const summary = summarizeWorkGraphProgress(workGraph);
   if (summary.inferredStage === undefined) return storedStage;
-  return maxUltraworkStage(storedStage, summary.inferredStage);
+  // Block false completion: never auto-jump to learn/done from the graph.
+  // verify is allowed only while open work remains at that stage (resume).
+  const capped = capAutoPromotedStage(summary.inferredStage, summary, workGraph);
+  return maxUltraworkStage(storedStage, capped);
 }
 
 export function summarizeWorkGraphProgress(
@@ -38,18 +41,32 @@ export function summarizeWorkGraphProgress(
   }
 
   const doneCount = workGraph.nodes.filter((node) => node.status === 'done').length;
-  const pendingNodes = workGraph.nodes.filter((node) => node.status !== 'done');
+  const pendingNodes = workGraph.nodes.filter((node) => !isTerminalWorkNodeStatus(node.status));
   const inProgressNodes = workGraph.nodes.filter(
-    (node) => node.status === 'running' || node.status === 'blocked',
+    (node) =>
+      node.status === 'running' ||
+      node.status === 'blocked' ||
+      node.status === 'needs_integration',
   );
   const nextPendingNode = pendingNodes.find(
-    (node) => node.status === 'queued' || node.status === 'blocked' || node.status === 'running',
+    (node) =>
+      node.status === 'queued' ||
+      node.status === 'blocked' ||
+      node.status === 'running' ||
+      node.status === 'needs_integration',
   );
   const stageSource =
     pendingNodes.length > 0
       ? pendingNodes
       : workGraph.nodes.filter((node) => node.status === 'done');
-  const inferredStage = maxStageFromNodes(stageSource);
+  // If any node still needs main integration, do not treat the graph as fully
+  // finished even when no other pending nodes remain.
+  const needsIntegration = workGraph.nodes.some((node) => node.status === 'needs_integration');
+  const rawInferred = maxStageFromNodes(stageSource);
+  const inferredStage =
+    needsIntegration && rawInferred !== undefined
+      ? maxUltraworkStage(rawInferred, 'integrate')
+      : rawInferred;
 
   return {
     doneCount,
@@ -58,6 +75,36 @@ export function summarizeWorkGraphProgress(
     nextPendingNode,
     inferredStage,
   };
+}
+
+function isTerminalWorkNodeStatus(status: WorkGraphNode['status']): boolean {
+  return status === 'done' || status === 'failed';
+}
+
+function capAutoPromotedStage(
+  stage: UltraworkStage,
+  summary: WorkGraphProgressSummary,
+  workGraph: WorkGraph | undefined,
+): UltraworkStage {
+  if (stage === 'learn' || stage === 'done') {
+    return 'integrate';
+  }
+  if (stage === 'verify') {
+    const hasOpenVerifyWork =
+      workGraph?.nodes.some(
+        (node) =>
+          node.stage === 'verify' &&
+          (node.status === 'queued' ||
+            node.status === 'running' ||
+            node.status === 'blocked' ||
+            node.status === 'needs_integration'),
+      ) === true;
+    // All-done graphs must not auto-enter verify; main agent advances after checks.
+    if (!hasOpenVerifyWork || summary.pendingCount === 0) {
+      return 'integrate';
+    }
+  }
+  return stage;
 }
 
 export function applyWorkGraphProgressToRun(run: UltraworkRun, workGraph?: WorkGraph): UltraworkRun {

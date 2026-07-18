@@ -331,6 +331,11 @@ function normalizeQuestionResult(
 const AUTO_ANSWER_ASSUMPTION =
   'Assumption: proceed with baseline/minimal scope; refine if blocked.';
 
+/**
+ * Auto/YOLO intent: full autopilot — the agent (via this helper) picks the best
+ * contextual option itself. This is deliberate auto-fill, not "skip the question".
+ * Manual mode still waits for a real user answer.
+ */
 function tryAutoAnswerQuestions(
   args: NormalizedAskUserQuestionInput,
   mode: string | undefined,
@@ -344,6 +349,8 @@ function tryAutoAnswerQuestions(
       answers[key] = AUTO_ANSWER_ASSUMPTION;
       continue;
     }
+    // Prefer an explicit Recommended option; otherwise first option is the
+    // baseline the agent authored. Descriptions stay available for telemetry.
     const recommended = question.options.find((option) =>
       option.label.includes('(Recommended)'),
     );

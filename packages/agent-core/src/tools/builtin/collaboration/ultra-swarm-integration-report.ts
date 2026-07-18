@@ -76,13 +76,37 @@ export function buildUltraSwarmIntegrationReportXml(
   const failed = rendered.filter((entry) => entry.status === 'failed').length;
   const aborted = rendered.filter((entry) => entry.status === 'aborted').length;
   const blocked = rendered.filter((entry) => entry.verdict === 'BLOCKED').length;
+  const passWithAdvice = rendered.filter((entry) => entry.verdict === 'PASS_WITH_ADVICE').length;
   const pass = rendered.filter((entry) => entry.verdict === 'PASS').length;
   const failVerdict = rendered.filter((entry) => entry.verdict === 'FAIL').length;
+  const implementPass = countPhaseVerdict(rendered, 'implement', 'PASS');
+  const implementAdvice = countPhaseVerdict(rendered, 'implement', 'PASS_WITH_ADVICE');
+  const planPass = countPhaseVerdict(rendered, 'plan', 'PASS') + countPhaseVerdict(rendered, 'plan', 'PASS_WITH_ADVICE');
+  const researchPass =
+    countPhaseVerdict(rendered, 'research', 'PASS') +
+    countPhaseVerdict(rendered, 'research', 'PASS_WITH_ADVICE');
+  const reviewPass =
+    countPhaseVerdict(rendered, 'review', 'PASS') + countPhaseVerdict(rendered, 'review', 'PASS_WITH_ADVICE');
 
   const lines = [
     `<integration_report run_id="${escapeXml(runId)}">`,
-    `<overview completed="${String(completed)}" failed="${String(failed)}" aborted="${String(aborted)}" pass="${String(pass)}" blocked="${String(blocked)}" fail_verdict="${String(failVerdict)}"/>`,
-    `<headline>${escapeXml(buildHeadline(completed, failed, aborted, pass, blocked, failVerdict))}</headline>`,
+    `<overview completed="${String(completed)}" failed="${String(failed)}" aborted="${String(aborted)}" pass="${String(pass)}" pass_with_advice="${String(passWithAdvice)}" blocked="${String(blocked)}" fail_verdict="${String(failVerdict)}" implement_pass="${String(implementPass)}" implement_advice="${String(implementAdvice)}" plan_pass="${String(planPass)}" research_pass="${String(researchPass)}" review_pass="${String(reviewPass)}"/>`,
+    `<headline>${escapeXml(
+      buildHeadline({
+        completed,
+        failed,
+        aborted,
+        pass,
+        passWithAdvice,
+        blocked,
+        failVerdict,
+        implementPass,
+        implementAdvice,
+        planPass,
+        researchPass,
+        reviewPass,
+      }),
+    )}</headline>`,
   ];
 
   const openGaps: string[] = [];
@@ -104,9 +128,13 @@ export function buildUltraSwarmIntegrationReportXml(
     const evidenceIds = entry.evidenceIds.length === 0
       ? ''
       : ` evidence_ids="${escapeXml(entry.evidenceIds.join(','))}"`;
+    const artifactHint =
+      entry.evidenceIds.length === 0 && isImplementationPhase(entry.spec.phase)
+        ? ' claims_implementation="true" artifacts_missing="true"'
+        : '';
 
     lines.push(
-      `<agent expert_id="${escapeXml(entry.spec.expertId)}" name="${escapeXml(entry.spec.expertName)}" emoji="${escapeXml(entry.spec.emoji)}" phase="${escapeXml(entry.spec.phase)}" focus="${escapeXml(entry.spec.focus)}" outcome="${entry.status}" verdict="${escapeXml(entry.verdict)}"${coverageLane}${division}${workNodeIds}${evidenceIds}>`,
+      `<agent expert_id="${escapeXml(entry.spec.expertId)}" name="${escapeXml(entry.spec.expertName)}" emoji="${escapeXml(entry.spec.emoji)}" phase="${escapeXml(entry.spec.phase)}" focus="${escapeXml(entry.spec.focus)}" outcome="${entry.status}" verdict="${escapeXml(entry.verdict)}"${coverageLane}${division}${workNodeIds}${evidenceIds}${artifactHint}>`,
     );
     appendDigestXml(lines, digest);
     lines.push('</agent>');
@@ -131,22 +159,68 @@ export function buildUltraSwarmIntegrationReportXml(
   return lines.join('\n');
 }
 
-function buildHeadline(
-  completed: number,
-  failed: number,
-  aborted: number,
-  pass: number,
-  blocked: number,
-  failVerdict: number,
-): string {
-  const parts = [`${String(completed)} completed`];
-  if (failed > 0) parts.push(`${String(failed)} failed`);
-  if (aborted > 0) parts.push(`${String(aborted)} aborted`);
-  const verdictParts: string[] = [];
-  if (pass > 0) verdictParts.push(`${String(pass)} PASS`);
-  if (blocked > 0) verdictParts.push(`${String(blocked)} BLOCKED`);
-  if (failVerdict > 0) verdictParts.push(`${String(failVerdict)} FAIL`);
-  if (verdictParts.length > 0) parts.push(verdictParts.join(', '));
+function countPhaseVerdict(
+  rendered: readonly UltraSwarmIntegrationReportInput[],
+  phase: string,
+  verdict: string,
+): number {
+  return rendered.filter(
+    (entry) => entry.spec.phase === phase && entry.verdict === verdict,
+  ).length;
+}
+
+function isImplementationPhase(phase: string): boolean {
+  return phase === 'implement' || phase === 'full';
+}
+
+function buildHeadline(input: {
+  readonly completed: number;
+  readonly failed: number;
+  readonly aborted: number;
+  readonly pass: number;
+  readonly passWithAdvice: number;
+  readonly blocked: number;
+  readonly failVerdict: number;
+  readonly implementPass: number;
+  readonly implementAdvice: number;
+  readonly planPass: number;
+  readonly researchPass: number;
+  readonly reviewPass: number;
+}): string {
+  const parts = [`${String(input.completed)} completed`];
+  if (input.failed > 0) parts.push(`${String(input.failed)} failed`);
+  if (input.aborted > 0) parts.push(`${String(input.aborted)} aborted`);
+  // Prefer phase-split counts so plan/research PASS is not mistaken for implement done.
+  const phaseParts: string[] = [];
+  if (input.implementPass + input.implementAdvice > 0) {
+    phaseParts.push(
+      `implement ${String(input.implementPass)}/${String(input.implementPass + input.implementAdvice)} PASS`,
+    );
+  }
+  if (input.planPass > 0) phaseParts.push(`plan ${String(input.planPass)} PASS`);
+  if (input.researchPass > 0) phaseParts.push(`research ${String(input.researchPass)} PASS`);
+  if (input.reviewPass > 0) phaseParts.push(`review ${String(input.reviewPass)} PASS`);
+  if (phaseParts.length > 0) {
+    parts.push(phaseParts.join(', '));
+  } else {
+    const verdictParts: string[] = [];
+    if (input.pass > 0) verdictParts.push(`${String(input.pass)} PASS`);
+    if (input.passWithAdvice > 0) {
+      verdictParts.push(`${String(input.passWithAdvice)} PASS_WITH_ADVICE`);
+    }
+    if (input.blocked > 0) verdictParts.push(`${String(input.blocked)} BLOCKED`);
+    if (input.failVerdict > 0) verdictParts.push(`${String(input.failVerdict)} FAIL`);
+    if (verdictParts.length > 0) parts.push(verdictParts.join(', '));
+  }
+  if (input.passWithAdvice > 0 && phaseParts.length > 0) {
+    parts.push(`${String(input.passWithAdvice)} PASS_WITH_ADVICE`);
+  }
+  if (input.blocked > 0 && phaseParts.length > 0) {
+    parts.push(`${String(input.blocked)} BLOCKED`);
+  }
+  if (input.failVerdict > 0 && phaseParts.length > 0) {
+    parts.push(`${String(input.failVerdict)} FAIL`);
+  }
   return parts.join(' · ');
 }
 

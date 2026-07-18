@@ -67,7 +67,7 @@ export interface UltraSwarmRunResult {
 }
 
 export interface UltraSwarmRenderedResult extends UltraSwarmRunResult {
-  readonly verdict: 'PASS' | 'BLOCKED' | 'FAIL' | 'ABORTED' | 'SKIPPED';
+  readonly verdict: 'PASS' | 'PASS_WITH_ADVICE' | 'BLOCKED' | 'FAIL' | 'ABORTED' | 'SKIPPED';
   readonly evidenceIds: readonly string[];
 }
 
@@ -296,9 +296,14 @@ export function workNodeOutcome(results: readonly UltraSwarmRenderedResult[]): {
   const evidenceIds = uniqueStrings(results.flatMap((result) => result.evidenceIds));
   const failed = results.some((result) => result.status === 'failed' || result.verdict === 'FAIL');
   const blocked = results.some((result) => result.verdict === 'BLOCKED');
-  const status: WorkGraphNode['status'] = failed ? 'failed' : blocked ? 'blocked' : 'done';
+  // Successful swarm work needs main-agent integrate/verify before `done`.
+  const status: WorkGraphNode['status'] = failed
+    ? 'failed'
+    : blocked
+      ? 'blocked'
+      : 'needs_integration';
   const verificationStatus: NonNullable<WorkGraphNode['verificationStatus']> =
-    status === 'done' ? 'passed' : status === 'failed' ? 'failed' : 'blocked';
+    status === 'failed' ? 'failed' : status === 'blocked' ? 'blocked' : 'pending';
   const summary = `UltraSwarm completed ${String(results.length)} expert result(s): ${results
     .map((result) => `${result.spec.expertId}=${result.verdict}`)
     .join(', ')}`;
@@ -382,7 +387,7 @@ export function withRenderedMetadata(result: UltraSwarmRunResult): UltraSwarmRen
         : undefined;
   return {
     ...result,
-    verdict: inferVerdict(result.status, text, outcomeState),
+    verdict: inferVerdict(result.status, text, outcomeState, result.spec.phase),
     evidenceIds: extractEvidenceIds(text),
   };
 }

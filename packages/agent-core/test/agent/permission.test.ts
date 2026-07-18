@@ -956,9 +956,16 @@ describe('Simple permission policy direct behavior', () => {
     ).toBeUndefined();
   });
 
-  it('allows CreateGoal and GetGoal through an active ENGAGE gate', () => {
+  it('allows CreateGoal, GetGoal, read-only tools, and transparency writes through an active ENGAGE gate', () => {
     const agent = {
       ultraSwarmEngageGate: { isActive: true },
+      config: { cwd: '/work' },
+      ultrawork: {
+        getActivation: () => ({
+          workDir: '/work',
+          evidenceRoot: '.superliora/evidence/ultrawork-runs/run-1',
+        }),
+      },
     } as unknown as Agent;
     const policy = new UltraSwarmEngageGateDenyPermissionPolicy(agent);
 
@@ -977,26 +984,69 @@ describe('Simple permission policy direct behavior', () => {
     expect(
       policy.evaluate(hookContext({ id: 'call_todo', toolName: 'TodoList' })),
     ).toBeUndefined();
+    expect(
+      policy.evaluate(hookContext({ id: 'call_memory', toolName: 'Memory' })),
+    ).toBeUndefined();
+    // Read-only tools stay available for evidence packing while ENGAGE is binding.
+    expect(
+      policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' })),
+    ).toBeUndefined();
+    expect(
+      policy.evaluate(hookContext({ id: 'call_graph', toolName: 'UltraworkGraph' })),
+    ).toBeUndefined();
 
-    const denied = policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' }));
-    expect(denied).toMatchObject({
+    // Product-tree mutations remain denied until UltraSwarm runs.
+    const deniedProductWrite = policy.evaluate(
+      hookContext({
+        id: 'call_write_product',
+        toolName: 'Write',
+        args: { path: '/work/packages/agent-core/src/foo.ts', content: 'x' },
+        execution: {
+          description: 'Write product file',
+          accesses: ToolAccesses.writeFile('/work/packages/agent-core/src/foo.ts'),
+          approvalRule: 'Write',
+          execute: async () => ({ output: '' }),
+        },
+      }),
+    );
+    expect(deniedProductWrite).toMatchObject({
       kind: 'deny',
       message: expect.stringContaining('UltraSwarm ENGAGE is binding'),
     });
-    expect(denied).toMatchObject({
-      message: expect.stringContaining('CreateGoal'),
-    });
+
+    // Transparency ledgers under the active evidence root are allowed.
     expect(
-      policy.evaluate(hookContext({ id: 'call_graph', toolName: 'UltraworkGraph' })),
+      policy.evaluate(
+        hookContext({
+          id: 'call_write_report',
+          toolName: 'Write',
+          args: {
+            path: '/work/.superliora/evidence/ultrawork-runs/run-1/workflow-report.md',
+            content: '# report',
+          },
+          execution: {
+            description: 'Write workflow report',
+            accesses: ToolAccesses.writeFile(
+              '/work/.superliora/evidence/ultrawork-runs/run-1/workflow-report.md',
+            ),
+            approvalRule: 'Write',
+            execute: async () => ({ output: '' }),
+          },
+        }),
+      ),
     ).toBeUndefined();
   });
 
   it('allows UltraSwarm through an active gate regardless of decision value (ADAPTIVE)', () => {
     // The deny policy gates on `isActive`, not on the decision value. An ADAPTIVE
-    // engage still activates the gate, so UltraSwarm must pass and other tools
-    // must still be denied. Regression guard for the ternary routing change.
+    // engage still activates the gate, so UltraSwarm must pass; product writes
+    // stay denied while read-only tools are allowed.
     const agent = {
       ultraSwarmEngageGate: { isActive: true },
+      config: { cwd: '/work' },
+      ultrawork: {
+        getActivation: () => undefined,
+      },
     } as unknown as Agent;
     const policy = new UltraSwarmEngageGateDenyPermissionPolicy(agent);
 
@@ -1005,6 +1055,21 @@ describe('Simple permission policy direct behavior', () => {
     ).toBeUndefined();
     expect(
       policy.evaluate(hookContext({ id: 'call_read', toolName: 'Read' })),
+    ).toBeUndefined();
+    expect(
+      policy.evaluate(
+        hookContext({
+          id: 'call_write_product',
+          toolName: 'Write',
+          args: { path: '/work/src/main.ts', content: 'x' },
+          execution: {
+            description: 'Write product file',
+            accesses: ToolAccesses.writeFile('/work/src/main.ts'),
+            approvalRule: 'Write',
+            execute: async () => ({ output: '' }),
+          },
+        }),
+      ),
     ).toMatchObject({
       kind: 'deny',
       message: expect.stringContaining('UltraSwarm ENGAGE is binding'),

@@ -89,7 +89,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
           return {
             kind: 'deny',
             message:
-              'Bash is blocked in Research phase unless it is a simple read-only workspace inspection command (pwd, ls, tool lookup with which/command -v, git status, git diff --stat/name-only/check) or a chain of those commands joined with &&. Use WebSearch, FetchURL, Read, Grep, Glob, SearchExpert, TodoList, or NextPhase.',
+              'Bash is blocked in Research phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, read-only git) or a focused test runner (vitest / pnpm test / pnpm exec vitest). Package installs and other mutations stay blocked. Use WebSearch, FetchURL, Read, Grep, Glob, SearchExpert, TodoList, or NextPhase.',
           };
         }
         if (toolName === 'AskUserQuestion') {
@@ -280,12 +280,18 @@ function isNarrowReadOnlyBash(context: PermissionPolicyContext): boolean {
   if (command === undefined || command.length === 0) return false;
   if (isBackgroundBash(context)) return false;
 
+  // Single-command research test runners (vitest / pnpm test) without pipes.
+  if (!hasShellControlSyntax(command) && isResearchTestRunnerBash(context)) {
+    return true;
+  }
+
   const commands = splitReadOnlyAndList(command);
   if (commands === undefined) return false;
   return commands.every(isNarrowReadOnlyResearchCommand);
 }
 
 function splitReadOnlyAndList(command: string): string[] | undefined {
+  // Allow `&&` chains of inspection commands; still reject pipes/redirects.
   if (/[\n\r;|<>`]/.test(command) || command.includes('$(')) return undefined;
   if (command.replaceAll('&&', '').includes('&')) return undefined;
 
@@ -305,7 +311,8 @@ function isNarrowReadOnlyResearchCommand(command: string): boolean {
 type ResearchBashProfile =
   | 'workspace-inspection'
   | 'tool-lookup'
-  | 'git-inspection';
+  | 'git-inspection'
+  | 'test-runner';
 
 function classifyResearchBashCommand(
   words: readonly string[],
@@ -313,7 +320,66 @@ function classifyResearchBashCommand(
   if (isWorkspaceInspectionCommand(words)) return 'workspace-inspection';
   if (isToolLookupCommand(words)) return 'tool-lookup';
   if (isResearchGitInspectionCommand(words)) return 'git-inspection';
+  if (isResearchTestRunnerCommand(words)) return 'test-runner';
   return undefined;
+}
+
+function isResearchTestRunnerBash(context: PermissionPolicyContext): boolean {
+  const command = bashCommand(context)?.trim();
+  if (command === undefined || command.length === 0) return false;
+  if (isBackgroundBash(context)) return false;
+  if (hasShellControlSyntax(command) && !command.includes('&&')) return false;
+  const words = shellWords(command);
+  if (words === undefined || words.length === 0) return false;
+  if (hasSensitivePath(words)) return false;
+  return isResearchTestRunnerCommand(words);
+}
+
+/**
+ * Allow focused test runners during Research so agents can verify hypotheses
+ * without leaving plan mode. Mutating package installs remain blocked.
+ */
+function isResearchTestRunnerCommand(words: readonly string[]): boolean {
+  const command = words[0];
+  if (command === undefined) return false;
+
+  if (command === 'vitest' || command === 'node') {
+    if (command === 'vitest') return !hasMutatingPackageFlag(words);
+    // node path/to/vitest or node --test
+    if (words.includes('--test')) return true;
+    return words.some((word) => word.includes('vitest'));
+  }
+
+  if (command === 'pnpm' || command === 'npm' || command === 'yarn' || command === 'bun') {
+    // pnpm -C pkg exec vitest run … / pnpm test / pnpm exec vitest
+    const rest = words.slice(1);
+    if (rest.some((word) => word === 'install' || word === 'add' || word === 'remove' || word === 'publish')) {
+      return false;
+    }
+    if (rest.includes('test') || rest.includes('vitest') || rest.includes('exec')) {
+      return !hasMutatingPackageFlag(rest);
+    }
+    // pnpm -C packages/foo run test
+    if (rest.includes('run') && rest.some((word) => word === 'test' || word.startsWith('test:'))) {
+      return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
+function hasMutatingPackageFlag(words: readonly string[]): boolean {
+  return words.some(
+    (word) =>
+      word === 'install' ||
+      word === 'add' ||
+      word === 'remove' ||
+      word === 'uninstall' ||
+      word === 'publish' ||
+      word === 'link' ||
+      word === 'unlink',
+  );
 }
 
 function isWorkspaceInspectionCommand(words: readonly string[]): boolean {
@@ -327,6 +393,27 @@ function isWorkspaceInspectionCommand(words: readonly string[]): boolean {
 
   if (command === 'ls') {
     return words.slice(1).every(isLsInspectionArg);
+  }
+
+  // File/content inspection used during evidence gathering. Keep git history
+  // (show/log) out of Research — those stay Review-phase only.
+  if (
+    command === 'rg' ||
+    command === 'grep' ||
+    command === 'cat' ||
+    command === 'head' ||
+    command === 'tail' ||
+    command === 'wc' ||
+    command === 'file' ||
+    command === 'stat' ||
+    command === 'find' ||
+    command === 'tree' ||
+    command === 'jq' ||
+    command === 'sed' ||
+    command === 'nl' ||
+    command === 'du'
+  ) {
+    return isReadOnlyReviewCommand(words);
   }
 
   return false;
