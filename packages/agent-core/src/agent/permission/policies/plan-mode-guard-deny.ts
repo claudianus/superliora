@@ -22,13 +22,15 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
       return;
     }
 
-    // Ultra Plan Mode: phase-aware tool restrictions
+    // Ultra Plan Mode: workflow gates only (research questions, phase exit,
+    // interview bookkeeping). Inspection/mutation tool approval follows the
+    // user's permission mode after this policy returns undefined.
     if (isUltraMode) {
       const phaseResult = this.evaluateUltraPhase(context, phase);
       if (phaseResult !== undefined) return phaseResult;
     }
 
-    // Normal plan mode guards (and ultra write-phase plan-file guard).
+    // Normal plan mode guards (and ultra write/exit plan-file guard).
     // Ultra interview product Write/Edit already returned undefined above.
     if (
       (toolName === 'Write' || toolName === 'Edit') &&
@@ -75,168 +77,89 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
   ): PermissionPolicyResult | undefined {
     const toolName = context.toolCall.name;
 
-    // Read-only tools are allowed in every Ultra phase. This is the core
-    // deny-list reform: instead of per-phase allow-lists that block unknown
-    // read-only tools (MCP docs, new builtins), we gate only mutating tools.
-    // The agent can always read, search, and research regardless of phase.
+    // Read-only tools never hit plan hard-denies. Approval still follows the
+    // user's permission mode (auto/yolo approve; manual default-approve for
+    // read-only tools). This avoids thrashing on millions of inspection calls.
     if (isReadOnlyTool(context)) return;
 
-    switch (phase) {
-      case 'research': {
-        if (toolName === 'NextPhase') return;
-        if (toolName === 'Bash') {
-          if (isNarrowReadOnlyBash(context)) return;
-          return {
-            kind: 'deny',
-            message:
-              'Bash is blocked in Research phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, read-only git) or a focused test runner (vitest / pnpm test / pnpm exec vitest). Package installs and other mutations stay blocked. Use WebSearch, FetchURL, Read, Grep, Glob, SearchExpert, TodoList, or NextPhase.',
-          };
-        }
-        if (toolName === 'AskUserQuestion') {
-          return {
-            kind: 'deny',
-            message:
-              'AskUserQuestion is blocked in Research phase. Gather current evidence first, then call NextPhase({ phase: "interview" }) before asking the user.',
-          };
-        }
-        if (toolName === 'ExitPlanMode') {
-          return {
-            kind: 'deny',
-            message: 'ExitPlanMode is blocked in Research phase. Build a source-backed evidence pack, then use NextPhase to advance to Interview.',
-          };
-        }
-        return {
-          kind: 'deny',
-          message: `${toolName} is blocked in Research phase. Only read-only research tools, TodoList, and NextPhase are allowed before UltraPlan interview.`,
-        };
-      }
-      case 'interview': {
-        // Product Write/Edit is open in Interview (sensitive handled later by
-        // SensitiveFileAccessDeny/Ask — do not filter sensitive paths here).
-        if (toolName === 'Write' || toolName === 'Edit') return;
-        if (toolName === 'AskUserQuestion') {
-          this.agent.planMode.incrementInterviewRound();
-          return;
-        }
-        if (toolName === 'RecordInterviewFinding') {
-          // Dialectic Rhythm Guard: after 3 consecutive non-user answers,
-          // force the next question to the user via AskUserQuestion.
-          const consecutive = this.agent.planMode.ultraEngine.interviewState.consecutiveNonUserAnswers;
-          if (consecutive >= 3) {
-            return {
-              kind: 'deny',
-              message:
-                'Rhythm Guard: 3 consecutive findings were recorded without user input. Use AskUserQuestion next to confirm a decision with the user directly. Do not use RecordInterviewFinding again until the user has answered at least one question.',
-            };
-          }
-          return;
-        }
-        if (toolName === 'NextPhase') return;
-        if (toolName === 'Bash') {
-          if (isNarrowReadOnlyBash(context) || isReadOnlyReviewBash(context)) return;
-          return {
-            kind: 'deny',
-            message:
-              'Bash is blocked in Interview phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use WebSearch, FetchURL, Read, Grep, Glob, SearchSkill, Skill, SearchExpert, TodoList, AskUserQuestion, or NextPhase.',
-          };
-        }
-        if (toolName === 'EnterPlanMode') {
-          return {
-            kind: 'deny',
-            message:
-              'EnterPlanMode is already active in Ultra Plan interview. Use NextPhase to advance to Design; do not call EnterPlanMode with a phase argument.',
-          };
-        }
-        if (toolName === 'ExitPlanMode') {
-          return {
-            kind: 'deny',
-            message: 'ExitPlanMode is blocked in Interview phase. Use AskUserQuestion until the UltraGoal is true/false verifiable, then call NextPhase.',
-          };
-        }
-        return {
-          kind: 'deny',
-          message: `${toolName} is blocked in Interview phase. Use read-only research tools to sharpen the next question, then AskUserQuestion or NextPhase. Product Write/Edit is allowed; NextPhase to Design is hard-blocked only until the UltraGoal is true/false verifiable; soft seed gaps are recommendations, not Design blockers.`,
-        };
-      }
-      case 'design': {
-        if (toolName === 'NextPhase') return;
-        if (toolName === 'Bash') {
-          if (isReadOnlyReviewBash(context)) return;
-          return {
-            kind: 'deny',
-            message:
-              'Bash is blocked in Design phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, or NextPhase.',
-          };
-        }
-        if (toolName === 'ExitPlanMode') {
-          return {
-            kind: 'deny',
-            message: 'ExitPlanMode is blocked in Design phase. Use NextPhase to advance to Review or Write when your design is complete.',
-          };
-        }
-        return {
-          kind: 'deny',
-          message: `${toolName} is blocked in Design phase. Only read-only tools, read-only Bash inspection, and TodoList progress tracking are allowed. Use NextPhase to advance when ready.`,
-        };
-      }
-      case 'review': {
-        if (toolName === 'NextPhase') return;
-        if (toolName === 'Bash') {
-          if (isReadOnlyReviewBash(context)) return;
-          return {
-            kind: 'deny',
-            message:
-              'Bash is blocked in Review phase unless it is a read-only inspection command (pwd, ls, cat, sed -n, head/tail, wc, file/stat, find without actions, grep/rg, jq, or read-only git). Use Read, Grep, Glob, WebSearch, FetchURL, SearchSkill, Skill, SearchExpert, TodoList, or NextPhase when ready.',
-          };
-        }
-        if (toolName === 'ExitPlanMode') {
-          return {
-            kind: 'deny',
-            message: 'ExitPlanMode is blocked in Review phase. Use NextPhase to advance to Write when verification is complete.',
-          };
-        }
-        return {
-          kind: 'deny',
-          message: `${toolName} is blocked in Review phase. Only read-only review tools, read-only Bash inspection, TodoList progress tracking, and NextPhase are allowed. Use NextPhase to advance when ready.`,
-        };
-      }
-      case 'write': {
-        // Read-only tools passed the global gate. Allow plan-file writes and
-        // phase-control tools; block everything else (Bash, background, etc.).
-        if (toolName === 'Write' || toolName === 'Edit') return;
-        if (toolName === 'NextPhase' || toolName === 'ExitPlanMode') return;
+    // Interview product Write/Edit is intentionally open; sensitive paths are
+    // handled later by SensitiveFileAccessDeny/Ask.
+    if ((toolName === 'Write' || toolName === 'Edit') && phase === 'interview') {
+      return;
+    }
 
-        if (toolName === 'Bash') {
-          return {
-            kind: 'deny',
-            message: 'Bash is blocked in Write phase. Focus on writing the plan file. Use NextPhase to advance to Exit when the plan is complete.',
-          };
-        }
-        if (toolName === 'TaskStop' || toolName === 'CronCreate' || toolName === 'CronDelete') {
-          return {
-            kind: 'deny',
-            message: `${toolName} is blocked in Write phase. Focus on writing the plan file.`,
-          };
-        }
+    // Non-interview Write/Edit fall through to the plan-file-only outer guard.
+    if (toolName === 'Write' || toolName === 'Edit') {
+      return;
+    }
+
+    // Interview bookkeeping (not a permission-mode concern).
+    if (toolName === 'AskUserQuestion' && phase === 'interview') {
+      this.agent.planMode.incrementInterviewRound();
+      return;
+    }
+
+    if (toolName === 'RecordInterviewFinding') {
+      if (phase !== 'interview') {
         return {
           kind: 'deny',
           message:
-            `${toolName} is blocked in Write phase. You may read files for quick verification, write only to the current plan file, and use NextPhase or ExitPlanMode when complete.`,
+            'RecordInterviewFinding is only available during Ultra Plan interview. Use AskUserQuestion or NextPhase instead.',
         };
       }
-      case 'exit': {
-        // Read-only tools passed the global gate. Allow plan-file edits (to
-        // repair missing sections) and ExitPlanMode; block Bash/background.
-        if (toolName === 'Write' || toolName === 'Edit') return;
-        if (toolName === 'ExitPlanMode') return;
+      // Dialectic Rhythm Guard: after 3 consecutive non-user answers,
+      // force the next question to the user via AskUserQuestion.
+      const consecutive = this.agent.planMode.ultraEngine.interviewState.consecutiveNonUserAnswers;
+      if (consecutive >= 3) {
         return {
           kind: 'deny',
-          message: `${toolName} is blocked in Exit phase. You may read files for quick verification, edit only the current plan file to repair missing sections, and call ExitPlanMode for approval.`,
+          message:
+            'Rhythm Guard: 3 consecutive findings were recorded without user input. Use AskUserQuestion next to confirm a decision with the user directly. Do not use RecordInterviewFinding again until the user has answered at least one question.',
         };
       }
-      default:
-        return;
+      return;
     }
+
+    // Workflow-only gates (not tool-permission spam). Everything else — Bash,
+    // Agent, Browser, unknown MCP, test runners — defers to the user's
+    // permission mode so auto/yolo stay unblocked and manual only shows prompts.
+    if (toolName === 'AskUserQuestion' && phase === 'research') {
+      return {
+        kind: 'deny',
+        message:
+          'AskUserQuestion is blocked in Research phase. Gather current evidence first, then call NextPhase({ phase: "interview" }) before asking the user.',
+      };
+    }
+
+    if (toolName === 'EnterPlanMode') {
+      return {
+        kind: 'deny',
+        message:
+          'EnterPlanMode is already active in Ultra Plan. Use NextPhase to advance phases; do not call EnterPlanMode with a phase argument.',
+      };
+    }
+
+    if (toolName === 'ExitPlanMode' && phase !== 'write' && phase !== 'exit') {
+      const phaseLabel = `${phase.charAt(0).toUpperCase()}${phase.slice(1)}`;
+      const nextHint =
+        phase === 'research'
+          ? 'Build a source-backed evidence pack, then use NextPhase to advance to Interview.'
+          : phase === 'interview'
+            ? 'Use AskUserQuestion until the UltraGoal is true/false verifiable, then call NextPhase.'
+            : phase === 'design'
+              ? 'Use NextPhase to advance to Review when the design is ready.'
+              : phase === 'review'
+                ? 'Use NextPhase to advance to Write when verification is complete.'
+                : 'Use NextPhase to advance when ready.';
+      return {
+        kind: 'deny',
+        message: `ExitPlanMode is blocked in ${phaseLabel} phase. ${nextHint}`,
+      };
+    }
+
+    // Bash / Agent / Browser / MCP / NextPhase / background tools: allow at the
+    // plan-guard layer. User permission mode decides approve vs ask.
+    return;
   }
 }
 
@@ -273,455 +196,4 @@ function planModeWriteDeniedMessage(planFilePath: string | null): string {
   return `Plan mode is active. You may only write to the current plan file: ${
     planFilePath ?? '(no plan file selected yet)'
   }. Call ExitPlanMode to exit plan mode before editing other files.`;
-}
-
-function isNarrowReadOnlyBash(context: PermissionPolicyContext): boolean {
-  const command = bashCommand(context)?.trim();
-  if (command === undefined || command.length === 0) return false;
-  if (isBackgroundBash(context)) return false;
-
-  // Single-command research test runners (vitest / pnpm test) without pipes.
-  if (!hasShellControlSyntax(command) && isResearchTestRunnerBash(context)) {
-    return true;
-  }
-
-  const commands = splitReadOnlyAndList(command);
-  if (commands === undefined) return false;
-  return commands.every(isNarrowReadOnlyResearchCommand);
-}
-
-function splitReadOnlyAndList(command: string): string[] | undefined {
-  // Allow `&&` chains of inspection commands; still reject pipes/redirects.
-  if (/[\n\r;|<>`]/.test(command) || command.includes('$(')) return undefined;
-  if (command.replaceAll('&&', '').includes('&')) return undefined;
-
-  const commands = command.split('&&').map((part) => part.trim());
-  if (commands.length === 0 || commands.some((part) => part.length === 0)) return undefined;
-  return commands;
-}
-
-function isNarrowReadOnlyResearchCommand(command: string): boolean {
-  const words = shellWords(command);
-  if (words === undefined || words.length === 0) return false;
-  if (hasSensitivePath(words)) return false;
-
-  return classifyResearchBashCommand(words) !== undefined;
-}
-
-type ResearchBashProfile =
-  | 'workspace-inspection'
-  | 'tool-lookup'
-  | 'git-inspection'
-  | 'test-runner';
-
-function classifyResearchBashCommand(
-  words: readonly string[],
-): ResearchBashProfile | undefined {
-  if (isWorkspaceInspectionCommand(words)) return 'workspace-inspection';
-  if (isToolLookupCommand(words)) return 'tool-lookup';
-  if (isResearchGitInspectionCommand(words)) return 'git-inspection';
-  if (isResearchTestRunnerCommand(words)) return 'test-runner';
-  return undefined;
-}
-
-function isResearchTestRunnerBash(context: PermissionPolicyContext): boolean {
-  const command = bashCommand(context)?.trim();
-  if (command === undefined || command.length === 0) return false;
-  if (isBackgroundBash(context)) return false;
-  if (hasShellControlSyntax(command) && !command.includes('&&')) return false;
-  const words = shellWords(command);
-  if (words === undefined || words.length === 0) return false;
-  if (hasSensitivePath(words)) return false;
-  return isResearchTestRunnerCommand(words);
-}
-
-/**
- * Allow focused test runners during Research so agents can verify hypotheses
- * without leaving plan mode. Mutating package installs remain blocked.
- */
-function isResearchTestRunnerCommand(words: readonly string[]): boolean {
-  const command = words[0];
-  if (command === undefined) return false;
-
-  if (command === 'vitest' || command === 'node') {
-    if (command === 'vitest') return !hasMutatingPackageFlag(words);
-    // node path/to/vitest or node --test
-    if (words.includes('--test')) return true;
-    return words.some((word) => word.includes('vitest'));
-  }
-
-  if (command === 'pnpm' || command === 'npm' || command === 'yarn' || command === 'bun') {
-    // pnpm -C pkg exec vitest run … / pnpm test / pnpm exec vitest
-    const rest = words.slice(1);
-    if (rest.some((word) => word === 'install' || word === 'add' || word === 'remove' || word === 'publish')) {
-      return false;
-    }
-    if (rest.includes('test') || rest.includes('vitest') || rest.includes('exec')) {
-      return !hasMutatingPackageFlag(rest);
-    }
-    // pnpm -C packages/foo run test
-    if (rest.includes('run') && rest.some((word) => word === 'test' || word.startsWith('test:'))) {
-      return true;
-    }
-    return false;
-  }
-
-  return false;
-}
-
-function hasMutatingPackageFlag(words: readonly string[]): boolean {
-  return words.some(
-    (word) =>
-      word === 'install' ||
-      word === 'add' ||
-      word === 'remove' ||
-      word === 'uninstall' ||
-      word === 'publish' ||
-      word === 'link' ||
-      word === 'unlink',
-  );
-}
-
-function isWorkspaceInspectionCommand(words: readonly string[]): boolean {
-  const command = words[0];
-  if (command === 'pwd') {
-    return (
-      words.length === 1 ||
-      words.every((word, index) => index === 0 || word === '-L' || word === '-P')
-    );
-  }
-
-  if (command === 'ls') {
-    return words.slice(1).every(isLsInspectionArg);
-  }
-
-  // File/content inspection used during evidence gathering. Keep git history
-  // (show/log) out of Research — those stay Review-phase only.
-  if (
-    command === 'rg' ||
-    command === 'grep' ||
-    command === 'cat' ||
-    command === 'head' ||
-    command === 'tail' ||
-    command === 'wc' ||
-    command === 'file' ||
-    command === 'stat' ||
-    command === 'find' ||
-    command === 'tree' ||
-    command === 'jq' ||
-    command === 'sed' ||
-    command === 'nl' ||
-    command === 'du'
-  ) {
-    return isReadOnlyReviewCommand(words);
-  }
-
-  return false;
-}
-
-function isLsInspectionArg(word: string): boolean {
-  if (word.startsWith('-')) return /^-{1,2}[A-Za-z0-9,._=:-]+$/.test(word);
-  return true;
-}
-
-function isToolLookupCommand(words: readonly string[]): boolean {
-  if (words.length < 2) return false;
-  if (words[0] === 'which') {
-    return words.slice(1).every((word) => word === '-a' || word === '--all' || isExecutableName(word));
-  }
-
-  if (words[0] === 'command') {
-    return words[1] === '-v' && words.length >= 3 && words.slice(2).every(isExecutableName);
-  }
-
-  return false;
-}
-
-function isResearchGitInspectionCommand(words: readonly string[]): boolean {
-  const subcommandIndex = gitSubcommandIndex(words);
-  if (subcommandIndex === undefined) return false;
-  const subcommand = words[subcommandIndex];
-  if (subcommand === undefined) return false;
-
-  const args = words.slice(subcommandIndex + 1);
-  switch (subcommand) {
-    case 'status':
-      return args.every(isResearchGitStatusArg);
-    case 'diff':
-      return args.every(isResearchGitDiffArg);
-    case 'branch':
-      return args.length === 1 && args[0] === '--show-current';
-    case 'rev-parse':
-      return args.length === 1 && (args[0] === '--show-toplevel' || args[0] === '--show-prefix');
-    default:
-      return false;
-  }
-}
-
-function isResearchGitStatusArg(word: string): boolean {
-  return (
-    word === '--short' ||
-    word === '--porcelain' ||
-    word === '--branch' ||
-    word === '-s' ||
-    word === '-sb' ||
-    word === '-uno' ||
-    /^--untracked-files(?:=\S+)?$/.test(word)
-  );
-}
-
-function isResearchGitDiffArg(word: string): boolean {
-  return word === '--stat' || word === '--name-only' || word === '--check';
-}
-
-function isExecutableName(word: string): boolean {
-  return !word.startsWith('-') && /^[A-Za-z0-9._+:-]+$/.test(word);
-}
-
-function isReadOnlyReviewBash(context: PermissionPolicyContext): boolean {
-  const command = bashCommand(context)?.trim();
-  if (command === undefined || command.length === 0) return false;
-  if (isBackgroundBash(context)) return false;
-  if (hasShellControlSyntax(command)) return false;
-
-  const words = shellWords(command);
-  if (words === undefined || words.length === 0) return false;
-  if (hasSensitivePath(words)) return false;
-
-  return isReadOnlyReviewCommand(words);
-}
-
-function bashCommand(context: PermissionPolicyContext): string | undefined {
-  const args = context.args;
-  if (args === null || typeof args !== 'object') return undefined;
-  const command = (args as { command?: unknown }).command;
-  return typeof command === 'string' ? command : undefined;
-}
-
-function isBackgroundBash(context: PermissionPolicyContext): boolean {
-  const args = context.args;
-  return (
-    args !== null &&
-    typeof args === 'object' &&
-    (args as { run_in_background?: unknown }).run_in_background === true
-  );
-}
-
-function hasShellControlSyntax(command: string): boolean {
-  return /[\n\r;&|<>`]/.test(command) || command.includes('$(');
-}
-
-function shellWords(command: string): string[] | undefined {
-  const words: string[] = [];
-  let word = '';
-  let hasWord = false;
-  let quote: '"' | "'" | undefined;
-  let escaped = false;
-
-  for (const char of command) {
-    if (escaped) {
-      word += char;
-      hasWord = true;
-      escaped = false;
-      continue;
-    }
-
-    if (char === '\\' && quote !== "'") {
-      escaped = true;
-      hasWord = true;
-      continue;
-    }
-
-    if (quote !== undefined) {
-      if (char === quote) {
-        quote = undefined;
-      } else {
-        word += char;
-      }
-      hasWord = true;
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      quote = char;
-      hasWord = true;
-      continue;
-    }
-
-    if (/\s/.test(char)) {
-      if (hasWord) {
-        words.push(word);
-        word = '';
-        hasWord = false;
-      }
-      continue;
-    }
-
-    word += char;
-    hasWord = true;
-  }
-
-  if (escaped || quote !== undefined) return undefined;
-  if (hasWord) words.push(word);
-  return words;
-}
-
-function hasSensitivePath(words: readonly string[]): boolean {
-  return words.some(
-    (word) =>
-      /(^|\/)\.env(?:[./-]|$)/i.test(word) ||
-      /(^|\/)\.ssh(?:\/|$)/i.test(word) ||
-      /(^|\/)\.aws\/credentials$/i.test(word) ||
-      /(^|\/)\.gnupg(?:\/|$)/i.test(word) ||
-      /(^|\/)id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?$/i.test(word) ||
-      /\.(?:pem|p12|pfx)$/i.test(word),
-  );
-}
-
-function isReadOnlyReviewCommand(words: readonly string[]): boolean {
-  const command = words[0];
-  if (command === undefined) return false;
-
-  switch (command) {
-    case 'pwd':
-      return (
-        words.length === 1 ||
-        words.every((word, index) => index === 0 || word === '-L' || word === '-P')
-      );
-    case 'ls':
-    case 'cat':
-    case 'head':
-    case 'tail':
-    case 'wc':
-    case 'file':
-    case 'stat':
-    case 'du':
-    case 'nl':
-    case 'rg':
-    case 'grep':
-    case 'jq':
-      return true;
-    case 'tree':
-      return !hasTreeWriteOption(words);
-    case 'which':
-      return true;
-    case 'command':
-      return words[1] === '-v' && words.length >= 3;
-    case 'find':
-      return isReadOnlyFind(words);
-    case 'sed':
-      return isReadOnlySed(words);
-    case 'git':
-      return isReadOnlyGit(words);
-    default:
-      return false;
-  }
-}
-
-function hasTreeWriteOption(words: readonly string[]): boolean {
-  return words.some(
-    (word, index) => index > 0 && (word.startsWith('-o') || word.startsWith('--output')),
-  );
-}
-
-function isReadOnlyFind(words: readonly string[]): boolean {
-  const dangerousActions = new Set([
-    '-delete',
-    '-exec',
-    '-execdir',
-    '-ok',
-    '-okdir',
-    '-fls',
-    '-fprint',
-    '-fprint0',
-    '-fprintf',
-  ]);
-  return words.slice(1).every((word) => !dangerousActions.has(word));
-}
-
-function isReadOnlySed(words: readonly string[]): boolean {
-  const scripts: string[] = [];
-  let hasExplicitScript = false;
-  let index = 1;
-  for (; index < words.length; index += 1) {
-    const word = words[index]!;
-    if (word === '-i' || word.startsWith('-i') || word === '--in-place' || word.startsWith('--in-place=')) {
-      return false;
-    }
-    if (word === '-n' || word === '--quiet' || word === '--silent' || word === '-E' || word === '-r') {
-      continue;
-    }
-    if (word === '-e') {
-      const script = words[index + 1];
-      if (script === undefined) return false;
-      scripts.push(script);
-      hasExplicitScript = true;
-      index += 1;
-      continue;
-    }
-    if (word.startsWith('-')) return false;
-    if (hasExplicitScript) break;
-    scripts.push(word);
-    index += 1;
-    break;
-  }
-
-  if (scripts.length === 0) return false;
-  if (!scripts.every(isSedPrintScript)) return false;
-  return index < words.length;
-}
-
-function isSedPrintScript(script: string): boolean {
-  return (
-    /^(?:\d+|\$)(?:,(?:\d+|\$))?p$/.test(script) ||
-    /^\/[^/]+\/(?:,\/[^/]+\/)?p$/.test(script)
-  );
-}
-
-function isReadOnlyGit(words: readonly string[]): boolean {
-  const subcommandIndex = gitSubcommandIndex(words);
-  if (subcommandIndex === undefined) return false;
-  const subcommand = words[subcommandIndex];
-  if (subcommand === undefined) return false;
-
-  const readOnlySubcommands = new Set([
-    'status',
-    'diff',
-    'branch',
-    'rev-parse',
-    'log',
-    'show',
-    'ls-files',
-    'grep',
-    'blame',
-    'describe',
-    'merge-base',
-    'cat-file',
-  ]);
-  if (!readOnlySubcommands.has(subcommand)) return false;
-
-  return !words.some(
-    (word, index) =>
-      index > subcommandIndex &&
-      (word === '--output' ||
-        word.startsWith('--output=') ||
-        word === '--ext-diff' ||
-        word === '--textconv' ||
-        word === '-O' ||
-        word === '--open-files-in-pager'),
-  );
-}
-
-function gitSubcommandIndex(words: readonly string[]): number | undefined {
-  for (let index = 1; index < words.length; index += 1) {
-    const word = words[index]!;
-    if (word === '--no-pager') continue;
-    if (word === '-C') {
-      index += 1;
-      if (index >= words.length) return undefined;
-      continue;
-    }
-    return index;
-  }
-  return undefined;
 }

@@ -133,7 +133,9 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     },
     () => transcriptViewport.snapshot(),
   );
-  const header = new HeaderComponent({ ...initialAppState });
+  const header = new HeaderComponent({ ...initialAppState }, () => {
+    renderer.invalidateFrame('content');
+  });
 
   return {
     renderer,

@@ -1033,8 +1033,9 @@ export class LioraTUI {
     this.disposeTerminalTracking();
     this.disposeStartupSplash();
     this.appearanceController.dispose();
-    // BUG-2: dispose the footer's goal-timer interval.
+    // BUG-2: dispose the footer's goal-timer interval and the header clock.
     this.state.footer.dispose();
+    this.state.header.dispose();
     await this.closeSession('shutting down');
     await this.harness.close();
     // BUG-3: clear any queued goal-promotion timer (and MCP spinners).

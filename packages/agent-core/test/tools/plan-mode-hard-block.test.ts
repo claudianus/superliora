@@ -391,7 +391,10 @@ describe('Plan mode permission policy', () => {
         new_string: 'b',
       }),
     );
-    expect(deny.message ?? '').toContain('blocked in Research phase');
+    // Product edits still hard-deny via plan-file guard; research no longer
+    // uses a separate phase deny for non-plan writes.
+    expect(deny.message ?? '').toContain('Plan mode is active');
+    expect(deny.message ?? '').toContain('current plan file');
   });
 
   it('advances Ultra Plan from research to interview after evidence collection', async () => {
@@ -694,7 +697,8 @@ describe('Plan mode permission policy', () => {
     const deny = expectDeny(
       evaluatePlanPolicy(agent, 'Write', { path: '/workspace/src/main.ts', content: 'x' }),
     );
-    expect(deny.message ?? '').toContain('Research phase');
+    expect(deny.message ?? '').toContain('Plan mode is active');
+    expect(deny.message ?? '').toContain('current plan file');
   });
 
   it('explains that EnterPlanMode is not a phase transition tool in ultra interview', async () => {
@@ -767,13 +771,12 @@ describe('Plan mode permission policy', () => {
   it.each([
     ['Agent', { prompt: 'review the plan', description: 'review plan' }],
     ['BrowserObserve', {}],
-  ] as const)('blocks %s in Ultra Plan write phase (side effects)', async (toolName, args) => {
+  ] as const)('defers %s in Ultra Plan write phase to user permission mode', async (toolName, args) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('write');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, toolName, args));
-
-    expect(deny.message ?? '').toContain('Write phase');
+    // Plan guard no longer hard-denies side-effect tools; auto/yolo/manual decide.
+    expect(evaluatePlanPolicy(agent, toolName, args)).toBeUndefined();
   });
 
   it.each([
@@ -819,13 +822,12 @@ describe('Plan mode permission policy', () => {
     'find . -delete',
     'cat ~/.ssh/id_rsa',
     'git show --output=/tmp/show.txt HEAD',
-  ])('blocks non-inspection Bash in Ultra Plan design: %s', async (command) => {
+  ])('defers non-inspection Bash in Ultra Plan design to user permission mode: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('design');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
-
-    expect(deny.message ?? '').toContain('read-only inspection command');
+    // Plan guard allows Bash; user mode (manual ask / auto approve) decides next.
+    expect(evaluatePlanPolicy(agent, 'Bash', { command })).toBeUndefined();
   });
 
   it.each([
@@ -906,13 +908,12 @@ describe('Plan mode permission policy', () => {
     'git log --oneline -5',
     'pnpm install',
     'npm add lodash',
-  ])('blocks unsafe or mutating Research phase Bash: %s', async (command) => {
+  ])('defers unsafe or mutating Research phase Bash to user permission mode: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('research');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
-
-    expect(deny.message ?? '').toMatch(/read-only inspection|focused test runner|blocked in Research phase/i);
+    // Plan guard no longer hard-denies Bash; user permission mode decides.
+    expect(evaluatePlanPolicy(agent, 'Bash', { command })).toBeUndefined();
   });
 
   it.each([
@@ -926,13 +927,11 @@ describe('Plan mode permission policy', () => {
     'tree -o tree.txt',
     'git diff --output=/tmp/diff.txt',
     'git show --output=/tmp/show.txt HEAD',
-  ])('blocks non-inspection Bash in Ultra Plan review: %s', async (command) => {
+  ])('defers non-inspection Bash in Ultra Plan review to user permission mode: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('review');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, 'Bash', { command }));
-
-    expect(deny.message ?? '').toContain('read-only inspection command');
+    expect(evaluatePlanPolicy(agent, 'Bash', { command })).toBeUndefined();
   });
 
   it('allows Ultra Plan exit phase to repair only the plan file', async () => {
@@ -985,17 +984,16 @@ describe('Plan mode permission policy', () => {
     ).toBeUndefined();
   });
 
-  it('blocks unknown MCP tools in Ultra Plan research phase', async () => {
+  it('defers unknown MCP tools in Ultra Plan research phase to user permission mode', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
 
-    const deny = expectDeny(
+    // Unknown MCP is no longer hard-denied by plan guard; user mode decides.
+    expect(
       evaluatePlanPolicy(agent, 'mcp__github__create_issue', {
         title: 'test',
         body: 'test',
       }),
-    );
-
-    expect(deny.message ?? '').toContain('Research phase');
+    ).toBeUndefined();
   });
 
   it.each(['manual', 'yolo', 'auto'] as const)(
@@ -1088,7 +1086,7 @@ describe('Plan mode permission policy', () => {
         origin: 'code',
       }),
     );
-    expect(deny.message ?? '').toContain('Research phase');
+    expect(deny.message ?? '').toContain('only available during Ultra Plan interview');
   });
 
   it('blocks RecordInterviewFinding after 3 consecutive non-user answers (Rhythm Guard)', async () => {
