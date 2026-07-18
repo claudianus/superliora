@@ -155,7 +155,7 @@ describe('idle-stage helpers', () => {
     );
     expect(new Set(samples).size).toBeGreaterThanOrEqual(2);
     for (const s of samples) {
-      expect(s).toContain('▓');
+      expect(s).toMatch(/[╒═╨]/);
       expect(s.includes('█')).toBe(false);
     }
   });
@@ -166,7 +166,7 @@ describe('idle-stage helpers', () => {
     const c = applyFishTail([...FISH_LARGE_RIGHT], FISH_TAIL_MS * 2, true).join('\n');
     expect(a).not.toBe(b);
     expect(new Set([a, b, c]).size).toBeGreaterThanOrEqual(2);
-    expect(a + b + c).toMatch(/[)(·]/);
+    expect(a + b + c).toMatch(/[)(º]/);
   });
 
   it('paints rising bubbles only on empty water cells', () => {
@@ -179,7 +179,7 @@ describe('idle-stage helpers', () => {
     const occupied = stripAnsi(canvas[2] ?? '');
     expect(occupied[5]).toBe('X');
     const joined = canvas.map((line) => stripAnsi(line)).join('');
-    expect(joined).toMatch(/[oO°˚·]/);
+    expect(joined).toMatch(/[oO°˚·○]/);
   });
 
   it('lays a drifting caustic path across mid-water', () => {
@@ -188,7 +188,7 @@ describe('idle-stage helpers', () => {
     const canvas = Array.from({ length: bandRows }, () => '~'.repeat(width));
     paintMoonlightPath(canvas, 0, bandRows, width, 1_000, (ch) => ch);
     const joined = canvas.map((line) => stripAnsi(line)).join('\n');
-    expect(joined).toMatch(/[≈·]/);
+    expect(joined).toMatch(/[≈∼·]/);
   });
 });
 
@@ -210,7 +210,7 @@ describe('IdleStageComponent', () => {
     vi.useRealTimers();
   });
 
-  it('renders a living ambient aquarium scene in safe terminals', () => {
+  it('renders a living ambient jewel-tank scene in safe terminals', () => {
     withAmbientEnv(() => {
       const lines = renderIdleStageLines(80, DEFAULT_APPEARANCE_PREFERENCES, {
         nowMs: 2_500,
@@ -218,10 +218,10 @@ describe('IdleStageComponent', () => {
       });
       expect(lines.length).toBe(20);
       const joined = strip(lines.join('\n'));
-      expect(joined).toMatch(/the tank is quiet/i);
+      expect(joined).toMatch(/jewel tank/i);
       expect(joined).toMatch(/tip · /i);
-      // Story scene: fish / bubbles / plants / water glyphs.
-      expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\▓]/);
+      // Story scene: fish / bubbles / plants / water / coral glyphs.
+      expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\═╨]/);
       for (const line of lines) {
         expect(visibleWidth(line)).toBeLessThanOrEqual(80);
       }
@@ -285,7 +285,7 @@ describe('IdleStageComponent', () => {
         preferredRows: 16,
       }).join('\n'),
     );
-    expect(joined).toContain('어항이 고요하다');
+    expect(joined).toContain('보석 수조');
   });
 
   it('treats welcome as empty chrome, not real content', () => {

@@ -60,13 +60,13 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.welcome.modelPrefix': 'Model: ',
 
   // ── Empty-transcript idle stage ──────────────────────────────────────────
-  'tui.idle.title': 'the tank is quiet',
+  'tui.idle.title': 'jewel tank',
   'tui.idle.tipPrefix': 'tip · ',
-  'tui.idle.mood.bubbles': 'bubbles drift toward the surface',
-  'tui.idle.mood.swim': 'fish circle, unhurried',
-  'tui.idle.mood.ready': 'water warm · editor ready',
-  'tui.idle.mood.tank': 'a still tank, waiting for a line',
-  'tui.idle.mood.quiet': 'soft current, open prompt',
+  'tui.idle.mood.bubbles': 'a silver plume climbs the glass',
+  'tui.idle.mood.swim': 'the lead fish draws a slow arc',
+  'tui.idle.mood.ready': 'clear water · prompt open',
+  'tui.idle.mood.tank': 'coral hush, waiting for a line',
+  'tui.idle.mood.quiet': 'caustic light, soft current',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
   'tui.footer.next.login': 'next: /login to add a provider, then /model',
@@ -392,13 +392,13 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.welcome.modelPrefix': '모델: ',
 
   // ── Empty-transcript idle stage ──────────────────────────────────────────
-  'tui.idle.title': '어항이 고요하다',
+  'tui.idle.title': '보석 수조',
   'tui.idle.tipPrefix': '팁 · ',
-  'tui.idle.mood.bubbles': '거품이 수면으로 천천히 오른다',
-  'tui.idle.mood.swim': '물고기들이 느긋하게 헤엄친다',
-  'tui.idle.mood.ready': '물결 예열 · 에디터 준비',
-  'tui.idle.mood.tank': '고요한 어항, 한 줄을 기다린다',
-  'tui.idle.mood.quiet': '잔잔한 물결, 열린 프롬프트',
+  'tui.idle.mood.bubbles': '은빛 기포가 유리를 타고 오른다',
+  'tui.idle.mood.swim': '주연 물고기가 느린 호를 그린다',
+  'tui.idle.mood.ready': '맑은 물 · 프롬프트 열림',
+  'tui.idle.mood.tank': '산호가 고요하다, 한 줄을 기다린다',
+  'tui.idle.mood.quiet': '캐우스틱 빛, 잔잔한 흐름',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
   'tui.footer.next.login': '다음: /login으로 프로바이더 추가, 그리고 /model',

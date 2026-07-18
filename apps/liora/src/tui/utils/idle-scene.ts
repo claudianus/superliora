@@ -1,49 +1,52 @@
 /**
- * Empty-transcript idle scene — a little aquarium.
+ * Empty-transcript idle scene — Jewel Tank.
  *
- * Cute fish, cool green seaweed, soft sky-blue water.
- * Sparse and pretty. No gadget clutter.
+ * A curated premium aquarium: clear water, one lead fish, a small school,
+ * a seaweed curtain, coral silhouettes, an air-stone plume, and a soft
+ * caustic band. Sparse cast, rich layers. No gadget clutter, no splash
+ * Blood Moon glyphs.
  */
 
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
-/** Cute large fish — right. Classic aquarium smile. */
+/** Lead fish — right. ASCII-safe widths only (no wide punctuation). */
 export const FISH_LARGE_RIGHT = [
-  '   ︵     ',
-  ' ><(((º>  ',
-  '   ︶     ',
+  '  ···    ',
+  ' ><(((º>',
+  '  ~~~    ',
 ] as const;
 
-/** Cute large fish — left. */
+/** Lead fish — left. */
 export const FISH_LARGE_LEFT = [
-  '     ︵   ',
-  '  <º)))>< ',
-  '     ︶   ',
+  '    ···  ',
+  '<º)))>< ',
+  '    ~~~  ',
 ] as const;
 
-/** Compact school fish — right. */
+/** Mid-size companion — right. */
 export const FISH_COMPACT_RIGHT = [
   '  ·  ',
   ' ><> ',
   '  ~  ',
 ] as const;
 
-/** Compact school fish — left. */
+/** Mid-size companion — left. */
 export const FISH_COMPACT_LEFT = [
   '  ·  ',
   ' <>< ',
   '  ~  ',
 ] as const;
 
-/** Tiny darting friends. */
+/** Tiny darting friends (right / left pairs). */
 export const FISH_TINY = [
-  ['><>', '<><'],
+  ['>◦>', '<◦<'],
+  ['>~>', '<~<'],
   ['>º>', '<º<'],
 ] as const;
 
 /**
- * Tall seaweed — four sway frames per row (top → root).
- * Meant to feel like a cool green curtain, not sparse sticks.
+ * Seaweed curtain — four sway frames per row (crown → root).
+ * Meant to read as a soft green forest, not sparse sticks.
  */
 export const PLANT_FRAMES = [
   ['  )  ', '  (  ', '  )  ', '  (  '],
@@ -53,12 +56,21 @@ export const PLANT_FRAMES = [
   [' ||  ', ' ||  ', ' ||  ', ' ||  '],
 ] as const;
 
-export const BUBBLE_GLYPHS = ['·', 'o', '°'] as const;
+/** Low coral / rock silhouettes on the sand. */
+export const CORAL_FORMS = [
+  ['/\\/\\', '/__\\'],
+  [' /\\ ', '/__\\'],
+  ['/\\/ ', '\\_/ '],
+] as const;
 
-export const FISH_SWIM_MS = 3_600;
-export const FISH_TAIL_MS = 480;
-export const BUBBLE_STEP_MS = 200;
-export const PLANT_SWAY_MS = 2_200;
+export const BUBBLE_GLYPHS = ['·', 'o', '°', '○'] as const;
+
+export const FISH_SWIM_MS = 4_200;
+export const FISH_TAIL_MS = 360;
+export const BUBBLE_STEP_MS = 170;
+export const PLANT_SWAY_MS = 2_400;
+export const CAUSTIC_DRIFT_MS = 55;
+export const SPARKLE_MS = 880;
 
 /** @deprecated transitional aliases */
 export const FOX_BREATH_MS = FISH_SWIM_MS;
@@ -136,6 +148,9 @@ function hash2(a: number, b: number): number {
   return (x ^ (x >>> 16)) >>> 0;
 }
 
+/** Soft-occupancy cells a bubble / sparkle may replace. */
+const SOFT_CELLS = new Set([' ', '·', '˙', '~', '∼', '˚']);
+
 /** One cell. `glyph` may include full ANSI — never slice styled text. */
 function putCell(
   canvas: string[],
@@ -148,9 +163,7 @@ function putCell(
   if (y < 0 || y >= canvas.length || x < 0 || x >= width) return;
   const plain = stripAnsi(canvas[y] ?? ' '.repeat(width)).padEnd(width).slice(0, width);
   const here = plain[x] ?? ' ';
-  if (!force && here !== ' ' && here !== '·' && here !== '˙' && here !== '~' && here !== '∼') {
-    return;
-  }
+  if (!force && !SOFT_CELLS.has(here)) return;
   canvas[y] = padOrTrim(`${plain.slice(0, x)}${glyph}${plain.slice(x + 1)}`, width);
 }
 
@@ -183,7 +196,7 @@ export function resolveFoxGlyphRows(
   return resolveFishGlyphRows(width, availableRows, elapsedMs);
 }
 
-/** Soft fin / cheek pulse so the fish feels alive without looking twitchy. */
+/** Soft cheek / tail pulse — ≥4 frames, never a hard blink. */
 export function applyFishTail(
   rows: readonly string[],
   elapsedMs: number,
@@ -198,7 +211,6 @@ export function applyFishTail(
   if (line === undefined) return out;
 
   if (line.includes('(((º>') || line.includes('<º)))')) {
-    // Large: breathe the cheek parentheses.
     const cheeks = facingRight
       ? (['(((º>', '((º> ', '(((º>', '((((º>'] as const)
       : (['<º)))', '<º)) ', '<º)))', '<º))))'] as const);
@@ -209,12 +221,11 @@ export function applyFishTail(
     return out;
   }
 
-  // Compact / tiny: gentle tail tip.
   if (facingRight) {
-    const tips = ['>', '·', '>', '~'] as const;
+    const tips = ['>', '◦', '>', '~'] as const;
     out[bodyIdx] = line.replace(/>\s*$/u, `${tips[frame] ?? '>'} `);
   } else {
-    const tips = ['<', '·', '<', '~'] as const;
+    const tips = ['<', '◦', '<', '~'] as const;
     out[bodyIdx] = line.replace(/^\s*</u, ` ${tips[frame] ?? '<'}`);
   }
   return out;
@@ -225,6 +236,18 @@ export function applyFoxTail(rows: readonly string[], elapsedMs: number): string
   return applyFishTail(rows, elapsedMs, true);
 }
 
+/** Air-stone head — four flicker frames, no solid splash-moon blocks. */
+export function resolveAirStoneGlyph(elapsedMs: number, seed: number): readonly string[] {
+  const frame = Math.floor((elapsedMs + seed * 40) / 220) % BUBBLE_GLYPHS.length;
+  const top = BUBBLE_GLYPHS[frame] ?? 'o';
+  return [` ${top} `, '╒═╕', ' ╨ '];
+}
+
+/** @deprecated transitional alias */
+export function resolveLanternGlyph(elapsedMs: number, seed: number): readonly string[] {
+  return resolveAirStoneGlyph(elapsedMs, seed);
+}
+
 export function paintBubbles(
   canvas: string[],
   width: number,
@@ -233,16 +256,22 @@ export function paintBubbles(
   paintGlyph: (glyph: string, intensity: number) => string,
 ): void {
   if (width <= 0 || rows <= 0) return;
-  // A few quiet bubbles — not a soda fountain.
-  const columns = Math.max(2, Math.min(4, Math.floor(width / 18)));
+  const columns = Math.max(2, Math.min(5, Math.floor(width / 16)));
   for (let i = 0; i < columns; i++) {
     const seed = hash2(i * 29 + 5, 77);
-    const x = 4 + (seed % Math.max(1, width - 8));
-    const period = 2_800 + (seed % 1_800);
+    const x = 3 + (seed % Math.max(1, width - 6));
+    const period = 2_400 + (seed % 2_000);
     const progress = ((elapsedMs + seed) % period) / period;
     const y = Math.floor((1 - progress) * (rows - 1));
     const sizeIdx = Math.min(BUBBLE_GLYPHS.length - 1, Math.floor(progress * BUBBLE_GLYPHS.length));
-    putCell(canvas, y, x, width, paintGlyph(BUBBLE_GLYPHS[sizeIdx] ?? 'o', 0.45 + progress * 0.4));
+    const wobble = Math.sin(elapsedMs / 420 + seed) > 0 ? 0 : 1;
+    putCell(
+      canvas,
+      y,
+      Math.min(width - 1, x + wobble),
+      width,
+      paintGlyph(BUBBLE_GLYPHS[sizeIdx] ?? 'o', 0.4 + progress * 0.55),
+    );
   }
 }
 
@@ -257,7 +286,8 @@ export function paintRain(
   paintBubbles(canvas, width, rows, elapsedMs, (g, intensity) => paintGlyph(g, intensity));
 }
 
-export function paintMoonlightPath(
+/** Soft caustic light band drifting across mid-water. */
+export function paintCausticPath(
   canvas: string[],
   top: number,
   bandRows: number,
@@ -266,31 +296,39 @@ export function paintMoonlightPath(
   paintCh: (ch: string) => string,
 ): void {
   if (width <= 0 || bandRows <= 0) return;
-  const center = Math.floor((elapsedMs / 60) % Math.max(1, width + 8)) - 4;
-  const half = Math.max(2, Math.floor(width * 0.07));
+  const center = Math.floor((elapsedMs / CAUSTIC_DRIFT_MS) % Math.max(1, width + 10)) - 5;
+  const half = Math.max(2, Math.floor(width * 0.08));
   for (let r = 0; r < bandRows; r++) {
     const y = top + r;
     if (y < 0 || y >= canvas.length) continue;
     for (let x = Math.max(0, center - half); x <= Math.min(width - 1, center + half); x++) {
       const dist = Math.abs(x - center);
-      putCell(canvas, y, x, width, paintCh(dist < half * 0.4 ? '≈' : '·'), true);
+      const ch = dist < half * 0.35 ? '≈' : dist < half * 0.7 ? '∼' : '·';
+      putCell(canvas, y, x, width, paintCh(ch), true);
     }
   }
 }
 
-export function resolveLanternGlyph(elapsedMs: number, seed: number): readonly string[] {
-  const frame = Math.floor((elapsedMs + seed * 40) / 220) % BUBBLE_GLYPHS.length;
-  const top = BUBBLE_GLYPHS[frame] ?? 'o';
-  return [` ${top} `, '╒▓╕', ' ╵ '];
+/** @deprecated transitional alias */
+export function paintMoonlightPath(
+  canvas: string[],
+  top: number,
+  bandRows: number,
+  width: number,
+  elapsedMs: number,
+  paintCh: (ch: string) => string,
+): void {
+  paintCausticPath(canvas, top, bandRows, width, elapsedMs, paintCh);
 }
 
 export function renderWaterline(width: number, elapsedMs: number): string {
   if (width <= 0) return '';
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const phase = Math.sin(x * 0.32 + elapsedMs / 1_050);
-    if (phase > 0.4) cells.push('~');
-    else if (phase > -0.25) cells.push('∼');
+    const phase = Math.sin(x * 0.28 + elapsedMs / 980);
+    if (phase > 0.55) cells.push('≈');
+    else if (phase > 0.1) cells.push('~');
+    else if (phase > -0.35) cells.push('∼');
     else cells.push('·');
   }
   return cells.join('');
@@ -300,8 +338,11 @@ export function renderSandLine(width: number, elapsedMs: number, rowSeed: number
   if (width <= 0) return '';
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const twinkle = Math.sin(elapsedMs / 3_200 + x * 0.3 + rowSeed) > 0.88;
-    cells.push(twinkle ? '·' : '.');
+    const twinkle = Math.sin(elapsedMs / 2_800 + x * 0.27 + rowSeed) > 0.9;
+    const pebble = hash2(x + 3, rowSeed + 11) % 17 === 0;
+    if (twinkle) cells.push('·');
+    else if (pebble) cells.push('˚');
+    else cells.push('.');
   }
   return cells.join('');
 }
@@ -321,7 +362,7 @@ export function renderHillLine(width: number, elapsedMs: number): string {
   return cells.join('');
 }
 
-/** Soft sky-blue water body — airy, not noisy. */
+/** Depth-graded water body — denser soft dots near the bed. */
 export function paintWaterField(
   canvas: string[],
   width: number,
@@ -330,17 +371,20 @@ export function paintWaterField(
   paint: (hex: string, text: string) => string,
   sky: string,
   skySoft: string,
+  skyDeep: string,
 ): void {
   if (width <= 0 || rows <= 1) return;
-  // Gentle horizontal drift of soft blue dots — like light in water.
-  const count = Math.max(3, Math.floor(width * 0.12));
+  const count = Math.max(4, Math.floor(width * 0.16));
   for (let i = 0; i < count; i++) {
     const seed = hash2(i * 23 + 4, 61);
-    const drift = Math.floor(elapsedMs / 120 + seed * 0.01) % Math.max(1, width);
+    const drift = Math.floor(elapsedMs / 110 + seed * 0.01) % Math.max(1, width);
     const x = (seed + drift) % width;
-    const y = 1 + (hash2(i * 11 + 2, 29) % Math.max(1, rows - 2));
-    const soft = seed % 3 !== 0;
-    putCell(canvas, y, x, width, paint(soft ? skySoft : sky, soft ? '·' : '˙'));
+    const depthBias = (seed % 100) / 100;
+    const y = 1 + Math.floor(depthBias * depthBias * Math.max(1, rows - 2));
+    const tone = seed % 5;
+    const hex = tone === 0 ? skyDeep : tone < 3 ? sky : skySoft;
+    const glyph = tone === 0 ? '˙' : tone < 3 ? '·' : '˚';
+    putCell(canvas, y, x, width, paint(hex, glyph));
   }
 }
 
@@ -353,17 +397,18 @@ export function paintWaterShimmer(
   paintGlyph: (glyph: string, intensity: number) => string,
 ): void {
   if (width <= 0 || rows <= 0) return;
-  const count = Math.max(1, Math.floor(width * density * 0.04));
+  const count = Math.max(1, Math.floor(width * density * 0.05));
   for (let i = 0; i < count; i++) {
     const seed = hash2(i * 17 + 3, 91);
     const x = seed % width;
     const y =
-      (hash2(i * 13 + 7, 53) + Math.floor(elapsedMs / 1_600)) %
-      Math.max(1, Math.floor(rows * 0.5));
-    putCell(canvas, y, x, width, paintGlyph('·', 0.4));
+      (hash2(i * 13 + 7, 53) + Math.floor(elapsedMs / 1_400)) %
+      Math.max(1, Math.floor(rows * 0.45));
+    putCell(canvas, y, x, width, paintGlyph('·', 0.45));
   }
 }
 
+/** Surface light shafts — thin vertical glints under the waterline. */
 export function paintSurfaceLight(
   canvas: string[],
   width: number,
@@ -371,11 +416,18 @@ export function paintSurfaceLight(
   elapsedMs: number,
   paintGlyph: (glyph: string, intensity: number) => string,
 ): void {
-  void canvas;
-  void width;
-  void rows;
-  void elapsedMs;
-  void paintGlyph;
+  if (width < 32 || rows < 5) return;
+  const shafts = Math.max(2, Math.min(4, Math.floor(width / 28)));
+  for (let i = 0; i < shafts; i++) {
+    const seed = hash2(i * 41 + 9, 113);
+    const x = 4 + (seed % Math.max(1, width - 8));
+    const len = 2 + (seed % 3);
+    const phase = Math.sin(elapsedMs / 1_100 + seed) > 0;
+    if (!phase && seed % 3 === 0) continue;
+    for (let d = 0; d < len; d++) {
+      putCell(canvas, 1 + d, x, width, paintGlyph(d === 0 ? '˚' : '·', 0.55 - d * 0.12));
+    }
+  }
 }
 
 export function paintMist(
@@ -399,6 +451,29 @@ export function paintFireflies(
   paintWaterShimmer(canvas, width, rows, elapsedMs, density, paintGlyph);
 }
 
+/** Occasional jewel sparkles — premium only, very sparse. */
+function paintSparkles(
+  canvas: string[],
+  width: number,
+  rows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  hex: string,
+): void {
+  if (width < 40 || rows < 6) return;
+  const count = Math.max(1, Math.floor(width / 40));
+  for (let i = 0; i < count; i++) {
+    const seed = hash2(i * 53 + 7, 131);
+    const period = SPARKLE_MS + (seed % 600);
+    const frame = Math.floor((elapsedMs + seed) / (period / 4)) % 4;
+    if (frame === 0 || frame === 2) continue; // off / rest — not a hard blink loop
+    const x = 2 + (seed % Math.max(1, width - 4));
+    const y = 1 + (hash2(i * 19 + 3, 71) % Math.max(1, rows - 3));
+    const glyph = frame === 1 ? '·' : '˚';
+    putCell(canvas, y, x, width, paint(hex, glyph));
+  }
+}
+
 type FishColor = 'gold' | 'sky' | 'teal' | 'soft';
 
 interface FishActor {
@@ -412,9 +487,11 @@ interface FishActor {
 }
 
 function buildSchool(width: number, storyRows: number, premium: boolean): FishActor[] {
-  // A small, cute cast — not a crowd.
-  const count = premium ? (width >= 70 ? 4 : 3) : width >= 50 ? 3 : 2;
+  // Curated cast — lead + companions, never a crowd.
+  const count = premium ? (width >= 72 ? 4 : 3) : width >= 50 ? 3 : 2;
   const colors: FishColor[] = ['gold', 'sky', 'teal', 'soft'];
+  // Staggered depth bands so the lead lane stays readable.
+  const bands = [0.22, 0.38, 0.3, 0.48] as const;
   const school: FishActor[] = [];
   for (let i = 0; i < count; i++) {
     const seed = hash2(i * 47 + 11, 203);
@@ -423,11 +500,11 @@ function buildSchool(width: number, storyRows: number, premium: boolean): FishAc
     school.push({
       kind,
       seed,
-      speed: 0.38 + (seed % 28) / 90,
-      baseYRatio: 0.22 + ((seed % 38) / 100) * 0.32,
-      phase: (seed % 1_000) / 1_000,
+      speed: 0.28 + (seed % 26) / 110 + (i === 0 ? 0.06 : 0),
+      baseYRatio: bands[i] ?? 0.34,
+      phase: (i * 0.23 + (seed % 200) / 1_000) % 1,
       color: colors[i % colors.length]!,
-      goesRight: seed % 2 === 0,
+      goesRight: i % 2 === 0,
     });
   }
   return school;
@@ -444,7 +521,8 @@ function glyphForActor(actor: FishActor, elapsedMs: number): readonly string[] {
     return applyFishTail(base, t, actor.goesRight);
   }
   const pair = FISH_TINY[actor.seed % FISH_TINY.length] ?? FISH_TINY[0]!;
-  return [actor.goesRight ? pair[0] : pair[1]];
+  const tip = applyFishTail([actor.goesRight ? pair[0] : pair[1]], t, actor.goesRight);
+  return tip;
 }
 
 function paintFishSchool(
@@ -464,16 +542,15 @@ function paintFishSchool(
   },
 ): void {
   const school = buildSchool(width, storyRows, premium);
-  // Keep fish above the seaweed crowns a little.
   const floor = Math.max(2, storyRows - 2);
 
   for (const actor of school) {
-    const travel = elapsedMs * 0.001 * actor.speed * 5.2 + actor.phase * width * 2;
-    const loop = Math.max(1, width + 14);
+    const travel = elapsedMs * 0.001 * actor.speed * 5.6 + actor.phase * width * 2;
+    const loop = Math.max(1, width + 16);
     const x = actor.goesRight
-      ? Math.floor(travel % loop) - 7
-      : width + 7 - Math.floor(travel % loop);
-    const bob = Math.sin(elapsedMs / FISH_SWIM_MS + actor.phase * Math.PI * 2) * 0.85;
+      ? Math.floor(travel % loop) - 8
+      : width + 8 - Math.floor(travel % loop);
+    const bob = Math.sin(elapsedMs / FISH_SWIM_MS + actor.phase * Math.PI * 2) * 0.95;
     const y = Math.max(1, Math.min(floor - 1, Math.floor(actor.baseYRatio * floor + bob)));
     const hex = showAmbient
       ? actor.color === 'gold'
@@ -494,7 +571,7 @@ function paintFishSchool(
   }
 }
 
-/** Cool green seaweed forest along the bed — generous, calm sway. */
+/** Cool green seaweed forest along the bed. */
 function paintSeaweed(
   canvas: string[],
   width: number,
@@ -505,17 +582,14 @@ function paintSeaweed(
   greenSoft: string,
 ): void {
   if (width < 24 || storyRows < 6) return;
-  // Spread plants across the tank — a soft green curtain, not three lonely stems.
   const spacing = width >= 80 ? 6 : width >= 50 ? 7 : 8;
   const count = Math.max(3, Math.floor((width - 2) / spacing));
   const sandY = storyRows - 1;
 
   for (let i = 0; i < count; i++) {
     const seed = hash2(i * 31 + 2, 61);
-    // Slight jitter so the bed doesn't look like a grid.
     const x = 1 + i * spacing + ((seed % 3) - 1);
     const frameIdx = Math.floor(elapsedMs / PLANT_SWAY_MS + seed * 0.2) % 4;
-    // Vary height: some short, most tall.
     const tall = seed % 5 !== 0 && storyRows >= 8;
     const frames = tall ? PLANT_FRAMES : PLANT_FRAMES.slice(2);
     const hex = seed % 2 === 0 ? green : greenSoft;
@@ -525,10 +599,70 @@ function paintSeaweed(
   }
 }
 
+/** Coral / rock accents resting on the sand. */
+function paintCoral(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  hex: string,
+  soft: string,
+): void {
+  if (width < 36 || storyRows < 7) return;
+  const sandY = storyRows - 1;
+  const count = width >= 80 ? 3 : 2;
+  for (let i = 0; i < count; i++) {
+    const seed = hash2(i * 59 + 13, 97);
+    const form = CORAL_FORMS[seed % CORAL_FORMS.length] ?? CORAL_FORMS[0]!;
+    const x = 6 + Math.floor(((i + 0.5) / count) * (width - 16)) + ((seed % 5) - 2);
+    const color = seed % 2 === 0 ? hex : soft;
+    // Tiny shimmer on the crown.
+    const lines = [paint(color, form[0] ?? '/\\'), paint(color, form[1] ?? '/__\\')];
+    const top = Math.max(1, sandY - lines.length);
+    blitAt(canvas, lines, top, Math.max(0, Math.min(width - 6, x)), width);
+    // Soft sparkle above the crown — never mutate the silhouette.
+    if (Math.sin(elapsedMs / 1_500 + seed) > 0.72) {
+      putCell(canvas, top - 1, Math.max(0, Math.min(width - 1, x + 1)), width, paint(soft, '·'));
+    }
+  }
+}
+
+/** Air-stone on the bed with a local bubble plume. */
+function paintAirStone(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  stone: string,
+  bubble: string,
+  bubbleSoft: string,
+): void {
+  if (width < 40 || storyRows < 8) return;
+  const sandY = storyRows - 1;
+  const seed = 42;
+  const x = Math.floor(width * 0.22);
+  const glyph = resolveAirStoneGlyph(elapsedMs, seed).map((line) => paint(stone, line));
+  blitAt(canvas, glyph, Math.max(1, sandY - glyph.length), x, width);
+
+  // Tight plume above the stone.
+  for (let i = 0; i < 3; i++) {
+    const pSeed = hash2(i * 17 + 3, seed);
+    const period = 1_600 + (pSeed % 900);
+    const progress = ((elapsedMs + pSeed * 30) % period) / period;
+    const y = sandY - glyph.length - 1 - Math.floor(progress * Math.max(2, storyRows * 0.45));
+    const bx = x + 1 + (Math.sin(elapsedMs / 380 + i) > 0 ? 1 : 0);
+    const g = BUBBLE_GLYPHS[Math.min(BUBBLE_GLYPHS.length - 1, Math.floor(progress * 3))] ?? 'o';
+    putCell(canvas, y, bx, width, paint(progress > 0.6 ? bubble : bubbleSoft, g));
+  }
+}
+
 /**
- * Paint the aquarium into `canvas[0..storyRows)`.
+ * Paint the Jewel Tank into `canvas[0..storyRows)`.
  *
- * Feeling first: sky-blue water, a green seaweed bed, a few cute fish.
+ * Feeling: clear water, green curtain, coral accents, air-stone plume,
+ * a soft caustic band, and a curated fish school.
  */
 export function paintIdleStoryScene(options: {
   readonly canvas: string[];
@@ -558,17 +692,18 @@ export function paintIdleStoryScene(options: {
   const skyDeep = colors.gradientStart ?? colors.primary;
   const skySoft = colors.primary;
   const green = colors.success ?? colors.accent;
-  // Slightly softer green for alternating fronds (accent leans teal — still watery).
   const greenSoft = colors.accent;
   const gold = colors.roleUser ?? colors.warning;
   const sand = colors.warning;
+  const coral = colors.particle;
+  const coralSoft = colors.accent;
 
-  // 1) Sky-blue water body
+  // 1) Depth-graded water
   if (showAmbient) {
-    paintWaterField(canvas, width, storyRows, elapsedMs, paint, sky, skySoft);
+    paintWaterField(canvas, width, storyRows, elapsedMs, paint, sky, skySoft, skyDeep);
   }
 
-  // 2) Soft surface line
+  // 2) Surface line
   if (storyRows >= 4) {
     canvas[0] = padOrTrim(
       paint(showAmbient ? skyDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
@@ -576,32 +711,54 @@ export function paintIdleStoryScene(options: {
     );
   }
 
-  // 3) Warm sand bed
+  // 3) Surface light shafts
+  if (showAmbient && premium) {
+    paintSurfaceLight(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
+      paint(intensity > 0.45 ? sky : skySoft, glyph),
+    );
+  }
+
+  // 4) Warm sand bed
   const sandY = storyRows - 1;
   if (sandY > 0) {
     canvas[sandY] = padOrTrim(paint(sand, renderSandLine(width, elapsedMs, 1)), width);
   }
 
-  // 4) Green seaweed — generous
+  // 5) Coral accents
+  if (showAmbient && premium) {
+    paintCoral(canvas, width, storyRows, elapsedMs, paint, coral, coralSoft);
+  }
+
+  // 6) Seaweed curtain
   if (showAmbient) {
     paintSeaweed(canvas, width, storyRows, elapsedMs, paint, green, greenSoft);
   }
 
-  // 5) Quiet bubbles
+  // 7) Air-stone + local plume
+  if (showAmbient && premium) {
+    paintAirStone(canvas, width, storyRows, elapsedMs, paint, colors.textDim, sky, colors.textMuted);
+  }
+
+  // 8) Quiet rising bubbles (tank-wide)
   if (showAmbient) {
     paintBubbles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
       paint(intensity > 0.7 ? sky : colors.textMuted, glyph),
     );
   }
 
-  // 6) One soft light band when premium (barely there)
-  if (showAmbient && premium && storyRows >= 11 && width >= 52) {
-    paintMoonlightPath(canvas, Math.floor(storyRows * 0.32), 1, width, elapsedMs, (ch) =>
-      paint(ch === '≈' ? sky : skySoft, ch),
+  // 9) Caustic band
+  if (showAmbient && premium && storyRows >= 10 && width >= 48) {
+    paintCausticPath(canvas, Math.floor(storyRows * 0.3), 1, width, elapsedMs, (ch) =>
+      paint(ch === '≈' ? sky : ch === '∼' ? skySoft : skySoft, ch),
     );
   }
 
-  // 7) Cute fish on top
+  // 10) Jewel sparkles
+  if (showAmbient && premium) {
+    paintSparkles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, paint, gold);
+  }
+
+  // 11) Fish school on top
   paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, {
     gold,
     sky: skyDeep,
