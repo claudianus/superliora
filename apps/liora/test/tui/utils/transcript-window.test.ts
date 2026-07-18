@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { measureRendererRegions, Text } from '#/tui/renderer';
+import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
+import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
-import type { TranscriptEntry } from '#/tui/types';
+import type { AppState, TranscriptEntry } from '#/tui/types';
 import {
   createTranscriptViewportState,
   scrollTranscriptViewport,
@@ -306,5 +308,52 @@ describe('TranscriptViewportComponent', () => {
     component.render(42);
 
     expect(measuredWidth).toBe(42);
+  });
+
+  it('dismisses IdleStage when real transcript content is added', () => {
+    const viewport = createTranscriptViewportState();
+    const component = new TranscriptViewportComponent(0, 0, viewport, () => 10);
+    const emptyAppState = {
+      version: '0',
+      workDir: '/tmp',
+      additionalDirs: [],
+      sessionId: 's',
+      sessionTitle: null,
+      model: 'm',
+      permissionMode: 'manual',
+      thinking: false,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+      isCompacting: false,
+      isBackgroundCompacting: false,
+      isReplaying: false,
+      streamingPhase: 'idle',
+      streamingStartTime: 0,
+      planMode: false,
+      inputMode: 'prompt',
+      swarmMode: false,
+      theme: 'dark',
+      editorCommand: null,
+      notifications: { enabled: true, condition: 'unfocused' },
+      upgrade: { autoInstall: true },
+      availableModels: {},
+      availableProviders: {},
+      mcpServersSummary: null,
+    } as AppState;
+
+    component.addChild(new WelcomeComponent(emptyAppState));
+    component.addChild(new IdleStageComponent({ state: emptyAppState }));
+    expect(component.children.some((c) => c instanceof IdleStageComponent)).toBe(true);
+    expect(component.children.some((c) => c instanceof WelcomeComponent)).toBe(true);
+
+    // Welcome re-add must not dismiss idle.
+    component.addChild(new WelcomeComponent(emptyAppState));
+    expect(component.children.some((c) => c instanceof IdleStageComponent)).toBe(true);
+
+    // Real content dismisses idle stage only.
+    component.addChild(new Text('hello', 0, 0));
+    expect(component.children.some((c) => c instanceof IdleStageComponent)).toBe(false);
+    expect(component.children.some((c) => c instanceof WelcomeComponent)).toBe(true);
   });
 });
