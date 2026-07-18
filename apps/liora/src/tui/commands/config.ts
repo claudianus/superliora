@@ -26,6 +26,7 @@ import { currentTheme, isBuiltInTheme, lightColors, loadCustomThemeMerged } from
 import { importThemeSource } from '#/tui/theme/importer';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
+import { handleAccountsCommand } from './accounts';
 import { showUsage } from './info';
 import { setExperimentalFeatures } from './experimental-flags';
 import type { SlashCommandHost } from './dispatch';
@@ -802,6 +803,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
   switch (value) {
     case 'model': showModelPicker(host); return;
     case 'permission': showPermissionPicker(host); return;
+    case 'accounts': void handleAccountsCommand(host); return;
     case 'theme': showThemePicker(host); return;
     case 'appearance': void handleAppearanceCommand(host, ''); return;
     case 'editor': showEditorPicker(host); return;

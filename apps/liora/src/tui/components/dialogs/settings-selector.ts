@@ -6,6 +6,7 @@ export type SettingsSelection =
   | 'appearance'
   | 'editor'
   | 'permission'
+  | 'accounts'
   | 'experiments'
   | 'upgrade'
   | 'usage';
@@ -20,6 +21,11 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     value: 'permission',
     label: 'Permission',
     description: 'Choose how tool actions are approved.',
+  },
+  {
+    value: 'accounts',
+    label: 'Accounts',
+    description: 'Manage OAuth account pools (promote, label, remove).',
   },
   {
     value: 'theme',
@@ -60,6 +66,7 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'appearance' ||
     value === 'editor' ||
     value === 'permission' ||
+    value === 'accounts' ||
     value === 'experiments' ||
     value === 'upgrade' ||
     value === 'usage'

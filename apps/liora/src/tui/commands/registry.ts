@@ -544,6 +544,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 40,
   },
   {
+    name: 'accounts',
+    aliases: [],
+    description: 'Manage OAuth account pools (promote, label, remove)',
+    priority: 40,
+    availability: 'always',
+  },
+  {
     name: 'export-md',
     aliases: ['export'],
     description: 'Export current session as a Markdown file',
