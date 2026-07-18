@@ -3,7 +3,7 @@
  *
  * After the cinematic splash, the transcript is just Welcome + empty space.
  * This component fills that void with a self-contained story scene —
- * "Peaceful Aquarium" (a few colorful fish, soft bubbles, quiet plants) —
+ * "Peaceful Aquarium" (cute fish, green seaweed, soft sky-blue water) —
  * then vanishes the moment real transcript content arrives.
  *
  * Visual language is intentionally distinct from the Blood Moon splash
@@ -144,7 +144,7 @@ export function renderIdleStageLines(
   const chromeBudget = resolveChromeBudget(targetRows, options?.workDir, safeWidth);
   const storyRows = Math.max(5, targetRows - chromeBudget);
 
-  // Story scene: minimal tank: fish, bubbles, plants, sand.
+  // Story scene: aquarium: fish, seaweed, sky-blue water, sand.
   paintIdleStoryScene({
     canvas,
     width: safeWidth,
@@ -162,6 +162,8 @@ export function renderIdleStageLines(
       textMuted: palette.textMuted,
       warning: palette.warning,
       success: palette.success,
+      gradientStart: palette.gradientStart,
+      roleUser: palette.roleUser,
     },
   });
 
@@ -182,7 +184,7 @@ export function renderIdleStageLines(
 
   const chromeLines: string[] = [
     centerText(safeWidth, title),
-    centerText(safeWidth, `${paint(fishHex, '◦')}  ${paint(palette.textDim, mood)}`),
+    centerText(safeWidth, `${paint(fishHex, '><>')}  ${paint(palette.textDim, mood)}`),
   ];
   if (tip.length > 0) {
     const prefix = ttui('tui.idle.tipPrefix');
