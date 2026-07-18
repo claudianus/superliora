@@ -403,8 +403,8 @@ function matchCsiU(
   const match = /^\u001B\[([0-9:]+)(?:;([0-9:]*))?(?:;([0-9:]+))?u/.exec(input.slice(index));
   if (match === null) return undefined;
   const raw = match[0];
-  const codePoint = parseCsiNumber(match[1]);
-  if (codePoint === undefined || codePoint < 0 || codePoint > 0x10ffff) {
+  const keyCodes = parseCsiUKeyCodes(match[1]);
+  if (keyCodes === undefined) {
     return {
       raw,
       event: { type: 'key', key: 'escape', raw, ctrl: false, alt: false, shift: false },
@@ -412,16 +412,41 @@ function matchCsiU(
   }
   const modifiers = decodeCsiUModifiers(match[2]);
   const associatedText = decodeTextCodePoints(match[3]);
-  const text = associatedText ?? String.fromCodePoint(codePoint);
+  const text = resolveCsiUText(keyCodes, modifiers, associatedText);
+  const shortcutCodePoint = text.codePointAt(0) ?? keyCodes.unicodeKeyCode;
   return {
     raw,
-    event: keyEvent(keyNameForCodePoint(codePoint, text), {
+    event: keyEvent(keyNameForCodePoint(shortcutCodePoint, text), {
       raw,
       text: isPrintable(text) ? text : undefined,
       eventType: decodeCsiUEventType(match[2]),
       ...modifiers,
     }),
   };
+}
+
+/**
+ * Resolve the character used for shortcut matching / ctrl-key handlers.
+ * With an active IME layout, unicode-key-code may be Hangul/Cyrillic while
+ * base-layout-key is the PC-101 Latin key applications bind shortcuts to.
+ */
+function resolveCsiUText(
+  keyCodes: {
+    readonly unicodeKeyCode: number;
+    readonly baseLayoutKeyCode: number | undefined;
+  },
+  modifiers: { readonly ctrl: boolean; readonly alt: boolean },
+  associatedText: string | undefined,
+): string {
+  if (
+    (modifiers.ctrl || modifiers.alt) &&
+    keyCodes.baseLayoutKeyCode !== undefined
+  ) {
+    // IME layouts report the layout glyph as unicode-key-code; applications
+    // bind shortcuts to the PC-101 base-layout key (e.g. Ctrl+C).
+    return String.fromCodePoint(keyCodes.baseLayoutKeyCode);
+  }
+  return associatedText ?? String.fromCodePoint(keyCodes.unicodeKeyCode);
 }
 
 function matchCsiFunctional(
@@ -703,6 +728,35 @@ function parseCsiNumber(value: string | undefined): number | undefined {
   if (head === undefined || head === '') return undefined;
   const number = Number(head);
   return Number.isInteger(number) ? number : undefined;
+}
+
+/**
+ * CSI-u first parameter: `unicode-key-code[:shifted-key[:base-layout-key]]`.
+ * An empty shifted sub-field (`code::base`) means "base layout only".
+ */
+function parseCsiUKeyCodes(value: string | undefined):
+  | {
+      readonly unicodeKeyCode: number;
+      readonly shiftedKeyCode: number | undefined;
+      readonly baseLayoutKeyCode: number | undefined;
+    }
+  | undefined {
+  if (value === undefined || value === '') return undefined;
+  const [unicodeRaw, shiftedRaw, baseRaw] = value.split(':');
+  const unicodeKeyCode = parseCsiNumber(unicodeRaw);
+  if (unicodeKeyCode === undefined || unicodeKeyCode < 0 || unicodeKeyCode > 0x10ffff) {
+    return undefined;
+  }
+  const shiftedKeyCode = parseOptionalCsiCodePoint(shiftedRaw);
+  const baseLayoutKeyCode = parseOptionalCsiCodePoint(baseRaw);
+  return { unicodeKeyCode, shiftedKeyCode, baseLayoutKeyCode };
+}
+
+function parseOptionalCsiCodePoint(value: string | undefined): number | undefined {
+  if (value === undefined || value === '') return undefined;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 0x10ffff) return undefined;
+  return number;
 }
 
 function consumeUnknownControlSequence(input: string, index: number): string | undefined {

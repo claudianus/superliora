@@ -27,6 +27,17 @@ describe('ApiKeyInputDialogComponent', () => {
     expect(onDone).toHaveBeenCalledWith({ kind: 'ok', value: 'ctx7sk_test' });
   });
 
+  it('does not keep bracketed-paste markers visible after paste', () => {
+    const onDone = vi.fn();
+    const dialog = new ApiKeyInputDialogComponent('Context7', [], onDone);
+    dialog.handleInput('\u001B[200~ctx7sk_test\u001B[201~');
+    const lines = dialog.render(60).join('\n');
+    expect(lines).not.toContain('200');
+    expect(lines).not.toContain('201');
+    dialog.handleInput('\r');
+    expect(onDone).toHaveBeenCalledWith({ kind: 'ok', value: 'ctx7sk_test' });
+  });
+
   it('pre-fills the input when a prefill value is provided', () => {
     const onDone = vi.fn();
     const dialog = new ApiKeyInputDialogComponent(
