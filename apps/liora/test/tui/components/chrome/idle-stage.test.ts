@@ -199,7 +199,7 @@ describe('IdleStageComponent', () => {
     chalk.level = 3;
     setCliLocale('en');
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
-    setAppearanceRenderQuality('high');
+    setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));

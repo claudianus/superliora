@@ -96,7 +96,7 @@ export const FOX_TAIL_MS = FISH_TAIL_MS;
 export const RAIN_STEP_MS = BUBBLE_STEP_MS;
 
 export function stripAnsi(text: string): string {
-  return text.replace(/\u001B\[[0-9;]*m/g, '');
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
 export function padOrTrim(text: string, width: number): string {
@@ -162,9 +162,9 @@ export function blitAt(
 }
 
 function hash2(a: number, b: number): number {
-  let x = (a * 374761393 + b * 668265263) | 0;
-  x = (x ^ (x >>> 13)) | 0;
-  x = Math.imul(x, 1274126177);
+  // Keep classic integer hash ops; Math.trunc is not a drop-in for |0/>>>0 here.
+  let x = Math.imul(a, 374761393) + Math.imul(b, 668265263);
+  x = Math.imul(x ^ (x >>> 13), 1274126177);
   return (x ^ (x >>> 16)) >>> 0;
 }
 
@@ -193,10 +193,6 @@ function putCell(
   }
   // Insert the full styled glyph (not glyph[0]) over one plain column.
   canvas[y] = padOrTrim(`${plain.slice(0, x)}${glyph}${plain.slice(x + 1)}`, width);
-}
-
-function putCellForced(canvas: string[], y: number, x: number, width: number, glyph: string): void {
-  putCell(canvas, y, x, width, glyph, { force: true });
 }
 
 /**
