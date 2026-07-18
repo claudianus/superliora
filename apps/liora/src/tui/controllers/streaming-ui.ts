@@ -2,7 +2,7 @@ import type { Session } from '@superliora/sdk';
 
 import { AgentGroupComponent } from '../components/messages/agent-group';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';
-import { currentWorkingTip } from '../components/chrome/working-tips';
+import { currentWorkingTip, tipText } from '../components/chrome/working-tips';
 import { CompactionComponent } from '../components/dialogs/compaction';
 import { ReadGroupComponent } from '../components/messages/read-group';
 import { ThinkingComponent } from '../components/messages/thinking';
@@ -726,9 +726,15 @@ export class StreamingUIController {
       this._activeCompactionBlock.markDone();
       this._activeCompactionBlock = undefined;
     }
-    const block = new CompactionComponent(state.ui, instruction, currentWorkingTip()?.text, {
-      background: options?.background === true,
-    });
+    const workingTip = currentWorkingTip();
+    const block = new CompactionComponent(
+      state.ui,
+      instruction,
+      workingTip === undefined ? undefined : tipText(workingTip),
+      {
+        background: options?.background === true,
+      },
+    );
     this._activeCompactionBlock = block;
     state.transcriptContainer.addChild(block);
     requestTUILayoutRender(state);

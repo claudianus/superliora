@@ -56,9 +56,10 @@ import * as slashCommands from './commands/dispatch';
 import { BannerComponent } from './components/chrome/banner';
 import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
+import { IdleStageComponent } from './components/chrome/idle-stage';
 import { SplashComponent, shouldPlaySplash } from './components/chrome/splash';
 import { WelcomeComponent } from './components/chrome/welcome';
-import { pickRandomWorkingTip } from './components/chrome/working-tips';
+import { pickRandomWorkingTip, tipText } from './components/chrome/working-tips';
 import {
   ApprovalPanelComponent,
   type ApprovalPanelResponse,
@@ -309,8 +310,9 @@ export class LioraTUI {
   /** UI children saved while the full-screen splash owns the tree. */
   private splashSavedChildren: (typeof this.state.ui.children)[number][] | undefined;
   private lastActivityMode: string | undefined;
-  private currentLoadingTip: { kind: LoadingTipKind; tip: string | undefined; pinned: boolean } | undefined =
-    undefined;
+  private currentLoadingTip:
+    | { kind: LoadingTipKind; tip: string | undefined; tipKey?: string; pinned: boolean }
+    | undefined = undefined;
   private lastHistoryContent: string | undefined;
   // Live `!` shell output entries, keyed by commandId so concurrent commands
   // each update their own card and stale events are dropped. Mutated in place
@@ -2211,12 +2213,18 @@ export class LioraTUI {
 
   private renderWelcome(): void {
     if (
-      this.state.transcriptContainer.children.some((child) => child instanceof WelcomeComponent)
+      !this.state.transcriptContainer.children.some((child) => child instanceof WelcomeComponent)
     ) {
-      return;
+      this.state.transcriptContainer.addChild(new WelcomeComponent(this.state.appState));
     }
-    const welcome = new WelcomeComponent(this.state.appState);
-    this.state.transcriptContainer.addChild(welcome);
+    // Ambient empty-stage under welcome: vanishes on first real transcript child.
+    if (
+      !this.state.transcriptContainer.children.some((child) => child instanceof IdleStageComponent)
+    ) {
+      this.state.transcriptContainer.addChild(
+        new IdleStageComponent({ state: this.state.appState }),
+      );
+    }
   }
 
   /**
@@ -2602,10 +2610,12 @@ export class LioraTUI {
         this.currentLoadingTip.kind !== tipKind ||
         this.currentLoadingTip.pinned
       ) {
-        const previousTip = this.currentLoadingTip?.tip;
+        const previousKey = this.currentLoadingTip?.tipKey;
+        const picked = pickRandomWorkingTip(previousKey);
         this.currentLoadingTip = {
           kind: tipKind,
-          tip: pickRandomWorkingTip(previousTip)?.text,
+          tip: picked === undefined ? undefined : tipText(picked),
+          tipKey: picked?.key,
           pinned: false,
         };
       }

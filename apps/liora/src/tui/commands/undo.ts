@@ -2,6 +2,7 @@ import type { Component } from '#/tui/renderer';
 import type { ContextMessage } from '@superliora/sdk';
 import { isKimiError } from '@superliora/sdk';
 
+import { IdleStageComponent } from '../components/chrome/idle-stage';
 import { WelcomeComponent } from '../components/chrome/welcome';
 import { CompactionComponent } from '../components/dialogs/compaction';
 import {
@@ -521,13 +522,21 @@ function reassertPermissionModeNotice(host: SlashCommandHost): void {
 
 function renderWelcome(host: SlashCommandHost): void {
   if (
-    host.state.transcriptContainer.children.some(
+    !host.state.transcriptContainer.children.some(
       (child) => child instanceof WelcomeComponent,
     )
   ) {
-    return;
+    host.state.transcriptContainer.addChild(
+      new WelcomeComponent(host.state.appState),
+    );
   }
-  host.state.transcriptContainer.addChild(
-    new WelcomeComponent(host.state.appState),
-  );
+  if (
+    !host.state.transcriptContainer.children.some(
+      (child) => child instanceof IdleStageComponent,
+    )
+  ) {
+    host.state.transcriptContainer.addChild(
+      new IdleStageComponent({ state: host.state.appState }),
+    );
+  }
 }

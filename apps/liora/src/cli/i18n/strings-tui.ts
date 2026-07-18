@@ -59,6 +59,15 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.welcome.label.mcp': 'MCP:       ',
   'tui.welcome.modelPrefix': 'Model: ',
 
+  // ── Empty-transcript idle stage ──────────────────────────────────────────
+  'tui.idle.title': 'waiting for the first spark',
+  'tui.idle.tipPrefix': 'tip · ',
+  'tui.idle.mood.orbit': 'moon keeps the quiet orbit',
+  'tui.idle.mood.listen': 'listening for a task',
+  'tui.idle.mood.ready': 'runtime warm · editor ready',
+  'tui.idle.mood.night': 'blood-moon night watch',
+  'tui.idle.mood.spark': 'one line starts the run',
+
   // ── Footer hints / next-actions ──────────────────────────────────────────
   'tui.footer.next.login': 'next: /login to add a provider, then /model',
   'tui.footer.next.compact': 'next: /compact before long work',
@@ -381,6 +390,15 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.welcome.label.version': '버전:     ',
   'tui.welcome.label.mcp': 'MCP:      ',
   'tui.welcome.modelPrefix': '모델: ',
+
+  // ── Empty-transcript idle stage ──────────────────────────────────────────
+  'tui.idle.title': '첫 불꽃을 기다리는 중',
+  'tui.idle.tipPrefix': '팁 · ',
+  'tui.idle.mood.orbit': '달이 고요한 궤도를 돈다',
+  'tui.idle.mood.listen': '할 일을 듣고 있다',
+  'tui.idle.mood.ready': '런타임 예열 · 에디터 준비',
+  'tui.idle.mood.night': '블러드문 야간 감시',
+  'tui.idle.mood.spark': '한 줄이면 달리기가 시작된다',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
   'tui.footer.next.login': '다음: /login으로 프로바이더 추가, 그리고 /model',

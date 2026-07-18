@@ -5,6 +5,10 @@ import {
   type Component,
 } from '#/tui/renderer';
 
+import {
+  IdleStageComponent,
+  isEmptyTranscriptChrome,
+} from '#/tui/components/chrome/idle-stage';
 import { currentTheme } from '#/tui/theme';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 
@@ -32,8 +36,23 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
   }
 
   override addChild(component: Component): void {
+    // Real transcript content dismisses the empty-state ambient stage so the
+    // scene never competes with user/assistant/tool output.
+    if (!isEmptyTranscriptChrome(component)) {
+      this.dismissIdleStage();
+    }
     super.addChild(component);
     this.invalidate();
+  }
+
+  /** Drop every IdleStage child (idempotent). */
+  dismissIdleStage(): void {
+    const idle = this.children.filter((child) => child instanceof IdleStageComponent);
+    for (const child of idle) {
+      // pi-tui Container.removeChild (not a DOM node).
+      // oxlint-disable-next-line unicorn/prefer-dom-node-remove
+      this.removeChild(child);
+    }
   }
 }
 
