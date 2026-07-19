@@ -45,7 +45,7 @@ function fakeInitialAppState(): AppState {
 describe('native stage frame layout', () => {
   it('centers the stage column on ultrawide terminals', () => {
     const width = 200;
-    const height = 80;
+    const height = 120;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
       startup: { continueLast: false, yolo: false, auto: false, plan: false },
@@ -75,7 +75,7 @@ describe('native stage frame layout', () => {
 
   it('places situational panels in a rail beside the centered stage when they fit', () => {
     const width = 200;
-    const height = 80;
+    const height = 120;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
       startup: { continueLast: false, yolo: false, auto: false, plan: false },
@@ -137,7 +137,7 @@ describe('native stage frame layout', () => {
 
   it('skips stage region clears on ambient damage-only frames', () => {
     const width = 200;
-    const height = 80;
+    const height = 120;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
       startup: { continueLast: false, yolo: false, auto: false, plan: false },
