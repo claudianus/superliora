@@ -891,7 +891,10 @@ describe('createTUIState', () => {
     output.columns = 10;
     output.rows = 5;
     output.emit('resize');
-    scheduler.advance(17);
+    // Resize is a high-priority cause: it renders immediately (delay 0) instead
+    // of waiting for frame pacing. Advance zero so we observe the resize frame
+    // itself; a paced adaptive-quality follow-up may land later in the interval.
+    scheduler.advance(0);
 
     expect(renderer.lastFrame?.frame.causes).toEqual(['resize']);
     expect(renderer.lastFrame?.size).toEqual({ columns: 10, rows: 5 });
