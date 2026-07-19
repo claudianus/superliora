@@ -1,6 +1,6 @@
 /**
  * Night-sky backdrop for centered-stage letterbox gutters.
- * Twinkling starfield + diagonal shooting stars, clipped to letterbox bands.
+ * Twinkling starfield + full-height side-gutter shooting stars.
  */
 
 import type { AppearancePreferences } from '#/tui/config';
@@ -24,6 +24,13 @@ export interface StageLetterboxSkyCell {
   readonly char: string;
   readonly fg: string;
   readonly bold?: boolean;
+}
+
+export interface LetterboxSideGutter {
+  /** Inclusive left column. */
+  readonly x0: number;
+  /** Exclusive right column. */
+  readonly x1: number;
 }
 
 function bandContains(band: StageFrameBand, x: number, y: number): boolean {
@@ -50,9 +57,39 @@ export function letterboxArea(bands: readonly StageFrameBand[]): number {
   return bands.reduce((sum, b) => sum + b.width * b.height, 0);
 }
 
+/**
+ * Full-height corridors beside the stage: columns that stay letterbox for every row.
+ * Top/bottom-only letterbox (no side gutters) yields an empty list.
+ */
+export function resolveLetterboxSideGutters(
+  bands: readonly StageFrameBand[],
+  cols: number,
+): readonly LetterboxSideGutter[] {
+  if (cols <= 0 || bands.length === 0) return [];
+  const gutters: LetterboxSideGutter[] = [];
+  for (const band of bands) {
+    if (band.x === 0 && band.width > 0 && band.width < cols) {
+      gutters.push({ x0: 0, x1: band.width });
+      break;
+    }
+  }
+  for (const band of bands) {
+    const right = band.x + band.width;
+    if (band.x > 0 && right === cols && band.width > 0) {
+      gutters.push({ x0: band.x, x1: cols });
+      break;
+    }
+  }
+  return gutters;
+}
+
 function positiveModulo(n: number, m: number): number {
   if (m <= 0) return 0;
   return ((n % m) + m) % m;
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n));
 }
 
 /**
@@ -119,36 +156,42 @@ export function paintStageLetterboxSky(input: {
     put(x, y, glyph, fg, twinkle > 0.88 && premium);
   }
 
-  // --- Shooting stars (diagonal fall) ---
-  if (!freeze) {
+  // --- Shooting stars: full-height fall in side gutters only ---
+  const gutters = resolveLetterboxSideGutters(bands, cols);
+  if (!freeze && gutters.length > 0) {
     const showerCount = premium ? 4 : 2;
     const tickMs = premium ? 42 : 72;
     const phase = nowMs / tickMs;
     for (let m = 0; m < showerCount; m++) {
       const h = hash2(m * 131 + 19, 503);
-      const period = premium ? 38 + (m % 4) * 9 : 52 + (m % 3) * 12;
+      const gutter = gutters[h % gutters.length]!;
+      const gutterW = Math.max(1, gutter.x1 - gutter.x0);
+      const speed = premium ? 0.9 + (m % 3) * 0.12 : 0.62 + (m % 2) * 0.1;
+      const dy = speed;
+      // Keep drift inside the corridor so the path never crosses the stage.
+      const maxDrift = Math.max(0, gutterW - 1) * 0.35;
+      const driftSign = (h & 2) === 0 ? -1 : 1;
+      const dx = (maxDrift === 0 ? 0 : driftSign * Math.min(0.12, maxDrift / Math.max(1, rows))) * speed;
+      const trailLen = premium ? 11 : 7;
+      // Head must travel from above the top edge to past the bottom edge.
+      const travel = rows + trailLen + 6;
+      const activeFor = Math.ceil(travel / dy) + 2;
+      const rest = premium ? 22 + (m % 4) * 8 : 34 + (m % 3) * 10;
+      const period = activeFor + rest;
       const local = positiveModulo(phase + (h % period), period);
-      const activeFor = premium ? 18 : 13;
       if (local > activeFor) continue;
 
-      // Spawn along top letterbox or upper side gutters.
-      const topBand = bands.find((b) => b.y === 0) ?? bands[0]!;
-      const goLeft = (h & 1) === 0;
-      const startX = topBand.x + (hash2(h, m + 3) % Math.max(1, topBand.width));
-      const startY = -2 - (h % 4);
-      const speed = premium ? 0.85 + (m % 3) * 0.15 : 0.55 + (m % 2) * 0.12;
-      const dx = goLeft ? -speed * 1.05 : speed * 1.15;
-      const dy = speed * 0.95;
-      const headX = startX + local * dx;
+      const startX = gutter.x0 + (hash2(h, m + 3) % gutterW) + 0.5;
+      const startY = -trailLen - (h % 3);
+      const headX = clamp(startX + local * dx, gutter.x0, gutter.x1 - 1);
       const headY = startY + local * dy;
-      const trailLen = premium ? 11 : 7;
       const headFg = mixHexColor(glow, primary, 0.25);
       const midFg = mixHexColor(particle, glow, 0.35);
       const softFg = mixHexColor(particle, muted, 0.4);
 
       for (let step = 0; step <= trailLen; step++) {
-        const x = Math.round(headX - step * (goLeft ? -1.05 : 1.1));
-        const y = Math.round(headY - step * 0.9);
+        const x = Math.round(clamp(headX - step * dx * 0.85, gutter.x0, gutter.x1 - 1));
+        const y = Math.round(headY - step * dy * 0.9);
         const t = step / Math.max(1, trailLen);
         if (step === 0) {
           put(x, y, SHOOTING_HEAD, headFg, true);
