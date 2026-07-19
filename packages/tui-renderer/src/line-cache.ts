@@ -92,10 +92,22 @@ export function rendererLineToCells(
 }
 
 /** Parses ANSI string region lines into cell lines once for native composition. */
+const promoteLineCellCache = new RendererLineCellCache({
+  maxEntries: 512,
+  maxCells: 48_000,
+});
+
 export function promoteRendererRegionLinesToCells(
   lines: readonly RendererRegionLine[],
 ): readonly RendererRegionLine[] {
-  return lines.map((line) => (typeof line === 'string' ? ansiTextToCells(line) : line));
+  return lines.map((line) =>
+    typeof line === 'string' ? promoteLineCellCache.get(line, undefined) : line,
+  );
+}
+
+/** Test helper — clear the promote ANSI→cells cache. */
+export function resetPromoteRendererLineCellCacheForTests(): void {
+  promoteLineCellCache.clear();
 }
 
 function mergeCellsStyle(

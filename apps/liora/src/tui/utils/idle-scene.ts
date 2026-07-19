@@ -183,6 +183,83 @@ function cellsToAnsiLine(cells: readonly RendererCell[]): string {
   return out.join('');
 }
 
+/**
+ * While {@link paintIdleStoryScene} runs, painters write into this cell layer
+ * and skip per-put ANSI expand/serialize. Flushed once at the end of the scene.
+ */
+let storyCellRows: RendererCell[][] | undefined;
+let storyAnsiCanvas: string[] | undefined;
+
+function beginStoryCellSession(canvas: string[], storyRows: number, width: number): void {
+  storyAnsiCanvas = canvas;
+  storyCellRows = Array.from({ length: storyRows }, () =>
+    Array.from({ length: width }, () => ({ char: ' ' })),
+  );
+}
+
+function flushStoryCellSession(storyRows: number): void {
+  if (storyCellRows === undefined || storyAnsiCanvas === undefined) return;
+  for (let y = 0; y < storyRows; y++) {
+    const row = storyCellRows[y];
+    if (row !== undefined) storyAnsiCanvas[y] = cellsToAnsiLine(row);
+  }
+  storyCellRows = undefined;
+  storyAnsiCanvas = undefined;
+}
+
+function inStoryCellSession(canvas: string[]): boolean {
+  return storyCellRows !== undefined && storyAnsiCanvas === canvas;
+}
+
+const waterCellStyleCache = new Map<string, RendererCell>();
+
+function waterCell(char: string, fg: string | undefined, bg: string): RendererCell {
+  const key = `${char}\0${fg ?? ''}\0${bg}`;
+  const hit = waterCellStyleCache.get(key);
+  if (hit !== undefined) return hit;
+  const cell: RendererCell =
+    fg === undefined
+      ? { char, style: { bg } }
+      : { char, style: { fg, bg } };
+  waterCellStyleCache.set(key, cell);
+  if (waterCellStyleCache.size > 768) {
+    let drop = Math.floor(waterCellStyleCache.size / 2);
+    for (const k of waterCellStyleCache.keys()) {
+      waterCellStyleCache.delete(k);
+      if (--drop <= 0) break;
+    }
+  }
+  return cell;
+}
+
+type WaterDepthCacheEntry = {
+  readonly key: string;
+  readonly rows: readonly (readonly RendererCell[])[];
+};
+
+let waterDepthCache: WaterDepthCacheEntry | undefined;
+
+type SurfaceBandCacheEntry = {
+  readonly key: string;
+  readonly waterline: readonly RendererCell[];
+  readonly sand: readonly RendererCell[];
+};
+
+let surfaceBandCache: SurfaceBandCacheEntry | undefined;
+
+/** Test helper — drop jewel-tank paint caches. */
+export function resetIdleScenePaintCachesForTests(): void {
+  waterDepthCache = undefined;
+  surfaceBandCache = undefined;
+  waterCellStyleCache.clear();
+  storyCellRows = undefined;
+  storyAnsiCanvas = undefined;
+}
+
+function cloneCellRow(row: readonly RendererCell[]): RendererCell[] {
+  return row.slice();
+}
+
 export function blitAt(
   canvas: string[],
   lines: readonly string[],
@@ -191,13 +268,16 @@ export function blitAt(
   width: number,
 ): void {
   const safeLeft = Math.max(0, Math.trunc(left));
+  const cellSession = inStoryCellSession(canvas);
   for (let i = 0; i < lines.length; i++) {
     const y = top + i;
     if (y < 0 || y >= canvas.length) continue;
     const line = lines[i];
     if (line === undefined) continue;
     if (safeLeft >= width) continue;
-    const cells = expandLineCells(canvas[y] ?? ' '.repeat(width), width);
+    const cells = cellSession
+      ? storyCellRows![y]!
+      : expandLineCells(canvas[y] ?? ' '.repeat(width), width);
     const glyphCells = expandLineCells(line, Math.max(1, visibleWidth(line)));
     const fit = Math.min(glyphCells.length, width - safeLeft);
     for (let x = 0; x < fit; x++) {
@@ -220,7 +300,7 @@ export function blitAt(
         cells[safeLeft + x] = glyph;
       }
     }
-    canvas[y] = cellsToAnsiLine(cells);
+    if (!cellSession) canvas[y] = cellsToAnsiLine(cells);
   }
 }
 
@@ -381,7 +461,10 @@ function putCell(
   force = false,
 ): void {
   if (y < 0 || y >= canvas.length || x < 0 || x >= width) return;
-  const cells = expandLineCells(canvas[y] ?? ' '.repeat(width), width);
+  const cellSession = inStoryCellSession(canvas);
+  const cells = cellSession
+    ? storyCellRows![y]!
+    : expandLineCells(canvas[y] ?? ' '.repeat(width), width);
   const here = cells[x]?.char ?? ' ';
   if (!force && !SOFT_CELLS.has(here)) return;
   const painted = expandLineCells(glyph, 1)[0] ?? { char: stripAnsi(glyph).slice(0, 1) || ' ' };
@@ -390,7 +473,7 @@ function putCell(
     painted.style?.bg === undefined && under?.style?.bg !== undefined
       ? { ...painted, style: { ...painted.style, bg: under.style.bg } }
       : painted;
-  canvas[y] = cellsToAnsiLine(cells);
+  if (!cellSession) canvas[y] = cellsToAnsiLine(cells);
 }
 
 export function resolveFishGlyphRows(
@@ -699,30 +782,52 @@ export function paintWaterDepth(
 ): void {
   if (width <= 0 || rows <= 2) return;
   const sandY = rows - 1;
+  const depthRows = resolveWaterDepthCells(width, rows, mid, deep, abyss);
+  const cellSession = inStoryCellSession(canvas);
+  for (let y = 1; y < sandY; y++) {
+    const row = depthRows[y];
+    if (row === undefined) continue;
+    if (cellSession) {
+      storyCellRows![y] = cloneCellRow(row);
+    } else {
+      canvas[y] = cellsToAnsiLine(row);
+    }
+  }
+}
+
+function resolveWaterDepthCells(
+  width: number,
+  rows: number,
+  mid: string,
+  deep: string,
+  abyss: string | undefined,
+): readonly (readonly RendererCell[])[] {
+  const key = `${width}x${rows}|${mid}|${deep}|${abyss ?? ''}`;
+  if (waterDepthCache?.key === key) return waterDepthCache.rows;
+
+  const sandY = rows - 1;
   const bottom = abyss ?? mixHexColor(deep, '#020617', 0.55);
-  // Keep depth almost entirely in the abyss/deep range — never flood mid-water
-  // with electric cyan that pops against the centered stage canvas.
   const upper = mixHexColor(bottom, deep, 0.45);
   const middle = mixHexColor(bottom, mid, 0.18);
+  const built: RendererCell[][] = Array.from({ length: rows }, () => []);
   for (let y = 1; y < sandY; y++) {
     const t = (y - 1) / Math.max(1, sandY - 2);
     const hex =
       t < 0.35 ? mixHexColor(upper, middle, t / 0.35) : mixHexColor(middle, bottom, (t - 0.35) / 0.65);
     const chance = t < 0.3 ? 2 : t < 0.55 ? 4 : t < 0.75 ? 8 : 14;
     const sparkle = mixHexColor(hex, mid, 0.35);
-    let painted = '';
+    const row: RendererCell[] = [];
     for (let x = 0; x < width; x++) {
       const n = hash2(x * 17 + 3, y * 29 + 7) % 100;
       let ch = ' ';
       if (n < chance) ch = t > 0.65 ? '˙' : '·';
       else if (n < chance + (t > 0.7 ? 3 : 1)) ch = t > 0.5 ? '˚' : '·';
-      painted +=
-        ch === ' '
-          ? `${styleToAnsi({ bg: hex })} ${ANSI_RESET}`
-          : `${styleToAnsi({ fg: sparkle, bg: hex })}${ch}${ANSI_RESET}`;
+      row.push(ch === ' ' ? waterCell(' ', undefined, hex) : waterCell(ch, sparkle, hex));
     }
-    canvas[y] = painted;
+    built[y] = row;
   }
+  waterDepthCache = { key, rows: built };
+  return built;
 }
 
 /** Surface god-rays / warm caustic ribbons — lighting, not clutter. */
@@ -736,12 +841,17 @@ export function paintSurfaceLight(
   cool: string,
 ): void {
   if (width < 36 || storyRows < 8) return;
+  // Same quantum as waterline/sand so ambient ticks don't recompute ray drift
+  // every frame for visually identical positions.
+  const motionMs =
+    Math.floor(Math.max(0, elapsedMs) / IDLE_SURFACE_MOTION_QUANTUM_MS) *
+    IDLE_SURFACE_MOTION_QUANTUM_MS;
   const sandY = storyRows - 1;
   const shafts = width >= 72 ? 3 : 2;
   for (let i = 0; i < shafts; i++) {
     const seed = hash2(i * 41 + 9, 113);
     const baseX = 6 + Math.floor(((i + 0.35) / shafts) * (width - 14)) + ((seed % 5) - 2);
-    const drift = Math.floor(Math.sin(elapsedMs / 1_800 + seed) * 2);
+    const drift = Math.floor(Math.sin(motionMs / 1_800 + seed) * 2);
     const x = Math.max(2, Math.min(width - 3, baseX + drift));
     const len = Math.min(sandY - 2, 3 + (seed % 3));
     for (let d = 0; d < len; d++) {
@@ -757,7 +867,7 @@ export function paintSurfaceLight(
 
   // Slow warm caustic band just under the surface (drift slowed — no flicker soup).
   if (storyRows >= 10) {
-    paintCausticPath(canvas, 1, 1, width, elapsedMs * 0.12, (ch) =>
+    paintCausticPath(canvas, 1, 1, width, motionMs * 0.12, (ch) =>
       paint(mixHexColor(shaft, cool, 0.35), ch),
     );
   }
@@ -1366,124 +1476,160 @@ export function paintIdleStoryScene(options: {
   if (width <= 0 || storyRows <= 0) return;
 
   const palette = resolveAquariumPalette(colors, themeMode);
+  beginStoryCellSession(canvas, storyRows, width);
 
-  // 1) Surface line — muted water wash (not an electric cyan banner)
-  if (storyRows >= 4) {
-    const line = renderWaterline(width, elapsedMs);
-    if (!showAmbient) {
-      canvas[0] = padOrTrim(paint(colors.textMuted, line), width);
-    } else {
-      let painted = '';
-      for (let x = 0; x < line.length; x++) {
-        const ch = line[x]!;
-        const wash = mixHexColor(palette.waterAbyss, palette.waterDeep, 0.55);
-        const hex =
-          ch === '≈'
-            ? mixHexColor(wash, palette.shaft, 0.2)
-            : ch === '~'
-              ? mixHexColor(wash, palette.water, 0.35)
-              : mixHexColor(wash, palette.waterSoft, 0.25);
-        painted += `${styleToAnsi({
-          fg: mixHexColor(palette.water, palette.bubble, 0.35),
-          bg: hex,
-        })}${ch}${ANSI_RESET}`;
+  try {
+    const motionMs =
+      Math.floor(Math.max(0, elapsedMs) / IDLE_SURFACE_MOTION_QUANTUM_MS) *
+      IDLE_SURFACE_MOTION_QUANTUM_MS;
+
+    // 1) Surface line — muted water wash (not an electric cyan banner)
+    if (storyRows >= 4) {
+      if (!showAmbient) {
+        canvas[0] = padOrTrim(paint(colors.textMuted, renderWaterline(width, elapsedMs)), width);
+        // Still seed the cell layer so later flush keeps row 0 consistent.
+        const muted = expandLineCells(canvas[0]!, width);
+        storyCellRows![0] = muted;
+      } else {
+        const band = resolveSurfaceBandCells(width, motionMs, palette);
+        storyCellRows![0] = cloneCellRow(band.waterline);
       }
-      canvas[0] = painted;
     }
-  }
 
-  // 2) Dark gravel bed with warm light glints
-  const sandY = storyRows - 1;
-  if (sandY > 0) {
-    const bed = renderSandLine(width, elapsedMs, 1);
-    let sandPainted = '';
-    for (const ch of bed) {
-      const hex =
-        ch === '˚' ? mixHexColor(palette.coral, palette.shaft, 0.45) : palette.sand;
-      sandPainted += `${styleToAnsi({
-        fg: mixHexColor(hex, '#FFF7ED', 0.4),
-        bg: hex,
-      })}${ch}${ANSI_RESET}`;
+    // 2) Dark gravel bed with warm light glints
+    const sandY = storyRows - 1;
+    if (sandY > 0) {
+      if (showAmbient) {
+        const band = resolveSurfaceBandCells(width, motionMs, palette);
+        storyCellRows![sandY] = cloneCellRow(band.sand);
+      } else {
+        const bed = renderSandLine(width, elapsedMs, 1);
+        let sandPainted = '';
+        for (const ch of bed) {
+          const hex =
+            ch === '˚' ? mixHexColor(palette.coral, palette.shaft, 0.45) : palette.sand;
+          sandPainted += `${styleToAnsi({
+            fg: mixHexColor(hex, '#FFF7ED', 0.4),
+            bg: hex,
+          })}${ch}${ANSI_RESET}`;
+        }
+        canvas[sandY] = sandPainted;
+        storyCellRows![sandY] = expandLineCells(sandPainted, width);
+      }
     }
-    canvas[sandY] = sandPainted;
+
+    // 3) Quiet mid-water volume (abyss wash — not neon sky fill)
+    if (showAmbient) {
+      paintWaterDepth(
+        canvas,
+        width,
+        storyRows,
+        paint,
+        palette.water,
+        palette.waterSoft,
+        palette.waterDeep,
+        palette.waterAbyss,
+      );
+    }
+
+    // 4) Surface god-rays + warm caustic ribbon
+    if (showAmbient && premium) {
+      paintSurfaceLight(
+        canvas,
+        width,
+        storyRows,
+        elapsedMs,
+        paint,
+        palette.shaft,
+        mixHexColor(palette.water, palette.bubble, 0.4),
+      );
+    }
+
+    // 5) Plants first (carpet / banks / stem)
+    if (showAmbient) {
+      paintSeaweed(
+        canvas,
+        width,
+        storyRows,
+        elapsedMs,
+        paint,
+        palette.plant,
+        palette.plantSoft,
+        palette.plantAccent,
+        mixHexColor(palette.waterDeep, palette.sand, 0.55),
+      );
+    }
+
+    // 6) Centerpiece rock on top so hardscape stays readable
+    if (showAmbient && premium) {
+      paintCoral(
+        canvas,
+        width,
+        storyRows,
+        elapsedMs,
+        paint,
+        palette.coral,
+        palette.coralSoft,
+        palette.sand,
+      );
+    }
+
+    // 7) Left filter + bubble column (bright jewel bubbles)
+    if (showAmbient && premium) {
+      paintAirStone(
+        canvas,
+        width,
+        storyRows,
+        elapsedMs,
+        paint,
+        mixHexColor(palette.dim, palette.waterDeep, 0.35),
+        palette.bubble,
+        mixHexColor(palette.bubble, palette.water, 0.4),
+      );
+    }
+
+    // 8) Fish + food + interactive physics FX
+    if (sim) {
+      paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
+      paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);
+      paintFxFromSnapshot(canvas, width, paint, palette, sim.fx);
+    } else {
+      paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, palette);
+    }
+  } finally {
+    flushStoryCellSession(storyRows);
+  }
+}
+
+function resolveSurfaceBandCells(
+  width: number,
+  motionMs: number,
+  palette: AquariumPalette,
+): SurfaceBandCacheEntry {
+  const key = `${width}|${motionMs}|${palette.water}|${palette.waterSoft}|${palette.waterDeep}|${palette.waterAbyss}|${palette.sand}|${palette.shaft}|${palette.coral}|${palette.bubble}`;
+  if (surfaceBandCache?.key === key) return surfaceBandCache;
+
+  const line = renderWaterline(width, motionMs);
+  const wash = mixHexColor(palette.waterAbyss, palette.waterDeep, 0.55);
+  const waterline: RendererCell[] = [];
+  for (let x = 0; x < line.length; x++) {
+    const ch = line[x]!;
+    const hex =
+      ch === '≈'
+        ? mixHexColor(wash, palette.shaft, 0.2)
+        : ch === '~'
+          ? mixHexColor(wash, palette.water, 0.35)
+          : mixHexColor(wash, palette.waterSoft, 0.25);
+    waterline.push(waterCell(ch, mixHexColor(palette.water, palette.bubble, 0.35), hex));
   }
 
-  // 3) Quiet mid-water volume (abyss wash — not neon sky fill)
-  if (showAmbient) {
-    paintWaterDepth(
-      canvas,
-      width,
-      storyRows,
-      paint,
-      palette.water,
-      palette.waterSoft,
-      palette.waterDeep,
-      palette.waterAbyss,
-    );
+  const bed = renderSandLine(width, motionMs, 1);
+  const sand: RendererCell[] = [];
+  for (const ch of bed) {
+    const hex = ch === '˚' ? mixHexColor(palette.coral, palette.shaft, 0.45) : palette.sand;
+    sand.push(waterCell(ch, mixHexColor(hex, '#FFF7ED', 0.4), hex));
   }
 
-  // 4) Surface god-rays + warm caustic ribbon
-  if (showAmbient && premium) {
-    paintSurfaceLight(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      palette.shaft,
-      mixHexColor(palette.water, palette.bubble, 0.4),
-    );
-  }
-
-  // 5) Plants first (carpet / banks / stem)
-  if (showAmbient) {
-    paintSeaweed(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      palette.plant,
-      palette.plantSoft,
-      palette.plantAccent,
-      mixHexColor(palette.waterDeep, palette.sand, 0.55),
-    );
-  }
-
-  // 6) Centerpiece rock on top so hardscape stays readable
-  if (showAmbient && premium) {
-    paintCoral(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      palette.coral,
-      palette.coralSoft,
-      palette.sand,
-    );
-  }
-
-  // 7) Left filter + bubble column (bright jewel bubbles)
-  if (showAmbient && premium) {
-    paintAirStone(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      mixHexColor(palette.dim, palette.waterDeep, 0.35),
-      palette.bubble,
-      mixHexColor(palette.bubble, palette.water, 0.4),
-    );
-  }
-
-  // 8) Fish + food + interactive physics FX
-  if (sim) {
-    paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
-    paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);
-    paintFxFromSnapshot(canvas, width, paint, palette, sim.fx);
-  } else {
-    paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, palette);
-  }
+  surfaceBandCache = { key, waterline, sand };
+  return surfaceBandCache;
 }
