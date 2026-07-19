@@ -138,6 +138,40 @@ describe('RendererAmbientSchedule', () => {
     expect(requestRender).not.toHaveBeenCalled();
     schedule.dispose();
   });
+
+  it('keeps arming across shouldTick gates so wakes resume without reset', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const requestRender = vi.fn();
+    let shouldTick = true;
+    const schedule = new RendererAmbientSchedule({
+      scheduler,
+      requestRender,
+      getContext: () => ({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    });
+
+    schedule.set({
+      enabled: true,
+      shouldTick: () => shouldTick,
+      resolveIntervalMs: () => 33,
+    });
+
+    scheduler.advance(33);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    shouldTick = false;
+    scheduler.advance(33);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    shouldTick = true;
+    scheduler.advance(33);
+    expect(requestRender).toHaveBeenCalledTimes(2);
+
+    schedule.dispose();
+  });
 });
 
 class FakeRenderLoopTimer implements NativeRenderTimer {

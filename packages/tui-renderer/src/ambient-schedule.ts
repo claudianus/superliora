@@ -12,6 +12,11 @@ export interface RendererAmbientScheduleContext {
 export interface RendererAmbientScheduleOptions {
   readonly enabled: boolean;
   readonly resolveIntervalMs: (ctx: RendererAmbientScheduleContext) => number;
+  /**
+   * When false, the timer keeps arming but skips onTick.
+   * Prefer this over returning Infinity from resolveIntervalMs for temporary host gates.
+   */
+  readonly shouldTick?: () => boolean;
   /** Optional; defaults to a no-op before each wake. */
   readonly beforeTick?: () => void;
 }
@@ -40,6 +45,7 @@ export class RendererAmbientSchedule {
       minIntervalMs: 1,
       maxFps: 60,
       defaultFps: 30,
+      shouldTick: options.shouldTick,
       beforeTick: options.beforeTick,
       resolveIntervalMs: () => options.resolveIntervalMs(this.deps.getContext()),
       onTick: () => this.deps.requestRender(),

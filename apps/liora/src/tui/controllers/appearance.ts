@@ -86,20 +86,17 @@ export class AppearanceController {
     }
     this.setAmbientSchedule({
       enabled: true,
-      resolveIntervalMs: (ctx) => {
-        const forced = this.forceAmbientSchedule?.() === true;
-        if (!forced && this.shouldRenderAnimation?.() === false) {
-          return Number.POSITIVE_INFINITY;
-        }
-        return rendererAmbientIntervalMs({
+      shouldTick: () =>
+        this.forceAmbientSchedule?.() === true || this.shouldRenderAnimation?.() !== false,
+      resolveIntervalMs: (ctx) =>
+        rendererAmbientIntervalMs({
           requested: resolveAmbientEffectMode(this.getAppearance()),
           quality: ctx.quality === 'minimal' ? 'balanced' : ctx.quality,
           health: ctx.health === 'degraded' ? 'watch' : ctx.health,
           backpressure: ctx.backpressure,
           premiumMs: 33,
           subtleMs: 140,
-        });
-      },
+        }),
     });
   }
 

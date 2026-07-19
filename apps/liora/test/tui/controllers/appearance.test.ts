@@ -222,9 +222,10 @@ describe('AppearanceController', () => {
     expect(setAmbientSchedule).toHaveBeenLastCalledWith(undefined);
   });
 
-  it('pauses ambient schedule via Infinity when animation gate is closed', () => {
+  it('gates ambient wakes via shouldTick without pausing the interval', () => {
     const setAmbientSchedule = vi.fn();
     let canRender = false;
+    let forceAmbient = false;
     const controller = new AppearanceController({
       terminal: { write: vi.fn() } as unknown as RendererTerminalHost,
       requestRender: vi.fn(),
@@ -236,17 +237,23 @@ describe('AppearanceController', () => {
         animationFps: 30,
       }),
       shouldRenderAnimation: () => canRender,
+      forceAmbientSchedule: () => forceAmbient,
     });
     const options = setAmbientSchedule.mock.calls.at(-1)?.[0];
     expect(options?.enabled).toBe(true);
+    expect(options?.shouldTick?.()).toBe(false);
     expect(
       options?.resolveIntervalMs({
         quality: 'full',
         health: 'healthy',
         backpressure: false,
       }),
-    ).toBe(Number.POSITIVE_INFINITY);
+    ).toBe(33);
     canRender = true;
+    expect(options?.shouldTick?.()).toBe(true);
+    canRender = false;
+    forceAmbient = true;
+    expect(options?.shouldTick?.()).toBe(true);
     expect(
       options?.resolveIntervalMs({
         quality: 'full',
