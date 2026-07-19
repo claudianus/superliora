@@ -1,12 +1,19 @@
-import chalk from 'chalk';
-
 import type { AppearancePreferences } from '#/tui/config';
 import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
-import { mixHexColor, truncateToWidth } from '#/tui/renderer';
+import {
+  hashRendererEffectSeed,
+  mixHexColor,
+  rendererPositiveModulo,
+  renderRendererStyledTextRunsAnsi,
+  splitDisplayClusters,
+  truncateToWidth,
+  type RendererCellStyle,
+  type RendererStyledTextRun,
+} from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   motionEffectsAllowed,
-  renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/utils/appearance-effects';
 
@@ -27,6 +34,9 @@ const BANNER_COMPACT = [
   '|___/\\___/|_| |___|_|_\\____|___\\___/|_|_\\/_/ \\_\\',
 ] as const;
 
+/** Soft sparkles in figlet padding — monospace-safe only. */
+const BANNER_SPARKLES = ['·', '∙', '•', '◦'] as const;
+
 export function renderWelcomeBanner(
   layout: ResponsiveLayoutProfile,
   appearance: AppearancePreferences,
@@ -42,8 +52,9 @@ export function renderWelcomeBanner(
 }
 
 /**
- * Vertical brand gradient across figlet rows (smoothstep), not a multi-hue
- * spectacular wave — that read as yellow→pink→violet bands after hue-span.
+ * Vertical brand gradient (smoothstep across figlet rows) plus a soft
+ * traveling shimmer and sparse space sparkles. Stays on gradientStart→End /
+ * glow — never opposite-hue role tokens.
  */
 function paintBannerLine(
   line: string,
@@ -57,23 +68,70 @@ function paintBannerLine(
   if (!motionEffectsAllowed() || mode === 'off') {
     return currentTheme.boldFg('primary', plain);
   }
+
   const t = rowCount <= 1 ? 0.5 : rowIndex / (rowCount - 1);
   const s = t * t * (3 - 2 * t);
-  const hex = mixHexColor(
-    currentTheme.color('gradientStart'),
-    currentTheme.color('gradientEnd'),
-    s,
-  );
-  // Short single-line titles can keep a soft spectacular shimmer.
-  if (rowCount <= 1 && mode === 'premium') {
-    return renderSpectacularText(plain, `welcome:banner:${String(rowIndex)}`, appearance, {
-      rowIndex,
-      intense: false,
-      pace: 'slow',
+  const start = currentTheme.color('gradientStart');
+  const end = currentTheme.color('gradientEnd');
+  const glow = currentTheme.color('glow');
+  const particle = currentTheme.color('particle');
+  const baseHex = mixHexColor(start, end, s);
+
+  const premium = mode === 'premium';
+  const cycleMs = premium ? 88 : 140;
+  const tickFloat = appearanceAnimationNow() / cycleMs;
+  const tick = Math.floor(tickFloat);
+  const seed = hashRendererEffectSeed(`welcome:banner:${String(rowIndex)}`) + rowIndex * 37;
+  const crestLift = premium ? 0.58 : 0.36;
+
+  const runs: RendererStyledTextRun[] = [];
+  let clusterIndex = 0;
+  for (const cluster of splitDisplayClusters(plain)) {
+    const char = cluster.text;
+    if (char === ' ') {
+      if (
+        premium &&
+        rendererPositiveModulo(seed + clusterIndex + tick * 3, 21) === 0
+      ) {
+        const glyph =
+          BANNER_SPARKLES[
+            rendererPositiveModulo(seed + tick + clusterIndex, BANNER_SPARKLES.length)
+          ]!;
+        runs.push({
+          text: glyph,
+          style: withBannerCanvasBackground({
+            fg: mixHexColor(particle, glow, 0.35),
+            bold: true,
+          }),
+        });
+        clusterIndex += cluster.width;
+        continue;
+      }
+      runs.push({ text: char, style: withBannerCanvasBackground(undefined) });
+      clusterIndex += cluster.width;
+      continue;
+    }
+
+    // Traveling crest along the row; stays blended with the row's gradient base.
+    const wave = Math.sin(clusterIndex * 0.42 + tickFloat * 0.9 + rowIndex * 0.55);
+    const crest = (wave + 1) / 2;
+    const fg = mixHexColor(baseHex, glow, crest * crestLift);
+    runs.push({
+      text: char,
+      style: withBannerCanvasBackground({ fg, bold: true }),
     });
+    clusterIndex += cluster.width;
   }
-  if (currentTheme.canvasBackgroundEnabled) {
-    return chalk.bgHex(currentTheme.color('background')).hex(hex).bold(plain);
-  }
-  return chalk.hex(hex).bold(plain);
+
+  return renderRendererStyledTextRunsAnsi(runs, { resetStyle: true });
+}
+
+function withBannerCanvasBackground(
+  style: RendererCellStyle | undefined,
+): RendererCellStyle | undefined {
+  if (!currentTheme.canvasBackgroundEnabled) return style;
+  const bg = currentTheme.color('background');
+  if (style === undefined) return { bg };
+  if (style.bg !== undefined) return style;
+  return { ...style, bg };
 }
