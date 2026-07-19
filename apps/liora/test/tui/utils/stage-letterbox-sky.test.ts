@@ -6,12 +6,17 @@ import {
 } from '#/tui/utils/appearance-effects';
 import {
   applySkyToLetterboxRegions,
+  facingRimSide,
   letterboxArea,
+  noteMeteorEasterEggClick,
   paintStageLetterboxSky,
   pointInLetterboxBands,
+  resetMeteorEasterEggForTests,
   resolveLetterboxSideGutters,
   resolveMeteorMotionParams,
   resolveStageHoleFromBands,
+  spawnAndTarget,
+  spawnOutsideScreen,
 } from '#/tui/utils/stage-letterbox-sky';
 import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/utils/stage-frame';
 import { resolveStageLayout } from '#/tui/controllers/stage-layout';
@@ -35,11 +40,13 @@ describe('stage letterbox night sky', () => {
     delete process.env['SSH_CLIENT'];
     setAppearanceRenderHealth('healthy');
     setAppearanceRenderQuality('full');
+    resetMeteorEasterEggForTests();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
   });
 
   afterEach(() => {
+    resetMeteorEasterEggForTests();
     vi.useRealTimers();
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
@@ -237,23 +244,20 @@ describe('stage letterbox night sky', () => {
     expect(sawDiag).toBe(true);
   });
 
-  it('keeps S/M/L motion envelopes disjoint with chaotic within-class spread', () => {
+  it('uses disjoint S/M/L speed and burst envelopes', () => {
     const sample = (size: 's' | 'm' | 'l') => {
       const speeds: number[] = [];
       const bursts: number[] = [];
-      const jitters: number[] = [];
       for (let i = 0; i < 80; i++) {
         const p = resolveMeteorMotionParams(size, true, i * 97 + 3, i);
         speeds.push(p.speed);
         bursts.push(p.burstScale);
-        jitters.push(p.headingJitter);
       }
       return {
         minSpeed: Math.min(...speeds),
         maxSpeed: Math.max(...speeds),
         minBurst: Math.min(...bursts),
         maxBurst: Math.max(...bursts),
-        jitterSpan: Math.max(...jitters) - Math.min(...jitters),
       };
     };
     const s = sample('s');
@@ -263,9 +267,60 @@ describe('stage letterbox night sky', () => {
     expect(m.maxSpeed).toBeLessThan(l.minSpeed);
     expect(s.maxBurst).toBeLessThan(m.minBurst);
     expect(m.maxBurst).toBeLessThan(l.minBurst);
-    // Chaotic heading: at least ~0.8 rad of within-class span.
-    expect(s.jitterSpan).toBeGreaterThan(0.8);
-    expect(l.jitterSpan).toBeGreaterThan(1.0);
+  });
+
+  it('spawns outside the screen and aims only at the facing rim', () => {
+    const bands = ultrawideBands();
+    const hole = resolveStageHoleFromBands(bands, 200, 80)!;
+    const sectors = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se'] as const;
+    for (const sector of sectors) {
+      for (let i = 0; i < 24; i++) {
+        const spawn = spawnOutsideScreen(sector, 200, 80, hole, i * 13 + 5, i);
+        expect(
+          spawn.x < 0 || spawn.x > 199 || spawn.y < 0 || spawn.y > 79,
+          `${sector} spawn stays off-screen`,
+        ).toBe(true);
+        const path = spawnAndTarget(sector, hole, 200, 80, i * 13 + 5, i);
+        const side = facingRimSide(sector);
+        const nearFacing =
+          side === 0
+            ? path.impactY < hole.y0 + 1
+            : side === 1
+              ? path.impactX > hole.x1 - 2
+              : side === 2
+                ? path.impactY > hole.y1 - 2
+                : path.impactX < hole.x0 + 1;
+        expect(nearFacing).toBe(true);
+        // Aim vector must not start inside the hole.
+        expect(
+          path.startX >= hole.x0 &&
+            path.startX < hole.x1 &&
+            path.startY >= hole.y0 &&
+            path.startY < hole.y1,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('never paints meteor heads inside the stage hole', () => {
+    const bands = ultrawideBands();
+    const hole = resolveStageHoleFromBands(bands, 200, 80)!;
+    for (let t = 0; t < 10_000; t += 35) {
+      const cells = paintStageLetterboxSky({
+        bands,
+        cols: 200,
+        rows: 80,
+        nowMs: 40_000 + t,
+        appearance: premiumAmbient,
+        freeze: false,
+      });
+      for (const c of cells) {
+        if (c.char !== '◆' && c.char !== '◈' && c.char !== '⬤') continue;
+        expect(
+          c.x >= hole.x0 && c.x < hole.x1 && c.y >= hole.y0 && c.y < hole.y1,
+        ).toBe(false);
+      }
+    }
   });
 
   it('detonates mega bursts with shock-ring and debris glyphs on the rim', () => {
@@ -303,6 +358,38 @@ describe('stage letterbox night sky', () => {
     expect(sawRing).toBe(true);
     expect(sawDebris).toBe(true);
     expect(nearRim).toBe(true);
+  });
+
+  it('arms a planet-class meteor after three quick clicks', () => {
+    const bands = ultrawideBands();
+    expect(noteMeteorEasterEggClick(1_000)).toBe(false);
+    expect(noteMeteorEasterEggClick(1_120)).toBe(false);
+    expect(noteMeteorEasterEggClick(1_240)).toBe(true);
+    let maxCells = 0;
+    let sawBigHead = false;
+    for (let t = 0; t < 4_000; t += 40) {
+      const cells = paintStageLetterboxSky({
+        bands,
+        cols: 200,
+        rows: 80,
+        nowMs: 100_000 + t,
+        appearance: premiumAmbient,
+        freeze: false,
+      });
+      maxCells = Math.max(maxCells, cells.length);
+      if (cells.some((c) => c.char === '⬤')) sawBigHead = true;
+    }
+    expect(sawBigHead).toBe(true);
+    // Apocalypse debris + secondary flashes should dwarf a quiet ambient frame.
+    const quiet = paintStageLetterboxSky({
+      bands,
+      cols: 200,
+      rows: 80,
+      nowMs: 200_000,
+      appearance: premiumAmbient,
+      freeze: true,
+    });
+    expect(maxCells).toBeGreaterThan(quiet.length + 40);
   });
 
   it('builds dense letterbox regions without clear so ambient ticks do not wipe bands', () => {

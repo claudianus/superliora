@@ -195,8 +195,6 @@ export interface MeteorMotionParams {
   readonly explodeTicks: number;
   readonly burstScale: number;
   readonly debrisCount: number;
-  /** Perpendicular angle jitter (radians) applied to inbound heading. */
-  readonly headingJitter: number;
 }
 
 export function resolveMeteorMotionParams(
@@ -207,7 +205,6 @@ export function resolveMeteorMotionParams(
 ): MeteorMotionParams {
   const u = (salt: number) => hash01(h + salt, m * 17 + salt);
   const spike = size === 'l' && u(3) < (premium ? 0.22 : 0.12);
-  // Disjoint speed bands: S≪M≪L (+ optional L spike).
   const speed = (() => {
     if (size === 's') return lerp(0.42, 0.72, u(11)) * (premium ? 1 : 0.9);
     if (size === 'm') return lerp(0.95, 1.35, u(11)) * (premium ? 1 : 0.92);
@@ -235,35 +232,81 @@ export function resolveMeteorMotionParams(
     if (size === 'm') return Math.floor(lerp(20, 30, u(51)) * mul);
     return Math.floor(lerp(40, spike ? 64 : 54, u(51)) * mul);
   })();
-  // Wide heading chaos — up to ~±50° (S/M) / ±65° (L).
-  const jitterAmp = size === 'l' ? 1.15 : size === 'm' ? 0.95 : 0.75;
-  const headingJitter = (u(61) - 0.5) * 2 * jitterAmp;
-  return { size, speed, trailLen, explodeTicks, burstScale, debrisCount, headingJitter };
+  return { size, speed, trailLen, explodeTicks, burstScale, debrisCount };
 }
 
 const SECTORS: readonly SpawnSector[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se'];
+
+/** Triple-click easter egg: planet-scale inbound meteor. */
+const EASTER_CLICK_WINDOW_MS = 650;
+const APOCALYPSE_FLIGHT_TICKS = 28;
+const APOCALYPSE_BURST_TICKS = 36;
+
+type ApocalypseState = {
+  readonly seed: number;
+  readonly sector: SpawnSector;
+  /** Latched on first paint so the strike starts immediately. */
+  startPhase: number | undefined;
+};
+
+let easterClickMs: number[] = [];
+let apocalypse: ApocalypseState | undefined;
+
+/** Test helper — clear easter-egg / apocalypse state. */
+export function resetMeteorEasterEggForTests(): void {
+  easterClickMs = [];
+  apocalypse = undefined;
+}
+
+/**
+ * Record a left-click. Three presses within {@link EASTER_CLICK_WINDOW_MS}
+ * arm one planet-collision meteor. Returns true when armed.
+ */
+export function noteMeteorEasterEggClick(nowMs: number): boolean {
+  const now = Math.floor(nowMs);
+  easterClickMs.push(now);
+  easterClickMs = easterClickMs.filter((t) => now - t <= EASTER_CLICK_WINDOW_MS);
+  if (easterClickMs.length < 3) return false;
+  easterClickMs = [];
+  if (apocalypse !== undefined) return false;
+  const seed = hash2(now ^ 0x5f3759df, 9091);
+  apocalypse = {
+    seed,
+    startPhase: undefined,
+    sector: SECTORS[seed % SECTORS.length]!,
+  };
+  return true;
+}
+
+export function facingRimSide(sector: SpawnSector): 0 | 1 | 2 | 3 {
+  if (sector === 'n' || sector === 'nw' || sector === 'ne') return 0;
+  if (sector === 'e') return 1;
+  if (sector === 's' || sector === 'sw' || sector === 'se') return 2;
+  return 3;
+}
 
 function rimPoint(
   hole: StageHole,
   side: 0 | 1 | 2 | 3,
   t: number,
 ): { x: number; y: number } {
-  const tx = clamp(t, 0, 1);
+  const tx = clamp(t, 0.05, 0.95);
   const xSpan = Math.max(0, hole.x1 - hole.x0 - 1);
   const ySpan = Math.max(0, hole.y1 - hole.y0 - 1);
   switch (side) {
     case 0:
-      return { x: hole.x0 + tx * xSpan, y: hole.y0 - 0.4 };
+      return { x: hole.x0 + tx * xSpan, y: hole.y0 - 0.55 };
     case 1:
-      return { x: hole.x1 - 0.6, y: hole.y0 + tx * ySpan };
+      return { x: hole.x1 - 0.45, y: hole.y0 + tx * ySpan };
     case 2:
-      return { x: hole.x0 + tx * xSpan, y: hole.y1 - 0.6 };
+      return { x: hole.x0 + tx * xSpan, y: hole.y1 - 0.45 };
     case 3:
-      return { x: hole.x0 - 0.4, y: hole.y0 + tx * ySpan };
+      return { x: hole.x0 - 0.55, y: hole.y0 + tx * ySpan };
   }
 }
 
-function spawnOnEdge(
+/** Spawn strictly outside the terminal (never inside the stage hole). */
+export function spawnOutsideScreen(
   sector: SpawnSector,
   cols: number,
   rows: number,
@@ -272,38 +315,33 @@ function spawnOnEdge(
   m: number,
 ): { x: number; y: number } {
   const t = hash01(h, m + 7);
-  const depth = 1 + (hash2(h, m + 9) % 4);
+  const depth = 3 + (hash2(h, m + 9) % 5);
+  const midY = lerp(hole.y0 + 1, Math.max(hole.y0 + 1, hole.y1 - 2), hash01(h, m + 13));
   switch (sector) {
     case 'n':
       return { x: t * (cols - 1), y: -depth };
     case 's':
       return { x: t * (cols - 1), y: rows - 1 + depth };
     case 'w':
-      return {
-        x: -depth,
-        y: lerp(hole.y0 - 4, hole.y1 + 4, hash01(h, m + 13)),
-      };
+      return { x: -depth, y: midY };
     case 'e':
-      return {
-        x: cols - 1 + depth,
-        y: lerp(hole.y0 - 4, hole.y1 + 4, hash01(h, m + 13)),
-      };
+      return { x: cols - 1 + depth, y: midY };
     case 'nw':
-      return { x: -depth - t * 3, y: -depth - (1 - t) * 3 };
+      return { x: -depth, y: -depth };
     case 'ne':
-      return { x: cols + depth + t * 3, y: -depth - (1 - t) * 3 };
+      return { x: cols - 1 + depth, y: -depth };
     case 'sw':
-      return { x: -depth - t * 3, y: rows + depth + (1 - t) * 3 };
+      return { x: -depth, y: rows - 1 + depth };
     case 'se':
-      return { x: cols + depth + t * 3, y: rows + depth + (1 - t) * 3 };
+      return { x: cols - 1 + depth, y: rows - 1 + depth };
   }
 }
 
 /**
- * Chaotic inbound path: spawn from a sector fringe, aim at a *random* rim side
- * (not just the facing edge) so trajectories cross and diverge.
+ * Screen-exterior spawn → facing rim only (never aim through the stage hole).
+ * Angle variety comes from edge/rim position, not heading twist.
  */
-function spawnAndTarget(
+export function spawnAndTarget(
   sector: SpawnSector,
   hole: StageHole,
   cols: number,
@@ -311,23 +349,8 @@ function spawnAndTarget(
   h: number,
   m: number,
 ): { startX: number; startY: number; impactX: number; impactY: number } {
-  // 30%: ignore preferred sector — pure random edge spawn.
-  const spawnSector =
-    hash01(h, m + 3) < 0.3 ? SECTORS[hash2(h, m + 5) % SECTORS.length]! : sector;
-  const start = spawnOnEdge(spawnSector, cols, rows, hole, h, m);
-
-  // Prefer facing rim ~45%, else any of the four sides (cross-shots).
-  const facing: 0 | 1 | 2 | 3 =
-    spawnSector === 'n' || spawnSector === 'nw' || spawnSector === 'ne'
-      ? 0
-      : spawnSector === 'e'
-        ? 1
-        : spawnSector === 's' || spawnSector === 'sw' || spawnSector === 'se'
-          ? 2
-          : 3;
-  const side = (hash01(h, m + 19) < 0.45
-    ? facing
-    : (hash2(h, m + 23) % 4)) as 0 | 1 | 2 | 3;
+  const start = spawnOutsideScreen(sector, cols, rows, hole, h, m);
+  const side = facingRimSide(sector);
   const impact = rimPoint(hole, side, hash01(h, m + 29));
   return {
     startX: start.x,
@@ -429,14 +452,13 @@ export function paintStageLetterboxSky(input: {
       );
       const dist = Math.hypot(impactX - startX, impactY - startY);
       if (dist < 2) continue;
-      const baseAng = Math.atan2(impactY - startY, impactX - startX);
-      const ang = baseAng + motion.headingJitter;
-      const dx = Math.cos(ang) * motion.speed;
-      const dy = Math.sin(ang) * motion.speed;
-      // Jittered heading keeps roughly the same travel budget as the aim distance.
-      const fallDist = clamp(dist / Math.max(0.55, Math.cos(motion.headingJitter)), dist * 0.7, dist * 1.4);
+      // Exact aim — no heading twist (that cut through the stage hole).
+      const ux = (impactX - startX) / dist;
+      const uy = (impactY - startY) / dist;
+      const dx = ux * motion.speed;
+      const dy = uy * motion.speed;
       const trailLen = motion.trailLen;
-      const fallTicks = Math.ceil(fallDist / motion.speed) + 1;
+      const fallTicks = Math.ceil(dist / motion.speed) + 1;
       const explodeTicks = motion.explodeTicks;
       const rest = premium
         ? 10 + Math.floor(hash01(h, m + 71) * 22)
@@ -459,9 +481,12 @@ export function paintStageLetterboxSky(input: {
       if (local <= burstStart) {
         const headX = startX + local * dx;
         const headY = startY + local * dy;
+        // Never paint a head that has already crossed the hole (guard float error).
+        if (insideHole(Math.round(headX), Math.round(headY), hole)) continue;
         for (let step = 0; step <= trailLen; step++) {
           const x = Math.round(headX - step * dx * 0.95);
           const y = Math.round(headY - step * dy * 0.9);
+          if (insideHole(x, y, hole)) continue;
           const t = step / Math.max(1, trailLen);
           if (step === 0) {
             put(x, y, head, headFg, true);
@@ -479,11 +504,9 @@ export function paintStageLetterboxSky(input: {
       if (local > burstEnd) continue;
 
       const age = local - burstStart;
-      const rawX = startX + burstStart * dx;
-      const rawY = startY + burstStart * dy;
       const snap = snapImpactToLetterbox(
-        Math.round(clamp(rawX, 0, cols - 1)),
-        Math.round(clamp(rawY, 0, rows - 1)),
+        Math.round(impactX),
+        Math.round(impactY),
         hole,
         cols,
         rows,
@@ -506,9 +529,150 @@ export function paintStageLetterboxSky(input: {
         muted,
       });
     }
+
+    paintApocalypseMeteor({
+      put,
+      hole,
+      cols,
+      rows,
+      phase,
+      premium,
+      glow,
+      primary,
+      particle,
+      muted,
+    });
   }
 
   return [...cells.values()];
+}
+
+function paintApocalypseMeteor(input: {
+  readonly put: (x: number, y: number, char: string, fg: string, bold?: boolean) => void;
+  readonly hole: StageHole;
+  readonly cols: number;
+  readonly rows: number;
+  readonly phase: number;
+  readonly premium: boolean;
+  readonly glow: string;
+  readonly primary: string;
+  readonly particle: string;
+  readonly muted: string;
+}): void {
+  if (apocalypse === undefined) return;
+  const { put, hole, cols, rows, phase, premium, glow, primary, particle, muted } = input;
+  // Latch phase on first paint so the strike starts now, not at epoch 0.
+  if (apocalypse.startPhase === undefined) {
+    apocalypse.startPhase = phase;
+  }
+  const local = phase - apocalypse.startPhase;
+  const life = APOCALYPSE_FLIGHT_TICKS + APOCALYPSE_BURST_TICKS;
+  if (local < 0) return;
+  if (local > life) {
+    apocalypse = undefined;
+    return;
+  }
+
+  const seed = apocalypse.seed;
+  const { startX, startY, impactX, impactY } = spawnAndTarget(
+    apocalypse.sector,
+    hole,
+    cols,
+    rows,
+    seed,
+    99,
+  );
+  const dist = Math.hypot(impactX - startX, impactY - startY);
+  if (dist < 2) {
+    apocalypse = undefined;
+    return;
+  }
+  const speed = dist / APOCALYPSE_FLIGHT_TICKS;
+  const ux = (impactX - startX) / dist;
+  const uy = (impactY - startY) / dist;
+  const dx = ux * speed;
+  const dy = uy * speed;
+  const snap = snapImpactToLetterbox(
+    Math.round(impactX),
+    Math.round(impactY),
+    hole,
+    cols,
+    rows,
+  );
+
+  if (local <= APOCALYPSE_FLIGHT_TICKS) {
+    const headX = startX + local * dx;
+    const headY = startY + local * dy;
+    if (insideHole(Math.round(headX), Math.round(headY), hole)) return;
+    const trailLen = 22;
+    const headFg = mixHexColor(glow, primary, 0.65);
+    const midFg = mixHexColor(particle, glow, 0.55);
+    for (let step = 0; step <= trailLen; step++) {
+      const x = Math.round(headX - step * dx * 0.95);
+      const y = Math.round(headY - step * dy * 0.9);
+      if (insideHole(x, y, hole)) continue;
+      const t = step / trailLen;
+      if (step === 0) put(x, y, HEAD_L, headFg, true);
+      else if (t < 0.25) put(x, y, midGlyphForVelocity(dx, dy), midFg, true);
+      else if (t < 0.55) put(x, y, '◈', midFg, premium);
+      else put(x, y, SHOOTING_TAIL, muted);
+    }
+    // Soft bloom around the head so it reads as planet-class inbound.
+    for (const [ox, oy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const x = Math.round(headX) + ox;
+      const y = Math.round(headY) + oy;
+      if (!insideHole(x, y, hole)) put(x, y, '✦', headFg, true);
+    }
+    return;
+  }
+
+  const age = local - APOCALYPSE_FLIGHT_TICKS;
+  paintRimMegaBurst({
+    put,
+    ix: snap.x,
+    iy: snap.y,
+    age,
+    life: APOCALYPSE_BURST_TICKS,
+    seed,
+    size: 'l',
+    burstScale: 5.8,
+    debrisCount: premium ? 96 : 72,
+    hole,
+    premium,
+    glow,
+    primary,
+    particle,
+    muted,
+  });
+  // Secondary rim flashes so the pop wraps the stage like a planet strike.
+  const side = facingRimSide(apocalypse.sector);
+  for (const t of [0.2, 0.5, 0.8] as const) {
+    const p = rimPoint(hole, side, t);
+    const sat = snapImpactToLetterbox(Math.round(p.x), Math.round(p.y), hole, cols, rows);
+    if (sat.x === snap.x && sat.y === snap.y) continue;
+    paintRimMegaBurst({
+      put,
+      ix: sat.x,
+      iy: sat.y,
+      age: age * 0.85,
+      life: APOCALYPSE_BURST_TICKS,
+      seed: seed + Math.round(t * 100),
+      size: 'l',
+      burstScale: 3.2,
+      debrisCount: premium ? 40 : 28,
+      hole,
+      premium,
+      glow,
+      primary,
+      particle,
+      muted,
+    });
+  }
 }
 
 function snapImpactToLetterbox(
