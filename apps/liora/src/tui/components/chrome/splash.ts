@@ -2,7 +2,7 @@
  * Full-screen cinematic startup splash.
  *
  * Owns the entire terminal for 1.0–2.0s when motion is allowed: starfield,
- * rising moon, meteor rain, horizon bloom, then SUPERLIORA brand reveal.
+ * rising Liora mark, meteor rain, horizon bloom, then SUPERLIORA brand reveal.
  * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
  */
 
@@ -15,7 +15,7 @@ import {
 import { shouldAnimate } from '#/tui/controllers/appearance';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { Component } from '#/tui/renderer';
-import { visibleWidth } from '#/tui/renderer';
+import { mixHexColor, visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
@@ -26,8 +26,8 @@ import {
 import {
   blitCentered,
   centerText,
-  MOON_COMPACT,
-  MOON_LARGE,
+  LIORA_MARK_COMPACT,
+  LIORA_MARK_LARGE,
   padOrTrim,
   paintStarfield,
 } from '#/tui/utils/night-sky';
@@ -115,13 +115,16 @@ export function resolveBannerRevealCount(
   return Math.max(1, Math.ceil(local * totalLines));
 }
 
-/** Progress of the moon rise within the rise+bloom window (0..1). */
-export function resolveMoonRiseProgress(elapsedMs: number, durationMs: number): number {
+/** Progress of the Liora mark rise within the rise+bloom window (0..1). */
+export function resolveMarkRiseProgress(elapsedMs: number, durationMs: number): number {
   const duration = clampSplashDurationMs(durationMs);
   const start = 0.1 * duration;
   const end = 0.48 * duration;
   return Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, end - start)));
 }
+
+/** @deprecated Prefer resolveMarkRiseProgress */
+export const resolveMoonRiseProgress = resolveMarkRiseProgress;
 
 /** Fade-out alpha in the final phase (1 → 0). */
 export function resolveFadeAlpha(elapsedMs: number, durationMs: number): number {
@@ -310,25 +313,30 @@ export class SplashComponent implements Component {
       }
     }
 
-    // --- Layer 3: rising moon ---
-    const moonProgress = resolveMoonRiseProgress(elapsed, this.durationMs);
-    if (moonProgress > 0 && phase !== 'done') {
-      const moon = safeWidth >= 40 ? MOON_LARGE : MOON_COMPACT;
-      const moonHex =
-        phase === 'bloom' || phase === 'brand' || phase === 'hold' ? glowHex : primaryHex;
-      const moonLines = moon.map((line) => {
+    // --- Layer 3: rising Liora monogram ---
+    const markProgress = resolveMarkRiseProgress(elapsed, this.durationMs);
+    if (markProgress > 0 && phase !== 'done') {
+      const mark = safeWidth >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
+      const gStart = palette.gradientStart ?? primaryHex;
+      const gEnd = palette.gradientEnd ?? glowHex;
+      const markLines = mark.map((line, rowIndex) => {
+        const t = mark.length <= 1 ? 0.5 : rowIndex / (mark.length - 1);
+        const rowHex = mixHexColor(mixHexColor(gStart, primaryHex, 0.45), mixHexColor(glowHex, gEnd, 0.4), t);
         if (fade < 0.25) return paint(mutedHex, line);
-        return paint(moonHex, line);
+        if (phase === 'bloom' || phase === 'brand' || phase === 'hold') {
+          return paint(mixHexColor(rowHex, glowHex, 0.35), line);
+        }
+        return paint(rowHex, line);
       });
       // Rise: start below center, end at ~28% from top
       const restingTop = Math.max(1, Math.floor(rows * 0.18));
-      const startTop = rows - moon.length - 1;
-      const moonTop = Math.round(startTop + (restingTop - startTop) * moonProgress);
-      blitCentered(canvas, moonLines, moonTop, safeWidth);
+      const startTop = rows - mark.length - 1;
+      const markTop = Math.round(startTop + (restingTop - startTop) * markProgress);
+      blitCentered(canvas, markLines, markTop, safeWidth);
 
-      // Glow ring under moon during bloom+
-      if (moonProgress > 0.6 && fade > 0.4) {
-        const ringY = Math.min(rows - 1, moonTop + moon.length);
+      // Brand flare under the mark during bloom+
+      if (markProgress > 0.6 && fade > 0.4) {
+        const ringY = Math.min(rows - 1, markTop + mark.length);
         const ring = centerText(safeWidth, '˚ · ⋆ · ✦ · ⋆ · ˚');
         canvas[ringY] = padOrTrim(paint(particleHex, ring), safeWidth);
       }

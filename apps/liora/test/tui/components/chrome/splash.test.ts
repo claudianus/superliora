@@ -133,7 +133,7 @@ describe('splash phase / reveal', () => {
     expect(resolveBannerRevealCount(850, duration, 5)).toBe(5);
   });
 
-  it('progresses moon rise and fade alpha', () => {
+  it('progresses mark rise and fade alpha', () => {
     expect(resolveMoonRiseProgress(0, duration)).toBe(0);
     expect(resolveMoonRiseProgress(290, duration)).toBeGreaterThan(0);
     expect(resolveMoonRiseProgress(290, duration)).toBeLessThan(1);
@@ -247,7 +247,7 @@ describe('SplashComponent full-screen cinematic', () => {
     splash.dispose();
   });
 
-  it('uses the active theme palette primary (not a fixed Blood Moon hex)', () => {
+  it('uses the active theme palette primary (not a fixed splash ornament hex)', () => {
     withSafeTerminalEnv(() => {
       currentTheme.setPalette(darkColors);
       const darkSplash = new SplashComponent({
@@ -368,7 +368,7 @@ describe('SplashComponent full-screen cinematic', () => {
     });
   });
 
-  it('paints moon during rise and brand figlet on full-height canvas', async () => {
+  it('paints Liora mark during rise and brand figlet on full-height canvas', async () => {
     await withSafeTerminalEnv(async () => {
       const start = 1_000_000;
       let clock = start;

@@ -528,7 +528,7 @@ describe('IdleStageComponent', () => {
     });
   });
 
-  it('does not reuse splash Blood Moon block glyphs', () => {
+  it('does not reuse splash Liora mark block glyphs', () => {
     withAmbientEnv(() => {
       const joined = strip(
         renderIdleStageLines(100, DEFAULT_APPEARANCE_PREFERENCES, {
@@ -536,7 +536,7 @@ describe('IdleStageComponent', () => {
           preferredRows: 24,
         }).join('\n'),
       );
-      // Idle scene must not fall back to splash's solid-block moon.
+      // Idle scene must not fall back to splash's solid-block monogram.
       expect(joined.includes('█')).toBe(false);
     });
   });
