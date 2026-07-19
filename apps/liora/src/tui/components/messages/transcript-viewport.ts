@@ -81,7 +81,8 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     if (this.aquariumOverlaySnapshot === undefined) {
       this.aquariumOverlaySnapshot = [...this.children];
     }
-    for (const child of [...this.children]) {
+    // Snapshot the children: removeChild mutates this.children mid-iteration.
+    for (const child of this.children.slice()) {
       // pi-tui Container.removeChild (not a DOM node).
       // oxlint-disable-next-line unicorn/prefer-dom-node-remove
       this.removeChild(child);
@@ -99,7 +100,8 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       this.dismissIdleStage();
       return;
     }
-    for (const child of [...this.children]) {
+    // Snapshot the children: removeChild mutates this.children mid-iteration.
+    for (const child of this.children.slice()) {
       // oxlint-disable-next-line unicorn/prefer-dom-node-remove
       this.removeChild(child);
     }

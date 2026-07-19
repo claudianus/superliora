@@ -387,7 +387,8 @@ export class SplashComponent implements Component {
     });
 
     // --- Layer 2: meteor rain (rise → hold) ---
-    if (phase !== 'void' && phase !== 'done' && phase !== 'morph' && fade > 0.2) {
+    // `phase === 'morph'` already returned above, so it is excluded here.
+    if (phase !== 'void' && phase !== 'done' && fade > 0.2) {
       const meteorRows = Math.max(3, Math.floor(rows * 0.35));
       const field = renderMeteorField(safeWidth, meteorRows, 'splash:sky', appearance);
       // Overlay near the top third
@@ -401,7 +402,7 @@ export class SplashComponent implements Component {
 
     // --- Layer 3: rising Liora monogram ---
     const markProgress = resolveMarkRiseProgress(elapsed, this.durationMs);
-    if (markProgress > 0 && phase !== 'done' && phase !== 'morph') {
+    if (markProgress > 0 && phase !== 'done') {
       const mark = safeWidth >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
       const gStart = palette.gradientStart ?? primaryHex;
       const gEnd = palette.gradientEnd ?? glowHex;
