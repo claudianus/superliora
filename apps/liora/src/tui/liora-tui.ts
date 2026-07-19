@@ -58,7 +58,7 @@ import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
 import { IdleStageComponent } from './components/chrome/idle-stage';
 import { SplashComponent, shouldPlaySplash } from './components/chrome/splash';
-import { buildSplashRevealPreview } from './utils/splash-reveal-preview';
+import { buildSplashMorphScene } from './utils/splash-reveal-preview';
 import { WelcomeComponent } from './components/chrome/welcome';
 import { pickRandomWorkingTip, tipText } from './components/chrome/working-tips';
 import {
@@ -2283,8 +2283,8 @@ export class LioraTUI {
         // Layout invalidation so the native frame path repaints the takeover.
         requestTUILayoutRender(this.state);
       },
-      getRevealFrame: (width, rows) =>
-        buildSplashRevealPreview({
+      getMorphScene: (width, rows) =>
+        buildSplashMorphScene({
           width,
           rows,
           appState: this.state.appState,
