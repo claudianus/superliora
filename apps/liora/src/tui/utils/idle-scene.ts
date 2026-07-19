@@ -8,6 +8,7 @@
  */
 
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
+import chalk from 'chalk';
 
 import type { IdleFish, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 
@@ -97,6 +98,103 @@ export function centerText(width: number, text: string): string {
   return `${' '.repeat(pad)}${text}`;
 }
 
+
+/**
+ * Expand a styled line into one styled cell per column.
+ * Preserves per-glyph ANSI so later putCell/blitAt does not bleach the row.
+ */
+export function expandStyledCells(line: string, width: number): string[] {
+  const cells = Array.from({ length: width }, () => ' ');
+  if (width <= 0) return cells;
+  let col = 0;
+  let i = 0;
+  let open = '';
+  let close = '';
+  while (i < line.length && col < width) {
+    if (line.charCodeAt(i) === 0x1b && line[i + 1] === '[') {
+      const end = line.indexOf('m', i + 2);
+      if (end < 0) break;
+      const params = line.slice(i + 2, end);
+      const seq = line.slice(i, end + 1);
+      i = end + 1;
+      if (params === '0' || params === '') {
+        open = '';
+        close = '';
+        continue;
+      }
+      if (params === '39') {
+        open = open.replace(/\u001B\[38[^m]*m/g, '');
+        if (!/\u001B\[38/.test(open) && !/\u001B\[48/.test(open)) close = '';
+        else close = close.replace(/\u001B\[39m/g, '');
+        continue;
+      }
+      if (params === '49') {
+        open = open.replace(/\u001B\[48[^m]*m/g, '');
+        if (!/\u001B\[38/.test(open) && !/\u001B\[48/.test(open)) close = '';
+        else close = close.replace(/\u001B\[49m/g, '');
+        continue;
+      }
+      open += seq;
+      if (params.startsWith('38') && !close.includes('[39m')) close += '\u001B[39m';
+      if (params.startsWith('48') && !close.includes('[49m')) close += '\u001B[49m';
+      continue;
+    }
+    const cp = line.codePointAt(i);
+    if (cp === undefined) break;
+    const ch = String.fromCodePoint(cp);
+    i += cp > 0xffff ? 2 : 1;
+    const w = Math.max(1, visibleWidth(ch));
+    if (col + w > width) break;
+    cells[col] = open ? `${open}${ch}${close}` : ch;
+    for (let k = 1; k < w && col + k < width; k++) cells[col + k] = '';
+    col += w;
+  }
+  return cells;
+}
+
+export function collapseStyledCells(cells: readonly string[]): string {
+  let out = '';
+  for (const cell of cells) {
+    if (cell === '') continue;
+    out += cell;
+  }
+  return out;
+}
+
+function readCanvasCells(canvas: string[], y: number, width: number): string[] {
+  return expandStyledCells(canvas[y] ?? ' '.repeat(width), width);
+}
+
+function writeCanvasCells(canvas: string[], y: number, width: number, cells: readonly string[]): void {
+  canvas[y] = padOrTrim(collapseStyledCells(cells), width);
+}
+
+function cellPlainChar(cell: string): string {
+  const plain = stripAnsi(cell);
+  return plain.length > 0 ? plain[0]! : ' ';
+}
+
+function extractSgrHex(cell: string, kind: '38' | '48'): string | undefined {
+  const re =
+    kind === '38'
+      ? /\u001B\[38;2;(\d+);(\d+);(\d+)m/
+      : /\u001B\[48;2;(\d+);(\d+);(\d+)m/;
+  const match = re.exec(cell);
+  if (match === null) return undefined;
+  const toHex = (value: string): string => Number(value).toString(16).padStart(2, '0');
+  return `#${toHex(match[1]!)}${toHex(match[2]!)}${toHex(match[3]!)}`;
+}
+
+/** Keep water background when overlaying a foreground-only glyph. */
+function mergeStyledCell(base: string, overlay: string): string {
+  if (overlay === '' || overlay === ' ') return overlay;
+  const baseBg = extractSgrHex(base, '48');
+  if (baseBg === undefined || /\u001B\[48/.test(overlay)) return overlay;
+  const ch = cellPlainChar(overlay);
+  const fg = extractSgrHex(overlay, '38');
+  return fg === undefined ? chalk.bgHex(baseBg)(ch) : chalk.bgHex(baseBg).hex(fg)(ch);
+}
+
 export function blitCentered(
   canvas: string[],
   lines: readonly string[],
@@ -127,20 +225,18 @@ export function blitAt(
     if (y < 0 || y >= canvas.length) continue;
     const line = lines[i];
     if (line === undefined) continue;
-    const plain = stripAnsi(canvas[y] ?? ' '.repeat(width)).padEnd(width).slice(0, width);
-    const glyphPlain = stripAnsi(line);
     const glyphW = visibleWidth(line);
-    if (safeLeft >= width) continue;
+    if (safeLeft >= width || glyphW <= 0) continue;
     const fit = Math.min(glyphW, width - safeLeft);
-    if (fit < glyphW) {
-      const slice = glyphPlain.slice(0, fit);
-      canvas[y] = padOrTrim(`${plain.slice(0, safeLeft)}${slice}${plain.slice(safeLeft + fit)}`, width);
-      continue;
+    const cells = readCanvasCells(canvas, y, width);
+    const incoming = expandStyledCells(line, glyphW);
+    for (let x = 0; x < fit; x++) {
+      const src = incoming[x];
+      if (src === undefined || src === '') continue;
+      const at = safeLeft + x;
+      cells[at] = mergeStyledCell(cells[at] ?? ' ', src);
     }
-    canvas[y] = padOrTrim(
-      `${plain.slice(0, safeLeft)}${line}${plain.slice(safeLeft + glyphW)}`,
-      width,
-    );
+    writeCanvasCells(canvas, y, width, cells);
   }
 }
 
@@ -245,7 +341,7 @@ export function resolveAquariumPalette(
 
 const SOFT_CELLS = new Set([' ', '·', '˙', '~', '∼', '˚']);
 
-/** One cell. `glyph` may include full ANSI — never slice styled text. */
+/** One cell. `glyph` may include full ANSI — never strip the rest of the row. */
 function putCell(
   canvas: string[],
   y: number,
@@ -255,10 +351,14 @@ function putCell(
   force = false,
 ): void {
   if (y < 0 || y >= canvas.length || x < 0 || x >= width) return;
-  const plain = stripAnsi(canvas[y] ?? ' '.repeat(width)).padEnd(width).slice(0, width);
-  const here = plain[x] ?? ' ';
+  const cells = readCanvasCells(canvas, y, width);
+  const here = cellPlainChar(cells[x] ?? ' ');
   if (!force && !SOFT_CELLS.has(here)) return;
-  canvas[y] = padOrTrim(`${plain.slice(0, x)}${glyph}${plain.slice(x + 1)}`, width);
+  const glyphCells = expandStyledCells(glyph, Math.max(1, visibleWidth(glyph)));
+  const styled = glyphCells[0];
+  if (styled === undefined || styled === '') return;
+  cells[x] = mergeStyledCell(cells[x] ?? ' ', styled);
+  writeCanvasCells(canvas, y, width, cells);
 }
 
 export function resolveFishGlyphRows(
@@ -456,7 +556,7 @@ export function renderHillLine(width: number, elapsedMs: number): string {
   return cells.join('');
 }
 
-/** Depth-graded water body — denser soft dots near the bed. */
+/** Depth-graded water body — soft sky wash plus drifting motes. */
 export function paintWaterField(
   canvas: string[],
   width: number,
@@ -468,7 +568,20 @@ export function paintWaterField(
   skyDeep: string,
 ): void {
   if (width <= 0 || rows <= 1) return;
-  const count = Math.max(4, Math.floor(width * 0.16));
+  // Base wash so the tank reads as sky-blue water, not empty black.
+  for (let y = 1; y < rows - 1; y++) {
+    const depth = y / Math.max(1, rows - 1);
+    const hex = depth > 0.72 ? skyDeep : depth > 0.4 ? sky : skySoft;
+    const wash = Array.from({ length: width }, (_, x) => {
+      const n = hash2(x + 3, y * 19 + 7);
+      if (n % 7 === 0) return '·';
+      if (n % 13 === 0) return '˙';
+      return ' ';
+    }).join('');
+    canvas[y] = chalk.bgHex(hex).hex(hex)(wash);
+  }
+  // Drifting motes on top of the wash.
+  const count = Math.max(6, Math.floor(width * 0.28));
   for (let i = 0; i < count; i++) {
     const seed = hash2(i * 23 + 4, 61);
     const drift = Math.floor(elapsedMs / 110 + seed * 0.01) % Math.max(1, width);
@@ -478,7 +591,7 @@ export function paintWaterField(
     const tone = seed % 5;
     const hex = tone === 0 ? skyDeep : tone < 3 ? sky : skySoft;
     const glyph = tone === 0 ? '˙' : tone < 3 ? '·' : '˚';
-    putCell(canvas, y, x, width, paint(hex, glyph));
+    putCell(canvas, y, x, width, paint(hex, glyph), true);
   }
 }
 
@@ -874,8 +987,11 @@ export function paintIdleStoryScene(options: {
 
   // 2) Surface line
   if (storyRows >= 4) {
+    const waterline = renderWaterline(width, elapsedMs);
     canvas[0] = padOrTrim(
-      paint(showAmbient ? palette.waterDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
+      showAmbient
+        ? chalk.bgHex(palette.waterDeep).hex(palette.waterDeep)(waterline)
+        : paint(colors.textMuted, waterline),
       width,
     );
   }

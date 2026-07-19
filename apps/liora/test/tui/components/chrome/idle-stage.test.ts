@@ -237,6 +237,41 @@ describe('idle-stage helpers', () => {
     expect(palette.plant).toBe(darkColors.success);
     expect(palette.water).toBe(darkColors.glow);
   });
+
+  it('keeps per-glyph colors after layering plants and bubbles', () => {
+    const previousLevel = chalk.level;
+    chalk.level = 3;
+    try {
+      withAmbientEnv(() => {
+        const width = 80;
+        const storyRows = 14;
+        const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
+        paintIdleStoryScene({
+          canvas,
+          width,
+          storyRows,
+          elapsedMs: 2_400,
+          showAmbient: true,
+          premium: true,
+          paint: (hex, text) => chalk.hex(hex)(text),
+          colors: darkColors,
+        });
+        const waterline = canvas[0] ?? '';
+        const waterBody = canvas[3] ?? '';
+        const plantRow = canvas[storyRows - 3] ?? '';
+        const fgSpans = (line: string) => line.match(/\u001B\[38;2;\d+;\d+;\d+m/g) ?? [];
+        const bgSpans = (line: string) => line.match(/\u001B\[48;2;\d+;\d+;\d+m/g) ?? [];
+        // Surface and water wash must carry color.
+        expect(waterline).toMatch(/\u001B\[(?:38|48);2;/);
+        expect(bgSpans(waterBody).length).toBeGreaterThan(10);
+        // Regression: putCell/blitAt used to stripAnsi the whole row, leaving ~1 span.
+        expect(fgSpans(plantRow).length).toBeGreaterThan(3);
+        expect(plantRow).toMatch(/\u001B\[38;2;78;200;126m/); // success green
+      });
+    } finally {
+      chalk.level = previousLevel;
+    }
+  });
 });
 
 describe('IdleStageComponent', () => {
