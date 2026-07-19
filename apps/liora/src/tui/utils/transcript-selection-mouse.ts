@@ -1,7 +1,10 @@
 import type { NativeInputEvent, NativeInputMouseEvent } from '#/tui/renderer';
 
 import type { TUIState } from '../tui-state';
+import { appearanceAnimationNow } from './appearance-effects';
+import { requestTUILayoutRender } from './frame-render';
 import { clearIdleFeedPending, handleIdleFeedMouseInput } from './idle-feed-mouse';
+import { noteMeteorEasterEggClick } from './stage-letterbox-sky';
 import {
   resolveTranscriptHitTestContext,
   transcriptPointForMouse,
@@ -22,6 +25,14 @@ function handleTranscriptSelectionMouseEvent(
   if (event.button !== 'left' && event.button !== 'none') return false;
   if (event.action !== 'press' && event.action !== 'drag' && event.action !== 'release') {
     return false;
+  }
+
+  // Observational only — count any left press for the meteor easter egg,
+  // including letterbox / out-of-feed hits that return false below.
+  if (event.button === 'left' && event.action === 'press') {
+    if (noteMeteorEasterEggClick(appearanceAnimationNow())) {
+      requestTUILayoutRender(state);
+    }
   }
 
   const context = resolveTranscriptHitTestContext(state);
