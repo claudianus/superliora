@@ -8,6 +8,7 @@ import type {
   FileContentDisplayBlock,
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
+import { currentTheme } from '#/tui/theme';
 import * as appearanceEffects from '#/tui/utils/appearance-effects';
 import {
   advanceAppearanceAnimationClock,
@@ -650,5 +651,25 @@ describe('ApprovalPanelComponent', () => {
     expect(strip(settled)).toBe(strip(settling));
     // Past the settle window we fall back to static accent bold (no settle flash).
     expect(settleSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps selected choice accent after cursor moves when appearance is off', () => {
+    chalk.level = 3;
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    advanceAppearanceAnimationClock(0);
+    const settleSpy = vi.spyOn(appearanceEffects, 'renderSettleFlash');
+    const { dialog } = makeDialog();
+    const label = '2. Approve for this session';
+
+    dialog.handleInput('\u001B[B'); // ↓ to choice 2
+    const selected = choiceLineOf(dialog.render(80), label);
+
+    expect(settleSpy).not.toHaveBeenCalled();
+    expect(selected).toContain(currentTheme.boldFg('accent', label));
+    expect(selected).not.toContain(currentTheme.boldFg('textStrong', label));
   });
 });

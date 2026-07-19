@@ -34,6 +34,7 @@ import {
   renderSettleFlash,
   resolveQualityAdjustedAmbientEffectMode,
   SETTLE_FLASH_MS,
+  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
 export interface ApprovalPanelResponse {
@@ -278,8 +279,10 @@ export class ApprovalPanelComponent extends Container implements Focusable {
   }
 
   private styleChoiceLabel(labelWithNum: string, index: number, selected: boolean): string {
+    const appearance = getActiveAppearancePreferences();
     if (
       selected &&
+      shouldRenderAmbientEffects(appearance) &&
       this.settleRowId === index &&
       this.settleStartedAtMs !== undefined &&
       appearanceAnimationNow() - this.settleStartedAtMs < this.settleMs()
@@ -288,6 +291,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
         labelWithNum,
         `approval:settle:${String(this.openedAtMs)}:${String(index)}`,
         this.settleStartedAtMs,
+        appearance,
       );
     }
     if (selected) return currentTheme.boldFg('accent', labelWithNum);
