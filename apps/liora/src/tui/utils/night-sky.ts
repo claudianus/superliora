@@ -1,47 +1,58 @@
 /**
  * Night-sky canvas primitives for the cinematic startup splash.
- * Blood Moon glyphs, starfield paint, and blit helpers live here.
+ * Liora monogram mark, starfield paint, and blit helpers live here.
  * Empty-transcript IdleStage uses its own story scene (`idle-scene.ts`)
  * and intentionally does not share this visual language.
  */
 
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
-/** Large moon glyph (7 rows). Drawn with active theme glow/primary. */
-export const MOON_LARGE = [
-  '        ████████        ',
-  '     ██████████████     ',
-  '   ██████████████████   ',
-  '  ████████████████████  ',
-  '   ██████████████████   ',
-  '     ██████████████     ',
-  '        ████████        ',
+/**
+ * Large Liora monogram — stylized "S" crest (SuperLiora), not a circular moon.
+ * Drawn with the active theme glow / primary gradient.
+ */
+export const LIORA_MARK_LARGE = [
+  '     █████████████     ',
+  '   ███           ███   ',
+  '   ███                 ',
+  '    █████████████      ',
+  '               ███     ',
+  '   ███           ███   ',
+  '     █████████████     ',
 ] as const;
 
-/** Compact moon glyph (5 rows) for narrow or short stages. */
-export const MOON_COMPACT = [
-  '   ██████   ',
+/** Compact Liora monogram (5 rows) for narrow or short stages. */
+export const LIORA_MARK_COMPACT = [
   ' ██████████ ',
-  '████████████',
+  '███         ',
+  ' █████████  ',
+  '         ███',
   ' ██████████ ',
-  '   ██████   ',
 ] as const;
+
+/** @deprecated Prefer LIORA_MARK_LARGE */
+export const MOON_LARGE = LIORA_MARK_LARGE;
+/** @deprecated Prefer LIORA_MARK_COMPACT */
+export const MOON_COMPACT = LIORA_MARK_COMPACT;
 
 export const STAR_GLYPHS = ['.', '·', '˚', '✦', '✧', '⋆', '+', '*'] as const;
 
-/** Pick the largest moon that fits the stage budget. */
-export function resolveMoonGlyphRows(width: number, availableRows: number): readonly string[] {
+/** Pick the largest Liora mark that fits the stage budget. */
+export function resolveMarkGlyphRows(width: number, availableRows: number): readonly string[] {
   const safeWidth = Math.max(0, Math.trunc(width));
   const rows = Math.max(0, Math.trunc(availableRows));
-  if (safeWidth >= 40 && rows >= MOON_LARGE.length) return MOON_LARGE;
-  if (rows >= MOON_COMPACT.length) return MOON_COMPACT;
-  // Last resort: top slice of compact moon (still ≥1 row when rows > 0).
-  return MOON_COMPACT.slice(0, Math.max(1, Math.min(MOON_COMPACT.length, rows)));
+  if (safeWidth >= 40 && rows >= LIORA_MARK_LARGE.length) return LIORA_MARK_LARGE;
+  if (rows >= LIORA_MARK_COMPACT.length) return LIORA_MARK_COMPACT;
+  // Last resort: top slice of compact mark (still ≥1 row when rows > 0).
+  return LIORA_MARK_COMPACT.slice(0, Math.max(1, Math.min(LIORA_MARK_COMPACT.length, rows)));
 }
+
+/** @deprecated Prefer resolveMarkGlyphRows */
+export const resolveMoonGlyphRows = resolveMarkGlyphRows;
 
 /**
  * Scatter twinkling stars onto a plain-space canvas.
- * Only paints over space cells so later layers (moon, meteor) stay intact
+ * Only paints over space cells so later layers (mark, meteor) stay intact
  * when callers paint stars first.
  */
 export function paintStarfield(
