@@ -2,13 +2,14 @@ import { EventEmitter } from 'node:events';
 
 import { describe, expect, it } from 'vitest';
 
-import { SUPERLIORA_CHANGELOG_URL } from '#/cli/update/plan';
 import {
   createInstallPromptChoices,
   getDefaultInstallPromptSelection,
   moveInstallPromptSelection,
   promptForInstallChoice,
 } from '#/cli/update/prompt';
+
+const CHANGELOG_URL = 'https://github.com/claudianus/superliora/releases';
 
 describe('install prompt helpers', () => {
   it('defaults the selection to "Install update now"', () => {
@@ -34,7 +35,7 @@ describe('install prompt helpers', () => {
 });
 
 describe('promptForInstallChoice', () => {
-  it('renders changelog hyperlink in the prompt output', async () => {
+  it('renders changelog hyperlink and SELECT_POINTER in the prompt output', async () => {
     const input = Object.assign(new EventEmitter(), {
       isRaw: false,
       setRawMode: () => {},
@@ -65,7 +66,9 @@ describe('promptForInstallChoice', () => {
     await promptPromise;
 
     const rendered = outputChunks.join('');
-    expect(rendered).toContain(SUPERLIORA_CHANGELOG_URL);
+    expect(rendered).toContain(CHANGELOG_URL);
     expect(rendered).toContain('View changelog');
+    expect(rendered).toContain('❯'); // SELECT_POINTER, not '?'
+    expect(rendered).not.toContain('moonshotai.github.io/kimi-code');
   });
 });

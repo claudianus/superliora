@@ -5,13 +5,8 @@ import chalk from 'chalk';
 import { PRODUCT_NAME } from '#/constant/app';
 import { t } from '#/cli/i18n';
 import { HIDE_CURSOR, SHOW_CURSOR } from '#/constant/terminal';
-import {
-  UPDATE_PROMPT_MUTED,
-  UPDATE_PROMPT_PRIMARY,
-  UPDATE_PROMPT_SUCCESS,
-  UPDATE_PROMPT_TEXT_DIM,
-  UPDATE_PROMPT_WARNING,
-} from '#/constant/update';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
+import { darkColors } from '#/tui/theme/colors';
 
 import { SUPERLIORA_CHANGELOG_URL } from './changelog';
 import { type InstallSource, type UpdateTarget } from './types';
@@ -65,19 +60,19 @@ function renderInstallPrompt(
   choices: readonly InstallPromptChoice[],
   selectedIndex: number,
 ): readonly string[] {
-  const label = chalk.hex(UPDATE_PROMPT_TEXT_DIM).bold;
-  const currentVersion = chalk.hex(UPDATE_PROMPT_WARNING).bold(options.currentVersion);
-  const targetVersion = chalk.hex(UPDATE_PROMPT_SUCCESS).bold(options.target.version);
-  const sourceLabel = chalk.hex(UPDATE_PROMPT_PRIMARY).bold(options.installSource);
-  const command = chalk.hex(UPDATE_PROMPT_PRIMARY)(options.installCommand);
-  const changelogText = chalk.hex(UPDATE_PROMPT_PRIMARY).underline(
+  const label = chalk.hex(darkColors.textDim).bold;
+  const currentVersion = chalk.hex(darkColors.warning).bold(options.currentVersion);
+  const targetVersion = chalk.hex(darkColors.success).bold(options.target.version);
+  const sourceLabel = chalk.hex(darkColors.primary).bold(options.installSource);
+  const command = chalk.hex(darkColors.primary)(options.installCommand);
+  const changelogText = chalk.hex(darkColors.primary).underline(
     t('cli.runtime.update.prompt.changelog', { url: CHANGELOG_URL }),
   );
   const lines = [
-    chalk.hex(UPDATE_PROMPT_PRIMARY).bold(
+    chalk.hex(darkColors.primary).bold(
       t('cli.runtime.update.prompt.title', { product: PRODUCT_NAME }),
     ),
-    chalk.hex(UPDATE_PROMPT_MUTED)(
+    chalk.hex(darkColors.textMuted)(
       t('cli.runtime.update.prompt.subtitle', { product: PRODUCT_NAME }),
     ),
     `]8;;${CHANGELOG_URL}\\${changelogText}]8;;\\`,
@@ -87,21 +82,20 @@ function renderInstallPrompt(
     `${label(t('cli.runtime.update.prompt.labelSource'))}  ${sourceLabel}`,
     `${label(t('cli.runtime.update.prompt.labelCommand'))}  ${command}`,
     '',
-    chalk.hex(UPDATE_PROMPT_MUTED)(t('cli.runtime.update.prompt.hints')),
+    chalk.hex(darkColors.textMuted)(t('cli.runtime.update.prompt.hints')),
     '',
   ];
 
+  const pointerPad = ' '.repeat(SELECT_POINTER.length);
   for (let i = 0; i < choices.length; i++) {
     const choice = choices[i];
     if (choice === undefined) continue;
     const isSelected = i === selectedIndex;
-    const pointer = isSelected ? '?' : ' ';
-    const content = ` ${pointer} ${choice.label}`;
     if (isSelected) {
-      lines.push(chalk.hex(UPDATE_PROMPT_PRIMARY).bold(content));
+      lines.push(chalk.hex(darkColors.primary).bold(` ${SELECT_POINTER} ${choice.label}`));
       continue;
     }
-    lines.push(chalk.hex(UPDATE_PROMPT_TEXT_DIM)(content));
+    lines.push(chalk.hex(darkColors.textDim)(` ${pointerPad} ${choice.label}`));
   }
 
   return lines;

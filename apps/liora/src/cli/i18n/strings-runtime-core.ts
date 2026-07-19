@@ -160,6 +160,8 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.upgrade.checkFailed': 'error: failed to check for updates: {reason}',
   'cli.runtime.upgrade.alreadyUpToDate':
     '{product} is already up to date ({version}).',
+  'cli.runtime.upgrade.alreadyInstalling':
+    'An update install is already in progress ({version}).',
   'cli.runtime.upgrade.githubCheckFailed':
     'error: failed to check the GitHub checkout for updates: {reason}',
   'cli.runtime.upgrade.githubAlreadyUpToDate':
@@ -371,6 +373,8 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.upgrade.checkFailed': '오류: 업데이트 확인 실패: {reason}',
   'cli.runtime.upgrade.alreadyUpToDate':
     '{product}은(는) 이미 최신입니다 ({version}).',
+  'cli.runtime.upgrade.alreadyInstalling':
+    '업데이트 설치가 이미 진행 중입니다 ({version}).',
   'cli.runtime.upgrade.githubCheckFailed':
     '오류: GitHub checkout 업데이트 확인 실패: {reason}',
   'cli.runtime.upgrade.githubAlreadyUpToDate':
