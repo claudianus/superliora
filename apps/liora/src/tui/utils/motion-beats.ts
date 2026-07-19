@@ -49,6 +49,14 @@ export interface MotionBeatController {
   clear(): void;
 }
 
+/** Matches footer theatre chrome: ultrawork or swarm-armed (`swarmMode`). */
+export function isMotionTheatreActive(state: {
+  readonly ultraworkMode?: boolean;
+  readonly swarmMode?: boolean;
+}): boolean {
+  return state.ultraworkMode === true || state.swarmMode === true;
+}
+
 export function createMotionBeatController(): MotionBeatController {
   let current: MotionBeatSnapshot | undefined;
   let lastStreamPlayMs = -Infinity;

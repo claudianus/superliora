@@ -741,15 +741,18 @@ export function renderEnterBeat(
   const plain = stripAnsiControls(title);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const w = Math.max(8, width);
+  // Narrow terminals: keep a single title line (no rail / extra chrome height).
+  const tiny = width < 40;
   if (!motionEffectsAllowed() || mode === 'off') {
     return [currentTheme.boldFg('textStrong', plain)];
   }
   const p = motionProgress(startedAtMs, mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS);
-  const rail = renderParticleRail(w, appearance, `${seed}:enter`);
   const head =
     p < 0.85
       ? renderPremiumHeadline(plain, `${seed}:title`, appearance)
       : currentTheme.boldFg('textStrong', plain);
+  if (tiny) return [head];
+  const rail = renderParticleRail(w, appearance, `${seed}:enter`);
   if (p < 0.25) return [currentTheme.dim(rail)];
   if (p < 0.5) return [currentTheme.dim(rail), head];
   if (p < 0.85) return [head, currentTheme.dim(rail)];
@@ -767,12 +770,17 @@ export function renderExitBeat(
   const plain = stripAnsiControls(title);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const w = Math.max(8, width);
+  const tiny = width < 40;
   if (!motionEffectsAllowed() || mode === 'off') {
     return [currentTheme.fg('success', plain)];
   }
   const p = motionProgress(startedAtMs, mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS);
-  const rail = renderParticleRail(w, appearance, `${seed}:exit`);
   const head = renderPulseText(plain, `${seed}:exit-title`, 'success', appearance);
+  if (tiny) {
+    if (p < 0.65) return [head];
+    return [currentTheme.fg('success', plain)];
+  }
+  const rail = renderParticleRail(w, appearance, `${seed}:exit`);
   if (p < 0.3) return [head, currentTheme.dim(rail)];
   if (p < 0.65) return [head];
   return [currentTheme.fg('success', plain)];

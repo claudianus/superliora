@@ -28,19 +28,18 @@ import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
+import { isMotionTheatreActive } from '../utils/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { loadPreflightHumanWriting } from './preflight';
 import type { SlashCommandHost } from './dispatch';
 
 function playStatusOpenBeat(host: SlashCommandHost, title: string, seed: string): void {
-  const theatreActive =
-    host.state.appState.ultraworkMode === true || host.state.appState.swarmMode === true;
   host.motionBeats.play({
     name: 'status_open',
     seed,
     title,
     nowMs: appearanceAnimationNow(),
-    theatreActive,
+    theatreActive: isMotionTheatreActive(host.state.appState),
   });
 }
 

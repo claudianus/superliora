@@ -649,6 +649,8 @@ export class FooterComponent implements Component {
       activeBeat?.name === 'session_resume' ? activeBeat : undefined;
 
     // Short enter beat while session_resume is live (after replay/resume start).
+    // Always keep footer at 2 lines — use the last beat line only (tiny widths
+    // already skip rail extras inside renderEnterBeat).
     if (resumeBeat !== undefined && this.transientHint === null) {
       const hintWidth = Math.max(8, width - contextWidth - 1);
       const beatLines = renderEnterBeat(
@@ -658,17 +660,12 @@ export class FooterComponent implements Component {
         resumeBeat.startedAtMs,
         appearance,
       );
-      const out: string[] = [truncateToWidth(line1, width)];
-      for (let i = 0; i < beatLines.length; i++) {
-        const beatLine = beatLines[i] ?? '';
-        if (i === beatLines.length - 1) {
-          const pad = Math.max(0, width - visibleWidth(beatLine) - contextWidth);
-          out.push(truncateToWidth(beatLine + ' '.repeat(pad) + contextText, width));
-        } else {
-          out.push(truncateToWidth(beatLine, width));
-        }
-      }
-      return out;
+      const beatLine = beatLines[beatLines.length - 1] ?? '';
+      const pad = Math.max(0, width - visibleWidth(beatLine) - contextWidth);
+      return [
+        truncateToWidth(line1, width),
+        truncateToWidth(beatLine + ' '.repeat(pad) + contextText, width),
+      ];
     }
 
     let line2: string;

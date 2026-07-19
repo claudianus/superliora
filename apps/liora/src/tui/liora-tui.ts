@@ -168,7 +168,7 @@ import {
   requestTUILayoutRender,
   requestTUIScrollRender,
 } from './utils/frame-render';
-import { createMotionBeatController } from './utils/motion-beats';
+import { createMotionBeatController, isMotionTheatreActive } from './utils/motion-beats';
 import { pickForegroundTasks } from './utils/foreground-task';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
@@ -287,7 +287,7 @@ export class LioraTUI {
   readonly options: LioraTUIOptions;
   session: Session | undefined;
   state: TUIState;
-  /** Thin transition-beat queue; Task 9 owns theatreActive consistency/changeset. */
+  /** Thin transition-beat queue shared by harness enter/exit moments. */
   readonly motionBeats = createMotionBeatController();
   private readonly approvalController = new ApprovalController();
   private readonly questionController = new QuestionController();
@@ -1699,8 +1699,7 @@ export class LioraTUI {
     Object.assign(this.state.appState, patch);
     if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
     if ('appearance' in patch) this.appearanceController.apply();
-    const theatreActive =
-      this.state.appState.ultraworkMode === true || this.state.appState.swarmMode === true;
+    const theatreActive = isMotionTheatreActive(this.state.appState);
     for (const beat of modeBeats) {
       const planBeat = beat.name === 'plan_enter' || beat.name === 'plan_exit';
       this.motionBeats.play({
@@ -2706,8 +2705,7 @@ export class LioraTUI {
           seed: 'thinking',
           title: 'Thinking',
           nowMs: appearanceAnimationNow(),
-          theatreActive:
-            this.state.appState.ultraworkMode === true || this.state.appState.swarmMode === true,
+          theatreActive: isMotionTheatreActive(this.state.appState),
         });
         break;
       }

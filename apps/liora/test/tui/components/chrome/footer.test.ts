@@ -183,6 +183,28 @@ describe('FooterComponent tip crossfade', () => {
     }
   });
 
+  it('keeps session_resume enter beat at two footer lines', () => {
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    const footer = new FooterComponent({
+      ...appState,
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      },
+    });
+    footer.setMotionBeatSource(() => ({
+      name: 'session_resume',
+      seed: 'resume',
+      title: 'Resuming session',
+      startedAtMs: Date.now() - 200,
+      kind: 'enter',
+    }));
+    const lines = footer.render(120);
+    expect(lines).toHaveLength(2);
+    expect(strip(lines.join('\n'))).toMatch(/Resuming/i);
+  });
+
   it('crossfades rotating tips instead of hard-swapping under premium', () => {
     const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
     const footer = new FooterComponent({

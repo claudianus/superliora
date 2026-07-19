@@ -302,6 +302,16 @@ describe('premium motion vocabulary', () => {
     expect(frames.size).toBeGreaterThanOrEqual(4);
   });
 
+  it('renderEnterBeat/renderExitBeat stay single-line when width < 40', () => {
+    const start = Date.now();
+    for (let t = 0; t <= 720; t += 80) {
+      vi.setSystemTime(start + t);
+      advanceAppearanceAnimationClock(Date.now());
+      expect(renderEnterBeat('Status', 32, 'beat:status', start, premium)).toHaveLength(1);
+      expect(renderExitBeat('Done', 32, 'beat:done', start, premium)).toHaveLength(1);
+    }
+  });
+
   it('renderSettleFlash returns static bold text when profile is off', () => {
     const off = { ...premium, profile: 'off' as const, particles: 'off' as const };
     const start = Date.now();

@@ -57,7 +57,7 @@ import type { TUIState } from '../tui-state';
 import { autoResumeUltraworkFromSession } from '../commands/ultrawork';
 import type { SlashCommandHost } from '../commands/dispatch';
 import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
-import type { MotionBeatController } from '#/tui/utils/motion-beats';
+import { isMotionTheatreActive, type MotionBeatController } from '#/tui/utils/motion-beats';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
@@ -107,9 +107,7 @@ export class SessionReplayRenderer {
       title: 'Resuming session',
       seed: 'resume',
       nowMs: appearanceAnimationNow(),
-      theatreActive:
-        this.host.state.appState.ultraworkMode === true ||
-        this.host.state.appState.swarmMode === true,
+      theatreActive: isMotionTheatreActive(this.host.state.appState),
     });
     try {
       const main = session.getResumeState()?.agents['main'];

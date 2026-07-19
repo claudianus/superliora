@@ -13,7 +13,7 @@ import { STREAMING_UI_FLUSH_MS } from '../constant/streaming';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
-import type { MotionBeatController } from '../utils/motion-beats';
+import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import { notifyUserAttentionOnce } from '../utils/terminal-notification';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { TodoItem } from '../components/chrome/todo-panel';
@@ -700,8 +700,7 @@ export class StreamingUIController {
           title: toolName,
           nowMs: appearanceAnimationNow(),
           streamThrottle: true,
-          theatreActive:
-            state.appState.ultraworkMode === true || state.appState.swarmMode === true,
+          theatreActive: isMotionTheatreActive(state.appState),
         });
       }
       requestTUIContentRender(state);
@@ -758,8 +757,7 @@ export class StreamingUIController {
       seed: 'compaction',
       title: options?.background === true ? 'Compacting context (bg)' : 'Compacting context',
       nowMs: appearanceAnimationNow(),
-      theatreActive:
-        state.appState.ultraworkMode === true || state.appState.swarmMode === true,
+      theatreActive: isMotionTheatreActive(state.appState),
     });
     requestTUILayoutRender(state);
   }
@@ -779,8 +777,7 @@ export class StreamingUIController {
       seed: 'compaction',
       title: tokenDelta,
       nowMs: appearanceAnimationNow(),
-      theatreActive:
-        state.appState.ultraworkMode === true || state.appState.swarmMode === true,
+      theatreActive: isMotionTheatreActive(state.appState),
     });
     requestTUILayoutRender(state);
   }

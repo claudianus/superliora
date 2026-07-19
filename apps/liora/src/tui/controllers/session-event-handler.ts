@@ -58,7 +58,7 @@ import {
 } from '../utils/attention-notifications';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { buildGoalCompletionMessage } from '../utils/goal-completion';
-import type { MotionBeatController } from '../utils/motion-beats';
+import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import {
   argsRecord,
   formatErrorPayload,
@@ -864,8 +864,7 @@ export class SessionEventHandler {
         seed: `goal:${event.snapshot.goalId}`,
         title: 'Goal complete',
         nowMs: appearanceAnimationNow(),
-        theatreActive:
-          state.appState.ultraworkMode === true || state.appState.swarmMode === true,
+        theatreActive: isMotionTheatreActive(state.appState),
       });
       this.host.appendTranscriptEntry({
         id: nextTranscriptId(),

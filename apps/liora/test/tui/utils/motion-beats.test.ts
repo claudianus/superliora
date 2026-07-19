@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { createMotionBeatController } from '#/tui/utils/motion-beats';
+import {
+  createMotionBeatController,
+  isMotionTheatreActive,
+} from '#/tui/utils/motion-beats';
 
 describe('motion-beats', () => {
+  it('treats mode_enter as enter and mode_exit as exit', () => {
+    const c = createMotionBeatController();
+    expect(
+      c.play({ name: 'mode_enter', seed: 'mode:yolo', title: 'yolo', nowMs: 0 }),
+    ).toMatchObject({ name: 'mode_enter', kind: 'enter' });
+    expect(
+      c.play({ name: 'mode_exit', seed: 'mode:yolo', title: 'yolo', nowMs: 50 }),
+    ).toMatchObject({ name: 'mode_exit', kind: 'exit' });
+    expect(c.active(100)?.name).toBe('mode_exit');
+    expect(c.active(800)).toBeUndefined();
+  });
+
+  it('isMotionTheatreActive matches ultrawork or swarm-armed', () => {
+    expect(isMotionTheatreActive({ ultraworkMode: true, swarmMode: false })).toBe(true);
+    expect(isMotionTheatreActive({ ultraworkMode: false, swarmMode: true })).toBe(true);
+    expect(isMotionTheatreActive({ ultraworkMode: false, swarmMode: false })).toBe(false);
+  });
+
   it('keeps only one transition beat (replace)', () => {
     const c = createMotionBeatController();
     c.play({ name: 'compaction_start', seed: 'a', title: 'A', nowMs: 0 });
