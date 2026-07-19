@@ -530,7 +530,11 @@ describe('runUpdatePreflight', () => {
     mocks.readUpdateInstallState.mockResolvedValue(installState());
     mocks.detectSuperLioraGithubCheckout.mockResolvedValue('/repo/superliora');
     mocks.detectInstallSource.mockResolvedValue('github-checkout');
-    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({ version: 'origin/main@abcdef123456' });
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({
+      status: 'update',
+      dirty: false,
+      target: { version: 'origin/main@abcdef123456', repoRoot: '/repo/superliora', upstream: 'origin/main' },
+    });
     mockSpawnExit(0);
     const { options } = captureOutput();
 
@@ -565,7 +569,11 @@ describe('runUpdatePreflight', () => {
     disableAutoInstall();
     mocks.detectSuperLioraGithubCheckout.mockResolvedValue('/repo/superliora');
     mocks.detectInstallSource.mockResolvedValue('github-checkout');
-    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({ version: 'origin/main@abcdef123456' });
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({
+      status: 'update',
+      dirty: false,
+      target: { version: 'origin/main@abcdef123456', repoRoot: '/repo/superliora', upstream: 'origin/main' },
+    });
     mocks.promptForInstallChoice.mockResolvedValue('install');
     mockSpawnExit(0);
     const { stdout, options } = captureOutput();
@@ -576,7 +584,11 @@ describe('runUpdatePreflight', () => {
       expect.objectContaining({
         installCommand: expect.stringContaining('git -C'),
         installSource: 'github-checkout',
-        target: { version: 'origin/main@abcdef123456' },
+        target: {
+          version: 'origin/main@abcdef123456',
+          repoRoot: '/repo/superliora',
+          upstream: 'origin/main',
+        },
       }),
     );
     expect(mocks.spawn).toHaveBeenCalledWith(
@@ -590,7 +602,11 @@ describe('runUpdatePreflight', () => {
   it('github-checkout: prints the manual update command on win32', async () => {
     mocks.detectSuperLioraGithubCheckout.mockResolvedValue('/repo/superliora');
     mocks.detectInstallSource.mockResolvedValue('github-checkout');
-    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({ version: 'origin/main@abcdef123456' });
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({
+      status: 'update',
+      dirty: false,
+      target: { version: 'origin/main@abcdef123456', repoRoot: '/repo/superliora', upstream: 'origin/main' },
+    });
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32' });
     try {

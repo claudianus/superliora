@@ -733,7 +733,11 @@ export async function runUpdatePreflight(
       isInteractive ? await detectSuperLioraGithubCheckout().catch(() => null) : null;
     if (githubCheckoutRoot !== null) {
       const source: InstallSource = 'github-checkout';
-      const target = await refreshGitCheckoutUpdateTarget(githubCheckoutRoot).catch(() => null);
+      const refreshResult = await refreshGitCheckoutUpdateTarget(githubCheckoutRoot).catch(
+        () => null,
+      );
+      // temporary shim until Task 2/3 lands structured handling
+      const target = refreshResult?.status === 'update' ? refreshResult.target : null;
       if (target === null) return 'continue';
       const rolloutTelemetry = {
         rollout_bucket: 0,

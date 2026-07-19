@@ -320,7 +320,12 @@ function createDefaultUpgradeDeps(overrides: Partial<UpgradeDeps>): UpgradeDeps 
     refreshUpdateCache: overrides.refreshUpdateCache ?? (() => refreshUpdateCache()),
     detectInstallSource: overrides.detectInstallSource ?? (() => detectInstallSource()),
     refreshGitCheckoutUpdateTarget:
-      overrides.refreshGitCheckoutUpdateTarget ?? (() => refreshGitCheckoutUpdateTarget()),
+      overrides.refreshGitCheckoutUpdateTarget ??
+      (async () => {
+        const result = await refreshGitCheckoutUpdateTarget();
+        if (result.status === 'update') return result.target;
+        return null; // temporary shim until Task 2/3 lands structured handling
+      }),
     installUpdate: overrides.installUpdate ?? installUpdateForeground,
     promptForInstallChoice: overrides.promptForInstallChoice ?? promptForInstallChoice,
     platform: overrides.platform ?? process.platform,
