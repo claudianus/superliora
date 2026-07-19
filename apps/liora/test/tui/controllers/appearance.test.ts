@@ -211,13 +211,22 @@ describe('AppearanceController', () => {
         backpressure: false,
       }),
     ).toBe(33);
+    // animationFps 30 → premium 33ms; soft-degrade is 2× (66ms), not subtle 100ms.
     expect(
       options?.resolveIntervalMs({
         quality: 'full',
         health: 'watch',
         backpressure: false,
       }),
-    ).toBe(100);
+    ).toBe(66);
+    // Balanced quality must not pin ambient to the slow subtle cadence.
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'balanced',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    ).toBe(33);
     controller.dispose();
     expect(setAmbientSchedule).toHaveBeenLastCalledWith(undefined);
   });

@@ -55,15 +55,16 @@ describe('premium ambient cadence', () => {
     expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'healthy')).toBe(33);
   });
 
-  it('soft-degrades premium ambient cadence under watch/degraded health', () => {
+  it('soft-degrades premium ambient cadence mildly under watch/degraded health', () => {
     const premium = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
       particles: 'premium' as const,
       animationFps: 120,
     };
-    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'watch')).toBe(100);
-    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'degraded')).toBe(100);
+    // appearance maps degraded→watch; soft floor is ~33ms, not subtle 100ms.
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'watch')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'degraded')).toBe(33);
   });
 
   it('keeps subtle ambient slower than premium cinematic floor', () => {

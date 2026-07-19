@@ -96,7 +96,10 @@ export function rendererAmbientShouldSoftDegrade(options: {
   const quality = options.quality ?? 'full';
   const health = options.health ?? 'healthy';
   if (options.backpressure === true) return true;
-  if (quality !== 'full') return true;
+  // Only minimal quality (not balanced) — letterbox ambient routinely trips
+  // adaptive quality to balanced, and treating that as soft-degrade pinned
+  // premium motion at subtle cadence (~10fps).
+  if (quality === 'minimal') return true;
   if (health === 'watch' || health === 'degraded') return true;
   return false;
 }
@@ -106,8 +109,10 @@ export function rendererAmbientIntervalMs(options: RendererAmbientIntervalOption
   const premiumMs = normalizeAmbientMs(options.premiumMs, RENDERER_AMBIENT_PREMIUM_MS);
   const subtleMs = normalizeAmbientMs(options.subtleMs, RENDERER_AMBIENT_SUBTLE_MS);
   if (options.requested === 'subtle') return subtleMs;
-  // premium
-  if (rendererAmbientShouldSoftDegrade(options)) return subtleMs;
+  // premium — soft-degrade to ~2× premium (floor 33ms), not a jump to subtleMs.
+  if (rendererAmbientShouldSoftDegrade(options)) {
+    return Math.min(subtleMs, Math.max(premiumMs * 2, 33));
+  }
   return premiumMs;
 }
 
