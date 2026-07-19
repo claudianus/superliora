@@ -79,7 +79,7 @@ export class UpgradeDialogComponent extends Container implements Focusable {
       );
     }
     body.push(currentTheme.fg('textMuted', ' Source ') + currentTheme.fg('text', `  ${plan.source}`));
-    if (plan.reason === 'update-available' && !plan.canAutoInstall) {
+    if (shouldShowManualCommand(plan)) {
       body.push(
         currentTheme.fg('textMuted', ' Command') + currentTheme.fg('primary', `  ${plan.installCommand}`),
       );
@@ -136,6 +136,17 @@ function actionsForPlan(plan: UpgradePlan): readonly DialogAction[] {
     return [{ value: 'later', label: 'Later' }];
   }
   return [{ value: 'later', label: 'Dismiss' }];
+}
+
+/** Manual recovery command for blocked / unsafe / non-auto-installable plans. */
+function shouldShowManualCommand(plan: UpgradePlan): boolean {
+  if (plan.canAutoInstall) return false;
+  return (
+    plan.reason === 'update-available'
+    || plan.reason === 'diverged'
+    || plan.reason === 'unsupported'
+    || plan.reason === 'check-failed'
+  );
 }
 
 function statusLines(plan: UpgradePlan): readonly { readonly text: string; readonly tone: 'text' | 'success' | 'warning' | 'error' | 'textMuted' }[] {

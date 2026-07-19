@@ -84,6 +84,7 @@ describe('UpgradeDialogComponent', () => {
         source: 'github-checkout',
         dirty: true,
         canAutoInstall: false,
+        installCommand: "bash -lc 'set -e; git pull'",
       }),
       onSelect: vi.fn(),
       onCancel: vi.fn(),
@@ -92,6 +93,27 @@ describe('UpgradeDialogComponent', () => {
     const out = text(dialog);
     expect(out.toLowerCase()).toContain('dirty');
     expect(out.toLowerCase()).toMatch(/blocked|cannot install|install is blocked/);
+    expect(out).toContain("bash -lc 'set -e; git pull'");
+  });
+
+  it('shows the manual command for diverged checkouts', () => {
+    const dialog = new UpgradeDialogComponent({
+      plan: plan({
+        source: 'github-checkout',
+        reason: 'diverged',
+        target: null,
+        canAutoInstall: false,
+        installCommand: "bash -lc 'set -e; git pull'",
+        errorMessage: 'Git checkout has diverged from origin/main',
+      }),
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const out = text(dialog);
+    expect(out).toContain('diverged');
+    expect(out).toContain("bash -lc 'set -e; git pull'");
+    expect(out).toMatch(/❯ Dismiss/);
   });
 
   it('dismisses up-to-date with Enter or Esc', () => {
@@ -144,12 +166,15 @@ describe('UpgradeDialogComponent', () => {
         reason: 'diverged',
         target: null,
         canAutoInstall: false,
+        installCommand: "bash -lc 'set -e; git pull'",
         errorMessage: 'Git checkout has diverged from origin/main',
       }),
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
-    expect(text(diverged)).toContain('diverged');
+    const divergedOut = text(diverged);
+    expect(divergedOut).toContain('diverged');
+    expect(divergedOut).toContain("bash -lc 'set -e; git pull'");
 
     const failed = new UpgradeDialogComponent({
       plan: plan({
@@ -161,7 +186,9 @@ describe('UpgradeDialogComponent', () => {
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
-    expect(text(failed)).toContain('network down');
+    const failedOut = text(failed);
+    expect(failedOut).toContain('network down');
+    expect(failedOut).toContain('npm install -g @superliora/liora@0.5.0');
   });
 
   it('cancels with Esc from the install list', () => {

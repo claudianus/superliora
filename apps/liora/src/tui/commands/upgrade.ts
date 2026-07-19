@@ -58,6 +58,21 @@ export async function handleUpgradeCommand(
               if (stage === 'done' || stage === 'failed') {
                 lastTerminalStage = stage;
               }
+              if (stage === 'done') {
+                host.showStatus(
+                  'Upgrade complete. Restart SuperLiora to use the new version.',
+                  'success',
+                );
+                return;
+              }
+              if (stage === 'failed') {
+                const reason = detail?.trim() || 'install failed';
+                host.showStatus(
+                  `Upgrade failed: ${reason}. Run: ${plan.installCommand}`,
+                  'error',
+                );
+                return;
+              }
               host.showStatus(`Upgrade: ${stage}${detail ? ` — ${detail}` : ''}`);
             },
           });

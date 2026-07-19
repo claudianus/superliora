@@ -1443,4 +1443,38 @@ describe('upgrade install stages', () => {
       vi.useRealTimers();
     }
   });
+
+  it('passes a short stderr summary into the failed stage', async () => {
+    const events: Array<{ stage: string; detail?: string }> = [];
+    const child = createPipedChild();
+    const spawn = vi.fn(() => child);
+
+    await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.4.0',
+        targetVersion: '0.5.0',
+        source: 'npm-global',
+        platform: 'darwin',
+        onStage: (stage, detail) => { events.push({ stage, detail }); },
+      },
+      {
+        spawn: spawn as unknown as typeof import('node:child_process').spawn,
+        tryAcquireUpdateInstallLock: async () => ({
+          filePath: '/tmp/liora-update-install.lock',
+          release: vi.fn().mockResolvedValue(undefined),
+        }),
+        readUpdateInstallState: async () => emptyUpdateInstallState(),
+        writeUpdateInstallState: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    child.stderr.emit('data', Buffer.from('npm ERR! code EACCES\n'));
+    child.stderr.emit('data', Buffer.from('npm ERR! permission denied\n'));
+    child.emit('exit', 1, null);
+
+    const failed = events.find((event) => event.stage === 'failed');
+    expect(failed).toBeDefined();
+    expect(failed?.detail).toContain('permission denied');
+    expect(failed?.detail).toContain('EACCES');
+  });
 });

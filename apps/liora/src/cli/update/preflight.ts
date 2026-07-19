@@ -652,6 +652,23 @@ export async function startObservedUpgradeInstall(
     let settled = false;
     let installingEmitted = source === 'github-checkout';
     let installingTimer: ReturnType<typeof setTimeout> | undefined;
+    const stderrLines: string[] = [];
+    const stdoutLines: string[] = [];
+
+    const rememberOutputLine = (line: string, fromStderr: boolean): void => {
+      const trimmed = line.trim();
+      if (trimmed.length === 0 || parseUpgradeStageLine(trimmed) !== null) return;
+      const buf = fromStderr ? stderrLines : stdoutLines;
+      buf.push(trimmed);
+      if (buf.length > 8) buf.shift();
+    };
+
+    const failureDetail = (): string | undefined => {
+      const lines = stderrLines.length > 0 ? stderrLines : stdoutLines;
+      if (lines.length === 0) return undefined;
+      const summary = lines.slice(-2).join(' · ');
+      return summary.length > 160 ? `${summary.slice(0, 157)}…` : summary;
+    };
 
     const finish = (succeeded: boolean): void => {
       if (settled) return;
@@ -660,7 +677,11 @@ export async function startObservedUpgradeInstall(
         clearTimeout(installingTimer);
         installingTimer = undefined;
       }
-      emitStage(onStage, succeeded ? 'done' : 'failed');
+      if (succeeded) {
+        emitStage(onStage, 'done');
+      } else {
+        emitStage(onStage, 'failed', failureDetail());
+      }
 
       const attempts = failureAttemptsFor(startedState, target) + 1;
       const nextState: UpdateInstallState = succeeded
@@ -697,10 +718,20 @@ export async function startObservedUpgradeInstall(
       emitStage(onStage, 'installing');
     };
 
-    const handleOutputLine = (line: string): void => {
+    const handleOutputLine = (line: string, fromStderr: boolean): void => {
+      rememberOutputLine(line, fromStderr);
       const stage = parseUpgradeStageLine(line);
       if (stage !== null) {
         if (stage === 'installing') installingEmitted = true;
+        // Prefer captured stderr/stdout summary for terminal failed; markers are noisy.
+        if (stage === 'failed') {
+          emitStage(onStage, stage, failureDetail());
+          return;
+        }
+        if (stage === 'done') {
+          emitStage(onStage, stage);
+          return;
+        }
         emitStage(onStage, stage, line.trim());
         return;
       }
@@ -720,9 +751,15 @@ export async function startObservedUpgradeInstall(
       }, 50);
     }
 
-    attachStageLineReader(child.stdout, handleOutputLine);
-    attachStageLineReader(child.stderr, handleOutputLine);
-    child.once('error', () => { finish(false); });
+    attachStageLineReader(child.stdout, (line) => { handleOutputLine(line, false); });
+    attachStageLineReader(child.stderr, (line) => { handleOutputLine(line, true); });
+    child.once('error', (err: Error) => {
+      if (typeof err.message === 'string' && err.message.length > 0) {
+        stderrLines.push(err.message);
+        if (stderrLines.length > 8) stderrLines.shift();
+      }
+      finish(false);
+    });
     child.once('exit', (code) => { finish(code === 0); });
 
     return { started: true };

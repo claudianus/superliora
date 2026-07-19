@@ -121,9 +121,43 @@ describe('upgrade slash command', () => {
     onStage!('done');
     onStage!('done');
     const doneCalls = showStatus.mock.calls.filter((call) =>
-      String(call[0]).includes('Upgrade: done'),
+      String(call[0]).includes('Restart SuperLiora'),
     );
     expect(doneCalls).toHaveLength(1);
+    expect(doneCalls[0]).toEqual([
+      'Upgrade complete. Restart SuperLiora to use the new version.',
+      'success',
+    ]);
+  });
+
+  it('surfaces failed stage detail and manual install command', async () => {
+    const showStatus = vi.fn();
+    const host = createHost({ showStatus });
+    let onStage: ((stage: UpgradeInstallStage, detail?: string) => void) | undefined;
+    const resolved = plan();
+
+    const pending = handleUpgradeCommand(host, {
+      resolveUpgradePlan: async () => resolved,
+      getCurrentVersion: () => '0.4.0',
+      startObservedUpgradeInstall: async (options) => {
+        onStage = options.onStage;
+        return { started: true };
+      },
+    });
+
+    const dialog = await waitForDialog(host);
+    dialog.handleInput('\r');
+    await pending;
+
+    onStage!('failed', 'npm ERR! EACCES');
+    onStage!('failed', 'npm ERR! EACCES');
+    const failedCalls = showStatus.mock.calls.filter((call) =>
+      String(call[0]).includes('Upgrade failed'),
+    );
+    expect(failedCalls).toHaveLength(1);
+    expect(failedCalls[0]?.[0]).toContain('npm ERR! EACCES');
+    expect(failedCalls[0]?.[0]).toContain(resolved.installCommand);
+    expect(failedCalls[0]?.[1]).toBe('error');
   });
 
   it('reports lock-held when install cannot start', async () => {
