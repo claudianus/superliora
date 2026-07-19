@@ -69,6 +69,7 @@ import {
   shouldAutoActivateUltrawork,
 } from './ultrawork';
 import { handleUndoCommand } from './undo';
+import { handleUpgradeCommand } from './upgrade';
 
 // ---------------------------------------------------------------------------
 // Re-exports — keep existing consumers working
@@ -351,6 +352,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'status':
       void showStatusReport(host);
+      return;
+    case 'upgrade':
+      await handleUpgradeCommand(host);
       return;
     case 'context':
       void showContextOsReport(host, args);
