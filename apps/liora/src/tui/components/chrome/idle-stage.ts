@@ -176,6 +176,7 @@ export function renderIdleStageLines(
       gradientEnd: palette.gradientEnd,
       roleUser: palette.roleUser,
       shellMode: palette.shellMode,
+      success: palette.success,
     },
     themeMode: options?.themeMode,
     sim: options?.sim,
