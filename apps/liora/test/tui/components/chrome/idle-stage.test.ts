@@ -308,6 +308,28 @@ describe('idle-stage helpers', () => {
     }
   });
 
+  it('keeps water background under chalk-colored plant padding spaces', () => {
+    const width = 40;
+    const rows = 8;
+    const canvas = Array.from({ length: rows }, () => ' '.repeat(width));
+    paintWaterDepth(
+      canvas,
+      width,
+      rows,
+      (hex, text) => chalk.hex(hex)(text),
+      '#0E7490',
+      '#155E75',
+      '#083344',
+      '#061A3A',
+    );
+    // Plant glyphs often ship as chalk.fg(' (~~) ') — spaces carry fg, not bg.
+    blitAt(canvas, [chalk.hex('#22C55E')(' )~~( ')], 4, 8, width);
+    const cells = ansiTextToCells(canvas[4] ?? '');
+    const plantBand = cells.slice(8, 14);
+    expect(plantBand.length).toBe(6);
+    expect(plantBand.every((c) => c.style?.bg !== undefined)).toBe(true);
+  });
+
   it('keeps aquascape markers without mid-water particle soup', () => {
     withAmbientEnv(() => {
       const width = 80;
