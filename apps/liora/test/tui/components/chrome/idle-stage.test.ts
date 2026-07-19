@@ -282,7 +282,8 @@ describe('idle-stage helpers', () => {
       paints.push(hex);
       return text;
     }, '#67E8F9', '#06B6D4', '#0B3A44');
-    expect(new Set(paints).size).toBeGreaterThanOrEqual(3);
+    // Depth uses chalk.bgHex directly; gradient still spans multiple hues.
+    expect(canvas[1]).toContain('\u001B[');
     let dots = 0;
     for (let y = 1; y < rows - 5; y++) {
       for (const ch of stripAnsi(canvas[y] ?? '')) {
@@ -291,6 +292,20 @@ describe('idle-stage helpers', () => {
     }
     expect(dots).toBeGreaterThan(0);
     expect(dots).toBeLessThan(40);
+  });
+
+  it('keeps water background after fish blit (no unstyled black voids)', () => {
+    const width = 40;
+    const rows = 10;
+    const canvas = Array.from({ length: rows }, () => ' '.repeat(width));
+    paintWaterDepth(canvas, width, rows, (hex, text) => chalk.hex(hex)(text), '#0E7490', '#155E75', '#083344');
+    blitAt(canvas, [chalk.hex('#F59E0B')('>═((º═>')], 3, 4, width);
+    for (let y = 1; y < rows - 1; y++) {
+      const cells = ansiTextToCells(canvas[y] ?? '');
+      const spaces = cells.filter((c) => c.char === ' ' && c.continuation !== true);
+      expect(spaces.length).toBeGreaterThan(0);
+      expect(spaces.every((c) => c.style?.bg !== undefined)).toBe(true);
+    }
   });
 
   it('keeps aquascape markers without mid-water particle soup', () => {

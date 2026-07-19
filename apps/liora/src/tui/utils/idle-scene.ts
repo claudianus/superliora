@@ -149,7 +149,11 @@ function expandLineCells(line: string, width: number): RendererCell[] {
     cells.push(cell);
     if (cells.length >= width) break;
   }
-  while (cells.length < width) cells.push({ char: ' ' });
+  while (cells.length < width) {
+    const prev = cells[cells.length - 1];
+    const bg = prev?.style?.bg;
+    cells.push(bg === undefined ? { char: ' ' } : { char: ' ', style: { bg } });
+  }
   return cells.slice(0, width);
 }
 
@@ -157,15 +161,25 @@ function expandLineCells(line: string, width: number): RendererCell[] {
 function cellsToAnsiLine(cells: readonly RendererCell[]): string {
   const out: string[] = [];
   let activeFg: string | undefined;
+  let activeBg: string | undefined;
   for (const cell of cells) {
     const fg = cell.style?.fg;
-    if (fg !== activeFg) {
-      out.push(fg === undefined ? ANSI_RESET : styleToAnsi({ fg }));
+    const bg = cell.style?.bg;
+    if (fg !== activeFg || bg !== activeBg) {
+      if (fg === undefined && bg === undefined) {
+        out.push(ANSI_RESET);
+      } else {
+        out.push(styleToAnsi({
+          ...(fg !== undefined ? { fg } : {}),
+          ...(bg !== undefined ? { bg } : {}),
+        }));
+      }
       activeFg = fg;
+      activeBg = bg;
     }
     out.push(cell.char.length === 0 ? ' ' : cell.char);
   }
-  if (activeFg !== undefined) out.push(ANSI_RESET);
+  if (activeFg !== undefined || activeBg !== undefined) out.push(ANSI_RESET);
   return out.join('');
 }
 
@@ -190,10 +204,25 @@ export function blitAt(
       const glyph = glyphCells[x];
       if (glyph === undefined) continue;
       // Skip blank padding so we don't wipe underlying colored water/plants.
-      if (glyph.char === ' ' && glyph.style?.fg === undefined) continue;
-      cells[safeLeft + x] = glyph;
+      if (glyph.char === ' ' && glyph.style?.fg === undefined && glyph.style?.bg === undefined) {
+        continue;
+      }
+      // Keep water background under transparent fish gaps.
+      const under = cells[safeLeft + x];
+      if (
+        glyph.style?.bg === undefined &&
+        under?.style?.bg !== undefined &&
+        glyph.char !== ' '
+      ) {
+        cells[safeLeft + x] = {
+          ...glyph,
+          style: { ...glyph.style, bg: under.style.bg },
+        };
+      } else {
+        cells[safeLeft + x] = glyph;
+      }
     }
-    canvas[y] = padOrTrim(cellsToAnsiLine(cells), width);
+    canvas[y] = cellsToAnsiLine(cells);
   }
 }
 
@@ -351,8 +380,12 @@ function putCell(
   const here = cells[x]?.char ?? ' ';
   if (!force && !SOFT_CELLS.has(here)) return;
   const painted = expandLineCells(glyph, 1)[0] ?? { char: stripAnsi(glyph).slice(0, 1) || ' ' };
-  cells[x] = painted;
-  canvas[y] = padOrTrim(cellsToAnsiLine(cells), width);
+  const under = cells[x];
+  cells[x] =
+    painted.style?.bg === undefined && under?.style?.bg !== undefined
+      ? { ...painted, style: { ...painted.style, bg: under.style.bg } }
+      : painted;
+  canvas[y] = cellsToAnsiLine(cells);
 }
 
 export function resolveFishGlyphRows(
@@ -646,13 +679,14 @@ export function renderHillLine(width: number, elapsedMs: number): string {
 
 /**
  * Vertical water volume — neon sky → electric mid → abyss.
- * Sparse glyphs carry saturated color so depth reads without a soup fill.
+ * Full-width water BACKGROUND on every cell so ambient fish/plant updates
+ * never serialize mid-water as unstyled spaces (terminal black flash bands).
  */
 export function paintWaterDepth(
   canvas: string[],
   width: number,
   rows: number,
-  paint: (hex: string, text: string) => string,
+  _paint: (hex: string, text: string) => string,
   sky: string,
   mid: string,
   deep: string,
@@ -671,14 +705,19 @@ export function paintWaterDepth(
           : mixHexColor(deep, bottom, (t - 0.62) / 0.38);
     // Upper: airy. Mid: body. Deep: thicker volume.
     const chance = t < 0.3 ? 3 : t < 0.55 ? 8 : t < 0.75 ? 16 : 28;
-    const cells: string[] = [];
+    const sparkle = mixHexColor(hex, '#E0F2FE', 0.45);
+    let painted = '';
     for (let x = 0; x < width; x++) {
       const n = hash2(x * 17 + 3, y * 29 + 7) % 100;
-      if (n < chance) cells.push(t > 0.65 ? '˙' : '·');
-      else if (n < chance + (t > 0.7 ? 5 : 1)) cells.push(t > 0.5 ? '˚' : '·');
-      else cells.push(' ');
+      let ch = ' ';
+      if (n < chance) ch = t > 0.65 ? '˙' : '·';
+      else if (n < chance + (t > 0.7 ? 5 : 1)) ch = t > 0.5 ? '˚' : '·';
+      painted +=
+        ch === ' '
+          ? `${styleToAnsi({ bg: hex })} ${ANSI_RESET}`
+          : `${styleToAnsi({ fg: sparkle, bg: hex })}${ch}${ANSI_RESET}`;
     }
-    canvas[y] = padOrTrim(paint(hex, cells.join('')), width);
+    canvas[y] = painted;
   }
 }
 
@@ -1288,9 +1327,12 @@ export function paintIdleStoryScene(options: {
             : ch === '~'
               ? palette.water
               : mixHexColor(palette.water, palette.waterSoft, 0.4);
-        painted += paint(hex, ch);
+        painted += `${styleToAnsi({
+          fg: mixHexColor(hex, '#E0F2FE', 0.55),
+          bg: hex,
+        })}${ch}${ANSI_RESET}`;
       }
-      canvas[0] = padOrTrim(painted, width);
+      canvas[0] = painted;
     }
   }
 
@@ -1300,12 +1342,14 @@ export function paintIdleStoryScene(options: {
     const bed = renderSandLine(width, elapsedMs, 1);
     let sandPainted = '';
     for (const ch of bed) {
-      sandPainted +=
-        ch === '˚'
-          ? paint(mixHexColor(palette.coral, palette.shaft, 0.45), ch)
-          : paint(palette.sand, ch);
+      const hex =
+        ch === '˚' ? mixHexColor(palette.coral, palette.shaft, 0.45) : palette.sand;
+      sandPainted += `${styleToAnsi({
+        fg: mixHexColor(hex, '#FFF7ED', 0.4),
+        bg: hex,
+      })}${ch}${ANSI_RESET}`;
     }
-    canvas[sandY] = padOrTrim(sandPainted, width);
+    canvas[sandY] = sandPainted;
   }
 
   // 3) Vertical water volume (sky → mid → abyss)
