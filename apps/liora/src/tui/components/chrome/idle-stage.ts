@@ -34,6 +34,7 @@ import {
   centerText,
   padOrTrim,
   paintIdleStoryScene,
+  resolveAquariumPalette,
   resolveFishGlyphRows,
   stripAnsi,
 } from '#/tui/utils/idle-scene';
@@ -150,6 +151,24 @@ export function renderIdleStageLines(
 
   const palette = currentTheme.palette;
   const paint = (hex: string, text: string): string => chalk.hex(hex)(text);
+  const themeMode = options?.themeMode ?? 'dark';
+  const tankPalette = resolveAquariumPalette(
+    {
+      glow: palette.glow,
+      particle: palette.particle,
+      primary: palette.primary,
+      accent: palette.accent,
+      textDim: palette.textDim,
+      textMuted: palette.textMuted,
+      gradientStart: palette.gradientStart,
+      gradientEnd: palette.gradientEnd,
+      roleUser: palette.roleUser,
+      shellMode: palette.shellMode,
+      success: palette.success,
+      surfaceSunken: palette.surfaceSunken,
+    },
+    themeMode,
+  );
 
   // Full-height plain canvas — pad-to-target is the height contract.
   const canvas: string[] = Array.from({ length: targetRows }, () => ' '.repeat(safeWidth));
@@ -181,7 +200,7 @@ export function renderIdleStageLines(
       success: palette.success,
       surfaceSunken: palette.surfaceSunken,
     },
-    themeMode: options?.themeMode,
+    themeMode,
     sim: options?.sim,
   });
 
@@ -199,7 +218,6 @@ export function renderIdleStageLines(
   const tip = tipKey === undefined ? '' : ttui(tipKey);
   const workDir = options?.workDir?.trim() ?? '';
   const fishHex = premium ? palette.glow : palette.primary;
-  const themeMode = options?.themeMode ?? 'dark';
 
   const chromeLines: string[] = [];
   chromeLines.push(
@@ -219,13 +237,10 @@ export function renderIdleStageLines(
   // Place chrome at the bottom of the canvas (pad-to-target).
   let y = targetRows - chromeLines.length;
   if (y < 0) y = 0;
-  // Fill story→chrome breathing room with abyss water — bare canvas spaces here
-  // read as solid near-black bands between the tank and the title.
+  // Fill story→chrome breathing room with theme-tinted abyss water — bare
+  // canvas spaces here read as solid near-black bands between tank and title.
   if (showAmbient && y > storyRows) {
-    const abyss =
-      themeMode === 'light'
-        ? mixHexColor(palette.surfaceSunken, palette.primary, 0.12)
-        : mixHexColor(palette.surfaceSunken, '#0A1420', 0.55);
+    const abyss = mixHexColor(palette.surfaceSunken, tankPalette.waterAbyss, 0.6);
     const gap = `${styleToAnsi({ bg: abyss })}${' '.repeat(safeWidth)}${ANSI_RESET}`;
     for (let gapY = storyRows; gapY < y; gapY++) {
       canvas[gapY] = gap;

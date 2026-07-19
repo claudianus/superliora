@@ -413,24 +413,21 @@ describe('idle-stage helpers', () => {
     expect(resolveSeaweedSpacing(30)).toBe(10);
   });
 
-  it('maps aquarium roles to a bold jewel-tank kit (not theme-token locked)', () => {
+  it('tints jewel-tank roles toward the active theme palette', () => {
     const palette = resolveAquariumPalette(darkColors, 'dark');
-    // Free of chrome role lock-in — tank may use any saturated hex.
-    expect(palette.plant).toBe(JEWEL_TANK_DARK.plant);
-    expect(palette.plantSoft).toBe(JEWEL_TANK_DARK.plantSoft);
-    expect(palette.plantAccent).toBe(JEWEL_TANK_DARK.plantAccent);
-    expect(palette.fishGold).toBe(JEWEL_TANK_DARK.fishGold);
-    expect(palette.fishSky).toBe(JEWEL_TANK_DARK.fishSky);
-    expect(palette.fishTeal).toBe(JEWEL_TANK_DARK.fishTeal);
-    expect(palette.coral).toBe(JEWEL_TANK_DARK.coral);
-    expect(palette.waterDeep).toBe(JEWEL_TANK_DARK.waterDeep);
-    expect(palette.waterAbyss).toBe(JEWEL_TANK_DARK.waterAbyss);
-    expect(palette.shaft).toBe(JEWEL_TANK_DARK.shaft);
-    expect(palette.sand).toBe(JEWEL_TANK_DARK.sand);
-    // Surface may whisper brand glow, but stays in the cyan family.
-    expect(palette.water.toLowerCase()).not.toBe(darkColors.particle.toLowerCase());
-    expect(palette.plant).not.toBe(darkColors.particle);
-    expect(palette.fishGold).not.toBe(darkColors.success);
+    // Strong theme blend — no longer locked to raw jewel hexes.
+    expect(palette.plant.toLowerCase()).not.toBe(JEWEL_TANK_DARK.plant.toLowerCase());
+    expect(palette.water.toLowerCase()).not.toBe(JEWEL_TANK_DARK.water.toLowerCase());
+    expect(palette.waterDeep.toLowerCase()).not.toBe(JEWEL_TANK_DARK.waterDeep.toLowerCase());
+    expect(palette.fishSky.toLowerCase()).not.toBe(JEWEL_TANK_DARK.fishSky.toLowerCase());
+    // Retint when primary/glow change.
+    const retinted = resolveAquariumPalette(
+      { ...darkColors, primary: '#FF2244', glow: '#FF6688', gradientStart: '#FF3366' },
+      'dark',
+    );
+    expect(retinted.water.toLowerCase()).not.toBe(palette.water.toLowerCase());
+    expect(retinted.waterDeep.toLowerCase()).not.toBe(palette.waterDeep.toLowerCase());
+    expect(retinted.fishSky.toLowerCase()).not.toBe(palette.fishSky.toLowerCase());
   });
 });
 

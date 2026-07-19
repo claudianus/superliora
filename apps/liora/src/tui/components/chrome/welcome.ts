@@ -91,7 +91,7 @@ export class WelcomeComponent implements Component {
       shouldRenderAmbientEffects(appearance) &&
       resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
     const meteorRows = showMeteors
-      ? Math.min(3, Math.max(2, Math.floor(innerWidth / 36)))
+      ? Math.min(4, Math.max(2, Math.floor(innerWidth / 28)))
       : 0;
     const meteorField =
       meteorRows > 0

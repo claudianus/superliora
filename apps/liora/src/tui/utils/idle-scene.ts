@@ -330,35 +330,42 @@ export const JEWEL_TANK_LIGHT = {
 } as const;
 
 /**
- * Resolve aquarium paint roles. Intentionally free of theme-token lock-in —
- * the idle tank is a jewel showcase, not a chrome role map.
+ * Resolve aquarium paint roles: jewel kit as structure, current theme colors as
+ * strong tint so red / blue / cyan chrome all retint the tank together.
  */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
   theme: 'dark' | 'light' = 'dark',
 ): AquariumPalette {
   const jewel = theme === 'light' ? JEWEL_TANK_LIGHT : JEWEL_TANK_DARK;
-  // Optional whisper of brand glow into the surface — never replaces jewel hues.
-  const water = mixHexColor(jewel.water, colors.glow, 0.12);
+  const gStart = colors.gradientStart ?? colors.glow;
+  const gEnd = colors.gradientEnd ?? colors.primary;
+  const plantTheme = colors.success ?? colors.accent;
+  const sunken = colors.surfaceSunken ?? jewel.waterAbyss;
+  const warm = colors.roleUser ?? colors.primary;
+  const cool = colors.shellMode ?? colors.glow;
+
   return {
-    water,
-    waterDeep: jewel.waterDeep,
-    waterSoft: jewel.waterSoft,
-    waterAbyss: jewel.waterAbyss,
-    plant: jewel.plant,
-    plantSoft: jewel.plantSoft,
-    plantAccent: jewel.plantAccent,
-    sand: jewel.sand,
-    coral: jewel.coral,
-    coralSoft: jewel.coralSoft,
-    food: jewel.food,
-    fishGold: jewel.fishGold,
-    fishSky: jewel.fishSky,
-    fishTeal: jewel.fishTeal,
-    fishSoft: jewel.fishSoft,
-    bubble: jewel.bubble,
-    shaft: jewel.shaft,
-    dim: jewel.dim,
+    // Water wash — theme glow/primary/gradient dominate; keeps depth quiet.
+    water: mixHexColor(jewel.water, colors.glow, 0.62),
+    waterSoft: mixHexColor(jewel.waterSoft, colors.primary, 0.55),
+    waterDeep: mixHexColor(jewel.waterDeep, gStart, 0.52),
+    waterAbyss: mixHexColor(jewel.waterAbyss, mixHexColor(sunken, gStart, 0.18), 0.62),
+    // Plants follow theme success/accent while staying leafy.
+    plant: mixHexColor(jewel.plant, plantTheme, 0.55),
+    plantSoft: mixHexColor(jewel.plantSoft, colors.accent, 0.48),
+    plantAccent: mixHexColor(jewel.plantAccent, colors.accent, 0.45),
+    sand: mixHexColor(jewel.sand, sunken, 0.7),
+    coral: mixHexColor(jewel.coral, warm, 0.42),
+    coralSoft: mixHexColor(jewel.coralSoft, warm, 0.35),
+    food: mixHexColor(jewel.food, warm, 0.3),
+    fishGold: mixHexColor(jewel.fishGold, warm, 0.38),
+    fishSky: mixHexColor(jewel.fishSky, colors.primary, 0.5),
+    fishTeal: mixHexColor(jewel.fishTeal, cool, 0.48),
+    fishSoft: mixHexColor(jewel.fishSoft, colors.accent, 0.42),
+    bubble: mixHexColor(jewel.bubble, colors.particle, 0.55),
+    shaft: mixHexColor(jewel.shaft, gEnd, 0.4),
+    dim: mixHexColor(jewel.dim, colors.textDim, 0.55),
   };
 }
 
