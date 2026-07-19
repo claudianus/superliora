@@ -86,7 +86,8 @@ const DEFAULT_RENDER_RUN_MAX_GAP_CELLS = 3;
 export class RendererCellBuffer {
   private cells: RendererCell[];
   private damageRect: RendererDamageRect | null = null;
-  private dirtyRowMap = new Map<number, { x: number; endX: number }>();
+  /** Per-row intervals — overlapping/adjacent merge; disjoint gaps stay split. */
+  private dirtyRowMap = new Map<number, { x: number; endX: number }[]>();
 
   constructor(
     public readonly width: number,
@@ -110,11 +111,13 @@ export class RendererCellBuffer {
   }
 
   get dirtyRowSpans(): readonly RendererDirtyRowSpan[] {
-    return Array.from(this.dirtyRowMap, ([y, span]) => ({
-      y,
-      x: span.x,
-      width: span.endX - span.x,
-    })).toSorted(compareDirtyRowSpans);
+    const spans: RendererDirtyRowSpan[] = [];
+    for (const [y, intervals] of this.dirtyRowMap) {
+      for (const span of intervals) {
+        spans.push({ y, x: span.x, width: span.endX - span.x });
+      }
+    }
+    return spans.toSorted(compareDirtyRowSpans);
   }
 
   get totalCells(): number {
@@ -252,15 +255,46 @@ export class RendererCellBuffer {
     const x = rect.x;
     const endX = rect.x + rect.width;
     for (let y = rect.y; y < rect.y + rect.height; y++) {
-      const existing = this.dirtyRowMap.get(y);
-      this.dirtyRowMap.set(
-        y,
-        existing === undefined
-          ? { x, endX }
-          : { x: Math.min(existing.x, x), endX: Math.max(existing.endX, endX) },
-      );
+      const existing = this.dirtyRowMap.get(y) ?? [];
+      this.dirtyRowMap.set(y, mergeDirtyRowIntervals(existing, x, endX));
     }
   }
+}
+
+/**
+ * Merge [x, endX) into sorted row intervals.
+ * Overlapping or adjacent ranges coalesce; a gap stays as separate spans so
+ * left+right letterbox damage does not scan the centered stage between them.
+ */
+export function mergeDirtyRowIntervals(
+  intervals: readonly { x: number; endX: number }[],
+  x: number,
+  endX: number,
+): { x: number; endX: number }[] {
+  if (endX <= x) return intervals.map((span) => ({ x: span.x, endX: span.endX }));
+  const next: { x: number; endX: number }[] = [];
+  let merged = { x, endX };
+  let inserted = false;
+  for (const span of intervals) {
+    if (span.endX < merged.x) {
+      next.push({ x: span.x, endX: span.endX });
+      continue;
+    }
+    if (span.x > merged.endX) {
+      if (!inserted) {
+        next.push(merged);
+        inserted = true;
+      }
+      next.push({ x: span.x, endX: span.endX });
+      continue;
+    }
+    merged = {
+      x: Math.min(merged.x, span.x),
+      endX: Math.max(merged.endX, span.endX),
+    };
+  }
+  if (!inserted) next.push(merged);
+  return next;
 }
 
 export interface RendererDiffOptions {

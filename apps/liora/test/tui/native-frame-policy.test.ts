@@ -180,6 +180,15 @@ describe('native-frame-policy', () => {
         structuralShift: false,
         viewportScrolled: false,
         causes: ['request'],
+        ambientAnimationAllowed: false,
+        idleAquariumMounted: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: false,
+        viewportScrolled: false,
+        causes: ['request'],
         ambientAnimationAllowed: true,
         idleAquariumMounted: false,
       }),
