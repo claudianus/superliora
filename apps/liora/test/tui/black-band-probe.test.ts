@@ -18,6 +18,7 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
+import { resetIdleScenePaintCachesForTests } from '#/tui/utils/idle-scene';
 import type { RendererCell } from '@harness-kit/tui-renderer';
 
 function appState(): AppState {
@@ -83,6 +84,7 @@ describe('idle aquarium black-band regression', () => {
       animationFps: 60,
       canvasBackground: true,
     });
+    resetIdleScenePaintCachesForTests();
   });
 
   afterEach(() => {
