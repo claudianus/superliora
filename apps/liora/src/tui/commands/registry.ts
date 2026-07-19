@@ -489,6 +489,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'aquarium',
+    aliases: ['tank'],
+    description: 'Show the Jewel Tank aquarium again',
+    priority: 70,
+    availability: 'always',
+  },
+  {
     name: 'upgrade',
     aliases: ['update'],
     description: 'Check for SuperLiora updates and install',

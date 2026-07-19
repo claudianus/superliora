@@ -42,6 +42,7 @@ import {
 import { handleGoalCommand } from './goal';
 import { showContextOsReport, showMcpServers, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
+import { handleAquariumCommand } from './aquarium';
 import { handleBenchCommand } from './bench';
 import { handleMemoryCommand } from './memory';
 import { parseSlashInput } from './parse';
@@ -355,6 +356,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'status':
       void showStatusReport(host);
+      return;
+    case 'aquarium':
+      handleAquariumCommand(host);
       return;
     case 'upgrade':
       await handleUpgradeCommand(host);

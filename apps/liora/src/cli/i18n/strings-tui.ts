@@ -127,6 +127,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.premium.usage': 'Usage: /premium [on|off|status]',
   'tui.premium.setFailed': 'Failed to set Premium Quality mode: {message}',
   'tui.premium.enableFailed': 'Failed to enable Premium Quality mode: {message}',
+  'tui.aquarium.restored': 'Jewel Tank restored — click the water to feed the fish.',
+  'tui.aquarium.replaying': 'Cannot show the aquarium while session history is replaying.',
   'tui.ultrawork.on.title': 'Ultrawork mode: ON',
   'tui.ultrawork.off.title': 'Ultrawork mode: OFF',
   'tui.ultrawork.on.detail':
@@ -295,6 +297,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.shiftEnter': 'shift+enter: newline',
   'tui.tip.ctrlC': 'ctrl+c: cancel',
   'tui.tip.theme': '/theme to switch the terminal UI theme',
+  'tui.tip.aquarium': '/aquarium brings the Jewel Tank back after chat clears it',
   'tui.tip.auto': '/auto lets Liora handle approvals and keep going unattended',
   'tui.tip.yolo': '/yolo skips most approvals for trusted batch work — only in repos you trust',
   'tui.tip.help': '/help: show commands',
@@ -457,6 +460,8 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.premium.usage': '사용법: /premium [on|off|status]',
   'tui.premium.setFailed': '프리미엄 품질 모드 설정 실패: {message}',
   'tui.premium.enableFailed': '프리미엄 품질 모드 활성화 실패: {message}',
+  'tui.aquarium.restored': 'Jewel Tank를 다시 켰습니다 — 물을 클릭해 밥을 주세요.',
+  'tui.aquarium.replaying': '세션 기록 재생 중에는 어항을 표시할 수 없습니다.',
   'tui.ultrawork.on.title': 'Ultrawork 모드: ON',
   'tui.ultrawork.off.title': 'Ultrawork 모드: OFF',
   'tui.ultrawork.on.detail':
@@ -622,6 +627,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.shiftEnter': 'shift+enter: 줄바꿈',
   'tui.tip.ctrlC': 'ctrl+c: 취소',
   'tui.tip.theme': '/theme으로 터미널 UI 테마 전환',
+  'tui.tip.aquarium': '/aquarium으로 채팅 후 사라진 Jewel Tank 다시 열기',
   'tui.tip.auto': '/auto로 승인을 맡기고 무인 진행',
   'tui.tip.yolo': '/yolo는 신뢰하는 저장소에서 대부분 승인을 건너뜁니다',
   'tui.tip.help': '/help: 명령 목록',
