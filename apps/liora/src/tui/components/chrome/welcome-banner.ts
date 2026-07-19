@@ -34,8 +34,8 @@ const BANNER_COMPACT = [
   '|___/\\___/|_| |___|_|_\\____|___\\___/|_|_\\/_/ \\_\\',
 ] as const;
 
-/** Soft sparkles in figlet padding — monospace-safe only. */
-const BANNER_SPARKLES = ['·', '∙', '•', '◦'] as const;
+/** Trademark sparkles in figlet padding — monospace-safe only. */
+const BANNER_SPARKLES = ['·', '∙', '•', '◦', '*', '˚'] as const;
 
 export function renderWelcomeBanner(
   layout: ResponsiveLayoutProfile,
@@ -52,9 +52,9 @@ export function renderWelcomeBanner(
 }
 
 /**
- * Vertical brand gradient (smoothstep across figlet rows) plus a soft
- * traveling shimmer and sparse space sparkles. Stays on gradientStart→End /
- * glow — never opposite-hue role tokens.
+ * Trademark SUPERLIORA hero: vertical brand gradient across figlet rows,
+ * plus an in-row brand-wave, bright crest, and dense space sparkles.
+ * Stays on gradientStart / primary / glow / gradientEnd — never roleUser gold.
  */
 function paintBannerLine(
   line: string,
@@ -73,34 +73,48 @@ function paintBannerLine(
   const s = t * t * (3 - 2 * t);
   const start = currentTheme.color('gradientStart');
   const end = currentTheme.color('gradientEnd');
+  const primary = currentTheme.color('primary');
   const glow = currentTheme.color('glow');
   const particle = currentTheme.color('particle');
-  const baseHex = mixHexColor(start, end, s);
+  const accent = currentTheme.color('accent');
+  // Row base on vertical brand gradient.
+  const rowBase = mixHexColor(start, end, s);
+  // Brand-only chain for the traveling wave (no opposite-hue roles).
+  const brandChain = [
+    start,
+    mixHexColor(start, primary, 0.55),
+    primary,
+    mixHexColor(primary, glow, 0.5),
+    glow,
+    mixHexColor(glow, end, 0.45),
+    end,
+    mixHexColor(end, accent, 0.25),
+  ] as const;
 
   const premium = mode === 'premium';
-  const cycleMs = premium ? 88 : 140;
+  const cycleMs = premium ? 52 : 96;
   const tickFloat = appearanceAnimationNow() / cycleMs;
   const tick = Math.floor(tickFloat);
-  const seed = hashRendererEffectSeed(`welcome:banner:${String(rowIndex)}`) + rowIndex * 37;
-  const crestLift = premium ? 0.58 : 0.36;
+  const seed = hashRendererEffectSeed(`welcome:banner:${String(rowIndex)}`) + rowIndex * 41;
+  const waveStride = premium ? 1.55 : 1.05;
+  const crestLift = premium ? 0.82 : 0.52;
+  const sparkleEvery = premium ? 11 : 17;
 
   const runs: RendererStyledTextRun[] = [];
   let clusterIndex = 0;
   for (const cluster of splitDisplayClusters(plain)) {
     const char = cluster.text;
     if (char === ' ') {
-      if (
-        premium &&
-        rendererPositiveModulo(seed + clusterIndex + tick * 3, 21) === 0
-      ) {
+      if (rendererPositiveModulo(seed + clusterIndex + tick * 5, sparkleEvery) === 0) {
         const glyph =
           BANNER_SPARKLES[
             rendererPositiveModulo(seed + tick + clusterIndex, BANNER_SPARKLES.length)
           ]!;
+        const hot = premium && rendererPositiveModulo(seed + tick + clusterIndex, 3) === 0;
         runs.push({
           text: glyph,
           style: withBannerCanvasBackground({
-            fg: mixHexColor(particle, glow, 0.35),
+            fg: mixHexColor(hot ? glow : particle, accent, hot ? 0.35 : 0.2),
             bold: true,
           }),
         });
@@ -112,10 +126,28 @@ function paintBannerLine(
       continue;
     }
 
-    // Traveling crest along the row; stays blended with the row's gradient base.
-    const wave = Math.sin(clusterIndex * 0.42 + tickFloat * 0.9 + rowIndex * 0.55);
-    const crest = (wave + 1) / 2;
-    const fg = mixHexColor(baseHex, glow, crest * crestLift);
+    // Dual motion: brand-chain wave + bright crest toward glow.
+    const waveFloat = clusterIndex * 0.58 + tickFloat * waveStride + rowIndex * 0.9 + seed * 0.01;
+    const chainLen = brandChain.length;
+    const wavePos = ((waveFloat % chainLen) + chainLen) % chainLen;
+    const i0 = Math.floor(wavePos);
+    const blend = wavePos - i0;
+    const waveHex = mixHexColor(
+      brandChain[i0]!,
+      brandChain[(i0 + 1) % chainLen]!,
+      blend,
+    );
+    const crest = (Math.sin(clusterIndex * 0.38 + tickFloat * 1.15 + rowIndex * 0.7) + 1) / 2;
+    const secondary = (Math.sin(clusterIndex * 0.9 + tickFloat * 0.55) + 1) / 2;
+    let fg = mixHexColor(rowBase, waveHex, premium ? 0.62 : 0.45);
+    fg = mixHexColor(fg, glow, crest * crestLift);
+    if (premium && crest > 0.88) {
+      // Peak flash — trademark specular hit.
+      fg = mixHexColor(fg, mixHexColor(glow, '#FFFFFF', 0.45), 0.55);
+    } else if (premium && secondary > 0.92) {
+      fg = mixHexColor(fg, particle, 0.28);
+    }
+
     runs.push({
       text: char,
       style: withBannerCanvasBackground({ fg, bold: true }),
