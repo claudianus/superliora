@@ -6,6 +6,10 @@ import {
   resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/utils/appearance-effects';
 import { isTUIInputInteractionActive } from '#/tui/utils/input-interaction';
+import {
+  applySkyToLetterboxRegions,
+  paintStageLetterboxSky,
+} from '#/tui/utils/stage-letterbox-sky';
 
 /** Cells between bundle edge and the stroke ring. */
 export const STAGE_FRAME_GAP = 1;
@@ -314,19 +318,17 @@ export function createStageFrameOverlayRegions(input: {
 
   const regions: RendererFrameRegion[] = [];
   const canvas = currentTheme.canvasBackgroundCell();
-  if (canvas !== undefined) {
-    let i = 0;
-    for (const band of stageFrameLetterboxBands(input.bundle, input.cols, input.rows)) {
-      regions.push({
-        id: `stageFrameLetterbox:${i}`,
-        rect: band,
-        content: [],
-        clear: true,
-        background: canvas,
-        zIndex: 4,
-      });
-      i += 1;
-    }
+  const bands = stageFrameLetterboxBands(input.bundle, input.cols, input.rows);
+  const sky = paintStageLetterboxSky({
+    bands,
+    cols: input.cols,
+    rows: input.rows,
+    nowMs: input.nowMs,
+    appearance: input.appearance,
+    freeze: input.freezeChase === true,
+  });
+  if (bands.length > 0) {
+    regions.push(...applySkyToLetterboxRegions(bands, sky, canvas?.style.bg));
   }
 
   const painted = paintStageFrameCells(input);
