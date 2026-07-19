@@ -85,7 +85,7 @@ import {
   type TUINativeStageChrome,
 } from './native-stage-plan';
 import {
-  createStageFrameOverlayRegion,
+  createStageFrameOverlayRegions,
   stageFrameBundleRect,
 } from './stage-frame';
 import {
@@ -722,15 +722,16 @@ function buildTUIStateNativeFrame(
         ]
       : [...stackRegions];
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
-  const stageFrame = createStageFrameOverlayRegion({
-    bundle: stageFrameBundleRect(plan.stage),
-    cols: width,
-    rows: height,
-    nowMs: appearanceAnimationNow(),
-    appearance,
-    freezeChase: skipDecorative,
-  });
-  if (stageFrame !== undefined) regions.push(stageFrame);
+  regions.push(
+    ...createStageFrameOverlayRegions({
+      bundle: stageFrameBundleRect(plan.stage),
+      cols: width,
+      rows: height,
+      nowMs: appearanceAnimationNow(),
+      appearance,
+      freezeChase: skipDecorative,
+    }),
+  );
   const diagnosticsOverlay = skipDecorative
     ? undefined
     : createTUIStateDiagnosticsOverlayRegion(

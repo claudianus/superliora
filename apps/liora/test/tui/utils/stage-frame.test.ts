@@ -1,21 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
-  STAGE_FRAME_ARM_MIN,
-  STAGE_FRAME_ARM_TARGET,
-  STAGE_FRAME_BREATHE_MS,
+  STAGE_FRAME_CHASE_MS_PER_CELL,
+  STAGE_FRAME_GAP,
   STAGE_FRAME_MARGIN,
-  createStageFrameOverlayRegion,
+  createStageFrameOverlayRegions,
   noteStageFrameBundle,
   paintStageFrameCells,
   resetStageFrameEntranceForTests,
-  stageFrameArmLength,
-  stageFrameBreathePhase,
   stageFrameBundleKey,
   stageFrameBundleRect,
-  stageFrameEntranceArmLength,
   stageFrameEntranceProgress,
   stageFrameEntranceStartedAtMs,
+  stageFrameLetterboxBands,
   stageFrameStrokeCells,
   stageFrameVisible,
 } from '#/tui/utils/stage-frame';
@@ -30,11 +27,12 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 import { resetTUIInputInteractionForTests } from '#/tui/utils/input-interaction';
+import { currentTheme } from '#/tui/theme';
 
 describe('stageFrameVisible', () => {
   it('hides when any margin is below STAGE_FRAME_MARGIN', () => {
-    expect(stageFrameVisible({ x: 2, y: 10, width: 108, height: 56 }, 200, 80)).toBe(false);
-    expect(stageFrameVisible({ x: 10, y: 2, width: 108, height: 56 }, 200, 80)).toBe(false);
+    expect(stageFrameVisible({ x: 1, y: 10, width: 108, height: 56 }, 200, 80)).toBe(false);
+    expect(stageFrameVisible({ x: 10, y: 1, width: 108, height: 56 }, 200, 80)).toBe(false);
   });
 
   it('shows on ultrawide tall centered stage', () => {
@@ -50,39 +48,58 @@ describe('stageFrameVisible', () => {
   });
 });
 
-describe('stageFrameArmLength', () => {
-  it('uses short target arms when sides are long enough', () => {
-    expect(stageFrameArmLength({ x: 20, y: 10, width: 108, height: 56 })).toBe(STAGE_FRAME_ARM_TARGET);
-  });
-
-  it('clamps when opposite arms would meet', () => {
-    // target 3+3+2=8, min 2+2+2=6 → width 7 uses min
-    expect(stageFrameArmLength({ x: 20, y: 10, width: 7, height: 56 })).toBe(STAGE_FRAME_ARM_MIN);
-  });
-});
-
 describe('stageFrameStrokeCells', () => {
-  it('places short L corners outside the bundle by gap 2 with no bloom', () => {
-    const bundle = { x: 20, y: 12, width: 108, height: 56 };
-    const cells = stageFrameStrokeCells(bundle, 3);
-    expect(cells.every((c) => c.kind === 'stroke')).toBe(true);
-    expect(cells.some((c) => c.char === '╭' && c.x === 18 && c.y === 10 && c.corner)).toBe(true);
+  it('draws a closed rounded rectangle around the bundle', () => {
+    const bundle = { x: 20, y: 12, width: 40, height: 20 };
+    const cells = stageFrameStrokeCells(bundle);
+    const left = bundle.x - STAGE_FRAME_GAP;
+    const right = bundle.x + bundle.width + STAGE_FRAME_GAP - 1;
+    const top = bundle.y - STAGE_FRAME_GAP;
+    const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1;
+
+    expect(cells.some((c) => c.char === '╭' && c.x === left && c.y === top)).toBe(true);
+    expect(cells.some((c) => c.char === '╮' && c.x === right && c.y === top)).toBe(true);
+    expect(cells.some((c) => c.char === '╯' && c.x === right && c.y === bottom)).toBe(true);
+    expect(cells.some((c) => c.char === '╰' && c.x === left && c.y === bottom)).toBe(true);
     expect(cells.filter((c) => c.corner)).toHaveLength(4);
-    // arm length 3 → corner + 2 horizontal + 2 vertical per corner = 5 cells × 4
-    expect(cells).toHaveLength(20);
+
+    const width = right - left + 1;
+    const height = bottom - top + 1;
+    // perimeter = 2*(w+h) - 4 (corners counted once)
+    expect(cells).toHaveLength(2 * (width + height) - 4);
   });
 
   it('tracks rail bundle width, not stage-only width', () => {
     const layout = resolveStageLayout({ width: 200, height: 80, hasRailContent: true });
     const bundle = stageFrameBundleRect(layout);
     expect(bundle.width).toBe(STAGE_MAX_WIDTH + STAGE_RAIL_GAP + RAIL_WIDTH);
-    const cells = stageFrameStrokeCells(bundle, stageFrameArmLength(bundle));
+    const cells = stageFrameStrokeCells(bundle);
     const maxX = Math.max(...cells.map((c) => c.x));
-    expect(maxX).toBeGreaterThanOrEqual(bundle.x + bundle.width);
+    expect(maxX).toBe(bundle.x + bundle.width + STAGE_FRAME_GAP - 1);
   });
 });
 
-describe('stageFrame entrance + breathe', () => {
+describe('stageFrameLetterboxBands', () => {
+  it('covers only outside the frame ring', () => {
+    const bundle = { x: 5, y: 5, width: 10, height: 6 };
+    const bands = stageFrameLetterboxBands(bundle, 24, 18);
+    const left = bundle.x - STAGE_FRAME_GAP;
+    const right = bundle.x + bundle.width + STAGE_FRAME_GAP - 1;
+    const top = bundle.y - STAGE_FRAME_GAP;
+    const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1;
+    expect(bands.length).toBe(4);
+    for (const band of bands) {
+      for (let y = band.y; y < band.y + band.height; y++) {
+        for (let x = band.x; x < band.x + band.width; x++) {
+          const inside = x >= left && x <= right && y >= top && y <= bottom;
+          expect(inside).toBe(false);
+        }
+      }
+    }
+  });
+});
+
+describe('stageFrame entrance + chase', () => {
   const previous = {
     TERM: process.env['TERM'],
     CI: process.env['CI'],
@@ -101,6 +118,7 @@ describe('stageFrame entrance + breathe', () => {
     delete process.env['SSH_CLIENT'];
     setAppearanceRenderHealth('healthy');
     setAppearanceRenderQuality('full');
+    currentTheme.setCanvasBackgroundEnabled(true);
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
     resetStageFrameEntranceForTests();
@@ -119,12 +137,6 @@ describe('stageFrame entrance + breathe', () => {
     expect(stageFrameEntranceProgress(0, 50, true)).toBe(1);
   });
 
-  it('grows arm length with entrance progress', () => {
-    expect(stageFrameEntranceArmLength(3, 0)).toBe(0);
-    expect(stageFrameEntranceArmLength(3, 0.5)).toBeGreaterThan(0);
-    expect(stageFrameEntranceArmLength(3, 1)).toBe(3);
-  });
-
   it('resets entrance when bundle key changes', () => {
     noteStageFrameBundle('a', 1000);
     noteStageFrameBundle('b', 1500);
@@ -132,7 +144,7 @@ describe('stageFrame entrance + breathe', () => {
     expect(stageFrameEntranceProgress(stageFrameEntranceStartedAtMs(), 1500, false)).toBe(0);
   });
 
-  it('paint returns cells only outside the bundle', () => {
+  it('paint keeps stroke cells outside the bundle', () => {
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
     const cells = paintStageFrameCells({
@@ -146,8 +158,9 @@ describe('stageFrame entrance + breathe', () => {
         particles: 'ambient',
       },
     });
-    expect(cells.length).toBeGreaterThan(0);
-    for (const c of cells) {
+    const strokes = cells.filter((c) => c.char !== ' ');
+    expect(strokes.length).toBe(stageFrameStrokeCells(bundle).length);
+    for (const c of strokes) {
       const inside =
         c.x >= bundle.x &&
         c.x < bundle.x + bundle.width &&
@@ -157,26 +170,7 @@ describe('stageFrame entrance + breathe', () => {
     }
   });
 
-  it('paints stroke-only cells (no bloom twins)', () => {
-    const bundle = { x: 40, y: 12, width: 108, height: 56 };
-    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
-    const cells = paintStageFrameCells({
-      bundle,
-      cols: 200,
-      rows: 80,
-      nowMs: 10_000,
-      appearance: {
-        ...DEFAULT_APPEARANCE_PREFERENCES,
-        profile: 'subtle',
-        particles: 'ambient',
-      },
-    });
-    const fullArm = stageFrameArmLength(bundle);
-    const strokes = stageFrameStrokeCells(bundle, fullArm);
-    expect(cells.length).toBe(strokes.length);
-  });
-
-  it('keeps paint frozen when freezeChase is true', () => {
+  it('keeps chase frozen when freezeChase is true', () => {
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
     const appearance = {
@@ -197,18 +191,19 @@ describe('stageFrame entrance + breathe', () => {
       bundle,
       cols: 200,
       rows: 80,
-      nowMs: settled + STAGE_FRAME_BREATHE_MS / 4,
+      nowMs: settled + STAGE_FRAME_CHASE_MS_PER_CELL * 3,
       appearance,
       freezeChase: true,
     });
-    expect(a.length).toBeGreaterThan(0);
-    expect(b).toEqual(a);
+    const strokeSig = (cells: typeof a) =>
+      cells
+        .filter((c) => c.char !== ' ')
+        .map((c) => `${c.x},${c.y},${c.fg},${c.bold === true ? 1 : 0}`)
+        .join('|');
+    expect(strokeSig(a)).toBe(strokeSig(b));
   });
 
-  it('breathes corner luminance across time when motion is allowed', () => {
-    expect(stageFrameBreathePhase(0)).toBeCloseTo(0, 5);
-    expect(stageFrameBreathePhase(STAGE_FRAME_BREATHE_MS / 2)).toBeCloseTo(1, 5);
-
+  it('advances chase along the full perimeter when motion is allowed', () => {
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
     const appearance = {
@@ -216,11 +211,12 @@ describe('stageFrame entrance + breathe', () => {
       profile: 'subtle' as const,
       particles: 'ambient' as const,
     };
+    const settled = 10_000;
     const a = paintStageFrameCells({
       bundle,
       cols: 200,
       rows: 80,
-      nowMs: 10_000,
+      nowMs: settled,
       appearance,
       freezeChase: false,
     });
@@ -228,22 +224,22 @@ describe('stageFrame entrance + breathe', () => {
       bundle,
       cols: 200,
       rows: 80,
-      nowMs: 10_000 + STAGE_FRAME_BREATHE_MS / 2,
+      nowMs: settled + STAGE_FRAME_CHASE_MS_PER_CELL,
       appearance,
       freezeChase: false,
     });
-    const cornerFg = (cells: typeof a) =>
+    const strokeSig = (cells: typeof a) =>
       cells
-        .filter((c) => c.char === '╭' || c.char === '╮' || c.char === '╰' || c.char === '╯')
-        .map((c) => c.fg)
+        .filter((c) => c.char !== ' ')
+        .map((c) => `${c.x},${c.y},${c.fg}`)
         .join('|');
-    expect(cornerFg(a)).not.toBe(cornerFg(b));
+    expect(strokeSig(a)).not.toBe(strokeSig(b));
   });
 
-  it('builds a non-clearing full-viewport overlay with sparse cells', () => {
+  it('builds letterbox fill bands plus a stroke overlay', () => {
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
-    const region = createStageFrameOverlayRegion({
+    const regions = createStageFrameOverlayRegions({
       bundle,
       cols: 200,
       rows: 80,
@@ -252,17 +248,18 @@ describe('stageFrame entrance + breathe', () => {
         ...DEFAULT_APPEARANCE_PREFERENCES,
         profile: 'subtle',
         particles: 'ambient',
+        canvasBackground: true,
       },
     });
-    expect(region).toBeDefined();
-    expect(region!.clear).toBe(false);
-    expect(region!.id).toBe('stageFrame');
-    expect(region!.rect).toEqual({ x: 0, y: 0, width: 200, height: 80 });
-    const lines = region!.content as readonly (readonly { char: string }[])[];
-    const painted = lines.flatMap((row, y) =>
-      Object.entries(row).map(([x, cell]) => ({ x: Number(x), y, char: cell.char })),
+    expect(regions.some((r) => r.id.startsWith('stageFrameLetterbox'))).toBe(true);
+    const stroke = regions.find((r) => r.id === 'stageFrame');
+    expect(stroke).toBeDefined();
+    expect(stroke!.clear).toBe(false);
+    const lines = stroke!.content as readonly (readonly { char: string }[])[];
+    const painted = lines.flatMap((row) =>
+      Object.values(row).map((cell) => cell.char),
     );
-    expect(painted.length).toBeGreaterThan(0);
-    expect(painted.every((c) => '╭╮╰╯─│'.includes(c.char))).toBe(true);
+    expect(painted).toContain('╭');
+    expect(painted.filter((c) => c === '─').length).toBeGreaterThan(10);
   });
 });
