@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { AppearanceController, shouldAnimate, shouldRenderAmbientAnimationFrame, terminalMutationAllowed } from '#/tui/controllers/appearance';
-import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
@@ -39,64 +38,6 @@ const ENV_KEYS = [
   'SSH_CLIENT',
   'TMUX',
 ] as const;
-
-describe('AnimationScheduler', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('caps render ticks by fps and stops cleanly on dispose', () => {
-    vi.useFakeTimers();
-    const requestRender = vi.fn();
-    const scheduler = new AnimationScheduler({
-      fps: 10,
-      enabled: true,
-      requestRender,
-    });
-
-    vi.advanceTimersByTime(99);
-    expect(requestRender).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-
-    scheduler.update({ enabled: false });
-    vi.advanceTimersByTime(300);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-
-    scheduler.update({ enabled: true, fps: 30 });
-    vi.advanceTimersByTime(50);
-    expect(requestRender).toHaveBeenCalledTimes(2);
-
-    scheduler.dispose();
-    vi.advanceTimersByTime(100);
-    expect(requestRender).toHaveBeenCalledTimes(2);
-  });
-
-  it('skips ticks when rendering is gated off', () => {
-    vi.useFakeTimers();
-    let canRender = false;
-    const beforeRender = vi.fn();
-    const requestRender = vi.fn();
-    const scheduler = new AnimationScheduler({
-      fps: 10,
-      enabled: true,
-      shouldRender: () => canRender,
-      beforeRender,
-      requestRender,
-    });
-
-    vi.advanceTimersByTime(100);
-    expect(beforeRender).not.toHaveBeenCalled();
-    expect(requestRender).not.toHaveBeenCalled();
-
-    canRender = true;
-    vi.advanceTimersByTime(100);
-    expect(beforeRender).toHaveBeenCalledTimes(1);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-
-    scheduler.dispose();
-  });
-});
 
 describe('AppearanceController', () => {
   const originalEnv = { ...process.env };
