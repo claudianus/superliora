@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { handleAquariumCommand } from '#/tui/commands/aquarium';
 import type { SlashCommandHost } from '#/tui/commands/dispatch';
 import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
+import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { StatusMessageComponent } from '#/tui/components/messages/status-message';
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import type { AppState } from '#/tui/types';
@@ -43,7 +44,6 @@ function makeAppState(overrides?: Partial<AppState>): AppState {
 function makeHost(appState: AppState, transcriptRows = 24): {
   host: SlashCommandHost;
   container: TranscriptViewportComponent;
-  showStatus: ReturnType<typeof vi.fn>;
   showError: ReturnType<typeof vi.fn>;
 } {
   const container = new TranscriptViewportComponent(
@@ -52,9 +52,6 @@ function makeHost(appState: AppState, transcriptRows = 24): {
     createTranscriptViewportState(),
     () => transcriptRows,
   );
-  const showStatus = vi.fn((message: string, color?: string) => {
-    container.addChild(new StatusMessageComponent(message, color as never));
-  });
   const showError = vi.fn();
   const host = {
     state: {
@@ -64,61 +61,48 @@ function makeHost(appState: AppState, transcriptRows = 24): {
         invalidateFrame: vi.fn(),
       },
     },
-    showStatus,
+    showStatus: vi.fn(),
     showError,
   } as unknown as SlashCommandHost;
-  return { host, container, showStatus, showError };
+  return { host, container, showError };
 }
 
 describe('handleAquariumCommand', () => {
-  it('mounts Jewel Tank after a restore status when missing', () => {
-    const { host, container, showStatus } = makeHost(makeAppState());
-    expect(container.children.some((c) => c instanceof IdleStageComponent)).toBe(false);
-
-    handleAquariumCommand(host);
-
-    expect(showStatus).toHaveBeenCalledOnce();
-    expect(container.children.some((c) => c instanceof StatusMessageComponent)).toBe(true);
-    expect(container.children.some((c) => c instanceof IdleStageComponent)).toBe(true);
-    // Idle must come after status so the notice does not dismiss it.
-    const idleIndex = container.children.findIndex((c) => c instanceof IdleStageComponent);
-    const statusIndex = container.children.findIndex((c) => c instanceof StatusMessageComponent);
-    expect(idleIndex).toBeGreaterThan(statusIndex);
-  });
-
-  it('fills the full transcript row budget even with prior chat height', () => {
+  it('overlays Welcome + Welcome-sized tank and hides prior chat', () => {
     const transcriptRows = 30;
     const { host, container } = makeHost(makeAppState(), transcriptRows);
-    // Tall chat history — idleTargetRows would collapse the tank; remount must not.
     for (let i = 0; i < 8; i++) {
       container.addChild(new StatusMessageComponent(`line ${String(i)}`));
     }
+    expect(container.children.some((c) => c instanceof StatusMessageComponent)).toBe(true);
 
     handleAquariumCommand(host);
 
+    expect(container.isAquariumOverlayActive).toBe(true);
+    expect(container.children.some((c) => c instanceof StatusMessageComponent)).toBe(false);
+    expect(container.children.some((c) => c instanceof WelcomeComponent)).toBe(true);
     const tank = container.children.find(
       (c): c is IdleStageComponent => c instanceof IdleStageComponent,
     );
     expect(tank).toBeDefined();
     const painted = tank!.render(80);
-    expect(painted.length).toBe(transcriptRows);
-    expect(painted.length).toBeGreaterThan(container.idleTargetRows(80));
+    // Welcome-sized: idleTargetRows with Welcome sibling, not the full budget.
+    expect(painted.length).toBe(container.idleTargetRows(80));
+    expect(painted.length).toBeLessThan(transcriptRows);
   });
 
-  it('remounts an existing tank so it can resize to full transcript', () => {
+  it('restores prior chat when a real message is added', () => {
     const { host, container } = makeHost(makeAppState(), 28);
-    const small = new IdleStageComponent({
-      state: host.state.appState,
-      getPreferredRows: () => 10,
-    });
-    container.addChild(small);
-
+    container.addChild(new StatusMessageComponent('kept'));
     handleAquariumCommand(host);
+    expect(container.isAquariumOverlayActive).toBe(true);
+    expect(container.children.filter((c) => c instanceof StatusMessageComponent)).toHaveLength(0);
 
-    const idleKids = container.children.filter((c) => c instanceof IdleStageComponent);
-    expect(idleKids).toHaveLength(1);
-    expect(idleKids[0]).not.toBe(small);
-    expect(idleKids[0]!.render(80).length).toBe(28);
+    container.addChild(new StatusMessageComponent('next'));
+
+    expect(container.isAquariumOverlayActive).toBe(false);
+    expect(container.children.some((c) => c instanceof IdleStageComponent)).toBe(false);
+    expect(container.children.filter((c) => c instanceof StatusMessageComponent).length).toBe(2);
   });
 
   it('blocks while session history is replaying', () => {

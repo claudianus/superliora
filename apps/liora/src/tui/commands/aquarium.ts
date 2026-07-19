@@ -1,9 +1,13 @@
 import { IdleStageComponent } from '../components/chrome/idle-stage';
+import { WelcomeComponent } from '../components/chrome/welcome';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 
-/** Remount the Jewel Tank so it fills the live transcript viewport. */
+/**
+ * Temporarily cover the transcript with a Welcome-sized Jewel Tank.
+ * The prior chat is restored when the next real message is added.
+ */
 export function handleAquariumCommand(host: SlashCommandHost): void {
   if (host.state.appState.isReplaying) {
     host.showError(ttui('tui.aquarium.replaying'));
@@ -11,17 +15,15 @@ export function handleAquariumCommand(host: SlashCommandHost): void {
   }
 
   const container = host.state.transcriptContainer;
-  // Always remount: restore sizing to the full transcript budget (chat history
-  // must not shrink the tank the way idleTargetRows does on empty sessions).
-  container.dismissIdleStage();
-
-  // Status children dismiss idle stages — post the notice first, then mount.
-  host.showStatus(ttui('tui.aquarium.restored'), 'success');
-  container.addChild(
-    new IdleStageComponent({
-      state: host.state.appState,
-      getPreferredRows: (width) => container.transcriptRows(width),
-    }),
-  );
+  const appState = host.state.appState;
+  container.showAquariumOverlay((addChrome) => {
+    addChrome(new WelcomeComponent(appState));
+    addChrome(
+      new IdleStageComponent({
+        state: appState,
+        getPreferredRows: (width) => container.idleTargetRows(width),
+      }),
+    );
+  });
   requestTUILayoutRender(host.state);
 }
