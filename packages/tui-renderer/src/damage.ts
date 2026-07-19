@@ -138,7 +138,7 @@ function normalizeRendererDirtyRowSpans(
 ): readonly RendererDirtyRowSpan[] {
   if (spans === undefined || spans === null || spans.length === 0) return [];
 
-  const byRow = new Map<number, { x: number; endX: number }>();
+  const byRow = new Map<number, { x: number; endX: number }[]>();
   for (const span of spans) {
     if (!Number.isFinite(span.x) || !Number.isFinite(span.y) || !Number.isFinite(span.width)) {
       continue;
@@ -157,20 +157,48 @@ function normalizeRendererDirtyRowSpans(
     }
     if (endX <= x) continue;
 
-    const existing = byRow.get(y);
-    byRow.set(
-      y,
-      existing === undefined
-        ? { x, endX }
-        : { x: Math.min(existing.x, x), endX: Math.max(existing.endX, endX) },
-    );
+    byRow.set(y, mergeNormalizedRowIntervals(byRow.get(y) ?? [], x, endX));
   }
 
-  return Array.from(byRow, ([y, span]) => ({
-    y,
-    x: span.x,
-    width: span.endX - span.x,
-  })).toSorted(compareDirtyRowSpans);
+  const out: RendererDirtyRowSpan[] = [];
+  for (const [y, intervals] of byRow) {
+    for (const span of intervals) {
+      out.push({ y, x: span.x, width: span.endX - span.x });
+    }
+  }
+  return out.toSorted(compareDirtyRowSpans);
+}
+
+/** Same rules as cell-buffer merge: abut/overlap coalesce, gaps stay split. */
+function mergeNormalizedRowIntervals(
+  intervals: readonly { x: number; endX: number }[],
+  x: number,
+  endX: number,
+): { x: number; endX: number }[] {
+  if (endX <= x) return intervals.map((span) => ({ x: span.x, endX: span.endX }));
+  const next: { x: number; endX: number }[] = [];
+  let merged = { x, endX };
+  let inserted = false;
+  for (const span of intervals) {
+    if (span.endX < merged.x) {
+      next.push({ x: span.x, endX: span.endX });
+      continue;
+    }
+    if (span.x > merged.endX) {
+      if (!inserted) {
+        next.push(merged);
+        inserted = true;
+      }
+      next.push({ x: span.x, endX: span.endX });
+      continue;
+    }
+    merged = {
+      x: Math.min(merged.x, span.x),
+      endX: Math.max(merged.endX, span.endX),
+    };
+  }
+  if (!inserted) next.push(merged);
+  return next;
 }
 
 function rectToDirtyRowSpans(rect: RendererDamageRect): readonly RendererDirtyRowSpan[] {

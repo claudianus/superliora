@@ -2593,6 +2593,19 @@ describe('RendererCellBuffer', () => {
     ]);
   });
 
+  it('keeps disjoint same-row dirty spans from bridging a clean gap', () => {
+    const buffer = new RendererCellBuffer(20, 4);
+    buffer.writeText(1, 2, 'L');
+    buffer.writeText(18, 2, 'R');
+
+    expect(buffer.damage).toEqual({ x: 1, y: 2, width: 18, height: 1 });
+    expect(buffer.dirtyRowCount).toBe(1);
+    expect(buffer.dirtyRowSpans).toEqual([
+      { y: 2, x: 1, width: 1 },
+      { y: 2, x: 18, width: 1 },
+    ]);
+  });
+
   it('fillRect damage covers only cells that actually changed', () => {
     const fill = { char: ' ', style: { bg: '#111' } };
     const buffer = new RendererCellBuffer(8, 3, fill);
@@ -2733,6 +2746,25 @@ describe('diffCellBuffers', () => {
       { y: 0, x: 0, width: 2 },
       { y: 9, x: 9, width: 1 },
     ]);
+  });
+
+  it('keeps disjoint same-row dirty spans split (no pierce-through merge)', () => {
+    const plan = planRendererDamage({
+      width: 200,
+      height: 10,
+      damage: { x: 0, y: 0, width: 200, height: 10 },
+      dirtyRows: [
+        { y: 4, x: 0, width: 20 },
+        { y: 4, x: 180, width: 20 },
+      ],
+    });
+
+    expect(plan.spans).toEqual([
+      { y: 4, x: 0, width: 20 },
+      { y: 4, x: 180, width: 20 },
+    ]);
+    expect(plan.scannedCells).toBe(40);
+    expect(plan.dirtyRows).toBe(2);
   });
 
   it('clips damage plans to the renderer bounds', () => {

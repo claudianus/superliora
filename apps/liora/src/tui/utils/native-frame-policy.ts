@@ -199,8 +199,11 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
   if (input.structuralShift || input.viewportScrolled || input.causes.includes('resize')) {
     return false;
   }
-  const animationBearing =
-    input.causes.includes('animation') || input.idleAquariumMounted;
-  if (!animationBearing) return false;
+  // Jewel Tank + Welcome must stay damage-only whenever the idle stage is
+  // mounted — even if ambientAnimationAllowed is false (selection holdoff,
+  // quality gate). Otherwise clear:true rewrites the transcript and tears
+  // into black bands while letterbox particles keep animating.
+  if (input.idleAquariumMounted) return true;
+  if (!input.causes.includes('animation')) return false;
   return input.ambientAnimationAllowed || input.fullscreenTakeover === true;
 }
