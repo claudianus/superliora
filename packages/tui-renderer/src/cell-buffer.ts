@@ -219,9 +219,38 @@ export class RendererCellBuffer {
     if (this.width !== other.width || this.height !== other.height) {
       throw new RangeError('RendererCellBuffer.copyFrom requires matching dimensions.');
     }
-    this.cells = other.cells.map((cell) => normalizeCell(cell));
+    // Shallow cell refs — cells are already normalized on write. Remapping
+    // normalizeCell across the whole frame was Θ(W·H) on every ambient present.
+    this.cells = other.cells.slice();
     this.damageRect = other.damageRect;
     this.dirtyRowMap = new Map(other.dirtyRowMap);
+  }
+
+  /**
+   * Exchange cell storage with `other` (same dimensions). Used by double-buffer
+   * present to avoid a full-frame copy when the next buffer becomes current.
+   */
+  swapContentWith(other: RendererCellBuffer): void {
+    if (this.width !== other.width || this.height !== other.height) {
+      throw new RangeError('RendererCellBuffer.swapContentWith requires matching dimensions.');
+    }
+    const cells = this.cells;
+    const damageRect = this.damageRect;
+    const dirtyRowMap = this.dirtyRowMap;
+    this.cells = other.cells;
+    this.damageRect = other.damageRect;
+    this.dirtyRowMap = other.dirtyRowMap;
+    other.cells = cells;
+    other.damageRect = damageRect;
+    other.dirtyRowMap = dirtyRowMap;
+  }
+
+  /** Mirror cell refs from `other` without renormalizing (clear:false baseline). */
+  mirrorCellsFrom(other: RendererCellBuffer): void {
+    if (this.width !== other.width || this.height !== other.height) {
+      throw new RangeError('RendererCellBuffer.mirrorCellsFrom requires matching dimensions.');
+    }
+    this.cells = other.cells.slice();
   }
 
   resetDamage(): void {
@@ -342,7 +371,11 @@ export class RendererDoubleBuffer {
       dirtyRows: this.next.dirtyRowSpans,
       runOptimization: options.runOptimization,
     });
-    this.current.copyFrom(this.next);
+    // Flip: presented `next` becomes `current`. Then mirror into `next` so the
+    // next clear:false compose compares against the just-presented frame
+    // (without Θ(W·H) normalizeCell remapping).
+    this.current.swapContentWith(this.next);
+    this.next.mirrorCellsFrom(this.current);
     this.current.resetDamage();
     this.next.resetDamage();
     return diff;
@@ -480,13 +513,12 @@ export function coalesceCellPatchesWithFrameGaps(
 }
 
 export function cellsEqual(a: RendererCell, b: RendererCell): boolean {
-  return (
-    a.char === b.char &&
-    normalizeLink(a.link) === normalizeLink(b.link) &&
-    normalizedCellWidth(a) === normalizedCellWidth(b) &&
-    a.continuation === b.continuation &&
-    stylesEqual(a.style, b.style)
-  );
+  if (a === b) return true;
+  if (a.char !== b.char) return false;
+  if (a.continuation !== b.continuation) return false;
+  if (normalizedCellWidth(a) !== normalizedCellWidth(b)) return false;
+  if (normalizeLink(a.link) !== normalizeLink(b.link)) return false;
+  return stylesEqual(a.style, b.style);
 }
 
 function normalizeSize(value: number): number {
@@ -546,7 +578,20 @@ function normalizeCell(cell: RendererCell): RendererCell {
     const style = normalizeStyle(cell.style);
     return applyCellMetadata({ char: '', width: 0, continuation: true }, style, link);
   }
-  const char = splitDisplayClusters(cell.char)[0]?.text ?? ' ';
+  // Ambient paints mostly single printable BMP glyphs — skip grapheme split.
+  const raw = cell.char;
+  let char: string;
+  if (raw.length === 1) {
+    const code = raw.charCodeAt(0);
+    char =
+      code >= 0x20 && code !== 0x7f
+        ? raw
+        : (splitDisplayClusters(raw)[0]?.text ?? ' ');
+  } else if (raw.length === 0) {
+    char = ' ';
+  } else {
+    char = splitDisplayClusters(raw)[0]?.text ?? ' ';
+  }
   const style = normalizeStyle(cell.style);
   const width = Math.max(1, Math.min(2, cell.width ?? displayClusterWidth(char)));
   return applyCellMetadata(width === 1 ? { char } : { char, width }, style, link);
@@ -609,6 +654,7 @@ function stylesEqual(
   a: RendererCellStyle | undefined,
   b: RendererCellStyle | undefined,
 ): boolean {
+  if (a === b) return true;
   const left = normalizeStyle(a);
   const right = normalizeStyle(b);
   if (left === undefined || right === undefined) return left === right;

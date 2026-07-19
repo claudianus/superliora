@@ -3065,21 +3065,19 @@ describe('RendererDoubleBuffer', () => {
     expect(rowText(buffers.current, 0)).toBe(' go  ');
   });
 
-  it('clears stale cells during an immediate-mode frame', () => {
+  it('keeps next buffer aligned after present so clear:false compares against the last frame', () => {
     const buffers = new RendererDoubleBuffer(4, 1);
-    buffers.next.writeText(0, 0, 'old');
+    buffers.beginFrame({ clear: false });
+    buffers.next.writeText(0, 0, 'ab');
     buffers.present();
 
-    buffers.beginFrame();
-    buffers.next.writeText(0, 0, 'n');
-    const diff = buffers.present();
-
-    expect(rowText(buffers.current, 0)).toBe('n   ');
-    expect(diff.patches.map((patch) => [patch.x, patch.cell.char])).toEqual([
-      [0, 'n'],
-      [1, ' '],
-      [2, ' '],
-    ]);
+    buffers.beginFrame({ clear: false });
+    // Idempotent rewrite of the same glyphs must not dirt or patch.
+    buffers.next.writeText(0, 0, 'ab');
+    const quiet = buffers.present();
+    expect(quiet.patches).toHaveLength(0);
+    expect(rowText(buffers.current, 0)).toBe('ab  ');
+    expect(rowText(buffers.next, 0)).toBe('ab  ');
   });
 });
 

@@ -55,10 +55,13 @@ export function renderNativeLayoutFrame(
   }) ?? false;
   const clear = options.clear ?? !reusableRows;
   const timeVaryingVfx = rendererRegionsRequireAnimationFrame(layers);
+  const canReuseRows = reusableRows && !clear && !timeVaryingVfx;
   renderer.beginFrame({ clear, fill: options.fill });
   const composition = composeRendererRegions(renderer.frame, layers, {
     ...options.composition,
-    reuseCachedRows: reusableRows && !clear && !timeVaryingVfx,
+    reuseCachedRows: canReuseRows,
+    // Ambient / chase VFX never reuse rows — skip cache warm + Θ(width) keys.
+    cache: timeVaryingVfx ? undefined : options.composition?.cache,
   });
   if (options.cursor !== undefined) {
     renderer.setCursor(options.cursor);
