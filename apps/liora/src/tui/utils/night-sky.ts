@@ -55,7 +55,9 @@ export function paintStarfield(
   if (width <= 0 || rows <= 0 || density <= 0) return;
   const count = Math.max(4, Math.floor(width * rows * density * 0.08));
   for (let i = 0; i < count; i++) {
-    const seed = hash2(i * 17 + 3, Math.floor(elapsedMs / 90));
+    // Stable star positions — letterbox sky uses the same pattern. Seeding x
+    // from elapsedMs/90 teleported stars every ~90ms and read as ~11fps stutter.
+    const seed = hash2(i * 17 + 3, 91);
     const x = seed % width;
     const y = hash2(i * 31 + 7, 99) % rows;
     const twinkle = (Math.sin(elapsedMs / 180 + i) + 1) / 2;

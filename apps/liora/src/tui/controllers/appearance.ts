@@ -91,12 +91,16 @@ export class AppearanceController {
         this.forceAmbientSchedule?.() === true || this.shouldRenderAnimation?.() !== false,
       resolveIntervalMs: (ctx) => {
         const appearance = this.getAppearance();
+        const premiumMs = premiumAmbientIntervalMs(appearance.animationFps);
+        // Splash forces the ambient schedule — keep premium cadence so the
+        // cinematic does not soft-degrade to 33–100ms stutter.
+        if (this.forceAmbientSchedule?.() === true) return premiumMs;
         return rendererAmbientIntervalMs({
           requested: resolveAmbientEffectMode(appearance),
           quality: ctx.quality === 'minimal' ? 'balanced' : ctx.quality,
           health: ctx.health === 'degraded' ? 'watch' : ctx.health,
           backpressure: ctx.backpressure,
-          premiumMs: premiumAmbientIntervalMs(appearance.animationFps),
+          premiumMs,
           subtleMs: 100,
         });
       },
