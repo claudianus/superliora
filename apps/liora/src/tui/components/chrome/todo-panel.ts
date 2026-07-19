@@ -24,8 +24,13 @@ import type { ColorPalette } from '#/tui/theme/colors';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import {
   appearanceAnimationNow,
+  getActiveAppearancePreferences,
   renderPulseGlyph,
+  renderSettleFlash,
   renderShimmerPrefix,
+  resolveQualityAdjustedAmbientEffectMode,
+  SETTLE_FLASH_MS,
+  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 
@@ -41,8 +46,12 @@ const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
 const BOARD_SEPARATOR = ' │ ';
-const CHANGE_FLASH_MS = 22_000;
 const STALE_TOOL_CALLS = 2;
+
+function changeFlashMs(): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences());
+  return mode === 'subtle' ? SETTLE_FLASH_MS * 1.4 : SETTLE_FLASH_MS;
+}
 const EMPTY_HIGHLIGHTS: ReadonlyMap<string, TodoChangeKind> = new Map();
 
 export interface VisibleTodos {
@@ -232,8 +241,10 @@ export class TodoPanelComponent implements Component {
       renderBoardMeta(this.todos, c, this.currentChangeSummary(), this.callsSinceUpdate),
     ];
 
+    const highlights = this.currentHighlights();
+    const changedAtMs = this.currentChangeSummary()?.changedAtMs;
     if (this.expanded) {
-      lines.push(...renderTodos(this.todos, c, contentWidth, this.currentHighlights(), profile));
+      lines.push(...renderTodos(this.todos, c, contentWidth, highlights, changedAtMs, profile));
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
           chalk.hex(c.textDim)(`  all ${String(this.todos.length)} items · ctrl+t to collapse`),
@@ -241,7 +252,7 @@ export class TodoPanelComponent implements Component {
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-      lines.push(...renderTodos(rows, c, contentWidth, this.currentHighlights(), profile));
+      lines.push(...renderTodos(rows, c, contentWidth, highlights, changedAtMs, profile));
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
         const suffix = distribution.length > 0 ? ` (${distribution})` : '';
@@ -267,7 +278,7 @@ export class TodoPanelComponent implements Component {
   private currentChangeSummary(): TodoPanelChangeSummary | undefined {
     if (this.changeSummary === undefined) return undefined;
     const ageMs = appearanceAnimationNow() - this.changeSummary.changedAtMs;
-    return ageMs <= CHANGE_FLASH_MS ? this.changeSummary : undefined;
+    return ageMs <= changeFlashMs() ? this.changeSummary : undefined;
   }
 
   private currentHighlights(): ReadonlyMap<string, TodoChangeKind> {
@@ -280,14 +291,15 @@ function renderTodos(
   colors: ColorPalette,
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
+  changedAtMs: number | undefined,
   profile: ReturnType<typeof resolveResponsiveLayout> = 'standard',
 ): string[] {
   if (profile === 'tiny') {
-    return renderLanes(todos, colors, width, highlights);
+    return renderLanes(todos, colors, width, highlights, changedAtMs);
   }
   return width >= BOARD_MIN_WIDTH
-    ? renderBoard(todos, colors, width, highlights)
-    : renderLanes(todos, colors, width, highlights);
+    ? renderBoard(todos, colors, width, highlights, changedAtMs)
+    : renderLanes(todos, colors, width, highlights, changedAtMs);
 }
 
 function renderBoard(
@@ -295,13 +307,16 @@ function renderBoard(
   colors: ColorPalette,
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
+  changedAtMs: number | undefined,
 ): string[] {
   const availableWidth = Math.max(1, width - visibleWidth(BOARD_INDENT));
   const columnWidth = Math.floor(
     (availableWidth - visibleWidth(BOARD_SEPARATOR) * (TODO_LANES.length - 1)) /
       TODO_LANES.length,
   );
-  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) return renderLanes(todos, colors, width, highlights);
+  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) {
+    return renderLanes(todos, colors, width, highlights, changedAtMs);
+  }
 
   const lanes = TODO_LANES.map((lane) => ({
     ...lane,
@@ -330,7 +345,7 @@ function renderBoard(
           return padCell(
             todo === undefined
               ? chalk.hex(colors.textMuted)('No cards')
-              : renderCell(todo, colors, highlights.get(todo.title)),
+              : renderCell(todo, colors, highlights.get(todo.title), changedAtMs),
             columnWidth,
           );
         })
@@ -345,6 +360,7 @@ function renderLanes(
   colors: ColorPalette,
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
+  changedAtMs: number | undefined,
 ): string[] {
   const lines: string[] = [];
   for (const lane of TODO_LANES) {
@@ -352,7 +368,9 @@ function renderLanes(
     if (laneTodos.length === 0) continue;
     lines.push(chalk.hex(colors.textDim)(`  ${lane.label}`));
     for (const todo of laneTodos) {
-      lines.push(...renderWrappedCell(todo, colors, highlights.get(todo.title), width));
+      lines.push(
+        ...renderWrappedCell(todo, colors, highlights.get(todo.title), changedAtMs, width),
+      );
     }
   }
   return lines;
@@ -420,10 +438,11 @@ function renderCell(
   todo: TodoItem,
   colors: ColorPalette,
   change: TodoChangeKind | undefined,
+  changedAtMs: number | undefined,
 ): string {
   const badge = changeBadge(change, colors);
   const marker = statusMarker(todo.status, colors);
-  const titleStyled = styleTitle(todo.title, todo.status, colors);
+  const titleStyled = styleTitle(todo.title, todo.status, colors, change, changedAtMs);
   return `${badge}${marker} ${titleStyled}`;
 }
 
@@ -431,11 +450,12 @@ function renderWrappedCell(
   todo: TodoItem,
   colors: ColorPalette,
   change: TodoChangeKind | undefined,
+  changedAtMs: number | undefined,
   width: number,
 ): string[] {
   const badge = changeBadge(change, colors);
   const marker = statusMarker(todo.status, colors);
-  const titleStyled = styleTitle(todo.title, todo.status, colors);
+  const titleStyled = styleTitle(todo.title, todo.status, colors, change, changedAtMs);
   const firstPrefix = `${badge}${marker} `;
   const prefixWidth = visibleWidth(firstPrefix);
   const availableWidth = Math.max(
@@ -468,7 +488,22 @@ function statusMarker(status: TodoStatus, colors: ColorPalette): string {
   }
 }
 
-function styleTitle(title: string, status: TodoStatus, colors: ColorPalette): string {
+function styleTitle(
+  title: string,
+  status: TodoStatus,
+  colors: ColorPalette,
+  change: TodoChangeKind | undefined,
+  changedAtMs: number | undefined,
+): string {
+  const appearance = getActiveAppearancePreferences();
+  if (
+    change !== undefined &&
+    changedAtMs !== undefined &&
+    shouldRenderAmbientEffects(appearance) &&
+    appearanceAnimationNow() - changedAtMs < changeFlashMs()
+  ) {
+    return renderSettleFlash(title, `todo:${change}:${title}`, changedAtMs, appearance);
+  }
   switch (status) {
     case 'in_progress':
       return chalk.hex(colors.text).bold(title);

@@ -9,10 +9,14 @@ import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import type { QueuedMessage } from '../../types';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderParticleDivider,
+  renderSettleFlash,
   renderSpectacularText,
+  SETTLE_FLASH_MS,
   shouldRenderAmbientEffects,
+  resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/utils/appearance-effects';
 
 export interface QueuePaneOptions {
@@ -20,6 +24,9 @@ export interface QueuePaneOptions {
   readonly isCompacting: boolean;
   readonly isStreaming: boolean;
   readonly canSteerImmediately: boolean;
+  /** Row that settles on mount (default: last = ↑-edit target). */
+  readonly selectedIndex?: number;
+  readonly settleStartedAtMs?: number;
 }
 
 const ELLIPSIS = '…';
@@ -27,10 +34,15 @@ const ELLIPSIS = '…';
 export class QueuePaneComponent extends Container {
   private readonly messages: readonly QueuedMessage[];
   private readonly hint: string | undefined;
+  private readonly selectedIndex: number;
+  private readonly settleStartedAtMs: number;
 
   constructor(options: QueuePaneOptions) {
     super();
     this.messages = options.messages;
+    this.selectedIndex =
+      options.selectedIndex ?? Math.max(0, options.messages.length - 1);
+    this.settleStartedAtMs = options.settleStartedAtMs ?? appearanceAnimationNow();
 
     if (options.messages.length > 0) {
       // Bash commands (`! …`) are not steerable, so only advertise Ctrl-S when
@@ -85,24 +97,50 @@ export class QueuePaneComponent extends Container {
       );
     }
 
-    for (const item of this.messages) {
+    const settleMs =
+      resolveQualityAdjustedAmbientEffectMode(appearance) === 'subtle'
+        ? SETTLE_FLASH_MS * 1.4
+        : SETTLE_FLASH_MS;
+    const settling =
+      animated && appearanceAnimationNow() - this.settleStartedAtMs < settleMs;
+
+    for (const [index, item] of this.messages.entries()) {
       const displayText = item.displayText ?? item.text;
       const singleLine = displayText.replaceAll(/\s+/g, ' ').trim();
       const pointer = renderSelectPointer('queue:pointer');
       const prefixPlain = '  ';
       // pointer is already ambient-styled; do not wrap it in accent/spectacular again.
       const chromeWidth = visibleWidth(`${prefixPlain}${pointer} `);
+      const isSelected = index === this.selectedIndex;
       if (item.mode === 'bash') {
         // Shell commands get a `$ ` prompt and the shell-mode hue so they read
         // as commands, not as plain text that would be sent to the model.
         const prompt = '$ ';
         const availableWidth = Math.max(1, width - chromeWidth - visibleWidth(prompt));
         const truncated = truncateToWidth(singleLine, availableWidth, ELLIPSIS);
-        lines.push(`${prefixPlain}${pointer} ${shell(prompt + truncated)}`);
+        const body =
+          isSelected && settling
+            ? renderSettleFlash(
+                prompt + truncated,
+                `queue:settle:${String(index)}`,
+                this.settleStartedAtMs,
+                appearance,
+              )
+            : shell(prompt + truncated);
+        lines.push(`${prefixPlain}${pointer} ${body}`);
       } else {
         const availableWidth = Math.max(1, width - chromeWidth);
         const truncated = truncateToWidth(singleLine, availableWidth, ELLIPSIS);
-        lines.push(`${prefixPlain}${pointer} ${accent(truncated)}`);
+        const body =
+          isSelected && settling
+            ? renderSettleFlash(
+                truncated,
+                `queue:settle:${String(index)}`,
+                this.settleStartedAtMs,
+                appearance,
+              )
+            : accent(truncated);
+        lines.push(`${prefixPlain}${pointer} ${body}`);
       }
     }
 

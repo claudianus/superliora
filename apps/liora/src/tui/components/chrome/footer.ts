@@ -117,6 +117,7 @@ function formatGoalBadge(
   goal: AppState['goal'],
   colors: ColorPalette,
   wallClockMs?: number,
+  appearance = DEFAULT_APPEARANCE_PREFERENCES,
 ): string | null {
   if (goal === null || goal === undefined) return null;
   // Show the badge for every persisted, resumable status. `complete` clears the
@@ -124,32 +125,38 @@ function formatGoalBadge(
   if (goal.status !== 'active' && goal.status !== 'paused' && goal.status !== 'blocked') {
     return null;
   }
-  const dotColor =
-    goal.status === 'active'
-      ? colors.primary
-      : goal.status === 'blocked'
-        ? colors.warning
-        : colors.textMuted;
+  const statusToken =
+    goal.status === 'active' ? 'primary' : goal.status === 'blocked' ? 'warning' : 'textMuted';
   const turns =
     goal.budget.turnBudget !== null
       ? `${goal.turnsUsed}/${goal.budget.turnBudget} turns`
       : `${goal.turnsUsed} ${goal.turnsUsed === 1 ? 'turn' : 'turns'}`;
   const elapsed = formatBadgeElapsed(wallClockMs ?? goal.wallClockMs);
   const isSotaGoal = SOTA_GOAL_OBJECTIVE_PATTERN.test(goal.objective);
-  const label = `${goal.status} · ${elapsed} · ${turns}`;
+  const statusTick = shouldRenderAmbientEffects(appearance)
+    ? renderPulseText(goal.status, `footer:goal:${goal.status}`, statusToken, appearance)
+    : chalk.hex(colors[statusToken])(goal.status);
+  const label = `${statusTick} · ${elapsed} · ${turns}`;
+  const dot = shouldRenderAmbientEffects(appearance)
+    ? renderPulseText('●', 'footer:goal:dot', statusToken, appearance)
+    : chalk.hex(colors[statusToken])('●');
   if (isSotaGoal) {
     return (
       chalk.hex(colors.textMuted)('[goal ') +
-      chalk.hex(dotColor)('●') +
+      dot +
       chalk.hex(colors.textMuted)(' ') +
       chalk.hex(colors.primary).bold('SuperLiora SOTA') +
-      chalk.hex(colors.textMuted)(` / ${label}]`)
+      chalk.hex(colors.textMuted)(' / ') +
+      label +
+      chalk.hex(colors.textMuted)(']')
     );
   }
   return (
     chalk.hex(colors.textMuted)('[goal ') +
-    chalk.hex(dotColor)('●') +
-    chalk.hex(colors.textMuted)(` ${label}]`)
+    dot +
+    chalk.hex(colors.textMuted)(' ') +
+    label +
+    chalk.hex(colors.textMuted)(']')
   );
 }
 
@@ -518,7 +525,12 @@ export class FooterComponent implements Component {
     );
     if (transcriptViewportBadge !== null) left.push(transcriptViewportBadge);
 
-    const goalBadge = formatGoalBadge(state.goal, colors, this.goalWallClockMs(state.goal));
+    const goalBadge = formatGoalBadge(
+      state.goal,
+      colors,
+      this.goalWallClockMs(state.goal),
+      appearance,
+    );
     if (goalBadge !== null) left.push(goalBadge);
 
     const model = modelDisplayName(state);

@@ -1,9 +1,45 @@
-import { describe, expect, it } from 'vitest';
+import chalk from 'chalk';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { QueuePaneComponent } from '#/tui/components/panes/queue-pane';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import * as appearanceEffects from '#/tui/utils/appearance-effects';
+import {
+  advanceAppearanceAnimationClock,
+  SETTLE_FLASH_MS,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
+
+const previousEnv = {
+  TERM: process.env['TERM'],
+  CI: process.env['CI'],
+  NO_COLOR: process.env['NO_COLOR'],
+  SSH_TTY: process.env['SSH_TTY'],
+  SSH_CONNECTION: process.env['SSH_CONNECTION'],
+  SSH_CLIENT: process.env['SSH_CLIENT'],
+};
+const previousChalkLevel = chalk.level;
+
+function enablePremiumAmbient(): void {
+  process.env['TERM'] = 'xterm-256color';
+  delete process.env['CI'];
+  delete process.env['NO_COLOR'];
+  delete process.env['SSH_TTY'];
+  delete process.env['SSH_CONNECTION'];
+  delete process.env['SSH_CLIENT'];
+  setAppearanceRenderHealth('healthy');
+  setAppearanceRenderQuality('full');
+  setActiveAppearancePreferences({
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium',
+    particles: 'premium',
+  });
 }
 
 describe('QueuePaneComponent', () => {
@@ -135,5 +171,41 @@ describe('QueuePaneComponent', () => {
     const output = stripAnsi(component.render(120).join('\n'));
     expect(output).toContain('queue 2 · 1 prompt · 1 shell');
     expect(output).toContain('ctrl-s to steer immediately');
+  });
+
+  it('settle-flashes the selected (last) row under premium, then settles', () => {
+    chalk.level = 3;
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const settleSpy = vi.spyOn(appearanceEffects, 'renderSettleFlash');
+
+    const component = new QueuePaneComponent({
+      isCompacting: false,
+      isStreaming: true,
+      canSteerImmediately: true,
+      messages: [{ text: 'first' }, { text: 'selected row' }],
+      settleStartedAtMs: Date.now(),
+    });
+
+    const settling = stripAnsi(component.render(120).join('\n'));
+    expect(settling).toContain('selected row');
+    expect(settleSpy).toHaveBeenCalled();
+    expect(String(settleSpy.mock.calls[0]?.[0])).toContain('selected row');
+
+    settleSpy.mockClear();
+    advanceAppearanceAnimationClock(Date.now() + SETTLE_FLASH_MS + 80);
+    component.render(120);
+    expect(settleSpy).not.toHaveBeenCalled();
+
+    chalk.level = previousChalkLevel;
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 });

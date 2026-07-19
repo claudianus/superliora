@@ -25,8 +25,12 @@ import { MESSAGE_INDENT } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
+  EXIT_BEAT_MS,
   getActiveAppearancePreferences,
+  renderExitBeat,
   renderSpectacularText,
+  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import type { ColorToken } from '#/tui/theme';
@@ -84,6 +88,8 @@ export class UpcomingGoalAddedMessageComponent implements Component {
 }
 
 export class GoalCompletionMessageComponent implements Component {
+  private readonly startedAtMs = appearanceAnimationNow();
+
   constructor(private readonly message: string) {}
 
   invalidate(): void {}
@@ -93,7 +99,8 @@ export class GoalCompletionMessageComponent implements Component {
     if (headline.length === 0) return [];
 
     const appearance = getActiveAppearancePreferences();
-    const bullet = shouldRenderAmbientEffects(appearance)
+    const animated = shouldRenderAmbientEffects(appearance);
+    const bullet = animated
       ? renderSpectacularText(STATUS_BULLET.trimEnd(), 'goal:complete', appearance, {
           intense: true,
           pace: 'slow',
@@ -103,7 +110,16 @@ export class GoalCompletionMessageComponent implements Component {
     const contentWidth = Math.max(1, width - bulletWidth);
     const lines: string[] = [''];
 
-    const headlineText = new Text(currentTheme.boldFg('success', headline), 0, 0);
+    const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+    const exitMs = mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS;
+    const inExitBeat = animated && appearanceAnimationNow() - this.startedAtMs < exitMs;
+    // Exit beat may include a particle rail; keep the transcript card layout by
+    // taking only the title line once (no extra chrome rows).
+    const exitTitle = inExitBeat
+      ? (renderExitBeat(headline, contentWidth, 'goal:complete', this.startedAtMs, appearance)[0] ??
+        currentTheme.fg('success', headline))
+      : currentTheme.boldFg('success', headline);
+    const headlineText = new Text(exitTitle, 0, 0);
     const headlineLines = headlineText.render(contentWidth);
     for (let i = 0; i < headlineLines.length; i += 1) {
       lines.push((i === 0 ? bullet : MESSAGE_INDENT) + headlineLines[i]);
