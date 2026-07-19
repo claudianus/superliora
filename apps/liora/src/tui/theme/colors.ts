@@ -127,8 +127,8 @@ export interface ColorPalette {
 }
 
 export const darkColors: ColorPalette = {
-  primary: '#4FA8FF',
-  accent: '#5BC0BE',
+  primary: '#3D9BFF',
+  accent: '#2DD4BF',
 
   text: '#E0E0E0',
   textStrong: '#F5F5F5',
@@ -156,12 +156,12 @@ export const darkColors: ColorPalette = {
   diffGutter: '#6B6B6B',
   diffMeta: '#888888',
 
-  roleUser: '#FFCB6B',
-  shellMode: '#BD93F9',
-  glow: '#7DD3FC',
-  particle: '#B784FF',
-  gradientStart: '#00D5FF',
-  gradientEnd: '#B784FF',
+  roleUser: '#FBBF24',
+  shellMode: '#E879F9',
+  glow: '#67E8F9',
+  particle: '#C084FC',
+  gradientStart: '#06B6D4',
+  gradientEnd: '#A855F7',
 
   syntaxText: '#E0E0E0',
   syntaxKeyword: '#C792EA',
@@ -177,7 +177,7 @@ export const darkColors: ColorPalette = {
 
 export const lightColors: ColorPalette = {
   primary: '#1565C0',
-  accent: '#00838F',
+  accent: '#0F766E',
 
   text: '#1A1A1A',
   textStrong: '#1A1A1A',
@@ -208,9 +208,9 @@ export const lightColors: ColorPalette = {
   roleUser: '#9A4A00',
   shellMode: '#7C3AED',
   glow: '#075985',
-  particle: '#7C3AED',
-  gradientStart: '#075985',
-  gradientEnd: '#0F766E',
+  particle: '#6D28D9',
+  gradientStart: '#0E7490',
+  gradientEnd: '#6D28D9',
 
   syntaxText: '#1A1A1A',
   syntaxKeyword: '#6D28D9',
