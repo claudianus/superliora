@@ -4,13 +4,13 @@ import {
 } from './responsive-layout';
 
 /** Max reading-column width for the centered stage (cols). */
-export const STAGE_MAX_WIDTH = 90;
+export const STAGE_MAX_WIDTH = 50;
 
 /**
  * Max stage height on tall / fullscreen terminals (rows).
- * Paired with {@link STAGE_MAX_WIDTH} as a 90×50 reading stage.
+ * Paired with {@link STAGE_MAX_WIDTH} as a portrait 50×90 reading stage.
  */
-export const STAGE_MAX_HEIGHT = 50;
+export const STAGE_MAX_HEIGHT = 90;
 
 /** Default situational rail width (cols). */
 export const RAIL_WIDTH = 36;
