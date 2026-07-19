@@ -104,7 +104,11 @@ import { StepSummaryComponent } from './components/messages/step-summary';
 import { ToolCallComponent } from './components/messages/tool-call';
 import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
-import { QueuePaneComponent } from './components/panes/queue-pane';
+import {
+  QueuePaneComponent,
+  queuePaneSelectionIdentity,
+  resolveHostOwnedQueueSettleStartedAtMs,
+} from './components/panes/queue-pane';
 import { DEFAULT_APPEARANCE_PREFERENCES, type TuiConfig } from './config';
 import {
   LLM_NOT_SET_MESSAGE,
@@ -340,6 +344,10 @@ export class LioraTUI {
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Host-owned queue settle clock (survives QueuePane remounts). */
+  private queueSettleSelectionIdentity: string | undefined;
+  private queueSettleStartedAtMs: number | undefined;
 
   /** Last user-submitted text, for `/retry` (Ctrl-Y). */
   private lastUserInput: string | undefined;
@@ -2759,7 +2767,21 @@ export class LioraTUI {
   updateQueueDisplay(): void {
     this.state.queueContainer.clear();
     const queued = this.state.queuedMessages;
-    if (queued.length === 0) return;
+    if (queued.length === 0) {
+      this.queueSettleSelectionIdentity = undefined;
+      this.queueSettleStartedAtMs = undefined;
+      return;
+    }
+
+    const selectedIndex = Math.max(0, queued.length - 1);
+    const settle = resolveHostOwnedQueueSettleStartedAtMs({
+      selectionIdentity: queuePaneSelectionIdentity(queued, selectedIndex),
+      previousSelectionIdentity: this.queueSettleSelectionIdentity,
+      previousSettleStartedAtMs: this.queueSettleStartedAtMs,
+      nowMs: appearanceAnimationNow(),
+    });
+    this.queueSettleSelectionIdentity = settle.selectionIdentity;
+    this.queueSettleStartedAtMs = settle.settleStartedAtMs;
 
     this.state.queueContainer.addChild(
       new QueuePaneComponent({
@@ -2767,6 +2789,8 @@ export class LioraTUI {
         isCompacting: this.state.appState.isCompacting,
         isStreaming: this.state.appState.streamingPhase !== 'idle',
         canSteerImmediately: !this.deferUserMessages,
+        selectedIndex,
+        settleStartedAtMs: settle.settleStartedAtMs,
       }),
     );
   }

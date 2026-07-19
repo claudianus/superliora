@@ -26,10 +26,46 @@ export interface QueuePaneOptions {
   readonly canSteerImmediately: boolean;
   /** Row that settles on mount (default: last = ↑-edit target). */
   readonly selectedIndex?: number;
+  /** Host-owned mount clock; remounts must reuse this for the same selection. */
   readonly settleStartedAtMs?: number;
 }
 
 const ELLIPSIS = '…';
+
+/** Stable identity for the settle-flash selection (index + selected row). */
+export function queuePaneSelectionIdentity(
+  messages: readonly QueuedMessage[],
+  selectedIndex: number,
+): string {
+  const selected = messages[selectedIndex];
+  if (selected === undefined) return `${String(selectedIndex)}:`;
+  return `${String(selectedIndex)}:${selected.mode ?? 'prompt'}:${selected.displayText ?? selected.text}`;
+}
+
+/**
+ * Approval-panel style: only bump settleStartedAtMs when selection identity
+ * changes. Remounts with the same selection reuse the host clock.
+ */
+export function resolveHostOwnedQueueSettleStartedAtMs(options: {
+  readonly selectionIdentity: string;
+  readonly previousSelectionIdentity: string | undefined;
+  readonly previousSettleStartedAtMs: number | undefined;
+  readonly nowMs: number;
+}): { readonly selectionIdentity: string; readonly settleStartedAtMs: number } {
+  if (
+    options.previousSelectionIdentity === options.selectionIdentity &&
+    options.previousSettleStartedAtMs !== undefined
+  ) {
+    return {
+      selectionIdentity: options.selectionIdentity,
+      settleStartedAtMs: options.previousSettleStartedAtMs,
+    };
+  }
+  return {
+    selectionIdentity: options.selectionIdentity,
+    settleStartedAtMs: options.nowMs,
+  };
+}
 
 export class QueuePaneComponent extends Container {
   private readonly messages: readonly QueuedMessage[];

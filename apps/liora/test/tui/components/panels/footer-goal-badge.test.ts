@@ -1,7 +1,9 @@
+import chalk from 'chalk';
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FooterComponent } from '#/tui/components/chrome/footer';
+import { darkColors } from '#/tui/theme';
 import type { GoalSnapshot } from '@superliora/sdk';
 import type { AppState } from '#/tui/types';
 
@@ -178,6 +180,24 @@ describe('FooterComponent — goal badge', () => {
     );
     const out = strip(footer.render(120).join('\n'));
     expect(out).toContain('SuperLiora SOTA');
+  });
+
+  it('styles goal badge meta (elapsed · turns) with textMuted, not bare default', () => {
+    const previousLevel = chalk.level;
+    chalk.level = 3;
+    try {
+      const footer = new FooterComponent(baseState({ goal: goal() }));
+      const raw = footer.render(160)[0]!;
+      const mutedMeta = chalk.hex(darkColors.textMuted)(' · 4m · 7 turns');
+      expect(raw).toContain(mutedMeta);
+      // Status tick keeps its own token (primary for active); meta is separate.
+      expect(raw).toContain(chalk.hex(darkColors.primary)('active'));
+      // Bare unstyled meta must not appear — prove muted SGR, not default text.
+      expect(raw.includes(' · 4m · 7 turns')).toBe(true);
+      expect(raw.indexOf(mutedMeta)).toBeGreaterThan(-1);
+    } finally {
+      chalk.level = previousLevel;
+    }
   });
 
 });

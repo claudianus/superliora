@@ -136,7 +136,8 @@ function formatGoalBadge(
   const statusTick = shouldRenderAmbientEffects(appearance)
     ? renderPulseText(goal.status, `footer:goal:${goal.status}`, statusToken, appearance)
     : chalk.hex(colors[statusToken])(goal.status);
-  const label = `${statusTick} · ${elapsed} · ${turns}`;
+  // Keep statusTick/dot pulsed; elapsed · turns stay muted chrome meta.
+  const label = statusTick + chalk.hex(colors.textMuted)(` · ${elapsed} · ${turns}`);
   const dot = shouldRenderAmbientEffects(appearance)
     ? renderPulseText('●', 'footer:goal:dot', statusToken, appearance)
     : chalk.hex(colors[statusToken])('●');

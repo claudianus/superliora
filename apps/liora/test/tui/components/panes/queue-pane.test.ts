@@ -1,7 +1,11 @@
 import chalk from 'chalk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { QueuePaneComponent } from '#/tui/components/panes/queue-pane';
+import {
+  QueuePaneComponent,
+  queuePaneSelectionIdentity,
+  resolveHostOwnedQueueSettleStartedAtMs,
+} from '#/tui/components/panes/queue-pane';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import * as appearanceEffects from '#/tui/utils/appearance-effects';
 import {
@@ -198,6 +202,81 @@ describe('QueuePaneComponent', () => {
     advanceAppearanceAnimationClock(Date.now() + SETTLE_FLASH_MS + 80);
     component.render(120);
     expect(settleSpy).not.toHaveBeenCalled();
+
+    chalk.level = previousChalkLevel;
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('keeps host-owned settleStartedAtMs across remounts with the same selection', () => {
+    chalk.level = 3;
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const settleSpy = vi.spyOn(appearanceEffects, 'renderSettleFlash');
+
+    const messages = [{ text: 'first' }, { text: 'selected row' }] as const;
+    const selectedIndex = 1;
+    const selectionIdentity = queuePaneSelectionIdentity(messages, selectedIndex);
+    let host = resolveHostOwnedQueueSettleStartedAtMs({
+      selectionIdentity,
+      previousSelectionIdentity: undefined,
+      previousSettleStartedAtMs: undefined,
+      nowMs: Date.now(),
+    });
+
+    const first = new QueuePaneComponent({
+      isCompacting: false,
+      isStreaming: true,
+      canSteerImmediately: true,
+      messages,
+      selectedIndex,
+      settleStartedAtMs: host.settleStartedAtMs,
+    });
+    first.render(120);
+    expect(settleSpy).toHaveBeenCalled();
+    expect(settleSpy.mock.calls[0]?.[2]).toBe(host.settleStartedAtMs);
+
+    // Remount after settle window with the same host clock — no restart.
+    settleSpy.mockClear();
+    const remountNow = Date.now() + SETTLE_FLASH_MS + 80;
+    vi.setSystemTime(new Date(remountNow));
+    advanceAppearanceAnimationClock(remountNow);
+    host = resolveHostOwnedQueueSettleStartedAtMs({
+      selectionIdentity,
+      previousSelectionIdentity: host.selectionIdentity,
+      previousSettleStartedAtMs: host.settleStartedAtMs,
+      nowMs: remountNow,
+    });
+    expect(host.settleStartedAtMs).toBe(Date.now() - (SETTLE_FLASH_MS + 80));
+
+    const remounted = new QueuePaneComponent({
+      isCompacting: true, // host often remounts on unrelated state churn
+      isStreaming: true,
+      canSteerImmediately: true,
+      messages,
+      selectedIndex,
+      settleStartedAtMs: host.settleStartedAtMs,
+    });
+    remounted.render(120);
+    expect(settleSpy).not.toHaveBeenCalled();
+
+    // New selection identity starts a fresh settle clock.
+    const nextMessages = [...messages, { text: 'new last' }];
+    const nextIndex = nextMessages.length - 1;
+    const next = resolveHostOwnedQueueSettleStartedAtMs({
+      selectionIdentity: queuePaneSelectionIdentity(nextMessages, nextIndex),
+      previousSelectionIdentity: host.selectionIdentity,
+      previousSettleStartedAtMs: host.settleStartedAtMs,
+      nowMs: remountNow,
+    });
+    expect(next.settleStartedAtMs).toBe(remountNow);
 
     chalk.level = previousChalkLevel;
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
