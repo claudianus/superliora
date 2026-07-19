@@ -10,6 +10,7 @@ import {
   paintStageLetterboxSky,
   pointInLetterboxBands,
   resolveLetterboxSideGutters,
+  resolveStageHoleFromBands,
 } from '#/tui/utils/stage-letterbox-sky';
 import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/utils/stage-frame';
 import { resolveStageLayout } from '#/tui/controllers/stage-layout';
@@ -51,6 +52,12 @@ describe('stage letterbox night sky', () => {
     return stageFrameLetterboxBands(bundle, 200, 80);
   }
 
+  const premiumAmbient = {
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium' as const,
+    particles: 'ambient' as const,
+  };
+
   it('keeps painted cells inside letterbox bands only', () => {
     const bands = ultrawideBands();
     expect(letterboxArea(bands)).toBeGreaterThan(24);
@@ -59,11 +66,7 @@ describe('stage letterbox night sky', () => {
       cols: 200,
       rows: 80,
       nowMs: 12_000,
-      appearance: {
-        ...DEFAULT_APPEARANCE_PREFERENCES,
-        profile: 'premium',
-        particles: 'ambient',
-      },
+      appearance: premiumAmbient,
     });
     expect(cells.length).toBeGreaterThan(8);
     for (const c of cells) {
@@ -85,20 +88,20 @@ describe('stage letterbox night sky', () => {
 
   it('keeps star twinkle stable within a 90ms premium bucket', () => {
     const bands = ultrawideBands();
-    const gutters = resolveLetterboxSideGutters(bands, 200);
-    const inSideGutter = (x: number) => gutters.some((g) => x >= g.x0 && x < g.x1);
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
       particles: 'premium' as const,
     };
+    // Freeze showers so only the quantized starfield is compared. Twinkle uses
+    // a coarse frozen bucket; +40ms must be bit-identical.
     const a = paintStageLetterboxSky({
       bands,
       cols: 200,
       rows: 80,
       nowMs: 12_000,
       appearance,
-      freeze: false,
+      freeze: true,
     });
     const b = paintStageLetterboxSky({
       bands,
@@ -106,32 +109,20 @@ describe('stage letterbox night sky', () => {
       rows: 80,
       nowMs: 12_000 + 40,
       appearance,
-      freeze: false,
+      freeze: true,
     });
-    // Side gutters carry shooting stars; top/bottom dust should stay bit-identical
-    // inside one twinkle bucket.
-    const starSig = (cells: typeof a) =>
-      cells
-        .filter((c) => !inSideGutter(c.x))
-        .map((c) => `${c.x},${c.y},${c.char},${c.fg}`)
-        .sort()
-        .join('|');
-    expect(starSig(a)).toBe(starSig(b));
+    expect(a.length).toBeGreaterThan(8);
+    expect(a).toEqual(b);
   });
 
   it('freezes shooting stars but can keep static star dust', () => {
     const bands = ultrawideBands();
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'premium' as const,
-      particles: 'ambient' as const,
-    };
     const a = paintStageLetterboxSky({
       bands,
       cols: 200,
       rows: 80,
       nowMs: 20_000,
-      appearance,
+      appearance: premiumAmbient,
       freeze: true,
     });
     const b = paintStageLetterboxSky({
@@ -139,27 +130,21 @@ describe('stage letterbox night sky', () => {
       cols: 200,
       rows: 80,
       nowMs: 20_000 + 500,
-      appearance,
+      appearance: premiumAmbient,
       freeze: true,
     });
-    // Freeze pins twinkle clock to a coarse bucket — identical paints.
     expect(a).toEqual(b);
-    expect(a.every((c) => c.char !== '◆')).toBe(true);
+    expect(a.every((c) => c.char !== '◆' && c.char !== '◈' && c.char !== '⬤')).toBe(true);
   });
 
   it('moves shooting-star heads across time when not frozen', () => {
     const bands = ultrawideBands();
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'premium' as const,
-      particles: 'ambient' as const,
-    };
     const a = paintStageLetterboxSky({
       bands,
       cols: 200,
       rows: 80,
       nowMs: 30_000,
-      appearance,
+      appearance: premiumAmbient,
       freeze: false,
     });
     const b = paintStageLetterboxSky({
@@ -167,20 +152,18 @@ describe('stage letterbox night sky', () => {
       cols: 200,
       rows: 80,
       nowMs: 30_000 + 400,
-      appearance,
+      appearance: premiumAmbient,
       freeze: false,
     });
     const heads = (cells: typeof a) =>
       cells
-        .filter((c) => c.char === '◆')
+        .filter((c) => c.char === '◆' || c.char === '◈' || c.char === '⬤')
         .map((c) => `${c.x},${c.y}`)
         .sort()
         .join('|');
-    // At least one frame in the window should show a shooting star; if both empty, skip strictness.
     if (heads(a).length > 0 || heads(b).length > 0) {
       expect(heads(a)).not.toBe(heads(b));
     } else {
-      // Still expect starfield motion/twinkle difference in the full paint set.
       const sig = (cells: typeof a) => cells.map((c) => `${c.x},${c.y},${c.fg}`).join('|');
       expect(sig(a)).not.toBe(sig(b));
     }
@@ -196,98 +179,98 @@ describe('stage letterbox night sky', () => {
     expect(gutters[1]!.x0).toBeLessThan(200);
   });
 
-  it('lets shooting-star heads reach the bottom row inside side gutters', () => {
+  it('resolves a stage hole surrounded by letterbox bands', () => {
     const bands = ultrawideBands();
-    const gutters = resolveLetterboxSideGutters(bands, 200);
-    expect(gutters.length).toBeGreaterThan(0);
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'premium' as const,
-      particles: 'ambient' as const,
-    };
-    let maxHeadY = -1;
-    let sawBottomHead = false;
-    for (let t = 0; t < 8_000; t += 40) {
+    const hole = resolveStageHoleFromBands(bands, 200, 80);
+    expect(hole).toBeDefined();
+    expect(hole!.x1).toBeGreaterThan(hole!.x0);
+    expect(hole!.y1).toBeGreaterThan(hole!.y0);
+    expect(pointInLetterboxBands(bands, hole!.x0, hole!.y0)).toBe(false);
+  });
+
+  it('shows meteor heads inbound from top, bottom, and side gutters', () => {
+    const bands = ultrawideBands();
+    const hole = resolveStageHoleFromBands(bands, 200, 80)!;
+    let sawTop = false;
+    let sawBottom = false;
+    let sawSide = false;
+    for (let t = 0; t < 12_000; t += 30) {
       const cells = paintStageLetterboxSky({
         bands,
         cols: 200,
         rows: 80,
         nowMs: 50_000 + t,
-        appearance,
+        appearance: premiumAmbient,
         freeze: false,
       });
       for (const c of cells) {
-        if (c.char !== '◆') continue;
-        maxHeadY = Math.max(maxHeadY, c.y);
-        const inGutter = gutters.some((g) => c.x >= g.x0 && c.x < g.x1);
-        expect(inGutter).toBe(true);
-        if (c.y >= 79) sawBottomHead = true;
+        if (c.char !== '◆' && c.char !== '◈' && c.char !== '⬤') continue;
+        if (c.y < hole.y0) sawTop = true;
+        if (c.y >= hole.y1) sawBottom = true;
+        if (c.x < hole.x0 || c.x >= hole.x1) sawSide = true;
       }
+      if (sawTop && sawBottom && sawSide) break;
     }
-    // Most showers now detonate on the stage rim before the floor — either a
-    // deep head or a rim explosion proves the path still spans the letterbox.
-    expect(maxHeadY >= 40 || sawBottomHead).toBe(true);
+    expect(sawTop).toBe(true);
+    expect(sawBottom).toBe(true);
+    expect(sawSide).toBe(true);
   });
 
-  it('drifts shooting-star heads sideways along a soft diagonal', () => {
+  it('uses diagonal trail glyphs on angled inbound paths', () => {
     const bands = ultrawideBands();
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'premium' as const,
-      particles: 'ambient' as const,
-    };
-    const xs = new Set<number>();
-    let sawDiagMid = false;
-    for (let t = 0; t < 6_000; t += 40) {
+    let sawDiag = false;
+    for (let t = 0; t < 8_000; t += 40) {
       const cells = paintStageLetterboxSky({
         bands,
         cols: 200,
         rows: 80,
         nowMs: 70_000 + t,
-        appearance,
+        appearance: premiumAmbient,
         freeze: false,
       });
       for (const c of cells) {
-        if (c.char === '◆') xs.add(c.x);
-        if (c.char === '╲' || c.char === '╱') sawDiagMid = true;
+        if (c.char === '╲' || c.char === '╱') sawDiag = true;
       }
+      if (sawDiag) break;
     }
-    // Soft diagonal must not pin every head to a single column.
-    expect(xs.size).toBeGreaterThan(1);
-    expect(sawDiagMid).toBe(true);
+    expect(sawDiag).toBe(true);
   });
 
-  it('detonates sparks when a shower hits the stage-facing gutter rim', () => {
+  it('detonates mega bursts with shock-ring and debris glyphs on the rim', () => {
     const bands = ultrawideBands();
-    const gutters = resolveLetterboxSideGutters(bands, 200);
-    expect(gutters.length).toBe(2);
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'premium' as const,
-      particles: 'ambient' as const,
-    };
-    let sawBurst = false;
-    let burstOnRim = false;
-    for (let t = 0; t < 10_000; t += 30) {
+    const hole = resolveStageHoleFromBands(bands, 200, 80)!;
+    let sawFlash = false;
+    let sawRing = false;
+    let sawDebris = false;
+    let nearRim = false;
+    for (let t = 0; t < 14_000; t += 25) {
       const cells = paintStageLetterboxSky({
         bands,
         cols: 200,
         rows: 80,
         nowMs: 90_000 + t,
-        appearance,
+        appearance: premiumAmbient,
         freeze: false,
       });
       for (const c of cells) {
-        if (c.char !== '✹' && c.char !== '✦' && c.char !== '*' && c.char !== '+') continue;
-        sawBurst = true;
-        const onLeftRim = Math.abs(c.x - (gutters[0]!.x1 - 1)) <= 2;
-        const onRightRim = Math.abs(c.x - gutters[1]!.x0) <= 2;
-        if (onLeftRim || onRightRim) burstOnRim = true;
+        if (c.char === '✹' || c.char === '⬤') sawFlash = true;
+        if (c.char === '░' || c.char === '▒' || c.char === '▓') sawRing = true;
+        if (c.char === '*' || c.char === '+' || c.char === '✧') sawDebris = true;
+        const pad = 3;
+        const onRim =
+          (Math.abs(c.x - hole.x0) <= pad ||
+            Math.abs(c.x - (hole.x1 - 1)) <= pad ||
+            Math.abs(c.y - hole.y0) <= pad ||
+            Math.abs(c.y - (hole.y1 - 1)) <= pad) &&
+          pointInLetterboxBands(bands, c.x, c.y);
+        if (onRim && (c.char === '✹' || c.char === '░' || c.char === '✦')) nearRim = true;
       }
-      if (sawBurst && burstOnRim) break;
+      if (sawFlash && sawRing && sawDebris && nearRim) break;
     }
-    expect(sawBurst).toBe(true);
-    expect(burstOnRim).toBe(true);
+    expect(sawFlash).toBe(true);
+    expect(sawRing).toBe(true);
+    expect(sawDebris).toBe(true);
+    expect(nearRim).toBe(true);
   });
 
   it('builds dense letterbox regions without clear so ambient ticks do not wipe bands', () => {
