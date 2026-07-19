@@ -168,11 +168,23 @@ function formatThinkingStatus(host: SlashCommandHost): string {
   const modelAlias = host.state.appState.model.trim();
   const model = host.state.appState.availableModels[modelAlias];
   const status = host.state.appState.thinking ? 'on' : 'off';
-  const supportEfforts = model?.supportEfforts;
-  if (supportEfforts !== undefined && supportEfforts.length > 0) {
-    return `Thinking is ${status}. Supported efforts: ${supportEfforts.join(', ')}.`;
+
+  // Check if model supports thinking.
+  const caps = model?.capabilities ?? [];
+  const supportsThinking =
+    caps.includes('always_thinking') || caps.includes('thinking') || model?.adaptiveThinking === true;
+
+  if (!supportsThinking) {
+    return `Thinking is ${status}. Current model does not support thinking.`;
   }
-  return `Thinking is ${status}. Use /thinking ${formatThinkingLevels()}.`;
+
+  const supportEfforts = model?.supportEfforts;
+  const defaultEffort = model?.defaultEffort ?? 'high';
+
+  if (supportEfforts !== undefined && supportEfforts.length > 0) {
+    return `Thinking is ${status}. Default effort: ${defaultEffort}. Supported: ${supportEfforts.join(', ')}. Use /thinking <level>.`;
+  }
+  return `Thinking is ${status}. Default effort: ${defaultEffort}. Use /thinking <${formatThinkingLevels()}>.`;
 }
 
 async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {

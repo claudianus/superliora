@@ -45,7 +45,8 @@ describe('CustomEndpointImportDialogComponent', () => {
     typeText(dialog, 'qwen3-coder:30b');
     dialog.handleInput('\r');
     dialog.handleInput('\r'); // empty API key is allowed for local/keyless endpoints.
-    dialog.handleInput('\r'); // submit default context tokens.
+    dialog.handleInput('\r'); // keep default context tokens.
+    dialog.handleInput('\r'); // keep default thinking (No) and submit.
 
     expect(onDone).toHaveBeenCalledWith({
       kind: 'ok',
@@ -56,6 +57,7 @@ describe('CustomEndpointImportDialogComponent', () => {
         modelId: 'qwen3-coder:30b',
         apiKey: undefined,
         maxContextSize: 128000,
+        thinking: false,
       },
     });
   });
@@ -75,6 +77,7 @@ describe('CustomEndpointImportDialogComponent', () => {
     dialog.handleInput('\r');
     dialog.handleInput('\r');
     dialog.handleInput('\r');
+    dialog.handleInput('\r'); // thinking field → submit
 
     expect(onDone).toHaveBeenCalledWith({
       kind: 'ok',
@@ -85,6 +88,7 @@ describe('CustomEndpointImportDialogComponent', () => {
         modelId: 'cursor/grok-4.5',
         apiKey: undefined,
         maxContextSize: 128000,
+        thinking: false,
       },
     });
   });
@@ -105,6 +109,7 @@ describe('CustomEndpointImportDialogComponent', () => {
     dialog.handleInput('\r');
     dialog.handleInput('\r');
     dialog.handleInput('\r');
+    dialog.handleInput('\r'); // thinking field → submit
 
     expect(onDone).toHaveBeenCalledWith({
       kind: 'ok',
@@ -115,6 +120,7 @@ describe('CustomEndpointImportDialogComponent', () => {
         modelId: 'cursor/grok-4.5',
         apiKey: undefined,
         maxContextSize: 128000,
+        thinking: false,
       },
     });
   });
@@ -146,12 +152,14 @@ describe('CustomEndpointImportDialogComponent', () => {
   it('validates required fields before submitting', () => {
     const { dialog, onDone } = makeDialog();
 
+    // Navigate to the thinking field (last field) and try to submit.
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
-    dialog.handleInput('\r');
+    dialog.handleInput(DOWN); // thinking field
+    dialog.handleInput('\r'); // try to submit
 
     expect(onDone).not.toHaveBeenCalled();
     expect(plain(dialog)).toContain('Provider id is required');
