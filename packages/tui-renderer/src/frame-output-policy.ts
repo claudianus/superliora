@@ -173,11 +173,10 @@ function resolveFrameOutputMode(
   cursor: RendererCursorState | undefined,
 ): RendererFrameOutputMode {
   if (diff.changedCells <= 0) return cursor === undefined ? 'empty' : 'cursor-only';
-  if (
-    diff.force ||
-    diff.scanStrategy === 'full-frame' ||
-    (diff.totalCells > 0 && diff.changedCells >= diff.totalCells)
-  ) {
+  // Mode follows actual rewrite coverage, not scan strategy. A forced full-frame
+  // scan that only patches a handful of changed cells is still a partial present
+  // — treating it as "full" used to wrap sync and overstate output pressure.
+  if (diff.totalCells > 0 && diff.changedCells >= diff.totalCells) {
     return 'full';
   }
   return 'partial';

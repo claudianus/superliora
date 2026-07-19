@@ -2768,8 +2768,9 @@ describe('diffCellBuffers', () => {
     expect(diff.scannedRows).toBe(2);
     expect(diff.dirtyRows).toBe(2);
     expect(diff.scanRatio).toBe(0.02);
-    expect(diff.damageCells).toBe(100);
-    expect(diff.damageRatio).toBe(1);
+    // damageCells tracks rewrite coverage (not the bounding damage rect).
+    expect(diff.damageCells).toBe(2);
+    expect(diff.damageRatio).toBe(0.02);
     expect(diff.patches.map((patch) => [patch.x, patch.y, patch.cell.char])).toEqual([
       [0, 0, 'a'],
       [9, 9, 'b'],
@@ -2778,9 +2779,11 @@ describe('diffCellBuffers', () => {
     expect(fallback.scannedCells).toBe(100);
     expect(fallback.scannedRows).toBe(10);
     expect(fallback.dirtyRows).toBe(0);
+    expect(fallback.damageCells).toBe(2);
+    expect(fallback.damageRatio).toBe(0.02);
   });
 
-  it('forces a full-frame patch set for resize recovery', () => {
+  it('force scans the full frame but only patches cells that actually changed', () => {
     const previous = new RendererCellBuffer(2, 2);
     const next = new RendererCellBuffer(2, 2);
     next.writeText(0, 0, 'A');
@@ -2792,7 +2795,39 @@ describe('diffCellBuffers', () => {
     expect(diff.scannedCells).toBe(4);
     expect(diff.scannedRows).toBe(2);
     expect(diff.dirtyRows).toBe(0);
-    expect(diff.patches).toHaveLength(4);
+    // Equal empty cells must not be re-emitted — that was whole-screen flicker.
+    expect(diff.patches).toEqual([{ x: 0, y: 0, cell: { char: 'A' } }]);
+  });
+
+  it('rewriteUnchanged re-emits equal cells for terminal resync', () => {
+    const previous = new RendererCellBuffer(2, 1);
+    const next = new RendererCellBuffer(2, 1);
+    previous.writeText(0, 0, 'AB');
+    next.writeText(0, 0, 'AB');
+
+    const soft = diffCellBuffers(previous, next, { force: true });
+    expect(soft.scannedCells).toBe(2);
+    expect(soft.patches).toHaveLength(0);
+
+    const hard = diffCellBuffers(previous, next, { force: true, rewriteUnchanged: true });
+    expect(hard.patches).toHaveLength(2);
+  });
+
+  it('keeps soft-force damage ratio on rewrite coverage, not full-frame scan size', () => {
+    const previous = new RendererCellBuffer(80, 24);
+    const next = new RendererCellBuffer(80, 24);
+    previous.writeText(0, 0, 'idle');
+    next.writeText(0, 0, 'idle');
+    next.writeText(10, 5, '*');
+
+    const diff = diffCellBuffers(previous, next, { force: true });
+
+    expect(diff.scanStrategy).toBe('full-frame');
+    expect(diff.scannedCells).toBe(80 * 24);
+    expect(diff.changedCells).toBe(1);
+    expect(diff.damageCells).toBe(1);
+    expect(diff.damageRatio).toBeCloseTo(1 / (80 * 24));
+    expect(diff.patches).toEqual([{ x: 10, y: 5, cell: { char: '*' } }]);
   });
 
   it('treats hyperlink metadata changes as changed cells', () => {
@@ -3521,7 +3556,8 @@ describe('NativeFrameRenderer', () => {
 
     expect(result.diff.force).toBe(true);
     expect(result.diff.scannedCells).toBe(4);
-    expect(result.output).toBe('\u001B[1;1Hhi  ');
+    // Trailing empties match the previous buffer — soft-force skips them.
+    expect(result.output).toBe('\u001B[1;1Hhi');
     expect(result.bytes).toBe(Buffer.byteLength(result.output));
     expect(writes).toEqual([result.output]);
   });
@@ -3608,7 +3644,9 @@ describe('NativeFrameRenderer', () => {
     renderer.setCursor({ x: 2, y: 0, visible: true, shape: 'bar', blinking: false });
     const same = renderer.present();
 
-    expect(first.output).toContain('\u001B[6 q\u001B[3D\u001B[?25h');
+    // Soft-force only emits "ok" (not trailing empties), so relative cursor
+    // motion is 1 cell back from the run end, not 3.
+    expect(first.output).toContain('\u001B[6 q\u001B[D\u001B[?25h');
     expect(moved.output).toBe('\u001B[6 q\u001B[C\u001B[?25h');
     expect(same.output).toBe('');
     expect(writes).toHaveLength(2);
@@ -3735,7 +3773,7 @@ describe('NativeFrameRenderer', () => {
     expect(renderer.width).toBe(2);
     expect(result.diff.force).toBe(true);
     expect(result.diff.totalCells).toBe(2);
-    expect(result.output).toBe('\u001B[1;1Hz ');
+    expect(result.output).toBe('\u001B[1;1Hz');
   });
 
   it('honors terminal output options when presenting', () => {
@@ -3789,15 +3827,16 @@ describe('NativeFrameRenderer', () => {
     renderer.setCursor({ x: 2, y: 0, visible: true });
     const cursorOnly = renderer.present();
 
+    // Soft-force scans the whole row but only patches "abcd"; mode and sync
+    // follow rewrite coverage (4 cells ≪ balanced thresholds → no sync).
     expect(full.outputPolicy).toMatchObject({
-      mode: 'full',
-      synchronized: true,
-      reason: 'full-frame',
+      mode: 'partial',
+      synchronized: false,
+      reason: 'below-threshold',
       eraseLine: true,
     });
-    expect(full.output).toBe(
-      `${ANSI_BEGIN_SYNCHRONIZED_UPDATE}\u001B[1;1Habcd${ANSI_ERASE_IN_LINE}${ANSI_END_SYNCHRONIZED_UPDATE}`,
-    );
+    // Without trailing blank patches, erase-line has no known row tail to clear.
+    expect(full.output).toBe('\u001B[1;1Habcd');
     expect(small.outputPolicy).toMatchObject({
       mode: 'partial',
       synchronized: false,
@@ -3861,7 +3900,7 @@ describe('NativeFrameRenderer', () => {
     renderer.writeText(0, 0, 'hi');
     const result = renderer.present();
 
-    expect(result.output).toBe(`${encodeRendererClearInlineImages('kitty')}\u001B[1;1Hhi  `);
+    expect(result.output).toBe(`${encodeRendererClearInlineImages('kitty')}\u001B[1;1Hhi`);
   });
 
   it('does not prepend an inline-image clear sequence when inlineImageProtocol is none', () => {
@@ -3877,7 +3916,7 @@ describe('NativeFrameRenderer', () => {
     renderer.writeText(0, 0, 'hi');
     const result = renderer.present();
 
-    expect(result.output).toBe('\u001B[1;1Hhi  ');
+    expect(result.output).toBe('\u001B[1;1Hhi');
   });
 });
 
@@ -3902,7 +3941,8 @@ describe('renderNativeLayoutFrame', () => {
 
     expect(result.composition.regions).toBe(1);
     expect(result.regions[0]!.lines).toEqual(['5:\u001B[32mok']);
-    expect(result.output).toBe('\u001B[1;1H 5:\u001B[0;38;2;0;128;0mok\u001B[0m   \u001B[2;1H        ');
+    // Soft-force skips blank padding cells that still match the empty buffer.
+    expect(result.output).toBe('\u001B[1;2H5:\u001B[0;38;2;0;128;0mok\u001B[0m');
     expect(writes).toEqual([result.output]);
   });
 

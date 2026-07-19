@@ -105,12 +105,20 @@ export class NativeFrameRenderer {
     this.previousCursor = undefined;
   }
 
-  present(options: { readonly force?: boolean; readonly forceCursor?: boolean } = {}): NativeFramePresentResult {
+  present(
+    options: {
+      readonly force?: boolean;
+      readonly forceCursor?: boolean;
+      /** Re-emit equal cells (terminal resync). Ambient animation must never set this. */
+      readonly rewriteUnchanged?: boolean;
+    } = {},
+  ): NativeFramePresentResult {
     const startedAt = this.now();
     const force = options.force === true || this.forceNextPresent;
     const diffStartedAt = this.now();
     const diff = this.buffers.present({
       force,
+      rewriteUnchanged: options.rewriteUnchanged === true,
       runOptimization: this.options.runOptimization ?? true,
     });
     const diffEndedAt = this.now();
