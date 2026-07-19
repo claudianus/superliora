@@ -14,7 +14,7 @@
  */
 
 import type { Component } from '#/tui/renderer';
-import { truncateToWidth } from '#/tui/renderer';
+import { mixHexColor, styleToAnsi, truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import {
@@ -47,6 +47,8 @@ import {
   type IdleTankSnapshot,
 } from '#/tui/utils/idle-tank-sim';
 import { ttui } from '#/tui/utils/tui-i18n';
+
+const ANSI_RESET = '\u001B[0m';
 
 const IDLE_TIP_ROTATE_MS = 7_200;
 const IDLE_LINE_ROTATE_MS = 4_800;
@@ -197,6 +199,7 @@ export function renderIdleStageLines(
   const tip = tipKey === undefined ? '' : ttui(tipKey);
   const workDir = options?.workDir?.trim() ?? '';
   const fishHex = premium ? palette.glow : palette.primary;
+  const themeMode = options?.themeMode ?? 'dark';
 
   const chromeLines: string[] = [];
   chromeLines.push(
@@ -216,6 +219,18 @@ export function renderIdleStageLines(
   // Place chrome at the bottom of the canvas (pad-to-target).
   let y = targetRows - chromeLines.length;
   if (y < 0) y = 0;
+  // Fill story→chrome breathing room with abyss water — bare canvas spaces here
+  // read as solid near-black bands between the tank and the title.
+  if (showAmbient && y > storyRows) {
+    const abyss =
+      themeMode === 'light'
+        ? mixHexColor(palette.surfaceSunken, palette.primary, 0.12)
+        : mixHexColor(palette.surfaceSunken, '#061A3A', 0.55);
+    const gap = `${styleToAnsi({ bg: abyss })}${' '.repeat(safeWidth)}${ANSI_RESET}`;
+    for (let gapY = storyRows; gapY < y; gapY++) {
+      canvas[gapY] = gap;
+    }
+  }
   for (let i = 0; i < chromeLines.length && y + i < targetRows; i++) {
     canvas[y + i] = padOrTrim(chromeLines[i]!, safeWidth);
   }

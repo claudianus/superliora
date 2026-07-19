@@ -203,17 +203,15 @@ export function blitAt(
     for (let x = 0; x < fit; x++) {
       const glyph = glyphCells[x];
       if (glyph === undefined) continue;
-      // Skip blank padding so we don't wipe underlying colored water/plants.
+      // Skip fully transparent padding so we don't wipe underlying water/plants.
       if (glyph.char === ' ' && glyph.style?.fg === undefined && glyph.style?.bg === undefined) {
         continue;
       }
-      // Keep water background under transparent fish gaps.
+      // Keep water background under glyphs that only set foreground — including
+      // chalk-colored plant padding spaces (`fg` set, `bg` absent). Those used
+      // to overwrite mid-water with unstyled cells that inherited canvas black.
       const under = cells[safeLeft + x];
-      if (
-        glyph.style?.bg === undefined &&
-        under?.style?.bg !== undefined &&
-        glyph.char !== ' '
-      ) {
+      if (glyph.style?.bg === undefined && under?.style?.bg !== undefined) {
         cells[safeLeft + x] = {
           ...glyph,
           style: { ...glyph.style, bg: under.style.bg },
