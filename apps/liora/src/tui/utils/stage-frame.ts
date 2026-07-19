@@ -1,5 +1,5 @@
 import type { AppearancePreferences } from '#/tui/config';
-import { mixHexColor } from '#/tui/renderer';
+import { mixHexColor, type RendererCell, type RendererFrameRegion } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   motionEffectsAllowed,
@@ -308,4 +308,29 @@ export function paintStageFrameCells(input: {
   }
 
   return out;
+}
+
+export function createStageFrameOverlayRegion(input: {
+  readonly bundle: StageFrameBand;
+  readonly cols: number;
+  readonly rows: number;
+  readonly nowMs: number;
+  readonly appearance: AppearancePreferences;
+  readonly freezeChase?: boolean;
+}): RendererFrameRegion | undefined {
+  const painted = paintStageFrameCells(input);
+  if (painted.length === 0) return undefined;
+  const lines: RendererCell[][] = Array.from({ length: input.rows }, () => []);
+  for (const cell of painted) {
+    if (cell.y < 0 || cell.y >= input.rows || cell.x < 0 || cell.x >= input.cols) continue;
+    const row = lines[cell.y]!;
+    row[cell.x] = { char: cell.char, style: { fg: cell.fg, bold: cell.bold } };
+  }
+  return {
+    id: 'stageFrame',
+    rect: { x: 0, y: 0, width: input.cols, height: input.rows },
+    content: lines,
+    clear: false,
+    zIndex: 5,
+  };
 }

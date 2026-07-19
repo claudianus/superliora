@@ -5,6 +5,7 @@ import {
   STAGE_FRAME_ARM_TARGET,
   STAGE_FRAME_CHASE_MS_PER_CELL,
   STAGE_FRAME_MARGIN,
+  createStageFrameOverlayRegion,
   noteStageFrameBundle,
   paintStageFrameCells,
   resetStageFrameEntranceForTests,
@@ -247,5 +248,26 @@ describe('stageFrame entrance + chase', () => {
     const signature = (cells: typeof a) =>
       cells.map((c) => `${c.x},${c.y},${c.fg},${c.bold === true ? 1 : 0}`).join('|');
     expect(signature(a)).not.toBe(signature(b));
+  });
+
+  it('builds a non-clearing full-viewport overlay with sparse cells', () => {
+    const bundle = { x: 40, y: 12, width: 108, height: 56 };
+    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
+    const region = createStageFrameOverlayRegion({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: 10_000,
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, particles: 'subtle' },
+    });
+    expect(region).toBeDefined();
+    expect(region!.clear).toBe(false);
+    expect(region!.id).toBe('stageFrame');
+    expect(region!.rect).toEqual({ x: 0, y: 0, width: 200, height: 80 });
+    const lines = region!.content as readonly (readonly { char: string }[])[];
+    const painted = lines.flatMap((row, y) =>
+      Object.entries(row).map(([x, cell]) => ({ x: Number(x), y, char: cell.char })),
+    );
+    expect(painted.length).toBeGreaterThan(0);
   });
 });
