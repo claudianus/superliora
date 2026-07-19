@@ -33,6 +33,18 @@ export type AmbientEffectMode = RendererEffectLevel;
  * Dingbats (✦✧✺) break on common Nerd Font + kitty symbol_map setups.
  */
 const PREMIUM_PARTICLES = ['•', '∙', '·', '*', '◦'] as const;
+/**
+ * Brand duo motion tokens only — never success/warning/shellMode.
+ * Keeps splash/meteors/particles/spectacular text inside each theme's two-tone.
+ */
+export const BRAND_MOTION_TOKENS: readonly ColorToken[] = [
+  'gradientStart',
+  'primary',
+  'glow',
+  'accent',
+  'gradientEnd',
+  'particle',
+];
 const PARTICLE_TOKENS: readonly ColorToken[] = [
   'particle',
   'accent',
@@ -54,16 +66,7 @@ const PULSE_GLYPH_INTERVAL_MS = 280;
 const COMET_TICK_MS_PREMIUM = 48;
 const COMET_TICK_MS_SUBTLE = 96;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
-const SPECTACULAR_TOKENS: readonly ColorToken[] = [
-  'gradientStart',
-  'primary',
-  'glow',
-  'accent',
-  'gradientEnd',
-  'particle',
-  'shellMode',
-  'success',
-];
+const SPECTACULAR_TOKENS: readonly ColorToken[] = BRAND_MOTION_TOKENS;
 
 export interface SpectacularTextOptions {
   readonly rowIndex?: number;
@@ -654,6 +657,159 @@ export function renderShimmerPrefix(appearance: AppearancePreferences = activeAp
     length: SHIMMER_FRAMES.length,
   }) ?? 0;
   return `${SHIMMER_FRAMES[index]!} `;
+}
+
+export type MotionToolPhase = 'running' | 'streaming' | 'done' | 'error';
+
+export const SETTLE_FLASH_MS = 420;
+export const CROSSFADE_MS = 480;
+export const ENTER_BEAT_MS = 720;
+export const EXIT_BEAT_MS = 640;
+
+function motionProgress(startedAtMs: number, durationMs: number, nowMs = appearanceAnimationNow()): number {
+  if (durationMs <= 0) return 1;
+  return Math.min(1, Math.max(0, (nowMs - startedAtMs) / durationMs));
+}
+
+export function renderSettleFlash(
+  text: string,
+  seed: string,
+  startedAtMs: number,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const plain = stripAnsiControls(text);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return currentTheme.boldFg('textStrong', plain);
+  }
+  const p = motionProgress(startedAtMs, mode === 'subtle' ? SETTLE_FLASH_MS * 1.4 : SETTLE_FLASH_MS);
+  if (p >= 1) return currentTheme.fg('text', plain);
+  // ≥4 visual steps via spectacular → pulse → text
+  if (p < 0.35) return renderSpectacularText(plain, seed, appearance, { intense: true, pace: 'fast' });
+  if (p < 0.7) return renderPulseText(plain, seed, 'primary', appearance);
+  return currentTheme.boldFg('primary', plain);
+}
+
+export function renderPhaseChip(
+  label: string,
+  phase: MotionToolPhase,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const plain = stripAnsiControls(label);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  const mark =
+    phase === 'running' ? '▸' : phase === 'streaming' ? '▹' : phase === 'done' ? '✓' : '!';
+  // Use SELECT-safe marks that are NOT list pointers; these are chip glyphs only.
+  const body = `${mark} ${plain}`;
+  if (!motionEffectsAllowed() || mode === 'off') {
+    const token =
+      phase === 'error' ? 'error' : phase === 'done' ? 'success' : 'textMuted';
+    return currentTheme.fg(token, body);
+  }
+  if (phase === 'running' || phase === 'streaming') {
+    return renderPulseText(body, `${seed}:${phase}`, phase === 'streaming' ? 'accent' : 'primary', appearance);
+  }
+  if (phase === 'error') return currentTheme.boldFg('error', body);
+  // Done chip stays on brand glow — not the shared mint success token.
+  return currentTheme.fg('glow', body);
+}
+
+export function renderCrossfadeLine(
+  fromText: string,
+  toText: string,
+  seed: string,
+  startedAtMs: number,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const from = stripAnsiControls(fromText);
+  const to = stripAnsiControls(toText);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off' || from === to) {
+    return currentTheme.fg('textMuted', to);
+  }
+  const p = motionProgress(startedAtMs, mode === 'subtle' ? CROSSFADE_MS * 1.4 : CROSSFADE_MS);
+  if (p < 0.45) return currentTheme.dimFg('textMuted', from);
+  if (p < 0.7) return renderShimmerPrefix(appearance) + currentTheme.fg('textMuted', to);
+  return currentTheme.fg('textMuted', to);
+}
+
+export function renderEnterBeat(
+  title: string,
+  width: number,
+  seed: string,
+  startedAtMs: number,
+  appearance: AppearancePreferences = activeAppearance,
+): string[] {
+  const plain = stripAnsiControls(title);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  const w = Math.max(8, width);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return [currentTheme.boldFg('textStrong', plain)];
+  }
+  const p = motionProgress(startedAtMs, mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS);
+  const rail = renderParticleRail(w, appearance, `${seed}:enter`);
+  const head =
+    p < 0.85
+      ? renderPremiumHeadline(plain, `${seed}:title`, appearance)
+      : currentTheme.boldFg('textStrong', plain);
+  if (p < 0.25) return [currentTheme.dim(rail)];
+  if (p < 0.5) return [currentTheme.dim(rail), head];
+  if (p < 0.85) return [head, currentTheme.dim(rail)];
+  return [head];
+}
+
+export function renderExitBeat(
+  title: string,
+  width: number,
+  seed: string,
+  startedAtMs: number,
+  appearance: AppearancePreferences = activeAppearance,
+): string[] {
+  // Mirror enter with brand glow, then collapse to a single line
+  const plain = stripAnsiControls(title);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  const w = Math.max(8, width);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return [currentTheme.fg('glow', plain)];
+  }
+  const p = motionProgress(startedAtMs, mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS);
+  const rail = renderParticleRail(w, appearance, `${seed}:exit`);
+  const head = renderPulseText(plain, `${seed}:exit-title`, 'glow', appearance);
+  if (p < 0.3) return [head, currentTheme.dim(rail)];
+  if (p < 0.65) return [head];
+  return [currentTheme.fg('glow', plain)];
+}
+
+export function renderAmbientDrift(
+  width: number,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  // Quieter than meteor field: reuse particle rail with a distinct seed namespace.
+  const w = Math.max(8, width);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return currentTheme.dimFg('border', '─'.repeat(w));
+  }
+  return renderParticleRail(w, appearance, `drift:${seed}`);
+}
+
+export function renderDangerBreathe(
+  text: string,
+  seed: string,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const plain = stripAnsiControls(text);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return currentTheme.boldFg('error', plain);
+  }
+  // Alternate error / primary — stay on brand+danger, never warning yellow
+  const interval = mode === 'premium' ? 220 : 400;
+  const tick = Math.floor(appearanceAnimationNow() / interval) % 4;
+  const token = tick % 2 === 0 ? 'error' : 'primary';
+  return currentTheme.boldFg(token, plain);
 }
 
 function resolveSpectacularTextCycleMs(

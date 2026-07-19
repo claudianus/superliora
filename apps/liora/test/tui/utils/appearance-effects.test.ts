@@ -1,20 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import chalk from 'chalk';
 
 import { visibleWidth } from '#/tui/renderer';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
+  BRAND_MOTION_TOKENS,
   paintUltraworkEditorBorderGlow,
+  renderAmbientDrift,
+  renderCrossfadeLine,
+  renderDangerBreathe,
+  renderEnterBeat,
+  renderExitBeat,
   renderMeteorField,
   renderParticleDivider,
   renderParticleRail,
+  renderPhaseChip,
+  renderSettleFlash,
   renderSpectacularText,
   resolveUltraworkBorderGlowHex,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
+import { darkColors } from '#/tui/theme/colors';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -238,5 +248,126 @@ describe('spectacular text ANSI safety', () => {
     // Visible payload remains.
     expect(strip(rendered)).toContain('thinking...');
     expect(strip(rendered)).toContain('40c');
+  });
+});
+
+describe('premium motion vocabulary', () => {
+  const previous = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+    chalkLevel: chalk.level,
+  };
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    chalk.level = 3;
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    chalk.level = previous.chalkLevel;
+    for (const [key, value] of Object.entries(previous)) {
+      if (key === 'chalkLevel') continue;
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  const premium = {
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium' as const,
+    particles: 'premium' as const,
+  };
+
+  it('renderEnterBeat returns ≥4 distinct frames across its lifetime', () => {
+    const frames = new Set<string>();
+    const start = Date.now();
+    for (let t = 0; t <= 720; t += 40) {
+      vi.setSystemTime(start + t);
+      advanceAppearanceAnimationClock(Date.now());
+      frames.add(renderEnterBeat('Compacting', 48, 'beat:compact', start, premium).join('\n'));
+    }
+    expect(frames.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('renderSettleFlash returns static bold text when profile is off', () => {
+    const off = { ...premium, profile: 'off' as const, particles: 'off' as const };
+    const start = Date.now();
+    const a = strip(renderSettleFlash('selected', 'settle', start, off));
+    vi.setSystemTime(start + 200);
+    advanceAppearanceAnimationClock(Date.now());
+    const b = strip(renderSettleFlash('selected', 'settle', start, off));
+    expect(a).toBe('selected');
+    expect(b).toBe('selected');
+  });
+
+  it('renderPhaseChip distinguishes running vs done (plain text)', () => {
+    const run = strip(renderPhaseChip('mcp__x', 'running', 'chip', premium));
+    const done = strip(renderPhaseChip('mcp__x', 'done', 'chip', premium));
+    expect(run).toContain('mcp__x');
+    expect(done).toContain('mcp__x');
+    expect(run).not.toBe(done);
+  });
+
+  it('renderAmbientDrift is width-stable and non-empty under premium', () => {
+    const line = renderAmbientDrift(40, 'drift:think', premium);
+    expect(visibleWidth(line)).toBe(40);
+    expect(strip(line).trim().length).toBeGreaterThan(0);
+  });
+
+  it('renderDangerBreathe pulses token under premium and is static under off', () => {
+    const off = { ...premium, profile: 'off' as const, particles: 'off' as const };
+    expect(strip(renderDangerBreathe('rm -rf', 'danger', off))).toBe('rm -rf');
+    advanceAppearanceAnimationClock(0);
+    const a = renderDangerBreathe('rm -rf', 'danger', premium);
+    advanceAppearanceAnimationClock(300);
+    const b = renderDangerBreathe('rm -rf', 'danger', premium);
+    expect(strip(a)).toBe('rm -rf');
+    expect(strip(b)).toBe('rm -rf');
+    expect(a).not.toBe(b);
+  });
+
+  it('renderCrossfadeLine reaches toText after CROSSFADE window', () => {
+    const start = Date.now();
+    vi.setSystemTime(start + 800);
+    advanceAppearanceAnimationClock(Date.now());
+    expect(strip(renderCrossfadeLine('old tip', 'new tip', 'tip', start, premium))).toBe('new tip');
+  });
+
+  it('keeps brand motion tokens off shared success/warning/shellMode hues', () => {
+    expect(BRAND_MOTION_TOKENS).not.toContain('success');
+    expect(BRAND_MOTION_TOKENS).not.toContain('warning');
+    expect(BRAND_MOTION_TOKENS).not.toContain('shellMode');
+    expect(BRAND_MOTION_TOKENS).toEqual(
+      expect.arrayContaining(['primary', 'accent', 'glow', 'particle', 'gradientStart', 'gradientEnd']),
+    );
+  });
+
+  it('renderExitBeat and done phase chip avoid the shared mint success hex', () => {
+    const start = Date.now();
+    const exit = renderExitBeat('Done', 40, 'exit:done', start, premium).join('\n');
+    const done = renderPhaseChip('tool', 'done', 'chip:done', premium);
+    const successRgb = [
+      parseInt(darkColors.success.slice(1, 3), 16),
+      parseInt(darkColors.success.slice(3, 5), 16),
+      parseInt(darkColors.success.slice(5, 7), 16),
+    ].join(';');
+    // Older motion paths painted these with the shared mint success token.
+    expect(exit).not.toContain(`38;2;${successRgb}`);
+    expect(done).not.toContain(`38;2;${successRgb}`);
   });
 });
