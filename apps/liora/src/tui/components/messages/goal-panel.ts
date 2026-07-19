@@ -26,11 +26,10 @@ import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
-  EXIT_BEAT_MS,
+  exitBeatDurationMs,
   getActiveAppearancePreferences,
   renderExitBeat,
   renderSpectacularText,
-  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import type { ColorToken } from '#/tui/theme';
@@ -110,9 +109,8 @@ export class GoalCompletionMessageComponent implements Component {
     const contentWidth = Math.max(1, width - bulletWidth);
     const lines: string[] = [''];
 
-    const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-    const exitMs = mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS;
-    const inExitBeat = animated && appearanceAnimationNow() - this.startedAtMs < exitMs;
+    const inExitBeat =
+      animated && appearanceAnimationNow() - this.startedAtMs < exitBeatDurationMs(appearance);
     // Exit beat may include a particle rail; keep the transcript card layout by
     // taking only the title line once (no extra chrome rows).
     const exitTitle = inExitBeat

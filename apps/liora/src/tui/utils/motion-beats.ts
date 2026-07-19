@@ -1,4 +1,7 @@
-import { ENTER_BEAT_MS, EXIT_BEAT_MS } from '#/tui/utils/appearance-effects';
+import {
+  enterBeatDurationMs,
+  exitBeatDurationMs,
+} from '#/tui/utils/appearance-effects';
 
 export type MotionBeatName =
   | 'compaction_start'
@@ -30,17 +33,25 @@ export interface MotionBeatSnapshot {
   readonly kind: 'enter' | 'exit';
 }
 
-const EXIT_NAMES = new Set<MotionBeatName>([
-  'compaction_done',
+/**
+ * Only these names have a real `motionBeats.active()` consumer (footer mode /
+ * plan shimmer + session_resume enter beat). Other play() names are ghosts —
+ * local surfaces animate on their own clocks and must not steal this slot.
+ */
+const SLOT_CONSUMER_NAMES = new Set<MotionBeatName>([
+  'mode_enter',
   'mode_exit',
+  'plan_enter',
   'plan_exit',
-  'goal_complete',
+  'session_resume',
 ]);
+
+const EXIT_NAMES = new Set<MotionBeatName>(['mode_exit', 'plan_exit']);
 
 const STREAM_THROTTLE_MS = 300;
 
 function durationFor(kind: 'enter' | 'exit'): number {
-  return kind === 'exit' ? EXIT_BEAT_MS : ENTER_BEAT_MS;
+  return kind === 'exit' ? exitBeatDurationMs() : enterBeatDurationMs();
 }
 
 export interface MotionBeatController {
@@ -64,6 +75,9 @@ export function createMotionBeatController(): MotionBeatController {
   return {
     play(options) {
       if (options.theatreActive) return undefined;
+      // Ghost beats: keep call sites for telemetry/intent, but never replace the
+      // single transition slot consumed by footer mode/plan/resume.
+      if (!SLOT_CONSUMER_NAMES.has(options.name)) return undefined;
       if (options.streamThrottle) {
         if (options.nowMs - lastStreamPlayMs < STREAM_THROTTLE_MS) return undefined;
         lastStreamPlayMs = options.nowMs;

@@ -664,6 +664,22 @@ export const CROSSFADE_MS = 480;
 export const ENTER_BEAT_MS = 720;
 export const EXIT_BEAT_MS = 640;
 
+/** Enter-beat TTL matching `renderEnterBeat` (subtle stretches ×1.2). */
+export function enterBeatDurationMs(
+  appearance: AppearancePreferences = activeAppearance,
+): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  return mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS;
+}
+
+/** Exit-beat TTL matching `renderExitBeat` (subtle stretches ×1.2). */
+export function exitBeatDurationMs(
+  appearance: AppearancePreferences = activeAppearance,
+): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  return mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS;
+}
+
 function motionProgress(startedAtMs: number, durationMs: number, nowMs = appearanceAnimationNow()): number {
   if (durationMs <= 0) return 1;
   return Math.min(1, Math.max(0, (nowMs - startedAtMs) / durationMs));
@@ -746,7 +762,7 @@ export function renderEnterBeat(
   if (!motionEffectsAllowed() || mode === 'off') {
     return [currentTheme.boldFg('textStrong', plain)];
   }
-  const p = motionProgress(startedAtMs, mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS);
+  const p = motionProgress(startedAtMs, enterBeatDurationMs(appearance));
   const head =
     p < 0.85
       ? renderPremiumHeadline(plain, `${seed}:title`, appearance)
@@ -774,7 +790,7 @@ export function renderExitBeat(
   if (!motionEffectsAllowed() || mode === 'off') {
     return [currentTheme.fg('success', plain)];
   }
-  const p = motionProgress(startedAtMs, mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS);
+  const p = motionProgress(startedAtMs, exitBeatDurationMs(appearance));
   const head = renderPulseText(plain, `${seed}:exit-title`, 'success', appearance);
   if (tiny) {
     if (p < 0.65) return [head];

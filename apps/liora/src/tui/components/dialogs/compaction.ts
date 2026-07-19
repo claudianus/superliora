@@ -20,12 +20,11 @@ import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
-  EXIT_BEAT_MS,
+  exitBeatDurationMs,
   getActiveAppearancePreferences,
   renderEnterBeat,
   renderExitBeat,
   renderPremiumHeadline,
-  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -105,9 +104,7 @@ export class CompactionComponent extends Container {
       // Exit beat only — do not overlap crossfade on the same clock (that
       // briefly revived the old "Compacting context" label and muted the
       // token delta). After the beat, settle on buildHeader() below.
-      const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-      const exitMs = mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS;
-      if (appearanceAnimationNow() - this.doneAtMs < exitMs) {
+      if (appearanceAnimationNow() - this.doneAtMs < exitBeatDurationMs(appearance)) {
         return this.composeBeatRender(
           renderExitBeat(
             this.buildCompletePlain(),

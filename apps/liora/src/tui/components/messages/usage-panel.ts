@@ -23,11 +23,10 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
   appearanceAnimationNow,
-  ENTER_BEAT_MS,
+  enterBeatDurationMs,
   getActiveAppearancePreferences,
   renderEnterBeat,
   renderPulseText,
-  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -583,9 +582,7 @@ export class UsagePanelComponent implements Component {
     appearance = getActiveAppearancePreferences(),
   ): boolean {
     if (!shouldRenderAmbientEffects(appearance)) return false;
-    const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-    const enterMs = mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS;
-    return appearanceAnimationNow() - this.openedAtMs < enterMs;
+    return appearanceAnimationNow() - this.openedAtMs < enterBeatDurationMs(appearance);
   }
 
   private needsAnimationFrame(): boolean {

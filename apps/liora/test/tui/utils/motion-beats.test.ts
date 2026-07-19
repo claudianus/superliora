@@ -1,10 +1,43 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  ENTER_BEAT_MS,
+  EXIT_BEAT_MS,
+  enterBeatDurationMs,
+  exitBeatDurationMs,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 import {
   createMotionBeatController,
   isMotionTheatreActive,
 } from '#/tui/utils/motion-beats';
 
+const premiumAppearance = {
+  ...DEFAULT_APPEARANCE_PREFERENCES,
+  profile: 'premium' as const,
+  particles: 'premium' as const,
+};
+
+const subtleAppearance = {
+  ...DEFAULT_APPEARANCE_PREFERENCES,
+  profile: 'subtle' as const,
+  particles: 'ambient' as const,
+};
+
 describe('motion-beats', () => {
+  beforeEach(() => {
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences(premiumAppearance);
+  });
+
+  afterEach(() => {
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
   it('treats mode_enter as enter and mode_exit as exit', () => {
     const c = createMotionBeatController();
     expect(
@@ -25,43 +58,66 @@ describe('motion-beats', () => {
 
   it('keeps only one transition beat (replace)', () => {
     const c = createMotionBeatController();
-    c.play({ name: 'compaction_start', seed: 'a', title: 'A', nowMs: 0 });
-    const second = c.play({ name: 'mode_enter', seed: 'b', title: 'B', nowMs: 50 });
-    expect(second?.name).toBe('mode_enter');
-    expect(c.active(60)?.name).toBe('mode_enter');
+    c.play({ name: 'mode_enter', seed: 'a', title: 'A', nowMs: 0 });
+    const second = c.play({ name: 'plan_enter', seed: 'b', title: 'plan', nowMs: 50 });
+    expect(second?.name).toBe('plan_enter');
+    expect(c.active(60)?.name).toBe('plan_enter');
+  });
+
+  it('ignores ghost beats without replacing the active slot', () => {
+    const c = createMotionBeatController();
+    c.play({ name: 'mode_enter', seed: 'mode:yolo', title: 'yolo', nowMs: 0 });
+    for (const name of [
+      'thinking_enter',
+      'tool_settle',
+      'status_open',
+      'compaction_start',
+      'compaction_done',
+      'goal_complete',
+    ] as const) {
+      expect(
+        c.play({ name, seed: 'ghost', title: 'ghost', nowMs: 40, streamThrottle: true }),
+      ).toBeUndefined();
+    }
+    expect(c.active(50)?.name).toBe('mode_enter');
   });
 
   it('suppresses transitions while theatreActive', () => {
     const c = createMotionBeatController();
     expect(
       c.play({
-        name: 'status_open',
-        seed: 's',
-        title: 'Status',
+        name: 'mode_enter',
+        seed: 'mode:yolo',
+        title: 'yolo',
         nowMs: 0,
         theatreActive: true,
       }),
     ).toBeUndefined();
   });
 
-  it('throttles stream tool_settle beats within 300ms', () => {
-    const c = createMotionBeatController();
-    expect(
-      c.play({ name: 'tool_settle', seed: 't1', title: 't', nowMs: 0, streamThrottle: true }),
-    ).toBeTruthy();
-    expect(
-      c.play({ name: 'tool_settle', seed: 't2', title: 't', nowMs: 100, streamThrottle: true }),
-    ).toBeUndefined();
-    expect(
-      c.play({ name: 'tool_settle', seed: 't3', title: 't', nowMs: 350, streamThrottle: true }),
-    ).toBeTruthy();
-  });
-
-  it('expires beat after enter duration', () => {
+  it('expires beat after enter duration (premium)', () => {
     const c = createMotionBeatController();
     c.play({ name: 'session_resume', seed: 'r', title: 'Resuming', nowMs: 0 });
+    expect(enterBeatDurationMs(premiumAppearance)).toBe(ENTER_BEAT_MS);
     expect(c.active(100)).toBeTruthy();
-    expect(c.active(900)).toBeUndefined();
+    expect(c.active(ENTER_BEAT_MS)).toBeUndefined();
+  });
+
+  it('keeps enter/exit beats alive through subtle duration', () => {
+    setActiveAppearancePreferences(subtleAppearance);
+    expect(enterBeatDurationMs(subtleAppearance)).toBe(ENTER_BEAT_MS * 1.2);
+    expect(exitBeatDurationMs(subtleAppearance)).toBe(EXIT_BEAT_MS * 1.2);
+
+    const enter = createMotionBeatController();
+    enter.play({ name: 'session_resume', seed: 'r', title: 'Resuming', nowMs: 0 });
+    // Past base ENTER_BEAT_MS but still inside subtle stretch — must stay live.
+    expect(enter.active(ENTER_BEAT_MS + 40)?.name).toBe('session_resume');
+    expect(enter.active(ENTER_BEAT_MS * 1.2)).toBeUndefined();
+
+    const exit = createMotionBeatController();
+    exit.play({ name: 'mode_exit', seed: 'mode:yolo', title: 'yolo', nowMs: 0 });
+    expect(exit.active(EXIT_BEAT_MS + 40)?.name).toBe('mode_exit');
+    expect(exit.active(EXIT_BEAT_MS * 1.2)).toBeUndefined();
   });
 
   it('plays session_resume as an enter beat with the resume seed', () => {
@@ -90,20 +146,5 @@ describe('motion-beats', () => {
     expect(
       c.play({ name: 'plan_exit', seed: 'plan', title: 'plan', nowMs: 50 }),
     ).toMatchObject({ name: 'plan_exit', seed: 'plan', kind: 'exit' });
-  });
-
-  it('plays status_open as an enter beat', () => {
-    const c = createMotionBeatController();
-    const snap = c.play({
-      name: 'status_open',
-      seed: 'status',
-      title: 'Status',
-      nowMs: 0,
-    });
-    expect(snap).toMatchObject({
-      name: 'status_open',
-      seed: 'status',
-      kind: 'enter',
-    });
   });
 });
