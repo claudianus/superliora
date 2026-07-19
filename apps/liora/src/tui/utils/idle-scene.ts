@@ -9,6 +9,8 @@
 
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
+import type { IdleFish, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
+
 /** Lead fish — right. ASCII-safe widths only (no wide punctuation). */
 export const FISH_LARGE_RIGHT = [
   '  ···    ',
@@ -49,9 +51,9 @@ export const FISH_TINY = [
  * Meant to read as a soft green forest, not sparse sticks.
  */
 export const PLANT_FRAMES = [
-  ['  )  ', '  (  ', '  )  ', '  (  '],
-  [' )(  ', ' ( ) ', ' )(  ', ' ( ) '],
-  [')||( ', '(||) ', ')||( ', '(||) '],
+  ['  )  ', '  |  ', '  /  ', '  \\ '],
+  [' )(  ', ' | | ', ' / \\ ', ' \\ / '],
+  [')||( ', '(||) ', '/||\\ ', '\\||/ '],
   [' ||  ', ' ||  ', ' ||  ', ' ||  '],
   [' ||  ', ' ||  ', ' ||  ', ' ||  '],
 ] as const;
@@ -148,7 +150,99 @@ function hash2(a: number, b: number): number {
   return (x ^ (x >>> 16)) >>> 0;
 }
 
-/** Soft-occupancy cells a bubble / sparkle may replace. */
+export function resolveSeaweedSpacing(width: number): number {
+  if (width >= 80) return 4;
+  if (width >= 50) return 5;
+  return 6;
+}
+
+export interface AquariumPalette {
+  readonly water: string;
+  readonly waterDeep: string;
+  readonly waterSoft: string;
+  readonly plant: string;
+  readonly plantSoft: string;
+  readonly sand: string;
+  readonly coral: string;
+  readonly coralSoft: string;
+  readonly food: string;
+  readonly fishGold: string;
+  readonly fishSky: string;
+  readonly fishTeal: string;
+  readonly fishSoft: string;
+  readonly bubble: string;
+  readonly dim: string;
+}
+
+type IdleSceneColors = {
+  readonly glow: string;
+  readonly particle: string;
+  readonly primary: string;
+  readonly accent: string;
+  readonly textDim: string;
+  readonly textMuted: string;
+  readonly warning: string;
+  readonly success?: string;
+  readonly gradientStart?: string;
+  readonly roleUser?: string;
+};
+
+function hexCoolness(hex: string): number {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return b * 2 + g * 0.25 - r;
+}
+
+function hexGreenness(hex: string): number {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return g * 2 - r - b * 0.25;
+}
+
+function pickCooler(...candidates: readonly (string | undefined)[]): string {
+  const valid = candidates.filter((c): c is string => Boolean(c));
+  if (valid.length === 0) return '#888888';
+  return valid.reduce((best, cur) => (hexCoolness(cur) > hexCoolness(best) ? cur : best));
+}
+
+function pickGreener(...candidates: readonly (string | undefined)[]): string {
+  const valid = candidates.filter((c): c is string => Boolean(c));
+  if (valid.length === 0) return '#888888';
+  return valid.reduce((best, cur) => (hexGreenness(cur) > hexGreenness(best) ? cur : best));
+}
+
+/** Map theme tokens to aquarium paint roles — palette hex only, no free colors. */
+export function resolveAquariumPalette(
+  colors: IdleSceneColors,
+  _theme: 'dark' | 'light' = 'dark',
+): AquariumPalette {
+  const waterDeep = pickCooler(colors.gradientStart, colors.glow, colors.primary);
+  const water = colors.glow;
+  const waterSoft = pickCooler(colors.primary, colors.glow, colors.gradientStart);
+  const plant = pickGreener(colors.success, colors.accent);
+  const plantSoft = colors.accent;
+
+  return {
+    water,
+    waterDeep,
+    waterSoft,
+    plant,
+    plantSoft,
+    sand: colors.warning,
+    coral: colors.particle,
+    coralSoft: colors.accent,
+    food: colors.roleUser ?? colors.warning,
+    fishGold: colors.roleUser ?? colors.warning,
+    fishSky: waterDeep,
+    fishTeal: colors.accent,
+    fishSoft: water,
+    bubble: colors.glow,
+    dim: colors.textDim,
+  };
+}
+
 const SOFT_CELLS = new Set([' ', '·', '˙', '~', '∼', '˚']);
 
 /** One cell. `glyph` may include full ANSI — never slice styled text. */
@@ -510,6 +604,78 @@ function buildSchool(width: number, storyRows: number, premium: boolean): FishAc
   return school;
 }
 
+function glyphForSnapshotFish(fish: IdleFish, elapsedMs: number): readonly string[] {
+  const t = elapsedMs + fish.seed;
+  if (fish.kind === 'large') {
+    const base = fish.goesRight ? FISH_LARGE_RIGHT : FISH_LARGE_LEFT;
+    return applyFishTail(base, t, fish.goesRight);
+  }
+  if (fish.kind === 'compact') {
+    const base = fish.goesRight ? FISH_COMPACT_RIGHT : FISH_COMPACT_LEFT;
+    return applyFishTail(base, t, fish.goesRight);
+  }
+  const pair = FISH_TINY[fish.seed % FISH_TINY.length] ?? FISH_TINY[0]!;
+  return applyFishTail([fish.goesRight ? pair[0] : pair[1]], t, fish.goesRight);
+}
+
+function fishColorHex(
+  color: IdleFish['color'],
+  showAmbient: boolean,
+  palette: AquariumPalette,
+): string {
+  if (!showAmbient) return palette.dim;
+  switch (color) {
+    case 'gold':
+      return palette.fishGold;
+    case 'sky':
+      return palette.fishSky;
+    case 'teal':
+      return palette.fishTeal;
+    default:
+      return palette.fishSoft;
+  }
+}
+
+function paintFoodFromSnapshot(
+  canvas: string[],
+  width: number,
+  paint: (hex: string, text: string) => string,
+  palette: AquariumPalette,
+  food: IdleTankSnapshot['food'],
+): void {
+  for (const pellet of food) {
+    putCell(
+      canvas,
+      Math.trunc(pellet.y),
+      Math.trunc(pellet.x),
+      width,
+      paint(palette.food, '*'),
+      true,
+    );
+  }
+}
+
+function paintFishFromSnapshot(
+  canvas: string[],
+  width: number,
+  elapsedMs: number,
+  showAmbient: boolean,
+  paint: (hex: string, text: string) => string,
+  palette: AquariumPalette,
+  fish: IdleTankSnapshot['fish'],
+): void {
+  for (const actor of fish) {
+    const hex = fishColorHex(actor.color, showAmbient, palette);
+    blitAt(
+      canvas,
+      glyphForSnapshotFish(actor, elapsedMs).map((line) => paint(hex, line)),
+      Math.trunc(actor.y),
+      Math.trunc(actor.x),
+      width,
+    );
+  }
+}
+
 function glyphForActor(actor: FishActor, elapsedMs: number): readonly string[] {
   const t = elapsedMs + actor.seed;
   if (actor.kind === 'large') {
@@ -582,7 +748,7 @@ function paintSeaweed(
   greenSoft: string,
 ): void {
   if (width < 24 || storyRows < 6) return;
-  const spacing = width >= 80 ? 6 : width >= 50 ? 7 : 8;
+  const spacing = resolveSeaweedSpacing(width);
   const count = Math.max(3, Math.floor((width - 2) / spacing));
   const sandY = storyRows - 1;
 
@@ -672,41 +838,44 @@ export function paintIdleStoryScene(options: {
   readonly showAmbient: boolean;
   readonly premium: boolean;
   readonly paint: (hex: string, text: string) => string;
-  readonly colors: {
-    readonly glow: string;
-    readonly particle: string;
-    readonly primary: string;
-    readonly accent: string;
-    readonly textDim: string;
-    readonly textMuted: string;
-    readonly warning: string;
-    readonly success?: string;
-    readonly gradientStart?: string;
-    readonly roleUser?: string;
-  };
+  readonly colors: IdleSceneColors;
+  readonly themeMode?: 'dark' | 'light';
+  readonly sim?: IdleTankSnapshot;
 }): void {
-  const { canvas, width, storyRows, elapsedMs, showAmbient, premium, paint, colors } = options;
+  const {
+    canvas,
+    width,
+    storyRows,
+    elapsedMs,
+    showAmbient,
+    premium,
+    paint,
+    colors,
+    themeMode = 'dark',
+    sim,
+  } = options;
   if (width <= 0 || storyRows <= 0) return;
 
-  const sky = colors.glow;
-  const skyDeep = colors.gradientStart ?? colors.primary;
-  const skySoft = colors.primary;
-  const green = colors.success ?? colors.accent;
-  const greenSoft = colors.accent;
-  const gold = colors.roleUser ?? colors.warning;
-  const sand = colors.warning;
-  const coral = colors.particle;
-  const coralSoft = colors.accent;
+  const palette = resolveAquariumPalette(colors, themeMode);
 
   // 1) Depth-graded water
   if (showAmbient) {
-    paintWaterField(canvas, width, storyRows, elapsedMs, paint, sky, skySoft, skyDeep);
+    paintWaterField(
+      canvas,
+      width,
+      storyRows,
+      elapsedMs,
+      paint,
+      palette.water,
+      palette.waterSoft,
+      palette.waterDeep,
+    );
   }
 
   // 2) Surface line
   if (storyRows >= 4) {
     canvas[0] = padOrTrim(
-      paint(showAmbient ? skyDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
+      paint(showAmbient ? palette.waterDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
       width,
     );
   }
@@ -714,56 +883,70 @@ export function paintIdleStoryScene(options: {
   // 3) Surface light shafts
   if (showAmbient && premium) {
     paintSurfaceLight(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
-      paint(intensity > 0.45 ? sky : skySoft, glyph),
+      paint(intensity > 0.45 ? palette.water : palette.waterSoft, glyph),
     );
   }
 
   // 4) Warm sand bed
   const sandY = storyRows - 1;
   if (sandY > 0) {
-    canvas[sandY] = padOrTrim(paint(sand, renderSandLine(width, elapsedMs, 1)), width);
+    canvas[sandY] = padOrTrim(paint(palette.sand, renderSandLine(width, elapsedMs, 1)), width);
   }
 
   // 5) Coral accents
   if (showAmbient && premium) {
-    paintCoral(canvas, width, storyRows, elapsedMs, paint, coral, coralSoft);
+    paintCoral(canvas, width, storyRows, elapsedMs, paint, palette.coral, palette.coralSoft);
   }
 
   // 6) Seaweed curtain
   if (showAmbient) {
-    paintSeaweed(canvas, width, storyRows, elapsedMs, paint, green, greenSoft);
+    paintSeaweed(canvas, width, storyRows, elapsedMs, paint, palette.plant, palette.plantSoft);
   }
 
   // 7) Air-stone + local plume
   if (showAmbient && premium) {
-    paintAirStone(canvas, width, storyRows, elapsedMs, paint, colors.textDim, sky, colors.textMuted);
+    paintAirStone(
+      canvas,
+      width,
+      storyRows,
+      elapsedMs,
+      paint,
+      colors.textDim,
+      palette.bubble,
+      colors.textMuted,
+    );
   }
 
   // 8) Quiet rising bubbles (tank-wide)
   if (showAmbient) {
     paintBubbles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
-      paint(intensity > 0.7 ? sky : colors.textMuted, glyph),
+      paint(intensity > 0.7 ? palette.bubble : colors.textMuted, glyph),
     );
   }
 
   // 9) Caustic band
   if (showAmbient && premium && storyRows >= 10 && width >= 48) {
     paintCausticPath(canvas, Math.floor(storyRows * 0.3), 1, width, elapsedMs, (ch) =>
-      paint(ch === '≈' ? sky : ch === '∼' ? skySoft : skySoft, ch),
+      paint(ch === '≈' ? palette.water : palette.waterSoft, ch),
     );
   }
 
   // 10) Jewel sparkles
   if (showAmbient && premium) {
-    paintSparkles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, paint, gold);
+    paintSparkles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, paint, palette.fishGold);
   }
 
-  // 11) Fish school on top
-  paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, {
-    gold,
-    sky: skyDeep,
-    teal: colors.accent,
-    soft: sky,
-    dim: colors.textDim,
-  });
+  // 11) Fish + food — snapshot when provided, patrol school as fallback
+  if (sim) {
+    paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
+    paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);
+  } else {
+    paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, {
+      gold: palette.fishGold,
+      sky: palette.fishSky,
+      teal: palette.fishTeal,
+      soft: palette.fishSoft,
+      dim: palette.dim,
+    });
+  }
 }
