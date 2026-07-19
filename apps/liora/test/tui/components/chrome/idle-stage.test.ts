@@ -285,25 +285,42 @@ describe('idle-stage helpers', () => {
     expect(resolveSeaweedSpacing(30)).toBe(10);
   });
 
-  it('maps aquarium roles from brand motion tokens only', () => {
-    const palette = resolveAquariumPalette(darkColors, 'dark');
-    const brand = new Set([
+  it('maps aquarium roles from brand and role motion tokens only', () => {
+    const palette = resolveAquariumPalette(
+      {
+        glow: darkColors.glow,
+        particle: darkColors.particle,
+        primary: darkColors.primary,
+        accent: darkColors.accent,
+        textDim: darkColors.textDim,
+        textMuted: darkColors.textMuted,
+        gradientStart: darkColors.gradientStart,
+        gradientEnd: darkColors.gradientEnd,
+        roleUser: darkColors.roleUser,
+        shellMode: darkColors.shellMode,
+      },
+      'dark',
+    );
+    const allowed = new Set([
       darkColors.primary,
       darkColors.accent,
       darkColors.glow,
       darkColors.particle,
       darkColors.gradientStart,
       darkColors.gradientEnd,
+      darkColors.roleUser,
+      darkColors.shellMode,
       darkColors.textDim,
     ]);
     for (const hex of Object.values(palette)) {
-      expect(brand.has(hex)).toBe(true);
+      expect(allowed.has(hex)).toBe(true);
     }
+    expect(palette.fishGold).toBe(darkColors.roleUser);
+    expect(palette.coral).toBe(darkColors.shellMode);
     expect(palette.plant).toBe(darkColors.accent);
     expect(palette.plantSoft).toBe(darkColors.primary);
     expect(palette.sand).toBe(darkColors.textDim);
     expect(palette.water).toBe(darkColors.glow);
-    expect(palette.fishGold).toBe(darkColors.primary);
     expect(palette.fishTeal).toBe(darkColors.accent);
     expect(palette.fishSky).toBe(darkColors.glow);
     expect(palette.fishSoft).toBe(darkColors.textDim);
@@ -313,6 +330,7 @@ describe('idle-stage helpers', () => {
     expect(palette.sand).not.toBe(darkColors.gradientEnd);
     expect(palette.plant).not.toBe(darkColors.success);
     expect(palette.sand).not.toBe(darkColors.warning);
+    expect(palette.fishGold).not.toBe(darkColors.success);
   });
 });
 

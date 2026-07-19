@@ -358,13 +358,40 @@ describe('premium motion vocabulary', () => {
     expect(strip(renderCrossfadeLine('old tip', 'new tip', 'tip', start, premium))).toBe('new tip');
   });
 
-  it('keeps brand motion tokens off shared success/warning/shellMode hues', () => {
+  it('keeps brand motion tokens off shared success/warning/error hues', () => {
     expect(BRAND_MOTION_TOKENS).not.toContain('success');
     expect(BRAND_MOTION_TOKENS).not.toContain('warning');
-    expect(BRAND_MOTION_TOKENS).not.toContain('shellMode');
+    expect(BRAND_MOTION_TOKENS).not.toContain('error');
     expect(BRAND_MOTION_TOKENS).toEqual(
-      expect.arrayContaining(['primary', 'accent', 'glow', 'particle', 'gradientStart', 'gradientEnd']),
+      expect.arrayContaining([
+        'primary',
+        'accent',
+        'glow',
+        'particle',
+        'gradientStart',
+        'gradientEnd',
+        'roleUser',
+        'shellMode',
+      ]),
     );
+  });
+
+  it('ultrawork trail stays closer to brand hue than to border grey', () => {
+    const now = Date.now();
+    const head = resolveUltraworkBorderGlowHex(now);
+    // Paint a 3-row editor box so trail soft/dim cells exist.
+    const lines = [
+      [{ char: '╭' }, { char: '─' }, { char: '╮' }],
+      [{ char: '│' }, { char: ' ' }, { char: '│' }],
+      [{ char: '╰' }, { char: '─' }, { char: '╯' }],
+    ];
+    const painted = paintUltraworkEditorBorderGlow(lines, now);
+    const softCell = painted[0]![1]!;
+    const softFg = typeof softCell === 'object' ? softCell.style?.fg : undefined;
+    expect(softFg).toBeDefined();
+    // Soft trail must not equal raw border (over-mixed) and must differ from head somehow along the path.
+    expect(softFg).not.toBe(darkColors.border);
+    expect(head).not.toBe(darkColors.border);
   });
 
   it('renderExitBeat and done phase chip avoid the shared mint success hex', () => {

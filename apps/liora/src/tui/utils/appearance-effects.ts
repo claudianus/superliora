@@ -34,8 +34,9 @@ export type AmbientEffectMode = RendererEffectLevel;
  */
 const PREMIUM_PARTICLES = ['•', '∙', '·', '*', '◦'] as const;
 /**
- * Brand duo motion tokens only — never success/warning/shellMode.
- * Keeps splash/meteors/particles/spectacular text inside each theme's two-tone.
+ * Brand + role motion tokens — never success/warning/error.
+ * Keeps splash/meteors/particles/spectacular text on theme identity hues
+ * while spanning cool brand ↔ warm roleUser ↔ shellMode violet.
  */
 export const BRAND_MOTION_TOKENS: readonly ColorToken[] = [
   'gradientStart',
@@ -44,12 +45,16 @@ export const BRAND_MOTION_TOKENS: readonly ColorToken[] = [
   'accent',
   'gradientEnd',
   'particle',
+  'roleUser',
+  'shellMode',
 ];
 const PARTICLE_TOKENS: readonly ColorToken[] = [
   'particle',
   'accent',
   'primary',
   'gradientEnd',
+  'roleUser',
+  'shellMode',
 ];
 const SHIMMER_FRAMES = ['•', '∙', '·', '◦'] as const;
 const PREMIUM_DIVIDER_FRAMES = ['─', '─', '━'] as const;
@@ -879,6 +884,8 @@ const ULTRAWORK_GLOW_TOKENS: readonly ColorToken[] = [
   'accent',
   'gradientEnd',
   'gradientStart',
+  'roleUser',
+  'shellMode',
 ];
 const EDITOR_BORDER_CHARS = new Set(['╭', '╮', '╰', '╯', '│', '─', '├', '┤', '┬', '┴', '┼']);
 /** ~24 border-cells/sec — readable chase without strobe. */
@@ -956,8 +963,8 @@ export function paintUltraworkEditorBorderGlow(
 
   const head = resolveUltraworkBorderGlowHex(nowMs);
   const mid = mixHexColor(head, currentTheme.color('primary'), 0.32);
-  const soft = mixHexColor(head, currentTheme.color('border'), 0.58);
-  const dim = mixHexColor(soft, currentTheme.color('border'), 0.4);
+  const soft = mixHexColor(head, currentTheme.color('border'), 0.35);
+  const dim = mixHexColor(soft, currentTheme.color('border'), 0.25);
   const headIndex = rendererPositiveModulo(
     Math.floor(nowMs / ULTRAWORK_BORDER_CHASE_MS_PER_CELL),
     path.length,
