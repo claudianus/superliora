@@ -58,19 +58,28 @@ export function isPureInputFrame(
  * Independent of force/clear:
  * - pure-input frames keep force=false (incremental damage) but still need
  *   forceCursor so OS IME (e.g. hangul preedit) stays on the caret;
- * - pure animation-only frames stay damage-only (force=false) and never
- *   couple that decision to cursor re-emit.
+ * - pure animation-only frames stay damage-only and must NOT force cursor
+ *   re-emit — hide/CUP/show every ambient tick flashes the editor caret
+ *   (center stage) while letterbox motion looks fine.
  *
- * Always true while the editor caret is live: skipping CUP lets the
- * terminal cursor drift to the last painted cell (often footer).
+ * Other frames keep forceCursor on so the caret does not drift to the last
+ * painted cell (often footer).
  */
 export function shouldForceNativeCursor(
-  _options: {
+  options: {
     readonly causes?: readonly NativeRenderCause[];
     readonly structuralShift?: boolean;
     readonly viewportScrolled?: boolean;
   } = {},
 ): boolean {
+  const causes = options.causes;
+  if (
+    causes !== undefined &&
+    causes.length > 0 &&
+    causes.every((cause) => cause === 'animation')
+  ) {
+    return false;
+  }
   return true;
 }
 

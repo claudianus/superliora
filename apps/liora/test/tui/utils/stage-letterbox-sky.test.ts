@@ -82,6 +82,42 @@ describe('stage letterbox night sky', () => {
     expect(cells).toEqual([]);
   });
 
+  it('keeps star twinkle stable within a 90ms premium bucket', () => {
+    const bands = ultrawideBands();
+    const gutters = resolveLetterboxSideGutters(bands, 200);
+    const inSideGutter = (x: number) => gutters.some((g) => x >= g.x0 && x < g.x1);
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    const a = paintStageLetterboxSky({
+      bands,
+      cols: 200,
+      rows: 80,
+      nowMs: 12_000,
+      appearance,
+      freeze: false,
+    });
+    const b = paintStageLetterboxSky({
+      bands,
+      cols: 200,
+      rows: 80,
+      nowMs: 12_000 + 40,
+      appearance,
+      freeze: false,
+    });
+    // Side gutters carry shooting stars; top/bottom dust should stay bit-identical
+    // inside one twinkle bucket.
+    const starSig = (cells: typeof a) =>
+      cells
+        .filter((c) => !inSideGutter(c.x))
+        .map((c) => `${c.x},${c.y},${c.char},${c.fg}`)
+        .sort()
+        .join('|');
+    expect(starSig(a)).toBe(starSig(b));
+  });
+
   it('freezes shooting stars but can keep static star dust', () => {
     const bands = ultrawideBands();
     const appearance = {

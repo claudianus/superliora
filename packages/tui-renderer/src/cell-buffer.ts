@@ -140,16 +140,18 @@ export class RendererCellBuffer {
     if (clipped === null) return;
 
     const next = normalizeCell(cell);
-    let changed = false;
+    let damage: RendererDamageRect | null = null;
     for (let y = clipped.y; y < clipped.y + clipped.height; y++) {
       for (let x = clipped.x; x < clipped.x + clipped.width; x++) {
         const index = this.indexOf(x, y);
         if (cellsEqual(this.cells[index]!, next)) continue;
         this.cells[index] = next;
-        changed = true;
+        damage = unionRendererDamageRect(damage, { x, y, width: 1, height: 1 });
       }
     }
-    if (changed) this.markDamage(clipped);
+    // Only the cells that actually changed — marking the whole fill rect made
+    // letterbox clear:true scans look like full-band damage on every twinkle.
+    if (damage !== null) this.markDamage(damage);
   }
 
   clear(cell: RendererCell = EMPTY_CELL): void {

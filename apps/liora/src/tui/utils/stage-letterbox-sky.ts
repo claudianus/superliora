@@ -134,7 +134,13 @@ export function paintStageLetterboxSky(input: {
   // --- Twinkling starfield ---
   const density = premium ? 0.11 : 0.07;
   const starCount = Math.max(12, Math.min(120, Math.floor(area * density * 0.09)));
-  const twinkleClock = freeze ? Math.floor(nowMs / 4000) * 4000 : nowMs;
+  // Quantize twinkle so brightness steps land every ~90ms — continuous nowMs
+  // rewrote nearly every star cell every ambient tick (shared rows with the
+  // stage content), which read as center-panel flicker in kitty.
+  const twinkleStepMs = premium ? 90 : 140;
+  const twinkleClock = freeze
+    ? Math.floor(nowMs / 4000) * 4000
+    : Math.floor(nowMs / twinkleStepMs) * twinkleStepMs;
   for (let i = 0; i < starCount; i++) {
     // Stable base position from band-weighted hash; pick a letterbox cell.
     const seed = hash2(i * 17 + 3, 91);

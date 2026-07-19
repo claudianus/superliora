@@ -32,7 +32,7 @@ function strip(text: string): string {
 }
 
 describe('premium ambient cadence', () => {
-  it('pins premium ambient repaint to ~30fps (33ms), not densify 1ms', () => {
+  it('honors animationFps up to ~60fps (16ms), not densify 1ms', () => {
     const premium = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
@@ -42,6 +42,16 @@ describe('premium ambient cadence', () => {
     setActiveAppearancePreferences(premium);
     setAppearanceRenderHealth('healthy');
     setAppearanceRenderQuality('full');
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'healthy')).toBe(16);
+  });
+
+  it('maps animationFps 30 to a 33ms premium interval', () => {
+    const premium = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+      animationFps: 30,
+    };
     expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'healthy')).toBe(33);
   });
 
@@ -52,8 +62,8 @@ describe('premium ambient cadence', () => {
       particles: 'premium' as const,
       animationFps: 120,
     };
-    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'watch')).toBe(140);
-    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'degraded')).toBe(140);
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'watch')).toBe(100);
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'degraded')).toBe(100);
   });
 
   it('keeps subtle ambient slower than premium cinematic floor', () => {
@@ -64,7 +74,7 @@ describe('premium ambient cadence', () => {
       animationFps: 20,
     };
     setActiveAppearancePreferences(subtle);
-    expect(appearanceAnimationFrameIntervalMs(subtle)).toBeGreaterThanOrEqual(33);
+    expect(appearanceAnimationFrameIntervalMs(subtle)).toBeGreaterThanOrEqual(16);
   });
 });
 

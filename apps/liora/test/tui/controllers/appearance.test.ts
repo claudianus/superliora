@@ -217,9 +217,34 @@ describe('AppearanceController', () => {
         health: 'watch',
         backpressure: false,
       }),
-    ).toBe(140);
+    ).toBe(100);
     controller.dispose();
     expect(setAmbientSchedule).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('maps animationFps 60 to a 16ms premium ambient interval', () => {
+    const setAmbientSchedule = vi.fn();
+    const controller = new AppearanceController({
+      terminal: { write: vi.fn() } as unknown as RendererTerminalHost,
+      requestRender: vi.fn(),
+      setAmbientSchedule,
+      getAppearance: () => ({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+        animationFps: 60,
+      }),
+      shouldRenderAnimation: () => true,
+    });
+    const options = setAmbientSchedule.mock.calls.at(-1)?.[0];
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    ).toBe(16);
+    controller.dispose();
   });
 
   it('gates ambient wakes via shouldTick without pausing the interval', () => {

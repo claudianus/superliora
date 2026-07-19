@@ -38,13 +38,13 @@ export class RendererAmbientSchedule {
     this.ticker = undefined;
     if (options === undefined || !options.enabled) return;
     this.ticker = new RendererTicker({
-      fps: 30,
+      fps: 60,
       enabled: true,
       scheduler: this.deps.scheduler,
       unrefTimers: this.deps.unrefTimers,
       minIntervalMs: 1,
       maxFps: 60,
-      defaultFps: 30,
+      defaultFps: 60,
       shouldTick: options.shouldTick,
       beforeTick: options.beforeTick,
       resolveIntervalMs: () => options.resolveIntervalMs(this.deps.getContext()),
