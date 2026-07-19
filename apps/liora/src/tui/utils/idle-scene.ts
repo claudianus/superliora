@@ -877,12 +877,9 @@ export function paintIdleStoryScene(options: {
 
   const palette = resolveAquariumPalette(colors, themeMode);
 
-  // 1) Depth-graded water base (no dense water-field clutter)
-  if (showAmbient) {
-    paintWaterBase(canvas, width, storyRows, paint, palette.water, palette.waterSoft, palette.waterDeep);
-  }
+  // Mid-water stays blank (open water); helpers like paintWaterBase remain unused here.
 
-  // 2) Surface line
+  // 1) Surface line
   if (storyRows >= 4) {
     canvas[0] = padOrTrim(
       paint(showAmbient ? palette.waterDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
@@ -890,25 +887,25 @@ export function paintIdleStoryScene(options: {
     );
   }
 
-  // 3) Warm sand bed
+  // 2) Warm sand bed
   const sandY = storyRows - 1;
   if (sandY > 0) {
     canvas[sandY] = padOrTrim(paint(palette.sand, renderSandLine(width, elapsedMs, 1)), width);
   }
 
-  // 4) Seaweed curtain
+  // 3) Seaweed curtain
   if (showAmbient) {
     paintSeaweed(canvas, width, storyRows, elapsedMs, paint, palette.plant, palette.plantSoft);
   }
 
-  // 5) Quiet rising bubbles (tank-wide)
+  // 4) Quiet rising bubbles (tank-wide)
   if (showAmbient) {
     paintBubbles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
       paint(intensity > 0.7 ? palette.bubble : colors.textMuted, glyph),
     );
   }
 
-  // 6) Fish + food — snapshot when provided, patrol school as fallback
+  // 5) Fish + food — snapshot when provided, patrol school as fallback
   if (sim) {
     paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
     paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);

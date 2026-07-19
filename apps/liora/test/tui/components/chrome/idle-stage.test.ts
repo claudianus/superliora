@@ -226,6 +226,34 @@ describe('idle-stage helpers', () => {
     });
   });
 
+  it('keeps mid-water mostly open space (no dense water-base soup)', () => {
+    withAmbientEnv(() => {
+      const width = 80;
+      const storyRows = 16;
+      const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
+      paintIdleStoryScene({
+        canvas,
+        width,
+        storyRows,
+        elapsedMs: 2_500,
+        showAmbient: true,
+        premium: true,
+        paint: (hex, text) => chalk.hex(hex)(text),
+        colors: darkColors,
+      });
+      const sandY = storyRows - 1;
+      let waterDots = 0;
+      for (let y = 1; y < sandY; y++) {
+        const plain = strip(canvas[y] ?? '');
+        for (const ch of plain) {
+          if (ch === '·' || ch === '˙' || ch === '˚') waterDots += 1;
+        }
+      }
+      // Soft upper bound: bubbles may use ˚/· sparsely; dense paintWaterBase was ~648.
+      expect(waterDots).toBeLessThan(40);
+    });
+  });
+
   it('paints food asterisks when sim snapshot has food', () => {
     withAmbientEnv(() => {
       const width = 40;
