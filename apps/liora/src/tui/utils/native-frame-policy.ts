@@ -157,17 +157,22 @@ export function resolveTUIStateNativeFramePolicy(
     ambientAnimation: ambientAnimationFrame,
     viewportScrolled: input.viewportScrolled,
   });
-  // Any authoritative redraw clears the terminal surface; re-apply OSC palette
-  // colors first so default-fg cells and indexed colors stay on-theme. Animation
-  // frames force redraws too, and skipping palette refresh there was dropping
-  // theme colors once agent work started and ambient ticks ramped up.
-  const refreshTerminalPalette = force;
+  // Animation ticks must not wipe the surface or re-blast OSC palette every
+  // ~33ms — that flashes the terminal to black / default bg (the “black hole”
+  // flicker). Damage-diff with force is enough for ambient VFX; palette OSC
+  // stays on structural / start / resize / manual / scroll frames only.
+  const clear = force && !ambientAnimationFrame;
+  const refreshTerminalPalette =
+    force &&
+    shouldRefreshNativeTerminalPalette(input.causes, input.structuralShift, {
+      viewportScrolled: input.viewportScrolled,
+    });
   const clearTranscriptSelection =
     input.priorTranscriptStart !== undefined &&
     input.priorTranscriptStart !== input.nextTranscriptStart;
   return {
     force,
-    clear: force,
+    clear,
     refreshTerminalPalette,
     clearTranscriptSelection,
   };

@@ -35,8 +35,9 @@ export type AmbientEffectMode = RendererEffectLevel;
 const PREMIUM_PARTICLES = ['•', '∙', '·', '*', '◦'] as const;
 /**
  * Brand + role motion tokens — never success/warning/error.
- * Keeps splash/meteors/particles/spectacular text on theme identity hues
- * while spanning cool brand ↔ warm roleUser ↔ shellMode violet.
+ * Particles / Ultrawork may use the full set (including roleUser / shellMode).
+ * Spectacular / banner text uses {@link SPECTACULAR_TOKENS} only so row waves
+ * stay on a gentle brand gradient instead of jumping gold↔pink↔violet.
  */
 export const BRAND_MOTION_TOKENS: readonly ColorToken[] = [
   'gradientStart',
@@ -71,7 +72,15 @@ const PULSE_GLYPH_INTERVAL_MS = 280;
 const COMET_TICK_MS_PREMIUM = 48;
 const COMET_TICK_MS_SUBTLE = 96;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
-const SPECTACULAR_TOKENS: readonly ColorToken[] = BRAND_MOTION_TOKENS;
+/** Smooth brand-family chain for headlines / figlet — no opposite-hue role jumps. */
+export const SPECTACULAR_TOKENS: readonly ColorToken[] = [
+  'gradientStart',
+  'primary',
+  'glow',
+  'accent',
+  'particle',
+  'gradientEnd',
+];
 
 export interface SpectacularTextOptions {
   readonly rowIndex?: number;
