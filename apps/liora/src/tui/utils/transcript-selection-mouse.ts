@@ -25,10 +25,21 @@ function handleTranscriptSelectionMouseEvent(
   }
 
   const context = resolveTranscriptHitTestContext(state);
-  if (context === undefined) return false;
+  if (context === undefined) {
+    // Out-of-bounds / no hit context must not leave a short-click feed pending.
+    if (event.action === 'drag' || event.action === 'release') {
+      clearIdleFeedPending(state);
+    }
+    return false;
+  }
 
   const point = transcriptPointForMouse(event, context);
-  if (point === undefined) return false;
+  if (point === undefined) {
+    if (event.action === 'drag' || event.action === 'release') {
+      clearIdleFeedPending(state);
+    }
+    return false;
+  }
 
   const selection = state.transcriptSelection;
   if (event.action === 'press') {

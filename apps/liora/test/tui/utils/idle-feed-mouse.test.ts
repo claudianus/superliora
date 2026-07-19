@@ -100,6 +100,25 @@ describe('idle feed mouse', () => {
     expect(state.transcriptSelection.hasSelection).toBe(true);
   });
 
+  it('out-of-bounds drag clears pending so release near press does not feed', () => {
+    const { state, stage } = createIdleFeedTuiState();
+    const dropSpy = vi.spyOn(stage, 'tryDropFoodAtContent');
+    const context = resolveTranscriptHitTestContext(state)!;
+    const x = context.rect.x + CHROME_GUTTER + 8;
+    const y = context.rect.y + 1;
+    const outsideY = context.rect.y + context.rect.height + 2;
+
+    expect(handleTranscriptSelectionMouseInput(state, mouseEvent('press', x, y))).toBe(true);
+    // Drag leaves the transcript hit rect — must clear pending (not skip idle-feed handling).
+    expect(
+      handleTranscriptSelectionMouseInput(state, mouseEvent('drag', x, outsideY)),
+    ).toBe(false);
+    // Release back near the original press must not drop food without a fresh press.
+    expect(handleTranscriptSelectionMouseInput(state, mouseEvent('release', x, y))).toBe(true);
+
+    expect(dropSpy).not.toHaveBeenCalled();
+  });
+
   it('non-idle transcript keeps selection-only mouse path', () => {
     const state = createTUIState({
       startup: { continueLast: false, yolo: false, auto: false, plan: false },
