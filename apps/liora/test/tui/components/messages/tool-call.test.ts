@@ -92,6 +92,38 @@ describe('ToolCallComponent', () => {
     expect(out).toContain('4s');
   });
 
+  it('shows motion phase chips on generic tool headers', () => {
+    const running = new ToolCallComponent(
+      {
+        id: 'call_generic_run',
+        name: 'mcp__server__do',
+        args: {},
+      },
+      undefined,
+    );
+    const runningOut = strip(running.render(100).join('\n'));
+    expect(runningOut).toMatch(/[▸▹]/);
+    expect(runningOut).toContain('do');
+    expect(runningOut).not.toContain('❯');
+
+    const done = new ToolCallComponent(
+      {
+        id: 'call_generic_done',
+        name: 'SomethingUnknown',
+        args: {},
+      },
+      {
+        tool_call_id: 'call_generic_done',
+        output: 'ok',
+        is_error: false,
+      },
+    );
+    const doneOut = strip(done.render(100).join('\n'));
+    expect(doneOut).toContain('✓');
+    expect(doneOut).toContain('SomethingUnknown');
+    expect(doneOut).not.toContain('❯');
+  });
+
   describe('detach hint for long-running foreground Bash/Agent', () => {
     it('shows the Ctrl+B hint after 6s for a running Bash call', () => {
       vi.useFakeTimers();

@@ -164,6 +164,7 @@ import {
   requestTUILayoutRender,
   requestTUIScrollRender,
 } from './utils/frame-render';
+import { createMotionBeatController } from './utils/motion-beats';
 import { pickForegroundTasks } from './utils/foreground-task';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
@@ -282,6 +283,8 @@ export class LioraTUI {
   readonly options: LioraTUIOptions;
   session: Session | undefined;
   state: TUIState;
+  /** Thin transition-beat queue; Task 9 owns theatreActive consistency/changeset. */
+  readonly motionBeats = createMotionBeatController();
   private readonly approvalController = new ApprovalController();
   private readonly questionController = new QuestionController();
   private readonly reverseRpcDisposers: Array<() => void> = [];
@@ -2665,6 +2668,19 @@ export class LioraTUI {
       case 'thinking': {
         this.stopActivitySpinner();
         this.syncAgentSwarmActivitySpinner(undefined);
+        this.state.activityContainer.addChild(
+          new ActivityPaneComponent({
+            mode: 'thinking',
+          }),
+        );
+        this.motionBeats.play({
+          name: 'thinking_enter',
+          seed: 'thinking',
+          title: 'Thinking',
+          nowMs: appearanceAnimationNow(),
+          theatreActive:
+            this.state.appState.ultraworkMode === true || this.state.appState.swarmMode === true,
+        });
         break;
       }
       case 'composing': {
