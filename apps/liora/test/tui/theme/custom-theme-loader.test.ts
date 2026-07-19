@@ -153,6 +153,12 @@ describe('custom theme loader', () => {
     );
     const bundled = await loadCustomThemeMerged('superliora-neon-noir');
     expect(bundled?.primary).toBe('#00D5FF');
+    expect(bundled?.background).toBe('#0D1422');
+    expect(bundled?.surface).toBe('#162033');
+
+    const ash = await loadCustomThemeMerged('superliora-ash');
+    expect(ash?.background).toBe('#111714');
+    expect(ash?.surface).toBe('#1A2420');
 
     expect(listAvailableThemeEntriesSync()).toContainEqual(
       expect.objectContaining({
@@ -164,10 +170,10 @@ describe('custom theme loader', () => {
     );
     const nightKiwi = await loadCustomThemeMerged('superliora-night-kiwi');
     expect(nightKiwi?.primary).toBe('#89E900');
-    expect(nightKiwi?.background).toBe('#000000');
-    expect(nightKiwi?.surface).toBe('#222222');
+    expect(nightKiwi?.background).toBe('#222222');
+    expect(nightKiwi?.surface).toBe('#2A2A2A');
     expect(nightKiwi?.selectionBg).toBe('#89E900');
-    expect(nightKiwi?.selectionText).toBe('#000000');
+    expect(nightKiwi?.selectionText).toBe('#222222');
 
     expect(listAvailableThemeEntriesSync()).toContainEqual(
       expect.objectContaining({
@@ -193,8 +199,8 @@ describe('custom theme loader', () => {
     );
     const pumpkinCharcoal = await loadCustomThemeMerged('superliora-pumpkin-charcoal');
     expect(pumpkinCharcoal?.primary).toBe('#FD802E');
-    expect(pumpkinCharcoal?.background).toBe('#000000');
-    expect(pumpkinCharcoal?.surface).toBe('#233D4C');
+    expect(pumpkinCharcoal?.background).toBe('#233D4C');
+    expect(pumpkinCharcoal?.surface).toBe('#2C4A5C');
     expect(pumpkinCharcoal?.selectionBg).toBe('#FD802E');
     expect(pumpkinCharcoal?.selectionText).toBe('#233D4C');
   });
