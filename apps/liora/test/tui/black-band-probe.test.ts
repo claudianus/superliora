@@ -44,9 +44,7 @@ function appState(): AppState {
     editorCommand: null,
     notifications: { enabled: true, condition: 'unfocused' },
     upgrade: { autoInstall: true },
-    availableModels: {
-      'test-model': { model: 'test-model', displayName: 'cursor/grok-4.5' },
-    },
+    availableModels: {},
     availableProviders: {},
     sessionTitle: null,
     mcpServersSummary: null,
@@ -62,17 +60,17 @@ function appState(): AppState {
 
 describe('idle aquarium black-band regression', () => {
   const prev = {
-    TERM: process.env.TERM,
-    CI: process.env.CI,
-    NO_COLOR: process.env.NO_COLOR,
-    FORCE_COLOR: process.env.FORCE_COLOR,
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    FORCE_COLOR: process.env['FORCE_COLOR'],
   };
 
   beforeEach(() => {
-    process.env.TERM = 'xterm-256color';
-    process.env.FORCE_COLOR = '3';
-    delete process.env.CI;
-    delete process.env.NO_COLOR;
+    process.env['TERM'] = 'xterm-256color';
+    process.env['FORCE_COLOR'] = '3';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
     chalk.level = 3;
     currentTheme.setPalette(darkColors);
     currentTheme.setCanvasBackgroundEnabled(true);
