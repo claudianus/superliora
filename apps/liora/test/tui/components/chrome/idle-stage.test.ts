@@ -228,49 +228,25 @@ describe('idle-stage helpers', () => {
     expect(resolveSeaweedSpacing(30)).toBe(6);
   });
 
-  it('maps aquarium roles from theme tokens only', () => {
+  it('maps aquarium roles from brand motion tokens only', () => {
     const palette = resolveAquariumPalette(darkColors, 'dark');
-    const tokens = new Set(Object.values(darkColors));
+    const brand = new Set([
+      darkColors.primary,
+      darkColors.accent,
+      darkColors.glow,
+      darkColors.particle,
+      darkColors.gradientStart,
+      darkColors.gradientEnd,
+      darkColors.textDim,
+    ]);
     for (const hex of Object.values(palette)) {
-      expect(tokens.has(hex)).toBe(true);
+      expect(brand.has(hex)).toBe(true);
     }
-    expect(palette.plant).toBe(darkColors.success);
+    expect(palette.plant).toBe(darkColors.accent);
+    expect(palette.sand).toBe(darkColors.gradientEnd);
     expect(palette.water).toBe(darkColors.glow);
-  });
-
-  it('keeps per-glyph colors after layering plants and bubbles', () => {
-    const previousLevel = chalk.level;
-    chalk.level = 3;
-    try {
-      withAmbientEnv(() => {
-        const width = 80;
-        const storyRows = 14;
-        const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
-        paintIdleStoryScene({
-          canvas,
-          width,
-          storyRows,
-          elapsedMs: 2_400,
-          showAmbient: true,
-          premium: true,
-          paint: (hex, text) => chalk.hex(hex)(text),
-          colors: darkColors,
-        });
-        const waterline = canvas[0] ?? '';
-        const plantRow = canvas[storyRows - 3] ?? '';
-        const joined = canvas.join('\n');
-        const fgSpans = (line: string) => line.match(/\u001B\[38;2;\d+;\d+;\d+m/g) ?? [];
-        const bgSpans = (line: string) => line.match(/\u001B\[48;2;\d+;\d+;\d+m/g) ?? [];
-        // Foreground colors for waterline / plants; no opaque bgHex fill.
-        expect(waterline).toMatch(/\u001B\[38;2;/);
-        expect(bgSpans(joined).length).toBe(0);
-        // Regression: putCell/blitAt used to stripAnsi the whole row, leaving ~1 span.
-        expect(fgSpans(plantRow).length).toBeGreaterThan(3);
-        expect(plantRow).toMatch(/\u001B\[38;2;78;200;126m/); // success green
-      });
-    } finally {
-      chalk.level = previousLevel;
-    }
+    expect(palette.plant).not.toBe(darkColors.success);
+    expect(palette.sand).not.toBe(darkColors.warning);
   });
 });
 

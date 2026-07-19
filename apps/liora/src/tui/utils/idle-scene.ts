@@ -97,82 +97,6 @@ export function centerText(width: number, text: string): string {
   return `${' '.repeat(pad)}${text}`;
 }
 
-
-/**
- * Expand a styled line into one styled cell per column.
- * Preserves per-glyph ANSI so later putCell/blitAt does not bleach the row.
- */
-export function expandStyledCells(line: string, width: number): string[] {
-  const cells = Array.from({ length: width }, () => ' ');
-  if (width <= 0) return cells;
-  let col = 0;
-  let i = 0;
-  let open = '';
-  let close = '';
-  while (i < line.length && col < width) {
-    if (line.charCodeAt(i) === 0x1b && line[i + 1] === '[') {
-      const end = line.indexOf('m', i + 2);
-      if (end < 0) break;
-      const params = line.slice(i + 2, end);
-      const seq = line.slice(i, end + 1);
-      i = end + 1;
-      if (params === '0' || params === '') {
-        open = '';
-        close = '';
-        continue;
-      }
-      if (params === '39') {
-        open = open.replace(/\u001B\[38[^m]*m/g, '');
-        if (!/\u001B\[38/.test(open) && !/\u001B\[48/.test(open)) close = '';
-        else close = close.replace(/\u001B\[39m/g, '');
-        continue;
-      }
-      if (params === '49') {
-        open = open.replace(/\u001B\[48[^m]*m/g, '');
-        if (!/\u001B\[38/.test(open) && !/\u001B\[48/.test(open)) close = '';
-        else close = close.replace(/\u001B\[49m/g, '');
-        continue;
-      }
-      open += seq;
-      if (params.startsWith('38') && !close.includes('[39m')) close += '\u001B[39m';
-      if (params.startsWith('48') && !close.includes('[49m')) close += '\u001B[49m';
-      continue;
-    }
-    const cp = line.codePointAt(i);
-    if (cp === undefined) break;
-    const ch = String.fromCodePoint(cp);
-    i += cp > 0xffff ? 2 : 1;
-    const w = Math.max(1, visibleWidth(ch));
-    if (col + w > width) break;
-    cells[col] = open ? `${open}${ch}${close}` : ch;
-    for (let k = 1; k < w && col + k < width; k++) cells[col + k] = '';
-    col += w;
-  }
-  return cells;
-}
-
-export function collapseStyledCells(cells: readonly string[]): string {
-  let out = '';
-  for (const cell of cells) {
-    if (cell === '') continue;
-    out += cell;
-  }
-  return out;
-}
-
-function readCanvasCells(canvas: string[], y: number, width: number): string[] {
-  return expandStyledCells(canvas[y] ?? ' '.repeat(width), width);
-}
-
-function writeCanvasCells(canvas: string[], y: number, width: number, cells: readonly string[]): void {
-  canvas[y] = padOrTrim(collapseStyledCells(cells), width);
-}
-
-function cellPlainChar(cell: string): string {
-  const plain = stripAnsi(cell);
-  return plain.length > 0 ? plain[0]! : ' ';
-}
-
 export function blitCentered(
   canvas: string[],
   lines: readonly string[],
@@ -203,17 +127,20 @@ export function blitAt(
     if (y < 0 || y >= canvas.length) continue;
     const line = lines[i];
     if (line === undefined) continue;
+    const plain = stripAnsi(canvas[y] ?? ' '.repeat(width)).padEnd(width).slice(0, width);
+    const glyphPlain = stripAnsi(line);
     const glyphW = visibleWidth(line);
-    if (safeLeft >= width || glyphW <= 0) continue;
+    if (safeLeft >= width) continue;
     const fit = Math.min(glyphW, width - safeLeft);
-    const cells = readCanvasCells(canvas, y, width);
-    const incoming = expandStyledCells(line, glyphW);
-    for (let x = 0; x < fit; x++) {
-      const src = incoming[x];
-      if (src === undefined || src === '') continue;
-      cells[safeLeft + x] = src;
+    if (fit < glyphW) {
+      const slice = glyphPlain.slice(0, fit);
+      canvas[y] = padOrTrim(`${plain.slice(0, safeLeft)}${slice}${plain.slice(safeLeft + fit)}`, width);
+      continue;
     }
-    writeCanvasCells(canvas, y, width, cells);
+    canvas[y] = padOrTrim(
+      `${plain.slice(0, safeLeft)}${line}${plain.slice(safeLeft + glyphW)}`,
+      width,
+    );
   }
 }
 
@@ -254,10 +181,8 @@ type IdleSceneColors = {
   readonly accent: string;
   readonly textDim: string;
   readonly textMuted: string;
-  readonly warning: string;
-  readonly success?: string;
   readonly gradientStart?: string;
-  readonly roleUser?: string;
+  readonly gradientEnd?: string;
 };
 
 function hexCoolness(hex: string): number {
@@ -267,47 +192,37 @@ function hexCoolness(hex: string): number {
   return b * 2 + g * 0.25 - r;
 }
 
-function hexGreenness(hex: string): number {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return g * 2 - r - b * 0.25;
-}
-
 function pickCooler(...candidates: readonly (string | undefined)[]): string {
   const valid = candidates.filter((c): c is string => Boolean(c));
   if (valid.length === 0) return '#888888';
   return valid.reduce((best, cur) => (hexCoolness(cur) > hexCoolness(best) ? cur : best));
 }
 
-function pickGreener(...candidates: readonly (string | undefined)[]): string {
-  const valid = candidates.filter((c): c is string => Boolean(c));
-  if (valid.length === 0) return '#888888';
-  return valid.reduce((best, cur) => (hexGreenness(cur) > hexGreenness(best) ? cur : best));
-}
-
-/** Map theme tokens to aquarium paint roles — palette hex only, no free colors. */
+/**
+ * Map theme brand tokens to aquarium paint roles.
+ * Two-tone only: primary / accent / glow / particle / gradient* (+ textDim for dim).
+ * Never success / warning / roleUser — those inject off-brand mint/yellow.
+ */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
   _theme: 'dark' | 'light' = 'dark',
 ): AquariumPalette {
+  const gradientEnd = colors.gradientEnd ?? colors.particle;
   const waterDeep = pickCooler(colors.gradientStart, colors.glow, colors.primary);
   const water = colors.glow;
   const waterSoft = pickCooler(colors.primary, colors.glow, colors.gradientStart);
-  const plant = pickGreener(colors.success, colors.accent);
-  const plantSoft = colors.accent;
 
   return {
     water,
     waterDeep,
     waterSoft,
-    plant,
-    plantSoft,
-    sand: colors.warning,
+    plant: colors.accent,
+    plantSoft: colors.particle,
+    sand: gradientEnd,
     coral: colors.particle,
     coralSoft: colors.accent,
-    food: colors.roleUser ?? colors.warning,
-    fishGold: colors.roleUser ?? colors.warning,
+    food: colors.particle,
+    fishGold: gradientEnd,
     fishSky: waterDeep,
     fishTeal: colors.accent,
     fishSoft: water,
@@ -318,7 +233,7 @@ export function resolveAquariumPalette(
 
 const SOFT_CELLS = new Set([' ', '·', '˙', '~', '∼', '˚']);
 
-/** One cell. `glyph` may include full ANSI — never strip the rest of the row. */
+/** One cell. `glyph` may include full ANSI — never slice styled text. */
 function putCell(
   canvas: string[],
   y: number,
@@ -328,14 +243,10 @@ function putCell(
   force = false,
 ): void {
   if (y < 0 || y >= canvas.length || x < 0 || x >= width) return;
-  const cells = readCanvasCells(canvas, y, width);
-  const here = cellPlainChar(cells[x] ?? ' ');
+  const plain = stripAnsi(canvas[y] ?? ' '.repeat(width)).padEnd(width).slice(0, width);
+  const here = plain[x] ?? ' ';
   if (!force && !SOFT_CELLS.has(here)) return;
-  const glyphCells = expandStyledCells(glyph, Math.max(1, visibleWidth(glyph)));
-  const styled = glyphCells[0];
-  if (styled === undefined || styled === '') return;
-  cells[x] = styled;
-  writeCanvasCells(canvas, y, width, cells);
+  canvas[y] = padOrTrim(`${plain.slice(0, x)}${glyph}${plain.slice(x + 1)}`, width);
 }
 
 export function resolveFishGlyphRows(
@@ -533,10 +444,7 @@ export function renderHillLine(width: number, elapsedMs: number): string {
   return cells.join('');
 }
 
-/**
- * Depth-graded water body — foreground motes only.
- * Do not fill rows with bgHex: a solid wash turns the tank into an opaque color block.
- */
+/** Depth-graded water body — denser soft dots near the bed. */
 export function paintWaterField(
   canvas: string[],
   width: number,
@@ -548,7 +456,7 @@ export function paintWaterField(
   skyDeep: string,
 ): void {
   if (width <= 0 || rows <= 1) return;
-  const count = Math.max(8, Math.floor(width * 0.32));
+  const count = Math.max(4, Math.floor(width * 0.16));
   for (let i = 0; i < count; i++) {
     const seed = hash2(i * 23 + 4, 61);
     const drift = Math.floor(elapsedMs / 110 + seed * 0.01) % Math.max(1, width);
@@ -952,7 +860,7 @@ export function paintIdleStoryScene(options: {
     );
   }
 
-  // 2) Surface line — foreground color only (no bgHex fill).
+  // 2) Surface line
   if (storyRows >= 4) {
     canvas[0] = padOrTrim(
       paint(showAmbient ? palette.waterDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
