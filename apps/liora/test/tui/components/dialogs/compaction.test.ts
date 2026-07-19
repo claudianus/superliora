@@ -1,15 +1,47 @@
 import chalk from 'chalk';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { CompactionComponent } from '#/tui/components/dialogs/compaction';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
+
+const previousEnv = {
+  TERM: process.env['TERM'],
+  CI: process.env['CI'],
+  NO_COLOR: process.env['NO_COLOR'],
+};
 
 afterEach(() => {
   currentTheme.setPalette(darkColors);
+  setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  for (const [key, value] of Object.entries(previousEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  vi.useRealTimers();
 });
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
+
+function enablePremiumAmbient(): void {
+  process.env['TERM'] = 'xterm-256color';
+  delete process.env['CI'];
+  delete process.env['NO_COLOR'];
+  setAppearanceRenderHealth('healthy');
+  setAppearanceRenderQuality('full');
+  setActiveAppearancePreferences({
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium',
+    particles: 'premium',
+  });
 }
 
 describe('CompactionComponent', () => {
@@ -96,6 +128,45 @@ describe('CompactionComponent', () => {
 
       expect(text).toContain('Compaction cancelled');
       expect(text).not.toContain('Compacting context...');
+    } finally {
+      component.dispose();
+    }
+  });
+
+  it('renders particle/rail enter-beat content while compacting under premium', () => {
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const component = new CompactionComponent();
+    try {
+      // Mid enter-beat window so the particle rail is visible.
+      advanceAppearanceAnimationClock(Date.now() + 200);
+      const lines = component.render(48).map(strip);
+      const text = lines.join('\n');
+      expect(text).toMatch(/Compacting context/);
+      expect(lines.some((line) => /[·∙•◦*]/.test(line))).toBe(true);
+    } finally {
+      component.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps token delta copy after compaction completes under premium', () => {
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const component = new CompactionComponent();
+    try {
+      component.markDone(1000, 500);
+      // Still inside the exit-beat window — title carries token delta.
+      advanceAppearanceAnimationClock(Date.now() + 100);
+      const text = component.render(64).map(strip).join('\n');
+      expect(text).toContain('Compaction complete');
+      expect(text).toContain('1000');
+      expect(text).toContain('500');
+      expect(text).toMatch(/tokens/);
     } finally {
       component.dispose();
     }

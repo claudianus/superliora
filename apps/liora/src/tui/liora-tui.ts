@@ -391,6 +391,9 @@ export class LioraTUI {
     this.options = tuiOptions;
     this.startupNotice = startupInput.startupNotice;
     this.state = createTUIState(tuiOptions);
+    this.state.footer.setMotionBeatSource(() =>
+      this.motionBeats.active(appearanceAnimationNow()),
+    );
 
     this.reverseRpcDisposers.push(
       ...registerReverseRPCHandlers(this.approvalController, this.questionController, {
@@ -1684,9 +1687,21 @@ export class LioraTUI {
       'additionalDirs' in patch &&
       !sameStringArrays(this.state.appState.additionalDirs, patch.additionalDirs ?? []);
     const busyChanged = 'streamingPhase' in patch || 'isCompacting' in patch;
+    const modeBeats = collectFooterModeBeats(this.state.appState, patch);
     Object.assign(this.state.appState, patch);
     if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
     if ('appearance' in patch) this.appearanceController.apply();
+    const theatreActive =
+      this.state.appState.ultraworkMode === true || this.state.appState.swarmMode === true;
+    for (const beat of modeBeats) {
+      this.motionBeats.play({
+        name: beat.name,
+        seed: `mode:${beat.title}`,
+        title: beat.title,
+        nowMs: appearanceAnimationNow(),
+        theatreActive,
+      });
+    }
     this.state.footer.setState(this.state.appState);
     this.state.header.setState(this.state.appState);
     this.updateActivityPane();
@@ -3501,4 +3516,40 @@ function truthyEnv(value: string | undefined): boolean {
   if (value === undefined) return false;
   const normalized = value.trim().toLowerCase();
   return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
+}
+
+/** Footer mode badge toggles → mode_enter / mode_exit (plan, ultrawork, swarm, yolo). */
+function collectFooterModeBeats(
+  prev: AppState,
+  patch: Partial<AppState>,
+): Array<{ readonly name: 'mode_enter' | 'mode_exit'; readonly title: string }> {
+  const beats: Array<{ readonly name: 'mode_enter' | 'mode_exit'; readonly title: string }> = [];
+  if ('planMode' in patch && patch.planMode !== undefined && patch.planMode !== prev.planMode) {
+    beats.push({ name: patch.planMode ? 'mode_enter' : 'mode_exit', title: 'plan' });
+  }
+  if (
+    'ultraworkMode' in patch &&
+    patch.ultraworkMode !== undefined &&
+    patch.ultraworkMode !== prev.ultraworkMode
+  ) {
+    beats.push({
+      name: patch.ultraworkMode ? 'mode_enter' : 'mode_exit',
+      title: 'ultrawork',
+    });
+  }
+  if ('swarmMode' in patch && patch.swarmMode !== undefined && patch.swarmMode !== prev.swarmMode) {
+    beats.push({ name: patch.swarmMode ? 'mode_enter' : 'mode_exit', title: 'swarm' });
+  }
+  if (
+    'permissionMode' in patch &&
+    patch.permissionMode !== undefined &&
+    patch.permissionMode !== prev.permissionMode
+  ) {
+    const wasYolo = prev.permissionMode === 'yolo';
+    const nowYolo = patch.permissionMode === 'yolo';
+    if (wasYolo !== nowYolo) {
+      beats.push({ name: nowYolo ? 'mode_enter' : 'mode_exit', title: 'yolo' });
+    }
+  }
+  return beats;
 }

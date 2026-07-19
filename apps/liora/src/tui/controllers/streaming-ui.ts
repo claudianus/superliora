@@ -753,6 +753,14 @@ export class StreamingUIController {
     );
     this._activeCompactionBlock = block;
     state.transcriptContainer.addChild(block);
+    this.host.motionBeats.play({
+      name: 'compaction_start',
+      seed: 'compaction',
+      title: options?.background === true ? 'Compacting context (bg)' : 'Compacting context',
+      nowMs: appearanceAnimationNow(),
+      theatreActive:
+        state.appState.ultraworkMode === true || state.appState.swarmMode === true,
+    });
     requestTUILayoutRender(state);
   }
 
@@ -761,7 +769,20 @@ export class StreamingUIController {
     if (block === undefined) return;
     block.markDone(tokensBefore, tokensAfter, detail);
     this._activeCompactionBlock = undefined;
-    requestTUILayoutRender(this.host.state);
+    const { state } = this.host;
+    const tokenDelta =
+      tokensBefore !== undefined && tokensAfter !== undefined
+        ? `Compaction complete (${String(tokensBefore)} → ${String(tokensAfter)} tokens)`
+        : 'Compaction complete';
+    this.host.motionBeats.play({
+      name: 'compaction_done',
+      seed: 'compaction',
+      title: tokenDelta,
+      nowMs: appearanceAnimationNow(),
+      theatreActive:
+        state.appState.ultraworkMode === true || state.appState.swarmMode === true,
+    });
+    requestTUILayoutRender(state);
   }
 
   cancelCompaction(): void {

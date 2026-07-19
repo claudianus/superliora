@@ -9,8 +9,8 @@
  *   - `markCanceled()` on `compaction.cancelled` → solid warning bullet +
  *     "Compaction cancelled"
  *
- * Bullet animation mirrors `ToolCallComponent` (500ms blink) so the user
- * reads the same "work in progress" signal across the UI.
+ * Under premium ambient, enter/exit beats replace the blink-only header with a
+ * short particle-rail theatre while preserving token-delta copy on complete.
  */
 
 import { Container, Text, Spacer } from '#/tui/renderer';
@@ -21,6 +21,9 @@ import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  renderCrossfadeLine,
+  renderEnterBeat,
+  renderExitBeat,
   renderPremiumHeadline,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
@@ -37,6 +40,10 @@ export class CompactionComponent extends Container {
   private canceled = false;
   private tokensBefore: number | undefined;
   private tokensAfter: number | undefined;
+  private detail: string | undefined;
+  private readonly startedAtMs = appearanceAnimationNow();
+  private doneAtMs: number | undefined;
+  private prevHeaderPlain: string | undefined;
 
   constructor(
     ui?: RendererRootUI,
@@ -80,6 +87,40 @@ export class CompactionComponent extends Container {
   }
 
   override render(width: number): string[] {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+
+    if (!this.done && !this.canceled && animated) {
+      const title = this.background ? 'Compacting context (bg)' : 'Compacting context';
+      const beat = renderEnterBeat(title, width, 'compaction', this.startedAtMs, appearance);
+      const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
+      const headed =
+        tip.length > 0 && beat.length > 0
+          ? [...beat.slice(0, -1), `${beat[beat.length - 1] ?? ''}${tip}`]
+          : beat;
+      return this.composeBeatRender(headed);
+    }
+
+    if (this.done && animated && this.doneAtMs !== undefined) {
+      const completePlain = this.buildCompletePlain();
+      const from = this.prevHeaderPlain ?? completePlain;
+      const exitLines = [
+        ...renderExitBeat(completePlain, width, 'compaction', this.doneAtMs, appearance),
+      ];
+      // After the exit beat collapses to one line, soft-crossfade from the
+      // prior active label so the token-delta copy remains the settle target.
+      if (exitLines.length === 1 && from !== completePlain) {
+        exitLines[0] = renderCrossfadeLine(
+          from,
+          completePlain,
+          'compaction:done',
+          this.doneAtMs,
+          appearance,
+        );
+      }
+      return this.composeBeatRender(exitLines);
+    }
+
     // Recompute the blink state from the shared animation clock so the bullet
     // pulses with the render loop's ticker instead of a private setInterval.
     // See PREMIUM.md §7.1 (single animation clock).
@@ -91,10 +132,13 @@ export class CompactionComponent extends Container {
 
   markDone(tokensBefore?: number, tokensAfter?: number, detail?: string): void {
     if (this.done || this.canceled) return;
+    this.prevHeaderPlain = this.activePlainLabel();
     this.done = true;
+    this.doneAtMs = appearanceAnimationNow();
     this.tokensBefore = tokensBefore;
     this.tokensAfter = tokensAfter;
     if (detail !== undefined && detail.length > 0) {
+      this.detail = detail;
       this.addChild(new Text(currentTheme.dim(`  ${detail}`), 0, 0));
     }
     this.headerText.setText(this.buildHeader());
@@ -116,6 +160,29 @@ export class CompactionComponent extends Container {
   }
 
   dispose(): void {}
+
+  private composeBeatRender(beatLines: readonly string[]): string[] {
+    const lines: string[] = ['', ...beatLines];
+    if (this.instruction !== undefined) {
+      lines.push(currentTheme.dim(`  ${this.instruction}`));
+    }
+    if (this.detail !== undefined) {
+      lines.push(currentTheme.dim(`  ${this.detail}`));
+    }
+    return lines;
+  }
+
+  private activePlainLabel(): string {
+    return this.background ? 'Compacting context (bg)' : 'Compacting context';
+  }
+
+  private buildCompletePlain(): string {
+    const detail =
+      this.tokensBefore !== undefined && this.tokensAfter !== undefined
+        ? ` (${String(this.tokensBefore)} → ${String(this.tokensAfter)} tokens)`
+        : '';
+    return `Compaction complete${detail}`;
+  }
 
   private buildHeader(): string {
     const appearance = getActiveAppearancePreferences();

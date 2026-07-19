@@ -20,10 +20,14 @@ import type { ColorPalette } from '#/tui/theme/colors';
 import { currentTheme } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import {
+  appearanceAnimationNow,
   renderAnimatedGradientText,
+  renderCrossfadeLine,
   renderPulseText,
   renderShimmerPrefix,
+  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
 import {
   createGitStatusCache,
   formatGitBadgeBase,
@@ -391,6 +395,10 @@ export class FooterComponent implements Component {
    */
   private backgroundBashTaskCount = 0;
   private backgroundAgentCount = 0;
+  private tipDisplay = '';
+  private prevTipDisplay = '';
+  private tipChangedAtMs = 0;
+  private getActiveMotionBeat: (() => MotionBeatSnapshot | undefined) | undefined;
 
   constructor(
     state: AppState,
@@ -404,6 +412,11 @@ export class FooterComponent implements Component {
     this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onRefresh });
     this.syncGoalClock(state.goal);
     this.syncGoalTimer(state.goal);
+  }
+
+  /** Optional source for mode_enter/mode_exit shimmer while a beat is live. */
+  setMotionBeatSource(getActive: () => MotionBeatSnapshot | undefined): void {
+    this.getActiveMotionBeat = getActive;
   }
 
   setState(state: AppState): void {
@@ -450,15 +463,38 @@ export class FooterComponent implements Component {
     // ── Line 1: mode badges + model + [N task(s) running] + [N agent(s) running] + cwd + git + hints ──
     const left: string[] = [];
     const modes: string[] = [];
+    const activeBeat = this.getActiveMotionBeat?.();
+    const modeBeatTitle =
+      activeBeat?.name === 'mode_enter' || activeBeat?.name === 'mode_exit'
+        ? activeBeat.title
+        : undefined;
+    const withModeBeat = (title: string, body: string): string =>
+      modeBeatTitle === title ? renderShimmerPrefix(appearance) + body : body;
     if (state.permissionMode === 'auto') modes.push(chalk.hex(colors.warning).bold('auto'));
-    if (state.permissionMode === 'yolo') modes.push(chalk.hex(colors.warning).bold('yolo'));
+    if (state.permissionMode === 'yolo') {
+      modes.push(
+        withModeBeat(
+          'yolo',
+          modeBeatTitle === 'yolo'
+            ? renderPulseText('yolo', 'footer:yolo', 'warning', appearance)
+            : chalk.hex(colors.warning).bold('yolo'),
+        ),
+      );
+    }
     if (state.ultraworkMode) {
-      modes.push(renderAnimatedGradientText('ultrawork', 'footer:ultrawork', appearance));
+      modes.push(
+        withModeBeat(
+          'ultrawork',
+          renderAnimatedGradientText('ultrawork', 'footer:ultrawork', appearance),
+        ),
+      );
     } else if (state.planMode) {
-      modes.push(renderPulseText('plan', 'footer:plan', 'primary', appearance));
+      modes.push(withModeBeat('plan', renderPulseText('plan', 'footer:plan', 'primary', appearance)));
     }
     if (state.swarmMode) {
-      modes.push(renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance));
+      modes.push(
+        withModeBeat('swarm', renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance)),
+      );
     }
     if (state.premiumQualityMode) {
       modes.push(renderAnimatedGradientText('premium', 'footer:premium', appearance));
@@ -543,11 +579,29 @@ export class FooterComponent implements Component {
     } else if (primary && visibleWidth(primary) <= remaining) {
       tipText = primary;
     }
+    if (tipText !== this.tipDisplay) {
+      this.prevTipDisplay = this.tipDisplay;
+      this.tipDisplay = tipText;
+      this.tipChangedAtMs = appearanceAnimationNow();
+    }
+    const ambientTips = shouldRenderAmbientEffects(appearance);
+    const tipStyled =
+      tipText.length === 0
+        ? ''
+        : ambientTips && this.prevTipDisplay.length > 0
+          ? renderCrossfadeLine(
+              this.prevTipDisplay,
+              tipText,
+              'footer:tip',
+              this.tipChangedAtMs,
+              appearance,
+            )
+          : chalk.hex(colors.textMuted)(tipText);
 
     let line1: string;
-    if (tipText) {
-      const pad = width - leftWidth - visibleWidth(tipText);
-      line1 = leftLine + ' '.repeat(Math.max(0, pad)) + chalk.hex(colors.textMuted)(tipText);
+    if (tipStyled) {
+      const pad = width - leftWidth - visibleWidth(tipStyled);
+      line1 = leftLine + ' '.repeat(Math.max(0, pad)) + tipStyled;
     } else if (leftWidth <= width) {
       line1 = leftLine;
     } else {
