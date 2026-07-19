@@ -134,4 +134,33 @@ describe('native stage frame layout', () => {
     expect(todo?.rect).toMatchObject({ x: 0, width: 80 });
     expect(regions.some((region) => region.id === 'rail')).toBe(false);
   });
+
+  it('skips stage region clears on ambient damage-only frames', () => {
+    const width = 200;
+    const height = 80;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.editorContainer.addChild(state.editor);
+    state.todoPanel.setTodos([
+      { title: 'Ship stage layout', status: 'in_progress' },
+    ]);
+    state.todoPanelContainer.addChild(state.todoPanel);
+
+    const cleared = buildTUIStateNativeFrameRegions(state, width, height);
+    const ambient = buildTUIStateNativeFrameRegions(state, width, height, {
+      ambientDamageOnly: true,
+    });
+
+    for (const id of ['transcript', 'editor', 'footer', 'rail'] as const) {
+      const clearedRegion = cleared.find((region) => region.id === id);
+      const ambientRegion = ambient.find((region) => region.id === id);
+      if (clearedRegion === undefined || ambientRegion === undefined) continue;
+      expect(clearedRegion.clear).toBe(true);
+      expect(ambientRegion.clear).toBe(false);
+    }
+  });
 });

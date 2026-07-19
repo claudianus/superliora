@@ -383,14 +383,26 @@ describe('renderer adaptive quality', () => {
       'output full | sync off probe unsupported | large yes | erase-line off | reason full-frame',
     );
 
-    const timedOut = diagnoseNativeRendererStats(stats.snapshot(), undefined, {
+    const syncedStats = new NativeFrameStats({ windowSize: 4 });
+    syncedStats.record(
+      frameMetrics({
+        durationMs: 8,
+        targetFrameMs: 16,
+        outputBytes: 128,
+        outputSynchronized: true,
+      }),
+    );
+    const timedOut = diagnoseNativeRendererStats(syncedStats.snapshot(), undefined, {
       synchronizedOutputProbeResult: {
         support: 'unknown',
         timedOut: true,
       },
-      synchronizedOutputEnabled: false,
+      synchronizedOutputEnabled: true,
     });
-    expect(formatRendererDiagnosticsLine(timedOut)).toContain('sync off probe timeout');
+    expect(formatRendererDiagnosticsLine(timedOut)).toContain('sync on probe timeout');
+    expect(timedOut.issues.map((issue) => issue.message)).toContain(
+      'Terminal synchronized-output probe timed out; kept sync enabled.',
+    );
   });
 
   it('surfaces output stream backpressure in renderer diagnostics', () => {
@@ -4430,6 +4442,56 @@ describe('NativeTerminalSession', () => {
       }),
     ]));
     expect(output.writes.at(-1)).not.toContain(ANSI_BEGIN_SYNCHRONIZED_UPDATE);
+    renderer.stop();
+  });
+
+  it('keeps synchronized output enabled when the probe times out as unknown', async () => {
+    const input = new FakeInput();
+    const output = new FakeOutput();
+    const scheduler = new FakeProbeScheduler();
+    let text = 'a';
+    const renderer = new NativeTerminalRenderer({
+      input,
+      output,
+      scheduler,
+      renderOnStart: true,
+      synchronized: true,
+      synchronizedOutputProbe: true,
+      synchronizedOutputProbeTimeoutMs: 25,
+      outputPolicy: 'premium',
+      render: ({ renderer: frameRenderer }) => {
+        frameRenderer.writeText(0, 0, text);
+        return frameRenderer.present();
+      },
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+    expect(renderer.lastFrame?.metrics.outputSynchronized).toBe(true);
+
+    scheduler.advance(25);
+    await Promise.resolve();
+    text = 'b';
+    scheduler.advance(17);
+
+    expect(renderer.synchronizedOutputProbeResult).toMatchObject({
+      support: 'unknown',
+      timedOut: true,
+    });
+    expect(renderer.synchronizedOutputEnabled).toBe(true);
+    expect(renderer.lastFrame?.metrics.outputSynchronized).toBe(true);
+    expect(output.writes.at(-1)).toContain(ANSI_BEGIN_SYNCHRONIZED_UPDATE);
+    expect(renderer.traceSnapshot.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'marker',
+        name: 'terminal.synchronized_output_probe',
+        args: {
+          support: 'unknown',
+          timedOut: true,
+          enabled: true,
+        },
+      }),
+    ]));
     renderer.stop();
   });
 
