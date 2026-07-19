@@ -1,6 +1,7 @@
 /**
  * Night-sky backdrop for centered-stage letterbox gutters.
- * Twinkling starfield + soft-diagonal shooting stars that detonate on the stage rim.
+ * Twinkling starfield + S/M/L meteors inbound from all edges/corners that
+ * detonate into asteroid-scale bursts on the stage rim.
  */
 
 import type { AppearancePreferences } from '#/tui/config';
@@ -14,14 +15,16 @@ import { hash2, STAR_GLYPHS } from '#/tui/utils/night-sky';
 import type { StageFrameBand } from '#/tui/utils/stage-frame';
 
 /** Distinct from {@link STAR_GLYPHS} so freeze tests can tell showers apart. */
-const SHOOTING_HEAD = '◆';
-/** Trail mid glyph for down-right (dx > 0) showers. */
-const SHOOTING_MID_DOWN_RIGHT = '╲';
-/** Trail mid glyph for down-left (dx < 0) showers. */
-const SHOOTING_MID_DOWN_LEFT = '╱';
+const HEAD_S = '◆';
+const HEAD_M = '◈';
+const HEAD_L = '⬤';
 const SHOOTING_TAIL = '·';
-const EXPLODE_CORE = ['✹', '✦', '*'] as const;
-const EXPLODE_SPARK = ['✦', '˚', '+', '·', '*'] as const;
+const FLASH_CORE = ['✹', '◈', '⬤', '✦'] as const;
+const RING_GLYPHS = ['░', '▒', '▓', '✦', '˚'] as const;
+const DEBRIS_GLYPHS = ['✦', '*', '+', '˚', '·', '✧'] as const;
+
+type MeteorSize = 's' | 'm' | 'l';
+type SpawnSector = 'n' | 'e' | 's' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
 
 export interface StageLetterboxSkyCell {
   readonly x: number;
@@ -36,6 +39,14 @@ export interface LetterboxSideGutter {
   readonly x0: number;
   /** Exclusive right column. */
   readonly x1: number;
+}
+
+/** Stage outer hole (letterbox-exclusive). Half-open: [x0,x1) × [y0,y1). */
+export interface StageHole {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
 }
 
 function bandContains(band: StageFrameBand, x: number, y: number): boolean {
@@ -88,6 +99,46 @@ export function resolveLetterboxSideGutters(
   return gutters;
 }
 
+/**
+ * Infer the stage outer rect (the hole in the letterbox) from full-edge bands.
+ */
+export function resolveStageHoleFromBands(
+  bands: readonly StageFrameBand[],
+  cols: number,
+  rows: number,
+): StageHole | undefined {
+  if (cols <= 0 || rows <= 0 || bands.length === 0) return undefined;
+  let y0 = 0;
+  let y1 = rows;
+  let x0 = 0;
+  let x1 = cols;
+  let sawTop = false;
+  let sawBottom = false;
+  let sawLeft = false;
+  let sawRight = false;
+  for (const band of bands) {
+    if (band.y === 0 && band.x === 0 && band.width === cols && band.height > 0) {
+      y0 = band.height;
+      sawTop = true;
+    }
+    if (band.x === 0 && band.width === cols && band.y > 0 && band.y + band.height === rows) {
+      y1 = band.y;
+      sawBottom = true;
+    }
+    if (band.x === 0 && band.width > 0 && band.width < cols && band.y > 0) {
+      x0 = band.width;
+      sawLeft = true;
+    }
+    if (band.x > 0 && band.x + band.width === cols && band.width > 0 && band.y > 0) {
+      x1 = band.x;
+      sawRight = true;
+    }
+  }
+  if (!(sawTop || sawBottom || sawLeft || sawRight)) return undefined;
+  if (x1 <= x0 || y1 <= y0) return undefined;
+  return { x0, y0, x1, y1 };
+}
+
 function positiveModulo(n: number, m: number): number {
   if (m <= 0) return 0;
   return ((n % m) + m) % m;
@@ -97,12 +148,114 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
 
+function midGlyphForVelocity(dx: number, dy: number): string {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (ax < 0.08) return '│';
+  if (ay < 0.08) return '─';
+  return dx * dy >= 0 ? '╲' : '╱';
+}
+
+function headForSize(size: MeteorSize): string {
+  if (size === 'l') return HEAD_L;
+  if (size === 'm') return HEAD_M;
+  return HEAD_S;
+}
+
+function pickSize(premium: boolean, h: number, m: number): MeteorSize {
+  const roll = hash2(h, m + 41) % 100;
+  if (premium) {
+    if (roll < 12) return 'l';
+    if (roll < 48) return 'm';
+    return 's';
+  }
+  if (roll < 4) return 'l';
+  if (roll < 38) return 'm';
+  return 's';
+}
+
+const SECTORS: readonly SpawnSector[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se'];
+
+function spawnAndTarget(
+  sector: SpawnSector,
+  hole: StageHole,
+  cols: number,
+  rows: number,
+  h: number,
+  m: number,
+): { startX: number; startY: number; impactX: number; impactY: number } {
+  const jx = hash2(h, m + 7) % 1000;
+  const jy = hash2(h, m + 11) % 1000;
+  const rimX = (t: number) => hole.x0 + t * Math.max(0, hole.x1 - hole.x0 - 1);
+  const rimY = (t: number) => hole.y0 + t * Math.max(0, hole.y1 - hole.y0 - 1);
+  const fringe = (span: number) => (span <= 1 ? 0 : (jx % span));
+
+  switch (sector) {
+    case 'n':
+      return {
+        startX: fringe(cols),
+        startY: -2 - (h % 3),
+        impactX: rimX(jx / 1000),
+        impactY: hole.y0 - 0.4,
+      };
+    case 's':
+      return {
+        startX: fringe(cols),
+        startY: rows + 2 + (h % 3),
+        impactX: rimX(jx / 1000),
+        impactY: hole.y1 - 0.6,
+      };
+    case 'w':
+      return {
+        startX: -2 - (h % 3),
+        startY: clamp(hole.y0 + fringe(Math.max(1, hole.y1 - hole.y0)), 0, rows - 1),
+        impactX: hole.x0 - 0.4,
+        impactY: rimY(jy / 1000),
+      };
+    case 'e':
+      return {
+        startX: cols + 2 + (h % 3),
+        startY: clamp(hole.y0 + fringe(Math.max(1, hole.y1 - hole.y0)), 0, rows - 1),
+        impactX: hole.x1 - 0.6,
+        impactY: rimY(jy / 1000),
+      };
+    case 'nw':
+      return {
+        startX: -1,
+        startY: -1,
+        impactX: hole.x0 - 0.4,
+        impactY: hole.y0 - 0.4,
+      };
+    case 'ne':
+      return {
+        startX: cols,
+        startY: -1,
+        impactX: hole.x1 - 0.6,
+        impactY: hole.y0 - 0.4,
+      };
+    case 'sw':
+      return {
+        startX: -1,
+        startY: rows,
+        impactX: hole.x0 - 0.4,
+        impactY: hole.y1 - 0.6,
+      };
+    case 'se':
+      return {
+        startX: cols,
+        startY: rows,
+        impactX: hole.x1 - 0.6,
+        impactY: hole.y1 - 0.6,
+      };
+  }
+}
+
 /**
  * Paint stars + shooting stars into absolute terminal coordinates.
  * Only cells inside letterbox bands are returned.
  *
- * Side-gutter showers fall on a soft diagonal aimed at the stage rim and burst
- * into sparks on impact (never paint into the stage content rect).
+ * Meteors inbound from edges/corners hit the stage outer rim and burst
+ * (never paint into the stage content rect).
  */
 export function paintStageLetterboxSky(input: {
   readonly bands: readonly StageFrameBand[];
@@ -129,7 +282,7 @@ export function paintStageLetterboxSky(input: {
     if (x < 0 || y < 0 || x >= cols || y >= rows) return;
     const key = `${x},${y}`;
     const prev = cells.get(key);
-    // Prefer brighter / bold overlays (shooting stars over dust).
+    // Prefer brighter / bold overlays (meteors over dust).
     if (prev !== undefined && prev.bold === true && bold !== true) return;
     cells.set(key, { x, y, char, fg, ...(bold ? { bold: true } : {}) });
   };
@@ -150,13 +303,11 @@ export function paintStageLetterboxSky(input: {
     ? Math.floor(nowMs / 4000) * 4000
     : Math.floor(nowMs / twinkleStepMs) * twinkleStepMs;
   for (let i = 0; i < starCount; i++) {
-    // Stable base position from band-weighted hash; pick a letterbox cell.
     const seed = hash2(i * 17 + 3, 91);
     const band = bands[seed % bands.length]!;
     const x = band.x + (hash2(i * 31, 7) % Math.max(1, band.width));
     const y = band.y + (hash2(i * 47, 11) % Math.max(1, band.height));
     const twinkle = (Math.sin(twinkleClock / 220 + i * 0.73) + 1) / 2;
-    // ≥4 brightness steps via mix — never a hard blink.
     if (twinkle < 0.18) continue;
     const glyph = STAR_GLYPHS[hash2(i, 4) % STAR_GLYPHS.length] ?? '·';
     const fg =
@@ -170,56 +321,56 @@ export function paintStageLetterboxSky(input: {
     put(x, y, glyph, fg, twinkle > 0.88 && premium);
   }
 
-  // --- Shooting stars: soft diagonal into the stage rim → explode ---
-  const gutters = resolveLetterboxSideGutters(bands, cols);
-  if (!freeze && gutters.length > 0) {
-    const showerCount = premium ? 5 : 3;
-    const tickMs = premium ? 42 : 72;
+  // --- Inbound meteors → asteroid rim bursts ---
+  const hole = resolveStageHoleFromBands(bands, cols, rows);
+  if (!freeze && hole !== undefined) {
+    const showerCount = premium ? 8 : 5;
+    const tickMs = premium ? 40 : 68;
     const phase = nowMs / tickMs;
-    const explodeTicks = premium ? 16 : 12;
     for (let m = 0; m < showerCount; m++) {
       const h = hash2(m * 131 + 19, 503);
-      const gutter = gutters[h % gutters.length]!;
-      const gutterW = Math.max(1, gutter.x1 - gutter.x0);
-      const speed = premium ? 0.9 + (m % 3) * 0.12 : 0.62 + (m % 2) * 0.1;
-      const dy = speed;
-      // Aim inward: left gutter → stage (right), right gutter → stage (left).
-      const towardStage = gutter.x0 === 0 ? 1 : -1;
-      const softSpan = Math.max(0, gutterW - 1) * (premium ? 0.72 : 0.58);
-      const trailLen = premium ? 11 : 7;
-      const travel = rows + trailLen + 6;
-      const dx = softSpan === 0 ? 0 : towardStage * ((softSpan * dy) / Math.max(1, travel * 0.72));
-      const midGlyph = dx >= 0 ? SHOOTING_MID_DOWN_RIGHT : SHOOTING_MID_DOWN_LEFT;
-      const fallTicks = Math.ceil(travel / dy) + 2;
-      const rest = premium ? 18 + (m % 4) * 7 : 28 + (m % 3) * 9;
+      const sector = SECTORS[(h + m * 3) % SECTORS.length]!;
+      const size = pickSize(premium, h, m);
+      const { startX, startY, impactX, impactY } = spawnAndTarget(
+        sector,
+        hole,
+        cols,
+        rows,
+        h,
+        m,
+      );
+      const dist = Math.hypot(impactX - startX, impactY - startY);
+      if (dist < 2) continue;
+      const baseSpeed = size === 'l' ? 1.15 : size === 'm' ? 0.95 : 0.78;
+      const speed = baseSpeed * (premium ? 1 : 0.85) * (0.9 + (m % 3) * 0.08);
+      const ux = (impactX - startX) / dist;
+      const uy = (impactY - startY) / dist;
+      const dx = ux * speed;
+      const dy = uy * speed;
+      const trailLen = size === 'l' ? 14 : size === 'm' ? 10 : 7;
+      const fallTicks = Math.ceil(dist / speed) + 1;
+      const explodeTicks = size === 'l' ? 28 : size === 'm' ? 22 : 16;
+      const rest = premium ? 14 + (m % 5) * 5 : 24 + (m % 4) * 8;
       const period = fallTicks + explodeTicks + rest;
       const local = positiveModulo(phase + (h % period), period);
-
-      // Start away from the stage so the diagonal has runway.
-      const startX =
-        towardStage > 0
-          ? gutter.x0 + 0.4 + (hash2(h, m + 3) % Math.max(1, Math.floor(gutterW * 0.35)))
-          : gutter.x1 - 0.4 - (hash2(h, m + 3) % Math.max(1, Math.floor(gutterW * 0.35)));
-      const startY = -trailLen - (h % 3);
-      const impactX = towardStage > 0 ? gutter.x1 - 0.6 : gutter.x0 + 0.6;
-      const impactLocal =
-        Math.abs(dx) < 1e-6 ? fallTicks + 1 : Math.max(1, (impactX - startX) / dx);
-      const burstStart = Math.min(impactLocal, fallTicks);
+      const burstStart = fallTicks;
       const burstEnd = burstStart + explodeTicks;
 
-      const headFg = mixHexColor(glow, primary, 0.25);
-      const midFg = mixHexColor(particle, glow, 0.35);
+      const headFg = mixHexColor(glow, primary, size === 'l' ? 0.45 : 0.25);
+      const midFg = mixHexColor(particle, glow, 0.4);
       const softFg = mixHexColor(particle, muted, 0.4);
+      const midGlyph = midGlyphForVelocity(dx, dy);
+      const head = headForSize(size);
 
       if (local <= burstStart) {
-        const headX = clamp(startX + local * dx, gutter.x0, gutter.x1 - 1);
+        const headX = startX + local * dx;
         const headY = startY + local * dy;
         for (let step = 0; step <= trailLen; step++) {
-          const x = Math.round(clamp(headX - step * dx * 0.95, gutter.x0, gutter.x1 - 1));
+          const x = Math.round(headX - step * dx * 0.95);
           const y = Math.round(headY - step * dy * 0.9);
           const t = step / Math.max(1, trailLen);
           if (step === 0) {
-            put(x, y, SHOOTING_HEAD, headFg, true);
+            put(x, y, head, headFg, true);
           } else if (t < 0.35) {
             put(x, y, midGlyph, midFg, premium && t < 0.2);
           } else if (t < 0.7) {
@@ -233,18 +384,20 @@ export function paintStageLetterboxSky(input: {
 
       if (local > burstEnd) continue;
 
-      // Detonation on the stage-facing gutter rim.
       const age = local - burstStart;
-      const ix = Math.round(clamp(impactX, gutter.x0, gutter.x1 - 1));
-      const iy = Math.round(clamp(startY + burstStart * dy, 0, rows - 1));
-      paintRimExplosion({
+      const ix = Math.round(clamp(impactX, 0, cols - 1));
+      const iy = Math.round(clamp(impactY, 0, rows - 1));
+      // Snap impact onto letterbox: prefer nearest cell just outside the hole.
+      const snap = snapImpactToLetterbox(ix, iy, hole, cols, rows);
+      paintRimMegaBurst({
         put,
-        ix,
-        iy,
+        ix: snap.x,
+        iy: snap.y,
         age,
         life: explodeTicks,
         seed: h + m * 17,
-        towardStage,
+        size,
+        hole,
         premium,
         glow,
         primary,
@@ -257,47 +410,138 @@ export function paintStageLetterboxSky(input: {
   return [...cells.values()];
 }
 
-function paintRimExplosion(input: {
+function snapImpactToLetterbox(
+  ix: number,
+  iy: number,
+  hole: StageHole,
+  cols: number,
+  rows: number,
+): { x: number; y: number } {
+  let x = clamp(ix, 0, cols - 1);
+  let y = clamp(iy, 0, rows - 1);
+  if (x >= hole.x0 && x < hole.x1 && y >= hole.y0 && y < hole.y1) {
+    const dl = x - hole.x0 + 1;
+    const dr = hole.x1 - x;
+    const dt = y - hole.y0 + 1;
+    const db = hole.y1 - y;
+    const min = Math.min(dl, dr, dt, db);
+    if (min === dl) x = hole.x0 - 1;
+    else if (min === dr) x = hole.x1;
+    else if (min === dt) y = hole.y0 - 1;
+    else y = hole.y1;
+  }
+  return { x: clamp(x, 0, cols - 1), y: clamp(y, 0, rows - 1) };
+}
+
+function paintRimMegaBurst(input: {
   readonly put: (x: number, y: number, char: string, fg: string, bold?: boolean) => void;
   readonly ix: number;
   readonly iy: number;
   readonly age: number;
   readonly life: number;
   readonly seed: number;
-  readonly towardStage: number;
+  readonly size: MeteorSize;
+  readonly hole: StageHole;
   readonly premium: boolean;
   readonly glow: string;
   readonly primary: string;
   readonly particle: string;
   readonly muted: string;
 }): void {
-  const { put, ix, iy, age, life, seed, towardStage, premium, glow, primary, particle, muted } =
-    input;
+  const {
+    put,
+    ix,
+    iy,
+    age,
+    life,
+    seed,
+    size,
+    hole,
+    premium,
+    glow,
+    primary,
+    particle,
+    muted,
+  } = input;
   if (age < 0 || age > life) return;
   const t = age / life;
-  const coreFg = mixHexColor(glow, primary, 0.4);
-  if (t < 0.4) {
-    const glyph = EXPLODE_CORE[Math.min(EXPLODE_CORE.length - 1, Math.floor(t * 8))] ?? '✦';
+  const scale = size === 'l' ? 1.55 : size === 'm' ? 1.2 : 0.9;
+  const coreFg = mixHexColor(glow, primary, 0.55);
+
+  // 1) Flash core
+  if (t < 0.18) {
+    const glyph = FLASH_CORE[Math.min(FLASH_CORE.length - 1, Math.floor(t * 20))] ?? '✹';
     put(ix, iy, glyph, coreFg, true);
+    if (size !== 's') {
+      put(ix + 1, iy, '✦', coreFg, true);
+      put(ix - 1, iy, '✦', coreFg, true);
+      put(ix, iy + 1, '✧', mixHexColor(glow, primary, 0.35), true);
+      put(ix, iy - 1, '✧', mixHexColor(glow, primary, 0.35), true);
+    }
   }
-  const sparks = premium ? 12 : 7;
-  for (let i = 0; i < sparks; i++) {
+
+  // 2) Expanding shock ring
+  if (t < 0.6) {
+    const r = (0.8 + t * 5.5) * scale;
+    const ringSteps = Math.max(10, Math.floor(16 * scale));
+    for (let i = 0; i < ringSteps; i++) {
+      const ang = (i / ringSteps) * Math.PI * 2 + seed * 0.01;
+      const x = Math.round(ix + Math.cos(ang) * r);
+      const y = Math.round(iy + Math.sin(ang) * r * 0.55);
+      if (insideHole(x, y, hole)) continue;
+      const glyph = RING_GLYPHS[(seed + i) % RING_GLYPHS.length] ?? '░';
+      const fg =
+        t < 0.25
+          ? mixHexColor(glow, primary, 0.4)
+          : t < 0.45
+            ? mixHexColor(particle, glow, 0.5)
+            : muted;
+      put(x, y, glyph, fg, t < 0.3 && premium);
+    }
+  }
+
+  // 3) Debris with light gravity (bias away from stage center)
+  const cx = (hole.x0 + hole.x1) / 2;
+  const cy = (hole.y0 + hole.y1) / 2;
+  const awayAng = Math.atan2(iy - cy, ix - cx);
+  const debris = Math.floor((size === 'l' ? 34 : size === 'm' ? 24 : 14) * (premium ? 1 : 0.75));
+  for (let i = 0; i < debris; i++) {
     const base = ((seed + i * 47) % 360) * (Math.PI / 180);
-    // Bias spray away from the stage so sparks stay in letterbox.
-    const away = towardStage > 0 ? Math.PI : 0;
-    const ang = base * 0.55 + away + ((i % 3) - 1) * 0.35;
-    const dist = (0.6 + (i % 4) * 0.45) * (0.35 + t * 2.4);
+    const ang = awayAng + (base - Math.PI) * 0.7 + ((i % 5) - 2) * 0.2;
+    const launch = (0.5 + (i % 5) * 0.55) * scale;
+    const dist = launch * (0.25 + t * 2.8);
+    const grav = t * t * 1.6 * scale;
     const x = Math.round(ix + Math.cos(ang) * dist);
-    const y = Math.round(iy + Math.sin(ang) * dist * 0.55);
-    const glyph = EXPLODE_SPARK[(seed + i) % EXPLODE_SPARK.length] ?? '·';
+    const y = Math.round(iy + Math.sin(ang) * dist * 0.55 + grav);
+    if (insideHole(x, y, hole)) continue;
+    const glyph = DEBRIS_GLYPHS[(seed + i) % DEBRIS_GLYPHS.length] ?? '·';
     const fg =
-      t < 0.25
-        ? mixHexColor(glow, primary, 0.35)
-        : t < 0.55
-          ? mixHexColor(particle, glow, 0.45)
+      t < 0.2
+        ? mixHexColor(glow, primary, 0.45)
+        : t < 0.5
+          ? mixHexColor(particle, glow, 0.4)
           : muted;
-    put(x, y, glyph, fg, t < 0.3 && premium);
+    put(x, y, glyph, fg, t < 0.25 && premium && size !== 's');
   }
+
+  // 4) Afterglow dust near impact
+  if (t > 0.45) {
+    const fade = (t - 0.45) / 0.55;
+    const dust = size === 'l' ? 10 : size === 'm' ? 7 : 4;
+    for (let i = 0; i < dust; i++) {
+      const ox = ((seed + i * 13) % 7) - 3;
+      const oy = ((seed + i * 17) % 5) - 2;
+      const x = ix + ox;
+      const y = iy + oy;
+      if (insideHole(x, y, hole)) continue;
+      if (fade > 0.85 && i % 2 === 0) continue;
+      put(x, y, '·', muted, false);
+    }
+  }
+}
+
+function insideHole(x: number, y: number, hole: StageHole): boolean {
+  return x >= hole.x0 && x < hole.x1 && y >= hole.y0 && y < hole.y1;
 }
 
 /** Attach sky cell content onto letterbox band regions (absolute → local). */
