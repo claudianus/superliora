@@ -26,6 +26,8 @@ interface ModelChoice {
 export interface ModelSelection {
   readonly alias: string;
   readonly thinking: boolean;
+  /** Selected thinking effort (e.g. 'low', 'medium', 'high'). Undefined means use default. */
+  readonly effort?: string;
 }
 
 export function modelDisplayName(alias: string, model: ModelAlias | undefined): string {
@@ -52,6 +54,8 @@ export interface ModelSelectorOptions {
   readonly currentValue: string;
   readonly selectedValue?: string;
   readonly currentThinking: boolean;
+  /** Current thinking effort level (e.g. 'high'). */
+  readonly currentEffort?: string;
   /** When true, typed characters filter the list (fuzzy) and a search line is shown. */
   readonly searchable?: boolean;
   /** Items per page. Lists longer than this paginate (PgUp/PgDn). */
@@ -88,6 +92,23 @@ function effectiveThinking(model: ModelAlias, thinkingDraft: boolean): boolean {
   return thinkingDraft;
 }
 
+/** All possible thinking effort levels in ascending order. */
+const ALL_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+/** Resolves the effort list for a model: its declared supportEfforts or the full list. */
+function effortsForModel(model: ModelAlias): readonly string[] {
+  const supportEfforts = model.supportEfforts;
+  if (supportEfforts !== undefined && supportEfforts.length > 0) {
+    return supportEfforts;
+  }
+  return ALL_EFFORTS;
+}
+
+/** Resolves the default effort for a model: its declared defaultEffort or 'high'. */
+function defaultEffortForModel(model: ModelAlias): string {
+  return model.defaultEffort ?? 'high';
+}
+
 /**
  * Flat, searchable single-list model picker.
  *
@@ -102,6 +123,8 @@ export class ModelSelectorComponent extends Container implements Focusable {
   private readonly list: SearchableList<ModelChoice>;
   /** Per-model thinking override set by ←/→; absent → the capability default. */
   private readonly thinkingOverrides = new Map<string, boolean>();
+  /** Per-model effort override set by number keys; absent → the model default. */
+  private readonly effortOverrides = new Map<string, string>();
 
   constructor(opts: ModelSelectorOptions) {
     super();
@@ -130,6 +153,19 @@ export class ModelSelectorComponent extends Container implements Focusable {
     return thinkingAvailability(choice.model) !== 'unsupported';
   }
 
+  /**
+   * Effort draft for a model: an explicit number-key override when set,
+   * otherwise the live effort for the active model, otherwise the model default.
+   */
+  private effortFor(choice: ModelChoice): string {
+    const override = this.effortOverrides.get(choice.alias);
+    if (override !== undefined) return override;
+    if (choice.alias === this.opts.currentValue && this.opts.currentEffort !== undefined) {
+      return this.opts.currentEffort;
+    }
+    return defaultEffortForModel(choice.model);
+  }
+
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape)) {
       if (this.list.clearQuery()) return;
@@ -151,12 +187,28 @@ export class ModelSelectorComponent extends Container implements Focusable {
       return;
     }
 
+    // Number keys 1-9 select the effort level when thinking is enabled.
+    const num = Number(data);
+    if (Number.isInteger(num) && num >= 1 && num <= 9) {
+      const selected = this.selectedChoice();
+      if (selected !== undefined && thinkingAvailability(selected.model) !== 'unsupported') {
+        const efforts = effortsForModel(selected.model);
+        const effort = efforts[num - 1];
+        if (effort !== undefined) {
+          this.effortOverrides.set(selected.alias, effort);
+        }
+      }
+      return;
+    }
+
     if (matchesKey(data, Key.enter)) {
       const selected = this.selectedChoice();
       if (selected === undefined) return;
+      const thinking = effectiveThinking(selected.model, this.draftFor(selected));
       this.opts.onSelect({
         alias: selected.alias,
-        thinking: effectiveThinking(selected.model, this.draftFor(selected)),
+        thinking,
+        effort: thinking ? this.effortFor(selected) : undefined,
       });
       return;
     }
@@ -164,9 +216,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
     if (matchesKey(data, Key.alt('s')) && this.opts.onSessionOnlySelect !== undefined) {
       const selected = this.selectedChoice();
       if (selected === undefined) return;
+      const thinking = effectiveThinking(selected.model, this.draftFor(selected));
       this.opts.onSessionOnlySelect({
         alias: selected.alias,
-        thinking: effectiveThinking(selected.model, this.draftFor(selected)),
+        thinking,
+        effort: thinking ? this.effortFor(selected) : undefined,
       });
     }
   }
@@ -248,6 +302,12 @@ export class ModelSelectorComponent extends Container implements Focusable {
       const thinkingHeader = availability === 'toggle' ? ' Thinking  (←→ to switch)' : ' Thinking';
       footer.push(currentTheme.fg('textMuted', thinkingHeader));
       footer.push(this.renderThinkingControl(selected));
+      // Show effort selector when thinking is enabled.
+      const thinkingOn = effectiveThinking(selected.model, this.draftFor(selected));
+      if (thinkingOn && availability !== 'unsupported') {
+        footer.push(currentTheme.fg('textMuted', ' Effort  (1-5 to select)'));
+        footer.push(this.renderEffortControl(selected));
+      }
       footer.push('');
     } else {
       footer.push('');
@@ -290,5 +350,19 @@ export class ModelSelectorComponent extends Container implements Focusable {
     }
     const draft = this.draftFor(choice);
     return `  ${segment('On', draft)}  ${segment('Off', !draft)}`;
+  }
+
+  private renderEffortControl(choice: ModelChoice): string {
+    const efforts = effortsForModel(choice.model);
+    const current = this.effortFor(choice);
+    const segments = efforts.map((effort, index) => {
+      const isActive = effort === current;
+      const numHint = String(index + 1);
+      const label = `${numHint}:${effort}`;
+      return isActive
+        ? currentTheme.boldFg('primary', `[ ${label} ]`)
+        : currentTheme.fg('text', `  ${label}  `);
+    });
+    return `  ${segments.join(' ')}`;
   }
 }

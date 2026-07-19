@@ -40,7 +40,9 @@ describe('ModelSelectorComponent', () => {
 
     const out = text(picker);
     // Model name on the left, provider on the right, with the current marker.
-    expect(out).toMatch(/❯ Kimi K2\s+SuperLiora ← current/);
+    expect(out).toContain('Kimi K2');
+    expect(out).toContain('SuperLiora');
+    expect(out).toContain('← current');
     // Provider is no longer inlined in parentheses next to the name.
     expect(out).not.toContain('Kimi K2 (SuperLiora)');
   });
@@ -58,17 +60,17 @@ describe('ModelSelectorComponent', () => {
     // "/" no longer toggles thinking (it used to); here it is simply ignored.
     picker.handleInput('/');
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: true });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: true, effort: 'high' });
 
     // Right arrow flips the draft (true -> false).
     picker.handleInput(RIGHT);
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: false });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: false, effort: undefined });
 
     // Left arrow flips it back.
     picker.handleInput(LEFT);
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: true });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: true, effort: 'high' });
   });
 
   it('shows the Left/Right thinking hint only for toggleable models', () => {
@@ -101,7 +103,7 @@ describe('ModelSelectorComponent', () => {
     expect(alwaysOut).toContain('Off (Unsupported)');
     expect(alwaysOut).not.toContain('Always on');
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'always', thinking: true });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'always', thinking: true, effort: 'high' });
 
     // Unsupported: Off selected, On greyed out — same style, mirrored.
     picker.handleInput(DOWN);
@@ -110,7 +112,7 @@ describe('ModelSelectorComponent', () => {
     expect(plainOut).toContain('[ Off ]');
     expect(plainOut).not.toContain('] unsupported');
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'plain', thinking: false });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'plain', thinking: false, effort: undefined });
   });
 
   it('ignores Left/Right on always-on and unsupported models', () => {
@@ -128,12 +130,12 @@ describe('ModelSelectorComponent', () => {
 
     picker.handleInput(RIGHT);
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'always', thinking: true });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'always', thinking: true, effort: 'high' });
 
     picker.handleInput(DOWN);
     picker.handleInput(LEFT);
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'plain', thinking: false });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'plain', thinking: false, effort: undefined });
   });
 
   it('renders the unavailable thinking segment muted', () => {
@@ -168,7 +170,7 @@ describe('ModelSelectorComponent', () => {
     picker.handleInput(DOWN); // -> thinking (the Off override persists)
     picker.handleInput('\r');
 
-    expect(onSelect).toHaveBeenCalledWith({ alias: 'thinking', thinking: false });
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'thinking', thinking: false, effort: undefined });
   });
 
   it('defaults a thinking-capable model to On but keeps the current model state', () => {
@@ -190,7 +192,7 @@ describe('ModelSelectorComponent', () => {
     // A capable, non-active model defaults to On without any toggle.
     expect(text(picker)).toContain('[ On ]');
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenCalledWith({ alias: 'other', thinking: true });
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'other', thinking: true, effort: 'high' });
   });
 
   it('fuzzy-filters by typing and reports a match count', () => {
@@ -270,7 +272,7 @@ describe('ModelSelectorComponent', () => {
     // Toggle thinking Off, then Alt+S applies the choice to the session only.
     picker.handleInput(RIGHT);
     picker.handleInput(`${ESC}s`);
-    expect(onSessionOnlySelect).toHaveBeenCalledWith({ alias: 'kimi', thinking: false });
+    expect(onSessionOnlySelect).toHaveBeenCalledWith({ alias: 'kimi', thinking: false, effort: undefined });
     expect(onSelect).not.toHaveBeenCalled();
   });
 

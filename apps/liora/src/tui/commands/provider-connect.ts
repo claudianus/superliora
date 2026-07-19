@@ -56,7 +56,7 @@ import {
   type ProviderCatalogSelection,
 } from '#/tui/utils/provider-catalog-options';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
-import { applyCustomEndpointProvider } from '#/utils/custom-provider';
+import { applyCustomEndpointProvider, lookupModelCapability, probeModelsEndpoint } from '#/utils/custom-provider';
 import {
   promptApiKeyForCatalogProvider,
   promptOAuthCallback,
@@ -192,6 +192,7 @@ export async function connectCustomEndpoint(host: SlashCommandHost): Promise<boo
       apiKey: value.apiKey ?? 'no-key-required',
       providerType: value.providerType,
       maxContextSize: value.maxContextSize,
+      thinking: value.thinking,
       setDefault: true,
     });
     await host.harness.setConfig({
@@ -793,17 +794,7 @@ function promptCustomRegistryImport(
 
 function promptCustomEndpointImport(
   host: SlashCommandHost,
-): Promise<
-  | {
-      readonly providerId: string;
-      readonly baseUrl: string;
-      readonly providerType: CustomEndpointImportValue['providerType'];
-      readonly modelId: string;
-      readonly apiKey?: string;
-      readonly maxContextSize: number;
-    }
-  | undefined
-> {
+): Promise<CustomEndpointImportValue | undefined> {
   return new Promise((resolve) => {
     const dialog = new CustomEndpointImportDialogComponent(
       (result: CustomEndpointImportResult) => {
@@ -811,6 +802,31 @@ function promptCustomEndpointImport(
         resolve(result.kind === 'ok' ? result.value : undefined);
       },
     );
+
+    // Auto-detect thinking support: load the models.dev catalog in the
+    // background and wire up a hint request handler on the dialog.
+    const catalogPromise = loadCatalog().catch(() => undefined);
+    dialog.onModelHintRequest = (info) => {
+      void (async () => {
+        // 1. Try the models.dev catalog first (fast, cached).
+        const catalog = await catalogPromise;
+        if (catalog !== undefined) {
+          const hint = lookupModelCapability(catalog, info.providerId, info.modelId);
+          if (hint !== undefined) {
+            dialog.setThinkingDefault(hint.thinking);
+            return;
+          }
+        }
+        // 2. Fallback: probe the endpoint's /models API (best-effort, 3s timeout).
+        if (info.baseUrl.length > 0) {
+          const probed = await probeModelsEndpoint(info.baseUrl, undefined, info.modelId);
+          if (probed !== undefined) {
+            dialog.setThinkingDefault(probed.thinking);
+          }
+        }
+      })();
+    };
+
     host.mountEditorReplacement(dialog);
   });
 }

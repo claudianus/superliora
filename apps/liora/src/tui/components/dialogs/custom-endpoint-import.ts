@@ -43,6 +43,7 @@ export interface CustomEndpointImportValue {
   readonly modelId: string;
   readonly apiKey?: string;
   readonly maxContextSize: number;
+  readonly thinking: boolean;
 }
 
 export type CustomEndpointImportResult =
@@ -54,6 +55,7 @@ const SUBTITLE_DEFAULT =
   'HTTP endpoint. Path suffixes like /v1/responses set wire type automatically. Leave API key empty only for local/keyless servers.';
 const FOOTER_NOT_LAST = 'Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
 const FOOTER_TYPE = '←→ change type  ·  Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
+const FOOTER_THINKING = '←→ toggle thinking  ·  Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
 const FOOTER_LAST = 'Tab / ↑↓ to switch  ·  Enter to submit  ·  Esc to cancel';
 
 const WIRE_TYPE_HINTS: Record<CustomEndpointWireType, string> = {
@@ -66,9 +68,9 @@ const WIRE_TYPE_HINTS: Record<CustomEndpointWireType, string> = {
 };
 
 type TextFieldId = 'provider' | 'url' | 'model' | 'key' | 'context';
-type FieldId = TextFieldId | 'type';
+type FieldId = TextFieldId | 'type' | 'thinking';
 
-const FIELD_ORDER: readonly FieldId[] = ['provider', 'url', 'type', 'model', 'key', 'context'];
+const FIELD_ORDER: readonly FieldId[] = ['provider', 'url', 'type', 'model', 'key', 'context', 'thinking'];
 
 function maskInputLine(raw: string): string {
   const prefix = '> ';
@@ -87,6 +89,14 @@ function maskInputLine(raw: string): string {
 export class CustomEndpointImportDialogComponent extends Container implements Focusable {
   focused = false;
 
+  /**
+   * Called when the user leaves the model-id field (or the URL field with a
+   * model already entered). The host can use this to trigger an async
+   * capability lookup (models.dev catalog / /models probe) and then call
+   * {@link setThinkingDefault} with the result.
+   */
+  onModelHintRequest?: (info: { providerId: string; baseUrl: string; modelId: string }) => void;
+
   private readonly providerInput = new Input();
   private readonly urlInput = new Input();
   private readonly modelInput = new Input();
@@ -95,6 +105,8 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   private readonly onDone: (result: CustomEndpointImportResult) => void;
   private activeField: FieldId = 'provider';
   private providerType: CustomEndpointWireType = 'openai';
+  private thinkingEnabled = false;
+  private thinkingAutoDetected = false;
   private done = false;
   private hint: string = SUBTITLE_DEFAULT;
 
@@ -103,15 +115,21 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     this.onDone = onDone;
     this.contextInput.setValue(String(DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE));
     for (const field of FIELD_ORDER) {
-      if (field === 'type') continue;
+      if (field === 'type' || field === 'thinking') continue;
       this.inputFor(field).onSubmit = () => {
         if (field === 'context') {
-          this.handleSubmit();
+          this.focusField(this.nextField(field));
         } else {
           this.focusField(this.nextField(field));
         }
       };
     }
+  }
+
+  /** Sets the initial thinking state (e.g. from a models.dev catalog lookup). */
+  setThinkingDefault(enabled: boolean): void {
+    this.thinkingEnabled = enabled;
+    this.thinkingAutoDetected = enabled;
   }
 
   handleInput(data: string): void {
@@ -153,6 +171,18 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
       return;
     }
 
+    if (this.activeField === 'thinking') {
+      if (matchesKey(data, Key.left) || matchesKey(data, Key.right) || printableChar(data) === ' ') {
+        this.thinkingEnabled = !this.thinkingEnabled;
+        return;
+      }
+      if (matchesKey(data, Key.enter)) {
+        this.handleSubmit();
+        return;
+      }
+      return;
+    }
+
     this.hint = SUBTITLE_DEFAULT;
     this.inputFor(this.activeField).handleInput(data);
   }
@@ -160,7 +190,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   override invalidate(): void {
     super.invalidate();
     for (const field of FIELD_ORDER) {
-      if (field === 'type') continue;
+      if (field === 'type' || field === 'thinking') continue;
       this.inputFor(field).invalidate();
     }
   }
@@ -168,7 +198,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   override render(width: number): string[] {
     const dialogActive = this.focused && !this.done;
     for (const field of FIELD_ORDER) {
-      if (field === 'type') continue;
+      if (field === 'type' || field === 'thinking') continue;
       this.inputFor(field).focused = dialogActive && this.activeField === field;
     }
 
@@ -181,9 +211,11 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     const footer =
       this.activeField === 'type'
         ? FOOTER_TYPE
-        : this.activeField === 'context'
-          ? FOOTER_LAST
-          : FOOTER_NOT_LAST;
+        : this.activeField === 'thinking'
+          ? FOOTER_THINKING
+          : this.activeField === 'context'
+            ? FOOTER_LAST
+            : FOOTER_NOT_LAST;
 
     const contentLines: string[] = [
       truncateToWidth(currentTheme.boldFg('textStrong', TITLE), innerWidth, '…'),
@@ -196,6 +228,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
       ...this.renderField('model', 'Model id', innerWidth, false),
       ...this.renderField('key', 'API key', innerWidth, true),
       ...this.renderField('context', 'Context tokens', innerWidth, false),
+      ...this.renderThinkingField(innerWidth),
       truncateToWidth(currentTheme.fg('textDim', footer), innerWidth, '…'),
     ];
 
@@ -248,6 +281,24 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     return [truncateToWidth(labelLine, width, '…'), truncateToWidth(value, width, '…'), ''];
   }
 
+  private renderThinkingField(width: number): string[] {
+    const active = this.activeField === 'thinking';
+    const autoTag = this.thinkingAutoDetected ? ' (auto)' : '';
+    const labelLine = active
+      ? currentTheme.boldFg('accent', `Thinking (reasoning)${autoTag}`)
+      : currentTheme.fg('textDim', `Thinking (reasoning)${autoTag}`);
+    const yes = this.thinkingEnabled
+      ? currentTheme.boldFg('primary', '[ Yes ]')
+      : currentTheme.fg('text', '  Yes  ');
+    const no = this.thinkingEnabled
+      ? currentTheme.fg('text', '  No  ')
+      : currentTheme.boldFg('primary', '[ No ]');
+    const value = active
+      ? `${yes} ${no}  (←→)`
+      : `${yes} ${no}`;
+    return [truncateToWidth(labelLine, width, '…'), truncateToWidth(value, width, '…'), ''];
+  }
+
   private handleSubmit(): void {
     if (this.done) return;
     this.applyUrlInference();
@@ -290,6 +341,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
         modelId,
         apiKey: apiKey.length === 0 ? undefined : apiKey,
         maxContextSize,
+        thinking: this.thinkingEnabled,
       },
     });
   }
@@ -323,11 +375,28 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   }
 
   private focusField(field: FieldId): void {
+    const leaving = this.activeField;
     if (this.activeField === 'url' && field !== 'url') {
       this.applyUrlInference();
     }
     this.hint = SUBTITLE_DEFAULT;
     this.activeField = field;
+    // Fire the hint request when leaving the model field (or URL field with a
+    // model already entered) so the host can auto-detect thinking support.
+    if (
+      (leaving === 'model' || leaving === 'url') &&
+      field !== leaving &&
+      this.onModelHintRequest !== undefined
+    ) {
+      const modelId = this.modelInput.getValue().trim();
+      if (modelId.length > 0) {
+        this.onModelHintRequest({
+          providerId: this.providerInput.getValue().trim(),
+          baseUrl: this.urlInput.getValue().trim(),
+          modelId,
+        });
+      }
+    }
   }
   private cancel(): void {
     if (this.done) return;

@@ -34,6 +34,12 @@ export interface CustomRegistryModelEntry {
   readonly limit?: { context?: number; output?: number };
   readonly tool_call?: boolean;
   readonly reasoning?: boolean;
+  /** models.dev-style interleaved thinking support (true or { field: string }). */
+  readonly interleaved?: boolean | { readonly field?: string };
+  /** Supported thinking effort levels (e.g. ['low', 'medium', 'high']). */
+  readonly think_efforts?: readonly string[];
+  /** Default thinking effort level (e.g. 'high'). */
+  readonly default_effort?: string;
   readonly modalities?: {
     input?: readonly string[];
     output?: readonly string[];
@@ -100,6 +106,9 @@ function toModelEntry(value: unknown): CustomRegistryModelEntry | undefined {
     limit?: { context?: number; output?: number };
     tool_call?: boolean;
     reasoning?: boolean;
+    interleaved?: boolean | { field?: string };
+    think_efforts?: readonly string[];
+    default_effort?: string;
     modalities?: { input?: readonly string[]; output?: readonly string[] };
   } = { id };
 
@@ -124,6 +133,25 @@ function toModelEntry(value: unknown): CustomRegistryModelEntry | undefined {
 
   if (typeof value['tool_call'] === 'boolean') entry.tool_call = value['tool_call'];
   if (typeof value['reasoning'] === 'boolean') entry.reasoning = value['reasoning'];
+
+  // Parse interleaved thinking support (models.dev style).
+  const interleaved = value['interleaved'];
+  if (interleaved === true) {
+    entry.interleaved = true;
+  } else if (isRecord(interleaved)) {
+    const field = interleaved['field'];
+    entry.interleaved = typeof field === 'string' && field.length > 0 ? { field } : {};
+  }
+
+  // Parse thinking effort levels.
+  const thinkEfforts = toStringArrayOrUndefined(value['think_efforts']);
+  if (thinkEfforts !== undefined && thinkEfforts.length > 0) {
+    entry.think_efforts = thinkEfforts;
+  }
+  const defaultEffort = value['default_effort'];
+  if (typeof defaultEffort === 'string' && defaultEffort.length > 0) {
+    entry.default_effort = defaultEffort;
+  }
 
   const modalities = value['modalities'];
   if (isRecord(modalities)) {
@@ -238,6 +266,8 @@ export function capabilitiesFromCustomEntry(model: CustomRegistryModelEntry): st
   const caps = new Set<string>();
   if (model.tool_call === true) caps.add('tool_use');
   if (model.reasoning === true) caps.add('thinking');
+  // interleaved thinking support (models.dev style) also implies thinking.
+  if (model.interleaved !== undefined) caps.add('thinking');
   if (model.modalities?.input?.includes('image') === true) caps.add('image_in');
   if (model.modalities?.input?.includes('video') === true) caps.add('video_in');
   if (model.modalities?.output?.includes('image') === true) caps.add('image_out');
@@ -249,6 +279,7 @@ function hasRichCapabilityHints(model: CustomRegistryModelEntry): boolean {
   return (
     typeof model.tool_call === 'boolean' ||
     typeof model.reasoning === 'boolean' ||
+    model.interleaved !== undefined ||
     model.modalities !== undefined
   );
 }
@@ -319,6 +350,9 @@ export function applyCustomRegistryProvider(
       maxContextSize,
       capabilities,
       displayName,
+      // Include thinking effort metadata when available.
+      ...(model.think_efforts !== undefined ? { supportEfforts: model.think_efforts } : {}),
+      ...(model.default_effort !== undefined ? { defaultEffort: model.default_effort } : {}),
     };
   }
 
