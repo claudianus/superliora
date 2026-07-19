@@ -8,6 +8,7 @@ import {
   shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
+  shouldUseAmbientDamageOnlyPaint,
 } from '#/tui/utils/native-frame-policy';
 
 describe('native-frame-policy', () => {
@@ -162,5 +163,44 @@ describe('native-frame-policy', () => {
       }),
     ).toBe(false);
     expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
+  });
+
+  it('keeps Jewel Tank idle damage-only on request-only thinking ticks', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: false,
+        viewportScrolled: false,
+        causes: ['request'],
+        ambientAnimationAllowed: true,
+        idleAquariumMounted: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: false,
+        viewportScrolled: false,
+        causes: ['request'],
+        ambientAnimationAllowed: true,
+        idleAquariumMounted: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: true,
+        viewportScrolled: false,
+        causes: ['request'],
+        ambientAnimationAllowed: true,
+        idleAquariumMounted: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: false,
+        viewportScrolled: false,
+        causes: ['resize', 'animation'],
+        ambientAnimationAllowed: true,
+        idleAquariumMounted: true,
+      }),
+    ).toBe(false);
   });
 });
