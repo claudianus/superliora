@@ -102,4 +102,71 @@ describe('idle-tank-sim', () => {
     const mid = createIdleTankSim(60, 12, 0, { premium: true });
     expect(snapshotIdleTankSim(mid).fish.length).toBeLessThanOrEqual(2);
   });
+
+  it('spawns food-burst bubbles when dropping feed', () => {
+    const premium = createIdleTankSim(60, 12, 0, { premium: true });
+    premium.fish = [];
+    expect(dropFood(premium, 20, 3)).toBe(true);
+    const snap = snapshotIdleTankSim(premium);
+    expect(snap.fx.some((f) => f.kind === 'bubble')).toBe(true);
+    expect(snap.fx.filter((f) => f.kind === 'bubble').length).toBeGreaterThanOrEqual(5);
+
+    const subtle = createIdleTankSim(60, 12, 0, { premium: false });
+    subtle.fish = [];
+    expect(dropFood(subtle, 20, 3)).toBe(true);
+    expect(snapshotIdleTankSim(subtle).fx.filter((f) => f.kind === 'bubble').length).toBeLessThan(
+      snap.fx.filter((f) => f.kind === 'bubble').length,
+    );
+  });
+
+  it('spawns turn-wake bubbles when a fish reverses', () => {
+    const sim = createIdleTankSim(40, 12, 0, { premium: true });
+    const fish = sim.fish[0]!;
+    fish.x = 1.1;
+    fish.y = 4;
+    fish.goesRight = false;
+    fish.vx = -Math.abs(fish.vx);
+    fish.mode = 'wander';
+    fish.targetFoodId = null;
+    sim.food = [];
+    sim.lastAutoSpawnMs = Number.POSITIVE_INFINITY;
+    const before = sim.fx.length;
+    tickIdleTankSim(sim, 40);
+    expect(sim.fx.length).toBeGreaterThan(before);
+    expect(sim.fx.some((f) => f.kind === 'bubble')).toBe(true);
+  });
+
+  it('spawns eat sparks when a fish finishes a pellet', () => {
+    const sim = createIdleTankSim(60, 12, 0, { premium: true });
+    const fish = sim.fish[0]!;
+    fish.x = 20;
+    fish.y = 5;
+    fish.vx = 0.01;
+    fish.goesRight = true;
+    fish.cooldownUntilMs = 0;
+    expect(dropFood(sim, 20, 5)).toBe(true);
+    sim.lastAutoSpawnMs = Number.POSITIVE_INFINITY;
+    let sawSpark = false;
+    for (let t = 50; t <= 3_000; t += 50) {
+      tickIdleTankSim(sim, t);
+      if (sim.fx.some((f) => f.kind === 'spark')) sawSpark = true;
+    }
+    expect(snapshotIdleTankSim(sim).food.length).toBe(0);
+    expect(sawSpark).toBe(true);
+  });
+
+  it('caps and expires fx particles', () => {
+    const sim = createIdleTankSim(60, 12, 0, { premium: true });
+    sim.fish = [];
+    for (let i = 0; i < 30; i++) dropFood(sim, 5 + (i % 20), 2);
+    // Cap food prevents infinite drop — but force-flood fx via many drops after clearing food.
+    sim.food = [];
+    for (let i = 0; i < 20; i++) {
+      expect(dropFood(sim, 10 + (i % 15), 3)).toBe(true);
+      sim.food = [];
+    }
+    expect(sim.fx.length).toBeLessThanOrEqual(48);
+    for (let t = 50; t <= 2_000; t += 50) tickIdleTankSim(sim, t);
+    expect(snapshotIdleTankSim(sim).fx.every((f) => f.life > 0)).toBe(true);
+  });
 });

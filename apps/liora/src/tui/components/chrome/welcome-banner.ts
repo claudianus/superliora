@@ -53,7 +53,7 @@ export function renderWelcomeBanner(
 
 /**
  * Trademark SUPERLIORA hero: vertical brand gradient across figlet rows,
- * plus an in-row brand-wave, bright crest, and dense space sparkles.
+ * plus a slow in-row brand-wave, soft crest, and sparse space sparkles.
  * Stays on gradientStart / primary / glow / gradientEnd — never roleUser gold.
  */
 function paintBannerLine(
@@ -92,29 +92,30 @@ function paintBannerLine(
   ] as const;
 
   const premium = mode === 'premium';
-  const cycleMs = premium ? 52 : 96;
+  // Slow clock: ~3–4s to walk the brand chain once (was sub-second / frantic).
+  const cycleMs = premium ? 180 : 260;
   const tickFloat = appearanceAnimationNow() / cycleMs;
   const tick = Math.floor(tickFloat);
   const seed = hashRendererEffectSeed(`welcome:banner:${String(rowIndex)}`) + rowIndex * 41;
-  const waveStride = premium ? 1.55 : 1.05;
-  const crestLift = premium ? 0.82 : 0.52;
-  const sparkleEvery = premium ? 11 : 17;
+  const waveStride = premium ? 0.42 : 0.3;
+  const crestLift = premium ? 0.48 : 0.32;
+  const sparkleEvery = premium ? 16 : 24;
 
   const runs: RendererStyledTextRun[] = [];
   let clusterIndex = 0;
   for (const cluster of splitDisplayClusters(plain)) {
     const char = cluster.text;
     if (char === ' ') {
-      if (rendererPositiveModulo(seed + clusterIndex + tick * 5, sparkleEvery) === 0) {
+      if (rendererPositiveModulo(seed + clusterIndex + tick * 2, sparkleEvery) === 0) {
         const glyph =
           BANNER_SPARKLES[
             rendererPositiveModulo(seed + tick + clusterIndex, BANNER_SPARKLES.length)
           ]!;
-        const hot = premium && rendererPositiveModulo(seed + tick + clusterIndex, 3) === 0;
+        const hot = premium && rendererPositiveModulo(seed + tick + clusterIndex, 5) === 0;
         runs.push({
           text: glyph,
           style: withBannerCanvasBackground({
-            fg: mixHexColor(hot ? glow : particle, accent, hot ? 0.35 : 0.2),
+            fg: mixHexColor(hot ? glow : particle, accent, hot ? 0.28 : 0.16),
             bold: true,
           }),
         });
@@ -126,8 +127,8 @@ function paintBannerLine(
       continue;
     }
 
-    // Dual motion: brand-chain wave + bright crest toward glow.
-    const waveFloat = clusterIndex * 0.58 + tickFloat * waveStride + rowIndex * 0.9 + seed * 0.01;
+    // Dual motion: brand-chain wave + soft crest toward glow.
+    const waveFloat = clusterIndex * 0.42 + tickFloat * waveStride + rowIndex * 0.55 + seed * 0.01;
     const chainLen = brandChain.length;
     const wavePos = ((waveFloat % chainLen) + chainLen) % chainLen;
     const i0 = Math.floor(wavePos);
@@ -137,15 +138,15 @@ function paintBannerLine(
       brandChain[(i0 + 1) % chainLen]!,
       blend,
     );
-    const crest = (Math.sin(clusterIndex * 0.38 + tickFloat * 1.15 + rowIndex * 0.7) + 1) / 2;
-    const secondary = (Math.sin(clusterIndex * 0.9 + tickFloat * 0.55) + 1) / 2;
-    let fg = mixHexColor(rowBase, waveHex, premium ? 0.62 : 0.45);
+    const crest = (Math.sin(clusterIndex * 0.28 + tickFloat * 0.38 + rowIndex * 0.45) + 1) / 2;
+    const secondary = (Math.sin(clusterIndex * 0.7 + tickFloat * 0.22) + 1) / 2;
+    let fg = mixHexColor(rowBase, waveHex, premium ? 0.48 : 0.34);
     fg = mixHexColor(fg, glow, crest * crestLift);
-    if (premium && crest > 0.88) {
-      // Peak flash — trademark specular hit.
-      fg = mixHexColor(fg, mixHexColor(glow, '#FFFFFF', 0.45), 0.55);
-    } else if (premium && secondary > 0.92) {
-      fg = mixHexColor(fg, particle, 0.28);
+    if (premium && crest > 0.93) {
+      // Rare soft specular — not a strobe.
+      fg = mixHexColor(fg, mixHexColor(glow, '#FFFFFF', 0.35), 0.28);
+    } else if (premium && secondary > 0.95) {
+      fg = mixHexColor(fg, particle, 0.16);
     }
 
     runs.push({
