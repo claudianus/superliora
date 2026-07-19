@@ -144,6 +144,14 @@ function positiveModulo(n: number, m: number): number {
   return ((n % m) + m) % m;
 }
 
+function insideHole(x: number, y: number, hole: StageHole): boolean {
+  return x >= hole.x0 && x < hole.x1 && y >= hole.y0 && y < hole.y1;
+}
+
+function skyCellKey(x: number, y: number): number {
+  return ((y & 0xffff) << 16) | (x & 0xffff);
+}
+
 function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
@@ -427,11 +435,11 @@ export function paintStageLetterboxSky(input: {
   const area = letterboxArea(bands);
   if (area < 24) return [];
 
-  const cells = new Map<string, StageLetterboxSkyCell>();
+  const cells = new Map<number, StageLetterboxSkyCell>();
   const put = (x: number, y: number, char: string, fg: string, bold?: boolean) => {
     if (!pointInLetterboxBands(bands, x, y)) return;
     if (x < 0 || y < 0 || x >= cols || y >= rows) return;
-    const key = `${x},${y}`;
+    const key = skyCellKey(x, y);
     const prev = cells.get(key);
     // Prefer brighter / bold overlays (meteors over dust).
     if (prev !== undefined && prev.bold === true && bold !== true) return;
@@ -881,8 +889,49 @@ function paintRimMegaBurst(input: {
   }
 }
 
-function insideHole(x: number, y: number, hole: StageHole): boolean {
-  return x >= hole.x0 && x < hole.x1 && y >= hole.y0 && y < hole.y1;
+/** Intern sky cell styles so compose/diff hit pointer-equal styles. */
+const skyStyleCache = new Map<string, { char: string; style: NonNullable<RendererCell['style']> }>();
+
+function skyRendererCell(
+  char: string,
+  fg: string,
+  canvasBg: string | undefined,
+  bold: boolean | undefined,
+): RendererCell {
+  const key = `${char}\0${fg}\0${canvasBg ?? ''}\0${bold === true ? '1' : '0'}`;
+  const hit = skyStyleCache.get(key);
+  if (hit !== undefined) return hit;
+  const style: NonNullable<RendererCell['style']> = {
+    fg,
+    ...(canvasBg !== undefined ? { bg: canvasBg } : {}),
+    ...(bold === true ? { bold: true } : {}),
+  };
+  const cell = { char, style };
+  skyStyleCache.set(key, cell);
+  if (skyStyleCache.size > 512) {
+    // Bound growth — drop oldest half when the intern map gets large.
+    let drop = Math.floor(skyStyleCache.size / 2);
+    for (const k of skyStyleCache.keys()) {
+      skyStyleCache.delete(k);
+      if (--drop <= 0) break;
+    }
+  }
+  return cell;
+}
+
+type LetterboxRegionCache = {
+  readonly signature: string;
+  readonly emptyCell: RendererCell;
+  readonly linesByBand: RendererCell[][][];
+  readonly prevSkyByBand: number[][];
+};
+
+let letterboxRegionCache: LetterboxRegionCache | undefined;
+
+/** Test helper — drop persistent letterbox region buffers. */
+export function resetLetterboxSkyRegionCacheForTests(): void {
+  letterboxRegionCache = undefined;
+  skyStyleCache.clear();
 }
 
 /** Attach sky cell content onto letterbox band regions (absolute → local). */
@@ -891,41 +940,58 @@ export function applySkyToLetterboxRegions(
   sky: readonly StageLetterboxSkyCell[],
   canvasBg: string | undefined,
 ): readonly RendererFrameRegion[] {
-  const byBand = bands.map(() => new Map<string, StageLetterboxSkyCell>());
-  for (const cell of sky) {
-    for (let i = 0; i < bands.length; i++) {
-      if (bandContains(bands[i]!, cell.x, cell.y)) {
-        byBand[i]!.set(`${cell.x},${cell.y}`, cell);
-        break;
-      }
-    }
-  }
-
+  const signature =
+    bands.map((b) => `${b.x},${b.y},${b.width},${b.height}`).join('|') +
+    `#${canvasBg ?? ''}`;
   const emptyCell: RendererCell =
     canvasBg === undefined
       ? { char: ' ' }
       : { char: ' ', style: { bg: canvasBg } };
 
-  return bands.map((band, i) => {
-    // Dense fill (bg spaces + stars) so we never need region clear:true.
-    // Ambient clear:true was wiping full-width letterbox bands every tick and
-    // read as black horizontal flicker around the stage.
-    const lines: RendererCell[][] = Array.from({ length: band.height }, () =>
-      Array.from({ length: band.width }, () => emptyCell),
+  let cache = letterboxRegionCache;
+  if (cache === undefined || cache.signature !== signature) {
+    const linesByBand = bands.map((band) =>
+      Array.from({ length: band.height }, () =>
+        Array.from({ length: band.width }, () => emptyCell),
+      ),
     );
-    for (const cell of byBand[i]!.values()) {
+    cache = {
+      signature,
+      emptyCell,
+      linesByBand,
+      prevSkyByBand: bands.map(() => []),
+    };
+    letterboxRegionCache = cache;
+  }
+
+  const byBand: StageLetterboxSkyCell[][] = bands.map(() => []);
+  for (const cell of sky) {
+    for (let i = 0; i < bands.length; i++) {
+      if (bandContains(bands[i]!, cell.x, cell.y)) {
+        byBand[i]!.push(cell);
+        break;
+      }
+    }
+  }
+
+  return bands.map((band, i) => {
+    const lines = cache.linesByBand[i]!;
+    // Restore bg under last sky scatter (avoids full-band Array.from each tick).
+    for (const packed of cache.prevSkyByBand[i]!) {
+      const lx = packed & 0xffff;
+      const ly = (packed >>> 16) & 0xffff;
+      const row = lines[ly];
+      if (row !== undefined && lx < row.length) row[lx] = cache.emptyCell;
+    }
+    const nextKeys: number[] = [];
+    for (const cell of byBand[i]!) {
       const lx = cell.x - band.x;
       const ly = cell.y - band.y;
       if (ly < 0 || ly >= band.height || lx < 0 || lx >= band.width) continue;
-      lines[ly]![lx] = {
-        char: cell.char,
-        style: {
-          fg: cell.fg,
-          ...(canvasBg !== undefined ? { bg: canvasBg } : {}),
-          ...(cell.bold ? { bold: true } : {}),
-        },
-      };
+      lines[ly]![lx] = skyRendererCell(cell.char, cell.fg, canvasBg, cell.bold);
+      nextKeys.push(skyCellKey(lx, ly));
     }
+    cache.prevSkyByBand[i] = nextKeys;
     return {
       id: `stageFrameLetterbox:${i}`,
       rect: band,

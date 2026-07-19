@@ -6,12 +6,13 @@ import {
 } from '#/tui/utils/appearance-effects';
 import {
   applySkyToLetterboxRegions,
-  facingRimSide,
   letterboxArea,
+  facingRimSide,
   noteMeteorEasterEggClick,
   paintStageLetterboxSky,
   pointInLetterboxBands,
   resetMeteorEasterEggForTests,
+  resetLetterboxSkyRegionCacheForTests,
   resolveLetterboxSideGutters,
   resolveMeteorMotionParams,
   resolveStageHoleFromBands,
@@ -42,12 +43,14 @@ describe('stage letterbox night sky', () => {
     setAppearanceRenderHealth('healthy');
     setAppearanceRenderQuality('full');
     resetMeteorEasterEggForTests();
+    resetLetterboxSkyRegionCacheForTests();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
   });
 
   afterEach(() => {
     resetMeteorEasterEggForTests();
+    resetLetterboxSkyRegionCacheForTests();
     vi.useRealTimers();
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
