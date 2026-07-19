@@ -88,6 +88,11 @@ export class RendererCellBuffer {
   private damageRect: RendererDamageRect | null = null;
   /** Per-row intervals — overlapping/adjacent merge; disjoint gaps stay split. */
   private dirtyRowMap = new Map<number, { x: number; endX: number }[]>();
+  /**
+   * Copy-on-write peer. When set, `cells` is shared with that buffer — mutate
+   * only after {@link ensureUniqueCells} so the other frame stays immutable.
+   */
+  private cowPeer: RendererCellBuffer | null = null;
 
   constructor(
     public readonly width: number,
@@ -134,6 +139,7 @@ export class RendererCellBuffer {
     const next = normalizeCell(cell);
     const index = this.indexOf(x, y);
     if (cellsEqual(this.cells[index]!, next)) return;
+    this.ensureUniqueCells();
     this.cells[index] = next;
     this.markDamage({ x, y, width: 1, height: 1 });
   }
@@ -144,10 +150,15 @@ export class RendererCellBuffer {
 
     const next = normalizeCell(cell);
     let damage: RendererDamageRect | null = null;
+    let cloned = false;
     for (let y = clipped.y; y < clipped.y + clipped.height; y++) {
       for (let x = clipped.x; x < clipped.x + clipped.width; x++) {
         const index = this.indexOf(x, y);
         if (cellsEqual(this.cells[index]!, next)) continue;
+        if (!cloned) {
+          this.ensureUniqueCells();
+          cloned = true;
+        }
         this.cells[index] = next;
         damage = unionRendererDamageRect(damage, { x, y, width: 1, height: 1 });
       }
@@ -219,6 +230,8 @@ export class RendererCellBuffer {
     if (this.width !== other.width || this.height !== other.height) {
       throw new RangeError('RendererCellBuffer.copyFrom requires matching dimensions.');
     }
+    this.unlinkCow();
+    other.unlinkCow();
     // Shallow cell refs — cells are already normalized on write. Remapping
     // normalizeCell across the whole frame was Θ(W·H) on every ambient present.
     this.cells = other.cells.slice();
@@ -234,6 +247,18 @@ export class RendererCellBuffer {
     if (this.width !== other.width || this.height !== other.height) {
       throw new RangeError('RendererCellBuffer.swapContentWith requires matching dimensions.');
     }
+    if (this.cowPeer === other && other.cowPeer === this) {
+      // Shared storage — only damage metadata differs.
+      const damageRect = this.damageRect;
+      const dirtyRowMap = this.dirtyRowMap;
+      this.damageRect = other.damageRect;
+      this.dirtyRowMap = other.dirtyRowMap;
+      other.damageRect = damageRect;
+      other.dirtyRowMap = dirtyRowMap;
+      return;
+    }
+    this.unlinkCow();
+    other.unlinkCow();
     const cells = this.cells;
     const damageRect = this.damageRect;
     const dirtyRowMap = this.dirtyRowMap;
@@ -245,17 +270,52 @@ export class RendererCellBuffer {
     other.dirtyRowMap = dirtyRowMap;
   }
 
-  /** Mirror cell refs from `other` without renormalizing (clear:false baseline). */
+  /**
+   * Alias `other` cells (copy-on-write). Next mutate clones. Prefer this over
+   * {@link mirrorCellsFrom} on the ambient hot path — avoids Θ(W·H) every tick
+   * when the following compose only touches a few cells.
+   */
+  shareCellsFrom(other: RendererCellBuffer): void {
+    if (this.width !== other.width || this.height !== other.height) {
+      throw new RangeError('RendererCellBuffer.shareCellsFrom requires matching dimensions.');
+    }
+    if (this === other) return;
+    if (this.cells === other.cells && this.cowPeer === other && other.cowPeer === this) {
+      return;
+    }
+    this.unlinkCow();
+    other.unlinkCow();
+    this.cells = other.cells;
+    this.cowPeer = other;
+    other.cowPeer = this;
+  }
+
+  /** Exclusive shallow copy of `other` cell refs (clear:false baseline). */
   mirrorCellsFrom(other: RendererCellBuffer): void {
     if (this.width !== other.width || this.height !== other.height) {
       throw new RangeError('RendererCellBuffer.mirrorCellsFrom requires matching dimensions.');
     }
+    this.unlinkCow();
     this.cells = other.cells.slice();
   }
 
   resetDamage(): void {
     this.damageRect = null;
     this.dirtyRowMap.clear();
+  }
+
+  private unlinkCow(): void {
+    if (this.cowPeer === null) return;
+    this.cowPeer.cowPeer = null;
+    this.cowPeer = null;
+  }
+
+  private ensureUniqueCells(): void {
+    if (this.cowPeer === null) return;
+    const peer = this.cowPeer;
+    this.cells = this.cells.slice();
+    this.cowPeer = null;
+    peer.cowPeer = null;
   }
 
   private contains(x: number, y: number): boolean {
@@ -371,11 +431,11 @@ export class RendererDoubleBuffer {
       dirtyRows: this.next.dirtyRowSpans,
       runOptimization: options.runOptimization,
     });
-    // Flip: presented `next` becomes `current`. Then mirror into `next` so the
-    // next clear:false compose compares against the just-presented frame
-    // (without Θ(W·H) normalizeCell remapping).
+    // Flip: presented `next` becomes `current`. Share cells into `next` so the
+    // next clear:false compose starts identical without Θ(W·H) slice until the
+    // first write copy-on-writes.
     this.current.swapContentWith(this.next);
-    this.next.mirrorCellsFrom(this.current);
+    this.next.shareCellsFrom(this.current);
     this.current.resetDamage();
     this.next.resetDamage();
     return diff;
@@ -655,16 +715,16 @@ function stylesEqual(
   b: RendererCellStyle | undefined,
 ): boolean {
   if (a === b) return true;
-  const left = normalizeStyle(a);
-  const right = normalizeStyle(b);
-  if (left === undefined || right === undefined) return left === right;
+  if (a === undefined || b === undefined) return false;
+  // Buffer cells store normalizeStyle() results — compare fields directly
+  // instead of re-normalizing on every ambient scan.
   return (
-    left.fg === right.fg &&
-    left.bg === right.bg &&
-    left.bold === right.bold &&
-    left.dim === right.dim &&
-    left.italic === right.italic &&
-    left.underline === right.underline &&
-    left.inverse === right.inverse
+    a.fg === b.fg &&
+    a.bg === b.bg &&
+    a.bold === b.bold &&
+    a.dim === b.dim &&
+    a.italic === b.italic &&
+    a.underline === b.underline &&
+    a.inverse === b.inverse
   );
 }

@@ -3079,6 +3079,24 @@ describe('RendererDoubleBuffer', () => {
     expect(rowText(buffers.current, 0)).toBe('ab  ');
     expect(rowText(buffers.next, 0)).toBe('ab  ');
   });
+
+  it('copy-on-writes shared present buffers only on the first mutating write', () => {
+    const buffers = new RendererDoubleBuffer(4, 1);
+    buffers.beginFrame({ clear: false });
+    buffers.next.writeText(0, 0, 'ab');
+    buffers.present();
+
+    buffers.beginFrame({ clear: false });
+    // Shared until mutation — quiet present must stay zero-patch.
+    expect(buffers.present().patches).toHaveLength(0);
+
+    buffers.beginFrame({ clear: false });
+    buffers.next.writeText(0, 0, 'xy');
+    const changed = buffers.present();
+    expect(changed.patches.map((p) => p.cell.char)).toEqual(['x', 'y']);
+    expect(rowText(buffers.current, 0)).toBe('xy  ');
+    expect(rowText(buffers.next, 0)).toBe('xy  ');
+  });
 });
 
 describe('terminal output encoder', () => {

@@ -413,24 +413,20 @@ export function createStageFrameOverlayRegions(input: {
 
   const rimBg = letterboxBg ?? currentTheme.color('surfaceSunken');
   const emptyRim: RendererCell = { char: ' ', style: { bg: rimBg } };
+  const rimCacheSig =
+    rimBands.map((b) => `${b.x},${b.y},${b.width},${b.height}`).join('|') + `#${rimBg}`;
 
   for (let i = 0; i < rimBands.length; i++) {
     const band = rimBands[i]!;
-    const lines: RendererCell[][] = Array.from({ length: band.height }, () =>
-      Array.from({ length: band.width }, () => emptyRim),
-    );
+    const lines = takeRimBandLines(band, emptyRim, i, rimCacheSig);
+    // Clear previous chase scatter before writing this frame's painted cells.
+    clearRimBandScatter(i, lines, emptyRim);
     for (const cell of painted) {
       const lx = cell.x - band.x;
       const ly = cell.y - band.y;
       if (ly < 0 || ly >= band.height || lx < 0 || lx >= band.width) continue;
-      lines[ly]![lx] = {
-        char: cell.char,
-        style: {
-          fg: cell.fg,
-          bg: cell.bg ?? rimBg,
-          ...(cell.bold ? { bold: true } : {}),
-        },
-      };
+      lines[ly]![lx] = rimCell(cell.char, cell.fg, cell.bg ?? rimBg, cell.bold);
+      noteRimBandScatter(i, lx, ly);
     }
     regions.push({
       id: `stageFrame:${i}`,
@@ -442,6 +438,86 @@ export function createStageFrameOverlayRegions(input: {
     });
   }
   return regions;
+}
+
+type RimRegionCache = {
+  signature: string;
+  linesByBand: RendererCell[][][];
+  prevByBand: number[][];
+};
+
+let rimRegionCache: RimRegionCache | undefined;
+const rimStyleCache = new Map<string, RendererCell>();
+
+function rimCell(char: string, fg: string, bg: string, bold: boolean | undefined): RendererCell {
+  const key = `${char}\0${fg}\0${bg}\0${bold === true ? '1' : '0'}`;
+  const hit = rimStyleCache.get(key);
+  if (hit !== undefined) return hit;
+  const cell: RendererCell = {
+    char,
+    style: { fg, bg, ...(bold === true ? { bold: true } : {}) },
+  };
+  rimStyleCache.set(key, cell);
+  if (rimStyleCache.size > 256) {
+    let drop = Math.floor(rimStyleCache.size / 2);
+    for (const k of rimStyleCache.keys()) {
+      rimStyleCache.delete(k);
+      if (--drop <= 0) break;
+    }
+  }
+  return cell;
+}
+
+function takeRimBandLines(
+  band: StageFrameBand,
+  emptyRim: RendererCell,
+  index: number,
+  signature: string,
+): RendererCell[][] {
+  if (rimRegionCache === undefined || rimRegionCache.signature !== signature) {
+    rimRegionCache = {
+      signature,
+      linesByBand: [],
+      prevByBand: [],
+    };
+  }
+  while (rimRegionCache.linesByBand.length <= index) {
+    rimRegionCache.linesByBand.push([]);
+    rimRegionCache.prevByBand.push([]);
+  }
+  const existing = rimRegionCache.linesByBand[index]!;
+  if (
+    existing.length === band.height &&
+    (existing.length === 0 || existing[0]!.length === band.width)
+  ) {
+    return existing;
+  }
+  const lines = Array.from({ length: band.height }, () =>
+    Array.from({ length: band.width }, () => emptyRim),
+  );
+  rimRegionCache.linesByBand[index] = lines;
+  rimRegionCache.prevByBand[index] = [];
+  return lines;
+}
+
+function clearRimBandScatter(
+  index: number,
+  lines: RendererCell[][],
+  emptyRim: RendererCell,
+): void {
+  const prev = rimRegionCache?.prevByBand[index];
+  if (prev === undefined) return;
+  for (const packed of prev) {
+    const lx = packed & 0xffff;
+    const ly = (packed >>> 16) & 0xffff;
+    const row = lines[ly];
+    if (row !== undefined && lx < row.length) row[lx] = emptyRim;
+  }
+  prev.length = 0;
+}
+
+function noteRimBandScatter(index: number, lx: number, ly: number): void {
+  rimRegionCache?.prevByBand[index]?.push(((ly & 0xffff) << 16) | (lx & 0xffff));
 }
 
 /** @deprecated Prefer {@link createStageFrameOverlayRegions}. */
