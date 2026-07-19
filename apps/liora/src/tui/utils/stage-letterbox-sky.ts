@@ -772,27 +772,58 @@ function paintRimMegaBurst(input: {
     }
   }
 
-  // 3) Debris with light gravity (bias away from stage center)
+  // 3) Kinematic debris streaks — launch off the rim, leave a short trail.
+  // Clip into the stage hole / off-screen via put+insideHole (letterbox only).
   const cx = (hole.x0 + hole.x1) / 2;
   const cy = (hole.y0 + hole.y1) / 2;
   const awayAng = Math.atan2(iy - cy, ix - cx);
+  const streakLen = size === 'l' ? (premium ? 4 : 3) : size === 'm' ? 3 : 2;
+  const sizeSpeed = size === 's' ? 0.72 : size === 'm' ? 1 : 1.18;
   for (let i = 0; i < debrisCount; i++) {
-    const base = ((seed + i * 47) % 360) * (Math.PI / 180);
-    const ang = awayAng + (base - Math.PI) * 0.7 + ((i % 5) - 2) * 0.2;
-    const launch = (0.5 + (i % 5) * 0.55) * scale;
-    const dist = launch * (0.25 + t * 2.8);
-    const grav = t * t * 1.6 * scale;
-    const x = Math.round(ix + Math.cos(ang) * dist);
-    const y = Math.round(iy + Math.sin(ang) * dist * 0.55 + grav);
-    if (insideHole(x, y, hole)) continue;
-    const glyph = DEBRIS_GLYPHS[(seed + i) % DEBRIS_GLYPHS.length] ?? '·';
-    const fg =
-      t < 0.2
-        ? mixHexColor(glow, primary, 0.45)
-        : t < 0.5
-          ? mixHexColor(particle, glow, 0.4)
+    // Stagger so the shower fans out instead of one frame blob.
+    const birthFrac = hash01(seed + i * 3, i + 19) * 0.28;
+    const birthTick = birthFrac * life;
+    const flight = age - birthTick;
+    if (flight < 0) continue;
+    const localT = flight / Math.max(0.01, life - birthTick);
+    if (localT > 1) continue;
+    // Late fade: drop some shards so the trail thins out.
+    if (localT > 0.88 && (i + seed) % 3 !== 0) continue;
+
+    const spread = (hash01(seed, i + 41) - 0.5) * (size === 's' ? 1.05 : 1.55);
+    const ang = awayAng + spread + ((i % 7) - 3) * 0.16;
+    const speed =
+      (0.32 + hash01(seed + 7, i * 11) * 0.62) * scale * sizeSpeed;
+    const vx = Math.cos(ang) * speed;
+    const vy = Math.sin(ang) * speed * 0.55;
+    const grav = 0.045 * scale;
+    const headX = ix + vx * flight;
+    const headY = iy + vy * flight + grav * flight * flight;
+
+    const headFg =
+      localT < 0.25
+        ? mixHexColor(glow, primary, 0.5)
+        : localT < 0.55
+          ? mixHexColor(particle, glow, 0.45)
           : muted;
-    put(x, y, glyph, fg, t < 0.25 && premium && size !== 's');
+    const midFg = mixHexColor(particle, muted, 0.35);
+    const headGlyph = DEBRIS_GLYPHS[(seed + i) % DEBRIS_GLYPHS.length] ?? '*';
+
+    for (let s = 0; s <= streakLen; s++) {
+      const x = Math.round(headX - vx * s * 0.9);
+      const y = Math.round(headY - vy * s * 0.9);
+      if (insideHole(x, y, hole)) continue;
+      const along = s / Math.max(1, streakLen);
+      if (s === 0) {
+        put(x, y, headGlyph, headFg, localT < 0.3 && premium && size !== 's');
+      } else if (along < 0.45) {
+        put(x, y, '*', midFg, localT < 0.2 && premium);
+      } else if (along < 0.75) {
+        put(x, y, '·', muted);
+      } else {
+        put(x, y, '˚', muted);
+      }
+    }
   }
 
   // 4) Afterglow dust near impact
