@@ -288,11 +288,12 @@ describe('AppearanceController', () => {
     canRender = false;
     forceAmbient = true;
     expect(options?.shouldTick?.()).toBe(true);
+    // Splash force keeps premium cadence even under soft-degrade pressure.
     expect(
       options?.resolveIntervalMs({
-        quality: 'full',
-        health: 'healthy',
-        backpressure: false,
+        quality: 'minimal',
+        health: 'degraded',
+        backpressure: true,
       }),
     ).toBe(33);
     controller.dispose();

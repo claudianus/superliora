@@ -342,13 +342,13 @@ export function createTUIStateNativeRenderCallback(
         : undefined;
     const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
     // Animation-bearing ticks (including coalesced content+animation while
-    // thinking) must not full-clear the stage. Structural/viewport frames keep
-    // clear fills so layout holes are wiped.
+    // thinking, and splash fullscreen takeover) must not full-clear. Structural
+    // / viewport frames keep clear fills so layout holes are wiped.
     const ambientDamageOnly =
-      ambientAnimationAllowed &&
       !layoutShift.structuralShift &&
       !layoutShift.viewportScrolled &&
-      frame.causes.includes('animation');
+      frame.causes.includes('animation') &&
+      (ambientAnimationAllowed || isNativeFullscreenTakeover(state));
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
@@ -553,9 +553,11 @@ function buildNativeFullscreenTakeoverFrame(
     readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
     readonly diagnostics?: RendererDiagnosticsSnapshot;
     readonly skipDecorativeEditorEffects?: boolean;
+    readonly ambientDamageOnly?: boolean;
   },
 ): TUIStateNativeFrame {
   const canvasBackground = currentTheme.canvasBackgroundCell();
+  const ambientDamageOnly = options.ambientDamageOnly === true;
   const lines: RendererRegionLine[] = [];
   for (const child of state.ui.children) {
     const rendered = child.render(width);
@@ -580,7 +582,9 @@ function buildNativeFullscreenTakeoverFrame(
       id: 'fullscreen-takeover',
       rect,
       content,
-      clear: true,
+      // Splash ambient ticks must damage-write only — full clear every frame
+      // wipes the cinematic and reads as choppy FPS.
+      clear: !ambientDamageOnly,
       background: canvasBackground,
       zIndex: 1_000,
     },

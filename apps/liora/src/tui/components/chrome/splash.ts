@@ -36,9 +36,9 @@ import { renderWelcomeBanner } from './welcome-banner';
 /** Inclusive lower bound for splash duration. */
 export const SPLASH_DURATION_MIN_MS = 1000;
 /** Inclusive upper bound for splash duration. */
-export const SPLASH_DURATION_MAX_MS = 3200;
-/** Default cinematic length (~2.4s) — denser ambient paints at 60fps. */
-export const DEFAULT_SPLASH_DURATION_MS = 2400;
+export const SPLASH_DURATION_MAX_MS = 2000;
+/** Default cinematic length (~1.6s). */
+export const DEFAULT_SPLASH_DURATION_MS = 1600;
 
 export type SplashPhase = 'void' | 'rise' | 'bloom' | 'brand' | 'hold' | 'fade' | 'done';
 
@@ -47,7 +47,7 @@ export interface SplashComponentOptions {
   readonly requestRender: () => void;
   /** Terminal row count (full-screen height). Defaults to process.stdout.rows. */
   readonly getRows?: () => number;
-  /** Optional override duration (clamped to 1.0–3.2s). */
+  /** Optional override duration (clamped to 1.0–2.0s). */
   readonly durationMs?: number;
   /**
    * Force play/skip. When omitted, uses shouldPlaySplash(appearance).
