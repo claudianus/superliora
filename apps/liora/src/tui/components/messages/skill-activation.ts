@@ -22,7 +22,7 @@ import {
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
-import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
+import { renderCacheEpoch } from '#/tui/utils/render-cache';
 
 const ARGS_PREVIEW_MAX = 200;
 
@@ -48,7 +48,7 @@ export class SkillActivationComponent extends Container {
     if (trimmed.length > 0) {
       const preview =
         trimmed.length > ARGS_PREVIEW_MAX ? trimmed.slice(0, ARGS_PREVIEW_MAX) + '…' : trimmed;
-      this.previewText = new Text('  ' + currentTheme.fg('textDim', preview), 0, 0);
+      this.previewText = new Text(this.renderPreview(preview), 0, 0);
       this.addChild(this.previewText);
     }
   }
@@ -60,13 +60,25 @@ export class SkillActivationComponent extends Container {
       const trimmed = this.args.trim();
       const preview =
         trimmed.length > ARGS_PREVIEW_MAX ? trimmed.slice(0, ARGS_PREVIEW_MAX) + '…' : trimmed;
-      this.previewText.setText('  ' + currentTheme.fg('textDim', preview));
+      this.previewText.setText(this.renderPreview(preview));
     }
     super.invalidate();
   }
 
   override render(width: number): string[] {
-    syncAmbientAnimatedText(this.headText, () => this.renderHead(), this);
+    const epoch = renderCacheEpoch();
+    if (epoch >= 0 && epoch !== this.ambientAnimationEpoch) {
+      this.ambientAnimationEpoch = epoch;
+      this.headText.setText(this.renderHead());
+      if (this.previewText !== undefined && this.args !== undefined) {
+        const trimmed = this.args.trim();
+        if (trimmed.length > 0) {
+          const preview =
+            trimmed.length > ARGS_PREVIEW_MAX ? trimmed.slice(0, ARGS_PREVIEW_MAX) + '…' : trimmed;
+          this.previewText.setText(this.renderPreview(preview));
+        }
+      }
+    }
     return super.render(width);
   }
 
@@ -80,5 +92,16 @@ export class SkillActivationComponent extends Container {
       ? renderPremiumHeadline(this.name, `skill:name:${this.name}`, appearance)
       : currentTheme.boldFg('roleUser', this.name);
     return `${prefix} ${name}`;
+  }
+
+  private renderPreview(preview: string): string {
+    const appearance = getActiveAppearancePreferences();
+    if (!shouldRenderAmbientEffects(appearance)) {
+      return '  ' + currentTheme.fg('textDim', preview);
+    }
+    return (
+      '  ' +
+      renderPulseText(preview, `skill:args:${this.name}`, 'textDim', appearance, 'slow')
+    );
   }
 }

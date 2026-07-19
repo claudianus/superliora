@@ -19,16 +19,29 @@ import {
 import { buildMcpStatusReportLines } from '../components/messages/mcp-status-panel';
 import {
   buildStatusReportLines,
+  createStatusFieldMotionState,
   type StatusRecoveryReadiness,
 } from '../components/messages/status-panel';
 import { buildUsageReportLines, UsagePanelComponent, type ManagedUsageReport } from '../components/messages/usage-panel';
 import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
+import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
+import { isMotionTheatreActive } from '../utils/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { loadPreflightHumanWriting } from './preflight';
 import type { SlashCommandHost } from './dispatch';
+
+function playStatusOpenBeat(host: SlashCommandHost, title: string, seed: string): void {
+  host.motionBeats.play({
+    name: 'status_open',
+    seed,
+    title,
+    nowMs: appearanceAnimationNow(),
+    theatreActive: isMotionTheatreActive(host.state.appState),
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Info commands
@@ -100,9 +113,12 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
       managedUsageFillProgress: fillProgress,
     });
 
+  playStatusOpenBeat(host, 'Usage', 'usage');
   const panel = new UsagePanelComponent({
     buildLines,
     borderToken: 'primary',
+    title: ' Usage ',
+    enterBeatSeed: 'usage',
     phase: managedProvider ? 'loading' : 'ready',
     requestRender: () => requestTUILayoutRender(host.state),
   });
@@ -143,6 +159,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
   const humanWriting = loadPreflightHumanWriting(appState.workDir);
   const recovery = loadStatusRecoveryReadiness(appState.workDir);
   const privacy = loadPrivacySnapshot(host);
+  const fieldMotion = createStatusFieldMotionState();
   const reportArgs = {
     version: appState.version,
     model: appState.model,
@@ -181,8 +198,16 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     managedUsage: managedUsage?.usage,
     managedUsageError: managedUsage?.error,
     upstreamBaseline: formatUpstreamBaselineSummary(),
+    fieldMotion,
   };
-  const panel = new UsagePanelComponent(() => buildStatusReportLines(reportArgs), 'primary', ' Status ');
+  playStatusOpenBeat(host, 'Status', 'status');
+  const panel = new UsagePanelComponent({
+    buildLines: () => buildStatusReportLines(reportArgs),
+    borderToken: 'primary',
+    title: ' Status ',
+    enterBeatSeed: 'status',
+    requestRender: () => requestTUILayoutRender(host.state),
+  });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
 }
@@ -197,11 +222,14 @@ export async function showMcpServers(host: SlashCommandHost): Promise<void> {
   }
 
   const title = servers.length > 0 ? ` MCP (${servers.length}) ` : ' MCP ';
-  const panel = new UsagePanelComponent(
-    () => buildMcpStatusReportLines({ servers }),
-    'primary',
+  playStatusOpenBeat(host, 'MCP', 'mcp');
+  const panel = new UsagePanelComponent({
+    buildLines: () => buildMcpStatusReportLines({ servers }),
+    borderToken: 'primary',
     title,
-  );
+    enterBeatSeed: 'mcp',
+    requestRender: () => requestTUILayoutRender(host.state),
+  });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
 }

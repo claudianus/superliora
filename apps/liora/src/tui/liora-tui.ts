@@ -104,7 +104,11 @@ import { StepSummaryComponent } from './components/messages/step-summary';
 import { ToolCallComponent } from './components/messages/tool-call';
 import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
-import { QueuePaneComponent } from './components/panes/queue-pane';
+import {
+  QueuePaneComponent,
+  queuePaneSelectionIdentity,
+  resolveHostOwnedQueueSettleStartedAtMs,
+} from './components/panes/queue-pane';
 import { DEFAULT_APPEARANCE_PREFERENCES, type TuiConfig } from './config';
 import {
   LLM_NOT_SET_MESSAGE,
@@ -164,6 +168,7 @@ import {
   requestTUILayoutRender,
   requestTUIScrollRender,
 } from './utils/frame-render';
+import { createMotionBeatController, isMotionTheatreActive } from './utils/motion-beats';
 import { pickForegroundTasks } from './utils/foreground-task';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
@@ -282,6 +287,8 @@ export class LioraTUI {
   readonly options: LioraTUIOptions;
   session: Session | undefined;
   state: TUIState;
+  /** Thin transition-beat queue shared by harness enter/exit moments. */
+  readonly motionBeats = createMotionBeatController();
   private readonly approvalController = new ApprovalController();
   private readonly questionController = new QuestionController();
   private readonly reverseRpcDisposers: Array<() => void> = [];
@@ -338,6 +345,10 @@ export class LioraTUI {
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Host-owned queue settle clock (survives QueuePane remounts). */
+  private queueSettleSelectionIdentity: string | undefined;
+  private queueSettleStartedAtMs: number | undefined;
+
   /** Last user-submitted text, for `/retry` (Ctrl-Y). */
   private lastUserInput: string | undefined;
   /** True when the most recent turn ended in an error; cleared on a clean turn. */
@@ -388,6 +399,9 @@ export class LioraTUI {
     this.options = tuiOptions;
     this.startupNotice = startupInput.startupNotice;
     this.state = createTUIState(tuiOptions);
+    this.state.footer.setMotionBeatSource(() =>
+      this.motionBeats.active(appearanceAnimationNow()),
+    );
 
     this.reverseRpcDisposers.push(
       ...registerReverseRPCHandlers(this.approvalController, this.questionController, {
@@ -1681,9 +1695,21 @@ export class LioraTUI {
       'additionalDirs' in patch &&
       !sameStringArrays(this.state.appState.additionalDirs, patch.additionalDirs ?? []);
     const busyChanged = 'streamingPhase' in patch || 'isCompacting' in patch;
+    const modeBeats = collectFooterModeBeats(this.state.appState, patch);
     Object.assign(this.state.appState, patch);
     if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
     if ('appearance' in patch) this.appearanceController.apply();
+    const theatreActive = isMotionTheatreActive(this.state.appState);
+    for (const beat of modeBeats) {
+      const planBeat = beat.name === 'plan_enter' || beat.name === 'plan_exit';
+      this.motionBeats.play({
+        name: beat.name,
+        seed: planBeat ? 'plan' : `mode:${beat.title}`,
+        title: beat.title,
+        nowMs: appearanceAnimationNow(),
+        theatreActive,
+      });
+    }
     this.state.footer.setState(this.state.appState);
     this.state.header.setState(this.state.appState);
     this.updateActivityPane();
@@ -2220,7 +2246,11 @@ export class LioraTUI {
     }
     // Ambient empty-stage under welcome: vanishes on first real transcript child.
     // preferredRows tracks the live transcript region so the night sky fills
-    // the empty pane (no hard 14-row cap).
+    // the empty pane (no hard 14-row cap). Suppress while session history replays.
+    if (this.state.appState.isReplaying) {
+      this.state.transcriptContainer.dismissIdleStage();
+      return;
+    }
     if (
       !this.state.transcriptContainer.children.some((child) => child instanceof IdleStageComponent)
     ) {
@@ -2665,6 +2695,18 @@ export class LioraTUI {
       case 'thinking': {
         this.stopActivitySpinner();
         this.syncAgentSwarmActivitySpinner(undefined);
+        this.state.activityContainer.addChild(
+          new ActivityPaneComponent({
+            mode: 'thinking',
+          }),
+        );
+        this.motionBeats.play({
+          name: 'thinking_enter',
+          seed: 'thinking',
+          title: 'Thinking',
+          nowMs: appearanceAnimationNow(),
+          theatreActive: isMotionTheatreActive(this.state.appState),
+        });
         break;
       }
       case 'composing': {
@@ -2728,7 +2770,21 @@ export class LioraTUI {
   updateQueueDisplay(): void {
     this.state.queueContainer.clear();
     const queued = this.state.queuedMessages;
-    if (queued.length === 0) return;
+    if (queued.length === 0) {
+      this.queueSettleSelectionIdentity = undefined;
+      this.queueSettleStartedAtMs = undefined;
+      return;
+    }
+
+    const selectedIndex = Math.max(0, queued.length - 1);
+    const settle = resolveHostOwnedQueueSettleStartedAtMs({
+      selectionIdentity: queuePaneSelectionIdentity(queued, selectedIndex),
+      previousSelectionIdentity: this.queueSettleSelectionIdentity,
+      previousSettleStartedAtMs: this.queueSettleStartedAtMs,
+      nowMs: appearanceAnimationNow(),
+    });
+    this.queueSettleSelectionIdentity = settle.selectionIdentity;
+    this.queueSettleStartedAtMs = settle.settleStartedAtMs;
 
     this.state.queueContainer.addChild(
       new QueuePaneComponent({
@@ -2736,6 +2792,8 @@ export class LioraTUI {
         isCompacting: this.state.appState.isCompacting,
         isStreaming: this.state.appState.streamingPhase !== 'idle',
         canSteerImmediately: !this.deferUserMessages,
+        selectedIndex,
+        settleStartedAtMs: settle.settleStartedAtMs,
       }),
     );
   }
@@ -3485,4 +3543,46 @@ function truthyEnv(value: string | undefined): boolean {
   if (value === undefined) return false;
   const normalized = value.trim().toLowerCase();
   return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
+}
+
+/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (ultrawork, swarm, yolo). */
+function collectFooterModeBeats(
+  prev: AppState,
+  patch: Partial<AppState>,
+): Array<{
+  readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
+  readonly title: string;
+}> {
+  const beats: Array<{
+    readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
+    readonly title: string;
+  }> = [];
+  if ('planMode' in patch && patch.planMode !== undefined && patch.planMode !== prev.planMode) {
+    beats.push({ name: patch.planMode ? 'plan_enter' : 'plan_exit', title: 'plan' });
+  }
+  if (
+    'ultraworkMode' in patch &&
+    patch.ultraworkMode !== undefined &&
+    patch.ultraworkMode !== prev.ultraworkMode
+  ) {
+    beats.push({
+      name: patch.ultraworkMode ? 'mode_enter' : 'mode_exit',
+      title: 'ultrawork',
+    });
+  }
+  if ('swarmMode' in patch && patch.swarmMode !== undefined && patch.swarmMode !== prev.swarmMode) {
+    beats.push({ name: patch.swarmMode ? 'mode_enter' : 'mode_exit', title: 'swarm' });
+  }
+  if (
+    'permissionMode' in patch &&
+    patch.permissionMode !== undefined &&
+    patch.permissionMode !== prev.permissionMode
+  ) {
+    const wasYolo = prev.permissionMode === 'yolo';
+    const nowYolo = patch.permissionMode === 'yolo';
+    if (wasYolo !== nowYolo) {
+      beats.push({ name: nowYolo ? 'mode_enter' : 'mode_exit', title: 'yolo' });
+    }
+  }
+  return beats;
 }

@@ -4,6 +4,7 @@ import type { MoonLoader } from '#/tui/components/chrome/moon-loader';
 import { currentTheme } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
+  renderAmbientDrift,
   renderParticleRail,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
@@ -42,9 +43,14 @@ export class ActivityPaneComponent extends Container {
       this.spinnerRef.setAvailableWidth(width);
     }
     const lines = super.render(width);
-    if (lines.length === 0) return lines;
-
     const appearance = getActiveAppearancePreferences();
+
+    if (this.mode === 'thinking') {
+      const drift = renderAmbientDrift(width, 'activity:thinking', appearance);
+      return lines.length > 0 ? [...lines, currentTheme.dim(drift)] : [currentTheme.dim(drift)];
+    }
+
+    if (lines.length === 0) return lines;
     if (!shouldRenderAmbientEffects(appearance) || width < 24) return lines;
 
     // Single particle rail: premium motion without dual-rail vertical thrash.

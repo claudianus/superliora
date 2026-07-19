@@ -37,7 +37,15 @@ import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import type { TokenUsage } from '@superliora/sdk';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
-import { renderAnimatedGradientText, renderPulseText, appearanceAnimationNow, getActiveAppearancePreferences, shouldRenderAmbientEffects } from '#/tui/utils/appearance-effects';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  renderAnimatedGradientText,
+  renderPhaseChip,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+  type MotionToolPhase,
+} from '#/tui/utils/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 
@@ -1498,13 +1506,6 @@ export class ToolCallComponent extends Container {
       decoded === null
         ? toolCall.name
         : decoded.toolName;
-    const toolNameStyled = isFinished
-      ? renderToolActivityLabel(toolNameLabel, `tool:${toolCall.id}:label`)
-      : renderAnimatedGradientText(toolNameLabel, `tool:${toolCall.id}:label`);
-    const toolLabel =
-      decoded === null
-        ? toolNameStyled
-        : `${toolNameStyled}${currentTheme.dim(` · MCP/${decoded.serverName}`)}`;
     const argStr = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
     let chipStr = '';
     if (isFinished && result) {
@@ -1516,6 +1517,40 @@ export class ToolCallComponent extends Container {
         chipStr = currentTheme.dim(formatRendererToolHeaderChip({ text: liveDuration }));
       }
     }
+
+    if (isGenericToolResult(toolCall.name)) {
+      const appearance = getActiveAppearancePreferences();
+      const motionPhase: MotionToolPhase = isError
+        ? 'error'
+        : isFinished
+          ? 'done'
+          : toolCall.streamingArguments !== undefined
+            ? 'streaming'
+            : 'running';
+      const phaseChip = renderPhaseChip(
+        toolNameLabel,
+        motionPhase,
+        `tool:${toolCall.id}`,
+        appearance,
+      );
+      const mcpSuffix =
+        decoded === null ? '' : currentTheme.dim(` · MCP/${decoded.serverName}`);
+      return renderRendererToolActivityHeader({
+        marker: bullet,
+        action: verbStyled,
+        label: `${phaseChip}${mcpSuffix}`,
+        detail: argStr,
+        chip: chipStr,
+      });
+    }
+
+    const toolNameStyled = isFinished
+      ? renderToolActivityLabel(toolNameLabel, `tool:${toolCall.id}:label`)
+      : renderAnimatedGradientText(toolNameLabel, `tool:${toolCall.id}:label`);
+    const toolLabel =
+      decoded === null
+        ? toolNameStyled
+        : `${toolNameStyled}${currentTheme.dim(` · MCP/${decoded.serverName}`)}`;
     return renderRendererToolActivityHeader({
       marker: bullet,
       action: verbStyled,

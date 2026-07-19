@@ -1,9 +1,16 @@
 import chalk from 'chalk';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { contextUsageSeverity, FooterComponent } from '#/tui/components/chrome/footer';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 const appState: AppState = {
   version: '1.2.3',
@@ -140,5 +147,88 @@ describe('contextUsageSeverity', () => {
     expect(contextUsageSeverity(0.90)).toBe('warning');
     expect(contextUsageSeverity(0.94)).toBe('warning');
     expect(contextUsageSeverity(0.95)).toBe('danger');
+  });
+});
+
+describe('FooterComponent tip crossfade', () => {
+  const previous = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+  };
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    chalk.level = 3;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('keeps session_resume enter beat at two footer lines', () => {
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    const footer = new FooterComponent({
+      ...appState,
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      },
+    });
+    footer.setMotionBeatSource(() => ({
+      name: 'session_resume',
+      seed: 'resume',
+      title: 'Resuming session',
+      startedAtMs: Date.now() - 200,
+      kind: 'enter',
+    }));
+    const lines = footer.render(120);
+    expect(lines).toHaveLength(2);
+    expect(strip(lines.join('\n'))).toMatch(/Resuming/i);
+  });
+
+  it('crossfades rotating tips instead of hard-swapping under premium', () => {
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    const footer = new FooterComponent({
+      ...appState,
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      },
+    });
+    const first = footer.render(200)[0] ?? '';
+    // Advance past tip rotation interval (10s) so the tip index changes.
+    vi.setSystemTime(new Date('2026-07-01T00:00:12Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const early = footer.render(200)[0] ?? '';
+    expect(early.length).toBeGreaterThan(0);
+    expect(first).not.toBe(early);
+    // Early crossfade (p < 0.45) keeps the previous tip visible — not a hard swap.
+    expect(strip(early)).toBe(strip(first));
+
+    // After CROSSFADE_MS the new tip settles in.
+    vi.setSystemTime(new Date('2026-07-01T00:00:12.500Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const settled = footer.render(200)[0] ?? '';
+    expect(strip(settled)).not.toBe(strip(first));
   });
 });

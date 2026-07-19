@@ -1,17 +1,101 @@
-import { CURSOR_MARKER } from '#/tui/renderer';
-import { describe, expect, it } from 'vitest';
+import chalk from 'chalk';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval-panel';
 import type {
   DiffDisplayBlock,
   FileContentDisplayBlock,
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
+import { currentTheme } from '#/tui/theme';
+import * as appearanceEffects from '#/tui/utils/appearance-effects';
+import {
+  advanceAppearanceAnimationClock,
+  motionEffectsAllowed,
+  SETTLE_FLASH_MS,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 import { captureProcessWrite } from '../../../helpers/process';
 
+const previousEnv = {
+  TERM: process.env['TERM'],
+  CI: process.env['CI'],
+  NO_COLOR: process.env['NO_COLOR'],
+  SSH_TTY: process.env['SSH_TTY'],
+  SSH_CONNECTION: process.env['SSH_CONNECTION'],
+  SSH_CLIENT: process.env['SSH_CLIENT'],
+};
+const previousChalkLevel = chalk.level;
+
+afterEach(() => {
+  chalk.level = previousChalkLevel;
+  setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  for (const [key, value] of Object.entries(previousEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
+
+function enablePremiumAmbient(): void {
+  process.env['TERM'] = 'xterm-256color';
+  delete process.env['CI'];
+  delete process.env['NO_COLOR'];
+  delete process.env['SSH_TTY'];
+  delete process.env['SSH_CONNECTION'];
+  delete process.env['SSH_CLIENT'];
+  setAppearanceRenderHealth('healthy');
+  setAppearanceRenderQuality('full');
+  setActiveAppearancePreferences({
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium',
+    particles: 'premium',
+  });
+}
+
+function makeDangerPending(): PendingApproval {
+  return {
+    data: {
+      id: 'approval_danger_motion',
+      tool_call_id: 'tool_danger_motion',
+      tool_name: 'Bash',
+      action: 'run',
+      description: '',
+      display: [
+        {
+          type: 'shell',
+          language: 'bash',
+          command: 'rm -rf /tmp/cache',
+          danger: 'recursive delete',
+        },
+      ],
+      choices: [
+        { label: 'Approve once', response: 'approved' },
+        { label: 'Reject', response: 'rejected' },
+      ],
+    },
+  };
+}
+
+function commandLineOf(rendered: string[]): string {
+  const line = rendered.find((l) => strip(l).includes('rm -rf /tmp/cache'));
+  if (line === undefined) throw new Error('command line not found');
+  return line;
+}
+
+function choiceLineOf(rendered: string[], label: string): string {
+  const line = rendered.find((l) => strip(l).includes(label));
+  if (line === undefined) throw new Error(`choice line not found: ${label}`);
+  return line;
 }
 
 function makePending(): PendingApproval {
@@ -506,5 +590,86 @@ describe('ApprovalPanelComponent', () => {
     expect(responses).toEqual([
       { response: 'rejected', feedback: 'no', selected_label: 'Revise' },
     ]);
+  });
+
+  it('breathes dangerous shell command ANSI across ticks under premium (plain text stable)', () => {
+    chalk.level = 3;
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    // Premium danger breathe interval is 220ms; advance past one odd tick.
+    advanceAppearanceAnimationClock(0);
+    expect(motionEffectsAllowed()).toBe(true);
+    const dialog = new ApprovalPanelComponent(makeDangerPending(), () => {});
+
+    const a = commandLineOf(dialog.render(80));
+    advanceAppearanceAnimationClock(300);
+    const b = commandLineOf(dialog.render(80));
+
+    expect(strip(a)).toContain('rm -rf /tmp/cache');
+    expect(strip(b)).toBe(strip(a));
+    expect(a).not.toBe(b);
+  });
+
+  it('keeps dangerous shell command styling static when appearance is off', () => {
+    chalk.level = 3;
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    advanceAppearanceAnimationClock(0);
+    const dialog = new ApprovalPanelComponent(makeDangerPending(), () => {});
+
+    const a = commandLineOf(dialog.render(80));
+    advanceAppearanceAnimationClock(300);
+    const b = commandLineOf(dialog.render(80));
+
+    expect(strip(a)).toContain('rm -rf /tmp/cache');
+    expect(a).toBe(b);
+  });
+
+  it('settle-flashes the selected choice label after cursor moves under premium', () => {
+    chalk.level = 3;
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const settleSpy = vi.spyOn(appearanceEffects, 'renderSettleFlash');
+    const { dialog } = makeDialog();
+
+    dialog.handleInput('\u001B[B'); // ↓ to choice 2
+    const settling = choiceLineOf(dialog.render(80), '2. Approve for this session');
+    expect(settleSpy).toHaveBeenCalled();
+    expect(String(settleSpy.mock.calls[0]?.[0])).toContain('2. Approve for this session');
+
+    settleSpy.mockClear();
+    advanceAppearanceAnimationClock(Date.now() + SETTLE_FLASH_MS + 80);
+    const settled = choiceLineOf(dialog.render(80), '2. Approve for this session');
+
+    expect(strip(settling)).toContain('2. Approve for this session');
+    expect(strip(settled)).toBe(strip(settling));
+    // Past the settle window we fall back to static accent bold (no settle flash).
+    expect(settleSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps selected choice accent after cursor moves when appearance is off', () => {
+    chalk.level = 3;
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    advanceAppearanceAnimationClock(0);
+    const settleSpy = vi.spyOn(appearanceEffects, 'renderSettleFlash');
+    const { dialog } = makeDialog();
+    const label = '2. Approve for this session';
+
+    dialog.handleInput('\u001B[B'); // ↓ to choice 2
+    const selected = choiceLineOf(dialog.render(80), label);
+
+    expect(settleSpy).not.toHaveBeenCalled();
+    expect(selected).toContain(currentTheme.boldFg('accent', label));
+    expect(selected).not.toContain(currentTheme.boldFg('textStrong', label));
   });
 });

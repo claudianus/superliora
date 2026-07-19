@@ -56,7 +56,9 @@ import {
   notifyGoalBlockedAttention,
   notifyGoalCompletedAttention,
 } from '../utils/attention-notifications';
+import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { buildGoalCompletionMessage } from '../utils/goal-completion';
+import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import {
   argsRecord,
   formatErrorPayload,
@@ -111,6 +113,7 @@ export interface SessionEventHost {
   aborted: boolean;
   sessionEventUnsubscribe: (() => void) | undefined;
   readonly streamingUI: StreamingUIController;
+  readonly motionBeats: MotionBeatController;
 
   requireSession(): Session;
   setAppState(patch: Partial<AppState>): void;
@@ -856,6 +859,13 @@ export class SessionEventHandler {
       this.goalCompletionAwaitingClear = true;
       this.goalCompletionTurnEnded = false;
       notifyGoalCompletedAttention(state, event.snapshot);
+      this.host.motionBeats.play({
+        name: 'goal_complete',
+        seed: `goal:${event.snapshot.goalId}`,
+        title: 'Goal complete',
+        nowMs: appearanceAnimationNow(),
+        theatreActive: isMotionTheatreActive(state.appState),
+      });
       this.host.appendTranscriptEntry({
         id: nextTranscriptId(),
         kind: 'assistant',

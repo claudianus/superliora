@@ -6,6 +6,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { MoonLoader } from '#/tui/components/chrome/moon-loader';
 import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
 import {
+  advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
@@ -75,5 +76,32 @@ describe('ActivityPaneComponent', () => {
     expect((lines.at(-1) ?? '').length).toBeGreaterThan(0);
     const particleish = lines.filter((line) => /[·∙•◦*]/.test(line));
     expect(particleish.length).toBe(1);
+  });
+});
+
+describe('ActivityPaneComponent thinking ambient', () => {
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('appends ambient drift rail in thinking mode', () => {
+    const pane = new ActivityPaneComponent({ mode: 'thinking' });
+    const lines = pane.render(48).map(strip);
+    expect(lines.length).toBeGreaterThan(0);
+    expect((lines.at(-1) ?? '').length).toBeGreaterThan(0);
+    expect(lines.some((line) => /[·∙•◦*─]/.test(line))).toBe(true);
   });
 });

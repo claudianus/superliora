@@ -101,7 +101,7 @@ export class PlanBoxComponent implements Component {
 
     const fitted = lines.map((line) => truncateToWidth(line, safeWidth, '…'));
     if (animated && safeWidth >= 28) {
-      const rail = renderParticleRail(safeWidth, appearance, 'plan-box:rail');
+      const rail = renderParticleRail(safeWidth, appearance, 'plan');
       return ['', rail, ...fitted, rail];
     }
     this.cachedWidth = width;

@@ -27,6 +27,15 @@ import type {
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  renderDangerBreathe,
+  renderSettleFlash,
+  resolveQualityAdjustedAmbientEffectMode,
+  SETTLE_FLASH_MS,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export interface ApprovalPanelResponse {
   readonly response: 'approved' | 'approved_for_session' | 'rejected' | 'cancelled';
@@ -91,10 +100,14 @@ function renderShellDisplayBlock(
   if (block.danger !== undefined) {
     lines.push(s.errorBold(`Dangerous: ${block.danger}`));
   }
+  const breatheDanger = block.danger !== undefined;
   const cmdLines = block.command.length > 0 ? block.command.split('\n') : [''];
   cmdLines.forEach((cmdLine, idx) => {
     const prefix = idx === 0 ? `${s.accent('$')} ` : `${s.dim('·')} `;
-    appendWrappedLine(lines, prefix, '  ', s.strong(cmdLine), width);
+    const styledCmd = breatheDanger
+      ? renderDangerBreathe(cmdLine, `approval:danger:${idx}`)
+      : s.strong(cmdLine);
+    appendWrappedLine(lines, prefix, '  ', styledCmd, width);
   });
   if (block.description !== undefined && block.description.length > 0) {
     lines.push(`  ${s.dim(block.description)}`);
@@ -223,6 +236,10 @@ export class ApprovalPanelComponent extends Container implements Focusable {
   private readonly onOpenPreview:
     | ((block: DiffDisplayBlock | FileContentDisplayBlock) => void)
     | undefined;
+  /** Mount clock for optional enter-beat / motion seeds. */
+  private readonly openedAtMs = appearanceAnimationNow();
+  private settleStartedAtMs: number | undefined;
+  private settleRowId: number | undefined;
 
   constructor(
     request: PendingApproval,
@@ -244,6 +261,43 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     };
   }
 
+  private markSelectionSettle(index: number): void {
+    this.settleStartedAtMs = appearanceAnimationNow();
+    this.settleRowId = index;
+  }
+
+  private moveSelection(delta: number): void {
+    const count = this.choiceCount();
+    if (count === 0) return;
+    this.selectedIndex = (this.selectedIndex + delta + count) % count;
+    this.markSelectionSettle(this.selectedIndex);
+  }
+
+  private settleMs(): number {
+    const mode = resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences());
+    return mode === 'subtle' ? SETTLE_FLASH_MS * 1.4 : SETTLE_FLASH_MS;
+  }
+
+  private styleChoiceLabel(labelWithNum: string, index: number, selected: boolean): string {
+    const appearance = getActiveAppearancePreferences();
+    if (
+      selected &&
+      shouldRenderAmbientEffects(appearance) &&
+      this.settleRowId === index &&
+      this.settleStartedAtMs !== undefined &&
+      appearanceAnimationNow() - this.settleStartedAtMs < this.settleMs()
+    ) {
+      return renderSettleFlash(
+        labelWithNum,
+        `approval:settle:${String(this.openedAtMs)}:${String(index)}`,
+        this.settleStartedAtMs,
+        appearance,
+      );
+    }
+    if (selected) return currentTheme.boldFg('accent', labelWithNum);
+    return currentTheme.fg('textStrong', labelWithNum);
+  }
+
   private submit(index: number, feedback: string = ''): void {
     const option = this.choiceAt(index);
     if (!option) return;
@@ -258,6 +312,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     const option = this.choiceAt(index);
     if (!option) return;
     if (option.requires_feedback === true) {
+      if (this.selectedIndex !== index) this.markSelectionSettle(index);
       this.selectedIndex = index;
       this.feedbackMode = true;
     } else {
@@ -291,12 +346,12 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     if (this.feedbackMode) {
       if (matchesKey(data, Key.up)) {
         this.feedbackMode = false;
-        this.selectedIndex = (this.selectedIndex - 1 + this.choiceCount()) % this.choiceCount();
+        this.moveSelection(-1);
         return;
       }
       if (matchesKey(data, Key.down)) {
         this.feedbackMode = false;
-        this.selectedIndex = (this.selectedIndex + 1) % this.choiceCount();
+        this.moveSelection(1);
         return;
       }
       this.feedbackInput.handleInput(data);
@@ -305,11 +360,11 @@ export class ApprovalPanelComponent extends Container implements Focusable {
 
     if (this.choiceCount() === 0) return;
     if (matchesKey(data, Key.up)) {
-      this.selectedIndex = (this.selectedIndex - 1 + this.choiceCount()) % this.choiceCount();
+      this.moveSelection(-1);
       return;
     }
     if (matchesKey(data, Key.down)) {
-      this.selectedIndex = (this.selectedIndex + 1) % this.choiceCount();
+      this.moveSelection(1);
       return;
     }
     if (matchesKey(data, Key.enter)) {
@@ -332,9 +387,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     const blockStyles = makeBlockStyles();
     const borderColor = (text: string) => currentTheme.fg('borderFocus', text);
     const borderColorBold = (text: string) => currentTheme.boldFg('borderFocus', text);
-    const selectColorBold = (text: string) => currentTheme.boldFg('accent', text);
     const dim = (text: string) => currentTheme.fg('textDim', text);
-    const strong = (text: string) => currentTheme.fg('textStrong', text);
     const indent = (s: string): string => `  ${s}`;
 
     const title = headerFor(data.tool_name);
@@ -376,11 +429,9 @@ export class ApprovalPanelComponent extends Container implements Focusable {
       // Pointer is already ambient-styled; do not wrap it in chalk again.
       const pointer = isSelected ? renderSelectPointer('approval:pointer') : ' ';
       if (this.feedbackMode && option.requires_feedback === true && isSelected) {
-        body.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum, pointer)));
-      } else if (isSelected) {
-        body.push(indent(`  ${pointer} ${selectColorBold(labelWithNum)}`));
+        body.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum, pointer, idx)));
       } else {
-        body.push(indent(`  ${pointer} ${strong(labelWithNum)}`));
+        body.push(indent(`  ${pointer} ${this.styleChoiceLabel(labelWithNum, idx, isSelected)}`));
       }
 
       // Optional helper text under the label, aligned past the pointer/number.
@@ -446,9 +497,14 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     }
   }
 
-  private renderInlineFeedbackLine(width: number, labelWithNum: string, pointer: string): string {
+  private renderInlineFeedbackLine(
+    width: number,
+    labelWithNum: string,
+    pointer: string,
+    index: number,
+  ): string {
     // Keep pointer outside chalk so nested SGR never re-enters a plain-text sink.
-    const prefix = `  ${pointer} ${currentTheme.boldFg('accent', labelWithNum)}  `;
+    const prefix = `  ${pointer} ${this.styleChoiceLabel(labelWithNum, index, true)}  `;
     const inputWidth = Math.max(4, width - visibleWidth(prefix) + 2);
     const inputLine = this.feedbackInput.render(inputWidth)[0] ?? '> ';
     const inlineInput = inputLine.startsWith('> ') ? inputLine.slice(2) : inputLine;

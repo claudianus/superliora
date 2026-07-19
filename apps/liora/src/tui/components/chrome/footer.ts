@@ -20,10 +20,15 @@ import type { ColorPalette } from '#/tui/theme/colors';
 import { currentTheme } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import {
+  appearanceAnimationNow,
   renderAnimatedGradientText,
+  renderCrossfadeLine,
+  renderEnterBeat,
   renderPulseText,
   renderShimmerPrefix,
+  shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
 import {
   createGitStatusCache,
   formatGitBadgeBase,
@@ -113,6 +118,7 @@ function formatGoalBadge(
   goal: AppState['goal'],
   colors: ColorPalette,
   wallClockMs?: number,
+  appearance = DEFAULT_APPEARANCE_PREFERENCES,
 ): string | null {
   if (goal === null || goal === undefined) return null;
   // Show the badge for every persisted, resumable status. `complete` clears the
@@ -120,32 +126,39 @@ function formatGoalBadge(
   if (goal.status !== 'active' && goal.status !== 'paused' && goal.status !== 'blocked') {
     return null;
   }
-  const dotColor =
-    goal.status === 'active'
-      ? colors.primary
-      : goal.status === 'blocked'
-        ? colors.warning
-        : colors.textMuted;
+  const statusToken =
+    goal.status === 'active' ? 'primary' : goal.status === 'blocked' ? 'warning' : 'textMuted';
   const turns =
     goal.budget.turnBudget !== null
       ? `${goal.turnsUsed}/${goal.budget.turnBudget} turns`
       : `${goal.turnsUsed} ${goal.turnsUsed === 1 ? 'turn' : 'turns'}`;
   const elapsed = formatBadgeElapsed(wallClockMs ?? goal.wallClockMs);
   const isSotaGoal = SOTA_GOAL_OBJECTIVE_PATTERN.test(goal.objective);
-  const label = `${goal.status} · ${elapsed} · ${turns}`;
+  const statusTick = shouldRenderAmbientEffects(appearance)
+    ? renderPulseText(goal.status, `footer:goal:${goal.status}`, statusToken, appearance)
+    : chalk.hex(colors[statusToken])(goal.status);
+  // Keep statusTick/dot pulsed; elapsed · turns stay muted chrome meta.
+  const label = statusTick + chalk.hex(colors.textMuted)(` · ${elapsed} · ${turns}`);
+  const dot = shouldRenderAmbientEffects(appearance)
+    ? renderPulseText('●', 'footer:goal:dot', statusToken, appearance)
+    : chalk.hex(colors[statusToken])('●');
   if (isSotaGoal) {
     return (
       chalk.hex(colors.textMuted)('[goal ') +
-      chalk.hex(dotColor)('●') +
+      dot +
       chalk.hex(colors.textMuted)(' ') +
       chalk.hex(colors.primary).bold('SuperLiora SOTA') +
-      chalk.hex(colors.textMuted)(` / ${label}]`)
+      chalk.hex(colors.textMuted)(' / ') +
+      label +
+      chalk.hex(colors.textMuted)(']')
     );
   }
   return (
     chalk.hex(colors.textMuted)('[goal ') +
-    chalk.hex(dotColor)('●') +
-    chalk.hex(colors.textMuted)(` ${label}]`)
+    dot +
+    chalk.hex(colors.textMuted)(' ') +
+    label +
+    chalk.hex(colors.textMuted)(']')
   );
 }
 
@@ -391,6 +404,10 @@ export class FooterComponent implements Component {
    */
   private backgroundBashTaskCount = 0;
   private backgroundAgentCount = 0;
+  private tipDisplay = '';
+  private prevTipDisplay = '';
+  private tipChangedAtMs = 0;
+  private getActiveMotionBeat: (() => MotionBeatSnapshot | undefined) | undefined;
 
   constructor(
     state: AppState,
@@ -404,6 +421,11 @@ export class FooterComponent implements Component {
     this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onRefresh });
     this.syncGoalClock(state.goal);
     this.syncGoalTimer(state.goal);
+  }
+
+  /** Optional source for mode_enter/mode_exit shimmer while a beat is live. */
+  setMotionBeatSource(getActive: () => MotionBeatSnapshot | undefined): void {
+    this.getActiveMotionBeat = getActive;
   }
 
   setState(state: AppState): void {
@@ -450,15 +472,40 @@ export class FooterComponent implements Component {
     // ── Line 1: mode badges + model + [N task(s) running] + [N agent(s) running] + cwd + git + hints ──
     const left: string[] = [];
     const modes: string[] = [];
+    const activeBeat = this.getActiveMotionBeat?.();
+    const modeBeatTitle =
+      activeBeat?.name === 'mode_enter' || activeBeat?.name === 'mode_exit'
+        ? activeBeat.title
+        : activeBeat?.name === 'plan_enter' || activeBeat?.name === 'plan_exit'
+          ? 'plan'
+          : undefined;
+    const withModeBeat = (title: string, body: string): string =>
+      modeBeatTitle === title ? renderShimmerPrefix(appearance) + body : body;
     if (state.permissionMode === 'auto') modes.push(chalk.hex(colors.warning).bold('auto'));
-    if (state.permissionMode === 'yolo') modes.push(chalk.hex(colors.warning).bold('yolo'));
+    if (state.permissionMode === 'yolo') {
+      modes.push(
+        withModeBeat(
+          'yolo',
+          modeBeatTitle === 'yolo'
+            ? renderPulseText('yolo', 'footer:yolo', 'warning', appearance)
+            : chalk.hex(colors.warning).bold('yolo'),
+        ),
+      );
+    }
     if (state.ultraworkMode) {
-      modes.push(renderAnimatedGradientText('ultrawork', 'footer:ultrawork', appearance));
+      modes.push(
+        withModeBeat(
+          'ultrawork',
+          renderAnimatedGradientText('ultrawork', 'footer:ultrawork', appearance),
+        ),
+      );
     } else if (state.planMode) {
-      modes.push(renderPulseText('plan', 'footer:plan', 'primary', appearance));
+      modes.push(withModeBeat('plan', renderPulseText('plan', 'plan', 'primary', appearance)));
     }
     if (state.swarmMode) {
-      modes.push(renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance));
+      modes.push(
+        withModeBeat('swarm', renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance)),
+      );
     }
     if (state.premiumQualityMode) {
       modes.push(renderAnimatedGradientText('premium', 'footer:premium', appearance));
@@ -482,7 +529,12 @@ export class FooterComponent implements Component {
     );
     if (transcriptViewportBadge !== null) left.push(transcriptViewportBadge);
 
-    const goalBadge = formatGoalBadge(state.goal, colors, this.goalWallClockMs(state.goal));
+    const goalBadge = formatGoalBadge(
+      state.goal,
+      colors,
+      this.goalWallClockMs(state.goal),
+      appearance,
+    );
     if (goalBadge !== null) left.push(goalBadge);
 
     const model = modelDisplayName(state);
@@ -543,11 +595,29 @@ export class FooterComponent implements Component {
     } else if (primary && visibleWidth(primary) <= remaining) {
       tipText = primary;
     }
+    if (tipText !== this.tipDisplay) {
+      this.prevTipDisplay = this.tipDisplay;
+      this.tipDisplay = tipText;
+      this.tipChangedAtMs = appearanceAnimationNow();
+    }
+    const ambientTips = shouldRenderAmbientEffects(appearance);
+    const tipStyled =
+      tipText.length === 0
+        ? ''
+        : ambientTips && this.prevTipDisplay.length > 0
+          ? renderCrossfadeLine(
+              this.prevTipDisplay,
+              tipText,
+              'footer:tip',
+              this.tipChangedAtMs,
+              appearance,
+            )
+          : chalk.hex(colors.textMuted)(tipText);
 
     let line1: string;
-    if (tipText) {
-      const pad = width - leftWidth - visibleWidth(tipText);
-      line1 = leftLine + ' '.repeat(Math.max(0, pad)) + chalk.hex(colors.textMuted)(tipText);
+    if (tipStyled) {
+      const pad = width - leftWidth - visibleWidth(tipStyled);
+      line1 = leftLine + ' '.repeat(Math.max(0, pad)) + tipStyled;
     } else if (leftWidth <= width) {
       line1 = leftLine;
     } else {
@@ -574,8 +644,32 @@ export class FooterComponent implements Component {
     }
     const contextText = contextParts.join(chalk.hex(colors.textMuted)(' · '));
     const contextWidth = visibleWidth(contextText);
-    let line2: string;
     const nextAction = footerNextAction(state, git);
+    const resumeBeat =
+      activeBeat?.name === 'session_resume' ? activeBeat : undefined;
+
+    // Short enter beat while session_resume is live (after replay/resume start).
+    // Always keep footer at 2 lines — use the last beat line only (tiny widths
+    // already skip rail extras inside renderEnterBeat).
+    if (resumeBeat !== undefined && this.transientHint === null) {
+      const hintWidth = Math.max(8, width - contextWidth - 1);
+      const beatLines = renderEnterBeat(
+        resumeBeat.title,
+        hintWidth,
+        resumeBeat.seed,
+        resumeBeat.startedAtMs,
+        appearance,
+      );
+      const beatLine = beatLines[beatLines.length - 1] ?? '';
+      const pad = Math.max(0, width - visibleWidth(beatLine) - contextWidth);
+      return [
+        truncateToWidth(line1, width),
+        truncateToWidth(beatLine + ' '.repeat(pad) + contextText, width),
+      ];
+    }
+
+    let line2: string;
+    // Keep shimmer on next-action during replay (and other hints).
     const shimmer =
       this.transientHint === null
         ? renderShimmerPrefix(appearance)

@@ -511,6 +511,7 @@ export function renderPulseText(
   seed: string,
   fallbackToken: ColorToken = 'primary',
   appearance: AppearancePreferences = activeAppearance,
+  pace: 'fast' | 'slow' = 'fast',
 ): string {
   const plainText = stripAnsiControls(text);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
@@ -519,7 +520,7 @@ export function renderPulseText(
   }
   return renderSpectacularText(plainText, seed, appearance, {
     intense: mode === 'premium',
-    pace: 'fast',
+    pace,
   });
 }
 
@@ -666,6 +667,22 @@ export const CROSSFADE_MS = 480;
 export const ENTER_BEAT_MS = 720;
 export const EXIT_BEAT_MS = 640;
 
+/** Enter-beat TTL matching `renderEnterBeat` (subtle stretches ×1.2). */
+export function enterBeatDurationMs(
+  appearance: AppearancePreferences = activeAppearance,
+): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  return mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS;
+}
+
+/** Exit-beat TTL matching `renderExitBeat` (subtle stretches ×1.2). */
+export function exitBeatDurationMs(
+  appearance: AppearancePreferences = activeAppearance,
+): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  return mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS;
+}
+
 function motionProgress(startedAtMs: number, durationMs: number, nowMs = appearanceAnimationNow()): number {
   if (durationMs <= 0) return 1;
   return Math.min(1, Math.max(0, (nowMs - startedAtMs) / durationMs));
@@ -704,7 +721,7 @@ export function renderPhaseChip(
   const body = `${mark} ${plain}`;
   if (!motionEffectsAllowed() || mode === 'off') {
     const token =
-      phase === 'error' ? 'error' : phase === 'done' ? 'success' : 'textMuted';
+      phase === 'error' ? 'error' : phase === 'done' ? 'glow' : 'textMuted';
     return currentTheme.fg(token, body);
   }
   if (phase === 'running' || phase === 'streaming') {
@@ -744,15 +761,18 @@ export function renderEnterBeat(
   const plain = stripAnsiControls(title);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const w = Math.max(8, width);
+  // Narrow terminals: keep a single title line (no rail / extra chrome height).
+  const tiny = width < 40;
   if (!motionEffectsAllowed() || mode === 'off') {
     return [currentTheme.boldFg('textStrong', plain)];
   }
-  const p = motionProgress(startedAtMs, mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS);
-  const rail = renderParticleRail(w, appearance, `${seed}:enter`);
+  const p = motionProgress(startedAtMs, enterBeatDurationMs(appearance));
   const head =
     p < 0.85
       ? renderPremiumHeadline(plain, `${seed}:title`, appearance)
       : currentTheme.boldFg('textStrong', plain);
+  if (tiny) return [head];
+  const rail = renderParticleRail(w, appearance, `${seed}:enter`);
   if (p < 0.25) return [currentTheme.dim(rail)];
   if (p < 0.5) return [currentTheme.dim(rail), head];
   if (p < 0.85) return [head, currentTheme.dim(rail)];
@@ -770,12 +790,17 @@ export function renderExitBeat(
   const plain = stripAnsiControls(title);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const w = Math.max(8, width);
+  const tiny = width < 40;
   if (!motionEffectsAllowed() || mode === 'off') {
     return [currentTheme.fg('glow', plain)];
   }
-  const p = motionProgress(startedAtMs, mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS);
-  const rail = renderParticleRail(w, appearance, `${seed}:exit`);
+  const p = motionProgress(startedAtMs, exitBeatDurationMs(appearance));
   const head = renderPulseText(plain, `${seed}:exit-title`, 'glow', appearance);
+  if (tiny) {
+    if (p < 0.65) return [head];
+    return [currentTheme.fg('glow', plain)];
+  }
+  const rail = renderParticleRail(w, appearance, `${seed}:exit`);
   if (p < 0.3) return [head, currentTheme.dim(rail)];
   if (p < 0.65) return [head];
   return [currentTheme.fg('glow', plain)];

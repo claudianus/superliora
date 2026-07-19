@@ -3,6 +3,7 @@ import type { McpServerInfo } from '@superliora/sdk';
 import { currentTheme } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
+  renderDangerBreathe,
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
@@ -45,7 +46,7 @@ function statusPainter(
       return (text) => currentTheme.fg('success', text);
     case 'failed':
       return (text) =>
-        animated ? renderPulseText(text, `mcp:status:${status}`, 'error') : currentTheme.fg('error', text);
+        animated ? renderDangerBreathe(text, `mcp:status:${status}`) : currentTheme.fg('error', text);
     case 'needs-auth':
     case 'pending':
       return (text) =>
@@ -147,7 +148,12 @@ export function buildMcpStatusReportLines(options: McpStatusReportOptions): stri
       server.error !== undefined &&
       server.error.trim().length > 0
     ) {
-      lines.push(`    ${muted('error:')} ${error(formatErrorLine(server.error))}`);
+      const appearance = getActiveAppearancePreferences();
+      const errText = formatErrorLine(server.error);
+      const painted = shouldRenderAmbientEffects(appearance)
+        ? renderDangerBreathe(errText, `mcp:error:${server.name}`)
+        : error(errText);
+      lines.push(`    ${muted('error:')} ${painted}`);
     }
     if (server.status === 'needs-auth') {
       lines.push(`    ${muted('action:')} ${value(`run /mcp-config login ${server.name}`)}`);

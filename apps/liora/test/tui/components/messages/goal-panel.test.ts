@@ -1,6 +1,6 @@
 import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   buildGoalReportLines,
@@ -10,11 +10,28 @@ import {
   UpcomingGoalAddedMessageComponent,
   goalPanelTitle,
 } from '#/tui/components/messages/goal-panel';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
+import * as appearanceEffects from '#/tui/utils/appearance-effects';
+import {
+  advanceAppearanceAnimationClock,
+  EXIT_BEAT_MS,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 import type { GoalSnapshot } from '@superliora/sdk';
 
 const previousChalkLevel = chalk.level;
+const previousEnv = {
+  TERM: process.env['TERM'],
+  CI: process.env['CI'],
+  NO_COLOR: process.env['NO_COLOR'],
+  SSH_TTY: process.env['SSH_TTY'],
+  SSH_CONNECTION: process.env['SSH_CONNECTION'],
+  SSH_CLIENT: process.env['SSH_CLIENT'],
+};
 beforeAll(() => {
   chalk.level = 3;
 });
@@ -184,5 +201,49 @@ describe('GoalCompletionMessageComponent', () => {
     expect(strip([rendered[2]!]).trimEnd()).toBe(
       '  Worked 1 turn over 2m28s, using 766.9k tokens.',
     );
+  });
+
+  it('plays exit-beat title once under premium without adding layout rows', () => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const exitSpy = vi.spyOn(appearanceEffects, 'renderExitBeat');
+
+    const message = '✓ Goal complete.\nWorked 1 turn over 2m28s, using 766.9k tokens.';
+    const component = new GoalCompletionMessageComponent(message);
+    const during = component.render(80);
+    expect(exitSpy).toHaveBeenCalled();
+    expect(during).toHaveLength(3);
+    expect(strip([during[1]!]).trimEnd()).toMatch(/●\s*✓ Goal complete\./);
+    expect(strip([during[2]!]).trimEnd()).toBe(
+      '  Worked 1 turn over 2m28s, using 766.9k tokens.',
+    );
+
+    exitSpy.mockClear();
+    advanceAppearanceAnimationClock(Date.now() + EXIT_BEAT_MS + 80);
+    const after = component.render(80);
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(after).toHaveLength(3);
+
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 });

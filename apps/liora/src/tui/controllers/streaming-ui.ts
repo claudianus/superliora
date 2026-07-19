@@ -8,9 +8,12 @@ import { ReadGroupComponent } from '../components/messages/read-group';
 import { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
+import { isGenericToolResult } from '../components/messages/tool-renderers/registry';
 import { STREAMING_UI_FLUSH_MS } from '../constant/streaming';
+import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
+import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import { notifyUserAttentionOnce } from '../utils/terminal-notification';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { TodoItem } from '../components/chrome/todo-panel';
@@ -28,6 +31,7 @@ import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/fra
 export interface StreamingUIHost {
   state: TUIState;
   session: Session | undefined;
+  readonly motionBeats: MotionBeatController;
   setAppState(patch: Partial<AppState>): void;
   patchLivePane(patch: Partial<LivePaneState>): void;
   resetLivePane(): void;
@@ -688,6 +692,17 @@ export class StreamingUIController {
     if (tc) {
       tc.setResult(result);
       this._pendingToolComponents.delete(toolCallId);
+      const toolName = matchedCall?.name;
+      if (toolName !== undefined && isGenericToolResult(toolName)) {
+        this.host.motionBeats.play({
+          name: 'tool_settle',
+          seed: `tool:${toolCallId}`,
+          title: toolName,
+          nowMs: appearanceAnimationNow(),
+          streamThrottle: true,
+          theatreActive: isMotionTheatreActive(state.appState),
+        });
+      }
       requestTUIContentRender(state);
       this.host.mergeCurrentTurnSteps();
       return;
@@ -737,6 +752,13 @@ export class StreamingUIController {
     );
     this._activeCompactionBlock = block;
     state.transcriptContainer.addChild(block);
+    this.host.motionBeats.play({
+      name: 'compaction_start',
+      seed: 'compaction',
+      title: options?.background === true ? 'Compacting context (bg)' : 'Compacting context',
+      nowMs: appearanceAnimationNow(),
+      theatreActive: isMotionTheatreActive(state.appState),
+    });
     requestTUILayoutRender(state);
   }
 
@@ -745,7 +767,19 @@ export class StreamingUIController {
     if (block === undefined) return;
     block.markDone(tokensBefore, tokensAfter, detail);
     this._activeCompactionBlock = undefined;
-    requestTUILayoutRender(this.host.state);
+    const { state } = this.host;
+    const tokenDelta =
+      tokensBefore !== undefined && tokensAfter !== undefined
+        ? `Compaction complete (${String(tokensBefore)} → ${String(tokensAfter)} tokens)`
+        : 'Compaction complete';
+    this.host.motionBeats.play({
+      name: 'compaction_done',
+      seed: 'compaction',
+      title: tokenDelta,
+      nowMs: appearanceAnimationNow(),
+      theatreActive: isMotionTheatreActive(state.appState),
+    });
+    requestTUILayoutRender(state);
   }
 
   cancelCompaction(): void {

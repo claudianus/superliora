@@ -50,6 +50,11 @@ function makeHost() {
       appendAssistantDelta: vi.fn(),
       scheduleFlush: vi.fn(),
     },
+    motionBeats: {
+      play: vi.fn(),
+      active: vi.fn(),
+      clear: vi.fn(),
+    },
     requireSession: vi.fn(function (this: { session: unknown }) {
       return this.session;
     }),

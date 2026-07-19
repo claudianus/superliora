@@ -80,6 +80,11 @@ function makeHost(options: { createGoalRejects?: boolean } = {}) {
       appendAssistantDelta: vi.fn(),
       scheduleFlush: vi.fn(),
     },
+    motionBeats: {
+      play: vi.fn(),
+      active: vi.fn(),
+      clear: vi.fn(),
+    },
     requireSession: vi.fn(() => session),
     setAppState: vi.fn(),
     setLastTurnFailed: vi.fn(),
@@ -167,6 +172,20 @@ describe('SessionEventHandler goal queue promotion', () => {
     vi.mocked(readGoalQueue).mockClear();
     vi.mocked(removeGoalQueueItem).mockClear();
     vi.mocked(restoreGoalQueueItem).mockClear();
+  });
+
+  it('plays goal_complete motion beat once on completion', () => {
+    const { host } = makeHost();
+    const handler = new SessionEventHandler(host);
+    handler.handleEvent(completionEvent(), vi.fn());
+    expect(host.motionBeats.play).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'goal_complete',
+        title: 'Goal complete',
+        seed: 'goal:g1',
+      }),
+    );
+    expect(host.motionBeats.play).toHaveBeenCalledTimes(1);
   });
 
   it('starts the next queued goal after the completion turn ends', async () => {

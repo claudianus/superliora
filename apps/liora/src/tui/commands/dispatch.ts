@@ -13,6 +13,7 @@ import type { TasksBrowserController } from '../controllers/tasks-browser';
 import type { ResolvedTheme } from '../theme/colors';
 import type { TUIState } from '../tui-state';
 import { requestTUILayoutRender } from '../utils/frame-render';
+import type { MotionBeatController } from '../utils/motion-beats';
 import type {
   AppState,
   LoginProgressSpinnerHandle,
@@ -182,6 +183,8 @@ export interface SlashCommandHost {
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
   readonly authFlow: AuthFlowController;
+  /** Transition beat queue (status open, plan enter/exit, …). */
+  readonly motionBeats: MotionBeatController;
 }
 
 // ---------------------------------------------------------------------------
