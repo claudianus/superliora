@@ -177,6 +177,7 @@ export function renderIdleStageLines(
       roleUser: palette.roleUser,
       shellMode: palette.shellMode,
       success: palette.success,
+      surfaceSunken: palette.surfaceSunken,
     },
     themeMode: options?.themeMode,
     sim: options?.sim,

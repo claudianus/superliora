@@ -33,6 +33,8 @@ import {
   paintBubbles,
   paintIdleStoryScene,
   paintWaterBase,
+  paintWaterDepth,
+  JEWEL_TANK_DARK,
   resolveAquariumPalette,
   resolveLanternGlyph,
   resolveSeaweedSpacing,
@@ -141,12 +143,12 @@ describe('idle-stage helpers', () => {
   });
 
   it('resolves single-row fish glyphs (no fake top/bottom fins)', () => {
-    expect(FISH_LARGE_RIGHT).toEqual(['><(((º>']);
-    expect(FISH_LARGE_LEFT).toEqual(['<º)))><']);
-    expect(FISH_COMPACT_RIGHT).toEqual([' ><> ']);
+    expect(FISH_LARGE_RIGHT).toEqual(['>═((º═>']);
+    expect(FISH_LARGE_LEFT).toEqual(['<═º))═<']);
+    expect(FISH_COMPACT_RIGHT).toEqual(['>∽((º≈']);
     expect(resolveFishGlyphRows(80, 20).length).toBe(1);
     expect(resolveFishGlyphRows(30, 12).length).toBe(1);
-    expect(FISH_LARGE_RIGHT.join('\n')).not.toMatch(/·|~/);
+    expect(FISH_LARGE_RIGHT.join('\n')).not.toMatch(/·/);
   });
 
   it('turns the fish facing across a swim cycle', () => {
@@ -164,7 +166,9 @@ describe('idle-stage helpers', () => {
     );
     expect(new Set(samples).size).toBeGreaterThanOrEqual(2);
     for (const s of samples) {
-      expect(s).toMatch(/[╒═╨]/);
+      // Compact stone + soft bubble plume (no box-drawing theatre).
+      expect(s).toMatch(/[._]/);
+      expect(s).toMatch(/[·o°○]/);
       expect(s.includes('█')).toBe(false);
     }
   });
@@ -175,7 +179,7 @@ describe('idle-stage helpers', () => {
     const c = applyFishTail([...FISH_LARGE_RIGHT], FISH_TAIL_MS * 2, true).join('\n');
     expect(a).not.toBe(b);
     expect(new Set([a, b, c]).size).toBeGreaterThanOrEqual(2);
-    expect(a + b + c).toMatch(/[)(º]/);
+    expect(a + b + c).toMatch(/[)(º═]/);
   });
 
   it('preserves ANSI colors across overlapping blitAt calls', () => {
@@ -215,12 +219,22 @@ describe('idle-stage helpers', () => {
           paint: (hex, text) => chalk.hex(hex)(text),
           colors: { ...darkColors, success: darkColors.success },
         });
-        const plantHex = darkColors.success.toLowerCase();
+        const plantHex = resolveAquariumPalette(darkColors, 'dark').plant.toLowerCase();
         let greenCells = 0;
         for (const line of canvas.slice(1, storyRows - 1)) {
           for (const cell of ansiTextToCells(line)) {
-            if (cell.style?.fg?.toLowerCase() === plantHex && /[)(~()]/.test(cell.char)) {
-              greenCells += 1;
+            const fg = cell.style?.fg?.toLowerCase();
+            // Jewel greens (plant / plantSoft / depth-muted mixes near plant).
+            if (
+              fg &&
+              /[)(~.\\/_,.]/.test(cell.char) &&
+              (fg === plantHex || fg.startsWith('#') && /[0-9a-f]{6}/.test(fg.slice(1)))
+            ) {
+              // Count saturated green-ish plant cells (g channel dominant-ish).
+              const r = parseInt(fg.slice(1, 3), 16);
+              const g = parseInt(fg.slice(3, 5), 16);
+              const b = parseInt(fg.slice(5, 7), 16);
+              if (g > r + 10 && g > b) greenCells += 1;
             }
           }
         }
@@ -259,7 +273,27 @@ describe('idle-stage helpers', () => {
     expect(filledRows).toBeGreaterThanOrEqual(rows - 3);
   });
 
-  it('does not paint caustic / sparkle / water-field clutter in the story scene', () => {
+  it('paints a sparse vertical water depth gradient', () => {
+    const width = 48;
+    const rows = 12;
+    const paints: string[] = [];
+    const canvas = Array.from({ length: rows }, () => ' '.repeat(width));
+    paintWaterDepth(canvas, width, rows, (hex, text) => {
+      paints.push(hex);
+      return text;
+    }, '#67E8F9', '#06B6D4', '#0B3A44');
+    expect(new Set(paints).size).toBeGreaterThanOrEqual(3);
+    let dots = 0;
+    for (let y = 1; y < rows - 5; y++) {
+      for (const ch of stripAnsi(canvas[y] ?? '')) {
+        if (ch === '·' || ch === '˙' || ch === '˚') dots += 1;
+      }
+    }
+    expect(dots).toBeGreaterThan(0);
+    expect(dots).toBeLessThan(40);
+  });
+
+  it('keeps aquascape markers without mid-water particle soup', () => {
     withAmbientEnv(() => {
       const width = 80;
       const storyRows = 16;
@@ -275,12 +309,10 @@ describe('idle-stage helpers', () => {
         colors: darkColors,
       });
       const joined = strip(canvas.join('\n'));
-      // Kept: surface / plants / bubbles / fish strokes.
       expect(joined).toMatch(/[~≈∼]/);
-      expect(joined).toMatch(/[)(|/\\]/);
-      // Removed theatre: air-stone box + caustic band glyphs should stay rare/absent.
-      expect(joined.includes('╒')).toBe(false);
-      expect(joined.includes('╨')).toBe(false);
+      expect(joined).toMatch(/[)(~/\\_]/);
+      // Rocks / planted bed present; mid-water stays open above the scape.
+      expect(joined).toMatch(/[_/\\]/);
     });
   });
 
@@ -301,14 +333,15 @@ describe('idle-stage helpers', () => {
       });
       const sandY = storyRows - 1;
       let waterDots = 0;
-      for (let y = 1; y < sandY; y++) {
+      // Ignore the planted lower band — carpet uses · glyphs.
+      for (let y = 1; y < sandY - 4; y++) {
         const plain = strip(canvas[y] ?? '');
         for (const ch of plain) {
           if (ch === '·' || ch === '˙' || ch === '˚') waterDots += 1;
         }
       }
-      // Soft upper bound: bubbles may use ˚/· sparsely; dense paintWaterBase was ~648.
-      expect(waterDots).toBeLessThan(40);
+      // Jewel depth haze is denser than a void, but still far under old soup (~648).
+      expect(waterDots).toBeLessThan(160);
     });
   });
 
@@ -343,53 +376,23 @@ describe('idle-stage helpers', () => {
     expect(resolveSeaweedSpacing(30)).toBe(10);
   });
 
-  it('maps aquarium roles to sky water and green plants', () => {
-    const palette = resolveAquariumPalette(
-      {
-        glow: darkColors.glow,
-        particle: darkColors.particle,
-        primary: darkColors.primary,
-        accent: darkColors.accent,
-        textDim: darkColors.textDim,
-        textMuted: darkColors.textMuted,
-        gradientStart: darkColors.gradientStart,
-        gradientEnd: darkColors.gradientEnd,
-        roleUser: darkColors.roleUser,
-        shellMode: darkColors.shellMode,
-        success: darkColors.success,
-      },
-      'dark',
-    );
-    const allowed = new Set([
-      darkColors.primary,
-      darkColors.accent,
-      darkColors.glow,
-      darkColors.particle,
-      darkColors.gradientStart,
-      darkColors.gradientEnd,
-      darkColors.roleUser,
-      darkColors.shellMode,
-      darkColors.textDim,
-      darkColors.success,
-    ]);
-    for (const hex of Object.values(palette)) {
-      expect(allowed.has(hex)).toBe(true);
-    }
-    expect(palette.fishGold).toBe(darkColors.roleUser);
-    expect(palette.coral).toBe(darkColors.shellMode);
-    expect(palette.plant).toBe(darkColors.success);
-    expect(palette.plantSoft).toBe(darkColors.accent);
-    expect(palette.sand).toBe(darkColors.textDim);
-    expect(palette.water).toBe(darkColors.glow);
-    expect(palette.waterDeep).toBe(darkColors.gradientStart);
-    expect(palette.fishTeal).toBe(darkColors.accent);
-    expect(palette.fishSky).toBe(darkColors.glow);
-    expect(palette.fishSoft).toBe(darkColors.textDim);
-    expect(palette.bubble).toBe(darkColors.glow);
-    expect(palette.food).toBe(darkColors.particle);
-    expect(palette.plantSoft).not.toBe(darkColors.particle);
-    expect(palette.sand).not.toBe(darkColors.gradientEnd);
-    expect(palette.sand).not.toBe(darkColors.warning);
+  it('maps aquarium roles to a bold jewel-tank kit (not theme-token locked)', () => {
+    const palette = resolveAquariumPalette(darkColors, 'dark');
+    // Free of chrome role lock-in — tank may use any saturated hex.
+    expect(palette.plant).toBe(JEWEL_TANK_DARK.plant);
+    expect(palette.plantSoft).toBe(JEWEL_TANK_DARK.plantSoft);
+    expect(palette.plantAccent).toBe(JEWEL_TANK_DARK.plantAccent);
+    expect(palette.fishGold).toBe(JEWEL_TANK_DARK.fishGold);
+    expect(palette.fishSky).toBe(JEWEL_TANK_DARK.fishSky);
+    expect(palette.fishTeal).toBe(JEWEL_TANK_DARK.fishTeal);
+    expect(palette.coral).toBe(JEWEL_TANK_DARK.coral);
+    expect(palette.waterDeep).toBe(JEWEL_TANK_DARK.waterDeep);
+    expect(palette.waterAbyss).toBe(JEWEL_TANK_DARK.waterAbyss);
+    expect(palette.shaft).toBe(JEWEL_TANK_DARK.shaft);
+    expect(palette.sand).toBe(JEWEL_TANK_DARK.sand);
+    // Surface may whisper brand glow, but stays in the cyan family.
+    expect(palette.water.toLowerCase()).not.toBe(darkColors.particle.toLowerCase());
+    expect(palette.plant).not.toBe(darkColors.particle);
     expect(palette.fishGold).not.toBe(darkColors.success);
   });
 });
@@ -437,7 +440,7 @@ describe('IdleStageComponent', () => {
         nowMs: 1_200,
         preferredRows: 24,
       }).map((line) => strip(line));
-      expect(lines.join('\n')).toMatch(/><|\(\(|º>|º\)|<></);
+      expect(lines.join('\n')).toMatch(/═\(|º═|∽\(\(|≡|º\)/);
     });
   });
 

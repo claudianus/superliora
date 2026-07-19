@@ -43,11 +43,12 @@ export const IDLE_AUTO_SPAWN_MS = 2_800;
 export const IDLE_EAT_RADIUS = 1.6;
 export const IDLE_SEEK_RADIUS = 22;
 
-const IDLE_EAT_COOLDOWN_MS = 900;
 const FISH_WANDER_SPEED = 0.012;
 const FISH_SEEK_SPEED = 0.022;
 const FISH_BOB_AMPLITUDE = 0.35;
 const FISH_BOB_PERIOD_MS = 4_200;
+/** Wander lane ease time-constant (ms). Hard y snaps looked like despawn/respawn. */
+const FISH_LANE_EASE_MS = 520;
 
 type FishColor = IdleFish['color'];
 
@@ -169,15 +170,32 @@ function moveToward(fish: IdleFish, tx: number, ty: number, dt: number, speed: n
   fish.y += (dy / len) * step;
 }
 
+function wanderFish(sim: IdleTankSim, fish: IdleFish, nowMs: number, dt: number, floor: number): void {
+  fish.mode = 'wander';
+  fish.targetFoodId = null;
+  fish.x += fish.vx * dt;
+  faceTravel(fish, fish.vx);
+  const phase = (fish.seed % 1_000) / 1_000;
+  const bob = Math.sin(nowMs / FISH_BOB_PERIOD_MS + phase * Math.PI * 2) * FISH_BOB_AMPLITUDE;
+  const band = [0.22, 0.38, 0.3, 0.48][fish.id % 4] ?? 0.34;
+  const targetY = band * floor + bob;
+  // Ease back to the swim lane — never hard-assign y (that teleported after seek/eat).
+  const ease = 1 - Math.exp(-Math.max(0, dt) / FISH_LANE_EASE_MS);
+  fish.y = clamp(fish.y + (targetY - fish.y) * ease, 1, floor - 1);
+
+  if (fish.x <= 1 || fish.x >= sim.width - 2) {
+    fish.goesRight = !fish.goesRight;
+    fish.vx = Math.abs(fish.vx) * (fish.goesRight ? 1 : -1);
+    fish.x = clamp(fish.x, 1, Math.max(1, sim.width - 2));
+  }
+}
+
 function tickFish(sim: IdleTankSim, fish: IdleFish, nowMs: number, dt: number): void {
   const floor = floorY(sim.storyRows);
-  const onCooldown = nowMs < fish.cooldownUntilMs;
-  if (onCooldown) {
-    fish.mode = 'wander';
-    fish.targetFoodId = null;
-  }
+  // No post-eat freeze; keep swimming. Field retained for snapshot compat.
+  fish.cooldownUntilMs = 0;
 
-  const target = onCooldown ? null : nearestFood(sim, fish);
+  const target = nearestFood(sim, fish);
   if (target) {
     fish.mode = 'seek';
     fish.targetFoodId = target.id;
@@ -185,25 +203,10 @@ function tickFish(sim: IdleTankSim, fish: IdleFish, nowMs: number, dt: number): 
 
     if (dist(fish.x, fish.y, target.x, target.y) <= IDLE_EAT_RADIUS) {
       sim.food = sim.food.filter((f) => f.id !== target.id);
-      fish.mode = 'wander';
-      fish.targetFoodId = null;
-      fish.cooldownUntilMs = nowMs + IDLE_EAT_COOLDOWN_MS;
+      wanderFish(sim, fish, nowMs, dt, floor);
     }
   } else {
-    fish.mode = 'wander';
-    fish.targetFoodId = null;
-    fish.x += fish.vx * dt;
-    faceTravel(fish, fish.vx);
-    const phase = (fish.seed % 1_000) / 1_000;
-    const bob = Math.sin(nowMs / FISH_BOB_PERIOD_MS + phase * Math.PI * 2) * FISH_BOB_AMPLITUDE;
-    const band = [0.22, 0.38, 0.3, 0.48][fish.id % 4] ?? 0.34;
-    fish.y = clamp(Math.floor(band * floor + bob), 1, floor - 1);
-
-    if (fish.x <= 1 || fish.x >= sim.width - 2) {
-      fish.goesRight = !fish.goesRight;
-      fish.vx = Math.abs(fish.vx) * (fish.goesRight ? 1 : -1);
-      fish.x = clamp(fish.x, 1, Math.max(1, sim.width - 2));
-    }
+    wanderFish(sim, fish, nowMs, dt, floor);
   }
 
   fish.x = clamp(fish.x, 0, Math.max(0, sim.width - 1));

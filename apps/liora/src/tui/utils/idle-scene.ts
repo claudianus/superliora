@@ -9,6 +9,7 @@
 
 import {
   ansiTextToCells,
+  mixHexColor,
   styleToAnsi,
   truncateToWidth,
   visibleWidth,
@@ -17,43 +18,80 @@ import {
 
 import type { IdleFish, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 
-/** Lead fish — right. Single row (no fake top/bottom fins). */
-export const FISH_LARGE_RIGHT = ['><(((º>'] as const;
+/**
+ * Ornamental school — single-row silhouettes (no fake top/bottom fins).
+ * Large ≈ clownfish (white ═ bands). Compact ≈ betta (flowing ∽/≈ fins).
+ */
+export const FISH_LARGE_RIGHT = ['>═((º═>'] as const;
 
 /** Lead fish — left. */
-export const FISH_LARGE_LEFT = ['<º)))><'] as const;
+export const FISH_LARGE_LEFT = ['<═º))═<'] as const;
 
-/** Mid-size companion — right. */
-export const FISH_COMPACT_RIGHT = [' ><> '] as const;
+/** Mid-size betta companion — right. */
+export const FISH_COMPACT_RIGHT = ['>∽((º≈'] as const;
 
-/** Mid-size companion — left. */
-export const FISH_COMPACT_LEFT = [' <>< '] as const;
+/** Mid-size betta companion — left. */
+export const FISH_COMPACT_LEFT = ['≈º))∽<'] as const;
 
-/** Tiny darting friends (right / left pairs). */
+/** Tiny neon danios (right / left pairs). */
 export const FISH_TINY = [
-  ['>◦>', '<◦<'],
-  ['>~>', '<~<'],
-  ['>º>', '<º<'],
+  ['>◦≡>', '<≡◦<'],
+  ['>º≡>', '<≡º<'],
+  ['>◦~>', '<~◦<'],
 ] as const;
 
 /**
- * Short leafy seaweed — 3 rows × 4 sway frames (crown → root).
- * Soft curves; avoid tall bamboo `|` poles.
+ * Aquascape plant kits — each row is 4 sway frames.
+ * Carpet / fine bush / broad mid / tall sword. Avoid bamboo `|` poles.
  */
-export const PLANT_FRAMES = [
-  [' ~) ', ' ~( ', ' ~) ', ' ~( '],
-  [')~)(', '(~()', ')~)(', '(~()'],
-  [' )( ', ' () ', ' )( ', ' () '],
+export const PLANT_CARPET = [['.,.~', '~.,.', '.,.~', '~.,.']] as const;
+
+/** Fluffy fine-leaf bush (hornwort / milfoil). */
+export const PLANT_BUSH = [
+  [' )~) ', ' (~( ', ' )~) ', ' (~( '],
+  [')~)~(', '(~(~)', ')~)~(', '(~(~)'],
+  [')~~)(', '(~~(~)', ')~~)(', '(~~(~)'],
 ] as const;
+
+/** Broad mid leaves near the hardscape (anubias-ish). */
+export const PLANT_BROAD = [
+  ['  ,  ', '  .  ', '  ,  ', '  .  '],
+  [' )u( ', ' (n) ', ' )u( ', ' (n) '],
+  ['(_)_ ', '(_)( ', '(_)_ ', '(_)( '],
+] as const;
+
+/** Tall sword / java-fern leaves — right bank hero. */
+export const PLANT_TALL = [
+  ['  )  ', '  (  ', '  )  ', '  (  '],
+  [' )/  ', ' \\(  ', ' )/  ', ' \\(  '],
+  [' )~( ', ' (~) ', ' )~( ', ' (~) '],
+  [')~~( ', '(~~) ', ')~~( ', '(~~) '],
+  [')~~( ', '(~~) ', ')~~( ', '(~~) '],
+  ['(~)~ ', '~(~) ', '(~)~ ', '~(~) '],
+] as const;
+
+/** Slim stem plant for a single magenta/red accent. */
+export const PLANT_STEM = [
+  ['  )  ', '  (  ', '  )  ', '  (  '],
+  [' )|( ', ' (|\\ ', ' )|( ', ' (/| '],
+  [' )~( ', ' (~) ', ' )~( ', ' (~) '],
+  ['(~)~ ', '~(~) ', '(~)~ ', '~(~) '],
+] as const;
+
+/** @deprecated Prefer PLANT_BUSH / PLANT_TALL; kept for spacing tests. */
+export const PLANT_FRAMES = PLANT_BUSH;
 
 const ANSI_RESET = '\u001B[0m';
 
-/** Low coral / rock silhouettes on the sand. */
-export const CORAL_FORMS = [
-  ['/\\/\\', '/__\\'],
-  [' /\\ ', '/__\\'],
-  ['/\\/ ', '\\_/ '],
+/** Centerpiece rock — warm hardscape mass, not coral theatre. */
+export const ROCK_FORMS = [
+  ['   /¯\\/¯\\  ', '  //¯¯¯\\\\  ', ' /_______\\ '],
+  ['    /¯¯\\   ', '   /||||\\  ', '  /______\\ '],
+  ['   /\\/\\    ', '  /____\\   '],
 ] as const;
+
+/** @deprecated alias — rocks replaced coral theatre. */
+export const CORAL_FORMS = ROCK_FORMS;
 
 export const BUBBLE_GLYPHS = ['·', 'o', '°', '○'] as const;
 
@@ -176,8 +214,12 @@ export interface AquariumPalette {
   readonly water: string;
   readonly waterDeep: string;
   readonly waterSoft: string;
+  /** Deepest water / abyss tint for volume. */
+  readonly waterAbyss: string;
   readonly plant: string;
   readonly plantSoft: string;
+  /** Occasional red/magenta tip plants. */
+  readonly plantAccent: string;
   readonly sand: string;
   readonly coral: string;
   readonly coralSoft: string;
@@ -187,6 +229,8 @@ export interface AquariumPalette {
   readonly fishTeal: string;
   readonly fishSoft: string;
   readonly bubble: string;
+  /** Warm surface shaft / caustic light. */
+  readonly shaft: string;
   readonly dim: string;
 }
 
@@ -203,41 +247,92 @@ type IdleSceneColors = {
   readonly shellMode?: string;
   /** Natural plant green — aquarium uses this on purpose. */
   readonly success?: string;
+  /** Dark aquasoil / gravel. */
+  readonly surfaceSunken?: string;
 };
 
 /**
- * Map theme tokens to aquarium paint roles.
- * Water / surface stay sky-cyan; plants use success green (intentional).
- * Never warning / error for sand or food.
+ * Jewel-tank paint kit — bold aquarium colors, not clamped to theme roles.
+ * Theme only picks dark/light exposure; the tank may use any saturated hex.
+ */
+export const JEWEL_TANK_DARK = {
+  water: '#7DF9FF',
+  waterSoft: '#3DB8FF',
+  waterDeep: '#1560C0',
+  waterAbyss: '#061A3A',
+  plant: '#2EFF7A',
+  plantSoft: '#A8FF4A',
+  plantAccent: '#FF2E9A',
+  sand: '#14100C',
+  sandGlint: '#D4A574',
+  coral: '#F0A84A',
+  coralSoft: '#A86B28',
+  food: '#FFD60A',
+  fishGold: '#FF6A00',
+  fishSky: '#3B6CFF',
+  fishTeal: '#00E5A8',
+  fishSoft: '#FF5EC8',
+  bubble: '#C8F7FF',
+  shaft: '#FFF3A0',
+  highlight: '#FFFFFF',
+  ink: '#0A0E14',
+  dim: '#5A6578',
+} as const;
+
+export const JEWEL_TANK_LIGHT = {
+  water: '#0891B2',
+  waterSoft: '#0284C7',
+  waterDeep: '#1D4ED8',
+  waterAbyss: '#172554',
+  plant: '#16A34A',
+  plantSoft: '#65A30D',
+  plantAccent: '#DB2777',
+  sand: '#292524',
+  sandGlint: '#A16207',
+  coral: '#D97706',
+  coralSoft: '#92400E',
+  food: '#CA8A04',
+  fishGold: '#EA580C',
+  fishSky: '#2563EB',
+  fishTeal: '#0D9488',
+  fishSoft: '#DB2777',
+  bubble: '#67E8F9',
+  shaft: '#FDE68A',
+  highlight: '#FFFFFF',
+  ink: '#1C1917',
+  dim: '#78716C',
+} as const;
+
+/**
+ * Resolve aquarium paint roles. Intentionally free of theme-token lock-in —
+ * the idle tank is a jewel showcase, not a chrome role map.
  */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
-  _theme: 'dark' | 'light' = 'dark',
+  theme: 'dark' | 'light' = 'dark',
 ): AquariumPalette {
-  // Explicit sky stack (glow / gradientStart / primary).
-  const water = colors.glow;
-  const waterDeep = colors.gradientStart ?? colors.glow;
-  const waterSoft = colors.primary;
-  const plantGreen = colors.success ?? colors.accent;
-  const roleWarm = colors.roleUser ?? colors.primary;
-  const roleCool = colors.shellMode ?? colors.accent;
-
+  const jewel = theme === 'light' ? JEWEL_TANK_LIGHT : JEWEL_TANK_DARK;
+  // Optional whisper of brand glow into the surface — never replaces jewel hues.
+  const water = mixHexColor(jewel.water, colors.glow, 0.12);
   return {
     water,
-    waterDeep,
-    waterSoft,
-    plant: plantGreen,
-    plantSoft: colors.accent,
-    sand: colors.textDim,
-    coral: roleCool,
-    coralSoft: colors.primary,
-    food: colors.particle,
-    fishGold: roleWarm,
-    fishSky: water,
-    fishTeal: colors.accent,
-    fishSoft: colors.textDim,
-    bubble: colors.glow,
-    dim: colors.textDim,
+    waterDeep: jewel.waterDeep,
+    waterSoft: jewel.waterSoft,
+    waterAbyss: jewel.waterAbyss,
+    plant: jewel.plant,
+    plantSoft: jewel.plantSoft,
+    plantAccent: jewel.plantAccent,
+    sand: jewel.sand,
+    coral: jewel.coral,
+    coralSoft: jewel.coralSoft,
+    food: jewel.food,
+    fishGold: jewel.fishGold,
+    fishSky: jewel.fishSky,
+    fishTeal: jewel.fishTeal,
+    fishSoft: jewel.fishSoft,
+    bubble: jewel.bubble,
+    shaft: jewel.shaft,
+    dim: jewel.dim,
   };
 }
 
@@ -290,7 +385,7 @@ export function resolveFoxGlyphRows(
   return resolveFishGlyphRows(width, availableRows, elapsedMs);
 }
 
-/** Soft cheek / tail pulse — ≥4 frames, never a hard blink. */
+/** Soft cheek / fin pulse — ≥4 frames, never a hard blink. */
 export function applyFishTail(
   rows: readonly string[],
   elapsedMs: number,
@@ -304,23 +399,105 @@ export function applyFishTail(
   const line = out[bodyIdx];
   if (line === undefined) return out;
 
-  if (line.includes('(((º>') || line.includes('<º)))')) {
+  // Clownfish — cheek / stripe pulse (fixed width).
+  if (line.includes('═((º═>') || line.includes('<═º))═') || line.includes('═(º═>') || line.includes('═((º≈>')) {
     const cheeks = facingRight
-      ? (['(((º>', '((º> ', '(((º>', '((((º>'] as const)
-      : (['<º)))', '<º)) ', '<º)))', '<º))))'] as const);
-    const cheek = cheeks[frame] ?? cheeks[0]!;
-    out[bodyIdx] = facingRight
-      ? line.replace(/\({2,4}º>/u, cheek)
-      : line.replace(/<º\){2,4}/u, cheek);
+      ? (['>═((º═>', '>═(º═> ', '>═((º═>', '>═((º≈>'] as const)
+      : (['<═º))═<', '<═º)═< ', '<═º))═<', '<≈º))═<'] as const);
+    out[bodyIdx] = cheeks[frame] ?? cheeks[0]!;
     return out;
   }
 
+  // Betta flowing fins.
+  if (line.includes('∽((º') || line.includes('º))∽')) {
+    const fins = facingRight
+      ? (['∽((º≈', '∼((º≈', '∽((º∼', '≈((º∽'] as const)
+      : (['≈º))∽', '∼º))∽', '∽º))∼', '∽º))≈'] as const);
+    out[bodyIdx] = fins[frame] ?? fins[0]!;
+    return out;
+  }
+
+  // Tiny neon tip flick.
   if (facingRight) {
     const tips = ['>', '◦', '>', '~'] as const;
-    out[bodyIdx] = line.replace(/>\s*$/u, `${tips[frame] ?? '>'} `);
+    out[bodyIdx] = line.replace(/>\s*$/u, tips[frame] ?? '>');
   } else {
     const tips = ['<', '◦', '<', '~'] as const;
-    out[bodyIdx] = line.replace(/^\s*</u, ` ${tips[frame] ?? '<'}`);
+    out[bodyIdx] = line.replace(/^\s*</u, tips[frame] ?? '<');
+  }
+  return out;
+}
+
+/**
+ * Per-cell ornamental shading — punchy bands, fin accents, specular highlight.
+ * Clownfish / betta / neon lighting with bold jewel hues (not theme-muted).
+ */
+export function colorizeFishLine(
+  line: string,
+  kind: 'large' | 'compact' | 'tiny',
+  color: 'gold' | 'sky' | 'teal' | 'soft',
+  facingRight: boolean,
+  palette: AquariumPalette,
+  paint: (hex: string, text: string) => string,
+  showAmbient: boolean,
+): string {
+  if (!showAmbient) return paint(palette.dim, line);
+
+  const body =
+    color === 'gold'
+      ? palette.fishGold
+      : color === 'sky'
+        ? palette.fishSky
+        : color === 'teal'
+          ? palette.fishTeal
+          : palette.fishSoft;
+  const hot =
+    color === 'gold'
+      ? mixHexColor(body, '#FFE08A', 0.55)
+      : color === 'sky'
+        ? mixHexColor(body, '#A5F3FC', 0.45)
+        : mixHexColor(body, '#FFFFFF', 0.4);
+  const stripe = color === 'gold' || color === 'teal' ? '#FFFFFF' : mixHexColor(body, '#FFFFFF', 0.85);
+  const shade = mixHexColor(body, '#1A0A08', 0.42);
+  const ink = '#0A0E14';
+  const finAccent =
+    color === 'gold'
+      ? mixHexColor(body, '#FF2E9A', 0.25)
+      : color === 'sky'
+        ? '#FF2E9A'
+        : mixHexColor(palette.plantAccent, '#FFFFFF', 0.2);
+  const nose = mixHexColor(body, ink, 0.35);
+  const rim = mixHexColor(hot, '#FFFFFF', 0.35);
+
+  let bodySeen = 0;
+  let out = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (ch === ' ') {
+      out += ' ';
+      continue;
+    }
+
+    let hex = body;
+    if (ch === '═' || ch === '≡') {
+      hex = stripe;
+    } else if (ch === 'º' || ch === '◦') {
+      // Eye: ink with a tiny catchlight feel via bright neighbor context.
+      hex = ink;
+    } else if (ch === '≈' || ch === '∽' || ch === '∼' || ch === '~') {
+      hex = kind === 'compact' || kind === 'tiny' ? finAccent : shade;
+    } else if (ch === '(' || ch === ')') {
+      bodySeen += 1;
+      hex = bodySeen <= 1 ? hot : bodySeen >= 3 ? shade : body;
+    } else if (ch === '>' || ch === '<') {
+      const atNose = facingRight ? i === line.length - 1 : i === 0;
+      const atTail = facingRight ? i === 0 : i === line.length - 1;
+      if (atNose) hex = nose;
+      else if (atTail) hex = kind === 'compact' ? finAccent : shade;
+      else hex = rim;
+    }
+
+    out += paint(hex, ch);
   }
   return out;
 }
@@ -330,11 +507,11 @@ export function applyFoxTail(rows: readonly string[], elapsedMs: number): string
   return applyFishTail(rows, elapsedMs, true);
 }
 
-/** Air-stone head — four flicker frames, no solid splash-moon blocks. */
+/** Compact aerator head — soft bubble + gravel stone, no box-drawing theatre. */
 export function resolveAirStoneGlyph(elapsedMs: number, seed: number): readonly string[] {
   const frame = Math.floor((elapsedMs + seed * 40) / 220) % BUBBLE_GLYPHS.length;
   const top = BUBBLE_GLYPHS[frame] ?? 'o';
-  return [` ${top} `, '╒═╕', ' ╨ '];
+  return [` ${top} `, ' · ', '._.'];
 }
 
 /** @deprecated transitional alias */
@@ -428,15 +605,18 @@ export function renderWaterline(width: number, elapsedMs: number): string {
   return cells.join('');
 }
 
+/** Dark aquasoil / gravel bed — rare warm glints under tank light. */
 export function renderSandLine(width: number, elapsedMs: number, rowSeed: number): string {
   if (width <= 0) return '';
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const twinkle = Math.sin(elapsedMs / 2_800 + x * 0.27 + rowSeed) > 0.985;
-    const pebble = hash2(x + 3, rowSeed + 11) % 17 === 0;
-    if (twinkle) cells.push('·');
-    else if (pebble) cells.push('˚');
-    else cells.push('.');
+    const n = hash2(x + 3, rowSeed + 11) % 11;
+    const glint = Math.sin(elapsedMs / 3_600 + x * 0.21 + rowSeed) > 0.97;
+    if (glint) cells.push('˚');
+    else if (n === 0) cells.push('o');
+    else if (n <= 2) cells.push(':');
+    else if (n <= 5) cells.push('.');
+    else cells.push('·');
   }
   return cells.join('');
 }
@@ -454,6 +634,82 @@ export function renderHillLine(width: number, elapsedMs: number): string {
     else cells.push(' ');
   }
   return cells.join('');
+}
+
+/**
+ * Vertical water volume — neon sky → electric mid → abyss.
+ * Sparse glyphs carry saturated color so depth reads without a soup fill.
+ */
+export function paintWaterDepth(
+  canvas: string[],
+  width: number,
+  rows: number,
+  paint: (hex: string, text: string) => string,
+  sky: string,
+  mid: string,
+  deep: string,
+  abyss?: string,
+): void {
+  if (width <= 0 || rows <= 2) return;
+  const sandY = rows - 1;
+  const bottom = abyss ?? mixHexColor(deep, '#020617', 0.45);
+  for (let y = 1; y < sandY; y++) {
+    const t = (y - 1) / Math.max(1, sandY - 2);
+    const hex =
+      t < 0.28
+        ? mixHexColor(sky, mid, t / 0.28)
+        : t < 0.62
+          ? mixHexColor(mid, deep, (t - 0.28) / 0.34)
+          : mixHexColor(deep, bottom, (t - 0.62) / 0.38);
+    // Upper: airy. Mid: body. Deep: thicker volume.
+    const chance = t < 0.3 ? 3 : t < 0.55 ? 8 : t < 0.75 ? 16 : 28;
+    const cells: string[] = [];
+    for (let x = 0; x < width; x++) {
+      const n = hash2(x * 17 + 3, y * 29 + 7) % 100;
+      if (n < chance) cells.push(t > 0.65 ? '˙' : '·');
+      else if (n < chance + (t > 0.7 ? 5 : 1)) cells.push(t > 0.5 ? '˚' : '·');
+      else cells.push(' ');
+    }
+    canvas[y] = padOrTrim(paint(hex, cells.join('')), width);
+  }
+}
+
+/** Surface god-rays / warm caustic ribbons — lighting, not clutter. */
+export function paintSurfaceLight(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  shaft: string,
+  cool: string,
+): void {
+  if (width < 36 || storyRows < 8) return;
+  const sandY = storyRows - 1;
+  const shafts = width >= 72 ? 3 : 2;
+  for (let i = 0; i < shafts; i++) {
+    const seed = hash2(i * 41 + 9, 113);
+    const baseX = 6 + Math.floor(((i + 0.35) / shafts) * (width - 14)) + ((seed % 5) - 2);
+    const drift = Math.floor(Math.sin(elapsedMs / 1_800 + seed) * 2);
+    const x = Math.max(2, Math.min(width - 3, baseX + drift));
+    const len = Math.min(sandY - 2, 3 + (seed % 3));
+    for (let d = 0; d < len; d++) {
+      const y = 1 + d;
+      if (y >= sandY - 1) break;
+      const fade = d / Math.max(1, len - 1);
+      const hex = mixHexColor(shaft, cool, fade * 0.65);
+      const g = d === 0 ? '˚' : d === 1 ? '·' : '˙';
+      // Skip if a hard glyph already owns the cell (fish/plant stay readable).
+      putCell(canvas, y, x + (d % 2 === 0 ? 0 : 1), width, paint(hex, g));
+    }
+  }
+
+  // Slow warm caustic band just under the surface (drift slowed — no flicker soup).
+  if (storyRows >= 10) {
+    paintCausticPath(canvas, 1, 1, width, elapsedMs * 0.12, (ch) =>
+      paint(mixHexColor(shaft, cool, 0.35), ch),
+    );
+  }
 }
 
 /**
@@ -535,8 +791,8 @@ export function paintWaterShimmer(
   }
 }
 
-/** Surface light shafts — thin vertical glints under the waterline. */
-export function paintSurfaceLight(
+/** @deprecated Prefer jewel {@link paintSurfaceLight}; intensity-based shafts. */
+export function paintSurfaceShafts(
   canvas: string[],
   width: number,
   rows: number,
@@ -651,24 +907,6 @@ function glyphForSnapshotFish(fish: IdleFish, elapsedMs: number): readonly strin
   return applyFishTail([fish.goesRight ? pair[0] : pair[1]], t, fish.goesRight);
 }
 
-function fishColorHex(
-  color: IdleFish['color'],
-  showAmbient: boolean,
-  palette: AquariumPalette,
-): string {
-  if (!showAmbient) return palette.dim;
-  switch (color) {
-    case 'gold':
-      return palette.fishGold;
-    case 'sky':
-      return palette.fishSky;
-    case 'teal':
-      return palette.fishTeal;
-    default:
-      return palette.fishSoft;
-  }
-}
-
 function paintFoodFromSnapshot(
   canvas: string[],
   width: number,
@@ -698,14 +936,10 @@ function paintFishFromSnapshot(
   fish: IdleTankSnapshot['fish'],
 ): void {
   for (const actor of fish) {
-    const hex = fishColorHex(actor.color, showAmbient, palette);
-    blitAt(
-      canvas,
-      glyphForSnapshotFish(actor, elapsedMs).map((line) => paint(hex, line)),
-      Math.trunc(actor.y),
-      Math.trunc(actor.x),
-      width,
+    const lines = glyphForSnapshotFish(actor, elapsedMs).map((line) =>
+      colorizeFishLine(line, actor.kind, actor.color, actor.goesRight, palette, paint, showAmbient),
     );
+    blitAt(canvas, lines, Math.trunc(actor.y), Math.trunc(actor.x), width);
   }
 }
 
@@ -732,13 +966,7 @@ function paintFishSchool(
   premium: boolean,
   showAmbient: boolean,
   paint: (hex: string, text: string) => string,
-  palette: {
-    readonly gold: string;
-    readonly sky: string;
-    readonly teal: string;
-    readonly soft: string;
-    readonly dim: string;
-  },
+  palette: AquariumPalette,
 ): void {
   const school = buildSchool(width, storyRows, premium);
   const floor = Math.max(2, storyRows - 2);
@@ -751,26 +979,69 @@ function paintFishSchool(
       : width + 8 - Math.floor(travel % loop);
     const bob = Math.sin(elapsedMs / FISH_SWIM_MS + actor.phase * Math.PI * 2) * 0.95;
     const y = Math.max(1, Math.min(floor - 1, Math.floor(actor.baseYRatio * floor + bob)));
-    const hex = showAmbient
-      ? actor.color === 'gold'
-        ? palette.gold
-        : actor.color === 'sky'
-          ? palette.sky
-          : actor.color === 'teal'
-            ? palette.teal
-            : palette.soft
-      : palette.dim;
-    blitAt(
-      canvas,
-      glyphForActor(actor, elapsedMs).map((line) => paint(hex, line)),
-      y,
-      x,
-      width,
+    const lines = glyphForActor(actor, elapsedMs).map((line) =>
+      colorizeFishLine(line, actor.kind, actor.color, actor.goesRight, palette, paint, showAmbient),
     );
+    blitAt(canvas, lines, y, x, width);
   }
 }
 
-/** Cool green seaweed forest along the bed. */
+type PlantKit = readonly (readonly [string, string, string, string])[];
+
+function paintPlantKit(
+  canvas: string[],
+  width: number,
+  sandY: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  kit: PlantKit,
+  x: number,
+  hex: string,
+  seed: number,
+  /** 0 = foreground bright, 1 = background muted (depth cue). */
+  depth = 0,
+  muteHex?: string,
+  /** Bright tip / lit edge (defaults to a hot lime lift of `hex`). */
+  tipHex?: string,
+): void {
+  const frameIdx = Math.floor(elapsedMs / PLANT_SWAY_MS + seed * 0.2) % 4;
+  const rows = kit.length;
+  const tip = tipHex ?? mixHexColor(hex, '#E8FF9A', 0.55);
+  const base = muteHex ?? mixHexColor(hex, '#041810', 0.7);
+  const lines = kit.map((row, rowIdx) => {
+    // tip (top of stalk) → base (bed): strong vertical jewel gradient
+    const t = rows <= 1 ? 0.5 : rowIdx / (rows - 1);
+    // depth pushes the whole stalk toward the abyss a bit
+    const stalk = mixHexColor(tip, base, Math.min(1, t * 0.92 + depth * 0.25));
+    const glyph = row[frameIdx] ?? row[0]!;
+    // Per-cell: leaf edges catch light, inner folds go darker.
+    let painted = '';
+    for (let i = 0; i < glyph.length; i++) {
+      const ch = glyph[i]!;
+      if (ch === ' ') {
+        painted += ' ';
+        continue;
+      }
+      const edge = i === 0 || i === glyph.length - 1 || ch === ')' || ch === '(';
+      const fold = ch === '~' || ch === '.' || ch === ',';
+      const cellHex = edge
+        ? mixHexColor(stalk, tip, 0.45)
+        : fold
+          ? mixHexColor(stalk, base, 0.4)
+          : stalk;
+      painted += paint(cellHex, ch);
+    }
+    return painted;
+  });
+  const top = Math.max(1, sandY - lines.length);
+  blitAt(canvas, lines, top, Math.max(0, Math.min(width - 5, x)), width);
+}
+
+/**
+ * Reference aquascape layout:
+ * left bubble + fine bush → center rock + broad leaves → right tall swords,
+ * one magenta stem behind the rock, carpet in the foreground.
+ */
 function paintSeaweed(
   canvas: string[],
   width: number,
@@ -779,57 +1050,175 @@ function paintSeaweed(
   paint: (hex: string, text: string) => string,
   green: string,
   greenSoft: string,
+  plantAccent: string,
+  depthMute: string,
 ): void {
   if (width < 24 || storyRows < 6) return;
-  const spacing = resolveSeaweedSpacing(width);
-  const count = Math.max(3, Math.floor((width - 2) / spacing));
   const sandY = storyRows - 1;
+  const left = Math.floor(width * 0.1);
+  const mid = Math.floor(width * 0.36);
+  const right = Math.floor(width * 0.68);
 
-  for (let i = 0; i < count; i++) {
-    const seed = hash2(i * 31 + 2, 61);
-    const x = 1 + i * spacing + ((seed % 3) - 1);
-    const frameIdx = Math.floor(elapsedMs / PLANT_SWAY_MS + seed * 0.2) % 4;
-    // 2–3 row bushes on the bed — never tall pole stacks.
-    const rows = seed % 3 === 0 ? 2 : 3;
-    const frames = PLANT_FRAMES.slice(PLANT_FRAMES.length - rows);
-    // Prefer solid plant green; soft accent only as a rare tint.
-    const hex = seed % 5 === 0 ? greenSoft : green;
-    const lines = frames.map((row) => paint(hex, row[frameIdx] ?? ')~)('));
-    const top = Math.max(1, sandY - lines.length);
-    blitAt(canvas, lines, top, Math.max(0, Math.min(width - 4, x)), width);
+  // Strong tip→bed gradient stops (jewel greens / magenta stem).
+  const tipLite = mixHexColor(greenSoft, '#F5FFB0', 0.5);
+  const tipHot = mixHexColor(green, '#C8FF60', 0.4);
+  const bedDeep = mixHexColor(green, depthMute, 0.72);
+  const bedAbyss = mixHexColor(bedDeep, '#020A08', 0.45);
+  const accentTip = mixHexColor(plantAccent, '#FFB0E0', 0.45);
+  const accentBed = mixHexColor(plantAccent, '#2A0418', 0.65);
+
+  // 1) Foreground carpet — denser left/right, light under the rock
+  const carpetStep = width >= 64 ? 3 : 2;
+  for (let x = 1; x < width - 4; x += carpetStep) {
+    const underRock = x >= mid - 2 && x <= mid + 12;
+    if (underRock && x % (carpetStep * 2) !== 0) continue;
+    const seed = hash2(x * 19 + 3, 41);
+    paintPlantKit(
+      canvas,
+      width,
+      sandY,
+      elapsedMs,
+      paint,
+      PLANT_CARPET,
+      x,
+      greenSoft,
+      seed,
+      0,
+      bedDeep,
+      tipLite,
+    );
   }
-}
 
-/** Coral / rock accents resting on the sand. */
-function paintCoral(
-  canvas: string[],
-  width: number,
-  storyRows: number,
-  elapsedMs: number,
-  paint: (hex: string, text: string) => string,
-  hex: string,
-  soft: string,
-): void {
-  if (width < 36 || storyRows < 7) return;
-  const sandY = storyRows - 1;
-  const count = width >= 80 ? 3 : 2;
-  for (let i = 0; i < count; i++) {
-    const seed = hash2(i * 59 + 13, 97);
-    const form = CORAL_FORMS[seed % CORAL_FORMS.length] ?? CORAL_FORMS[0]!;
-    const x = 6 + Math.floor(((i + 0.5) / count) * (width - 16)) + ((seed % 5) - 2);
-    const color = seed % 2 === 0 ? hex : soft;
-    // Tiny shimmer on the crown.
-    const lines = [paint(color, form[0] ?? '/\\'), paint(color, form[1] ?? '/__\\')];
-    const top = Math.max(1, sandY - lines.length);
-    blitAt(canvas, lines, top, Math.max(0, Math.min(width - 6, x)), width);
-    // Soft sparkle above the crown — never mutate the silhouette.
-    if (Math.sin(elapsedMs / 1_500 + seed) > 0.72) {
-      putCell(canvas, top - 1, Math.max(0, Math.min(width - 1, x + 1)), width, paint(soft, '·'));
+  // 2) Left fine bush (milfoil) — mid-height, beside the plume
+  for (const [i, x] of [left, left + 5, left + 9].entries()) {
+    if (x > width - 6) continue;
+    const seed = hash2(i * 31 + 2, 61);
+    paintPlantKit(
+      canvas,
+      width,
+      sandY,
+      elapsedMs,
+      paint,
+      PLANT_BUSH,
+      x,
+      green,
+      seed,
+      0.15,
+      bedAbyss,
+      tipHot,
+    );
+  }
+
+  // 3) Broad leaves tucked against the rock
+  if (width >= 40) {
+    paintPlantKit(
+      canvas,
+      width,
+      sandY,
+      elapsedMs,
+      paint,
+      PLANT_BROAD,
+      mid - 1,
+      green,
+      11,
+      0.1,
+      bedDeep,
+      tipHot,
+    );
+    paintPlantKit(
+      canvas,
+      width,
+      sandY,
+      elapsedMs,
+      paint,
+      PLANT_BROAD,
+      mid + 8,
+      greenSoft,
+      17,
+      0.15,
+      bedDeep,
+      tipLite,
+    );
+  }
+
+  // 4) Single magenta/red stem behind the hardscape
+  if (width >= 48 && storyRows >= 9) {
+    paintPlantKit(
+      canvas,
+      width,
+      sandY,
+      elapsedMs,
+      paint,
+      PLANT_STEM,
+      mid + 3,
+      plantAccent,
+      29,
+      0.4,
+      accentBed,
+      accentTip,
+    );
+  }
+
+  // 5) Right tall sword wall — hero mass, nearly to the waterline
+  if (width >= 40 && storyRows >= 9) {
+    const tallXs =
+      width >= 64
+        ? [right, right + 4, right + 8, right + 12]
+        : [right, right + 5, right + 9];
+    for (let i = 0; i < tallXs.length; i++) {
+      const x = tallXs[i]!;
+      if (x < 2 || x > width - 7) continue;
+      const seed = hash2(i * 43 + 7, 89);
+      // Farther-right stalks sit slightly deeper/darker.
+      const depth = 0.25 + i * 0.1;
+      paintPlantKit(
+        canvas,
+        width,
+        sandY,
+        elapsedMs,
+        paint,
+        PLANT_TALL,
+        x,
+        green,
+        seed,
+        depth,
+        bedAbyss,
+        tipHot,
+      );
     }
   }
 }
 
-/** Air-stone on the bed with a local bubble plume. */
+/** One warm centerpiece rock (reference hardscape), plus a small companion. */
+function paintCoral(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  _elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  hex: string,
+  soft: string,
+  bed: string,
+): void {
+  if (width < 36 || storyRows < 7) return;
+  const sandY = storyRows - 1;
+  const main = ROCK_FORMS[0]!;
+  const side = ROCK_FORMS[2]!;
+  const mainX = Math.floor(width * 0.38);
+  const sideX = Math.floor(width * 0.5);
+  const paintRock = (form: readonly string[], x: number, topColor: string, baseColor: string) => {
+    const lines = form.map((row, i) => {
+      const t = form.length <= 1 ? 0 : i / (form.length - 1);
+      return paint(mixHexColor(topColor, baseColor, t * 0.7), row);
+    });
+    const top = Math.max(1, sandY - lines.length);
+    blitAt(canvas, lines, top, Math.max(0, Math.min(width - (form[0]?.length ?? 6), x)), width);
+  };
+  paintRock(main, mainX, hex, soft);
+  if (width >= 56) paintRock(side, sideX, soft, mixHexColor(soft, bed, 0.4));
+}
+
+/** Left filter/aerator — fine bubble column rising toward the surface. */
 function paintAirStone(
   canvas: string[],
   width: number,
@@ -843,27 +1232,32 @@ function paintAirStone(
   if (width < 40 || storyRows < 8) return;
   const sandY = storyRows - 1;
   const seed = 42;
-  const x = Math.floor(width * 0.22);
-  const glyph = resolveAirStoneGlyph(elapsedMs, seed).map((line) => paint(stone, line));
-  blitAt(canvas, glyph, Math.max(1, sandY - glyph.length), x, width);
+  const x = Math.max(1, Math.floor(width * 0.06));
+  // Compact filter in the top-left corner (reference).
+  const head = [paint(stone, '╒═╕'), paint(stone, '╘═╛')];
+  const headTop = 1;
+  blitAt(canvas, head, headTop, x, width);
 
-  // Tight plume above the stone.
-  for (let i = 0; i < 3; i++) {
+  // Fine column from bed up toward the filter.
+  const plumeCount = Math.min(8, Math.max(5, Math.floor(storyRows * 0.6)));
+  for (let i = 0; i < plumeCount; i++) {
     const pSeed = hash2(i * 17 + 3, seed);
-    const period = 1_600 + (pSeed % 900);
-    const progress = ((elapsedMs + pSeed * 30) % period) / period;
-    const y = sandY - glyph.length - 1 - Math.floor(progress * Math.max(2, storyRows * 0.45));
-    const bx = x + 1 + (Math.sin(elapsedMs / 380 + i) > 0 ? 1 : 0);
+    const period = 1_400 + (pSeed % 800);
+    const progress = ((elapsedMs + pSeed * 37) % period) / period;
+    const span = Math.max(4, sandY - headTop - 1);
+    const y = sandY - 1 - Math.floor(progress * span);
+    if (y <= headTop || y >= sandY) continue;
+    const bx = x + 1 + (Math.sin(elapsedMs / 320 + i * 0.9) > 0 ? 1 : 0);
     const g = BUBBLE_GLYPHS[Math.min(BUBBLE_GLYPHS.length - 1, Math.floor(progress * 3))] ?? 'o';
-    putCell(canvas, y, bx, width, paint(progress > 0.6 ? bubble : bubbleSoft, g));
+    putCell(canvas, y, bx, width, paint(progress > 0.55 ? bubble : bubbleSoft, g));
   }
 }
 
 /**
  * Paint the Jewel Tank into `canvas[0..storyRows)`.
  *
- * Feeling: clear water, green curtain, coral accents, air-stone plume,
- * a soft caustic band, and a curated fish school.
+ * Aquascape: sky surface, open mid-water, planted bed, rocks, left aerator,
+ * fish + optional click-dropped food.
  */
 export function paintIdleStoryScene(options: {
   readonly canvas: string[];
@@ -893,45 +1287,116 @@ export function paintIdleStoryScene(options: {
 
   const palette = resolveAquariumPalette(colors, themeMode);
 
-  // Mid-water stays blank (open water); helpers like paintWaterBase remain unused here.
-
-  // 1) Surface line — sky water (glow), not a deep/green-leaning token
+  // 1) Surface line — bright sky with warm sparkle peaks
   if (storyRows >= 4) {
-    canvas[0] = padOrTrim(
-      paint(showAmbient ? palette.water : colors.textMuted, renderWaterline(width, elapsedMs)),
-      width,
-    );
+    const line = renderWaterline(width, elapsedMs);
+    if (!showAmbient) {
+      canvas[0] = padOrTrim(paint(colors.textMuted, line), width);
+    } else {
+      let painted = '';
+      for (let x = 0; x < line.length; x++) {
+        const ch = line[x]!;
+        const hex =
+          ch === '≈'
+            ? mixHexColor(palette.water, palette.shaft, 0.35)
+            : ch === '~'
+              ? palette.water
+              : mixHexColor(palette.water, palette.waterSoft, 0.4);
+        painted += paint(hex, ch);
+      }
+      canvas[0] = padOrTrim(painted, width);
+    }
   }
 
-  // 2) Warm sand bed
+  // 2) Dark gravel bed with warm light glints
   const sandY = storyRows - 1;
   if (sandY > 0) {
-    canvas[sandY] = padOrTrim(paint(palette.sand, renderSandLine(width, elapsedMs, 1)), width);
+    const bed = renderSandLine(width, elapsedMs, 1);
+    let sandPainted = '';
+    for (const ch of bed) {
+      sandPainted +=
+        ch === '˚'
+          ? paint(mixHexColor(palette.coral, palette.shaft, 0.45), ch)
+          : paint(palette.sand, ch);
+    }
+    canvas[sandY] = padOrTrim(sandPainted, width);
   }
 
-  // 3) Seaweed curtain
+  // 3) Vertical water volume (sky → mid → abyss)
   if (showAmbient) {
-    paintSeaweed(canvas, width, storyRows, elapsedMs, paint, palette.plant, palette.plantSoft);
-  }
-
-  // 4) Quiet rising bubbles (tank-wide)
-  if (showAmbient) {
-    paintBubbles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
-      paint(intensity > 0.7 ? palette.bubble : colors.textMuted, glyph),
+    paintWaterDepth(
+      canvas,
+      width,
+      storyRows,
+      paint,
+      palette.water,
+      palette.waterSoft,
+      palette.waterDeep,
+      palette.waterAbyss,
     );
   }
 
-  // 5) Fish + food — snapshot when provided, patrol school as fallback
+  // 4) Surface god-rays + warm caustic ribbon
+  if (showAmbient && premium) {
+    paintSurfaceLight(
+      canvas,
+      width,
+      storyRows,
+      elapsedMs,
+      paint,
+      palette.shaft,
+      mixHexColor(palette.water, palette.bubble, 0.4),
+    );
+  }
+
+  // 5) Plants first (carpet / banks / stem)
+  if (showAmbient) {
+    paintSeaweed(
+      canvas,
+      width,
+      storyRows,
+      elapsedMs,
+      paint,
+      palette.plant,
+      palette.plantSoft,
+      palette.plantAccent,
+      mixHexColor(palette.waterDeep, palette.sand, 0.55),
+    );
+  }
+
+  // 6) Centerpiece rock on top so hardscape stays readable
+  if (showAmbient && premium) {
+    paintCoral(
+      canvas,
+      width,
+      storyRows,
+      elapsedMs,
+      paint,
+      palette.coral,
+      palette.coralSoft,
+      palette.sand,
+    );
+  }
+
+  // 7) Left filter + bubble column (bright jewel bubbles)
+  if (showAmbient && premium) {
+    paintAirStone(
+      canvas,
+      width,
+      storyRows,
+      elapsedMs,
+      paint,
+      mixHexColor(palette.dim, palette.waterDeep, 0.35),
+      palette.bubble,
+      mixHexColor(palette.bubble, palette.water, 0.4),
+    );
+  }
+
+  // 8) Fish + food
   if (sim) {
     paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
     paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);
   } else {
-    paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, {
-      gold: palette.fishGold,
-      sky: palette.fishSky,
-      teal: palette.fishTeal,
-      soft: palette.fishSoft,
-      dim: palette.dim,
-    });
+    paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, palette);
   }
 }
