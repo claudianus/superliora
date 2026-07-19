@@ -1,6 +1,7 @@
 import type { NativeInputEvent, NativeInputMouseEvent } from '#/tui/renderer';
 
 import type { TUIState } from '../tui-state';
+import { clearIdleFeedPending, handleIdleFeedMouseInput } from './idle-feed-mouse';
 import {
   resolveTranscriptHitTestContext,
   transcriptPointForMouse,
@@ -32,11 +33,16 @@ function handleTranscriptSelectionMouseEvent(
   const selection = state.transcriptSelection;
   if (event.action === 'press') {
     selection.beginPress(point, event.shift);
+    handleIdleFeedMouseInput(state, event, point);
     return true;
   }
   if (event.action === 'drag') {
     if (!selection.isDragging) return false;
     selection.updateDrag(point);
+    handleIdleFeedMouseInput(state, event, point);
+    return true;
+  }
+  if (handleIdleFeedMouseInput(state, event, point)) {
     return true;
   }
   selection.endPress();
@@ -44,5 +50,6 @@ function handleTranscriptSelectionMouseEvent(
 }
 
 export function clearTranscriptSelection(state: TUIState): void {
+  clearIdleFeedPending(state);
   state.transcriptSelection.clear();
 }
