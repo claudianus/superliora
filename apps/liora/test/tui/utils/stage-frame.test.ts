@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   STAGE_FRAME_ARM_MIN,
   STAGE_FRAME_ARM_TARGET,
+  STAGE_FRAME_CHASE_MS_PER_CELL,
   STAGE_FRAME_MARGIN,
   noteStageFrameBundle,
   paintStageFrameCells,
@@ -12,6 +13,7 @@ import {
   stageFrameBundleRect,
   stageFrameEntranceArmLength,
   stageFrameEntranceProgress,
+  stageFrameEntranceStartedAtMs,
   stageFrameStrokeCells,
   stageFrameVisible,
 } from '#/tui/utils/stage-frame';
@@ -22,6 +24,10 @@ import {
   STAGE_MAX_WIDTH,
   STAGE_RAIL_GAP,
 } from '#/tui/controllers/stage-layout';
+import {
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 import { resetTUIInputInteractionForTests } from '#/tui/utils/input-interaction';
 
 describe('stageFrameVisible', () => {
@@ -76,9 +82,36 @@ describe('stageFrameStrokeCells', () => {
 });
 
 describe('stageFrame entrance + chase', () => {
+  const previous = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+  };
+
   beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
     resetStageFrameEntranceForTests();
     resetTUIInputInteractionForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
   it('snaps progress to 1 when ambient is off', () => {
@@ -94,7 +127,8 @@ describe('stageFrame entrance + chase', () => {
   it('resets entrance when bundle key changes', () => {
     noteStageFrameBundle('a', 1000);
     noteStageFrameBundle('b', 1500);
-    expect(stageFrameEntranceProgress(1500, 1500, false)).toBe(0);
+    expect(stageFrameEntranceStartedAtMs()).toBe(1500);
+    expect(stageFrameEntranceProgress(stageFrameEntranceStartedAtMs(), 1500, false)).toBe(0);
   });
 
   it('paint returns cells only outside the bundle', () => {
@@ -132,5 +166,86 @@ describe('stageFrame entrance + chase', () => {
     const fullArm = stageFrameArmLength(bundle);
     const strokeOnly = stageFrameStrokeCells(bundle, fullArm).filter((c) => c.kind === 'stroke');
     expect(cells.length).toBe(strokeOnly.length);
+  });
+
+  it('paints bloom cells when subtle ambient is allowed', () => {
+    const bundle = { x: 40, y: 12, width: 108, height: 56 };
+    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'subtle' as const,
+      particles: 'ambient' as const,
+    };
+    const cells = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: 10_000,
+      appearance,
+      freezeChase: false,
+    });
+    const fullArm = stageFrameArmLength(bundle);
+    const strokeOnly = stageFrameStrokeCells(bundle, fullArm).filter((c) => c.kind === 'stroke');
+    expect(cells.length).toBeGreaterThan(strokeOnly.length);
+  });
+
+  it('keeps chase head frozen when freezeChase is true', () => {
+    const bundle = { x: 40, y: 12, width: 108, height: 56 };
+    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'subtle' as const,
+      particles: 'ambient' as const,
+    };
+    const settled = 10_000;
+    const a = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: settled,
+      appearance,
+      freezeChase: true,
+    });
+    const b = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: settled + STAGE_FRAME_CHASE_MS_PER_CELL * 3,
+      appearance,
+      freezeChase: true,
+    });
+    expect(a.length).toBeGreaterThan(0);
+    expect(b).toEqual(a);
+  });
+
+  it('advances chase styling across settled nowMs when freezeChase is false', () => {
+    const bundle = { x: 40, y: 12, width: 108, height: 56 };
+    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'subtle' as const,
+      particles: 'ambient' as const,
+    };
+    const settled = 10_000;
+    const a = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: settled,
+      appearance,
+      freezeChase: false,
+    });
+    const b = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: settled + STAGE_FRAME_CHASE_MS_PER_CELL,
+      appearance,
+      freezeChase: false,
+    });
+    expect(a.length).toBe(b.length);
+    const signature = (cells: typeof a) =>
+      cells.map((c) => `${c.x},${c.y},${c.fg},${c.bold === true ? 1 : 0}`).join('|');
+    expect(signature(a)).not.toBe(signature(b));
   });
 });
