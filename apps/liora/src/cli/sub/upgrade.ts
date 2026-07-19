@@ -70,12 +70,26 @@ export async function handleUpgrade(
       error: plan.errorMessage ?? 'unknown',
     });
     deps.stderr.write(
-      tln('cli.runtime.upgrade.checkFailed', { reason: plan.errorMessage ?? 'unknown' }),
+      plan.source === 'github-checkout'
+        ? tln('cli.runtime.upgrade.githubCheckFailed', {
+            reason: plan.errorMessage ?? 'unknown',
+          })
+        : tln('cli.runtime.upgrade.checkFailed', { reason: plan.errorMessage ?? 'unknown' }),
     );
     return 1;
   }
 
   if (plan.reason === 'already-installing') {
+    trackUpgradeEvent(deps.track, 'upgrade_command_already_installing', {
+      current_version: currentVersion,
+      target_version: plan.target?.version ?? currentVersion,
+      source: plan.source,
+    });
+    logUpgradeInfo(deps.logger, 'manual upgrade already installing', {
+      currentVersion,
+      targetVersion: plan.target?.version ?? currentVersion,
+      source: plan.source,
+    });
     deps.stdout.write(
       tln('cli.runtime.upgrade.alreadyInstalling', {
         version: plan.target?.version ?? currentVersion,
@@ -111,7 +125,20 @@ export async function handleUpgrade(
       stage: 'refresh',
       reason: plan.errorMessage ?? 'diverged',
     });
+    logUpgradeWarn(deps.logger, 'manual upgrade diverged', {
+      currentVersion,
+      source: plan.source,
+      error: plan.errorMessage ?? 'diverged',
+    });
     deps.stderr.write(`${plan.errorMessage ?? 'diverged'}\n`);
+    deps.stdout.write(
+      renderManualUpdateMessage(
+        currentVersion,
+        { version: currentVersion },
+        plan.source,
+        plan.installCommand,
+      ),
+    );
     return 1;
   }
 

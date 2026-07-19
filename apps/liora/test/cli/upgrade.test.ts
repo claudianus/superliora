@@ -308,6 +308,34 @@ describe('handleUpgrade', () => {
     expect(stderr.join('')).toContain('error: failed to check for updates: cdn unavailable');
   });
 
+  it('returns exit 1 with a manual recovery command when the checkout has diverged', async () => {
+    const { stdout, stderr, writable } = captureOutput();
+    const installCommand = 'bash -lc \'set -e; git pull\'';
+    const deps = createDeps({
+      plan: basePlan({
+        reason: 'diverged',
+        source: 'github-checkout',
+        errorMessage: 'Git checkout has diverged from origin/main',
+        installCommand,
+      }),
+    });
+
+    await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(1);
+
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0');
+    expect(deps.installUpdate).not.toHaveBeenCalled();
+    expect(deps.promptForInstallChoice).not.toHaveBeenCalled();
+    expect(deps.track).toHaveBeenCalledWith('upgrade_command_failed', expect.objectContaining({
+      current_version: '0.4.0',
+      source: 'github-checkout',
+      stage: 'refresh',
+      reason: 'Git checkout has diverged from origin/main',
+    }));
+    expect(stderr.join('')).toContain('Git checkout has diverged from origin/main');
+    expect(stdout.join('')).toContain('To update manually, run:');
+    expect(stdout.join('')).toContain(installCommand);
+  });
+
   it('ignores rollout gating: installs the latest version while every batch is still held', async () => {
     const { stdout, writable } = captureOutput();
     // Manual upgrade plans always surface the latest CDN version; rollout
@@ -342,6 +370,11 @@ describe('handleUpgrade', () => {
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
 
     expect(deps.installUpdate).not.toHaveBeenCalled();
+    expect(deps.track).toHaveBeenCalledWith('upgrade_command_already_installing', expect.objectContaining({
+      current_version: '0.4.0',
+      target_version: '0.5.0',
+      source: 'npm-global',
+    }));
     expect(stdout.join('')).toContain('An update install is already in progress (0.5.0).');
   });
 });
