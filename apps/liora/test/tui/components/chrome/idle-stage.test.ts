@@ -251,11 +251,10 @@ describe('idle-stage helpers', () => {
     });
   });
 
-  it('uses denser seaweed spacing on wide tanks', () => {
-    expect(resolveSeaweedSpacing(80)).toBeLessThanOrEqual(5);
-    expect(resolveSeaweedSpacing(80)).toBe(4);
-    expect(resolveSeaweedSpacing(50)).toBe(5);
-    expect(resolveSeaweedSpacing(30)).toBe(6);
+  it('uses sparser seaweed spacing on wide tanks', () => {
+    expect(resolveSeaweedSpacing(80)).toBe(6);
+    expect(resolveSeaweedSpacing(50)).toBe(8);
+    expect(resolveSeaweedSpacing(30)).toBe(10);
   });
 
   it('maps aquarium roles from brand motion tokens only', () => {

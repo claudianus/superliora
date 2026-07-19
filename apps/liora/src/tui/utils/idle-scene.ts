@@ -151,9 +151,9 @@ function hash2(a: number, b: number): number {
 }
 
 export function resolveSeaweedSpacing(width: number): number {
-  if (width >= 80) return 4;
-  if (width >= 50) return 5;
-  return 6;
+  if (width >= 80) return 6;
+  if (width >= 50) return 8;
+  return 10;
 }
 
 export interface AquariumPalette {
@@ -336,15 +336,15 @@ export function paintBubbles(
   paintGlyph: (glyph: string, intensity: number) => string,
 ): void {
   if (width <= 0 || rows <= 0) return;
-  const columns = Math.max(2, Math.min(5, Math.floor(width / 16)));
+  const columns = Math.max(1, Math.min(2, Math.floor(width / 28)));
   for (let i = 0; i < columns; i++) {
     const seed = hash2(i * 29 + 5, 77);
     const x = 3 + (seed % Math.max(1, width - 6));
-    const period = 2_400 + (seed % 2_000);
+    const period = 3_200 + (seed % 2_400);
     const progress = ((elapsedMs + seed) % period) / period;
     const y = Math.floor((1 - progress) * (rows - 1));
     const sizeIdx = Math.min(BUBBLE_GLYPHS.length - 1, Math.floor(progress * BUBBLE_GLYPHS.length));
-    const wobble = Math.sin(elapsedMs / 420 + seed) > 0 ? 0 : 1;
+    const wobble = Math.sin(elapsedMs / 720 + seed) > 0 ? 0 : 1;
     putCell(
       canvas,
       y,
@@ -405,7 +405,7 @@ export function renderWaterline(width: number, elapsedMs: number): string {
   if (width <= 0) return '';
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const phase = Math.sin(x * 0.28 + elapsedMs / 980);
+    const phase = Math.sin(x * 0.28 + elapsedMs / 2_200);
     if (phase > 0.55) cells.push('≈');
     else if (phase > 0.1) cells.push('~');
     else if (phase > -0.35) cells.push('∼');
@@ -418,7 +418,7 @@ export function renderSandLine(width: number, elapsedMs: number, rowSeed: number
   if (width <= 0) return '';
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const twinkle = Math.sin(elapsedMs / 2_800 + x * 0.27 + rowSeed) > 0.9;
+    const twinkle = Math.sin(elapsedMs / 2_800 + x * 0.27 + rowSeed) > 0.985;
     const pebble = hash2(x + 3, rowSeed + 11) % 17 === 0;
     if (twinkle) cells.push('·');
     else if (pebble) cells.push('˚');
@@ -601,7 +601,7 @@ interface FishActor {
 
 function buildSchool(width: number, storyRows: number, premium: boolean): FishActor[] {
   // Curated cast — lead + companions, never a crowd.
-  const count = premium ? (width >= 72 ? 4 : 3) : width >= 50 ? 3 : 2;
+  const count = premium ? (width >= 72 ? 3 : 2) : width >= 50 ? 2 : 1;
   const colors: FishColor[] = ['gold', 'sky', 'teal', 'soft'];
   // Staggered depth bands so the lead lane stays readable.
   const bands = [0.22, 0.38, 0.3, 0.48] as const;
