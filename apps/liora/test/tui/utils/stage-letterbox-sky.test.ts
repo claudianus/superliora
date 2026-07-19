@@ -360,6 +360,55 @@ describe('stage letterbox night sky', () => {
     expect(nearRim).toBe(true);
   });
 
+  it('flings streak debris outward through letterbox gutters during bursts', () => {
+    const bands = ultrawideBands();
+    const hole = resolveStageHoleFromBands(bands, 200, 80)!;
+    const cx = (hole.x0 + hole.x1) / 2;
+    const cy = (hole.y0 + hole.y1) / 2;
+    const isDebris = (ch: string) =>
+      ch === '*' || ch === '+' || ch === '✧' || ch === '✦' || ch === '˚';
+    let sawTrail = false;
+    let maxAway = 0;
+    let earlierAway = 0;
+    let laterAway = 0;
+    let sampleEarly = false;
+    for (let t = 0; t < 16_000; t += 30) {
+      const cells = paintStageLetterboxSky({
+        bands,
+        cols: 200,
+        rows: 80,
+        nowMs: 110_000 + t,
+        appearance: premiumAmbient,
+        freeze: false,
+      });
+      let frameAway = 0;
+      let debrisN = 0;
+      for (const c of cells) {
+        if (!isDebris(c.char)) continue;
+        expect(
+          c.x >= hole.x0 && c.x < hole.x1 && c.y >= hole.y0 && c.y < hole.y1,
+        ).toBe(false);
+        const dist = Math.hypot(c.x - cx, c.y - cy);
+        frameAway += dist;
+        debrisN++;
+        if (c.char === '*' || c.char === '˚') sawTrail = true;
+      }
+      if (debrisN < 4) continue;
+      const avg = frameAway / debrisN;
+      maxAway = Math.max(maxAway, avg);
+      if (!sampleEarly) {
+        earlierAway = avg;
+        sampleEarly = true;
+      } else {
+        laterAway = Math.max(laterAway, avg);
+      }
+    }
+    expect(sawTrail).toBe(true);
+    // Debris should leave the impact / stage center neighborhood.
+    expect(maxAway).toBeGreaterThan(8);
+    expect(laterAway).toBeGreaterThan(earlierAway * 0.9);
+  });
+
   it('arms a planet-class meteor after three quick clicks', () => {
     const bands = ultrawideBands();
     expect(noteMeteorEasterEggClick(1_000)).toBe(false);
