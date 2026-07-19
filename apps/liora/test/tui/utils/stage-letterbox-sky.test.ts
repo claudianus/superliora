@@ -17,6 +17,7 @@ import {
   resolveStageHoleFromBands,
   spawnAndTarget,
   spawnOutsideScreen,
+  resolveDebrisShardParams,
 } from '#/tui/utils/stage-letterbox-sky';
 import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/utils/stage-frame';
 import { resolveStageLayout } from '#/tui/controllers/stage-layout';
@@ -360,18 +361,17 @@ describe('stage letterbox night sky', () => {
     expect(nearRim).toBe(true);
   });
 
-  it('flings streak debris outward through letterbox gutters during bursts', () => {
+  it('flings zero-g radial debris streaks through letterbox gutters', () => {
     const bands = ultrawideBands();
     const hole = resolveStageHoleFromBands(bands, 200, 80)!;
-    const cx = (hole.x0 + hole.x1) / 2;
-    const cy = (hole.y0 + hole.y1) / 2;
     const isDebris = (ch: string) =>
       ch === '*' || ch === '+' || ch === '✧' || ch === '✦' || ch === '˚';
     let sawTrail = false;
-    let maxAway = 0;
-    let earlierAway = 0;
-    let laterAway = 0;
-    let sampleEarly = false;
+    let sawAbove = false;
+    let sawBelow = false;
+    let sawLeft = false;
+    let sawRight = false;
+    let maxDistFromImpactPad = 0;
     for (let t = 0; t < 16_000; t += 30) {
       const cells = paintStageLetterboxSky({
         bands,
@@ -381,32 +381,63 @@ describe('stage letterbox night sky', () => {
         appearance: premiumAmbient,
         freeze: false,
       });
-      let frameAway = 0;
-      let debrisN = 0;
+      // Approximate impact as nearest rim cells carrying a flash/debris cluster.
       for (const c of cells) {
         if (!isDebris(c.char)) continue;
         expect(
           c.x >= hole.x0 && c.x < hole.x1 && c.y >= hole.y0 && c.y < hole.y1,
         ).toBe(false);
-        const dist = Math.hypot(c.x - cx, c.y - cy);
-        frameAway += dist;
-        debrisN++;
         if (c.char === '*' || c.char === '˚') sawTrail = true;
-      }
-      if (debrisN < 4) continue;
-      const avg = frameAway / debrisN;
-      maxAway = Math.max(maxAway, avg);
-      if (!sampleEarly) {
-        earlierAway = avg;
-        sampleEarly = true;
-      } else {
-        laterAway = Math.max(laterAway, avg);
+        if (c.y < hole.y0) sawAbove = true;
+        if (c.y >= hole.y1) sawBelow = true;
+        if (c.x < hole.x0) sawLeft = true;
+        if (c.x >= hole.x1) sawRight = true;
+        const midX = (hole.x0 + hole.x1) / 2;
+        const midY = (hole.y0 + hole.y1) / 2;
+        maxDistFromImpactPad = Math.max(
+          maxDistFromImpactPad,
+          Math.hypot(c.x - midX, c.y - midY),
+        );
       }
     }
     expect(sawTrail).toBe(true);
-    // Debris should leave the impact / stage center neighborhood.
-    expect(maxAway).toBeGreaterThan(8);
-    expect(laterAway).toBeGreaterThan(earlierAway * 0.9);
+    // Must fan in multiple cardinal gutters — not just "fall" downward.
+    const directions = [sawAbove, sawBelow, sawLeft, sawRight].filter(Boolean).length;
+    expect(directions).toBeGreaterThanOrEqual(3);
+    expect(maxDistFromImpactPad).toBeGreaterThan(12);
+  });
+
+  it('keeps S/M/L debris speed and streak envelopes disjoint', () => {
+    const sample = (size: 's' | 'm' | 'l') => {
+      const speeds: number[] = [];
+      const streaks: number[] = [];
+      const angs: number[] = [];
+      const count = size === 's' ? 10 : size === 'm' ? 24 : 48;
+      const scale = size === 's' ? 0.65 : size === 'm' ? 1.3 : 2.2;
+      for (let i = 0; i < 60; i++) {
+        const p = resolveDebrisShardParams(size, true, i * 17 + 3, i, count, scale);
+        speeds.push(p.speed);
+        streaks.push(p.streakLen);
+        angs.push(((p.ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2));
+      }
+      return {
+        minSpeed: Math.min(...speeds),
+        maxSpeed: Math.max(...speeds),
+        minStreak: Math.min(...streaks),
+        maxStreak: Math.max(...streaks),
+        angSpan: Math.max(...angs) - Math.min(...angs),
+      };
+    };
+    const s = sample('s');
+    const m = sample('m');
+    const l = sample('l');
+    expect(s.maxSpeed).toBeLessThan(m.minSpeed);
+    expect(m.maxSpeed).toBeLessThan(l.minSpeed);
+    expect(s.maxStreak).toBeLessThanOrEqual(m.minStreak);
+    expect(m.maxStreak).toBeLessThanOrEqual(l.minStreak);
+    // Spokes cover most of a full circle.
+    expect(s.angSpan).toBeGreaterThan(Math.PI);
+    expect(l.angSpan).toBeGreaterThan(Math.PI * 1.5);
   });
 
   it('arms a planet-class meteor after three quick clicks', () => {
