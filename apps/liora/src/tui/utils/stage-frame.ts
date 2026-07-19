@@ -7,14 +7,23 @@ import {
 } from '#/tui/utils/appearance-effects';
 import { isTUIInputInteractionActive } from '#/tui/utils/input-interaction';
 
+/** Cells between bundle edge and the stroke ring. */
 export const STAGE_FRAME_GAP = 2;
-export const STAGE_FRAME_BLOOM = 1;
-export const STAGE_FRAME_MARGIN = STAGE_FRAME_GAP + STAGE_FRAME_BLOOM + 1; // 4
-export const STAGE_FRAME_ARM_TARGET = 5;
-export const STAGE_FRAME_ARM_MIN = 4;
-export const STAGE_FRAME_ENTRANCE_MS = 320;
-export const STAGE_FRAME_CHASE_MS_PER_CELL = 110; // ~9 cells/s
-export const STAGE_FRAME_TRAIL_LEN = 5;
+/** Stroke ring needs gap + 1 cell outside the bundle on every side. */
+export const STAGE_FRAME_MARGIN = STAGE_FRAME_GAP + 1;
+/** Short L arms — long rails + bloom read as a noisy second box. */
+export const STAGE_FRAME_ARM_TARGET = 3;
+export const STAGE_FRAME_ARM_MIN = 2;
+export const STAGE_FRAME_ENTRANCE_MS = 280;
+/** Slow corner luminance breathe (ms per full cycle). */
+export const STAGE_FRAME_BREATHE_MS = 2600;
+
+/** @deprecated Kept for test/import compatibility; bloom removed. */
+export const STAGE_FRAME_BLOOM = 0;
+/** @deprecated Chase removed; corner breathe only. */
+export const STAGE_FRAME_CHASE_MS_PER_CELL = STAGE_FRAME_BREATHE_MS;
+/** @deprecated Chase removed. */
+export const STAGE_FRAME_TRAIL_LEN = 0;
 
 export interface StageFrameBand {
   readonly x: number;
@@ -101,7 +110,7 @@ export function stageFrameVisible(bundle: StageFrameBand, cols: number, rows: nu
 
 export function stageFrameArmLength(bundle: StageFrameBand): number {
   const fit = (side: number): number => {
-    // two arms + ≥2 gap between tips
+    // two arms + ≥2 empty cells between tips
     if (STAGE_FRAME_ARM_TARGET * 2 + 2 <= side) return STAGE_FRAME_ARM_TARGET;
     if (STAGE_FRAME_ARM_MIN * 2 + 2 <= side) return STAGE_FRAME_ARM_MIN;
     return Math.max(1, Math.floor((side - 2) / 2));
@@ -113,8 +122,12 @@ export interface StageFrameStrokeCell {
   readonly x: number;
   readonly y: number;
   readonly char: string;
-  readonly kind: 'stroke' | 'bloom';
+  /** Always stroke — bloom removed for visual clarity. */
+  readonly kind: 'stroke';
+  readonly corner: boolean;
 }
+
+const CORNER_CHARS = new Set(['╭', '╮', '╰', '╯']);
 
 export function stageFrameStrokeCells(
   bundle: StageFrameBand,
@@ -127,93 +140,40 @@ export function stageFrameStrokeCells(
   const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1;
   const out: StageFrameStrokeCell[] = [];
 
-  const pushStroke = (x: number, y: number, char: string) => {
-    out.push({ x, y, char, kind: 'stroke' });
-  };
-  const pushBloom = (x: number, y: number, char: string) => {
-    out.push({ x, y, char, kind: 'bloom' });
+  const push = (x: number, y: number, char: string) => {
+    out.push({ x, y, char, kind: 'stroke', corner: CORNER_CHARS.has(char) });
   };
 
   // TL
-  pushStroke(left, top, '╭');
-  for (let i = 1; i < arm; i++) pushStroke(left + i, top, '─');
-  for (let i = 1; i < arm; i++) pushStroke(left, top + i, '│');
-  pushBloom(left - STAGE_FRAME_BLOOM, top - STAGE_FRAME_BLOOM, '╭');
-  for (let i = 1; i < arm; i++) pushBloom(left + i, top - STAGE_FRAME_BLOOM, '─');
-  for (let i = 1; i < arm; i++) pushBloom(left - STAGE_FRAME_BLOOM, top + i, '│');
+  push(left, top, '╭');
+  for (let i = 1; i < arm; i++) push(left + i, top, '─');
+  for (let i = 1; i < arm; i++) push(left, top + i, '│');
 
   // TR
-  pushStroke(right, top, '╮');
-  for (let i = 1; i < arm; i++) pushStroke(right - i, top, '─');
-  for (let i = 1; i < arm; i++) pushStroke(right, top + i, '│');
-  pushBloom(right + STAGE_FRAME_BLOOM, top - STAGE_FRAME_BLOOM, '╮');
-  for (let i = 1; i < arm; i++) pushBloom(right - i, top - STAGE_FRAME_BLOOM, '─');
-  for (let i = 1; i < arm; i++) pushBloom(right + STAGE_FRAME_BLOOM, top + i, '│');
+  push(right, top, '╮');
+  for (let i = 1; i < arm; i++) push(right - i, top, '─');
+  for (let i = 1; i < arm; i++) push(right, top + i, '│');
 
   // BR
-  pushStroke(right, bottom, '╯');
-  for (let i = 1; i < arm; i++) pushStroke(right - i, bottom, '─');
-  for (let i = 1; i < arm; i++) pushStroke(right, bottom - i, '│');
-  pushBloom(right + STAGE_FRAME_BLOOM, bottom + STAGE_FRAME_BLOOM, '╯');
-  for (let i = 1; i < arm; i++) pushBloom(right - i, bottom + STAGE_FRAME_BLOOM, '─');
-  for (let i = 1; i < arm; i++) pushBloom(right + STAGE_FRAME_BLOOM, bottom - i, '│');
+  push(right, bottom, '╯');
+  for (let i = 1; i < arm; i++) push(right - i, bottom, '─');
+  for (let i = 1; i < arm; i++) push(right, bottom - i, '│');
 
   // BL
-  pushStroke(left, bottom, '╰');
-  for (let i = 1; i < arm; i++) pushStroke(left + i, bottom, '─');
-  for (let i = 1; i < arm; i++) pushStroke(left, bottom - i, '│');
-  pushBloom(left - STAGE_FRAME_BLOOM, bottom + STAGE_FRAME_BLOOM, '╰');
-  for (let i = 1; i < arm; i++) pushBloom(left + i, bottom + STAGE_FRAME_BLOOM, '─');
-  for (let i = 1; i < arm; i++) pushBloom(left - STAGE_FRAME_BLOOM, bottom - i, '│');
+  push(left, bottom, '╰');
+  for (let i = 1; i < arm; i++) push(left + i, bottom, '─');
+  for (let i = 1; i < arm; i++) push(left, bottom - i, '│');
 
   return out;
 }
 
-function positiveModulo(n: number, m: number): number {
-  if (m <= 0) return 0;
-  return ((n % m) + m) % m;
-}
-
-/** Pair bloom twins to stroke cells using geometry emission order (stroke group → bloom group). */
-function bloomTwinByStroke(
-  geometry: readonly StageFrameStrokeCell[],
-): ReadonlyMap<string, StageFrameStrokeCell> {
-  const map = new Map<string, StageFrameStrokeCell>();
-  let i = 0;
-  let strokeGroup: StageFrameStrokeCell[] = [];
-  while (i < geometry.length) {
-    const kind = geometry[i]!.kind;
-    const group: StageFrameStrokeCell[] = [];
-    while (i < geometry.length && geometry[i]!.kind === kind) {
-      group.push(geometry[i]!);
-      i += 1;
-    }
-    if (kind === 'stroke') {
-      strokeGroup = group;
-      continue;
-    }
-    const n = Math.min(strokeGroup.length, group.length);
-    for (let j = 0; j < n; j++) {
-      const stroke = strokeGroup[j]!;
-      map.set(`${stroke.x},${stroke.y}`, group[j]!);
-    }
-  }
-  return map;
-}
-
-function chaseFgForTrailStep(
-  step: number,
-  trailLen: number,
-  head: string,
-  mid: string,
-  soft: string,
-  dim: string,
-): string {
-  const t = step / Math.max(1, trailLen);
-  if (t < 0.12) return head;
-  if (t < 0.4) return mid;
-  if (t < 0.72) return soft;
-  return dim;
+/** 0..1 ease-in-out breathe phase. */
+export function stageFrameBreathePhase(nowMs: number): number {
+  const cycle = STAGE_FRAME_BREATHE_MS;
+  if (cycle <= 0) return 0;
+  const t = (Math.max(0, nowMs) % cycle) / cycle;
+  // Smooth half-sine — never snaps.
+  return 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
 }
 
 export function paintStageFrameCells(input: {
@@ -222,6 +182,7 @@ export function paintStageFrameCells(input: {
   readonly rows: number;
   readonly nowMs: number;
   readonly appearance: AppearancePreferences;
+  /** Freeze motion (typing / decorative skip) — static dim corners. */
   readonly freezeChase?: boolean;
 }): readonly StageFramePaintCell[] {
   if (!stageFrameVisible(input.bundle, input.cols, input.rows)) return [];
@@ -241,70 +202,33 @@ export function paintStageFrameCells(input: {
   if (arm <= 0) return [];
 
   const geometry = stageFrameStrokeCells(input.bundle, arm);
-  const strokes = geometry.filter((c) => c.kind === 'stroke');
-  const bloomByStroke = ambientOff ? new Map<string, StageFrameStrokeCell>() : bloomTwinByStroke(geometry);
-
   const border = currentTheme.color('border');
-  // Dim chrome practice: mix border toward surfaceSunken (same family as sunken panels).
-  const mixTarget = currentTheme.color('surfaceSunken');
-  const bloomBase = mixHexColor(border, mixTarget, 0.65);
-  const headMix = mode === 'premium' ? 0.72 : 0.52;
-  const head = mixHexColor(border, currentTheme.color('glow'), headMix);
-  const mid = mixHexColor(head, border, 0.32);
-  const soft = mixHexColor(head, border, 0.58);
-  const dim = border;
-
+  const glow = currentTheme.color('glow');
   const freeze =
     ambientOff || input.freezeChase === true || isTUIInputInteractionActive(input.nowMs);
-
-  const path = strokes;
-  const trailLen = STAGE_FRAME_TRAIL_LEN;
-  const headIndex =
-    path.length === 0 || freeze
-      ? -1
-      : positiveModulo(Math.floor(input.nowMs / STAGE_FRAME_CHASE_MS_PER_CELL), path.length);
-
-  const strokeFg = new Map<string, { fg: string; bold: boolean }>();
-  for (const cell of path) {
-    strokeFg.set(`${cell.x},${cell.y}`, { fg: dim, bold: false });
-  }
-  if (!freeze && headIndex >= 0) {
-    for (let step = 0; step <= trailLen; step++) {
-      const idx = positiveModulo(headIndex - step, path.length);
-      const cell = path[idx]!;
-      const fg = chaseFgForTrailStep(step, trailLen, head, mid, soft, dim);
-      const t = step / Math.max(1, trailLen);
-      strokeFg.set(`${cell.x},${cell.y}`, { fg, bold: t < 0.35 });
-    }
-  }
+  const breathe = freeze ? 0 : stageFrameBreathePhase(input.nowMs);
+  // Premium peaks a little brighter; subtle stays near border.
+  const peakMix = mode === 'premium' ? 0.42 : 0.28;
+  const cornerFg = mixHexColor(border, glow, breathe * peakMix);
+  const armFg = mixHexColor(border, currentTheme.color('surfaceSunken'), 0.15);
 
   const out: StageFramePaintCell[] = [];
   const onScreen = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < input.cols && y < input.rows;
 
-  for (const cell of path) {
+  for (const cell of geometry) {
     if (!onScreen(cell.x, cell.y)) continue;
-    const style = strokeFg.get(`${cell.x},${cell.y}`) ?? { fg: dim, bold: false };
-    out.push({
-      x: cell.x,
-      y: cell.y,
-      char: cell.char,
-      fg: style.fg,
-      ...(style.bold ? { bold: true } : {}),
-    });
-
-    const twin = bloomByStroke.get(`${cell.x},${cell.y}`);
-    if (!twin || !onScreen(twin.x, twin.y)) continue;
-    // Bloom never brighter than its stroke twin — mix trail further toward sunken.
-    const bloomFg = freeze
-      ? bloomBase
-      : mixHexColor(style.fg, bloomBase, mode === 'premium' && style.bold ? 0.35 : 0.55);
-    out.push({
-      x: twin.x,
-      y: twin.y,
-      char: twin.char,
-      fg: bloomFg,
-    });
+    if (cell.corner) {
+      out.push({
+        x: cell.x,
+        y: cell.y,
+        char: cell.char,
+        fg: cornerFg,
+        ...(breathe > 0.72 && mode === 'premium' ? { bold: true } : {}),
+      });
+    } else {
+      out.push({ x: cell.x, y: cell.y, char: cell.char, fg: armFg });
+    }
   }
 
   return out;

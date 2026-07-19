@@ -3,13 +3,14 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   STAGE_FRAME_ARM_MIN,
   STAGE_FRAME_ARM_TARGET,
-  STAGE_FRAME_CHASE_MS_PER_CELL,
+  STAGE_FRAME_BREATHE_MS,
   STAGE_FRAME_MARGIN,
   createStageFrameOverlayRegion,
   noteStageFrameBundle,
   paintStageFrameCells,
   resetStageFrameEntranceForTests,
   stageFrameArmLength,
+  stageFrameBreathePhase,
   stageFrameBundleKey,
   stageFrameBundleRect,
   stageFrameEntranceArmLength,
@@ -32,8 +33,8 @@ import { resetTUIInputInteractionForTests } from '#/tui/utils/input-interaction'
 
 describe('stageFrameVisible', () => {
   it('hides when any margin is below STAGE_FRAME_MARGIN', () => {
-    expect(stageFrameVisible({ x: 3, y: 10, width: 108, height: 56 }, 200, 80)).toBe(false);
-    expect(stageFrameVisible({ x: 10, y: 3, width: 108, height: 56 }, 200, 80)).toBe(false);
+    expect(stageFrameVisible({ x: 2, y: 10, width: 108, height: 56 }, 200, 80)).toBe(false);
+    expect(stageFrameVisible({ x: 10, y: 2, width: 108, height: 56 }, 200, 80)).toBe(false);
   });
 
   it('shows on ultrawide tall centered stage', () => {
@@ -50,25 +51,25 @@ describe('stageFrameVisible', () => {
 });
 
 describe('stageFrameArmLength', () => {
-  it('uses target 5 when sides are long enough', () => {
+  it('uses short target arms when sides are long enough', () => {
     expect(stageFrameArmLength({ x: 20, y: 10, width: 108, height: 56 })).toBe(STAGE_FRAME_ARM_TARGET);
   });
 
-  it('clamps to 4 when opposite arms would meet', () => {
-    // width must satisfy 4+4+2 <= width but not 5+5+2
-    expect(stageFrameArmLength({ x: 20, y: 10, width: 11, height: 56 })).toBe(STAGE_FRAME_ARM_MIN);
+  it('clamps when opposite arms would meet', () => {
+    // target 3+3+2=8, min 2+2+2=6 → width 7 uses min
+    expect(stageFrameArmLength({ x: 20, y: 10, width: 7, height: 56 })).toBe(STAGE_FRAME_ARM_MIN);
   });
 });
 
 describe('stageFrameStrokeCells', () => {
-  it('places L corners outside the bundle by gap 2 and includes bloom twins', () => {
+  it('places short L corners outside the bundle by gap 2 with no bloom', () => {
     const bundle = { x: 20, y: 12, width: 108, height: 56 };
-    const cells = stageFrameStrokeCells(bundle, 5);
-    const strokes = cells.filter((c) => c.kind === 'stroke');
-    const blooms = cells.filter((c) => c.kind === 'bloom');
-    expect(strokes.some((c) => c.char === '╭' && c.x === 18 && c.y === 10)).toBe(true);
-    expect(blooms.length).toBeGreaterThan(0);
-    expect(blooms.every((b) => b.x < bundle.x || b.x >= bundle.x + bundle.width || b.y < bundle.y || b.y >= bundle.y + bundle.height)).toBe(true);
+    const cells = stageFrameStrokeCells(bundle, 3);
+    expect(cells.every((c) => c.kind === 'stroke')).toBe(true);
+    expect(cells.some((c) => c.char === '╭' && c.x === 18 && c.y === 10 && c.corner)).toBe(true);
+    expect(cells.filter((c) => c.corner)).toHaveLength(4);
+    // arm length 3 → corner + 2 horizontal + 2 vertical per corner = 5 cells × 4
+    expect(cells).toHaveLength(20);
   });
 
   it('tracks rail bundle width, not stage-only width', () => {
@@ -81,7 +82,7 @@ describe('stageFrameStrokeCells', () => {
   });
 });
 
-describe('stageFrame entrance + chase', () => {
+describe('stageFrame entrance + breathe', () => {
   const previous = {
     TERM: process.env['TERM'],
     CI: process.env['CI'],
@@ -119,9 +120,9 @@ describe('stageFrame entrance + chase', () => {
   });
 
   it('grows arm length with entrance progress', () => {
-    expect(stageFrameEntranceArmLength(5, 0)).toBe(0);
-    expect(stageFrameEntranceArmLength(5, 0.5)).toBeGreaterThan(0);
-    expect(stageFrameEntranceArmLength(5, 1)).toBe(5);
+    expect(stageFrameEntranceArmLength(3, 0)).toBe(0);
+    expect(stageFrameEntranceArmLength(3, 0.5)).toBeGreaterThan(0);
+    expect(stageFrameEntranceArmLength(3, 1)).toBe(3);
   });
 
   it('resets entrance when bundle key changes', () => {
@@ -138,13 +139,12 @@ describe('stageFrame entrance + chase', () => {
       bundle,
       cols: 200,
       rows: 80,
-      nowMs: 10_000, // settled
+      nowMs: 10_000,
       appearance: {
         ...DEFAULT_APPEARANCE_PREFERENCES,
         profile: 'subtle',
         particles: 'ambient',
       },
-      freezeChase: false,
     });
     expect(cells.length).toBeGreaterThan(0);
     for (const c of cells) {
@@ -157,7 +157,7 @@ describe('stageFrame entrance + chase', () => {
     }
   });
 
-  it('omits bloom when ambient profile is off', () => {
+  it('paints stroke-only cells (no bloom twins)', () => {
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
     const cells = paintStageFrameCells({
@@ -165,35 +165,18 @@ describe('stageFrame entrance + chase', () => {
       cols: 200,
       rows: 80,
       nowMs: 10_000,
-      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off', particles: 'off' },
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'subtle',
+        particles: 'ambient',
+      },
     });
     const fullArm = stageFrameArmLength(bundle);
-    const strokeOnly = stageFrameStrokeCells(bundle, fullArm).filter((c) => c.kind === 'stroke');
-    expect(cells.length).toBe(strokeOnly.length);
+    const strokes = stageFrameStrokeCells(bundle, fullArm);
+    expect(cells.length).toBe(strokes.length);
   });
 
-  it('paints bloom cells when subtle ambient is allowed', () => {
-    const bundle = { x: 40, y: 12, width: 108, height: 56 };
-    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'subtle' as const,
-      particles: 'ambient' as const,
-    };
-    const cells = paintStageFrameCells({
-      bundle,
-      cols: 200,
-      rows: 80,
-      nowMs: 10_000,
-      appearance,
-      freezeChase: false,
-    });
-    const fullArm = stageFrameArmLength(bundle);
-    const strokeOnly = stageFrameStrokeCells(bundle, fullArm).filter((c) => c.kind === 'stroke');
-    expect(cells.length).toBeGreaterThan(strokeOnly.length);
-  });
-
-  it('keeps chase head frozen when freezeChase is true', () => {
+  it('keeps paint frozen when freezeChase is true', () => {
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
     const appearance = {
@@ -214,7 +197,7 @@ describe('stageFrame entrance + chase', () => {
       bundle,
       cols: 200,
       rows: 80,
-      nowMs: settled + STAGE_FRAME_CHASE_MS_PER_CELL * 3,
+      nowMs: settled + STAGE_FRAME_BREATHE_MS / 4,
       appearance,
       freezeChase: true,
     });
@@ -222,7 +205,10 @@ describe('stageFrame entrance + chase', () => {
     expect(b).toEqual(a);
   });
 
-  it('advances chase styling across settled nowMs when freezeChase is false', () => {
+  it('breathes corner luminance across time when motion is allowed', () => {
+    expect(stageFrameBreathePhase(0)).toBeCloseTo(0, 5);
+    expect(stageFrameBreathePhase(STAGE_FRAME_BREATHE_MS / 2)).toBeCloseTo(1, 5);
+
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
     const appearance = {
@@ -230,12 +216,11 @@ describe('stageFrame entrance + chase', () => {
       profile: 'subtle' as const,
       particles: 'ambient' as const,
     };
-    const settled = 10_000;
     const a = paintStageFrameCells({
       bundle,
       cols: 200,
       rows: 80,
-      nowMs: settled,
+      nowMs: 10_000,
       appearance,
       freezeChase: false,
     });
@@ -243,14 +228,16 @@ describe('stageFrame entrance + chase', () => {
       bundle,
       cols: 200,
       rows: 80,
-      nowMs: settled + STAGE_FRAME_CHASE_MS_PER_CELL,
+      nowMs: 10_000 + STAGE_FRAME_BREATHE_MS / 2,
       appearance,
       freezeChase: false,
     });
-    expect(a.length).toBe(b.length);
-    const signature = (cells: typeof a) =>
-      cells.map((c) => `${c.x},${c.y},${c.fg},${c.bold === true ? 1 : 0}`).join('|');
-    expect(signature(a)).not.toBe(signature(b));
+    const cornerFg = (cells: typeof a) =>
+      cells
+        .filter((c) => c.char === '╭' || c.char === '╮' || c.char === '╰' || c.char === '╯')
+        .map((c) => c.fg)
+        .join('|');
+    expect(cornerFg(a)).not.toBe(cornerFg(b));
   });
 
   it('builds a non-clearing full-viewport overlay with sparse cells', () => {
@@ -276,5 +263,6 @@ describe('stageFrame entrance + chase', () => {
       Object.entries(row).map(([x, cell]) => ({ x: Number(x), y, char: cell.char })),
     );
     expect(painted.length).toBeGreaterThan(0);
+    expect(painted.every((c) => '╭╮╰╯─│'.includes(c.char))).toBe(true);
   });
 });
