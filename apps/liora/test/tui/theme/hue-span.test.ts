@@ -75,8 +75,7 @@ describe('theme hue span', () => {
     expect(contrastRatio(lightColors.primary, lightColors.background)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.skip('widens every bundled theme motion span', () => {
-    // Task 3: bundled theme retune
+  it('widens every bundled theme motion span', () => {
     expect(BUNDLED_THEMES.length).toBeGreaterThanOrEqual(10);
     for (const theme of BUNDLED_THEMES) {
       assertMotionSpan(theme.colors as ColorPalette, theme.name);
