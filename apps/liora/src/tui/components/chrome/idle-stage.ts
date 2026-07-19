@@ -26,7 +26,6 @@ import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
-  renderAmbientDrift,
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
@@ -153,7 +152,7 @@ export function renderIdleStageLines(
   // Full-height plain canvas — pad-to-target is the height contract.
   const canvas: string[] = Array.from({ length: targetRows }, () => ' '.repeat(safeWidth));
 
-  // Reserve bottom chrome band (title / mood / tip / dir [+ premium drift]).
+  // Reserve bottom chrome band (title / mood / tip / dir).
   const chromeBudget = resolveChromeBudget(targetRows, options?.workDir, safeWidth, premiumChrome);
   const storyRows = Math.max(5, targetRows - chromeBudget);
 
@@ -198,10 +197,6 @@ export function renderIdleStageLines(
   const fishHex = premium ? palette.glow : palette.primary;
 
   const chromeLines: string[] = [];
-  // Premium: one sparse drift rail in the chrome band (not a new theatre).
-  if (premiumChrome) {
-    chromeLines.push(renderAmbientDrift(safeWidth, 'idle:chrome', appearance));
-  }
   chromeLines.push(
     centerText(safeWidth, title),
     centerText(safeWidth, `${paint(fishHex, '><>')}  ${paint(palette.textDim, mood)}`),
@@ -244,13 +239,12 @@ function resolveChromeBudget(
   targetRows: number,
   workDir: string | undefined,
   width: number,
-  premiumChrome = false,
+  _premiumChrome = false,
 ): number {
-  // title + mood + optional tip + optional dir + breathing room [+ drift]
+  // title + mood + optional tip + optional dir + breathing room
   let budget = 3; // title, mood, spacer
   budget += 1; // tip almost always present
   if ((workDir?.trim().length ?? 0) > 0 && width >= 40) budget += 1;
-  if (premiumChrome) budget += 1;
   // Keep chrome from eating the tank on short stages.
   return Math.min(budget, Math.max(2, Math.floor(targetRows / 3)));
 }
