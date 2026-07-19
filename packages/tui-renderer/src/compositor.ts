@@ -158,8 +158,11 @@ export function composeRendererRegions(
       continue;
     }
 
-    const rowClearing = canReuseRows && isOpaqueRegion(region);
-    if (!rowClearing && (region.clear === true || region.background !== undefined)) {
+    // `background` only inherits into painted cells. Filling the whole rect on
+    // background alone wiped prior content every ambient tick and caused
+    // clear→rewrite tear bands even when region.clear was false.
+    const rowClearing = canReuseRows && region.clear === true;
+    if (!rowClearing && region.clear === true) {
       buffer.fillRect(clipped, region.background);
     }
 
@@ -261,10 +264,6 @@ function clipRect(rect: RendererRect, width: number, height: number): RendererRe
 function normalizeScroll(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value) || value < 0) return 0;
   return Math.floor(value);
-}
-
-function isOpaqueRegion(region: RendererRegionLayer): boolean {
-  return region.clear === true || region.background !== undefined;
 }
 
 function createTopologySignature(frame: RendererCompositionCacheFrame): string {

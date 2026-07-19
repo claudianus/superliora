@@ -341,8 +341,14 @@ export function createTUIStateNativeRenderCallback(
         ? chromeCache
         : undefined;
     const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
-    const pureAnimationFrame =
-      frame.causes.length > 0 && frame.causes.every((cause) => cause === 'animation');
+    // Animation-bearing ticks (including coalesced content+animation while
+    // thinking) must not full-clear the stage. Structural/viewport frames keep
+    // clear fills so layout holes are wiped.
+    const ambientDamageOnly =
+      ambientAnimationAllowed &&
+      !layoutShift.structuralShift &&
+      !layoutShift.viewportScrolled &&
+      frame.causes.includes('animation');
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
@@ -350,7 +356,7 @@ export function createTUIStateNativeRenderCallback(
       // Skip Ultrawork perimeter repaint while typing — animation resumes after holdoff.
       skipDecorativeEditorEffects: typingHoldoff || pureInputFrame,
       // Damage-only stage paint on ambient ticks — see ambientDamageOnly.
-      ambientDamageOnly: pureAnimationFrame && ambientAnimationAllowed,
+      ambientDamageOnly,
     });
     if (
       !pureInputFrame ||

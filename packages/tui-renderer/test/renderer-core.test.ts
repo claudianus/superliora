@@ -4942,6 +4942,25 @@ describe('composeRendererRegions', () => {
     expect(buffer.getCell(2, 0)).toEqual({ char: 'b', style: { bg: '#0B0F14' } });
   });
 
+  it('does not wipe prior cells when background is set without clear', () => {
+    const buffer = new RendererCellBuffer(5, 1);
+    buffer.writeText(0, 0, 'hello');
+
+    composeRendererRegions(buffer, [
+      {
+        rect: { x: 0, y: 0, width: 5, height: 1 },
+        background: { char: ' ', style: { bg: '#0B0F14' } },
+        lines: [[{ char: 'X', style: { fg: '#ffffff' } }]],
+      },
+    ]);
+
+    expect(buffer.getCell(0, 0)).toEqual({
+      char: 'X',
+      style: { fg: '#ffffff', bg: '#0B0F14' },
+    });
+    expect(rowText(buffer, 0)).toBe('Xello');
+  });
+
   it('parses ANSI styled strings before composing regions', () => {
     const buffer = new RendererCellBuffer(3, 1);
 
