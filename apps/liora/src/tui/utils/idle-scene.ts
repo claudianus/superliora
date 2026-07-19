@@ -16,7 +16,7 @@ import {
   type RendererCell,
 } from '#/tui/renderer';
 
-import type { IdleFish, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
+import type { IdleFish, IdleTankFx, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 
 /**
  * Ornamental school — single-row silhouettes (no fake top/bottom fins).
@@ -972,6 +972,57 @@ function paintFishFromSnapshot(
   }
 }
 
+function glyphForFx(fx: IdleTankFx): string {
+  const lifeT = Math.max(0, Math.min(1, fx.life / Math.max(1, fx.maxLife)));
+  if (fx.kind === 'bubble') {
+    if (lifeT > 0.72) return '·';
+    if (lifeT > 0.4) return 'o';
+    return lifeT > 0.18 ? '°' : 'O';
+  }
+  if (fx.kind === 'sand') {
+    return lifeT > 0.5 ? '˙' : '.';
+  }
+  // spark — eat celebration
+  if (lifeT > 0.7) return '♥';
+  if (lifeT > 0.4) return '✦';
+  if (lifeT > 0.2) return '˚';
+  return '·';
+}
+
+function colorForFx(fx: IdleTankFx, palette: AquariumPalette): string {
+  const lifeT = Math.max(0, Math.min(1, fx.life / Math.max(1, fx.maxLife)));
+  if (fx.kind === 'bubble') {
+    return lifeT > 0.45
+      ? mixHexColor(palette.bubble, palette.shaft, 0.35)
+      : mixHexColor(palette.bubble, palette.water, 0.4);
+  }
+  if (fx.kind === 'sand') {
+    return mixHexColor(palette.coral, palette.sand, 0.35 + (1 - lifeT) * 0.35);
+  }
+  return lifeT > 0.55
+    ? mixHexColor(palette.food, palette.plantAccent, 0.45)
+    : mixHexColor(palette.shaft, palette.food, 0.4);
+}
+
+function paintFxFromSnapshot(
+  canvas: string[],
+  width: number,
+  paint: (hex: string, text: string) => string,
+  palette: AquariumPalette,
+  fx: IdleTankSnapshot['fx'],
+): void {
+  for (const particle of fx) {
+    putCell(
+      canvas,
+      Math.trunc(particle.y),
+      Math.trunc(particle.x),
+      width,
+      paint(colorForFx(particle, palette), glyphForFx(particle)),
+      true,
+    );
+  }
+}
+
 function glyphForActor(actor: FishActor, elapsedMs: number): readonly string[] {
   const t = elapsedMs + actor.seed;
   if (actor.kind === 'large') {
@@ -1427,10 +1478,11 @@ export function paintIdleStoryScene(options: {
     );
   }
 
-  // 8) Fish + food
+  // 8) Fish + food + interactive physics FX
   if (sim) {
     paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
     paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);
+    paintFxFromSnapshot(canvas, width, paint, palette, sim.fx);
   } else {
     paintFishSchool(canvas, width, storyRows, elapsedMs, premium, showAmbient, paint, palette);
   }

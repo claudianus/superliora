@@ -390,6 +390,7 @@ describe('idle-stage helpers', () => {
       const sim: IdleTankSnapshot = {
         fish: [],
         food: [{ id: 1, x: 10, y: 5, vy: 0.004 }],
+        fx: [],
       };
       paintIdleStoryScene({
         canvas,
@@ -404,6 +405,55 @@ describe('idle-stage helpers', () => {
       });
       const joined = strip(canvas.join('\n'));
       expect(joined).toContain('*');
+    });
+  });
+
+  it('paints interactive tank fx over the water column', () => {
+    withAmbientEnv(() => {
+      const width = 40;
+      const storyRows = 12;
+      const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
+      const sim: IdleTankSnapshot = {
+        fish: [],
+        food: [],
+        fx: [
+          {
+            id: 1,
+            kind: 'spark',
+            x: 12,
+            y: 4,
+            vx: 0,
+            vy: 0,
+            life: 300,
+            maxLife: 400,
+            seed: 1,
+          },
+          {
+            id: 2,
+            kind: 'bubble',
+            x: 18,
+            y: 6,
+            vx: 0,
+            vy: -0.01,
+            life: 200,
+            maxLife: 500,
+            seed: 2,
+          },
+        ],
+      };
+      paintIdleStoryScene({
+        canvas,
+        width,
+        storyRows,
+        elapsedMs: 500,
+        showAmbient: true,
+        premium: true,
+        paint: (hex, text) => chalk.hex(hex)(text),
+        colors: darkColors,
+        sim,
+      });
+      const joined = strip(canvas.join('\n'));
+      expect(joined).toMatch(/[♥✦˚oo°O·]/);
     });
   });
 
