@@ -6,6 +6,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
+  BRAND_MOTION_TOKENS,
   paintUltraworkEditorBorderGlow,
   renderAmbientDrift,
   renderCrossfadeLine,
@@ -23,6 +24,7 @@ import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
+import { darkColors } from '#/tui/theme/colors';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -354,5 +356,28 @@ describe('premium motion vocabulary', () => {
     vi.setSystemTime(start + 800);
     advanceAppearanceAnimationClock(Date.now());
     expect(strip(renderCrossfadeLine('old tip', 'new tip', 'tip', start, premium))).toBe('new tip');
+  });
+
+  it('keeps brand motion tokens off shared success/warning/shellMode hues', () => {
+    expect(BRAND_MOTION_TOKENS).not.toContain('success');
+    expect(BRAND_MOTION_TOKENS).not.toContain('warning');
+    expect(BRAND_MOTION_TOKENS).not.toContain('shellMode');
+    expect(BRAND_MOTION_TOKENS).toEqual(
+      expect.arrayContaining(['primary', 'accent', 'glow', 'particle', 'gradientStart', 'gradientEnd']),
+    );
+  });
+
+  it('renderExitBeat and done phase chip avoid the shared mint success hex', () => {
+    const start = Date.now();
+    const exit = renderExitBeat('Done', 40, 'exit:done', start, premium).join('\n');
+    const done = renderPhaseChip('tool', 'done', 'chip:done', premium);
+    const successRgb = [
+      parseInt(darkColors.success.slice(1, 3), 16),
+      parseInt(darkColors.success.slice(3, 5), 16),
+      parseInt(darkColors.success.slice(5, 7), 16),
+    ].join(';');
+    // Older motion paths painted these with the shared mint success token.
+    expect(exit).not.toContain(`38;2;${successRgb}`);
+    expect(done).not.toContain(`38;2;${successRgb}`);
   });
 });

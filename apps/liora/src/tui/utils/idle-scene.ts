@@ -181,10 +181,8 @@ type IdleSceneColors = {
   readonly accent: string;
   readonly textDim: string;
   readonly textMuted: string;
-  readonly warning: string;
-  readonly success?: string;
   readonly gradientStart?: string;
-  readonly roleUser?: string;
+  readonly gradientEnd?: string;
 };
 
 function hexCoolness(hex: string): number {
@@ -194,47 +192,37 @@ function hexCoolness(hex: string): number {
   return b * 2 + g * 0.25 - r;
 }
 
-function hexGreenness(hex: string): number {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return g * 2 - r - b * 0.25;
-}
-
 function pickCooler(...candidates: readonly (string | undefined)[]): string {
   const valid = candidates.filter((c): c is string => Boolean(c));
   if (valid.length === 0) return '#888888';
   return valid.reduce((best, cur) => (hexCoolness(cur) > hexCoolness(best) ? cur : best));
 }
 
-function pickGreener(...candidates: readonly (string | undefined)[]): string {
-  const valid = candidates.filter((c): c is string => Boolean(c));
-  if (valid.length === 0) return '#888888';
-  return valid.reduce((best, cur) => (hexGreenness(cur) > hexGreenness(best) ? cur : best));
-}
-
-/** Map theme tokens to aquarium paint roles — palette hex only, no free colors. */
+/**
+ * Map theme brand tokens to aquarium paint roles.
+ * Two-tone only: primary / accent / glow / particle / gradient* (+ textDim for dim).
+ * Never success / warning / roleUser — those inject off-brand mint/yellow.
+ */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
   _theme: 'dark' | 'light' = 'dark',
 ): AquariumPalette {
+  const gradientEnd = colors.gradientEnd ?? colors.particle;
   const waterDeep = pickCooler(colors.gradientStart, colors.glow, colors.primary);
   const water = colors.glow;
   const waterSoft = pickCooler(colors.primary, colors.glow, colors.gradientStart);
-  const plant = pickGreener(colors.success, colors.accent);
-  const plantSoft = colors.accent;
 
   return {
     water,
     waterDeep,
     waterSoft,
-    plant,
-    plantSoft,
-    sand: colors.warning,
+    plant: colors.accent,
+    plantSoft: colors.particle,
+    sand: gradientEnd,
     coral: colors.particle,
     coralSoft: colors.accent,
-    food: colors.roleUser ?? colors.warning,
-    fishGold: colors.roleUser ?? colors.warning,
+    food: colors.particle,
+    fishGold: gradientEnd,
     fishSky: waterDeep,
     fishTeal: colors.accent,
     fishSoft: water,

@@ -228,14 +228,25 @@ describe('idle-stage helpers', () => {
     expect(resolveSeaweedSpacing(30)).toBe(6);
   });
 
-  it('maps aquarium roles from theme tokens only', () => {
+  it('maps aquarium roles from brand motion tokens only', () => {
     const palette = resolveAquariumPalette(darkColors, 'dark');
-    const tokens = new Set(Object.values(darkColors));
+    const brand = new Set([
+      darkColors.primary,
+      darkColors.accent,
+      darkColors.glow,
+      darkColors.particle,
+      darkColors.gradientStart,
+      darkColors.gradientEnd,
+      darkColors.textDim,
+    ]);
     for (const hex of Object.values(palette)) {
-      expect(tokens.has(hex)).toBe(true);
+      expect(brand.has(hex)).toBe(true);
     }
-    expect(palette.plant).toBe(darkColors.success);
+    expect(palette.plant).toBe(darkColors.accent);
+    expect(palette.sand).toBe(darkColors.gradientEnd);
     expect(palette.water).toBe(darkColors.glow);
+    expect(palette.plant).not.toBe(darkColors.success);
+    expect(palette.sand).not.toBe(darkColors.warning);
   });
 });
 

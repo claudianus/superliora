@@ -33,6 +33,18 @@ export type AmbientEffectMode = RendererEffectLevel;
  * Dingbats (✦✧✺) break on common Nerd Font + kitty symbol_map setups.
  */
 const PREMIUM_PARTICLES = ['•', '∙', '·', '*', '◦'] as const;
+/**
+ * Brand duo motion tokens only — never success/warning/shellMode.
+ * Keeps splash/meteors/particles/spectacular text inside each theme's two-tone.
+ */
+export const BRAND_MOTION_TOKENS: readonly ColorToken[] = [
+  'gradientStart',
+  'primary',
+  'glow',
+  'accent',
+  'gradientEnd',
+  'particle',
+];
 const PARTICLE_TOKENS: readonly ColorToken[] = [
   'particle',
   'accent',
@@ -54,16 +66,7 @@ const PULSE_GLYPH_INTERVAL_MS = 280;
 const COMET_TICK_MS_PREMIUM = 48;
 const COMET_TICK_MS_SUBTLE = 96;
 const PULSE_TOKENS: readonly ColorToken[] = ['primary', 'glow', 'gradientEnd', 'particle'];
-const SPECTACULAR_TOKENS: readonly ColorToken[] = [
-  'gradientStart',
-  'primary',
-  'glow',
-  'accent',
-  'gradientEnd',
-  'particle',
-  'shellMode',
-  'success',
-];
+const SPECTACULAR_TOKENS: readonly ColorToken[] = BRAND_MOTION_TOKENS;
 
 export interface SpectacularTextOptions {
   readonly rowIndex?: number;
@@ -718,14 +721,15 @@ export function renderPhaseChip(
   const body = `${mark} ${plain}`;
   if (!motionEffectsAllowed() || mode === 'off') {
     const token =
-      phase === 'error' ? 'error' : phase === 'done' ? 'success' : 'textMuted';
+      phase === 'error' ? 'error' : phase === 'done' ? 'glow' : 'textMuted';
     return currentTheme.fg(token, body);
   }
   if (phase === 'running' || phase === 'streaming') {
     return renderPulseText(body, `${seed}:${phase}`, phase === 'streaming' ? 'accent' : 'primary', appearance);
   }
   if (phase === 'error') return currentTheme.boldFg('error', body);
-  return currentTheme.fg('success', body);
+  // Done chip stays on brand glow — not the shared mint success token.
+  return currentTheme.fg('glow', body);
 }
 
 export function renderCrossfadeLine(
@@ -782,24 +786,24 @@ export function renderExitBeat(
   startedAtMs: number,
   appearance: AppearancePreferences = activeAppearance,
 ): string[] {
-  // Mirror enter with success-leaning headline then collapse to single line
+  // Mirror enter with brand glow, then collapse to a single line
   const plain = stripAnsiControls(title);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const w = Math.max(8, width);
   const tiny = width < 40;
   if (!motionEffectsAllowed() || mode === 'off') {
-    return [currentTheme.fg('success', plain)];
+    return [currentTheme.fg('glow', plain)];
   }
   const p = motionProgress(startedAtMs, exitBeatDurationMs(appearance));
-  const head = renderPulseText(plain, `${seed}:exit-title`, 'success', appearance);
+  const head = renderPulseText(plain, `${seed}:exit-title`, 'glow', appearance);
   if (tiny) {
     if (p < 0.65) return [head];
-    return [currentTheme.fg('success', plain)];
+    return [currentTheme.fg('glow', plain)];
   }
   const rail = renderParticleRail(w, appearance, `${seed}:exit`);
   if (p < 0.3) return [head, currentTheme.dim(rail)];
   if (p < 0.65) return [head];
-  return [currentTheme.fg('success', plain)];
+  return [currentTheme.fg('glow', plain)];
 }
 
 export function renderAmbientDrift(
@@ -826,10 +830,10 @@ export function renderDangerBreathe(
   if (!motionEffectsAllowed() || mode === 'off') {
     return currentTheme.boldFg('error', plain);
   }
-  // Alternate error/warning tokens on a slow cycle (≥4 frames over ~1s)
+  // Alternate error / primary — stay on brand+danger, never warning yellow
   const interval = mode === 'premium' ? 220 : 400;
   const tick = Math.floor(appearanceAnimationNow() / interval) % 4;
-  const token = tick % 2 === 0 ? 'error' : 'warning';
+  const token = tick % 2 === 0 ? 'error' : 'primary';
   return currentTheme.boldFg(token, plain);
 }
 
