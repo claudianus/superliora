@@ -257,13 +257,13 @@ describe('idle-stage helpers', () => {
           colors: darkColors,
         });
         const waterline = canvas[0] ?? '';
-        const waterBody = canvas[3] ?? '';
         const plantRow = canvas[storyRows - 3] ?? '';
+        const joined = canvas.join('\n');
         const fgSpans = (line: string) => line.match(/\u001B\[38;2;\d+;\d+;\d+m/g) ?? [];
         const bgSpans = (line: string) => line.match(/\u001B\[48;2;\d+;\d+;\d+m/g) ?? [];
-        // Surface and water wash must carry color.
-        expect(waterline).toMatch(/\u001B\[(?:38|48);2;/);
-        expect(bgSpans(waterBody).length).toBeGreaterThan(10);
+        // Foreground colors for waterline / plants; no opaque bgHex fill.
+        expect(waterline).toMatch(/\u001B\[38;2;/);
+        expect(bgSpans(joined).length).toBe(0);
         // Regression: putCell/blitAt used to stripAnsi the whole row, leaving ~1 span.
         expect(fgSpans(plantRow).length).toBeGreaterThan(3);
         expect(plantRow).toMatch(/\u001B\[38;2;78;200;126m/); // success green
