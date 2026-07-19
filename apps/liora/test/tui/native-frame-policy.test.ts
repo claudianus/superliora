@@ -93,6 +93,19 @@ describe('native-frame-policy', () => {
     ).toBe(false);
   });
 
+  it('still clears on resize even when animation is coalesced', () => {
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['resize', 'animation'],
+      viewportScrolled: false,
+      structuralShift: false,
+      nextTranscriptStart: 0,
+      ambientAnimationAllowed: true,
+    });
+
+    expect(policy.force).toBe(true);
+    expect(policy.clear).toBe(true);
+  });
+
   it('clears transcript selection when the viewport start moves', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['request'],

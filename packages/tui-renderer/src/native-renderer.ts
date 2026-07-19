@@ -13,6 +13,7 @@ import {
   type NativeRenderLoopScheduler,
 } from './render-loop';
 import {
+  ANSI_CLEAR_SCREEN,
   NativeTerminalSession,
   type NativeTerminalKeyboardProtocol,
   type NativeTerminalInput,
@@ -555,8 +556,18 @@ export class NativeTerminalRenderer {
 
   private handleResize(size: NativeTerminalSize): void {
     const previousRows = this.frameRenderer.height;
+    const previousCols = this.frameRenderer.width;
     this.frameRenderer.resize(size.columns, size.rows);
     this.clearStaleFrameRowsOnShrink(size.rows, previousRows);
+    // Alternate-screen grow leaves the previous frame's pixels at top-left.
+    // Soft buffers reset empty, so equal-cell skips never overwrite that ghost
+    // unless we wipe the terminal surface before the next present.
+    if (
+      this.options.screenMode === 'alternate' &&
+      (size.columns !== previousCols || size.rows !== previousRows)
+    ) {
+      this.session.write(ANSI_CLEAR_SCREEN);
+    }
     this.trace.recordResize({
       timestampMs: this.loop.now(),
       size,
