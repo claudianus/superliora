@@ -159,9 +159,9 @@ export const darkColors: ColorPalette = {
   roleUser: '#FBBF24',
   shellMode: '#E879F9',
   glow: '#67E8F9',
-  particle: '#C084FC',
+  particle: '#A78BFA',
   gradientStart: '#06B6D4',
-  gradientEnd: '#A855F7',
+  gradientEnd: '#8B5CF6',
 
   syntaxText: '#E0E0E0',
   syntaxKeyword: '#C792EA',

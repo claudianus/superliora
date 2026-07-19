@@ -75,7 +75,7 @@ describe('native-frame-policy', () => {
     ).toBe(true);
   });
 
-  it('refreshes terminal palette on ambient animation authoritative frames', () => {
+  it('keeps ambient animation force without clear or OSC palette spam', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['animation'],
       viewportScrolled: false,
@@ -85,9 +85,10 @@ describe('native-frame-policy', () => {
       ambientAnimationAllowed: true,
     });
 
+    // force redraws VFX damage; clear+OSC every tick flashed black holes.
     expect(policy.force).toBe(true);
-    expect(policy.clear).toBe(true);
-    expect(policy.refreshTerminalPalette).toBe(true);
+    expect(policy.clear).toBe(false);
+    expect(policy.refreshTerminalPalette).toBe(false);
     expect(shouldRefreshNativeTerminalPalette(['animation'], false)).toBe(false);
     expect(shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: true })).toBe(
       true,
@@ -136,7 +137,7 @@ describe('native-frame-policy', () => {
   });
 
   it('keeps forceCursor on for animation-only frames without coupling it to force', () => {
-    // Animation + ambient → force/clear true (surface VFX), forceCursor still true.
+    // Animation + ambient → force true (surface VFX); clear is policy-gated separately.
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
         ambientAnimation: true,

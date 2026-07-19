@@ -7,6 +7,7 @@ import {
   advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
   BRAND_MOTION_TOKENS,
+  SPECTACULAR_TOKENS,
   paintUltraworkEditorBorderGlow,
   renderAmbientDrift,
   renderCrossfadeLine,
@@ -374,6 +375,20 @@ describe('premium motion vocabulary', () => {
         'shellMode',
       ]),
     );
+  });
+
+  it('keeps spectacular text on a gentle brand chain without role hue jumps', () => {
+    expect(SPECTACULAR_TOKENS).not.toContain('roleUser');
+    expect(SPECTACULAR_TOKENS).not.toContain('shellMode');
+    expect(SPECTACULAR_TOKENS).not.toContain('success');
+    expect(SPECTACULAR_TOKENS).toEqual([
+      'gradientStart',
+      'primary',
+      'glow',
+      'accent',
+      'particle',
+      'gradientEnd',
+    ]);
   });
 
   it('ultrawork trail stays closer to brand hue than to border grey', () => {

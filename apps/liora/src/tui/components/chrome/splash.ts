@@ -268,7 +268,6 @@ export class SplashComponent implements Component {
     const glowHex = palette.glow;
     const particleHex = palette.particle;
     const mutedHex = palette.textMuted;
-    const bgHex = palette.background;
     const paint = (hex: string, text: string): string => chalk.hex(hex)(text);
     const muted = (text: string): string => chalk.hex(mutedHex)(text);
 
@@ -385,9 +384,8 @@ export class SplashComponent implements Component {
     for (let i = 0; i < canvas.length; i++) {
       const line = canvas[i] ?? '';
       if (visibleWidth(line) === 0) {
-        // Keep physical row height with themed empty sky
-        canvas[i] = bgHex ? paint(bgHex, ' '.repeat(safeWidth)) : ' '.repeat(safeWidth);
-        // Prefer plain spaces — chalk on spaces can paint bg when canvasBackground is on
+        // Plain spaces: region.background / inheritRegionBackground paints theme canvas.
+        // Do not chalk-bg spaces here — that fought canvasBackground and flashed black.
         canvas[i] = ' '.repeat(safeWidth);
       } else {
         canvas[i] = padOrTrim(line, safeWidth);
