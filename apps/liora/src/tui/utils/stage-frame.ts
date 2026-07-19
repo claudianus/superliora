@@ -5,7 +5,6 @@ import {
   motionEffectsAllowed,
   resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/utils/appearance-effects';
-import { isTUIInputInteractionActive } from '#/tui/utils/input-interaction';
 import {
   applySkyToLetterboxRegions,
   paintStageLetterboxSky,
@@ -13,8 +12,10 @@ import {
 
 /** Cells between bundle edge and the stroke ring. */
 export const STAGE_FRAME_GAP = 1;
-/** Full box needs gap + stroke outside the bundle on every side. */
-export const STAGE_FRAME_MARGIN = STAGE_FRAME_GAP + 1;
+/** Outer dim halo cells beyond the stroke ring. */
+export const STAGE_FRAME_HALO = 1;
+/** Full box needs gap + stroke + halo outside the bundle on every side. */
+export const STAGE_FRAME_MARGIN = STAGE_FRAME_GAP + 1 + STAGE_FRAME_HALO;
 export const STAGE_FRAME_ENTRANCE_MS = 360;
 /** Quiet chase — slower than Ultrawork editor (~24 cells/s). */
 export const STAGE_FRAME_CHASE_MS_PER_CELL = 95;
@@ -125,7 +126,7 @@ export interface StageFrameStrokeCell {
   readonly x: number;
   readonly y: number;
   readonly char: string;
-  readonly kind: 'stroke';
+  readonly kind: 'stroke' | 'halo';
   readonly corner: boolean;
 }
 
@@ -157,6 +158,43 @@ export function stageFrameStrokeCells(bundle: StageFrameBand): readonly StageFra
   for (let y = bottom - 1; y > top; y--) push(left, y, '│');
 
   return out;
+}
+
+/**
+ * Soft outer ring one cell beyond the stroke — depth cue against letterbox.
+ * Not part of the chase path.
+ */
+export function stageFrameHaloCells(bundle: StageFrameBand): readonly StageFrameStrokeCell[] {
+  if (STAGE_FRAME_HALO <= 0) return [];
+  const left = bundle.x - STAGE_FRAME_GAP - STAGE_FRAME_HALO;
+  const right = bundle.x + bundle.width + STAGE_FRAME_GAP - 1 + STAGE_FRAME_HALO;
+  const top = bundle.y - STAGE_FRAME_GAP - STAGE_FRAME_HALO;
+  const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1 + STAGE_FRAME_HALO;
+  if (right <= left || bottom <= top) return [];
+
+  const out: StageFrameStrokeCell[] = [];
+  const push = (x: number, y: number, char: string) => {
+    out.push({ x, y, char, kind: 'halo', corner: CORNER_CHARS.has(char) });
+  };
+
+  push(left, top, '╭');
+  for (let x = left + 1; x < right; x++) push(x, top, '─');
+  push(right, top, '╮');
+  for (let y = top + 1; y < bottom; y++) push(right, y, '│');
+  push(right, bottom, '╯');
+  for (let x = right - 1; x > left; x--) push(x, bottom, '─');
+  push(left, bottom, '╰');
+  for (let y = bottom - 1; y > top; y--) push(left, y, '│');
+
+  return out;
+}
+
+/** Letterbox fill one step darker than the stage canvas (theme tones only). */
+export function resolveLetterboxCanvasBg(): string | undefined {
+  const canvasBg = currentTheme.canvasBackgroundCell()?.style.bg;
+  if (canvasBg === undefined) return undefined;
+  const sunken = currentTheme.color('surfaceSunken');
+  return mixHexColor(canvasBg, sunken, 0.32);
 }
 
 function positiveModulo(n: number, m: number): number {
@@ -227,7 +265,7 @@ export function paintStageFrameCells(input: {
   readonly rows: number;
   readonly nowMs: number;
   readonly appearance: AppearancePreferences;
-  /** Freeze chase (typing / decorative skip). */
+  /** Freeze chase (ambient off / explicit freeze only — not typing holdoff). */
   readonly freezeChase?: boolean;
 }): readonly StageFramePaintCell[] {
   if (!stageFrameVisible(input.bundle, input.cols, input.rows)) return [];
@@ -260,9 +298,11 @@ export function paintStageFrameCells(input: {
   // Entrance fades the whole ring in from canvas/background toward base.
   const fadeTarget = canvasBg ?? currentTheme.color('surfaceSunken');
   const dim = mixHexColor(fadeTarget, base, Math.min(1, 0.25 + progress * 0.75));
+  const letterboxBg = resolveLetterboxCanvasBg() ?? fadeTarget;
+  const haloFg = mixHexColor(letterboxBg, dim, Math.min(1, 0.2 + progress * 0.35));
 
-  const freeze =
-    ambientOff || input.freezeChase === true || isTUIInputInteractionActive(input.nowMs);
+  // Typing holdoff must not freeze the stage chase — only explicit freezeChase / ambient off.
+  const freeze = ambientOff || input.freezeChase === true;
   const trailLen = Math.min(
     STAGE_FRAME_TRAIL_LEN,
     Math.max(4, Math.floor(path.length / 8)),
@@ -289,6 +329,17 @@ export function paintStageFrameCells(input: {
   const out: StageFramePaintCell[] = [];
   const onScreen = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < input.cols && y < input.rows;
+
+  for (const cell of stageFrameHaloCells(input.bundle)) {
+    if (!onScreen(cell.x, cell.y)) continue;
+    out.push({
+      x: cell.x,
+      y: cell.y,
+      char: cell.char,
+      fg: haloFg,
+      bg: letterboxBg,
+    });
+  }
 
   for (const cell of path) {
     if (!onScreen(cell.x, cell.y)) continue;
@@ -317,7 +368,7 @@ export function createStageFrameOverlayRegions(input: {
   if (!stageFrameVisible(input.bundle, input.cols, input.rows)) return [];
 
   const regions: RendererFrameRegion[] = [];
-  const canvas = currentTheme.canvasBackgroundCell();
+  const letterboxBg = resolveLetterboxCanvasBg();
   const bands = stageFrameLetterboxBands(input.bundle, input.cols, input.rows);
   const sky = paintStageLetterboxSky({
     bands,
@@ -328,16 +379,16 @@ export function createStageFrameOverlayRegions(input: {
     freeze: input.freezeChase === true,
   });
   if (bands.length > 0) {
-    regions.push(...applySkyToLetterboxRegions(bands, sky, canvas?.style.bg));
+    regions.push(...applySkyToLetterboxRegions(bands, sky, letterboxBg));
   }
 
   const painted = paintStageFrameCells(input);
   if (painted.length === 0) return regions;
 
-  const left = input.bundle.x - STAGE_FRAME_GAP;
-  const top = input.bundle.y - STAGE_FRAME_GAP;
-  const right = input.bundle.x + input.bundle.width + STAGE_FRAME_GAP - 1;
-  const bottom = input.bundle.y + input.bundle.height + STAGE_FRAME_GAP - 1;
+  const left = input.bundle.x - STAGE_FRAME_GAP - STAGE_FRAME_HALO;
+  const top = input.bundle.y - STAGE_FRAME_GAP - STAGE_FRAME_HALO;
+  const right = input.bundle.x + input.bundle.width + STAGE_FRAME_GAP - 1 + STAGE_FRAME_HALO;
+  const bottom = input.bundle.y + input.bundle.height + STAGE_FRAME_GAP - 1 + STAGE_FRAME_HALO;
   const boxW = right - left + 1;
   const boxH = bottom - top + 1;
   const lines: RendererCell[][] = Array.from({ length: boxH }, () => []);

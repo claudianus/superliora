@@ -31,6 +31,7 @@ import {
   paintBubbles,
   paintIdleStoryScene,
   paintMoonlightPath,
+  paintWaterBase,
   resolveAquariumPalette,
   resolveLanternGlyph,
   resolveSeaweedSpacing,
@@ -185,6 +186,20 @@ describe('idle-stage helpers', () => {
     expect(occupied[5]).toBe('X');
     const joined = canvas.map((line) => stripAnsi(line)).join('');
     expect(joined).toMatch(/[oO°˚·○]/);
+  });
+
+  it('fills mid-water rows so idle frames are not empty voids', () => {
+    const width = 48;
+    const rows = 12;
+    const canvas = Array.from({ length: rows }, () => ' '.repeat(width));
+    paintWaterBase(canvas, width, rows, (_hex, text) => text, '#1a3', '#1a2', '#1a4');
+    let filledRows = 0;
+    for (let y = 1; y < rows - 1; y++) {
+      const plain = stripAnsi(canvas[y] ?? '');
+      const nonSpace = [...plain].filter((ch) => ch !== ' ').length;
+      if (nonSpace >= Math.floor(width * 0.35)) filledRows += 1;
+    }
+    expect(filledRows).toBeGreaterThanOrEqual(rows - 3);
   });
 
   it('lays a drifting caustic path across mid-water', () => {

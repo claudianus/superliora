@@ -3,15 +3,18 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   STAGE_FRAME_CHASE_MS_PER_CELL,
   STAGE_FRAME_GAP,
+  STAGE_FRAME_HALO,
   STAGE_FRAME_MARGIN,
   createStageFrameOverlayRegions,
   noteStageFrameBundle,
   paintStageFrameCells,
   resetStageFrameEntranceForTests,
+  resolveLetterboxCanvasBg,
   stageFrameBundleKey,
   stageFrameBundleRect,
   stageFrameEntranceProgress,
   stageFrameEntranceStartedAtMs,
+  stageFrameHaloCells,
   stageFrameLetterboxBands,
   stageFrameStrokeCells,
   stageFrameVisible,
@@ -26,8 +29,12 @@ import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
-import { resetTUIInputInteractionForTests } from '#/tui/utils/input-interaction';
+import {
+  noteTUIInputInteraction,
+  resetTUIInputInteractionForTests,
+} from '#/tui/utils/input-interaction';
 import { currentTheme } from '#/tui/theme';
+import { mixHexColor } from '#/tui/renderer';
 
 describe('stageFrameVisible', () => {
   it('hides when any margin is below STAGE_FRAME_MARGIN', () => {
@@ -144,7 +151,7 @@ describe('stageFrame entrance + chase', () => {
     expect(stageFrameEntranceProgress(stageFrameEntranceStartedAtMs(), 1500, false)).toBe(0);
   });
 
-  it('paint keeps stroke cells outside the bundle', () => {
+  it('paint keeps stroke and halo cells outside the bundle', () => {
     const bundle = { x: 40, y: 12, width: 108, height: 56 };
     noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
     const cells = paintStageFrameCells({
@@ -158,9 +165,13 @@ describe('stageFrame entrance + chase', () => {
         particles: 'ambient',
       },
     });
-    const strokes = cells.filter((c) => c.char !== ' ');
-    expect(strokes.length).toBe(stageFrameStrokeCells(bundle).length);
-    for (const c of strokes) {
+    const painted = cells.filter((c) => c.char !== ' ');
+    expect(painted.length).toBe(
+      stageFrameStrokeCells(bundle).length + stageFrameHaloCells(bundle).length,
+    );
+    expect(STAGE_FRAME_HALO).toBe(1);
+    expect(STAGE_FRAME_MARGIN).toBe(STAGE_FRAME_GAP + 1 + STAGE_FRAME_HALO);
+    for (const c of painted) {
       const inside =
         c.x >= bundle.x &&
         c.x < bundle.x + bundle.width &&
@@ -168,6 +179,50 @@ describe('stageFrame entrance + chase', () => {
         c.y < bundle.y + bundle.height;
       expect(inside).toBe(false);
     }
+  });
+
+  it('keeps chase moving during typing holdoff', () => {
+    const bundle = { x: 40, y: 12, width: 108, height: 56 };
+    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'subtle' as const,
+      particles: 'ambient' as const,
+    };
+    const settled = 10_000;
+    noteTUIInputInteraction(settled);
+    const a = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: settled,
+      appearance,
+      freezeChase: false,
+    });
+    const b = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: settled + STAGE_FRAME_CHASE_MS_PER_CELL,
+      appearance,
+      freezeChase: false,
+    });
+    const strokeSig = (cells: typeof a) =>
+      cells
+        .filter((c) => c.char !== ' ')
+        .map((c) => `${c.x},${c.y},${c.fg}`)
+        .join('|');
+    expect(strokeSig(a)).not.toBe(strokeSig(b));
+  });
+
+  it('darkens letterbox canvas relative to stage canvas', () => {
+    currentTheme.setCanvasBackgroundEnabled(true);
+    const canvasBg = currentTheme.canvasBackgroundCell()?.style.bg;
+    expect(canvasBg).toBeDefined();
+    const letterbox = resolveLetterboxCanvasBg();
+    expect(letterbox).toBeDefined();
+    expect(letterbox).not.toBe(canvasBg);
+    expect(letterbox).toBe(mixHexColor(canvasBg!, currentTheme.color('surfaceSunken'), 0.32));
   });
 
   it('keeps chase frozen when freezeChase is true', () => {
@@ -252,9 +307,15 @@ describe('stageFrame entrance + chase', () => {
       },
     });
     expect(regions.some((r) => r.id.startsWith('stageFrameLetterbox'))).toBe(true);
+    const letterbox = regions.find((r) => r.id.startsWith('stageFrameLetterbox'));
+    expect(letterbox?.background?.style?.bg).toBe(resolveLetterboxCanvasBg());
     const stroke = regions.find((r) => r.id === 'stageFrame');
     expect(stroke).toBeDefined();
     expect(stroke!.clear).toBe(false);
+    // Overlay includes outer halo ring.
+    expect(stroke!.rect.width).toBe(
+      bundle.width + 2 * (STAGE_FRAME_GAP + STAGE_FRAME_HALO),
+    );
     const lines = stroke!.content as readonly (readonly { char: string }[])[];
     const painted = lines.flatMap((row) =>
       Object.values(row).map((cell) => cell.char),

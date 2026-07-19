@@ -444,7 +444,40 @@ export function renderHillLine(width: number, elapsedMs: number): string {
   return cells.join('');
 }
 
-/** Depth-graded water body — denser soft dots near the bed. */
+/**
+ * Full-width depth-graded water base so idle frames never read as empty black
+ * voids when animation freezes (e.g. between ambient ticks).
+ */
+export function paintWaterBase(
+  canvas: string[],
+  width: number,
+  rows: number,
+  paint: (hex: string, text: string) => string,
+  sky: string,
+  skySoft: string,
+  skyDeep: string,
+): void {
+  if (width <= 0 || rows <= 1) return;
+  const sandY = rows - 1;
+  for (let y = 1; y < sandY; y++) {
+    const depth = (y - 1) / Math.max(1, sandY - 2);
+    const hex = depth < 0.33 ? skySoft : depth < 0.66 ? sky : skyDeep;
+    const cells: string[] = [];
+    for (let x = 0; x < width; x++) {
+      const n = hash2(x + 1, y + 3) % 100;
+      if (depth < 0.28) {
+        cells.push(n < 40 ? '·' : n < 58 ? '˙' : ' ');
+      } else if (depth < 0.62) {
+        cells.push(n < 50 ? '·' : n < 78 ? '˙' : '˚');
+      } else {
+        cells.push(n < 35 ? '·' : n < 70 ? '˙' : '˚');
+      }
+    }
+    canvas[y] = padOrTrim(paint(hex, cells.join('')), width);
+  }
+}
+
+/** Drifting water highlights on top of {@link paintWaterBase}. */
 export function paintWaterField(
   canvas: string[],
   width: number,
@@ -466,7 +499,7 @@ export function paintWaterField(
     const tone = seed % 5;
     const hex = tone === 0 ? skyDeep : tone < 3 ? sky : skySoft;
     const glyph = tone === 0 ? '˙' : tone < 3 ? '·' : '˚';
-    putCell(canvas, y, x, width, paint(hex, glyph));
+    putCell(canvas, y, x, width, paint(hex, glyph), true);
   }
 }
 
@@ -846,8 +879,9 @@ export function paintIdleStoryScene(options: {
 
   const palette = resolveAquariumPalette(colors, themeMode);
 
-  // 1) Depth-graded water
+  // 1) Depth-graded water base + drifting highlights
   if (showAmbient) {
+    paintWaterBase(canvas, width, storyRows, paint, palette.water, palette.waterSoft, palette.waterDeep);
     paintWaterField(
       canvas,
       width,
