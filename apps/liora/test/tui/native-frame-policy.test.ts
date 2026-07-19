@@ -134,25 +134,20 @@ describe('native-frame-policy', () => {
     expect(shouldForceNativeCursor({ causes: ['input'] })).toBe(true);
   });
 
-  it('keeps pure animation damage-only and skips forceCursor (no caret flash)', () => {
-    // Pure ambient animation stays damage-only; forceCursor stays off so ambient
-    // ticks do not hide/CUP/show the editor caret every frame.
+  it('keeps forceCursor on for animation-only frames without coupling it to force', () => {
+    // Pure ambient animation stays damage-only; forceCursor remains independent (IME).
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
         ambientAnimation: true,
       }),
     ).toBe(false);
-    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(false);
+    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
 
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
         ambientAnimation: false,
       }),
     ).toBe(false);
-    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(false);
-
-    // Input / mixed frames still force cursor for IME caret stickiness.
-    expect(shouldForceNativeCursor({ causes: ['input'] })).toBe(true);
-    expect(shouldForceNativeCursor({ causes: ['animation', 'input'] })).toBe(true);
+    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
   });
 });

@@ -113,13 +113,7 @@ export function encodeTerminalRunsWithMetrics(
   const out: string[] = [];
   const cursorMotionMetrics = createCursorMotionMetrics();
   if (options.synchronized === true) out.push(ANSI_BEGIN_SYNCHRONIZED_UPDATE);
-  // Inside a synchronized update the terminal never shows intermediate cursor
-  // motion, and we restore visibility via cursor state (or showCursor) at the
-  // end. Emitting hide on every ambient tick still churns kitty's cursor
-  // pipeline and reads as center-stage flicker — skip it when sync is on.
-  if (options.hideCursor === true && options.synchronized !== true) {
-    out.push(ANSI_HIDE_CURSOR);
-  }
+  if (options.hideCursor === true) out.push(ANSI_HIDE_CURSOR);
   const inlineImageClear = encodeRendererClearInlineImages(options.inlineImageProtocol ?? 'none');
   if (inlineImageClear.length > 0) out.push(inlineImageClear);
 

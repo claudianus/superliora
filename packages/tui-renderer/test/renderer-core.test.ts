@@ -3046,8 +3046,6 @@ describe('terminal output encoder', () => {
     next.writeText(1, 0, 'ab', { fg: '#0f0', bold: true });
     const diff = diffCellBuffers(previous, next, { damage: next.damage });
 
-    // Synchronized paints skip hideCursor — intermediate cursor motion is not
-    // visible, and hide/show every ambient tick flashed the caret.
     expect(
       encodeTerminalFrame(diff, {
         synchronized: true,
@@ -3057,6 +3055,7 @@ describe('terminal output encoder', () => {
     ).toBe(
       [
         ANSI_BEGIN_SYNCHRONIZED_UPDATE,
+        ANSI_HIDE_CURSOR,
         '\u001B[1;2H',
         '\u001B[0;1;38;2;0;255;0m',
         'ab',
@@ -3065,14 +3064,6 @@ describe('terminal output encoder', () => {
         ANSI_END_SYNCHRONIZED_UPDATE,
       ].join(''),
     );
-
-    expect(
-      encodeTerminalFrame(diff, {
-        synchronized: false,
-        hideCursor: true,
-        showCursor: true,
-      }),
-    ).toContain(ANSI_HIDE_CURSOR);
   });
 
   it('uses optimized render runs to avoid extra cursor-addressed jumps', () => {
@@ -3817,6 +3808,7 @@ describe('NativeFrameRenderer', () => {
     expect(result.output).toBe(
       [
         ANSI_BEGIN_SYNCHRONIZED_UPDATE,
+        ANSI_HIDE_CURSOR,
         '\u001B[4;3H',
         'x',
         ANSI_SHOW_CURSOR,
