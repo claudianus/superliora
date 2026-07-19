@@ -247,7 +247,9 @@ describe('RendererCompositionCache', () => {
     expect(second.rowsReused).toBe(1);
     expect(second.rowsComposed).toBe(1);
     expect(second.cellsWritten).toBe(3);
-    expect(buffer.dirtyRowSpans).toEqual([{ y: 1, x: 0, width: 4 }]);
+    // fillRect only damages cells that actually change ('old' → clear → 'new'),
+    // so the trailing blank in the 4-wide row stays out of the dirty span.
+    expect(buffer.dirtyRowSpans).toEqual([{ y: 1, x: 0, width: 3 }]);
   });
 
   it('feeds retained row reuse through native layout frame rendering', () => {

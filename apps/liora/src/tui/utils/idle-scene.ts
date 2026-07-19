@@ -591,11 +591,17 @@ export function paintMoonlightPath(
   paintCausticPath(canvas, top, bandRows, width, elapsedMs, paintCh);
 }
 
+/** Quantize surface/bed motion so ambient ticks don't rewrite every water/sand cell. */
+const IDLE_SURFACE_MOTION_QUANTUM_MS = 96;
+
 export function renderWaterline(width: number, elapsedMs: number): string {
   if (width <= 0) return '';
+  const motionMs =
+    Math.floor(Math.max(0, elapsedMs) / IDLE_SURFACE_MOTION_QUANTUM_MS) *
+    IDLE_SURFACE_MOTION_QUANTUM_MS;
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const phase = Math.sin(x * 0.28 + elapsedMs / 2_200);
+    const phase = Math.sin(x * 0.28 + motionMs / 2_200);
     if (phase > 0.55) cells.push('≈');
     else if (phase > 0.1) cells.push('~');
     else if (phase > -0.35) cells.push('∼');
@@ -607,10 +613,13 @@ export function renderWaterline(width: number, elapsedMs: number): string {
 /** Dark aquasoil / gravel bed — rare warm glints under tank light. */
 export function renderSandLine(width: number, elapsedMs: number, rowSeed: number): string {
   if (width <= 0) return '';
+  const motionMs =
+    Math.floor(Math.max(0, elapsedMs) / IDLE_SURFACE_MOTION_QUANTUM_MS) *
+    IDLE_SURFACE_MOTION_QUANTUM_MS;
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
     const n = hash2(x + 3, rowSeed + 11) % 11;
-    const glint = Math.sin(elapsedMs / 3_600 + x * 0.21 + rowSeed) > 0.97;
+    const glint = Math.sin(motionMs / 3_600 + x * 0.21 + rowSeed) > 0.97;
     if (glint) cells.push('˚');
     else if (n === 0) cells.push('o');
     else if (n <= 2) cells.push(':');

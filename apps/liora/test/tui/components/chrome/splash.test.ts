@@ -95,15 +95,16 @@ describe('splash duration clamp', () => {
     expect(clampSplashDurationMs(-10)).toBe(SPLASH_DURATION_MIN_MS);
   });
 
-  it('clamps above max to 2000ms', () => {
+  it('clamps above max to 3200ms', () => {
     expect(clampSplashDurationMs(5000)).toBe(SPLASH_DURATION_MAX_MS);
-    expect(clampSplashDurationMs(2001)).toBe(SPLASH_DURATION_MAX_MS);
+    expect(clampSplashDurationMs(3201)).toBe(SPLASH_DURATION_MAX_MS);
   });
 
   it('keeps in-range values and falls back non-finite to default', () => {
     expect(clampSplashDurationMs(1000)).toBe(1000);
-    expect(clampSplashDurationMs(1600)).toBe(DEFAULT_SPLASH_DURATION_MS);
+    expect(clampSplashDurationMs(2400)).toBe(DEFAULT_SPLASH_DURATION_MS);
     expect(clampSplashDurationMs(2000)).toBe(2000);
+    expect(clampSplashDurationMs(3200)).toBe(3200);
     expect(clampSplashDurationMs(Number.NaN)).toBe(DEFAULT_SPLASH_DURATION_MS);
     expect(clampSplashDurationMs(Number.POSITIVE_INFINITY)).toBe(DEFAULT_SPLASH_DURATION_MS);
   });
@@ -271,7 +272,7 @@ describe('SplashComponent full-screen cinematic', () => {
     });
   });
 
-  it('clamps constructor duration into [1000, 2000]', () => {
+  it('clamps constructor duration into [1000, 3200]', () => {
     const short = new SplashComponent({
       requestRender: () => {},
       durationMs: 100,
