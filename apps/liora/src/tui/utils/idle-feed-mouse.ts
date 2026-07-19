@@ -1,6 +1,7 @@
 import type { NativeInputMouseEvent } from '#/tui/renderer';
 
 import { IdleStageComponent } from '../components/chrome/idle-stage';
+import { CHROME_GUTTER } from '../constant/rendering';
 import type { TUIState } from '../tui-state';
 import type { TranscriptSelectionPoint } from './transcript-selection-model';
 
@@ -26,10 +27,32 @@ export function isShortClickFeed(
   );
 }
 
-function findIdleStage(state: TUIState): IdleStageComponent | undefined {
-  return state.transcriptContainer.children.find(
-    (child): child is IdleStageComponent => child instanceof IdleStageComponent,
-  );
+/**
+ * Map a transcript globalLine onto the IdleStage child that owns that row.
+ * Welcome (or other) chrome above Idle must not arm / consume feed.
+ */
+function findIdleStageAtGlobalLine(
+  state: TUIState,
+  globalLine: number,
+): IdleStageComponent | undefined {
+  if (!Number.isFinite(globalLine) || globalLine < 0) return undefined;
+  const inner = transcriptInnerWidth(state);
+  let lineOffset = 0;
+  for (const child of state.transcriptContainer.children) {
+    const childLines = child.render(inner).length;
+    const childEnd = lineOffset + childLines;
+    if (globalLine >= lineOffset && globalLine < childEnd) {
+      return child instanceof IdleStageComponent ? child : undefined;
+    }
+    lineOffset = childEnd;
+  }
+  return undefined;
+}
+
+function transcriptInnerWidth(state: TUIState): number {
+  const columns = state.terminal.columns;
+  const width = Number.isFinite(columns) && columns > 0 ? Math.floor(columns) : 80;
+  return Math.max(1, width - CHROME_GUTTER - CHROME_GUTTER);
 }
 
 /**
@@ -42,7 +65,7 @@ export function handleIdleFeedMouseInput(
   point: TranscriptSelectionPoint,
 ): boolean {
   if (event.action === 'press') {
-    if (findIdleStage(state) === undefined) {
+    if (findIdleStageAtGlobalLine(state, point.globalLine) === undefined) {
       pendingByState.delete(state);
       return false;
     }
@@ -66,10 +89,10 @@ export function handleIdleFeedMouseInput(
   if (pending === undefined) return false;
   if (!isShortClickFeed(pending, event, IDLE_FEED_MAX_MOVE)) return false;
 
-  const idle = findIdleStage(state);
+  const idle = findIdleStageAtGlobalLine(state, point.globalLine);
   if (idle === undefined) return false;
 
-  idle.tryDropFoodAtContent(pending.col);
+  if (!idle.tryDropFoodAtContent(pending.col)) return false;
   state.transcriptSelection.clear();
   return true;
 }
