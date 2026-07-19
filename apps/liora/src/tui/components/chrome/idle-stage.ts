@@ -225,7 +225,7 @@ export function renderIdleStageLines(
     const abyss =
       themeMode === 'light'
         ? mixHexColor(palette.surfaceSunken, palette.primary, 0.12)
-        : mixHexColor(palette.surfaceSunken, '#061A3A', 0.55);
+        : mixHexColor(palette.surfaceSunken, '#0A1420', 0.55);
     const gap = `${styleToAnsi({ bg: abyss })}${' '.repeat(safeWidth)}${ANSI_RESET}`;
     for (let gapY = storyRows; gapY < y; gapY++) {
       canvas[gapY] = gap;

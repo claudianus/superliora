@@ -278,14 +278,14 @@ type IdleSceneColors = {
 };
 
 /**
- * Jewel-tank paint kit — bold aquarium colors, not clamped to theme roles.
- * Theme only picks dark/light exposure; the tank may use any saturated hex.
+ * Jewel-tank paint kit — fish/plants stay vivid; water wash stays subdued so
+ * the stage canvas does not read as a solid cyan slab.
  */
 export const JEWEL_TANK_DARK = {
-  water: '#7DF9FF',
-  waterSoft: '#3DB8FF',
-  waterDeep: '#1560C0',
-  waterAbyss: '#061A3A',
+  water: '#4A7FA0',
+  waterSoft: '#2A4F68',
+  waterDeep: '#123044',
+  waterAbyss: '#0A1420',
   plant: '#2EFF7A',
   plantSoft: '#A8FF4A',
   plantAccent: '#FF2E9A',
@@ -298,18 +298,18 @@ export const JEWEL_TANK_DARK = {
   fishSky: '#3B6CFF',
   fishTeal: '#00E5A8',
   fishSoft: '#FF5EC8',
-  bubble: '#C8F7FF',
-  shaft: '#FFF3A0',
+  bubble: '#8AB8C8',
+  shaft: '#C4B87A',
   highlight: '#FFFFFF',
   ink: '#0A0E14',
   dim: '#5A6578',
 } as const;
 
 export const JEWEL_TANK_LIGHT = {
-  water: '#0891B2',
-  waterSoft: '#0284C7',
-  waterDeep: '#1D4ED8',
-  waterAbyss: '#172554',
+  water: '#4B7A8F',
+  waterSoft: '#3A6478',
+  waterDeep: '#2A4A5C',
+  waterAbyss: '#1E3340',
   plant: '#16A34A',
   plantSoft: '#65A30D',
   plantAccent: '#DB2777',
@@ -322,8 +322,8 @@ export const JEWEL_TANK_LIGHT = {
   fishSky: '#2563EB',
   fishTeal: '#0D9488',
   fishSoft: '#DB2777',
-  bubble: '#67E8F9',
-  shaft: '#FDE68A',
+  bubble: '#67A8B8',
+  shaft: '#C4B06A',
   highlight: '#FFFFFF',
   ink: '#1C1917',
   dim: '#78716C',
@@ -676,40 +676,39 @@ export function renderHillLine(width: number, elapsedMs: number): string {
 }
 
 /**
- * Vertical water volume — neon sky → electric mid → abyss.
- * Full-width water BACKGROUND on every cell so ambient fish/plant updates
- * never serialize mid-water as unstyled spaces (terminal black flash bands).
+ * Quiet mid-water fill — near-stage abyss wash, not a neon sky block.
+ * Every cell still carries an explicit bg so fish/plant updates do not flash
+ * terminal-default black; hue stays subdued so fish/plants read first.
  */
 export function paintWaterDepth(
   canvas: string[],
   width: number,
   rows: number,
   _paint: (hex: string, text: string) => string,
-  sky: string,
+  _sky: string,
   mid: string,
   deep: string,
   abyss?: string,
 ): void {
   if (width <= 0 || rows <= 2) return;
   const sandY = rows - 1;
-  const bottom = abyss ?? mixHexColor(deep, '#020617', 0.45);
+  const bottom = abyss ?? mixHexColor(deep, '#020617', 0.55);
+  // Keep depth almost entirely in the abyss/deep range — never flood mid-water
+  // with electric cyan that pops against the centered stage canvas.
+  const upper = mixHexColor(bottom, deep, 0.45);
+  const middle = mixHexColor(bottom, mid, 0.18);
   for (let y = 1; y < sandY; y++) {
     const t = (y - 1) / Math.max(1, sandY - 2);
     const hex =
-      t < 0.28
-        ? mixHexColor(sky, mid, t / 0.28)
-        : t < 0.62
-          ? mixHexColor(mid, deep, (t - 0.28) / 0.34)
-          : mixHexColor(deep, bottom, (t - 0.62) / 0.38);
-    // Upper: airy. Mid: body. Deep: thicker volume.
-    const chance = t < 0.3 ? 3 : t < 0.55 ? 8 : t < 0.75 ? 16 : 28;
-    const sparkle = mixHexColor(hex, '#E0F2FE', 0.45);
+      t < 0.35 ? mixHexColor(upper, middle, t / 0.35) : mixHexColor(middle, bottom, (t - 0.35) / 0.65);
+    const chance = t < 0.3 ? 2 : t < 0.55 ? 4 : t < 0.75 ? 8 : 14;
+    const sparkle = mixHexColor(hex, mid, 0.35);
     let painted = '';
     for (let x = 0; x < width; x++) {
       const n = hash2(x * 17 + 3, y * 29 + 7) % 100;
       let ch = ' ';
       if (n < chance) ch = t > 0.65 ? '˙' : '·';
-      else if (n < chance + (t > 0.7 ? 5 : 1)) ch = t > 0.5 ? '˚' : '·';
+      else if (n < chance + (t > 0.7 ? 3 : 1)) ch = t > 0.5 ? '˚' : '·';
       painted +=
         ch === ' '
           ? `${styleToAnsi({ bg: hex })} ${ANSI_RESET}`
@@ -1310,7 +1309,7 @@ export function paintIdleStoryScene(options: {
 
   const palette = resolveAquariumPalette(colors, themeMode);
 
-  // 1) Surface line — bright sky with warm sparkle peaks
+  // 1) Surface line — muted water wash (not an electric cyan banner)
   if (storyRows >= 4) {
     const line = renderWaterline(width, elapsedMs);
     if (!showAmbient) {
@@ -1319,14 +1318,15 @@ export function paintIdleStoryScene(options: {
       let painted = '';
       for (let x = 0; x < line.length; x++) {
         const ch = line[x]!;
+        const wash = mixHexColor(palette.waterAbyss, palette.waterDeep, 0.55);
         const hex =
           ch === '≈'
-            ? mixHexColor(palette.water, palette.shaft, 0.35)
+            ? mixHexColor(wash, palette.shaft, 0.2)
             : ch === '~'
-              ? palette.water
-              : mixHexColor(palette.water, palette.waterSoft, 0.4);
+              ? mixHexColor(wash, palette.water, 0.35)
+              : mixHexColor(wash, palette.waterSoft, 0.25);
         painted += `${styleToAnsi({
-          fg: mixHexColor(hex, '#E0F2FE', 0.55),
+          fg: mixHexColor(palette.water, palette.bubble, 0.35),
           bg: hex,
         })}${ch}${ANSI_RESET}`;
       }
@@ -1350,7 +1350,7 @@ export function paintIdleStoryScene(options: {
     canvas[sandY] = sandPainted;
   }
 
-  // 3) Vertical water volume (sky → mid → abyss)
+  // 3) Quiet mid-water volume (abyss wash — not neon sky fill)
   if (showAmbient) {
     paintWaterDepth(
       canvas,
