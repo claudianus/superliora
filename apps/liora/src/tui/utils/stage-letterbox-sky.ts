@@ -1,6 +1,6 @@
 /**
  * Night-sky backdrop for centered-stage letterbox gutters.
- * Twinkling starfield + full-height side-gutter shooting stars.
+ * Twinkling starfield on top/bottom letterbox only (never side gutters).
  */
 
 import type { AppearancePreferences } from '#/tui/config';
@@ -12,11 +12,6 @@ import {
 } from '#/tui/utils/appearance-effects';
 import { hash2, STAR_GLYPHS } from '#/tui/utils/night-sky';
 import type { StageFrameBand } from '#/tui/utils/stage-frame';
-
-/** Distinct from {@link STAR_GLYPHS} so freeze tests can tell showers apart. */
-const SHOOTING_HEAD = '◆';
-const SHOOTING_MID = '‒';
-const SHOOTING_TAIL = '·';
 
 export interface StageLetterboxSkyCell {
   readonly x: number;
@@ -83,18 +78,22 @@ export function resolveLetterboxSideGutters(
   return gutters;
 }
 
-function positiveModulo(n: number, m: number): number {
-  if (m <= 0) return 0;
-  return ((n % m) + m) % m;
-}
-
-function clamp(n: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, n));
+/**
+ * Top/bottom letterbox strips (full terminal width). Side gutters share stage
+ * rows — particle churn there flickered the center panel in kitty — so sky
+ * paint stays on these caps only. Side bands still get solid canvas fill via
+ * {@link applySkyToLetterboxRegions}.
+ */
+export function resolveLetterboxCapBands(
+  bands: readonly StageFrameBand[],
+  cols: number,
+): readonly StageFrameBand[] {
+  if (cols <= 0) return [];
+  return bands.filter((band) => band.x === 0 && band.width === cols && band.height > 0);
 }
 
 /**
- * Paint stars + shooting stars into absolute terminal coordinates.
- * Only cells inside letterbox bands are returned.
+ * Paint stars into absolute terminal coordinates (top/bottom letterbox only).
  */
 export function paintStageLetterboxSky(input: {
   readonly bands: readonly StageFrameBand[];
@@ -112,16 +111,17 @@ export function paintStageLetterboxSky(input: {
 
   const premium = mode === 'premium';
   const freeze = input.freeze === true;
-  const area = letterboxArea(bands);
-  if (area < 24) return [];
+  // Caps only — never scatter into side gutters (shared Y with stage content).
+  const skyBands = resolveLetterboxCapBands(bands, cols);
+  const area = letterboxArea(skyBands);
+  if (skyBands.length === 0 || area < 24) return [];
 
   const cells = new Map<string, StageLetterboxSkyCell>();
   const put = (x: number, y: number, char: string, fg: string, bold?: boolean) => {
-    if (!pointInLetterboxBands(bands, x, y)) return;
+    if (!pointInLetterboxBands(skyBands, x, y)) return;
     if (x < 0 || y < 0 || x >= cols || y >= rows) return;
     const key = `${x},${y}`;
     const prev = cells.get(key);
-    // Prefer brighter / bold overlays (shooting stars over dust).
     if (prev !== undefined && prev.bold === true && bold !== true) return;
     cells.set(key, { x, y, char, fg, ...(bold ? { bold: true } : {}) });
   };
@@ -131,24 +131,21 @@ export function paintStageLetterboxSky(input: {
   const muted = currentTheme.color('textMuted');
   const primary = currentTheme.color('primary');
 
-  // --- Twinkling starfield ---
+  // --- Twinkling starfield (caps only) ---
   const density = premium ? 0.11 : 0.07;
   const starCount = Math.max(12, Math.min(120, Math.floor(area * density * 0.09)));
   // Quantize twinkle so brightness steps land every ~90ms — continuous nowMs
-  // rewrote nearly every star cell every ambient tick (shared rows with the
-  // stage content), which read as center-panel flicker in kitty.
+  // rewrote nearly every star cell every ambient tick.
   const twinkleStepMs = premium ? 90 : 140;
   const twinkleClock = freeze
     ? Math.floor(nowMs / 4000) * 4000
     : Math.floor(nowMs / twinkleStepMs) * twinkleStepMs;
   for (let i = 0; i < starCount; i++) {
-    // Stable base position from band-weighted hash; pick a letterbox cell.
     const seed = hash2(i * 17 + 3, 91);
-    const band = bands[seed % bands.length]!;
+    const band = skyBands[seed % skyBands.length]!;
     const x = band.x + (hash2(i * 31, 7) % Math.max(1, band.width));
     const y = band.y + (hash2(i * 47, 11) % Math.max(1, band.height));
     const twinkle = (Math.sin(twinkleClock / 220 + i * 0.73) + 1) / 2;
-    // ≥4 brightness steps via mix — never a hard blink.
     if (twinkle < 0.18) continue;
     const glyph = STAR_GLYPHS[hash2(i, 4) % STAR_GLYPHS.length] ?? '·';
     const fg =
@@ -160,56 +157,6 @@ export function paintStageLetterboxSky(input: {
             ? particle
             : muted;
     put(x, y, glyph, fg, twinkle > 0.88 && premium);
-  }
-
-  // --- Shooting stars: full-height fall in side gutters only ---
-  const gutters = resolveLetterboxSideGutters(bands, cols);
-  if (!freeze && gutters.length > 0) {
-    const showerCount = premium ? 4 : 2;
-    const tickMs = premium ? 42 : 72;
-    const phase = nowMs / tickMs;
-    for (let m = 0; m < showerCount; m++) {
-      const h = hash2(m * 131 + 19, 503);
-      const gutter = gutters[h % gutters.length]!;
-      const gutterW = Math.max(1, gutter.x1 - gutter.x0);
-      const speed = premium ? 0.9 + (m % 3) * 0.12 : 0.62 + (m % 2) * 0.1;
-      const dy = speed;
-      // Keep drift inside the corridor so the path never crosses the stage.
-      const maxDrift = Math.max(0, gutterW - 1) * 0.35;
-      const driftSign = (h & 2) === 0 ? -1 : 1;
-      const dx = (maxDrift === 0 ? 0 : driftSign * Math.min(0.12, maxDrift / Math.max(1, rows))) * speed;
-      const trailLen = premium ? 11 : 7;
-      // Head must travel from above the top edge to past the bottom edge.
-      const travel = rows + trailLen + 6;
-      const activeFor = Math.ceil(travel / dy) + 2;
-      const rest = premium ? 22 + (m % 4) * 8 : 34 + (m % 3) * 10;
-      const period = activeFor + rest;
-      const local = positiveModulo(phase + (h % period), period);
-      if (local > activeFor) continue;
-
-      const startX = gutter.x0 + (hash2(h, m + 3) % gutterW) + 0.5;
-      const startY = -trailLen - (h % 3);
-      const headX = clamp(startX + local * dx, gutter.x0, gutter.x1 - 1);
-      const headY = startY + local * dy;
-      const headFg = mixHexColor(glow, primary, 0.25);
-      const midFg = mixHexColor(particle, glow, 0.35);
-      const softFg = mixHexColor(particle, muted, 0.4);
-
-      for (let step = 0; step <= trailLen; step++) {
-        const x = Math.round(clamp(headX - step * dx * 0.85, gutter.x0, gutter.x1 - 1));
-        const y = Math.round(headY - step * dy * 0.9);
-        const t = step / Math.max(1, trailLen);
-        if (step === 0) {
-          put(x, y, SHOOTING_HEAD, headFg, true);
-        } else if (t < 0.35) {
-          put(x, y, SHOOTING_MID, midFg, premium && t < 0.2);
-        } else if (t < 0.7) {
-          put(x, y, SHOOTING_TAIL, softFg);
-        } else {
-          put(x, y, SHOOTING_TAIL, muted);
-        }
-      }
-    }
   }
 
   return [...cells.values()];

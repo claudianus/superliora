@@ -9,6 +9,7 @@ import {
   letterboxArea,
   paintStageLetterboxSky,
   pointInLetterboxBands,
+  resolveLetterboxCapBands,
   resolveLetterboxSideGutters,
 } from '#/tui/utils/stage-letterbox-sky';
 import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/utils/stage-frame';
@@ -51,9 +52,15 @@ describe('stage letterbox night sky', () => {
     return stageFrameLetterboxBands(bundle, 200, 80);
   }
 
-  it('keeps painted cells inside letterbox bands only', () => {
+  it('keeps painted cells inside top/bottom letterbox caps only', () => {
     const bands = ultrawideBands();
-    expect(letterboxArea(bands)).toBeGreaterThan(24);
+    const caps = resolveLetterboxCapBands(bands, 200);
+    // Side gutters share stage rows — stars must never land there (corner
+    // columns on the top/bottom caps are fine; those Ys are outside the stage).
+    const sideBands = bands.filter((b) => b.width < 200);
+    expect(caps.length).toBeGreaterThan(0);
+    expect(sideBands.length).toBeGreaterThan(0);
+    expect(letterboxArea(caps)).toBeGreaterThan(24);
     const cells = paintStageLetterboxSky({
       bands,
       cols: 200,
@@ -67,7 +74,8 @@ describe('stage letterbox night sky', () => {
     });
     expect(cells.length).toBeGreaterThan(8);
     for (const c of cells) {
-      expect(pointInLetterboxBands(bands, c.x, c.y)).toBe(true);
+      expect(pointInLetterboxBands(caps, c.x, c.y)).toBe(true);
+      expect(pointInLetterboxBands(sideBands, c.x, c.y)).toBe(false);
     }
   });
 
@@ -85,8 +93,6 @@ describe('stage letterbox night sky', () => {
 
   it('keeps star twinkle stable within a 90ms premium bucket', () => {
     const bands = ultrawideBands();
-    const gutters = resolveLetterboxSideGutters(bands, 200);
-    const inSideGutter = (x: number) => gutters.some((g) => x >= g.x0 && x < g.x1);
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium' as const,
@@ -108,18 +114,15 @@ describe('stage letterbox night sky', () => {
       appearance,
       freeze: false,
     });
-    // Side gutters carry shooting stars; top/bottom dust should stay bit-identical
-    // inside one twinkle bucket.
     const starSig = (cells: typeof a) =>
       cells
-        .filter((c) => !inSideGutter(c.x))
         .map((c) => `${c.x},${c.y},${c.char},${c.fg}`)
         .sort()
         .join('|');
     expect(starSig(a)).toBe(starSig(b));
   });
 
-  it('freezes shooting stars but can keep static star dust', () => {
+  it('freezes twinkle when freeze is set', () => {
     const bands = ultrawideBands();
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
@@ -142,12 +145,10 @@ describe('stage letterbox night sky', () => {
       appearance,
       freeze: true,
     });
-    // Freeze pins twinkle clock to a coarse bucket — identical paints.
     expect(a).toEqual(b);
-    expect(a.every((c) => c.char !== '◆')).toBe(true);
   });
 
-  it('moves shooting-star heads across time when not frozen', () => {
+  it('changes twinkle brightness across buckets when not frozen', () => {
     const bands = ultrawideBands();
     const appearance = {
       ...DEFAULT_APPEARANCE_PREFERENCES,
@@ -170,20 +171,12 @@ describe('stage letterbox night sky', () => {
       appearance,
       freeze: false,
     });
-    const heads = (cells: typeof a) =>
+    const sig = (cells: typeof a) =>
       cells
-        .filter((c) => c.char === '◆')
-        .map((c) => `${c.x},${c.y}`)
+        .map((c) => `${c.x},${c.y},${c.fg}`)
         .sort()
         .join('|');
-    // At least one frame in the window should show a shooting star; if both empty, skip strictness.
-    if (heads(a).length > 0 || heads(b).length > 0) {
-      expect(heads(a)).not.toBe(heads(b));
-    } else {
-      // Still expect starfield motion/twinkle difference in the full paint set.
-      const sig = (cells: typeof a) => cells.map((c) => `${c.x},${c.y},${c.fg}`).join('|');
-      expect(sig(a)).not.toBe(sig(b));
-    }
+    expect(sig(a)).not.toBe(sig(b));
   });
 
   it('resolves full-height side gutters on ultrawide letterbox', () => {
@@ -194,38 +187,6 @@ describe('stage letterbox night sky', () => {
     expect(gutters[0]!.x1).toBeGreaterThan(0);
     expect(gutters[1]!.x1).toBe(200);
     expect(gutters[1]!.x0).toBeLessThan(200);
-  });
-
-  it('lets shooting-star heads reach the bottom row inside side gutters', () => {
-    const bands = ultrawideBands();
-    const gutters = resolveLetterboxSideGutters(bands, 200);
-    expect(gutters.length).toBeGreaterThan(0);
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'premium' as const,
-      particles: 'ambient' as const,
-    };
-    let maxHeadY = -1;
-    let sawBottomHead = false;
-    for (let t = 0; t < 8_000; t += 40) {
-      const cells = paintStageLetterboxSky({
-        bands,
-        cols: 200,
-        rows: 80,
-        nowMs: 50_000 + t,
-        appearance,
-        freeze: false,
-      });
-      for (const c of cells) {
-        if (c.char !== '◆') continue;
-        maxHeadY = Math.max(maxHeadY, c.y);
-        const inGutter = gutters.some((g) => c.x >= g.x0 && c.x < g.x1);
-        expect(inGutter).toBe(true);
-        if (c.y >= 79) sawBottomHead = true;
-      }
-    }
-    expect(maxHeadY).toBeGreaterThanOrEqual(79);
-    expect(sawBottomHead).toBe(true);
   });
 
   it('builds dense letterbox regions without clear so ambient ticks do not wipe bands', () => {
