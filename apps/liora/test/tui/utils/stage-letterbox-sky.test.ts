@@ -8,6 +8,7 @@ import {
   letterboxArea,
   paintStageLetterboxSky,
   pointInLetterboxBands,
+  resolveLetterboxSideGutters,
 } from '#/tui/utils/stage-letterbox-sky';
 import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/utils/stage-frame';
 import { resolveStageLayout } from '#/tui/controllers/stage-layout';
@@ -146,5 +147,47 @@ describe('stage letterbox night sky', () => {
       const sig = (cells: typeof a) => cells.map((c) => `${c.x},${c.y},${c.fg}`).join('|');
       expect(sig(a)).not.toBe(sig(b));
     }
+  });
+
+  it('resolves full-height side gutters on ultrawide letterbox', () => {
+    const bands = ultrawideBands();
+    const gutters = resolveLetterboxSideGutters(bands, 200);
+    expect(gutters.length).toBe(2);
+    expect(gutters[0]!.x0).toBe(0);
+    expect(gutters[0]!.x1).toBeGreaterThan(0);
+    expect(gutters[1]!.x1).toBe(200);
+    expect(gutters[1]!.x0).toBeLessThan(200);
+  });
+
+  it('lets shooting-star heads reach the bottom row inside side gutters', () => {
+    const bands = ultrawideBands();
+    const gutters = resolveLetterboxSideGutters(bands, 200);
+    expect(gutters.length).toBeGreaterThan(0);
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'ambient' as const,
+    };
+    let maxHeadY = -1;
+    let sawBottomHead = false;
+    for (let t = 0; t < 8_000; t += 40) {
+      const cells = paintStageLetterboxSky({
+        bands,
+        cols: 200,
+        rows: 80,
+        nowMs: 50_000 + t,
+        appearance,
+        freeze: false,
+      });
+      for (const c of cells) {
+        if (c.char !== '◆') continue;
+        maxHeadY = Math.max(maxHeadY, c.y);
+        const inGutter = gutters.some((g) => c.x >= g.x0 && c.x < g.x1);
+        expect(inGutter).toBe(true);
+        if (c.y >= 79) sawBottomHead = true;
+      }
+    }
+    expect(maxHeadY).toBeGreaterThanOrEqual(79);
+    expect(sawBottomHead).toBe(true);
   });
 });
