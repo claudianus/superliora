@@ -23,8 +23,11 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
   appearanceAnimationNow,
+  ENTER_BEAT_MS,
   getActiveAppearancePreferences,
+  renderEnterBeat,
   renderPulseText,
+  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -440,6 +443,9 @@ export interface UsagePanelComponentOptions {
   readonly requestRender?: (() => void) | undefined;
   readonly phase?: UsagePanelPhase;
   readonly fillStartedAtMs?: number | undefined;
+  /** Seed for the open enter beat (defaults to trimmed title). */
+  readonly enterBeatSeed?: string;
+  readonly openedAtMs?: number;
 }
 
 /**
@@ -456,6 +462,8 @@ export class UsagePanelComponent implements Component {
   private readonly borderToken: ColorToken;
   private readonly title: string;
   private readonly requestRender: (() => void) | undefined;
+  private readonly enterBeatSeed: string;
+  private readonly openedAtMs: number;
 
   constructor(
     buildLines: (() => readonly string[]) | UsagePanelComponentOptions,
@@ -469,6 +477,8 @@ export class UsagePanelComponent implements Component {
       this.requestRender = undefined;
       this.phase = 'ready';
       this.fillStartedAtMs = undefined;
+      this.enterBeatSeed = title.trim().toLowerCase() || 'panel';
+      this.openedAtMs = appearanceAnimationNow();
     } else {
       this.buildLines = buildLines.buildLines;
       this.borderToken = buildLines.borderToken ?? 'primary';
@@ -476,6 +486,9 @@ export class UsagePanelComponent implements Component {
       this.requestRender = buildLines.requestRender;
       this.phase = buildLines.phase ?? 'ready';
       this.fillStartedAtMs = buildLines.fillStartedAtMs;
+      this.enterBeatSeed =
+        buildLines.enterBeatSeed ?? (this.title.trim().toLowerCase() || 'panel');
+      this.openedAtMs = buildLines.openedAtMs ?? appearanceAnimationNow();
     }
     this.lines = this.buildLines(this.resolveFillProgress());
   }
@@ -507,10 +520,11 @@ export class UsagePanelComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
+    const appearance = getActiveAppearancePreferences();
     const paint = (s: string): string => currentTheme.fg(this.borderToken, s);
     const availableInterior = safeWidth - BOX_OVERHEAD;
     const titleText =
-      this.phase === 'loading' && shouldRenderAmbientEffects(getActiveAppearancePreferences())
+      this.phase === 'loading' && shouldRenderAmbientEffects(appearance)
         ? renderPulseText(this.title, 'usage-panel:title', this.borderToken)
         : this.title;
     if (availableInterior < 1) {
@@ -540,7 +554,16 @@ export class UsagePanelComponent implements Component {
       titleStyle: paint,
       ellipsis: '…',
     });
-    return frame.map((line) => truncateToWidth(indent + line, safeWidth, '…'));
+    const body = frame.map((line) => truncateToWidth(indent + line, safeWidth, '…'));
+    if (!this.isEnterBeatActive(appearance)) return body;
+    const beat = renderEnterBeat(
+      this.title.trim() || 'Panel',
+      safeWidth,
+      this.enterBeatSeed,
+      this.openedAtMs,
+      appearance,
+    ).map((line) => truncateToWidth(line, safeWidth, '…'));
+    return [...beat, ...body];
   }
 
   private resolveFillProgress(): number {
@@ -556,9 +579,20 @@ export class UsagePanelComponent implements Component {
     return Math.max(0, Math.min(1, elapsed / USAGE_FILL_MS));
   }
 
+  private isEnterBeatActive(
+    appearance = getActiveAppearancePreferences(),
+  ): boolean {
+    if (!shouldRenderAmbientEffects(appearance)) return false;
+    const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+    const enterMs = mode === 'subtle' ? ENTER_BEAT_MS * 1.2 : ENTER_BEAT_MS;
+    return appearanceAnimationNow() - this.openedAtMs < enterMs;
+  }
+
   private needsAnimationFrame(): boolean {
     if (this.requestRender === undefined) return false;
-    if (!shouldRenderAmbientEffects(getActiveAppearancePreferences())) return false;
+    const appearance = getActiveAppearancePreferences();
+    if (!shouldRenderAmbientEffects(appearance)) return false;
+    if (this.isEnterBeatActive(appearance)) return true;
     if (this.phase === 'loading') return true;
     if (this.fillStartedAtMs === undefined) return false;
     return appearanceAnimationNow() - this.fillStartedAtMs < USAGE_FILL_MS;

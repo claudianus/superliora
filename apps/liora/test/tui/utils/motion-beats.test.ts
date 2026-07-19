@@ -60,4 +60,29 @@ describe('motion-beats', () => {
     });
     expect(c.active(50)?.name).toBe('session_resume');
   });
+
+  it('treats plan_enter as enter and plan_exit as exit with the plan seed', () => {
+    const c = createMotionBeatController();
+    expect(
+      c.play({ name: 'plan_enter', seed: 'plan', title: 'plan', nowMs: 0 }),
+    ).toMatchObject({ name: 'plan_enter', seed: 'plan', kind: 'enter' });
+    expect(
+      c.play({ name: 'plan_exit', seed: 'plan', title: 'plan', nowMs: 50 }),
+    ).toMatchObject({ name: 'plan_exit', seed: 'plan', kind: 'exit' });
+  });
+
+  it('plays status_open as an enter beat', () => {
+    const c = createMotionBeatController();
+    const snap = c.play({
+      name: 'status_open',
+      seed: 'status',
+      title: 'Status',
+      nowMs: 0,
+    });
+    expect(snap).toMatchObject({
+      name: 'status_open',
+      seed: 'status',
+      kind: 'enter',
+    });
+  });
 });

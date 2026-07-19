@@ -1702,9 +1702,10 @@ export class LioraTUI {
     const theatreActive =
       this.state.appState.ultraworkMode === true || this.state.appState.swarmMode === true;
     for (const beat of modeBeats) {
+      const planBeat = beat.name === 'plan_enter' || beat.name === 'plan_exit';
       this.motionBeats.play({
         name: beat.name,
-        seed: `mode:${beat.title}`,
+        seed: planBeat ? 'plan' : `mode:${beat.title}`,
         title: beat.title,
         nowMs: appearanceAnimationNow(),
         theatreActive,
@@ -3546,14 +3547,20 @@ function truthyEnv(value: string | undefined): boolean {
   return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
 }
 
-/** Footer mode badge toggles → mode_enter / mode_exit (plan, ultrawork, swarm, yolo). */
+/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (ultrawork, swarm, yolo). */
 function collectFooterModeBeats(
   prev: AppState,
   patch: Partial<AppState>,
-): Array<{ readonly name: 'mode_enter' | 'mode_exit'; readonly title: string }> {
-  const beats: Array<{ readonly name: 'mode_enter' | 'mode_exit'; readonly title: string }> = [];
+): Array<{
+  readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
+  readonly title: string;
+}> {
+  const beats: Array<{
+    readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
+    readonly title: string;
+  }> = [];
   if ('planMode' in patch && patch.planMode !== undefined && patch.planMode !== prev.planMode) {
-    beats.push({ name: patch.planMode ? 'mode_enter' : 'mode_exit', title: 'plan' });
+    beats.push({ name: patch.planMode ? 'plan_enter' : 'plan_exit', title: 'plan' });
   }
   if (
     'ultraworkMode' in patch &&

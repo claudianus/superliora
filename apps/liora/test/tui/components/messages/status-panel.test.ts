@@ -1,6 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import chalk from 'chalk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildStatusReportLines } from '#/tui/components/messages/status-panel';
+import {
+  buildStatusReportLines,
+  createStatusFieldMotionState,
+} from '#/tui/components/messages/status-panel';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -676,5 +687,81 @@ describe('status panel report lines', () => {
       privacyTelemetryEnabled: false,
     }).join('\n');
     expect(off).toContain('Telemetry OFF');
+  });
+
+  describe('field value crossfade', () => {
+    const previous = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+      chalkLevel: chalk.level,
+    };
+
+    beforeEach(() => {
+      process.env['TERM'] = 'xterm-256color';
+      delete process.env['CI'];
+      delete process.env['NO_COLOR'];
+      chalk.level = 3;
+      setAppearanceRenderHealth('healthy');
+      setAppearanceRenderQuality('full');
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+      advanceAppearanceAnimationClock(Date.now());
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      chalk.level = previous.chalkLevel;
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+      if (previous.TERM === undefined) delete process.env['TERM'];
+      else process.env['TERM'] = previous.TERM;
+      if (previous.CI === undefined) delete process.env['CI'];
+      else process.env['CI'] = previous.CI;
+      if (previous.NO_COLOR === undefined) delete process.env['NO_COLOR'];
+      else process.env['NO_COLOR'] = previous.NO_COLOR;
+    });
+
+    it('crossfades a changed Directory field toward the new value', () => {
+      const fieldMotion = createStatusFieldMotionState();
+      const base = {
+        version: '1.0.0',
+        model: 'k2',
+        sessionId: 'ses-1',
+        sessionTitle: null as string | null,
+        thinking: false,
+        permissionMode: 'manual' as const,
+        planMode: false,
+        contextUsage: 0.1,
+        contextTokens: 100,
+        maxContextTokens: 1000,
+        availableModels: {
+          k2: {
+            provider: 'managed:kimi-api',
+            model: 'kimi-k2',
+            maxContextSize: 1000,
+            displayName: 'Kimi K2',
+          },
+        },
+        fieldMotion,
+      };
+      buildStatusReportLines({ ...base, workDir: '/tmp/old' });
+      const mid = buildStatusReportLines({ ...base, workDir: '/tmp/new' }).map(strip);
+      const dirLine = mid.find((line) => line.includes('Directory'));
+      expect(dirLine).toBeDefined();
+      // Mid-crossfade still carries the prior value until the window elapses.
+      expect(dirLine).toContain('/tmp/old');
+
+      vi.setSystemTime(Date.now() + 800);
+      advanceAppearanceAnimationClock(Date.now());
+      const settled = buildStatusReportLines({ ...base, workDir: '/tmp/new' }).map(strip);
+      const settledDir = settled.find((line) => line.includes('Directory'));
+      expect(settledDir).toContain('/tmp/new');
+      expect(settledDir).not.toContain('/tmp/old');
+    });
   });
 });

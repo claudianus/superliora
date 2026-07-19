@@ -508,6 +508,7 @@ export function renderPulseText(
   seed: string,
   fallbackToken: ColorToken = 'primary',
   appearance: AppearancePreferences = activeAppearance,
+  pace: 'fast' | 'slow' = 'fast',
 ): string {
   const plainText = stripAnsiControls(text);
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
@@ -516,7 +517,7 @@ export function renderPulseText(
   }
   return renderSpectacularText(plainText, seed, appearance, {
     intense: mode === 'premium',
-    pace: 'fast',
+    pace,
   });
 }
 

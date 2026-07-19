@@ -476,7 +476,9 @@ export class FooterComponent implements Component {
     const modeBeatTitle =
       activeBeat?.name === 'mode_enter' || activeBeat?.name === 'mode_exit'
         ? activeBeat.title
-        : undefined;
+        : activeBeat?.name === 'plan_enter' || activeBeat?.name === 'plan_exit'
+          ? 'plan'
+          : undefined;
     const withModeBeat = (title: string, body: string): string =>
       modeBeatTitle === title ? renderShimmerPrefix(appearance) + body : body;
     if (state.permissionMode === 'auto') modes.push(chalk.hex(colors.warning).bold('auto'));
@@ -498,7 +500,7 @@ export class FooterComponent implements Component {
         ),
       );
     } else if (state.planMode) {
-      modes.push(withModeBeat('plan', renderPulseText('plan', 'footer:plan', 'primary', appearance)));
+      modes.push(withModeBeat('plan', renderPulseText('plan', 'plan', 'primary', appearance)));
     }
     if (state.swarmMode) {
       modes.push(

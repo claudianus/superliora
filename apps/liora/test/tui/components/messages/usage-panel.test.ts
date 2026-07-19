@@ -1,15 +1,24 @@
+import chalk from 'chalk';
 import { visibleWidth } from '#/tui/renderer';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildManagedUsageReportLines,
   buildUsageReportLines,
   UsagePanelComponent,
 } from '#/tui/components/messages/usage-panel';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 afterEach(() => {
   currentTheme.setPalette(darkColors);
+  setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
 });
 
 function strip(text: string): string {
@@ -238,5 +247,61 @@ describe('UsagePanelComponent', () => {
 
     expect(lines).toContain('Plan usage');
     expect(lines.join('\n')).toMatch(/loading/);
+  });
+
+  describe('enter beat', () => {
+    const previous = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+      chalkLevel: chalk.level,
+    };
+
+    beforeEach(() => {
+      process.env['TERM'] = 'xterm-256color';
+      delete process.env['CI'];
+      delete process.env['NO_COLOR'];
+      chalk.level = 3;
+      setAppearanceRenderHealth('healthy');
+      setAppearanceRenderQuality('full');
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+      advanceAppearanceAnimationClock(Date.now());
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      chalk.level = previous.chalkLevel;
+      if (previous.TERM === undefined) delete process.env['TERM'];
+      else process.env['TERM'] = previous.TERM;
+      if (previous.CI === undefined) delete process.env['CI'];
+      else process.env['CI'] = previous.CI;
+      if (previous.NO_COLOR === undefined) delete process.env['NO_COLOR'];
+      else process.env['NO_COLOR'] = previous.NO_COLOR;
+    });
+
+    it('prepends enter-beat lines while open animation is active', () => {
+      const openedAtMs = Date.now();
+      const component = new UsagePanelComponent({
+        buildLines: () => ['Session usage'],
+        title: ' Usage ',
+        enterBeatSeed: 'usage',
+        openedAtMs,
+      });
+      const early = component.render(80).map(strip);
+      expect(early.some((line) => line.includes('Usage'))).toBe(true);
+      expect(early.length).toBeGreaterThan(3);
+
+      vi.setSystemTime(openedAtMs + 900);
+      advanceAppearanceAnimationClock(Date.now());
+      const settled = component.render(80).map(strip);
+      expect(settled[0]).toContain(' Usage ');
+      expect(settled.length).toBeLessThan(early.length);
+    });
   });
 });
