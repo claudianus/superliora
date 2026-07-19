@@ -48,6 +48,14 @@ const TOP_FIXED_REGION_IDS: readonly RendererFixedRegionId[] = ['header'];
 export function measureRendererRegions(options: {
   readonly terminalRows: number;
   readonly terminalColumns?: number;
+  /** Horizontal origin for stacked regions (centered stage). */
+  readonly contentX?: number;
+  /** Horizontal width for stacked regions (centered stage). */
+  readonly contentWidth?: number;
+  /** Vertical origin for stacked regions (centered stage). */
+  readonly contentY?: number;
+  /** Vertical height budget for stacked regions (centered stage). */
+  readonly contentHeight?: number;
   readonly heights: RendererRegionHeights;
   readonly minTranscriptRows?: number;
 }): RendererRegionLayout {
@@ -62,6 +70,10 @@ export function measureRendererRegions(options: {
   const layout = measureRendererStackLayout<RendererRegionId>({
     terminalRows: options.terminalRows,
     terminalColumns: options.terminalColumns,
+    contentX: options.contentX,
+    contentWidth: options.contentWidth,
+    contentY: options.contentY,
+    contentHeight: options.contentHeight,
     primaryRegionId: 'transcript',
     topFixedRegions: topRegions,
     fixedRegions,

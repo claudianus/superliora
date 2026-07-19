@@ -1,5 +1,4 @@
 import {
-  measureRendererRegions,
   visibleWidth,
   type NativeInputMouseEvent,
   type RendererRect,
@@ -8,6 +7,7 @@ import {
 
 import { CHROME_GUTTER } from '../constant/rendering';
 import type { TUIState } from '../tui-state';
+import { planTUINativeStage } from './native-stage-plan';
 import {
   plainTextFromRegionLine,
   type TranscriptSelectionPoint,
@@ -30,35 +30,26 @@ export function resolveTranscriptHitTestContext(
 ): TranscriptHitTestContext | undefined {
   const frameWidth = normalizeFrameSize(width);
   const frameHeight = normalizeFrameSize(height);
-  const activityRows = state.activityContainer.render(frameWidth).length;
-  const todoRows = state.todoPanelContainer.render(frameWidth).length;
-  const queueRows = state.queueContainer.render(frameWidth).length;
-  const btwRows = state.btwPanelContainer.render(frameWidth).length;
-  const editorRows = state.editorContainer.render(frameWidth).length;
-  const footerRows = state.footerContainer.render(frameWidth).length;
-  const layout = measureRendererRegions({
-    terminalRows: frameHeight,
-    terminalColumns: frameWidth,
-    heights: {
-      activity: activityRows,
-      todo: todoRows,
-      queue: queueRows,
-      btw: btwRows,
-      editor: editorRows,
-      footer: footerRows,
-    },
+  const plan = planTUINativeStage(state, frameWidth, frameHeight, {
+    resolveEditorFallbackLines: (contentWidth) => state.editorContainer.render(contentWidth),
+    resolveEditorRows: ({ editorLineCount, contentHeight, fixedRowsWithoutEditor }) =>
+      Math.min(
+        editorLineCount,
+        Math.max(1, contentHeight - fixedRowsWithoutEditor - 1),
+      ),
   });
-  const rect = layout.regions.find((region) => region.id === 'transcript')?.rect;
+  const rect = plan.layout.regions.find((region) => region.id === 'transcript')?.rect;
   if (rect === undefined) return undefined;
 
   const leftPad = CHROME_GUTTER;
   const rightPad = CHROME_GUTTER;
-  const visibleRows = layout.transcriptRows;
+  const visibleRows = plan.layout.transcriptRows;
+  const stageWidth = plan.stage.stage.width;
   const visibleLines = state.transcriptContainer.renderWithVisibleRegionLines(
-    frameWidth,
+    stageWidth,
     visibleRows,
   );
-  const contentWidth = Math.max(1, frameWidth - leftPad - rightPad);
+  const contentWidth = Math.max(1, stageWidth - leftPad - rightPad);
 
   return {
     rect,

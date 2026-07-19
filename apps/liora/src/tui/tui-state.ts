@@ -19,6 +19,7 @@ import { TranscriptViewportComponent } from './components/messages/transcript-vi
 import { CHROME_GUTTER } from './constant/rendering';
 import type { TasksBrowserState } from './controllers/tasks-browser';
 import { currentTheme, type Theme } from './theme';
+import { resolveStageLayout, STAGE_MAX_WIDTH } from './controllers/stage-layout';
 import { NativeEditorTextInputController } from './utils/native-editor-text-input';
 import { createTerminalState, type TerminalState } from './utils/terminal-state';
 import {
@@ -105,19 +106,38 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     CHROME_GUTTER,
     CHROME_GUTTER,
     transcriptViewport,
-    (width) =>
-      measureRendererRegions({
+    (_width) => {
+      const probeWidth = Math.min(terminal.columns, STAGE_MAX_WIDTH);
+      const hasRailContent =
+        measureContainerRows(todoPanelContainer, probeWidth) > 0 ||
+        measureContainerRows(activityContainer, probeWidth) > 0 ||
+        measureContainerRows(queueContainer, probeWidth) > 0 ||
+        measureContainerRows(btwPanelContainer, probeWidth) > 0;
+      const stage = resolveStageLayout({
+        width: terminal.columns,
+        height: terminal.rows,
+        hasRailContent,
+      });
+      const contentWidth = stage.stage.width;
+      const rail = stage.mode === 'rail';
+      return measureRendererRegions({
         terminalRows: terminal.rows,
+        terminalColumns: terminal.columns,
+        contentX: stage.stage.x,
+        contentWidth,
+        contentY: stage.stage.y,
+        contentHeight: stage.stage.height,
         heights: {
-          header: measureContainerRows(headerContainer, width),
-          activity: measureContainerRows(activityContainer, width),
-          todo: measureContainerRows(todoPanelContainer, width),
-          queue: measureContainerRows(queueContainer, width),
-          btw: measureContainerRows(btwPanelContainer, width),
-          editor: measureContainerRows(editorContainer, width),
-          footer: measureContainerRows(footerContainer, width),
+          header: measureContainerRows(headerContainer, contentWidth),
+          activity: rail ? 0 : measureContainerRows(activityContainer, contentWidth),
+          todo: rail ? 0 : measureContainerRows(todoPanelContainer, contentWidth),
+          queue: rail ? 0 : measureContainerRows(queueContainer, contentWidth),
+          btw: rail ? 0 : measureContainerRows(btwPanelContainer, contentWidth),
+          editor: measureContainerRows(editorContainer, contentWidth),
+          footer: measureContainerRows(footerContainer, contentWidth),
         },
-      }).transcriptRows,
+      }).transcriptRows;
+    },
   );
   const editor = createTUIEditor(ui);
   if ('setDisablePasteBurst' in editor) {

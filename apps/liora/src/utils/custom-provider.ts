@@ -6,6 +6,14 @@ type ModelConfig = NonNullable<LioraConfig['models']>[string];
 
 export const DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE = 128_000;
 
+/** Wire types that can be inferred from a full endpoint URL path. */
+export type InferredCustomEndpointWireType = 'openai' | 'openai_responses' | 'anthropic';
+
+export interface InferredCustomEndpoint {
+  readonly baseUrl: string;
+  readonly providerType?: InferredCustomEndpointWireType;
+}
+
 export interface CustomEndpointProviderInput {
   readonly providerId: string;
   readonly baseUrl: string;
@@ -25,6 +33,59 @@ export interface AppliedCustomEndpointProvider {
   readonly modelAlias: string;
 }
 
+/**
+ * Infers wire type from a pasted endpoint URL and strips the route suffix so the
+ * stored value is an SDK base URL.
+ *
+ * Examples:
+ * - `…/v1/responses` → base `…/v1`, type `openai_responses`
+ * - `…/v1/chat/completions` → base `…/v1`, type `openai`
+ * - `…/v1/messages` → base `…` (Anthropic SDK appends `/v1/messages`), type `anthropic`
+ */
+export function inferCustomEndpointFromUrl(raw: string): InferredCustomEndpoint {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { baseUrl: trimmed };
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { baseUrl: trimmed };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { baseUrl: trimmed };
+  }
+
+  parsed.search = '';
+  parsed.hash = '';
+  const pathname = parsed.pathname.replace(/\/+$/, '');
+
+  const rules: readonly {
+    readonly suffix: RegExp;
+    readonly providerType: InferredCustomEndpointWireType;
+    readonly stripTrailingVersion?: boolean;
+  }[] = [
+    { suffix: /\/responses$/i, providerType: 'openai_responses' },
+    { suffix: /\/chat\/completions$/i, providerType: 'openai' },
+    { suffix: /\/messages$/i, providerType: 'anthropic', stripTrailingVersion: true },
+  ];
+
+  for (const rule of rules) {
+    if (!rule.suffix.test(pathname)) continue;
+    let nextPath = pathname.replace(rule.suffix, '');
+    if (rule.stripTrailingVersion === true) {
+      nextPath = nextPath.replace(/\/v\d+$/i, '');
+    }
+    parsed.pathname = nextPath.length === 0 ? '/' : nextPath;
+    return {
+      baseUrl: parsed.toString().replace(/\/+$/, ''),
+      providerType: rule.providerType,
+    };
+  }
+
+  return { baseUrl: parsed.toString().replace(/\/+$/, '') };
+}
+
 export function applyCustomEndpointProvider(
   config: LioraConfig,
   input: CustomEndpointProviderInput,
@@ -32,7 +93,8 @@ export function applyCustomEndpointProvider(
   const providerId = requireIdentifier(input.providerId, 'Provider id');
   const modelId = requireNonEmpty(input.modelId, 'Model id');
   const modelAlias = normalizeModelAlias(input.alias, providerId, modelId);
-  const baseUrl = normalizeHttpUrl(input.baseUrl);
+  const inferred = inferCustomEndpointFromUrl(input.baseUrl);
+  const baseUrl = normalizeHttpUrl(inferred.baseUrl);
   const maxContextSize = input.maxContextSize ?? DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE;
   if (!Number.isInteger(maxContextSize) || maxContextSize <= 0) {
     throw new Error('Context window must be a positive integer.');
@@ -42,7 +104,7 @@ export function applyCustomEndpointProvider(
     throw new Error('Max output tokens must be a positive integer.');
   }
 
-  const providerType = input.providerType ?? 'openai';
+  const providerType = input.providerType ?? inferred.providerType ?? 'openai';
   const apiKey = nonEmptyString(input.apiKey) ?? 'no-key-required';
   const displayName = nonEmptyString(input.displayName);
   const capabilities = input.thinking === true ? ['tool_use', 'thinking'] : ['tool_use'];

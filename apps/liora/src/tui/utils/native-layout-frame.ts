@@ -2,7 +2,6 @@ import {
   createRendererStackFrameRegions,
   createRendererDiagnosticsOverlayRegion,
   createRendererRegionVfx,
-  measureRendererRegions,
   NativeFrameRenderer,
   NativeTerminalRenderer,
   nativeTerminalAdaptiveFeatureProfile,
@@ -80,6 +79,11 @@ export {
   type TUIStateNativeFramePolicyInput,
 } from './native-frame-policy';
 import { CHROME_GUTTER } from '../constant/rendering';
+import { resolveStageLayout } from '../controllers/stage-layout';
+import {
+  planTUINativeStage,
+  type TUINativeStageChrome,
+} from './native-stage-plan';
 import {
   cellSelectedAtColumn,
   shouldHoldTranscriptAnimation,
@@ -223,14 +227,20 @@ export function detectTUIStateNativeLayoutShift(
   state: TUIState,
   frameWidth: number,
   prior: TUIStateNativeLayoutTracking,
+  frameHeight = state.terminal.rows,
 ): TUIStateNativeLayoutShift {
+  const stageWidth = resolveStageLayout({
+    width: frameWidth,
+    height: frameHeight,
+    hasRailContent: false,
+  }).stage.width;
   const transcriptStart = state.transcriptViewport.start();
-  const transcriptContentRows = state.transcriptContainer.contentRowCount(frameWidth);
+  const transcriptContentRows = state.transcriptContainer.contentRowCount(stageWidth);
   const transcriptChildCount = state.transcriptContainer.children.length;
   const editorLayoutRows =
     state.editorContainer.children.includes(state.editor) &&
     state.editor.getNativeLayoutRowCount !== undefined
-      ? state.editor.getNativeLayoutRowCount(frameWidth)
+      ? state.editor.getNativeLayoutRowCount(stageWidth)
       : undefined;
   const viewportScrolled =
     prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart;
@@ -256,14 +266,10 @@ export function detectTUIStateNativeLayoutShift(
   };
 }
 
-interface TUIStateNativeChromeCache {
+interface TUIStateNativeChromeCache extends TUINativeStageChrome {
   readonly width: number;
-  readonly header: readonly RendererRegionLine[];
-  readonly activity: readonly RendererRegionLine[];
-  readonly todo: readonly RendererRegionLine[];
-  readonly queue: readonly RendererRegionLine[];
-  readonly btw: readonly RendererRegionLine[];
-  readonly footer: readonly RendererRegionLine[];
+  readonly stageWidth: number;
+  readonly stageMode: 'stack' | 'rail';
 }
 
 export function createTUIStateNativeRenderCallback(
@@ -281,7 +287,12 @@ export function createTUIStateNativeRenderCallback(
     // must be computed against the actual buffer height, not `size.rows`.
     const height = runtime.frameRenderer.height;
     const priorStart = layoutTracking.transcriptStart;
-    const layoutShift = detectTUIStateNativeLayoutShift(state, size.columns, layoutTracking);
+    const layoutShift = detectTUIStateNativeLayoutShift(
+      state,
+      size.columns,
+      layoutTracking,
+      height,
+    );
     const ambientAnimationAllowed =
       shouldAnimate(state.appState.appearance ?? getActiveAppearancePreferences()) &&
       shouldRenderAmbientAnimationFrame(
@@ -313,10 +324,16 @@ export function createTUIStateNativeRenderCallback(
       layoutShift.structuralShift,
       layoutShift.viewportScrolled,
     );
+    const stageProbe = resolveStageLayout({
+      width: size.columns,
+      height,
+      hasRailContent: chromeCache?.stageMode === 'rail',
+    });
     const reuseChrome =
       pureInputFrame &&
       chromeCache !== undefined &&
-      chromeCache.width === size.columns
+      chromeCache.width === size.columns &&
+      chromeCache.stageWidth === stageProbe.stage.width
         ? chromeCache
         : undefined;
     const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
@@ -327,9 +344,17 @@ export function createTUIStateNativeRenderCallback(
       // Skip Ultrawork perimeter repaint while typing — animation resumes after holdoff.
       skipDecorativeEditorEffects: typingHoldoff || pureInputFrame,
     });
-    if (!pureInputFrame || chromeCache === undefined || chromeCache.width !== size.columns) {
+    if (
+      !pureInputFrame ||
+      chromeCache === undefined ||
+      chromeCache.width !== size.columns ||
+      chromeCache.stageWidth !== nativeFrame.stageWidth ||
+      chromeCache.stageMode !== nativeFrame.stageMode
+    ) {
       chromeCache = {
         width: size.columns,
+        stageWidth: nativeFrame.stageWidth,
+        stageMode: nativeFrame.stageMode,
         header: nativeFrame.chrome.header,
         activity: nativeFrame.chrome.activity,
         todo: nativeFrame.chrome.todo,
@@ -424,33 +449,19 @@ export function getTUIStateNativeEditorRect(
   if (!state.editorContainer.children.includes(state.editor)) return undefined;
   const frameWidth = normalizeFrameSize(width, DEFAULT_NATIVE_FRAME_COLUMNS);
   const frameHeight = normalizeFrameSize(height, DEFAULT_NATIVE_FRAME_ROWS);
-  const headerRows = state.headerContainer.render(frameWidth).length;
-  const activityRows = state.activityContainer.render(frameWidth).length;
-  const todoRows = state.todoPanelContainer.render(frameWidth).length;
-  const queueRows = state.queueContainer.render(frameWidth).length;
-  const btwRows = state.btwPanelContainer.render(frameWidth).length;
-  const editorRows = nativeEditorFallbackLineCount(state, frameWidth);
-  const footerRows = state.footerContainer.render(frameWidth).length;
-  const layout = measureRendererRegions({
-    terminalRows: frameHeight,
-    terminalColumns: frameWidth,
-    heights: {
-      header: headerRows,
-      activity: activityRows,
-      todo: todoRows,
-      queue: queueRows,
-      btw: btwRows,
-      editor: nativeEditorRegionRowsForLayout(
+  const plan = planTUINativeStage(state, frameWidth, frameHeight, {
+    resolveEditorFallbackLines: (contentWidth) =>
+      nativeEditorFallbackRegionLines(state, contentWidth),
+    resolveEditorRows: ({ editorLineCount, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>
+      nativeEditorRegionRowsForLayout(
         state,
-        editorRows,
-        frameHeight,
-        headerRows + activityRows + todoRows + queueRows + btwRows + footerRows,
-        frameWidth,
+        editorLineCount,
+        contentHeight,
+        fixedRowsWithoutEditor,
+        contentWidth,
       ),
-      footer: footerRows,
-    },
   });
-  return layout.regions.find((region) => region.id === 'editor')?.rect;
+  return plan.layout.regions.find((region) => region.id === 'editor')?.rect;
 }
 
 /**
@@ -466,56 +477,35 @@ export function measureTUIStateNativeFrameHeight(
 ): number {
   if (!Number.isFinite(terminalRows) || terminalRows <= 0) return terminalRows;
   const frameWidth = normalizeFrameSize(width, DEFAULT_NATIVE_FRAME_COLUMNS);
-  const headerRows = state.headerContainer.render(frameWidth).length;
-  const activityRows = state.activityContainer.render(frameWidth).length;
-  const todoRows = state.todoPanelContainer.render(frameWidth).length;
-  const queueRows = state.queueContainer.render(frameWidth).length;
-  const btwRows = state.btwPanelContainer.render(frameWidth).length;
-  const editorLineCount = nativeEditorFallbackLineCount(state, frameWidth);
-  const footerRows = state.footerContainer.render(frameWidth).length;
-  const fixedRowsWithoutEditor = headerRows + activityRows + todoRows + queueRows + btwRows + footerRows;
-  const editorRows = nativeEditorRegionRowsForLayout(
-    state,
-    editorLineCount,
-    terminalRows,
-    fixedRowsWithoutEditor,
-    frameWidth,
-  );
-  const layout = measureRendererRegions({
-    terminalRows,
-    terminalColumns: frameWidth,
-    heights: {
-      header: headerRows,
-      activity: activityRows,
-      todo: todoRows,
-      queue: queueRows,
-      btw: btwRows,
-      editor: editorRows,
-      footer: footerRows,
-    },
+  const plan = planTUINativeStage(state, frameWidth, terminalRows, {
+    resolveEditorFallbackLines: (contentWidth) =>
+      nativeEditorFallbackRegionLines(state, contentWidth),
+    resolveEditorRows: ({ editorLineCount, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>
+      nativeEditorRegionRowsForLayout(
+        state,
+        editorLineCount,
+        contentHeight,
+        fixedRowsWithoutEditor,
+        contentWidth,
+      ),
   });
-  if (!Number.isFinite(layout.transcriptRows)) return terminalRows;
-  const contentRows = state.transcriptContainer.contentRowCount(frameWidth);
+  if (!Number.isFinite(plan.layout.transcriptRows)) return terminalRows;
+  const contentRows = state.transcriptContainer.contentRowCount(plan.stage.stage.width);
   const desiredTranscriptRows = Math.min(
-    layout.transcriptRows,
+    plan.layout.transcriptRows,
     Math.max(NATIVE_LAYOUT_MIN_TRANSCRIPT_ROWS, contentRows),
   );
-  return terminalRows - (layout.transcriptRows - desiredTranscriptRows);
+  return terminalRows - (plan.layout.transcriptRows - desiredTranscriptRows);
 }
 
-interface TUIStateNativeFrameChrome {
-  readonly header: readonly RendererRegionLine[];
-  readonly activity: readonly RendererRegionLine[];
-  readonly todo: readonly RendererRegionLine[];
-  readonly queue: readonly RendererRegionLine[];
-  readonly btw: readonly RendererRegionLine[];
-  readonly footer: readonly RendererRegionLine[];
-}
+type TUIStateNativeFrameChrome = TUINativeStageChrome;
 
 interface TUIStateNativeFrame {
   readonly regions: readonly RendererFrameRegion[];
   readonly cursor: RendererCursorState;
   readonly chrome: TUIStateNativeFrameChrome;
+  readonly stageWidth: number;
+  readonly stageMode: 'stack' | 'rail';
 }
 function isNativeFullscreenTakeover(state: TUIState): boolean {
   // Splash / tasks browser / approval preview replace the root tree. The native
@@ -592,6 +582,8 @@ function buildNativeFullscreenTakeoverFrame(
     regions: diagnosticsOverlay === undefined ? regions : [...regions, diagnosticsOverlay],
     cursor: projected.cursor ?? hiddenNativeCursor(),
     chrome: emptyNativeFrameChrome(),
+    stageWidth: width,
+    stageMode: 'stack',
   };
 }
 
@@ -610,64 +602,37 @@ function buildTUIStateNativeFrame(
   if (isNativeFullscreenTakeover(state)) {
     return buildNativeFullscreenTakeoverFrame(state, width, height, options);
   }
-  const reuse = options.reuseChrome;
-  const headerLines = reuse?.header ?? state.headerContainer.render(width);
-  const activityLines = reuse?.activity ?? state.activityContainer.render(width);
-  const todoLines = reuse?.todo ?? state.todoPanelContainer.render(width);
-  const queueLines = reuse?.queue ?? state.queueContainer.render(width);
-  const btwLines = reuse?.btw ?? state.btwPanelContainer.render(width);
-  const editorLines = nativeEditorFallbackRegionLines(state, width);
-  const footerLines = reuse?.footer ?? state.footerContainer.render(width);
-  const chrome: TUIStateNativeFrameChrome = {
-    header: headerLines,
-    activity: activityLines,
-    todo: todoLines,
-    queue: queueLines,
-    btw: btwLines,
-    footer: footerLines,
-  };
-  const fixedRowsWithoutEditor =
-    headerLines.length +
-    activityLines.length +
-    todoLines.length +
-    queueLines.length +
-    btwLines.length +
-    footerLines.length;
-  const editorRows = nativeEditorRegionRowsForLayout(
-    state,
-    editorLines.length,
-    height,
-    fixedRowsWithoutEditor,
-    width,
-  );
-  const layout = measureRendererRegions({
-    terminalRows: height,
-    terminalColumns: width,
-    heights: {
-      header: headerLines.length,
-      activity: activityLines.length,
-      todo: todoLines.length,
-      queue: queueLines.length,
-      btw: btwLines.length,
-      editor: editorRows,
-      footer: footerLines.length,
-    },
+  const plan = planTUINativeStage(state, width, height, {
+    reuseChrome: options.reuseChrome,
+    resolveEditorFallbackLines: (contentWidth) =>
+      nativeEditorFallbackRegionLines(state, contentWidth),
+    resolveEditorRows: ({ editorLineCount, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>
+      nativeEditorRegionRowsForLayout(
+        state,
+        editorLineCount,
+        contentHeight,
+        fixedRowsWithoutEditor,
+        contentWidth,
+      ),
   });
+  const stageWidth = plan.stage.stage.width;
+  const chrome = plan.chrome;
+  const layout = plan.layout;
   const linesByRegion = {
-    transcript: nativeTranscriptRegionLines(state, width, layout.transcriptRows),
-    header: headerLines,
-    activity: activityLines,
-    todo: todoLines,
-    queue: queueLines,
-    btw: btwLines,
-    editor: editorLines,
-    footer: footerLines,
+    transcript: nativeTranscriptRegionLines(state, stageWidth, layout.transcriptRows),
+    header: chrome.header,
+    activity: chrome.activity,
+    todo: chrome.todo,
+    queue: chrome.queue,
+    btw: chrome.btw,
+    editor: plan.editorLines,
+    footer: chrome.footer,
   } satisfies Record<RendererRegionId, readonly RendererRegionLine[]>;
 
   let cursor = hiddenNativeCursor();
   const canvasBackground = currentTheme.canvasBackgroundCell();
   const skipDecorative = options.skipDecorativeEditorEffects === true;
-  const regions = createRendererStackFrameRegions(
+  const stackRegions = createRendererStackFrameRegions(
     layout,
     layout.regions.flatMap((region) => {
       const source = linesByRegion[region.id];
@@ -732,6 +697,26 @@ function buildTUIStateNativeFrame(
       }];
     }),
   );
+  const regions: RendererFrameRegion[] =
+    plan.railRect !== undefined && plan.railLines.length > 0
+      ? [
+          ...stackRegions,
+          {
+            id: 'rail',
+            rect: plan.railRect,
+            content: promoteRendererRegionLinesToCells(
+              projectRendererCursorMarkerLines({
+                lines: plan.railLines,
+                rect: plan.railRect,
+                viewport: { x: 0, y: 0, width, height },
+              }).lines,
+            ),
+            clear: true,
+            background: canvasBackground,
+            zIndex: 2,
+          },
+        ]
+      : [...stackRegions];
   const diagnosticsOverlay = skipDecorative
     ? undefined
     : createTUIStateDiagnosticsOverlayRegion(
@@ -745,6 +730,8 @@ function buildTUIStateNativeFrame(
     regions: diagnosticsOverlay === undefined ? regions : [...regions, diagnosticsOverlay],
     cursor,
     chrome,
+    stageWidth,
+    stageMode: plan.stage.mode,
   };
 }
 
@@ -1024,16 +1011,6 @@ function nativeEditorFallbackRegionLines(
     return state.editor.getNativeRegionLines(width);
   }
   return state.editorContainer.render(width);
-}
-
-function nativeEditorFallbackLineCount(state: TUIState, width: number): number {
-  if (
-    state.editorContainer.children.includes(state.editor) &&
-    state.editor.getNativeLayoutRowCount !== undefined
-  ) {
-    return state.editor.getNativeLayoutRowCount(width);
-  }
-  return state.editorContainer.render(width).length;
 }
 
 /**

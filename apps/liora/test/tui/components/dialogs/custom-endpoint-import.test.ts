@@ -10,6 +10,8 @@ const ANSI = /\u001B\[[0-9;]*m/g;
 const strip = (s: string): string => s.replaceAll(ANSI, '');
 const ESC = String.fromCodePoint(27);
 const DOWN = `${ESC}[B`;
+const RIGHT = `${ESC}[C`;
+const LEFT = `${ESC}[D`;
 
 function plain(component: CustomEndpointImportDialogComponent, width = 96): string {
   return component.render(width).map(strip).join('\n');
@@ -39,6 +41,7 @@ describe('CustomEndpointImportDialogComponent', () => {
     dialog.handleInput('\r');
     typeText(dialog, 'http://localhost:11434/v1');
     dialog.handleInput('\r');
+    dialog.handleInput('\r'); // keep default wire type (openai)
     typeText(dialog, 'qwen3-coder:30b');
     dialog.handleInput('\r');
     dialog.handleInput('\r'); // empty API key is allowed for local/keyless endpoints.
@@ -49,6 +52,7 @@ describe('CustomEndpointImportDialogComponent', () => {
       value: {
         providerId: 'ollama',
         baseUrl: 'http://localhost:11434/v1',
+        providerType: 'openai',
         modelId: 'qwen3-coder:30b',
         apiKey: undefined,
         maxContextSize: 128000,
@@ -56,8 +60,79 @@ describe('CustomEndpointImportDialogComponent', () => {
     });
   });
 
+  it('cycles wire type with ←/→ and includes it in the submit value', () => {
+    const { dialog, onDone } = makeDialog();
+
+    typeText(dialog, 'ocx');
+    dialog.handleInput('\r');
+    typeText(dialog, 'http://127.0.0.1:10100/v1');
+    dialog.handleInput('\r');
+    dialog.handleInput(RIGHT); // openai → openai_responses
+    expect(plain(dialog)).toContain('openai_responses');
+    expect(plain(dialog)).toContain('POST /v1/responses');
+    dialog.handleInput('\r');
+    typeText(dialog, 'cursor/grok-4.5');
+    dialog.handleInput('\r');
+    dialog.handleInput('\r');
+    dialog.handleInput('\r');
+
+    expect(onDone).toHaveBeenCalledWith({
+      kind: 'ok',
+      value: {
+        providerId: 'ocx',
+        baseUrl: 'http://127.0.0.1:10100/v1',
+        providerType: 'openai_responses',
+        modelId: 'cursor/grok-4.5',
+        apiKey: undefined,
+        maxContextSize: 128000,
+      },
+    });
+  });
+
+  it('infers openai_responses from a /v1/responses URL and strips the route', () => {
+    const { dialog, onDone } = makeDialog();
+
+    typeText(dialog, 'ocx');
+    dialog.handleInput('\r');
+    typeText(dialog, 'http://127.0.0.1:10100/v1/responses');
+    dialog.handleInput('\r'); // leave URL → infer type + rewrite base
+    const afterUrl = plain(dialog);
+    expect(afterUrl).toContain('http://127.0.0.1:10100/v1');
+    expect(afterUrl).not.toContain('http://127.0.0.1:10100/v1/responses');
+    expect(afterUrl).toContain('openai_responses');
+    dialog.handleInput('\r'); // leave wire type
+    typeText(dialog, 'cursor/grok-4.5');
+    dialog.handleInput('\r');
+    dialog.handleInput('\r');
+    dialog.handleInput('\r');
+
+    expect(onDone).toHaveBeenCalledWith({
+      kind: 'ok',
+      value: {
+        providerId: 'ocx',
+        baseUrl: 'http://127.0.0.1:10100/v1',
+        providerType: 'openai_responses',
+        modelId: 'cursor/grok-4.5',
+        apiKey: undefined,
+        maxContextSize: 128000,
+      },
+    });
+  });
+
+  it('wraps wire type cycling at both ends', () => {
+    const { dialog } = makeDialog();
+    dialog.handleInput(DOWN);
+    dialog.handleInput(DOWN); // Wire type
+
+    dialog.handleInput(LEFT); // openai → vertexai
+    expect(plain(dialog)).toContain('vertexai');
+    dialog.handleInput(RIGHT); // vertexai → openai
+    expect(plain(dialog)).toContain('openai');
+  });
+
   it('masks API keys while rendering', () => {
     const { dialog } = makeDialog();
+    dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
@@ -71,6 +146,7 @@ describe('CustomEndpointImportDialogComponent', () => {
   it('validates required fields before submitting', () => {
     const { dialog, onDone } = makeDialog();
 
+    dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);
     dialog.handleInput(DOWN);

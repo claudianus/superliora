@@ -9,6 +9,24 @@ export interface RendererStackFixedRegion<Id extends string = string> {
 export interface RendererStackLayoutOptions<Id extends string = string> {
   readonly terminalRows: number;
   readonly terminalColumns?: number;
+  /**
+   * Horizontal origin for every stacked region. Defaults to `0` (full-bleed).
+   * Use with {@link contentWidth} to center a content column inside the terminal.
+   */
+  readonly contentX?: number;
+  /**
+   * Horizontal width for every stacked region. Defaults to {@link terminalColumns}.
+   */
+  readonly contentWidth?: number;
+  /**
+   * Vertical origin for the stacked content band. Defaults to `0` (top-aligned).
+   * Use with {@link contentHeight} to center a capped stage inside a tall terminal.
+   */
+  readonly contentY?: number;
+  /**
+   * Vertical budget for the stacked content band. Defaults to {@link terminalRows}.
+   */
+  readonly contentHeight?: number;
   readonly primaryRegionId: Id;
   readonly fixedRegions: readonly RendererStackFixedRegion<Id>[];
   /**
@@ -48,8 +66,12 @@ export function measureRendererStackLayout<Id extends string>(
 ): RendererStackLayout<Id> {
   const terminalRows = normalizeTerminalRows(options.terminalRows);
   const terminalColumns = normalizeTerminalColumns(options.terminalColumns);
+  const contentWidth = normalizeContentWidth(options.contentWidth, terminalColumns);
+  const contentX = normalizeContentX(options.contentX, terminalColumns, contentWidth);
+  const contentHeight = normalizeContentHeight(options.contentHeight, terminalRows);
+  const contentY = normalizeContentY(options.contentY, terminalRows, contentHeight);
 
-  if (!Number.isFinite(terminalRows)) {
+  if (!Number.isFinite(terminalRows) || !Number.isFinite(contentHeight)) {
     return {
       terminalRows,
       terminalColumns,
@@ -58,9 +80,10 @@ export function measureRendererStackLayout<Id extends string>(
       regions: [
         createRegion({
           id: options.primaryRegionId,
-          y: 0,
+          x: contentX,
+          y: contentY,
           rows: Number.POSITIVE_INFINITY,
-          columns: terminalColumns,
+          columns: contentWidth,
         }),
       ],
     };
@@ -75,18 +98,19 @@ export function measureRendererStackLayout<Id extends string>(
     .filter((region) => region.rows > 0);
   const topReservedRows = topFixedRegions.reduce((sum, region) => sum + region.rows, 0);
   const reservedRows = fixedRegions.reduce((sum, region) => sum + region.rows, 0);
-  const primaryRows = Math.max(minPrimaryRows, terminalRows - topReservedRows - reservedRows);
+  const primaryRows = Math.max(minPrimaryRows, contentHeight - topReservedRows - reservedRows);
 
   const regions: RendererStackLayoutRegion<Id>[] = [];
 
-  // Top-pinned fixed regions (header) start at y=0.
-  let y = 0;
+  // Top-pinned fixed regions (header) start at the content band origin.
+  let y = contentY;
   for (const top of topFixedRegions) {
     regions.push(createRegion({
       id: top.id,
+      x: contentX,
       y,
       rows: top.rows,
-      columns: terminalColumns,
+      columns: contentWidth,
     }));
     y += top.rows;
   }
@@ -94,9 +118,10 @@ export function measureRendererStackLayout<Id extends string>(
   // Primary region follows the top regions.
   regions.push(createRegion({
     id: options.primaryRegionId,
+    x: contentX,
     y,
     rows: primaryRows,
-    columns: terminalColumns,
+    columns: contentWidth,
   }));
   y += primaryRows;
 
@@ -104,9 +129,10 @@ export function measureRendererStackLayout<Id extends string>(
   for (const fixed of fixedRegions) {
     regions.push(createRegion({
       id: fixed.id,
+      x: contentX,
       y,
       rows: fixed.rows,
-      columns: terminalColumns,
+      columns: contentWidth,
     }));
     y += fixed.rows;
   }
@@ -145,12 +171,13 @@ export function createRendererStackFrameRegions<Id extends string>(
 
 function createRegion<Id extends string>(options: {
   readonly id: Id;
+  readonly x: number;
   readonly y: number;
   readonly rows: number;
   readonly columns: number;
 }): RendererStackLayoutRegion<Id> {
   const rect = Number.isFinite(options.rows) && Number.isFinite(options.columns)
-    ? { x: 0, y: options.y, width: options.columns, height: options.rows }
+    ? { x: options.x, y: options.y, width: options.columns, height: options.rows }
     : undefined;
   return {
     id: options.id,
@@ -170,6 +197,52 @@ function normalizeTerminalColumns(columns: number | undefined): number {
     return Number.POSITIVE_INFINITY;
   }
   return Math.floor(columns);
+}
+
+function normalizeContentWidth(contentWidth: number | undefined, terminalColumns: number): number {
+  if (contentWidth === undefined || !Number.isFinite(contentWidth) || contentWidth <= 0) {
+    return terminalColumns;
+  }
+  const width = Math.floor(contentWidth);
+  if (!Number.isFinite(terminalColumns)) return width;
+  return Math.min(width, terminalColumns);
+}
+
+function normalizeContentX(
+  contentX: number | undefined,
+  terminalColumns: number,
+  contentWidth: number,
+): number {
+  if (contentX === undefined || !Number.isFinite(contentX) || contentX <= 0) {
+    return 0;
+  }
+  const x = Math.floor(contentX);
+  if (!Number.isFinite(terminalColumns) || !Number.isFinite(contentWidth)) return x;
+  const maxX = Math.max(0, terminalColumns - contentWidth);
+  return Math.min(Math.max(0, x), maxX);
+}
+
+function normalizeContentHeight(contentHeight: number | undefined, terminalRows: number): number {
+  if (contentHeight === undefined || !Number.isFinite(contentHeight) || contentHeight <= 0) {
+    return terminalRows;
+  }
+  const height = Math.floor(contentHeight);
+  if (!Number.isFinite(terminalRows)) return height;
+  return Math.min(height, terminalRows);
+}
+
+function normalizeContentY(
+  contentY: number | undefined,
+  terminalRows: number,
+  contentHeight: number,
+): number {
+  if (contentY === undefined || !Number.isFinite(contentY) || contentY <= 0) {
+    return 0;
+  }
+  const y = Math.floor(contentY);
+  if (!Number.isFinite(terminalRows) || !Number.isFinite(contentHeight)) return y;
+  const maxY = Math.max(0, terminalRows - contentHeight);
+  return Math.min(Math.max(0, y), maxY);
 }
 
 function normalizeMinPrimaryRows(rows: number | undefined): number {

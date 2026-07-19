@@ -153,6 +153,50 @@ describe('custom theme loader', () => {
     );
     const bundled = await loadCustomThemeMerged('superliora-neon-noir');
     expect(bundled?.primary).toBe('#00D5FF');
+
+    expect(listAvailableThemeEntriesSync()).toContainEqual(
+      expect.objectContaining({
+        name: 'superliora-night-kiwi',
+        displayName: 'SuperLiora Night × Kiwi',
+        source: 'bundled',
+        base: 'dark',
+      }),
+    );
+    const nightKiwi = await loadCustomThemeMerged('superliora-night-kiwi');
+    expect(nightKiwi?.primary).toBe('#89E900');
+    expect(nightKiwi?.background).toBe('#000000');
+    expect(nightKiwi?.surface).toBe('#222222');
+    expect(nightKiwi?.selectionBg).toBe('#89E900');
+    expect(nightKiwi?.selectionText).toBe('#000000');
+
+    expect(listAvailableThemeEntriesSync()).toContainEqual(
+      expect.objectContaining({
+        name: 'superliora-night-imperial',
+        displayName: 'SuperLiora Night × Imperial',
+        source: 'bundled',
+        base: 'dark',
+      }),
+    );
+    const nightImperial = await loadCustomThemeMerged('superliora-night-imperial');
+    expect(nightImperial?.primary).toBe('#FB3640');
+    expect(nightImperial?.background).toBe('#000F08');
+    expect(nightImperial?.selectionBg).toBe('#FB3640');
+    expect(nightImperial?.selectionText).toBe('#000F08');
+
+    expect(listAvailableThemeEntriesSync()).toContainEqual(
+      expect.objectContaining({
+        name: 'superliora-pumpkin-charcoal',
+        displayName: 'SuperLiora Pumpkin × Charcoal',
+        source: 'bundled',
+        base: 'dark',
+      }),
+    );
+    const pumpkinCharcoal = await loadCustomThemeMerged('superliora-pumpkin-charcoal');
+    expect(pumpkinCharcoal?.primary).toBe('#FD802E');
+    expect(pumpkinCharcoal?.background).toBe('#000000');
+    expect(pumpkinCharcoal?.surface).toBe('#233D4C');
+    expect(pumpkinCharcoal?.selectionBg).toBe('#FD802E');
+    expect(pumpkinCharcoal?.selectionText).toBe('#233D4C');
   });
 
   it('exposes generated external terminal themes as bundled themes', async () => {

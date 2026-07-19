@@ -79,6 +79,59 @@ describe('measureRendererStackLayout', () => {
     ]);
   });
 
+  it('honors contentX/contentWidth for a centered content column', () => {
+    const layout = measureRendererStackLayout({
+      terminalRows: 10,
+      terminalColumns: 200,
+      contentX: 46,
+      contentWidth: 108,
+      primaryRegionId: 'main',
+      fixedRegions: [{ id: 'footer', rows: 2 }],
+    });
+
+    expect(layout.regions).toEqual([
+      {
+        id: 'main',
+        rows: 8,
+        y: 0,
+        rect: { x: 46, y: 0, width: 108, height: 8 },
+      },
+      {
+        id: 'footer',
+        rows: 2,
+        y: 8,
+        rect: { x: 46, y: 8, width: 108, height: 2 },
+      },
+    ]);
+  });
+
+  it('honors contentY/contentHeight for a vertically centered content band', () => {
+    const layout = measureRendererStackLayout({
+      terminalRows: 80,
+      terminalColumns: 100,
+      contentY: 20,
+      contentHeight: 40,
+      primaryRegionId: 'main',
+      fixedRegions: [{ id: 'footer', rows: 2 }],
+    });
+
+    expect(layout.primaryRows).toBe(38);
+    expect(layout.regions).toEqual([
+      {
+        id: 'main',
+        rows: 38,
+        y: 20,
+        rect: { x: 0, y: 20, width: 100, height: 38 },
+      },
+      {
+        id: 'footer',
+        rows: 2,
+        y: 58,
+        rect: { x: 0, y: 58, width: 100, height: 2 },
+      },
+    ]);
+  });
+
   it('maps measured stack regions into native frame regions', () => {
     const layout = measureRendererStackLayout({
       terminalRows: 4,
