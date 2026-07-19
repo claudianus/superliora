@@ -5,6 +5,7 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 import {
+  applySkyToLetterboxRegions,
   letterboxArea,
   paintStageLetterboxSky,
   pointInLetterboxBands,
@@ -225,5 +226,21 @@ describe('stage letterbox night sky', () => {
     }
     expect(maxHeadY).toBeGreaterThanOrEqual(79);
     expect(sawBottomHead).toBe(true);
+  });
+
+  it('builds dense letterbox regions without clear so ambient ticks do not wipe bands', () => {
+    const bands = ultrawideBands();
+    const regions = applySkyToLetterboxRegions(
+      bands,
+      [{ x: bands[0]!.x, y: bands[0]!.y, char: '·', fg: '#fff' }],
+      '#112233',
+    );
+    expect(regions.length).toBeGreaterThan(0);
+    for (const region of regions) {
+      expect(region.clear).toBe(false);
+      const lines = region.content as readonly (readonly unknown[])[];
+      expect(lines).toHaveLength(region.rect.height);
+      expect(lines[0]).toHaveLength(region.rect.width);
+    }
   });
 });

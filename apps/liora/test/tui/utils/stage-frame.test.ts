@@ -87,13 +87,14 @@ describe('stageFrameStrokeCells', () => {
 });
 
 describe('stageFrameLetterboxBands', () => {
-  it('covers only outside the frame ring', () => {
+  it('covers only outside the frame ring and outer halo', () => {
     const bundle = { x: 5, y: 5, width: 10, height: 6 };
     const bands = stageFrameLetterboxBands(bundle, 24, 18);
-    const left = bundle.x - STAGE_FRAME_GAP;
-    const right = bundle.x + bundle.width + STAGE_FRAME_GAP - 1;
-    const top = bundle.y - STAGE_FRAME_GAP;
-    const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1;
+    const inset = STAGE_FRAME_GAP + STAGE_FRAME_HALO;
+    const left = bundle.x - inset;
+    const right = bundle.x + bundle.width + inset - 1;
+    const top = bundle.y - inset;
+    const bottom = bundle.y + bundle.height + inset - 1;
     expect(bands.length).toBe(4);
     for (const band of bands) {
       for (let y = band.y; y < band.y + band.height; y++) {
@@ -103,6 +104,15 @@ describe('stageFrameLetterboxBands', () => {
         }
       }
     }
+  });
+
+  it('does not overlap the outer halo row', () => {
+    const bundle = { x: 40, y: 15, width: 90, height: 50 };
+    const bands = stageFrameLetterboxBands(bundle, 200, 80);
+    const haloTop = bundle.y - STAGE_FRAME_GAP - STAGE_FRAME_HALO;
+    const topBand = bands.find((b) => b.y === 0);
+    expect(topBand).toBeDefined();
+    expect(topBand!.y + topBand!.height).toBe(haloTop);
   });
 });
 
@@ -309,6 +319,9 @@ describe('stageFrame entrance + chase', () => {
     expect(regions.some((r) => r.id?.startsWith('stageFrameLetterbox'))).toBe(true);
     const letterbox = regions.find((r) => r.id?.startsWith('stageFrameLetterbox'));
     expect(letterbox?.background?.style?.bg).toBe(resolveLetterboxCanvasBg());
+    expect(letterbox?.clear).toBe(false);
+    const letterboxLines = letterbox?.content as readonly (readonly unknown[])[];
+    expect(letterboxLines[0]?.length).toBe(letterbox?.rect.width);
     const stroke = regions.find((r) => r.id === 'stageFrame');
     expect(stroke).toBeDefined();
     expect(stroke!.clear).toBe(false);

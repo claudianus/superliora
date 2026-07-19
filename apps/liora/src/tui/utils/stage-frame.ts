@@ -217,16 +217,19 @@ function chaseFgForTrailStep(
   return dim;
 }
 
-/** Letterbox band rects outside the frame ring (theme canvas fill). */
+/** Letterbox band rects outside the frame ring + outer halo (theme canvas fill). */
 export function stageFrameLetterboxBands(
   bundle: StageFrameBand,
   cols: number,
   rows: number,
 ): readonly StageFrameBand[] {
-  const left = bundle.x - STAGE_FRAME_GAP;
-  const right = bundle.x + bundle.width + STAGE_FRAME_GAP - 1;
-  const top = bundle.y - STAGE_FRAME_GAP;
-  const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1;
+  // Stay outside halo (GAP+HALO), not just the stroke. Overlapping halo made
+  // ambient letterbox clear:true wipe the full-width halo row every tick.
+  const inset = STAGE_FRAME_GAP + STAGE_FRAME_HALO;
+  const left = bundle.x - inset;
+  const right = bundle.x + bundle.width + inset - 1;
+  const top = bundle.y - inset;
+  const bottom = bundle.y + bundle.height + inset - 1;
   const bands: StageFrameBand[] = [];
   if (top > 0) bands.push({ x: 0, y: 0, width: cols, height: top });
   if (bottom + 1 < rows) {
