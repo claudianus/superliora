@@ -874,7 +874,7 @@ function parseAppearancePatch(
       return next;
     case 'animation-fps': {
       const fps = Number.parseInt(value, 10);
-      if (!Number.isInteger(fps) || fps < 1 || fps > 30) return null;
+      if (!Number.isInteger(fps) || fps < 1 || fps > 60) return null;
       next.animationFps = fps;
       return next;
     }

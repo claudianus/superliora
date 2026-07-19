@@ -76,8 +76,8 @@ export function rendererEffectFrameIntervalMs(
   }
 }
 
-export const RENDERER_AMBIENT_PREMIUM_MS = 33;
-export const RENDERER_AMBIENT_SUBTLE_MS = 140;
+export const RENDERER_AMBIENT_PREMIUM_MS = 16;
+export const RENDERER_AMBIENT_SUBTLE_MS = 100;
 
 export interface RendererAmbientIntervalOptions {
   readonly requested: RendererEffectLevel;

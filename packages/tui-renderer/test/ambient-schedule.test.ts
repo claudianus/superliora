@@ -7,7 +7,7 @@ import {
 } from '../src';
 
 describe('rendererAmbientIntervalMs', () => {
-  it('keeps premium at 33ms when healthy and full quality', () => {
+  it('keeps premium at 16ms when healthy and full quality', () => {
     expect(
       rendererAmbientIntervalMs({
         requested: 'premium',
@@ -15,7 +15,7 @@ describe('rendererAmbientIntervalMs', () => {
         health: 'healthy',
         backpressure: false,
       }),
-    ).toBe(33);
+    ).toBe(16);
   });
 
   it('soft-degrades premium to subtle ms under pressure', () => {
@@ -25,14 +25,14 @@ describe('rendererAmbientIntervalMs', () => {
         quality: 'balanced',
         health: 'healthy',
       }),
-    ).toBe(140);
+    ).toBe(100);
     expect(
       rendererAmbientIntervalMs({
         requested: 'premium',
         quality: 'full',
         health: 'watch',
       }),
-    ).toBe(140);
+    ).toBe(100);
     expect(
       rendererAmbientIntervalMs({
         requested: 'premium',
@@ -40,7 +40,7 @@ describe('rendererAmbientIntervalMs', () => {
         health: 'healthy',
         backpressure: true,
       }),
-    ).toBe(140);
+    ).toBe(100);
   });
 
   it('returns Infinity for off without forcing callers to special-case', () => {
@@ -54,7 +54,7 @@ describe('rendererAmbientIntervalMs', () => {
         quality: 'full',
         health: 'healthy',
       }),
-    ).toBe(140);
+    ).toBe(100);
   });
 });
 

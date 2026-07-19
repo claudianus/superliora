@@ -64,9 +64,18 @@ const COMET_HEAD = '•';
 const COMET_MID = '∙';
 const COMET_TAIL = '·';
 const STAR_DUST = ['·', '∙', '◦'] as const;
-/** ~30fps cinematic floor — dense 1ms thrash burns CPU without better motion. */
-const PREMIUM_AMBIENT_RENDER_TICK_MS = 33;
-const SUBTLE_AMBIENT_RENDER_TICK_MS = 140;
+/** Premium ambient ceiling (~60fps). Denser than this burns CPU without clearer motion. */
+const PREMIUM_AMBIENT_MIN_MS = 16;
+/** Soft-degrade / subtle ambient floor. */
+const SUBTLE_AMBIENT_RENDER_TICK_MS = 100;
+
+/** Resolve premium ambient interval from user `animationFps` (clamped to ≤60fps). */
+export function premiumAmbientIntervalMs(animationFps: number): number {
+  const fps = Number.isFinite(animationFps) ? Math.trunc(animationFps) : 60;
+  if (fps <= 0) return Number.POSITIVE_INFINITY;
+  // floor so 60fps → 16ms (round would yield 17).
+  return Math.max(PREMIUM_AMBIENT_MIN_MS, Math.floor(1000 / Math.min(60, fps)));
+}
 const PULSE_GLYPH_INTERVAL_MS = 280;
 /** Header/divider comet cadence — slow enough to read as drift, not scroll. */
 const COMET_TICK_MS_PREMIUM = 48;
@@ -172,7 +181,7 @@ export function appearanceAnimationFrameIntervalMs(
     health: health === 'degraded' ? 'watch' : health,
     // backpressure is injected by AmbientSchedule ctx at the renderer; this
     // helper remains quality/health oriented for unit tests / cache ticks.
-    premiumMs: PREMIUM_AMBIENT_RENDER_TICK_MS,
+    premiumMs: premiumAmbientIntervalMs(appearance.animationFps),
     subtleMs: SUBTLE_AMBIENT_RENDER_TICK_MS,
   });
 }

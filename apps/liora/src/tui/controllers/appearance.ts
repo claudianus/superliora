@@ -12,6 +12,7 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   motionEffectsAllowed,
+  premiumAmbientIntervalMs,
   resolveAmbientEffectMode,
   setActiveAppearancePreferences,
 } from '#/tui/utils/appearance-effects';
@@ -88,15 +89,17 @@ export class AppearanceController {
       enabled: true,
       shouldTick: () =>
         this.forceAmbientSchedule?.() === true || this.shouldRenderAnimation?.() !== false,
-      resolveIntervalMs: (ctx) =>
-        rendererAmbientIntervalMs({
-          requested: resolveAmbientEffectMode(this.getAppearance()),
+      resolveIntervalMs: (ctx) => {
+        const appearance = this.getAppearance();
+        return rendererAmbientIntervalMs({
+          requested: resolveAmbientEffectMode(appearance),
           quality: ctx.quality === 'minimal' ? 'balanced' : ctx.quality,
           health: ctx.health === 'degraded' ? 'watch' : ctx.health,
           backpressure: ctx.backpressure,
-          premiumMs: 33,
-          subtleMs: 140,
-        }),
+          premiumMs: premiumAmbientIntervalMs(appearance.animationFps),
+          subtleMs: 100,
+        });
+      },
     });
   }
 

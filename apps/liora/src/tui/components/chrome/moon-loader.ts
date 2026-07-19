@@ -41,7 +41,7 @@ export class MoonLoader extends Text {
     this.ui = ui;
     this.style = style;
     this.frames = style === 'moon' ? [...MOON_SPINNER_FRAMES] : [...BRAILLE_SPINNER_FRAMES];
-    // Comet trails should animate near the premium ambient ~30fps floor (33ms),
+    // Comet trails should animate near the premium ambient ~60fps floor (16ms),
     // not 2ms densify thrash from BRAILLE-88.
     this.interval =
       style === 'moon'
