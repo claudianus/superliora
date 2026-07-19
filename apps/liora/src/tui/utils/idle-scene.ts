@@ -151,9 +151,9 @@ function hash2(a: number, b: number): number {
 }
 
 export function resolveSeaweedSpacing(width: number): number {
-  if (width >= 80) return 4;
-  if (width >= 50) return 5;
-  return 6;
+  if (width >= 80) return 6;
+  if (width >= 50) return 8;
+  return 10;
 }
 
 export interface AquariumPalette {
@@ -200,14 +200,12 @@ function pickCooler(...candidates: readonly (string | undefined)[]): string {
 
 /**
  * Map theme brand tokens to aquarium paint roles.
- * Two-tone only: primary / accent / glow / particle / gradient* (+ textDim for dim).
- * Never success / warning / roleUser — those inject off-brand mint/yellow.
+ * Brand motion tokens only — never success / warning / roleUser.
  */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
   _theme: 'dark' | 'light' = 'dark',
 ): AquariumPalette {
-  const gradientEnd = colors.gradientEnd ?? colors.particle;
   const waterDeep = pickCooler(colors.gradientStart, colors.glow, colors.primary);
   const water = colors.glow;
   const waterSoft = pickCooler(colors.primary, colors.glow, colors.gradientStart);
@@ -217,15 +215,15 @@ export function resolveAquariumPalette(
     waterDeep,
     waterSoft,
     plant: colors.accent,
-    plantSoft: colors.particle,
-    sand: gradientEnd,
-    coral: colors.particle,
-    coralSoft: colors.accent,
+    plantSoft: colors.primary,
+    sand: colors.textDim,
+    coral: colors.accent,
+    coralSoft: colors.primary,
     food: colors.particle,
-    fishGold: gradientEnd,
-    fishSky: waterDeep,
+    fishGold: colors.primary,
+    fishSky: water,
     fishTeal: colors.accent,
-    fishSoft: water,
+    fishSoft: colors.textDim,
     bubble: colors.glow,
     dim: colors.textDim,
   };
@@ -338,15 +336,15 @@ export function paintBubbles(
   paintGlyph: (glyph: string, intensity: number) => string,
 ): void {
   if (width <= 0 || rows <= 0) return;
-  const columns = Math.max(2, Math.min(5, Math.floor(width / 16)));
+  const columns = Math.max(1, Math.min(2, Math.floor(width / 28)));
   for (let i = 0; i < columns; i++) {
     const seed = hash2(i * 29 + 5, 77);
     const x = 3 + (seed % Math.max(1, width - 6));
-    const period = 2_400 + (seed % 2_000);
+    const period = 3_200 + (seed % 2_400);
     const progress = ((elapsedMs + seed) % period) / period;
     const y = Math.floor((1 - progress) * (rows - 1));
     const sizeIdx = Math.min(BUBBLE_GLYPHS.length - 1, Math.floor(progress * BUBBLE_GLYPHS.length));
-    const wobble = Math.sin(elapsedMs / 420 + seed) > 0 ? 0 : 1;
+    const wobble = Math.sin(elapsedMs / 720 + seed) > 0 ? 0 : 1;
     putCell(
       canvas,
       y,
@@ -407,7 +405,7 @@ export function renderWaterline(width: number, elapsedMs: number): string {
   if (width <= 0) return '';
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const phase = Math.sin(x * 0.28 + elapsedMs / 980);
+    const phase = Math.sin(x * 0.28 + elapsedMs / 2_200);
     if (phase > 0.55) cells.push('≈');
     else if (phase > 0.1) cells.push('~');
     else if (phase > -0.35) cells.push('∼');
@@ -420,7 +418,7 @@ export function renderSandLine(width: number, elapsedMs: number, rowSeed: number
   if (width <= 0) return '';
   const cells: string[] = [];
   for (let x = 0; x < width; x++) {
-    const twinkle = Math.sin(elapsedMs / 2_800 + x * 0.27 + rowSeed) > 0.9;
+    const twinkle = Math.sin(elapsedMs / 2_800 + x * 0.27 + rowSeed) > 0.985;
     const pebble = hash2(x + 3, rowSeed + 11) % 17 === 0;
     if (twinkle) cells.push('·');
     else if (pebble) cells.push('˚');
@@ -603,7 +601,7 @@ interface FishActor {
 
 function buildSchool(width: number, storyRows: number, premium: boolean): FishActor[] {
   // Curated cast — lead + companions, never a crowd.
-  const count = premium ? (width >= 72 ? 4 : 3) : width >= 50 ? 3 : 2;
+  const count = premium ? (width >= 72 ? 3 : 2) : width >= 50 ? 2 : 1;
   const colors: FishColor[] = ['gold', 'sky', 'teal', 'soft'];
   // Staggered depth bands so the lead lane stays readable.
   const bands = [0.22, 0.38, 0.3, 0.48] as const;
@@ -879,22 +877,9 @@ export function paintIdleStoryScene(options: {
 
   const palette = resolveAquariumPalette(colors, themeMode);
 
-  // 1) Depth-graded water base + drifting highlights
-  if (showAmbient) {
-    paintWaterBase(canvas, width, storyRows, paint, palette.water, palette.waterSoft, palette.waterDeep);
-    paintWaterField(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      palette.water,
-      palette.waterSoft,
-      palette.waterDeep,
-    );
-  }
+  // Mid-water stays blank (open water); helpers like paintWaterBase remain unused here.
 
-  // 2) Surface line
+  // 1) Surface line
   if (storyRows >= 4) {
     canvas[0] = padOrTrim(
       paint(showAmbient ? palette.waterDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
@@ -902,63 +887,25 @@ export function paintIdleStoryScene(options: {
     );
   }
 
-  // 3) Surface light shafts
-  if (showAmbient && premium) {
-    paintSurfaceLight(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
-      paint(intensity > 0.45 ? palette.water : palette.waterSoft, glyph),
-    );
-  }
-
-  // 4) Warm sand bed
+  // 2) Warm sand bed
   const sandY = storyRows - 1;
   if (sandY > 0) {
     canvas[sandY] = padOrTrim(paint(palette.sand, renderSandLine(width, elapsedMs, 1)), width);
   }
 
-  // 5) Coral accents
-  if (showAmbient && premium) {
-    paintCoral(canvas, width, storyRows, elapsedMs, paint, palette.coral, palette.coralSoft);
-  }
-
-  // 6) Seaweed curtain
+  // 3) Seaweed curtain
   if (showAmbient) {
     paintSeaweed(canvas, width, storyRows, elapsedMs, paint, palette.plant, palette.plantSoft);
   }
 
-  // 7) Air-stone + local plume
-  if (showAmbient && premium) {
-    paintAirStone(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      colors.textDim,
-      palette.bubble,
-      colors.textMuted,
-    );
-  }
-
-  // 8) Quiet rising bubbles (tank-wide)
+  // 4) Quiet rising bubbles (tank-wide)
   if (showAmbient) {
     paintBubbles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
       paint(intensity > 0.7 ? palette.bubble : colors.textMuted, glyph),
     );
   }
 
-  // 9) Caustic band
-  if (showAmbient && premium && storyRows >= 10 && width >= 48) {
-    paintCausticPath(canvas, Math.floor(storyRows * 0.3), 1, width, elapsedMs, (ch) =>
-      paint(ch === '≈' ? palette.water : palette.waterSoft, ch),
-    );
-  }
-
-  // 10) Jewel sparkles
-  if (showAmbient && premium) {
-    paintSparkles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, paint, palette.fishGold);
-  }
-
-  // 11) Fish + food — snapshot when provided, patrol school as fallback
+  // 5) Fish + food — snapshot when provided, patrol school as fallback
   if (sim) {
     paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
     paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);

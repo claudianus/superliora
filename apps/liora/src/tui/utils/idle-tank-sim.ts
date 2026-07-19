@@ -72,8 +72,8 @@ function floorY(storyRows: number): number {
 }
 
 function fishCount(width: number, premium: boolean): number {
-  if (premium) return width >= 72 ? 4 : 3;
-  return width >= 50 ? 3 : 2;
+  if (premium) return width >= 72 ? 3 : 2;
+  return width >= 50 ? 2 : 1;
 }
 
 function buildInitialFish(

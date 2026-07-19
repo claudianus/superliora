@@ -30,7 +30,6 @@ import {
   applyFishTail,
   paintBubbles,
   paintIdleStoryScene,
-  paintMoonlightPath,
   paintWaterBase,
   resolveAquariumPalette,
   resolveLanternGlyph,
@@ -155,7 +154,7 @@ describe('idle-stage helpers', () => {
     expect(joined).toMatch(/[<>]/);
   });
 
-  it('flickers air-stone bubbles over time (no solid splash-moon █)', () => {
+  it('flickers air-stone helper glyphs over time (helper-only; not painted in story scene)', () => {
     const samples = [0, 80, 160, 240, 400, 800, 1_200].map((t) =>
       resolveLanternGlyph(t, 1).join('|'),
     );
@@ -202,13 +201,57 @@ describe('idle-stage helpers', () => {
     expect(filledRows).toBeGreaterThanOrEqual(rows - 3);
   });
 
-  it('lays a drifting caustic path across mid-water', () => {
-    const width = 40;
-    const bandRows = 4;
-    const canvas = Array.from({ length: bandRows }, () => '~'.repeat(width));
-    paintMoonlightPath(canvas, 0, bandRows, width, 1_000, (ch) => ch);
-    const joined = canvas.map((line) => stripAnsi(line)).join('\n');
-    expect(joined).toMatch(/[≈∼·]/);
+  it('does not paint caustic / sparkle / water-field clutter in the story scene', () => {
+    withAmbientEnv(() => {
+      const width = 80;
+      const storyRows = 16;
+      const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
+      paintIdleStoryScene({
+        canvas,
+        width,
+        storyRows,
+        elapsedMs: 2_500,
+        showAmbient: true,
+        premium: true,
+        paint: (hex, text) => chalk.hex(hex)(text),
+        colors: darkColors,
+      });
+      const joined = strip(canvas.join('\n'));
+      // Kept: surface / plants / bubbles / fish strokes.
+      expect(joined).toMatch(/[~≈∼]/);
+      expect(joined).toMatch(/[)(|/\\]/);
+      // Removed theatre: air-stone box + caustic band glyphs should stay rare/absent.
+      expect(joined.includes('╒')).toBe(false);
+      expect(joined.includes('╨')).toBe(false);
+    });
+  });
+
+  it('keeps mid-water mostly open space (no dense water-base soup)', () => {
+    withAmbientEnv(() => {
+      const width = 80;
+      const storyRows = 16;
+      const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
+      paintIdleStoryScene({
+        canvas,
+        width,
+        storyRows,
+        elapsedMs: 2_500,
+        showAmbient: true,
+        premium: true,
+        paint: (hex, text) => chalk.hex(hex)(text),
+        colors: darkColors,
+      });
+      const sandY = storyRows - 1;
+      let waterDots = 0;
+      for (let y = 1; y < sandY; y++) {
+        const plain = strip(canvas[y] ?? '');
+        for (const ch of plain) {
+          if (ch === '·' || ch === '˙' || ch === '˚') waterDots += 1;
+        }
+      }
+      // Soft upper bound: bubbles may use ˚/· sparsely; dense paintWaterBase was ~648.
+      expect(waterDots).toBeLessThan(40);
+    });
   });
 
   it('paints food asterisks when sim snapshot has food', () => {
@@ -236,11 +279,10 @@ describe('idle-stage helpers', () => {
     });
   });
 
-  it('uses denser seaweed spacing on wide tanks', () => {
-    expect(resolveSeaweedSpacing(80)).toBeLessThanOrEqual(5);
-    expect(resolveSeaweedSpacing(80)).toBe(4);
-    expect(resolveSeaweedSpacing(50)).toBe(5);
-    expect(resolveSeaweedSpacing(30)).toBe(6);
+  it('uses sparser seaweed spacing on wide tanks', () => {
+    expect(resolveSeaweedSpacing(80)).toBe(6);
+    expect(resolveSeaweedSpacing(50)).toBe(8);
+    expect(resolveSeaweedSpacing(30)).toBe(10);
   });
 
   it('maps aquarium roles from brand motion tokens only', () => {
@@ -258,8 +300,17 @@ describe('idle-stage helpers', () => {
       expect(brand.has(hex)).toBe(true);
     }
     expect(palette.plant).toBe(darkColors.accent);
-    expect(palette.sand).toBe(darkColors.gradientEnd);
+    expect(palette.plantSoft).toBe(darkColors.primary);
+    expect(palette.sand).toBe(darkColors.textDim);
     expect(palette.water).toBe(darkColors.glow);
+    expect(palette.fishGold).toBe(darkColors.primary);
+    expect(palette.fishTeal).toBe(darkColors.accent);
+    expect(palette.fishSky).toBe(darkColors.glow);
+    expect(palette.fishSoft).toBe(darkColors.textDim);
+    expect(palette.bubble).toBe(darkColors.glow);
+    expect(palette.food).toBe(darkColors.particle);
+    expect(palette.plantSoft).not.toBe(darkColors.particle);
+    expect(palette.sand).not.toBe(darkColors.gradientEnd);
     expect(palette.plant).not.toBe(darkColors.success);
     expect(palette.sand).not.toBe(darkColors.warning);
   });
@@ -293,8 +344,8 @@ describe('IdleStageComponent', () => {
       const joined = strip(lines.join('\n'));
       expect(joined).toMatch(/jewel tank/i);
       expect(joined).toMatch(/tip · /i);
-      // Story scene: fish / bubbles / plants / water / coral glyphs.
-      expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\═╨]/);
+      // Story scene: fish / bubbles / plants / water glyphs.
+      expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\]/);
       for (const line of lines) {
         expect(visibleWidth(line)).toBeLessThanOrEqual(80);
       }
@@ -445,20 +496,20 @@ describe('IdleStageComponent', () => {
     });
   });
 
-  it('adds a premium chrome drift rail under ambient', () => {
+  it('does not add a premium chrome drift rail under ambient', () => {
     withAmbientEnv(() => {
       const lines = renderIdleStageLines(80, DEFAULT_APPEARANCE_PREFERENCES, {
         nowMs: 1_500,
         preferredRows: 20,
       });
-      expect(lines.length).toBe(20);
-      // Premium chrome band includes a particle/drift rail above the title.
       const plain = lines.map(strip);
       const titleIdx = plain.findIndex((line) => /jewel tank/i.test(line));
-      expect(titleIdx).toBeGreaterThan(0);
-      const driftBand = plain[titleIdx - 1] ?? '';
-      expect(driftBand.trim().length).toBeGreaterThan(0);
-      expect(driftBand).toMatch(/[─•∙·*◦━]/);
+      expect(titleIdx).toBeGreaterThanOrEqual(0);
+      // Title is first chrome line (no drift rail above it), or only blank/story above.
+      if (titleIdx > 0) {
+        const above = plain[titleIdx - 1] ?? '';
+        expect(above).not.toMatch(/[─━]/);
+      }
     });
   });
 

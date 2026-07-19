@@ -31,4 +31,11 @@ describe('idle-tank-sim', () => {
     expect(snap.food.length).toBe(0);
     expect(snap.fish.some((f) => f.mode === 'wander' || f.mode === 'seek')).toBe(true);
   });
+
+  it('keeps a small premium school', () => {
+    const wide = createIdleTankSim(80, 14, 0, { premium: true });
+    expect(snapshotIdleTankSim(wide).fish.length).toBeLessThanOrEqual(3);
+    const mid = createIdleTankSim(60, 12, 0, { premium: true });
+    expect(snapshotIdleTankSim(mid).fish.length).toBeLessThanOrEqual(2);
+  });
 });
