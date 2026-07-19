@@ -38,6 +38,7 @@ import {
 import {
   CustomEndpointImportDialogComponent,
   type CustomEndpointImportResult,
+  type CustomEndpointImportValue,
 } from '../components/dialogs/custom-endpoint-import';
 import {
   CustomRegistryImportDialogComponent,
@@ -189,6 +190,7 @@ export async function connectCustomEndpoint(host: SlashCommandHost): Promise<boo
       baseUrl: value.baseUrl,
       modelId: value.modelId,
       apiKey: value.apiKey ?? 'no-key-required',
+      providerType: value.providerType,
       maxContextSize: value.maxContextSize,
       setDefault: true,
     });
@@ -795,6 +797,7 @@ function promptCustomEndpointImport(
   | {
       readonly providerId: string;
       readonly baseUrl: string;
+      readonly providerType: CustomEndpointImportValue['providerType'];
       readonly modelId: string;
       readonly apiKey?: string;
       readonly maxContextSize: number;

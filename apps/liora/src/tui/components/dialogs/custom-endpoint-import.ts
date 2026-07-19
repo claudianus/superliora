@@ -1,5 +1,5 @@
 /**
- * CustomEndpointImportDialog — collects a direct OpenAI-compatible endpoint,
+ * CustomEndpointImportDialog — collects a direct HTTP endpoint, wire type,
  * model id, optional API key, and context window for `/login`.
  */
 
@@ -12,13 +12,34 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 
-import { DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE } from '#/utils/custom-provider';
+import {
+  DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE,
+  inferCustomEndpointFromUrl,
+} from '#/utils/custom-provider';
 import { currentTheme } from '#/tui/theme';
+import { printableChar } from '#/tui/utils/printable-key';
 import { Input } from './input';
+
+/** Wire types offered by `/login` custom endpoint (matches `liora provider custom add --type`). */
+export const CUSTOM_ENDPOINT_WIRE_TYPES = [
+  'openai',
+  'openai_responses',
+  'anthropic',
+  'kimi',
+  'google-genai',
+  'vertexai',
+] as const;
+
+export type CustomEndpointWireType = (typeof CUSTOM_ENDPOINT_WIRE_TYPES)[number];
+
+function isCustomEndpointWireType(value: string): value is CustomEndpointWireType {
+  return (CUSTOM_ENDPOINT_WIRE_TYPES as readonly string[]).includes(value);
+}
 
 export interface CustomEndpointImportValue {
   readonly providerId: string;
   readonly baseUrl: string;
+  readonly providerType: CustomEndpointWireType;
   readonly modelId: string;
   readonly apiKey?: string;
   readonly maxContextSize: number;
@@ -30,13 +51,24 @@ export type CustomEndpointImportResult =
 
 const TITLE = 'Add custom endpoint';
 const SUBTITLE_DEFAULT =
-  'OpenAI-compatible endpoint. Leave API key empty only for local/keyless servers.';
+  'HTTP endpoint. Path suffixes like /v1/responses set wire type automatically. Leave API key empty only for local/keyless servers.';
 const FOOTER_NOT_LAST = 'Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
+const FOOTER_TYPE = '←→ change type  ·  Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
 const FOOTER_LAST = 'Tab / ↑↓ to switch  ·  Enter to submit  ·  Esc to cancel';
 
-type FieldId = 'provider' | 'url' | 'model' | 'key' | 'context';
+const WIRE_TYPE_HINTS: Record<CustomEndpointWireType, string> = {
+  openai: 'Chat Completions · POST /v1/chat/completions',
+  openai_responses: 'Responses · POST /v1/responses',
+  anthropic: 'Messages · POST /v1/messages',
+  kimi: 'Kimi Chat Completions',
+  'google-genai': 'Google GenAI',
+  vertexai: 'Vertex AI',
+};
 
-const FIELD_ORDER: readonly FieldId[] = ['provider', 'url', 'model', 'key', 'context'];
+type TextFieldId = 'provider' | 'url' | 'model' | 'key' | 'context';
+type FieldId = TextFieldId | 'type';
+
+const FIELD_ORDER: readonly FieldId[] = ['provider', 'url', 'type', 'model', 'key', 'context'];
 
 function maskInputLine(raw: string): string {
   const prefix = '> ';
@@ -62,6 +94,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   private readonly contextInput = new Input();
   private readonly onDone: (result: CustomEndpointImportResult) => void;
   private activeField: FieldId = 'provider';
+  private providerType: CustomEndpointWireType = 'openai';
   private done = false;
   private hint: string = SUBTITLE_DEFAULT;
 
@@ -70,6 +103,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     this.onDone = onDone;
     this.contextInput.setValue(String(DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE));
     for (const field of FIELD_ORDER) {
+      if (field === 'type') continue;
       this.inputFor(field).onSubmit = () => {
         if (field === 'context') {
           this.handleSubmit();
@@ -103,18 +137,38 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
       return;
     }
 
+    if (this.activeField === 'type') {
+      if (matchesKey(data, Key.left)) {
+        this.cycleWireType(-1);
+        return;
+      }
+      if (matchesKey(data, Key.right) || printableChar(data) === ' ') {
+        this.cycleWireType(1);
+        return;
+      }
+      if (matchesKey(data, Key.enter)) {
+        this.focusField(this.nextField('type'));
+        return;
+      }
+      return;
+    }
+
     this.hint = SUBTITLE_DEFAULT;
     this.inputFor(this.activeField).handleInput(data);
   }
 
   override invalidate(): void {
     super.invalidate();
-    for (const field of FIELD_ORDER) this.inputFor(field).invalidate();
+    for (const field of FIELD_ORDER) {
+      if (field === 'type') continue;
+      this.inputFor(field).invalidate();
+    }
   }
 
   override render(width: number): string[] {
     const dialogActive = this.focused && !this.done;
     for (const field of FIELD_ORDER) {
+      if (field === 'type') continue;
       this.inputFor(field).focused = dialogActive && this.activeField === field;
     }
 
@@ -122,22 +176,27 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     if (safeWidth <= 0) return [''];
     const innerWidth = Math.max(1, safeWidth - 4);
     const border = (s: string): string => currentTheme.fg('primary', s);
+    const hint =
+      this.activeField === 'type' ? WIRE_TYPE_HINTS[this.providerType] : this.hint;
+    const footer =
+      this.activeField === 'type'
+        ? FOOTER_TYPE
+        : this.activeField === 'context'
+          ? FOOTER_LAST
+          : FOOTER_NOT_LAST;
 
     const contentLines: string[] = [
       truncateToWidth(currentTheme.boldFg('textStrong', TITLE), innerWidth, '…'),
       '',
-      truncateToWidth(currentTheme.fg('textDim', this.hint), innerWidth, '…'),
+      truncateToWidth(currentTheme.fg('textDim', hint), innerWidth, '…'),
       '',
       ...this.renderField('provider', 'Provider id', innerWidth, false),
       ...this.renderField('url', 'Base URL', innerWidth, false),
+      ...this.renderTypeField(innerWidth),
       ...this.renderField('model', 'Model id', innerWidth, false),
       ...this.renderField('key', 'API key', innerWidth, true),
       ...this.renderField('context', 'Context tokens', innerWidth, false),
-      truncateToWidth(
-        currentTheme.fg('textDim', this.activeField === 'context' ? FOOTER_LAST : FOOTER_NOT_LAST),
-        innerWidth,
-        '…',
-      ),
+      truncateToWidth(currentTheme.fg('textDim', footer), innerWidth, '…'),
     ];
 
     if (safeWidth < 4) {
@@ -161,7 +220,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   }
 
   private renderField(
-    field: FieldId,
+    field: TextFieldId,
     label: string,
     width: number,
     masked: boolean,
@@ -178,8 +237,20 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     ];
   }
 
+  private renderTypeField(width: number): string[] {
+    const active = this.activeField === 'type';
+    const labelLine = active
+      ? currentTheme.boldFg('accent', 'Wire type')
+      : currentTheme.fg('textDim', 'Wire type');
+    const value = active
+      ? currentTheme.boldFg('primary', `> ${this.providerType}  (←→)`)
+      : currentTheme.fg('text', `> ${this.providerType}`);
+    return [truncateToWidth(labelLine, width, '…'), truncateToWidth(value, width, '…'), ''];
+  }
+
   private handleSubmit(): void {
     if (this.done) return;
+    this.applyUrlInference();
     const providerId = this.providerInput.getValue().trim();
     const baseUrl = this.urlInput.getValue().trim();
     const modelId = this.modelInput.getValue().trim();
@@ -215,11 +286,35 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
       value: {
         providerId,
         baseUrl,
+        providerType: this.providerType,
         modelId,
         apiKey: apiKey.length === 0 ? undefined : apiKey,
         maxContextSize,
       },
     });
+  }
+
+  private applyUrlInference(): void {
+    const raw = this.urlInput.getValue().trim();
+    if (raw.length === 0) return;
+    const inferred = inferCustomEndpointFromUrl(raw);
+    if (inferred.baseUrl !== this.urlInput.getValue()) {
+      this.urlInput.setValue(inferred.baseUrl);
+    }
+    if (
+      inferred.providerType !== undefined &&
+      isCustomEndpointWireType(inferred.providerType)
+    ) {
+      this.providerType = inferred.providerType;
+    }
+  }
+
+  private cycleWireType(delta: number): void {
+    const index = CUSTOM_ENDPOINT_WIRE_TYPES.indexOf(this.providerType);
+    const next =
+      (index + delta + CUSTOM_ENDPOINT_WIRE_TYPES.length) % CUSTOM_ENDPOINT_WIRE_TYPES.length;
+    this.providerType = CUSTOM_ENDPOINT_WIRE_TYPES[next] ?? 'openai';
+    this.hint = SUBTITLE_DEFAULT;
   }
 
   private reject(hint: string, field: FieldId): void {
@@ -228,17 +323,19 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   }
 
   private focusField(field: FieldId): void {
+    if (this.activeField === 'url' && field !== 'url') {
+      this.applyUrlInference();
+    }
     this.hint = SUBTITLE_DEFAULT;
     this.activeField = field;
   }
-
   private cancel(): void {
     if (this.done) return;
     this.done = true;
     this.onDone({ kind: 'cancel' });
   }
 
-  private inputFor(field: FieldId): Input {
+  private inputFor(field: TextFieldId): Input {
     switch (field) {
       case 'provider':
         return this.providerInput;

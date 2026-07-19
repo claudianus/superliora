@@ -505,7 +505,8 @@ export async function handleProviderCustomAdd(
     deps.exit(1);
   }
 
-  const providerType = parseProviderType(opts.type ?? 'openai', deps);
+  const providerType =
+    opts.type === undefined ? undefined : parseProviderType(opts.type, deps);
   const maxContextSize =
     opts.context === undefined
       ? DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE
@@ -531,7 +532,7 @@ export async function handleProviderCustomAdd(
       baseUrl,
       modelId,
       apiKey: apiKey ?? 'no-key-required',
-      providerType,
+      ...(providerType === undefined ? {} : { providerType }),
       alias: opts.alias,
       maxContextSize,
       maxOutputSize,

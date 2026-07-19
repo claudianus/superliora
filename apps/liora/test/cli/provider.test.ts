@@ -627,6 +627,25 @@ describe('liora provider custom add', () => {
     expect(current().providers['ollama']?.apiKey).toBe('no-key-required');
   });
 
+  it('infers openai_responses from a /v1/responses base URL when --type is omitted', async () => {
+    const { harness, current } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleProviderCustomAdd(deps, 'ocx', {
+        baseUrl: 'http://127.0.0.1:10100/v1/responses',
+        model: 'cursor/grok-4.5',
+        keyless: true,
+      }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    expect(current().providers['ocx']).toMatchObject({
+      type: 'openai_responses',
+      baseUrl: 'http://127.0.0.1:10100/v1',
+    });
+  });
+
   it('stores environment references for custom endpoint API keys', async () => {
     const { harness, current } = makeHarness({ providers: {} } as LioraConfig);
     const { deps, stdout, stderr, exitCodes } = makeDeps(harness);
