@@ -92,6 +92,67 @@ describe('NativeRenderLoop', () => {
     });
   });
 
+  it('preempts a paced animation frame when input arrives', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 10,
+      render: (frame) => frames.push(frame),
+    });
+
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0); // frame 0 at t=0
+    expect(frames).toHaveLength(1);
+
+    // An animation tick schedules the next frame paced ~100ms out (t=100).
+    scheduler.advance(5);
+    loop.requestAnimationFrame(() => {});
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(100);
+
+    // A keystroke lands now; it must preempt the paced frame and render at
+    // once instead of waiting ~95ms for the animation timer.
+    loop.requestRender('input');
+    const active = scheduler.activeTimers();
+    expect(active).toHaveLength(1);
+    expect(active[0]?.dueAt).toBe(5);
+
+    scheduler.advance(0);
+    expect(frames).toHaveLength(2);
+    // Both causes are consumed by the single preempting frame (no starvation).
+    expect(frames[1]?.causes).toContain('input');
+    expect(frames[1]?.causes).toContain('animation');
+  });
+
+  it('does not churn timers when an immediate frame is already scheduled', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 10,
+      render: (frame) => frames.push(frame),
+    });
+
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0); // frame 0 at t=0
+
+    // Two high-priority causes in a row must reuse the same delay-0 timer.
+    scheduler.advance(5);
+    loop.requestRender('input');
+    const first = scheduler.activeTimers()[0];
+    loop.requestRender('resize');
+    const active = scheduler.activeTimers();
+    expect(active).toHaveLength(1);
+    expect(active[0]).toBe(first);
+
+    scheduler.advance(0);
+    expect(frames).toHaveLength(2);
+    expect(frames[1]?.causes).toContain('input');
+    expect(frames[1]?.causes).toContain('resize');
+  });
+
   it('runs animation callbacks before render and defers nested callbacks to the next frame', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const events: string[] = [];

@@ -277,6 +277,14 @@ interface TUIStateNativeChromeCache extends TUINativeStageChrome {
   readonly width: number;
   readonly stageWidth: number;
   readonly stageMode: 'stack' | 'rail';
+  /**
+   * Activity-state signature (streaming phase + thinking) the cached chrome was
+   * built under. Chrome only carries time-based content (moon spinner, pulsing
+   * model label) while the agent is active; matching this epoch is what lets
+   * animation frames reuse idle chrome safely and forces a rebuild the instant
+   * activity starts/stops so a stale spinner is never reused.
+   */
+  readonly chromeEpoch: string;
 }
 
 export function createTUIStateNativeRenderCallback(
@@ -336,11 +344,23 @@ export function createTUIStateNativeRenderCallback(
       height,
       hasRailContent: chromeCache?.stageMode === 'rail',
     });
+    // Chrome (header/footer/panels) only carries time-based content while the
+    // agent is active — the activity pane's moon spinner and the footer's
+    // pulsing model label both gate on `streamingPhase !== 'idle' || thinking`.
+    // When idle, chrome is fully static, so animation frames can reuse the
+    // cached chrome lines instead of re-rendering the whole chrome component
+    // tree every tick (the dominant per-frame cost once the transcript is long).
+    // The chromeEpoch guard forces a rebuild whenever activity starts or stops,
+    // so a stale spinner can never be reused (no frozen / incorrect chrome).
+    const chromeStatic =
+      state.appState.streamingPhase === 'idle' && !state.appState.thinking;
+    const chromeEpoch = `${state.appState.streamingPhase}|${state.appState.thinking ? 1 : 0}`;
     const reuseChrome =
-      pureInputFrame &&
       chromeCache !== undefined &&
       chromeCache.width === size.columns &&
-      chromeCache.stageWidth === stageProbe.stage.width
+      chromeCache.stageWidth === stageProbe.stage.width &&
+      chromeCache.chromeEpoch === chromeEpoch &&
+      (pureInputFrame || chromeStatic)
         ? chromeCache
         : undefined;
     const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
@@ -369,17 +389,14 @@ export function createTUIStateNativeRenderCallback(
       // Damage-only stage paint on ambient ticks — see ambientDamageOnly.
       ambientDamageOnly,
     });
-    if (
-      !pureInputFrame ||
-      chromeCache === undefined ||
-      chromeCache.width !== size.columns ||
-      chromeCache.stageWidth !== nativeFrame.stageWidth ||
-      chromeCache.stageMode !== nativeFrame.stageMode
-    ) {
+    // Refresh the cache only when chrome was freshly built this frame. Reused
+    // frames keep the existing cache (its lines already match nativeFrame.chrome).
+    if (reuseChrome === undefined) {
       chromeCache = {
         width: size.columns,
         stageWidth: nativeFrame.stageWidth,
         stageMode: nativeFrame.stageMode,
+        chromeEpoch,
         header: nativeFrame.chrome.header,
         activity: nativeFrame.chrome.activity,
         todo: nativeFrame.chrome.todo,
@@ -1077,11 +1094,27 @@ function promoteTranscriptRegionLinesToCells(
   const defaultFg = currentTheme.palette.text;
   return promoteRendererRegionLinesToCells(lines).map((line) => {
     if (typeof line === 'string') return line;
-    return line.map((cell) => {
-      if (cell.style?.fg !== undefined || cell.char.trim().length === 0) return cell;
-      return { ...cell, style: { fg: defaultFg, ...cell.style } };
-    });
+    return backfillTranscriptLineForeground(line, defaultFg);
   });
+}
+
+/**
+ * Backfill a theme foreground onto cells that only carry a background. Returns
+ * the *same* array reference when no cell changes, preserving the stable
+ * cell-array identity from the promote cache so the compositor's reference-keyed
+ * row-key memoization can skip re-serializing unchanged transcript rows.
+ */
+function backfillTranscriptLineForeground(
+  line: readonly RendererCell[],
+  defaultFg: string,
+): readonly RendererCell[] {
+  let changed = false;
+  const result = line.map((cell) => {
+    if (cell.style?.fg !== undefined || cell.char.trim().length === 0) return cell;
+    changed = true;
+    return { ...cell, style: { fg: defaultFg, ...cell.style } };
+  });
+  return changed ? result : line;
 }
 
 function nativeTranscriptRegionLines(

@@ -15,6 +15,17 @@ const EMOJI_CLUSTER_RE =
   /(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji_Modifier}|\p{Regional_Indicator})/u;
 
 export function splitDisplayClusters(text: string): readonly RendererTextCluster[] {
+  // Fast path: pure-ASCII text has no multi-code-unit grapheme clusters (no
+  // combining marks, surrogate pairs, or ZWJ sequences), so every code unit is
+  // its own cluster — skip Intl.Segmenter entirely.
+  if (isPureAscii(text)) {
+    const clusters: RendererTextCluster[] = [];
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i]!;
+      clusters.push({ text: char, width: displayClusterWidth(char) });
+    }
+    return clusters;
+  }
   return segmentText(text).map((cluster) => ({
     text: cluster,
     width: displayClusterWidth(cluster),
@@ -99,6 +110,12 @@ export function wrapDisplayText(text: string, width: number): readonly string[] 
 
 export function displayClusterWidth(cluster: string): number {
   if (cluster.length === 0) return 0;
+  // Fast path: a single printable ASCII char is always exactly width 1, so
+  // bypass the emoji/combining-mark regexes and code-point loop.
+  if (cluster.length === 1) {
+    const code = cluster.codePointAt(0);
+    if (code !== undefined && code >= 0x20 && code <= 0x7e) return 1;
+  }
   if (cluster === '\t') return 4;
   if (cluster === '\n' || cluster === '\r') return 0;
   if (isControlCluster(cluster)) return 0;
@@ -118,6 +135,19 @@ export function displayClusterWidth(cluster: string): number {
 function segmentText(text: string): readonly string[] {
   if (graphemeSegmenter === undefined) return Array.from(text);
   return Array.from(graphemeSegmenter.segment(text), (segment) => segment.segment);
+}
+
+/**
+ * True when every code unit is ASCII (< 0x80). Such strings contain no
+ * surrogate pairs, combining marks, or emoji, so grapheme segmentation is a
+ * no-op and each code unit is its own cluster.
+ */
+function isPureAscii(text: string): boolean {
+  for (const char of text) {
+    const code = char.codePointAt(0);
+    if (code === undefined || code >= 0x80) return false;
+  }
+  return true;
 }
 
 function makeCell(

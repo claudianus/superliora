@@ -45,6 +45,7 @@ export class NativeRenderLoop {
   private readonly targetFrameIntervalMs: number;
   private started = false;
   private scheduledTimer: NativeRenderTimer | undefined;
+  private scheduledDelayMs = 0;
   private pendingCauses = new Set<NativeRenderCause>();
   private animationCallbacks = new Map<number, NativeAnimationFrameCallback>();
   private nextAnimationFrameId = 1;
@@ -90,6 +91,7 @@ export class NativeRenderLoop {
     if (this.scheduledTimer !== undefined) {
       this.scheduler.clearTimeout(this.scheduledTimer);
       this.scheduledTimer = undefined;
+      this.scheduledDelayMs = 0;
     }
     this.pendingCauses.clear();
     this.animationCallbacks.clear();
@@ -121,26 +123,42 @@ export class NativeRenderLoop {
   }
 
   private scheduleNextFrame(): void {
-    if (
-      !this.started ||
-      this.scheduledTimer !== undefined ||
-      this.runningFrame ||
-      !this.hasPendingFrame
-    ) {
+    if (!this.started || this.runningFrame || !this.hasPendingFrame) {
       return;
     }
 
-    const now = this.scheduler.now();
-    const delayMs = this.pendingCauses.has('input')
-      ? 0
-      : this.lastFrameAt === undefined
-        ? 0
-        : Math.max(0, this.lastFrameAt + this.targetFrameIntervalMs - now);
+    const delayMs = this.resolveFrameDelay(this.scheduler.now());
+
+    if (this.scheduledTimer !== undefined) {
+      // A frame is already pending. Preempt it only when a high-priority
+      // cause (input/resize) now demands an immediate frame while the
+      // existing timer is paced into the future — this is what removes input
+      // lag when a keystroke lands right after an animation tick scheduled a
+      // ~16ms-paced frame. If the pending timer is already immediate
+      // (delay 0), keep it to avoid timer churn.
+      if (delayMs === 0 && this.scheduledDelayMs > 0) {
+        this.scheduler.clearTimeout(this.scheduledTimer);
+        this.scheduledTimer = undefined;
+        this.scheduledDelayMs = 0;
+      } else {
+        return;
+      }
+    }
+
     const timer = this.scheduler.setTimeout(() => {
       this.runFrame();
     }, delayMs);
     if (this.options.unrefTimers === true) timer.unref?.();
     this.scheduledTimer = timer;
+    this.scheduledDelayMs = delayMs;
+  }
+
+  private resolveFrameDelay(now: number): number {
+    // High-priority causes render immediately so user input is never held
+    // behind frame pacing.
+    if (this.pendingCauses.has('input') || this.pendingCauses.has('resize')) return 0;
+    if (this.lastFrameAt === undefined) return 0;
+    return Math.max(0, this.lastFrameAt + this.targetFrameIntervalMs - now);
   }
 
   private cancelScheduledFrameIfIdle(): void {
@@ -148,12 +166,14 @@ export class NativeRenderLoop {
     if (this.scheduledTimer === undefined) return;
     this.scheduler.clearTimeout(this.scheduledTimer);
     this.scheduledTimer = undefined;
+    this.scheduledDelayMs = 0;
   }
 
   private runFrame(): void {
     if (!this.started) return;
 
     this.scheduledTimer = undefined;
+    this.scheduledDelayMs = 0;
     const timestamp = this.scheduler.now();
     const deltaMs = this.lastFrameAt === undefined ? 0 : Math.max(0, timestamp - this.lastFrameAt);
     const animationCallbacks = Array.from(this.animationCallbacks.values());

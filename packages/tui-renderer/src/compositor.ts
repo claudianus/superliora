@@ -177,7 +177,7 @@ export function composeRendererRegions(
       // Dense ambient letterbox disables reuse (time-varying VFX) and drops the
       // cache entirely in layout-frame — skip Θ(width) row-key strings then.
       const rowKey = trackRows
-        ? createRowKey(region, rect, clipped, y, sourceY, line, underlayKey)
+        ? createRowKey(region, rect, clipped, y, sourceY, scrollY, line, underlayKey)
         : '';
       if (canReuseRows && options.cache?.shouldReuseRow(rowId, rowKey)) {
         rowsReused++;
@@ -303,6 +303,7 @@ function createRowKey(
   clipped: RendererRect,
   y: number,
   sourceY: number,
+  scrollY: number,
   line: RendererRegionLine | undefined,
   underlayKey = '',
 ): string {
@@ -314,7 +315,7 @@ function createRowKey(
     clipped.width,
     y,
     sourceY,
-    normalizeScroll(region.scrollY),
+    scrollY,
     styleKey(region.style),
     region.clear === true ? 1 : 0,
     cellKey(region.background),
@@ -359,10 +360,25 @@ function applyRendererRegionVfx(
   ];
 }
 
+/**
+ * Reference-keyed memoization for cell-array line keys. Serializing a cell row
+ * (`c:${line.map(cellKey).join()}`) is O(cells) and runs for every visible row
+ * on every frame just to probe the composition cache. When a region reuses the
+ * same cell-array reference across frames (stable line identity), the key string
+ * is computed once and reused. A WeakMap is exact (reference identity can never
+ * collide) and self-cleaning (entries die with their line array), so this cannot
+ * corrupt the row key or leak memory.
+ */
+const cellLineKeyCache = new WeakMap<readonly RendererCell[], string>();
+
 function lineKey(line: RendererRegionLine | undefined): string {
   if (line === undefined) return 'undefined';
   if (typeof line === 'string') return `s:${line}`;
-  return `c:${line.map(cellKey).join('\u0001')}`;
+  const cached = cellLineKeyCache.get(line);
+  if (cached !== undefined) return cached;
+  const key = `c:${line.map(cellKey).join('\u0001')}`;
+  cellLineKeyCache.set(line, key);
+  return key;
 }
 
 function cellKey(cell: RendererCell | undefined): string {
