@@ -58,8 +58,8 @@ export function isPureInputFrame(
  * Independent of force/clear:
  * - pure-input frames keep force=false (incremental damage) but still need
  *   forceCursor so OS IME (e.g. hangul preedit) stays on the caret;
- * - pure animation-only frames may force/clear the surface for ambient VFX
- *   without coupling that decision to cursor re-emit.
+ * - pure animation-only frames stay damage-only (force=false) and never
+ *   couple that decision to cursor re-emit.
  *
  * Always true while the editor caret is live: skipping CUP lets the
  * terminal cursor drift to the last painted cell (often footer).
@@ -103,8 +103,7 @@ export function shouldForceTUIStateNativeLayoutFrame(
     causes.includes('resize') ||
     causes.includes('manual') ||
     causes.includes('transcript-scroll') ||
-    structuralShift ||
-    options.ambientAnimation === true
+    structuralShift
   );
 }
 
@@ -157,10 +156,10 @@ export function resolveTUIStateNativeFramePolicy(
     ambientAnimation: ambientAnimationFrame,
     viewportScrolled: input.viewportScrolled,
   });
-  // Animation ticks must not wipe the surface or re-blast OSC palette every
-  // ~33ms — that flashes the terminal to black / default bg (the “black hole”
-  // flicker). Damage-diff with force is enough for ambient VFX; palette OSC
-  // stays on structural / start / resize / manual / scroll frames only.
+  // Animation ticks must not wipe the surface or re-blast OSC palette —
+  // that flashes the terminal to black / default bg (the “black hole”
+  // flicker). Pure ambient stays damage-only (force=false); clear stays
+  // gated so structural force frames never clear on animation causes.
   const clear = force && !ambientAnimationFrame;
   const refreshTerminalPalette =
     force &&

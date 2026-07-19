@@ -245,7 +245,7 @@ describe('AppearanceController', () => {
     expect(writes.at(-1)).toContain('\u001B]104');
   });
 
-  it('keeps premium animation ticks at the configured fps regardless of renderer health', () => {
+  it('soft-degrades premium animation ticks under watch/degraded health', () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const appearance = {
@@ -256,10 +256,10 @@ describe('AppearanceController', () => {
     };
     const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
 
-    // Premium pins the cinematic ~30fps floor (33ms), not densify 1ms thrash.
+    // Healthy premium keeps the cinematic ~30fps floor; pressure soft-degrades to subtle.
     expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(33);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(33);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(33);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(140);
+    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(140);
 
     setAppearanceRenderHealth('watch');
     const controller = new AppearanceController({
@@ -271,7 +271,7 @@ describe('AppearanceController', () => {
 
     vi.advanceTimersByTime(0);
     expect(requestRender).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(32);
+    vi.advanceTimersByTime(139);
     expect(requestRender).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(requestRender).toHaveBeenCalledTimes(1);

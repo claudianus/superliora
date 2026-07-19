@@ -4,7 +4,7 @@ import {
 } from '#/tui/config';
 import {
   ansiTextToCells,
-  rendererAnimationFrameIntervalMs,
+  rendererAmbientIntervalMs,
   rendererEffectFrameIntervalMs,
   hashRendererEffectSeed,
   mixHexColor,
@@ -166,23 +166,14 @@ export function appearanceAnimationFrameIntervalMs(
   quality: RendererQualityLevel = appearanceRenderQuality,
   health: NativeFrameStatsHealth = appearanceRenderHealth,
 ): number {
-  if (pinsPremiumAppearanceEffects(appearance)) {
-    // Premium spectacle pins the densify floor directly so animationFps max(30→33ms)
-    // cannot slow zero-config particle rails past PREMIUM_AMBIENT_RENDER_TICK_MS.
-    return PREMIUM_AMBIENT_RENDER_TICK_MS;
-  }
-  return rendererAnimationFrameIntervalMs({
-    fps: appearance.animationFps,
+  return rendererAmbientIntervalMs({
     requested: resolveAmbientEffectMode(appearance),
-    // Same quality/health floor as resolveQualityAdjustedAmbientEffectMode so
-    // the animation cadence stays consistent even when the renderer throttles.
     quality: quality === 'minimal' ? 'balanced' : quality,
     health: health === 'degraded' ? 'watch' : health,
-    maxFps: 24,
-    defaultFps: DEFAULT_APPEARANCE_PREFERENCES.animationFps,
+    // backpressure is injected by AmbientSchedule ctx at the renderer; this
+    // helper remains quality/health oriented for unit tests / cache ticks.
     premiumMs: PREMIUM_AMBIENT_RENDER_TICK_MS,
     subtleMs: SUBTLE_AMBIENT_RENDER_TICK_MS,
-    offMs: 1000,
   });
 }
 

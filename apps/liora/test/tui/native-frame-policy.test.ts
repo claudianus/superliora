@@ -75,7 +75,7 @@ describe('native-frame-policy', () => {
     ).toBe(true);
   });
 
-  it('keeps ambient animation force without clear or OSC palette spam', () => {
+  it('keeps ambient animation damage-only without clear or OSC palette spam', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['animation'],
       viewportScrolled: false,
@@ -85,14 +85,12 @@ describe('native-frame-policy', () => {
       ambientAnimationAllowed: true,
     });
 
-    // force redraws VFX damage; clear+OSC every tick flashed black holes.
-    expect(policy.force).toBe(true);
+    expect(policy.force).toBe(false);
     expect(policy.clear).toBe(false);
     expect(policy.refreshTerminalPalette).toBe(false);
-    expect(shouldRefreshNativeTerminalPalette(['animation'], false)).toBe(false);
-    expect(shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: true })).toBe(
-      true,
-    );
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: true }),
+    ).toBe(false);
   });
 
   it('clears transcript selection when the viewport start moves', () => {
@@ -137,15 +135,14 @@ describe('native-frame-policy', () => {
   });
 
   it('keeps forceCursor on for animation-only frames without coupling it to force', () => {
-    // Animation + ambient → force true (surface VFX); clear is policy-gated separately.
+    // Pure ambient animation stays damage-only; forceCursor remains independent (IME).
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
         ambientAnimation: true,
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
 
-    // Animation without ambient allowance → no force, still forceCursor (IME).
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
         ambientAnimation: false,
