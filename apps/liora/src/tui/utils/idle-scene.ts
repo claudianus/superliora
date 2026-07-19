@@ -200,14 +200,12 @@ function pickCooler(...candidates: readonly (string | undefined)[]): string {
 
 /**
  * Map theme brand tokens to aquarium paint roles.
- * Two-tone only: primary / accent / glow / particle / gradient* (+ textDim for dim).
- * Never success / warning / roleUser — those inject off-brand mint/yellow.
+ * Brand motion tokens only — never success / warning / roleUser.
  */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
   _theme: 'dark' | 'light' = 'dark',
 ): AquariumPalette {
-  const gradientEnd = colors.gradientEnd ?? colors.particle;
   const waterDeep = pickCooler(colors.gradientStart, colors.glow, colors.primary);
   const water = colors.glow;
   const waterSoft = pickCooler(colors.primary, colors.glow, colors.gradientStart);
@@ -217,15 +215,15 @@ export function resolveAquariumPalette(
     waterDeep,
     waterSoft,
     plant: colors.accent,
-    plantSoft: colors.particle,
-    sand: gradientEnd,
-    coral: colors.particle,
-    coralSoft: colors.accent,
+    plantSoft: colors.primary,
+    sand: colors.textDim,
+    coral: colors.accent,
+    coralSoft: colors.primary,
     food: colors.particle,
-    fishGold: gradientEnd,
-    fishSky: waterDeep,
+    fishGold: colors.primary,
+    fishSky: water,
     fishTeal: colors.accent,
-    fishSoft: water,
+    fishSoft: colors.textDim,
     bubble: colors.glow,
     dim: colors.textDim,
   };

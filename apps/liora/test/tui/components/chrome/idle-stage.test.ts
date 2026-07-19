@@ -258,8 +258,17 @@ describe('idle-stage helpers', () => {
       expect(brand.has(hex)).toBe(true);
     }
     expect(palette.plant).toBe(darkColors.accent);
-    expect(palette.sand).toBe(darkColors.gradientEnd);
+    expect(palette.plantSoft).toBe(darkColors.primary);
+    expect(palette.sand).toBe(darkColors.textDim);
     expect(palette.water).toBe(darkColors.glow);
+    expect(palette.fishGold).toBe(darkColors.primary);
+    expect(palette.fishTeal).toBe(darkColors.accent);
+    expect(palette.fishSky).toBe(darkColors.glow);
+    expect(palette.fishSoft).toBe(darkColors.textDim);
+    expect(palette.bubble).toBe(darkColors.glow);
+    expect(palette.food).toBe(darkColors.particle);
+    expect(palette.plantSoft).not.toBe(darkColors.particle);
+    expect(palette.sand).not.toBe(darkColors.gradientEnd);
     expect(palette.plant).not.toBe(darkColors.success);
     expect(palette.sand).not.toBe(darkColors.warning);
   });
