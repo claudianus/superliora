@@ -877,19 +877,9 @@ export function paintIdleStoryScene(options: {
 
   const palette = resolveAquariumPalette(colors, themeMode);
 
-  // 1) Depth-graded water base + drifting highlights
+  // 1) Depth-graded water base (no dense water-field clutter)
   if (showAmbient) {
     paintWaterBase(canvas, width, storyRows, paint, palette.water, palette.waterSoft, palette.waterDeep);
-    paintWaterField(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      palette.water,
-      palette.waterSoft,
-      palette.waterDeep,
-    );
   }
 
   // 2) Surface line
@@ -900,63 +890,25 @@ export function paintIdleStoryScene(options: {
     );
   }
 
-  // 3) Surface light shafts
-  if (showAmbient && premium) {
-    paintSurfaceLight(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
-      paint(intensity > 0.45 ? palette.water : palette.waterSoft, glyph),
-    );
-  }
-
-  // 4) Warm sand bed
+  // 3) Warm sand bed
   const sandY = storyRows - 1;
   if (sandY > 0) {
     canvas[sandY] = padOrTrim(paint(palette.sand, renderSandLine(width, elapsedMs, 1)), width);
   }
 
-  // 5) Coral accents
-  if (showAmbient && premium) {
-    paintCoral(canvas, width, storyRows, elapsedMs, paint, palette.coral, palette.coralSoft);
-  }
-
-  // 6) Seaweed curtain
+  // 4) Seaweed curtain
   if (showAmbient) {
     paintSeaweed(canvas, width, storyRows, elapsedMs, paint, palette.plant, palette.plantSoft);
   }
 
-  // 7) Air-stone + local plume
-  if (showAmbient && premium) {
-    paintAirStone(
-      canvas,
-      width,
-      storyRows,
-      elapsedMs,
-      paint,
-      colors.textDim,
-      palette.bubble,
-      colors.textMuted,
-    );
-  }
-
-  // 8) Quiet rising bubbles (tank-wide)
+  // 5) Quiet rising bubbles (tank-wide)
   if (showAmbient) {
     paintBubbles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, (glyph, intensity) =>
       paint(intensity > 0.7 ? palette.bubble : colors.textMuted, glyph),
     );
   }
 
-  // 9) Caustic band
-  if (showAmbient && premium && storyRows >= 10 && width >= 48) {
-    paintCausticPath(canvas, Math.floor(storyRows * 0.3), 1, width, elapsedMs, (ch) =>
-      paint(ch === '≈' ? palette.water : palette.waterSoft, ch),
-    );
-  }
-
-  // 10) Jewel sparkles
-  if (showAmbient && premium) {
-    paintSparkles(canvas, width, Math.max(1, storyRows - 1), elapsedMs, paint, palette.fishGold);
-  }
-
-  // 11) Fish + food — snapshot when provided, patrol school as fallback
+  // 6) Fish + food — snapshot when provided, patrol school as fallback
   if (sim) {
     paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
     paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);
