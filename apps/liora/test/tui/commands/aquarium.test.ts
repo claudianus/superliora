@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { handleAquariumCommand } from '#/tui/commands/aquarium';
-import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
-import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
+import { StatusMessageComponent } from '#/tui/components/messages/status-message';
+import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import type { AppState } from '#/tui/types';
 import { createTranscriptViewportState } from '#/tui/utils/transcript-viewport';
-import { StatusMessageComponent } from '#/tui/components/messages/status-message';
 
 function makeAppState(overrides?: Partial<AppState>): AppState {
   return {
@@ -40,13 +40,18 @@ function makeAppState(overrides?: Partial<AppState>): AppState {
   };
 }
 
-function makeHost(appState: AppState): {
+function makeHost(appState: AppState, transcriptRows = 24): {
   host: SlashCommandHost;
   container: TranscriptViewportComponent;
   showStatus: ReturnType<typeof vi.fn>;
   showError: ReturnType<typeof vi.fn>;
 } {
-  const container = new TranscriptViewportComponent(0, 0, createTranscriptViewportState(), () => 20);
+  const container = new TranscriptViewportComponent(
+    0,
+    0,
+    createTranscriptViewportState(),
+    () => transcriptRows,
+  );
   const showStatus = vi.fn((message: string, color?: string) => {
     container.addChild(new StatusMessageComponent(message, color as never));
   });
@@ -81,20 +86,39 @@ describe('handleAquariumCommand', () => {
     expect(idleIndex).toBeGreaterThan(statusIndex);
   });
 
-  it('keeps the same tank instance when already visible', () => {
-    const { host, container, showStatus } = makeHost(makeAppState());
-    const tank = new IdleStageComponent({
-      state: host.state.appState,
-      getPreferredRows: () => 12,
-    });
-    container.addChild(tank);
+  it('fills the full transcript row budget even with prior chat height', () => {
+    const transcriptRows = 30;
+    const { host, container } = makeHost(makeAppState(), transcriptRows);
+    // Tall chat history — idleTargetRows would collapse the tank; remount must not.
+    for (let i = 0; i < 8; i++) {
+      container.addChild(new StatusMessageComponent(`line ${String(i)}`));
+    }
 
     handleAquariumCommand(host);
 
-    expect(showStatus).not.toHaveBeenCalled();
+    const tank = container.children.find(
+      (c): c is IdleStageComponent => c instanceof IdleStageComponent,
+    );
+    expect(tank).toBeDefined();
+    const painted = tank!.render(80);
+    expect(painted.length).toBe(transcriptRows);
+    expect(painted.length).toBeGreaterThan(container.idleTargetRows(80));
+  });
+
+  it('remounts an existing tank so it can resize to full transcript', () => {
+    const { host, container } = makeHost(makeAppState(), 28);
+    const small = new IdleStageComponent({
+      state: host.state.appState,
+      getPreferredRows: () => 10,
+    });
+    container.addChild(small);
+
+    handleAquariumCommand(host);
+
     const idleKids = container.children.filter((c) => c instanceof IdleStageComponent);
     expect(idleKids).toHaveLength(1);
-    expect(idleKids[0]).toBe(tank);
+    expect(idleKids[0]).not.toBe(small);
+    expect(idleKids[0]!.render(80).length).toBe(28);
   });
 
   it('blocks while session history is replaying', () => {
