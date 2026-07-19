@@ -173,7 +173,12 @@ export function composeRendererRegions(
       const line = region.lines[sourceY];
       const rowId = createRowId(region, index, y);
       const underlayKey = underlayRowKeys.get(y) ?? '';
-      const rowKey = createRowKey(region, rect, clipped, y, sourceY, line, underlayKey);
+      const trackRows = options.cache !== undefined;
+      // Dense ambient letterbox disables reuse (time-varying VFX) and drops the
+      // cache entirely in layout-frame — skip Θ(width) row-key strings then.
+      const rowKey = trackRows
+        ? createRowKey(region, rect, clipped, y, sourceY, line, underlayKey)
+        : '';
       if (canReuseRows && options.cache?.shouldReuseRow(rowId, rowKey)) {
         rowsReused++;
         underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
@@ -183,10 +188,10 @@ export function composeRendererRegions(
       if (rowClearing) {
         buffer.fillRect({ x: clipped.x, y, width: clipped.width, height: 1 }, region.background);
       }
-      options.cache?.markComposedRow(rowId, rowKey);
+      if (trackRows) options.cache?.markComposedRow(rowId, rowKey);
       rowsComposed++;
       if (line === undefined) {
-        underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
+        if (trackRows) underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
         continue;
       }
 
@@ -206,7 +211,7 @@ export function composeRendererRegions(
         buffer.setCell(x, y, inheritRegionBackground(cell, region));
         cellsWritten++;
       }
-      underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
+      if (trackRows) underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
     }
   }
 
