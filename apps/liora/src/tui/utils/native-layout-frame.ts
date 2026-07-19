@@ -341,12 +341,16 @@ export function createTUIStateNativeRenderCallback(
         ? chromeCache
         : undefined;
     const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
+    const pureAnimationFrame =
+      frame.causes.length > 0 && frame.causes.every((cause) => cause === 'animation');
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
       reuseChrome,
       // Skip Ultrawork perimeter repaint while typing — animation resumes after holdoff.
       skipDecorativeEditorEffects: typingHoldoff || pureInputFrame,
+      // Damage-only stage paint on ambient ticks — see ambientDamageOnly.
+      ambientDamageOnly: pureAnimationFrame && ambientAnimationAllowed,
     });
     if (
       !pureInputFrame ||
@@ -440,6 +444,9 @@ export function buildTUIStateNativeFrameRegions(
   options: {
     readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
     readonly diagnostics?: RendererDiagnosticsSnapshot;
+    readonly reuseChrome?: TUIStateNativeFrameChrome;
+    readonly skipDecorativeEditorEffects?: boolean;
+    readonly ambientDamageOnly?: boolean;
   } = {},
 ): readonly RendererFrameRegion[] {
   return buildTUIStateNativeFrame(state, width, height, options).regions;
@@ -601,6 +608,11 @@ function buildTUIStateNativeFrame(
     readonly reuseChrome?: TUIStateNativeFrameChrome;
     /** Skip Ultrawork perimeter chase / focus VFX (typing hot path). */
     readonly skipDecorativeEditorEffects?: boolean;
+    /**
+     * Pure ambient ticks: paint stage stack without region clear fills so we
+     * only damage-write changed cells (avoids clear→paint tear bands).
+     */
+    readonly ambientDamageOnly?: boolean;
   } = {},
 ): TUIStateNativeFrame {
   if (isNativeFullscreenTakeover(state)) {
@@ -636,6 +648,7 @@ function buildTUIStateNativeFrame(
   let cursor = hiddenNativeCursor();
   const canvasBackground = currentTheme.canvasBackgroundCell();
   const skipDecorative = options.skipDecorativeEditorEffects === true;
+  const ambientDamageOnly = options.ambientDamageOnly === true;
   const stackRegions = createRendererStackFrameRegions(
     layout,
     layout.regions.flatMap((region) => {
@@ -695,7 +708,9 @@ function buildTUIStateNativeFrame(
       return [{
         id: region.id,
         content,
-        clear: true,
+        // Ambient ticks must not blank the whole stage rect before paint —
+        // without sync that clear→rewrite sequence reads as horizontal tear.
+        clear: !ambientDamageOnly,
         background: canvasBackground,
         vfx,
       }];
@@ -715,7 +730,7 @@ function buildTUIStateNativeFrame(
                 viewport: { x: 0, y: 0, width, height },
               }).lines,
             ),
-            clear: true,
+            clear: !ambientDamageOnly,
             background: canvasBackground,
             zIndex: 2,
           },

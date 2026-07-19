@@ -491,10 +491,20 @@ function terminalCapabilityIssue(
     };
   }
   if (result.timedOut) {
+    // Timeout no longer disables sync — only surface a watch note when sync
+    // stayed on from terminal heuristics / prior enablement.
+    if (options.synchronizedOutputEnabled === true) {
+      return {
+        code: 'terminal-capability',
+        severity: 'watch',
+        message: 'Terminal synchronized-output probe timed out; kept sync enabled.',
+        value: 'sync probe timeout',
+      };
+    }
     return {
       code: 'terminal-capability',
       severity: 'watch',
-      message: 'Terminal synchronized-output probe timed out; renderer disabled sync output.',
+      message: 'Terminal synchronized-output probe timed out; sync output is off.',
       value: 'sync unknown',
     };
   }

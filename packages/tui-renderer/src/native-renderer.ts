@@ -697,6 +697,9 @@ export class NativeTerminalRenderer {
     const promise = probeNativeSynchronizedOutputSupport({
       input: this.options.input,
       output: this.options.output,
+      // Reuse the render-loop scheduler so tests / custom clocks can drive the
+      // probe timeout without real wall-clock waits.
+      scheduler: this.options.scheduler,
       timeoutMs: this.options.synchronizedOutputProbeTimeoutMs,
       unrefTimer: this.options.unrefTimers,
       signal: this.synchronizedOutputProbeAbort.signal,
@@ -708,17 +711,26 @@ export class NativeTerminalRenderer {
       this.synchronizedOutputProbeAbort = undefined;
       this.synchronizedOutputProbeResultValue = result;
       if (result.aborted === true) return;
+      // Only an explicit "unsupported" report may disable sync. Timeout / unknown
+      // used to flip sync off and tear fullscreen stage presents in kitty when
+      // the DECRQM reply was lost under input load.
+      const enabled =
+        result.support === 'unsupported'
+          ? false
+          : result.support === 'supported'
+            ? true
+            : this.currentSynchronized === true;
       this.trace.recordMarker({
         timestampMs: this.loop.now(),
         name: 'terminal.synchronized_output_probe',
         args: {
           support: result.support,
           timedOut: result.timedOut,
-          enabled: result.support === 'supported',
+          enabled,
         },
       });
       this.options.onSynchronizedOutputProbe?.(result);
-      this.setSynchronizedOutput(result.support === 'supported');
+      this.setSynchronizedOutput(enabled);
     }, () => {
       if (this.synchronizedOutputProbePromise !== promise) return;
       this.synchronizedOutputProbePromise = undefined;
