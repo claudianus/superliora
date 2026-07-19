@@ -231,8 +231,18 @@ export function applySkyToLetterboxRegions(
     }
   }
 
+  const emptyCell: RendererCell =
+    canvasBg === undefined
+      ? { char: ' ' }
+      : { char: ' ', style: { bg: canvasBg } };
+
   return bands.map((band, i) => {
-    const lines: RendererCell[][] = Array.from({ length: band.height }, () => []);
+    // Dense fill (bg spaces + stars) so we never need region clear:true.
+    // Ambient clear:true was wiping full-width letterbox bands every tick and
+    // read as black horizontal flicker around the stage.
+    const lines: RendererCell[][] = Array.from({ length: band.height }, () =>
+      Array.from({ length: band.width }, () => emptyCell),
+    );
     for (const cell of byBand[i]!.values()) {
       const lx = cell.x - band.x;
       const ly = cell.y - band.y;
@@ -250,7 +260,7 @@ export function applySkyToLetterboxRegions(
       id: `stageFrameLetterbox:${i}`,
       rect: band,
       content: lines,
-      clear: true,
+      clear: false,
       ...(canvasBg !== undefined
         ? { background: { char: ' ' as const, style: { bg: canvasBg } } }
         : {}),
