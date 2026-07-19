@@ -266,15 +266,15 @@ describe('spectacular text ANSI safety', () => {
 });
 
 describe('premium motion vocabulary', () => {
-  const previous = {
+  const previousEnv = {
     TERM: process.env['TERM'],
     CI: process.env['CI'],
     NO_COLOR: process.env['NO_COLOR'],
     SSH_TTY: process.env['SSH_TTY'],
     SSH_CONNECTION: process.env['SSH_CONNECTION'],
     SSH_CLIENT: process.env['SSH_CLIENT'],
-    chalkLevel: chalk.level,
   };
+  const previousChalkLevel = chalk.level;
 
   beforeEach(() => {
     process.env['TERM'] = 'xterm-256color';
@@ -293,9 +293,8 @@ describe('premium motion vocabulary', () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    chalk.level = previous.chalkLevel;
-    for (const [key, value] of Object.entries(previous)) {
-      if (key === 'chalkLevel') continue;
+    chalk.level = previousChalkLevel;
+    for (const [key, value] of Object.entries(previousEnv)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }

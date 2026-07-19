@@ -78,7 +78,9 @@ describe('theme hue span', () => {
   it('widens every bundled theme motion span', () => {
     expect(BUNDLED_THEMES.length).toBeGreaterThanOrEqual(10);
     for (const theme of BUNDLED_THEMES) {
-      assertMotionSpan(theme.colors as ColorPalette, theme.name);
+      const colors = theme.colors;
+      expect(colors).toBeDefined();
+      assertMotionSpan(colors as unknown as ColorPalette, theme.name);
     }
   });
 });

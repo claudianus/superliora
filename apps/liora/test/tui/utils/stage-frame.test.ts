@@ -306,8 +306,8 @@ describe('stageFrame entrance + chase', () => {
         canvasBackground: true,
       },
     });
-    expect(regions.some((r) => r.id.startsWith('stageFrameLetterbox'))).toBe(true);
-    const letterbox = regions.find((r) => r.id.startsWith('stageFrameLetterbox'));
+    expect(regions.some((r) => r.id?.startsWith('stageFrameLetterbox'))).toBe(true);
+    const letterbox = regions.find((r) => r.id?.startsWith('stageFrameLetterbox'));
     expect(letterbox?.background?.style?.bg).toBe(resolveLetterboxCanvasBg());
     const stroke = regions.find((r) => r.id === 'stageFrame');
     expect(stroke).toBeDefined();
