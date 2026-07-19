@@ -57,6 +57,7 @@ import {
 
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers/appearance';
 import type { TUIState } from '../tui-state';
+import { IdleStageComponent } from '../components/chrome/idle-stage';
 import { isTUIInputInteractionActive } from './input-interaction';
 import {
   isPureInputFrame,
@@ -64,6 +65,7 @@ import {
   shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
+  shouldUseAmbientDamageOnlyPaint,
 } from './native-frame-policy';
 
 export {
@@ -74,6 +76,7 @@ export {
   shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
+  shouldUseAmbientDamageOnlyPaint,
   type FrameInvalidationIntent,
   type TUIStateNativeFramePolicy,
   type TUIStateNativeFramePolicyInput,
@@ -341,14 +344,22 @@ export function createTUIStateNativeRenderCallback(
         ? chromeCache
         : undefined;
     const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
-    // Animation-bearing ticks (including coalesced content+animation while
-    // thinking, and splash fullscreen takeover) must not full-clear. Structural
-    // / viewport frames keep clear fills so layout holes are wiped.
-    const ambientDamageOnly =
-      !layoutShift.structuralShift &&
-      !layoutShift.viewportScrolled &&
-      frame.causes.includes('animation') &&
-      (ambientAnimationAllowed || isNativeFullscreenTakeover(state));
+    // Animation / idle-aquarium ticks must not full-clear. Request-only frames
+    // while Jewel Tank is mounted (e.g. thinking footer) used to clear:true the
+    // whole transcript — ~70% frame rewrite that tears into black horizontal bands
+    // inside the stage even with sync wrapping.
+    // Structural / viewport / resize frames keep clears so layout holes wipe.
+    const idleAquariumMounted = state.transcriptContainer.children.some(
+      (child) => child instanceof IdleStageComponent,
+    );
+    const ambientDamageOnly = shouldUseAmbientDamageOnlyPaint({
+      structuralShift: layoutShift.structuralShift,
+      viewportScrolled: layoutShift.viewportScrolled,
+      causes: frame.causes,
+      ambientAnimationAllowed,
+      idleAquariumMounted,
+      fullscreenTakeover: isNativeFullscreenTakeover(state),
+    });
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,

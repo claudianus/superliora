@@ -278,12 +278,14 @@ export function paintStageFrameCells(input: {
 
   const mode = resolveQualityAdjustedAmbientEffectMode(input.appearance);
   const ambientOff = !motionEffectsAllowed() || mode === 'off';
+  // First tick after noteStageFrameBundle has progress 0 (startedAt === nowMs).
+  // Still paint — snapping away made the ring missing for a frame and fought
+  // damage-only presents (underlay flashed through as black bands).
   const progress = stageFrameEntranceProgress(
     stageFrameEntranceStartedAtMs(),
     input.nowMs,
     ambientOff,
   );
-  if (progress <= 0) return [];
 
   const path = stageFrameStrokeCells(input.bundle);
   if (path.length === 0) return [];
@@ -394,27 +396,51 @@ export function createStageFrameOverlayRegions(input: {
   const bottom = input.bundle.y + input.bundle.height + STAGE_FRAME_GAP - 1 + STAGE_FRAME_HALO;
   const boxW = right - left + 1;
   const boxH = bottom - top + 1;
-  const lines: RendererCell[][] = Array.from({ length: boxH }, () => []);
-  for (const cell of painted) {
-    const lx = cell.x - left;
-    const ly = cell.y - top;
-    if (ly < 0 || ly >= boxH || lx < 0 || lx >= boxW) continue;
-    lines[ly]![lx] = {
-      char: cell.char,
-      style: {
-        fg: cell.fg,
-        ...(cell.bg !== undefined ? { bg: cell.bg } : {}),
-        ...(cell.bold ? { bold: true } : {}),
-      },
-    };
+  const ring = STAGE_FRAME_GAP + STAGE_FRAME_HALO;
+  // Rim-only bands — never a sparse full-stage rect. A clear:true fill of the
+  // old full rect left the interior as unstyled EMPTY (terminal-default black).
+  const rimBands: StageFrameBand[] = [
+    { x: left, y: top, width: boxW, height: ring },
+    { x: left, y: bottom - ring + 1, width: boxW, height: ring },
+    { x: left, y: top + ring, width: ring, height: Math.max(0, boxH - 2 * ring) },
+    {
+      x: right - ring + 1,
+      y: top + ring,
+      width: ring,
+      height: Math.max(0, boxH - 2 * ring),
+    },
+  ].filter((b) => b.width > 0 && b.height > 0);
+
+  const rimBg = letterboxBg ?? currentTheme.color('surfaceSunken');
+  const emptyRim: RendererCell = { char: ' ', style: { bg: rimBg } };
+
+  for (let i = 0; i < rimBands.length; i++) {
+    const band = rimBands[i]!;
+    const lines: RendererCell[][] = Array.from({ length: band.height }, () =>
+      Array.from({ length: band.width }, () => emptyRim),
+    );
+    for (const cell of painted) {
+      const lx = cell.x - band.x;
+      const ly = cell.y - band.y;
+      if (ly < 0 || ly >= band.height || lx < 0 || lx >= band.width) continue;
+      lines[ly]![lx] = {
+        char: cell.char,
+        style: {
+          fg: cell.fg,
+          bg: cell.bg ?? rimBg,
+          ...(cell.bold ? { bold: true } : {}),
+        },
+      };
+    }
+    regions.push({
+      id: `stageFrame:${i}`,
+      rect: band,
+      content: lines,
+      clear: false,
+      background: emptyRim,
+      zIndex: 5,
+    });
   }
-  regions.push({
-    id: 'stageFrame',
-    rect: { x: left, y: top, width: boxW, height: boxH },
-    content: lines,
-    clear: false,
-    zIndex: 5,
-  });
   return regions;
 }
 
@@ -428,5 +454,5 @@ export function createStageFrameOverlayRegion(input: {
   readonly freezeChase?: boolean;
 }): RendererFrameRegion | undefined {
   const regions = createStageFrameOverlayRegions(input);
-  return regions.find((r) => r.id === 'stageFrame');
+  return regions.find((r) => r.id?.startsWith('stageFrame:'));
 }

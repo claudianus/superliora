@@ -180,3 +180,27 @@ export function resolveTUIStateNativeFramePolicy(
     clearTranscriptSelection,
   };
 }
+
+/**
+ * Whether stack regions should skip clear-fills (damage-only paint).
+ *
+ * Idle Jewel Tank + Welcome must stay damage-only even on request-only ticks
+ * (thinking footer), otherwise clear:true rewrites the whole transcript every
+ * status update and tears into black horizontal bands inside the stage.
+ */
+export function shouldUseAmbientDamageOnlyPaint(input: {
+  readonly structuralShift: boolean;
+  readonly viewportScrolled: boolean;
+  readonly causes: readonly NativeRenderCause[];
+  readonly ambientAnimationAllowed: boolean;
+  readonly idleAquariumMounted: boolean;
+  readonly fullscreenTakeover?: boolean;
+}): boolean {
+  if (input.structuralShift || input.viewportScrolled || input.causes.includes('resize')) {
+    return false;
+  }
+  const animationBearing =
+    input.causes.includes('animation') || input.idleAquariumMounted;
+  if (!animationBearing) return false;
+  return input.ambientAnimationAllowed || input.fullscreenTakeover === true;
+}

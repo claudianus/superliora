@@ -322,17 +322,34 @@ describe('stageFrame entrance + chase', () => {
     expect(letterbox?.clear).toBe(false);
     const letterboxLines = letterbox?.content as readonly (readonly unknown[])[];
     expect(letterboxLines[0]?.length).toBe(letterbox?.rect.width);
-    const stroke = regions.find((r) => r.id === 'stageFrame');
-    expect(stroke).toBeDefined();
-    expect(stroke!.clear).toBe(false);
-    // Overlay includes outer halo ring.
-    expect(stroke!.rect.width).toBe(
-      bundle.width + 2 * (STAGE_FRAME_GAP + STAGE_FRAME_HALO),
-    );
-    const lines = stroke!.content as readonly (readonly { char: string }[])[];
-    const painted = lines.flatMap((row) =>
-      Object.values(row).map((cell) => cell.char),
-    );
+    const strokeRegions = regions.filter((r) => r.id?.startsWith('stageFrame:'));
+    expect(strokeRegions.length).toBeGreaterThanOrEqual(4);
+    expect(strokeRegions.every((r) => r.clear === false)).toBe(true);
+    // Rim bands must not cover the stage interior (bundle).
+    for (const stroke of strokeRegions) {
+      const coversInterior =
+        stroke.rect.x < bundle.x + bundle.width &&
+        stroke.rect.x + stroke.rect.width > bundle.x &&
+        stroke.rect.y < bundle.y + bundle.height &&
+        stroke.rect.y + stroke.rect.height > bundle.y &&
+        stroke.rect.width > STAGE_FRAME_GAP + STAGE_FRAME_HALO &&
+        stroke.rect.height > STAGE_FRAME_GAP + STAGE_FRAME_HALO;
+      // Side rims are thin; full interior coverage would be a wipe hazard.
+      if (stroke.rect.width > STAGE_FRAME_GAP + STAGE_FRAME_HALO + 2) {
+        // top/bottom bands: height is ring only
+        expect(stroke.rect.height).toBe(STAGE_FRAME_GAP + STAGE_FRAME_HALO);
+      } else {
+        expect(coversInterior ? stroke.rect.width : 0).toBeLessThanOrEqual(
+          STAGE_FRAME_GAP + STAGE_FRAME_HALO,
+        );
+      }
+      const lines = stroke.content as readonly (readonly { char: string }[])[];
+      expect(lines[0]?.length).toBe(stroke.rect.width);
+    }
+    const painted = strokeRegions.flatMap((stroke) => {
+      const lines = stroke.content as readonly (readonly { char: string }[])[];
+      return lines.flatMap((row) => row.map((cell) => cell.char));
+    });
     expect(painted).toContain('╭');
     expect(painted.filter((c) => c === '─').length).toBeGreaterThan(10);
   });
