@@ -7,7 +7,13 @@
  * Blood Moon glyphs.
  */
 
-import { truncateToWidth, visibleWidth } from '#/tui/renderer';
+import {
+  ansiTextToCells,
+  styleToAnsi,
+  truncateToWidth,
+  visibleWidth,
+  type RendererCell,
+} from '#/tui/renderer';
 
 import type { IdleFish, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 
@@ -31,14 +37,16 @@ export const FISH_TINY = [
 ] as const;
 
 /**
- * Short bushy seaweed — 3 rows × 4 sway frames (crown → root).
- * Leafy curves near the bed, not tall white pole stalks.
+ * Short leafy seaweed — 3 rows × 4 sway frames (crown → root).
+ * Soft curves; avoid tall bamboo `|` poles.
  */
 export const PLANT_FRAMES = [
-  [' )  ', ' (  ', ' )  ', ' (  '],
-  [')~( ', '(~) ', ')~( ', '(~) '],
-  [')||(', '(||)', '/||\\', '\\||/'],
+  [' ~) ', ' ~( ', ' ~) ', ' ~( '],
+  [')~)(', '(~()', ')~)(', '(~()'],
+  [' )( ', ' () ', ' )( ', ' () '],
 ] as const;
+
+const ANSI_RESET = '\u001B[0m';
 
 /** Low coral / rock silhouettes on the sand. */
 export const CORAL_FORMS = [
@@ -96,6 +104,34 @@ export function blitCentered(
   }
 }
 
+/** Expand an ANSI line to fixed-width cells (aquarium glyphs are width-1). */
+function expandLineCells(line: string, width: number): RendererCell[] {
+  const cells: RendererCell[] = [];
+  for (const cell of ansiTextToCells(line)) {
+    if (cell.continuation === true) continue;
+    cells.push(cell);
+    if (cells.length >= width) break;
+  }
+  while (cells.length < width) cells.push({ char: ' ' });
+  return cells.slice(0, width);
+}
+
+/** Serialize cells back to ANSI without stripping neighboring styles. */
+function cellsToAnsiLine(cells: readonly RendererCell[]): string {
+  const out: string[] = [];
+  let activeFg: string | undefined;
+  for (const cell of cells) {
+    const fg = cell.style?.fg;
+    if (fg !== activeFg) {
+      out.push(fg === undefined ? ANSI_RESET : styleToAnsi({ fg }));
+      activeFg = fg;
+    }
+    out.push(cell.char.length === 0 ? ' ' : cell.char);
+  }
+  if (activeFg !== undefined) out.push(ANSI_RESET);
+  return out.join('');
+}
+
 export function blitAt(
   canvas: string[],
   lines: readonly string[],
@@ -109,20 +145,18 @@ export function blitAt(
     if (y < 0 || y >= canvas.length) continue;
     const line = lines[i];
     if (line === undefined) continue;
-    const plain = stripAnsi(canvas[y] ?? ' '.repeat(width)).padEnd(width).slice(0, width);
-    const glyphPlain = stripAnsi(line);
-    const glyphW = visibleWidth(line);
     if (safeLeft >= width) continue;
-    const fit = Math.min(glyphW, width - safeLeft);
-    if (fit < glyphW) {
-      const slice = glyphPlain.slice(0, fit);
-      canvas[y] = padOrTrim(`${plain.slice(0, safeLeft)}${slice}${plain.slice(safeLeft + fit)}`, width);
-      continue;
+    const cells = expandLineCells(canvas[y] ?? ' '.repeat(width), width);
+    const glyphCells = expandLineCells(line, Math.max(1, visibleWidth(line)));
+    const fit = Math.min(glyphCells.length, width - safeLeft);
+    for (let x = 0; x < fit; x++) {
+      const glyph = glyphCells[x];
+      if (glyph === undefined) continue;
+      // Skip blank padding so we don't wipe underlying colored water/plants.
+      if (glyph.char === ' ' && glyph.style?.fg === undefined) continue;
+      cells[safeLeft + x] = glyph;
     }
-    canvas[y] = padOrTrim(
-      `${plain.slice(0, safeLeft)}${line}${plain.slice(safeLeft + glyphW)}`,
-      width,
-    );
+    canvas[y] = padOrTrim(cellsToAnsiLine(cells), width);
   }
 }
 
@@ -209,7 +243,7 @@ export function resolveAquariumPalette(
 
 const SOFT_CELLS = new Set([' ', '·', '˙', '~', '∼', '˚']);
 
-/** One cell. `glyph` may include full ANSI — never slice styled text. */
+/** One cell. `glyph` may include full ANSI — preserve other cells' styles. */
 function putCell(
   canvas: string[],
   y: number,
@@ -219,10 +253,12 @@ function putCell(
   force = false,
 ): void {
   if (y < 0 || y >= canvas.length || x < 0 || x >= width) return;
-  const plain = stripAnsi(canvas[y] ?? ' '.repeat(width)).padEnd(width).slice(0, width);
-  const here = plain[x] ?? ' ';
+  const cells = expandLineCells(canvas[y] ?? ' '.repeat(width), width);
+  const here = cells[x]?.char ?? ' ';
   if (!force && !SOFT_CELLS.has(here)) return;
-  canvas[y] = padOrTrim(`${plain.slice(0, x)}${glyph}${plain.slice(x + 1)}`, width);
+  const painted = expandLineCells(glyph, 1)[0] ?? { char: stripAnsi(glyph).slice(0, 1) || ' ' };
+  cells[x] = painted;
+  canvas[y] = padOrTrim(cellsToAnsiLine(cells), width);
 }
 
 export function resolveFishGlyphRows(
@@ -756,8 +792,9 @@ function paintSeaweed(
     // 2–3 row bushes on the bed — never tall pole stacks.
     const rows = seed % 3 === 0 ? 2 : 3;
     const frames = PLANT_FRAMES.slice(PLANT_FRAMES.length - rows);
-    const hex = seed % 2 === 0 ? green : greenSoft;
-    const lines = frames.map((row) => paint(hex, row[frameIdx] ?? ')|( '));
+    // Prefer solid plant green; soft accent only as a rare tint.
+    const hex = seed % 5 === 0 ? greenSoft : green;
+    const lines = frames.map((row) => paint(hex, row[frameIdx] ?? ')~)('));
     const top = Math.max(1, sandY - lines.length);
     blitAt(canvas, lines, top, Math.max(0, Math.min(width - 4, x)), width);
   }
@@ -858,10 +895,10 @@ export function paintIdleStoryScene(options: {
 
   // Mid-water stays blank (open water); helpers like paintWaterBase remain unused here.
 
-  // 1) Surface line
+  // 1) Surface line — sky water (glow), not a deep/green-leaning token
   if (storyRows >= 4) {
     canvas[0] = padOrTrim(
-      paint(showAmbient ? palette.waterDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
+      paint(showAmbient ? palette.water : colors.textMuted, renderWaterline(width, elapsedMs)),
       width,
     );
   }
