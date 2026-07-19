@@ -184,6 +184,7 @@ describe('FooterComponent tip crossfade', () => {
   });
 
   it('crossfades rotating tips instead of hard-swapping under premium', () => {
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
     const footer = new FooterComponent({
       ...appState,
       appearance: {
@@ -196,8 +197,16 @@ describe('FooterComponent tip crossfade', () => {
     // Advance past tip rotation interval (10s) so the tip index changes.
     vi.setSystemTime(new Date('2026-07-01T00:00:12Z'));
     advanceAppearanceAnimationClock(Date.now());
-    const mid = footer.render(200)[0] ?? '';
-    expect(mid.length).toBeGreaterThan(0);
-    expect(first).not.toBe(mid);
+    const early = footer.render(200)[0] ?? '';
+    expect(early.length).toBeGreaterThan(0);
+    expect(first).not.toBe(early);
+    // Early crossfade (p < 0.45) keeps the previous tip visible — not a hard swap.
+    expect(strip(early)).toBe(strip(first));
+
+    // After CROSSFADE_MS the new tip settles in.
+    vi.setSystemTime(new Date('2026-07-01T00:00:12.500Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const settled = footer.render(200)[0] ?? '';
+    expect(strip(settled)).not.toBe(strip(first));
   });
 });

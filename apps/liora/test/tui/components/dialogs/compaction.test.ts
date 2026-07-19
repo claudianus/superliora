@@ -167,6 +167,28 @@ describe('CompactionComponent', () => {
       expect(text).toContain('1000');
       expect(text).toContain('500');
       expect(text).toMatch(/tokens/);
+      expect(text).not.toMatch(/Compacting context/);
+    } finally {
+      component.dispose();
+    }
+  });
+
+  it('settles on the completion header with token delta after exit beat', () => {
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const component = new CompactionComponent();
+    try {
+      component.markDone(1000, 500);
+      // Well past EXIT_BEAT_MS (640) — must settle on buildHeader(), not a
+      // muted stale compacting label or a never-ending exit/crossfade path.
+      advanceAppearanceAnimationClock(Date.now() + 800);
+      const text = component.render(64).map(strip).join('\n');
+      expect(text).toContain('Compaction complete');
+      expect(text).toContain('1000 → 500 tokens');
+      expect(text).toMatch(/●/);
+      expect(text).not.toMatch(/Compacting context/);
     } finally {
       component.dispose();
     }

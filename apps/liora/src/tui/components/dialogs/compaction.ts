@@ -20,11 +20,12 @@ import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
+  EXIT_BEAT_MS,
   getActiveAppearancePreferences,
-  renderCrossfadeLine,
   renderEnterBeat,
   renderExitBeat,
   renderPremiumHeadline,
+  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -43,7 +44,6 @@ export class CompactionComponent extends Container {
   private detail: string | undefined;
   private readonly startedAtMs = appearanceAnimationNow();
   private doneAtMs: number | undefined;
-  private prevHeaderPlain: string | undefined;
 
   constructor(
     ui?: RendererRootUI,
@@ -102,37 +102,32 @@ export class CompactionComponent extends Container {
     }
 
     if (this.done && animated && this.doneAtMs !== undefined) {
-      const completePlain = this.buildCompletePlain();
-      const from = this.prevHeaderPlain ?? completePlain;
-      const exitLines = [
-        ...renderExitBeat(completePlain, width, 'compaction', this.doneAtMs, appearance),
-      ];
-      // After the exit beat collapses to one line, soft-crossfade from the
-      // prior active label so the token-delta copy remains the settle target.
-      if (exitLines.length === 1 && from !== completePlain) {
-        exitLines[0] = renderCrossfadeLine(
-          from,
-          completePlain,
-          'compaction:done',
-          this.doneAtMs,
-          appearance,
+      // Exit beat only — do not overlap crossfade on the same clock (that
+      // briefly revived the old "Compacting context" label and muted the
+      // token delta). After the beat, settle on buildHeader() below.
+      const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+      const exitMs = mode === 'subtle' ? EXIT_BEAT_MS * 1.2 : EXIT_BEAT_MS;
+      if (appearanceAnimationNow() - this.doneAtMs < exitMs) {
+        return this.composeBeatRender(
+          renderExitBeat(
+            this.buildCompletePlain(),
+            width,
+            'compaction',
+            this.doneAtMs,
+            appearance,
+          ),
         );
       }
-      return this.composeBeatRender(exitLines);
     }
 
-    // Recompute the blink state from the shared animation clock so the bullet
-    // pulses with the render loop's ticker instead of a private setInterval.
+    // Recompute blink / settled header from the shared animation clock.
     // See PREMIUM.md §7.1 (single animation clock).
-    if (!this.done && !this.canceled) {
-      this.headerText.setText(this.buildHeader());
-    }
+    this.headerText.setText(this.buildHeader());
     return super.render(width);
   }
 
   markDone(tokensBefore?: number, tokensAfter?: number, detail?: string): void {
     if (this.done || this.canceled) return;
-    this.prevHeaderPlain = this.activePlainLabel();
     this.done = true;
     this.doneAtMs = appearanceAnimationNow();
     this.tokensBefore = tokensBefore;
@@ -170,10 +165,6 @@ export class CompactionComponent extends Container {
       lines.push(currentTheme.dim(`  ${this.detail}`));
     }
     return lines;
-  }
-
-  private activePlainLabel(): string {
-    return this.background ? 'Compacting context (bg)' : 'Compacting context';
   }
 
   private buildCompletePlain(): string {
