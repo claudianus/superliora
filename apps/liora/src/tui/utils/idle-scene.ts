@@ -183,6 +183,8 @@ type IdleSceneColors = {
   readonly textMuted: string;
   readonly gradientStart?: string;
   readonly gradientEnd?: string;
+  readonly roleUser?: string;
+  readonly shellMode?: string;
 };
 
 function hexCoolness(hex: string): number {
@@ -199,9 +201,8 @@ function pickCooler(...candidates: readonly (string | undefined)[]): string {
 }
 
 /**
- * Map theme brand tokens to aquarium paint roles.
- * Two-tone only: primary / accent / glow / particle / gradient* (+ textDim for dim).
- * Never success / warning / roleUser — those inject off-brand mint/yellow.
+ * Map theme brand + role tokens to aquarium paint roles.
+ * Never success / warning / error.
  */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
@@ -211,6 +212,8 @@ export function resolveAquariumPalette(
   const waterDeep = pickCooler(colors.gradientStart, colors.glow, colors.primary);
   const water = colors.glow;
   const waterSoft = pickCooler(colors.primary, colors.glow, colors.gradientStart);
+  const roleWarm = colors.roleUser ?? gradientEnd;
+  const roleCool = colors.shellMode ?? colors.particle;
 
   return {
     water,
@@ -219,10 +222,10 @@ export function resolveAquariumPalette(
     plant: colors.accent,
     plantSoft: colors.particle,
     sand: gradientEnd,
-    coral: colors.particle,
+    coral: roleCool,
     coralSoft: colors.accent,
     food: colors.particle,
-    fishGold: gradientEnd,
+    fishGold: roleWarm,
     fishSky: waterDeep,
     fishTeal: colors.accent,
     fishSoft: water,
