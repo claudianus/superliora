@@ -153,6 +153,7 @@ export function resolveTUIStateNativeFramePolicy(
 ): TUIStateNativeFramePolicy {
   const ambientAnimationFrame =
     input.causes.includes('animation') && input.ambientAnimationAllowed;
+  const resizeFrame = input.causes.includes('resize');
   const force = shouldForceTUIStateNativeLayoutFrame(input.causes, input.structuralShift, {
     ambientAnimation: ambientAnimationFrame,
     viewportScrolled: input.viewportScrolled,
@@ -161,7 +162,9 @@ export function resolveTUIStateNativeFramePolicy(
   // that flashes the terminal to black / default bg (the “black hole”
   // flicker). Pure ambient stays damage-only (force=false); clear stays
   // gated so structural force frames never clear on animation causes.
-  const clear = force && !ambientAnimationFrame;
+  // Resize is the exception: coalesce with animation must still clear so
+  // soft buffers catch up after CSI wipe of the alternate screen.
+  const clear = force && (!ambientAnimationFrame || resizeFrame);
   const refreshTerminalPalette =
     force &&
     shouldRefreshNativeTerminalPalette(input.causes, input.structuralShift, {

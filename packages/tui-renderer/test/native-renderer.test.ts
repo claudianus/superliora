@@ -156,6 +156,36 @@ describe('NativeTerminalRenderer', () => {
 
     const shrinkWrites = output.writes.slice(writesBeforeShrink);
     expect(shrinkWrites).not.toContain(encodeTerminalClearBelowRow(20));
+    // Grow/shrink on alt screen must wipe the surface so soft-buffer resets
+    // do not leave the previous frame ghosted at the top-left.
+    expect(shrinkWrites).toContain(ANSI_CLEAR_SCREEN);
+  });
+
+  it('clears the alternate screen when growing to a larger size', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      screenMode: 'alternate',
+      clearOnStart: true,
+      render: ({ renderer: frameRenderer, size }) => {
+        frameRenderer.writeText(0, 0, `${size.columns}x${size.rows}`);
+      },
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+    const writesBeforeGrow = output.writes.length;
+
+    output.columns = 120;
+    output.rows = 40;
+    output.emit('resize');
+    scheduler.advance(0);
+
+    const growWrites = output.writes.slice(writesBeforeGrow);
+    expect(growWrites).toContain(ANSI_CLEAR_SCREEN);
+    expect(renderer.lastFrame?.frame.causes).toEqual(['resize']);
   });
 
   it('routes input and animation requests through the runtime facade', () => {
