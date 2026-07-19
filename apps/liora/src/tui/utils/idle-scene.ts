@@ -11,33 +11,17 @@ import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
 import type { IdleFish, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 
-/** Lead fish — right. ASCII-safe widths only (no wide punctuation). */
-export const FISH_LARGE_RIGHT = [
-  '  ···    ',
-  ' ><(((º>',
-  '  ~~~    ',
-] as const;
+/** Lead fish — right. Single row (no fake top/bottom fins). */
+export const FISH_LARGE_RIGHT = ['><(((º>'] as const;
 
 /** Lead fish — left. */
-export const FISH_LARGE_LEFT = [
-  '    ···  ',
-  '<º)))>< ',
-  '    ~~~  ',
-] as const;
+export const FISH_LARGE_LEFT = ['<º)))><'] as const;
 
 /** Mid-size companion — right. */
-export const FISH_COMPACT_RIGHT = [
-  '  ·  ',
-  ' ><> ',
-  '  ~  ',
-] as const;
+export const FISH_COMPACT_RIGHT = [' ><> '] as const;
 
 /** Mid-size companion — left. */
-export const FISH_COMPACT_LEFT = [
-  '  ·  ',
-  ' <>< ',
-  '  ~  ',
-] as const;
+export const FISH_COMPACT_LEFT = [' <>< '] as const;
 
 /** Tiny darting friends (right / left pairs). */
 export const FISH_TINY = [
@@ -47,15 +31,13 @@ export const FISH_TINY = [
 ] as const;
 
 /**
- * Seaweed curtain — four sway frames per row (crown → root).
- * Meant to read as a soft green forest, not sparse sticks.
+ * Short bushy seaweed — 3 rows × 4 sway frames (crown → root).
+ * Leafy curves near the bed, not tall white pole stalks.
  */
 export const PLANT_FRAMES = [
-  ['  )  ', '  |  ', '  /  ', '  \\ '],
-  [' )(  ', ' | | ', ' / \\ ', ' \\ / '],
-  [')||( ', '(||) ', '/||\\ ', '\\||/ '],
-  [' ||  ', ' ||  ', ' ||  ', ' ||  '],
-  [' ||  ', ' ||  ', ' ||  ', ' ||  '],
+  [' )  ', ' (  ', ' )  ', ' (  '],
+  [')~( ', '(~) ', ')~( ', '(~) '],
+  [')||(', '(||)', '/||\\', '\\||/'],
 ] as const;
 
 /** Low coral / rock silhouettes on the sand. */
@@ -185,32 +167,24 @@ type IdleSceneColors = {
   readonly gradientEnd?: string;
   readonly roleUser?: string;
   readonly shellMode?: string;
+  /** Natural plant green — aquarium uses this on purpose. */
+  readonly success?: string;
 };
 
-function hexCoolness(hex: string): number {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return b * 2 + g * 0.25 - r;
-}
-
-function pickCooler(...candidates: readonly (string | undefined)[]): string {
-  const valid = candidates.filter((c): c is string => Boolean(c));
-  if (valid.length === 0) return '#888888';
-  return valid.reduce((best, cur) => (hexCoolness(cur) > hexCoolness(best) ? cur : best));
-}
-
 /**
- * Map theme brand + role tokens to aquarium paint roles.
- * Never success / warning / error.
+ * Map theme tokens to aquarium paint roles.
+ * Water / surface stay sky-cyan; plants use success green (intentional).
+ * Never warning / error for sand or food.
  */
 export function resolveAquariumPalette(
   colors: IdleSceneColors,
   _theme: 'dark' | 'light' = 'dark',
 ): AquariumPalette {
-  const waterDeep = pickCooler(colors.gradientStart, colors.glow, colors.primary);
+  // Explicit sky stack (glow / gradientStart / primary).
   const water = colors.glow;
-  const waterSoft = pickCooler(colors.primary, colors.glow, colors.gradientStart);
+  const waterDeep = colors.gradientStart ?? colors.glow;
+  const waterSoft = colors.primary;
+  const plantGreen = colors.success ?? colors.accent;
   const roleWarm = colors.roleUser ?? colors.primary;
   const roleCool = colors.shellMode ?? colors.accent;
 
@@ -218,8 +192,8 @@ export function resolveAquariumPalette(
     water,
     waterDeep,
     waterSoft,
-    plant: colors.accent,
-    plantSoft: colors.primary,
+    plant: plantGreen,
+    plantSoft: colors.accent,
     sand: colors.textDim,
     coral: roleCool,
     coralSoft: colors.primary,
@@ -779,10 +753,11 @@ function paintSeaweed(
     const seed = hash2(i * 31 + 2, 61);
     const x = 1 + i * spacing + ((seed % 3) - 1);
     const frameIdx = Math.floor(elapsedMs / PLANT_SWAY_MS + seed * 0.2) % 4;
-    const tall = seed % 5 !== 0 && storyRows >= 8;
-    const frames = tall ? PLANT_FRAMES : PLANT_FRAMES.slice(2);
+    // 2–3 row bushes on the bed — never tall pole stacks.
+    const rows = seed % 3 === 0 ? 2 : 3;
+    const frames = PLANT_FRAMES.slice(PLANT_FRAMES.length - rows);
     const hex = seed % 2 === 0 ? green : greenSoft;
-    const lines = frames.map((row) => paint(hex, row[frameIdx] ?? ' | '));
+    const lines = frames.map((row) => paint(hex, row[frameIdx] ?? ')|( '));
     const top = Math.max(1, sandY - lines.length);
     blitAt(canvas, lines, top, Math.max(0, Math.min(width - 4, x)), width);
   }

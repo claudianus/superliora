@@ -151,11 +151,19 @@ function nearestFood(sim: IdleTankSim, fish: IdleFish): IdleFood | null {
   return best;
 }
 
+function faceTravel(fish: IdleFish, dx: number): void {
+  if (Math.abs(dx) < 1e-6) return;
+  fish.goesRight = dx > 0;
+  const speed = Math.abs(fish.vx) > 1e-9 ? Math.abs(fish.vx) : FISH_WANDER_SPEED;
+  fish.vx = speed * (fish.goesRight ? 1 : -1);
+}
+
 function moveToward(fish: IdleFish, tx: number, ty: number, dt: number, speed: number): void {
   const dx = tx - fish.x;
   const dy = ty - fish.y;
   const len = Math.hypot(dx, dy);
   if (len < 1e-6) return;
+  faceTravel(fish, dx);
   const step = speed * dt;
   fish.x += (dx / len) * step;
   fish.y += (dy / len) * step;
@@ -163,14 +171,13 @@ function moveToward(fish: IdleFish, tx: number, ty: number, dt: number, speed: n
 
 function tickFish(sim: IdleTankSim, fish: IdleFish, nowMs: number, dt: number): void {
   const floor = floorY(sim.storyRows);
-
-  if (nowMs < fish.cooldownUntilMs) {
+  const onCooldown = nowMs < fish.cooldownUntilMs;
+  if (onCooldown) {
     fish.mode = 'wander';
     fish.targetFoodId = null;
-    return;
   }
 
-  const target = nearestFood(sim, fish);
+  const target = onCooldown ? null : nearestFood(sim, fish);
   if (target) {
     fish.mode = 'seek';
     fish.targetFoodId = target.id;
@@ -181,12 +188,12 @@ function tickFish(sim: IdleTankSim, fish: IdleFish, nowMs: number, dt: number): 
       fish.mode = 'wander';
       fish.targetFoodId = null;
       fish.cooldownUntilMs = nowMs + IDLE_EAT_COOLDOWN_MS;
-      return;
     }
   } else {
     fish.mode = 'wander';
     fish.targetFoodId = null;
     fish.x += fish.vx * dt;
+    faceTravel(fish, fish.vx);
     const phase = (fish.seed % 1_000) / 1_000;
     const bob = Math.sin(nowMs / FISH_BOB_PERIOD_MS + phase * Math.PI * 2) * FISH_BOB_AMPLITUDE;
     const band = [0.22, 0.38, 0.3, 0.48][fish.id % 4] ?? 0.34;

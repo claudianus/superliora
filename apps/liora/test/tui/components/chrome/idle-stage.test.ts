@@ -24,6 +24,7 @@ import {
 import { darkColors } from '#/tui/theme/colors';
 import {
   FISH_COMPACT_RIGHT,
+  FISH_LARGE_LEFT,
   FISH_LARGE_RIGHT,
   FISH_SWIM_MS,
   FISH_TAIL_MS,
@@ -138,11 +139,13 @@ describe('idle-stage helpers', () => {
     expect(resolveIdleTipKey(0)).toMatch(/^tui\.tip\./);
   });
 
-  it('resolves multi-row fish glyphs (story character ≥3)', () => {
-    expect(FISH_LARGE_RIGHT.length).toBeGreaterThanOrEqual(3);
-    expect(FISH_COMPACT_RIGHT.length).toBeGreaterThanOrEqual(3);
-    expect(resolveFishGlyphRows(80, 20).length).toBeGreaterThanOrEqual(3);
-    expect(resolveFishGlyphRows(30, 12).length).toBeGreaterThanOrEqual(3);
+  it('resolves single-row fish glyphs (no fake top/bottom fins)', () => {
+    expect(FISH_LARGE_RIGHT).toEqual(['><(((º>']);
+    expect(FISH_LARGE_LEFT).toEqual(['<º)))><']);
+    expect(FISH_COMPACT_RIGHT).toEqual([' ><> ']);
+    expect(resolveFishGlyphRows(80, 20).length).toBe(1);
+    expect(resolveFishGlyphRows(30, 12).length).toBe(1);
+    expect(FISH_LARGE_RIGHT.join('\n')).not.toMatch(/·|~/);
   });
 
   it('turns the fish facing across a swim cycle', () => {
@@ -285,7 +288,7 @@ describe('idle-stage helpers', () => {
     expect(resolveSeaweedSpacing(30)).toBe(10);
   });
 
-  it('maps aquarium roles from brand and role motion tokens only', () => {
+  it('maps aquarium roles to sky water and green plants', () => {
     const palette = resolveAquariumPalette(
       {
         glow: darkColors.glow,
@@ -298,6 +301,7 @@ describe('idle-stage helpers', () => {
         gradientEnd: darkColors.gradientEnd,
         roleUser: darkColors.roleUser,
         shellMode: darkColors.shellMode,
+        success: darkColors.success,
       },
       'dark',
     );
@@ -311,16 +315,18 @@ describe('idle-stage helpers', () => {
       darkColors.roleUser,
       darkColors.shellMode,
       darkColors.textDim,
+      darkColors.success,
     ]);
     for (const hex of Object.values(palette)) {
       expect(allowed.has(hex)).toBe(true);
     }
     expect(palette.fishGold).toBe(darkColors.roleUser);
     expect(palette.coral).toBe(darkColors.shellMode);
-    expect(palette.plant).toBe(darkColors.accent);
-    expect(palette.plantSoft).toBe(darkColors.primary);
+    expect(palette.plant).toBe(darkColors.success);
+    expect(palette.plantSoft).toBe(darkColors.accent);
     expect(palette.sand).toBe(darkColors.textDim);
     expect(palette.water).toBe(darkColors.glow);
+    expect(palette.waterDeep).toBe(darkColors.gradientStart);
     expect(palette.fishTeal).toBe(darkColors.accent);
     expect(palette.fishSky).toBe(darkColors.glow);
     expect(palette.fishSoft).toBe(darkColors.textDim);
@@ -328,7 +334,6 @@ describe('idle-stage helpers', () => {
     expect(palette.food).toBe(darkColors.particle);
     expect(palette.plantSoft).not.toBe(darkColors.particle);
     expect(palette.sand).not.toBe(darkColors.gradientEnd);
-    expect(palette.plant).not.toBe(darkColors.success);
     expect(palette.sand).not.toBe(darkColors.warning);
     expect(palette.fishGold).not.toBe(darkColors.success);
   });
@@ -360,7 +365,8 @@ describe('IdleStageComponent', () => {
       });
       expect(lines.length).toBe(20);
       const joined = strip(lines.join('\n'));
-      expect(joined).toMatch(/jewel tank/i);
+      // Premium title may shimmer spaces into particle glyphs (jewel◦tank).
+      expect(joined).toMatch(/jewel[\s◦·∙]tank/i);
       expect(joined).toMatch(/tip · /i);
       // Story scene: fish / bubbles / plants / water glyphs.
       expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\]/);
@@ -370,27 +376,13 @@ describe('IdleStageComponent', () => {
     });
   });
 
-  it('paints multi-row fish art into the canvas', () => {
+  it('paints single-row fish art into the canvas', () => {
     withAmbientEnv(() => {
       const lines = renderIdleStageLines(100, DEFAULT_APPEARANCE_PREFERENCES, {
         nowMs: 1_200,
         preferredRows: 24,
       }).map((line) => strip(line));
-
-      // Count consecutive rows that look like fish body strokes.
-      let run = 0;
-      let maxRun = 0;
-      for (const line of lines) {
-        if (/[<>°)(]/.test(line) || /><|°\)|\)\)|<\(/.test(line)) {
-          run += 1;
-          maxRun = Math.max(maxRun, run);
-        } else {
-          run = 0;
-        }
-      }
-      expect(maxRun).toBeGreaterThanOrEqual(1);
-      // At least some fish-like glyphs somewhere in the tank.
-      expect(lines.join('\n')).toMatch(/[<>]/);
+      expect(lines.join('\n')).toMatch(/><|\(\(|º>|º\)|<></);
     });
   });
 
