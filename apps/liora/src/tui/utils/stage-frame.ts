@@ -8,22 +8,22 @@ import {
 import { isTUIInputInteractionActive } from '#/tui/utils/input-interaction';
 
 /** Cells between bundle edge and the stroke ring. */
-export const STAGE_FRAME_GAP = 2;
-/** Stroke ring needs gap + 1 cell outside the bundle on every side. */
+export const STAGE_FRAME_GAP = 1;
+/** Full box needs gap + stroke outside the bundle on every side. */
 export const STAGE_FRAME_MARGIN = STAGE_FRAME_GAP + 1;
-/** Short L arms — long rails + bloom read as a noisy second box. */
-export const STAGE_FRAME_ARM_TARGET = 3;
-export const STAGE_FRAME_ARM_MIN = 2;
-export const STAGE_FRAME_ENTRANCE_MS = 280;
-/** Slow corner luminance breathe (ms per full cycle). */
-export const STAGE_FRAME_BREATHE_MS = 2600;
+export const STAGE_FRAME_ENTRANCE_MS = 360;
+/** Quiet chase — slower than Ultrawork editor (~24 cells/s). */
+export const STAGE_FRAME_CHASE_MS_PER_CELL = 95;
+export const STAGE_FRAME_TRAIL_LEN = 10;
 
-/** @deprecated Kept for test/import compatibility; bloom removed. */
+/** @deprecated Corner-arm API removed; full box only. */
+export const STAGE_FRAME_ARM_TARGET = 0;
+/** @deprecated */
+export const STAGE_FRAME_ARM_MIN = 0;
+/** @deprecated */
 export const STAGE_FRAME_BLOOM = 0;
-/** @deprecated Chase removed; corner breathe only. */
-export const STAGE_FRAME_CHASE_MS_PER_CELL = STAGE_FRAME_BREATHE_MS;
-/** @deprecated Chase removed. */
-export const STAGE_FRAME_TRAIL_LEN = 0;
+/** @deprecated */
+export const STAGE_FRAME_BREATHE_MS = 0;
 
 export interface StageFrameBand {
   readonly x: number;
@@ -37,6 +37,7 @@ export interface StageFramePaintCell {
   readonly y: number;
   readonly char: string;
   readonly fg: string;
+  readonly bg?: string;
   readonly bold?: boolean;
 }
 
@@ -75,11 +76,19 @@ export function stageFrameEntranceProgress(
   return 1 - (1 - t) ** 3;
 }
 
-export function stageFrameEntranceArmLength(fullArm: number, progress: number): number {
-  const p = Math.min(1, Math.max(0, progress));
-  if (p <= 0) return 0;
-  if (p >= 1) return Math.max(0, Math.floor(fullArm));
-  return Math.max(0, Math.round(fullArm * p));
+/** @deprecated Full box has no arms — returns 1 when progress > 0. */
+export function stageFrameEntranceArmLength(_fullArm: number, progress: number): number {
+  return progress <= 0 ? 0 : 1;
+}
+
+/** @deprecated */
+export function stageFrameArmLength(_bundle: StageFrameBand): number {
+  return 0;
+}
+
+/** @deprecated */
+export function stageFrameBreathePhase(_nowMs: number): number {
+  return 0;
 }
 
 /** Outer centered bundle: stage alone, or stage+gap+rail. */
@@ -108,72 +117,104 @@ export function stageFrameVisible(bundle: StageFrameBand, cols: number, rows: nu
   );
 }
 
-export function stageFrameArmLength(bundle: StageFrameBand): number {
-  const fit = (side: number): number => {
-    // two arms + ≥2 empty cells between tips
-    if (STAGE_FRAME_ARM_TARGET * 2 + 2 <= side) return STAGE_FRAME_ARM_TARGET;
-    if (STAGE_FRAME_ARM_MIN * 2 + 2 <= side) return STAGE_FRAME_ARM_MIN;
-    return Math.max(1, Math.floor((side - 2) / 2));
-  };
-  return Math.min(fit(bundle.width), fit(bundle.height));
-}
-
 export interface StageFrameStrokeCell {
   readonly x: number;
   readonly y: number;
   readonly char: string;
-  /** Always stroke — bloom removed for visual clarity. */
   readonly kind: 'stroke';
   readonly corner: boolean;
 }
 
 const CORNER_CHARS = new Set(['╭', '╮', '╰', '╯']);
 
-export function stageFrameStrokeCells(
-  bundle: StageFrameBand,
-  armLength: number,
-): readonly StageFrameStrokeCell[] {
-  const arm = Math.max(1, Math.floor(armLength));
+/**
+ * Closed rounded rectangle around the bundle, clockwise from top-left.
+ * Path order is used for the chase highlight.
+ */
+export function stageFrameStrokeCells(bundle: StageFrameBand): readonly StageFrameStrokeCell[] {
   const left = bundle.x - STAGE_FRAME_GAP;
   const right = bundle.x + bundle.width + STAGE_FRAME_GAP - 1;
   const top = bundle.y - STAGE_FRAME_GAP;
   const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1;
-  const out: StageFrameStrokeCell[] = [];
+  if (right <= left || bottom <= top) return [];
 
+  const out: StageFrameStrokeCell[] = [];
   const push = (x: number, y: number, char: string) => {
     out.push({ x, y, char, kind: 'stroke', corner: CORNER_CHARS.has(char) });
   };
 
-  // TL
   push(left, top, '╭');
-  for (let i = 1; i < arm; i++) push(left + i, top, '─');
-  for (let i = 1; i < arm; i++) push(left, top + i, '│');
-
-  // TR
+  for (let x = left + 1; x < right; x++) push(x, top, '─');
   push(right, top, '╮');
-  for (let i = 1; i < arm; i++) push(right - i, top, '─');
-  for (let i = 1; i < arm; i++) push(right, top + i, '│');
-
-  // BR
+  for (let y = top + 1; y < bottom; y++) push(right, y, '│');
   push(right, bottom, '╯');
-  for (let i = 1; i < arm; i++) push(right - i, bottom, '─');
-  for (let i = 1; i < arm; i++) push(right, bottom - i, '│');
-
-  // BL
+  for (let x = right - 1; x > left; x--) push(x, bottom, '─');
   push(left, bottom, '╰');
-  for (let i = 1; i < arm; i++) push(left + i, bottom, '─');
-  for (let i = 1; i < arm; i++) push(left, bottom - i, '│');
+  for (let y = bottom - 1; y > top; y--) push(left, y, '│');
 
   return out;
 }
 
-/** 0..1 ease-in-out breathe phase. */
-export function stageFrameBreathePhase(nowMs: number): number {
-  const cycle = STAGE_FRAME_BREATHE_MS;
-  if (cycle <= 0) return 0;
-  const t = (Math.max(0, nowMs) % cycle) / cycle;
-  // Smooth half-sine — never snaps.
-  return 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
+function positiveModulo(n: number, m: number): number {
+  if (m <= 0) return 0;
+  return ((n % m) + m) % m;
+}
+
+function chaseFgForTrailStep(
+  step: number,
+  trailLen: number,
+  head: string,
+  mid: string,
+  soft: string,
+  dim: string,
+): string {
+  const t = step / Math.max(1, trailLen);
+  if (t < 0.1) return head;
+  if (t < 0.35) return mid;
+  if (t < 0.7) return soft;
+  return dim;
+}
+
+/** Letterbox band rects outside the frame ring (theme canvas fill). */
+export function stageFrameLetterboxBands(
+  bundle: StageFrameBand,
+  cols: number,
+  rows: number,
+): readonly StageFrameBand[] {
+  const left = bundle.x - STAGE_FRAME_GAP;
+  const right = bundle.x + bundle.width + STAGE_FRAME_GAP - 1;
+  const top = bundle.y - STAGE_FRAME_GAP;
+  const bottom = bundle.y + bundle.height + STAGE_FRAME_GAP - 1;
+  const bands: StageFrameBand[] = [];
+  if (top > 0) bands.push({ x: 0, y: 0, width: cols, height: top });
+  if (bottom + 1 < rows) {
+    bands.push({ x: 0, y: bottom + 1, width: cols, height: rows - (bottom + 1) });
+  }
+  const midH = bottom - top + 1;
+  if (midH > 0 && left > 0) bands.push({ x: 0, y: top, width: left, height: midH });
+  if (midH > 0 && right + 1 < cols) {
+    bands.push({ x: right + 1, y: top, width: cols - (right + 1), height: midH });
+  }
+  return bands.filter((b) => b.width > 0 && b.height > 0);
+}
+
+/** @deprecated Prefer {@link stageFrameLetterboxBands} for paint cost. */
+export function stageFrameLetterboxCells(
+  bundle: StageFrameBand,
+  cols: number,
+  rows: number,
+  bg: string | undefined,
+): readonly StageFramePaintCell[] {
+  if (bg === undefined) return [];
+  const out: StageFramePaintCell[] = [];
+  for (const band of stageFrameLetterboxBands(bundle, cols, rows)) {
+    for (let y = band.y; y < band.y + band.height; y++) {
+      for (let x = band.x; x < band.x + band.width; x++) {
+        out.push({ x, y, char: ' ', fg: bg, bg });
+      }
+    }
+  }
+  return out;
 }
 
 export function paintStageFrameCells(input: {
@@ -182,7 +223,7 @@ export function paintStageFrameCells(input: {
   readonly rows: number;
   readonly nowMs: number;
   readonly appearance: AppearancePreferences;
-  /** Freeze motion (typing / decorative skip) — static dim corners. */
+  /** Freeze chase (typing / decorative skip). */
   readonly freezeChase?: boolean;
 }): readonly StageFramePaintCell[] {
   if (!stageFrameVisible(input.bundle, input.cols, input.rows)) return [];
@@ -197,43 +238,131 @@ export function paintStageFrameCells(input: {
     input.nowMs,
     ambientOff,
   );
-  const fullArm = stageFrameArmLength(input.bundle);
-  const arm = stageFrameEntranceArmLength(fullArm, progress);
-  if (arm <= 0) return [];
+  if (progress <= 0) return [];
 
-  const geometry = stageFrameStrokeCells(input.bundle, arm);
+  const path = stageFrameStrokeCells(input.bundle);
+  if (path.length === 0) return [];
+
+  const canvasCell = currentTheme.canvasBackgroundCell();
+  const canvasBg = canvasCell?.style.bg;
   const border = currentTheme.color('border');
+  const primary = currentTheme.color('primary');
   const glow = currentTheme.color('glow');
+  // Visible base — never crush into the panel fill.
+  const base = mixHexColor(border, primary, 0.35);
+  const head = mixHexColor(glow, primary, mode === 'premium' ? 0.35 : 0.55);
+  const mid = mixHexColor(head, base, 0.28);
+  const soft = mixHexColor(head, base, 0.55);
+  // Entrance fades the whole ring in from canvas/background toward base.
+  const fadeTarget = canvasBg ?? currentTheme.color('surfaceSunken');
+  const dim = mixHexColor(fadeTarget, base, Math.min(1, 0.25 + progress * 0.75));
+
   const freeze =
     ambientOff || input.freezeChase === true || isTUIInputInteractionActive(input.nowMs);
-  const breathe = freeze ? 0 : stageFrameBreathePhase(input.nowMs);
-  // Premium peaks a little brighter; subtle stays near border.
-  const peakMix = mode === 'premium' ? 0.42 : 0.28;
-  const cornerFg = mixHexColor(border, glow, breathe * peakMix);
-  const armFg = mixHexColor(border, currentTheme.color('surfaceSunken'), 0.15);
+  const trailLen = Math.min(
+    STAGE_FRAME_TRAIL_LEN,
+    Math.max(4, Math.floor(path.length / 8)),
+  );
+  const headIndex =
+    freeze || path.length === 0
+      ? -1
+      : positiveModulo(Math.floor(input.nowMs / STAGE_FRAME_CHASE_MS_PER_CELL), path.length);
+
+  const strokeFg = new Map<string, { fg: string; bold: boolean }>();
+  for (const cell of path) {
+    strokeFg.set(`${cell.x},${cell.y}`, { fg: dim, bold: false });
+  }
+  if (!freeze && headIndex >= 0 && progress >= 0.85) {
+    for (let step = 0; step <= trailLen; step++) {
+      const idx = positiveModulo(headIndex - step, path.length);
+      const cell = path[idx]!;
+      const fg = chaseFgForTrailStep(step, trailLen, head, mid, soft, dim);
+      const t = step / Math.max(1, trailLen);
+      strokeFg.set(`${cell.x},${cell.y}`, { fg, bold: t < 0.28 && mode === 'premium' });
+    }
+  }
 
   const out: StageFramePaintCell[] = [];
   const onScreen = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < input.cols && y < input.rows;
 
-  for (const cell of geometry) {
+  for (const cell of path) {
     if (!onScreen(cell.x, cell.y)) continue;
-    if (cell.corner) {
-      out.push({
-        x: cell.x,
-        y: cell.y,
-        char: cell.char,
-        fg: cornerFg,
-        ...(breathe > 0.72 && mode === 'premium' ? { bold: true } : {}),
-      });
-    } else {
-      out.push({ x: cell.x, y: cell.y, char: cell.char, fg: armFg });
-    }
+    const style = strokeFg.get(`${cell.x},${cell.y}`) ?? { fg: dim, bold: false };
+    out.push({
+      x: cell.x,
+      y: cell.y,
+      char: cell.char,
+      fg: style.fg,
+      ...(canvasBg !== undefined ? { bg: canvasBg } : {}),
+      ...(style.bold ? { bold: true } : {}),
+    });
   }
 
   return out;
 }
 
+export function createStageFrameOverlayRegions(input: {
+  readonly bundle: StageFrameBand;
+  readonly cols: number;
+  readonly rows: number;
+  readonly nowMs: number;
+  readonly appearance: AppearancePreferences;
+  readonly freezeChase?: boolean;
+}): readonly RendererFrameRegion[] {
+  if (!stageFrameVisible(input.bundle, input.cols, input.rows)) return [];
+
+  const regions: RendererFrameRegion[] = [];
+  const canvas = currentTheme.canvasBackgroundCell();
+  if (canvas !== undefined) {
+    let i = 0;
+    for (const band of stageFrameLetterboxBands(input.bundle, input.cols, input.rows)) {
+      regions.push({
+        id: `stageFrameLetterbox:${i}`,
+        rect: band,
+        content: [],
+        clear: true,
+        background: canvas,
+        zIndex: 4,
+      });
+      i += 1;
+    }
+  }
+
+  const painted = paintStageFrameCells(input);
+  if (painted.length === 0) return regions;
+
+  const left = input.bundle.x - STAGE_FRAME_GAP;
+  const top = input.bundle.y - STAGE_FRAME_GAP;
+  const right = input.bundle.x + input.bundle.width + STAGE_FRAME_GAP - 1;
+  const bottom = input.bundle.y + input.bundle.height + STAGE_FRAME_GAP - 1;
+  const boxW = right - left + 1;
+  const boxH = bottom - top + 1;
+  const lines: RendererCell[][] = Array.from({ length: boxH }, () => []);
+  for (const cell of painted) {
+    const lx = cell.x - left;
+    const ly = cell.y - top;
+    if (ly < 0 || ly >= boxH || lx < 0 || lx >= boxW) continue;
+    lines[ly]![lx] = {
+      char: cell.char,
+      style: {
+        fg: cell.fg,
+        ...(cell.bg !== undefined ? { bg: cell.bg } : {}),
+        ...(cell.bold ? { bold: true } : {}),
+      },
+    };
+  }
+  regions.push({
+    id: 'stageFrame',
+    rect: { x: left, y: top, width: boxW, height: boxH },
+    content: lines,
+    clear: false,
+    zIndex: 5,
+  });
+  return regions;
+}
+
+/** @deprecated Prefer {@link createStageFrameOverlayRegions}. */
 export function createStageFrameOverlayRegion(input: {
   readonly bundle: StageFrameBand;
   readonly cols: number;
@@ -242,19 +371,6 @@ export function createStageFrameOverlayRegion(input: {
   readonly appearance: AppearancePreferences;
   readonly freezeChase?: boolean;
 }): RendererFrameRegion | undefined {
-  const painted = paintStageFrameCells(input);
-  if (painted.length === 0) return undefined;
-  const lines: RendererCell[][] = Array.from({ length: input.rows }, () => []);
-  for (const cell of painted) {
-    if (cell.y < 0 || cell.y >= input.rows || cell.x < 0 || cell.x >= input.cols) continue;
-    const row = lines[cell.y]!;
-    row[cell.x] = { char: cell.char, style: { fg: cell.fg, bold: cell.bold } };
-  }
-  return {
-    id: 'stageFrame',
-    rect: { x: 0, y: 0, width: input.cols, height: input.rows },
-    content: lines,
-    clear: false,
-    zIndex: 5,
-  };
+  const regions = createStageFrameOverlayRegions(input);
+  return regions.find((r) => r.id === 'stageFrame');
 }
