@@ -1,10 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   STAGE_FRAME_ARM_MIN,
   STAGE_FRAME_ARM_TARGET,
   STAGE_FRAME_MARGIN,
+  noteStageFrameBundle,
+  paintStageFrameCells,
+  resetStageFrameEntranceForTests,
   stageFrameArmLength,
+  stageFrameBundleKey,
   stageFrameBundleRect,
+  stageFrameEntranceArmLength,
+  stageFrameEntranceProgress,
   stageFrameStrokeCells,
   stageFrameVisible,
 } from '#/tui/utils/stage-frame';
@@ -15,6 +22,7 @@ import {
   STAGE_MAX_WIDTH,
   STAGE_RAIL_GAP,
 } from '#/tui/controllers/stage-layout';
+import { resetTUIInputInteractionForTests } from '#/tui/utils/input-interaction';
 
 describe('stageFrameVisible', () => {
   it('hides when any margin is below STAGE_FRAME_MARGIN', () => {
@@ -64,5 +72,65 @@ describe('stageFrameStrokeCells', () => {
     const cells = stageFrameStrokeCells(bundle, stageFrameArmLength(bundle));
     const maxX = Math.max(...cells.map((c) => c.x));
     expect(maxX).toBeGreaterThanOrEqual(bundle.x + bundle.width);
+  });
+});
+
+describe('stageFrame entrance + chase', () => {
+  beforeEach(() => {
+    resetStageFrameEntranceForTests();
+    resetTUIInputInteractionForTests();
+  });
+
+  it('snaps progress to 1 when ambient is off', () => {
+    expect(stageFrameEntranceProgress(0, 50, true)).toBe(1);
+  });
+
+  it('grows arm length with entrance progress', () => {
+    expect(stageFrameEntranceArmLength(5, 0)).toBe(0);
+    expect(stageFrameEntranceArmLength(5, 0.5)).toBeGreaterThan(0);
+    expect(stageFrameEntranceArmLength(5, 1)).toBe(5);
+  });
+
+  it('resets entrance when bundle key changes', () => {
+    noteStageFrameBundle('a', 1000);
+    noteStageFrameBundle('b', 1500);
+    expect(stageFrameEntranceProgress(1500, 1500, false)).toBe(0);
+  });
+
+  it('paint returns cells only outside the bundle', () => {
+    const bundle = { x: 40, y: 12, width: 108, height: 56 };
+    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
+    const cells = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: 10_000, // settled
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, particles: 'subtle' },
+      freezeChase: false,
+    });
+    expect(cells.length).toBeGreaterThan(0);
+    for (const c of cells) {
+      const inside =
+        c.x >= bundle.x &&
+        c.x < bundle.x + bundle.width &&
+        c.y >= bundle.y &&
+        c.y < bundle.y + bundle.height;
+      expect(inside).toBe(false);
+    }
+  });
+
+  it('omits bloom when ambient profile is off', () => {
+    const bundle = { x: 40, y: 12, width: 108, height: 56 };
+    noteStageFrameBundle(stageFrameBundleKey(bundle), 0);
+    const cells = paintStageFrameCells({
+      bundle,
+      cols: 200,
+      rows: 80,
+      nowMs: 10_000,
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off', particles: 'off' },
+    });
+    const fullArm = stageFrameArmLength(bundle);
+    const strokeOnly = stageFrameStrokeCells(bundle, fullArm).filter((c) => c.kind === 'stroke');
+    expect(cells.length).toBe(strokeOnly.length);
   });
 });
