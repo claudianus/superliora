@@ -138,33 +138,33 @@ export function stageFrameStrokeCells(
   pushStroke(left, top, '╭');
   for (let i = 1; i < arm; i++) pushStroke(left + i, top, '─');
   for (let i = 1; i < arm; i++) pushStroke(left, top + i, '│');
-  pushBloom(left - 1, top - 1, '╭');
-  for (let i = 1; i < arm; i++) pushBloom(left + i, top - 1, '─');
-  for (let i = 1; i < arm; i++) pushBloom(left - 1, top + i, '│');
+  pushBloom(left - STAGE_FRAME_BLOOM, top - STAGE_FRAME_BLOOM, '╭');
+  for (let i = 1; i < arm; i++) pushBloom(left + i, top - STAGE_FRAME_BLOOM, '─');
+  for (let i = 1; i < arm; i++) pushBloom(left - STAGE_FRAME_BLOOM, top + i, '│');
 
   // TR
   pushStroke(right, top, '╮');
   for (let i = 1; i < arm; i++) pushStroke(right - i, top, '─');
   for (let i = 1; i < arm; i++) pushStroke(right, top + i, '│');
-  pushBloom(right + 1, top - 1, '╮');
-  for (let i = 1; i < arm; i++) pushBloom(right - i, top - 1, '─');
-  for (let i = 1; i < arm; i++) pushBloom(right + 1, top + i, '│');
+  pushBloom(right + STAGE_FRAME_BLOOM, top - STAGE_FRAME_BLOOM, '╮');
+  for (let i = 1; i < arm; i++) pushBloom(right - i, top - STAGE_FRAME_BLOOM, '─');
+  for (let i = 1; i < arm; i++) pushBloom(right + STAGE_FRAME_BLOOM, top + i, '│');
 
   // BR
   pushStroke(right, bottom, '╯');
   for (let i = 1; i < arm; i++) pushStroke(right - i, bottom, '─');
   for (let i = 1; i < arm; i++) pushStroke(right, bottom - i, '│');
-  pushBloom(right + 1, bottom + 1, '╯');
-  for (let i = 1; i < arm; i++) pushBloom(right - i, bottom + 1, '─');
-  for (let i = 1; i < arm; i++) pushBloom(right + 1, bottom - i, '│');
+  pushBloom(right + STAGE_FRAME_BLOOM, bottom + STAGE_FRAME_BLOOM, '╯');
+  for (let i = 1; i < arm; i++) pushBloom(right - i, bottom + STAGE_FRAME_BLOOM, '─');
+  for (let i = 1; i < arm; i++) pushBloom(right + STAGE_FRAME_BLOOM, bottom - i, '│');
 
   // BL
   pushStroke(left, bottom, '╰');
   for (let i = 1; i < arm; i++) pushStroke(left + i, bottom, '─');
   for (let i = 1; i < arm; i++) pushStroke(left, bottom - i, '│');
-  pushBloom(left - 1, bottom + 1, '╰');
-  for (let i = 1; i < arm; i++) pushBloom(left + i, bottom + 1, '─');
-  for (let i = 1; i < arm; i++) pushBloom(left - 1, bottom - i, '│');
+  pushBloom(left - STAGE_FRAME_BLOOM, bottom + STAGE_FRAME_BLOOM, '╰');
+  for (let i = 1; i < arm; i++) pushBloom(left + i, bottom + STAGE_FRAME_BLOOM, '─');
+  for (let i = 1; i < arm; i++) pushBloom(left - STAGE_FRAME_BLOOM, bottom - i, '│');
 
   return out;
 }

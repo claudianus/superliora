@@ -21,7 +21,6 @@ import {
 import {
   RAIL_WIDTH,
   resolveStageLayout,
-  STAGE_MAX_HEIGHT,
   STAGE_MAX_WIDTH,
   STAGE_RAIL_GAP,
 } from '#/tui/controllers/stage-layout';
@@ -140,7 +139,11 @@ describe('stageFrame entrance + chase', () => {
       cols: 200,
       rows: 80,
       nowMs: 10_000, // settled
-      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, particles: 'subtle' },
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'subtle',
+        particles: 'ambient',
+      },
       freezeChase: false,
     });
     expect(cells.length).toBeGreaterThan(0);
@@ -258,7 +261,11 @@ describe('stageFrame entrance + chase', () => {
       cols: 200,
       rows: 80,
       nowMs: 10_000,
-      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, particles: 'subtle' },
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'subtle',
+        particles: 'ambient',
+      },
     });
     expect(region).toBeDefined();
     expect(region!.clear).toBe(false);
