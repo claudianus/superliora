@@ -143,7 +143,7 @@ class ServicesManagedAuthFacade implements ServicesAuthFacade {
       return {
         getAccessToken: (options) =>
           this.providerManager.ensureFresh(providerName, {
-            ...(options ?? {}),
+            ...options,
             ...(oauthRef?.key === undefined ? {} : { storageKey: oauthRef.key }),
           }),
       };

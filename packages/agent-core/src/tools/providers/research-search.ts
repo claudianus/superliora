@@ -985,7 +985,7 @@ async function runWithConcurrency<T>(
   concurrency: number,
 ): Promise<T[]> {
   if (jobs.length === 0) return [];
-  const results: T[] = new Array(jobs.length);
+  const results: T[] = Array.from({ length: jobs.length });
   let next = 0;
   const workers = Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
     while (true) {

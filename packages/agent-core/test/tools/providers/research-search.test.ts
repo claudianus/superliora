@@ -10,6 +10,13 @@ import {
   resolveResearchApiKey,
 } from '../../../src/tools/providers/research-search';
 
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
 describe('detectSearchProviderEnvKeys', () => {
   it('detects known search API env vars', () => {
     const detected = detectSearchProviderEnvKeys({
@@ -155,7 +162,7 @@ describe('ResearchSearchEngine', () => {
 
   it('fans out in parallel and dedupes URLs', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
-      const url = String(input);
+      const url = requestUrl(input);
       if (url.includes('api.search.brave.com')) {
         return new Response(
           JSON.stringify({
@@ -207,7 +214,7 @@ describe('ResearchSearchEngine', () => {
     let braveCalls = 0;
     let tavilyCalls = 0;
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
-      const url = String(input);
+      const url = requestUrl(input);
       if (url.includes('api.search.brave.com')) {
         braveCalls += 1;
         return new Response(
@@ -256,9 +263,10 @@ describe('ResearchSearchEngine', () => {
   it('does not request provider-native full content during metadata search', async () => {
     let body: unknown;
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
-      const url = String(input);
+      const url = requestUrl(input);
       if (url.includes('api.tavily.com')) {
-        body = JSON.parse(String(init?.body ?? '{}'));
+        const rawBody = init?.body;
+        body = JSON.parse(typeof rawBody === 'string' ? rawBody : '{}');
         return new Response(
           JSON.stringify({
             results: [{ title: 'T', url: 'https://example.com/t', content: 'snippet only' }],

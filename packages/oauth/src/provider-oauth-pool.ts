@@ -101,9 +101,9 @@ export function mergeProviderOAuthLogin(
 
   let oauths: ProviderOAuthRef[] | undefined;
   if (options.addAccount === true && existingRefs.length > 0) {
-    oauths = uniqueOAuthRefs([
-      ...existingRefs.filter((ref) => !sameOAuthRef(ref, nextPrimary)),
-    ]);
+    oauths = uniqueOAuthRefs(
+      existingRefs.filter((ref) => !sameOAuthRef(ref, nextPrimary)),
+    );
   } else if (options.addAccount !== true && existingRefs.length > 1) {
     // Refresh primary: keep existing fallbacks, just rewrite the primary key.
     oauths = uniqueOAuthRefs(
