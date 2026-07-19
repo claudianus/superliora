@@ -722,6 +722,7 @@ function buildTUIStateNativeFrame(
         ]
       : [...stackRegions];
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
+  // Keep letterbox sky + frame chase alive while typing; only editor VFX skips.
   regions.push(
     ...createStageFrameOverlayRegions({
       bundle: stageFrameBundleRect(plan.stage),
@@ -729,7 +730,6 @@ function buildTUIStateNativeFrame(
       rows: height,
       nowMs: appearanceAnimationNow(),
       appearance,
-      freezeChase: skipDecorative,
     }),
   );
   const diagnosticsOverlay = skipDecorative
