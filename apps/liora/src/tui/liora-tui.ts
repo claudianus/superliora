@@ -427,10 +427,15 @@ export class LioraTUI {
       requestRender: () => {
         this.state.renderer.requestRender('animation');
       },
+      setAmbientSchedule: (options) => {
+        this.state.renderer.nativeRuntime?.setAmbientSchedule(options);
+      },
       onAppearanceApplied: () => {
         this.state.renderer.invalidateFrame('palette');
       },
       shouldRenderAnimation: () => this.shouldRenderAmbientAnimationFrame(),
+      // Splash force-arm lands in Task 5; stub keeps schedule gated by shouldRenderAnimation.
+      forceAmbientSchedule: () => false,
     });
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);

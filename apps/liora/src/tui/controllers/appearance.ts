@@ -1,57 +1,65 @@
-import type { RendererTerminalHost } from '#/tui/renderer';
+import {
+  rendererAmbientIntervalMs,
+  type NativeFrameStatsHealth,
+  type RendererAmbientScheduleOptions,
+  type RendererQualityLevel,
+  type RendererTerminalHost,
+} from '#/tui/renderer';
 
 import type { AppearancePreferences } from '#/tui/config';
 import { ESC, ST } from '#/tui/constant/terminal';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
-  appearanceAnimationFrameIntervalMs,
   motionEffectsAllowed,
   resolveAmbientEffectMode,
   setActiveAppearancePreferences,
 } from '#/tui/utils/appearance-effects';
 import { isTUIInputInteractionActive } from '#/tui/utils/input-interaction';
 
-import { AnimationScheduler } from './animation-scheduler';
-
 export interface AppearanceControllerOptions {
   readonly terminal: RendererTerminalHost;
   readonly requestRender: () => void;
+  readonly setAmbientSchedule: (
+    options: RendererAmbientScheduleOptions | undefined,
+  ) => void;
+  readonly getAmbientScheduleContext?: () => {
+    readonly quality: RendererQualityLevel;
+    readonly health: NativeFrameStatsHealth;
+    readonly backpressure: boolean;
+  };
   readonly onAppearanceApplied?: () => void;
   readonly getAppearance: () => AppearancePreferences;
   readonly shouldRenderAnimation?: () => boolean;
+  /** When true, force schedule enabled (splash) even if shouldRenderAnimation is false. */
+  readonly forceAmbientSchedule?: () => boolean;
 }
 
 export class AppearanceController {
   private readonly terminal: RendererTerminalHost;
   private readonly getAppearance: () => AppearancePreferences;
+  private readonly setAmbientSchedule: (
+    options: RendererAmbientScheduleOptions | undefined,
+  ) => void;
+  private readonly shouldRenderAnimation: (() => boolean) | undefined;
+  private readonly forceAmbientSchedule: (() => boolean) | undefined;
   private readonly onAppearanceApplied: (() => void) | undefined;
-  private readonly scheduler: AnimationScheduler;
   private terminalMutated = false;
 
   constructor(options: AppearanceControllerOptions) {
     this.terminal = options.terminal;
     this.getAppearance = options.getAppearance;
+    this.setAmbientSchedule = options.setAmbientSchedule;
+    this.shouldRenderAnimation = options.shouldRenderAnimation;
+    this.forceAmbientSchedule = options.forceAmbientSchedule;
     this.onAppearanceApplied = options.onAppearanceApplied;
-    const appearance = options.getAppearance();
-    this.scheduler = new AnimationScheduler({
-      fps: appearance.animationFps,
-      enabled: shouldAnimate(appearance),
-      requestRender: options.requestRender,
-      shouldRender: options.shouldRenderAnimation,
-      beforeRender: undefined,
-      resolveIntervalMs: () => appearanceAnimationFrameIntervalMs(this.getAppearance()),
-    });
-    this.apply(appearance);
+    this.apply(options.getAppearance());
   }
 
   apply(appearance: AppearancePreferences = this.getAppearance()): void {
     setActiveAppearancePreferences(appearance);
     currentTheme.setCanvasBackgroundEnabled(appearance.canvasBackground);
-    this.scheduler.update({
-      fps: appearance.animationFps,
-      enabled: shouldAnimate(appearance),
-    });
+    this.syncAmbientSchedule();
     this.reapplyTerminalPalette(appearance);
     this.onAppearanceApplied?.();
   }
@@ -66,8 +74,33 @@ export class AppearanceController {
   }
 
   dispose(): void {
-    this.scheduler.dispose();
+    this.setAmbientSchedule(undefined);
     this.resetTerminalColors();
+  }
+
+  private syncAmbientSchedule(): void {
+    const appearance = this.getAppearance();
+    if (!shouldAnimate(appearance)) {
+      this.setAmbientSchedule(undefined);
+      return;
+    }
+    this.setAmbientSchedule({
+      enabled: true,
+      resolveIntervalMs: (ctx) => {
+        const forced = this.forceAmbientSchedule?.() === true;
+        if (!forced && this.shouldRenderAnimation?.() === false) {
+          return Number.POSITIVE_INFINITY;
+        }
+        return rendererAmbientIntervalMs({
+          requested: resolveAmbientEffectMode(this.getAppearance()),
+          quality: ctx.quality === 'minimal' ? 'balanced' : ctx.quality,
+          health: ctx.health === 'degraded' ? 'watch' : ctx.health,
+          backpressure: ctx.backpressure,
+          premiumMs: 33,
+          subtleMs: 140,
+        });
+      },
+    });
   }
 
   private applyTerminalColors(
