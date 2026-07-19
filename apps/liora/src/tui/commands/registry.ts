@@ -491,7 +491,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'aquarium',
     aliases: ['tank'],
-    description: 'Show the Jewel Tank aquarium again',
+    description: 'Overlay a Welcome-sized Jewel Tank (covers chat until the next message)',
     priority: 70,
     availability: 'always',
   },

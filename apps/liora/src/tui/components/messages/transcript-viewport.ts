@@ -22,6 +22,8 @@ const TRANSCRIPT_SCROLLBAR_THUMB = '█';
 
 export class TranscriptViewportComponent extends RendererTranscriptViewportComponent {
   private readonly resolveVisibleRows: (width: number) => number;
+  /** Prior transcript children while `/aquarium` Welcome-sized overlay is shown. */
+  private aquariumOverlaySnapshot: Component[] | undefined;
 
   constructor(
     leftPad: number,
@@ -67,11 +69,58 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     return Math.max(10, budget - other);
   }
 
+  get isAquariumOverlayActive(): boolean {
+    return this.aquariumOverlaySnapshot !== undefined;
+  }
+
+  /**
+   * Hide current transcript content and mount Welcome-sized chrome (caller
+   * supplies Welcome + IdleStage). Restored when a real message is added.
+   */
+  showAquariumOverlay(mountChrome: (addChrome: (component: Component) => void) => void): void {
+    if (this.aquariumOverlaySnapshot === undefined) {
+      this.aquariumOverlaySnapshot = [...this.children];
+    }
+    for (const child of [...this.children]) {
+      // pi-tui Container.removeChild (not a DOM node).
+      // oxlint-disable-next-line unicorn/prefer-dom-node-remove
+      this.removeChild(child);
+    }
+    mountChrome((component) => {
+      super.addChild(component);
+    });
+    this.invalidate();
+  }
+
+  /** Restore transcript children hid by {@link showAquariumOverlay}. */
+  exitAquariumOverlay(): void {
+    const snapshot = this.aquariumOverlaySnapshot;
+    if (snapshot === undefined) {
+      this.dismissIdleStage();
+      return;
+    }
+    for (const child of [...this.children]) {
+      // oxlint-disable-next-line unicorn/prefer-dom-node-remove
+      this.removeChild(child);
+    }
+    this.aquariumOverlaySnapshot = undefined;
+    for (const child of snapshot) {
+      // Drop stale idle stages from the pre-overlay tree.
+      if (child instanceof IdleStageComponent) continue;
+      super.addChild(child);
+    }
+    this.invalidate();
+  }
+
   override addChild(component: Component): void {
     // Real transcript content dismisses the empty-state ambient stage so the
     // scene never competes with user/assistant/tool output.
     if (!isEmptyTranscriptChrome(component)) {
-      this.dismissIdleStage();
+      if (this.aquariumOverlaySnapshot !== undefined) {
+        this.exitAquariumOverlay();
+      } else {
+        this.dismissIdleStage();
+      }
     }
     super.addChild(component);
     this.invalidate();
