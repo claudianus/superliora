@@ -235,6 +235,47 @@ export function resolveMeteorMotionParams(
   return { size, speed, trailLen, explodeTicks, burstScale, debrisCount };
 }
 
+/**
+ * Zero-g radial debris: full 360° launch with size-scaled speed / streak length.
+ * No gravity — shards coast in straight lines (mild y aspect matches terminal cells).
+ */
+export interface DebrisShardParams {
+  readonly ang: number;
+  readonly speed: number;
+  readonly streakLen: number;
+  readonly birthFrac: number;
+}
+
+export function resolveDebrisShardParams(
+  size: MeteorSize,
+  premium: boolean,
+  seed: number,
+  i: number,
+  debrisCount: number,
+  burstScale: number,
+): DebrisShardParams {
+  const u = (salt: number) => hash01(seed + salt, i * 19 + salt);
+  // Even spokes + chaos so every burst covers all directions.
+  const spoke = (i / Math.max(1, debrisCount)) * Math.PI * 2;
+  const jitter =
+    (u(3) - 0.5) * (size === 's' ? 0.55 : size === 'm' ? 0.95 : 1.25);
+  const ang = spoke + jitter;
+  const speed = (() => {
+    if (size === 's') return (0.28 + u(11) * 0.38) * burstScale;
+    if (size === 'm') return (0.62 + u(11) * 0.55) * burstScale;
+    const hyper = u(12) < (premium ? 0.28 : 0.16);
+    const base = (0.95 + u(11) * 0.85) * burstScale;
+    return hyper ? base * (1.35 + u(13) * 0.45) : base;
+  })();
+  const streakLen = (() => {
+    if (size === 's') return premium ? 2 : 1;
+    if (size === 'm') return Math.round(3 + u(21) * 1.5);
+    return Math.round((premium ? 5 : 4) + u(21) * 2.5);
+  })();
+  const birthFrac = u(31) * (size === 's' ? 0.22 : size === 'm' ? 0.18 : 0.14);
+  return { ang, speed, streakLen, birthFrac };
+}
+
 const SECTORS: readonly SpawnSector[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se'];
 
 /** Triple-click easter egg: planet-scale inbound meteor. */
@@ -772,33 +813,30 @@ function paintRimMegaBurst(input: {
     }
   }
 
-  // 3) Kinematic debris streaks — launch off the rim, leave a short trail.
-  // Clip into the stage hole / off-screen via put+insideHole (letterbox only).
-  const cx = (hole.x0 + hole.x1) / 2;
-  const cy = (hole.y0 + hole.y1) / 2;
-  const awayAng = Math.atan2(iy - cy, ix - cx);
-  const streakLen = size === 'l' ? (premium ? 4 : 3) : size === 'm' ? 3 : 2;
-  const sizeSpeed = size === 's' ? 0.72 : size === 'm' ? 1 : 1.18;
+  // 3) Zero-g radial debris — full 360° long streaks (letterbox-clipped only).
+  // Terminal cells are taller than wide; 0.62 y scale keeps the fan circular.
+  const cellY = 0.62;
   for (let i = 0; i < debrisCount; i++) {
-    // Stagger so the shower fans out instead of one frame blob.
-    const birthFrac = hash01(seed + i * 3, i + 19) * 0.28;
-    const birthTick = birthFrac * life;
+    const shard = resolveDebrisShardParams(
+      size,
+      premium,
+      seed,
+      i,
+      debrisCount,
+      scale,
+    );
+    const birthTick = shard.birthFrac * life;
     const flight = age - birthTick;
     if (flight < 0) continue;
     const localT = flight / Math.max(0.01, life - birthTick);
     if (localT > 1) continue;
-    // Late fade: drop some shards so the trail thins out.
-    if (localT > 0.88 && (i + seed) % 3 !== 0) continue;
+    // Late fade: thin the outer cloud without a "drop to the floor" feel.
+    if (localT > 0.9 && (i + seed) % 4 !== 0) continue;
 
-    const spread = (hash01(seed, i + 41) - 0.5) * (size === 's' ? 1.05 : 1.55);
-    const ang = awayAng + spread + ((i % 7) - 3) * 0.16;
-    const speed =
-      (0.32 + hash01(seed + 7, i * 11) * 0.62) * scale * sizeSpeed;
-    const vx = Math.cos(ang) * speed;
-    const vy = Math.sin(ang) * speed * 0.55;
-    const grav = 0.045 * scale;
+    const vx = Math.cos(shard.ang) * shard.speed;
+    const vy = Math.sin(shard.ang) * shard.speed * cellY;
     const headX = ix + vx * flight;
-    const headY = iy + vy * flight + grav * flight * flight;
+    const headY = iy + vy * flight;
 
     const headFg =
       localT < 0.25
@@ -808,17 +846,18 @@ function paintRimMegaBurst(input: {
           : muted;
     const midFg = mixHexColor(particle, muted, 0.35);
     const headGlyph = DEBRIS_GLYPHS[(seed + i) % DEBRIS_GLYPHS.length] ?? '*';
+    const streakLen = shard.streakLen;
 
     for (let s = 0; s <= streakLen; s++) {
-      const x = Math.round(headX - vx * s * 0.9);
-      const y = Math.round(headY - vy * s * 0.9);
+      const x = Math.round(headX - vx * s * 0.85);
+      const y = Math.round(headY - vy * s * 0.85);
       if (insideHole(x, y, hole)) continue;
       const along = s / Math.max(1, streakLen);
       if (s === 0) {
         put(x, y, headGlyph, headFg, localT < 0.3 && premium && size !== 's');
-      } else if (along < 0.45) {
+      } else if (along < 0.4) {
         put(x, y, '*', midFg, localT < 0.2 && premium);
-      } else if (along < 0.75) {
+      } else if (along < 0.7) {
         put(x, y, '·', muted);
       } else {
         put(x, y, '˚', muted);
