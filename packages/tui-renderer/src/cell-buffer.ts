@@ -138,7 +138,7 @@ export class RendererCellBuffer {
     if (!this.contains(x, y)) return;
     const next = normalizeCell(cell);
     const index = this.indexOf(x, y);
-    if (cellsEqual(this.cells[index]!, next)) return;
+    if (normalizedCellsEqual(this.cells[index]!, next)) return;
     this.ensureUniqueCells();
     this.cells[index] = next;
     this.markDamage({ x, y, width: 1, height: 1 });
@@ -154,7 +154,7 @@ export class RendererCellBuffer {
     for (let y = clipped.y; y < clipped.y + clipped.height; y++) {
       for (let x = clipped.x; x < clipped.x + clipped.width; x++) {
         const index = this.indexOf(x, y);
-        if (cellsEqual(this.cells[index]!, next)) continue;
+        if (normalizedCellsEqual(this.cells[index]!, next)) continue;
         if (!cloned) {
           this.ensureUniqueCells();
           cloned = true;
@@ -472,7 +472,9 @@ export function diffCellBuffers(
       const cell = next.getCell(x, y);
       // force = full scan only. Re-emitting equal cells causes whole-screen
       // flicker on high-frequency animation ticks; require rewriteUnchanged.
-      if (!rewriteUnchanged && cellsEqual(previous.getCell(x, y), cell)) continue;
+      // Both buffers only ever hold normalized cells, so the allocation-free
+      // normalized comparator is exact here.
+      if (!rewriteUnchanged && normalizedCellsEqual(previous.getCell(x, y), cell)) continue;
       patches.push({ x, y, cell });
     }
   }
@@ -581,6 +583,49 @@ export function cellsEqual(a: RendererCell, b: RendererCell): boolean {
   return stylesEqual(a.style, b.style);
 }
 
+/**
+ * Allocation-free equality for cells that are already normalized — i.e. every
+ * cell stored inside a {@link RendererCellBuffer} (constructor, setCell,
+ * fillRect, copyFrom all normalize on write). Skips re-normalization, object
+ * allocation, and `Object.keys`, comparing fields directly with reference
+ * shortcuts. This is the hot path for per-cell diff scans.
+ *
+ * Must NOT be used for arbitrary/unnormalized cells (e.g. VFX output or
+ * terminal-output style probes); use the public {@link cellsEqual} there.
+ */
+function normalizedCellsEqual(a: RendererCell, b: RendererCell): boolean {
+  if (a === b) return true;
+  return (
+    a.char === b.char &&
+    a.link === b.link &&
+    a.width === b.width &&
+    a.continuation === b.continuation &&
+    normalizedStylesEqual(a.style, b.style)
+  );
+}
+
+/**
+ * Allocation-free style equality for normalized styles (flags are `true` or
+ * absent, never `false`). Reference-equal styles short-circuit immediately,
+ * which is the common case when a run of cells shares one style object.
+ */
+function normalizedStylesEqual(
+  a: RendererCellStyle | undefined,
+  b: RendererCellStyle | undefined,
+): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  return (
+    a.fg === b.fg &&
+    a.bg === b.bg &&
+    a.bold === b.bold &&
+    a.dim === b.dim &&
+    a.italic === b.italic &&
+    a.underline === b.underline &&
+    a.inverse === b.inverse
+  );
+}
+
 function normalizeSize(value: number): number {
   if (!Number.isFinite(value) || value < 0) return -1;
   return Math.floor(value);
@@ -639,12 +684,16 @@ function normalizeCell(cell: RendererCell): RendererCell {
     return applyCellMetadata({ char: '', width: 0, continuation: true }, style, link);
   }
   // Ambient paints mostly single printable BMP glyphs — skip grapheme split.
+  // A single UTF-16 code unit that is a printable BMP char (including wide
+  // chars like 한글) is its own cluster, so only control/DEL chars and
+  // multi-unit strings need the segmenter. Width is still measured below
+  // (displayClusterWidth has its own ASCII fast path).
   const raw = cell.char;
   let char: string;
   if (raw.length === 1) {
-    const code = raw.charCodeAt(0);
+    const code = raw.codePointAt(0);
     char =
-      code >= 0x20 && code !== 0x7f
+      code !== undefined && code >= 0x20 && code !== 0x7f
         ? raw
         : (splitDisplayClusters(raw)[0]?.text ?? ' ');
   } else if (raw.length === 0) {
