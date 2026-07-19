@@ -10,7 +10,13 @@ import {
   readUpdateInstallState,
   writeUpdateInstallState,
 } from '#/cli/update/install-state';
-import { installCommandFor, runUpdatePreflight, spawnForSource } from '#/cli/update/preflight';
+import {
+  installCommandFor,
+  parseUpgradeStageLine,
+  runUpdatePreflight,
+  spawnForSource,
+  startObservedUpgradeInstall,
+} from '#/cli/update/preflight';
 import { promptForInstallChoice } from '#/cli/update/prompt';
 import type * as PromptModule from '#/cli/update/prompt';
 import { refreshUpdateCache } from '#/cli/update/refresh';
@@ -889,9 +895,7 @@ describe('runUpdatePreflight', () => {
 
     const rendered = stdout.join('');
     expect(rendered).toContain('SuperLiora updated to v0.5.0');
-    expect(rendered).toContain(
-      'https://moonshotai.github.io/kimi-code/en/release-notes/changelog.html',
-    );
+    expect(rendered).toContain('https://github.com/claudianus/superliora/releases');
     expect(track).toHaveBeenCalledWith('update_success_notice_shown', expect.objectContaining({
       version: '0.5.0',
       inferred_from_active: false,
@@ -1246,5 +1250,197 @@ describe('github-checkout update commands', () => {
     expect(args[1]).toContain('run build:packages');
     expect(args[1]).toContain('apps/liora run build');
     expect(args[1]).toContain('scripts/install-liora.mjs');
+  });
+});
+
+describe('upgrade install stages', () => {
+  function createPipedChild(): EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    unref: ReturnType<typeof vi.fn>;
+  } {
+    const stdout = new EventEmitter();
+    const stderr = new EventEmitter();
+    return Object.assign(new EventEmitter(), {
+      stdout,
+      stderr,
+      unref: vi.fn(),
+    });
+  }
+
+  it('parses stage markers', () => {
+    expect(parseUpgradeStageLine('__LIORA_UPGRADE_STAGE__=fetching')).toBe('fetching');
+    expect(parseUpgradeStageLine('__LIORA_UPGRADE_STAGE__=building')).toBe('building');
+    expect(parseUpgradeStageLine('noise')).toBeNull();
+    expect(parseUpgradeStageLine('__LIORA_UPGRADE_STAGE__=unknown')).toBeNull();
+  });
+
+  it('returns lock-held when the stage install lock cannot be acquired', async () => {
+    const result = await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.4.0',
+        targetVersion: '0.5.0',
+        source: 'npm-global',
+        platform: 'darwin',
+      },
+      {
+        tryAcquireUpdateInstallLock: async () => null,
+        spawn: vi.fn(),
+      },
+    );
+
+    expect(result).toEqual({ started: false, reason: 'lock-held' });
+  });
+
+  it('returns already-active when a fresh stage install is in progress', async () => {
+    const result = await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.4.0',
+        targetVersion: '0.5.0',
+        source: 'npm-global',
+        platform: 'darwin',
+      },
+      {
+        tryAcquireUpdateInstallLock: async () => ({
+          filePath: '/tmp/liora-update-install.lock',
+          release: vi.fn().mockResolvedValue(undefined),
+        }),
+        readUpdateInstallState: async () => installState({
+          active: {
+            version: '0.5.0',
+            source: 'npm-global',
+            startedAt: new Date().toISOString(),
+          },
+        }),
+        spawn: vi.fn(),
+      },
+    );
+
+    expect(result).toEqual({ started: false, reason: 'already-active' });
+  });
+
+  it('emits downloading stage for npm-global observed installs', async () => {
+    const stages: string[] = [];
+    const child = createPipedChild();
+    const writeUpdateInstallState = vi.fn().mockResolvedValue(undefined);
+    const spawn = vi.fn(() => {
+      queueMicrotask(() => { child.emit('exit', 0, null); });
+      return child;
+    });
+
+    const result = await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.4.0',
+        targetVersion: '0.5.0',
+        source: 'npm-global',
+        platform: 'darwin',
+        onStage: (stage) => { stages.push(stage); },
+      },
+      {
+        spawn: spawn as unknown as typeof import('node:child_process').spawn,
+        tryAcquireUpdateInstallLock: async () => ({
+          filePath: '/tmp/liora-update-install.lock',
+          release: vi.fn().mockResolvedValue(undefined),
+        }),
+        readUpdateInstallState: async () => emptyUpdateInstallState(),
+        writeUpdateInstallState,
+      },
+    );
+
+    expect(result.started).toBe(true);
+    expect(stages).toEqual(expect.arrayContaining(['checking', 'downloading']));
+    expect(spawn).toHaveBeenCalledWith(
+      expect.stringMatching(/^npm(\.cmd)?$/),
+      ['install', '-g', '@superliora/liora@0.5.0'],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+
+    await flushBackgroundInstall();
+    expect(stages).toContain('done');
+    expect(writeUpdateInstallState).toHaveBeenCalledWith(expect.objectContaining({
+      active: null,
+      lastSuccess: expect.objectContaining({
+        version: '0.5.0',
+        source: 'npm-global',
+        notifiedAt: null,
+      }),
+    }));
+  });
+
+  it('forwards parsed stage markers from github-checkout stdout', async () => {
+    const stages: string[] = [];
+    const child = createPipedChild();
+    const spawn = vi.fn(() => child);
+
+    const result = await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.4.0',
+        targetVersion: 'origin/main@abcdef1',
+        source: 'github-checkout',
+        platform: 'darwin',
+        onStage: (stage) => { stages.push(stage); },
+      },
+      {
+        spawn: spawn as unknown as typeof import('node:child_process').spawn,
+        tryAcquireUpdateInstallLock: async () => ({
+          filePath: '/tmp/liora-update-install.lock',
+          release: vi.fn().mockResolvedValue(undefined),
+        }),
+        readUpdateInstallState: async () => emptyUpdateInstallState(),
+        writeUpdateInstallState: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    expect(result.started).toBe(true);
+    expect(stages).toEqual(expect.arrayContaining(['checking', 'fetching']));
+
+    child.stdout.emit('data', Buffer.from('__LIORA_UPGRADE_STAGE__=building\n'));
+    child.stdout.emit('data', Buffer.from('__LIORA_UPGRADE_STAGE__=installing\n'));
+    child.stdout.emit('data', Buffer.from('__LIORA_UPGRADE_STAGE__=done\n'));
+    child.emit('exit', 0, null);
+
+    expect(stages).toEqual(expect.arrayContaining([
+      'checking',
+      'fetching',
+      'building',
+      'installing',
+      'done',
+    ]));
+  });
+
+  it('synthesizes installing stage after first npm output', async () => {
+    vi.useFakeTimers();
+    try {
+      const stages: string[] = [];
+      const child = createPipedChild();
+      const spawn = vi.fn(() => child);
+
+      await startObservedUpgradeInstall(
+        {
+          currentVersion: '0.4.0',
+          targetVersion: '0.5.0',
+          source: 'npm-global',
+          platform: 'darwin',
+          onStage: (stage) => { stages.push(stage); },
+        },
+        {
+          spawn: spawn as unknown as typeof import('node:child_process').spawn,
+          tryAcquireUpdateInstallLock: async () => ({
+            filePath: '/tmp/liora-update-install.lock',
+            release: vi.fn().mockResolvedValue(undefined),
+          }),
+          readUpdateInstallState: async () => emptyUpdateInstallState(),
+          writeUpdateInstallState: vi.fn().mockResolvedValue(undefined),
+        },
+      );
+
+      expect(stages).toEqual(['checking', 'downloading']);
+      child.stdout.emit('data', Buffer.from('npm notice\n'));
+      expect(stages).toContain('installing');
+      child.emit('exit', 1, null);
+      expect(stages.at(-1)).toBe('failed');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
