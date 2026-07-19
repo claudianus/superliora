@@ -92,14 +92,14 @@ function paintBannerLine(
   ] as const;
 
   const premium = mode === 'premium';
-  // Slow clock: ~3–4s to walk the brand chain once (was sub-second / frantic).
-  const cycleMs = premium ? 180 : 260;
+  // Calm brand glide: ~1.8s (premium) / ~2.6s (subtle) per chain lap — not a strobe.
+  const cycleMs = premium ? 120 : 170;
   const tickFloat = appearanceAnimationNow() / cycleMs;
   const tick = Math.floor(tickFloat);
   const seed = hashRendererEffectSeed(`welcome:banner:${String(rowIndex)}`) + rowIndex * 41;
-  const waveStride = premium ? 0.42 : 0.3;
-  const crestLift = premium ? 0.48 : 0.32;
-  const sparkleEvery = premium ? 16 : 24;
+  const waveStride = premium ? 0.55 : 0.4;
+  const crestLift = premium ? 0.58 : 0.4;
+  const sparkleEvery = premium ? 14 : 20;
 
   const runs: RendererStyledTextRun[] = [];
   let clusterIndex = 0;
@@ -128,7 +128,7 @@ function paintBannerLine(
     }
 
     // Dual motion: brand-chain wave + soft crest toward glow.
-    const waveFloat = clusterIndex * 0.42 + tickFloat * waveStride + rowIndex * 0.55 + seed * 0.01;
+    const waveFloat = clusterIndex * 0.45 + tickFloat * waveStride + rowIndex * 0.6 + seed * 0.01;
     const chainLen = brandChain.length;
     const wavePos = ((waveFloat % chainLen) + chainLen) % chainLen;
     const i0 = Math.floor(wavePos);
@@ -138,15 +138,15 @@ function paintBannerLine(
       brandChain[(i0 + 1) % chainLen]!,
       blend,
     );
-    const crest = (Math.sin(clusterIndex * 0.28 + tickFloat * 0.38 + rowIndex * 0.45) + 1) / 2;
-    const secondary = (Math.sin(clusterIndex * 0.7 + tickFloat * 0.22) + 1) / 2;
-    let fg = mixHexColor(rowBase, waveHex, premium ? 0.48 : 0.34);
+    const crest = (Math.sin(clusterIndex * 0.3 + tickFloat * 0.55 + rowIndex * 0.5) + 1) / 2;
+    const secondary = (Math.sin(clusterIndex * 0.75 + tickFloat * 0.3) + 1) / 2;
+    let fg = mixHexColor(rowBase, waveHex, premium ? 0.52 : 0.36);
     fg = mixHexColor(fg, glow, crest * crestLift);
-    if (premium && crest > 0.93) {
-      // Rare soft specular — not a strobe.
-      fg = mixHexColor(fg, mixHexColor(glow, '#FFFFFF', 0.35), 0.28);
-    } else if (premium && secondary > 0.95) {
-      fg = mixHexColor(fg, particle, 0.16);
+    if (premium && crest > 0.92) {
+      // Occasional soft specular — not a strobe.
+      fg = mixHexColor(fg, mixHexColor(glow, '#FFFFFF', 0.35), 0.32);
+    } else if (premium && secondary > 0.94) {
+      fg = mixHexColor(fg, particle, 0.18);
     }
 
     runs.push({

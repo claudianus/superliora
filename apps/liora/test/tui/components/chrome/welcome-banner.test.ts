@@ -64,8 +64,7 @@ describe('welcome banner gradient', () => {
     };
     advanceAppearanceAnimationClock(1_000);
     const a = renderWelcomeBanner('standard', premium, 80).join('\n');
-    // Slow elegant wave needs ~1s delta to reliably differ (was frantic at 400ms).
-    advanceAppearanceAnimationClock(1_000 + 1_200);
+    advanceAppearanceAnimationClock(1_000 + 700);
     const b = renderWelcomeBanner('standard', premium, 80).join('\n');
     expect(a).not.toBe(b);
   });
