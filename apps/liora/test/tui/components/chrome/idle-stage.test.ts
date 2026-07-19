@@ -1,5 +1,5 @@
 import { setCliLocale } from '#/cli/i18n';
-import { visibleWidth } from '#/tui/renderer';
+import { ansiTextToCells, visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +29,7 @@ import {
   FISH_SWIM_MS,
   FISH_TAIL_MS,
   applyFishTail,
+  blitAt,
   paintBubbles,
   paintIdleStoryScene,
   paintWaterBase,
@@ -175,6 +176,60 @@ describe('idle-stage helpers', () => {
     expect(a).not.toBe(b);
     expect(new Set([a, b, c]).size).toBeGreaterThanOrEqual(2);
     expect(a + b + c).toMatch(/[)(º]/);
+  });
+
+  it('preserves ANSI colors across overlapping blitAt calls', () => {
+    const previous = chalk.level;
+    chalk.level = 3;
+    try {
+      const width = 40;
+      const canvas = [' '.repeat(width)];
+      const green = '#4EC87E';
+      const teal = '#2DD4BF';
+      blitAt(canvas, [chalk.hex(green)('ABC')], 0, 2, width);
+      blitAt(canvas, [chalk.hex(teal)('XY')], 0, 20, width);
+      const cells = ansiTextToCells(canvas[0] ?? '');
+      const byChar = new Map(cells.filter((c) => c.char.trim()).map((c) => [c.char, c.style?.fg]));
+      expect(byChar.get('A')?.toLowerCase()).toBe(green.toLowerCase());
+      expect(byChar.get('X')?.toLowerCase()).toBe(teal.toLowerCase());
+    } finally {
+      chalk.level = previous;
+    }
+  });
+
+  it('keeps multiple green seaweed stalks colored in the story scene', () => {
+    withAmbientEnv(() => {
+      const previous = chalk.level;
+      chalk.level = 3;
+      try {
+        const width = 80;
+        const storyRows = 14;
+        const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
+        paintIdleStoryScene({
+          canvas,
+          width,
+          storyRows,
+          elapsedMs: 1_200,
+          showAmbient: true,
+          premium: true,
+          paint: (hex, text) => chalk.hex(hex)(text),
+          colors: { ...darkColors, success: darkColors.success },
+        });
+        const plantHex = darkColors.success.toLowerCase();
+        let greenCells = 0;
+        for (const line of canvas.slice(1, storyRows - 1)) {
+          for (const cell of ansiTextToCells(line)) {
+            if (cell.style?.fg?.toLowerCase() === plantHex && /[)(~()]/.test(cell.char)) {
+              greenCells += 1;
+            }
+          }
+        }
+        // Regression: old blitAt stripped all but the last stalk → ~3–6 cells.
+        expect(greenCells).toBeGreaterThan(20);
+      } finally {
+        chalk.level = previous;
+      }
+    });
   });
 
   it('paints rising bubbles only on empty water cells', () => {
