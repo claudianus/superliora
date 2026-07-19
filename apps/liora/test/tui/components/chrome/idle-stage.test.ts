@@ -405,4 +405,17 @@ describe('IdleStageComponent', () => {
       expect(b.length).toBeGreaterThan(0);
     });
   });
+
+  it('drops food on the component and paints asterisks after ticks', () => {
+    withAmbientEnv(() => {
+      const stage = new IdleStageComponent({
+        state: { ...appState, appearance: DEFAULT_APPEARANCE_PREFERENCES },
+      });
+      stage.render(80); // init sim
+      expect(stage.tryDropFoodAtContent(20)).toBe(true);
+      advanceAppearanceAnimationClock(3_000);
+      const plain = stage.render(80).map(strip).join('\n');
+      expect(plain).toMatch(/\*/);
+    });
+  });
 });

@@ -37,6 +37,15 @@ import {
   resolveFishGlyphRows,
   stripAnsi,
 } from '#/tui/utils/idle-scene';
+import {
+  createIdleTankSim,
+  dropFood,
+  resizeIdleTankSim,
+  snapshotIdleTankSim,
+  tickIdleTankSim,
+  type IdleTankSim,
+  type IdleTankSnapshot,
+} from '#/tui/utils/idle-tank-sim';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 const IDLE_TIP_ROTATE_MS = 7_200;
@@ -121,6 +130,8 @@ export function renderIdleStageLines(
     readonly nowMs?: number;
     readonly preferredRows?: number;
     readonly workDir?: string;
+    readonly sim?: IdleTankSnapshot;
+    readonly themeMode?: 'dark' | 'light';
   },
 ): string[] {
   const safeWidth = Math.max(0, Math.trunc(width));
@@ -165,6 +176,8 @@ export function renderIdleStageLines(
       gradientStart: palette.gradientStart,
       roleUser: palette.roleUser,
     },
+    themeMode: options?.themeMode,
+    sim: options?.sim,
   });
 
   // --- Bottom chrome (title, mood, tip, workdir) ---
@@ -233,6 +246,7 @@ export class IdleStageComponent implements Component {
   private readonly state: AppState;
   private readonly preferredRows: number;
   private readonly getPreferredRows: ((width: number) => number) | undefined;
+  private sim: IdleTankSim | undefined;
 
   constructor(options: IdleStageOptions) {
     this.state = options.state;
@@ -242,14 +256,48 @@ export class IdleStageComponent implements Component {
 
   invalidate(): void {}
 
+  /**
+   * Drop food at a story-canvas column (and optional row). Requires a prior
+   * render that initialized the tank sim.
+   */
+  tryDropFoodAtContent(col: number, rowInStory?: number): boolean {
+    if (!this.sim) return false;
+    return dropFood(this.sim, col, rowInStory);
+  }
+
   render(width: number): string[] {
     const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
     const live = this.getPreferredRows?.(width);
     const preferredRows =
       live !== undefined && Number.isFinite(live) ? Math.trunc(live) : this.preferredRows;
+
+    const safeWidth = Math.max(0, Math.trunc(width));
+    const targetRows = resolveIdleStageRows(safeWidth, preferredRows);
+    const now = appearanceAnimationNow();
+    let simSnapshot: IdleTankSnapshot | undefined;
+
+    if (targetRows > 0 && safeWidth > 0) {
+      const chromeBudget = resolveChromeBudget(targetRows, this.state.workDir, safeWidth);
+      const storyRows = Math.max(5, targetRows - chromeBudget);
+      const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+      const premium = mode === 'premium';
+
+      if (!this.sim) {
+        this.sim = createIdleTankSim(safeWidth, storyRows, now, { premium });
+      } else {
+        resizeIdleTankSim(this.sim, safeWidth, storyRows);
+      }
+      tickIdleTankSim(this.sim, now);
+      simSnapshot = snapshotIdleTankSim(this.sim);
+    }
+
+    const themeMode = this.state.theme === 'light' ? 'light' : 'dark';
     return renderIdleStageLines(width, appearance, {
+      nowMs: now,
       preferredRows,
       workDir: this.state.workDir,
+      sim: simSnapshot,
+      themeMode,
     });
   }
 }
