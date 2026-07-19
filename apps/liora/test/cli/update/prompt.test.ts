@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import { describe, expect, it } from 'vitest';
 
+import { SUPERLIORA_CHANGELOG_URL } from '#/cli/update/plan';
 import {
   createInstallPromptChoices,
   getDefaultInstallPromptSelection,
@@ -34,8 +35,6 @@ describe('install prompt helpers', () => {
 
 describe('promptForInstallChoice', () => {
   it('renders changelog hyperlink in the prompt output', async () => {
-    const CHANGELOG_URL = 'https://moonshotai.github.io/kimi-code/en/release-notes/changelog.html';
-
     const input = Object.assign(new EventEmitter(), {
       isRaw: false,
       setRawMode: () => {},
@@ -66,7 +65,7 @@ describe('promptForInstallChoice', () => {
     await promptPromise;
 
     const rendered = outputChunks.join('');
-    expect(rendered).toContain(CHANGELOG_URL);
+    expect(rendered).toContain(SUPERLIORA_CHANGELOG_URL);
     expect(rendered).toContain('View changelog');
   });
 });

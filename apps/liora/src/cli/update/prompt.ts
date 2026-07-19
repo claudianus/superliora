@@ -13,9 +13,10 @@ import {
   UPDATE_PROMPT_WARNING,
 } from '#/constant/update';
 
+import { SUPERLIORA_CHANGELOG_URL } from './changelog';
 import { type InstallSource, type UpdateTarget } from './types';
 
-export const CHANGELOG_URL = 'https://moonshotai.github.io/kimi-code/en/release-notes/changelog.html';
+export const CHANGELOG_URL = SUPERLIORA_CHANGELOG_URL;
 
 export type InstallPromptChoiceValue = 'install' | 'skip';
 
