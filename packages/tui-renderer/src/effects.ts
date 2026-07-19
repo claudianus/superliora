@@ -76,6 +76,41 @@ export function rendererEffectFrameIntervalMs(
   }
 }
 
+export const RENDERER_AMBIENT_PREMIUM_MS = 33;
+export const RENDERER_AMBIENT_SUBTLE_MS = 140;
+
+export interface RendererAmbientIntervalOptions {
+  readonly requested: RendererEffectLevel;
+  readonly quality?: RendererQualityLevel;
+  readonly health?: NativeFrameStatsHealth;
+  readonly backpressure?: boolean;
+  readonly premiumMs?: number;
+  readonly subtleMs?: number;
+}
+
+export function rendererAmbientShouldSoftDegrade(options: {
+  readonly quality?: RendererQualityLevel;
+  readonly health?: NativeFrameStatsHealth;
+  readonly backpressure?: boolean;
+}): boolean {
+  const quality = options.quality ?? 'full';
+  const health = options.health ?? 'healthy';
+  if (options.backpressure === true) return true;
+  if (quality !== 'full') return true;
+  if (health === 'watch' || health === 'degraded') return true;
+  return false;
+}
+
+export function rendererAmbientIntervalMs(options: RendererAmbientIntervalOptions): number {
+  if (options.requested === 'off') return Number.POSITIVE_INFINITY;
+  const premiumMs = normalizeAmbientMs(options.premiumMs, RENDERER_AMBIENT_PREMIUM_MS);
+  const subtleMs = normalizeAmbientMs(options.subtleMs, RENDERER_AMBIENT_SUBTLE_MS);
+  if (options.requested === 'subtle') return subtleMs;
+  // premium
+  if (rendererAmbientShouldSoftDegrade(options)) return subtleMs;
+  return premiumMs;
+}
+
 export function rendererAnimationFrameIntervalMs(
   options: RendererAnimationFrameIntervalOptions,
 ): number {
@@ -115,6 +150,11 @@ function normalizeAnimationFps(
 
 function normalizeIntervalMs(value: number | undefined, fallback: number): number {
   if (value === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return fallback;
+  return Math.floor(value);
+}
+
+function normalizeAmbientMs(value: number | undefined, fallback: number): number {
   if (value === undefined || !Number.isFinite(value) || value <= 0) return fallback;
   return Math.floor(value);
 }
