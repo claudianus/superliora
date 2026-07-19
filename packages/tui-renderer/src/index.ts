@@ -1,3 +1,4 @@
+export * from './ambient-schedule';
 export * from './ansi-text';
 export * from './animation';
 export * from './autocomplete';

@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { rendererAmbientIntervalMs } from '../src';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  RendererAmbientSchedule,
+  rendererAmbientIntervalMs,
+  type NativeRenderLoopScheduler,
+  type NativeRenderTimer,
+} from '../src';
 
 describe('rendererAmbientIntervalMs', () => {
   it('keeps premium at 33ms when healthy and full quality', () => {
@@ -52,3 +57,136 @@ describe('rendererAmbientIntervalMs', () => {
     ).toBe(140);
   });
 });
+
+describe('RendererAmbientSchedule', () => {
+  it('wakes requestRender on the shared scheduler', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const requestRender = vi.fn();
+    const schedule = new RendererAmbientSchedule({
+      scheduler,
+      unrefTimers: true,
+      requestRender,
+      getContext: () => ({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    });
+
+    schedule.set({
+      enabled: true,
+      resolveIntervalMs: () => 33,
+    });
+    scheduler.advance(33);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    schedule.set(undefined);
+    requestRender.mockClear();
+    scheduler.advance(100);
+    expect(requestRender).not.toHaveBeenCalled();
+
+    schedule.dispose();
+  });
+
+  it('passes live context into resolveIntervalMs', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const contexts: Array<{ backpressure: boolean }> = [];
+    let backpressure = false;
+    const schedule = new RendererAmbientSchedule({
+      scheduler,
+      requestRender: () => {},
+      getContext: () => ({
+        quality: 'full',
+        health: 'healthy',
+        backpressure,
+      }),
+    });
+
+    schedule.set({
+      enabled: true,
+      resolveIntervalMs: (ctx) => {
+        contexts.push({ backpressure: ctx.backpressure });
+        return ctx.backpressure ? 140 : 33;
+      },
+    });
+    scheduler.advance(33);
+    expect(contexts.at(-1)).toEqual({ backpressure: false });
+    backpressure = true;
+    scheduler.advance(33);
+    expect(contexts.at(-1)).toEqual({ backpressure: true });
+    schedule.dispose();
+  });
+
+  it('does not start a ticker when disabled', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const requestRender = vi.fn();
+    const schedule = new RendererAmbientSchedule({
+      scheduler,
+      requestRender,
+      getContext: () => ({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    });
+
+    schedule.set({
+      enabled: false,
+      resolveIntervalMs: () => 33,
+    });
+    scheduler.advance(100);
+    expect(requestRender).not.toHaveBeenCalled();
+    schedule.dispose();
+  });
+});
+
+class FakeRenderLoopTimer implements NativeRenderTimer {
+  cleared = false;
+  unrefCalls = 0;
+
+  constructor(
+    readonly dueAt: number,
+    readonly callback: () => void,
+  ) {}
+
+  unref(): void {
+    this.unrefCalls++;
+  }
+}
+
+class FakeRenderLoopScheduler implements NativeRenderLoopScheduler {
+  private time = 0;
+  private timers: FakeRenderLoopTimer[] = [];
+
+  now(): number {
+    return this.time;
+  }
+
+  setTimeout(callback: () => void, delayMs: number): FakeRenderLoopTimer {
+    const timer = new FakeRenderLoopTimer(this.time + Math.max(0, delayMs), callback);
+    this.timers.push(timer);
+    return timer;
+  }
+
+  clearTimeout(timer: NativeRenderTimer): void {
+    (timer as FakeRenderLoopTimer).cleared = true;
+  }
+
+  advance(ms: number): void {
+    const target = this.time + ms;
+    for (;;) {
+      const timer = this.nextDueTimer(target);
+      if (timer === undefined) break;
+      this.time = timer.dueAt;
+      timer.cleared = true;
+      timer.callback();
+    }
+    this.time = target;
+  }
+
+  private nextDueTimer(target: number): FakeRenderLoopTimer | undefined {
+    return this.timers
+      .filter((timer) => !timer.cleared && timer.dueAt <= target)
+      .toSorted((a, b) => a.dueAt - b.dueAt)[0];
+  }
+}

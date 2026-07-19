@@ -1113,6 +1113,33 @@ describe('NativeTerminalRenderer', () => {
 
     ui.stop();
   });
+
+  it('wakes ambient animation renders on the shared scheduler', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const causes: string[][] = [];
+    const renderer = new NativeTerminalRenderer({
+      input: new FakeInput(),
+      output: new FakeOutput(),
+      scheduler,
+      unrefTimers: true,
+      renderOnStart: false,
+      render: ({ frame }) => {
+        causes.push([...frame.causes]);
+      },
+    });
+    renderer.start();
+    renderer.setAmbientSchedule({
+      enabled: true,
+      resolveIntervalMs: () => 33,
+    });
+    scheduler.advance(33);
+    expect(causes.some((c) => c.includes('animation'))).toBe(true);
+    renderer.setAmbientSchedule(undefined);
+    const before = causes.length;
+    scheduler.advance(100);
+    expect(causes.length).toBe(before);
+    renderer.stop();
+  });
 });
 
 class FakeFocusableComponent {
