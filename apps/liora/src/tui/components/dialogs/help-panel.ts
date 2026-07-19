@@ -81,7 +81,6 @@ export function advancedHelpIntro(): string {
 
 /** Live intro helpers — prefer these over frozen constants so locale applies after setCliLocale. */
 export const ADVANCED_HELP_INTRO = advancedHelpIntro();
-const DEFAULT_HELP_INTRO = defaultHelpIntro();
 
 export interface HelpPanelOptions {
   readonly commands: readonly HelpPanelCommand[];

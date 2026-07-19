@@ -267,7 +267,7 @@ describe('idle-stage helpers', () => {
     let filledRows = 0;
     for (let y = 1; y < rows - 1; y++) {
       const plain = stripAnsi(canvas[y] ?? '');
-      const nonSpace = [...plain].filter((ch) => ch !== ' ').length;
+      const nonSpace = plain.replaceAll(' ', '').length;
       if (nonSpace >= Math.floor(width * 0.35)) filledRows += 1;
     }
     expect(filledRows).toBeGreaterThanOrEqual(rows - 3);

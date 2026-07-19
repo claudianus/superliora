@@ -331,7 +331,10 @@ class DuckDuckGoHtmlAdapter implements LocalSearchAdapter {
         if (isFatalSearchError(error)) throw error;
       }
     }
-    if (lastError !== undefined) throw lastError;
+    if (lastError instanceof Error) throw lastError;
+    if (lastError !== undefined) {
+      throw new Error(typeof lastError === 'string' ? lastError : 'local web search failed');
+    }
     return [];
   }
 

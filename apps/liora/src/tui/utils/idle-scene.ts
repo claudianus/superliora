@@ -100,7 +100,6 @@ export const FISH_TAIL_MS = 360;
 export const BUBBLE_STEP_MS = 170;
 export const PLANT_SWAY_MS = 2_400;
 export const CAUSTIC_DRIFT_MS = 55;
-export const SPARKLE_MS = 880;
 
 /** @deprecated transitional aliases */
 export const FOX_BREATH_MS = FISH_SWIM_MS;
@@ -834,28 +833,6 @@ export function paintFireflies(
   paintWaterShimmer(canvas, width, rows, elapsedMs, density, paintGlyph);
 }
 
-/** Occasional jewel sparkles — premium only, very sparse. */
-function paintSparkles(
-  canvas: string[],
-  width: number,
-  rows: number,
-  elapsedMs: number,
-  paint: (hex: string, text: string) => string,
-  hex: string,
-): void {
-  if (width < 40 || rows < 6) return;
-  const count = Math.max(1, Math.floor(width / 40));
-  for (let i = 0; i < count; i++) {
-    const seed = hash2(i * 53 + 7, 131);
-    const period = SPARKLE_MS + (seed % 600);
-    const frame = Math.floor((elapsedMs + seed) / (period / 4)) % 4;
-    if (frame === 0 || frame === 2) continue; // off / rest — not a hard blink loop
-    const x = 2 + (seed % Math.max(1, width - 4));
-    const y = 1 + (hash2(i * 19 + 3, 71) % Math.max(1, rows - 3));
-    const glyph = frame === 1 ? '·' : '˚';
-    putCell(canvas, y, x, width, paint(hex, glyph));
-  }
-}
 
 type FishColor = 'gold' | 'sky' | 'teal' | 'soft';
 

@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 
 import chalk from 'chalk';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { setCliLocale } from '#/cli/i18n';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
@@ -54,5 +54,7 @@ describe.skipIf(!process.env['IDLE_DEBUG'])('debug-render', () => {
     }
     writeFileSync('/tmp/jewel-tank-ansi.txt', `${ansiChunks.join('\n')}\n`);
     writeFileSync('/tmp/jewel-tank-plain.txt', `${plainChunks.join('\n')}\n`);
+    expect(ansiChunks.length).toBeGreaterThan(0);
+    expect(plainChunks.length).toBeGreaterThan(0);
   });
 });
