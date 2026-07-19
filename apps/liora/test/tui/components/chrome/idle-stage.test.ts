@@ -38,7 +38,7 @@ import {
   resolveAquariumPalette,
   resolveLanternGlyph,
   resolveSeaweedSpacing,
-  stripAnsi,
+  resetIdleScenePaintCachesForTests,
 } from '#/tui/utils/idle-scene';
 import type { IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
@@ -490,6 +490,7 @@ describe('IdleStageComponent', () => {
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');
+    resetIdleScenePaintCachesForTests();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
   });
