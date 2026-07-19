@@ -1,8 +1,9 @@
 /**
  * Full-screen cinematic startup splash.
  *
- * Owns the entire terminal for 1.0–2.0s when motion is allowed: starfield,
- * rising Liora mark, meteor rain, horizon bloom, then SUPERLIORA brand reveal.
+ * Owns the entire terminal when motion is allowed: starfield, rising Liora mark,
+ * meteor rain, horizon bloom, SUPERLIORA brand reveal, then a ~1s iris handoff
+ * into the Welcome + Jewel Tank frame.
  * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
  */
 
@@ -31,7 +32,14 @@ import {
   padOrTrim,
   paintStarfield,
 } from '#/tui/utils/night-sky';
+import {
+  applyIrisReveal,
+  resolveIrisProgress,
+  SPLASH_IRIS_MS,
+} from '#/tui/utils/splash-iris';
 import { renderWelcomeBanner } from './welcome-banner';
+
+export { SPLASH_IRIS_MS };
 
 /** Inclusive lower bound for splash duration. */
 export const SPLASH_DURATION_MIN_MS = 1000;
@@ -40,7 +48,15 @@ export const SPLASH_DURATION_MAX_MS = 2000;
 /** Default cinematic length (~1.6s). */
 export const DEFAULT_SPLASH_DURATION_MS = 1600;
 
-export type SplashPhase = 'void' | 'rise' | 'bloom' | 'brand' | 'hold' | 'fade' | 'done';
+export type SplashPhase =
+  | 'void'
+  | 'rise'
+  | 'bloom'
+  | 'brand'
+  | 'hold'
+  | 'fade'
+  | 'iris'
+  | 'done';
 
 export interface SplashComponentOptions {
   readonly appearance?: AppearancePreferences;
@@ -49,6 +65,13 @@ export interface SplashComponentOptions {
   readonly getRows?: () => number;
   /** Optional override duration (clamped to 1.0–2.0s). */
   readonly durationMs?: number;
+  /** Iris handoff length after the cinematic (0 disables). Default SPLASH_IRIS_MS. */
+  readonly irisMs?: number;
+  /**
+   * Upcoming TUI frame for the iris interior (Welcome + Jewel Tank preview).
+   * Captured once when iris begins.
+   */
+  readonly getRevealFrame?: (width: number, rows: number) => readonly string[];
   /**
    * Force play/skip. When omitted, uses shouldPlaySplash(appearance).
    * Tests use this for skip-matrix isolation.
@@ -84,11 +107,17 @@ export function shouldPlaySplash(appearance: AppearancePreferences): boolean {
  * Map elapsed time to a cinematic phase.
  * Timeline fractions are relative to the clamped duration.
  */
-export function resolveSplashPhase(elapsedMs: number, durationMs: number): SplashPhase {
+export function resolveSplashPhase(
+  elapsedMs: number,
+  durationMs: number,
+  irisMs: number = SPLASH_IRIS_MS,
+): SplashPhase {
   const duration = clampSplashDurationMs(durationMs);
+  const iris = Math.max(0, Math.round(irisMs));
   if (duration <= 0) return 'done';
+  if (elapsedMs >= duration + iris) return 'done';
+  if (elapsedMs >= duration) return iris > 0 ? 'iris' : 'done';
   const t = Math.max(0, elapsedMs) / duration;
-  if (t >= 1) return 'done';
   if (t < 0.1) return 'void';
   if (t < 0.32) return 'rise';
   if (t < 0.48) return 'bloom';
@@ -102,11 +131,19 @@ export function resolveBannerRevealCount(
   elapsedMs: number,
   durationMs: number,
   totalLines: number,
+  irisMs: number = SPLASH_IRIS_MS,
 ): number {
   if (totalLines <= 0) return 0;
-  const phase = resolveSplashPhase(elapsedMs, durationMs);
+  const phase = resolveSplashPhase(elapsedMs, durationMs, irisMs);
   if (phase === 'void' || phase === 'rise' || phase === 'bloom') return 0;
-  if (phase === 'done' || phase === 'hold' || phase === 'fade') return totalLines;
+  if (
+    phase === 'done' ||
+    phase === 'hold' ||
+    phase === 'fade' ||
+    phase === 'iris'
+  ) {
+    return totalLines;
+  }
   // brand: progressive reveal
   const duration = clampSplashDurationMs(durationMs);
   const start = 0.48 * duration;
@@ -127,14 +164,21 @@ export function resolveMarkRiseProgress(elapsedMs: number, durationMs: number): 
 export const resolveMoonRiseProgress = resolveMarkRiseProgress;
 
 /** Fade-out alpha in the final phase (1 → 0). */
-export function resolveFadeAlpha(elapsedMs: number, durationMs: number): number {
-  const phase = resolveSplashPhase(elapsedMs, durationMs);
+export function resolveFadeAlpha(
+  elapsedMs: number,
+  durationMs: number,
+  irisMs: number = SPLASH_IRIS_MS,
+): number {
+  const phase = resolveSplashPhase(elapsedMs, durationMs, irisMs);
   if (phase === 'done') return 0;
+  if (phase === 'iris') return 0.62;
   if (phase !== 'fade') return 1;
   const duration = clampSplashDurationMs(durationMs);
   const start = 0.9 * duration;
   const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, duration - start)));
-  return 1 - local;
+  // Keep a readable backdrop when iris follows.
+  const floor = irisMs > 0 ? 0.55 : 0;
+  return Math.max(floor, 1 - local);
 }
 
 export class SplashComponent implements Component {
@@ -142,6 +186,10 @@ export class SplashComponent implements Component {
   private readonly requestRender: () => void;
   private readonly getRows: () => number;
   private readonly durationMs: number;
+  private readonly irisMs: number;
+  private readonly getRevealFrame:
+    | ((width: number, rows: number) => readonly string[])
+    | undefined;
   private readonly forcePlay: boolean | undefined;
   private readonly nowFn: () => number;
   private readonly onSplashActiveChange: ((active: boolean) => void) | undefined;
@@ -150,6 +198,8 @@ export class SplashComponent implements Component {
   private ambientForced = false;
   private finished = false;
   private disposed = false;
+  private lastCinematicFrame: string[] | undefined;
+  private cachedRevealFrame: string[] | undefined;
 
   constructor(options: SplashComponentOptions) {
     this.appearance = options.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
@@ -158,6 +208,8 @@ export class SplashComponent implements Component {
     this.durationMs = clampSplashDurationMs(
       options.durationMs ?? DEFAULT_SPLASH_DURATION_MS,
     );
+    this.irisMs = Math.max(0, Math.round(options.irisMs ?? SPLASH_IRIS_MS));
+    this.getRevealFrame = options.getRevealFrame;
     this.forcePlay = options.forcePlay;
     // Wall clock only. appearanceAnimationNow() is driven by the native frame
     // loop (performance.now) and freezes/regresses splash elapsed when mixed in.
@@ -167,7 +219,11 @@ export class SplashComponent implements Component {
 
   get phase(): SplashPhase {
     if (this.finished) return 'done';
-    return resolveSplashPhase(this.elapsedMs, this.durationMs);
+    return resolveSplashPhase(this.elapsedMs, this.durationMs, this.irisMs);
+  }
+
+  get totalDurationMs(): number {
+    return this.durationMs + this.irisMs;
   }
 
   get elapsedMs(): number {
@@ -258,7 +314,7 @@ export class SplashComponent implements Component {
     if (this.disposed || this.finished || this.playResolve === undefined) return;
     const now = this.nowFn();
     advanceAppearanceAnimationClock(now);
-    if (now - this.startedAt >= this.durationMs) {
+    if (now - this.startedAt >= this.totalDurationMs) {
       this.finish();
     }
   }
@@ -273,8 +329,8 @@ export class SplashComponent implements Component {
     const rows = Math.max(8, Math.floor(this.getRows()));
     const appearance = this.appearance;
     const elapsed = this.elapsedMs;
-    const phase = resolveSplashPhase(elapsed, this.durationMs);
-    const fade = resolveFadeAlpha(elapsed, this.durationMs);
+    const phase = resolveSplashPhase(elapsed, this.durationMs, this.irisMs);
+    const fade = resolveFadeAlpha(elapsed, this.durationMs, this.irisMs);
     const layout = resolveResponsiveLayout({ width: safeWidth, height: rows });
     const palette = currentTheme.palette;
     const primaryHex = palette.primary;
@@ -283,6 +339,11 @@ export class SplashComponent implements Component {
     const mutedHex = palette.textMuted;
     const paint = (hex: string, text: string): string => chalk.hex(hex)(text);
     const muted = (text: string): string => chalk.hex(mutedHex)(text);
+
+    // Iris handoff: open an ellipse onto the upcoming TUI frame.
+    if (phase === 'iris') {
+      return this.renderIrisHandoff(safeWidth, rows, elapsed, paint, particleHex, glowHex);
+    }
 
     // Build full-height canvas of plain spaces, then paint layers.
     const canvas: string[] = Array.from({ length: rows }, () => ' '.repeat(safeWidth));
@@ -301,7 +362,7 @@ export class SplashComponent implements Component {
     });
 
     // --- Layer 2: meteor rain (rise → hold) ---
-    if (phase !== 'void' && phase !== 'done' && fade > 0.2) {
+    if (phase !== 'void' && phase !== 'done' && phase !== 'iris' && fade > 0.2) {
       const meteorRows = Math.max(3, Math.floor(rows * 0.35));
       const field = renderMeteorField(safeWidth, meteorRows, 'splash:sky', appearance);
       // Overlay near the top third
@@ -315,7 +376,7 @@ export class SplashComponent implements Component {
 
     // --- Layer 3: rising Liora monogram ---
     const markProgress = resolveMarkRiseProgress(elapsed, this.durationMs);
-    if (markProgress > 0 && phase !== 'done') {
+    if (markProgress > 0 && phase !== 'done' && phase !== 'iris') {
       const mark = safeWidth >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
       const gStart = palette.gradientStart ?? primaryHex;
       const gEnd = palette.gradientEnd ?? glowHex;
@@ -363,7 +424,12 @@ export class SplashComponent implements Component {
     // --- Layer 5: SUPERLIORA brand ---
     if (phase === 'brand' || phase === 'hold' || phase === 'fade') {
       const bannerAll = renderWelcomeBanner(layout, appearance, safeWidth);
-      const reveal = resolveBannerRevealCount(elapsed, this.durationMs, bannerAll.length);
+      const reveal = resolveBannerRevealCount(
+        elapsed,
+        this.durationMs,
+        bannerAll.length,
+        this.irisMs,
+      );
       const banner = bannerAll.slice(0, reveal);
       const brandTop = Math.max(
         1,
@@ -389,9 +455,10 @@ export class SplashComponent implements Component {
       canvas[rows - 1] = padOrTrim(muted('▀'.repeat(safeWidth)), safeWidth);
     }
 
-    // --- Layer 7: fade collapse — blank out edges as fade progresses ---
+    // --- Layer 7: fade collapse — soft edge dissolve before iris ---
     if (phase === 'fade' && fade < 0.85) {
-      const blankRows = Math.floor((1 - fade) * rows * 0.45);
+      const strength = this.irisMs > 0 ? 0.18 : 0.45;
+      const blankRows = Math.floor((1 - fade) * rows * strength);
       for (let i = 0; i < blankRows && i < rows; i++) {
         canvas[i] = ' '.repeat(safeWidth);
         canvas[rows - 1 - i] = ' '.repeat(safeWidth);
@@ -410,7 +477,49 @@ export class SplashComponent implements Component {
       }
     }
 
+    this.lastCinematicFrame = canvas.map((line) => line);
     return canvas;
+  }
+
+  private renderIrisHandoff(
+    width: number,
+    rows: number,
+    elapsed: number,
+    paint: (hex: string, text: string) => string,
+    particleHex: string,
+    glowHex: string,
+  ): string[] {
+    const progress = resolveIrisProgress(elapsed, this.durationMs, this.irisMs);
+    if (this.cachedRevealFrame === undefined) {
+      const fromHost = this.getRevealFrame?.(width, rows);
+      this.cachedRevealFrame = (fromHost ?? Array.from({ length: rows }, () => ' '.repeat(width))).map(
+        (line) => padOrTrim(line, width),
+      );
+      while (this.cachedRevealFrame.length < rows) {
+        this.cachedRevealFrame.push(' '.repeat(width));
+      }
+      this.cachedRevealFrame = this.cachedRevealFrame.slice(0, rows);
+    }
+
+    const backdrop =
+      this.lastCinematicFrame?.map((line) => padOrTrim(line, width)) ??
+      Array.from({ length: rows }, () => ' '.repeat(width));
+    while (backdrop.length < rows) backdrop.push(' '.repeat(width));
+
+    // Soft star veil over residual splash outside the iris.
+    paintStarfield(backdrop, width, rows, elapsed, 0.05 * (1 - progress), (glyph, intensity) => {
+      const hex = intensity > 0.55 ? glowHex : particleHex;
+      return paint(hex, glyph);
+    });
+
+    return applyIrisReveal({
+      backdrop: backdrop.slice(0, rows),
+      reveal: this.cachedRevealFrame,
+      width,
+      rows,
+      progress,
+      paintRing: (text) => paint(mixHexColor(glowHex, particleHex, 0.35), text),
+    });
   }
 }
 
