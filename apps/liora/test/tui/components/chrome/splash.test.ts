@@ -124,9 +124,9 @@ describe('splash phase / reveal', () => {
     expect(resolveSplashPhase(1000, duration, 0)).toBe('done');
   });
 
-  it('enters iris after the cinematic when irisMs is set', () => {
-    expect(resolveSplashPhase(1000, duration)).toBe('iris');
-    expect(resolveSplashPhase(1000 + 500, duration)).toBe('iris');
+  it('enters morph after the cinematic when morphMs is set', () => {
+    expect(resolveSplashPhase(1000, duration)).toBe('morph');
+    expect(resolveSplashPhase(1000 + 500, duration)).toBe('morph');
     expect(resolveSplashPhase(1000 + SPLASH_IRIS_MS, duration)).toBe('done');
   });
 
@@ -384,30 +384,33 @@ describe('SplashComponent full-screen cinematic', () => {
     });
   });
 
-  it('paints an iris handoff over the reveal frame after the cinematic', async () => {
+  it('paints a morph handoff into the stage scene after the cinematic', async () => {
     await withSafeTerminalEnv(async () => {
       const start = 1_000_000;
       let now = start;
-      const reveal = Array.from({ length: 24 }, () => 'REVEAL'.padEnd(80, ' '));
+      const reveal = Array.from({ length: 24 }, () => 'MORPH'.padEnd(80, ' '));
       const splash = new SplashComponent({
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 1000,
+        morphMs: 1000,
         durationMs: 1000,
         now: () => now,
         getRows: () => 24,
-        getRevealFrame: () => reveal,
+        getMorphScene: () => ({
+          lines: reveal,
+          brandTarget: { x: 10, y: 4, width: 40 },
+        }),
       });
       void splash.play();
       now = start + 900;
       splash.render(80);
       expect(splash.phase).toBe('fade');
       now = start + 1100;
-      const irisFrame = splash.render(80);
-      expect(splash.phase).toBe('iris');
-      expect(irisFrame).toHaveLength(24);
-      expect(strip(irisFrame.join('\n'))).toMatch(/REVEAL|˚|✦|⋆|·/);
+      const morphFrame = splash.render(80);
+      expect(splash.phase).toBe('morph');
+      expect(morphFrame).toHaveLength(24);
+      expect(strip(morphFrame.join('\n'))).toMatch(/MORPH|SUPERLIORA|_|\/|\\/);
       now = start + 2000;
       splash.render(80);
       expect(splash.isDone).toBe(true);

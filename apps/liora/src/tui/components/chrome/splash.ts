@@ -2,8 +2,8 @@
  * Full-screen cinematic startup splash.
  *
  * Owns the entire terminal when motion is allowed: starfield, rising Liora mark,
- * meteor rain, horizon bloom, SUPERLIORA brand reveal, then a ~1s iris handoff
- * into the Welcome + Jewel Tank frame.
+ * meteor rain, horizon bloom, SUPERLIORA brand reveal, then a ~1.1s morph
+ * handoff that shrinks the brand into the real centered-stage Welcome hero.
  * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
  */
 
@@ -33,13 +33,15 @@ import {
   paintStarfield,
 } from '#/tui/utils/night-sky';
 import {
-  applyIrisReveal,
-  resolveIrisProgress,
+  applyStageMorphReveal,
+  resolveBrandMorphRect,
+  resolveMorphProgress,
   SPLASH_IRIS_MS,
+  SPLASH_MORPH_MS,
 } from '#/tui/utils/splash-iris';
 import { renderWelcomeBanner } from './welcome-banner';
 
-export { SPLASH_IRIS_MS };
+export { SPLASH_IRIS_MS, SPLASH_MORPH_MS };
 
 /** Inclusive lower bound for splash duration. */
 export const SPLASH_DURATION_MIN_MS = 1000;
@@ -55,7 +57,7 @@ export type SplashPhase =
   | 'brand'
   | 'hold'
   | 'fade'
-  | 'iris'
+  | 'morph'
   | 'done';
 
 export interface SplashComponentOptions {
@@ -65,11 +67,24 @@ export interface SplashComponentOptions {
   readonly getRows?: () => number;
   /** Optional override duration (clamped to 1.0–2.0s). */
   readonly durationMs?: number;
-  /** Iris handoff length after the cinematic (0 disables). Default SPLASH_IRIS_MS. */
+  /**
+   * Morph handoff length after the cinematic (0 disables).
+   * Default {@link SPLASH_MORPH_MS}. `irisMs` is accepted as a deprecated alias.
+   */
+  readonly morphMs?: number;
+  /** @deprecated Prefer {@link SplashComponentOptions.morphMs}. */
   readonly irisMs?: number;
   /**
-   * Upcoming TUI frame for the iris interior (Welcome + Jewel Tank preview).
-   * Captured once when iris begins.
+   * Live morph scene each handoff tick (centered Welcome + Tank + letterbox).
+   * Prefer returning a fresh frame — do not freeze across the morph window.
+   */
+  readonly getMorphScene?: (width: number, rows: number) => {
+    readonly lines: readonly string[];
+    readonly brandTarget: { readonly x: number; readonly y: number; readonly width: number };
+  };
+  /**
+   * @deprecated Prefer {@link SplashComponentOptions.getMorphScene}.
+   * Flat reveal lines (brand morph falls back to stage-center).
    */
   readonly getRevealFrame?: (width: number, rows: number) => readonly string[];
   /**
@@ -110,13 +125,13 @@ export function shouldPlaySplash(appearance: AppearancePreferences): boolean {
 export function resolveSplashPhase(
   elapsedMs: number,
   durationMs: number,
-  irisMs: number = SPLASH_IRIS_MS,
+  morphMs: number = SPLASH_MORPH_MS,
 ): SplashPhase {
   const duration = clampSplashDurationMs(durationMs);
-  const iris = Math.max(0, Math.round(irisMs));
+  const morph = Math.max(0, Math.round(morphMs));
   if (duration <= 0) return 'done';
-  if (elapsedMs >= duration + iris) return 'done';
-  if (elapsedMs >= duration) return iris > 0 ? 'iris' : 'done';
+  if (elapsedMs >= duration + morph) return 'done';
+  if (elapsedMs >= duration) return morph > 0 ? 'morph' : 'done';
   const t = Math.max(0, elapsedMs) / duration;
   if (t < 0.1) return 'void';
   if (t < 0.32) return 'rise';
@@ -131,16 +146,16 @@ export function resolveBannerRevealCount(
   elapsedMs: number,
   durationMs: number,
   totalLines: number,
-  irisMs: number = SPLASH_IRIS_MS,
+  morphMs: number = SPLASH_MORPH_MS,
 ): number {
   if (totalLines <= 0) return 0;
-  const phase = resolveSplashPhase(elapsedMs, durationMs, irisMs);
+  const phase = resolveSplashPhase(elapsedMs, durationMs, morphMs);
   if (phase === 'void' || phase === 'rise' || phase === 'bloom') return 0;
   if (
     phase === 'done' ||
     phase === 'hold' ||
     phase === 'fade' ||
-    phase === 'iris'
+    phase === 'morph'
   ) {
     return totalLines;
   }
@@ -167,17 +182,17 @@ export const resolveMoonRiseProgress = resolveMarkRiseProgress;
 export function resolveFadeAlpha(
   elapsedMs: number,
   durationMs: number,
-  irisMs: number = SPLASH_IRIS_MS,
+  morphMs: number = SPLASH_MORPH_MS,
 ): number {
-  const phase = resolveSplashPhase(elapsedMs, durationMs, irisMs);
+  const phase = resolveSplashPhase(elapsedMs, durationMs, morphMs);
   if (phase === 'done') return 0;
-  if (phase === 'iris') return 0.62;
+  if (phase === 'morph') return 0.62;
   if (phase !== 'fade') return 1;
   const duration = clampSplashDurationMs(durationMs);
   const start = 0.9 * duration;
   const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, duration - start)));
-  // Keep a readable backdrop when iris follows.
-  const floor = irisMs > 0 ? 0.55 : 0;
+  // Keep a readable backdrop when morph follows.
+  const floor = morphMs > 0 ? 0.55 : 0;
   return Math.max(floor, 1 - local);
 }
 
@@ -186,7 +201,13 @@ export class SplashComponent implements Component {
   private readonly requestRender: () => void;
   private readonly getRows: () => number;
   private readonly durationMs: number;
-  private readonly irisMs: number;
+  private readonly morphMs: number;
+  private readonly getMorphScene:
+    | ((width: number, rows: number) => {
+        readonly lines: readonly string[];
+        readonly brandTarget: { readonly x: number; readonly y: number; readonly width: number };
+      })
+    | undefined;
   private readonly getRevealFrame:
     | ((width: number, rows: number) => readonly string[])
     | undefined;
@@ -199,7 +220,7 @@ export class SplashComponent implements Component {
   private finished = false;
   private disposed = false;
   private lastCinematicFrame: string[] | undefined;
-  private cachedRevealFrame: string[] | undefined;
+  private splashBrandTop = 0;
 
   constructor(options: SplashComponentOptions) {
     this.appearance = options.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
@@ -208,7 +229,11 @@ export class SplashComponent implements Component {
     this.durationMs = clampSplashDurationMs(
       options.durationMs ?? DEFAULT_SPLASH_DURATION_MS,
     );
-    this.irisMs = Math.max(0, Math.round(options.irisMs ?? SPLASH_IRIS_MS));
+    this.morphMs = Math.max(
+      0,
+      Math.round(options.morphMs ?? options.irisMs ?? SPLASH_MORPH_MS),
+    );
+    this.getMorphScene = options.getMorphScene;
     this.getRevealFrame = options.getRevealFrame;
     this.forcePlay = options.forcePlay;
     // Wall clock only. appearanceAnimationNow() is driven by the native frame
@@ -219,11 +244,11 @@ export class SplashComponent implements Component {
 
   get phase(): SplashPhase {
     if (this.finished) return 'done';
-    return resolveSplashPhase(this.elapsedMs, this.durationMs, this.irisMs);
+    return resolveSplashPhase(this.elapsedMs, this.durationMs, this.morphMs);
   }
 
   get totalDurationMs(): number {
-    return this.durationMs + this.irisMs;
+    return this.durationMs + this.morphMs;
   }
 
   get elapsedMs(): number {
@@ -329,8 +354,8 @@ export class SplashComponent implements Component {
     const rows = Math.max(8, Math.floor(this.getRows()));
     const appearance = this.appearance;
     const elapsed = this.elapsedMs;
-    const phase = resolveSplashPhase(elapsed, this.durationMs, this.irisMs);
-    const fade = resolveFadeAlpha(elapsed, this.durationMs, this.irisMs);
+    const phase = resolveSplashPhase(elapsed, this.durationMs, this.morphMs);
+    const fade = resolveFadeAlpha(elapsed, this.durationMs, this.morphMs);
     const layout = resolveResponsiveLayout({ width: safeWidth, height: rows });
     const palette = currentTheme.palette;
     const primaryHex = palette.primary;
@@ -340,9 +365,9 @@ export class SplashComponent implements Component {
     const paint = (hex: string, text: string): string => chalk.hex(hex)(text);
     const muted = (text: string): string => chalk.hex(mutedHex)(text);
 
-    // Iris handoff: open an ellipse onto the upcoming TUI frame.
-    if (phase === 'iris') {
-      return this.renderIrisHandoff(safeWidth, rows, elapsed, paint, particleHex, glowHex);
+    // Morph handoff: live stage scene + brand shrink into Welcome hero.
+    if (phase === 'morph') {
+      return this.renderMorphHandoff(safeWidth, rows, elapsed, layout);
     }
 
     // Build full-height canvas of plain spaces, then paint layers.
@@ -362,7 +387,7 @@ export class SplashComponent implements Component {
     });
 
     // --- Layer 2: meteor rain (rise → hold) ---
-    if (phase !== 'void' && phase !== 'done' && phase !== 'iris' && fade > 0.2) {
+    if (phase !== 'void' && phase !== 'done' && phase !== 'morph' && fade > 0.2) {
       const meteorRows = Math.max(3, Math.floor(rows * 0.35));
       const field = renderMeteorField(safeWidth, meteorRows, 'splash:sky', appearance);
       // Overlay near the top third
@@ -376,7 +401,7 @@ export class SplashComponent implements Component {
 
     // --- Layer 3: rising Liora monogram ---
     const markProgress = resolveMarkRiseProgress(elapsed, this.durationMs);
-    if (markProgress > 0 && phase !== 'done' && phase !== 'iris') {
+    if (markProgress > 0 && phase !== 'done' && phase !== 'morph') {
       const mark = safeWidth >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
       const gStart = palette.gradientStart ?? primaryHex;
       const gEnd = palette.gradientEnd ?? glowHex;
@@ -428,13 +453,14 @@ export class SplashComponent implements Component {
         elapsed,
         this.durationMs,
         bannerAll.length,
-        this.irisMs,
+        this.morphMs,
       );
       const banner = bannerAll.slice(0, reveal);
       const brandTop = Math.max(
         1,
         Math.floor(rows * 0.42) - Math.floor(banner.length / 2),
       );
+      this.splashBrandTop = brandTop;
       blitCentered(canvas, banner, brandTop, safeWidth);
 
       if (reveal >= bannerAll.length && fade > 0.35) {
@@ -455,9 +481,9 @@ export class SplashComponent implements Component {
       canvas[rows - 1] = padOrTrim(muted('▀'.repeat(safeWidth)), safeWidth);
     }
 
-    // --- Layer 7: fade collapse — soft edge dissolve before iris ---
+    // --- Layer 7: fade collapse — soft edge dissolve before morph ---
     if (phase === 'fade' && fade < 0.85) {
-      const strength = this.irisMs > 0 ? 0.18 : 0.45;
+      const strength = this.morphMs > 0 ? 0.18 : 0.45;
       const blankRows = Math.floor((1 - fade) * rows * strength);
       for (let i = 0; i < blankRows && i < rows; i++) {
         canvas[i] = ' '.repeat(safeWidth);
@@ -481,45 +507,89 @@ export class SplashComponent implements Component {
     return canvas;
   }
 
-  private renderIrisHandoff(
+  private renderMorphHandoff(
     width: number,
     rows: number,
     elapsed: number,
-    paint: (hex: string, text: string) => string,
-    particleHex: string,
-    glowHex: string,
+    layout: ReturnType<typeof resolveResponsiveLayout>,
   ): string[] {
-    const progress = resolveIrisProgress(elapsed, this.durationMs, this.irisMs);
-    if (this.cachedRevealFrame === undefined) {
-      const fromHost = this.getRevealFrame?.(width, rows);
-      this.cachedRevealFrame = (fromHost ?? Array.from({ length: rows }, () => ' '.repeat(width))).map(
-        (line) => padOrTrim(line, width),
-      );
-      while (this.cachedRevealFrame.length < rows) {
-        this.cachedRevealFrame.push(' '.repeat(width));
-      }
-      this.cachedRevealFrame = this.cachedRevealFrame.slice(0, rows);
-    }
+    const progress = resolveMorphProgress(elapsed, this.durationMs, this.morphMs);
+    const fromHost = this.getMorphScene?.(width, rows);
+    const sceneLines =
+      fromHost?.lines ??
+      this.getRevealFrame?.(width, rows) ??
+      Array.from({ length: rows }, () => ' '.repeat(width));
+    const scene = [...sceneLines].map((line) => padOrTrim(line, width));
+    while (scene.length < rows) scene.push(' '.repeat(width));
+    const capped = scene.slice(0, rows);
 
     const backdrop =
       this.lastCinematicFrame?.map((line) => padOrTrim(line, width)) ??
       Array.from({ length: rows }, () => ' '.repeat(width));
     while (backdrop.length < rows) backdrop.push(' '.repeat(width));
 
-    // Soft star veil over residual splash outside the iris.
-    paintStarfield(backdrop, width, rows, elapsed, 0.05 * (1 - progress), (glyph, intensity) => {
-      const hex = intensity > 0.55 ? glowHex : particleHex;
-      return paint(hex, glyph);
-    });
-
-    return applyIrisReveal({
+    const composite = applyStageMorphReveal({
       backdrop: backdrop.slice(0, rows),
-      reveal: this.cachedRevealFrame,
+      scene: capped,
       width,
       rows,
       progress,
-      paintRing: (text) => paint(mixHexColor(glowHex, particleHex, 0.35), text),
     });
+
+    // Continuous brand: fullscreen figlet → Welcome hero rect.
+    if (progress < 0.94) {
+      const brandTarget = fromHost?.brandTarget ?? {
+        x: Math.max(0, Math.floor((width - Math.min(width, 60)) / 2)),
+        y: Math.max(1, Math.floor(rows * 0.22)),
+        width: Math.min(width, 60),
+      };
+      const fromTop =
+        this.splashBrandTop > 0
+          ? this.splashBrandTop
+          : Math.max(1, Math.floor(rows * 0.42) - 2);
+      const rect = resolveBrandMorphRect({
+        progress,
+        cols: width,
+        fromTop,
+        fromWidth: width,
+        to: brandTarget,
+      });
+      const bannerLayout = resolveResponsiveLayout({ width: rect.width, height: rows });
+      const banner = renderWelcomeBanner(
+        progress < 0.35 ? layout : bannerLayout,
+        this.appearance,
+        Math.max(24, rect.width),
+      );
+      // Fade brand overlay as Welcome's own hero takes over.
+      if (progress < 0.88) {
+        blitAt(composite, banner, rect.y, rect.x, width);
+      }
+    }
+
+    return composite;
+  }
+}
+
+/** Blit lines starting at absolute (x,y) into a full-width canvas. */
+function blitAt(
+  canvas: string[],
+  lines: readonly string[],
+  top: number,
+  left: number,
+  width: number,
+): void {
+  for (let i = 0; i < lines.length; i++) {
+    const y = top + i;
+    if (y < 0 || y >= canvas.length) continue;
+    const src = lines[i] ?? '';
+    const plainBase = (canvas[y] ?? '').replaceAll(/\u001B\[[0-9;]*m/g, '');
+    const padded = padOrTrim(plainBase, width);
+    const leftPad = Math.max(0, left);
+    const next = padOrTrim(
+      `${padded.slice(0, leftPad)}${src}${padded.slice(leftPad + visibleWidth(src))}`,
+      width,
+    );
+    canvas[y] = next;
   }
 }
 
