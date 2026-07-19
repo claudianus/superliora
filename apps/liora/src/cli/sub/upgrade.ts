@@ -4,18 +4,16 @@ import { updateBrowserUseRuntimes, updateCuaDriver } from '@superliora/gui-use';
 
 import { getHostPackageRoot } from '#/cli/version';
 import { tln } from '#/cli/i18n';
-import { refreshUpdateCache } from '#/cli/update/refresh';
-import { selectUpdateTarget } from '#/cli/update/select';
-import { detectInstallSource } from '#/cli/update/source';
 import { PRODUCT_NAME } from '#/constant/app';
 import {
-  canAutoInstall,
-  installCommandFor,
   installUpdate as installUpdateForeground,
   renderInstallSuccessMessage,
   renderManualUpdateMessage,
 } from '#/cli/update/preflight';
-import { refreshGitCheckoutUpdateTarget } from '#/cli/update/git-checkout';
+import {
+  resolveUpgradePlan,
+  type UpgradePlan,
+} from '#/cli/update/plan';
 import {
   promptForInstallChoice,
   type InstallPromptChoiceValue,
@@ -24,7 +22,6 @@ import {
 import {
   NPM_PACKAGE_NAME,
   type InstallSource,
-  type UpdateCache,
 } from '#/cli/update/types';
 
 interface WritableLike {
@@ -35,9 +32,7 @@ type UpgradeTrack = (event: string, properties?: TelemetryProperties) => void;
 type UpgradeLogger = Pick<Logger, 'info' | 'warn'>;
 
 export interface UpgradeDeps {
-  readonly refreshUpdateCache: () => Promise<UpdateCache>;
-  readonly detectInstallSource: () => Promise<InstallSource>;
-  readonly refreshGitCheckoutUpdateTarget: () => Promise<{ readonly version: string } | null>;
+  readonly resolveUpgradePlan: (currentVersion: string) => Promise<UpgradePlan>;
   readonly installUpdate: (
     source: InstallSource,
     version: string,
@@ -60,88 +55,144 @@ export async function handleUpgrade(
   overrides: Partial<UpgradeDeps> = {},
 ): Promise<number> {
   const deps = createDefaultUpgradeDeps(overrides);
-  const source = await deps.detectInstallSource().catch(() => 'unsupported' as const);
-  if (source === 'github-checkout') {
-    return handleGithubCheckoutUpgrade(currentVersion, deps, source);
-  }
+  const plan = await deps.resolveUpgradePlan(currentVersion);
 
-  let cache: UpdateCache;
-  try {
-    cache = await deps.refreshUpdateCache();
-  } catch (error) {
-    const reason = formatErrorMessage(error);
+  if (plan.reason === 'check-failed') {
     trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
       current_version: currentVersion,
+      source: plan.source,
       stage: 'refresh',
-      reason,
+      reason: plan.errorMessage ?? 'unknown',
     });
     logUpgradeWarn(deps.logger, 'manual upgrade check failed', {
       currentVersion,
-      error,
+      source: plan.source,
+      error: plan.errorMessage ?? 'unknown',
     });
-    deps.stderr.write(tln('cli.runtime.upgrade.checkFailed', { reason }));
+    deps.stderr.write(
+      plan.source === 'github-checkout'
+        ? tln('cli.runtime.upgrade.githubCheckFailed', {
+            reason: plan.errorMessage ?? 'unknown',
+          })
+        : tln('cli.runtime.upgrade.checkFailed', { reason: plan.errorMessage ?? 'unknown' }),
+    );
     return 1;
   }
 
-  const target = selectUpdateTarget(currentVersion, cache.latest);
-  if (target === null) {
-    trackUpgradeEvent(deps.track, 'upgrade_command_no_update', {
+  if (plan.reason === 'already-installing') {
+    trackUpgradeEvent(deps.track, 'upgrade_command_already_installing', {
       current_version: currentVersion,
+      target_version: plan.target?.version ?? currentVersion,
+      source: plan.source,
     });
-    logUpgradeInfo(deps.logger, 'manual upgrade no update', {
+    logUpgradeInfo(deps.logger, 'manual upgrade already installing', {
       currentVersion,
+      targetVersion: plan.target?.version ?? currentVersion,
+      source: plan.source,
     });
     deps.stdout.write(
-      tln('cli.runtime.upgrade.alreadyUpToDate', {
-        product: PRODUCT_NAME,
-        version: formatDisplayVersion(currentVersion),
+      tln('cli.runtime.upgrade.alreadyInstalling', {
+        version: plan.target?.version ?? currentVersion,
       }),
     );
     return 0;
   }
 
-  const installCommand = installCommandFor(source, target.version, deps.platform);
-  if (!canAutoInstall(source, deps.platform) || !deps.isInteractive) {
+  if (plan.reason === 'up-to-date') {
+    trackUpgradeEvent(deps.track, 'upgrade_command_no_update', {
+      current_version: currentVersion,
+      source: plan.source,
+    });
+    logUpgradeInfo(deps.logger, 'manual upgrade no update', {
+      currentVersion,
+      source: plan.source,
+    });
+    deps.stdout.write(
+      plan.source === 'github-checkout'
+        ? tln('cli.runtime.upgrade.githubAlreadyUpToDate', { product: PRODUCT_NAME })
+        : tln('cli.runtime.upgrade.alreadyUpToDate', {
+            product: PRODUCT_NAME,
+            version: formatDisplayVersion(currentVersion),
+          }),
+    );
+    return 0;
+  }
+
+  if (plan.reason === 'diverged') {
+    trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
+      current_version: currentVersion,
+      source: plan.source,
+      stage: 'refresh',
+      reason: plan.errorMessage ?? 'diverged',
+    });
+    logUpgradeWarn(deps.logger, 'manual upgrade diverged', {
+      currentVersion,
+      source: plan.source,
+      error: plan.errorMessage ?? 'diverged',
+    });
+    deps.stderr.write(`${plan.errorMessage ?? 'diverged'}\n`);
+    deps.stdout.write(
+      renderManualUpdateMessage(
+        currentVersion,
+        { version: currentVersion },
+        plan.source,
+        plan.installCommand,
+      ),
+    );
+    return 1;
+  }
+
+  // update-available (and unsupported-with-target, if ever produced)
+  if (!plan.target) return 1;
+
+  if (!plan.canAutoInstall || !deps.isInteractive) {
     trackUpgradeEvent(deps.track, 'upgrade_command_manual_command', {
       current_version: currentVersion,
-      target_version: target.version,
-      source,
+      target_version: plan.target.version,
+      source: plan.source,
     });
     logUpgradeInfo(deps.logger, 'manual upgrade command shown', {
       currentVersion,
-      targetVersion: target.version,
-      source,
+      targetVersion: plan.target.version,
+      source: plan.source,
     });
-    deps.stdout.write(renderManualUpdateMessage(currentVersion, target, source, installCommand));
+    deps.stdout.write(
+      renderManualUpdateMessage(
+        currentVersion,
+        plan.target,
+        plan.source,
+        plan.installCommand,
+      ),
+    );
     return 0;
   }
 
   trackUpgradeEvent(deps.track, 'upgrade_command_prompted', {
     current_version: currentVersion,
-    target_version: target.version,
-    source,
+    target_version: plan.target.version,
+    source: plan.source,
   });
   logUpgradeInfo(deps.logger, 'manual upgrade prompted', {
     currentVersion,
-    targetVersion: target.version,
-    source,
+    targetVersion: plan.target.version,
+    source: plan.source,
   });
   const choice = await deps.promptForInstallChoice({
     currentVersion,
-    target,
-    installCommand,
-    installSource: source,
+    target: plan.target,
+    installCommand: plan.installCommand,
+    installSource: plan.source,
   });
   if (choice === 'skip') {
     trackUpgradeEvent(deps.track, 'upgrade_command_skipped', {
       current_version: currentVersion,
-      target_version: target.version,
-      source,
+      target_version: plan.target.version,
+      source: plan.source,
     });
     logUpgradeInfo(deps.logger, 'manual upgrade skipped', {
       currentVersion,
-      targetVersion: target.version,
-      source,
+      targetVersion: plan.target.version,
+      source: plan.source,
     });
     return 0;
   }
@@ -149,165 +200,55 @@ export async function handleUpgrade(
   try {
     trackUpgradeEvent(deps.track, 'upgrade_command_install_selected', {
       current_version: currentVersion,
-      target_version: target.version,
-      source,
+      target_version: plan.target.version,
+      source: plan.source,
     });
-    await deps.installUpdate(source, target.version, deps.platform);
+    await deps.installUpdate(plan.source, plan.target.version, deps.platform);
     await deps.updateGuiUseAfterUpgrade();
     trackUpgradeEvent(deps.track, 'upgrade_command_succeeded', {
       current_version: currentVersion,
-      target_version: target.version,
-      source,
+      target_version: plan.target.version,
+      source: plan.source,
     });
     logUpgradeInfo(deps.logger, 'manual upgrade install succeeded', {
       currentVersion,
-      targetVersion: target.version,
-      source,
+      targetVersion: plan.target.version,
+      source: plan.source,
     });
-    deps.stdout.write(renderInstallSuccessMessage(target));
+    deps.stdout.write(
+      plan.source === 'github-checkout'
+        ? tln('cli.runtime.upgrade.githubUpdated', {
+            product: PRODUCT_NAME,
+            version: plan.target.version,
+          })
+        : renderInstallSuccessMessage(plan.target),
+    );
     return 0;
   } catch (error) {
     trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
       current_version: currentVersion,
-      target_version: target.version,
-      source,
+      target_version: plan.target.version,
+      source: plan.source,
       stage: 'install',
       reason: formatErrorMessage(error),
     });
     logUpgradeWarn(deps.logger, 'manual upgrade install failed', {
       currentVersion,
-      targetVersion: target.version,
-      source,
+      targetVersion: plan.target.version,
+      source: plan.source,
       error,
     });
     deps.stderr.write(
-      tln('cli.runtime.upgrade.installFailed', {
-        package: NPM_PACKAGE_NAME,
-        version: target.version,
-        reason: formatErrorMessage(error),
-      }),
-    );
-    return 1;
-  }
-}
-
-async function handleGithubCheckoutUpgrade(
-  currentVersion: string,
-  deps: UpgradeDeps,
-  source: InstallSource,
-): Promise<number> {
-  let target: { readonly version: string } | null;
-  try {
-    target = await deps.refreshGitCheckoutUpdateTarget();
-  } catch (error) {
-    const reason = formatErrorMessage(error);
-    trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
-      current_version: currentVersion,
-      source,
-      stage: 'refresh',
-      reason,
-    });
-    logUpgradeWarn(deps.logger, 'manual git checkout upgrade check failed', {
-      currentVersion,
-      error,
-    });
-    deps.stderr.write(tln('cli.runtime.upgrade.githubCheckFailed', { reason }));
-    return 1;
-  }
-
-  if (target === null) {
-    trackUpgradeEvent(deps.track, 'upgrade_command_no_update', {
-      current_version: currentVersion,
-      source,
-    });
-    logUpgradeInfo(deps.logger, 'manual git checkout upgrade no update', {
-      currentVersion,
-      source,
-    });
-    deps.stdout.write(tln('cli.runtime.upgrade.githubAlreadyUpToDate', { product: PRODUCT_NAME }));
-    return 0;
-  }
-
-  const installCommand = installCommandFor(source, target.version, deps.platform);
-  if (!canAutoInstall(source, deps.platform) || !deps.isInteractive) {
-    trackUpgradeEvent(deps.track, 'upgrade_command_manual_command', {
-      current_version: currentVersion,
-      target_version: target.version,
-      source,
-    });
-    logUpgradeInfo(deps.logger, 'manual git checkout upgrade command shown', {
-      currentVersion,
-      targetVersion: target.version,
-      source,
-    });
-    deps.stdout.write(renderManualUpdateMessage(currentVersion, target, source, installCommand));
-    return 0;
-  }
-
-  trackUpgradeEvent(deps.track, 'upgrade_command_prompted', {
-    current_version: currentVersion,
-    target_version: target.version,
-    source,
-  });
-  const choice = await deps.promptForInstallChoice({
-    currentVersion,
-    target,
-    installCommand,
-    installSource: source,
-  });
-  if (choice === 'skip') {
-    trackUpgradeEvent(deps.track, 'upgrade_command_skipped', {
-      current_version: currentVersion,
-      target_version: target.version,
-      source,
-    });
-    return 0;
-  }
-
-  try {
-    trackUpgradeEvent(deps.track, 'upgrade_command_install_selected', {
-      current_version: currentVersion,
-      target_version: target.version,
-      source,
-    });
-    await deps.installUpdate(source, target.version, deps.platform);
-    await deps.updateGuiUseAfterUpgrade();
-    trackUpgradeEvent(deps.track, 'upgrade_command_succeeded', {
-      current_version: currentVersion,
-      target_version: target.version,
-      source,
-    });
-    logUpgradeInfo(deps.logger, 'manual git checkout upgrade install succeeded', {
-      currentVersion,
-      targetVersion: target.version,
-      source,
-    });
-    deps.stdout.write(
-      tln('cli.runtime.upgrade.githubUpdated', {
-        product: PRODUCT_NAME,
-        version: target.version,
-      }),
-    );
-    return 0;
-  } catch (error) {
-    trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
-      current_version: currentVersion,
-      target_version: target.version,
-      source,
-      stage: 'install',
-      reason: formatErrorMessage(error),
-    });
-    logUpgradeWarn(deps.logger, 'manual git checkout upgrade install failed', {
-      currentVersion,
-      targetVersion: target.version,
-      source,
-      error,
-    });
-    deps.stderr.write(
-      tln('cli.runtime.upgrade.githubInstallFailed', {
-        product: PRODUCT_NAME,
-        reason: formatErrorMessage(error),
-      }),
+      plan.source === 'github-checkout'
+        ? tln('cli.runtime.upgrade.githubInstallFailed', {
+            product: PRODUCT_NAME,
+            reason: formatErrorMessage(error),
+          })
+        : tln('cli.runtime.upgrade.installFailed', {
+            package: NPM_PACKAGE_NAME,
+            version: plan.target.version,
+            reason: formatErrorMessage(error),
+          }),
     );
     return 1;
   }
@@ -316,14 +257,14 @@ async function handleGithubCheckoutUpgrade(
 function createDefaultUpgradeDeps(overrides: Partial<UpgradeDeps>): UpgradeDeps {
   const stdout = overrides.stdout ?? process.stdout;
   const stderr = overrides.stderr ?? process.stderr;
+  const platform = overrides.platform ?? process.platform;
   return {
-    refreshUpdateCache: overrides.refreshUpdateCache ?? (() => refreshUpdateCache()),
-    detectInstallSource: overrides.detectInstallSource ?? (() => detectInstallSource()),
-    refreshGitCheckoutUpdateTarget:
-      overrides.refreshGitCheckoutUpdateTarget ?? (() => refreshGitCheckoutUpdateTarget()),
+    resolveUpgradePlan:
+      overrides.resolveUpgradePlan ??
+      ((currentVersion) => resolveUpgradePlan(currentVersion, { platform })),
     installUpdate: overrides.installUpdate ?? installUpdateForeground,
     promptForInstallChoice: overrides.promptForInstallChoice ?? promptForInstallChoice,
-    platform: overrides.platform ?? process.platform,
+    platform,
     stdout,
     stderr,
     isInteractive: overrides.isInteractive ?? (process.stdin.isTTY && process.stdout.isTTY),

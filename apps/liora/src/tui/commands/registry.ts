@@ -489,6 +489,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'upgrade',
+    aliases: ['update'],
+    description: 'Check for SuperLiora updates and install',
+    priority: 90,
+    availability: 'always',
+  },
+  {
     name: 'context',
     aliases: ['context-os', 'ctx'],
     description: 'Diagnose Context OS continuity/evidence + privacy (ZDR) posture',

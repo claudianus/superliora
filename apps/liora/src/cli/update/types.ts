@@ -69,6 +69,9 @@ export interface UpdateInstallState {
 export type UpdateDecision = 'none' | 'prompt-install' | 'manual-command';
 export type UpdatePreflightResult = 'continue' | 'exit';
 
+/** Re-exported for callers that already import update types from this module. */
+export type { UpgradePlan, UpgradePlanReason } from './plan';
+
 export function emptyUpdateCache(): UpdateCache {
   return {
     source: 'cdn',

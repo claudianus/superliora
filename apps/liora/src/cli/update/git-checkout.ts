@@ -13,6 +13,11 @@ export interface GitCheckoutTarget extends UpdateTarget {
   readonly upstream: string;
 }
 
+export type GitCheckoutRefreshResult =
+  | { readonly status: 'up-to-date'; readonly dirty: boolean }
+  | { readonly status: 'update'; readonly target: GitCheckoutTarget; readonly dirty: boolean }
+  | { readonly status: 'diverged'; readonly upstream: string; readonly dirty: boolean };
+
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
@@ -53,22 +58,33 @@ export async function detectSuperLioraGithubCheckout(
   return isSuperLioraGithubRemote(origin) ? repoRoot : null;
 }
 
+export async function isGitCheckoutDirty(repoRoot: string): Promise<boolean> {
+  const unstaged = await execGit(repoRoot, ['diff', '--quiet']).then(() => false).catch(() => true);
+  if (unstaged) return true;
+  return execGit(repoRoot, ['diff', '--cached', '--quiet']).then(() => false).catch(() => true);
+}
+
 function buildGitCheckoutUpdateShellLines(repoExpr: string): readonly string[] {
   return [
+    `echo '__LIORA_UPGRADE_STAGE__=fetching'`,
     `upstream="$(git -C ${repoExpr} rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"`,
-    `if [ -z "$upstream" ]; then upstream="$(git -C ${repoExpr} symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo 'origin/main')"; fi`,
+    `if [ -z "$upstream" ]; then upstream="$(git -C ${repoExpr} symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"; fi`,
+    `if [ -z "$upstream" ]; then if git -C ${repoExpr} rev-parse --verify origin/main >/dev/null 2>&1; then upstream='origin/main'; else upstream='origin/master'; fi; fi`,
     'ref="${upstream#origin/}"',
     `git -C ${repoExpr} diff --quiet`,
     `git -C ${repoExpr} diff --cached --quiet`,
     `git -C ${repoExpr} fetch --depth 1 origin "$ref"`,
     `git -C ${repoExpr} checkout --force FETCH_HEAD`,
     `git -C ${repoExpr} reset --hard FETCH_HEAD`,
+    `echo '__LIORA_UPGRADE_STAGE__=building'`,
     `corepack pnpm -C ${repoExpr} install --frozen-lockfile`,
     `corepack pnpm -C ${repoExpr} run build:packages`,
     `corepack pnpm -C ${repoExpr}/apps/liora run build`,
+    `echo '__LIORA_UPGRADE_STAGE__=installing'`,
     'liora_path="$(command -v liora 2>/dev/null || true)"',
     'if [ -n "$liora_path" ]; then bin_dir="$(dirname "$liora_path")"; command_name="$(basename "$liora_path")"; else bin_dir="${HOME}/.local/bin"; command_name="liora"; fi',
     `node ${repoExpr}/scripts/install-liora.mjs --bin-dir "$bin_dir" --name "$command_name" --no-shell-rc --force`,
+    `echo '__LIORA_UPGRADE_STAGE__=done'`,
   ];
 }
 
@@ -88,24 +104,30 @@ export function gitCheckoutUpdateScript(repoRoot: string = findGitCheckoutRoot()
 
 export async function refreshGitCheckoutUpdateTarget(
   repoRoot: string = findGitCheckoutRoot() ?? '',
-): Promise<GitCheckoutTarget | null> {
-  if (repoRoot.length === 0) return null;
-  await execGit(repoRoot, ['fetch', '--quiet']);
+): Promise<GitCheckoutRefreshResult> {
+  if (repoRoot.length === 0) {
+    throw new Error('Git checkout root not found');
+  }
+  const dirty = await isGitCheckoutDirty(repoRoot);
   const upstream = await resolveGitCheckoutUpstream(repoRoot);
+  const ref = upstream.startsWith('origin/') ? upstream.slice('origin/'.length) : upstream;
+  // Prefer an explicit fetch of the tracking ref so shallow clones deepen correctly.
+  await execGit(repoRoot, ['fetch', '--quiet', '--prune', 'origin', ref]).catch(async () => {
+    await execGit(repoRoot, ['fetch', '--quiet', '--prune', 'origin']);
+  });
   const local = await execGit(repoRoot, ['rev-parse', 'HEAD']);
   const remote = await execGit(repoRoot, ['rev-parse', upstream]);
-  if (local === remote) return null;
-
+  if (local === remote) return { status: 'up-to-date', dirty };
   const behind = Number(await execGit(repoRoot, ['rev-list', '--count', `HEAD..${upstream}`]));
   const ahead = Number(await execGit(repoRoot, ['rev-list', '--count', `${upstream}..HEAD`]));
-  if (!Number.isFinite(behind) || behind <= 0) return null;
-  if (Number.isFinite(ahead) && ahead > 0) {
-    throw new Error(`Git checkout has diverged from ${upstream}; update manually.`);
+  if (Number.isFinite(ahead) && ahead > 0 && Number.isFinite(behind) && behind > 0) {
+    return { status: 'diverged', upstream, dirty };
   }
+  if (!Number.isFinite(behind) || behind <= 0) return { status: 'up-to-date', dirty };
   return {
-    repoRoot,
-    upstream,
-    version: `${upstream}@${remote.slice(0, 12)}`,
+    status: 'update',
+    dirty,
+    target: { repoRoot, upstream, version: `${upstream}@${remote.slice(0, 12)}` },
   };
 }
 
@@ -125,6 +147,11 @@ async function resolveGitCheckoutUpstream(repoRoot: string): Promise<string> {
   ]).catch(() => '');
   if (originHead.length > 0) return originHead;
 
-  await execGit(repoRoot, ['rev-parse', '--verify', 'origin/main']);
-  return 'origin/main';
+  const hasMain = await execGit(repoRoot, ['rev-parse', '--verify', 'origin/main'])
+    .then(() => true)
+    .catch(() => false);
+  if (hasMain) return 'origin/main';
+
+  await execGit(repoRoot, ['rev-parse', '--verify', 'origin/master']);
+  return 'origin/master';
 }
