@@ -1,7 +1,7 @@
 /**
  * Night-sky backdrop for centered-stage letterbox gutters.
- * Twinkling starfield + S/M/L meteors inbound from all edges/corners that
- * detonate into asteroid-scale bursts on the stage rim.
+ * Twinkling starfield + chaotic S/M/L meteors inbound from edges/corners that
+ * detonate into size-scaled asteroid bursts on the stage rim.
  */
 
 import type { AppearancePreferences } from '#/tui/config';
@@ -162,20 +162,147 @@ function headForSize(size: MeteorSize): string {
   return HEAD_S;
 }
 
+/** Deterministic 0..1 from hash pair. */
+function hash01(a: number, b: number): number {
+  return (hash2(a, b) % 10_000) / 10_000;
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 function pickSize(premium: boolean, h: number, m: number): MeteorSize {
   const roll = hash2(h, m + 41) % 100;
+  // Chaotic skew: more rare heavies, but when they land they read huge.
   if (premium) {
-    if (roll < 12) return 'l';
-    if (roll < 48) return 'm';
+    if (roll < 16) return 'l';
+    if (roll < 52) return 'm';
     return 's';
   }
-  if (roll < 4) return 'l';
-  if (roll < 38) return 'm';
+  if (roll < 8) return 'l';
+  if (roll < 42) return 'm';
   return 's';
+}
+
+/**
+ * Non-overlapping class envelopes + within-class chaos.
+ * Occasional L spikes push speed/burst past the normal L ceiling.
+ */
+export interface MeteorMotionParams {
+  readonly size: MeteorSize;
+  readonly speed: number;
+  readonly trailLen: number;
+  readonly explodeTicks: number;
+  readonly burstScale: number;
+  readonly debrisCount: number;
+  /** Perpendicular angle jitter (radians) applied to inbound heading. */
+  readonly headingJitter: number;
+}
+
+export function resolveMeteorMotionParams(
+  size: MeteorSize,
+  premium: boolean,
+  h: number,
+  m: number,
+): MeteorMotionParams {
+  const u = (salt: number) => hash01(h + salt, m * 17 + salt);
+  const spike = size === 'l' && u(3) < (premium ? 0.22 : 0.12);
+  // Disjoint speed bands: S≪M≪L (+ optional L spike).
+  const speed = (() => {
+    if (size === 's') return lerp(0.42, 0.72, u(11)) * (premium ? 1 : 0.9);
+    if (size === 'm') return lerp(0.95, 1.35, u(11)) * (premium ? 1 : 0.92);
+    const base = lerp(1.55, 2.05, u(11));
+    return (spike ? base * lerp(1.25, 1.55, u(12)) : base) * (premium ? 1 : 0.94);
+  })();
+  const trailLen = (() => {
+    if (size === 's') return Math.round(lerp(4, 7, u(21)));
+    if (size === 'm') return Math.round(lerp(10, 14, u(21)));
+    return Math.round(lerp(16, spike ? 24 : 20, u(21)));
+  })();
+  const explodeTicks = (() => {
+    if (size === 's') return Math.round(lerp(10, 14, u(31)));
+    if (size === 'm') return Math.round(lerp(20, 26, u(31)));
+    return Math.round(lerp(32, spike ? 48 : 40, u(31)));
+  })();
+  const burstScale = (() => {
+    if (size === 's') return lerp(0.5, 0.8, u(41));
+    if (size === 'm') return lerp(1.15, 1.55, u(41));
+    return spike ? lerp(2.6, 3.4, u(41)) : lerp(1.95, 2.5, u(41));
+  })();
+  const debrisCount = (() => {
+    const mul = premium ? 1 : 0.72;
+    if (size === 's') return Math.floor(lerp(6, 11, u(51)) * mul);
+    if (size === 'm') return Math.floor(lerp(20, 30, u(51)) * mul);
+    return Math.floor(lerp(40, spike ? 64 : 54, u(51)) * mul);
+  })();
+  // Wide heading chaos — up to ~±50° (S/M) / ±65° (L).
+  const jitterAmp = size === 'l' ? 1.15 : size === 'm' ? 0.95 : 0.75;
+  const headingJitter = (u(61) - 0.5) * 2 * jitterAmp;
+  return { size, speed, trailLen, explodeTicks, burstScale, debrisCount, headingJitter };
 }
 
 const SECTORS: readonly SpawnSector[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se'];
 
+function rimPoint(
+  hole: StageHole,
+  side: 0 | 1 | 2 | 3,
+  t: number,
+): { x: number; y: number } {
+  const tx = clamp(t, 0, 1);
+  const xSpan = Math.max(0, hole.x1 - hole.x0 - 1);
+  const ySpan = Math.max(0, hole.y1 - hole.y0 - 1);
+  switch (side) {
+    case 0:
+      return { x: hole.x0 + tx * xSpan, y: hole.y0 - 0.4 };
+    case 1:
+      return { x: hole.x1 - 0.6, y: hole.y0 + tx * ySpan };
+    case 2:
+      return { x: hole.x0 + tx * xSpan, y: hole.y1 - 0.6 };
+    case 3:
+      return { x: hole.x0 - 0.4, y: hole.y0 + tx * ySpan };
+  }
+}
+
+function spawnOnEdge(
+  sector: SpawnSector,
+  cols: number,
+  rows: number,
+  hole: StageHole,
+  h: number,
+  m: number,
+): { x: number; y: number } {
+  const t = hash01(h, m + 7);
+  const depth = 1 + (hash2(h, m + 9) % 4);
+  switch (sector) {
+    case 'n':
+      return { x: t * (cols - 1), y: -depth };
+    case 's':
+      return { x: t * (cols - 1), y: rows - 1 + depth };
+    case 'w':
+      return {
+        x: -depth,
+        y: lerp(hole.y0 - 4, hole.y1 + 4, hash01(h, m + 13)),
+      };
+    case 'e':
+      return {
+        x: cols - 1 + depth,
+        y: lerp(hole.y0 - 4, hole.y1 + 4, hash01(h, m + 13)),
+      };
+    case 'nw':
+      return { x: -depth - t * 3, y: -depth - (1 - t) * 3 };
+    case 'ne':
+      return { x: cols + depth + t * 3, y: -depth - (1 - t) * 3 };
+    case 'sw':
+      return { x: -depth - t * 3, y: rows + depth + (1 - t) * 3 };
+    case 'se':
+      return { x: cols + depth + t * 3, y: rows + depth + (1 - t) * 3 };
+  }
+}
+
+/**
+ * Chaotic inbound path: spawn from a sector fringe, aim at a *random* rim side
+ * (not just the facing edge) so trajectories cross and diverge.
+ */
 function spawnAndTarget(
   sector: SpawnSector,
   hole: StageHole,
@@ -184,70 +311,30 @@ function spawnAndTarget(
   h: number,
   m: number,
 ): { startX: number; startY: number; impactX: number; impactY: number } {
-  const jx = hash2(h, m + 7) % 1000;
-  const jy = hash2(h, m + 11) % 1000;
-  const rimX = (t: number) => hole.x0 + t * Math.max(0, hole.x1 - hole.x0 - 1);
-  const rimY = (t: number) => hole.y0 + t * Math.max(0, hole.y1 - hole.y0 - 1);
-  const fringe = (span: number) => (span <= 1 ? 0 : (jx % span));
+  // 30%: ignore preferred sector — pure random edge spawn.
+  const spawnSector =
+    hash01(h, m + 3) < 0.3 ? SECTORS[hash2(h, m + 5) % SECTORS.length]! : sector;
+  const start = spawnOnEdge(spawnSector, cols, rows, hole, h, m);
 
-  switch (sector) {
-    case 'n':
-      return {
-        startX: fringe(cols),
-        startY: -2 - (h % 3),
-        impactX: rimX(jx / 1000),
-        impactY: hole.y0 - 0.4,
-      };
-    case 's':
-      return {
-        startX: fringe(cols),
-        startY: rows + 2 + (h % 3),
-        impactX: rimX(jx / 1000),
-        impactY: hole.y1 - 0.6,
-      };
-    case 'w':
-      return {
-        startX: -2 - (h % 3),
-        startY: clamp(hole.y0 + fringe(Math.max(1, hole.y1 - hole.y0)), 0, rows - 1),
-        impactX: hole.x0 - 0.4,
-        impactY: rimY(jy / 1000),
-      };
-    case 'e':
-      return {
-        startX: cols + 2 + (h % 3),
-        startY: clamp(hole.y0 + fringe(Math.max(1, hole.y1 - hole.y0)), 0, rows - 1),
-        impactX: hole.x1 - 0.6,
-        impactY: rimY(jy / 1000),
-      };
-    case 'nw':
-      return {
-        startX: -1,
-        startY: -1,
-        impactX: hole.x0 - 0.4,
-        impactY: hole.y0 - 0.4,
-      };
-    case 'ne':
-      return {
-        startX: cols,
-        startY: -1,
-        impactX: hole.x1 - 0.6,
-        impactY: hole.y0 - 0.4,
-      };
-    case 'sw':
-      return {
-        startX: -1,
-        startY: rows,
-        impactX: hole.x0 - 0.4,
-        impactY: hole.y1 - 0.6,
-      };
-    case 'se':
-      return {
-        startX: cols,
-        startY: rows,
-        impactX: hole.x1 - 0.6,
-        impactY: hole.y1 - 0.6,
-      };
-  }
+  // Prefer facing rim ~45%, else any of the four sides (cross-shots).
+  const facing: 0 | 1 | 2 | 3 =
+    spawnSector === 'n' || spawnSector === 'nw' || spawnSector === 'ne'
+      ? 0
+      : spawnSector === 'e'
+        ? 1
+        : spawnSector === 's' || spawnSector === 'sw' || spawnSector === 'se'
+          ? 2
+          : 3;
+  const side = (hash01(h, m + 19) < 0.45
+    ? facing
+    : (hash2(h, m + 23) % 4)) as 0 | 1 | 2 | 3;
+  const impact = rimPoint(hole, side, hash01(h, m + 29));
+  return {
+    startX: start.x,
+    startY: start.y,
+    impactX: impact.x,
+    impactY: impact.y,
+  };
 }
 
 /**
@@ -331,6 +418,7 @@ export function paintStageLetterboxSky(input: {
       const h = hash2(m * 131 + 19, 503);
       const sector = SECTORS[(h + m * 3) % SECTORS.length]!;
       const size = pickSize(premium, h, m);
+      const motion = resolveMeteorMotionParams(size, premium, h, m);
       const { startX, startY, impactX, impactY } = spawnAndTarget(
         sector,
         hole,
@@ -341,22 +429,28 @@ export function paintStageLetterboxSky(input: {
       );
       const dist = Math.hypot(impactX - startX, impactY - startY);
       if (dist < 2) continue;
-      const baseSpeed = size === 'l' ? 1.15 : size === 'm' ? 0.95 : 0.78;
-      const speed = baseSpeed * (premium ? 1 : 0.85) * (0.9 + (m % 3) * 0.08);
-      const ux = (impactX - startX) / dist;
-      const uy = (impactY - startY) / dist;
-      const dx = ux * speed;
-      const dy = uy * speed;
-      const trailLen = size === 'l' ? 14 : size === 'm' ? 10 : 7;
-      const fallTicks = Math.ceil(dist / speed) + 1;
-      const explodeTicks = size === 'l' ? 28 : size === 'm' ? 22 : 16;
-      const rest = premium ? 14 + (m % 5) * 5 : 24 + (m % 4) * 8;
+      const baseAng = Math.atan2(impactY - startY, impactX - startX);
+      const ang = baseAng + motion.headingJitter;
+      const dx = Math.cos(ang) * motion.speed;
+      const dy = Math.sin(ang) * motion.speed;
+      // Jittered heading keeps roughly the same travel budget as the aim distance.
+      const fallDist = clamp(dist / Math.max(0.55, Math.cos(motion.headingJitter)), dist * 0.7, dist * 1.4);
+      const trailLen = motion.trailLen;
+      const fallTicks = Math.ceil(fallDist / motion.speed) + 1;
+      const explodeTicks = motion.explodeTicks;
+      const rest = premium
+        ? 10 + Math.floor(hash01(h, m + 71) * 22)
+        : 18 + Math.floor(hash01(h, m + 71) * 28);
       const period = fallTicks + explodeTicks + rest;
       const local = positiveModulo(phase + (h % period), period);
       const burstStart = fallTicks;
       const burstEnd = burstStart + explodeTicks;
 
-      const headFg = mixHexColor(glow, primary, size === 'l' ? 0.45 : 0.25);
+      const headFg = mixHexColor(
+        glow,
+        primary,
+        size === 'l' ? 0.5 : size === 'm' ? 0.32 : 0.18,
+      );
       const midFg = mixHexColor(particle, glow, 0.4);
       const softFg = mixHexColor(particle, muted, 0.4);
       const midGlyph = midGlyphForVelocity(dx, dy);
@@ -385,10 +479,15 @@ export function paintStageLetterboxSky(input: {
       if (local > burstEnd) continue;
 
       const age = local - burstStart;
-      const ix = Math.round(clamp(impactX, 0, cols - 1));
-      const iy = Math.round(clamp(impactY, 0, rows - 1));
-      // Snap impact onto letterbox: prefer nearest cell just outside the hole.
-      const snap = snapImpactToLetterbox(ix, iy, hole, cols, rows);
+      const rawX = startX + burstStart * dx;
+      const rawY = startY + burstStart * dy;
+      const snap = snapImpactToLetterbox(
+        Math.round(clamp(rawX, 0, cols - 1)),
+        Math.round(clamp(rawY, 0, rows - 1)),
+        hole,
+        cols,
+        rows,
+      );
       paintRimMegaBurst({
         put,
         ix: snap.x,
@@ -397,6 +496,8 @@ export function paintStageLetterboxSky(input: {
         life: explodeTicks,
         seed: h + m * 17,
         size,
+        burstScale: motion.burstScale,
+        debrisCount: motion.debrisCount,
         hole,
         premium,
         glow,
@@ -441,6 +542,8 @@ function paintRimMegaBurst(input: {
   readonly life: number;
   readonly seed: number;
   readonly size: MeteorSize;
+  readonly burstScale: number;
+  readonly debrisCount: number;
   readonly hole: StageHole;
   readonly premium: boolean;
   readonly glow: string;
@@ -456,6 +559,8 @@ function paintRimMegaBurst(input: {
     life,
     seed,
     size,
+    burstScale,
+    debrisCount,
     hole,
     premium,
     glow,
@@ -465,25 +570,28 @@ function paintRimMegaBurst(input: {
   } = input;
   if (age < 0 || age > life) return;
   const t = age / life;
-  const scale = size === 'l' ? 1.55 : size === 'm' ? 1.2 : 0.9;
+  const scale = burstScale;
   const coreFg = mixHexColor(glow, primary, 0.55);
 
-  // 1) Flash core
+  // 1) Flash core — L fills a bigger cross; S is a single hot cell.
   if (t < 0.18) {
     const glyph = FLASH_CORE[Math.min(FLASH_CORE.length - 1, Math.floor(t * 20))] ?? '✹';
     put(ix, iy, glyph, coreFg, true);
     if (size !== 's') {
-      put(ix + 1, iy, '✦', coreFg, true);
-      put(ix - 1, iy, '✦', coreFg, true);
-      put(ix, iy + 1, '✧', mixHexColor(glow, primary, 0.35), true);
-      put(ix, iy - 1, '✧', mixHexColor(glow, primary, 0.35), true);
+      const arm = size === 'l' ? 2 : 1;
+      for (let a = 1; a <= arm; a++) {
+        put(ix + a, iy, '✦', coreFg, true);
+        put(ix - a, iy, '✦', coreFg, true);
+        put(ix, iy + a, '✧', mixHexColor(glow, primary, 0.35), true);
+        put(ix, iy - a, '✧', mixHexColor(glow, primary, 0.35), true);
+      }
     }
   }
 
   // 2) Expanding shock ring
   if (t < 0.6) {
     const r = (0.8 + t * 5.5) * scale;
-    const ringSteps = Math.max(10, Math.floor(16 * scale));
+    const ringSteps = Math.max(8, Math.floor(12 * scale + 4));
     for (let i = 0; i < ringSteps; i++) {
       const ang = (i / ringSteps) * Math.PI * 2 + seed * 0.01;
       const x = Math.round(ix + Math.cos(ang) * r);
@@ -504,8 +612,7 @@ function paintRimMegaBurst(input: {
   const cx = (hole.x0 + hole.x1) / 2;
   const cy = (hole.y0 + hole.y1) / 2;
   const awayAng = Math.atan2(iy - cy, ix - cx);
-  const debris = Math.floor((size === 'l' ? 34 : size === 'm' ? 24 : 14) * (premium ? 1 : 0.75));
-  for (let i = 0; i < debris; i++) {
+  for (let i = 0; i < debrisCount; i++) {
     const base = ((seed + i * 47) % 360) * (Math.PI / 180);
     const ang = awayAng + (base - Math.PI) * 0.7 + ((i % 5) - 2) * 0.2;
     const launch = (0.5 + (i % 5) * 0.55) * scale;
@@ -527,7 +634,7 @@ function paintRimMegaBurst(input: {
   // 4) Afterglow dust near impact
   if (t > 0.45) {
     const fade = (t - 0.45) / 0.55;
-    const dust = size === 'l' ? 10 : size === 'm' ? 7 : 4;
+    const dust = Math.max(3, Math.floor(4 * scale));
     for (let i = 0; i < dust; i++) {
       const ox = ((seed + i * 13) % 7) - 3;
       const oy = ((seed + i * 17) % 5) - 2;

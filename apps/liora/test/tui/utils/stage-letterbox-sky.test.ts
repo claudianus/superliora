@@ -10,6 +10,7 @@ import {
   paintStageLetterboxSky,
   pointInLetterboxBands,
   resolveLetterboxSideGutters,
+  resolveMeteorMotionParams,
   resolveStageHoleFromBands,
 } from '#/tui/utils/stage-letterbox-sky';
 import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/utils/stage-frame';
@@ -234,6 +235,37 @@ describe('stage letterbox night sky', () => {
       if (sawDiag) break;
     }
     expect(sawDiag).toBe(true);
+  });
+
+  it('keeps S/M/L motion envelopes disjoint with chaotic within-class spread', () => {
+    const sample = (size: 's' | 'm' | 'l') => {
+      const speeds: number[] = [];
+      const bursts: number[] = [];
+      const jitters: number[] = [];
+      for (let i = 0; i < 80; i++) {
+        const p = resolveMeteorMotionParams(size, true, i * 97 + 3, i);
+        speeds.push(p.speed);
+        bursts.push(p.burstScale);
+        jitters.push(p.headingJitter);
+      }
+      return {
+        minSpeed: Math.min(...speeds),
+        maxSpeed: Math.max(...speeds),
+        minBurst: Math.min(...bursts),
+        maxBurst: Math.max(...bursts),
+        jitterSpan: Math.max(...jitters) - Math.min(...jitters),
+      };
+    };
+    const s = sample('s');
+    const m = sample('m');
+    const l = sample('l');
+    expect(s.maxSpeed).toBeLessThan(m.minSpeed);
+    expect(m.maxSpeed).toBeLessThan(l.minSpeed);
+    expect(s.maxBurst).toBeLessThan(m.minBurst);
+    expect(m.maxBurst).toBeLessThan(l.minBurst);
+    // Chaotic heading: at least ~0.8 rad of within-class span.
+    expect(s.jitterSpan).toBeGreaterThan(0.8);
+    expect(l.jitterSpan).toBeGreaterThan(1.0);
   });
 
   it('detonates mega bursts with shock-ring and debris glyphs on the rim', () => {
