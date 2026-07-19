@@ -262,7 +262,17 @@ export class RendererCellBuffer {
 }
 
 export interface RendererDiffOptions {
+  /**
+   * Full-frame scan (ignore damage/dirty-row narrowing). Does **not** by itself
+   * re-emit cells that still match the previous buffer — use `rewriteUnchanged`
+   * when the terminal surface is known to be out of sync with `previous`.
+   */
   readonly force?: boolean;
+  /**
+   * Emit every scanned cell even when it equals the previous buffer. Needed
+   * after an external terminal clear/resync; ambient animation must never set this.
+   */
+  readonly rewriteUnchanged?: boolean;
   readonly damage?: RendererDamageRect | null;
   readonly dirtyRows?: readonly RendererDirtyRowSpan[] | null;
   readonly runOptimization?: RendererRunOptimizationInput;
@@ -285,11 +295,13 @@ export class RendererDoubleBuffer {
   present(
     options: {
       readonly force?: boolean;
+      readonly rewriteUnchanged?: boolean;
       readonly runOptimization?: RendererRunOptimizationInput;
     } = {},
   ): RendererFrameDiff {
     const diff = diffCellBuffers(this.current, this.next, {
       force: options.force,
+      rewriteUnchanged: options.rewriteUnchanged,
       damage: this.next.damage,
       dirtyRows: this.next.dirtyRowSpans,
       runOptimization: options.runOptimization,
@@ -311,6 +323,7 @@ export function diffCellBuffers(
   }
 
   const force = options.force === true;
+  const rewriteUnchanged = options.rewriteUnchanged === true;
   const plan = planRendererDamage({
     width: next.width,
     height: next.height,
@@ -328,11 +341,20 @@ export function diffCellBuffers(
       scannedCells++;
       const y = span.y;
       const cell = next.getCell(x, y);
-      if (!force && cellsEqual(previous.getCell(x, y), cell)) continue;
+      // force = full scan only. Re-emitting equal cells causes whole-screen
+      // flicker on high-frequency animation ticks; require rewriteUnchanged.
+      if (!rewriteUnchanged && cellsEqual(previous.getCell(x, y), cell)) continue;
       patches.push({ x, y, cell });
     }
   }
   const optimizedRuns = createOptimizedRunPlan(patches, next, options.runOptimization);
+  const changedCells = patches.length;
+  // Soft-force may scan the whole frame while rewriting only a few cells.
+  // Sync / large-frame policy must follow rewrite coverage, not scan coverage —
+  // otherwise every forced ambient-style tick looked like a 100% damage frame.
+  const damageCells = rewriteUnchanged ? plan.damageCells : changedCells;
+  const totalCells = next.totalCells;
+  const damageRatio = totalCells === 0 ? 0 : damageCells / totalCells;
 
   return {
     patches,
@@ -340,17 +362,17 @@ export function diffCellBuffers(
     damage: plan.damage,
     force,
     scanStrategy: plan.strategy,
-    changedCells: patches.length,
+    changedCells,
     outputCells: optimizedRuns?.outputCells,
     bridgedCells: optimizedRuns?.bridgedCells,
     renderRuns: optimizedRuns?.runs.length,
     scannedCells,
     scannedRows,
     dirtyRows: plan.dirtyRows,
-    totalCells: next.totalCells,
+    totalCells,
     scanRatio: plan.scanRatio,
-    damageCells: plan.damageCells,
-    damageRatio: plan.damageRatio,
+    damageCells,
+    damageRatio,
   };
 }
 

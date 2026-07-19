@@ -448,7 +448,9 @@ describe('createTUIState', () => {
       nextTranscriptStart: state.transcriptViewport.start(),
       ambientAnimationAllowed: true,
     });
-    expect(animationPolicy.refreshTerminalPalette).toBe(true);
+    // Ambient ticks stay incremental — no force scan and no OSC palette spam.
+    expect(animationPolicy.force).toBe(false);
+    expect(animationPolicy.refreshTerminalPalette).toBe(false);
 
     advanceAppearanceAnimationClock(appearanceAnimationNow() + 120);
     const animated = renderTUIStateNativeFrame(state, {
@@ -488,10 +490,10 @@ describe('createTUIState', () => {
     }
   });
 
-  it('forces native redraws on ambient animation frames', () => {
+  it('keeps ambient animation frames incremental (no force redraw)', () => {
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: true }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: false }),
     ).toBe(false);

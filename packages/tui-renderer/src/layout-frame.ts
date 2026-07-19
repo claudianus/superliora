@@ -42,6 +42,7 @@ export function renderNativeLayoutFrame(
     readonly fill?: RendererCell;
     readonly force?: boolean;
     readonly forceCursor?: boolean;
+    readonly rewriteUnchanged?: boolean;
     readonly cursor?: RendererCursorState;
     readonly composition?: RendererCompositionOptions;
   } = {},
@@ -62,7 +63,11 @@ export function renderNativeLayoutFrame(
   if (options.cursor !== undefined) {
     renderer.setCursor(options.cursor);
   }
-  const present = renderer.present({ force: options.force, forceCursor: options.forceCursor });
+  const present = renderer.present({
+    force: options.force,
+    forceCursor: options.forceCursor,
+    rewriteUnchanged: options.rewriteUnchanged,
+  });
   return { ...present, composition, regions: layers };
 }
 

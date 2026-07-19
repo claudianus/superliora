@@ -601,9 +601,10 @@ describe('NativeTerminalRenderer', () => {
       durationMs: 12,
       targetFrameMs: 10,
       overBudget: true,
-      changedCells: 80 * 24,
-      outputCells: 80 * 24,
-      outputRuns: 24,
+      // Soft-force still scans the full buffer but only emits "metrics".
+      changedCells: 'metrics'.length,
+      outputCells: 'metrics'.length,
+      outputRuns: 1,
       outputBridgedCells: 0,
       outputBridgedCellRatio: 0,
       scannedCells: 80 * 24,
@@ -666,7 +667,7 @@ describe('NativeTerminalRenderer', () => {
     expect(snapshot.events[2]).toMatchObject({
       kind: 'frame',
       metrics: {
-        outputMode: 'full',
+        outputMode: 'partial',
         outputSynchronized: false,
         outputPolicyReason: 'disabled',
         outputEraseLine: false,
@@ -687,7 +688,7 @@ describe('NativeTerminalRenderer', () => {
         ph: 'X',
         name: 'frame',
         args: expect.objectContaining({
-          outputMode: 'full',
+          outputMode: 'partial',
           outputSynchronized: false,
           outputPolicyReason: 'disabled',
           outputEraseLine: false,
@@ -1088,7 +1089,9 @@ describe('NativeTerminalRenderer', () => {
     expect(component.focused).toBe(true);
     expect(ui.renderer.lastFrame?.present?.output).toContain('root');
     expect(ui.renderer.lastFrame?.present?.output).toContain(ANSI_SHOW_CURSOR);
-    expect(ui.renderer.lastFrame?.present?.output).toContain('\u001B[1;3H');
+    // Soft-force omits blank padding, so caret uses relative motion from the
+    // text run end instead of an absolute CUP to column 3.
+    expect(ui.renderer.lastFrame?.present?.output).toMatch(/\u001B\[(?:\d+)?D|\u001B\[1;3H/);
 
     input.emit('data', 'a');
     scheduler.advance(10);
