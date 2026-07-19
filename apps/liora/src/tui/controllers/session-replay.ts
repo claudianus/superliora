@@ -56,6 +56,8 @@ import type { SessionEventHandler } from './session-event-handler';
 import type { TUIState } from '../tui-state';
 import { autoResumeUltraworkFromSession } from '../commands/ultrawork';
 import type { SlashCommandHost } from '../commands/dispatch';
+import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import type { MotionBeatController } from '#/tui/utils/motion-beats';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
@@ -67,6 +69,7 @@ export interface SessionReplayHost {
   state: TUIState;
   readonly streamingUI: StreamingUIController;
   readonly sessionEventHandler: SessionEventHandler;
+  readonly motionBeats: MotionBeatController;
   setAppState(patch: Partial<AppState>): void;
   showError(msg: string): void;
   showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
@@ -98,6 +101,16 @@ export class SessionReplayRenderer {
 
   async hydrateFromReplay(session: Session): Promise<boolean> {
     this.host.setAppState({ isReplaying: true });
+    this.host.state.transcriptContainer.dismissIdleStage();
+    this.host.motionBeats.play({
+      name: 'session_resume',
+      title: 'Resuming session',
+      seed: 'resume',
+      nowMs: appearanceAnimationNow(),
+      theatreActive:
+        this.host.state.appState.ultraworkMode === true ||
+        this.host.state.appState.swarmMode === true,
+    });
     try {
       const main = session.getResumeState()?.agents['main'];
       if (main === undefined) {

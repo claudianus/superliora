@@ -418,4 +418,31 @@ describe('IdleStageComponent', () => {
       expect(plain).toMatch(/\*/);
     });
   });
+
+  it('adds a premium chrome drift rail under ambient', () => {
+    withAmbientEnv(() => {
+      const lines = renderIdleStageLines(80, DEFAULT_APPEARANCE_PREFERENCES, {
+        nowMs: 1_500,
+        preferredRows: 20,
+      });
+      expect(lines.length).toBe(20);
+      // Premium chrome band includes a particle/drift rail above the title.
+      const plain = lines.map(strip);
+      const titleIdx = plain.findIndex((line) => /jewel tank/i.test(line));
+      expect(titleIdx).toBeGreaterThan(0);
+      const driftBand = plain[titleIdx - 1] ?? '';
+      expect(driftBand.trim().length).toBeGreaterThan(0);
+      expect(driftBand).toMatch(/[─•∙·*◦━]/);
+    });
+  });
+
+  it('returns no lines while session history is replaying', () => {
+    withAmbientEnv(() => {
+      const stage = new IdleStageComponent({
+        state: { ...appState, isReplaying: true, appearance: DEFAULT_APPEARANCE_PREFERENCES },
+        preferredRows: 18,
+      });
+      expect(stage.render(80)).toEqual([]);
+    });
+  });
 });

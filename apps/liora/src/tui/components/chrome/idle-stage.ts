@@ -26,6 +26,7 @@ import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
+  renderAmbientDrift,
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
@@ -144,6 +145,7 @@ export function renderIdleStageLines(
     resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const premium = mode === 'premium';
+  const premiumChrome = showAmbient && premium;
 
   const palette = currentTheme.palette;
   const paint = (hex: string, text: string): string => chalk.hex(hex)(text);
@@ -151,8 +153,8 @@ export function renderIdleStageLines(
   // Full-height plain canvas — pad-to-target is the height contract.
   const canvas: string[] = Array.from({ length: targetRows }, () => ' '.repeat(safeWidth));
 
-  // Reserve bottom chrome band (title / mood / tip / dir).
-  const chromeBudget = resolveChromeBudget(targetRows, options?.workDir, safeWidth);
+  // Reserve bottom chrome band (title / mood / tip / dir [+ premium drift]).
+  const chromeBudget = resolveChromeBudget(targetRows, options?.workDir, safeWidth, premiumChrome);
   const storyRows = Math.max(5, targetRows - chromeBudget);
 
   // Story scene: Jewel Tank layers (water → plants → fish).
@@ -195,10 +197,15 @@ export function renderIdleStageLines(
   const workDir = options?.workDir?.trim() ?? '';
   const fishHex = premium ? palette.glow : palette.primary;
 
-  const chromeLines: string[] = [
+  const chromeLines: string[] = [];
+  // Premium: one sparse drift rail in the chrome band (not a new theatre).
+  if (premiumChrome) {
+    chromeLines.push(renderAmbientDrift(safeWidth, 'idle:chrome', appearance));
+  }
+  chromeLines.push(
     centerText(safeWidth, title),
     centerText(safeWidth, `${paint(fishHex, '><>')}  ${paint(palette.textDim, mood)}`),
-  ];
+  );
   if (tip.length > 0) {
     const prefix = ttui('tui.idle.tipPrefix');
     const tipBody = truncateToWidth(tip, Math.max(8, safeWidth - 8), '…');
@@ -233,11 +240,17 @@ export function renderIdleStageLines(
   return canvas;
 }
 
-function resolveChromeBudget(targetRows: number, workDir: string | undefined, width: number): number {
-  // title + mood + optional tip + optional dir + breathing room
+function resolveChromeBudget(
+  targetRows: number,
+  workDir: string | undefined,
+  width: number,
+  premiumChrome = false,
+): number {
+  // title + mood + optional tip + optional dir + breathing room [+ drift]
   let budget = 3; // title, mood, spacer
   budget += 1; // tip almost always present
   if ((workDir?.trim().length ?? 0) > 0 && width >= 40) budget += 1;
+  if (premiumChrome) budget += 1;
   // Keep chrome from eating the tank on short stages.
   return Math.min(budget, Math.max(2, Math.floor(targetRows / 3)));
 }
@@ -266,6 +279,9 @@ export class IdleStageComponent implements Component {
   }
 
   render(width: number): string[] {
+    // Session replay owns the transcript; do not paint idle chrome over it.
+    if (this.state.isReplaying) return [];
+
     const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
     const live = this.getPreferredRows?.(width);
     const preferredRows =
@@ -277,10 +293,17 @@ export class IdleStageComponent implements Component {
     let simSnapshot: IdleTankSnapshot | undefined;
 
     if (targetRows > 0 && safeWidth > 0) {
-      const chromeBudget = resolveChromeBudget(targetRows, this.state.workDir, safeWidth);
-      const storyRows = Math.max(5, targetRows - chromeBudget);
       const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
       const premium = mode === 'premium';
+      const premiumChrome =
+        shouldRenderAmbientEffects(appearance) && mode !== 'off' && premium;
+      const chromeBudget = resolveChromeBudget(
+        targetRows,
+        this.state.workDir,
+        safeWidth,
+        premiumChrome,
+      );
+      const storyRows = Math.max(5, targetRows - chromeBudget);
 
       if (!this.sim) {
         this.sim = createIdleTankSim(safeWidth, storyRows, now, { premium });

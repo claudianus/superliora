@@ -23,6 +23,7 @@ import {
   appearanceAnimationNow,
   renderAnimatedGradientText,
   renderCrossfadeLine,
+  renderEnterBeat,
   renderPulseText,
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
@@ -641,8 +642,35 @@ export class FooterComponent implements Component {
     }
     const contextText = contextParts.join(chalk.hex(colors.textMuted)(' · '));
     const contextWidth = visibleWidth(contextText);
-    let line2: string;
     const nextAction = footerNextAction(state, git);
+    const resumeBeat =
+      activeBeat?.name === 'session_resume' ? activeBeat : undefined;
+
+    // Short enter beat while session_resume is live (after replay/resume start).
+    if (resumeBeat !== undefined && this.transientHint === null) {
+      const hintWidth = Math.max(8, width - contextWidth - 1);
+      const beatLines = renderEnterBeat(
+        resumeBeat.title,
+        hintWidth,
+        resumeBeat.seed,
+        resumeBeat.startedAtMs,
+        appearance,
+      );
+      const out: string[] = [truncateToWidth(line1, width)];
+      for (let i = 0; i < beatLines.length; i++) {
+        const beatLine = beatLines[i] ?? '';
+        if (i === beatLines.length - 1) {
+          const pad = Math.max(0, width - visibleWidth(beatLine) - contextWidth);
+          out.push(truncateToWidth(beatLine + ' '.repeat(pad) + contextText, width));
+        } else {
+          out.push(truncateToWidth(beatLine, width));
+        }
+      }
+      return out;
+    }
+
+    let line2: string;
+    // Keep shimmer on next-action during replay (and other hints).
     const shimmer =
       this.transientHint === null
         ? renderShimmerPrefix(appearance)

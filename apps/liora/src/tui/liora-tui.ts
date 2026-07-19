@@ -2246,7 +2246,11 @@ export class LioraTUI {
     }
     // Ambient empty-stage under welcome: vanishes on first real transcript child.
     // preferredRows tracks the live transcript region so the night sky fills
-    // the empty pane (no hard 14-row cap).
+    // the empty pane (no hard 14-row cap). Suppress while session history replays.
+    if (this.state.appState.isReplaying) {
+      this.state.transcriptContainer.dismissIdleStage();
+      return;
+    }
     if (
       !this.state.transcriptContainer.children.some((child) => child instanceof IdleStageComponent)
     ) {

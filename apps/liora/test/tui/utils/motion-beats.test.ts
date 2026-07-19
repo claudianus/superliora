@@ -42,4 +42,22 @@ describe('motion-beats', () => {
     expect(c.active(100)).toBeTruthy();
     expect(c.active(900)).toBeUndefined();
   });
+
+  it('plays session_resume as an enter beat with the resume seed', () => {
+    const c = createMotionBeatController();
+    const snap = c.play({
+      name: 'session_resume',
+      seed: 'resume',
+      title: 'Resuming session',
+      nowMs: 10,
+    });
+    expect(snap).toMatchObject({
+      name: 'session_resume',
+      seed: 'resume',
+      title: 'Resuming session',
+      kind: 'enter',
+      startedAtMs: 10,
+    });
+    expect(c.active(50)?.name).toBe('session_resume');
+  });
 });
