@@ -73,6 +73,10 @@ import type {
   RendererFrameOutputPolicyInput,
 } from './frame-output-policy';
 import type { RendererAnimationFrameCallback } from './animation';
+import {
+  RendererAmbientSchedule,
+  type RendererAmbientScheduleOptions,
+} from './ambient-schedule';
 
 export interface NativeTerminalRendererFrame {
   readonly frame: NativeRenderFrame;
@@ -254,6 +258,7 @@ export class NativeTerminalRenderer {
   private readonly heldRenderCauses = new Set<NativeRenderCause>();
   private readonly heldAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
   private nextHeldAnimationFrameId = -1_000_000;
+  private ambientSchedule!: RendererAmbientSchedule;
 
   constructor(options: NativeTerminalRendererOptions) {
     this.options = mergeNativeTerminalFeatureOptions(options.features, options);
@@ -322,6 +327,16 @@ export class NativeTerminalRenderer {
         this.options.onFrame?.(this.lastRenderResult, stats);
       },
     });
+    this.ambientSchedule = new RendererAmbientSchedule({
+      scheduler: this.options.scheduler,
+      unrefTimers: this.options.unrefTimers,
+      requestRender: () => this.requestRender('animation'),
+      getContext: () => ({
+        quality: this.quality.level,
+        health: this.frameStats.snapshot().health,
+        backpressure: this.outputBackpressured,
+      }),
+    });
   }
 
   get isStarted(): boolean {
@@ -383,11 +398,16 @@ export class NativeTerminalRenderer {
   stop(): void {
     if (!this.started) return;
     this.started = false;
+    this.ambientSchedule.dispose();
     this.abortSynchronizedOutputProbe();
     this.clearOutputBackpressure();
     this.clearAutoFrameHold();
     this.loop.stop();
     this.session.stop();
+  }
+
+  setAmbientSchedule(options: RendererAmbientScheduleOptions | undefined): void {
+    this.ambientSchedule.set(options);
   }
 
   requestRender(cause: NativeRenderCause = 'request'): void {

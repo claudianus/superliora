@@ -305,11 +305,9 @@ describe('SplashComponent full-screen cinematic', () => {
     });
   });
 
-  it('plays for the clamped duration then completes', async () => {
+  it('plays for the clamped duration then completes via render ticks', async () => {
     await withSafeTerminalEnv(async () => {
-      vi.useFakeTimers();
-      const start = new Date('2026-01-01T00:00:00Z').getTime();
-      vi.setSystemTime(start);
+      const start = 1_000_000;
       let now = start;
       const requestRender = vi.fn();
       const splash = new SplashComponent({
@@ -324,47 +322,46 @@ describe('SplashComponent full-screen cinematic', () => {
       const playPromise = splash.play();
       expect(splash.isDone).toBe(false);
       expect(splash.phase).toBe('void');
+      expect(requestRender).toHaveBeenCalled();
 
       now = start + 200;
-      advanceAppearanceAnimationClock(now);
-      await vi.advanceTimersByTimeAsync(50);
+      splash.render(80);
       expect(['void', 'rise', 'bloom', 'brand', 'hold', 'fade']).toContain(splash.phase);
 
       now = start + 1200;
-      advanceAppearanceAnimationClock(now);
-      await vi.advanceTimersByTimeAsync(100);
+      splash.render(80);
       await playPromise;
 
       expect(splash.isDone).toBe(true);
       expect(splash.phase).toBe('done');
-      expect(requestRender).toHaveBeenCalled();
       splash.dispose();
     });
   });
+
   it('advances phases from wall clock, not the frozen appearance animation clock', async () => {
     await withSafeTerminalEnv(async () => {
-      vi.useFakeTimers();
-      const start = new Date('2026-01-01T00:00:00Z').getTime();
-      vi.setSystemTime(start);
-      // Leave the ambient clock stuck at a stale value to prove splash ignores it.
+      const start = 1_000_000;
+      let now = start;
+      // Leave the ambient clock stuck at a stale value to prove splash elapsed ignores it.
       advanceAppearanceAnimationClock(12);
       const splash = new SplashComponent({
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
         durationMs: 1000,
+        now: () => now,
         getRows: () => 24,
       });
       const playPromise = splash.play();
       expect(splash.phase).toBe('void');
 
-      vi.setSystemTime(start + 200);
-      await vi.advanceTimersByTimeAsync(50);
+      now = start + 200;
+      splash.render(80);
       expect(splash.phase).toBe('rise');
-      expect(splash.elapsedMs).toBeGreaterThanOrEqual(200);
+      expect(splash.elapsedMs).toBe(200);
 
-      vi.setSystemTime(start + 1000);
-      await vi.advanceTimersByTimeAsync(100);
+      now = start + 1000;
+      splash.render(80);
       await playPromise;
       expect(splash.isDone).toBe(true);
       splash.dispose();
@@ -373,9 +370,7 @@ describe('SplashComponent full-screen cinematic', () => {
 
   it('paints moon during rise and brand figlet on full-height canvas', async () => {
     await withSafeTerminalEnv(async () => {
-      vi.useFakeTimers();
-      const start = new Date('2026-01-01T00:00:00Z').getTime();
-      vi.setSystemTime(start);
+      const start = 1_000_000;
       let clock = start;
       const splash = new SplashComponent({
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
@@ -388,8 +383,6 @@ describe('SplashComponent full-screen cinematic', () => {
       void splash.play();
 
       clock = start + 180;
-      advanceAppearanceAnimationClock(clock);
-      await vi.advanceTimersByTimeAsync(50);
       expect(splash.phase).toBe('rise');
       const riseOut = strip(splash.render(72).join('\n'));
       expect(riseOut).toMatch(/█/);
@@ -397,8 +390,6 @@ describe('SplashComponent full-screen cinematic', () => {
 
       // hold phase: full banner reveal + tagline
       clock = start + 800;
-      advanceAppearanceAnimationClock(clock);
-      await vi.advanceTimersByTimeAsync(50);
       expect(splash.phase).toBe('hold');
       const holdFrame = splash.render(80);
       expect(holdFrame).toHaveLength(30);
@@ -412,8 +403,37 @@ describe('SplashComponent full-screen cinematic', () => {
     });
   });
 
-  it('dispose resolves an in-flight play', async () => {
+  it('notifies host when splash forces ambient on and off', async () => {
     await withSafeTerminalEnv(async () => {
+      const start = 1_000_000;
+      let now = start;
+      const onSplashActiveChange = vi.fn();
+      const splash = new SplashComponent({
+        appearance: DEFAULT_APPEARANCE_PREFERENCES,
+        requestRender: () => {},
+        forcePlay: true,
+        durationMs: 1000,
+        now: () => now,
+        getRows: () => 24,
+        onSplashActiveChange,
+      });
+
+      const playPromise = splash.play();
+      expect(onSplashActiveChange).toHaveBeenCalledWith(true);
+
+      now = start + 1000;
+      splash.render(80);
+      await playPromise;
+
+      expect(onSplashActiveChange).toHaveBeenCalledWith(false);
+      expect(onSplashActiveChange).toHaveBeenCalledTimes(2);
+      splash.dispose();
+    });
+  });
+
+  it('dispose resolves an in-flight play and clears ambient force', async () => {
+    await withSafeTerminalEnv(async () => {
+      const onSplashActiveChange = vi.fn();
       const splash = new SplashComponent({
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
@@ -421,11 +441,14 @@ describe('SplashComponent full-screen cinematic', () => {
         durationMs: 2000,
         now: () => Date.now(),
         getRows: () => 20,
+        onSplashActiveChange,
       });
       const playPromise = splash.play();
+      expect(onSplashActiveChange).toHaveBeenCalledWith(true);
       splash.dispose();
       await expect(playPromise).resolves.toBeUndefined();
       expect(splash.isDone).toBe(true);
+      expect(onSplashActiveChange).toHaveBeenLastCalledWith(false);
     });
   });
 });

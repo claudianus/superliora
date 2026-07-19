@@ -13,7 +13,6 @@ import {
   type AppearancePreferences,
 } from '#/tui/config';
 import { shouldAnimate } from '#/tui/controllers/appearance';
-import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { Component } from '#/tui/renderer';
 import { visibleWidth } from '#/tui/renderer';
@@ -57,6 +56,11 @@ export interface SplashComponentOptions {
   readonly forcePlay?: boolean;
   /** Injected clock for tests (ms). */
   readonly now?: () => number;
+  /**
+   * Host hook: true while the cinematic is active so AppearanceController can
+   * force the shared ambient schedule (splash has no private ticker).
+   */
+  readonly onSplashActiveChange?: (active: boolean) => void;
 }
 
 /**
@@ -137,9 +141,10 @@ export class SplashComponent implements Component {
   private readonly durationMs: number;
   private readonly forcePlay: boolean | undefined;
   private readonly nowFn: () => number;
+  private readonly onSplashActiveChange: ((active: boolean) => void) | undefined;
   private startedAt = 0;
-  private scheduler: AnimationScheduler | undefined;
   private playResolve: (() => void) | undefined;
+  private ambientForced = false;
   private finished = false;
   private disposed = false;
 
@@ -154,6 +159,7 @@ export class SplashComponent implements Component {
     // Wall clock only. appearanceAnimationNow() is driven by the native frame
     // loop (performance.now) and freezes/regresses splash elapsed when mixed in.
     this.nowFn = options.now ?? (() => Date.now());
+    this.onSplashActiveChange = options.onSplashActiveChange;
   }
 
   get phase(): SplashPhase {
@@ -211,26 +217,11 @@ export class SplashComponent implements Component {
 
     this.startedAt = this.nowFn();
     advanceAppearanceAnimationClock(this.startedAt);
+    this.setAmbientForced(true);
 
     return new Promise<void>((resolve) => {
       this.playResolve = resolve;
-      this.scheduler = new AnimationScheduler({
-        fps: Math.max(12, this.appearance.animationFps || 20),
-        enabled: true,
-        requestRender: () => {
-          if (this.disposed || this.finished) return;
-          // Push wall time into the ambient clock so meteors/rails advance,
-          // then repaint. Do not read appearanceAnimationNow() here.
-          const now = this.nowFn();
-          advanceAppearanceAnimationClock(now);
-          this.requestRender();
-          if (now - this.startedAt >= this.durationMs) {
-            this.finish();
-          }
-        },
-        shouldRender: () => !this.disposed && !this.finished,
-      });
-      // Kick first frame immediately.
+      // Kick first frame; ambient schedule + render() drive the rest.
       this.requestRender();
     });
   }
@@ -244,11 +235,29 @@ export class SplashComponent implements Component {
   private finish(): void {
     if (this.finished) return;
     this.finished = true;
-    this.scheduler?.dispose();
-    this.scheduler = undefined;
+    this.setAmbientForced(false);
     const resolve = this.playResolve;
     this.playResolve = undefined;
     resolve?.();
+  }
+
+  private setAmbientForced(active: boolean): void {
+    if (this.ambientForced === active) return;
+    this.ambientForced = active;
+    this.onSplashActiveChange?.(active);
+  }
+
+  /**
+   * Advance ambient clock + wall-clock finish check on every host paint.
+   * Elapsed duration stays on nowFn (not appearanceAnimationNow).
+   */
+  private tickWhilePlaying(): void {
+    if (this.disposed || this.finished || this.playResolve === undefined) return;
+    const now = this.nowFn();
+    advanceAppearanceAnimationClock(now);
+    if (now - this.startedAt >= this.durationMs) {
+      this.finish();
+    }
   }
 
   /**
@@ -256,6 +265,7 @@ export class SplashComponent implements Component {
    * terminal surface (not a short banner strip).
    */
   render(width: number): string[] {
+    this.tickWhilePlaying();
     const safeWidth = Math.max(1, Math.floor(width));
     const rows = Math.max(8, Math.floor(this.getRows()));
     const appearance = this.appearance;

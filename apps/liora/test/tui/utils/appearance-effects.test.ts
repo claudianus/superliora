@@ -40,7 +40,20 @@ describe('premium ambient cadence', () => {
       animationFps: 120,
     };
     setActiveAppearancePreferences(premium);
-    expect(appearanceAnimationFrameIntervalMs(premium)).toBe(33);
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'healthy')).toBe(33);
+  });
+
+  it('soft-degrades premium ambient cadence under watch/degraded health', () => {
+    const premium = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+      animationFps: 120,
+    };
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'watch')).toBe(140);
+    expect(appearanceAnimationFrameIntervalMs(premium, 'full', 'degraded')).toBe(140);
   });
 
   it('keeps subtle ambient slower than premium cinematic floor', () => {

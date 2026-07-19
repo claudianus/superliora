@@ -3,11 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { AppearanceController, shouldAnimate, shouldRenderAmbientAnimationFrame, terminalMutationAllowed } from '#/tui/controllers/appearance';
-import { AnimationScheduler } from '#/tui/controllers/animation-scheduler';
 import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
-  appearanceAnimationFrameIntervalMs,
   getAppearanceRenderHealth,
   getAppearanceRenderQuality,
   getActiveAppearancePreferences,
@@ -40,64 +38,6 @@ const ENV_KEYS = [
   'SSH_CLIENT',
   'TMUX',
 ] as const;
-
-describe('AnimationScheduler', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('caps render ticks by fps and stops cleanly on dispose', () => {
-    vi.useFakeTimers();
-    const requestRender = vi.fn();
-    const scheduler = new AnimationScheduler({
-      fps: 10,
-      enabled: true,
-      requestRender,
-    });
-
-    vi.advanceTimersByTime(99);
-    expect(requestRender).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-
-    scheduler.update({ enabled: false });
-    vi.advanceTimersByTime(300);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-
-    scheduler.update({ enabled: true, fps: 30 });
-    vi.advanceTimersByTime(50);
-    expect(requestRender).toHaveBeenCalledTimes(2);
-
-    scheduler.dispose();
-    vi.advanceTimersByTime(100);
-    expect(requestRender).toHaveBeenCalledTimes(2);
-  });
-
-  it('skips ticks when rendering is gated off', () => {
-    vi.useFakeTimers();
-    let canRender = false;
-    const beforeRender = vi.fn();
-    const requestRender = vi.fn();
-    const scheduler = new AnimationScheduler({
-      fps: 10,
-      enabled: true,
-      shouldRender: () => canRender,
-      beforeRender,
-      requestRender,
-    });
-
-    vi.advanceTimersByTime(100);
-    expect(beforeRender).not.toHaveBeenCalled();
-    expect(requestRender).not.toHaveBeenCalled();
-
-    canRender = true;
-    vi.advanceTimersByTime(100);
-    expect(beforeRender).toHaveBeenCalledTimes(1);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-
-    scheduler.dispose();
-  });
-});
 
 describe('AppearanceController', () => {
   const originalEnv = { ...process.env };
@@ -200,6 +140,7 @@ describe('AppearanceController', () => {
     const controller = new AppearanceController({
       terminal,
       requestRender: vi.fn(),
+      setAmbientSchedule: vi.fn(),
       getAppearance: () => appearance,
       onAppearanceApplied,
     });
@@ -226,6 +167,7 @@ describe('AppearanceController', () => {
     const controller = new AppearanceController({
       terminal,
       requestRender: vi.fn(),
+      setAmbientSchedule: vi.fn(),
       getAppearance: () => ({
         ...DEFAULT_APPEARANCE_PREFERENCES,
         profile: 'off',
@@ -245,37 +187,80 @@ describe('AppearanceController', () => {
     expect(writes.at(-1)).toContain('\u001B]104');
   });
 
-  it('keeps premium animation ticks at the configured fps regardless of renderer health', () => {
-    vi.useFakeTimers();
-    const requestRender = vi.fn();
-    const appearance = {
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'premium' as const,
-      particles: 'premium' as const,
-      animationFps: 30,
-    };
-    const terminal = { write: vi.fn() } as unknown as RendererTerminalHost;
-
-    // Premium pins the cinematic ~30fps floor (33ms), not densify 1ms thrash.
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'healthy')).toBe(33);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'watch')).toBe(33);
-    expect(appearanceAnimationFrameIntervalMs(appearance, 'full', 'degraded')).toBe(33);
-
-    setAppearanceRenderHealth('watch');
+  it('configures renderer ambient schedule at premium interval', () => {
+    const setAmbientSchedule = vi.fn();
     const controller = new AppearanceController({
-      terminal,
-      requestRender,
-      getAppearance: () => appearance,
+      terminal: { write: vi.fn() } as unknown as RendererTerminalHost,
+      requestRender: vi.fn(),
+      setAmbientSchedule,
+      getAppearance: () => ({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+        animationFps: 30,
+      }),
       shouldRenderAnimation: () => true,
     });
+    expect(setAmbientSchedule).toHaveBeenCalled();
+    const options = setAmbientSchedule.mock.calls.at(-1)?.[0];
+    expect(options?.enabled).toBe(true);
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    ).toBe(33);
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'watch',
+        backpressure: false,
+      }),
+    ).toBe(140);
+    controller.dispose();
+    expect(setAmbientSchedule).toHaveBeenLastCalledWith(undefined);
+  });
 
-    vi.advanceTimersByTime(0);
-    expect(requestRender).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(32);
-    expect(requestRender).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-
+  it('gates ambient wakes via shouldTick without pausing the interval', () => {
+    const setAmbientSchedule = vi.fn();
+    let canRender = false;
+    let forceAmbient = false;
+    const controller = new AppearanceController({
+      terminal: { write: vi.fn() } as unknown as RendererTerminalHost,
+      requestRender: vi.fn(),
+      setAmbientSchedule,
+      getAppearance: () => ({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+        animationFps: 30,
+      }),
+      shouldRenderAnimation: () => canRender,
+      forceAmbientSchedule: () => forceAmbient,
+    });
+    const options = setAmbientSchedule.mock.calls.at(-1)?.[0];
+    expect(options?.enabled).toBe(true);
+    expect(options?.shouldTick?.()).toBe(false);
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    ).toBe(33);
+    canRender = true;
+    expect(options?.shouldTick?.()).toBe(true);
+    canRender = false;
+    forceAmbient = true;
+    expect(options?.shouldTick?.()).toBe(true);
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    ).toBe(33);
     controller.dispose();
   });
 
@@ -284,6 +269,7 @@ describe('AppearanceController', () => {
     const controller = new AppearanceController({
       terminal,
       requestRender: vi.fn(),
+      setAmbientSchedule: vi.fn(),
       getAppearance: () => ({
         ...DEFAULT_APPEARANCE_PREFERENCES,
         profile: 'premium',

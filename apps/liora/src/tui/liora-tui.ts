@@ -316,6 +316,8 @@ export class LioraTUI {
   private splash: SplashComponent | undefined;
   /** UI children saved while the full-screen splash owns the tree. */
   private splashSavedChildren: (typeof this.state.ui.children)[number][] | undefined;
+  /** While true, ambient schedule stays armed even if interaction gates pause it. */
+  private splashForcesAmbient = false;
   private lastActivityMode: string | undefined;
   private currentLoadingTip:
     | { kind: LoadingTipKind; tip: string | undefined; tipKey?: string; pinned: boolean }
@@ -427,10 +429,14 @@ export class LioraTUI {
       requestRender: () => {
         this.state.renderer.requestRender('animation');
       },
+      setAmbientSchedule: (options) => {
+        this.state.renderer.nativeRuntime?.setAmbientSchedule(options);
+      },
       onAppearanceApplied: () => {
         this.state.renderer.invalidateFrame('palette');
       },
       shouldRenderAnimation: () => this.shouldRenderAmbientAnimationFrame(),
+      forceAmbientSchedule: () => this.splashForcesAmbient,
     });
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
@@ -2276,6 +2282,10 @@ export class LioraTUI {
         // Layout invalidation so the native frame path repaints the takeover.
         requestTUILayoutRender(this.state);
       },
+      onSplashActiveChange: (active) => {
+        this.splashForcesAmbient = active;
+        this.appearanceController.apply();
+      },
     });
     // Fast path: do not steal the UI tree when motion is off.
     if (!shouldPlaySplash(this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES)) {
@@ -2302,6 +2312,10 @@ export class LioraTUI {
     this.splash = undefined;
     this.splashSavedChildren = undefined;
     splash?.dispose();
+    if (this.splashForcesAmbient) {
+      this.splashForcesAmbient = false;
+      this.appearanceController.apply();
+    }
     if (saved !== undefined) {
       this.state.ui.clear();
       for (const child of saved) {

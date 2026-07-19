@@ -168,8 +168,8 @@ terminal, it scrolls to keep the active tab visible, framed by `<`/`>` markers.
 ### 7.1 Single animation clock
 
 All motion flows through the render loop's `requestAnimationFrame` or the shared
-`RendererTicker` / `AnimationScheduler`. **No raw `setInterval` / `setTimeout`
-in components for animation.** This ensures:
+renderer ambient schedule / `RendererTicker`. **No raw `setInterval` /
+`setTimeout` in components for animation.** This ensures:
 
 - Consistent pause / resume.
 - Adaptive quality gating (frames drop to lower FPS under load).
@@ -256,8 +256,8 @@ New list components **must reuse `SearchableList`** and manually align to
 - [ ] Printable char comparisons go through `printableChar()`.
 
 ### Motion
-- [ ] No raw `setInterval` / `setTimeout` for animation — use `RendererTicker` /
-      `AnimationScheduler`.
+- [ ] No raw `setInterval` / `setTimeout` for animation — use the renderer
+      ambient schedule / `RendererTicker`.
 - [ ] Premium effects have ≥ 4 frames or genuine motion (not a 2-frame blink).
 - [ ] SSH / `NO_COLOR` / `CI` / `TERM=dumb` gracefully degrade to static.
 
