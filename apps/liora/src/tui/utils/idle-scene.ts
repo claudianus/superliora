@@ -8,7 +8,6 @@
  */
 
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
-import chalk from 'chalk';
 
 import type { IdleFish, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 
@@ -174,27 +173,6 @@ function cellPlainChar(cell: string): string {
   return plain.length > 0 ? plain[0]! : ' ';
 }
 
-function extractSgrHex(cell: string, kind: '38' | '48'): string | undefined {
-  const re =
-    kind === '38'
-      ? /\u001B\[38;2;(\d+);(\d+);(\d+)m/
-      : /\u001B\[48;2;(\d+);(\d+);(\d+)m/;
-  const match = re.exec(cell);
-  if (match === null) return undefined;
-  const toHex = (value: string): string => Number(value).toString(16).padStart(2, '0');
-  return `#${toHex(match[1]!)}${toHex(match[2]!)}${toHex(match[3]!)}`;
-}
-
-/** Keep water background when overlaying a foreground-only glyph. */
-function mergeStyledCell(base: string, overlay: string): string {
-  if (overlay === '' || overlay === ' ') return overlay;
-  const baseBg = extractSgrHex(base, '48');
-  if (baseBg === undefined || /\u001B\[48/.test(overlay)) return overlay;
-  const ch = cellPlainChar(overlay);
-  const fg = extractSgrHex(overlay, '38');
-  return fg === undefined ? chalk.bgHex(baseBg)(ch) : chalk.bgHex(baseBg).hex(fg)(ch);
-}
-
 export function blitCentered(
   canvas: string[],
   lines: readonly string[],
@@ -233,8 +211,7 @@ export function blitAt(
     for (let x = 0; x < fit; x++) {
       const src = incoming[x];
       if (src === undefined || src === '') continue;
-      const at = safeLeft + x;
-      cells[at] = mergeStyledCell(cells[at] ?? ' ', src);
+      cells[safeLeft + x] = src;
     }
     writeCanvasCells(canvas, y, width, cells);
   }
@@ -357,7 +334,7 @@ function putCell(
   const glyphCells = expandStyledCells(glyph, Math.max(1, visibleWidth(glyph)));
   const styled = glyphCells[0];
   if (styled === undefined || styled === '') return;
-  cells[x] = mergeStyledCell(cells[x] ?? ' ', styled);
+  cells[x] = styled;
   writeCanvasCells(canvas, y, width, cells);
 }
 
@@ -556,7 +533,10 @@ export function renderHillLine(width: number, elapsedMs: number): string {
   return cells.join('');
 }
 
-/** Depth-graded water body — soft sky wash plus drifting motes. */
+/**
+ * Depth-graded water body — foreground motes only.
+ * Do not fill rows with bgHex: a solid wash turns the tank into an opaque color block.
+ */
 export function paintWaterField(
   canvas: string[],
   width: number,
@@ -568,20 +548,7 @@ export function paintWaterField(
   skyDeep: string,
 ): void {
   if (width <= 0 || rows <= 1) return;
-  // Base wash so the tank reads as sky-blue water, not empty black.
-  for (let y = 1; y < rows - 1; y++) {
-    const depth = y / Math.max(1, rows - 1);
-    const hex = depth > 0.72 ? skyDeep : depth > 0.4 ? sky : skySoft;
-    const wash = Array.from({ length: width }, (_, x) => {
-      const n = hash2(x + 3, y * 19 + 7);
-      if (n % 7 === 0) return '·';
-      if (n % 13 === 0) return '˙';
-      return ' ';
-    }).join('');
-    canvas[y] = chalk.bgHex(hex).hex(hex)(wash);
-  }
-  // Drifting motes on top of the wash.
-  const count = Math.max(6, Math.floor(width * 0.28));
+  const count = Math.max(8, Math.floor(width * 0.32));
   for (let i = 0; i < count; i++) {
     const seed = hash2(i * 23 + 4, 61);
     const drift = Math.floor(elapsedMs / 110 + seed * 0.01) % Math.max(1, width);
@@ -591,7 +558,7 @@ export function paintWaterField(
     const tone = seed % 5;
     const hex = tone === 0 ? skyDeep : tone < 3 ? sky : skySoft;
     const glyph = tone === 0 ? '˙' : tone < 3 ? '·' : '˚';
-    putCell(canvas, y, x, width, paint(hex, glyph), true);
+    putCell(canvas, y, x, width, paint(hex, glyph));
   }
 }
 
@@ -985,13 +952,10 @@ export function paintIdleStoryScene(options: {
     );
   }
 
-  // 2) Surface line
+  // 2) Surface line — foreground color only (no bgHex fill).
   if (storyRows >= 4) {
-    const waterline = renderWaterline(width, elapsedMs);
     canvas[0] = padOrTrim(
-      showAmbient
-        ? chalk.bgHex(palette.waterDeep).hex(palette.waterDeep)(waterline)
-        : paint(colors.textMuted, waterline),
+      paint(showAmbient ? palette.waterDeep : colors.textMuted, renderWaterline(width, elapsedMs)),
       width,
     );
   }
