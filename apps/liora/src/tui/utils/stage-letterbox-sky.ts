@@ -1,6 +1,6 @@
 /**
  * Night-sky backdrop for centered-stage letterbox gutters.
- * Twinkling starfield + full-height side-gutter shooting stars.
+ * Twinkling starfield + soft-diagonal shooting stars that detonate on the stage rim.
  */
 
 import type { AppearancePreferences } from '#/tui/config';
@@ -15,8 +15,13 @@ import type { StageFrameBand } from '#/tui/utils/stage-frame';
 
 /** Distinct from {@link STAR_GLYPHS} so freeze tests can tell showers apart. */
 const SHOOTING_HEAD = '◆';
-const SHOOTING_MID = '‒';
+/** Trail mid glyph for down-right (dx > 0) showers. */
+const SHOOTING_MID_DOWN_RIGHT = '╲';
+/** Trail mid glyph for down-left (dx < 0) showers. */
+const SHOOTING_MID_DOWN_LEFT = '╱';
 const SHOOTING_TAIL = '·';
+const EXPLODE_CORE = ['✹', '✦', '*'] as const;
+const EXPLODE_SPARK = ['✦', '˚', '+', '·', '*'] as const;
 
 export interface StageLetterboxSkyCell {
   readonly x: number;
@@ -95,6 +100,9 @@ function clamp(n: number, lo: number, hi: number): number {
 /**
  * Paint stars + shooting stars into absolute terminal coordinates.
  * Only cells inside letterbox bands are returned.
+ *
+ * Side-gutter showers fall on a soft diagonal aimed at the stage rim and burst
+ * into sparks on impact (never paint into the stage content rect).
  */
 export function paintStageLetterboxSky(input: {
   readonly bands: readonly StageFrameBand[];
@@ -162,57 +170,134 @@ export function paintStageLetterboxSky(input: {
     put(x, y, glyph, fg, twinkle > 0.88 && premium);
   }
 
-  // --- Shooting stars: full-height fall in side gutters only ---
+  // --- Shooting stars: soft diagonal into the stage rim → explode ---
   const gutters = resolveLetterboxSideGutters(bands, cols);
   if (!freeze && gutters.length > 0) {
-    const showerCount = premium ? 4 : 2;
+    const showerCount = premium ? 5 : 3;
     const tickMs = premium ? 42 : 72;
     const phase = nowMs / tickMs;
+    const explodeTicks = premium ? 16 : 12;
     for (let m = 0; m < showerCount; m++) {
       const h = hash2(m * 131 + 19, 503);
       const gutter = gutters[h % gutters.length]!;
       const gutterW = Math.max(1, gutter.x1 - gutter.x0);
       const speed = premium ? 0.9 + (m % 3) * 0.12 : 0.62 + (m % 2) * 0.1;
       const dy = speed;
-      // Keep drift inside the corridor so the path never crosses the stage.
-      const maxDrift = Math.max(0, gutterW - 1) * 0.35;
-      const driftSign = (h & 2) === 0 ? -1 : 1;
-      const dx = (maxDrift === 0 ? 0 : driftSign * Math.min(0.12, maxDrift / Math.max(1, rows))) * speed;
+      // Aim inward: left gutter → stage (right), right gutter → stage (left).
+      const towardStage = gutter.x0 === 0 ? 1 : -1;
+      const softSpan = Math.max(0, gutterW - 1) * (premium ? 0.72 : 0.58);
       const trailLen = premium ? 11 : 7;
-      // Head must travel from above the top edge to past the bottom edge.
       const travel = rows + trailLen + 6;
-      const activeFor = Math.ceil(travel / dy) + 2;
-      const rest = premium ? 22 + (m % 4) * 8 : 34 + (m % 3) * 10;
-      const period = activeFor + rest;
+      const dx = softSpan === 0 ? 0 : towardStage * ((softSpan * dy) / Math.max(1, travel * 0.72));
+      const midGlyph = dx >= 0 ? SHOOTING_MID_DOWN_RIGHT : SHOOTING_MID_DOWN_LEFT;
+      const fallTicks = Math.ceil(travel / dy) + 2;
+      const rest = premium ? 18 + (m % 4) * 7 : 28 + (m % 3) * 9;
+      const period = fallTicks + explodeTicks + rest;
       const local = positiveModulo(phase + (h % period), period);
-      if (local > activeFor) continue;
 
-      const startX = gutter.x0 + (hash2(h, m + 3) % gutterW) + 0.5;
+      // Start away from the stage so the diagonal has runway.
+      const startX =
+        towardStage > 0
+          ? gutter.x0 + 0.4 + (hash2(h, m + 3) % Math.max(1, Math.floor(gutterW * 0.35)))
+          : gutter.x1 - 0.4 - (hash2(h, m + 3) % Math.max(1, Math.floor(gutterW * 0.35)));
       const startY = -trailLen - (h % 3);
-      const headX = clamp(startX + local * dx, gutter.x0, gutter.x1 - 1);
-      const headY = startY + local * dy;
+      const impactX = towardStage > 0 ? gutter.x1 - 0.6 : gutter.x0 + 0.6;
+      const impactLocal =
+        Math.abs(dx) < 1e-6 ? fallTicks + 1 : Math.max(1, (impactX - startX) / dx);
+      const burstStart = Math.min(impactLocal, fallTicks);
+      const burstEnd = burstStart + explodeTicks;
+
       const headFg = mixHexColor(glow, primary, 0.25);
       const midFg = mixHexColor(particle, glow, 0.35);
       const softFg = mixHexColor(particle, muted, 0.4);
 
-      for (let step = 0; step <= trailLen; step++) {
-        const x = Math.round(clamp(headX - step * dx * 0.85, gutter.x0, gutter.x1 - 1));
-        const y = Math.round(headY - step * dy * 0.9);
-        const t = step / Math.max(1, trailLen);
-        if (step === 0) {
-          put(x, y, SHOOTING_HEAD, headFg, true);
-        } else if (t < 0.35) {
-          put(x, y, SHOOTING_MID, midFg, premium && t < 0.2);
-        } else if (t < 0.7) {
-          put(x, y, SHOOTING_TAIL, softFg);
-        } else {
-          put(x, y, SHOOTING_TAIL, muted);
+      if (local <= burstStart) {
+        const headX = clamp(startX + local * dx, gutter.x0, gutter.x1 - 1);
+        const headY = startY + local * dy;
+        for (let step = 0; step <= trailLen; step++) {
+          const x = Math.round(clamp(headX - step * dx * 0.95, gutter.x0, gutter.x1 - 1));
+          const y = Math.round(headY - step * dy * 0.9);
+          const t = step / Math.max(1, trailLen);
+          if (step === 0) {
+            put(x, y, SHOOTING_HEAD, headFg, true);
+          } else if (t < 0.35) {
+            put(x, y, midGlyph, midFg, premium && t < 0.2);
+          } else if (t < 0.7) {
+            put(x, y, SHOOTING_TAIL, softFg);
+          } else {
+            put(x, y, SHOOTING_TAIL, muted);
+          }
         }
+        continue;
       }
+
+      if (local > burstEnd) continue;
+
+      // Detonation on the stage-facing gutter rim.
+      const age = local - burstStart;
+      const ix = Math.round(clamp(impactX, gutter.x0, gutter.x1 - 1));
+      const iy = Math.round(clamp(startY + burstStart * dy, 0, rows - 1));
+      paintRimExplosion({
+        put,
+        ix,
+        iy,
+        age,
+        life: explodeTicks,
+        seed: h + m * 17,
+        towardStage,
+        premium,
+        glow,
+        primary,
+        particle,
+        muted,
+      });
     }
   }
 
   return [...cells.values()];
+}
+
+function paintRimExplosion(input: {
+  readonly put: (x: number, y: number, char: string, fg: string, bold?: boolean) => void;
+  readonly ix: number;
+  readonly iy: number;
+  readonly age: number;
+  readonly life: number;
+  readonly seed: number;
+  readonly towardStage: number;
+  readonly premium: boolean;
+  readonly glow: string;
+  readonly primary: string;
+  readonly particle: string;
+  readonly muted: string;
+}): void {
+  const { put, ix, iy, age, life, seed, towardStage, premium, glow, primary, particle, muted } =
+    input;
+  if (age < 0 || age > life) return;
+  const t = age / life;
+  const coreFg = mixHexColor(glow, primary, 0.4);
+  if (t < 0.4) {
+    const glyph = EXPLODE_CORE[Math.min(EXPLODE_CORE.length - 1, Math.floor(t * 8))] ?? '✦';
+    put(ix, iy, glyph, coreFg, true);
+  }
+  const sparks = premium ? 12 : 7;
+  for (let i = 0; i < sparks; i++) {
+    const base = ((seed + i * 47) % 360) * (Math.PI / 180);
+    // Bias spray away from the stage so sparks stay in letterbox.
+    const away = towardStage > 0 ? Math.PI : 0;
+    const ang = base * 0.55 + away + ((i % 3) - 1) * 0.35;
+    const dist = (0.6 + (i % 4) * 0.45) * (0.35 + t * 2.4);
+    const x = Math.round(ix + Math.cos(ang) * dist);
+    const y = Math.round(iy + Math.sin(ang) * dist * 0.55);
+    const glyph = EXPLODE_SPARK[(seed + i) % EXPLODE_SPARK.length] ?? '·';
+    const fg =
+      t < 0.25
+        ? mixHexColor(glow, primary, 0.35)
+        : t < 0.55
+          ? mixHexColor(particle, glow, 0.45)
+          : muted;
+    put(x, y, glyph, fg, t < 0.3 && premium);
+  }
 }
 
 /** Attach sky cell content onto letterbox band regions (absolute → local). */

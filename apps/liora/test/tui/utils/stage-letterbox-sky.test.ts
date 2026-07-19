@@ -224,8 +224,70 @@ describe('stage letterbox night sky', () => {
         if (c.y >= 79) sawBottomHead = true;
       }
     }
-    expect(maxHeadY).toBeGreaterThanOrEqual(79);
-    expect(sawBottomHead).toBe(true);
+    // Most showers now detonate on the stage rim before the floor — either a
+    // deep head or a rim explosion proves the path still spans the letterbox.
+    expect(maxHeadY >= 40 || sawBottomHead).toBe(true);
+  });
+
+  it('drifts shooting-star heads sideways along a soft diagonal', () => {
+    const bands = ultrawideBands();
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'ambient' as const,
+    };
+    const xs = new Set<number>();
+    let sawDiagMid = false;
+    for (let t = 0; t < 6_000; t += 40) {
+      const cells = paintStageLetterboxSky({
+        bands,
+        cols: 200,
+        rows: 80,
+        nowMs: 70_000 + t,
+        appearance,
+        freeze: false,
+      });
+      for (const c of cells) {
+        if (c.char === '◆') xs.add(c.x);
+        if (c.char === '╲' || c.char === '╱') sawDiagMid = true;
+      }
+    }
+    // Soft diagonal must not pin every head to a single column.
+    expect(xs.size).toBeGreaterThan(1);
+    expect(sawDiagMid).toBe(true);
+  });
+
+  it('detonates sparks when a shower hits the stage-facing gutter rim', () => {
+    const bands = ultrawideBands();
+    const gutters = resolveLetterboxSideGutters(bands, 200);
+    expect(gutters.length).toBe(2);
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'ambient' as const,
+    };
+    let sawBurst = false;
+    let burstOnRim = false;
+    for (let t = 0; t < 10_000; t += 30) {
+      const cells = paintStageLetterboxSky({
+        bands,
+        cols: 200,
+        rows: 80,
+        nowMs: 90_000 + t,
+        appearance,
+        freeze: false,
+      });
+      for (const c of cells) {
+        if (c.char !== '✹' && c.char !== '✦' && c.char !== '*' && c.char !== '+') continue;
+        sawBurst = true;
+        const onLeftRim = Math.abs(c.x - (gutters[0]!.x1 - 1)) <= 2;
+        const onRightRim = Math.abs(c.x - gutters[1]!.x0) <= 2;
+        if (onLeftRim || onRightRim) burstOnRim = true;
+      }
+      if (sawBurst && burstOnRim) break;
+    }
+    expect(sawBurst).toBe(true);
+    expect(burstOnRim).toBe(true);
   });
 
   it('builds dense letterbox regions without clear so ambient ticks do not wipe bands', () => {
