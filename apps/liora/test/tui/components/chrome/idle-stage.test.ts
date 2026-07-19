@@ -21,6 +21,7 @@ import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
+import { darkColors } from '#/tui/theme/colors';
 import {
   FISH_COMPACT_RIGHT,
   FISH_LARGE_RIGHT,
@@ -28,10 +29,14 @@ import {
   FISH_TAIL_MS,
   applyFishTail,
   paintBubbles,
+  paintIdleStoryScene,
   paintMoonlightPath,
+  resolveAquariumPalette,
   resolveLanternGlyph,
+  resolveSeaweedSpacing,
   stripAnsi,
 } from '#/tui/utils/idle-scene';
+import type { IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import { createTranscriptViewportState } from '#/tui/utils/transcript-viewport';
 
@@ -189,6 +194,48 @@ describe('idle-stage helpers', () => {
     paintMoonlightPath(canvas, 0, bandRows, width, 1_000, (ch) => ch);
     const joined = canvas.map((line) => stripAnsi(line)).join('\n');
     expect(joined).toMatch(/[≈∼·]/);
+  });
+
+  it('paints food asterisks when sim snapshot has food', () => {
+    withAmbientEnv(() => {
+      const width = 40;
+      const storyRows = 12;
+      const canvas = Array.from({ length: storyRows }, () => ' '.repeat(width));
+      const sim: IdleTankSnapshot = {
+        fish: [],
+        food: [{ id: 1, x: 10, y: 5, vy: 0.004 }],
+      };
+      paintIdleStoryScene({
+        canvas,
+        width,
+        storyRows,
+        elapsedMs: 500,
+        showAmbient: true,
+        premium: true,
+        paint: (hex, text) => chalk.hex(hex)(text),
+        colors: darkColors,
+        sim,
+      });
+      const joined = strip(canvas.join('\n'));
+      expect(joined).toContain('*');
+    });
+  });
+
+  it('uses denser seaweed spacing on wide tanks', () => {
+    expect(resolveSeaweedSpacing(80)).toBeLessThanOrEqual(5);
+    expect(resolveSeaweedSpacing(80)).toBe(4);
+    expect(resolveSeaweedSpacing(50)).toBe(5);
+    expect(resolveSeaweedSpacing(30)).toBe(6);
+  });
+
+  it('maps aquarium roles from theme tokens only', () => {
+    const palette = resolveAquariumPalette(darkColors, 'dark');
+    const tokens = new Set(Object.values(darkColors));
+    for (const hex of Object.values(palette)) {
+      expect(tokens.has(hex)).toBe(true);
+    }
+    expect(palette.plant).toBe(darkColors.success);
+    expect(palette.water).toBe(darkColors.glow);
   });
 });
 
@@ -356,6 +403,19 @@ describe('IdleStageComponent', () => {
       expect(typeof b).toBe('string');
       expect(a.length).toBeGreaterThan(0);
       expect(b.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('drops food on the component and paints asterisks after ticks', () => {
+    withAmbientEnv(() => {
+      const stage = new IdleStageComponent({
+        state: { ...appState, appearance: DEFAULT_APPEARANCE_PREFERENCES },
+      });
+      stage.render(80); // init sim
+      expect(stage.tryDropFoodAtContent(20)).toBe(true);
+      advanceAppearanceAnimationClock(3_000);
+      const plain = stage.render(80).map(strip).join('\n');
+      expect(plain).toMatch(/\*/);
     });
   });
 });

@@ -1,6 +1,7 @@
 import type { NativeInputEvent, NativeInputMouseEvent } from '#/tui/renderer';
 
 import type { TUIState } from '../tui-state';
+import { clearIdleFeedPending, handleIdleFeedMouseInput } from './idle-feed-mouse';
 import {
   resolveTranscriptHitTestContext,
   transcriptPointForMouse,
@@ -24,19 +25,35 @@ function handleTranscriptSelectionMouseEvent(
   }
 
   const context = resolveTranscriptHitTestContext(state);
-  if (context === undefined) return false;
+  if (context === undefined) {
+    // Out-of-bounds / no hit context must not leave a short-click feed pending.
+    if (event.action === 'drag' || event.action === 'release') {
+      clearIdleFeedPending(state);
+    }
+    return false;
+  }
 
   const point = transcriptPointForMouse(event, context);
-  if (point === undefined) return false;
+  if (point === undefined) {
+    if (event.action === 'drag' || event.action === 'release') {
+      clearIdleFeedPending(state);
+    }
+    return false;
+  }
 
   const selection = state.transcriptSelection;
   if (event.action === 'press') {
     selection.beginPress(point, event.shift);
+    handleIdleFeedMouseInput(state, event, point);
     return true;
   }
   if (event.action === 'drag') {
     if (!selection.isDragging) return false;
     selection.updateDrag(point);
+    handleIdleFeedMouseInput(state, event, point);
+    return true;
+  }
+  if (handleIdleFeedMouseInput(state, event, point)) {
     return true;
   }
   selection.endPress();
@@ -44,5 +61,6 @@ function handleTranscriptSelectionMouseEvent(
 }
 
 export function clearTranscriptSelection(state: TUIState): void {
+  clearIdleFeedPending(state);
   state.transcriptSelection.clear();
 }
