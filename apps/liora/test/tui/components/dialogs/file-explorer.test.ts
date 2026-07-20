@@ -8,6 +8,7 @@ const DOWN = '\u001B[B';
 const UP = '\u001B[A';
 const ENTER = '\r';
 const ESC = '\u001B';
+const BACKSPACE = '\u007F';
 const POINTER = '❯';
 
 function strip(text: string): string {
@@ -199,5 +200,113 @@ describe('FileExplorerComponent', () => {
   it('advertises the v shortcut in the footer hint', () => {
     const footer = renderedLines(makeExplorer()).at(-1) ?? '';
     expect(footer).toContain('view');
+  });
+
+  describe('filter mode', () => {
+    it('enters filter mode on / and shows the filter line with hints', () => {
+      const explorer = makeExplorer();
+      explorer.handleInput('/');
+      const lines = renderedLines(explorer);
+      const joined = lines.join('\n');
+      expect(joined).toContain('Filter');
+      expect(joined).toContain('▏');
+      expect(lines.at(-1)).toContain('type to filter');
+    });
+
+    it('enters filter mode on f and narrows rows as the query is typed', () => {
+      const explorer = makeExplorer();
+      explorer.handleInput('f'); // enters filter mode; not part of the query
+      explorer.handleInput('h');
+      explorer.handleInput('e');
+      explorer.handleInput('l'); // query "hel" → only src/util/helper.ts
+      const joined = renderedLines(explorer).join('\n');
+      expect(joined).toContain('helper.ts');
+      expect(joined).not.toContain('app.ts');
+      expect(joined).not.toContain('package.json');
+      expect(joined).not.toContain('README.md');
+    });
+
+    it('deletes the last query character on backspace', () => {
+      const explorer = makeExplorer();
+      explorer.handleInput('/');
+      explorer.handleInput('z'); // no matches
+      expect(renderedLines(explorer).join('\n')).toContain('no matches');
+      explorer.handleInput(BACKSPACE); // query empty → full tree restored
+      const joined = renderedLines(explorer).join('\n');
+      expect(joined).toContain('package.json');
+      expect(joined).toContain('src');
+    });
+
+    it('picks a filtered file on enter with its relative path', () => {
+      const onPick = vi.fn();
+      const onClose = vi.fn();
+      const explorer = makeExplorer({ onPick, onClose });
+      explorer.handleInput('/');
+      for (const ch of 'helper') explorer.handleInput(ch);
+      // Rows: src, util, helper.ts (auto-expanded); selection reset to 0.
+      explorer.handleInput(DOWN); // util
+      explorer.handleInput(DOWN); // helper.ts
+      explorer.handleInput(ENTER);
+      expect(onPick).toHaveBeenCalledWith('src/util/helper.ts');
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores enter when the filter has no matches', () => {
+      const onPick = vi.fn();
+      const onClose = vi.fn();
+      const explorer = makeExplorer({ onPick, onClose });
+      explorer.handleInput('/');
+      explorer.handleInput('z');
+      explorer.handleInput(ENTER);
+      expect(onPick).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('esc clears the query and exits filter mode; a second esc closes', () => {
+      const onClose = vi.fn();
+      const explorer = makeExplorer({ onClose });
+      explorer.handleInput('/');
+      explorer.handleInput('z');
+      explorer.handleInput(ESC); // clears query + exits filter mode
+      expect(onClose).not.toHaveBeenCalled();
+      const joined = renderedLines(explorer).join('\n');
+      expect(joined).toContain('package.json'); // rows restored
+      expect(joined).not.toContain('Filter');
+      explorer.handleInput(ESC);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('resets the selection to 0 whenever the query changes', () => {
+      const explorer = makeExplorer();
+      explorer.handleInput(DOWN); // package.json
+      expect(selectedLine(explorer)).toContain('package.json');
+      explorer.handleInput('/');
+      explorer.handleInput('r'); // query change → selection back to 0 (src)
+      expect(selectedLine(explorer)).toContain('src');
+    });
+
+    it('shows the match count in the header while filtering', () => {
+      const explorer = makeExplorer();
+      explorer.handleInput('/');
+      for (const ch of 'ts') explorer.handleInput(ch); // app.ts + helper.ts
+      expect(renderedLines(explorer)[0]).toContain('2 matches');
+    });
+
+    it('keeps the filtered view after enter on a directory; f edits the filter again', () => {
+      const onPick = vi.fn();
+      const explorer = makeExplorer({ onPick });
+      explorer.handleInput('/');
+      explorer.handleInput('u'); // matches src/util/helper.ts only
+      explorer.handleInput(DOWN); // util (directory)
+      explorer.handleInput(ENTER); // exits filter mode, keeps the query
+      expect(onPick).not.toHaveBeenCalled();
+      const joined = renderedLines(explorer).join('\n');
+      expect(joined).toContain('Filter: u');
+      expect(joined).toContain('edit filter');
+
+      explorer.handleInput('f'); // re-enter filter mode
+      const footer = renderedLines(explorer).at(-1) ?? '';
+      expect(footer).toContain('type to filter');
+    });
   });
 });

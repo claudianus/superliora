@@ -6,7 +6,8 @@
  * falls back to a pruned recursive walk when git is unavailable. It never
  * throws. `buildFileTree` turns the flat slash-separated paths into a nested,
  * sorted tree; `flattenVisibleTree` projects the expanded subset into ordered
- * rows for the dialog. All three are pure/side-effect-light so they stay
+ * rows for the dialog; `filterFileTree` narrows the tree to paths matching a
+ * type-to-filter query. All four are pure/side-effect-light so they stay
  * testable without a terminal.
  */
 
@@ -41,6 +42,11 @@ export interface FileTreeNode {
 export interface FlatTreeRow {
   readonly node: FileTreeNode;
   readonly depth: number;
+}
+
+export interface FilteredFileTree {
+  readonly nodes: readonly FileTreeNode[];
+  readonly matchCount: number;
 }
 
 export interface ListProjectFilesOptions {
@@ -139,6 +145,64 @@ export function flattenVisibleTree(
     }
   }
   return rows;
+}
+
+function countFiles(nodes: readonly FileTreeNode[]): number {
+  let total = 0;
+  for (const node of nodes) {
+    if (node.kind === 'file') total += 1;
+    else if (node.children) total += countFiles(node.children);
+  }
+  return total;
+}
+
+function countMatchingFiles(node: FileTreeNode, query: string): number {
+  if (node.kind === 'file') return node.path.toLowerCase().includes(query) ? 1 : 0;
+  let total = 0;
+  for (const child of node.children ?? []) total += countMatchingFiles(child, query);
+  return total;
+}
+
+function filterNodes(nodes: readonly FileTreeNode[], query: string): FilteredFileTree {
+  const kept: FileTreeNode[] = [];
+  let matchCount = 0;
+  for (const node of nodes) {
+    if (node.kind === 'file') {
+      if (node.path.toLowerCase().includes(query)) {
+        kept.push(node);
+        matchCount += 1;
+      }
+      continue;
+    }
+    if (node.name.toLowerCase().includes(query)) {
+      // A name match keeps the directory with ALL its children.
+      kept.push(node);
+      matchCount += countMatchingFiles(node, query);
+      continue;
+    }
+    const filtered = filterNodes(node.children ?? [], query);
+    if (filtered.nodes.length > 0) {
+      kept.push({ ...node, children: filtered.nodes });
+      matchCount += filtered.matchCount;
+    }
+  }
+  return { nodes: kept, matchCount };
+}
+
+/**
+ * Narrow the tree to paths matching a case-insensitive substring `query`.
+ *
+ * A file matches when its `path` contains the query. A directory is kept
+ * when its own `name` contains the query — then it keeps ALL its children —
+ * or when it has kept descendants, in which case only the kept children are
+ * retained. `matchCount` counts matching files only, never directories.
+ * Original sort order is preserved (nothing is re-sorted). A blank or empty
+ * query returns the input nodes unchanged with `matchCount` = total files.
+ */
+export function filterFileTree(nodes: readonly FileTreeNode[], query: string): FilteredFileTree {
+  const q = query.trim().toLowerCase();
+  if (q.length === 0) return { nodes, matchCount: countFiles(nodes) };
+  return filterNodes(nodes, q);
 }
 
 function listViaGit(workDir: string): string[] | null {

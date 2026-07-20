@@ -15,6 +15,7 @@ vi.mock('node:child_process', () => ({
 
 import {
   buildFileTree,
+  filterFileTree,
   flattenVisibleTree,
   listProjectFiles,
 } from '#/utils/fs/file-tree';
@@ -89,6 +90,67 @@ describe('flattenVisibleTree', () => {
     const rows = flattenVisibleTree(tree, (path) => path === 'a');
     expect(rows.map((r) => r.node.path)).toEqual(['a', 'a/b.ts', 'a/c.ts', 'd.ts']);
     expect(rows.map((r) => r.depth)).toEqual([0, 1, 1, 0]);
+  });
+});
+
+describe('filterFileTree', () => {
+  const tree = buildFileTree(['src/app.ts', 'src/util/helper.ts', 'README.md', 'package.json']);
+
+  it('returns the input nodes and total file count for an empty or blank query', () => {
+    expect(filterFileTree(tree, '')).toEqual({ nodes: tree, matchCount: 4 });
+    expect(filterFileTree(tree, '   ')).toEqual({ nodes: tree, matchCount: 4 });
+    // The original array is passed through unchanged (same reference).
+    expect(filterFileTree(tree, '').nodes).toBe(tree);
+  });
+
+  it('keeps ancestor directories of a matching file path', () => {
+    const result = filterFileTree(tree, 'helper');
+    expect(result.nodes.map((n) => n.name)).toEqual(['src']);
+    const src = result.nodes[0]!;
+    expect(src.children?.map((n) => n.name)).toEqual(['util']);
+    expect(src.children?.[0]?.children?.map((n) => n.name)).toEqual(['helper.ts']);
+    expect(result.matchCount).toBe(1);
+  });
+
+  it('keeps all children when a directory name matches', () => {
+    const docs = buildFileTree(['docs/guide.md', 'docs/api/reference.md', 'src/index.ts']);
+    const result = filterFileTree(docs, 'docs');
+    expect(result.nodes.map((n) => n.name)).toEqual(['docs']);
+    const kept = result.nodes[0]!;
+    expect(kept.children?.map((n) => n.name)).toEqual(['api', 'guide.md']);
+    expect(kept.children?.find((n) => n.name === 'api')?.children?.map((n) => n.name)).toEqual([
+      'reference.md',
+    ]);
+    // Both files live under the matched directory; directories never count.
+    expect(result.matchCount).toBe(2);
+  });
+
+  it('counts matching files only, never directories', () => {
+    // "src" matches the directory name and the file paths under it.
+    const result = filterFileTree(tree, 'src');
+    expect(result.nodes.map((n) => n.name)).toEqual(['src']);
+    expect(result.matchCount).toBe(2); // app.ts + helper.ts, not the src dir
+  });
+
+  it('matches case-insensitively and trims the query', () => {
+    expect(filterFileTree(tree, 'README').matchCount).toBe(1);
+    expect(filterFileTree(tree, ' readme ').nodes.map((n) => n.name)).toEqual(['README.md']);
+    expect(filterFileTree(tree, '  PACKAGE  ').matchCount).toBe(1);
+  });
+
+  it('returns empty nodes and zero matches when nothing matches', () => {
+    const result = filterFileTree(tree, 'zzz');
+    expect(result.nodes).toEqual([]);
+    expect(result.matchCount).toBe(0);
+  });
+
+  it('preserves the original sort order without re-sorting', () => {
+    const ordered = buildFileTree(['b/2.ts', 'b/1.ts', 'a/z.ts', 'a/y.ts']);
+    const result = filterFileTree(ordered, '.ts');
+    expect(result.nodes.map((n) => n.name)).toEqual(['a', 'b']);
+    expect(result.nodes[0]?.children?.map((n) => n.name)).toEqual(['y.ts', 'z.ts']);
+    expect(result.nodes[1]?.children?.map((n) => n.name)).toEqual(['1.ts', '2.ts']);
+    expect(result.matchCount).toBe(4);
   });
 });
 
