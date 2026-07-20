@@ -613,15 +613,15 @@ export class OpenAILegacyChatProvider implements ChatProvider {
       createParams['tools'] = tools.map((t) => toolToOpenAI(t));
     }
 
-    // Qwen Token Plan: inject server-side harness tools (web_search,
-    // code_interpreter, etc.) when the endpoint is a Token Plan URL.
-    // These are built-in tools the model invokes automatically.
+    // Qwen Token Plan: enable server-side web search via `enable_search`
+    // parameter. The Chat Completions API does NOT accept harness tool entries
+    // (e.g. { type: 'web_search' }) in the tools array — that format is only
+    // valid for the Responses API. Injecting them causes a 400 error:
+    // "'function' is a required property".
     if (isQwenTokenPlanEndpoint(this._baseUrl)) {
       const harnessTools = qwenHarnessToolsForModel(this._model);
       if (harnessTools.length > 0) {
-        const existingTools = (createParams['tools'] as unknown[] | undefined) ?? [];
-        const harnessToolEntries = harnessTools.map((toolType) => ({ type: toolType }));
-        createParams['tools'] = [...existingTools, ...harnessToolEntries];
+        createParams['enable_search'] = true;
       }
     }
 
