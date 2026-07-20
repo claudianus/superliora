@@ -546,3 +546,63 @@ export function assessDegradationLevel(inputs: {
 
   return { level, guidance: DEGRADATION_GUIDANCE[level], affectedCapabilities: affected };
 }
+
+// ---------------------------------------------------------------------------
+// Turn budget tracking (runaway loop prevention)
+// ---------------------------------------------------------------------------
+
+export type BudgetStatus = 'ok' | 'warning' | 'critical' | 'exhausted';
+
+/**
+ * Default turn budget for an Ultrawork run. Based on the "Loop Problem":
+ * agents can make 200+ LLM calls in 10 minutes when stuck. A workflow-level
+ * budget acts as a circuit breaker that infrastructure monitors cannot see.
+ */
+const DEFAULT_TURN_BUDGET = 100;
+
+/** Soft limit threshold (percentage of budget). */
+const BUDGET_SOFT_LIMIT_RATIO = 0.8;
+
+/** Critical threshold (percentage of budget). */
+const BUDGET_CRITICAL_RATIO = 0.95;
+
+export const BUDGET_GUIDANCE: Readonly<Record<BudgetStatus, string>> = {
+  ok: 'Turn budget healthy; continue normal operations.',
+  warning: 'Approaching turn budget; prioritize essential work, avoid exploratory detours.',
+  critical: 'Turn budget nearly exhausted; wrap up current step, prepare summary of progress.',
+  exhausted: 'Turn budget exhausted; stop work and report status to user.',
+};
+
+/**
+ * Assess turn budget status for an Ultrawork run.
+ * Follows the "soft limit warnings, hard limit enforcement" pattern.
+ */
+export function assessTurnBudget(usedTurns: number, budget: number = DEFAULT_TURN_BUDGET): {
+  readonly status: BudgetStatus;
+  readonly guidance: string;
+  readonly usedTurns: number;
+  readonly remainingTurns: number;
+  readonly usageRatio: number;
+} {
+  const usageRatio = budget > 0 ? usedTurns / budget : 1;
+  const remainingTurns = Math.max(0, budget - usedTurns);
+
+  let status: BudgetStatus;
+  if (usedTurns >= budget) {
+    status = 'exhausted';
+  } else if (usageRatio >= BUDGET_CRITICAL_RATIO) {
+    status = 'critical';
+  } else if (usageRatio >= BUDGET_SOFT_LIMIT_RATIO) {
+    status = 'warning';
+  } else {
+    status = 'ok';
+  }
+
+  return {
+    status,
+    guidance: BUDGET_GUIDANCE[status],
+    usedTurns,
+    remainingTurns,
+    usageRatio,
+  };
+}
