@@ -127,6 +127,7 @@ export interface DiagnoseContextOSPayload {
 export interface EnterPlanPayload {
   readonly ultra?: boolean;
   readonly initialContext?: string;
+  readonly source?: 'standalone' | 'ultrawork';
 }
 export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
 
@@ -466,6 +467,7 @@ export type {
 export interface CreateGoalPayload {
   readonly objective: string;
   readonly replace?: boolean;
+  readonly source?: 'standalone' | 'ultrawork';
 }
 
 export interface CreateUltraworkRunPayload {

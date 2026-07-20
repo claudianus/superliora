@@ -233,8 +233,10 @@ type MutableCreateSessionOptions = {
 };
 
 function createInitialAppState(input: LioraTUIStartupInput): AppState {
-  // Product default is YOLO; only --auto overrides at startup.
-  const startupPermission: PermissionMode = input.cliOptions.auto ? 'auto' : 'yolo';
+  // Restore persisted permission mode; --auto CLI flag overrides.
+  const startupPermission: PermissionMode = input.cliOptions.auto
+    ? 'auto'
+    : input.tuiConfig.permissionMode;
   return {
     model: '',
     workDir: input.workDir,

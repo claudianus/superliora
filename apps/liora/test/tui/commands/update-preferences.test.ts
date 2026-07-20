@@ -27,6 +27,8 @@ describe('update preference commands', () => {
       state: {
         appState: {
           theme: 'auto' as const,
+          permissionMode: 'yolo' as const,
+          disablePasteBurst: false,
           editorCommand: null,
           notifications: { enabled: true, condition: 'unfocused' as const },
           upgrade: { autoInstall: true },
@@ -42,6 +44,7 @@ describe('update preference commands', () => {
 
     expect(mocks.saveTuiConfig).toHaveBeenCalledWith({
       theme: 'auto',
+      permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },

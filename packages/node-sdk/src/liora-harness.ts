@@ -148,7 +148,10 @@ export class LioraHarness {
     const { kaos, persistenceKaos, sessionStartedProperties, ...resumeInput } = input;
     if (active !== undefined) {
       if (kaos !== undefined || persistenceKaos !== undefined) {
-        await this.rpc.resumeSessionWithKaos({ ...resumeInput, id }, kaos ?? persistenceKaos as Kaos, persistenceKaos);
+        const summary = await this.rpc.resumeSessionWithKaos({ ...resumeInput, id }, kaos ?? persistenceKaos as Kaos, persistenceKaos);
+        // Reflect the refreshed summary so callers see updated state (e.g.
+        // additionalDirs, metadata) after a kaos-backed resume.
+        active.updateSummary(summary);
       }
       return active;
     }
@@ -276,8 +279,16 @@ export class LioraHarness {
   }
 
   async close(): Promise<void> {
-    await Promise.all(Array.from(this.activeSessions.values(), (session) => session.close()));
+    // Use allSettled so one session's close failure does not prevent the
+    // remaining sessions from shutting down. Snapshot the array first because
+    // each session.close() mutates activeSessions via the onClose callback.
+    const sessions = [...this.activeSessions.values()];
+    const results = await Promise.allSettled(sessions.map((session) => session.close()));
+    const firstRejection = results.find((r) => r.status === 'rejected');
     await this.closeImpl();
+    if (firstRejection !== undefined && firstRejection.status === 'rejected') {
+      throw firstRejection.reason;
+    }
   }
 
   private trackSessionEvent(eventSessionId: string, event: string): void {
@@ -352,9 +363,6 @@ export class LioraMemoryClient {
 const DEFAULT_SESSION_STARTED_UI_MODE = 'shell';
 
 function normalizeSessionId(value: string): string {
-  if (typeof value !== 'string') {
-    throw new LioraError(ErrorCodes.SESSION_ID_REQUIRED, 'Session id is required.');
-  }
   const normalized = value.trim();
   if (normalized.length === 0) {
     throw new LioraError(ErrorCodes.SESSION_ID_EMPTY, 'Session id cannot be empty.');

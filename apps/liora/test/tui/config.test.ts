@@ -135,6 +135,7 @@ command = "   "
     await saveTuiConfig(
       {
         theme: 'light',
+        permissionMode: 'yolo',
         disablePasteBurst: false,
         editorCommand: 'vim',
         notifications: { enabled: false, condition: 'always' },
@@ -150,6 +151,7 @@ command = "   "
 
     expect(await loadTuiConfig(filePath)).toEqual({
       theme: 'light',
+      permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: 'vim',
       notifications: { enabled: false, condition: 'always' },
@@ -167,6 +169,7 @@ command = "   "
     await saveTuiConfig(
       {
         theme,
+        permissionMode: 'yolo',
         disablePasteBurst: false,
         editorCommand: null,
         notifications: DEFAULT_TUI_CONFIG.notifications,

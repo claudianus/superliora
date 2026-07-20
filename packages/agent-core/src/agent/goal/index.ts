@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { ErrorCodes, LioraError } from '#/errors';
 import type { Agent } from '..';
 import { maybeAdvanceUltraworkOnGoalComplete, maybeAdvanceUltraworkStage } from '../../ultrawork';
+import type { ModeActivationSource } from '../mode-activation';
+import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import type { AgentRecordOf } from '../records/types';
 import {
   type TelemetryProperties,
@@ -191,6 +193,8 @@ export interface CreateGoalInput {
   readonly objective: string;
   readonly completionCriterion?: string;
   readonly replace?: boolean;
+  /** Whether this goal was created standalone or as part of Ultrawork orchestration. */
+  readonly source?: ModeActivationSource;
 }
 
 interface GoalReasonInput {
@@ -218,6 +222,7 @@ interface GoalReasonInput {
  */
 export class GoalMode {
   private state: GoalState | undefined;
+  private activationSource: ModeActivationSource = DEFAULT_MODE_ACTIVATION_SOURCE;
 
   constructor(private readonly agent: Agent) {
   }
@@ -391,7 +396,10 @@ export class GoalMode {
       completionCriterion: state.completionCriterion,
     });
     this.trackGoalCreated(actor, input.replace === true);
-    maybeAdvanceUltraworkStage(this.agent, 'goal', 'UltraGoal created');
+    this.activationSource = input.source ?? DEFAULT_MODE_ACTIVATION_SOURCE;
+    if (this.activationSource === 'ultrawork') {
+      maybeAdvanceUltraworkStage(this.agent, 'goal', 'UltraGoal created');
+    }
     return this.toSnapshot(state);
   }
 
@@ -542,7 +550,9 @@ export class GoalMode {
       stats: this.statsOf(state),
       actor,
     });
-    maybeAdvanceUltraworkOnGoalComplete(this.agent);
+    if (this.activationSource === 'ultrawork') {
+      maybeAdvanceUltraworkOnGoalComplete(this.agent);
+    }
     // ...then clear the durable record (emits onGoalUpdated(null) → box clears).
     this.clearInternal(actor);
     return snapshot;

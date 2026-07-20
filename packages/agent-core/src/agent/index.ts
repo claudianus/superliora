@@ -91,6 +91,7 @@ import type { ToolServices } from '../tools/support/services';
 import type { ResponseLanguagePreference } from '../session/response-language';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
+export type { ModeActivationSource } from './mode-activation';
 export type { SwarmModeTrigger } from './swarm';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
 export * from './goal';
@@ -492,6 +493,7 @@ export class Agent {
           true,
           payload.ultra ?? false,
           payload.initialContext ?? '',
+          payload.source ?? 'standalone',
         );
       },
       cancelPlan: (payload) => {

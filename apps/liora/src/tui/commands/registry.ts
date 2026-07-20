@@ -44,9 +44,8 @@ export interface ThinkingCompletionModel {
 }
 
 const PLAN_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'on', description: 'Enable Ultrawork planning override' },
-  { value: 'off', description: 'Disable Ultrawork planning override' },
-  { value: 'ultra', description: 'Steer the UltraPlan stage' },
+  { value: 'on', description: 'Enable free-form plan mode' },
+  { value: 'off', description: 'Disable plan mode' },
   { value: 'clear', description: 'Clear current plan' },
 ];
 
@@ -269,19 +268,17 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'plan',
     aliases: [],
-    description: 'Advanced steering for UltraPlan; Ultrawork auto-enables it',
-    priority: 100,
-    visibility: 'advanced',
-    argumentHint: '[on|off|ultra|clear]',
+    description: 'Free-form plan: model writes a plan file, you approve (interview → write)',
+    priority: 80,
+    argumentHint: '[on|off|clear]',
     completeArgs: planArgumentCompletions,
     availability: (args) => (args.trim().toLowerCase() === 'clear' ? 'idle-only' : 'always'),
   },
   {
     name: 'swarm',
     aliases: [],
-    description: 'Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal',
-    priority: 100,
-    visibility: 'advanced',
+    description: 'Parallel delegation: send task to specialist subagents (model decides split)',
+    priority: 80,
     argumentHint: '[on|off] | <task>',
     completeArgs: swarmArgumentCompletions,
     availability: 'idle-only',
@@ -289,12 +286,39 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'ultrawork',
     aliases: ['uw'],
-    hiddenAliases: ['ultraplan', 'up', 'ultraresearch', 'ur', 'ultragoal', 'ug', 'ultraswarm', 'us'],
     description: 'Run Ultrawork: UltraPlan interview, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn',
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[replace] <objective>',
     completeArgs: ultraworkArgumentCompletions,
+    availability: 'idle-only',
+  },
+  {
+    name: 'ultragoal',
+    aliases: ['ug'],
+    description: 'Structured loop goal: closed (AC verification) or open (--loop self-improvement with circuit breaker)',
+    priority: 100,
+    visibility: 'advanced',
+    argumentHint: '[replace] [--loop] <objective>',
+    availability: 'idle-only',
+  },
+  {
+    name: 'ultraswarm',
+    aliases: ['us'],
+    description: 'Specialist delegation: lane analysis, coverage matrix, ENGAGE/DEFER decision',
+    priority: 100,
+    visibility: 'advanced',
+    argumentHint: '[on|off] | <task>',
+    completeArgs: swarmArgumentCompletions,
+    availability: 'idle-only',
+  },
+  {
+    name: 'ultraplan',
+    aliases: ['up'],
+    description: 'Structured plan pipeline: research → interview → design → review → write with gap analysis',
+    priority: 100,
+    visibility: 'advanced',
+    argumentHint: '[objective]',
     availability: 'idle-only',
   },
   {
@@ -306,7 +330,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   },
   {
     name: 'thinking',
-    aliases: ['think'],
+    aliases: ['think', 'reasoning', 'effort', 'depth'],
     description: 'Set thinking effort for the current session',
     priority: 100,
     argumentHint: '[off|on|low|medium|high|xhigh|max]',
@@ -441,7 +465,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'goal',
     aliases: [],
-    description: 'Manage the active Ultrawork goal',
+    description: 'Simple goal loop: set objective, agent iterates until done (Ralph Loop)',
     priority: 80,
     argumentHint: '[status|pause|resume|cancel|replace|next] | <objective>',
     completeArgs: goalArgumentCompletions,

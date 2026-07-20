@@ -53,12 +53,14 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
         }
 
         try {
+          const activationSource = this.agent.ultrawork.getRun()?.status === 'running' ? 'ultrawork' as const : 'standalone' as const;
           await this.agent.planMode.enter(
             undefined,
             false,
             true,
             args.ultra ?? false,
             args.initial_context ?? '',
+            activationSource,
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to enter plan mode.';

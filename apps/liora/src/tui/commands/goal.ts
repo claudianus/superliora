@@ -27,20 +27,11 @@ import {
 } from '../goal-queue-store';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './dispatch';
-import { buildUltraworkPrompt } from './ultrawork-contract';
-import {
-  captureUltraworkTuiSetup,
-  prepareUltraworkTuiSetup,
-  rollbackUltraworkTuiSetup,
-  type UltraworkTuiSetupState,
-} from './ultrawork-lifecycle';
 
 const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
 const RESUME_GOAL_INPUT =
-  'Continue from where you left off. Resume the active goal without restarting earlier Ultrawork stages or redoing completed work.';
+  'Continue from where you left off. Resume the active goal without redoing completed work.';
 const START_NEXT_GOAL_NOW_MESSAGE = 'No active goal. Starting this goal now.';
-const GOAL_ULTRAWORK_ACTIVITY_TIP =
-  'Goal mode: research first, then UltraPlan interview, verifiable acceptance criteria, Swarm decision, verify';
 
 interface GoalInputSender {
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
@@ -415,27 +406,17 @@ async function startGoal(
   parsed: Extract<ParsedGoalCommand, { kind: 'create' }>,
   options: GoalStartOptions,
 ): Promise<boolean> {
-  let setup: UltraworkTuiSetupState;
-  try {
-    setup = captureUltraworkTuiSetup(host);
-    await prepareUltraworkTuiSetup(host, setup, parsed.objective, {
-      preservePlan: true,
-      activityTip: GOAL_ULTRAWORK_ACTIVITY_TIP,
-      // Goal path historically did not stash ultraworkPriorState; keep that.
-      recordPriorState: false,
-    });
-  } catch (error) {
-    host.showError(`Failed to start goal workflow: ${formatErrorMessage(error)}`);
-    return false;
-  }
-
+  // Simple closed loop (Ralph Loop pattern): create goal record for multi-turn
+  // persistence, then send the user's objective verbatim. The model decides its
+  // own approach; the goal continuation driver keeps it running until
+  // UpdateGoal('complete') or budget exhaustion.
   try {
     await host.requireSession().createGoal({
       objective: parsed.objective,
       replace: parsed.replace,
+      source: 'standalone',
     });
   } catch (error) {
-    await rollbackUltraworkTuiSetup(host, setup);
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_ALREADY_EXISTS) {
       host.showError(
         'A goal is already active. Use `/goal replace <objective>` to replace it, or `/goal status` to inspect it.',
@@ -453,22 +434,10 @@ async function startGoal(
   if (options.sendInput !== undefined) {
     options.sendInput(parsed.objective);
   } else {
-    const profile =
-      typeof host.session?.classifyUltraworkObjectiveProfile === 'function'
-        ? await host.session.classifyUltraworkObjectiveProfile(parsed.objective).catch(() => undefined)
-        : undefined;
-    host.sendNormalUserInput(
-      buildUltraworkPrompt(parsed.objective, 'goal', parsed.replace, {
-        activeGoalAlreadyCreated: true,
-        capabilities: profile === undefined
-          ? undefined
-          : {
-              visualSurface: profile.visualSurface,
-              benchSurface: profile.benchSurface,
-            },
-      }),
-      { displayText: parsed.objective },
-    );
+    // Send the user's objective verbatim — no prompt wrapping.
+    // The model decides how to achieve it; the verifier is the model's own
+    // UpdateGoal('complete') judgment (or the completionCriterion if provided).
+    host.sendNormalUserInput(parsed.objective);
   }
   return true;
 }
