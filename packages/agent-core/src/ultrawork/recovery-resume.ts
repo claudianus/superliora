@@ -20,6 +20,7 @@ import { resolveApprovedUltraworkPlanPath } from './approved-plan';
 import { readUltraworkMirrorFromDisk } from './run-store';
 import {
   applyWorkGraphProgressToRun,
+  detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
   summarizeWorkGraphProgress,
@@ -260,6 +261,7 @@ export function reconcileUltraworkRunForResume(
     orphaned_nodes: orphanedWorkNodes.length,
     orphaned_experts: orphanedExperts.length,
     lost_tasks: lostBackgroundTasks.length,
+    stuck_nodes: detectStuckWorkGraphNodes(workGraph ?? run.workGraph).length,
     run_age_ms: Date.now() - Date.parse(run.createdAt),
     resume_count: countResumeCycles(run),
   });

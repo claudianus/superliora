@@ -18,7 +18,31 @@ export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined
   // been seeded with work — finishing here would prematurely close runs still
   // in plan/research stages.
   if (graph === undefined || graph.nodes.length === 0) return undefined;
-  if (!graph.nodes.every((node) => node.status === 'done')) return undefined;
+  if (!graph.nodes.every((node) => node.status === 'done')) {
+    // Circuit breaker: if all nodes are terminal (done|failed) but some failed,
+    // the run would otherwise stay stuck in 'running' forever. Log and finish
+    // so the harness does not loop indefinitely on unrecoverable failures.
+    const allTerminal = graph.nodes.every(
+      (node) => node.status === 'done' || node.status === 'failed',
+    );
+    if (allTerminal) {
+      const failedIds = graph.nodes
+        .filter((node) => node.status === 'failed')
+        .map((node) => node.id);
+      agent.log.warn('ultrawork run finishing with failed nodes', {
+        runId: run.id,
+        failedNodeIds: failedIds,
+      });
+      agent.telemetry.track('ultrawork_finish_with_failures', {
+        run_id: run.id,
+        failed_nodes: failedIds.length,
+        total_nodes: graph.nodes.length,
+      });
+      ultrawork.completeLearnStage();
+      return completeUltraGoalForFinishedRun(agent);
+    }
+    return undefined;
+  }
   ultrawork.completeLearnStage();
   return completeUltraGoalForFinishedRun(agent);
 }

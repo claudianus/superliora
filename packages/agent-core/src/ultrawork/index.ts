@@ -48,6 +48,7 @@ export {
 } from './interrupted-work-resume';
 export {
   applyWorkGraphProgressToRun,
+  detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
   summarizeWorkGraphProgress,
