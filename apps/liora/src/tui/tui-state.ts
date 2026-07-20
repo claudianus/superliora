@@ -2,6 +2,7 @@ import {
   Container,
   createTerminalRenderer,
   measureRendererRegions,
+  type RendererRect,
   type RendererRootUI,
   type RendererTerminalHost,
   type TerminalRenderer,
@@ -80,6 +81,14 @@ export interface TUIState {
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];
   swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
+  /**
+   * Cached editor rect from the last rendered frame. Used by the input handler
+   * to avoid a full layout recomputation (planTUINativeStage) on every keystroke.
+   * Invalidated implicitly when terminal size changes (cache key mismatch).
+   */
+  cachedEditorRect?: RendererRect;
+  cachedEditorRectColumns?: number;
+  cachedEditorRectRows?: number;
 }
 
 export function createTUIState(options: LioraTUIOptions): TUIState {
