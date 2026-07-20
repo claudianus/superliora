@@ -79,7 +79,7 @@ export class AuthFlowController {
         ? 'auto'
         : host.options.startup.yolo
           ? 'yolo'
-          : undefined,
+          : host.state.appState.permissionMode,
       planMode: host.state.appState.planMode,
     };
     if (host.state.appState.additionalDirs.length > 0) {

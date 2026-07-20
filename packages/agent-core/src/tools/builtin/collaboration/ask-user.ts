@@ -332,15 +332,15 @@ const AUTO_ANSWER_ASSUMPTION =
   'Assumption: proceed with baseline/minimal scope; refine if blocked.';
 
 /**
- * Auto/YOLO intent: full autopilot — the agent (via this helper) picks the best
+ * Auto intent: full autopilot — the agent (via this helper) picks the best
  * contextual option itself. This is deliberate auto-fill, not "skip the question".
- * Manual mode still waits for a real user answer.
+ * YOLO mode still asks the human; manual mode also waits for a real user answer.
  */
 function tryAutoAnswerQuestions(
   args: NormalizedAskUserQuestionInput,
   mode: string | undefined,
 ): { readonly answers: QuestionAnswers } | undefined {
-  if (mode !== 'auto' && mode !== 'yolo') return undefined;
+  if (mode !== 'auto') return undefined;
 
   const answers: QuestionAnswers = {};
   for (const question of args.questions) {

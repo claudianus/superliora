@@ -975,7 +975,11 @@ export class LioraTUI {
     const createSessionOptions: MutableCreateSessionOptions = {
       workDir,
       model: startup.model,
-      permission: startup.auto ? 'auto' : startup.yolo ? 'yolo' : undefined,
+      permission: startup.auto
+        ? 'auto'
+        : startup.yolo
+          ? 'yolo'
+          : this.state.appState.permissionMode,
       planMode: startup.plan,
     };
     if (this.state.appState.additionalDirs.length > 0) {
@@ -1841,16 +1845,21 @@ export class LioraTUI {
     this.syncAdditionalDirs(session);
   }
 
-  // Apply --auto/--yolo/--plan startup flags to a resumed session. The resumed
-  // session may already be in plan mode from its persisted records, and
-  // re-entering plan mode throws, so only enable it when it is not active yet.
-  // setPermission is idempotent and needs no such guard.
+  // Apply --auto/--yolo/--plan startup flags (or the persisted tui.toml
+  // permission mode) to a resumed session. The resumed session may already be
+  // in plan mode from its persisted records, and re-entering plan mode throws,
+  // so only enable it when it is not active yet. setPermission is idempotent
+  // and needs no such guard.
   private async applyStartupModesToResumedSession(session: Session): Promise<void> {
     const { startup } = this.options;
     if (startup.auto) {
       await session.setPermission('auto');
     } else if (startup.yolo) {
       await session.setPermission('yolo');
+    } else {
+      // No CLI flag: apply the persisted tui.toml permission mode so the
+      // resumed session matches the user's configured preference.
+      await session.setPermission(this.state.appState.permissionMode);
     }
     if (startup.plan) {
       const status = await session.getStatus();
