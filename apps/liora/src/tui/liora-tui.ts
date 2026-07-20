@@ -3612,6 +3612,13 @@ export class LioraTUI {
               if (onViewerClose !== undefined) onViewerClose();
               else this.returnToFileExplorer();
             },
+            onBlame: (blamePath) => {
+              // showBlame() bails while a dialog is active, so tear the
+              // viewer down first (same mechanics as hideFileExplorer).
+              this.state.activeDialog = null;
+              this.restoreEditor();
+              this.showBlame(blamePath);
+            },
           }),
         );
         return;

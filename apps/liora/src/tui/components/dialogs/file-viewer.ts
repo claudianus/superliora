@@ -33,6 +33,8 @@ export interface FileViewerOptions {
   /** 1-based line scrolled into view on open (e.g. a `/search` match). */
   readonly initialLine?: number;
   readonly onClose: () => void;
+  /** Called with the relative path when the user presses `b` to open git blame. */
+  readonly onBlame?: (relativePath: string) => void;
   /** Body frame height (including its two border rows). Defaults to 24. */
   readonly maxVisible?: number;
 }
@@ -98,6 +100,10 @@ export class FileViewerComponent extends Container implements Focusable {
       this.opts.onClose();
       return;
     }
+    if (k === 'b' && this.opts.onBlame !== undefined) {
+      this.opts.onBlame(this.opts.relativePath);
+      return;
+    }
     if (matchesKey(data, Key.up) || k === 'k') {
       this.scrollTo(this.topLine - 1);
       return;
@@ -150,9 +156,10 @@ export class FileViewerComponent extends Container implements Focusable {
   private renderFooter(width: number): string {
     const key = (text: string): string => currentTheme.boldFg('primary', text);
     const dim = (text: string): string => currentTheme.fg('textMuted', text);
+    const blameHint = this.opts.onBlame !== undefined ? `${key('b')} ${dim('blame')}  ` : '';
     const line =
       ` ${key('↑/↓')} ${dim('scroll')}  ${key('pgup/pgdn')} ${dim('page')}  ` +
-      `${key('g/G')} ${dim('top/bottom')}  ${key('esc')} ${dim('close')} `;
+      `${key('g/G')} ${dim('top/bottom')}  ${blameHint}${key('esc')} ${dim('close')} `;
     return fitLine(line, width);
   }
 

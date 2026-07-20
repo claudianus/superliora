@@ -23,6 +23,7 @@ interface MakeOptions {
   readonly bytes?: number;
   readonly initialLine?: number;
   readonly onClose?: () => void;
+  readonly onBlame?: (relativePath: string) => void;
   readonly maxVisible?: number;
 }
 
@@ -34,6 +35,7 @@ function makeViewer(options: MakeOptions = {}): FileViewerComponent {
     bytes: options.bytes ?? Buffer.byteLength(content),
     initialLine: options.initialLine,
     onClose: options.onClose ?? vi.fn(),
+    onBlame: options.onBlame,
     maxVisible: options.maxVisible ?? 8, // inner body height = 6 rows
   });
 }
@@ -146,12 +148,48 @@ describe('FileViewerComponent', () => {
     expect(onCloseQ).toHaveBeenCalledTimes(1);
   });
 
+  it('opens blame with b when onBlame is provided', () => {
+    const onBlame = vi.fn();
+    const viewer = makeViewer({ relativePath: 'src/app.ts', onBlame });
+    viewer.handleInput('b');
+
+    expect(onBlame).toHaveBeenCalledTimes(1);
+    expect(onBlame).toHaveBeenCalledWith('src/app.ts');
+  });
+
+  it('ignores b without onBlame and keeps the viewer open', () => {
+    const onClose = vi.fn();
+    const viewer = makeViewer({ onClose });
+    viewer.handleInput('b');
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(bodyLines(viewer)[0]).toContain('1 │ line 1');
+  });
+
+  it('does not trigger blame for uppercase B', () => {
+    const onBlame = vi.fn();
+    const onClose = vi.fn();
+    const viewer = makeViewer({ onBlame, onClose });
+    viewer.handleInput('B');
+
+    expect(onBlame).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('renders the scroll hint footer', () => {
     const footer = renderedLines(makeViewer()).at(-1) ?? '';
 
     expect(footer).toContain('scroll');
     expect(footer).toContain('page');
     expect(footer).toContain('top/bottom');
+    expect(footer).toContain('close');
+  });
+
+  it('shows the blame hint in the footer only when onBlame is provided', () => {
+    expect(renderedLines(makeViewer()).at(-1) ?? '').not.toContain('blame');
+
+    const footer = renderedLines(makeViewer({ onBlame: vi.fn() })).at(-1) ?? '';
+    expect(footer).toContain('b blame');
     expect(footer).toContain('close');
   });
 
