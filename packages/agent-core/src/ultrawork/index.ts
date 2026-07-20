@@ -53,7 +53,9 @@ export {
   assessContextPressure,
   assessDegradationLevel,
   assessRecoveryEscalation,
+  assessTurnBudget,
   BACKPRESSURE_GUIDANCE,
+  BUDGET_GUIDANCE,
   categorizeNodeFailure,
   computeRunHealthScore,
   CONTEXT_PRESSURE_GUIDANCE,
@@ -67,7 +69,7 @@ export {
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
 } from './stage-progress';
-export type { BackpressureInputs, BackpressureLevel, ContextPressureLevel, DegradationLevel, DegradationState, LongRunningStageInfo, RecoveryEscalationLevel, RunHealthGrade, RunHealthSignals, WorkGraphFailureCategory } from './stage-progress';
+export type { BackpressureInputs, BackpressureLevel, BudgetStatus, ContextPressureLevel, DegradationLevel, DegradationState, LongRunningStageInfo, RecoveryEscalationLevel, RunHealthGrade, RunHealthSignals, WorkGraphFailureCategory } from './stage-progress';
 export {
   buildUltraworkCompactionEnvelope,
   captureUltraworkEnvelopeSnapshot,

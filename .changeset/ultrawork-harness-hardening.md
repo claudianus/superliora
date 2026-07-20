@@ -39,3 +39,4 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add information freshness indicator (fresh/recent/aging/stale) to compaction envelope for memory decay awareness
 - Add degradation level tracking (normal/degraded/severe/critical) with affected capabilities list
 - Add tool call idempotency tracking to prevent duplicate side effects on retry
+- Add turn budget tracking (ok/warning/critical/exhausted) for runaway loop prevention
