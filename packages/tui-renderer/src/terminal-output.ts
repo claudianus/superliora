@@ -366,15 +366,31 @@ export function styleToAnsi(
 /**
  * Make text safe for cell/glyph sinks that must not carry control sequences.
  *
- * Important: strip full CSI/OSC sequences **before** filtering ESC. Replacing
- * only `\u001B` leaves the SGR body (`[0;1;38;2;…m`) visible as plain text —
- * the exact leak users see as `[0;1;38;2>` / `[0;1;38;2;…m` in animations.
+ * Full CSI/OSC sequences are stripped first: replacing only `\u001B` would
+ * leave the SGR body (`[0;1;38;2;…m`) visible as plain text — the exact leak
+ * users see as `[0;1;38;2>` / `[0;1;38;2;…m` in animations. Stripped
+ * sequences are zero-width annotations, so dropping them keeps the grid.
+ *
+ * Lone control characters (e.g. a bare ESC that is not part of a sequence)
+ * are deliberately kept for the cluster filter below, which replaces each
+ * unsafe cluster with a space. Dropping them instead would shift every later
+ * cell in the same run one column left.
  */
 export function escapeTerminalText(text: string): string {
-  const plain = stripTerminalControlSequences(text);
+  const plain = stripTerminalEscapeSequences(text);
   return splitDisplayClusters(plain)
     .map((cluster) => (isSafePrintableCluster(cluster.text) ? cluster.text : ' '))
     .join('');
+}
+
+/** Drop complete CSI / OSC sequences only; leave lone ESC for column-preserving filtering. */
+function stripTerminalEscapeSequences(text: string): string {
+  if (text.length === 0 || !text.includes('\u001B')) return text;
+  return text
+    // CSI: ESC [ … final byte in @-~
+    .replaceAll(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
+    // OSC: ESC ] … BEL or ST
+    .replaceAll(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '');
 }
 
 /** Drop CSI / OSC / other short ESC sequences; leave printable payload only. */
