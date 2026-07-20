@@ -68,20 +68,25 @@ export interface SessionOptions {
 export class Session {
   readonly id: string;
   readonly workDir: string;
-  summary?: SessionSummary | undefined;
+  private _summary: SessionSummary | undefined;
   private resumeState: ResumedSessionState | undefined;
 
   private readonly rpc: SDKRpcClientBase;
   private readonly onClose?: (() => void | Promise<void>) | undefined;
+  private readonly eventUnsubscribers: Array<() => void> = [];
   private closed = false;
 
   constructor(options: SessionOptions) {
     this.id = options.id;
     this.workDir = options.workDir;
-    this.summary = options.summary;
+    this._summary = options.summary;
     this.resumeState = options.resumeState ?? resumeStateFromSummary(options.summary);
     this.rpc = options.rpc;
     this.onClose = options.onClose;
+  }
+
+  get summary(): SessionSummary | undefined {
+    return this._summary;
   }
 
   getResumeState(): ResumedSessionState | undefined {
@@ -95,18 +100,25 @@ export class Session {
       sessionId: this.id,
       forcePluginSessionStartReminder: options?.forcePluginSessionStartReminder,
     });
-    this.summary = summary;
+    this._summary = summary;
     this.resumeState = resumeStateFromSummary(summary);
     return summary;
   }
 
   onEvent(listener: (event: Event) => void): Unsubscribe {
     this.ensureOpen();
-    return this.rpc.onEvent((event) => {
+    const unsubscribe = this.rpc.onEvent((event) => {
       if (event.sessionId === this.id) {
         listener(event);
       }
     });
+    // Track subscriptions so close() can release them automatically.
+    this.eventUnsubscribers.push(unsubscribe);
+    return () => {
+      const idx = this.eventUnsubscribers.indexOf(unsubscribe);
+      if (idx !== -1) this.eventUnsubscribers.splice(idx, 1);
+      unsubscribe();
+    };
   }
 
   setApprovalHandler(handler: ApprovalHandler | undefined): void {
@@ -194,7 +206,7 @@ export class Session {
       path: normalized,
       persist: options?.persist ?? true,
     });
-    this.summary = { ...this.requireSummary(), additionalDirs: result.additionalDirs };
+    this._summary = { ...this.requireSummary(), additionalDirs: result.additionalDirs };
     return result;
   }
 
@@ -225,6 +237,12 @@ export class Session {
       'Session thinking level cannot be empty',
       ErrorCodes.SESSION_THINKING_EMPTY,
     );
+    if (!isKnownThinkingLevel(normalized)) {
+      throw new LioraError(
+        ErrorCodes.REQUEST_INVALID,
+        `Unknown thinking level "${normalized}". Expected one of: off, on, low, medium, high, xhigh, max.`,
+      );
+    }
     await this.rpc.setThinking({ sessionId: this.id, level: normalized });
   }
 
@@ -239,7 +257,7 @@ export class Session {
     await this.rpc.setPermission({ sessionId: this.id, mode });
   }
 
-  async setPlanMode(enabled: boolean, ultra = false, initialContext?: string): Promise<void> {
+  async setPlanMode(enabled: boolean, ultra = false, initialContext?: string, source?: 'standalone' | 'ultrawork'): Promise<void> {
     this.ensureOpen();
     if (typeof enabled !== 'boolean') {
       throw new LioraError(
@@ -252,6 +270,7 @@ export class Session {
       enabled,
       ultra: ultra ? true : undefined,
       initialContext,
+      source,
     });
   }
 
@@ -649,6 +668,11 @@ export class Session {
     if (this.closed) return;
     this.closed = true;
     try {
+      // Release all event subscriptions registered via onEvent().
+      for (const unsubscribe of this.eventUnsubscribers) {
+        unsubscribe();
+      }
+      this.eventUnsubscribers.length = 0;
       await this.rpc.closeSession({ sessionId: this.id });
     } finally {
       this.rpc.clearSessionHandlers(this.id);
@@ -667,6 +691,12 @@ export class Session {
     });
   }
 
+  /** @internal Update the cached summary (e.g. after a kaos-backed resume). */
+  updateSummary(summary: SessionSummary): void {
+    this._summary = summary;
+    this.resumeState = resumeStateFromSummary(summary);
+  }
+
   private emit(event: Event): void {
     this.rpc.receiveEvent(event);
   }
@@ -678,10 +708,10 @@ export class Session {
   }
 
   private requireSummary(): SessionSummary {
-    if (this.summary === undefined) {
+    if (this._summary === undefined) {
       throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'Session summary is unavailable');
     }
-    return this.summary;
+    return this._summary;
   }
 }
 
@@ -748,6 +778,12 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
 
 function isPermissionMode(value: unknown): value is PermissionMode {
   return value === 'yolo' || value === 'manual' || value === 'auto';
+}
+
+const KNOWN_THINKING_LEVELS = new Set(['off', 'on', 'low', 'medium', 'high', 'xhigh', 'max']);
+
+function isKnownThinkingLevel(value: string): boolean {
+  return KNOWN_THINKING_LEVELS.has(value.toLowerCase());
 }
 
 function resumeStateFromSummary(

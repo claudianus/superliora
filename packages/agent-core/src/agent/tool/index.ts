@@ -592,6 +592,9 @@ export class ToolManager {
       goalToolsEnabled &&
         this.shouldCreateBuiltin('CreateGoal') &&
         new b.CreateGoalTool(this.agent),
+      goalToolsEnabled &&
+        this.shouldCreateBuiltin('CreateUltraGoal') &&
+        new b.CreateUltraGoalTool(this.agent),
       goalToolsEnabled && this.shouldCreateBuiltin('GetGoal') && new b.GetGoalTool(this.agent),
       goalToolsEnabled &&
         this.shouldCreateBuiltin('SetGoalBudget') &&

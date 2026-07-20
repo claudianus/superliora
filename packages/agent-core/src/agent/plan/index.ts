@@ -4,6 +4,8 @@ import { dirname, join } from 'pathe';
 import type { Agent } from '..';
 import { generateHeroSlug } from '../../utils/hero-slug';
 import { maybeAdvanceUltraworkStage } from '../../ultrawork';
+import type { ModeActivationSource } from '../mode-activation';
+import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import {
   UltraPlanModeEngine,
   type DriftMetrics,
@@ -48,6 +50,7 @@ export class PlanMode {
     emitStatus = true,
     ultra = false,
     initialContext = '',
+    source: ModeActivationSource = DEFAULT_MODE_ACTIVATION_SOURCE,
   ): Promise<void> {
     if (this._isActive) {
       throw new Error('Already in plan mode');
@@ -73,7 +76,9 @@ export class PlanMode {
       if (ultra) {
         this.ultraEngine.startInterview(initialContext);
         await this.writeUltraPlanTemplate(planFilePath);
-        maybeAdvanceUltraworkStage(this.agent, 'research', 'Ultra plan research phase');
+        if (source === 'ultrawork') {
+          maybeAdvanceUltraworkStage(this.agent, 'research', 'Ultra plan research phase');
+        }
         this.logStateCheckpoint();
       }
     } catch (error) {

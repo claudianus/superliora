@@ -82,7 +82,7 @@ describe('Ultrawork goal completion', () => {
   it('markComplete with ultrawork at plan clears goal and finishes run', async () => {
     const agent = new Agent({ kaos: testKaos });
     createUltraworkAtPlan(agent, 'run-mark-complete-plan');
-    await agent.goal.createGoal({ objective: 'Ship docs' });
+    await agent.goal.createGoal({ objective: 'Ship docs', source: 'ultrawork' });
 
     const snapshot = await agent.goal.markComplete({}, 'model');
     expect(snapshot?.status).toBe('complete');

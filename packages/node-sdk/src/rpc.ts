@@ -124,6 +124,7 @@ export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
   readonly ultra?: boolean;
   readonly initialContext?: string;
+  readonly source?: 'standalone' | 'ultrawork';
 }
 
 export type SetSessionSwarmModeRpcInput =
@@ -187,6 +188,14 @@ export abstract class SDKRpcClientBase {
     return rpc.createSession(coreInput);
   }
 
+  /**
+   * Create a session with a custom execution environment (Kaos).
+   *
+   * The base implementation ignores `kaos` and `persistenceKaos` because
+   * remote transports (e.g. WebSocket-backed RPC) cannot serialize a Kaos
+   * instance across the wire. In-process transports ({@link SDKRpcClient})
+   * override this to pass the overrides directly to the core.
+   */
   async createSessionWithKaos(
     input: CreateSessionOptions,
     kaos: Kaos,
@@ -202,6 +211,12 @@ export abstract class SDKRpcClientBase {
     return rpc.resumeSession({ ...input, sessionId: input.id });
   }
 
+  /**
+   * Resume a session with a custom execution environment (Kaos).
+   *
+   * Same transport limitation as {@link createSessionWithKaos}: the base
+   * implementation ignores `kaos` / `persistenceKaos`.
+   */
   async resumeSessionWithKaos(
     input: ResumeSessionInput,
     kaos: Kaos,
@@ -463,6 +478,7 @@ export abstract class SDKRpcClientBase {
       agentId: this.interactiveAgentId,
       ultra: input.ultra ? true : undefined,
       initialContext: input.initialContext,
+      source: input.source,
     });
   }
 
@@ -473,7 +489,14 @@ export abstract class SDKRpcClientBase {
 
   async swarm(input: SessionPromptRpcInput): Promise<void> {
     await this.enterSwarmMode({ sessionId: input.sessionId, trigger: 'task' });
-    return this.prompt(input);
+    try {
+      return await this.prompt(input);
+    } catch (error) {
+      // Roll back swarm mode so a failed prompt does not leave the session
+      // stuck in swarm state.
+      await this.exitSwarmMode({ sessionId: input.sessionId }).catch(() => {});
+      throw error;
+    }
   }
 
   private async enterSwarmMode(
@@ -576,46 +599,27 @@ export abstract class SDKRpcClientBase {
   async getStatus(input: SessionIdRpcInput): Promise<SessionStatus> {
     const rpc = await this.getRpc();
     const agentId = this.interactiveAgentId;
+    const scoped = { sessionId: input.sessionId, agentId };
+
+    // Fetch all facets in parallel. Individual failures degrade to undefined
+    // instead of failing the entire status query.
     const [config, context, permission, plan, swarmMode, premiumQualityMode, usage, providerRouteStatus] =
       await Promise.all([
-        rpc.getConfig({
-          sessionId: input.sessionId,
-          agentId,
-        }),
-        rpc.getContext({
-          sessionId: input.sessionId,
-          agentId,
-        }),
-        rpc.getPermission({
-          sessionId: input.sessionId,
-          agentId,
-        }),
-        rpc.getPlan({
-          sessionId: input.sessionId,
-          agentId,
-        }),
-        rpc.getSwarmMode({
-          sessionId: input.sessionId,
-          agentId,
-        }),
-        rpc.getPremiumQuality({
-          sessionId: input.sessionId,
-          agentId,
-        }),
-        rpc.getUsage({
-          sessionId: input.sessionId,
-          agentId,
-        }),
-        rpc.getProviderRouteStatus({
-          sessionId: input.sessionId,
-          agentId,
-        }),
+        rpc.getConfig(scoped),
+        rpc.getContext(scoped),
+        rpc.getPermission(scoped),
+        rpc.getPlan(scoped),
+        rpc.getSwarmMode(scoped).catch(() => undefined),
+        rpc.getPremiumQuality(scoped).catch(() => undefined),
+        rpc.getUsage(scoped).catch(() => undefined),
+        rpc.getProviderRouteStatus(scoped).catch(() => null),
       ]);
     const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
     const contextTokens = context.tokenCount;
     const contextUsage = maxContextTokens > 0 ? contextTokens / maxContextTokens : 0;
     const hasUsage =
-      usage.byModel !== undefined || usage.total !== undefined || usage.currentTurn !== undefined;
+      usage !== undefined &&
+      (usage.byModel !== undefined || usage.total !== undefined || usage.currentTurn !== undefined);
     return {
       model: config.modelAlias ?? config.provider?.model,
       thinkingLevel: config.thinkingLevel,
@@ -715,6 +719,7 @@ export abstract class SDKRpcClientBase {
       agentId: this.interactiveAgentId,
       objective: input.objective,
       replace: input.replace,
+      source: input.source,
     });
   }
 

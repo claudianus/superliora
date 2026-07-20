@@ -70,11 +70,12 @@ export async function handlePlanCommand(host: SlashCommandHost, args: string): P
   else if (subcmd === 'on') enabled = true;
   else if (subcmd === 'off') enabled = false;
   else if (subcmd === 'ultra') {
+    // Internal path for Shift+Tab shortcut; prefer /ultraplan for explicit use.
     enabled = true;
     ultra = true;
   }
   else {
-    host.showError(`Unknown plan subcommand: ${subcmd}`);
+    host.showError(`Unknown plan subcommand: ${subcmd}. Use on, off, or clear.`);
     return;
   }
 
@@ -201,12 +202,12 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
     if (enabled) {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(
-        ultra ? 'UltraPlan steering: ON' : 'Ultrawork plan steering: ON',
-        plan?.path !== undefined ? `Plan will be created here: ${plan.path}` : undefined,
+        ultra ? 'UltraPlan mode: ON (structured pipeline)' : 'Plan mode: ON (free-form)',
+        plan?.path !== undefined ? `Plan file: ${plan.path}` : undefined,
       );
       return;
     }
-    host.showNotice('Ultrawork plan steering: OFF');
+    host.showNotice('Plan mode: OFF');
   } catch (error) {
     const msg = formatErrorMessage(error);
     host.showError(`Failed to set plan mode: ${msg}`);
@@ -230,6 +231,7 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.on.title'), ttui('tui.permission.yolo.on.detail'), { coalesceKey: 'permission-mode-yolo' });
     return;
   }
@@ -241,6 +243,7 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.off.title'), undefined, { coalesceKey: 'permission-mode-yolo' });
     return;
   }
@@ -249,10 +252,12 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'yolo') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.off.title'), undefined, { coalesceKey: 'permission-mode-yolo' });
   } else {
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.on.title'), ttui('tui.permission.yolo.on.detail'), { coalesceKey: 'permission-mode-yolo' });
   }
 }
@@ -274,6 +279,7 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.on.title'), ttui('tui.permission.auto.on.detail'), { coalesceKey: 'permission-mode-auto' });
     return;
   }
@@ -285,6 +291,7 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.off.title'), undefined, { coalesceKey: 'permission-mode-auto' });
     return;
   }
@@ -293,12 +300,19 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'auto') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.off.title'), undefined, { coalesceKey: 'permission-mode-auto' });
   } else {
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
+    void persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.on.title'), ttui('tui.permission.auto.on.detail'), { coalesceKey: 'permission-mode-auto' });
   }
+}
+
+/** Fire-and-forget persistence of the current permission mode to tui.toml. */
+function persistPermissionMode(host: SlashCommandHost): Promise<void> {
+  return saveTuiConfig(tuiConfigFromHost(host));
 }
 
 export async function handleCompactCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -746,7 +760,7 @@ type UpdatePreferenceHost = {
   readonly state: {
     readonly appState: Pick<
       SlashCommandHost['state']['appState'],
-      'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'appearance'
+      'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'appearance' | 'disablePasteBurst' | 'permissionMode'
     >;
   };
   setAppState(patch: Pick<SlashCommandHost['state']['appState'], 'upgrade'>): void;
@@ -836,7 +850,7 @@ function tuiConfigFromHost(
     readonly state: {
       readonly appState: Pick<
         SlashCommandHost['state']['appState'],
-        'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst'
+        'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst' | 'permissionMode'
       > & { readonly appearance?: AppearancePreferences };
     };
   },
@@ -844,6 +858,7 @@ function tuiConfigFromHost(
 ): TuiConfig {
   return {
     theme: host.state.appState.theme,
+    permissionMode: host.state.appState.permissionMode,
     disablePasteBurst: host.state.appState.disablePasteBurst ?? false,
     editorCommand: host.state.appState.editorCommand,
     notifications: host.state.appState.notifications,

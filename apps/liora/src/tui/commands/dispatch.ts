@@ -66,6 +66,11 @@ import {
 } from './session';
 import { handleSwarmCommand } from './swarm';
 import {
+  handleUltraGoalCommand,
+  handleUltraPlanCommand,
+  handleUltraSwarmCommand,
+} from './ultra-standalone';
+import {
   handleUltraworkCommand,
   handleUltraworkModeToggle,
   shouldAutoActivateUltrawork,
@@ -398,6 +403,15 @@ async function handleBuiltInSlashCommand(
       return;
     case 'ultrawork':
       await handleUltraworkCommand(host, args);
+      return;
+    case 'ultragoal':
+      await handleUltraGoalCommand(host, args);
+      return;
+    case 'ultraswarm':
+      await handleUltraSwarmCommand(host, args);
+      return;
+    case 'ultraplan':
+      await handleUltraPlanCommand(host, args);
       return;
     case 'compact':
       await handleCompactCommand(host, args);

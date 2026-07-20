@@ -105,6 +105,8 @@ export type PermissionMode = 'yolo' | 'manual' | 'auto';
 export interface CreateGoalInput {
   readonly objective: string;
   readonly replace?: boolean;
+  /** Whether this goal is standalone or part of Ultrawork orchestration. */
+  readonly source?: 'standalone' | 'ultrawork';
 }
 
 export interface CreateUltraworkRunInput {
