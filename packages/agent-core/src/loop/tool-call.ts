@@ -84,6 +84,7 @@ function resetToolFailure(toolName: string): void {
 export function resetToolFailureTracker(): void {
   consecutiveFailures.clear();
   recentToolCalls.clear();
+  executedToolCalls.clear();
 }
 
 /**
@@ -192,6 +193,74 @@ export function getCircuitBreakerState(toolName: string): CircuitBreakerState {
 /** Reset all circuit breaker state. Call at session boundaries. */
 export function resetCircuitBreakers(): void {
   circuitBreakers.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Tool call idempotency tracking (duplicate side-effect prevention)
+// ---------------------------------------------------------------------------
+
+/**
+ * Idempotency key for tool calls. Based on the pattern:
+ * (run_id, step_index, action_type) to deduplicate write operations.
+ * For our purposes, we use (toolName, argsHash) as the key.
+ */
+interface IdempotencyEntry {
+  readonly toolName: string;
+  readonly argsHash: string;
+  readonly executedAt: number;
+  readonly result?: string;
+}
+
+/**
+ * Tracks executed tool calls to prevent duplicate side effects on retry.
+ * Keyed by composite idempotency key (toolName:argsHash).
+ */
+const executedToolCalls = new Map<string, IdempotencyEntry>();
+
+/** Maximum entries before LRU eviction. */
+const MAX_IDEMPOTENCY_ENTRIES = 100;
+
+/**
+ * Generate an idempotency key for a tool call.
+ */
+export function toolCallIdempotencyKey(toolName: string, args: unknown): string {
+  const argsHash = safeStringifyArgs(args);
+  return `${toolName}:${argsHash}`;
+}
+
+/**
+ * Check if a tool call has already been executed (idempotent duplicate).
+ * Returns the cached result if available.
+ */
+export function checkToolCallIdempotency(key: string): IdempotencyEntry | undefined {
+  return executedToolCalls.get(key);
+}
+
+/**
+ * Record a tool call execution for idempotency tracking.
+ */
+export function recordToolCallExecution(
+  key: string,
+  toolName: string,
+  args: unknown,
+  result?: string,
+): void {
+  // LRU eviction if at capacity.
+  if (executedToolCalls.size >= MAX_IDEMPOTENCY_ENTRIES) {
+    const firstKey = executedToolCalls.keys().next().value;
+    if (firstKey !== undefined) executedToolCalls.delete(firstKey);
+  }
+  executedToolCalls.set(key, {
+    toolName,
+    argsHash: safeStringifyArgs(args),
+    executedAt: Date.now(),
+    result,
+  });
+}
+
+/** Reset idempotency tracking. Call at turn boundaries. */
+export function resetIdempotencyTracker(): void {
+  executedToolCalls.clear();
 }
 
 /**

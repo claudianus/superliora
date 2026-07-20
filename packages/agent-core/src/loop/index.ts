@@ -77,11 +77,15 @@ export type {
 export { runTurn } from './run-turn';
 export type { RunTurnInput } from './run-turn';
 export {
+  checkToolCallIdempotency,
   getCircuitBreakerState,
   isToolCircuitOpen,
+  recordToolCallExecution,
   recordToolFailureForCircuitBreaker,
   recordToolSuccessForCircuitBreaker,
   resetCircuitBreakers,
+  resetIdempotencyTracker,
   resetToolFailureTracker,
+  toolCallIdempotencyKey,
 } from './tool-call';
 export type { CircuitBreakerState } from './tool-call';
