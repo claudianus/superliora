@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   detectUltraworkAutoActivationWithLlm,
+  isOpenEndedImprovementLoop,
   shouldActOnUltraworkAutoActivation,
 } from '../../src/ultrawork/auto-activate-llm';
 
@@ -118,5 +119,44 @@ describe('ultrawork auto-activation classifier', () => {
     );
     expect(invalid).toBeUndefined();
     expect(shouldActOnUltraworkAutoActivation(invalid)).toBe(false);
+  });
+});
+
+describe('open-ended improvement loop guard', () => {
+  it('flags infinite/self-improvement loop requests in Korean and English', () => {
+    expect(
+      isOpenEndedImprovementLoop(
+        '우리 TUI를 무한 자가 개선 루프로 계속 개선해줘. 무제한 개발 허용함',
+      ),
+    ).toBe(true);
+    expect(isOpenEndedImprovementLoop('끝없는 개선 반복으로 세계 1위 TUI를 만들어')).toBe(true);
+    expect(
+      isOpenEndedImprovementLoop('Run an infinite loop of improvements on the TUI'),
+    ).toBe(true);
+    expect(isOpenEndedImprovementLoop('keep improving the harness forever')).toBe(true);
+  });
+
+  it('does not flag bug reports about infinite loops or unrelated feature work', () => {
+    expect(isOpenEndedImprovementLoop('fix the infinite loop bug in the parser')).toBe(false);
+    expect(isOpenEndedImprovementLoop('무한 스크롤 UI를 개발해줘')).toBe(false);
+    expect(isOpenEndedImprovementLoop('Debug the endless retry loop crash')).toBe(false);
+    expect(isOpenEndedImprovementLoop('Ship the new diff panel feature')).toBe(false);
+  });
+
+  it('declines open-ended loops deterministically without an LLM call', async () => {
+    const generate = vi.fn(async () => {
+      throw new Error('classifier must not be called for open-ended loops');
+    });
+    const intent = await detectUltraworkAutoActivationWithLlm(
+      { generate: generate as never, provider: {} as never },
+      { text: '우리 하네스를 무한 자가 개선 루프로 계속 개선해줘' },
+    );
+    expect(generate).not.toHaveBeenCalled();
+    expect(intent).toEqual({
+      shouldActivate: false,
+      confidence: 1,
+      reason: 'Open-ended improvement loop; runs as ordinary goal-driven iteration',
+    });
+    expect(shouldActOnUltraworkAutoActivation(intent)).toBe(false);
   });
 });

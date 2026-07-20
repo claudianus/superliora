@@ -21,6 +21,16 @@ const ULTRAWORK_STAGES = new Set<UltraworkStage>([
   'done',
 ]);
 
+/**
+ * Stage synonyms seen in plan tables. Normalized to canonical Ultrawork
+ * stages so the protocol enum and graph consumers stay unchanged.
+ */
+const WORK_GRAPH_STAGE_SYNONYMS: Readonly<Record<string, UltraworkStage>> = {
+  implement: 'swarm',
+  implementation: 'swarm',
+  review: 'swarm',
+};
+
 const WORK_GRAPH_HEADING = 'WorkGraph';
 
 export interface SeedWorkGraphFromPlanResult {
@@ -243,6 +253,8 @@ function parseStage(
 ): UltraworkStage | undefined {
   if (raw === undefined) return undefined;
   const normalized = raw.trim().toLowerCase();
+  const synonym = WORK_GRAPH_STAGE_SYNONYMS[normalized];
+  if (synonym !== undefined) return synonym;
   if (ULTRAWORK_STAGES.has(normalized as UltraworkStage)) {
     return normalized as UltraworkStage;
   }

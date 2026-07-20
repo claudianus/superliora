@@ -333,31 +333,46 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
 
 function missingUltraPlanSections(plan: string): string[] {
   const missing: string[] = [];
-  const requiredHeadings = [
-    'Seed Spec',
-    'AC Tree',
-    'WorkGraph',
-    'Evaluation Plan',
-    'Execution Plan',
+  // Heading requirements accept English and Korean aliases; the response
+  // language lock may force localized headings in the plan file.
+  const requiredHeadingGroups: readonly FieldRequirement[] = [
+    { label: 'Seed Spec', aliases: ['Seed Spec', '시드 사양', '시드 스펙'] },
+    {
+      label: 'AC Tree',
+      aliases: ['AC Tree', 'AC 트리', 'AC트리', '인수 기준 트리'],
+    },
+    { label: 'WorkGraph', aliases: WORK_GRAPH_HEADING_ALIASES },
+    { label: 'Evaluation Plan', aliases: ['Evaluation Plan', '평가 계획'] },
+    { label: 'Execution Plan', aliases: ['Execution Plan', '실행 계획'] },
   ];
   const fieldRequirements: readonly FieldRequirement[] = [
-    { label: 'Verifiable UltraGoal', aliases: ['Verifiable UltraGoal'] },
-    { label: 'Completion Criterion', aliases: ['Completion Criterion'] },
-    { label: 'Actors', aliases: ['Actors'] },
-    { label: 'Inputs', aliases: ['Inputs'] },
-    { label: 'Outputs', aliases: ['Outputs'] },
-    { label: 'Constraints', aliases: ['Constraints'] },
-    { label: 'Non-goals', aliases: ['Non-goals', 'Non goals'] },
-    { label: 'Acceptance Criteria', aliases: ['Acceptance Criteria'] },
-    { label: 'Verification Plan', aliases: ['Verification Plan'] },
-    { label: 'Failure Modes', aliases: ['Failure Modes'] },
-    { label: 'Runtime Context', aliases: ['Runtime Context'] },
+    {
+      label: 'Verifiable UltraGoal',
+      aliases: ['Verifiable UltraGoal', '검증 가능한 목표', '검증 가능 목표'],
+    },
+    { label: 'Completion Criterion', aliases: ['Completion Criterion', '완료 기준'] },
+    { label: 'Actors', aliases: ['Actors', '참여자', '액터'] },
+    { label: 'Inputs', aliases: ['Inputs', '입력'] },
+    { label: 'Outputs', aliases: ['Outputs', '출력', '산출물'] },
+    { label: 'Constraints', aliases: ['Constraints', '제약', '제약 조건'] },
+    { label: 'Non-goals', aliases: ['Non-goals', 'Non goals', '비목표', '비-목표'] },
+    {
+      label: 'Acceptance Criteria',
+      aliases: ['Acceptance Criteria', '인수 기준', '수용 기준'],
+    },
+    { label: 'Verification Plan', aliases: ['Verification Plan', '검증 계획'] },
+    { label: 'Failure Modes', aliases: ['Failure Modes', '실패 모드'] },
+    { label: 'Runtime Context', aliases: ['Runtime Context', '런타임 컨텍스트'] },
   ];
 
-  for (const heading of requiredHeadings) {
-    if (!hasHeading(plan, heading)) missing.push(heading);
+  for (const group of requiredHeadingGroups) {
+    if (!group.aliases.some((alias) => hasHeading(plan, alias))) missing.push(group.label);
   }
-  if (!hasHeading(plan, 'Swarm Decision') && !hasSwarmDecisionLine(plan)) {
+  if (
+    !hasHeading(plan, 'Swarm Decision') &&
+    !hasHeading(plan, '스웜 결정') &&
+    !hasSwarmDecisionLine(plan)
+  ) {
     missing.push('Swarm Decision');
   }
   for (const requirement of fieldRequirements) {
@@ -383,11 +398,14 @@ function missingUltraPlanSections(plan: string): string[] {
 export function enforceSeedCoverage(plan: string): string[] {
   const missing: string[] = [];
   const seedSections: readonly { readonly name: string; readonly aliases: readonly string[] }[] = [
-    { name: 'Goal', aliases: ['Verifiable UltraGoal', 'Goal / UltraGoal', 'UltraGoal'] },
-    { name: 'Constraints', aliases: ['Constraints'] },
-    { name: 'Acceptance', aliases: ['Acceptance Criteria'] },
-    { name: 'Ontology', aliases: ['Ontology', 'WorkGraph', 'AC Tree'] },
-    { name: 'Evaluation', aliases: ['Evaluation Plan', 'Evaluation'] },
+    {
+      name: 'Goal',
+      aliases: ['Verifiable UltraGoal', 'Goal / UltraGoal', 'UltraGoal', '검증 가능한 목표', '검증 가능 목표'],
+    },
+    { name: 'Constraints', aliases: ['Constraints', '제약', '제약 조건'] },
+    { name: 'Acceptance', aliases: ['Acceptance Criteria', '인수 기준', '수용 기준'] },
+    { name: 'Ontology', aliases: ['Ontology', 'WorkGraph', 'AC Tree', '워크그래프', 'AC 트리', 'AC트리'] },
+    { name: 'Evaluation', aliases: ['Evaluation Plan', 'Evaluation', '평가 계획'] },
   ];
   for (const section of seedSections) {
     if (!section.aliases.some((alias) => hasFieldContent(plan, [alias]))) {
@@ -401,6 +419,15 @@ interface FieldRequirement {
   readonly label: string;
   readonly aliases: readonly string[];
 }
+
+/**
+ * Trailing boundary for heading patterns. JS `\b` only recognizes ASCII word
+ * characters, which breaks Korean headings (e.g. `## 평가 계획` at end of
+ * line). This negative lookahead works for both scripts under the `u` flag.
+ */
+const UNICODE_WORD_BOUNDARY = '(?![\\p{L}\\p{N}_])';
+
+const WORK_GRAPH_HEADING_ALIASES = ['WorkGraph', '워크그래프', '워크 그래프'] as const;
 
 const ALL_ULTRA_PLAN_FIELD_LABELS = [
   'Seed Spec',
@@ -436,23 +463,66 @@ const ALL_ULTRA_PLAN_FIELD_LABELS = [
   'Swarm DEFER waiver',
   'Swarm defer waiver',
   'DEFER waiver',
+  // Korean aliases — the response language lock may localize plan headings.
+  '시드 사양',
+  '시드 스펙',
+  'AC 트리',
+  'AC트리',
+  '인수 기준 트리',
+  '워크그래프',
+  '워크 그래프',
+  '평가 계획',
+  '실행 계획',
+  '스웜 결정',
+  '검증 가능한 목표',
+  '검증 가능 목표',
+  '완료 기준',
+  '참여자',
+  '액터',
+  '입력',
+  '출력',
+  '산출물',
+  '제약',
+  '제약 조건',
+  '비목표',
+  '비-목표',
+  '인수 기준',
+  '수용 기준',
+  '검증 계획',
+  '실패 모드',
+  '런타임 컨텍스트',
 ];
 
 function missingWorkGraphRequirements(plan: string): string[] {
-  if (!hasHeading(plan, 'WorkGraph')) return [];
-  const section = headingSection(plan, 'WorkGraph');
+  const section = WORK_GRAPH_HEADING_ALIASES.map((alias) => headingSection(plan, alias)).find(
+    (text) => text.length > 0,
+  );
+  if (section === undefined) return [];
   const requirements: readonly { readonly label: string; readonly pattern: RegExp }[] = [
-    { label: 'WorkGraph node id', pattern: /\b(?:node\s*id|node|id)\b/i },
+    {
+      label: 'WorkGraph node id',
+      pattern: workGraphFieldPattern('node\\s*id|node|id|노드\\s*id|노드'),
+    },
     {
       label: 'WorkGraph AC id',
-      pattern: /\b(?:ac(?:\s*id)?|acceptance\s+criterion(?:\s+id)?|acceptanceCriterionId)\b/i,
+      pattern: workGraphFieldPattern(
+        'ac(?:\\s*id)?|acceptance\\s+criterion(?:\\s+id)?|acceptanceCriterionId|인수\\s*기준(?:\\s*id)?',
+      ),
     },
-    { label: 'WorkGraph stage', pattern: /\bstage\b/i },
-    { label: 'WorkGraph owner/lane', pattern: /\b(?:owner|lane|owner\s*\/\s*lane)\b/i },
-    { label: 'WorkGraph dependencies', pattern: /\b(?:dependencies|dependency|dependsOn|depends\s+on)\b/i },
+    { label: 'WorkGraph stage', pattern: workGraphFieldPattern('stage|단계') },
+    {
+      label: 'WorkGraph owner/lane',
+      pattern: workGraphFieldPattern('owner|lane|owner\\s*/\\s*lane|소유자|담당'),
+    },
+    {
+      label: 'WorkGraph dependencies',
+      pattern: workGraphFieldPattern('dependencies|dependency|dependsOn|depends\\s+on|의존|의존성'),
+    },
     {
       label: 'WorkGraph required evidence',
-      pattern: /\b(?:required\s+evidence|requiredEvidence|required_evidence|evidence\s+required)\b/i,
+      pattern: workGraphFieldPattern(
+        'required\\s+evidence|requiredEvidence|required_evidence|evidence\\s+required|필요\\s*증거|요구\\s*증거|필수\\s*증거',
+      ),
     },
   ];
   return requirements
@@ -460,9 +530,24 @@ function missingWorkGraphRequirements(plan: string): string[] {
     .map((requirement) => requirement.label);
 }
 
+/**
+ * Unicode-aware word boundary for alternations that may contain Korean
+ * labels: JS `\b` only sees ASCII word characters, so Korean alternatives
+ * would never match at a `\b` edge.
+ */
+function workGraphFieldPattern(alternation: string): RegExp {
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}_])(?:${alternation})(?![\\p{L}\\p{N}_])`,
+    'iu',
+  );
+}
+
 function headingSection(plan: string, heading: string): string {
   const lines = plan.split(/\r?\n/);
-  const headingPattern = new RegExp(`^\\s*#{2,}\\s+${escapeRegExp(heading)}\\b`, 'i');
+  const headingPattern = new RegExp(
+    `^\\s*#{2,}\\s+${escapeRegExp(heading)}${UNICODE_WORD_BOUNDARY}`,
+    'iu',
+  );
   let start = -1;
   for (let index = 0; index < lines.length; index++) {
     if (headingPattern.test(lines[index] ?? '')) {
@@ -481,7 +566,9 @@ function headingSection(plan: string, heading: string): string {
 }
 
 function hasHeading(plan: string, heading: string): boolean {
-  return new RegExp(`^\\s*#{2,}\\s+${escapeRegExp(heading)}\\b`, 'im').test(plan);
+  return new RegExp(`^\\s*#{2,}\\s+${escapeRegExp(heading)}${UNICODE_WORD_BOUNDARY}`, 'imu').test(
+    plan,
+  );
 }
 
 function hasFieldContent(plan: string, labels: readonly string[]): boolean {
@@ -612,7 +699,10 @@ function fieldLabelPattern(labels: readonly string[]): RegExp {
 
 function headingLabelPattern(labels: readonly string[]): RegExp {
   const labelAlternation = labels.map(escapeRegExp).join('|');
-  return new RegExp(`^\\s*#{2,}\\s+(?:${labelAlternation})\\b`, 'i');
+  return new RegExp(
+    `^\\s*#{2,}\\s+(?:${labelAlternation})${UNICODE_WORD_BOUNDARY}`,
+    'iu',
+  );
 }
 
 function escapeRegExp(value: string): string {

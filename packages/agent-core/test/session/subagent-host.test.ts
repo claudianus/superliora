@@ -1174,6 +1174,7 @@ describe('SessionSubagentHost', () => {
         FLAG_DEFINITIONS,
       ),
       initialConfig: {
+        providers: {},
         loopControl: {
           maxRetriesPerStep: 1,
           compactionTriggerRatio: 0.85,

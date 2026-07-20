@@ -304,6 +304,66 @@ describe('ExitPlanModeTool', () => {
     expect(result.output).not.toContain('UltraSwarm ENGAGE is binding');
   });
 
+  it('accepts a complete Ultra Plan written with Korean headings and field labels', async () => {
+    const { agent, emit } = makeAgent({
+      ultra: true,
+      phase: 'exit',
+      plan: [
+        '# Ultra Plan',
+        '',
+        '## 시드 사양',
+        '- **검증 가능한 목표:** 요청한 토큰이 프롬프트에 방출되고 집중 테스트가 이를 단언하면 참, 아니면 거짓.',
+        '- **완료 기준:** 하네스 점검과 집중 vitest 명령이 모두 통과한다.',
+        '- **참여자:** CLI 사용자, 구현 에이전트, 검증 소유자.',
+        '- **입력:** 소스 파일, 테스트 파일, 하네스 검증기.',
+        '- **출력:**',
+        '  - 소스 가이던스에 요청 토큰이 포함된다.',
+        '  - 테스트가 프롬프트의 토큰을 단언한다.',
+        '- **제약 조건:** 주석 금지, 무관한 파일 수정 금지.',
+        '- **비목표:** 전체 스위트 재작성 없음.',
+        '- **인수 기준:** 토큰 방출, 테스트 단언 존재, 점검 통과.',
+        '- **검증 계획:** 하네스 점검과 집중 vitest 실행.',
+        '- **실패 모드:** 주석 속 토큰, 공허한 단언, 검증 누락.',
+        '- **런타임 컨텍스트:** 로컬 TypeScript 모노레포.',
+        '',
+        '## AC 트리',
+        '- 토큰 방출',
+        '- 테스트 커버리지',
+        '- 검증 통과',
+        '',
+        '## 워크그래프',
+        '| 노드 ID | 인수 기준 ID | 단계 | 소유자/담당 | 의존성 | 필요 증거 |',
+        '| ac_1 | AC-1 | swarm | main/implementation | none | 집중 테스트 증거 |',
+        '',
+        '## 스웜 결정',
+        'Swarm decision: DEFER - Bounded deterministic edit.; value: none; owner: main agent.',
+        '- **Decision:** DEFER',
+        '- **Reason:** Bounded deterministic edit.',
+        '- **Specialist value:** none',
+        '- **Verification owner:** main agent',
+        '- **Swarm DEFER waiver:** Single-owner source/test edit with no external, subjective, security, performance, or independent-review lane.',
+        '',
+        '## 평가 계획',
+        '- 기계적이고 집중된 단위 점검.',
+        '',
+        '## 실행 계획',
+        '1. 소스 수정.',
+        '2. 테스트 수정.',
+        '3. 점검 실행.',
+      ].join('\n'),
+    });
+
+    const result = await executeTool(new ExitPlanModeTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_ultra_exit_korean',
+      args: {},
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
+  });
+
   it('keeps Ultra Plan active when drift exceeds the accepted threshold', async () => {
     const { agent, emit } = makeAgent({
       ultra: true,
@@ -850,7 +910,7 @@ describe('ExitPlanModeTool', () => {
     expect(result.isError).toBe(false);
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
     expect(agent.goal.createGoal).toHaveBeenCalledWith(
-      { objective: 'Ship the auto-created UltraGoal' },
+      { objective: 'Ship the auto-created UltraGoal', source: 'ultrawork' },
       'runtime',
     );
   });

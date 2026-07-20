@@ -1,5 +1,7 @@
 import {
+  ultraworkStageSchema,
   workGraphNodeSchema,
+  type UltraworkStage,
   type WorkGraph,
   type WorkGraphNode,
 } from '@superliora/protocol';
@@ -21,6 +23,18 @@ import DESCRIPTION from './ultrawork-graph.md?raw';
 
 export const ULTRAWORK_GRAPH_TOOL_NAME = 'UltraworkGraph' as const;
 export const ULTRAWORK_GRAPH_STORE_KEY = 'ultrawork_graph' as const;
+
+/**
+ * Stage synonyms agents commonly emit in plan tables. Normalized at the tool
+ * boundary so the protocol enum and downstream consumers stay unchanged.
+ */
+const ultraworkStageSynonymSchema = z
+  .enum(['implement', 'implementation', 'review'])
+  .transform((): UltraworkStage => 'swarm');
+
+const workGraphNodeInputSchema = workGraphNodeSchema.extend({
+  stage: z.union([ultraworkStageSchema, ultraworkStageSynonymSchema]),
+});
 
 declare module '../../store' {
   interface ToolStoreData {
@@ -44,7 +58,7 @@ export const UltraworkGraphInputSchema = z
       .describe('Ultrawork run id. Required when replacing nodes.'),
     root_goal: z.string().trim().min(1).optional().describe('Optional root UltraGoal summary.'),
     nodes: z
-      .array(workGraphNodeSchema)
+      .array(workGraphNodeInputSchema)
       .optional()
       .describe('Full replacement WorkGraph node list. Omit to read the current graph.'),
     sync_todos: z
@@ -67,10 +81,25 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
   ) {}
 
   resolveExecution(args: UltraworkGraphInput): ToolExecution {
+    // AJV preflight validates shape only; parsing here applies stage synonym
+    // normalization (implement/implementation/review -> swarm) and produces a
+    // self-correcting error when malformed args somehow reach execution.
+    const parsed = UltraworkGraphInputSchema.safeParse(args);
+    if (!parsed.success) {
+      const issues = parsed.error.issues
+        .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+        .join('; ');
+      return {
+        isError: true,
+        output: `Invalid UltraworkGraph args: ${issues}. Omit "nodes" to read the current graph, or pass run_id + nodes to replace it.`,
+      };
+    }
+    const validArgs = parsed.data;
     return {
-      description: args.nodes === undefined ? 'Reading Ultrawork graph' : 'Updating Ultrawork graph',
+      description:
+        validArgs.nodes === undefined ? 'Reading Ultrawork graph' : 'Updating Ultrawork graph',
       approvalRule: this.name,
-      execute: async () => this.execution(args),
+      execute: async () => this.execution(validArgs),
     };
   }
 

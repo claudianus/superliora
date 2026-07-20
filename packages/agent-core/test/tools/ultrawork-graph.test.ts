@@ -45,6 +45,7 @@ function makeTool(): {
   const emitEvent = vi.fn();
   const agent = {
     emitEvent,
+    telemetry: { track: vi.fn() },
     ultrawork: {
       getRun: () => null,
       syncWorkGraphFromStore: vi.fn(),
@@ -117,6 +118,40 @@ describe('UltraworkGraphTool', () => {
       runId: 'uw_1',
       task: expect.objectContaining({ id: 'ac_1', status: 'queued' }),
     });
+  });
+
+  it('normalizes stage synonyms at the tool boundary and stores canonical stages', async () => {
+    const { tool, data } = makeTool();
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'call_synonyms',
+      args: {
+        run_id: 'uw_1',
+        nodes: [
+          { id: 'n1', title: 'Implement feature', stage: 'implement', status: 'queued' },
+          { id: 'n2', title: 'Implementation detail', stage: 'implementation', status: 'queued' },
+          { id: 'n3', title: 'Review changes', stage: 'review', status: 'queued' },
+        ],
+      } as unknown as UltraworkGraphInput,
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: false });
+    const graph = data[ULTRAWORK_GRAPH_STORE_KEY] as WorkGraph;
+    expect(graph.nodes.map((entry) => entry.stage)).toEqual(['swarm', 'swarm', 'swarm']);
+  });
+
+  it('accepts stage synonyms in the input schema and transforms them to swarm', () => {
+    const parsed = UltraworkGraphInputSchema.parse({
+      run_id: 'uw_1',
+      nodes: [
+        { id: 'n1', title: 'Implement', stage: 'implement', status: 'queued' },
+        { id: 'n2', title: 'Review', stage: 'review', status: 'queued' },
+      ],
+    });
+
+    expect(parsed.nodes?.map((entry) => entry.stage)).toEqual(['swarm', 'swarm']);
   });
 
   it('rejects duplicate ids, self dependencies, and missing dependencies', async () => {
@@ -232,6 +267,22 @@ describe('parseWorkGraphNodesFromPlan', () => {
     expect(nodes).toEqual([
       expect.objectContaining({ id: 'WG-1', stage: 'integrate', title: '프로젝트 스캐폴드' }),
       expect.objectContaining({ id: 'WG-10', stage: 'verify', title: '시각 폴리시 및 스크린샷 검증' }),
+    ]);
+  });
+
+  it('normalizes implement/implementation/review stage synonyms to swarm', () => {
+    const plan = [
+      '## WorkGraph',
+      '| Node ID | AC ID | Stage | Owner/Lane | Dependencies | Required Evidence |',
+      '| n1 | AC-1 | implement | main/implementation | none | test evidence |',
+      '| n2 | AC-2 | implementation | main/implementation | n1 | test evidence |',
+      '| n3 | AC-3 | review | qa/review | n2 | review evidence |',
+    ].join('\n');
+
+    expect(parseWorkGraphNodesFromPlan(plan)).toEqual([
+      expect.objectContaining({ id: 'n1', stage: 'swarm' }),
+      expect.objectContaining({ id: 'n2', stage: 'swarm' }),
+      expect.objectContaining({ id: 'n3', stage: 'swarm' }),
     ]);
   });
 

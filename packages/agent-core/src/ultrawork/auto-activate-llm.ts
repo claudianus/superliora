@@ -41,6 +41,7 @@ Activate (should_activate=true) when the dominant intent is to execute substanti
 Do NOT activate when:
 - the user is only asking what Ultrawork/Ultra* is, how it works, or similar meta questions
 - the user opts out of Ultrawork/Ultra* ("don't use ultrawork", "without ultraplan", etc.)
+- the request is an open-ended or infinite improvement/development loop with no terminal completion state (e.g. "무한 자가 개선 루프", "무제한 개발 루프", "keep improving forever", "endless loop of improvements"); those run as ordinary goal-driven iteration, not a bounded Ultrawork run
 - the request is a simple Q&A, explanation, inspection, rename, typo/copy fix, or single small local edit
 - a normal one-shot agent turn is enough and the full workflow would be overhead
 - the message is empty, pure emoji, or otherwise non-actionable
@@ -50,6 +51,31 @@ Rules:
 - If the user mixes a question with a build request, follow the dominant actionable intent.
 - confidence: 0.0-1.0. Stay below 0.65 when ambiguous.
 - reason: one short English sentence for logs.`;
+
+/**
+ * Deterministic pre-filter: open-ended or infinite improvement loops have no
+ * terminal completion state, so they must not enter Ultrawork's bounded
+ * verifiable-goal spine; they run as ordinary goal-driven iteration instead.
+ *
+ * Requires BOTH an unbounded marker and an improvement/loop marker in close
+ * proximity so that bug reports such as "fix the infinite loop in the parser"
+ * or feature work such as "무한 스크롤 개발" still classify normally.
+ */
+const OPEN_ENDED_LOOP_PATTERNS: readonly RegExp[] = [
+  /(무한|끝없|endless|infinite|perpetual|never[- ]?ending).{0,30}(루프|loop|반복|개선|향상|improv|enhanc)/i,
+  /(루프|loop|반복|개선|향상|improv|enhanc).{0,30}(무한|끝없|endless|infinite|perpetual|never[- ]?ending)/i,
+  /무제한.{0,15}(개발|개선|루프|반복)/i,
+  /keep\s+(?:on\s+)?improving\b.{0,40}(?:forever|endlessly|indefinitely)/i,
+  /(continuous|perpetual)(?:ly)?\s+(?:self[- ]?)?improv/i,
+];
+
+const OPEN_ENDED_LOOP_BUG_CONTEXT =
+  /버그|오류|에러|디버깅|고쳐\s*줘|수정해|fix\b|debug|bug\b|crash|hang\b|걸려\s*있|멈춰/i;
+
+export function isOpenEndedImprovementLoop(text: string): boolean {
+  if (OPEN_ENDED_LOOP_BUG_CONTEXT.test(text)) return false;
+  return OPEN_ENDED_LOOP_PATTERNS.some((pattern) => pattern.test(text));
+}
 
 /**
  * LLM classifier for plain-prompt Ultrawork auto-activation.
@@ -64,6 +90,16 @@ export async function detectUltraworkAutoActivationWithLlm(
 ): Promise<UltraworkAutoActivationIntent | undefined> {
   const text = input.text.trim();
   if (text.length === 0) return undefined;
+
+  // Open-ended improvement loops never fit the bounded verifiable-goal spine;
+  // decline deterministically without spending an LLM classifier call.
+  if (isOpenEndedImprovementLoop(text)) {
+    return {
+      shouldActivate: false,
+      confidence: 1,
+      reason: 'Open-ended improvement loop; runs as ordinary goal-driven iteration',
+    };
+  }
 
   const clipped = clipClassifierText(text);
 

@@ -34,6 +34,14 @@ export class UltraSwarmEngageGateDenyPermissionPolicy implements PermissionPolic
       return;
     }
 
+    // Bash is never classified read-only by name because it can run anything,
+    // but pure inspection commands (git status, cat, sed -n, …) must stay
+    // available for evidence packing while ENGAGE is binding. Allow only a
+    // conservative allowlist with no chaining, redirection, or mutation flags.
+    if (toolName === 'Bash' && isReadOnlyBashInspection(context)) {
+      return;
+    }
+
     if (
       (toolName === 'Write' || toolName === 'Edit') &&
       writesOnlyEngageTransparencyArtifacts(context, this.agent)
@@ -50,6 +58,120 @@ export class UltraSwarmEngageGateDenyPermissionPolicy implements PermissionPolic
         attempted_tool: toolName,
       },
     };
+  }
+}
+
+const READ_ONLY_SHELL_COMMANDS = new Set([
+  'cat',
+  'head',
+  'tail',
+  'less',
+  'more',
+  'ls',
+  'pwd',
+  'wc',
+  'stat',
+  'file',
+  'tree',
+  'du',
+  'df',
+  'which',
+  'where',
+  'whereis',
+  'date',
+  'uname',
+  'whoami',
+  'hostname',
+  'env',
+  'printenv',
+  'ps',
+  'grep',
+  'rg',
+  'sort',
+  'uniq',
+  'cut',
+  'tr',
+  'diff',
+  'echo',
+  'printf',
+  'true',
+  'basename',
+  'dirname',
+  'realpath',
+  'readlink',
+  'id',
+  'uptime',
+]);
+
+const READ_ONLY_GIT_SUBCOMMANDS = new Set([
+  'status',
+  'log',
+  'diff',
+  'show',
+  'rev-parse',
+  'ls-files',
+  'ls-tree',
+  'describe',
+  'blame',
+  'shortlog',
+  'grep',
+  'reflog',
+]);
+
+function isReadOnlyBashInspection(context: PermissionPolicyContext): boolean {
+  const args = context.args as { readonly command?: unknown } | undefined;
+  const command = typeof args?.command === 'string' ? args.command.trim() : '';
+  if (command.length === 0) return false;
+  // Reject chaining, command substitution, backgrounding, and redirection.
+  // A single pipe chain is re-allowed below when every segment is read-only.
+  if (/[;`$<>&\n\r]/.test(command)) return false;
+  const segments = command.split('|').map((segment) => segment.trim());
+  if (segments.some((segment) => segment.length === 0)) return false;
+  return segments.every((segment) => isReadOnlyShellSegment(segment.split(/\s+/)));
+}
+
+function isReadOnlyShellSegment(tokens: readonly string[]): boolean {
+  const head = tokens[0];
+  if (head === undefined) return false;
+  if (head === 'git') return isReadOnlyGitSegment(tokens);
+  if (head === 'sed') {
+    return !tokens.some(
+      (token) =>
+        token === '-i' ||
+        token.startsWith('--in-place') ||
+        /^-[a-zA-Z]*i[a-zA-Z]*$/.test(token),
+    );
+  }
+  return READ_ONLY_SHELL_COMMANDS.has(head);
+}
+
+function isReadOnlyGitSegment(tokens: readonly string[]): boolean {
+  const sub = tokens[1];
+  if (sub === undefined) return true;
+  if (READ_ONLY_GIT_SUBCOMMANDS.has(sub)) return true;
+  const rest = tokens.slice(2);
+  switch (sub) {
+    case 'branch':
+      return !rest.some((token) => /^-[dDmM]/.test(token));
+    case 'remote':
+      return (
+        rest.every((token) => token === '-v' || token === '--verbose') ||
+        rest[0] === 'show' ||
+        rest[0] === 'get-url'
+      );
+    case 'tag':
+      return (
+        rest.length === 0 ||
+        rest[0] === '--list' ||
+        rest[0] === '--points-at' ||
+        /^-[ln]/.test(rest[0] ?? '')
+      );
+    case 'stash':
+      return rest[0] === 'list' || rest[0] === 'show';
+    case 'worktree':
+      return rest[0] === 'list';
+    default:
+      return false;
   }
 }
 

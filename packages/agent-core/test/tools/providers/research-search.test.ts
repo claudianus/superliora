@@ -11,7 +11,7 @@ import {
 } from '../../../src/tools/providers/research-search';
 
 
-function requestUrl(input: RequestInfo | URL): string {
+function requestUrl(input: string | URL | { readonly url: string }): string {
   if (typeof input === 'string') return input;
   if (input instanceof URL) return input.href;
   return input.url;
