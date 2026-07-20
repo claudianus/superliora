@@ -240,7 +240,10 @@ describe('createTUIState', () => {
     state.editorContainer.addChild(state.editor);
 
     state.editor.handleInput('/');
-    await vi.runAllTimersAsync();
+    // Debounce is 0, so the provider query runs immediately; advance only the
+    // pending time instead of runAllTimersAsync, which would chase the
+    // renderer ticker's self-rescheduling timer forever.
+    await vi.advanceTimersByTimeAsync(0);
     await flushAutocomplete();
     const frame = renderTUIStateNativeFrame(state);
 
@@ -1313,7 +1316,7 @@ describe('createTUIState', () => {
 
     renderer.start();
     scheduler.advance(0);
-    expect(renderer.quality.level).toBe('balanced');
+    expect(renderer.quality.level).toBe('high');
     expect(renderer.stats.health).toBe('degraded');
     expect(getAppearanceRenderHealth()).toBe('degraded');
     expect(getAppearanceRenderQuality()).toBe('full');
@@ -1321,8 +1324,16 @@ describe('createTUIState', () => {
     renderer.requestRender('manual');
     scheduler.advance(12);
 
-    expect(getAppearanceRenderQuality()).toBe('balanced');
+    // Appearance quality is applied while rendering, so it trails the
+    // controller by one frame: frame 2 renders at the post-frame-1 level.
+    expect(getAppearanceRenderQuality()).toBe('high');
     expect(appearanceAnimationNow()).toBe(12);
+
+    renderer.requestRender('manual');
+    scheduler.advance(12);
+
+    expect(getAppearanceRenderQuality()).toBe('balanced');
+    expect(appearanceAnimationNow()).toBe(24);
     renderer.stop();
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');

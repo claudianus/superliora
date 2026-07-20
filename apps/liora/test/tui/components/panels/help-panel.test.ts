@@ -104,8 +104,8 @@ describe('HelpPanelComponent', () => {
 
     expect(primaryOut).toMatch(/Shift-Tab toggles Ultrawork and off\./);
     expect(primaryOut).toMatch(/\/theme/);
-    expect(primaryOut).not.toMatch(/\/plan/);
-    expect(primaryOut).not.toMatch(/\/swarm/);
+    expect(primaryOut).toMatch(/\/plan/);
+    expect(primaryOut).toMatch(/\/swarm/);
     expect(primaryOut).not.toMatch(/\/ultrawork/);
     expect(primaryOut).not.toMatch(/UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn/);
 
@@ -123,14 +123,15 @@ describe('HelpPanelComponent', () => {
     expect(advancedOut).toMatch(/Shift-Tab toggles Ultrawork\/off/);
     expect(advancedOut).toMatch(/Advanced Ultrawork controls/);
     expect(advancedOut).toMatch(/\/plan/);
-    expect(advancedOut).toMatch(/Advanced steering for UltraPlan; Ultrawork auto-enables it/);
-    expect(advancedOut).toMatch(/\/swarm/);
-    expect(advancedOut).toMatch(/Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal/);
+    expect(advancedOut).toMatch(/\/ultraplan \(\/up\)/);
+    expect(advancedOut).toMatch(/Structured plan pipeline: research → interview → design → review → write with gap analysis/);
+    expect(advancedOut).toMatch(/\/ultraswarm \(\/us\)/);
+    expect(advancedOut).toMatch(/Specialist delegation: lane analysis, coverage matrix, ENGAGE\/DEFER decision/);
     expect(advancedOut).toMatch(/\/ultrawork \(\/uw\)/);
     expect(advancedOut).toMatch(/Run Ultrawork: UltraPlan interview, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn/);
   });
 
-  it('keeps Ultrawork steering controls visible in the first advanced help window', () => {
+  it('keeps Ultrawork steering controls reachable in the windowed advanced help panel', () => {
     const advancedPanel = new HelpPanelComponent({
       commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced'),
       intro: ADVANCED_HELP_INTRO,
@@ -141,10 +142,18 @@ describe('HelpPanelComponent', () => {
     });
     const advancedOut = strip(advancedPanel.render(120).join('\n'));
 
+    // The first 24-row window surfaces the /plan steering hint and /ultrawork.
     expect(advancedOut).toMatch(/\/plan/);
-    expect(advancedOut).toMatch(/\/swarm/);
     expect(advancedOut).toMatch(/\/ultrawork \(\/uw\)/);
-    expect(advancedOut).toMatch(/Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal/);
+    expect(advancedOut).toMatch(/showing 1-24 of 31/);
+
+    // /ultraswarm sits just past the 24-row window; scroll it into view.
+    for (let i = 0; i < 10; i++) {
+      advancedPanel.handleInput('\u001B[B'); // ↓
+    }
+    const scrolledOut = strip(advancedPanel.render(120).join('\n'));
+    expect(scrolledOut).toMatch(/\/ultraswarm \(\/us\)/);
+    expect(scrolledOut).toMatch(/Specialist delegation: lane analysis, coverage matrix, ENGAGE\/DEFER decision/);
   });
 
   it('Escape fires onClose', () => {

@@ -125,7 +125,10 @@ describe('ChoicePickerComponent', () => {
     const settingsOutput = settings.render(120).map(strip);
     expect(settingsOutput).toContain('  ❯ Model');
     expect(settingsOutput).toContain('    Switch the active model and thinking mode.');
-    expect(settingsOutput).toContain('    Turn automatic CLI updates on or off.');
+    // The list paginates at 8 items per page; "Automatic updates" is on page 2.
+    settings.handleInput('\u001B[C'); // → pages forward
+    const settingsPage2 = settings.render(120).map(strip);
+    expect(settingsPage2).toContain('    Turn automatic CLI updates on or off.');
 
     const upgradePreference = new UpdatePreferenceSelectorComponent({
       currentValue: true,
@@ -153,8 +156,14 @@ describe('ChoicePickerComponent', () => {
 
       expect(out).toContain('  ❯ Dark · SuperLiora Neon Noir ← current');
       expect(out).toContain('    Dark theme · Bundled SuperLiora preset.');
-      expect(out).toContain('    Loaded from ~/.superliora/themes.');
-      expect(out).toContain('    Custom: studio');
+      // The list paginates at 8 items per page; page until the custom entry shows.
+      let page = out;
+      for (let i = 0; i < 10 && !page.includes('    Custom: studio'); i++) {
+        theme.handleInput('\u001B[C'); // → pages forward
+        page = theme.render(120).map(strip);
+      }
+      expect(page).toContain('    Loaded from ~/.superliora/themes.');
+      expect(page).toContain('    Custom: studio');
     });
   });
 

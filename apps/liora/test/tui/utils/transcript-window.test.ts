@@ -290,9 +290,9 @@ describe('TranscriptViewportComponent', () => {
     component.addChild(new Text(['one', 'two', 'three', 'four', 'five'].join('\n'), 0, 0));
 
     expect(component.render(8).map(stripAnsi)).toEqual([
-      'three  │',
-      'four   █',
-      'five   █',
+      'three  ▴',
+      'four   ▀',
+      'five   ▄',
     ]);
   });
 

@@ -186,7 +186,7 @@ describe('idle aquarium clear tear', () => {
     expect(cell.style?.bg?.toLowerCase()).not.toBe('#0b0f14');
   });
 
-  it('documents that sparse full-rect clear wipes water (compose hazard)', () => {
+  it('documents that full-rect clear with unstyled interior cells wipes water (compose hazard)', () => {
     const buf = new RendererCellBuffer(10, 5, { char: '·', style: { bg: '#111111' } });
     const water = Array.from({ length: 10 }, () => ({ char: '~', style: { bg: '#00aaff' } }));
     composeRendererRegions(buf, [
@@ -201,11 +201,16 @@ describe('idle aquarium clear tear', () => {
       {
         id: 'stageFrame',
         rect: { x: 0, y: 0, width: 10, height: 5 },
+        // Dense rows: the runtime paints rim-only bands instead of a sparse
+        // full-stage rect (see rimBands in tui/utils/stage-frame.ts), so model
+        // the hazard with unstyled interior cells rather than undefined holes.
         lines: Array.from({ length: 5 }, () => {
-          const row: ({ char: string; style: { fg: string } } | undefined)[] = [];
+          const row: { char: string; style?: { fg: string } }[] = Array.from({ length: 10 }, () => ({
+            char: ' ',
+          }));
           row[0] = { char: '│', style: { fg: '#0f0' } };
           row[9] = { char: '│', style: { fg: '#0f0' } };
-          return row as { char: string; style: { fg: string } }[];
+          return row;
         }),
         clear: true,
         zIndex: 5,

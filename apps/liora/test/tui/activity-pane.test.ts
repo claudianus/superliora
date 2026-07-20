@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentSwarmProgressComponent } from '#/tui/components/messages/agent-swarm-progress';
+import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
 import type { SessionEventHandler } from '#/tui/controllers/session-event-handler';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
 
@@ -152,7 +153,10 @@ describe('updateActivityPane terminal progress', () => {
       expect(setProgress).toHaveBeenCalledTimes(1);
       expect(setProgress).toHaveBeenLastCalledWith(true);
       expect(state.activitySpinner).toBeNull();
-      expect(state.activityContainer.children).toHaveLength(0);
+      // The thinking phase mounts the activity pane but runs no spinner
+      // (updateActivityPane 'thinking' case: pane added, spinner stopped).
+      expect(state.activityContainer.children).toHaveLength(1);
+      expect(state.activityContainer.children[0]).toBeInstanceOf(ActivityPaneComponent);
 
       state.appState.streamingPhase = 'idle';
       driver.updateActivityPane();

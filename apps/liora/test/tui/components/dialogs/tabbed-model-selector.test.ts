@@ -11,8 +11,8 @@ const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, 'g');
 const strip = (s: string): string => s.replaceAll(SGR, '');
 const TAB = '\t';
 const RIGHT = `${ESC}[C`;
-// chalk.bgHex(colors.primary) → background truecolor for #4FA8FF.
-const PRIMARY_BG = '48;2;79;168;255';
+// chalk.bgHex(colors.primary) → background truecolor for #3D9BFF.
+const PRIMARY_BG = '48;2;61;155;255';
 
 function model(displayName: string, provider: string): ModelAlias {
   return {
@@ -110,7 +110,7 @@ describe('TabbedModelSelectorComponent', () => {
     const { component, onSelect } = make();
     component.handleInput(RIGHT); // toggle thinking on for k2
     component.handleInput('\r');
-    expect(onSelect).toHaveBeenCalledWith({ alias: 'k2', thinking: true });
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'k2', thinking: true, effort: 'high' });
   });
 
   it('frames the tab strip with a blank line above and below it', () => {
