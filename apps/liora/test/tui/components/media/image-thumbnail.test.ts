@@ -136,7 +136,7 @@ describe('ImageThumbnail', () => {
     expect(lines.some((line) => line.includes('48;2;'))).toBe(true);
   });
 
-  it('caps a 1000×1000 PNG at 12 lines of at most 40 visible cells', () => {
+  it('caps a 1000×1000 PNG at 12 lines of at most 32 cells on compact widths', () => {
     stubColorEnv('truecolor');
     const component = new ImageThumbnail(
       imageAttachment(makeSolidPng(1000, 1000, 0, 255, 0), 'image/png', 1000, 1000),
@@ -146,8 +146,21 @@ describe('ImageThumbnail', () => {
 
     expect(lines.length).toBeLessThanOrEqual(12);
     for (const line of lines) {
-      expect(stripSgr(line).length).toBeLessThanOrEqual(40);
+      expect(stripSgr(line).length).toBeLessThanOrEqual(32);
     }
+  });
+
+  it('widens the preview cap on wide layouts', () => {
+    stubColorEnv('truecolor');
+    const component = new ImageThumbnail(
+      imageAttachment(makeSolidPng(1000, 250, 0, 0, 255), 'image/png', 1000, 250),
+    );
+
+    const lines = component.render(140);
+
+    const widest = Math.max(...lines.map((line) => stripSgr(line).length));
+    expect(widest).toBeGreaterThan(40);
+    expect(widest).toBeLessThanOrEqual(56);
   });
 
   it('keeps previews within narrow widths', () => {

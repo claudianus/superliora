@@ -7,19 +7,34 @@
  * dependency-free half-block truecolor preview: PNG bytes are decoded
  * locally and drawn with `▀` cells (two pixels per cell).
  *
- * Height is capped so a single screenshot cannot monopolize the viewport.
+ * Size is capped so a single screenshot cannot monopolize the viewport:
+ * the width cap follows the responsive layout tier (24–72 columns) and
+ * the height stays at 12 rows.
  * Non-PNG or undecodable attachments keep the one-line text marker
  * matching the placeholder the user sees in the input box.
  */
 
 import { Text, detectNativeTerminalColorMode, type Component } from '#/tui/renderer';
+import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
 import { renderHalfBlockPreview } from '#/utils/image/half-block-preview';
 import { decodePng, type DecodedPng } from '#/utils/image/png-decode';
 
 const MAX_IMAGE_ROWS = 12;
-const MAX_IMAGE_WIDTH = 40;
+
+/**
+ * Preview width cap per responsive tier. Wider terminals spend more of the
+ * transcript column on the image (Bloomberg-density on ultrawide), while
+ * narrow terminals keep the preview from swallowing the message.
+ */
+const IMAGE_PREVIEW_WIDTH_BY_TIER = {
+  tiny: 24,
+  compact: 32,
+  standard: 40,
+  wide: 56,
+  ultrawide: 72,
+} as const;
 
 export class ImageThumbnail implements Component {
   private readonly attachment: ImageAttachment;
@@ -75,8 +90,9 @@ export class ImageThumbnail implements Component {
     const decoded = this.decode();
     if (decoded === undefined) return this.fallbackLines(width);
 
+    const tier = resolveResponsiveLayout({ width });
     return renderHalfBlockPreview(decoded, {
-      maxWidth: Math.max(1, Math.min(width, MAX_IMAGE_WIDTH)),
+      maxWidth: Math.max(1, Math.min(width, IMAGE_PREVIEW_WIDTH_BY_TIER[tier])),
       maxHeightRows: MAX_IMAGE_ROWS,
       truecolor,
     });
