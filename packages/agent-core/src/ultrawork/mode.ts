@@ -365,6 +365,13 @@ export class UltraworkMode {
       to,
       reason,
     });
+    this.agent.telemetry.track('ultrawork_stage_change', {
+      from: from ?? 'none',
+      to,
+      reason: reason ?? 'unknown',
+      run_id: run.id,
+      status: run.status,
+    });
     if (this.activation !== undefined && from !== to) {
       const input = {
         workDir: this.activation.workDir,

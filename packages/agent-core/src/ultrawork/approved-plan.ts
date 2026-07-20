@@ -51,7 +51,8 @@ export async function resolveApprovedUltraworkPlanPath(
   }
   planPaths.sort((left, right) => basename(right).localeCompare(basename(left)));
 
-  for (const planPath of planPaths) {
+  const MAX_PLAN_SCAN = 20;
+  for (const planPath of planPaths.slice(0, MAX_PLAN_SCAN)) {
     if (seen.has(planPath)) continue;
     const approved = await readApprovedUltraworkPlanPath(agent, planPath);
     if (approved !== undefined) return approved;
