@@ -242,10 +242,24 @@ export function renderDiffLinesClustered(
   path: string,
   opts: ClusteredDiffOptions = {},
 ): string[] {
+  const diffLines = computeDiffLines(oldText, newText, 1, 1, opts.isIncomplete ?? false);
+  return renderClusteredDiffBody(diffLines, path, opts);
+}
+
+/**
+ * Render pre-computed {@link DiffLine}s (for example, lines parsed from a
+ * `git diff` unified output) with the same clustering, gutter formatting,
+ * and elision as {@link renderDiffLinesClustered}. Callers that already hold
+ * diff lines reuse this single formatter instead of re-deriving one.
+ */
+export function renderClusteredDiffBody(
+  diffLines: DiffLine[],
+  path: string,
+  opts: ClusteredDiffOptions = {},
+): string[] {
   const s = makeDiffStyles();
   const contextLines = opts.contextLines ?? 3;
   const maxLines = opts.maxLines;
-  const diffLines = computeDiffLines(oldText, newText, 1, 1, opts.isIncomplete ?? false);
   const { clusters, changedCount, addedCount, removedCount } = buildClusters(
     diffLines,
     contextLines,

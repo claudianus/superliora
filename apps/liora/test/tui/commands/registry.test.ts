@@ -48,14 +48,14 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('pf')?.name).toBe('preflight');
     expect(findBuiltInSlashCommand('renderer')?.name).toBe('renderer');
     expect(findBuiltInSlashCommand('render')?.name).toBe('renderer');
-    expect(findBuiltInSlashCommand('ultraplan')?.name).toBe('ultrawork');
-    expect(findBuiltInSlashCommand('up')?.name).toBe('ultrawork');
-    expect(findBuiltInSlashCommand('ultraresearch')?.name).toBe('ultrawork');
-    expect(findBuiltInSlashCommand('ur')?.name).toBe('ultrawork');
-    expect(findBuiltInSlashCommand('ultraswarm')?.name).toBe('ultrawork');
-    expect(findBuiltInSlashCommand('us')?.name).toBe('ultrawork');
-    expect(findBuiltInSlashCommand('ultragoal')?.name).toBe('ultrawork');
-    expect(findBuiltInSlashCommand('ug')?.name).toBe('ultrawork');
+    expect(findBuiltInSlashCommand('ultraplan')?.name).toBe('ultraplan');
+    expect(findBuiltInSlashCommand('up')?.name).toBe('ultraplan');
+    expect(findBuiltInSlashCommand('ultraresearch')).toBeUndefined();
+    expect(findBuiltInSlashCommand('ur')).toBeUndefined();
+    expect(findBuiltInSlashCommand('ultraswarm')?.name).toBe('ultraswarm');
+    expect(findBuiltInSlashCommand('us')?.name).toBe('ultraswarm');
+    expect(findBuiltInSlashCommand('ultragoal')?.name).toBe('ultragoal');
+    expect(findBuiltInSlashCommand('ug')?.name).toBe('ultragoal');
     expect(findBuiltInSlashCommand('vibe')).toBeUndefined();
     expect(findBuiltInSlashCommand('code')).toBeUndefined();
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
@@ -76,21 +76,17 @@ describe('built-in slash command registry', () => {
     expect(resolveSlashCommandAvailability(plan!, 'clear')).toBe('idle-only');
   });
 
-  it('offers advanced Ultrawork plan steering completions', () => {
+  it('offers plan mode argument completions', () => {
     const values = (prefix: string): string[] | null => {
       const items = planArgumentCompletions(prefix);
       return items === null ? null : items.map((item) => item.value);
     };
 
-    expect(values('')).toEqual(['on', 'off', 'ultra', 'clear']);
-    expect(values('u')).toEqual(['ultra']);
-    expect(planArgumentCompletions('u')).toEqual([
-      { value: 'ultra', label: 'ultra', description: 'Steer the UltraPlan stage' },
-    ]);
+    expect(values('')).toEqual(['on', 'off', 'clear']);
+    expect(values('u')).toBeNull();
     expect(planArgumentCompletions('')).toEqual([
-      { value: 'on', label: 'on', description: 'Enable Ultrawork planning override' },
-      { value: 'off', label: 'off', description: 'Disable Ultrawork planning override' },
-      { value: 'ultra', label: 'ultra', description: 'Steer the UltraPlan stage' },
+      { value: 'on', label: 'on', description: 'Enable free-form plan mode' },
+      { value: 'off', label: 'off', description: 'Disable plan mode' },
       { value: 'clear', label: 'clear', description: 'Clear current plan' },
     ]);
     expect(values('ultra')).toBeNull();
@@ -114,7 +110,8 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('bench');
     expect(primaryNames).not.toContain('preflight');
     expect(primaryNames).not.toContain('renderer');
-    expect(primaryNames).not.toContain('plan');
+    expect(primaryNames).toContain('plan');
+    expect(primaryNames).toContain('swarm');
     expect(primaryNames).not.toContain('ultrawork');
     expect(primaryNames).not.toContain('ultraswarm');
     expect(primaryNames).not.toContain('experiments');
@@ -122,21 +119,20 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('reload');
     expect(primaryNames).not.toContain('reload-tui');
     expect(primaryNames).not.toContain('settings');
-    expect(primaryNames).not.toContain('swarm');
     expect(primaryNames).not.toContain('export-debug-zip');
     expect(advancedNames).toEqual(
       expect.arrayContaining([
         'experiments',
-        'plan',
         'permission',
         'reload',
         'reload-tui',
         'settings',
-        'swarm',
+        'ultragoal',
+        'ultraswarm',
+        'ultraplan',
         'ultrawork',
       ]),
     );
-    expect(advancedNames).not.toContain('ultraswarm');
     expect(diagnosticNames).not.toContain('ultraswarm');
     const ultrawork = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').find(
       (command) => command.name === 'ultrawork',
@@ -186,11 +182,11 @@ describe('built-in slash command registry', () => {
       'auto',
       'model',
       'premium',
+      'quota',
       'status',
       'thinking',
       'usage',
       'yolo',
-      'btw',
     ]);
   });
 
@@ -233,31 +229,28 @@ describe('built-in slash command registry', () => {
     })).toEqual(['off']);
   });
 
-  it('describes long-work controls as Ultrawork steering surfaces', () => {
+  it('describes plan, goal, swarm, and ultrawork controls', () => {
     const plan = findBuiltInSlashCommand('plan');
     const goal = findBuiltInSlashCommand('goal');
     const swarm = findBuiltInSlashCommand('swarm');
     const ultrawork = findBuiltInSlashCommand('ultrawork');
 
-    expect(plan?.description).toBe('Advanced steering for UltraPlan; Ultrawork auto-enables it');
-    expect(goal?.description).toBe('Manage the active Ultrawork goal');
+    expect(plan?.description).toBe(
+      'Free-form plan: model writes a plan file, you approve (interview → write)',
+    );
+    expect(goal?.description).toBe(
+      'Simple goal loop: set objective, agent iterates until done (Ralph Loop)',
+    );
     expect(goal?.description).not.toContain('/goal');
-    expect(swarm?.description).toBe('Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal');
+    expect(swarm?.description).toBe(
+      'Parallel delegation: send task to specialist subagents (model decides split)',
+    );
     expect(swarm?.description).not.toContain('/swarm');
     expect(ultrawork?.description).toBe(
       'Run Ultrawork: UltraPlan interview, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn',
     );
     expect(ultrawork?.description).not.toContain('/ultrawork');
-    expect((ultrawork as LioraSlashCommand | undefined)?.hiddenAliases).toEqual([
-      'ultraplan',
-      'up',
-      'ultraresearch',
-      'ur',
-      'ultragoal',
-      'ug',
-      'ultraswarm',
-      'us',
-    ]);
+    expect((ultrawork as LioraSlashCommand | undefined)?.hiddenAliases).toBeUndefined();
   });
 
   it('offers swarm subcommand argument completions', () => {

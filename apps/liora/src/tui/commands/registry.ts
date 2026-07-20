@@ -536,6 +536,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'diff',
+    aliases: [],
+    description: 'Show working-tree changes as a review panel',
+    priority: 85,
+    argumentHint: '[path]',
+    availability: 'always',
+  },
+  {
     name: 'aquarium',
     aliases: ['tank'],
     description: 'Overlay a Welcome-sized Jewel Tank (covers chat until the next message)',

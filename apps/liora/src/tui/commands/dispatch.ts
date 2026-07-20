@@ -40,6 +40,7 @@ import {
   showSettingsSelector,
 } from './config';
 import { handleGoalCommand } from './goal';
+import { showDiff } from './diff';
 import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
 import { handleAquariumCommand } from './aquarium';
@@ -369,6 +370,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'status':
       void showStatusReport(host);
+      return;
+    case 'diff':
+      showDiff(host, args);
       return;
     case 'aquarium':
       handleAquariumCommand(host);
