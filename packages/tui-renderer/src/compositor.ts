@@ -80,7 +80,7 @@ interface OrderedRegion {
 }
 
 export class RendererCompositionCache {
-  private rowKeys = new Map<string, string>();
+  private rowHashes = new Map<string, number>();
   private topologySignature: string | undefined;
   private rowsComposed = 0;
   private rowsReused = 0;
@@ -92,29 +92,29 @@ export class RendererCompositionCache {
     const topologySignature = createTopologySignature(frame);
     const reusable =
       this.topologySignature === topologySignature &&
-      this.rowKeys.size > 0;
+      this.rowHashes.size > 0;
     if (!reusable) {
-      this.rowKeys.clear();
+      this.rowHashes.clear();
       this.resets++;
     }
     this.topologySignature = topologySignature;
     return reusable;
   }
 
-  shouldReuseRow(rowId: string, rowKey: string): boolean {
-    if (this.rowKeys.get(rowId) !== rowKey) return false;
+  shouldReuseRow(rowId: string, rowKeyHash: number): boolean {
+    if (this.rowHashes.get(rowId) !== rowKeyHash) return false;
     this.rowsReused++;
     return true;
   }
 
-  markComposedRow(rowId: string, rowKey: string): void {
-    this.rowKeys.set(rowId, rowKey);
+  markComposedRow(rowId: string, rowKeyHash: number): void {
+    this.rowHashes.set(rowId, rowKeyHash);
     this.rowsComposed++;
   }
 
   snapshot(): RendererCompositionCacheStats {
     return {
-      entries: this.rowKeys.size,
+      entries: this.rowHashes.size,
       rowsComposed: this.rowsComposed,
       rowsReused: this.rowsReused,
       resets: this.resets,
@@ -122,7 +122,7 @@ export class RendererCompositionCache {
   }
 
   reset(): void {
-    this.rowKeys.clear();
+    this.rowHashes.clear();
     this.topologySignature = undefined;
     this.rowsComposed = 0;
     this.rowsReused = 0;
@@ -147,7 +147,7 @@ export function composeRendererRegions(
   let cellsClipped = 0;
   const canReuseRows = options.reuseCachedRows === true && options.cache !== undefined;
   const lineCacheBefore = options.lineCache?.snapshot();
-  const underlayRowKeys = new Map<number, string>();
+  const underlayRowHashes = new Map<number, number>();
 
   for (const { region, index } of ordered) {
     const rect = normalizeRect(region.rect);
@@ -172,26 +172,26 @@ export function composeRendererRegions(
       const sourceY = y - rect.y + scrollY;
       const line = region.lines[sourceY];
       const rowId = createRowId(region, index, y);
-      const underlayKey = underlayRowKeys.get(y) ?? '';
+      const underlayHash = underlayRowHashes.get(y) ?? 0;
       const trackRows = options.cache !== undefined;
       // Dense ambient letterbox disables reuse (time-varying VFX) and drops the
-      // cache entirely in layout-frame — skip Θ(width) row-key strings then.
-      const rowKey = trackRows
-        ? createRowKey(region, rect, clipped, y, sourceY, scrollY, line, underlayKey)
-        : '';
-      if (canReuseRows && options.cache?.shouldReuseRow(rowId, rowKey)) {
+      // cache entirely in layout-frame — skip Θ(width) row-key hashes then.
+      const rowKeyHash = trackRows
+        ? createRowKeyHash(region, rect, clipped, y, sourceY, scrollY, line, underlayHash)
+        : 0;
+      if (canReuseRows && options.cache?.shouldReuseRow(rowId, rowKeyHash)) {
         rowsReused++;
-        underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
+        underlayRowHashes.set(y, combineRowHashes(underlayHash, rowKeyHash));
         continue;
       }
 
       if (rowClearing) {
         buffer.fillRect({ x: clipped.x, y, width: clipped.width, height: 1 }, region.background);
       }
-      if (trackRows) options.cache?.markComposedRow(rowId, rowKey);
+      if (trackRows) options.cache?.markComposedRow(rowId, rowKeyHash);
       rowsComposed++;
       if (line === undefined) {
-        if (trackRows) underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
+        if (trackRows) underlayRowHashes.set(y, combineRowHashes(underlayHash, rowKeyHash));
         continue;
       }
 
@@ -201,17 +201,30 @@ export function composeRendererRegions(
         rect,
         y - rect.y,
       );
-      for (let x = clipped.x; x < clipped.x + clipped.width; x++) {
-        const sourceX = x - rect.x;
-        const cell = cells[sourceX];
-        if (cell === undefined) {
-          cellsClipped++;
-          continue;
+      // Batch path: when no background inheritance is needed, use setRowSpan
+      // for a single bounds check + COW clone + damage mark per row.
+      const inheritedBg = region.background?.style?.bg ?? region.style?.bg;
+      const srcOffset = clipped.x - rect.x;
+      if (inheritedBg === undefined) {
+        buffer.setRowSpan(y, clipped.x, cells, srcOffset, clipped.width);
+        // Approximate stats from source array bounds.
+        for (let sx = srcOffset; sx < srcOffset + clipped.width; sx++) {
+          if (sx >= 0 && sx < cells.length) cellsWritten++;
+          else cellsClipped++;
         }
-        buffer.setCell(x, y, inheritRegionBackground(cell, region));
-        cellsWritten++;
+      } else {
+        for (let x = clipped.x; x < clipped.x + clipped.width; x++) {
+          const sourceX = x - rect.x;
+          const cell = cells[sourceX];
+          if (cell === undefined) {
+            cellsClipped++;
+            continue;
+          }
+          buffer.setCell(x, y, inheritRegionBackground(cell, region));
+          cellsWritten++;
+        }
       }
-      if (trackRows) underlayRowKeys.set(y, appendUnderlayRowKey(underlayKey, rowKey));
+      if (trackRows) underlayRowHashes.set(y, combineRowHashes(underlayHash, rowKeyHash));
     }
   }
 
@@ -297,7 +310,112 @@ function createRowId(region: RendererRegionLayer, index: number, y: number): str
   return [index, region.id ?? '', y].join(':');
 }
 
-function createRowKey(
+// ---------------------------------------------------------------------------
+// FNV-1a numeric hashing — allocation-free row key fingerprints
+// ---------------------------------------------------------------------------
+
+function fnv1aInit(): number {
+  return 0x811c9dc5;
+}
+
+function fnv1aUpdate(h: number, value: number): number {
+  // Hash a 32-bit integer byte-by-byte through FNV-1a.
+  h ^= value & 0xff;
+  h = Math.imul(h, 0x01000193);
+  h ^= (value >>> 8) & 0xff;
+  h = Math.imul(h, 0x01000193);
+  h ^= (value >>> 16) & 0xff;
+  h = Math.imul(h, 0x01000193);
+  h ^= (value >>> 24) & 0xff;
+  h = Math.imul(h, 0x01000193);
+  return h >>> 0;
+}
+
+function fnv1aStr(h: number, s: string): number {
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * WeakMap-based reference ID for cell-array lines. Gives O(1) line identity
+ * without serializing the entire row (O(width) string allocation).
+ */
+const cellLineIdCache = new WeakMap<readonly RendererCell[], number>();
+let nextCellLineId = 1;
+
+function lineRefId(line: readonly RendererCell[]): number {
+  let id = cellLineIdCache.get(line);
+  if (id === undefined) {
+    id = nextCellLineId++;
+    cellLineIdCache.set(line, id);
+  }
+  return id;
+}
+
+function lineHash(line: RendererRegionLine | undefined): number {
+  if (line === undefined) return 0;
+  if (typeof line === 'string') return fnv1aStr(fnv1aInit(), line);
+  return lineRefId(line);
+}
+
+function styleHashNumeric(style: RendererCellStyle | undefined): number {
+  if (style === undefined) return 0;
+  let h = fnv1aInit();
+  if (style.fg !== undefined) h = fnv1aStr(h, style.fg);
+  if (style.bg !== undefined) h = fnv1aStr(h, style.bg);
+  let flags = 0;
+  if (style.bold === true) flags |= 1;
+  if (style.dim === true) flags |= 2;
+  if (style.italic === true) flags |= 4;
+  if (style.underline === true) flags |= 8;
+  if (style.inverse === true) flags |= 16;
+  h = fnv1aUpdate(h, flags);
+  return h >>> 0;
+}
+
+function cellHashNumeric(cell: RendererCell | undefined): number {
+  if (cell === undefined) return 0;
+  let h = fnv1aInit();
+  h = fnv1aStr(h, cell.char);
+  h = fnv1aUpdate(h, cell.width ?? 0);
+  h = fnv1aUpdate(h, cell.continuation === true ? 1 : 0);
+  h = fnv1aUpdate(h, styleHashNumeric(cell.style));
+  return h >>> 0;
+}
+
+function vfxHashNumeric(vfx: RendererRegionVfx | undefined): number {
+  if (vfx === undefined) return 0;
+  let h = fnv1aInit();
+  if (vfx.rect !== undefined) {
+    h = fnv1aUpdate(h, Math.floor(vfx.rect.x));
+    h = fnv1aUpdate(h, Math.floor(vfx.rect.y));
+    h = fnv1aUpdate(h, Math.floor(vfx.rect.width));
+    h = fnv1aUpdate(h, Math.floor(vfx.rect.height));
+  }
+  const effect = vfx.effect;
+  h = fnv1aStr(h, effect.kind);
+  // Hash style from variants that carry one.
+  if (effect.kind === 'pulse' || effect.kind === 'shimmer') {
+    h = fnv1aUpdate(h, styleHashNumeric(effect.style));
+  } else if (effect.kind === 'reveal') {
+    h = fnv1aUpdate(h, styleHashNumeric(effect.hiddenStyle));
+  }
+  // Include timing fields that change per-frame for time-varying VFX.
+  if (effect.progress !== undefined) h = fnv1aUpdate(h, Math.round(effect.progress * 1000));
+  if (effect.nowMs !== undefined) h = fnv1aUpdate(h, effect.nowMs | 0);
+  return h >>> 0;
+}
+
+/**
+ * Numeric FNV-1a hash of all row-key fields. Replaces the old 13-field
+ * string join with an allocation-free numeric fingerprint. Uses reference
+ * identity (WeakMap ID) for cell-array lines so the common "same reference"
+ * case is O(1) instead of O(width).
+ */
+function createRowKeyHash(
   region: RendererRegionLayer,
   rect: RendererRect,
   clipped: RendererRect,
@@ -305,27 +423,30 @@ function createRowKey(
   sourceY: number,
   scrollY: number,
   line: RendererRegionLine | undefined,
-  underlayKey = '',
-): string {
-  return [
-    underlayKey,
-    rect.x,
-    rect.y,
-    clipped.x,
-    clipped.width,
-    y,
-    sourceY,
-    scrollY,
-    styleKey(region.style),
-    region.clear === true ? 1 : 0,
-    cellKey(region.background),
-    vfxKey(region.vfx),
-    lineKey(line),
-  ].join('\u0000');
+  underlayHash: number,
+): number {
+  let h = fnv1aInit();
+  h = fnv1aUpdate(h, underlayHash);
+  h = fnv1aUpdate(h, rect.x);
+  h = fnv1aUpdate(h, rect.y);
+  h = fnv1aUpdate(h, clipped.x);
+  h = fnv1aUpdate(h, clipped.width);
+  h = fnv1aUpdate(h, y);
+  h = fnv1aUpdate(h, sourceY);
+  h = fnv1aUpdate(h, scrollY);
+  h = fnv1aUpdate(h, styleHashNumeric(region.style));
+  h = fnv1aUpdate(h, region.clear === true ? 1 : 0);
+  h = fnv1aUpdate(h, cellHashNumeric(region.background));
+  h = fnv1aUpdate(h, vfxHashNumeric(region.vfx));
+  h = fnv1aUpdate(h, lineHash(line));
+  return h >>> 0;
 }
 
-function appendUnderlayRowKey(underlayKey: string, rowKey: string): string {
-  return underlayKey.length === 0 ? rowKey : `${underlayKey}\u0001${rowKey}`;
+function combineRowHashes(underlayHash: number, rowKeyHash: number): number {
+  let h = fnv1aInit();
+  h = fnv1aUpdate(h, underlayHash);
+  h = fnv1aUpdate(h, rowKeyHash);
+  return h >>> 0;
 }
 
 function applyRendererRegionVfx(

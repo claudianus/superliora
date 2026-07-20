@@ -60,6 +60,12 @@ export interface RendererFrameDiff {
   readonly scanRatio: number;
   readonly damageCells: number;
   readonly damageRatio: number;
+  /**
+   * Scroll delta detected for this frame (positive = content scrolled up,
+   * negative = content scrolled down). When set, the encoder can emit a
+   * terminal scroll-region command instead of re-encoding shifted rows.
+   */
+  readonly scrollDelta?: number;
 }
 
 export interface RendererRenderRun {
@@ -93,6 +99,13 @@ export class RendererCellBuffer {
    * only after {@link ensureUniqueCells} so the other frame stays immutable.
    */
   private cowPeer: RendererCellBuffer | null = null;
+  /**
+   * Per-row XOR checksums for O(1) row-level diff skip. Each cell contributes
+   * a position-dependent hash; when a cell changes, the row checksum is updated
+   * incrementally via XOR (self-inverse). Used by {@link diffCellBuffers} to
+   * skip rows whose content provably matches the previous frame.
+   */
+  private rowChecksums: Uint32Array;
 
   constructor(
     public readonly width: number,
@@ -105,6 +118,8 @@ export class RendererCellBuffer {
       throw new RangeError('RendererCellBuffer dimensions must be finite non-negative integers.');
     }
     this.cells = Array.from({ length: width * height }, () => normalizeCell(fill));
+    this.rowChecksums = new Uint32Array(height);
+    this.recomputeAllChecksums();
   }
 
   get damage(): RendererDamageRect | null {
@@ -134,14 +149,69 @@ export class RendererCellBuffer {
     return this.cells[this.indexOf(x, y)]!;
   }
 
+  /** O(1) row checksum for diff acceleration. */
+  rowChecksum(y: number): number {
+    if (y < 0 || y >= this.height) return 0;
+    return this.rowChecksums[y]!;
+  }
+
   setCell(x: number, y: number, cell: RendererCell): void {
     if (!this.contains(x, y)) return;
     const next = normalizeCell(cell);
     const index = this.indexOf(x, y);
-    if (normalizedCellsEqual(this.cells[index]!, next)) return;
+    const prev = this.cells[index]!;
+    if (normalizedCellsEqual(prev, next)) return;
     this.ensureUniqueCells();
     this.cells[index] = next;
+    // Incremental XOR checksum update: remove old contribution, add new.
+    this.rowChecksums[y]! ^= cellPositionHash(x, prev) ^ cellPositionHash(x, next);
     this.markDamage({ x, y, width: 1, height: 1 });
+  }
+
+  /**
+   * Batch-write a span of cells into row `y` starting at column `x`.
+   * Maps `cells[srcOffset + i]` → buffer `(x + i, y)` for `i = 0..width-1`.
+   * Performs a single bounds check, single COW clone, and single damage mark
+   * instead of per-cell overhead. Used by the compositor hot path.
+   */
+  setRowSpan(y: number, x: number, cells: readonly RendererCell[], srcOffset: number, width: number): void {
+    if (y < 0 || y >= this.height) return;
+    const startX = Math.max(0, x);
+    const endX = Math.min(this.width, x + width);
+    if (startX >= endX) return;
+
+    // First pass: check if any cell actually differs (avoid COW clone if no-op).
+    let changed = false;
+    for (let cx = startX; cx < endX; cx++) {
+      const srcIndex = srcOffset + (cx - x);
+      if (srcIndex < 0 || srcIndex >= cells.length) continue;
+      const next = normalizeCell(cells[srcIndex]!);
+      const prev = this.cells[this.indexOf(cx, y)]!;
+      if (!normalizedCellsEqual(prev, next)) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+
+    this.ensureUniqueCells();
+    let damageX0 = endX;
+    let damageX1 = startX;
+    for (let cx = startX; cx < endX; cx++) {
+      const srcIndex = srcOffset + (cx - x);
+      if (srcIndex < 0 || srcIndex >= cells.length) continue;
+      const next = normalizeCell(cells[srcIndex]!);
+      const index = this.indexOf(cx, y);
+      const prev = this.cells[index]!;
+      if (normalizedCellsEqual(prev, next)) continue;
+      this.cells[index] = next;
+      this.rowChecksums[y]! ^= cellPositionHash(cx, prev) ^ cellPositionHash(cx, next);
+      if (cx < damageX0) damageX0 = cx;
+      if (cx > damageX1) damageX1 = cx;
+    }
+    if (damageX0 <= damageX1) {
+      this.markDamage({ x: damageX0, y, width: damageX1 - damageX0 + 1, height: 1 });
+    }
   }
 
   fillRect(rect: RendererDamageRect, cell: RendererCell = EMPTY_CELL): void {
@@ -152,16 +222,21 @@ export class RendererCellBuffer {
     let damage: RendererDamageRect | null = null;
     let cloned = false;
     for (let y = clipped.y; y < clipped.y + clipped.height; y++) {
+      let rowChanged = false;
       for (let x = clipped.x; x < clipped.x + clipped.width; x++) {
         const index = this.indexOf(x, y);
-        if (normalizedCellsEqual(this.cells[index]!, next)) continue;
+        const prev = this.cells[index]!;
+        if (normalizedCellsEqual(prev, next)) continue;
         if (!cloned) {
           this.ensureUniqueCells();
           cloned = true;
         }
         this.cells[index] = next;
+        this.rowChecksums[y]! ^= cellPositionHash(x, prev) ^ cellPositionHash(x, next);
+        rowChanged = true;
         damage = unionRendererDamageRect(damage, { x, y, width: 1, height: 1 });
       }
+      void rowChanged;
     }
     // Only the cells that actually changed — marking the whole fill rect made
     // letterbox clear:true scans look like full-band damage on every twinkle.
@@ -235,6 +310,7 @@ export class RendererCellBuffer {
     // Shallow cell refs — cells are already normalized on write. Remapping
     // normalizeCell across the whole frame was Θ(W·H) on every ambient present.
     this.cells = other.cells.slice();
+    this.rowChecksums = other.rowChecksums.slice();
     this.damageRect = other.damageRect;
     this.dirtyRowMap = new Map(other.dirtyRowMap);
   }
@@ -262,12 +338,15 @@ export class RendererCellBuffer {
     const cells = this.cells;
     const damageRect = this.damageRect;
     const dirtyRowMap = this.dirtyRowMap;
+    const checksums = this.rowChecksums;
     this.cells = other.cells;
     this.damageRect = other.damageRect;
     this.dirtyRowMap = other.dirtyRowMap;
+    this.rowChecksums = other.rowChecksums;
     other.cells = cells;
     other.damageRect = damageRect;
     other.dirtyRowMap = dirtyRowMap;
+    other.rowChecksums = checksums;
   }
 
   /**
@@ -286,6 +365,7 @@ export class RendererCellBuffer {
     this.unlinkCow();
     other.unlinkCow();
     this.cells = other.cells;
+    this.rowChecksums = other.rowChecksums;
     this.cowPeer = other;
     other.cowPeer = this;
   }
@@ -297,6 +377,7 @@ export class RendererCellBuffer {
     }
     this.unlinkCow();
     this.cells = other.cells.slice();
+    this.rowChecksums = other.rowChecksums.slice();
   }
 
   resetDamage(): void {
@@ -314,6 +395,7 @@ export class RendererCellBuffer {
     if (this.cowPeer === null) return;
     const peer = this.cowPeer;
     this.cells = this.cells.slice();
+    this.rowChecksums = this.rowChecksums.slice();
     this.cowPeer = null;
     peer.cowPeer = null;
   }
@@ -346,6 +428,18 @@ export class RendererCellBuffer {
     for (let y = rect.y; y < rect.y + rect.height; y++) {
       const existing = this.dirtyRowMap.get(y) ?? [];
       this.dirtyRowMap.set(y, mergeDirtyRowIntervals(existing, x, endX));
+    }
+  }
+
+  /** Recompute all row checksums from scratch (constructor / resize). */
+  private recomputeAllChecksums(): void {
+    for (let y = 0; y < this.height; y++) {
+      let checksum = 0;
+      const rowStart = y * this.width;
+      for (let x = 0; x < this.width; x++) {
+        checksum ^= cellPositionHash(x, this.cells[rowStart + x]!);
+      }
+      this.rowChecksums[y] = checksum >>> 0;
     }
   }
 }
@@ -466,6 +560,17 @@ export function diffCellBuffers(
 
   for (const span of plan.spans) {
     scannedRows++;
+    // Row-level checksum short-circuit: if both buffers agree on the row's
+    // XOR checksum, no cell in that row can have changed. Skip the per-cell
+    // scan entirely — O(1) instead of O(width). Only applies to non-forced,
+    // non-rewrite scans where we only care about actual changes.
+    if (
+      !force &&
+      !rewriteUnchanged &&
+      previous.rowChecksum(span.y) === next.rowChecksum(span.y)
+    ) {
+      continue;
+    }
     for (let x = span.x; x < span.x + span.width; x++) {
       scannedCells++;
       const y = span.y;
@@ -602,6 +707,70 @@ function normalizedCellsEqual(a: RendererCell, b: RendererCell): boolean {
     a.continuation === b.continuation &&
     normalizedStylesEqual(a.style, b.style)
   );
+}
+
+/**
+ * Position-dependent cell hash for XOR-based row checksums.
+ *
+ * Combines x-coordinate, character code point, width/continuation flags, and
+ * style field hashes into a single uint32. The hash is deterministic for
+ * normalized cells and position-sensitive (same cell at different columns
+ * produces different hashes) so that column-shifted content is detected.
+ *
+ * Uses Math.imul for 32-bit multiply to avoid floating-point rounding.
+ */
+function cellPositionHash(x: number, cell: RendererCell): number {
+  // Mix position with golden ratio constant for good distribution.
+  // `pos` is unique per column and feeds into the character hash below so
+  // that the same character change at different columns produces different
+  // XOR deltas — preventing even-count cancellation in the row checksum.
+  const pos = Math.imul(x + 1, 0x9e3779b9);
+  let h = pos;
+  // Character code point mixed with position (BMP fast path).
+  const code = cell.char.length === 1 ? cell.char.charCodeAt(0) : (cell.char.codePointAt(0) ?? 0);
+  h ^= Math.imul(code + 1, pos);
+  // Width and continuation flags.
+  h ^= (cell.width ?? 1) << 16;
+  if (cell.continuation === true) h ^= 0x40000000;
+  // Style content hash (field-based, not reference-based).
+  h ^= normalizedStyleHash(cell.style);
+  // Link presence hash.
+  if (cell.link !== undefined) {
+    h ^= Math.imul(cell.link.length + 1, 0xc2b2ae35);
+    // Sample first/last char codes for cheap discrimination.
+    h ^= cell.link.charCodeAt(0) << 8;
+    if (cell.link.length > 1) h ^= cell.link.charCodeAt(cell.link.length - 1);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Numeric hash of a normalized style's fields. Returns 0 for undefined.
+ * Field-based (not reference-based) so logically equal styles hash equally.
+ */
+function normalizedStyleHash(style: RendererCellStyle | undefined): number {
+  if (style === undefined) return 0;
+  let h = 0x12345678;
+  if (style.fg !== undefined) h ^= Math.imul(style.fg.length + 1, 0x27d4eb2f) ^ hashShortString(style.fg);
+  if (style.bg !== undefined) h ^= Math.imul(style.bg.length + 1, 0x165667b1) ^ hashShortString(style.bg);
+  let flags = 0;
+  if (style.bold === true) flags |= 1;
+  if (style.dim === true) flags |= 2;
+  if (style.italic === true) flags |= 4;
+  if (style.underline === true) flags |= 8;
+  if (style.inverse === true) flags |= 16;
+  h ^= flags << 24;
+  return h >>> 0;
+}
+
+/** FNV-1a inspired hash for short strings (color hex values, typically 4-7 chars). */
+function hashShortString(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
 }
 
 /**

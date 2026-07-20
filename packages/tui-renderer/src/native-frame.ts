@@ -111,16 +111,25 @@ export class NativeFrameRenderer {
       readonly forceCursor?: boolean;
       /** Re-emit equal cells (terminal resync). Ambient animation must never set this. */
       readonly rewriteUnchanged?: boolean;
+      /**
+       * Scroll delta for this frame (positive = content scrolled up, negative
+       * = scrolled down). When set, the encoder emits a terminal scroll-region
+       * command and only the exposed rows need re-encoding.
+       */
+      readonly scrollDelta?: number;
     } = {},
   ): NativeFramePresentResult {
     const startedAt = this.now();
     const force = options.force === true || this.forceNextPresent;
     const diffStartedAt = this.now();
-    const diff = this.buffers.present({
+    const baseDiff = this.buffers.present({
       force,
       rewriteUnchanged: options.rewriteUnchanged === true,
       runOptimization: this.options.runOptimization ?? true,
     });
+    const diff: RendererFrameDiff = options.scrollDelta !== undefined && options.scrollDelta !== 0
+      ? { ...baseDiff, scrollDelta: options.scrollDelta }
+      : baseDiff;
     const diffEndedAt = this.now();
     this.forceNextPresent = false;
     // When forceCursor is set (e.g. input-driven frames), always re-emit the
@@ -137,6 +146,7 @@ export class NativeFrameRenderer {
       outputOptions: {
         ...this.options,
         frameWidth: this.width,
+        frameHeight: this.height,
         cursorMotion: this.options.cursorMotion ?? 'auto',
         previousCursor: this.previousCursor,
       },

@@ -52,6 +52,19 @@ export class NativeRenderLoop {
   private lastFrameAt: number | undefined;
   private renderedFrames = 0;
   private runningFrame = false;
+  /**
+   * Drift-free frame pacing: tracks the ideal next frame timestamp.
+   * Each frame advances this by exactly one interval, absorbing setTimeout
+   * jitter without accumulating drift. Reset when the target falls too far
+   * behind wall-clock time (e.g. after a long GC pause or tab suspend).
+   */
+  private nextTargetTime: number | undefined;
+  /**
+   * When input arrives during a running frame, we arm an immediate follow-up
+   * via this flag so the next scheduleNextFrame() after runFrame completes
+   * uses delay 0 regardless of pacing.
+   */
+  private inputDuringFramePending = false;
 
   constructor(private readonly options: NativeRenderLoopOptions) {
     this.scheduler = options.scheduler ?? defaultRenderLoopScheduler;
@@ -95,10 +108,17 @@ export class NativeRenderLoop {
     }
     this.pendingCauses.clear();
     this.animationCallbacks.clear();
+    this.nextTargetTime = undefined;
+    this.inputDuringFramePending = false;
   }
 
   requestRender(cause: NativeRenderCause = 'request'): void {
     this.pendingCauses.add(cause);
+    // High-priority input arriving mid-frame must not wait for the next
+    // paced tick — flag it so the post-frame schedule fires immediately.
+    if (this.runningFrame && (cause === 'input' || cause === 'resize')) {
+      this.inputDuringFramePending = true;
+    }
     this.scheduleNextFrame();
   }
 
@@ -157,8 +177,13 @@ export class NativeRenderLoop {
     // High-priority causes render immediately so user input is never held
     // behind frame pacing.
     if (this.pendingCauses.has('input') || this.pendingCauses.has('resize')) return 0;
-    if (this.lastFrameAt === undefined) return 0;
-    return Math.max(0, this.lastFrameAt + this.targetFrameIntervalMs - now);
+    // Input that arrived mid-frame demands an immediate follow-up.
+    if (this.inputDuringFramePending) return 0;
+    if (this.nextTargetTime === undefined) return 0;
+    // Drift-free pacing: delay until the ideal next frame time. If the
+    // target is already in the past (setTimeout jitter or long task), fire
+    // immediately — the runFrame() epilogue will re-anchor the target.
+    return Math.max(0, this.nextTargetTime - now);
   }
 
   private cancelScheduledFrameIfIdle(): void {
@@ -174,6 +199,7 @@ export class NativeRenderLoop {
 
     this.scheduledTimer = undefined;
     this.scheduledDelayMs = 0;
+    this.inputDuringFramePending = false;
     const timestamp = this.scheduler.now();
     const deltaMs = this.lastFrameAt === undefined ? 0 : Math.max(0, timestamp - this.lastFrameAt);
     const animationCallbacks = Array.from(this.animationCallbacks.values());
@@ -194,6 +220,18 @@ export class NativeRenderLoop {
       this.runningFrame = false;
       this.lastFrameAt = timestamp;
       this.renderedFrames++;
+      // Advance the ideal target by exactly one interval (drift-free).
+      // If the target has fallen more than one full interval behind
+      // wall-clock (long GC, tab suspend, heavy render), re-anchor to
+      // avoid a burst of catch-up frames.
+      if (this.nextTargetTime === undefined) {
+        this.nextTargetTime = timestamp + this.targetFrameIntervalMs;
+      } else {
+        this.nextTargetTime += this.targetFrameIntervalMs;
+        if (this.nextTargetTime < timestamp - this.targetFrameIntervalMs) {
+          this.nextTargetTime = timestamp + this.targetFrameIntervalMs;
+        }
+      }
       this.scheduleNextFrame();
     }
   }

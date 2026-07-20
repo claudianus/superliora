@@ -19,6 +19,26 @@ export const ANSI_RESET_STYLE = '\u001B[0m';
 export const ANSI_END_HYPERLINK = '\u001B]8;;\u001B\\';
 export const ANSI_ERASE_IN_LINE = '\u001B[K';
 export const ANSI_ERASE_FROM_CURSOR_TO_SCREEN_END = '\u001B[0J';
+export const ANSI_RESET_SCROLL_REGION = '\u001B[r';
+
+/**
+ * Encode a terminal scroll-region operation. Sets a scroll region from
+ * `top` to `bottom` (0-based row indices), scrolls by `delta` rows
+ * (positive = scroll up / content moves up, negative = scroll down),
+ * then resets the scroll region to full screen.
+ *
+ * Used by the scroll-aware delta blit path to shift unchanged rows via
+ * terminal hardware scroll instead of re-diffing and re-encoding them.
+ */
+export function encodeScrollRegion(top: number, bottom: number, delta: number): string {
+  if (delta === 0 || top >= bottom) return '';
+  const setRegion = `\u001B[${top + 1};${bottom + 1}r`;
+  const count = Math.abs(delta);
+  const scroll = delta > 0
+    ? (count === 1 ? '\u001B[S' : `\u001B[${count}S`)
+    : (count === 1 ? '\u001B[T' : `\u001B[${count}T`);
+  return setRegion + scroll + ANSI_RESET_SCROLL_REGION;
+}
 
 export type RendererColorMode = 'truecolor' | 'ansi256' | 'ansi16' | 'none';
 export type RendererCursorShape = 'block' | 'underline' | 'bar';
@@ -42,6 +62,7 @@ export interface RendererTerminalOutputOptions {
   readonly cursor?: RendererCursorState;
   readonly eraseLine?: boolean;
   readonly frameWidth?: number;
+  readonly frameHeight?: number;
   readonly colorMode?: RendererColorMode;
   readonly cursorMotion?: RendererCursorMotionMode;
   readonly previousCursor?: RendererCursorState;
@@ -92,7 +113,17 @@ export function encodeTerminalFrameWithMetrics(
   diff: RendererFrameDiff,
   options: RendererTerminalOutputOptions = {},
 ): RendererTerminalEncodedOutput {
-  return encodeTerminalRunsWithMetrics(diff.runs ?? coalesceCellPatches(diff.patches), options);
+  const encoded = encodeTerminalRunsWithMetrics(diff.runs ?? coalesceCellPatches(diff.patches), options);
+  // When a scroll delta is present, prepend the terminal scroll-region command
+  // so shifted rows are handled by hardware scroll instead of re-encoding.
+  if (diff.scrollDelta !== undefined && diff.scrollDelta !== 0 && options.frameWidth !== undefined) {
+    const height = options.frameHeight ?? 0;
+    if (height > 0) {
+      const scrollCmd = encodeScrollRegion(0, height - 1, diff.scrollDelta);
+      return { ...encoded, output: scrollCmd + encoded.output };
+    }
+  }
+  return encoded;
 }
 
 export function encodeTerminalRuns(
@@ -102,6 +133,39 @@ export function encodeTerminalRuns(
   return encodeTerminalRunsWithMetrics(runs, options).output;
 }
 
+/**
+ * Reusable string accumulator that avoids per-frame array allocation.
+ * The internal chunk array grows to the high-water mark and stays there,
+ * so subsequent frames reuse the same storage (zero GC pressure on the
+ * encode hot path).
+ */
+export class FrameOutputBuilder {
+  private chunks: string[] = [];
+  private length = 0;
+
+  push(s: string): void {
+    this.chunks[this.length++] = s;
+  }
+
+  reset(): void {
+    this.length = 0;
+  }
+
+  build(): string {
+    if (this.length === 0) return '';
+    // Temporarily truncate so join only reads active slots, then restore
+    // the high-water mark to preserve allocated capacity.
+    const capacity = this.chunks.length;
+    this.chunks.length = this.length;
+    const result = this.chunks.join('');
+    this.chunks.length = capacity;
+    return result;
+  }
+}
+
+/** Module-level shared builder — safe because rendering is synchronous. */
+const sharedFrameOutput = new FrameOutputBuilder();
+
 export function encodeTerminalRunsWithMetrics(
   runs: readonly RendererRenderRun[],
   options: RendererTerminalOutputOptions = {},
@@ -110,7 +174,8 @@ export function encodeTerminalRunsWithMetrics(
     return { output: '', cursorMotion: snapshotCursorMotionMetrics(createCursorMotionMetrics()) };
   }
 
-  const out: string[] = [];
+  const out = sharedFrameOutput;
+  out.reset();
   const cursorMotionMetrics = createCursorMotionMetrics();
   if (options.synchronized === true) out.push(ANSI_BEGIN_SYNCHRONIZED_UPDATE);
   if (options.hideCursor === true) out.push(ANSI_HIDE_CURSOR);
@@ -176,7 +241,7 @@ export function encodeTerminalRunsWithMetrics(
   }
   if (options.showCursor === true && options.cursor === undefined) out.push(ANSI_SHOW_CURSOR);
   if (options.synchronized === true) out.push(ANSI_END_SYNCHRONIZED_UPDATE);
-  return { output: out.join(''), cursorMotion: snapshotCursorMotionMetrics(cursorMotionMetrics) };
+  return { output: out.build(), cursorMotion: snapshotCursorMotionMetrics(cursorMotionMetrics) };
 }
 
 export function hyperlinkToAnsi(link: string | undefined): string {
