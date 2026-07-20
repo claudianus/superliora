@@ -61,6 +61,17 @@ const ADD_DIR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'Show configured additional workspace directories' },
 ];
 
+const PERSONA_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'list', description: 'List available presets' },
+  { value: 'set', description: 'Apply a preset persona' },
+  { value: 'name', description: 'Set a display name' },
+  { value: 'tone', description: 'Set response tone' },
+  { value: 'personality', description: 'Set personality traits' },
+  { value: 'instructions', description: 'Add free-form instructions' },
+  { value: 'clear', description: 'Remove persona customization' },
+  { value: 'help', description: 'Show persona command help' },
+];
+
 const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'stats', description: 'Show Liora Recall memory stats' },
   { value: 'list', description: 'List recent memories' },
@@ -145,6 +156,11 @@ export function addDirArgumentCompletions(argumentPrefix: string): AutocompleteI
     return completeAddDirPath(argumentPrefix);
   }
   return completeLeadingArg(ADD_DIR_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Argument autocompletion for the `/persona` command. */
+export function personaArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(PERSONA_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function memoryArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -506,6 +522,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'quota',
+    aliases: [],
+    description: 'Show live provider subscription quotas and API credits',
+    priority: 100,
+    availability: 'always',
+  },
+  {
     name: 'status',
     aliases: [],
     description: 'Show current session and runtime status',
@@ -567,6 +590,15 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: ['skin'],
     description: 'Tune TUI motion, density, and background',
     priority: 60,
+    availability: 'always',
+  },
+  {
+    name: 'persona',
+    aliases: ['character'],
+    description: 'Customize agent personality, tone, and response style',
+    priority: 60,
+    argumentHint: '[list|set|name|tone|personality|instructions|clear|help]',
+    completeArgs: personaArgumentCompletions,
     availability: 'always',
   },
   {

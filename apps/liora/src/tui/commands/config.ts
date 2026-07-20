@@ -28,6 +28,7 @@ import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/lior
 import { formatErrorMessage } from '../utils/event-payload';
 import { handleAccountsCommand } from './accounts';
 import { showUsage } from './info';
+import { handlePersonaCommand } from './persona';
 import { setExperimentalFeatures } from './experimental-flags';
 import type { SlashCommandHost } from './dispatch';
 import { isActiveUltraworkRun, ultraworkModeDisableBlockedMessage } from './ultrawork-contract';
@@ -835,6 +836,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'editor': showEditorPicker(host); return;
     case 'experiments': void showExperimentsPanel(host); return;
     case 'upgrade': showUpdatePreferencePicker(host); return;
+    case 'persona': void handlePersonaCommand(host, ''); return;
     case 'usage': void showUsage(host); return;
   }
 }

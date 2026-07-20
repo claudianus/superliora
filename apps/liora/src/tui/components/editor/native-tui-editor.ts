@@ -24,7 +24,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 
-import type { TUIEditor, TUIEditorInputMode } from './editor-contract';
+import type { TUIEditor, TUIEditorGhostKind, TUIEditorInputMode } from './editor-contract';
 
 /** Debounce window for autocomplete provider queries after each keystroke. */
 const DEFAULT_AUTOCOMPLETE_DEBOUNCE_MS = 80;
@@ -73,6 +73,8 @@ export class NativeTUIEditor implements TUIEditor {
   onCommandPalette?: () => void;
   onTranscriptSearch?: () => void;
   onRetryLastTurn?: () => void;
+  onAcceptGhost?: () => void;
+  onCycleGhost?: (direction: -1 | 1) => void;
 
   private readonly pasteBurst = new PasteBurst();
   private disablePasteBurst = false;
@@ -86,10 +88,13 @@ export class NativeTUIEditor implements TUIEditor {
   private historyIndex: number | undefined;
   private argumentHints: ReadonlyMap<string, string> = new Map();
   private layoutRowCountCache:
-    | { width: number; text: string; overlayCount: number; rows: number }
+    | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
     | undefined;
   /** Last measured content width so ↑/↓ can navigate soft-wrap rows between paints. */
   private lastContentWidth: number | undefined;
+  /** Ghost text (prompt intelligence) shown dimmed after the cursor. */
+  private ghostText: string | undefined;
+  private ghostKind: TUIEditorGhostKind = 'inline';
 
   constructor(private readonly options: NativeTUIEditorOptions = {}) {
     this.autocomplete = new RendererEditorAutocompleteController({
@@ -118,6 +123,7 @@ export class NativeTUIEditor implements TUIEditor {
 
   setCursorPosition(cursor: RendererEditorCursor): void {
     this.input.setCursor({ line: cursor.line, column: cursor.col });
+    this.clearGhost();
   }
 
   applyNativeTextInputSync(text: string, cursor: RendererEditorCursor): void {
@@ -151,6 +157,17 @@ export class NativeTUIEditor implements TUIEditor {
 
   isShowingAutocomplete(): boolean {
     return this.autocomplete.isOpen();
+  }
+
+  setGhostText(text: string | undefined, kind: TUIEditorGhostKind): void {
+    this.ghostText = text;
+    this.ghostKind = kind;
+    this.layoutRowCountCache = undefined;
+    this.options.requestRender?.();
+  }
+
+  getGhostText(): string | undefined {
+    return this.ghostText;
   }
 
   addToHistory(text: string): void {
@@ -241,11 +258,19 @@ export class NativeTUIEditor implements TUIEditor {
         continue;
       }
       if (event.key === 'up' && this.getText().length === 0) {
+        if (this.ghostKind === 'suggestion' && this.ghostText !== undefined) {
+          this.onCycleGhost?.(-1);
+          continue;
+        }
         if (this.onUpArrowEmpty?.() === true) continue;
         this.navigateHistory(-1);
         continue;
       }
       if (event.key === 'down' && this.getText().length === 0) {
+        if (this.ghostKind === 'suggestion' && this.ghostText !== undefined) {
+          this.onCycleGhost?.(1);
+          continue;
+        }
         if (this.onDownArrowEmpty?.() === true) continue;
         this.navigateHistory(1);
         continue;
@@ -256,6 +281,8 @@ export class NativeTUIEditor implements TUIEditor {
       if (event.key === 'escape') {
         if (this.closeAutocomplete(true)) {
           continue;
+        } else if (this.ghostText !== undefined) {
+          this.clearGhost();
         } else if (this.inputMode === 'bash' && this.getText().length === 0) {
           this.setInputMode('prompt');
         } else {
@@ -263,7 +290,12 @@ export class NativeTUIEditor implements TUIEditor {
         }
         continue;
       }
-      if (event.key === 'tab') continue;
+      if (event.key === 'tab') {
+        if (this.ghostText !== undefined && !this.autocomplete.isOpen()) {
+          this.acceptGhost();
+        }
+        continue;
+      }
 
       const trigger = printableChar(normalized);
       if (
@@ -317,7 +349,8 @@ export class NativeTUIEditor implements TUIEditor {
       cached !== undefined &&
       cached.width === safeWidth &&
       cached.text === text &&
-      cached.overlayCount === overlayCount
+      cached.overlayCount === overlayCount &&
+      cached.ghost === (this.ghostText ?? '')
     ) {
       return cached.rows;
     }
@@ -338,7 +371,7 @@ export class NativeTUIEditor implements TUIEditor {
       focused: this.focused,
     });
     const rows = measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows);
-    this.layoutRowCountCache = { width: safeWidth, text, overlayCount, rows };
+    this.layoutRowCountCache = { width: safeWidth, text, overlayCount, ghost: this.ghostText ?? '', rows };
     return rows;
   }
 
@@ -505,6 +538,7 @@ export class NativeTUIEditor implements TUIEditor {
     const after = this.getText();
     if (after !== before) {
       this.historyIndex = undefined;
+      this.clearGhost();
       this.onChange?.(after);
     }
     return true;
@@ -513,6 +547,7 @@ export class NativeTUIEditor implements TUIEditor {
   private setTextInternal(text: string, notify: boolean): void {
     const before = this.getText();
     this.input.setText(text);
+    if (text !== before) this.clearGhost();
     if (notify && this.getText() !== before) this.onChange?.(this.getText());
   }
 
@@ -564,6 +599,29 @@ export class NativeTUIEditor implements TUIEditor {
     return this.autocomplete.close(requestRender);
   }
 
+  private clearGhost(): void {
+    if (this.ghostText === undefined) return;
+    this.ghostText = undefined;
+    this.layoutRowCountCache = undefined;
+    this.options.requestRender?.();
+  }
+
+  private acceptGhost(): void {
+    const ghost = this.ghostText;
+    if (ghost === undefined) return;
+    if (this.ghostKind === 'inline') {
+      this.applyInputMutation(() =>
+        this.input.handleInput({ type: 'paste', raw: ghost, text: ghost }),
+      );
+    } else {
+      this.setTextInternal(ghost, true);
+    }
+    this.ghostText = undefined;
+    this.layoutRowCountCache = undefined;
+    this.onAcceptGhost?.();
+    this.options.requestRender?.();
+  }
+
   private applyAutocompleteCompletion(
     result: RendererEditorAutocompleteCompletion,
   ): void {
@@ -597,6 +655,7 @@ export class NativeTUIEditor implements TUIEditor {
         background: palette.background,
         selectionBg: palette.selectionBg,
         selectionText: palette.selectionText,
+        ghostText: palette.ghostText,
       },
     });
   }
@@ -619,6 +678,8 @@ export class NativeTUIEditor implements TUIEditor {
     const content = this.input.render({
       width: contentWidth,
       focused: this.focused,
+      ghostText: this.ghostText,
+      ghostStyle: editorStyles.ghostStyle,
     });
     const surfaceLayout = measureRendererEditorSurfaceLayout({
       height: measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows),

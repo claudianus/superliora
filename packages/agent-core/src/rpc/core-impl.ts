@@ -100,6 +100,8 @@ import type {
   ForkSessionPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
+  InlineCompletePayload,
+  PromptIntelligenceCallOptions,
   GetKimiConfigPayload,
   GetPluginInfoPayload,
   InstallPluginPayload,
@@ -908,6 +910,20 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
   getBackground({ sessionId, ...payload }: SessionAgentPayload<GetBackgroundPayload>) {
     return this.sessionApi(sessionId).getBackground(payload);
+  }
+
+  inlineComplete(
+    { sessionId, ...payload }: SessionAgentPayload<InlineCompletePayload>,
+    options?: PromptIntelligenceCallOptions,
+  ) {
+    return this.sessionApi(sessionId).inlineComplete(payload, options);
+  }
+
+  suggestPrompts(
+    { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+    options?: PromptIntelligenceCallOptions,
+  ) {
+    return this.sessionApi(sessionId).suggestPrompts(payload, options);
   }
 
   updateSessionMetadata({ sessionId, ...payload }: UpdateSessionMetadataRequest): Promise<void> {

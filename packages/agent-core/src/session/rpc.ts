@@ -25,6 +25,8 @@ import type {
   EnterSwarmPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
+  InlineCompletePayload,
+  PromptIntelligenceCallOptions,
   PauseUltraworkPayload,
   McpServerInfo,
   McpStartupMetrics,
@@ -393,6 +395,20 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async getBackground({ agentId, ...payload }: AgentScopedPayload<GetBackgroundPayload>) {
     return (await this.getAgent(agentId)).getBackground(payload);
+  }
+
+  async inlineComplete(
+    { agentId, ...payload }: AgentScopedPayload<InlineCompletePayload>,
+    options?: PromptIntelligenceCallOptions,
+  ) {
+    return (await this.getAgent(agentId)).inlineComplete(payload, options);
+  }
+
+  async suggestPrompts(
+    { agentId, ...payload }: AgentScopedPayload<EmptyPayload>,
+    options?: PromptIntelligenceCallOptions,
+  ) {
+    return (await this.getAgent(agentId)).suggestPrompts(payload, options);
   }
 
   private async getAgent(agentId: string): Promise<PromisableMethods<AgentAPI>> {

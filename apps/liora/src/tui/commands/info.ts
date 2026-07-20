@@ -24,6 +24,7 @@ import {
   type StatusRecoveryReadiness,
 } from '../components/messages/status-panel';
 import { buildUsageReportLines, buildContextCompositionLines, UsagePanelComponent, type ManagedUsageReport } from '../components/messages/usage-panel';
+import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
@@ -115,6 +116,7 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
       managedUsage: reportState.managedUsage,
       managedUsageError: reportState.managedUsageError,
       managedUsageFillProgress: fillProgress,
+      providerQuota: host.state.appState.providerQuota,
     });
     if (composition !== undefined) {
       lines.push('');
@@ -148,6 +150,45 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
   reportState.managedUsage = managedUsage.usage;
   reportState.managedUsageError = managedUsage.error;
   panel.setPhase('ready');
+  requestTUILayoutRender(host.state);
+}
+
+export async function showQuota(host: SlashCommandHost): Promise<void> {
+  // Use the cached snapshot from the background monitor when available;
+  // otherwise fetch fresh data on the spot.
+  let quota: AllProvidersUsageSnapshot | null = host.state.appState.providerQuota ?? null;
+  if (quota === null) {
+    try {
+      quota = await host.harness.auth.getAllProvidersUsage();
+      host.setAppState({ providerQuota: quota });
+    } catch {
+      // Leave quota null; the panel will show an appropriate message.
+    }
+  }
+
+  const buildLines = () => {
+    if (quota === null || quota.providers.length === 0) {
+      return ['No provider quota data available.', '', 'Run /login to connect a provider.'];
+    }
+    // Reuse the multi-provider quota section builder via buildUsageReportLines
+    // with only the providerQuota field populated.
+    return buildUsageReportLines({
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+      providerQuota: quota,
+    });
+  };
+
+  playStatusOpenBeat(host, 'Quota', 'quota');
+  const panel = new UsagePanelComponent({
+    buildLines,
+    borderToken: 'primary',
+    title: ' Provider Quotas ',
+    enterBeatSeed: 'quota',
+    requestRender: () => requestTUILayoutRender(host.state),
+  });
+  host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
 }
 

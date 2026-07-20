@@ -50,6 +50,13 @@ export interface RendererTextInputRenderOptions {
   readonly style?: RendererCellStyle;
   readonly placeholderStyle?: RendererCellStyle;
   readonly selectionStyle?: RendererCellStyle;
+  /**
+   * Optional "ghost" text rendered dimmed right after the cursor (inline
+   * autocomplete / next-task suggestion). Tab acceptance is handled by the
+   * editor layer; this only paints the preview cells.
+   */
+  readonly ghostText?: string;
+  readonly ghostStyle?: RendererCellStyle;
 }
 
 export interface RendererTextInputMouseOptions {
@@ -352,19 +359,70 @@ export class RendererTextInput {
     };
     if (this.cursorBlinking !== undefined) cursor.blinking = this.cursorBlinking;
 
+    const lines: RendererRegionLine[] = visibleLines.map((line) =>
+      this.renderVisualLine(line, {
+        style,
+        placeholderStyle,
+        selectionStyle,
+        selection,
+      }),
+    );
+
+    const ghostText = options.ghostText;
+    if (ghostText !== undefined && ghostText.length > 0 && selection === undefined) {
+      const ghostRow = absoluteCursor.y - viewportRow;
+      if (ghostRow >= 0 && ghostRow < lines.length) {
+        lines[ghostRow] = this.composeGhostLine(
+          lines[ghostRow] ?? [],
+          absoluteCursor.x,
+          ghostText,
+          options.ghostStyle,
+          width,
+        );
+      }
+    }
+
     return {
-      lines: visibleLines.map((line) =>
-        this.renderVisualLine(line, {
-          style,
-          placeholderStyle,
-          selectionStyle,
-          selection,
-        }),
-      ),
+      lines,
       cursor,
       contentRows: visualLines.length,
       viewportRow,
     };
+  }
+
+  /**
+   * Overlay dimmed ghost cells onto the cursor's visual line starting at the
+   * cursor column. Cells already typed before the cursor are preserved; the
+   * ghost replaces whatever follows the cursor and is truncated so the combined
+   * display width never exceeds the line `width` (wide/CJK chars stay intact).
+   */
+  private composeGhostLine(
+    line: RendererRegionLine,
+    cursorX: number,
+    ghostText: string,
+    ghostStyle: RendererCellStyle | undefined,
+    width: number,
+  ): RendererRegionLine {
+    const available = width - cursorX;
+    if (available <= 0) return line;
+    const lineCells: readonly RendererCell[] =
+      typeof line === 'string' ? textToCells(line, undefined) : line;
+    const before: RendererCell[] = [];
+    let column = 0;
+    for (const cell of lineCells) {
+      if (column >= cursorX) break;
+      before.push(cell);
+      column += cell.width ?? 1;
+    }
+    const ghostCells: RendererCell[] = [];
+    let ghostWidth = 0;
+    for (const cell of textToCells(ghostText, ghostStyle)) {
+      const cellWidth = cell.width ?? 1;
+      if (ghostWidth + cellWidth > available) break;
+      ghostCells.push(cell);
+      ghostWidth += cellWidth;
+    }
+    return [...before, ...ghostCells];
   }
 
   private handleKey(event: NativeInputKeyEvent): boolean {

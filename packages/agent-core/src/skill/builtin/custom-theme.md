@@ -67,6 +67,7 @@ Only set tokens from this set — unknown keys are silently ignored at load. If 
 | `textStrong` | Emphasized / bold text: input dialogs, status messages |
 | `textDim` | Secondary, dimmed text (the most widely used dim shade): thinking, hints, descriptions, completed todos, Markdown quotes, footer status bar |
 | `textMuted` | Faintest text: counters, scroll info, descriptions, Markdown link URLs, code-block borders |
+| `ghostText` | Dimmed inline ghost text: autocomplete / next-task suggestion preview painted after the editor cursor (Tab to accept) |
 | `background` | Root TUI canvas background |
 | `surface` | Default panel and dialog surface |
 | `surfaceRaised` | Raised surface for focused or premium chrome |

@@ -123,10 +123,12 @@ import { AppearanceController, shouldRenderAmbientAnimationFrame } from './contr
 import { BtwPanelController } from './controllers/btw-panel';
 import { ClipboardImageHintController } from './controllers/clipboard-image-hint';
 import { EditorKeyboardController } from './controllers/editor-keyboard';
+import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { SessionEventHandler } from './controllers/session-event-handler';
 import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
+import { UsageMonitorController } from './controllers/usage-monitor';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
@@ -271,6 +273,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     sessionTitle: null,
     goal: null,
     mcpServersSummary: null,
+    providerQuota: null,
     banner: undefined,
   };
 }
@@ -341,7 +344,9 @@ export class LioraTUI {
   readonly sessionEventHandler: SessionEventHandler;
   readonly sessionReplay: SessionReplayRenderer;
   readonly tasksBrowserController: TasksBrowserController;
+  readonly usageMonitor: UsageMonitorController;
   readonly editorKeyboard: EditorKeyboardController;
+  readonly promptIntelligence: PromptIntelligenceController;
   private nativeInputRouter: TUIStateNativeInputRouter | undefined;
   private nativeInputModalDispose: (() => void) | undefined;
   private nativeInputModalSequence = 0;
@@ -445,8 +450,15 @@ export class LioraTUI {
     this.sessionEventHandler = new SessionEventHandler(this);
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
+    this.usageMonitor = new UsageMonitorController({
+      harness: this.harness,
+      setAppState: (patch) => this.setAppState(patch),
+      requestRender: () => requestTUILayoutRender(this.state),
+    });
     this.editorKeyboard = new EditorKeyboardController(this, this.imageStore);
     this.editorKeyboard.install();
+    this.promptIntelligence = new PromptIntelligenceController(this);
+    this.promptIntelligence.install();
     this.buildLayout();
   }
 
@@ -585,9 +597,12 @@ export class LioraTUI {
       const shouldReplayHistory = await this.initMainTui();
       this.startEventLoop();
       try {
+        // Mount Welcome + IdleStage before the splash so the saved UI tree
+        // (captured by playStartupSplash) already contains them. The morph
+        // target scene and the first post-splash frame are then 1:1 identical.
+        this.renderWelcome();
         // Cinematic splash after the renderer loop is live, before Welcome.
         await this.playStartupSplash();
-        this.renderWelcome();
         void this.loadBanner();
         this.startBackgroundFdAutocomplete();
         await this.finishStartup(shouldReplayHistory);
@@ -937,6 +952,7 @@ export class LioraTUI {
       this.updateTerminalTitle();
     }
     void this.refreshDynamicSlashCommands(this.session);
+    this.usageMonitor.start();
   }
 
   private async showSessionWarnings(session: Session): Promise<void> {
@@ -1093,6 +1109,7 @@ export class LioraTUI {
     // BUG-4: close the tasks browser so its 1s poll timer does not keep
     // firing into a closed session.
     this.tasksBrowserController.close();
+    this.usageMonitor.dispose();
     // Central teardown: any resource registered with the disposable registry
     // (timers, intervals, listeners, watchers) is cleaned up here.
     this.disposables.disposeAll();
@@ -1731,6 +1748,10 @@ export class LioraTUI {
       'additionalDirs' in patch &&
       !sameStringArrays(this.state.appState.additionalDirs, patch.additionalDirs ?? []);
     const busyChanged = 'streamingPhase' in patch || 'isCompacting' in patch;
+    const becameIdle =
+      'streamingPhase' in patch &&
+      this.state.appState.streamingPhase !== 'idle' &&
+      patch.streamingPhase === 'idle';
     const modeBeats = collectFooterModeBeats(this.state.appState, patch);
     Object.assign(this.state.appState, patch);
     if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
@@ -1754,6 +1775,7 @@ export class LioraTUI {
       this.sessionEventHandler.retryQueuedGoalPromotion();
     }
     if (additionalDirsChanged) this.setupAutocomplete();
+    if (becameIdle) this.promptIntelligence.notifyIdle();
     requestTUIContentRender(this.state);
   }
 
@@ -2317,12 +2339,17 @@ export class LioraTUI {
         // Layout invalidation so the native frame path repaints the takeover.
         requestTUILayoutRender(this.state);
       },
-      getMorphScene: (width, rows) =>
-        buildSplashMorphScene({
+      getMorphScene: (width, rows) => {
+        const stageWidth = Math.max(1, width);
+        return buildSplashMorphScene({
           width,
           rows,
           appState: this.state.appState,
-        }),
+          headerLines: this.state.headerContainer.render(stageWidth),
+          footerLines: this.state.footerContainer.render(stageWidth),
+          editorLines: this.state.editorContainer.render(stageWidth),
+        });
+      },
       onSplashActiveChange: (active) => {
         this.splashForcesAmbient = active;
         this.appearanceController.apply();
@@ -2358,6 +2385,9 @@ export class LioraTUI {
       this.appearanceController.apply();
     }
     if (saved !== undefined) {
+      // Flag: the next native frame must not full-clear — the last morph frame
+      // is still on screen and the real UI paints over it without a black flash.
+      this.state.splashJustDisposed = true;
       this.state.ui.clear();
       for (const child of saved) {
         this.state.ui.addChild(child);

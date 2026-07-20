@@ -4,8 +4,10 @@ import {
   type AgentContextData,
   type ContextComposition,
   type ContextOSRetrievalDiagnostics,
+  type InlineCompleteResult,
   type LioraErrorCode,
   type SwarmModeTrigger,
+  type SuggestPromptsResult,
   type TurnCancelSource,
 } from '@superliora/agent-core';
 
@@ -356,6 +358,32 @@ export class Session {
   async getUsage(): Promise<SessionUsage> {
     this.ensureOpen();
     return this.rpc.getUsage({ sessionId: this.id });
+  }
+
+  /**
+   * Predict the next words/sentence for the text the user is currently typing.
+   * Returns a short continuation to render as dimmed ghost text (Tab to accept).
+   * Pass `signal` to cancel an in-flight request when the user keeps typing.
+   */
+  async inlineComplete(input: {
+    readonly text: string;
+    readonly cursorLine: number;
+    readonly cursorCol: number;
+    readonly signal?: AbortSignal;
+  }): Promise<InlineCompleteResult> {
+    this.ensureOpen();
+    return this.rpc.inlineComplete({ sessionId: this.id, ...input });
+  }
+
+  /**
+   * Suggest contextually relevant next tasks for an empty prompt box. Returns
+   * up to a handful of short imperative prompts (Tab fills the first one).
+   */
+  async suggestPrompts(
+    options: { readonly signal?: AbortSignal } = {},
+  ): Promise<SuggestPromptsResult> {
+    this.ensureOpen();
+    return this.rpc.suggestPrompts({ sessionId: this.id, signal: options.signal });
   }
 
   async getStatus(): Promise<SessionStatus> {

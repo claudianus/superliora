@@ -151,6 +151,7 @@ export const LoopControlSchema = z.object({
   compactionTriggerTokens: z.number().int().min(1000).optional(),
   compactionMaxRecentMessages: z.number().int().min(1).optional(),
   compactionModel: z.string().min(1).optional(),
+  completionModel: z.string().min(1).optional(),
 });
 
 export type LoopControl = z.infer<typeof LoopControlSchema>;
@@ -364,6 +365,21 @@ export const BrowserUseConfigSchema = z.object({
 
 export type BrowserUseConfig = z.infer<typeof BrowserUseConfigSchema>;
 
+export const PersonaConfigSchema = z.object({
+  /** Display name for the persona (e.g. "Liora", "Mentor"). Empty string clears. */
+  name: z.string().optional(),
+  /** Built-in preset identifier. 'none' explicitly disables presets. */
+  preset: z.enum(['none', 'friendly', 'professional', 'concise', 'creative', 'mentor', 'playful']).optional(),
+  /** Personality traits description injected into the system prompt. */
+  personality: z.string().optional(),
+  /** Response tone/style guidance (e.g. "warm and casual", "formal and precise"). */
+  tone: z.string().optional(),
+  /** Free-form custom instructions appended to the system prompt persona block. */
+  instructions: z.string().optional(),
+});
+
+export type PersonaConfig = z.infer<typeof PersonaConfigSchema>;
+
 export const ComputerUseConfigSchema = z.object({
   enabled: z.boolean().optional(),
   provider: z.enum(['cua-driver']).optional(),
@@ -465,6 +481,7 @@ export const LioraConfigSchema = z.object({
   modelCatalog: ModelCatalogConfigSchema.optional(),
   browserUse: BrowserUseConfigSchema.optional(),
   computerUse: ComputerUseConfigSchema.optional(),
+  persona: PersonaConfigSchema.optional(),
   experimental: ExperimentalConfigSchema.optional(),
   telemetry: z.boolean().optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
@@ -526,6 +543,7 @@ export const LioraConfigPatchSchema = z
     modelCatalog: ModelCatalogConfigPatchSchema.optional(),
     browserUse: BrowserUseConfigPatchSchema.optional(),
     computerUse: ComputerUseConfigPatchSchema.optional(),
+    persona: PersonaConfigSchema.partial().optional(),
     experimental: ExperimentalConfigPatchSchema.optional(),
     telemetry: z.boolean().optional(),
   })

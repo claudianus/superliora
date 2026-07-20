@@ -21,6 +21,7 @@ import {
   type MoonshotServiceConfig,
   type OAuthRef,
   type PermissionConfig,
+  type PersonaConfig,
   type ProviderConfig,
   type ResearchConfig,
   type ResearchContext7Config,
@@ -333,6 +334,8 @@ export function transformTomlData(data: Record<string, unknown>): Record<string,
       result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'computerUse' && isPlainObject(value)) {
       result[targetKey] = transformPlainObject(value);
+    } else if (targetKey === 'persona' && isPlainObject(value)) {
+      result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'experimental' && isPlainObject(value)) {
       result[targetKey] = cloneRecord(value);
     } else if (!isPlainObject(value)) {
@@ -553,6 +556,7 @@ export function configToTomlData(config: LioraConfig): Record<string, unknown> {
   setSection(out, 'model_catalog', config.modelCatalog, modelCatalogToToml);
   setSection(out, 'browser_use', config.browserUse, browserUseToToml);
   setSection(out, 'computer_use', config.computerUse, computerUseToToml);
+  setSection(out, 'persona', config.persona, personaToToml);
   setSection(out, 'experimental', config.experimental, experimentalToToml);
   setSection(out, 'permission', config.permission, permissionToToml);
   setHooks(out, config.hooks);
@@ -817,6 +821,17 @@ function computerUseToToml(
 ): Record<string, unknown> {
   const out = cloneRecord(rawComputerUse);
   for (const [key, value] of Object.entries(computerUse)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function personaToToml(
+  persona: PersonaConfig,
+  rawPersona: unknown,
+): Record<string, unknown> {
+  const out = cloneRecord(rawPersona);
+  for (const [key, value] of Object.entries(persona)) {
     setDefined(out, camelToSnake(key), value);
   }
   return out;

@@ -19,6 +19,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { currentTheme } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
+import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 import {
   appearanceAnimationNow,
   renderAnimatedGradientText,
@@ -281,6 +282,30 @@ export function formatMicroCompactionFooterBadge(
         : last;
   return {
     text: `μ:${short}×${String(micro.total)}`,
+    severity,
+  };
+}
+
+/**
+ * Provider quota badge for the footer. Shows the worst usage ratio across
+ * all configured providers as a compact `[quota 72%]` badge. Only rendered
+ * when at least one provider exposes a queryable usage API and the ratio
+ * is above zero.
+ */
+export function formatProviderQuotaFooterBadge(
+  quota: AllProvidersUsageSnapshot | null | undefined,
+): FooterBadge | null {
+  if (quota === undefined || quota === null) return null;
+  // Only show when at least one provider has queryable usage data.
+  const hasQueryable = quota.providers.some((p) => p.available && p.error === undefined);
+  if (!hasQueryable) return null;
+  const ratio = quota.worstRatio;
+  if (ratio <= 0) return null;
+  const pct = Math.round(ratio * 100);
+  const severity: FooterBadgeSeverity =
+    ratio >= 0.90 ? 'danger' : ratio >= 0.70 ? 'warning' : 'info';
+  return {
+    text: `quota ${String(pct)}%`,
     severity,
   };
 }
@@ -632,10 +657,14 @@ export class FooterComponent implements Component {
     );
     const contextOsBadge = formatContextOSFooterBadge(state.contextOS);
     const microBadge = formatMicroCompactionFooterBadge(state.microCompaction);
+    const quotaBadge = formatProviderQuotaFooterBadge(state.providerQuota);
     const usageSeverity = contextUsageSeverity(state.contextUsage);
     const contextParts: string[] = [
       styleFooterBadge({ text: contextBase, severity: usageSeverity }, colors, appearance),
     ];
+    if (quotaBadge !== null) {
+      contextParts.push(styleFooterBadge(quotaBadge, colors, appearance));
+    }
     if (contextOsBadge !== null) {
       contextParts.push(styleFooterBadge(contextOsBadge, colors, appearance));
     }

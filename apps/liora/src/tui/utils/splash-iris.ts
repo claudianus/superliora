@@ -56,7 +56,8 @@ export interface BrandMorphRect {
   readonly width: number;
 }
 
-/** Lerp fullscreen brand rect → Welcome-box hero rect inside the stage. */
+/** Lerp fullscreen brand rect → Welcome-box hero rect inside the stage.
+ * Progress is already eased by resolveMorphProgress — use linearly. */
 export function resolveBrandMorphRect(input: {
   readonly progress: number;
   readonly cols: number;
@@ -64,7 +65,7 @@ export function resolveBrandMorphRect(input: {
   readonly fromWidth: number;
   readonly to: BrandMorphRect;
 }): BrandMorphRect {
-  const t = easeOutCubic(input.progress);
+  const t = clamp01(input.progress);
   const width = Math.max(8, Math.round(lerp(input.fromWidth, input.to.width, t)));
   const x = Math.round(lerp((input.cols - input.fromWidth) / 2, input.to.x, t));
   const y = Math.round(lerp(input.fromTop, input.to.y, t));
@@ -74,6 +75,10 @@ export function resolveBrandMorphRect(input: {
 /**
  * Composite morph: center-out reveal of `scene` over `backdrop`, then optional
  * brand overlay lines (caller paints). Whole-row swaps stay ANSI-safe.
+ *
+ * The aperture expands with the smoothstep curve from resolveMorphProgress so
+ * the reveal decelerates into the final lock — eliminating the abrupt snap that
+ * previously caused a visible jump near progress ≈ 0.97.
  */
 export function applyStageMorphReveal(options: {
   readonly backdrop: readonly string[];
@@ -89,36 +94,30 @@ export function applyStageMorphReveal(options: {
   );
   if (p <= 0 || rows <= 0 || width <= 0) return out;
 
-  // Center-vertical + center-horizontal aperture expanding/opening onto scene.
-  // Early: small window; late: full frame so handoff lock can match Welcome.
+  // The progress arriving here is already eased by resolveMorphProgress
+  // (smoothstep). Use it directly for the aperture to avoid double-easing.
   const cy = (rows - 1) / 2;
-  const cx = (width - 1) / 2;
-  const halfH = Math.max(0.5, (p * 1.05) * (rows * 0.55));
-  const halfW = Math.max(0.5, (p * 1.05) * (width * 0.55));
+  // Aperture expands slightly beyond 50% so edges are fully covered at p=1.
+  const halfH = Math.max(0.5, p * (rows * 0.56));
 
   for (let y = 0; y < rows; y++) {
     if (Math.abs(y - cy) > halfH) continue;
     const sceneLine = padOrTrim(scene[y] ?? ' '.repeat(width), width);
-    // Near the aperture rim, keep a soft brand flare band.
-    const edge = Math.abs(y - cy) > halfH - 1.25 && p < 0.92;
-    if (edge) continue;
-    // Column aperture: prefer full scene rows once wide enough (ANSI-safe).
-    if (halfW >= width * 0.48 || p >= 0.88) {
-      out[y] = sceneLine;
-    } else {
-      // Mid morph: still whole-row for ANSI safety, but only within halfH.
-      out[y] = sceneLine;
-    }
+    // Soft rim: within 1 row of the aperture edge, keep backdrop visible
+    // until progress is high enough to avoid a hard horizontal cutoff.
+    const atRim = Math.abs(y - cy) > halfH - 1.0 && p < 0.90;
+    if (atRim) continue;
+    out[y] = sceneLine;
   }
 
-  if (p >= 0.97) {
+  // Final lock: once the aperture covers the full frame, snap every row to
+  // scene so the handoff to the real UI is pixel-identical.
+  if (p >= 0.95) {
     for (let y = 0; y < rows; y++) {
       out[y] = padOrTrim(scene[y] ?? ' '.repeat(width), width);
     }
   }
 
-  // silence unused cx for future column-aware morph
-  void cx;
   return out;
 }
 

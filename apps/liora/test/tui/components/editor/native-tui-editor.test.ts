@@ -272,3 +272,159 @@ describe('NativeTUIEditor', () => {
     expect(rendered.join('\n')).toContain('help');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ghost text (prompt intelligence)
+// ---------------------------------------------------------------------------
+
+describe('NativeTUIEditor ghost text', () => {
+  it('sets and gets ghost text', () => {
+    const editor = makeEditor();
+    expect(editor.getGhostText()).toBeUndefined();
+
+    editor.setGhostText('hello world', 'inline');
+    expect(editor.getGhostText()).toBe('hello world');
+
+    editor.setGhostText(undefined, 'inline');
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('renders ghost text in the editor frame', () => {
+    const editor = makeEditor();
+    editor.setText('hello');
+    editor.setCursorPosition({ line: 0, col: 5 });
+    editor.setGhostText(' world', 'inline');
+
+    const rendered = editor.render(30).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
+    expect(rendered.join('\n')).toContain('hello world');
+  });
+
+  it('accepts inline ghost text with Tab (inserts at cursor)', () => {
+    const editor = makeEditor();
+    const acceptGhost = vi.fn();
+    editor.onAcceptGhost = acceptGhost;
+    editor.setText('hello');
+    editor.setCursorPosition({ line: 0, col: 5 });
+    editor.setGhostText(' world', 'inline');
+
+    editor.handleInput('\t');
+
+    expect(editor.getText()).toBe('hello world');
+    expect(editor.getGhostText()).toBeUndefined();
+    expect(acceptGhost).toHaveBeenCalledOnce();
+  });
+
+  it('accepts suggestion ghost text with Tab (fills editor)', () => {
+    const editor = makeEditor();
+    const acceptGhost = vi.fn();
+    editor.onAcceptGhost = acceptGhost;
+    editor.setGhostText('fix the bug', 'suggestion');
+
+    editor.handleInput('\t');
+
+    expect(editor.getText()).toBe('fix the bug');
+    expect(editor.getGhostText()).toBeUndefined();
+    expect(acceptGhost).toHaveBeenCalledOnce();
+  });
+
+  it('does not accept ghost when autocomplete menu is open', async () => {
+    vi.useFakeTimers();
+    const editor = new NativeTUIEditor({ autocompleteDebounceMs: 0 });
+    const provider = providerReturning([
+      { value: 'help', label: 'help', description: 'Show help' },
+    ]);
+    editor.setAutocompleteProvider(provider);
+    editor.setGhostText(' world', 'inline');
+
+    editor.handleInput('/');
+    await vi.runAllTimersAsync();
+    await flushAutocomplete();
+    expect(editor.isShowingAutocomplete()).toBe(true);
+
+    // Tab should be consumed by autocomplete, not ghost
+    editor.handleInput('\t');
+    expect(editor.getText()).toBe('/help ');
+  });
+
+  it('cycles suggestions with ↑/↓ when editor is empty and ghostKind is suggestion', () => {
+    const editor = makeEditor();
+    const cycleGhost = vi.fn();
+    editor.onCycleGhost = cycleGhost;
+    editor.setGhostText('suggestion one', 'suggestion');
+
+    editor.handleInput('\u001B[A'); // up
+    expect(cycleGhost).toHaveBeenCalledWith(-1);
+
+    editor.handleInput('\u001B[B'); // down
+    expect(cycleGhost).toHaveBeenCalledWith(1);
+  });
+
+  it('does not cycle suggestions when ghostKind is inline', () => {
+    const editor = makeEditor();
+    const cycleGhost = vi.fn();
+    editor.onCycleGhost = cycleGhost;
+    editor.setGhostText('inline completion', 'inline');
+
+    // ↑ with empty text + inline ghost should NOT cycle
+    editor.handleInput('\u001B[A');
+    expect(cycleGhost).not.toHaveBeenCalled();
+  });
+
+  it('closes ghost text with Esc', () => {
+    const editor = makeEditor();
+    editor.setGhostText('hello world', 'inline');
+    expect(editor.getGhostText()).toBe('hello world');
+
+    editor.handleInput('\u001B'); // escape
+
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('clears ghost text when text changes', () => {
+    const editor = makeEditor();
+    editor.setText('hello');
+    editor.setGhostText(' world', 'inline');
+    expect(editor.getGhostText()).toBe(' world');
+
+    editor.handleInput('x');
+
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('clears ghost text when cursor moves via setCursorPosition', () => {
+    const editor = makeEditor();
+    editor.setText('hello');
+    editor.setCursorPosition({ line: 0, col: 5 });
+    editor.setGhostText(' world', 'inline');
+    expect(editor.getGhostText()).toBe(' world');
+
+    editor.setCursorPosition({ line: 0, col: 2 });
+
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('clears ghost text on submit', async () => {
+    vi.useFakeTimers();
+    const editor = makeEditor();
+    editor.onSubmit = vi.fn();
+    editor.setText('hello');
+    editor.setGhostText(' world', 'inline');
+
+    editor.handleInput('\r');
+    await vi.runAllTimersAsync();
+
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('invalidates layout cache when ghost changes', () => {
+    const editor = makeEditor();
+    editor.setText('hi');
+    const rowsWithoutGhost = editor.getNativeLayoutRowCount(24);
+
+    editor.setGhostText(' this is a longer ghost text that might wrap', 'inline');
+    const rowsWithGhost = editor.getNativeLayoutRowCount(24);
+
+    // Ghost text may increase row count if it causes wrapping
+    expect(rowsWithGhost).toBeGreaterThanOrEqual(rowsWithoutGhost);
+  });
+});

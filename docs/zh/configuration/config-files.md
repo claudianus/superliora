@@ -166,6 +166,7 @@ max_context_size = 1047576
 | `compaction_trigger_tokens` | `integer` | `200000` | 触发压缩的绝对 token 阈值，仅在大窗口（≥ 256K）上生效 |
 | `compaction_max_recent_messages` | `integer` | `4` | 压缩后逐字保留的最近消息数上限 |
 | `compaction_model` | `string` | — | 用于压缩摘要的模型别名；设为在 `[models]` 中注册的更便宜或更快的模型可降低压缩成本，不设则使用主对话模型 |
+| `completion_model` | `string` | — | 用于提示词智能（行内自动补全和下一步任务推荐）的模型别名；设为在 `[models]` 中注册的更快或更便宜的模型以获得低延迟预测，不设则使用主对话模型 |
 
 ## `background`
 

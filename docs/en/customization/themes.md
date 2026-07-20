@@ -14,6 +14,7 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 | `textStrong` | `#F5F5F5` | `#1A1A1A` | Emphasized / bold text. Input dialogs, status messages |
 | `textDim` | `#888888` | `#454545` | Secondary, dimmed text. Thinking, hints, descriptions, completed todos, Markdown quotes, footer status bar |
 | `textMuted` | `#6B6B6B` | `#5F5F5F` | Faintest text. Counters, scroll info, descriptions, Markdown link URLs, code-block borders |
+| `ghostText` | `#616161` | `#9A9A9A` | Dimmed inline ghost text. Autocomplete / next-task suggestion preview after the editor cursor (Tab to accept) |
 | `background` | `#0B0F14` | `#FFFFFF` | Root TUI canvas background |
 | `surface` | `#111827` | `#F4F7FB` | Default panel and dialog surface |
 | `surfaceRaised` | `#182233` | `#E8F0FA` | Raised surface for focused or premium chrome |

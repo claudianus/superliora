@@ -3,6 +3,7 @@ import { requestUltraSwarmSteer } from './ultra-swarm-run';
 import { join } from 'pathe';
 
 import { normalizeAdditionalDirs } from '../config';
+import type { PersonaConfig } from '../config';
 import { ErrorCodes, LioraError, makeErrorPayload } from '#/errors';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
@@ -53,6 +54,7 @@ import {
   resolveUltraworkObjectiveProfile,
 } from '../ultrawork/objective-profile-llm';
 import { AutoDreamService } from './dream/auto-dream';
+import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
 import { AutopilotMode } from '../autopilot';
 import { LioraRecallStore } from '../memory/store';
 import { PremiumQualityMode } from '../premium-quality';
@@ -177,6 +179,7 @@ export class Agent {
   readonly goal: GoalMode;
   readonly ultrawork: UltraworkMode;
   readonly dream: AutoDreamService | null;
+  readonly intelligence: PromptIntelligenceService;
   readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
   readonly ultraworkObjectiveProfile: UltraworkObjectiveProfileCache;
@@ -254,6 +257,7 @@ export class Agent {
     this.ultrawork = new UltraworkMode(this);
     this.dream =
       options.dreamStore !== undefined ? new AutoDreamService(this, options.dreamStore) : null;
+    this.intelligence = new PromptIntelligenceService(this);
     this.autopilot = new AutopilotMode(this);
     this.premiumQuality = new PremiumQualityMode(this);
     this.ultraworkObjectiveProfile = new UltraworkObjectiveProfileCache();
@@ -378,6 +382,7 @@ export class Agent {
       cwdListing: context?.cwdListing,
       agentsMd: context?.agentsMd,
       additionalDirsInfo: context?.additionalDirsInfo,
+      roleAdditional: buildPersonaRoleAdditional(this.kimiConfig?.persona),
     });
     this.config.update({ profileName: profile.name, systemPrompt });
     this.config.setSystemPromptMeta({
@@ -670,6 +675,10 @@ export class Agent {
       resetProviderRouteStatus: () => this.resetProviderRouteStatus(),
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
+      inlineComplete: (payload, options) =>
+        this.intelligence.inlineComplete({ ...payload, signal: options?.signal }),
+      suggestPrompts: (_payload, options) =>
+        this.intelligence.suggestPrompts({ signal: options?.signal }),
     };
   }
 
@@ -778,4 +787,69 @@ function durableTraceRecordType(
   if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
   if (eventType.startsWith('ultrawork.')) return 'ultrawork.event';
   return undefined;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Persona → ROLE_ADDITIONAL                                          */
+/* ------------------------------------------------------------------ */
+
+const PERSONA_PRESETS: Record<string, { personality: string; tone: string }> = {
+  friendly: {
+    personality: 'Warm, approachable, and encouraging. Uses gentle humor and celebrates progress.',
+    tone: 'Casual and supportive, like a helpful friend who happens to be an expert.',
+  },
+  professional: {
+    personality: 'Precise, thorough, and dependable. Prioritizes clarity and correctness.',
+    tone: 'Formal but not stiff; direct and business-like with structured responses.',
+  },
+  concise: {
+    personality: 'Efficient and to-the-point. Values the user\'s time above all.',
+    tone: 'Terse and minimal; answers in the fewest words that preserve accuracy.',
+  },
+  creative: {
+    personality: 'Imaginative and curious. Suggests unconventional angles and novel approaches.',
+    tone: 'Expressive and vivid; uses analogies, metaphors, and occasional wit.',
+  },
+  mentor: {
+    personality: 'Patient and Socratic. Guides understanding rather than giving answers outright.',
+    tone: 'Encouraging and educational; explains the "why" behind recommendations.',
+  },
+  playful: {
+    personality: 'Witty and energetic. Makes interactions fun while staying helpful.',
+    tone: 'Light-hearted with puns and playful remarks; never at the expense of correctness.',
+  },
+};
+
+function buildPersonaRoleAdditional(persona: PersonaConfig | undefined): string | undefined {
+  if (persona === undefined) return undefined;
+
+  const parts: string[] = [];
+
+  // Resolve preset first as a base layer.
+  if (persona.preset !== undefined && persona.preset !== 'none') {
+    const preset = PERSONA_PRESETS[persona.preset];
+    if (preset !== undefined) {
+      parts.push(`Personality: ${preset.personality}`);
+      parts.push(`Tone: ${preset.tone}`);
+    }
+  }
+
+  // User overrides layer on top of the preset.
+  if (persona.personality !== undefined && persona.personality.trim().length > 0) {
+    parts.push(`Personality: ${persona.personality.trim()}`);
+  }
+  if (persona.tone !== undefined && persona.tone.trim().length > 0) {
+    parts.push(`Tone: ${persona.tone.trim()}`);
+  }
+  if (persona.instructions !== undefined && persona.instructions.trim().length > 0) {
+    parts.push(persona.instructions.trim());
+  }
+
+  if (parts.length === 0) return undefined;
+
+  const header = persona.name !== undefined && persona.name.trim().length > 0
+    ? `# Persona: ${persona.name.trim()}`
+    : '# Persona';
+
+  return `${header}\n\n${parts.join('\n')}`;
 }

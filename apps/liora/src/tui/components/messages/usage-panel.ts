@@ -12,7 +12,7 @@ import {
   truncateToWidth,
   visibleWidth,
 } from '#/tui/renderer';
-import type { SessionUsage, TokenUsage, ContextComposition } from '@superliora/sdk';
+import type { SessionUsage, TokenUsage, ContextComposition, AllProvidersUsageSnapshot } from '@superliora/sdk';
 
 import {
   formatTokenCount,
@@ -76,6 +76,8 @@ export interface UsageReportOptions {
   readonly managedUsageError?: string;
   /** 0..1 multiplier applied to plan usage bars during ambient fill animation. */
   readonly managedUsageFillProgress?: number;
+  /** Multi-provider quota snapshot for the Provider Quotas section. */
+  readonly providerQuota?: AllProvidersUsageSnapshot | null;
 }
 
 export interface ManagedUsageReportLineOptions {
@@ -344,6 +346,67 @@ export function buildManagedUsageReportLines(options: ManagedUsageReportLineOpti
   );
 }
 
+// ── Multi-provider quota section ─────────────────────────────────────
+
+function providerQuotaRowRatio(row: { readonly used: number; readonly limit: number }): number {
+  return row.limit > 0 ? Math.max(0, Math.min(row.used / row.limit, 1)) : 0;
+}
+
+function buildProviderQuotaSection(
+  quota: AllProvidersUsageSnapshot | null | undefined,
+  accent: Colorize,
+  value: Colorize,
+  muted: Colorize,
+  errorStyle: Colorize,
+): string[] {
+  if (quota === undefined || quota === null) return [];
+  const providers = quota.providers;
+  if (providers.length === 0) return [];
+
+  const out: string[] = [accent('Provider quotas')];
+  const labelWidth = Math.max(12, ...providers.map((p) => p.displayName.length));
+
+  for (const snap of providers) {
+    const name = snap.displayName.padEnd(labelWidth, ' ');
+    if (snap.error !== undefined) {
+      out.push(`  ${muted(name)}  ${errorStyle(snap.error)}`);
+      continue;
+    }
+    if (!snap.available) {
+      out.push(`  ${muted(name)}  ${muted('usage API not available')}`);
+      continue;
+    }
+    // Build rows from summary + limits.
+    const rows: { readonly label: string; readonly used: number; readonly limit: number; readonly resetHint?: string }[] = [];
+    if (snap.summary !== null) rows.push(snap.summary);
+    rows.push(...snap.limits);
+    if (rows.length === 0) {
+      out.push(`  ${muted(name)}  ${muted('no usage data')}`);
+      continue;
+    }
+    // Provider header line.
+    out.push(`  ${value(snap.displayName)}`);
+    const rowLabelWidth = Math.max(10, ...rows.map((r) => r.label.length));
+    for (const row of rows) {
+      const ratio = providerQuotaRowRatio(row);
+      const pct = `${Math.round(ratio * 100)}% used`;
+      const barColor = severityColorToken(ratioSeverity(ratio));
+      const barColoured = renderRendererRatioProgressBar({
+        ratio,
+        width: 20,
+        filledStyle: (text) => currentTheme.fg(barColor, text),
+        emptyStyle: (text) => currentTheme.fg(barColor, text),
+      });
+      const label = row.label.padEnd(rowLabelWidth, ' ');
+      const resetStr = row.resetHint ? `  ${muted(row.resetHint)}` : '';
+      out.push(
+        `    ${muted(label)}  ${barColoured}  ${value(pct)}${resetStr}`,
+      );
+    }
+  }
+  return out;
+}
+
 export function buildUsageReportLines(options: UsageReportOptions): string[] {
   const accent = (text: string) => currentTheme.boldFg('primary', text);
   const value = (text: string) => currentTheme.fg('text', text);
@@ -427,6 +490,18 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
   if (managedSection.length > 0) {
     lines.push('');
     lines.push(...managedSection);
+  }
+
+  const quotaSection = buildProviderQuotaSection(
+    options.providerQuota,
+    accent,
+    value,
+    muted,
+    errorStyle,
+  );
+  if (quotaSection.length > 0) {
+    lines.push('');
+    lines.push(...quotaSection);
   }
 
   return lines;

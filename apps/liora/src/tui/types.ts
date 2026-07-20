@@ -7,6 +7,7 @@ import type {
   ProviderConfig,
   PromptPart,
   ToolInputDisplay,
+  AllProvidersUsageSnapshot,
 } from '@superliora/sdk';
 
 import type { TerminalRenderer } from '#/tui/renderer';
@@ -109,6 +110,8 @@ export interface AppState {
   mcpServersSummary: string | null;
   /** Optional banner shown below the welcome panel; null means no banner to render. */
   banner?: BannerState | null;
+  /** Live provider quota / usage snapshot for the footer badge and /usage panel. */
+  providerQuota?: AllProvidersUsageSnapshot | null;
 }
 
 export interface ToolCallBlockData {

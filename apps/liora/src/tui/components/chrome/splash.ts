@@ -221,6 +221,11 @@ export class SplashComponent implements Component {
   private disposed = false;
   private lastCinematicFrame: string[] | undefined;
   private splashBrandTop = 0;
+  /** Cached morph scene — app state is static during the morph window. */
+  private cachedMorphScene:
+    | { readonly lines: readonly string[]; readonly brandTarget: { readonly x: number; readonly y: number; readonly width: number } }
+    | undefined;
+  private cachedMorphSceneKey: string | undefined;
 
   constructor(options: SplashComponentOptions) {
     this.appearance = options.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
@@ -515,7 +520,16 @@ export class SplashComponent implements Component {
     layout: ReturnType<typeof resolveResponsiveLayout>,
   ): string[] {
     const progress = resolveMorphProgress(elapsed, this.durationMs, this.morphMs);
-    const fromHost = this.getMorphScene?.(width, rows);
+    // Cache the morph scene: app state is static during the ~1.1s morph window,
+    // so rebuilding Welcome + IdleStage + letterbox every frame is wasted work
+    // that causes frame drops. Key by dimensions (terminal resize is the only
+    // invalidation source during splash).
+    const sceneKey = `${width}x${rows}`;
+    if (this.cachedMorphScene === undefined || this.cachedMorphSceneKey !== sceneKey) {
+      this.cachedMorphSceneKey = sceneKey;
+      this.cachedMorphScene = this.getMorphScene?.(width, rows);
+    }
+    const fromHost = this.cachedMorphScene;
     const sceneLines =
       fromHost?.lines ??
       this.getRevealFrame?.(width, rows) ??

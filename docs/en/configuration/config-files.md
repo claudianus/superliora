@@ -166,6 +166,7 @@ You can also switch models temporarily without touching the config file — by s
 | `compaction_trigger_tokens` | `integer` | `200000` | Absolute token threshold that triggers compaction, only honored on large windows (≥ 256K) |
 | `compaction_max_recent_messages` | `integer` | `4` | Maximum number of recent messages preserved verbatim after compaction |
 | `compaction_model` | `string` | — | Model alias used for compaction summarization, set to a cheaper or faster model registered under `[models]` to lower compaction cost; unset uses the main conversation model |
+| `completion_model` | `string` | — | Model alias used for prompt intelligence (inline autocomplete and next-task suggestions), set to a faster or cheaper model registered under `[models]` for low-latency predictions; unset uses the main conversation model |
 
 ## `background`
 

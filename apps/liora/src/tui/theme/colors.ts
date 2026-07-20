@@ -38,6 +38,10 @@ export interface ColorPalette {
   /** Faintest text: counters, scroll info, descriptions, markdown link URLs,
    *  code-block borders. */
   textMuted: string;
+  /** Inline "ghost" text: the dimmed autocomplete / next-task suggestion
+   *  preview painted after the editor cursor (Tab to accept). One step fainter
+   *  than textDim so it reads as a hint, not committed text. */
+  ghostText: string;
 
   // ── Surface ──
   /** Root canvas background. Used for the TUI-owned terminal cells and, when
@@ -134,6 +138,7 @@ export const darkColors: ColorPalette = {
   textStrong: '#F5F5F5',
   textDim: '#888888',
   textMuted: '#6B6B6B',
+  ghostText: '#616161',
 
   background: '#0B0F14',
   surface: '#111827',
@@ -183,6 +188,7 @@ export const lightColors: ColorPalette = {
   textStrong: '#1A1A1A',
   textDim: '#454545',
   textMuted: '#5F5F5F',
+  ghostText: '#9A9A9A',
 
   background: '#FFFFFF',
   surface: '#F4F7FB',

@@ -63,6 +63,14 @@ export const FLAG_DEFINITIONS = [
     default: false,
     surface: 'core',
   },
+  {
+    id: 'prompt_intelligence',
+    title: 'Prompt intelligence',
+    description: 'Inline next-words autocomplete and next-task suggestions in the TUI prompt box, powered by a lightweight model with thinking off.',
+    env: 'SUPERLIORA_EXPERIMENTAL_PROMPT_INTELLIGENCE',
+    default: true,
+    surface: 'both',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

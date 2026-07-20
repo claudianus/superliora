@@ -147,6 +147,20 @@ export type {
   UsageRow,
 } from './managed-usage';
 
+export {
+  buildAllProvidersUsageSnapshot,
+  fetchProviderUsage,
+  providerDisplayName,
+  snapshotWorstRatio,
+  usageRowRatio,
+} from './provider-usage';
+export type {
+  AllProvidersUsageSnapshot,
+  FetchProviderUsageOptions,
+  ProviderUsageRow,
+  ProviderUsageSnapshot,
+} from './provider-usage';
+
 export { fetchSubmitFeedback, kimiCodeFeedbackUrl } from './managed-feedback';
 export type {
   FetchSubmitFeedbackError,

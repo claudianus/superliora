@@ -40,11 +40,12 @@ import {
   showSettingsSelector,
 } from './config';
 import { handleGoalCommand } from './goal';
-import { showContextOsReport, showMcpServers, showStatusReport, showUsage } from './info';
+import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
 import { handleAquariumCommand } from './aquarium';
 import { handleBenchCommand } from './bench';
 import { handleMemoryCommand } from './memory';
+import { handlePersonaCommand } from './persona';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
 import { handlePreflightCommand } from './preflight';
@@ -103,8 +104,9 @@ export {
 } from './config';
 export { handleSwarmCommand } from './swarm';
 export { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
-export { showMcpServers, showStatusReport, showUsage } from './info';
+export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 export { handleMemoryCommand } from './memory';
+export { handlePersonaCommand } from './persona';
 export { handlePluginsCommand } from './plugins';
 export { handlePreflightCommand } from './preflight';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
@@ -344,6 +346,9 @@ async function handleBuiltInSlashCommand(
     case 'appearance':
       await handleAppearanceCommand(host, args);
       return;
+    case 'persona':
+      await handlePersonaCommand(host, args);
+      return;
     case 'model':
       await handleModelCommand(host, args);
       return;
@@ -358,6 +363,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'usage':
       void showUsage(host);
+      return;
+    case 'quota':
+      void showQuota(host);
       return;
     case 'status':
       void showStatusReport(host);

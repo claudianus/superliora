@@ -350,6 +350,28 @@ export interface GetBackgroundOutputPayload {
   readonly taskId: string;
   readonly tail?: number;
 }
+export interface InlineCompletePayload {
+  /** Full text currently in the prompt editor. */
+  readonly text: string;
+  readonly cursorLine: number;
+  readonly cursorCol: number;
+}
+export interface InlineCompleteResult {
+  /** Predicted continuation to render as ghost text after the cursor (may be empty). */
+  readonly completion: string;
+}
+export interface SuggestPromptsResult {
+  /** Contextually relevant next-task prompts (may be empty). */
+  readonly suggestions: readonly string[];
+}
+/**
+ * Optional out-of-band call options for prompt-intelligence RPCs. The abort
+ * {@link signal} is threaded through the in-process RPC boundary so a stale
+ * in-flight completion can be cancelled server-side when the user keeps typing.
+ */
+export interface PromptIntelligenceCallOptions {
+  readonly signal?: AbortSignal;
+}
 export interface GetBackgroundPayload {
   /**
    * When omitted, returns all tasks (including terminal/lost). Pass
@@ -626,6 +648,14 @@ export interface AgentAPI {
   resetProviderRouteStatus: (payload: EmptyPayload) => ProviderRouteStatus | null;
   getTools: (payload: EmptyPayload) => readonly ToolInfo[];
   getBackground: (payload: GetBackgroundPayload) => readonly BackgroundTaskInfo[];
+  inlineComplete: (
+    payload: InlineCompletePayload,
+    options?: PromptIntelligenceCallOptions,
+  ) => Promise<InlineCompleteResult>;
+  suggestPrompts: (
+    payload: EmptyPayload,
+    options?: PromptIntelligenceCallOptions,
+  ) => Promise<SuggestPromptsResult>;
 }
 
 type AgentAPIWithId = WithAgentId<AgentAPI>;

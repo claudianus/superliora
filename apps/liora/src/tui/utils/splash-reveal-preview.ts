@@ -28,17 +28,18 @@ export interface SplashMorphScene {
   readonly brandTarget: BrandMorphRect;
 }
 
-/**
- * Approximate chrome rows reserved inside the stage (header + footer + editor)
- * so Welcome/Idle heights match the live transcript budget more closely.
- */
-const CHROME_RESERVE_ROWS = 6;
 
 export function buildSplashMorphScene(options: {
   readonly width: number;
   readonly rows: number;
   readonly appState: AppState;
   readonly nowMs?: number;
+  /** Pre-rendered header chrome lines (placed at stage content top). */
+  readonly headerLines?: readonly string[];
+  /** Pre-rendered footer chrome lines (placed at stage content bottom). */
+  readonly footerLines?: readonly string[];
+  /** Pre-rendered editor chrome lines (placed above footer). */
+  readonly editorLines?: readonly string[];
 }): SplashMorphScene {
   const width = Math.max(1, Math.trunc(options.width));
   const rows = Math.max(1, Math.trunc(options.rows));
@@ -104,10 +105,27 @@ export function buildSplashMorphScene(options: {
     );
   }
 
-  // Welcome + Idle inside stage content width, under a chrome reserve.
+  // Welcome + Idle inside stage content width, with chrome reserves matching
+  // the real native frame layout (header top, editor+footer bottom).
   const contentWidth = Math.max(1, stage.width);
-  const contentBudget = Math.max(8, stage.height - CHROME_RESERVE_ROWS);
-  const contentTop = stage.y + Math.min(2, Math.floor(CHROME_RESERVE_ROWS / 2));
+  const headerLines = options.headerLines ?? [];
+  const footerLines = options.footerLines ?? [];
+  const editorLines = options.editorLines ?? [];
+  const headerRows = headerLines.length;
+  const footerRows = footerLines.length;
+  const editorRows = editorLines.length;
+  const chromeRows = headerRows + footerRows + editorRows;
+  const contentBudget = Math.max(4, stage.height - chromeRows - 2);
+  const contentTop = stage.y + 1 + headerRows;
+
+  // Paint header chrome at stage content top.
+  for (let i = 0; i < headerLines.length; i++) {
+    const y = stage.y + 1 + i;
+    if (y < 0 || y >= rows) continue;
+    const src = padOrTrim(headerLines[i] ?? '', contentWidth);
+    canvas[y] = replaceColumns(canvas[y]!, width, stage.x, src);
+  }
+
   const welcome = new WelcomeComponent(options.appState).render(contentWidth);
   const used = welcome.length;
   const idleBudget = Math.max(0, contentBudget - used);
@@ -125,6 +143,21 @@ export function buildSplashMorphScene(options: {
     if (y < 0 || y >= rows) continue;
     const src = padOrTrim(stacked[i] ?? '', contentWidth);
     // Place stage content columns.
+    canvas[y] = replaceColumns(canvas[y]!, width, stage.x, src);
+  }
+
+  // Paint editor + footer chrome at stage content bottom.
+  const bottomStart = stage.y + stage.height - footerRows - editorRows;
+  for (let i = 0; i < editorLines.length; i++) {
+    const y = bottomStart + i;
+    if (y < 0 || y >= rows) continue;
+    const src = padOrTrim(editorLines[i] ?? '', contentWidth);
+    canvas[y] = replaceColumns(canvas[y]!, width, stage.x, src);
+  }
+  for (let i = 0; i < footerLines.length; i++) {
+    const y = bottomStart + editorRows + i;
+    if (y < 0 || y >= rows) continue;
+    const src = padOrTrim(footerLines[i] ?? '', contentWidth);
     canvas[y] = replaceColumns(canvas[y]!, width, stage.x, src);
   }
 

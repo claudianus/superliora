@@ -37,7 +37,7 @@ export {
   parseUltraworkCommand,
   shouldAutoActivateUltrawork,
 } from './ultrawork';
-export { showMcpServers, showStatusReport, showUsage } from './info';
+export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 export {
   buildMemoryReadinessLines,
   handleMemoryCommand,
@@ -52,6 +52,7 @@ export {
   redactPreflightText,
 } from './preflight';
 export { handlePluginsCommand } from './plugins';
+export { handlePersonaCommand } from './persona';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
 export {
   formatRendererDiagnosticsStatusReport,

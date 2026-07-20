@@ -4,6 +4,7 @@ export type SettingsSelection =
   | 'model'
   | 'theme'
   | 'appearance'
+  | 'persona'
   | 'editor'
   | 'permission'
   | 'accounts'
@@ -38,6 +39,11 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     description: 'Tune motion, density, and background.',
   },
   {
+    value: 'persona',
+    label: 'Persona',
+    description: 'Customize agent personality, tone, and response style.',
+  },
+  {
     value: 'editor',
     label: 'Editor',
     description: 'Set the external editor command.',
@@ -64,6 +70,7 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'model' ||
     value === 'theme' ||
     value === 'appearance' ||
+    value === 'persona' ||
     value === 'editor' ||
     value === 'permission' ||
     value === 'accounts' ||

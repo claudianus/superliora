@@ -65,6 +65,7 @@ import {
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
   shouldUseAmbientDamageOnlyPaint,
+  type TUIStateNativeFramePolicy,
 } from './native-frame-policy';
 
 export {
@@ -330,6 +331,16 @@ export function createTUIStateNativeRenderCallback(
       nextTranscriptStart: layoutShift.next.transcriptStart ?? 0,
       ambientAnimationAllowed,
     });
+    // Post-splash anti-flicker: the last morph frame is still on screen. Suppress
+    // the full-clear so the real UI cross-fades in without a black flash. The flag
+    // is consumed exactly once (first frame after splash disposal).
+    const splashJustDisposed = state.splashJustDisposed === true;
+    if (splashJustDisposed) {
+      state.splashJustDisposed = false;
+    }
+    const effectivePolicy: TUIStateNativeFramePolicy = splashJustDisposed
+      ? { ...policy, clear: false }
+      : policy;
     if (
       policy.clearTranscriptSelection &&
       (state.transcriptSelection.hasSelection || state.transcriptSelection.isDragging)
@@ -377,7 +388,7 @@ export function createTUIStateNativeRenderCallback(
     const idleAquariumMounted = state.transcriptContainer.children.some(
       (child) => child instanceof IdleStageComponent,
     );
-    const ambientDamageOnly = shouldUseAmbientDamageOnlyPaint({
+    const ambientDamageOnly = splashJustDisposed || shouldUseAmbientDamageOnlyPaint({
       structuralShift: layoutShift.structuralShift,
       viewportScrolled: layoutShift.viewportScrolled,
       causes: frame.causes,
@@ -443,8 +454,8 @@ export function createTUIStateNativeRenderCallback(
     });
     const result = runtime.renderLayoutFrame(nativeFrame.regions, {
       fill: options.fill ?? currentTheme.canvasBackgroundCell(),
-      force: policy.force,
-      clear: policy.clear,
+      force: effectivePolicy.force,
+      clear: effectivePolicy.clear,
       cursor: nativeFrame.cursor,
       forceCursor,
     });
@@ -1077,6 +1088,7 @@ function projectNativeEditorRegion(
       background: palette.background,
       selectionBg: palette.selectionBg,
       selectionText: palette.selectionText,
+      ghostText: palette.ghostText,
     },
   });
   const overlayLines = state.editor.getNativeOverlayLines?.(Math.floor(rect.width), {
@@ -1223,6 +1235,7 @@ function nativeTranscriptRegionLines(
       background: palette.background,
       selectionBg: palette.selectionBg,
       selectionText: palette.selectionText,
+      ghostText: palette.ghostText,
     },
     canvasBackground: currentTheme.canvasBackgroundEnabled,
   });

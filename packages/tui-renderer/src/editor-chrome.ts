@@ -115,6 +115,8 @@ export interface RendererEditorSurfaceStylePalette {
   readonly background?: string;
   readonly selectionBg: string;
   readonly selectionText: string;
+  /** Foreground for inline ghost text (autocomplete / suggestion preview). */
+  readonly ghostText?: string;
 }
 
 export interface RendererEditorSurfaceStyleOptions {
@@ -138,6 +140,7 @@ export interface RendererEditorSurfaceStyles {
   readonly autocompleteDescriptionStyle: RendererCellStyle;
   readonly autocompleteScrollStyle: RendererCellStyle;
   readonly slashTokenStyle: RendererCellStyle;
+  readonly ghostStyle: RendererCellStyle;
 }
 
 export interface RendererEditorSurfaceLayoutOptions {
@@ -539,6 +542,7 @@ export function resolveRendererEditorSurfaceStyles(
     autocompleteDescriptionStyle: { fg: palette.textMuted, dim: true },
     autocompleteScrollStyle: { fg: palette.textMuted, dim: true },
     slashTokenStyle: { fg: palette.textStrong, bold: true },
+    ghostStyle: { fg: palette.ghostText ?? palette.textMuted, dim: true },
   };
 }
 

@@ -11,6 +11,13 @@ import type {
 
 export type TUIEditorInputMode = 'prompt' | 'bash';
 
+/**
+ * Kind of inline ghost text shown after the editor cursor.
+ * - `inline`: next-words continuation of the text being typed.
+ * - `suggestion`: a recommended next task shown while the editor is empty.
+ */
+export type TUIEditorGhostKind = 'inline' | 'suggestion';
+
 export interface TUIEditor
   extends Component,
     Focusable,
@@ -56,6 +63,13 @@ export interface TUIEditor
   onTranscriptSearch?: () => void;
   /** Re-sends the last failed user turn (Ctrl-Y when idle + last turn failed). */
   onRetryLastTurn?: () => void;
+  /**
+   * Ghost text (prompt intelligence) callbacks. `onAcceptGhost` fires when Tab
+   * confirms the visible ghost text; `onCycleGhost` fires when ↑/↓ rotates the
+   * suggestion candidates while the editor is empty.
+   */
+  onAcceptGhost?: () => void;
+  onCycleGhost?: (direction: -1 | 1) => void;
 
   getLines(): string[];
   getExpandedText(): string;
@@ -66,6 +80,14 @@ export interface TUIEditor
   setArgumentHints(hints: ReadonlyMap<string, string>): void;
   setAutocompleteProvider(provider: AutocompleteProvider): void;
   isShowingAutocomplete(): boolean;
+  /**
+   * Set or clear the dimmed ghost text rendered after the cursor. Pass
+   * `undefined` to clear. `kind` distinguishes inline completion from an
+   * empty-editor next-task suggestion (which ↑/↓ can cycle).
+   */
+  setGhostText(text: string | undefined, kind: TUIEditorGhostKind): void;
+  /** Currently visible ghost text, or `undefined` when none. */
+  getGhostText?(): string | undefined;
   getNativeLayoutRowCount?(width: number): number;
   getNativeRegionLines?(width: number): readonly RendererRegionLine[];
   getNativeOverlayLines?(

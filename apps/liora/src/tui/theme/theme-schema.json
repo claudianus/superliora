@@ -38,6 +38,7 @@
         "textStrong": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Bold / emphasized text" },
         "textDim": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Secondary / muted text" },
         "textMuted": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Most faded text; for counters, scroll info" },
+        "ghostText": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Dimmed inline ghost text for autocomplete / next-task suggestions" },
         "background": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Root TUI canvas background" },
         "surface": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Default panel/dialog surface" },
         "surfaceRaised": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Raised surface for focused or premium chrome" },

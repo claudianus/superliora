@@ -13,11 +13,13 @@ import {
   type CredentialResponse,
   type Event,
   type ExperimentalFeatureState,
+  type InlineCompleteResult,
   type QuestionRequest,
   type QuestionResult,
   type RPCMethods,
   type SDKAPI,
   type SessionTrace,
+  type SuggestPromptsResult,
   type ToolCallRequest,
   type ToolCallResponse,
   type SwarmModeTrigger,
@@ -150,6 +152,17 @@ export interface SearchSkillsRpcInput extends SessionIdRpcInput {
 
 export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
   readonly name: string;
+}
+
+export interface InlineCompleteRpcInput extends SessionIdRpcInput {
+  readonly text: string;
+  readonly cursorLine: number;
+  readonly cursorCol: number;
+  readonly signal?: AbortSignal;
+}
+
+export interface SuggestPromptsRpcInput extends SessionIdRpcInput {
+  readonly signal?: AbortSignal;
 }
 
 type ResolvedCoreAPI = RPCMethods<CoreAPI>;
@@ -603,6 +616,31 @@ export abstract class SDKRpcClientBase {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
     });
+  }
+
+  async inlineComplete(input: InlineCompleteRpcInput): Promise<InlineCompleteResult> {
+    const rpc = await this.getRpc();
+    return rpc.inlineComplete(
+      {
+        sessionId: input.sessionId,
+        agentId: this.interactiveAgentId,
+        text: input.text,
+        cursorLine: input.cursorLine,
+        cursorCol: input.cursorCol,
+      },
+      input.signal !== undefined ? { signal: input.signal } : undefined,
+    );
+  }
+
+  async suggestPrompts(input: SuggestPromptsRpcInput): Promise<SuggestPromptsResult> {
+    const rpc = await this.getRpc();
+    return rpc.suggestPrompts(
+      {
+        sessionId: input.sessionId,
+        agentId: this.interactiveAgentId,
+      },
+      input.signal !== undefined ? { signal: input.signal } : undefined,
+    );
   }
 
   async getStatus(input: SessionIdRpcInput): Promise<SessionStatus> {

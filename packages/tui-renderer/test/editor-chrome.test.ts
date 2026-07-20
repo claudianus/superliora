@@ -292,6 +292,7 @@ describe('renderer editor chrome helpers', () => {
       scrollbarTrackStyle: { fg: '#222222', dim: true },
       scrollbarThumbStyle: { fg: '#333333' },
       placeholderStyle: { fg: '#222222', dim: true },
+      ghostStyle: { fg: '#222222', dim: true },
       selectionStyle: { fg: '#999999', bg: '#888888' },
       autocompleteSelectedStyle: { fg: '#333333', bold: true },
       autocompleteDescriptionStyle: { fg: '#222222', dim: true },

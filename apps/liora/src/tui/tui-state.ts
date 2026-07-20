@@ -102,6 +102,13 @@ export interface TUIState {
   cachedTranscriptColumns?: number;
   cachedTranscriptRows?: number;
   cachedTranscriptLineCount?: number;
+  /**
+   * Set true when the startup splash morph finishes and the real UI tree is
+   * restored. The next frame suppresses its full-clear so the last morph frame
+   * cross-fades into the real layout without a black flash. Consumed (reset to
+   * false) by the native render callback on the first post-splash frame.
+   */
+  splashJustDisposed?: boolean;
 }
 
 export function createTUIState(options: LioraTUIOptions): TUIState {

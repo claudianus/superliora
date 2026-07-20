@@ -16,6 +16,9 @@ import {
   OAuthProviderManager,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
+  buildAllProvidersUsageSnapshot,
+  fetchProviderUsage,
+  type AllProvidersUsageSnapshot,
   type AuthManagedUsageResult,
   type AuthStatus,
   type BearerTokenProvider,
@@ -26,6 +29,7 @@ import {
   type KimiOAuthLoginOptions,
   type ManagedKimiConfigShape,
   type OAuthRefreshOutcome,
+  type ProviderUsageSnapshot,
 } from '@superliora/oauth';
 
 import { mapOAuthTokenError } from '#/oauth-error';
@@ -280,6 +284,86 @@ export class LioraAuthFacade {
       }
     }
     return accounts;
+  }
+
+  /**
+   * Fetch usage / quota for every configured OAuth provider in parallel.
+   * Returns a unified snapshot the TUI can render as a quota dashboard.
+   * Providers without a usage API degrade to `{ available: false }`.
+   */
+  async getAllProvidersUsage(): Promise<AllProvidersUsageSnapshot> {
+    const config = loadRuntimeConfigSafe(this.options.configPath).config;
+    const providerKeys = Object.keys(config.providers ?? {});
+    if (providerKeys.length === 0) {
+      return buildAllProvidersUsageSnapshot([]);
+    }
+
+    const snapshots = await Promise.all(
+      providerKeys.map(async (key) => {
+        const provider = config.providers[key];
+        const baseUrl = provider?.baseUrl;
+        try {
+          const accessToken = await this.resolveProviderAccessToken(key);
+          if (accessToken === undefined) {
+            return {
+              providerKey: key,
+              displayName: key,
+              available: false,
+              summary: null,
+              limits: [],
+              error: 'No token. Run /login.',
+              fetchedAtMs: Date.now(),
+            } satisfies ProviderUsageSnapshot;
+          }
+          return await fetchProviderUsage(key, accessToken, baseUrl);
+        } catch (error) {
+          return {
+            providerKey: key,
+            displayName: key,
+            available: false,
+            summary: null,
+            limits: [],
+            error: error instanceof Error ? error.message : String(error),
+            fetchedAtMs: Date.now(),
+          } satisfies ProviderUsageSnapshot;
+        }
+      }),
+    );
+
+    return buildAllProvidersUsageSnapshot(snapshots);
+  }
+
+  /**
+   * Resolve a valid access token for any configured provider (Kimi managed,
+   * non-Kimi OAuth, or API-key-based like ClinePass / Qwen Token Plan).
+   * Returns `undefined` when no token is persisted.
+   */
+  private async resolveProviderAccessToken(providerKey: string): Promise<string | undefined> {
+    if (this.isNonKimiOAuthProvider(providerKey)) {
+      try {
+        return await this.providerManager.ensureFresh(providerKey);
+      } catch {
+        return this.providerManager.getCachedAccessToken(providerKey);
+      }
+    }
+    // API-key-based providers (clinepass, qwen-token-plan, …): use the
+    // configured apiKey directly — no OAuth token refresh needed.
+    const config = loadRuntimeConfigSafe(this.options.configPath).config;
+    const providerEntry = config.providers?.[providerKey];
+    if (providerEntry?.apiKey !== undefined && providerEntry.apiKey.length > 0) {
+      return providerEntry.apiKey;
+    }
+    // Kimi managed path.
+    try {
+      return await this.toolkit.ensureFresh(SUPERLIORA_PROVIDER_NAME, {
+        oauthRef: this.resolveRuntimeManagedAuth(providerKey).oauthRef,
+      });
+    } catch {
+      return this.toolkit.getCachedAccessToken(
+        SUPERLIORA_PROVIDER_NAME,
+        this.resolveRuntimeManagedAuth(providerKey).oauthRef,
+      );
+    }
   }
 
   async submitFeedback(
