@@ -1,6 +1,6 @@
 import type { Agent } from '../agent';
 import { buildUltraworkResumeCursor } from './recovery';
-import { detectStuckWorkGraphNodes, inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
+import { detectLongRunningStage, detectStuckWorkGraphNodes, inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
 import type { UltraworkRunMirror } from './types';
 
 export interface UltraworkEnvelopeOptions {
@@ -158,6 +158,13 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   const stuckNodes = detectStuckWorkGraphNodes(snapshot.run.workGraph);
   if (stuckNodes.length > 0) {
     lines.push(`stuck_nodes: ${stuckNodes.slice(0, 5).map((n) => `${n.id}[${n.status}]`).join(', ')}`);
+  }
+
+  // Flag stages exceeding expected duration (un-bounded loop anti-pattern).
+  const longStage = detectLongRunningStage(snapshot.run);
+  if (longStage !== undefined) {
+    const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
+    lines.push(`long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (threshold ${String(Math.round(longStage.thresholdMs / 60_000))}min)`);
   }
 
   lines.push(

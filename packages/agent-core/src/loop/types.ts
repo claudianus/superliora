@@ -57,6 +57,8 @@ export interface TurnResult {
   stopReason: LoopTurnStopReason;
   steps: number;
   usage: TokenUsage;
+  /** Wall-clock duration of the turn in milliseconds. */
+  durationMs?: number;
 }
 
 export type ExecutableToolOutput = string | ContentPart[];

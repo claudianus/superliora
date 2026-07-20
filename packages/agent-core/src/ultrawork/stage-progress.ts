@@ -162,6 +162,60 @@ export function detectStuckWorkGraphNodes(
   );
 }
 
+/**
+ * Default stage duration thresholds (ms). Stages exceeding these are flagged
+ * as potentially stuck. Based on the "un-bounded loops" anti-pattern (S0):
+ * every stage needs a wall-clock bound to prevent runaway cost.
+ */
+const STAGE_DURATION_THRESHOLDS_MS: Readonly<Record<UltraworkStage, number>> = {
+  intake: 5 * 60_000, // 5 min
+  plan: 15 * 60_000, // 15 min
+  research: 10 * 60_000, // 10 min
+  goal: 5 * 60_000, // 5 min
+  staff: 5 * 60_000, // 5 min
+  swarm: 30 * 60_000, // 30 min
+  integrate: 15 * 60_000, // 15 min
+  verify: 10 * 60_000, // 10 min
+  learn: 5 * 60_000, // 5 min
+  done: Number.POSITIVE_INFINITY, // terminal, no threshold
+};
+
+export interface LongRunningStageInfo {
+  readonly stage: UltraworkStage;
+  readonly elapsedMs: number;
+  readonly thresholdMs: number;
+}
+
+/**
+ * Detect if the current stage has been running longer than its expected
+ * threshold. Returns info about the long-running stage, or undefined if
+ * the stage is within bounds or duration cannot be determined.
+ */
+export function detectLongRunningStage(
+  run: UltraworkRun,
+): LongRunningStageInfo | undefined {
+  const stage = run.stage;
+  if (stage === 'done') return undefined;
+  const thresholdMs = STAGE_DURATION_THRESHOLDS_MS[stage];
+  if (!Number.isFinite(thresholdMs)) return undefined;
+
+  // Find when the current stage was entered from stageHistory.
+  const history = run.stageHistory ?? [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const entry = history[i];
+    if (entry !== undefined && entry.stage === stage) {
+      const enteredAt = Date.parse(entry.enteredAt);
+      if (!Number.isFinite(enteredAt)) return undefined;
+      const elapsedMs = Date.now() - enteredAt;
+      if (elapsedMs > thresholdMs) {
+        return { stage, elapsedMs, thresholdMs };
+      }
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 function stageIndex(stage: UltraworkStage): number {
   return ultraworkStageIndex(stage);
 }
