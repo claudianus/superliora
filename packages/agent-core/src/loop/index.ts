@@ -76,4 +76,12 @@ export type {
 
 export { runTurn } from './run-turn';
 export type { RunTurnInput } from './run-turn';
-export { resetToolFailureTracker } from './tool-call';
+export {
+  getCircuitBreakerState,
+  isToolCircuitOpen,
+  recordToolFailureForCircuitBreaker,
+  recordToolSuccessForCircuitBreaker,
+  resetCircuitBreakers,
+  resetToolFailureTracker,
+} from './tool-call';
+export type { CircuitBreakerState } from './tool-call';
