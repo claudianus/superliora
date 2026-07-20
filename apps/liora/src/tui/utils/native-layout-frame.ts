@@ -297,6 +297,7 @@ export function createTUIStateNativeRenderCallback(
   let transcriptLineCache: readonly RendererRegionLine[] | undefined;
   let transcriptLineCacheWidth: number | undefined;
   let transcriptLineCacheRows: number | undefined;
+  let transcriptLineCacheSelectionKey: string | undefined;
   return ({ frame, runtime, size, quality }) => {
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
     advanceAppearanceAnimationClock(frame.timestamp);
@@ -386,10 +387,14 @@ export function createTUIStateNativeRenderCallback(
     });
     // Pure-input fast path: skip panel probes and transcript rendering when
     // the layout has not shifted. The editor is the only region that changes.
+    // Mouse clicks that alter the transcript selection invalidate the cache
+    // so the selection overlay is repainted immediately.
+    const selectionKey = transcriptSelectionCacheKey(state);
     const canReuseTranscript =
       pureInputFrame &&
       transcriptLineCache !== undefined &&
-      transcriptLineCacheWidth === size.columns;
+      transcriptLineCacheWidth === size.columns &&
+      transcriptLineCacheSelectionKey === selectionKey;
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
@@ -427,6 +432,7 @@ export function createTUIStateNativeRenderCallback(
       transcriptLineCache = nativeFrame.transcriptLines;
       transcriptLineCacheWidth = size.columns;
       transcriptLineCacheRows = height;
+      transcriptLineCacheSelectionKey = selectionKey;
     }
     // force/clear come from policy (pure input stays incremental). forceCursor
     // is independent and always on for IME caret stickiness — see shouldForceNativeCursor.
@@ -1292,4 +1298,11 @@ function normalizeFrameSize(value: number, fallback: number): number {
 
 function hiddenNativeCursor(): RendererCursorState {
   return { x: 0, y: 0, visible: false };
+}
+
+/** Cheap string key that changes whenever the transcript selection range changes. */
+function transcriptSelectionCacheKey(state: TUIState): string {
+  const range = state.transcriptSelection.rangeForRender();
+  if (range === undefined) return '';
+  return `${range.start.globalLine}:${range.start.col}-${range.end.globalLine}:${range.end.col}`;
 }
