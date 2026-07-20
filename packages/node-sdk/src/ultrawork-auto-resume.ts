@@ -8,6 +8,7 @@ export interface UltraworkAutoResumeSession {
   getStatus(): Promise<SessionStatus>;
   setSwarmMode(enabled: boolean, trigger: SwarmModeTrigger): Promise<void>;
   setPlanMode(enabled: boolean, ultra?: boolean, objective?: string): Promise<void>;
+  setPremiumQuality?(enabled: boolean): Promise<void>;
 }
 
 export interface AutoResumeUltraworkResult {
@@ -45,6 +46,14 @@ export async function ensureUltraworkResumeSetup(
   } else if (!status.planMode && shouldKeepPlanModeForUltraworkRun(run)) {
     await session.setPlanMode(true, true, run.objective);
     changed = true;
+  }
+  if (session.setPremiumQuality !== undefined && status.premiumQualityMode !== true) {
+    try {
+      await session.setPremiumQuality(true);
+      changed = true;
+    } catch {
+      // Premium quality is best-effort on auto-resume; do not block resume.
+    }
   }
   return changed;
 }
