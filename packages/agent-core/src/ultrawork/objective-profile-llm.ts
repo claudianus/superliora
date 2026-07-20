@@ -3,6 +3,14 @@ import type { ChatProvider } from '@superliora/kosong';
 
 import type { Agent } from '../agent';
 import type { PremiumInjectionDensity } from '../premium-quality/guidance';
+import {
+  clipClassifierText,
+  clampConfidence,
+  createClassifierTimeoutSignal,
+  extractTextFromGenerateResponse,
+  parseJsonResponse,
+  validateStringField,
+} from './llm-classifier-utils';
 
 export type UltraworkCoverageLaneId =
   | 'product_requirements'
@@ -31,7 +39,6 @@ export interface UltraworkObjectiveProfileLlmDeps {
   readonly provider: ChatProvider;
 }
 
-const MAX_USER_TEXT_CHARS = 2_000;
 const MIN_CONFIDENCE = 0.55;
 
 const ALWAYS_ON_LANES: readonly UltraworkCoverageLaneId[] = [
@@ -93,8 +100,7 @@ export async function detectUltraworkObjectiveProfileWithLlm(
   const text = input.text.trim();
   if (text.length === 0) return undefined;
 
-  const clipped =
-    text.length <= MAX_USER_TEXT_CHARS ? text : `${text.slice(0, MAX_USER_TEXT_CHARS)}…`;
+  const clipped = clipClassifierText(text);
 
   try {
     const response = await deps.generate(
@@ -112,7 +118,7 @@ export async function detectUltraworkObjectiveProfileWithLlm(
         ),
       ],
       undefined,
-      { signal: input.signal },
+      { signal: createClassifierTimeoutSignal(undefined, input.signal) },
     );
     return parseProfileResponse(extractTextFromGenerateResponse(response));
   } catch {
@@ -168,28 +174,20 @@ export function resolveUltraworkObjectiveProfile(
 }
 
 function parseProfileResponse(text: string): UltraworkObjectiveProfile | undefined {
-  const json = extractJsonObject(text);
-  if (json === null) return undefined;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return undefined;
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
-  const record = parsed as Record<string, unknown>;
+  const record = parseJsonResponse(text);
+  if (record === undefined) return undefined;
   const visualSurface = record['visual_surface'];
   const benchSurface = record['bench_surface'];
   const premiumDensity = record['premium_density'];
   const lanesRaw = record['lanes'];
-  const confidence = record['confidence'];
-  const reason = record['reason'];
+  const confidence = clampConfidence(record['confidence']);
+  const reason = validateStringField(record['reason']);
   if (typeof visualSurface !== 'boolean') return undefined;
   if (typeof benchSurface !== 'boolean') return undefined;
   if (premiumDensity !== 'visual' && premiumDensity !== 'code') return undefined;
   if (!Array.isArray(lanesRaw)) return undefined;
-  if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return undefined;
-  if (typeof reason !== 'string' || reason.trim().length === 0) return undefined;
+  if (confidence === undefined) return undefined;
+  if (reason === undefined) return undefined;
 
   const optional = lanesRaw
     .filter((lane): lane is string => typeof lane === 'string')
@@ -210,8 +208,8 @@ function parseProfileResponse(text: string): UltraworkObjectiveProfile | undefin
     benchSurface,
     premiumDensity,
     lanes,
-    confidence: Math.max(0, Math.min(1, confidence)),
-    reason: reason.trim(),
+    confidence,
+    reason,
     source: 'llm',
   };
 }
@@ -225,29 +223,4 @@ function uniqueLanes(lanes: readonly UltraworkCoverageLaneId[]): readonly Ultraw
     out.push(lane);
   }
   return out;
-}
-
-function extractTextFromGenerateResponse(response: unknown): string {
-  const msg = response as {
-    message?: {
-      content?: ReadonlyArray<{ type?: string; text?: string }>;
-    };
-  };
-  const parts = msg.message?.content ?? [];
-  for (const part of parts) {
-    if (part.type === 'text' && typeof part.text === 'string') return part.text;
-  }
-  return '';
-}
-
-function extractJsonObject(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('```')) {
-    const match = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/u);
-    if (match?.[1] !== undefined) return match[1].trim();
-  }
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-  if (start !== -1 && end !== -1 && end > start) return trimmed.slice(start, end + 1);
-  return null;
 }

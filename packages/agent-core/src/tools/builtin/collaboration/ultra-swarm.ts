@@ -622,7 +622,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     // run/goal termination path — the UltraworkGraph tool does this sync,
     // but updateWorkNodes is the path UltraSwarm uses, and it was missing.
     this.agent.ultrawork.syncWorkGraphFromStore();
-    maybeFinishUltraworkRun(this.agent);
+    // Fire-and-forget: this method is sync; markComplete applies status
+    // synchronously so the race window is minimal.
+    void maybeFinishUltraworkRun(this.agent);
   }
 
   private async buildPlan(

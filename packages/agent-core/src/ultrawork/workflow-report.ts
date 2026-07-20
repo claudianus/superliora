@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, normalize } from 'pathe';
 
 import type { UltraworkRun, UltraworkStage } from '@superliora/protocol';
 
 import type { Agent } from '../agent';
 import { ULTRAWORK_STAGE_ORDER } from './state';
+import { writeFileAtomic } from './run-store';
 
 export const WORKFLOW_REPORT_FILENAME = 'workflow-report.md';
 export const WORKFLOW_STAGES_FILENAME = 'workflow-stages.json';
@@ -48,6 +49,7 @@ interface WorkflowStageTransition {
   readonly at: string;
   readonly reason?: string;
   readonly runStatus: UltraworkRun['status'];
+  readonly durationMs?: number;
 }
 
 const NARRATIVE_STAGES = ULTRAWORK_STAGE_ORDER.filter((stage) => stage !== 'done');
@@ -138,8 +140,8 @@ export function seedUltraworkWorkflowReport(input: SeedUltraworkWorkflowReportIn
     ],
   };
 
-  writeFileSync(join(input.workDir, paths.stagesPath), `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
-  writeFileSync(
+  writeFileAtomic(join(input.workDir, paths.stagesPath), `${JSON.stringify(ledger, null, 2)}\n`);
+  writeFileAtomic(
     join(input.workDir, paths.reportPath),
     renderWorkflowReportSeed({
       runId: input.runId,
@@ -149,7 +151,6 @@ export function seedUltraworkWorkflowReport(input: SeedUltraworkWorkflowReportIn
       source: input.source,
       currentStage: 'intake',
     }),
-    'utf8',
   );
   return paths;
 }
@@ -162,22 +163,28 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
   if (!existsSync(reportAbsolutePath) || !existsSync(stagesAbsolutePath)) return false;
 
   const at = input.run.updatedAt;
+  const ledger = readWorkflowStagesLedger(stagesAbsolutePath);
+  if (ledger === undefined) return false;
+  const lastTransition = ledger.transitions[ledger.transitions.length - 1];
+  const durationMs = lastTransition !== undefined
+    ? Date.parse(at) - Date.parse(lastTransition.at)
+    : undefined;
   const transition: WorkflowStageTransition = {
     from: input.from,
     to: input.to,
     at,
     reason: input.reason,
     runStatus: input.run.status,
+    ...(durationMs !== undefined && Number.isFinite(durationMs) && durationMs > 0
+      ? { durationMs }
+      : {}),
   };
-
-  const ledger = readWorkflowStagesLedger(stagesAbsolutePath);
-  if (ledger === undefined) return false;
   const nextLedger: WorkflowStagesLedger = {
     ...ledger,
     updatedAt: at,
     transitions: [...ledger.transitions, transition],
   };
-  writeFileSync(stagesAbsolutePath, `${JSON.stringify(nextLedger, null, 2)}\n`, 'utf8');
+  writeFileAtomic(stagesAbsolutePath, `${JSON.stringify(nextLedger, null, 2)}\n`);
 
   const report = readFileSync(reportAbsolutePath, 'utf8');
   const timelineRow = `| ${at} | ${input.from ?? '—'} | ${input.to} | ${escapeTableCell(input.reason ?? '—')} |`;
@@ -186,7 +193,7 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
   const withCompletion = input.to === 'done'
     ? appendRunCompletion(withCurrentStage, at, input.reason)
     : withCurrentStage;
-  writeFileSync(reportAbsolutePath, withCompletion, 'utf8');
+  writeFileAtomic(reportAbsolutePath, withCompletion);
   return true;
 }
 
@@ -214,6 +221,9 @@ export function injectUltraworkWorkflowStageReminder(
       input.to === 'learn'
         ? 'Learn is next: also update knowledge-persistence-ledger.json and the LLM Wiki run page with verified durable findings.'
         : undefined,
+      input.to === 'verify'
+        ? 'Verify stage: use independent verification (run tests, typecheck, real-surface checks). Do not self-verify by claiming success without evidence.'
+        : undefined,
       input.to === 'done'
         ? 'Run complete: ensure every stage narrative is filled and add a concise Run Summary at the end of workflow-report.md.'
         : undefined,
@@ -240,12 +250,11 @@ export function mirrorUltraworkWorkflowStage(
   injectUltraworkWorkflowStageReminder(agent, input);
 }
 
-function resolveWikiRunPath(evidenceRoot: string, runId: string): string {
-  const segment = '.superliora/wiki/runs/';
-  if (evidenceRoot.includes('/ultrawork-runs/')) {
-    return `${segment}${runId}.md`;
-  }
-  return `${segment}${runId}.md`;
+function resolveWikiRunPath(_evidenceRoot: string, runId: string): string {
+  // Wiki run pages always live under .superliora/wiki/runs/ regardless of the
+  // evidence root location. The evidenceRoot param is kept for future use if
+  // per-run wiki isolation is needed.
+  return `.superliora/wiki/runs/${runId}.md`;
 }
 
 function readWorkflowStagesLedger(path: string): WorkflowStagesLedger | undefined {

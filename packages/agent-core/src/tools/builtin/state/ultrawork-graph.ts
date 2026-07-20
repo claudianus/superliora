@@ -74,7 +74,7 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
     };
   }
 
-  private execution(args: UltraworkGraphInput): ExecutableToolResult {
+  private async execution(args: UltraworkGraphInput): Promise<ExecutableToolResult> {
     if (args.nodes === undefined) {
       const graph = this.getGraph();
       return {
@@ -113,7 +113,7 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
     }
     this.emitChangedNodes(previous, graph);
     this.agent.ultrawork.syncWorkGraphFromStore();
-    maybeFinishUltraworkRun(this.agent);
+    await maybeFinishUltraworkRun(this.agent);
 
     const changedCount = changedNodes(previous, graph).length;
     const todoLine = syncTodos ? `\n${renderTodoList(todosFromWorkGraph(graph), 'Synced TodoList:')}` : '';

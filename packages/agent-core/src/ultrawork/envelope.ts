@@ -59,12 +59,19 @@ export function captureUltraworkEnvelopeSnapshot(
   };
 }
 
+/** Maximum characters for the objective field in the envelope. */
+const MAX_ENVELOPE_OBJECTIVE_CHARS = 200;
+
 export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror): string {
+  const objective =
+    snapshot.run.objective.length > MAX_ENVELOPE_OBJECTIVE_CHARS
+      ? `${snapshot.run.objective.slice(0, MAX_ENVELOPE_OBJECTIVE_CHARS)}…`
+      : snapshot.run.objective;
   const lines = [
     '## Ultrawork Run Envelope',
     'ultrawork_envelope:',
     `run_id: ${snapshot.run.id}`,
-    `objective: ${snapshot.run.objective}`,
+    `objective: ${objective}`,
     `stage: ${snapshot.run.stage}`,
     `status: ${snapshot.run.status}`,
     `last_updated: ${snapshot.run.updatedAt}`,
@@ -182,9 +189,13 @@ export function extractUltraworkRunLines(summary: string): readonly string[] {
     }
     if (inSection) {
       if (trimmed.length === 0) break;
-      if (/^[a-z_]+:/.test(trimmed) && !trimmed.startsWith('-')) break;
+      // End when a new top-level section starts (non-indented key: pattern)
+      if (/^[a-z_]+:/.test(trimmed) && !trimmed.startsWith('-') && !line.startsWith(' ')) break;
       if (trimmed.startsWith('-')) {
         lines.push(trimmed.slice(1).trim());
+      } else if (line.startsWith('  ') && trimmed.length > 0) {
+        // Indented key=value detail lines (effective_stage, resume_node, etc.)
+        lines.push(trimmed);
       }
     }
   }
