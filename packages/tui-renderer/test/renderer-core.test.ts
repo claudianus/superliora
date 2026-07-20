@@ -301,7 +301,7 @@ describe('renderer adaptive quality', () => {
     stats.record(frameMetrics({ durationMs: 16, targetFrameMs: 10, outputBytes: 70_000 }));
     stats.record(frameMetrics({ durationMs: 12, targetFrameMs: 10, outputBytes: 80_000 }));
     const diagnostics = diagnoseNativeRendererStats(stats.snapshot(), {
-      level: 'balanced',
+      level: 'high',
       consecutiveOverBudgetFrames: 0,
       consecutiveOutputPressureFrames: 0,
       consecutiveUnderBudgetFrames: 0,
@@ -317,18 +317,18 @@ describe('renderer adaptive quality', () => {
       'output-volume',
     ]);
     expect(formatRendererDiagnosticsLine(diagnostics)).toContain('renderer degraded');
-    expect(formatRendererDiagnosticsLine(diagnostics)).toContain('quality balanced');
+    expect(formatRendererDiagnosticsLine(diagnostics)).toContain('quality high');
     expect(formatRendererDiagnosticsLines(diagnostics, { maxIssues: 2 })).toEqual([
       'renderer degraded | 14ms avg | 16ms p95 | 16ms p99 | 16ms max | 100% over',
       'frames █▆ | scan 100%/100% full | changed 0% | 73.2 KiB avg out',
       'output full | sync off | large yes | erase-line off | reason full-frame',
       'phase top render 14ms | render 14ms | present 0ms | write 0ms',
-      'cache rows 0% | lines 0% | quality balanced over-budget',
+      'cache rows 0% | lines 0% | quality high over-budget',
       'degraded: frame-budget 140% >= 90%',
       'degraded: phase render 14ms >= 85%',
     ]);
     expect(formatRendererDiagnosticsLines(diagnostics, { maxIssues: 2, layout: 'compact' })).toEqual([
-      'renderer degraded | 14ms avg | 16ms p95 | 16ms p99 | 16ms max | frames █▆ | phase top render 14ms | render 14ms | present 0ms | write 0ms | scan 100%/100% full | 100% over | 73.2 KiB avg out | 0% row cache | 0% line cache | quality balanced over-budget | output full sync off el off',
+      'renderer degraded | 14ms avg | 16ms p95 | 16ms p99 | 16ms max | frames █▆ | phase top render 14ms | render 14ms | present 0ms | write 0ms | scan 100%/100% full | 100% over | 73.2 KiB avg out | 0% row cache | 0% line cache | quality high over-budget | output full sync off el off',
       'degraded: frame-budget 140% >= 90%',
       'degraded: phase render 14ms >= 85%',
     ]);
@@ -638,7 +638,7 @@ describe('renderer adaptive quality', () => {
 
     quality.record({ durationMs: 11, targetFrameMs: 10, overBudget: true });
     expect(quality.snapshot()).toMatchObject({
-      level: 'balanced',
+      level: 'high',
       changes: 1,
       lastChangeReason: 'over-budget',
     });
@@ -666,7 +666,7 @@ describe('renderer adaptive quality', () => {
     });
 
     expect(quality.snapshot()).toMatchObject({
-      level: 'balanced',
+      level: 'high',
       changes: 1,
       lastChangeReason: 'output-backpressure',
     });
@@ -707,7 +707,7 @@ describe('renderer adaptive quality', () => {
       outputBytes: 12,
     });
     expect(quality.snapshot()).toMatchObject({
-      level: 'balanced',
+      level: 'high',
       changes: 1,
       lastChangeReason: 'output-pressure',
     });
@@ -738,7 +738,7 @@ describe('renderer adaptive quality', () => {
     });
 
     expect(quality.snapshot()).toMatchObject({
-      level: 'balanced',
+      level: 'high',
       changes: 1,
       lastChangeReason: 'output-pressure',
     });
@@ -803,7 +803,7 @@ describe('renderer overlays', () => {
     stats.record(frameMetrics({ durationMs: 16, targetFrameMs: 10, outputBytes: 70_000 }));
     stats.record(frameMetrics({ durationMs: 12, targetFrameMs: 10, outputBytes: 80_000 }));
     const diagnostics = diagnoseNativeRendererStats(stats.snapshot(), {
-      level: 'balanced',
+      level: 'high',
       consecutiveOverBudgetFrames: 0,
       consecutiveOutputPressureFrames: 0,
       consecutiveUnderBudgetFrames: 0,
@@ -2832,7 +2832,8 @@ describe('diffCellBuffers', () => {
       [9, 9, 'b'],
     ]);
     expect(fallback.scanStrategy).toBe('damage-rect');
-    expect(fallback.scannedCells).toBe(100);
+    // Checksum skip: only 2 changed rows are scanned (20 cells), not all 100.
+    expect(fallback.scannedCells).toBe(20);
     expect(fallback.scannedRows).toBe(10);
     expect(fallback.dirtyRows).toBe(0);
     expect(fallback.damageCells).toBe(2);

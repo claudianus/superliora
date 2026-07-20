@@ -751,7 +751,7 @@ describe('NativeTerminalRenderer', () => {
     expect(frames).toEqual([['start']]);
     expect(renderer.isOutputBackpressured).toBe(true);
     expect(renderer.quality).toMatchObject({
-      level: 'balanced',
+      level: 'high',
       lastChangeReason: 'output-backpressure',
     });
     expect(renderer.lastFrame?.metrics.outputBackpressure).toBe(true);
@@ -966,13 +966,13 @@ describe('NativeTerminalRenderer', () => {
     renderer.requestRender('manual');
     scheduler.advance(12);
 
-    expect(qualitiesSeenByRender).toEqual(['full', 'full', 'balanced']);
-    expect(qualitiesAfterFrame).toEqual(['full', 'balanced', 'balanced']);
-    expect(renderer.quality.level).toBe('balanced');
+    expect(qualitiesSeenByRender).toEqual(['full', 'full', 'high']);
+    expect(qualitiesAfterFrame).toEqual(['full', 'high', 'high']);
+    expect(renderer.quality.level).toBe('high');
     expect(renderer.diagnostics).toMatchObject({
       severity: 'degraded',
       health: 'degraded',
-      quality: { level: 'balanced' },
+      quality: { level: 'high' },
     });
     expect(renderer.diagnostics.issues.map((issue) => issue.code)).toContain('frame-budget');
     expect(renderer.diagnostics.issues.map((issue) => issue.code)).toContain('quality');
@@ -1017,20 +1017,20 @@ describe('NativeTerminalRenderer', () => {
     scheduler.advance(10);
 
     expect(frameCauses).toEqual([['start'], ['manual'], ['quality']]);
-    expect(qualitiesSeenByRender).toEqual(['full', 'full', 'balanced']);
-    expect(qualitiesAfterFrame).toEqual(['full', 'balanced', 'balanced']);
+    expect(qualitiesSeenByRender).toEqual(['full', 'full', 'high']);
+    expect(qualitiesAfterFrame).toEqual(['full', 'high', 'high']);
     expect(renderer.quality).toMatchObject({
-      level: 'balanced',
+      level: 'high',
       lastChangeReason: 'output-pressure',
     });
-    expect(qualityChanges).toEqual(['output-pressure:full->balanced:1']);
+    expect(qualityChanges).toEqual(['output-pressure:full->high:1']);
     expect(renderer.traceSnapshot.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'marker',
         name: 'renderer.quality_change',
         args: expect.objectContaining({
           previous: 'full',
-          current: 'balanced',
+          current: 'high',
           reason: 'output-pressure',
         }),
       }),

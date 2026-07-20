@@ -1,6 +1,7 @@
-export type RendererQualityLevel = 'full' | 'balanced' | 'minimal';
+export type RendererQualityLevel = 'full' | 'high' | 'balanced' | 'minimal';
 export type RendererQualityChangeReason =
   | 'over-budget'
+  | 'predicted-overbudget'
   | 'output-backpressure'
   | 'output-pressure'
   | 'recovered';
@@ -35,7 +36,7 @@ export interface RendererQualitySnapshot {
   readonly lastChangeReason?: RendererQualityChangeReason;
 }
 
-const QUALITY_LEVELS: readonly RendererQualityLevel[] = ['minimal', 'balanced', 'full'];
+const QUALITY_LEVELS: readonly RendererQualityLevel[] = ['minimal', 'balanced', 'high', 'full'];
 const DEFAULT_DEGRADE_AFTER_FRAMES = 2;
 const DEFAULT_DEGRADE_AFTER_BACKPRESSURE_FRAMES = 1;
 const DEFAULT_DEGRADE_AFTER_OUTPUT_PRESSURE_FRAMES = 2;
@@ -43,6 +44,16 @@ const DEFAULT_OUTPUT_PRESSURE_BYTES = 64 * 1024;
 const DEFAULT_OUTPUT_PRESSURE_CELL_RATIO = 0.85;
 const DEFAULT_RECOVER_AFTER_FRAMES = 90;
 const DEFAULT_RECOVER_BELOW_FRAME_BUDGET_RATIO = 0.65;
+/** EMA smoothing factor — higher = more weight on recent frames. */
+const EMA_ALPHA = 0.3;
+/** Predictive degradation triggers when EMA exceeds this ratio of budget. */
+const PREDICTIVE_PRESSURE_RATIO = 0.85;
+/** Consecutive predictive pressure frames before degradation. */
+const PREDICTIVE_PRESSURE_FRAMES = 3;
+/** Fast recovery: EMA below this ratio of budget allows shorter recovery. */
+const FAST_RECOVER_RATIO = 0.5;
+/** Fast recovery frame count (vs default 90). */
+const FAST_RECOVER_AFTER_FRAMES = 30;
 
 export class RendererQualityController {
   private level: RendererQualityLevel;
@@ -59,6 +70,10 @@ export class RendererQualityController {
   private consecutiveUnderBudgetFrames = 0;
   private changes = 0;
   private lastChangeReason: RendererQualityChangeReason | undefined;
+  /** EMA of frame cost for predictive quality adjustment. */
+  private emaFrameCostMs = 0;
+  private emaInitialized = false;
+  private predictivePressureFrames = 0;
 
   constructor(options: RendererQualityControllerOptions = {}) {
     this.level = options.initialLevel ?? 'full';
@@ -108,11 +123,15 @@ export class RendererQualityController {
   }
 
   record(metrics: RendererQualityMetrics): RendererQualitySnapshot {
+    // Update EMA frame cost predictor.
+    this.updateEma(metrics);
+
     if (metrics.outputBackpressure === true) {
       this.consecutiveBackpressureFrames++;
       this.consecutiveOverBudgetFrames = 0;
       this.consecutiveOutputPressureFrames = 0;
       this.consecutiveUnderBudgetFrames = 0;
+      this.predictivePressureFrames = 0;
       if (this.consecutiveBackpressureFrames >= this.degradeAfterBackpressureFrames) {
         this.setLevel(stepQualityLevel(this.level, -1), 'output-backpressure');
       }
@@ -124,6 +143,7 @@ export class RendererQualityController {
       this.consecutiveOverBudgetFrames++;
       this.consecutiveOutputPressureFrames = 0;
       this.consecutiveUnderBudgetFrames = 0;
+      this.predictivePressureFrames = 0;
       if (this.consecutiveOverBudgetFrames >= this.degradeAfterFrames) {
         this.setLevel(stepQualityLevel(this.level, -1), 'over-budget');
       }
@@ -131,6 +151,19 @@ export class RendererQualityController {
     }
 
     this.consecutiveOverBudgetFrames = 0;
+
+    // Predictive degradation: EMA approaching budget → preemptive downgrade
+    // before actual jank occurs.
+    if (this.isPredictivePressure(metrics)) {
+      this.predictivePressureFrames++;
+      this.consecutiveUnderBudgetFrames = 0;
+      if (this.predictivePressureFrames >= PREDICTIVE_PRESSURE_FRAMES) {
+        this.setLevel(stepQualityLevel(this.level, -1), 'predicted-overbudget');
+      }
+      return this.snapshot();
+    }
+    this.predictivePressureFrames = 0;
+
     if (isOutputPressure(metrics, this.outputPressureBytes, this.outputPressureCellRatio)) {
       this.consecutiveOutputPressureFrames++;
       this.consecutiveUnderBudgetFrames = 0;
@@ -143,7 +176,11 @@ export class RendererQualityController {
     this.consecutiveOutputPressureFrames = 0;
     if (isSafelyUnderBudget(metrics, this.recoverBelowFrameBudgetRatio)) {
       this.consecutiveUnderBudgetFrames++;
-      if (this.consecutiveUnderBudgetFrames >= this.recoverAfterFrames) {
+      // Fast recovery: when EMA is well under budget, recover sooner.
+      const recoveryThreshold = this.isEmaWellUnderBudget(metrics)
+        ? Math.min(this.recoverAfterFrames, FAST_RECOVER_AFTER_FRAMES)
+        : this.recoverAfterFrames;
+      if (this.consecutiveUnderBudgetFrames >= recoveryThreshold) {
         this.setLevel(stepQualityLevel(this.level, 1), 'recovered');
       }
     } else {
@@ -161,6 +198,31 @@ export class RendererQualityController {
     this.consecutiveUnderBudgetFrames = 0;
     this.changes = 0;
     this.lastChangeReason = undefined;
+    this.emaFrameCostMs = 0;
+    this.emaInitialized = false;
+    this.predictivePressureFrames = 0;
+  }
+
+  private updateEma(metrics: RendererQualityMetrics): void {
+    if (!this.emaInitialized) {
+      this.emaFrameCostMs = metrics.durationMs;
+      this.emaInitialized = true;
+    } else {
+      this.emaFrameCostMs = EMA_ALPHA * metrics.durationMs + (1 - EMA_ALPHA) * this.emaFrameCostMs;
+    }
+  }
+
+  private isPredictivePressure(metrics: RendererQualityMetrics): boolean {
+    if (metrics.targetFrameMs <= 0) return false;
+    // Don't predict pressure when the current frame is fast — EMA will decay
+    // naturally and recovery should proceed unimpeded.
+    if (metrics.durationMs <= metrics.targetFrameMs * FAST_RECOVER_RATIO) return false;
+    return this.emaFrameCostMs > metrics.targetFrameMs * PREDICTIVE_PRESSURE_RATIO;
+  }
+
+  private isEmaWellUnderBudget(metrics: RendererQualityMetrics): boolean {
+    if (metrics.targetFrameMs <= 0) return false;
+    return this.emaFrameCostMs <= metrics.targetFrameMs * FAST_RECOVER_RATIO;
   }
 
   private setLevel(level: RendererQualityLevel, reason: RendererQualityChangeReason): void {
