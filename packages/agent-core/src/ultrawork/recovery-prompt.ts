@@ -5,6 +5,7 @@
 import type { UltraworkRun } from '@superliora/protocol';
 
 import {
+  detectLongRunningStage,
   detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
   summarizeWorkGraphProgress,
@@ -139,6 +140,15 @@ export function buildUltraworkRecoveryPrompt(
         'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
       );
     }
+  }
+  // Warn about stages running longer than expected (un-bounded loop anti-pattern).
+  const longStage = detectLongRunningStage(report.run);
+  if (longStage !== undefined) {
+    const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
+    const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
+    lines.push(
+      `⚠ Stage "${longStage.stage}" running ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min). Consider advancing or splitting work.`,
+    );
   }
   if (report.orphanedWorkNodes.length > 0) {
     lines.push(`Reconcile orphaned work nodes: ${report.orphanedWorkNodes.slice(0, 8).join(', ')}`);

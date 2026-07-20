@@ -19,6 +19,7 @@ import {
 } from './errors';
 import type { LoopInterruptReason, LoopEventDispatcher, LoopTurnInterruptedEvent } from './events';
 import type { LLM } from './llm';
+import { resetToolFailureTracker } from './tool-call';
 import { executeLoopStep } from './turn-step';
 import type {
   ExecutableTool,
@@ -66,6 +67,9 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     maxRetryAttempts,
     recordStepUsage: hostRecordStepUsage,
   } = input;
+  // Reset tool failure tracking at turn boundary to prevent cross-turn leaks.
+  resetToolFailureTracker();
+  const turnStartMs = Date.now();
   let usage: TokenUsage = emptyUsage();
   let steps = 0;
   // Normal exits overwrite this with the completed step's stop reason.
@@ -130,14 +134,14 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
         ...makeInterruptedEvent('aborted', steps, activeStep),
         cancelledByUser: isUserCancellation(signal.reason),
       });
-      return { stopReason: 'aborted', steps, usage };
+      return { stopReason: 'aborted', steps, usage, durationMs: Date.now() - turnStartMs };
     }
     const reason: LoopInterruptReason = isMaxStepsExceededError(error) ? 'max_steps' : 'error';
     dispatchEvent(makeInterruptedEvent(reason, steps, activeStep, errorMessage(error)));
     throw error;
   }
 
-  return { stopReason, steps, usage };
+  return { stopReason, steps, usage, durationMs: Date.now() - turnStartMs };
 }
 
 function makeInterruptedEvent(

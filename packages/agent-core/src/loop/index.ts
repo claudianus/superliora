@@ -76,3 +76,4 @@ export type {
 
 export { runTurn } from './run-turn';
 export type { RunTurnInput } from './run-turn';
+export { resetToolFailureTracker } from './tool-call';

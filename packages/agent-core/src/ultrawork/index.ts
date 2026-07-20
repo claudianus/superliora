@@ -48,12 +48,14 @@ export {
 } from './interrupted-work-resume';
 export {
   applyWorkGraphProgressToRun,
+  detectLongRunningStage,
   detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
 } from './stage-progress';
+export type { LongRunningStageInfo } from './stage-progress';
 export {
   buildUltraworkCompactionEnvelope,
   captureUltraworkEnvelopeSnapshot,

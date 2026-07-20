@@ -50,6 +50,42 @@ const TOOL_OUTPUT_NON_TEXT = 'Tool returned non-text content.';
 const MAX_SYNTHETIC_TOOL_PREAMBLE_LENGTH = 180;
 
 /**
+ * Consecutive tool failure threshold. When the same tool fails this many
+ * times in a row within a single turn, log a warning. Addresses the
+ * "hidden state" anti-pattern (S0): repeated failures of the same tool
+ * are a signal that the tool or its inputs are systematically broken,
+ * not a transient issue. Without tracking, the loop may retry indefinitely.
+ */
+const CONSECUTIVE_FAILURE_WARN_THRESHOLD = 3;
+
+/**
+ * Tracks consecutive tool failures within a turn. Reset on success.
+ * Module-level state is intentional: the tracker is scoped to a single
+ * turn's tool-call batch sequence and does not leak across turns.
+ */
+const consecutiveFailures = new Map<string, number>();
+
+function trackToolFailure(toolName: string, log?: Logger): void {
+  const count = (consecutiveFailures.get(toolName) ?? 0) + 1;
+  consecutiveFailures.set(toolName, count);
+  if (count === CONSECUTIVE_FAILURE_WARN_THRESHOLD) {
+    log?.warn('tool failing repeatedly; possible systematic issue', {
+      toolName,
+      consecutiveFailures: count,
+    });
+  }
+}
+
+function resetToolFailure(toolName: string): void {
+  consecutiveFailures.delete(toolName);
+}
+
+/** Reset all failure tracking state. Call at turn boundaries. */
+export function resetToolFailureTracker(): void {
+  consecutiveFailures.clear();
+}
+
+/**
  * Tools whose side effects are not file-backed (and therefore not captured by
  * `writePathsFromAccesses`) but are still durable enough to warrant a
  * pre-execution intent log. The resume path treats these as "attempted,
@@ -546,11 +582,19 @@ async function runRunnableToolCall(
         toolCallId: toolCall.id,
         error,
       });
+      trackToolFailure(toolName, step.log);
     }
     const output = aborted
       ? abortedToolOutput(toolName, signal)
       : `Tool "${toolName}" failed: ${errorMessage(error)}`;
     return makeErrorToolResult(call, effectiveArgs, output);
+  }
+
+  // Track failure patterns for isError results (e.g. grace timeout, coercion).
+  if (toolResult.isError === true) {
+    trackToolFailure(toolName, step.log);
+  } else {
+    resetToolFailure(toolName);
   }
 
   return makeToolResult(call, effectiveArgs, toolResult);
