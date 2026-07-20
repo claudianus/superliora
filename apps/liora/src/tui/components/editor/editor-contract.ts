@@ -63,6 +63,8 @@ export interface TUIEditor
   onTranscriptSearch?: () => void;
   /** Re-sends the last failed user turn (Ctrl-Y when idle + last turn failed). */
   onRetryLastTurn?: () => void;
+  /** Stashes the current draft, or restores the latest stash when the editor is empty (Ctrl-X). */
+  onStashToggle?: () => void;
   /**
    * Ghost text (prompt intelligence) callbacks. `onAcceptGhost` fires when Tab
    * confirms the visible ghost text; `onCycleGhost` fires when ↑/↓ rotates the

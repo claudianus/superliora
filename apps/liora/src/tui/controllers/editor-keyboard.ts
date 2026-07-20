@@ -51,6 +51,7 @@ export interface EditorKeyboardHost {
   showCommandPalette(): void;
   showTranscriptSearch(): void;
   retryLastTurn(): Promise<void>;
+  stashPromptToggle(): void;
   setExternalEditorRunning(running: boolean): void;
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
 }
@@ -373,6 +374,9 @@ export class EditorKeyboardController {
     };
     editor.onRetryLastTurn = () => {
       void this.host.retryLastTurn();
+    };
+    editor.onStashToggle = () => {
+      this.host.stashPromptToggle();
     };
   }
 

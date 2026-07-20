@@ -192,6 +192,7 @@ import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attach
 import { extractMediaAttachments } from './utils/image-placeholder';
 import { resolveImageProtocol } from './utils/image-protocol-detect';
 import { hasPatchChanges } from './utils/object-patch';
+import { PromptStash } from './utils/prompt-stash';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
@@ -348,6 +349,8 @@ export class LioraTUI {
     | { kind: LoadingTipKind; tip: string | undefined; tipKey?: string; pinned: boolean }
     | undefined = undefined;
   private lastHistoryContent: string | undefined;
+  /** LIFO stash of prompt drafts saved via Ctrl-X while the editor has text. */
+  private readonly promptStash = new PromptStash();
   // Live `!` shell output entries, keyed by commandId so concurrent commands
   // each update their own card and stale events are dropped. Mutated in place
   // as `shell.output` events arrive; removed when the command completes.
@@ -3237,6 +3240,36 @@ export class LioraTUI {
     this.state.editor.setText(text);
     this.updateEditorBorderHighlight(text);
     requestTUIContentRender(this.state);
+  }
+
+  /** Ctrl-X: stash the current draft, or pop the latest stash when the editor is empty. */
+  stashPromptToggle(): void {
+    const editor = this.state.editor;
+    const text = editor.getText();
+    if (text.trim().length > 0) {
+      this.promptStash.push({ text, mode: editor.inputMode });
+      editor.setText('');
+      this.updateEditorBorderHighlight('');
+      this.showStatus(ttui('tui.stash.stashed', { count: String(this.promptStash.size) }));
+      requestTUIContentRender(this.state);
+      return;
+    }
+    const entry = this.promptStash.pop();
+    if (entry === undefined) {
+      this.showStatus(ttui('tui.stash.empty'));
+      return;
+    }
+    this.restoreInputText(entry.text);
+    // Restore the stashed mode like queue recall does, so a draft saved in
+    // shell mode comes back ready to run as a `!` command.
+    const mode = entry.mode;
+    if (editor.inputMode !== mode) {
+      editor.inputMode = mode;
+      editor.onInputModeChange?.(mode);
+    }
+    this.updateQueueDisplay();
+    requestTUILayoutRender(this.state);
+    this.showStatus(ttui('tui.stash.restored', { count: String(this.promptStash.size) }));
   }
 
   // =========================================================================

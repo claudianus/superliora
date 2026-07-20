@@ -47,6 +47,7 @@ export function defaultKeyboardShortcuts(): readonly KeyboardShortcut[] {
     { keys: 'Ctrl-B', description: ttui('tui.help.shortcut.ctrlB') },
     { keys: 'Ctrl-T', description: ttui('tui.help.shortcut.ctrlT') },
     { keys: 'Ctrl-S', description: ttui('tui.help.shortcut.ctrlS') },
+    { keys: 'Ctrl-X', description: ttui('tui.help.shortcut.ctrlX') },
     { keys: 'Shift-Enter / Ctrl-J', description: ttui('tui.help.shortcut.newline') },
     { keys: 'Ctrl-C', description: ttui('tui.help.shortcut.ctrlC') },
     { keys: 'Ctrl-D', description: ttui('tui.help.shortcut.ctrlD') },

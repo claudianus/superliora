@@ -73,6 +73,7 @@ export class NativeTUIEditor implements TUIEditor {
   onCommandPalette?: () => void;
   onTranscriptSearch?: () => void;
   onRetryLastTurn?: () => void;
+  onStashToggle?: () => void;
   onAcceptGhost?: () => void;
   onCycleGhost?: (direction: -1 | 1) => void;
 
@@ -440,6 +441,11 @@ export class NativeTUIEditor implements TUIEditor {
     // Ctrl-Y: retry the last failed turn (host decides whether it applies).
     if (matchesKey(data, Key.ctrl('y'))) {
       this.onRetryLastTurn?.();
+      return true;
+    }
+    // Ctrl-X: stash the current draft, or pop the latest stash when empty.
+    if (matchesKey(data, Key.ctrl('x'))) {
+      this.onStashToggle?.();
       return true;
     }
     if (

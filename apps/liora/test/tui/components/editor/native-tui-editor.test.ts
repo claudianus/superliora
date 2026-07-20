@@ -107,6 +107,17 @@ describe('NativeTUIEditor', () => {
     expect(editor.getText()).toBe('');
   });
 
+  it('fires the stash toggle on Ctrl-X without mutating text', () => {
+    const editor = makeEditor();
+    const stashToggle = vi.fn();
+    editor.onStashToggle = stashToggle;
+
+    editor.handleInput('\u0018');
+
+    expect(stashToggle).toHaveBeenCalledOnce();
+    expect(editor.getText()).toBe('');
+  });
+
   it('uses transcript navigation hooks while the prompt is empty', () => {
     const editor = makeEditor();
     const pageUp = vi.fn(() => true);

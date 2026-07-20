@@ -40,6 +40,7 @@ describe('HelpPanelComponent', () => {
     expect(out).not.toMatch(/Steer UltraPlan/);
     expect(out).toMatch(/Ctrl-O/);
     expect(out).toMatch(/Ctrl-B/);
+    expect(out).toMatch(/Ctrl-X/);
     expect(out).toMatch(/\/tasks/);
     expect(out).toMatch(/Shift-Enter \/ Ctrl-J/);
     expect(out).toMatch(/Esc Esc/);
@@ -57,6 +58,7 @@ describe('HelpPanelComponent', () => {
         cmd('alpha', 'A'),
         cmd('mcp-config', 'M'),
       ],
+      maxVisible: 200,
       onClose: () => {},
     });
     const out = strip(panel.render(120).join('\n'));
@@ -145,7 +147,7 @@ describe('HelpPanelComponent', () => {
     // The first 24-row window surfaces the /plan steering hint and /ultrawork.
     expect(advancedOut).toMatch(/\/plan/);
     expect(advancedOut).toMatch(/\/ultrawork \(\/uw\)/);
-    expect(advancedOut).toMatch(/showing 1-24 of 31/);
+    expect(advancedOut).toMatch(/showing 1-24 of 32/);
 
     // /ultraswarm sits just past the 24-row window; scroll it into view.
     for (let i = 0; i < 10; i++) {

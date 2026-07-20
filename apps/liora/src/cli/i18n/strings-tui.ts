@@ -46,6 +46,11 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.retry.resending': 'Resending last message…',
   'tui.retry.none': 'Nothing to retry yet.',
 
+  // ── Prompt draft stash (Ctrl-X) ──────────────────────────────────────────
+  'tui.stash.stashed': 'Draft stashed ({count} in stash)',
+  'tui.stash.restored': 'Draft restored ({count} remaining)',
+  'tui.stash.empty': 'No stashed drafts',
+
   // ── Session error navigator (/errors) ────────────────────────────────────
   'tui.errors.title': 'Session errors',
   'tui.errors.count': '{count} errors',
@@ -226,6 +231,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.help.shortcut.ctrlB': 'Background a long-running shell task · /tasks',
   'tui.help.shortcut.ctrlT': 'Expand / collapse the todo list (when truncated)',
   'tui.help.shortcut.ctrlS': 'Steer — inject a follow-up during streaming',
+  'tui.help.shortcut.ctrlX': 'Stash or restore prompt draft',
   'tui.help.shortcut.newline': 'Insert newline',
   'tui.help.shortcut.ctrlC': 'Interrupt stream / clear input',
   'tui.help.shortcut.ctrlD': 'Exit (on empty input)',
@@ -402,6 +408,11 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.retry.hint': 'Ctrl-Y(또는 /retry)를 눌러 마지막 메시지를 다시 보내세요',
   'tui.retry.resending': '마지막 메시지를 다시 보내는 중…',
   'tui.retry.none': '다시 보낼 메시지가 없습니다.',
+
+  // ── Prompt draft stash (Ctrl-X) ──────────────────────────────────────────
+  'tui.stash.stashed': '초안 보관 (보관함 {count}개)',
+  'tui.stash.restored': '초안 복원 (남은 보관 {count}개)',
+  'tui.stash.empty': '보관된 초안이 없습니다',
 
   // ── Session error navigator (/errors) ────────────────────────────────────
   'tui.errors.title': '세션 오류',
@@ -580,6 +591,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.help.shortcut.ctrlB': '긴 셸 작업을 백그라운드로 · /tasks',
   'tui.help.shortcut.ctrlT': '할 일 목록 펼치기/접기 (잘린 경우)',
   'tui.help.shortcut.ctrlS': '스티어 — 스트리밍 중 후속 지시 주입',
+  'tui.help.shortcut.ctrlX': '프롬프트 초안 보관 또는 복원',
   'tui.help.shortcut.newline': '줄바꿈 삽입',
   'tui.help.shortcut.ctrlC': '스트림 중단 / 입력 지우기',
   'tui.help.shortcut.ctrlD': '종료 (입력이 비어 있을 때)',
