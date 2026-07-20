@@ -5,6 +5,7 @@
 import type { UltraworkRun } from '@superliora/protocol';
 
 import {
+  detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
@@ -127,6 +128,16 @@ export function buildUltraworkRecoveryPrompt(
       if (pending.length > 5) {
         lines.push(`- … ${String(pending.length - 5)} more`);
       }
+    }
+    // Highlight stuck nodes (running/blocked) that may need circuit-breaking.
+    const stuckNodes = detectStuckWorkGraphNodes(report.run.workGraph);
+    if (stuckNodes.length > 0) {
+      lines.push(
+        `⚠ Stuck nodes (${String(stuckNodes.length)}): ${stuckNodes.slice(0, 3).map((n) => `${n.id} [${n.status}]`).join(', ')}`,
+      );
+      lines.push(
+        'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
+      );
     }
   }
   if (report.orphanedWorkNodes.length > 0) {
