@@ -264,6 +264,17 @@ async function confirmUndoSelection(driver: MessageDriver): Promise<void> {
   (driver.state.editorContainer.children[0] as UndoSelectorComponent).handleInput('\r');
 }
 
+/**
+ * dispatchInput routes ordinary (non-slash) input through the async
+ * Ultrawork auto-activation gate before handing the text to the session.
+ * Drain the pending microtasks so tests observe the delivered prompt and
+ * streaming-phase transition before continuing.
+ */
+async function flushInputDispatch(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 function renderActivity(driver: MessageDriver): string {
   return driver.state.activityContainer.render(120).join('\n');
 }
@@ -755,6 +766,7 @@ command = "vim"
     const { driver, session } = await makeDriver();
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
 
     expect(session.prompt).toHaveBeenCalledWith('hello');
     expect(driver.state.appState.streamingPhase).not.toBe('idle');
@@ -777,6 +789,7 @@ command = "vim"
     const { driver } = await makeDriver(session);
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
 
     driver.handleUserInput('/undo');
@@ -805,6 +818,7 @@ command = "vim"
     const { driver } = await makeDriver();
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
 
     driver.handleUserInput('/undo');
@@ -825,6 +839,7 @@ command = "vim"
     const { driver, session } = await makeDriver();
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
     driver.handleUserInput('/auto on');
 
@@ -865,6 +880,7 @@ command = "vim"
     const { driver, session } = await makeDriver();
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
     driver.sessionEventHandler.handleEvent(
       {
@@ -917,6 +933,7 @@ command = "vim"
     const sendQueued = vi.fn();
 
     driver.handleUserInput('launch swarm');
+    await flushInputDispatch();
     driver.sessionEventHandler.handleEvent(
       {
         type: 'tool.call.started',
@@ -961,6 +978,7 @@ command = "vim"
     if (approvalHandler === undefined) throw new Error('expected approval handler');
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
     const response = approvalHandler({
       turnId: 1,
@@ -1002,6 +1020,7 @@ command = "vim"
     process.env['SUPERLIORA_DEBUG'] = '1';
     try {
       driver.handleUserInput('hello');
+      await flushInputDispatch();
       driver.sessionEventHandler.handleEvent(
         {
           type: 'turn.step.completed',
@@ -1043,10 +1062,13 @@ command = "vim"
     const { driver, session } = await makeDriver();
 
     driver.handleUserInput('first');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
     driver.handleUserInput('second');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
     driver.handleUserInput('third');
+    await flushInputDispatch();
     driver.state.appState.streamingPhase = 'idle';
 
     driver.handleUserInput('/undo 2');
@@ -1094,6 +1116,7 @@ command = "vim"
     const { driver } = await makeDriver();
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
     driver.sessionEventHandler.handleEvent(
       {
         type: 'skill.activated',
@@ -1123,6 +1146,7 @@ command = "vim"
     const { driver } = await makeDriver();
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
     driver.sessionEventHandler.handleEvent(
       {
         type: 'skill.activated',
@@ -1164,6 +1188,7 @@ command = "vim"
     const attachment = imageStore.addImage(new Uint8Array([0xaa, 0xbb]), 'image/png', 1, 1);
 
     driver.handleUserInput(`describe ${attachment.placeholder}`);
+    await flushInputDispatch();
 
     expect(session.prompt).toHaveBeenCalledWith([
       { type: 'text', text: 'describe ' },
@@ -1264,7 +1289,7 @@ command = "vim"
         } as Event,
         sendQueued,
       );
-      await vi.runAllTimersAsync();
+      await vi.runOnlyPendingTimersAsync();
 
       expect(sendQueued).toHaveBeenCalledWith({ text: 'next' });
       expect(driver.state.queuedMessages).toEqual([]);
@@ -1686,7 +1711,7 @@ command = "vim"
         } as Event,
         sendQueued,
       );
-      await vi.runAllTimersAsync();
+      await vi.runOnlyPendingTimersAsync();
 
       expect(driver.state.appState.isCompacting).toBe(false);
       expect(driver.state.appState.streamingPhase).toBe('idle');
@@ -1705,6 +1730,7 @@ command = "vim"
     driver.state.appState.model = '';
 
     driver.handleUserInput('hello');
+    await flushInputDispatch();
 
     expect(session.prompt).not.toHaveBeenCalled();
     expect(driver.state.transcriptContainer.render(120).join('\n')).toContain(
@@ -2275,6 +2301,7 @@ command = "vim"
     expect(harness.interactiveAgentId).toBe('main');
     driver.handleUserInput('follow-up while btw prompt is pending');
     driver.handleUserInput('another follow-up while btw prompt is pending');
+    await flushInputDispatch();
 
     expect(session.prompt).toHaveBeenCalledTimes(1);
     expect(driver.state.queuedMessages).toEqual([]);
