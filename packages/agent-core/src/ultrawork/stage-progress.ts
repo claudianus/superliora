@@ -359,3 +359,71 @@ export function assessRecoveryEscalation(failureCount: number): {
   }
   return { level: 'retry', guidance: ESCALATION_GUIDANCE.retry };
 }
+
+// ---------------------------------------------------------------------------
+// Run health score (aggregate observability signal)
+// ---------------------------------------------------------------------------
+
+export interface RunHealthSignals {
+  readonly failureCount: number;
+  readonly resumeCycles: number;
+  readonly stuckNodeCount: number;
+  readonly longRunningStage: boolean;
+  readonly contextPressureRatio: number;
+}
+
+export type RunHealthGrade = 'healthy' | 'degraded' | 'critical';
+
+/**
+ * Compute an aggregate health score for an Ultrawork run.
+ * Combines multiple signals into a single grade for quick assessment.
+ * Score ranges from 0 (critical) to 100 (healthy).
+ */
+export function computeRunHealthScore(signals: RunHealthSignals): {
+  readonly score: number;
+  readonly grade: RunHealthGrade;
+  readonly factors: readonly string[];
+} {
+  let score = 100;
+  const factors: string[] = [];
+
+  // Deduct for failures (max -30)
+  if (signals.failureCount > 0) {
+    const penalty = Math.min(30, signals.failureCount * 5);
+    score -= penalty;
+    factors.push(`failures: -${String(penalty)}`);
+  }
+
+  // Deduct for resume cycles (max -25)
+  if (signals.resumeCycles > 0) {
+    const penalty = Math.min(25, signals.resumeCycles * 8);
+    score -= penalty;
+    factors.push(`resumes: -${String(penalty)}`);
+  }
+
+  // Deduct for stuck nodes (max -20)
+  if (signals.stuckNodeCount > 0) {
+    const penalty = Math.min(20, signals.stuckNodeCount * 10);
+    score -= penalty;
+    factors.push(`stuck_nodes: -${String(penalty)}`);
+  }
+
+  // Deduct for long-running stage (-15)
+  if (signals.longRunningStage) {
+    score -= 15;
+    factors.push('long_stage: -15');
+  }
+
+  // Deduct for context pressure (max -20)
+  if (signals.contextPressureRatio > 0.7) {
+    const penalty = Math.min(20, Math.round((signals.contextPressureRatio - 0.7) * 66));
+    score -= penalty;
+    factors.push(`context_pressure: -${String(penalty)}`);
+  }
+
+  const clampedScore = Math.max(0, Math.min(100, score));
+  const grade: RunHealthGrade =
+    clampedScore >= 70 ? 'healthy' : clampedScore >= 40 ? 'degraded' : 'critical';
+
+  return { score: clampedScore, grade, factors };
+}

@@ -34,3 +34,4 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add adaptive circuit breaker for tool execution (closed/open/half-open states, 5-failure threshold, 30s cooldown)
 - Add context pressure assessment (low/moderate/high/critical) with guidance per level
 - Add graduated recovery escalation (retry/replan/degrade/abort) based on failure count
+- Add run health score (0-100) aggregating failures, resumes, stuck nodes, stage duration, and context pressure
