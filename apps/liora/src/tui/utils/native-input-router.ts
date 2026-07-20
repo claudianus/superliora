@@ -132,8 +132,7 @@ export class TUIStateNativeInputRouter {
   }
 
   private requestRenderAfterInput(): void {
-    // Mark typing holdoff before scheduling so ambient ticks drop out of the
-    // same event turn and stop fighting the editor for the render loop.
+    // Record the interaction timestamp (kept for diagnostics / future use).
     noteTUIInputInteraction();
     if (this.options.requestRender !== false) this.state.renderer.requestRender('input');
   }
