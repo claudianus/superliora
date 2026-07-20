@@ -131,3 +131,65 @@ export function checkpointUltraworkRun(
     void agent.records.flush?.();
   }
 }
+
+/**
+ * Checkpoint staleness threshold (ms). Checkpoints older than this may
+ * indicate a stale recovery point that needs re-validation.
+ */
+const CHECKPOINT_STALE_THRESHOLD_MS = 30 * 60_000; // 30 minutes
+
+export interface CheckpointValidationResult {
+  readonly valid: boolean;
+  readonly stale: boolean;
+  readonly ageMs: number;
+  readonly issues: readonly string[];
+}
+
+/**
+ * Validate a checkpoint mirror for integrity and staleness.
+ * Based on LangGraph-style checkpoint validation patterns (2026):
+ * verify required fields, timestamp validity, and age threshold.
+ */
+export function validateCheckpointMirror(
+  mirror: UltraworkRunMirror | null,
+): CheckpointValidationResult {
+  if (mirror === null) {
+    return { valid: false, stale: false, ageMs: 0, issues: ['checkpoint is null'] };
+  }
+
+  const issues: string[] = [];
+
+  // Validate required fields.
+  if (mirror.run.id === undefined || mirror.run.id.length === 0) {
+    issues.push('missing run.id');
+  }
+  if (mirror.run.stage === undefined) {
+    issues.push('missing run.stage');
+  }
+  if (mirror.run.status === undefined) {
+    issues.push('missing run.status');
+  }
+  if (mirror.lastCheckpointAt === undefined) {
+    issues.push('missing lastCheckpointAt');
+  }
+
+  // Validate timestamp and compute age.
+  const checkpointTime = Date.parse(mirror.lastCheckpointAt ?? '');
+  const ageMs = Number.isFinite(checkpointTime) ? Date.now() - checkpointTime : 0;
+  if (!Number.isFinite(checkpointTime)) {
+    issues.push('invalid lastCheckpointAt timestamp');
+  }
+
+  // Check for staleness.
+  const stale = ageMs > CHECKPOINT_STALE_THRESHOLD_MS;
+  if (stale) {
+    issues.push(`checkpoint is stale (age ${String(Math.round(ageMs / 60_000))}min > ${String(CHECKPOINT_STALE_THRESHOLD_MS / 60_000)}min threshold)`);
+  }
+
+  return {
+    valid: issues.length === 0,
+    stale,
+    ageMs,
+    issues,
+  };
+}
