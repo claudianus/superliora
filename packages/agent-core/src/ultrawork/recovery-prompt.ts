@@ -150,6 +150,13 @@ export function buildUltraworkRecoveryPrompt(
       `⚠ Stage "${longStage.stage}" running ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min). Consider advancing or splitting work.`,
     );
   }
+  // Warn about oscillation (repeated crash-recovery loops).
+  const resumeCycles = countResumeCyclesFromHistory(report.run);
+  if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
+    lines.push(
+      `⚠ High resume count (${String(resumeCycles)}): repeated crash-recovery cycles detected. Consider simplifying the objective or breaking into smaller runs.`,
+    );
+  }
   if (report.orphanedWorkNodes.length > 0) {
     lines.push(`Reconcile orphaned work nodes: ${report.orphanedWorkNodes.slice(0, 8).join(', ')}`);
   }
@@ -292,4 +299,21 @@ export function suggestNextActions(
   }
 
   return actions.slice(0, 4);
+}
+
+/**
+ * Threshold for warning about oscillation (repeated crash-recovery loops).
+ * High values indicate the run is stuck in a failure cycle.
+ */
+const OSCILLATION_WARN_THRESHOLD = 3;
+
+/**
+ * Count blocked/failed entries in stageHistory as a proxy for resume cycles.
+ * High values indicate oscillation (repeated crash-recovery loops).
+ */
+function countResumeCyclesFromHistory(run: UltraworkRun): number {
+  const history = run.stageHistory ?? [];
+  return history.filter(
+    (entry) => entry.reason !== undefined && /block|fail|interrupt|crash/i.test(entry.reason),
+  ).length;
 }
