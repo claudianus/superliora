@@ -30,21 +30,47 @@ export function resolveTranscriptHitTestContext(
 ): TranscriptHitTestContext | undefined {
   const frameWidth = normalizeFrameSize(width);
   const frameHeight = normalizeFrameSize(height);
-  const plan = planTUINativeStage(state, frameWidth, frameHeight, {
-    resolveEditorFallbackLines: (contentWidth) => state.editorContainer.render(contentWidth),
-    resolveEditorRows: ({ editorLineCount, contentHeight, fixedRowsWithoutEditor }) =>
-      Math.min(
-        editorLineCount,
-        Math.max(1, contentHeight - fixedRowsWithoutEditor - 1),
-      ),
-  });
-  const rect = plan.layout.regions.find((region) => region.id === 'transcript')?.rect;
+  // Cheap editor line-count probe for cache invalidation (same key as the
+  // editor rect cache in getTUIStateNativeEditorRect).
+  const editorLineCount = state.editor.getNativeLayoutRowCount?.(frameWidth) ?? -1;
+  let rect: RendererRect | undefined;
+  let visibleRows: number;
+  let stageWidth: number;
+  // Fast path: reuse cached transcript layout when the key matches.
+  if (
+    state.cachedTranscriptRect !== undefined &&
+    state.cachedTranscriptColumns === frameWidth &&
+    state.cachedTranscriptRows === frameHeight &&
+    state.cachedTranscriptLineCount === editorLineCount
+  ) {
+    rect = state.cachedTranscriptRect;
+    visibleRows = state.cachedTranscriptVisibleRows ?? 0;
+    stageWidth = state.cachedTranscriptStageWidth ?? frameWidth;
+  } else {
+    // Slow path: full layout computation.
+    const plan = planTUINativeStage(state, frameWidth, frameHeight, {
+      resolveEditorFallbackLines: (contentWidth) => state.editorContainer.render(contentWidth),
+      resolveEditorRows: ({ editorLineCount: elc, contentHeight, fixedRowsWithoutEditor }) =>
+        Math.min(
+          elc,
+          Math.max(1, contentHeight - fixedRowsWithoutEditor - 1),
+        ),
+    });
+    rect = plan.layout.regions.find((region) => region.id === 'transcript')?.rect;
+    visibleRows = plan.layout.transcriptRows;
+    stageWidth = plan.stage.stage.width;
+    // Cache for subsequent calls.
+    state.cachedTranscriptRect = rect;
+    state.cachedTranscriptVisibleRows = visibleRows;
+    state.cachedTranscriptStageWidth = stageWidth;
+    state.cachedTranscriptColumns = frameWidth;
+    state.cachedTranscriptRows = frameHeight;
+    state.cachedTranscriptLineCount = editorLineCount;
+  }
   if (rect === undefined) return undefined;
 
   const leftPad = CHROME_GUTTER;
   const rightPad = CHROME_GUTTER;
-  const visibleRows = plan.layout.transcriptRows;
-  const stageWidth = plan.stage.stage.width;
   const visibleLines = state.transcriptContainer.renderWithVisibleRegionLines(
     stageWidth,
     visibleRows,
