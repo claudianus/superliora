@@ -70,7 +70,8 @@ export {
   reconcileUltraworkFromMirror,
   reconcileUltraworkPlanAfterResume,
 } from './mirror-reconcile';
-export { readUltraworkMirrorFromDisk } from './run-store';
+export { readUltraworkMirrorFromDisk, validateCheckpointMirror } from './run-store';
+export type { CheckpointValidationResult } from './run-store';
 export {
   ensureUltraworkWorkflowArtifacts,
   injectUltraworkWorkflowStageReminder,

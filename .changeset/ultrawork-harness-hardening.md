@@ -30,3 +30,4 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add journal_offset to compaction envelope for context budget awareness
 - Add failure categorization (timeout/validation/dependency/resource) with targeted recovery guidance
 - Add analyzeFailedNodes helper and surface categorized failures in recovery prompt
+- Add checkpoint integrity validation (validateCheckpointMirror) with staleness detection
