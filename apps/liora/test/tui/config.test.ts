@@ -77,6 +77,7 @@ terminal_palette = true
 
     expect(config).toEqual({
       theme: 'light',
+      permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: 'code --wait',
       notifications: { enabled: false, condition: 'always' },
@@ -101,6 +102,7 @@ command = "   "
 
     expect(config).toEqual({
       theme: 'superliora-ash',
+      permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },

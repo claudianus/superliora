@@ -39,6 +39,8 @@ function makeHost(options: { planMode?: boolean; planPath?: string | undefined }
 function makeThemeHost() {
   const appState = {
     theme: 'auto',
+    permissionMode: 'yolo',
+    disablePasteBurst: false,
     editorCommand: null,
     notifications: { enabled: true, condition: 'unfocused' },
     upgrade: { autoInstall: true },
@@ -124,34 +126,34 @@ async function withTempHome<T>(run: () => Promise<T>): Promise<T> {
 }
 
 describe('handlePlanCommand', () => {
-  it('uses Ultrawork steering wording when enabling planning', async () => {
+  it('announces plan mode with the plan file location when enabling planning', async () => {
     const { host, session } = makeHost({ planPath: '/tmp/plans/test-plan.md' });
 
     await handlePlanCommand(host, 'on');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, false);
     expect(host.showNotice).toHaveBeenCalledWith(
-      'Ultrawork plan steering: ON',
-      'Plan will be created here: /tmp/plans/test-plan.md',
+      'Plan mode: ON (free-form)',
+      'Plan file: /tmp/plans/test-plan.md',
     );
   });
 
-  it('uses Ultrawork steering wording when disabling planning', async () => {
+  it('announces plan mode OFF when disabling planning', async () => {
     const { host, session } = makeHost({ planMode: true });
 
     await handlePlanCommand(host, 'off');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
-    expect(host.showNotice).toHaveBeenCalledWith('Ultrawork plan steering: OFF');
+    expect(host.showNotice).toHaveBeenCalledWith('Plan mode: OFF');
   });
 
-  it('uses UltraPlan wording for the explicit ultra steering option', async () => {
+  it('announces UltraPlan mode for the explicit ultra option', async () => {
     const { host, session } = makeHost();
 
     await handlePlanCommand(host, 'ultra');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
-    expect(host.showNotice).toHaveBeenCalledWith('UltraPlan steering: ON', undefined);
+    expect(host.showNotice).toHaveBeenCalledWith('UltraPlan mode: ON (structured pipeline)', undefined);
   });
 });
 
@@ -241,7 +243,7 @@ describe('handleThinkingCommand', () => {
 
     expect(session.setThinking).not.toHaveBeenCalled();
     expect(host.showStatus).toHaveBeenCalledWith(
-      'Thinking is off. Supported efforts: low, high, max.',
+      'Thinking is off. Default effort: high. Supported: low, high, max. Use /thinking <level>.',
     );
   });
 
