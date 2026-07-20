@@ -47,6 +47,17 @@ export interface UltraworkRunUpdate {
   readonly knowledgePromotions?: readonly KnowledgePromotion[];
 }
 
+/**
+ * A stage transition prediction recorded at transition time.
+ * The next transition verifies whether the prediction held, enabling
+ * decision observability (AHE pattern: every edit is a falsifiable contract).
+ */
+export interface UltraworkStagePrediction {
+  readonly expectedNextStage?: UltraworkStage;
+  readonly expectedWithinMs?: number;
+  readonly recordedAt: string;
+}
+
 export type UltraworkSwarmGateDecision = 'ENGAGE' | 'DEFER';
 export type UltraworkSwarmGateVerdict = 'PASS' | 'BLOCKED' | 'FAIL';
 
