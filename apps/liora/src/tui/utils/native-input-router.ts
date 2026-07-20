@@ -58,7 +58,11 @@ export class TUIStateNativeInputRouter {
     this.disposers.push(
       this.router.registerGlobalHandler({
         id: TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID,
-        onInput: (event) => handleTranscriptSelectionMouseInput(state, event),
+        onInput: (event) => {
+          const handled = handleTranscriptSelectionMouseInput(state, event);
+          if (handled) this.requestRenderAfterInput();
+          return handled;
+        },
       }),
     );
     if (options.scrollTranscriptViewport !== undefined) {
