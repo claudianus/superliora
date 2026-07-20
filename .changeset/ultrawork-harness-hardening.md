@@ -35,3 +35,4 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add context pressure assessment (low/moderate/high/critical) with guidance per level
 - Add graduated recovery escalation (retry/replan/degrade/abort) based on failure count
 - Add run health score (0-100) aggregating failures, resumes, stuck nodes, stage duration, and context pressure
+- Add unified backpressure signal (none/light/moderate/heavy) combining context pressure, circuit breaker, health grade, and queue depth
