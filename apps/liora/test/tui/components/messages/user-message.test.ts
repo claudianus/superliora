@@ -53,11 +53,11 @@ describe('UserMessageComponent', () => {
     expect(component.render(80)).not.toBe(first);
   });
 
-  it('does not truncate inline image escape sequences', () => {
+  it('shows the full image marker when the attachment is undecodable', () => {
     stubTerminalImageProtocol('kitty');
 
-    // Minimal 2000x1302 PNG bytes so the inline Kitty sequence is long enough
-    // to exceed a typical terminal width if treated as visible text.
+    // Signature + IHDR only: no IDAT chunk, so the decoder must reject the
+    // attachment and the component must fall back to the placeholder marker.
     const pngSignature = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     const ihdrLength = new Uint8Array([0x00, 0x00, 0x00, 0x0d]);
     const ihdrType = new Uint8Array([0x49, 0x48, 0x44, 0x52]);
@@ -96,11 +96,12 @@ describe('UserMessageComponent', () => {
     const component = new UserMessageComponent('', [attachment]);
     const lines = component.render(80);
 
-    const imageLine = lines.find((l) => l.includes('\u001B_G'));
-    expect(imageLine).toBeDefined();
-    expect(imageLine).not.toContain('\u001B[0m');
-    expect(imageLine).not.toContain('…');
-    expect(imageLine).toContain('\u001B\\'); // intact Kitty terminator
+    const markerLine = lines.find((l) => l.includes('[image #1 (2000×1302)]'));
+    expect(markerLine).toBeDefined();
+    expect(markerLine).not.toContain('…');
+    // Raw Kitty escapes must never reach the transcript: the cell compositor
+    // only understands SGR/OSC-8 and would render the payload as garbage.
+    expect(lines.join('')).not.toContain('\u001B_G');
   });
 
   it('omits the sparkles bullet when an empty bullet is provided', () => {

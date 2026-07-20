@@ -1,26 +1,22 @@
 /**
  * Transcript-side rendering of a pasted image.
  *
- * On terminals that speak a renderer-supported inline image protocol, we show
- * the actual image. Everywhere else we fall back to a one-line text marker
- * matching the placeholder the user sees in the input box. This keeps the
- * transcript readable on Terminal.app, Linux default terminals, and recordings.
+ * The cell compositor only understands SGR and OSC-8, so raw kitty/iTerm2
+ * inline-image escapes render as garbled base64 cells. Until the renderer
+ * grows a first-class image channel, every terminal gets the same
+ * dependency-free half-block truecolor preview: PNG bytes are decoded
+ * locally and drawn with `▀` cells (two pixels per cell).
  *
  * Height is capped so a single screenshot cannot monopolize the viewport.
+ * Non-PNG or undecodable attachments keep the one-line text marker
+ * matching the placeholder the user sees in the input box.
  */
 
-import {
-  Text,
-  calculateRendererInlineImageRows,
-  detectNativeTerminalImageProtocol,
-  encodeRendererInlineImage,
-  type Component,
-  type RendererInlineImageFormat,
-  type RendererInlineImageProtocol,
-} from '#/tui/renderer';
-
+import { Text, detectNativeTerminalColorMode, type Component } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
+import { renderHalfBlockPreview } from '#/utils/image/half-block-preview';
+import { decodePng, type DecodedPng } from '#/utils/image/png-decode';
 
 const MAX_IMAGE_ROWS = 12;
 const MAX_IMAGE_WIDTH = 40;
@@ -29,25 +25,27 @@ export class ImageThumbnail implements Component {
   private readonly attachment: ImageAttachment;
   private lastRenderWidth = 80;
   private lastBuiltWidth: number | undefined;
-  private lastBuiltProtocol: RendererInlineImageProtocol | undefined;
+  private lastBuiltTruecolor: boolean | undefined;
   private lastBuiltLines: string[] | undefined;
+  private decoded: DecodedPng | undefined;
+  private decodeFailed = false;
 
   constructor(attachment: ImageAttachment) {
     this.attachment = attachment;
-    this.rebuild(this.lastRenderWidth, detectNativeTerminalImageProtocol(process.env));
+    this.rebuild(this.lastRenderWidth, this.detectTruecolor());
   }
 
   render(width: number): string[] {
     const safeWidth = Math.max(0, width);
     this.lastRenderWidth = safeWidth;
 
-    const protocol = detectNativeTerminalImageProtocol(process.env);
+    const truecolor = this.detectTruecolor();
     if (
       this.lastBuiltWidth !== safeWidth ||
-      this.lastBuiltProtocol !== protocol ||
+      this.lastBuiltTruecolor !== truecolor ||
       this.lastBuiltLines === undefined
     ) {
-      this.rebuild(safeWidth, protocol);
+      this.rebuild(safeWidth, truecolor);
     }
 
     return this.lastBuiltLines ?? [''];
@@ -55,81 +53,48 @@ export class ImageThumbnail implements Component {
 
   invalidate(): void {
     this.lastBuiltLines = undefined;
-    this.rebuild(this.lastRenderWidth, detectNativeTerminalImageProtocol(process.env));
+    this.decoded = undefined;
+    this.decodeFailed = false;
+    this.rebuild(this.lastRenderWidth, this.detectTruecolor());
   }
 
-  private rebuild(width: number, protocol: RendererInlineImageProtocol): void {
-    this.lastBuiltLines = this.buildLines(width, protocol);
+  private detectTruecolor(): boolean {
+    return detectNativeTerminalColorMode(process.env) === 'truecolor';
+  }
+
+  private rebuild(width: number, truecolor: boolean): void {
+    this.lastBuiltLines = this.buildLines(width, truecolor);
     this.lastBuiltWidth = width;
-    this.lastBuiltProtocol = protocol;
+    this.lastBuiltTruecolor = truecolor;
   }
 
-  private buildLines(width: number, protocol: RendererInlineImageProtocol): string[] {
+  private buildLines(width: number, truecolor: boolean): string[] {
     if (width <= 0) return [''];
-    if (width < MAX_IMAGE_WIDTH + 2) return this.fallbackLines(width);
+    if (this.attachment.mime !== 'image/png') return this.fallbackLines(width);
 
-    if (protocol === 'none') return this.fallbackLines(width);
+    const decoded = this.decode();
+    if (decoded === undefined) return this.fallbackLines(width);
 
-    const format = imageFormatFromMime(this.attachment.mime);
-    if (!supportsInlineFormat(protocol, format)) return this.fallbackLines(width);
-
-    const imageWidth = Math.max(1, Math.min(MAX_IMAGE_WIDTH, width - 2));
-    const rows = calculateRendererInlineImageRows(
-      {
-        widthPx: this.attachment.width,
-        heightPx: this.attachment.height,
-      },
-      imageWidth,
-      undefined,
-      MAX_IMAGE_ROWS,
-    );
-    const encoded = encodeRendererInlineImage(protocol, {
-      data: this.attachment.bytes,
-      format,
-      widthCells: imageWidth,
-      heightCells: rows,
-      widthPx: this.attachment.width,
-      heightPx: this.attachment.height,
-      filename: this.attachment.placeholder,
-      doNotMoveCursor: protocol === 'kitty',
+    return renderHalfBlockPreview(decoded, {
+      maxWidth: Math.max(1, Math.min(width, MAX_IMAGE_WIDTH)),
+      maxHeightRows: MAX_IMAGE_ROWS,
+      truecolor,
     });
+  }
 
-    const lines: string[] = [];
-    for (let index = 0; index < rows - 1; index++) {
-      lines.push('');
+  private decode(): DecodedPng | undefined {
+    if (this.decoded !== undefined) return this.decoded;
+    if (this.decodeFailed) return undefined;
+    try {
+      this.decoded = decodePng(this.attachment.bytes);
+      return this.decoded;
+    } catch {
+      this.decodeFailed = true;
+      return undefined;
     }
-    const rowOffset = rows - 1;
-    const moveUp = rowOffset > 0 ? `\u001B[${String(rowOffset)}A` : '';
-    const moveDown = protocol === 'kitty' && rowOffset > 0 ? `\u001B[${String(rowOffset)}B` : '';
-    lines.push(moveUp + encoded.output + moveDown);
-    return lines;
   }
 
   private fallbackLines(width: number): string[] {
     return new Text(currentTheme.fg('accent', this.attachment.placeholder), 0, 0).render(width);
   }
-}
-
-function imageFormatFromMime(mime: string): RendererInlineImageFormat | undefined {
-  switch (mime) {
-    case 'image/png':
-      return 'png';
-    case 'image/jpeg':
-      return 'jpeg';
-    case 'image/gif':
-      return 'gif';
-    case 'image/webp':
-      return 'webp';
-    default:
-      return undefined;
-  }
-}
-
-function supportsInlineFormat(
-  protocol: RendererInlineImageProtocol,
-  format: RendererInlineImageFormat | undefined,
-): format is RendererInlineImageFormat {
-  if (protocol === 'none' || format === undefined) return false;
-  if (protocol === 'kitty') return format === 'png';
-  return true;
 }
