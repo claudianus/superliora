@@ -110,7 +110,15 @@ export function planTUINativeStage(
     const railActivity = state.activityContainer.render(railWidth);
     const railQueue = state.queueContainer.render(railWidth);
     const railBtw = state.btwPanelContainer.render(railWidth);
-    railLines = [...railTodo, ...railActivity, ...railQueue, ...railBtw];
+    // Blank divider rows between non-empty sections keep the rail readable;
+    // empty sections are omitted so the top-first slice never starts or ends
+    // with a dangling separator.
+    const railSections = [railTodo, railActivity, railQueue, railBtw].filter(
+      (section) => section.length > 0,
+    );
+    railLines = railSections.flatMap((section, index) =>
+      index === 0 ? section : ['', ...section],
+    );
     // Stack does not reserve vertical space for railed panels.
     activityLines = [];
     todoLines = [];

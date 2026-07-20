@@ -18,6 +18,13 @@ export const RAIL_WIDTH = 36;
 /** Gap between stage and rail when both are shown (cols). */
 export const STAGE_RAIL_GAP = 2;
 
+/**
+ * Minimum terminal width (cols) at which the situational rail may open.
+ * Below this threshold the panels stay in the vertical stack even when they
+ * have content, so narrow windows keep the full width for the transcript.
+ */
+export const RAIL_MIN_COLS = 120;
+
 export type StageLayoutMode = 'stack' | 'rail';
 
 export interface StageBand {
@@ -51,8 +58,10 @@ export interface ResolveStageLayoutInput {
  * - Narrow / short profiles keep a full-bleed stack.
  * - Wider terminals cap the stage at {@link STAGE_MAX_WIDTH} and center it.
  * - Tall terminals cap the stage at {@link STAGE_MAX_HEIGHT} and center it.
- * - A right rail opens only on `wide`/`ultrawide` when content exists and the
- *   stage+gap+rail bundle still fits; otherwise panels stay in the vertical stack.
+ * - A right rail opens on `wide`/`ultrawide` terminals with at least
+ *   {@link RAIL_MIN_COLS} columns when content exists; the stage narrows so
+ *   the fixed-width rail always fits. Below that threshold, or without rail
+ *   content, panels stay in the vertical stack.
  */
 export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout {
   const cols = Math.max(0, Math.floor(input.width));
@@ -67,9 +76,15 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
   // Only wide+ terminals get a capped, centered reading column. Narrower
   // profiles stay full-bleed so small windows do not lose horizontal space.
   const railEligible = profile === 'wide' || profile === 'ultrawide';
-  const stageWidth = railEligible ? Math.min(cols, STAGE_MAX_WIDTH) : cols;
+  const wantsRail = input.hasRailContent && railEligible && cols >= RAIL_MIN_COLS;
+  // Once the rail opens, narrow the stage so the fixed-width rail always
+  // fits; stack mode keeps the capped reading column.
+  const stageWidth = wantsRail
+    ? Math.min(STAGE_MAX_WIDTH, cols - (STAGE_RAIL_GAP + RAIL_WIDTH))
+    : railEligible
+      ? Math.min(cols, STAGE_MAX_WIDTH)
+      : cols;
   const stageHeight = Number.isFinite(rows) ? Math.min(rows, STAGE_MAX_HEIGHT) : STAGE_MAX_HEIGHT;
-  const wantsRail = input.hasRailContent && railEligible;
   const railBundle = stageWidth + STAGE_RAIL_GAP + RAIL_WIDTH;
   const mode: StageLayoutMode = wantsRail && railBundle <= cols ? 'rail' : 'stack';
   const bundleWidth = mode === 'rail' ? railBundle : stageWidth;
