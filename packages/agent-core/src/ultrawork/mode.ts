@@ -131,6 +131,10 @@ export class UltraworkMode {
       this.agent.log.warn('ultrawork workflow report seed failed', { runId: input.id, error });
     }
     const run = this.advance('plan', 'Ultrawork started');
+    this.agent.telemetry.track('ultrawork_create', {
+      run_id: input.id,
+      source: input.activation.source,
+    });
     this.writeCheckpoint({ flush: true });
     return run;
   }
@@ -195,6 +199,11 @@ export class UltraworkMode {
     this.interruptReason = reason;
     const blocked = machine.markBlocked(reason);
     await this.agent.goal.pauseGoal();
+    this.agent.telemetry.track('ultrawork_pause', {
+      run_id: run.id,
+      stage: run.stage,
+      reason,
+    });
     this.writeCheckpoint({ flush: true });
     return blocked;
   }
@@ -207,6 +216,11 @@ export class UltraworkMode {
 
     this.interruptReason = input.reason;
     const blocked = machine.markBlocked(input.reason);
+    this.agent.telemetry.track('ultrawork_interrupt', {
+      run_id: run.id,
+      stage: run.stage,
+      reason: input.reason,
+    });
     this.writeCheckpoint({ flush: true });
     return blocked;
   }
