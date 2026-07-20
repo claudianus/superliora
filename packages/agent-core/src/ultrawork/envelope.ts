@@ -167,6 +167,11 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     lines.push(`long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (threshold ${String(Math.round(longStage.thresholdMs / 60_000))}min)`);
   }
 
+  // Context budget awareness: help post-compaction resume understand available context.
+  if (snapshot.journalOffset !== undefined) {
+    lines.push(`journal_offset: ${String(snapshot.journalOffset)}`);
+  }
+
   lines.push(
     'resume_policy: Continue this Ultrawork run from the checkpoint. Do not restart UltraPlan interview, create a new plan file, or open a new Ultrawork run unless the checkpoint is unusable.',
   );

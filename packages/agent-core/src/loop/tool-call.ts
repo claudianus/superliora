@@ -596,6 +596,12 @@ function toolCallDisplayFieldsFromExecution(
   };
 }
 
+/**
+ * Threshold (ms) for flagging slow tool executions. Tools exceeding this
+ * are logged for observability (AHE decision observability pillar).
+ */
+const SLOW_TOOL_THRESHOLD_MS = 10_000;
+
 async function runRunnableToolCall(
   step: ToolCallStepContext,
   call: RunnableToolCall,
@@ -610,6 +616,7 @@ async function runRunnableToolCall(
     return makeErrorToolResult(call, effectiveArgs, abortedToolOutput(toolName, signal));
   }
 
+  const startMs = Date.now();
   let toolResult: ExecutableToolResult;
   try {
     const raw = await executeTool(step, execution, toolCall, toolName, metadata);
@@ -628,6 +635,17 @@ async function runRunnableToolCall(
       ? abortedToolOutput(toolName, signal)
       : `Tool "${toolName}" failed: ${errorMessage(error)}`;
     return makeErrorToolResult(call, effectiveArgs, output);
+  }
+
+  const durationMs = Date.now() - startMs;
+  // Track slow tool executions for observability.
+  if (durationMs > SLOW_TOOL_THRESHOLD_MS) {
+    step.log?.info('slow tool execution', {
+      toolName,
+      toolCallId: toolCall.id,
+      durationMs,
+      thresholdMs: SLOW_TOOL_THRESHOLD_MS,
+    });
   }
 
   // Track failure patterns for isError results (e.g. grace timeout, coercion).

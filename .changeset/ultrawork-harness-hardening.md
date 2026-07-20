@@ -25,3 +25,6 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add TurnResult.durationMs for turn-level wall-clock observability
 - Add loop repetition pattern detection (warns at 4 identical tool calls) for stagnation detection
 - Add source-of-truth principle to recovery prompts (repository state > chat memory)
+- Add slow tool execution logging (threshold 10s) for decision observability
+- Add oscillation warning in recovery prompt when resume cycles exceed threshold
+- Add journal_offset to compaction envelope for context budget awareness
