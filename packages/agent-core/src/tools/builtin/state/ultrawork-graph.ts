@@ -116,6 +116,13 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
     await maybeFinishUltraworkRun(this.agent);
 
     const changedCount = changedNodes(previous, graph).length;
+    this.agent.telemetry.track('ultrawork_graph_update', {
+      run_id: graph.runId,
+      total_nodes: graph.nodes.length,
+      changed_nodes: changedCount,
+      done_nodes: graph.nodes.filter((n) => n.status === 'done').length,
+      failed_nodes: graph.nodes.filter((n) => n.status === 'failed').length,
+    });
     const todoLine = syncTodos ? `\n${renderTodoList(todosFromWorkGraph(graph), 'Synced TodoList:')}` : '';
     return {
       isError: false,
