@@ -64,6 +64,14 @@ interface MainTuiDriver extends StartupDriver {
   initMainTui(): Promise<boolean>;
 }
 
+/** Runs the Welcome + banner startup pieces that `start()` owns; they no
+ *  longer run inside initMainTui since the splash-first startup order. */
+async function runStartupChrome(driver: MainTuiDriver): Promise<void> {
+  const tui = driver as unknown as { renderWelcome(): void; loadBanner(): Promise<void> };
+  tui.renderWelcome();
+  await tui.loadBanner();
+}
+
 function makeStartupInput(
   cliOptions: Partial<LioraTUIStartupInput['cliOptions']> = {},
   tuiConfig: Partial<LioraTUIStartupInput['tuiConfig']> = {},
@@ -580,7 +588,7 @@ describe('LioraTUI startup', () => {
     expect(harness.createSession).toHaveBeenCalledWith({
       workDir: '/tmp/proj-a',
       model: 'kimi-code/k2.5',
-      permission: undefined,
+      permission: 'yolo',
       planMode: false,
     });
   });
@@ -1234,7 +1242,7 @@ describe('LioraTUI startup', () => {
       workDir: '/tmp/proj-a',
       model: 'k2',
       thinking: 'off',
-      permission: undefined,
+      permission: 'yolo',
       planMode: false,
     });
     expect(driver.state.appState).toMatchObject({
@@ -1272,6 +1280,7 @@ describe('LioraTUI startup', () => {
       provider: 'managed:kimi-api',
       method: 'oauth',
       already_logged_in: false,
+      add_account: false,
     });
   });
 
@@ -1293,7 +1302,23 @@ describe('LioraTUI startup', () => {
     harness.track.mockClear();
 
     vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
-    await handleLoginCommand(driver as any);
+    const loginPromise = handleLoginCommand(driver as any);
+    // The signed-in flow asks whether to refresh the existing account or add
+    // another one; accept the default and dismiss any follow-up picker (for
+    // example the model picker) until login resolves.
+    const dismissPickers = setInterval(() => {
+      const current = driver.state.editorContainer.children[0] as
+        | { handleInput(data: string): void }
+        | undefined;
+      if (current !== undefined && current !== driver.state.editor) {
+        current.handleInput('\r');
+      }
+    }, 10);
+    try {
+      await loginPromise;
+    } finally {
+      clearInterval(dismissPickers);
+    }
 
     expect(harness.auth.login).toHaveBeenCalledWith(
       'managed:kimi-api',
@@ -1306,6 +1331,7 @@ describe('LioraTUI startup', () => {
       provider: 'managed:kimi-api',
       method: 'oauth',
       already_logged_in: true,
+      add_account: true,
     });
   });
 
@@ -1580,6 +1606,7 @@ describe('LioraTUI startup', () => {
     ) as unknown as MainTuiDriver;
 
     await driver.initMainTui();
+    await runStartupChrome(driver);
 
     await vi.waitFor(() => {
       expect(
@@ -1625,6 +1652,7 @@ describe('LioraTUI startup', () => {
       ) as unknown as MainTuiDriver;
 
       await driver.initMainTui();
+      await runStartupChrome(driver);
 
       await vi.waitFor(() => {
         expect(
@@ -1682,6 +1710,7 @@ describe('LioraTUI startup', () => {
       ) as unknown as MainTuiDriver;
 
       await driver.initMainTui();
+      await runStartupChrome(driver);
 
       await vi.waitFor(() => {
         expect(
@@ -1738,9 +1767,16 @@ describe('LioraTUI startup', () => {
       const session = makeSession();
       const harness = makeHarness(session);
       driver = makeDriver(harness, makeStartupInput());
-      const requestRender = vi.spyOn(driver.state.renderer, 'requestRender').mockImplementation(() => {});
+      // Ambient ticks land on the native renderer runtime (the lifecycle
+      // wrapper only forwards explicit TUI render requests).
+      const requestRender = vi
+        .spyOn(driver.state.renderer.nativeRuntime, 'requestRender')
+        .mockImplementation(() => {});
 
       await driver.init();
+      // The renderer loop (and its ambient animation ticker) starts in
+      // start(), not init(); arm it directly under fake timers.
+      (driver as unknown as { startEventLoop(): void }).startEventLoop();
 
       // Fill the transcript with enough entries that the old message-count gate
       // would have stopped the ambient animation ticker.
