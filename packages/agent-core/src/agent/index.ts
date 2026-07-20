@@ -382,7 +382,7 @@ export class Agent {
       cwdListing: context?.cwdListing,
       agentsMd: context?.agentsMd,
       additionalDirsInfo: context?.additionalDirsInfo,
-      roleAdditional: buildPersonaRoleAdditional(this.kimiConfig?.persona),
+      roleAdditional: this.type === 'main' ? buildPersonaRoleAdditional(this.kimiConfig?.persona) : undefined,
     });
     this.config.update({ profileName: profile.name, systemPrompt });
     this.config.setSystemPromptMeta({

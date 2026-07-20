@@ -78,6 +78,8 @@ export interface UsageReportOptions {
   readonly managedUsageFillProgress?: number;
   /** Multi-provider quota snapshot for the Provider Quotas section. */
   readonly providerQuota?: AllProvidersUsageSnapshot | null;
+  /** When true, only render the provider quota section (skip session/cache/context). */
+  readonly providerQuotaOnly?: boolean;
 }
 
 export interface ManagedUsageReportLineOptions {
@@ -414,6 +416,17 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
   const errorStyle = (text: string) => currentTheme.fg('error', text);
   const severityColor = (sev: 'ok' | 'warn' | 'danger'): 'success' | 'warning' | 'error' =>
     sev === 'danger' ? 'error' : sev === 'warn' ? 'warning' : 'success';
+
+  // Provider-quota-only mode: skip session/cache/context sections entirely.
+  if (options.providerQuotaOnly) {
+    return buildProviderQuotaSection(
+      options.providerQuota,
+      accent,
+      value,
+      muted,
+      errorStyle,
+    );
+  }
 
   const lines: string[] = [
     accent('Session usage'),

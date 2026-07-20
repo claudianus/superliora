@@ -1110,6 +1110,7 @@ export class LioraTUI {
     // firing into a closed session.
     this.tasksBrowserController.close();
     this.usageMonitor.dispose();
+    this.promptIntelligence.dispose();
     // Central teardown: any resource registered with the disposable registry
     // (timers, intervals, listeners, watchers) is cleaned up here.
     this.disposables.disposeAll();

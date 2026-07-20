@@ -177,6 +177,7 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
       contextTokens: 0,
       maxContextTokens: 0,
       providerQuota: quota,
+      providerQuotaOnly: true,
     });
   };
 
