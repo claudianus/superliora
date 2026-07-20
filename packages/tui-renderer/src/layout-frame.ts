@@ -53,7 +53,14 @@ export function renderNativeLayoutFrame(
     bufferHeight: renderer.height,
     layers,
   }) ?? false;
-  const clear = options.clear ?? !reusableRows;
+  // When the composition cache is invalidated (topology change — e.g. splash
+  // fullscreen-takeover → main UI transition), the buffer MUST be cleared
+  // regardless of the caller's damage-only policy.  Without this, a stale
+  // buffer (splash content) survives because the ambient animation guard
+  // (clear=false) was designed for steady-state ticks where the previous
+  // frame's content is still valid.  The fill (canvas background) prevents
+  // any visible "black flash"; synchronized output avoids tearing.
+  const clear = !reusableRows || (options.clear ?? false);
   const timeVaryingVfx = rendererRegionsRequireAnimationFrame(layers);
   const canReuseRows = reusableRows && !clear && !timeVaryingVfx;
   renderer.beginFrame({ clear, fill: options.fill });
