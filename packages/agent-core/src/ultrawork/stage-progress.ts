@@ -480,3 +480,69 @@ export function assessBackpressure(inputs: BackpressureInputs): {
 
   return { level, guidance: BACKPRESSURE_GUIDANCE[level] };
 }
+
+// ---------------------------------------------------------------------------
+// Degradation mode tracking (graceful degradation pattern)
+// ---------------------------------------------------------------------------
+
+export type DegradationLevel = 'normal' | 'degraded' | 'severe' | 'critical';
+
+export interface DegradationState {
+  readonly level: DegradationLevel;
+  readonly affectedCapabilities: readonly string[];
+  readonly activeSince: number;
+  readonly reason: string;
+}
+
+export const DEGRADATION_GUIDANCE: Readonly<Record<DegradationLevel, string>> = {
+  normal: 'All systems operational; full capabilities available.',
+  degraded: 'Minor degradation; some features may be slower or limited. Continue with caution.',
+  severe: 'Significant degradation; non-essential features disabled. Focus on core task completion.',
+  critical: 'Critical degradation; only essential operations available. Consider pausing or aborting.',
+};
+
+/**
+ * Assess the current degradation level based on system health signals.
+ * Follows the "graceful degradation" pattern: maintain core functionality
+ * even under severely degraded conditions.
+ */
+export function assessDegradationLevel(inputs: {
+  readonly backpressureLevel: BackpressureLevel;
+  readonly circuitBreakersOpen: number;
+  readonly runHealthScore: number;
+}): {
+  readonly level: DegradationLevel;
+  readonly guidance: string;
+  readonly affectedCapabilities: readonly string[];
+} {
+  const { backpressureLevel, circuitBreakersOpen, runHealthScore } = inputs;
+  const affected: string[] = [];
+
+  // Calculate degradation score
+  let score = 0;
+  if (backpressureLevel === 'heavy') score += 3;
+  else if (backpressureLevel === 'moderate') score += 2;
+  else if (backpressureLevel === 'light') score += 1;
+
+  score += Math.min(3, circuitBreakersOpen);
+
+  if (runHealthScore < 40) score += 3;
+  else if (runHealthScore < 70) score += 1;
+
+  // Determine level and affected capabilities
+  let level: DegradationLevel;
+  if (score >= 7) {
+    level = 'critical';
+    affected.push('parallel_execution', 'non_essential_tools', 'verbose_logging');
+  } else if (score >= 5) {
+    level = 'severe';
+    affected.push('parallel_execution', 'optional_verification');
+  } else if (score >= 3) {
+    level = 'degraded';
+    affected.push('concurrent_operations');
+  } else {
+    level = 'normal';
+  }
+
+  return { level, guidance: DEGRADATION_GUIDANCE[level], affectedCapabilities: affected };
+}
