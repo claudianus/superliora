@@ -681,6 +681,29 @@ export class LioraTUI {
       config.defaultModel !== undefined ||
       Object.keys(config.providers ?? {}).length > 0;
     if (hasProvider) return;
+
+    // Auto-detect Qwen Token Plan: when the env key is set and no provider
+    // exists yet, configure it silently so the user gets a working setup
+    // without any interaction.
+    const qwenKey = process.env['QWEN_TOKEN_PLAN_API_KEY']?.trim();
+    if (qwenKey !== undefined && qwenKey.length > 0) {
+      const { applyQwenTokenPlanProvider } = await import('#/tui/utils/qwen-token-plan');
+      applyQwenTokenPlanProvider(config, qwenKey);
+      await this.harness.setConfig({
+        providers: config.providers,
+        models: config.models,
+        defaultModel: config.defaultModel,
+        defaultThinking: config.defaultThinking,
+      });
+      await this.authFlow.refreshConfigAfterLogin();
+      this.showStatus(
+        'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
+        'Text, image, video generation, harness tools, and visual understanding enabled.',
+        'success',
+      );
+      return;
+    }
+
     // Route through the normal slash-command dispatch so /login's unified
     // provider picker opens on first run.
     slashCommands.dispatchInput(this, '/login');

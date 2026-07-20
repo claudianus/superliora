@@ -58,6 +58,12 @@ import {
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import { applyCustomEndpointProvider, lookupModelCapability, probeModelsEndpoint } from '#/utils/custom-provider';
 import {
+  applyQwenTokenPlanProvider,
+  QWEN_TOKEN_PLAN_PROVIDER_ID,
+  QWEN_TOKEN_PLAN_KEY_PREFIX,
+  validateQwenTokenPlanKeyFormat,
+} from '#/tui/utils/qwen-token-plan';
+import {
   promptApiKeyForCatalogProvider,
   promptOAuthCallback,
   promptProviderCatalog,
@@ -280,6 +286,9 @@ export async function runUnifiedProviderConnect(
       break;
     case 'cloud':
       await connectCloudProvider(host, selection.providerId);
+      break;
+    case 'qwen-token-plan':
+      await connectQwenTokenPlan(host);
       break;
     case 'catalog':
       await connectCatalogProvider(host, catalog, selection.providerId);
@@ -776,6 +785,59 @@ async function connectCloudProvider(
   );
 
   await openModelPickerForProvider(host, providerId);
+}
+
+/**
+ * Connects Qwen Cloud Token Plan — a first-class multimodal subscription
+ * supporting text generation, image generation (qwen-image-2.0), video
+ * generation (happyhorse-1.1), harness tools (web search, code interpreter,
+ * etc.), and visual understanding. The user only needs to provide their
+ * dedicated API key (sk-sp-xxxxx format).
+ */
+async function connectQwenTokenPlan(host: SlashCommandHost): Promise<void> {
+  const option: ProviderCatalogOption = {
+    value: 'qwen-token-plan',
+    label: 'Qwen Cloud (Token Plan)',
+    authKind: 'api-key',
+    modelCount: 4,
+    baseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+    envVars: ['QWEN_TOKEN_PLAN_API_KEY'],
+    docUrl: 'https://docs.qwencloud.com/token-plan/overview',
+  };
+
+  const apiKey = await promptApiKeyForCatalogProvider(host, option);
+  if (apiKey === undefined) return;
+
+  // Warn if the key doesn't look like a Token Plan dedicated key.
+  const warning = validateQwenTokenPlanKeyFormat(apiKey);
+  if (warning !== undefined) {
+    host.showStatus(warning);
+  }
+
+  const config = await host.harness.getConfig();
+  if (config.providers[QWEN_TOKEN_PLAN_PROVIDER_ID] !== undefined) {
+    await host.harness.removeProvider(QWEN_TOKEN_PLAN_PROVIDER_ID);
+  }
+
+  const freshConfig = await host.harness.getConfig();
+  const result = applyQwenTokenPlanProvider(freshConfig, apiKey);
+
+  await host.harness.setConfig({
+    providers: freshConfig.providers,
+    models: freshConfig.models,
+    defaultModel: freshConfig.defaultModel,
+    defaultThinking: freshConfig.defaultThinking,
+  });
+
+  await host.authFlow.refreshConfigAfterLogin();
+  host.track('connect', { provider: QWEN_TOKEN_PLAN_PROVIDER_ID, method: 'qwen_token_plan' });
+  host.showStatus(
+    `Qwen Cloud (Token Plan) connected: ${String(result.modelCount)} models. ` +
+    'Image/video generation, harness tools, and visual understanding enabled.',
+    'success',
+  );
+
+  await openModelPickerForProvider(host, QWEN_TOKEN_PLAN_PROVIDER_ID);
 }
 
 function promptCustomRegistryImport(

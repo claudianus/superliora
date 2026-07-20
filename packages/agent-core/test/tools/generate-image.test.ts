@@ -6,7 +6,17 @@ import {
 } from '../../src/tools/builtin/media/generate-image';
 
 describe('GenerateImage provider selection', () => {
-  it('prefers OpenAI when both keys exist under auto', () => {
+  it('prefers Qwen Token Plan when key exists under auto', () => {
+    expect(
+      resolveImageGenerationProvider('auto', {
+        qwenTokenPlanApiKey: 'sk-sp-test',
+        openaiApiKey: 'sk-test',
+        googleApiKey: 'google-test',
+      }),
+    ).toBe('qwen');
+  });
+
+  it('falls back to OpenAI when Qwen key is absent', () => {
     expect(
       resolveImageGenerationProvider('auto', {
         openaiApiKey: 'sk-test',
@@ -27,9 +37,20 @@ describe('GenerateImage provider selection', () => {
         googleApiKey: 'google-test',
       }),
     ).toBeUndefined();
+    expect(
+      resolveImageGenerationProvider('qwen', {
+        qwenTokenPlanApiKey: 'sk-sp-test',
+      }),
+    ).toBe('qwen');
+    expect(
+      resolveImageGenerationProvider('qwen', {
+        openaiApiKey: 'sk-test',
+      }),
+    ).toBeUndefined();
   });
 
-  it('reports availability from either key', () => {
+  it('reports availability from any key', () => {
+    expect(isGenerateImageAvailable({ qwenTokenPlanApiKey: 'sk-sp-test' })).toBe(true);
     expect(isGenerateImageAvailable({ openaiApiKey: 'sk-test' })).toBe(true);
     expect(isGenerateImageAvailable({ googleApiKey: 'google-test' })).toBe(true);
     expect(isGenerateImageAvailable({})).toBe(false);

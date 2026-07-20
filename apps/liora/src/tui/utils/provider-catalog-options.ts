@@ -54,6 +54,7 @@ export type ProviderCatalogSelection =
   | { readonly kind: 'oauth'; readonly providerId: string }
   | { readonly kind: 'catalog'; readonly providerId: string }
   | { readonly kind: 'cloud'; readonly providerId: 'bedrock' | 'vertex_claude' }
+  | { readonly kind: 'qwen-token-plan' }
   | { readonly kind: 'custom-endpoint' }
   | { readonly kind: 'custom-registry' };
 
@@ -69,6 +70,8 @@ const PROVIDER_PRIORITY: ReadonlyMap<string, number> = new Map<string, number>([
   ['mistral', 7],
   // SuperLiora-curated subscription gateway (not in models.dev).
   ['clinepass', 8],
+  // Qwen Cloud Token Plan — first-class multimodal subscription.
+  ['qwen-token-plan', 9],
 ]);
 
 export function buildProviderCatalogOptions(catalog: Catalog): readonly ProviderCatalogOption[] {
@@ -136,6 +139,18 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
     docUrl: 'https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai',
   });
 
+  // Qwen Cloud Token Plan — first-class multimodal subscription with text,
+  // image, video generation, harness tools, and visual understanding.
+  options.push({
+    value: 'qwen-token-plan',
+    label: 'Qwen Cloud (Token Plan)',
+    authKind: 'api-key',
+    modelCount: 4,
+    baseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+    envVars: ['QWEN_TOKEN_PLAN_API_KEY'],
+    docUrl: 'https://docs.qwencloud.com/token-plan/overview',
+  });
+
   options.push({
     value: 'custom-endpoint',
     label: 'Custom endpoint (OpenAI-compatible)',
@@ -178,6 +193,7 @@ export function resolveProviderSelection(value: string): ProviderCatalogSelectio
   if (value.startsWith('oauth:')) return { kind: 'oauth', providerId: value.slice('oauth:'.length) };
   if (value === 'custom-endpoint') return { kind: 'custom-endpoint' };
   if (value === 'custom-registry') return { kind: 'custom-registry' };
+  if (value === 'qwen-token-plan') return { kind: 'qwen-token-plan' };
   if (value.startsWith('cloud:')) {
     const providerId = value.slice('cloud:'.length);
     if (providerId === 'bedrock' || providerId === 'vertex_claude') {
