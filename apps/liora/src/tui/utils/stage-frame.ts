@@ -425,7 +425,10 @@ export function createStageFrameOverlayRegions(input: {
       const lx = cell.x - band.x;
       const ly = cell.y - band.y;
       if (ly < 0 || ly >= band.height || lx < 0 || lx >= band.width) continue;
-      lines[ly]![lx] = rimCell(cell.char, cell.fg, cell.bg ?? rimBg, cell.bold);
+      // Fresh row reference so the compositor lineKey WeakMap recomputes.
+      const row = [...lines[ly]!];
+      row[lx] = rimCell(cell.char, cell.fg, cell.bg ?? rimBg, cell.bold);
+      lines[ly] = row;
       noteRimBandScatter(i, lx, ly);
     }
     regions.push({
@@ -511,7 +514,12 @@ function clearRimBandScatter(
     const lx = packed & 0xffff;
     const ly = (packed >>> 16) & 0xffff;
     const row = lines[ly];
-    if (row !== undefined && lx < row.length) row[lx] = emptyRim;
+    if (row !== undefined && lx < row.length) {
+      // Fresh row reference so the compositor lineKey WeakMap recomputes.
+      const copy = [...row];
+      copy[lx] = emptyRim;
+      lines[ly] = copy;
+    }
   }
   prev.length = 0;
 }
