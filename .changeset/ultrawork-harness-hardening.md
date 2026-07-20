@@ -32,3 +32,4 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add analyzeFailedNodes helper and surface categorized failures in recovery prompt
 - Add checkpoint integrity validation (validateCheckpointMirror) with staleness detection
 - Add adaptive circuit breaker for tool execution (closed/open/half-open states, 5-failure threshold, 30s cooldown)
+- Add context pressure assessment (low/moderate/high/critical) with guidance per level
