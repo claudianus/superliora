@@ -129,6 +129,7 @@ import { SessionReplayRenderer, type SessionReplayHost } from './controllers/ses
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { UsageMonitorController } from './controllers/usage-monitor';
+import { setKittyGraphicsChannel } from './media/kitty-graphics-channel';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
@@ -751,6 +752,11 @@ export class LioraTUI {
 
   private startEventLoop(): void {
     this.state.renderer.start();
+    // Kitty graphics escapes bypass the cell compositor; route them straight
+    // to the terminal while the event loop owns it.
+    setKittyGraphicsChannel((sequence) => {
+      this.state.terminal.write(sequence);
+    });
     this.eventLoopStarted = true;
     this.ensureNativeInputRouter();
     this.attachNativeRendererCallback();
@@ -1215,6 +1221,7 @@ export class LioraTUI {
 
   private disposeTerminalTracking(): void {
     this.stopNativeRendererAdapters();
+    setKittyGraphicsChannel(undefined);
     this.eventLoopStarted = false;
     this.stopTerminalThemeTracking();
     this.clipboardImageHintController?.stop();

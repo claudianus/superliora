@@ -8,6 +8,7 @@
  */
 
 import type { DecodedPng } from '#/utils/image/png-decode';
+import { computePreviewCellSize } from '#/utils/image/preview-size';
 
 export interface HalfBlockPreviewOptions {
   readonly maxWidth: number;
@@ -21,12 +22,14 @@ export function renderHalfBlockPreview(
   png: DecodedPng,
   options: HalfBlockPreviewOptions,
 ): string[] {
-  const maxWidth = Math.max(1, options.maxWidth);
-  const maxHeightRows = Math.max(1, options.maxHeightRows);
-  const scale = Math.min(maxWidth / png.width, (maxHeightRows * 2) / png.height);
-  const outW = clamp(Math.round(png.width * scale), 1, maxWidth);
-  let outH = clamp(Math.round(png.height * scale), 2, maxHeightRows * 2);
-  if (outH % 2 === 1) outH -= 1;
+  const { columns, rows } = computePreviewCellSize(
+    png.width,
+    png.height,
+    options.maxWidth,
+    options.maxHeightRows,
+  );
+  const outW = columns;
+  const outH = rows * 2;
 
   const cells = resample(png, outW, outH);
 
@@ -113,8 +116,4 @@ function cubeIndex(cells: Uint8Array, offset: number): number {
   const g5 = Math.round((cells[offset + 1]! / 255) * 5);
   const b5 = Math.round((cells[offset + 2]! / 255) * 5);
   return 16 + 36 * r5 + 6 * g5 + b5;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }

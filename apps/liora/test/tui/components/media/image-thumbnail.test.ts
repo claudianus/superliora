@@ -1,8 +1,12 @@
 import { deflateSync } from 'node:zlib';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ImageThumbnail } from '#/tui/components/media/image-thumbnail';
+import {
+  ImageThumbnail,
+  resetKittyPlaceholderTransmissions,
+} from '#/tui/components/media/image-thumbnail';
+import { setKittyGraphicsChannel } from '#/tui/media/kitty-graphics-channel';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
 
 const SGR_RE = /\u001B\[[0-9;]*m/g;
@@ -97,7 +101,16 @@ function stubColorEnv(mode: 'truecolor' | '256'): void {
   vi.stubEnv('CLICOLOR', '');
   vi.stubEnv('TERM', 'xterm-256color');
   vi.stubEnv('TERM_PROGRAM', '');
+  vi.stubEnv('KITTY_WINDOW_ID', '');
   vi.stubEnv('COLORTERM', mode === 'truecolor' ? 'truecolor' : '');
+}
+
+function stubKittyEnv(): void {
+  stubColorEnv('truecolor');
+  vi.stubEnv('TERM', 'xterm-kitty');
+  vi.stubEnv('KITTY_WINDOW_ID', '1');
+  vi.stubEnv('TMUX', '');
+  vi.stubEnv('ZELLIJ', '');
 }
 
 function stripSgr(line: string): string {
@@ -106,6 +119,8 @@ function stripSgr(line: string): string {
 
 describe('ImageThumbnail', () => {
   afterEach(() => {
+    setKittyGraphicsChannel(undefined);
+    resetKittyPlaceholderTransmissions();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
@@ -205,5 +220,61 @@ describe('ImageThumbnail', () => {
 
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('[image #1 (8×8)]');
+  });
+
+  describe('kitty unicode placeholder protocol', () => {
+    beforeEach(() => {
+      resetKittyPlaceholderTransmissions();
+    });
+
+    it('renders placeholder text and transmits the image once', () => {
+      stubKittyEnv();
+      const transmit = vi.fn();
+      setKittyGraphicsChannel(transmit);
+      const component = new ImageThumbnail(
+        imageAttachment(makeSolidPng(8, 8, 255, 0, 0), 'image/png', 8, 8),
+      );
+
+      const lines = component.render(80);
+
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) {
+        expect(line).toContain('\u{10EEEE}');
+        expect(line).not.toContain('▀');
+      }
+      expect(transmit).toHaveBeenCalledTimes(1);
+      expect(transmit.mock.calls[0]![0]).toContain('a=T,U=1');
+      expect(transmit.mock.calls[0]![0]).toContain('q=2');
+
+      component.render(80);
+      expect(transmit).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not re-transmit when a second component renders the same attachment', () => {
+      stubKittyEnv();
+      const transmit = vi.fn();
+      setKittyGraphicsChannel(transmit);
+      const attachment = imageAttachment(makeSolidPng(8, 8, 0, 255, 0), 'image/png', 8, 8);
+
+      new ImageThumbnail(attachment).render(80);
+      new ImageThumbnail(attachment).render(80);
+
+      expect(transmit).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to half-block rendering without a graphics channel', () => {
+      stubKittyEnv();
+      setKittyGraphicsChannel(undefined);
+      const component = new ImageThumbnail(
+        imageAttachment(makeSolidPng(8, 8, 0, 0, 255), 'image/png', 8, 8),
+      );
+
+      const lines = component.render(80);
+
+      expect(lines.some((line) => line.includes('▀'))).toBe(true);
+      for (const line of lines) {
+        expect(line).not.toContain('\u{10EEEE}');
+      }
+    });
   });
 });
