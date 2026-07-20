@@ -492,6 +492,10 @@ describe('IdleStageComponent', () => {
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');
     resetIdleScenePaintCachesForTests();
+    // Pin the module-level animation clock (captured from the real Date.now()
+    // at import time) so premium title shimmer ticks are deterministic —
+    // vi.setSystemTime() alone never reaches it.
+    advanceAppearanceAnimationClock(2_500);
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
   });
@@ -510,7 +514,7 @@ describe('IdleStageComponent', () => {
       expect(lines.length).toBe(20);
       const joined = strip(lines.join('\n'));
       // Premium title may shimmer spaces into particle glyphs (jewel◦tank).
-      expect(joined).toMatch(/jewel[\s◦·∙]tank/i);
+      expect(joined).toMatch(/jewel[\s◦·∙•*]tank/i);
       expect(joined).toMatch(/tip · /i);
       // Story scene: fish / bubbles / plants / water glyphs.
       expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\]/);
@@ -657,7 +661,7 @@ describe('IdleStageComponent', () => {
         preferredRows: 20,
       });
       const plain = lines.map(strip);
-      const titleIdx = plain.findIndex((line) => /jewel tank/i.test(line));
+      const titleIdx = plain.findIndex((line) => /jewel[\s◦·∙•*]tank/i.test(line));
       expect(titleIdx).toBeGreaterThanOrEqual(0);
       // Title is first chrome line (no drift rail above it), or only blank/story above.
       if (titleIdx > 0) {
