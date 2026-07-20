@@ -28,3 +28,5 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add slow tool execution logging (threshold 10s) for decision observability
 - Add oscillation warning in recovery prompt when resume cycles exceed threshold
 - Add journal_offset to compaction envelope for context budget awareness
+- Add failure categorization (timeout/validation/dependency/resource) with targeted recovery guidance
+- Add analyzeFailedNodes helper and surface categorized failures in recovery prompt

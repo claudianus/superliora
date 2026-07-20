@@ -219,3 +219,54 @@ export function detectLongRunningStage(
 function stageIndex(stage: UltraworkStage): number {
   return ultraworkStageIndex(stage);
 }
+
+/**
+ * Failure categories for WorkGraph nodes. Used to provide targeted
+ * recovery guidance based on the type of failure encountered.
+ */
+export type WorkGraphFailureCategory =
+  | 'timeout' // Operation exceeded time limit
+  | 'validation' // Verification or quality check failed
+  | 'dependency' // Blocked by upstream failure
+  | 'resource' // Missing tools, files, or permissions
+  | 'unknown'; // Unclassified failure
+
+/**
+ * Categorize a failed node based on its verificationSummary.
+ * Enables targeted recovery guidance per failure type.
+ */
+export function categorizeNodeFailure(node: WorkGraphNode): WorkGraphFailureCategory {
+  const summary = (node.verificationSummary ?? '').toLowerCase();
+  if (/timeout|timed?\s*out|deadline|exceeded/.test(summary)) return 'timeout';
+  if (/verif|check|test|assert|expect|quality|lint|type/.test(summary)) return 'validation';
+  if (/depend|blocked|upstream|prerequisite|waiting/.test(summary)) return 'dependency';
+  if (/permission|denied|missing|not found|unavailable|no such/.test(summary)) return 'resource';
+  return 'unknown';
+}
+
+/**
+ * Recovery guidance per failure category. Based on graceful degradation
+ * patterns: different failure types need different recovery strategies.
+ */
+export const FAILURE_RECOVERY_GUIDANCE: Readonly<Record<WorkGraphFailureCategory, string>> = {
+  timeout: 'Increase timeout or split into smaller subtasks; check for infinite loops.',
+  validation: 'Review acceptance criteria; fix implementation or adjust test expectations.',
+  dependency: 'Resolve upstream blockers first; consider re-queuing after dependencies complete.',
+  resource: 'Verify tool availability, file paths, and permissions; check environment setup.',
+  unknown: 'Inspect node details and logs; consider manual intervention or re-queuing.',
+};
+
+/**
+ * Analyze failed nodes and return categorized failure info with guidance.
+ */
+export function analyzeFailedNodes(
+  workGraph: WorkGraph | undefined,
+): readonly { readonly node: WorkGraphNode; readonly category: WorkGraphFailureCategory; readonly guidance: string }[] {
+  if (workGraph === undefined) return [];
+  return workGraph.nodes
+    .filter((node) => node.status === 'failed')
+    .map((node) => {
+      const category = categorizeNodeFailure(node);
+      return { node, category, guidance: FAILURE_RECOVERY_GUIDANCE[category] };
+    });
+}

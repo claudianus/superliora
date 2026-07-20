@@ -5,6 +5,7 @@
 import type { UltraworkRun } from '@superliora/protocol';
 
 import {
+  analyzeFailedNodes,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
@@ -156,6 +157,17 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(
       `⚠ High resume count (${String(resumeCycles)}): repeated crash-recovery cycles detected. Consider simplifying the objective or breaking into smaller runs.`,
     );
+  }
+  // Analyze failed nodes and provide categorized recovery guidance.
+  const failedAnalysis = analyzeFailedNodes(report.run.workGraph);
+  if (failedAnalysis.length > 0) {
+    lines.push(`Failed nodes (${String(failedAnalysis.length)}):`);
+    for (const { node, category, guidance } of failedAnalysis.slice(0, 3)) {
+      lines.push(`- ${node.id} [${category}]: ${guidance}`);
+    }
+    if (failedAnalysis.length > 3) {
+      lines.push(`- … ${String(failedAnalysis.length - 3)} more failed nodes`);
+    }
   }
   if (report.orphanedWorkNodes.length > 0) {
     lines.push(`Reconcile orphaned work nodes: ${report.orphanedWorkNodes.slice(0, 8).join(', ')}`);
