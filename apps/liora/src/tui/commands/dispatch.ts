@@ -67,6 +67,7 @@ import {
   handleTitleCommand,
 } from './session';
 import { handleSwarmCommand } from './swarm';
+import { showTerm } from './term';
 import {
   handleUltraGoalCommand,
   handleUltraPlanCommand,
@@ -377,6 +378,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'diff':
       showDiff(host, args);
+      return;
+    case 'term':
+      showTerm(host);
       return;
     case 'aquarium':
       handleAquariumCommand(host);

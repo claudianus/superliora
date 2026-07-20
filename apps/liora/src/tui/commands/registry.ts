@@ -416,6 +416,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'term',
+    aliases: ['terminal'],
+    description: 'Show detected terminal capabilities',
+    priority: 62,
+    availability: 'always',
+  },
+  {
     name: 'mcp',
     aliases: [],
     description: 'Show MCP server status',
