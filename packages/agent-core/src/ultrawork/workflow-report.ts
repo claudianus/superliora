@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, normalize } from 'pathe';
 
 import type { UltraworkRun, UltraworkStage } from '@superliora/protocol';
 
 import type { Agent } from '../agent';
 import { ULTRAWORK_STAGE_ORDER } from './state';
+import { writeFileAtomic } from './run-store';
 
 export const WORKFLOW_REPORT_FILENAME = 'workflow-report.md';
 export const WORKFLOW_STAGES_FILENAME = 'workflow-stages.json';
@@ -138,8 +139,8 @@ export function seedUltraworkWorkflowReport(input: SeedUltraworkWorkflowReportIn
     ],
   };
 
-  writeFileSync(join(input.workDir, paths.stagesPath), `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
-  writeFileSync(
+  writeFileAtomic(join(input.workDir, paths.stagesPath), `${JSON.stringify(ledger, null, 2)}\n`);
+  writeFileAtomic(
     join(input.workDir, paths.reportPath),
     renderWorkflowReportSeed({
       runId: input.runId,
@@ -149,7 +150,6 @@ export function seedUltraworkWorkflowReport(input: SeedUltraworkWorkflowReportIn
       source: input.source,
       currentStage: 'intake',
     }),
-    'utf8',
   );
   return paths;
 }
@@ -177,7 +177,7 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
     updatedAt: at,
     transitions: [...ledger.transitions, transition],
   };
-  writeFileSync(stagesAbsolutePath, `${JSON.stringify(nextLedger, null, 2)}\n`, 'utf8');
+  writeFileAtomic(stagesAbsolutePath, `${JSON.stringify(nextLedger, null, 2)}\n`);
 
   const report = readFileSync(reportAbsolutePath, 'utf8');
   const timelineRow = `| ${at} | ${input.from ?? '—'} | ${input.to} | ${escapeTableCell(input.reason ?? '—')} |`;
@@ -186,7 +186,7 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
   const withCompletion = input.to === 'done'
     ? appendRunCompletion(withCurrentStage, at, input.reason)
     : withCurrentStage;
-  writeFileSync(reportAbsolutePath, withCompletion, 'utf8');
+  writeFileAtomic(reportAbsolutePath, withCompletion);
   return true;
 }
 
@@ -240,12 +240,11 @@ export function mirrorUltraworkWorkflowStage(
   injectUltraworkWorkflowStageReminder(agent, input);
 }
 
-function resolveWikiRunPath(evidenceRoot: string, runId: string): string {
-  const segment = '.superliora/wiki/runs/';
-  if (evidenceRoot.includes('/ultrawork-runs/')) {
-    return `${segment}${runId}.md`;
-  }
-  return `${segment}${runId}.md`;
+function resolveWikiRunPath(_evidenceRoot: string, runId: string): string {
+  // Wiki run pages always live under .superliora/wiki/runs/ regardless of the
+  // evidence root location. The evidenceRoot param is kept for future use if
+  // per-run wiki isolation is needed.
+  return `.superliora/wiki/runs/${runId}.md`;
 }
 
 function readWorkflowStagesLedger(path: string): WorkflowStagesLedger | undefined {

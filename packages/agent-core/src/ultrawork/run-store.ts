@@ -31,12 +31,12 @@ export function readUltraworkMirrorFromDisk(
 }
 
 /**
- * Synchronously write the mirror atomically and durably: stage a uniquely-
+ * Synchronously write a file atomically and durably: stage a uniquely-
  * named temp file, fsync it, rename it into place, then fsync the parent
- * directory. A crash mid-write can no longer leave `run-state.json` truncated
- * (the previous `writeFileSync` to the target path could).
+ * directory. A crash mid-write cannot leave the target truncated.
+ * Exported for reuse by workflow-report and other durable writes.
  */
-function writeMirrorAtomic(targetPath: string, content: string): void {
+export function writeFileAtomic(targetPath: string, content: string): void {
   const directory = dirname(targetPath);
   mkdirSync(directory, { recursive: true });
   const hex = randomBytes(4).toString('hex');
@@ -90,7 +90,7 @@ export function mirrorUltraworkRunToDisk(input: {
     journalOffset: input.journalOffset,
     lastCheckpointAt: new Date().toISOString(),
   };
-  writeMirrorAtomic(targetPath, `${JSON.stringify(mirror, null, 2)}\n`);
+  writeFileAtomic(targetPath, `${JSON.stringify(mirror, null, 2)}\n`);
 }
 
 export function checkpointUltraworkRun(

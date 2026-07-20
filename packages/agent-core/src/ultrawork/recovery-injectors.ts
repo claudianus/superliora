@@ -33,8 +33,10 @@ export function maybeAdvanceUltraworkStage(
 
   try {
     ultrawork.advance(to, reason);
-  } catch {
+  } catch (error) {
     // Stage transitions are best-effort; do not fail the caller.
+    // Log so genuine bugs (e.g. invalid skip) are observable.
+    agent.log.warn('ultrawork stage advance failed', { to, reason, error });
   }
 }
 
@@ -43,7 +45,9 @@ export function maybeAdvanceUltraworkOnGoalComplete(agent: Agent): void {
   if (ultrawork === undefined) return;
   const run = ultrawork.getRun();
   if (run === null || run.status === 'done' || run.status === 'failed') return;
-  maybeFinishUltraworkRun(agent);
+  // Fire-and-forget: called from goal completion which is already async;
+  // markComplete applies status synchronously so the race window is minimal.
+  void maybeFinishUltraworkRun(agent);
   const updated = ultrawork.getRun();
   if (updated !== null && updated.status !== 'done' && updated.status !== 'failed') {
     try {

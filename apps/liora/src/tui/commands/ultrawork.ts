@@ -471,7 +471,11 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
       planMode: true,
       premiumQualityMode: true,
     });
-    await session.setPremiumQuality(true);
+    try {
+      await session.setPremiumQuality(true);
+    } catch (error) {
+      host.showError(ttui('tui.premium.enableFailed', { message: formatErrorMessage(error) }));
+    }
     host.state.transcriptContainer.addChild(
       new UltraworkModeMarkerComponent({
         state: 'active',
@@ -498,7 +502,25 @@ async function cancelUltrawork(host: SlashCommandHost): Promise<void> {
       host.showStatus('No active Ultrawork run to cancel.');
       return;
     }
-    host.setAppState({ ultraworkMode: false, activityTip: null });
+    // Restore session flags captured at run start (mirrors finishUltraworkRun
+    // in session-event-handler). Without a snapshot fall back to turning off.
+    const prior = host.state.appState.ultraworkPriorState ?? null;
+    const restorePlanMode = prior?.planMode ?? false;
+    const restoreSwarmMode = prior?.swarmMode ?? false;
+    const restorePremiumQuality = prior?.premiumQualityMode ?? false;
+    host.state.swarmModeEntry = prior?.swarmModeEntry;
+    host.setAppState({
+      ultraworkMode: false,
+      planMode: restorePlanMode,
+      swarmMode: restoreSwarmMode,
+      premiumQualityMode: restorePremiumQuality,
+      activityTip: null,
+      ultraworkPriorState: null,
+    });
+    const session = host.requireSession();
+    void session.setPlanMode(restorePlanMode, false).catch(() => {});
+    void session.setSwarmMode(restoreSwarmMode, 'task').catch(() => {});
+    void session.setPremiumQuality(restorePremiumQuality).catch(() => {});
     host.showStatus(`Ultrawork run ${run.id} cancelled.`);
   } catch (error) {
     host.showError(`Failed to cancel Ultrawork: ${formatErrorMessage(error)}`);
@@ -522,7 +544,11 @@ export async function autoResumeUltraworkFromSession(
       planMode: true,
       premiumQualityMode: true,
     });
-    await session.setPremiumQuality(true);
+    try {
+      await session.setPremiumQuality(true);
+    } catch (error) {
+      host.showError(ttui('tui.premium.enableFailed', { message: formatErrorMessage(error) }));
+    }
     host.showNotice(
       ttui('tui.ultrawork.autoResume.title'),
       ttui('tui.ultrawork.autoResume.detail', { stage: run.stage }),

@@ -209,7 +209,7 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       maybeAdvanceUltraworkStage(this.agent, 'goal', 'UltraPlan approved');
       if (seededWorkGraph.seeded) {
         this.agent.ultrawork.syncWorkGraphFromStore();
-        maybeFinishUltraworkRun(this.agent);
+        await maybeFinishUltraworkRun(this.agent);
       }
       // Ensure the UltraGoal exists after plan approval so the goal driver
       // keeps the model running autonomously. Without a goal, the turn ends
@@ -221,7 +221,7 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       if (existingGoal === undefined || existingGoal === null) {
         const runObjective = this.agent.ultrawork.getRun()?.objective;
         if (runObjective !== undefined && runObjective.length > 0) {
-          await this.agent.goal.createGoal({ objective: runObjective }, 'runtime');
+          await this.agent.goal.createGoal({ objective: runObjective, source: 'ultrawork' }, 'runtime');
         }
       }
     }

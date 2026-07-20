@@ -182,9 +182,13 @@ export function extractUltraworkRunLines(summary: string): readonly string[] {
     }
     if (inSection) {
       if (trimmed.length === 0) break;
-      if (/^[a-z_]+:/.test(trimmed) && !trimmed.startsWith('-')) break;
+      // End when a new top-level section starts (non-indented key: pattern)
+      if (/^[a-z_]+:/.test(trimmed) && !trimmed.startsWith('-') && !line.startsWith(' ')) break;
       if (trimmed.startsWith('-')) {
         lines.push(trimmed.slice(1).trim());
+      } else if (line.startsWith('  ') && trimmed.length > 0) {
+        // Indented key=value detail lines (effective_stage, resume_node, etc.)
+        lines.push(trimmed);
       }
     }
   }
