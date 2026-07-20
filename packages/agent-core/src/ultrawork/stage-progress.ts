@@ -318,3 +318,44 @@ export function assessContextPressure(usageRatio: number): {
   }
   return { level: 'critical', guidance: CONTEXT_PRESSURE_GUIDANCE.critical };
 }
+
+// ---------------------------------------------------------------------------
+// Graduated recovery escalation (self-healing pattern)
+// ---------------------------------------------------------------------------
+
+export type RecoveryEscalationLevel = 'retry' | 'replan' | 'degrade' | 'abort';
+
+const ESCALATION_THRESHOLDS: Readonly<Record<RecoveryEscalationLevel, number>> = {
+  retry: 0, // First failure: simple retry
+  replan: 2, // After 2 failures: re-plan approach
+  degrade: 4, // After 4 failures: degrade scope
+  abort: 6, // After 6 failures: consider aborting
+};
+
+export const ESCALATION_GUIDANCE: Readonly<Record<RecoveryEscalationLevel, string>> = {
+  retry: 'Retry the failed operation with the same approach; transient errors often resolve on retry.',
+  replan: 'Multiple failures detected; re-plan the approach — try a different strategy or break into smaller steps.',
+  degrade: 'Persistent failures; consider degrading scope — skip non-critical subtasks or use fallback implementations.',
+  abort: 'Repeated failures across multiple attempts; consider aborting this path and reporting to user for guidance.',
+};
+
+/**
+ * Determine the appropriate recovery escalation level based on failure count.
+ * Follows the "graduated remediation" pattern: start with low-risk actions,
+ * escalate to more significant interventions as failures accumulate.
+ */
+export function assessRecoveryEscalation(failureCount: number): {
+  readonly level: RecoveryEscalationLevel;
+  readonly guidance: string;
+} {
+  if (failureCount >= ESCALATION_THRESHOLDS.abort) {
+    return { level: 'abort', guidance: ESCALATION_GUIDANCE.abort };
+  }
+  if (failureCount >= ESCALATION_THRESHOLDS.degrade) {
+    return { level: 'degrade', guidance: ESCALATION_GUIDANCE.degrade };
+  }
+  if (failureCount >= ESCALATION_THRESHOLDS.replan) {
+    return { level: 'replan', guidance: ESCALATION_GUIDANCE.replan };
+  }
+  return { level: 'retry', guidance: ESCALATION_GUIDANCE.retry };
+}
