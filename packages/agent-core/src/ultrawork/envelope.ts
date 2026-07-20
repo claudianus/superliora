@@ -172,6 +172,17 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     lines.push(`journal_offset: ${String(snapshot.journalOffset)}`);
   }
 
+  // Information freshness: show how old the run state is (memory decay signal).
+  const runAgeMs = Date.now() - new Date(snapshot.run.updatedAt).getTime();
+  if (Number.isFinite(runAgeMs) && runAgeMs > 0) {
+    const ageMin = Math.round(runAgeMs / 60_000);
+    const freshness = ageMin < 5 ? 'fresh' : ageMin < 30 ? 'recent' : ageMin < 120 ? 'aging' : 'stale';
+    lines.push(`information_freshness: ${freshness} (~${String(ageMin)}min since last update)`);
+    if (freshness === 'stale') {
+      lines.push('freshness_warning: Run state may be outdated; re-verify workspace state before acting on cached information.');
+    }
+  }
+
   lines.push(
     'resume_policy: Continue this Ultrawork run from the checkpoint. Do not restart UltraPlan interview, create a new plan file, or open a new Ultrawork run unless the checkpoint is unusable.',
   );
