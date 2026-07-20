@@ -49,6 +49,7 @@ interface WorkflowStageTransition {
   readonly at: string;
   readonly reason?: string;
   readonly runStatus: UltraworkRun['status'];
+  readonly durationMs?: number;
 }
 
 const NARRATIVE_STAGES = ULTRAWORK_STAGE_ORDER.filter((stage) => stage !== 'done');
@@ -162,16 +163,22 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
   if (!existsSync(reportAbsolutePath) || !existsSync(stagesAbsolutePath)) return false;
 
   const at = input.run.updatedAt;
+  const ledger = readWorkflowStagesLedger(stagesAbsolutePath);
+  if (ledger === undefined) return false;
+  const lastTransition = ledger.transitions[ledger.transitions.length - 1];
+  const durationMs = lastTransition !== undefined
+    ? Date.parse(at) - Date.parse(lastTransition.at)
+    : undefined;
   const transition: WorkflowStageTransition = {
     from: input.from,
     to: input.to,
     at,
     reason: input.reason,
     runStatus: input.run.status,
+    ...(durationMs !== undefined && Number.isFinite(durationMs) && durationMs > 0
+      ? { durationMs }
+      : {}),
   };
-
-  const ledger = readWorkflowStagesLedger(stagesAbsolutePath);
-  if (ledger === undefined) return false;
   const nextLedger: WorkflowStagesLedger = {
     ...ledger,
     updatedAt: at,
@@ -213,6 +220,9 @@ export function injectUltraworkWorkflowStageReminder(
       'Replace every `pending` placeholder under that stage. Do not leave proof only in chat.',
       input.to === 'learn'
         ? 'Learn is next: also update knowledge-persistence-ledger.json and the LLM Wiki run page with verified durable findings.'
+        : undefined,
+      input.to === 'verify'
+        ? 'Verify stage: use independent verification (run tests, typecheck, real-surface checks). Do not self-verify by claiming success without evidence.'
         : undefined,
       input.to === 'done'
         ? 'Run complete: ensure every stage narrative is filled and add a concise Run Summary at the end of workflow-report.md.'
