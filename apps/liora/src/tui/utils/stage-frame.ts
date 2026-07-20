@@ -301,10 +301,15 @@ export function paintStageFrameCells(input: {
   const mid = mixHexColor(head, base, 0.28);
   const soft = mixHexColor(head, base, 0.55);
   // Entrance fades the whole ring in from canvas/background toward base.
+  // The old formula (0.25 + progress * 0.75) capped at 50/50 blend with the
+  // background at full progress, making the stroke nearly invisible on dark
+  // themes.  Bias heavily toward `base` so the ring reads as a clear border.
   const fadeTarget = canvasBg ?? currentTheme.color('surfaceSunken');
-  const dim = mixHexColor(fadeTarget, base, Math.min(1, 0.25 + progress * 0.75));
+  const dim = mixHexColor(fadeTarget, base, Math.min(1, 0.55 + progress * 0.45));
   const letterboxBg = resolveLetterboxCanvasBg() ?? fadeTarget;
-  const haloFg = mixHexColor(letterboxBg, dim, Math.min(1, 0.2 + progress * 0.35));
+  // Halo must also stay visible — the old 0.2+progress*0.35 maxed at 55% dim
+  // which crushed the outer glow into the letterbox fill.
+  const haloFg = mixHexColor(letterboxBg, dim, Math.min(1, 0.45 + progress * 0.55));
 
   // Typing holdoff must not freeze the stage chase — only explicit freezeChase / ambient off.
   const freeze = ambientOff || input.freezeChase === true;
