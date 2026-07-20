@@ -165,6 +165,9 @@ export function buildUltraworkRecoveryPrompt(
     lines.push(`- ${action}`);
   }
   lines.push(
+    'Source of truth: Repository files, git status, and WorkGraph are more reliable than prior chat memory. Inspect workspace first.',
+  );
+  lines.push(
     'Continue from stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof; mark AC/nodes done only with evidence. Preserve durable ids.',
   );
   lines.push('</ultrawork_recovery>');

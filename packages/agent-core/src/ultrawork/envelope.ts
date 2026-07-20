@@ -170,6 +170,9 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   lines.push(
     'resume_policy: Continue this Ultrawork run from the checkpoint. Do not restart UltraPlan interview, create a new plan file, or open a new Ultrawork run unless the checkpoint is unusable.',
   );
+  lines.push(
+    'source_of_truth: Repository files, git status, and WorkGraph are more reliable than prior chat memory. Inspect workspace first.',
+  );
   return lines.join('\n');
 }
 
