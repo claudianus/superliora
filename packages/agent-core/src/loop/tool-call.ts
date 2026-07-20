@@ -87,6 +87,114 @@ export function resetToolFailureTracker(): void {
 }
 
 /**
+ * Circuit breaker states. Based on the standard circuit breaker pattern
+ * for preventing cascade failures in distributed systems (2026).
+ */
+export type CircuitBreakerState = 'closed' | 'open' | 'half-open';
+
+/**
+ * Circuit breaker configuration. Adaptive thresholds based on error rate
+ * monitoring over a sliding window.
+ */
+const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5; // failures to trip
+const CIRCUIT_BREAKER_COOLDOWN_MS = 30_000; // 30s cooldown before half-open
+const CIRCUIT_BREAKER_WINDOW_MS = 60_000; // 1min sliding window
+
+interface CircuitBreakerEntry {
+  state: CircuitBreakerState;
+  failures: number[]; // timestamps of recent failures
+  lastStateChange: number;
+  cooldownUntil: number;
+}
+
+/**
+ * Per-tool circuit breaker state. Tracks error rates over a sliding window
+ * and implements closed → open → half-open state transitions.
+ */
+const circuitBreakers = new Map<string, CircuitBreakerEntry>();
+
+/**
+ * Record a tool failure and update circuit breaker state.
+ * Returns true if the circuit is open (tool should be blocked).
+ */
+export function recordToolFailureForCircuitBreaker(toolName: string): boolean {
+  const now = Date.now();
+  let entry = circuitBreakers.get(toolName);
+  if (entry === undefined) {
+    entry = { state: 'closed', failures: [], lastStateChange: now, cooldownUntil: 0 };
+    circuitBreakers.set(toolName, entry);
+  }
+
+  // Handle state transitions based on cooldown.
+  if (entry.state === 'open' && now >= entry.cooldownUntil) {
+    entry.state = 'half-open';
+    entry.lastStateChange = now;
+  }
+
+  // Add failure timestamp and prune old entries outside the window.
+  entry.failures.push(now);
+  entry.failures = entry.failures.filter((t) => now - t < CIRCUIT_BREAKER_WINDOW_MS);
+
+  // Check if we should trip the breaker.
+  if (entry.state === 'closed' && entry.failures.length >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
+    entry.state = 'open';
+    entry.lastStateChange = now;
+    entry.cooldownUntil = now + CIRCUIT_BREAKER_COOLDOWN_MS;
+    return true;
+  }
+
+  // In half-open state, any failure re-opens the circuit.
+  if (entry.state === 'half-open') {
+    entry.state = 'open';
+    entry.lastStateChange = now;
+    entry.cooldownUntil = now + CIRCUIT_BREAKER_COOLDOWN_MS;
+    return true;
+  }
+
+  return entry.state === 'open';
+}
+
+/**
+ * Record a tool success. Resets the circuit breaker to closed state.
+ */
+export function recordToolSuccessForCircuitBreaker(toolName: string): void {
+  const entry = circuitBreakers.get(toolName);
+  if (entry !== undefined && entry.state !== 'closed') {
+    entry.state = 'closed';
+    entry.failures = [];
+    entry.lastStateChange = Date.now();
+  }
+}
+
+/**
+ * Check if a tool's circuit breaker is open (tool should be blocked).
+ */
+export function isToolCircuitOpen(toolName: string): boolean {
+  const entry = circuitBreakers.get(toolName);
+  if (entry === undefined) return false;
+  const now = Date.now();
+  // Transition to half-open if cooldown has passed.
+  if (entry.state === 'open' && now >= entry.cooldownUntil) {
+    entry.state = 'half-open';
+    entry.lastStateChange = now;
+    return false; // Allow one test request in half-open state.
+  }
+  return entry.state === 'open';
+}
+
+/**
+ * Get the current circuit breaker state for a tool.
+ */
+export function getCircuitBreakerState(toolName: string): CircuitBreakerState {
+  return circuitBreakers.get(toolName)?.state ?? 'closed';
+}
+
+/** Reset all circuit breaker state. Call at session boundaries. */
+export function resetCircuitBreakers(): void {
+  circuitBreakers.clear();
+}
+
+/**
  * Loop repetition detection threshold. When the same tool is called with
  * identical arguments this many times within a turn, log a warning about
  * potential loop stagnation. Based on the self-healing framework insight:
@@ -616,6 +724,20 @@ async function runRunnableToolCall(
     return makeErrorToolResult(call, effectiveArgs, abortedToolOutput(toolName, signal));
   }
 
+  // Circuit breaker check: block tools with open circuits.
+  if (isToolCircuitOpen(toolName)) {
+    step.log?.warn('tool circuit breaker open; blocking execution', {
+      toolName,
+      toolCallId: toolCall.id,
+      state: getCircuitBreakerState(toolName),
+    });
+    return makeErrorToolResult(
+      call,
+      effectiveArgs,
+      `Tool "${toolName}" is temporarily unavailable due to repeated failures. Circuit breaker open — will retry after cooldown.`,
+    );
+  }
+
   const startMs = Date.now();
   let toolResult: ExecutableToolResult;
   try {
@@ -630,6 +752,7 @@ async function runRunnableToolCall(
         error,
       });
       trackToolFailure(toolName, step.log);
+      recordToolFailureForCircuitBreaker(toolName);
     }
     const output = aborted
       ? abortedToolOutput(toolName, signal)
@@ -651,8 +774,10 @@ async function runRunnableToolCall(
   // Track failure patterns for isError results (e.g. grace timeout, coercion).
   if (toolResult.isError === true) {
     trackToolFailure(toolName, step.log);
+    recordToolFailureForCircuitBreaker(toolName);
   } else {
     resetToolFailure(toolName);
+    recordToolSuccessForCircuitBreaker(toolName);
   }
 
   return makeToolResult(call, effectiveArgs, toolResult);
