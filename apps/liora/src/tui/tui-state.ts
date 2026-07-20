@@ -76,6 +76,7 @@ export interface TUIState {
     | 'session-picker'
     | 'help'
     | 'files'
+    | 'file-viewer'
     | 'command' // any command-driven editor-replacement dialog (api-key, provider picker, etc.)
     | null;
   tasksBrowser: TasksBrowserState | undefined;

@@ -16,6 +16,7 @@ function strip(text: string): string {
 
 interface MakeOptions {
   readonly onPick?: (path: string) => void;
+  readonly onPreview?: (path: string) => void;
   readonly onClose?: () => void;
   readonly maxVisible?: number;
 }
@@ -29,6 +30,7 @@ function makeExplorer(options: MakeOptions = {}): FileExplorerComponent {
     truncated: false,
     source: 'git',
     onPick: options.onPick ?? vi.fn(),
+    onPreview: options.onPreview ?? vi.fn(),
     onClose: options.onClose ?? vi.fn(),
     maxVisible: options.maxVisible,
   });
@@ -161,5 +163,41 @@ describe('FileExplorerComponent', () => {
     for (let i = 0; i < 20; i++) explorer.handleInput('j');
     // The viewport must have scrolled so file20.ts is both selected and rendered.
     expect(selectedLine(explorer)).toContain('file20.ts');
+  });
+
+  it('previews a file with v (onPreview, without picking or closing)', () => {
+    const onPick = vi.fn();
+    const onClose = vi.fn();
+    const onPreview = vi.fn();
+    const explorer = makeExplorer({ onPick, onClose, onPreview });
+    explorer.handleInput(ENTER); // expand src → src, util, app.ts, …
+    explorer.handleInput('j'); // util
+    explorer.handleInput('j'); // app.ts
+    explorer.handleInput('v');
+
+    expect(onPreview).toHaveBeenCalledWith('src/app.ts');
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('toggles a directory with v instead of previewing', () => {
+    const onPreview = vi.fn();
+    const explorer = makeExplorer({ onPreview });
+    expect(selectedLine(explorer)).toContain('src');
+
+    explorer.handleInput('v'); // expand src
+    let joined = renderedLines(explorer).join('\n');
+    expect(joined).toContain('app.ts');
+    expect(onPreview).not.toHaveBeenCalled();
+
+    explorer.handleInput('v'); // selection still on src → collapse
+    joined = renderedLines(explorer).join('\n');
+    expect(joined).not.toContain('app.ts');
+    expect(onPreview).not.toHaveBeenCalled();
+  });
+
+  it('advertises the v shortcut in the footer hint', () => {
+    const footer = renderedLines(makeExplorer()).at(-1) ?? '';
+    expect(footer).toContain('view');
   });
 });

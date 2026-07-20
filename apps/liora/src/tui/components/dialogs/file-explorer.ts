@@ -2,6 +2,8 @@
  * FileExplorer — modal `/files` project file tree. Lists the workspace
  * (git-aware) as an expandable tree; navigating to a file and pressing
  * Enter/Space/L inserts its relative path into the editor via `onPick`.
+ * Pressing `v` on a file opens a read-only preview via `onPreview`
+ * (directories toggle, same as Enter).
  *
  * Mirrors the container-replacement pattern used by HelpPanel / TasksBrowser:
  * the host mounts the panel into `editorContainer`, focuses it, and tears it
@@ -38,6 +40,8 @@ export interface FileExplorerOptions {
   readonly truncated: boolean;
   readonly source: 'git' | 'walk';
   readonly onPick: (relativePath: string) => void;
+  /** Open a read-only preview of a file (`v`). Directories toggle instead. */
+  readonly onPreview?: (relativePath: string) => void;
   readonly onClose: () => void;
   /** Body frame height (including its two border rows). Defaults to 24. */
   readonly maxVisible?: number;
@@ -118,6 +122,16 @@ export class FileExplorerComponent extends Container implements Focusable {
     this.opts.onClose();
   }
 
+  private previewOrToggle(): void {
+    const row = this.selectedRow();
+    if (row === undefined) return;
+    if (row.node.kind === 'directory') {
+      this.activate();
+      return;
+    }
+    this.opts.onPreview?.(row.node.path);
+  }
+
   private collapseOrParent(): void {
     const row = this.selectedRow();
     if (row === undefined) return;
@@ -160,6 +174,10 @@ export class FileExplorerComponent extends Container implements Focusable {
       this.activate();
       return;
     }
+    if (k === 'v' || k === 'V') {
+      this.previewOrToggle();
+      return;
+    }
     if (matchesKey(data, Key.left) || k === 'h' || k === 'H') {
       this.collapseOrParent();
     }
@@ -190,7 +208,7 @@ export class FileExplorerComponent extends Container implements Focusable {
     const dim = (text: string): string => currentTheme.fg('textMuted', text);
     const line =
       ` ${key('↑/↓')} ${dim('move')}  ${key('enter')} ${dim('open/toggle')}  ` +
-      `${key('h')} ${dim('collapse')}  ${key('esc')} ${dim('close')} `;
+      `${key('v')} ${dim('view')}  ${key('h')} ${dim('collapse')}  ${key('esc')} ${dim('close')} `;
     return fitLine(line, width);
   }
 

@@ -27,6 +27,7 @@ import { resolve } from 'pathe';
 import type { CLIOptions } from '#/cli/options';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 import { appendInputHistory, loadInputHistory } from '#/utils/history/input-history';
+import { loadFileForViewer } from '#/utils/fs/file-content';
 import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
 import { openUrl } from '#/utils/open-url';
 import { getInputHistoryFile } from '#/utils/paths';
@@ -80,6 +81,7 @@ import {
   HelpPanelComponent,
 } from './components/dialogs/help-panel';
 import { FileExplorerComponent } from './components/dialogs/file-explorer';
+import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
 import {
@@ -3389,6 +3391,9 @@ export class LioraTUI {
           this.state.editor.insertTextAtCursor(`${relativePath} `);
           requestTUILayoutRender(this.state);
         },
+        onPreview: (relativePath) => {
+          this.showFileViewer(relativePath);
+        },
         onClose: () => {
           this.hideFileExplorer();
         },
@@ -3399,6 +3404,42 @@ export class LioraTUI {
   private hideFileExplorer(): void {
     this.state.activeDialog = null;
     this.restoreEditor();
+  }
+
+  private showFileViewer(relativePath: string): void {
+    const result = loadFileForViewer(resolve(this.state.appState.workDir, relativePath));
+    switch (result.kind) {
+      case 'text': {
+        this.state.activeDialog = 'file-viewer';
+        this.mountEditorReplacement(
+          new FileViewerComponent({
+            relativePath,
+            content: result.content,
+            bytes: result.bytes,
+            palette: currentTheme.palette,
+            onClose: () => {
+              this.returnToFileExplorer();
+            },
+          }),
+        );
+        return;
+      }
+      case 'binary':
+        this.showStatus(`${relativePath} is binary — preview unavailable.`, 'warning');
+        return;
+      case 'too-large': {
+        const mb = (result.bytes / 1024 / 1024).toFixed(1);
+        this.showStatus(`${relativePath} is ${mb} MB — too large to preview.`, 'warning');
+        return;
+      }
+      case 'error':
+        this.showStatus(`${relativePath}: ${result.message}`, 'error');
+        return;
+    }
+  }
+
+  private returnToFileExplorer(): void {
+    this.showFileExplorer();
   }
 
   private helpModeFromArgs(args: string): SlashCommandHelpMode {
