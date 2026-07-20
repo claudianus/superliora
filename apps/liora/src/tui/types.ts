@@ -214,6 +214,8 @@ export interface TranscriptEntry {
   detail?: string;
   /** Optional override for the leading bullet of a 'user' message entry. An empty string suppresses the bullet entirely (used by shell-command echoes so `$` replaces the sparkles marker). */
   bullet?: string;
+  /** Epoch milliseconds — wall-clock time the turn started. Only set when the real time is known (live input); replayed history without a source timestamp omits it. */
+  timestamp?: number;
   toolCallData?: ToolCallBlockData;
   backgroundAgentStatus?: BackgroundAgentStatusData;
   compactionData?: CompactionTranscriptData;

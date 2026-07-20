@@ -43,6 +43,7 @@ export const AppearancePreferencesSchema = z.object({
   canvasBackground: z.boolean(),
   terminalBackground: TerminalBackgroundSchema,
   terminalPalette: z.boolean(),
+  showTimestamps: z.boolean(),
 });
 
 export const TuiConfigFileSchema = z.object({
@@ -74,6 +75,7 @@ export const TuiConfigFileSchema = z.object({
       canvas_background: z.boolean().optional(),
       terminal_background: TerminalBackgroundSchema.optional(),
       terminal_palette: z.boolean().optional(),
+      show_timestamps: z.boolean().optional(),
     })
     .optional(),
 });
@@ -111,6 +113,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   canvasBackground: true,
   terminalBackground: 'off',
   terminalPalette: false,
+  showTimestamps: true,
 };
 
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
@@ -200,6 +203,8 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
         config.appearance?.terminal_background ?? DEFAULT_APPEARANCE_PREFERENCES.terminalBackground,
       terminalPalette:
         config.appearance?.terminal_palette ?? DEFAULT_APPEARANCE_PREFERENCES.terminalPalette,
+      showTimestamps:
+        config.appearance?.show_timestamps ?? DEFAULT_APPEARANCE_PREFERENCES.showTimestamps,
     },
   });
 }
@@ -232,6 +237,7 @@ animation_fps = ${String(appearance.animationFps)} # 1..60
 canvas_background = ${String(appearance.canvasBackground)} # Fill TUI-owned cells with theme background
 terminal_background = "${appearance.terminalBackground}" # "off" | "session"
 terminal_palette = ${String(appearance.terminalPalette)} # true applies terminal palette until exit
+show_timestamps = ${String(appearance.showTimestamps)} # true shows HH:MM on user messages
 `;
 }
 

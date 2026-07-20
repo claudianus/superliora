@@ -1363,6 +1363,7 @@ export class LioraTUI {
       renderMode: 'plain',
       content: currentTheme.fg('shellMode', `$ ${command}`),
       bullet: '',
+      timestamp: Date.now(),
     });
     // Create the live output entry up front. ShellRunComponent owns its own
     // rendering (running card → final view) and is mutated in place as output
@@ -1629,6 +1630,7 @@ export class LioraTUI {
       renderMode: 'plain',
       content: displayInput,
       imageAttachmentIds,
+      timestamp: Date.now(),
     });
 
     // Track the last user input for `/retry` (Ctrl-Y).
@@ -1697,6 +1699,7 @@ export class LioraTUI {
         turnId: this.streamingUI.getTurnContext().turnId,
         renderMode: 'plain',
         content: part,
+        timestamp: Date.now(),
       });
     }
 
@@ -2209,7 +2212,7 @@ export class LioraTUI {
         const images = entry.imageAttachmentIds
           ?.map((id) => this.imageStore.get(id))
           .filter((a): a is ImageAttachment => a?.kind === 'image');
-        return new UserMessageComponent(entry.content, images, entry.bullet);
+        return new UserMessageComponent(entry.content, images, entry.bullet, entry.timestamp);
       }
       case 'skill_activation':
         return new SkillActivationComponent(

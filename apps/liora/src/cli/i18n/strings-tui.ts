@@ -361,6 +361,9 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.glances': 'TUI glances: thinking 4 · command 4 · result 3 (not densify 1/1/2)',
   'tui.tip.recall':
     'Liora Recall injects ≤6 memories · 480 chars each; Bash soft-caps 4k; LioraExpand pages 120 lines',
+
+  // ── Appearance settings ─────────────────────────────────────────────────
+  'tui.appearance.timestamps': 'Timestamps',
 };
 
 /**
@@ -710,4 +713,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.glances': 'TUI glance: thinking 4 · command 4 · result 3 (densify 1/1/2 아님)',
   'tui.tip.recall':
     'Liora Recall은 메모리 ≤6개 · 각 480자; Bash soft-cap 4k; LioraExpand 120줄 페이지',
+
+  // ── Appearance settings ─────────────────────────────────────────────────
+  'tui.appearance.timestamps': '타임스탬프',
 };

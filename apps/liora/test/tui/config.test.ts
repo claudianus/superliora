@@ -46,6 +46,7 @@ describe('TUI config', () => {
     expect(text).toContain('canvas_background = true');
     expect(text).toContain('terminal_background = "off"');
     expect(text).toContain('terminal_palette = false');
+    expect(text).toContain('show_timestamps = true');
     expect(text).toContain('[notifications]');
     expect(text).toContain('enabled = true');
     expect(text).toContain('notification_condition = "unfocused"');
@@ -90,8 +91,40 @@ terminal_palette = true
         canvasBackground: false,
         terminalBackground: 'session',
         terminalPalette: true,
+        showTimestamps: true,
       },
     });
+  });
+
+  it('honors an explicit show_timestamps = false', () => {
+    const config = parseTuiConfig(`
+[appearance]
+show_timestamps = false
+`);
+
+    expect(config.appearance?.showTimestamps).toBe(false);
+  });
+
+  it('defaults showTimestamps when the appearance section omits it', () => {
+    const config = parseTuiConfig(`
+[appearance]
+density = "compact"
+`);
+
+    expect(config.appearance?.density).toBe('compact');
+    expect(config.appearance?.showTimestamps).toBe(DEFAULT_APPEARANCE_PREFERENCES.showTimestamps);
+  });
+
+  it('rejects an invalid show_timestamps value like other appearance fields', async () => {
+    writeFileSync(filePath, '[appearance]\nshow_timestamps = "yes"', 'utf-8');
+
+    const error = await loadTuiConfig(filePath).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(error).toBeInstanceOf(TuiConfigParseError);
+    expect((error as TuiConfigParseError).fallback).toEqual(DEFAULT_TUI_CONFIG);
   });
 
   it('normalizes an empty editor command to auto-detect', () => {

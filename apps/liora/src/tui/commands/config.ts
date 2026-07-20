@@ -44,6 +44,7 @@ type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 const APPEARANCE_KEYS = [
   'profile',
   'density',
+  'timestamps',
   'particles',
   'animation-fps',
   'canvas-background',
@@ -874,6 +875,7 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
   return [
     `profile: ${appearance.profile}`,
     `density: ${appearance.density}`,
+    `${ttui('tui.appearance.timestamps')}: ${appearance.showTimestamps ? 'on' : 'off'}`,
     `particles: ${appearance.particles}`,
     `animation-fps: ${String(appearance.animationFps)}`,
     `canvas-background: ${appearance.canvasBackground ? 'on' : 'off'}`,
@@ -897,6 +899,13 @@ function parseAppearancePatch(
       if (!isOneOf(value, ['auto', 'compact', 'comfortable', 'spacious'])) return null;
       next.density = value;
       return next;
+    case 'timestamps':
+      {
+        const enabled = parseOnOff(value);
+        if (enabled === undefined) return null;
+        next.showTimestamps = enabled;
+        return next;
+      }
     case 'particles':
       if (!isOneOf(value, ['auto', 'off', 'ambient', 'events', 'premium'])) return null;
       next.particles = value;

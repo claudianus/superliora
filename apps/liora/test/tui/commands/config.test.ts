@@ -233,6 +233,39 @@ describe('handleAppearanceCommand', () => {
       );
     });
   });
+
+  it('toggles timestamps off and persists the preference', async () => {
+    await withTempHome(async () => {
+      const host = makeThemeHost();
+      expect(host.state.appState.appearance.showTimestamps).toBe(true);
+
+      await handleAppearanceCommand(host, 'timestamps off');
+
+      expect(host.state.appState.appearance.showTimestamps).toBe(false);
+      expect((await loadTuiConfig()).appearance?.showTimestamps).toBe(false);
+      expect(host.track).toHaveBeenCalledWith('appearance_changed', {
+        key: 'timestamps',
+        value: 'off',
+      });
+      expect(host.showStatus).toHaveBeenCalledWith(
+        'Appearance timestamps set to off.',
+        'success',
+      );
+    });
+  });
+
+  it('rejects an unknown timestamps value without persisting', async () => {
+    await withTempHome(async () => {
+      const host = makeThemeHost();
+
+      await handleAppearanceCommand(host, 'timestamps maybe');
+
+      expect(host.state.appState.appearance.showTimestamps).toBe(true);
+      expect(host.showError).toHaveBeenCalledWith(
+        'Unknown appearance option or value: timestamps maybe',
+      );
+    });
+  });
 });
 
 describe('handleThinkingCommand', () => {

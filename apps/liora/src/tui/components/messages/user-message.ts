@@ -26,14 +26,17 @@ import {
 export class UserMessageComponent implements Component {
   private text: string;
   private readonly bullet?: string;
+  private readonly timestamp?: number;
   private spacerComponent: Spacer;
   private imageThumbnails: ImageThumbnail[];
 
   private readonly renderCache = new RendererWidthRenderCache();
+  private lastTimestampMarker = '';
 
-  constructor(text: string, images?: ImageAttachment[], bullet?: string) {
+  constructor(text: string, images?: ImageAttachment[], bullet?: string, timestamp?: number) {
     this.text = text;
     this.bullet = bullet;
+    this.timestamp = timestamp;
     this.spacerComponent = new Spacer(1);
     this.imageThumbnails = images?.map((img) => new ImageThumbnail(img)) ?? [];
   }
@@ -53,6 +56,14 @@ export class UserMessageComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
+    // The marker depends on appearance prefs (and theme); clear the width
+    // cache when it changes so a `/appearance timestamps` toggle repaints.
+    const timestampMarker = this.resolveTimestampMarker();
+    if (timestampMarker !== this.lastTimestampMarker) {
+      this.markRenderDirty();
+      this.lastTimestampMarker = timestampMarker;
+    }
+
     return this.renderCache.render({
       width: safeWidth,
       isCacheEnabled: isRenderCacheEnabled,
@@ -68,10 +79,12 @@ export class UserMessageComponent implements Component {
                   pace: 'slow',
                 })
               : currentTheme.boldFg('roleUser', marker);
-        const bulletWidth = visibleWidth(bullet);
+        const headerPrefix =
+          timestampMarker.length === 0 ? bullet : `${bullet}${timestampMarker} `;
+        const bulletWidth = visibleWidth(headerPrefix);
         const contentWidth = measureRendererTranscriptContentWidth({
           width: safeWidth,
-          prefix: bullet,
+          prefix: headerPrefix,
         });
         const continuationPrefix = ' '.repeat(bulletWidth);
 
@@ -88,7 +101,7 @@ export class UserMessageComponent implements Component {
         const textLines = new Text(coloredText, 0, 0).render(contentWidth);
         lines.push(...renderRendererTranscriptLineBlock({
           width: safeWidth,
-          prefix: bullet,
+          prefix: headerPrefix,
           continuationPrefix,
           lines: textLines,
           truncateMark: '…',
@@ -110,6 +123,21 @@ export class UserMessageComponent implements Component {
       },
     });
   }
+
+  /** Muted `HH:MM` marker for the header line; empty when hidden. */
+  private resolveTimestampMarker(): string {
+    if (this.timestamp === undefined) return '';
+    if (!getActiveAppearancePreferences().showTimestamps) return '';
+    return currentTheme.fg('textMuted', formatClockTime(this.timestamp));
+  }
+}
+
+/** Formats epoch milliseconds as a zero-padded 24-hour local-time `HH:MM`. */
+export function formatClockTime(epochMs: number): string {
+  const date = new Date(epochMs);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
 }
 
 function isImageLine(line: string): boolean {

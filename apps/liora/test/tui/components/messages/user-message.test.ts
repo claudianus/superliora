@@ -1,7 +1,9 @@
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UserMessageComponent } from '#/tui/components/messages/user-message';
+import { formatClockTime, UserMessageComponent } from '#/tui/components/messages/user-message';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { setActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
 
 function stripAnsi(text: string): string {
@@ -117,6 +119,105 @@ describe('UserMessageComponent', () => {
     expect(stripAnsi(lines.join('\n'))).not.toContain('✨');
     // The `$` sits at the leading column where the bullet used to be.
     expect(contentLine?.startsWith('$ ls')).toBe(true);
+  });
+
+  describe('timestamps', () => {
+    // 2023-11-14T22:13:20Z — the local HH:MM varies by timezone, so every
+    // assertion compares against formatClockTime(fixedMs), not a literal.
+    const fixedMs = 1_700_000_000_000;
+
+    afterEach(() => {
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    });
+
+    it('shows the HH:MM marker after the bullet when showTimestamps is on', () => {
+      stubTerminalImageProtocol('none');
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        showTimestamps: true,
+      });
+
+      const component = new UserMessageComponent('hello', [], undefined, fixedMs);
+      const out = stripAnsi(component.render(80).join('\n'));
+
+      const clock = formatClockTime(fixedMs);
+      expect(clock).toMatch(/^\d{2}:\d{2}$/);
+      expect(out).toContain(`✨ ${clock} hello`);
+    });
+
+    it('omits the marker when showTimestamps is off', () => {
+      stubTerminalImageProtocol('none');
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        showTimestamps: false,
+      });
+
+      const component = new UserMessageComponent('hello', [], undefined, fixedMs);
+      const out = stripAnsi(component.render(80).join('\n'));
+
+      expect(out).not.toContain(formatClockTime(fixedMs));
+      expect(out).toContain('✨ hello');
+    });
+
+    it('renders exactly as before when no timestamp is provided', () => {
+      stubTerminalImageProtocol('none');
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        showTimestamps: true,
+      });
+
+      const plain = new UserMessageComponent('hello', []).render(80);
+      const explicit = new UserMessageComponent('hello', [], undefined, undefined).render(80);
+
+      expect(explicit).toEqual(plain);
+      expect(stripAnsi(plain.join('\n'))).toContain('✨ hello');
+    });
+
+    it('repaints cached lines when the preference toggles', () => {
+      stubTerminalImageProtocol('none');
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        showTimestamps: true,
+      });
+
+      const component = new UserMessageComponent('hello', [], undefined, fixedMs);
+      const before = stripAnsi(component.render(80).join('\n'));
+      expect(before).toContain(formatClockTime(fixedMs));
+
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        showTimestamps: false,
+      });
+      const after = stripAnsi(component.render(80).join('\n'));
+      expect(after).not.toContain(formatClockTime(fixedMs));
+    });
+  });
+});
+
+describe('formatClockTime', () => {
+  it('formats epoch milliseconds as zero-padded 24-hour local HH:MM', () => {
+    const ms = 1_700_000_000_000;
+    const date = new Date(ms);
+    const expected = `${String(date.getHours()).padStart(2, '0')}:${String(
+      date.getMinutes(),
+    ).padStart(2, '0')}`;
+
+    const result = formatClockTime(ms);
+
+    expect(result).toBe(expected);
+    expect(result).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it('zero-pads single-digit hours and minutes', () => {
+    const date = new Date();
+    date.setHours(3, 5, 0, 0);
+
+    expect(formatClockTime(date.getTime())).toBe('03:05');
   });
 });
 
