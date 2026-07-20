@@ -863,6 +863,10 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).getContext(payload);
   }
 
+  getContextComposition({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).getContextComposition(payload);
+  }
+
   diagnoseContextOS({
     sessionId,
     ...payload

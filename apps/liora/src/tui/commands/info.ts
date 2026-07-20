@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { resolveEvidenceRoot } from '#/constant/workspace-data';
 import type {
   ContextOSRetrievalDiagnostics,
+  ContextComposition,
   McpServerInfo,
   SessionStatus,
   SessionUsage,
@@ -22,7 +23,7 @@ import {
   createStatusFieldMotionState,
   type StatusRecoveryReadiness,
 } from '../components/messages/status-panel';
-import { buildUsageReportLines, UsagePanelComponent, type ManagedUsageReport } from '../components/messages/usage-panel';
+import { buildUsageReportLines, buildContextCompositionLines, UsagePanelComponent, type ManagedUsageReport } from '../components/messages/usage-panel';
 import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
@@ -72,7 +73,10 @@ const SOTA_RECOVERY_SCAN_MAX_DEPTH = 5;
 const SOTA_RECOVERY_SCAN_LIMIT = 2_000;
 
 export async function showUsage(host: SlashCommandHost): Promise<void> {
-  const sessionUsage = await loadSessionUsageReport(host);
+  const [sessionUsage, composition] = await Promise.all([
+    loadSessionUsageReport(host),
+    loadContextComposition(host),
+  ]);
   const alias = host.state.appState.model;
   const providerKey = host.state.appState.availableModels[alias]?.provider;
   const managedProvider = isManagedUsageProvider(providerKey);
@@ -101,8 +105,8 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
     managedUsageError: undefined,
   };
 
-  const buildLines = (fillProgress: number) =>
-    buildUsageReportLines({
+  const buildLines = (fillProgress: number) => {
+    const lines = buildUsageReportLines({
       sessionUsage: sessionUsage.usage,
       sessionUsageError: sessionUsage.error,
       contextUsage: host.state.appState.contextUsage,
@@ -112,6 +116,12 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
       managedUsageError: reportState.managedUsageError,
       managedUsageFillProgress: fillProgress,
     });
+    if (composition !== undefined) {
+      lines.push('');
+      lines.push(...buildContextCompositionLines(composition));
+    }
+    return lines;
+  };
 
   playStatusOpenBeat(host, 'Usage', 'usage');
   const panel = new UsagePanelComponent({
@@ -355,6 +365,18 @@ async function loadSessionUsageReport(host: SlashCommandHost): Promise<SessionUs
     return { usage: await host.requireSession().getUsage() };
   } catch (error) {
     return { error: formatErrorMessage(error) };
+  }
+}
+
+async function loadContextComposition(
+  host: SlashCommandHost,
+): Promise<ContextComposition | undefined> {
+  try {
+    const session = host.requireSession();
+    if (typeof session.getContextComposition !== 'function') return undefined;
+    return await session.getContextComposition();
+  } catch {
+    return undefined;
   }
 }
 

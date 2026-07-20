@@ -20,6 +20,7 @@ import { expandCommandArguments } from '../plugin/commands';
 import type { EnabledPluginSessionStart, PluginCommandDef } from '#/plugin';
 import type { AgentMemoryRuntime } from '#/memory';
 import type { PluginCommandOrigin } from './context';
+import { estimateTokens } from '../utils/tokens';
 
 import type { McpConnectionManager } from '../mcp';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
@@ -365,6 +366,10 @@ export class Agent {
   }
 
   useProfile(profile: ResolvedAgentProfile, context?: PreparedSystemPromptContext): void {
+    const skillsListing =
+      profile.tools.includes('Skill')
+        ? (this.skills?.registry?.getModelSkillListing?.() ?? '')
+        : '';
     const systemPrompt = profile.systemPrompt({
       osEnv: this.kaos.osEnv,
       cwd: this.config.cwd,
@@ -375,6 +380,12 @@ export class Agent {
       additionalDirsInfo: context?.additionalDirsInfo,
     });
     this.config.update({ profileName: profile.name, systemPrompt });
+    this.config.setSystemPromptMeta({
+      agentsMdTokens: estimateTokens(context?.agentsMd ?? ''),
+      cwdListingTokens: estimateTokens(context?.cwdListing ?? ''),
+      skillsTokens: estimateTokens(skillsListing),
+      additionalDirsTokens: estimateTokens(context?.additionalDirsInfo ?? ''),
+    });
     this.tools.setActiveTools(profile.tools);
   }
 
@@ -648,6 +659,7 @@ export class Agent {
       },
       getBackgroundOutput: (payload) => this.background.readOutput(payload.taskId, payload.tail),
       getContext: () => this.context.data(),
+      getContextComposition: () => this.context.composition(),
       diagnoseContextOS: (payload) =>
         this.contextOS.diagnose(payload.query ?? '', payload.limit),
       getConfig: () => this.config.data(),

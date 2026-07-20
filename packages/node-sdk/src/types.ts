@@ -24,6 +24,8 @@ export type {
   BackgroundTaskInfo,
   BackgroundTaskStatus,
   ConfigDiagnostics,
+  ContextComposition,
+  ContextCompositionSegment,
   ContextMessage,
   CouncilDecision,
   ExperimentalFeatureState,

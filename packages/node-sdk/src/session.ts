@@ -2,6 +2,7 @@ import {
   ErrorCodes,
   LioraError,
   type AgentContextData,
+  type ContextComposition,
   type ContextOSRetrievalDiagnostics,
   type LioraErrorCode,
   type SwarmModeTrigger,
@@ -332,6 +333,11 @@ export class Session {
   async getContext(): Promise<AgentContextData> {
     this.ensureOpen();
     return this.rpc.getContext({ sessionId: this.id });
+  }
+
+  async getContextComposition(): Promise<ContextComposition> {
+    this.ensureOpen();
+    return this.rpc.getContextComposition({ sessionId: this.id });
   }
 
   async diagnoseContextOS(

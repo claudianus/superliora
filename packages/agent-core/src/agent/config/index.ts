@@ -11,6 +11,7 @@ import { applyKimiEnvSamplingParams, applyKimiEnvThinkingKeep } from '#/config/k
 import type { Agent } from '..';
 import { ErrorCodes, LioraError } from '../../errors';
 import type { AgentConfigData, AgentConfigUpdateData } from './types';
+import type { SystemPromptMeta } from '../context/types';
 import {
   resolveThinkingEffort,
   type ThinkingEffort,
@@ -30,6 +31,7 @@ export class ConfigState {
   private _profileName: string | undefined;
   private _thinkingLevel: ThinkingEffort = 'off';
   private _systemPrompt: string = '';
+  private _systemPromptMeta: SystemPromptMeta | undefined;
 
   constructor(protected readonly agent: Agent) {
     this._cwd = agent.kaos.getcwd();
@@ -172,6 +174,14 @@ export class ConfigState {
 
   get systemPrompt(): string {
     return this._systemPrompt;
+  }
+
+  get systemPromptMeta(): SystemPromptMeta | undefined {
+    return this._systemPromptMeta;
+  }
+
+  setSystemPromptMeta(meta: SystemPromptMeta): void {
+    this._systemPromptMeta = meta;
   }
 
   get modelCapabilities(): ModelCapability {

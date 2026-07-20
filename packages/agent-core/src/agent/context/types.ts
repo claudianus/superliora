@@ -148,6 +148,28 @@ export interface SystemReminderRecord {
   origin: PromptOrigin;
 }
 
+/** A single segment in the context composition breakdown. */
+export interface ContextCompositionSegment {
+  readonly label: string;
+  readonly tokens: number;
+  readonly children?: readonly ContextCompositionSegment[];
+}
+
+/** Full context-window composition breakdown returned by `composition()`. */
+export interface ContextComposition {
+  readonly totalTokens: number;
+  readonly maxContextTokens: number;
+  readonly segments: readonly ContextCompositionSegment[];
+}
+
+/** Token counts of the variables injected into the system prompt template. */
+export interface SystemPromptMeta {
+  readonly agentsMdTokens: number;
+  readonly cwdListingTokens: number;
+  readonly skillsTokens: number;
+  readonly additionalDirsTokens: number;
+}
+
 export interface AgentContextData {
   history: readonly ContextMessage[];
   tokenCount: number;

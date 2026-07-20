@@ -335,6 +335,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).getContext(payload);
   }
 
+  async getContextComposition({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getContextComposition(payload);
+  }
+
   async diagnoseContextOS({
     agentId,
     ...payload

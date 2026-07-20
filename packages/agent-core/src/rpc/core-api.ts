@@ -1,5 +1,5 @@
 import type { AgentConfigData } from '#/agent/config';
-import type { AgentContextData } from '#/agent/context';
+import type { AgentContextData, ContextComposition } from '#/agent/context';
 import type { ContextOSRetrievalDiagnostics } from '#/agent/context-os';
 import type { BackgroundTaskInfo } from '#/agent/background';
 import type {
@@ -616,6 +616,7 @@ export interface AgentAPI {
   ) => Promise<UltraworkObjectiveProfileDecision>;
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
+  getContextComposition: (payload: EmptyPayload) => ContextComposition;
   diagnoseContextOS: (payload: DiagnoseContextOSPayload) => ContextOSRetrievalDiagnostics;
   getConfig: (payload: EmptyPayload) => AgentConfigData;
   getPermission: (payload: EmptyPayload) => PermissionData;
