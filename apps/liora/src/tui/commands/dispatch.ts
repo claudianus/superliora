@@ -184,6 +184,7 @@ export interface SlashCommandHost {
   showErrors(): void;
   showSearchResults(results: SearchResults): void;
   showWebContent(url: string | undefined): void;
+  showBlame(path: string | undefined): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
@@ -324,6 +325,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'web':
       host.showWebContent(args);
+      return;
+    case 'blame':
+      host.showBlame(args);
       return;
     case 'version':
       host.showStatus(`${PRODUCT_NAME} v${host.state.appState.version}`);

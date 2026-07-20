@@ -60,6 +60,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.web.usage': 'Usage: /web <url>',
   'tui.web.fetching': 'Fetching {url} …',
 
+  // ── Git blame viewer (/blame) ────────────────────────────────────────────
+  'tui.blame.usage': 'Usage: /blame <path>',
+  'tui.blame.loading': 'Loading blame for {path} …',
+
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
     'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork',
@@ -409,6 +413,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   // ── Web content viewer (/web) ────────────────────────────────────────────
   'tui.web.usage': '사용법: /web <url>',
   'tui.web.fetching': '{url} 가져오는 중…',
+
+  // ── Git blame viewer (/blame) ────────────────────────────────────────────
+  'tui.blame.usage': '사용법: /blame <path>',
+  'tui.blame.loading': '{path} blame 불러오는 중…',
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':

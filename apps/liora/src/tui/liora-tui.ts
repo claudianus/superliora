@@ -29,6 +29,7 @@ import { appendInputHistory, loadInputHistory } from '#/utils/history/input-hist
 import { loadFileForViewer } from '#/utils/fs/file-content';
 import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
 import type { SearchResults } from '#/utils/fs/project-search';
+import { collectGitBlame } from '#/utils/git/git-blame';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import { collectCommitDiff, type GitLogReport } from '#/utils/git/git-log';
 import { openUrl } from '#/utils/open-url';
@@ -98,6 +99,7 @@ import {
 
 import { AssistantMessageComponent } from './components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from './components/messages/background-agent-status';
+import { BlamePanelComponent } from './components/dialogs/blame-panel';
 import { CronMessageComponent } from './components/messages/cron-message';
 import { buildGoalMarker } from './components/messages/goal-markers';
 import {
@@ -3614,6 +3616,36 @@ export class LioraTUI {
             relativePath: content.title ?? content.url,
             content: content.body,
             bytes: Buffer.byteLength(content.body, 'utf8'),
+            palette: currentTheme.palette,
+            onClose: () => {
+              this.state.activeDialog = null;
+              this.restoreEditor();
+            },
+          }),
+        );
+      } catch (error) {
+        this.showError(formatErrorMessage(error));
+      }
+    })();
+  }
+
+  showBlame(rawPath: string | undefined): void {
+    if (this.state.activeDialog !== null) return;
+    const target = (rawPath ?? '').trim();
+    if (target.length === 0) {
+      this.showError(ttui('tui.blame.usage'));
+      return;
+    }
+    this.showStatus(ttui('tui.blame.loading', { path: target }));
+    void (async () => {
+      try {
+        const lines = await collectGitBlame(target, { cwd: this.state.appState.workDir });
+        if (this.state.activeDialog !== null) return;
+        this.state.activeDialog = 'blame';
+        this.mountEditorReplacement(
+          new BlamePanelComponent({
+            lines,
+            title: target,
             palette: currentTheme.palette,
             onClose: () => {
               this.state.activeDialog = null;

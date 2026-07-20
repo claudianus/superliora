@@ -360,6 +360,7 @@ describe('built-in slash command registry', () => {
       expect.arrayContaining([
         'add-dir',
         'aquarium',
+        'blame',
         'compact',
         'btw',
         'editor',
