@@ -82,13 +82,26 @@ export interface TUIState {
   queuedMessages: QueuedMessage[];
   swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
   /**
-   * Cached editor rect from the last rendered frame. Used by the input handler
-   * to avoid a full layout recomputation (planTUINativeStage) on every keystroke.
-   * Invalidated implicitly when terminal size changes (cache key mismatch).
+   * Cached editor rect from the last call to getTUIStateNativeEditorRect.
+   * Avoids a full layout recomputation (planTUINativeStage) on every keystroke.
+   * Keyed by (columns, rows, editorLineCount) so it self-invalidates on
+   * terminal resize or editor content height change (Enter / backspace).
    */
   cachedEditorRect?: RendererRect;
   cachedEditorRectColumns?: number;
   cachedEditorRectRows?: number;
+  cachedEditorRectLineCount?: number;
+  /**
+   * Cached transcript layout from the last resolveTranscriptHitTestContext call.
+   * Avoids a second planTUINativeStage call on mouse clicks. Shares the same
+   * invalidation key as the editor rect cache (columns, rows, editorLineCount).
+   */
+  cachedTranscriptRect?: RendererRect;
+  cachedTranscriptVisibleRows?: number;
+  cachedTranscriptStageWidth?: number;
+  cachedTranscriptColumns?: number;
+  cachedTranscriptRows?: number;
+  cachedTranscriptLineCount?: number;
 }
 
 export function createTUIState(options: LioraTUIOptions): TUIState {

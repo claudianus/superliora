@@ -500,31 +500,41 @@ export function getTUIStateNativeEditorRect(
   if (!state.editorContainer.children.includes(state.editor)) return undefined;
   const frameWidth = normalizeFrameSize(width, DEFAULT_NATIVE_FRAME_COLUMNS);
   const frameHeight = normalizeFrameSize(height, DEFAULT_NATIVE_FRAME_ROWS);
-  // Fast path: reuse the rect cached by the last rendered frame. This avoids
-  // the expensive planTUINativeStage call (renders all chrome + panels) on
-  // every keystroke. The cache is keyed by terminal dimensions — a resize
-  // invalidates it implicitly because the dimensions won't match.
+  // Cheap editor line-count probe (internally cached by text + width). This
+  // detects Enter / backspace line changes without a full layout pass.
+  const editorLineCount = state.editor.getNativeLayoutRowCount?.(frameWidth) ?? -1;
+  // Fast path: reuse the rect from the last call with the same key. This
+  // avoids the expensive planTUINativeStage call (renders all chrome +
+  // panels) on every keystroke. The cache self-invalidates on terminal
+  // resize (dimension mismatch) or editor height change (line count mismatch).
   if (
     state.cachedEditorRect !== undefined &&
     state.cachedEditorRectColumns === frameWidth &&
-    state.cachedEditorRectRows === frameHeight
+    state.cachedEditorRectRows === frameHeight &&
+    state.cachedEditorRectLineCount === editorLineCount
   ) {
     return state.cachedEditorRect;
   }
-  // Slow path: full layout computation (first frame, resize, or cache miss).
+  // Slow path: full layout computation (first call, resize, line count change).
   const plan = planTUINativeStage(state, frameWidth, frameHeight, {
     resolveEditorFallbackLines: (contentWidth) =>
       nativeEditorFallbackRegionLines(state, contentWidth),
-    resolveEditorRows: ({ editorLineCount, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>
+    resolveEditorRows: ({ editorLineCount: elc, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>
       nativeEditorRegionRowsForLayout(
         state,
-        editorLineCount,
+        elc,
         contentHeight,
         fixedRowsWithoutEditor,
         contentWidth,
       ),
   });
-  return plan.layout.regions.find((region) => region.id === 'editor')?.rect;
+  const rect = plan.layout.regions.find((region) => region.id === 'editor')?.rect;
+  // Cache for subsequent calls with the same key.
+  state.cachedEditorRect = rect;
+  state.cachedEditorRectColumns = frameWidth;
+  state.cachedEditorRectRows = frameHeight;
+  state.cachedEditorRectLineCount = editorLineCount;
+  return rect;
 }
 
 /**
@@ -690,14 +700,6 @@ function buildTUIStateNativeFrame(
   const stageWidth = plan.stage.stage.width;
   const chrome = plan.chrome;
   const layout = plan.layout;
-  // Cache the editor rect so the input handler can skip the expensive
-  // planTUINativeStage recomputation on every keystroke. The cache is keyed
-  // by terminal dimensions; a size mismatch in getTUIStateNativeEditorRect
-  // triggers a fresh computation.
-  const editorRegion = layout.regions.find((r) => r.id === 'editor');
-  state.cachedEditorRect = editorRegion?.rect;
-  state.cachedEditorRectColumns = width;
-  state.cachedEditorRectRows = height;
   const linesByRegion = {
     transcript: nativeTranscriptRegionLines(state, stageWidth, layout.transcriptRows),
     header: chrome.header,
