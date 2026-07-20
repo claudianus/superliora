@@ -47,15 +47,18 @@ export {
   readInterruptedWorkResumeContext,
 } from './interrupted-work-resume';
 export {
+  analyzeFailedNodes,
   applyWorkGraphProgressToRun,
+  categorizeNodeFailure,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
+  FAILURE_RECOVERY_GUIDANCE,
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
 } from './stage-progress';
-export type { LongRunningStageInfo } from './stage-progress';
+export type { LongRunningStageInfo, WorkGraphFailureCategory } from './stage-progress';
 export {
   buildUltraworkCompactionEnvelope,
   captureUltraworkEnvelopeSnapshot,
