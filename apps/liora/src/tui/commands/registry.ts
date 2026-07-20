@@ -544,6 +544,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'files',
+    aliases: ['tree', 'explorer'],
+    description: 'Browse project files (git-aware)',
+    priority: 84,
+    availability: 'always',
+  },
+  {
     name: 'aquarium',
     aliases: ['tank'],
     description: 'Overlay a Welcome-sized Jewel Tank (covers chat until the next message)',

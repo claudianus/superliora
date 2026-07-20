@@ -27,6 +27,7 @@ import { resolve } from 'pathe';
 import type { CLIOptions } from '#/cli/options';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 import { appendInputHistory, loadInputHistory } from '#/utils/history/input-history';
+import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
 import { openUrl } from '#/utils/open-url';
 import { getInputHistoryFile } from '#/utils/paths';
 import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
@@ -78,6 +79,7 @@ import {
   advancedKeyboardShortcuts,
   HelpPanelComponent,
 } from './components/dialogs/help-panel';
+import { FileExplorerComponent } from './components/dialogs/file-explorer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
 import {
@@ -3367,6 +3369,34 @@ export class LioraTUI {
   }
 
   private hideHelpPanel(): void {
+    this.state.activeDialog = null;
+    this.restoreEditor();
+  }
+
+  showFileExplorer(): void {
+    const workDir = this.state.appState.workDir;
+    const listing = listProjectFiles(workDir);
+    const nodes = buildFileTree(listing.paths);
+    this.state.activeDialog = 'files';
+    this.mountEditorReplacement(
+      new FileExplorerComponent({
+        workDir,
+        nodes,
+        truncated: listing.truncated,
+        source: listing.source,
+        onPick: (relativePath) => {
+          this.hideFileExplorer();
+          this.state.editor.insertTextAtCursor(`${relativePath} `);
+          requestTUILayoutRender(this.state);
+        },
+        onClose: () => {
+          this.hideFileExplorer();
+        },
+      }),
+    );
+  }
+
+  private hideFileExplorer(): void {
     this.state.activeDialog = null;
     this.restoreEditor();
   }

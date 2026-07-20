@@ -172,6 +172,7 @@ export interface SlashCommandHost {
   setExitOpenUrl(url: string): void;
   retryLastTurn(): Promise<void>;
   showHelpPanel(args?: string): void;
+  showFileExplorer(): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
@@ -303,6 +304,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'help':
       host.showHelpPanel(args);
+      return;
+    case 'files':
+      host.showFileExplorer();
       return;
     case 'version':
       host.showStatus(`${PRODUCT_NAME} v${host.state.appState.version}`);
