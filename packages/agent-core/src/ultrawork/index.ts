@@ -52,6 +52,7 @@ export {
   assessContextPressure,
   assessRecoveryEscalation,
   categorizeNodeFailure,
+  computeRunHealthScore,
   CONTEXT_PRESSURE_GUIDANCE,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
@@ -62,7 +63,7 @@ export {
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
 } from './stage-progress';
-export type { ContextPressureLevel, LongRunningStageInfo, RecoveryEscalationLevel, WorkGraphFailureCategory } from './stage-progress';
+export type { ContextPressureLevel, LongRunningStageInfo, RecoveryEscalationLevel, RunHealthGrade, RunHealthSignals, WorkGraphFailureCategory } from './stage-progress';
 export {
   buildUltraworkCompactionEnvelope,
   captureUltraworkEnvelopeSnapshot,
