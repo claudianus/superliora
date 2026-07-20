@@ -45,8 +45,8 @@ while ((match = nameRegex.exec(source)) !== null) {
   themeBlocks.push(match[0]);
 }
 
-if (themeBlocks.length !== 7) {
-  console.error(`ERROR: expected 7 bundled themes, found ${themeBlocks.length}`);
+if (themeBlocks.length === 0) {
+  console.error('ERROR: no bundled themes found (expected name: \'superliora-*\' entries)');
   process.exit(1);
 }
 console.log(`Found ${themeBlocks.length} bundled theme entries.`);
@@ -95,8 +95,8 @@ while ((themeMatch = themeNamePattern.exec(source)) !== null) {
   }
 }
 
-if (themes.length !== 7) {
-  console.error(`ERROR: extracted ${themes.length} themes (expected 7)`);
+if (themes.length !== themeBlocks.length) {
+  console.error(`ERROR: extracted ${themes.length} themes (expected ${themeBlocks.length}; each theme needs 40 color tokens)`);
   process.exit(1);
 }
 console.log(`Extracted ${themes.length} themes with full color tokens.`);
@@ -132,7 +132,7 @@ for (const theme of themes) {
 console.table(checks);
 
 if (allPass) {
-  console.log('\nAll 36 contrast checks passed (≥ 4.5:1).');
+  console.log(`\nAll ${checks.length} contrast checks passed (≥ 4.5:1).`);
   process.exit(0);
 } else {
   const failed = checks.filter((c) => c.Status === 'FAIL');

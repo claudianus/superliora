@@ -83,6 +83,8 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run check:imports
       - run: pnpm run sherif
+      - name: Theme contrast check (WCAG AA)
+        run: pnpm --filter @superliora/liora run check:contrast
 
   typecheck:
     runs-on: ubuntu-latest
