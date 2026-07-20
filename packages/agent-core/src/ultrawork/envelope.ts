@@ -1,6 +1,6 @@
 import type { Agent } from '../agent';
 import { buildUltraworkResumeCursor } from './recovery';
-import { inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
+import { detectStuckWorkGraphNodes, inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
 import type { UltraworkRunMirror } from './types';
 
 export interface UltraworkEnvelopeOptions {
@@ -152,6 +152,12 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     for (const node of pendingNodes.slice(0, 12)) {
       lines.push(`- [${node.status}] ${node.id}: ${node.title} (stage=${node.stage})`);
     }
+  }
+
+  // Highlight stuck nodes so post-compaction resume can circuit-break them.
+  const stuckNodes = detectStuckWorkGraphNodes(snapshot.run.workGraph);
+  if (stuckNodes.length > 0) {
+    lines.push(`stuck_nodes: ${stuckNodes.slice(0, 5).map((n) => `${n.id}[${n.status}]`).join(', ')}`);
   }
 
   lines.push(
