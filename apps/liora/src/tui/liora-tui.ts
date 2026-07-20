@@ -29,6 +29,7 @@ import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 import { appendInputHistory, loadInputHistory } from '#/utils/history/input-history';
 import { loadFileForViewer } from '#/utils/fs/file-content';
 import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
+import type { GitDiffReport } from '#/utils/git/git-diff';
 import { openUrl } from '#/utils/open-url';
 import { getInputHistoryFile } from '#/utils/paths';
 import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
@@ -81,6 +82,7 @@ import {
   HelpPanelComponent,
 } from './components/dialogs/help-panel';
 import { FileExplorerComponent } from './components/dialogs/file-explorer';
+import { DiffReviewComponent } from './components/dialogs/diff-review';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
@@ -3406,7 +3408,38 @@ export class LioraTUI {
     this.restoreEditor();
   }
 
-  private showFileViewer(relativePath: string): void {
+  private lastDiffReport: GitDiffReport | undefined;
+  private lastDiffFilter = '';
+
+  showDiffReview(report: GitDiffReport, filter: string): void {
+    this.lastDiffReport = report;
+    this.lastDiffFilter = filter;
+    this.state.activeDialog = 'diff-review';
+    this.mountEditorReplacement(
+      new DiffReviewComponent({
+        report,
+        filter,
+        onOpenFile: (relativePath) => {
+          this.hideDiffReview();
+          this.showFileViewer(relativePath, () => {
+            if (this.lastDiffReport !== undefined) {
+              this.showDiffReview(this.lastDiffReport, this.lastDiffFilter);
+            }
+          });
+        },
+        onClose: () => {
+          this.hideDiffReview();
+        },
+      }),
+    );
+  }
+
+  private hideDiffReview(): void {
+    this.state.activeDialog = null;
+    this.restoreEditor();
+  }
+
+  private showFileViewer(relativePath: string, onViewerClose?: () => void): void {
     const result = loadFileForViewer(resolve(this.state.appState.workDir, relativePath));
     switch (result.kind) {
       case 'text': {
@@ -3418,7 +3451,8 @@ export class LioraTUI {
             bytes: result.bytes,
             palette: currentTheme.palette,
             onClose: () => {
-              this.returnToFileExplorer();
+              if (onViewerClose !== undefined) onViewerClose();
+              else this.returnToFileExplorer();
             },
           }),
         );

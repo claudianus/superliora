@@ -1,11 +1,9 @@
 /**
- * `/diff` — show working-tree changes (staged + unstaged + untracked) as a
- * dense review panel in the transcript. Optional argument filters files by
- * path substring (`/diff src/foo.ts`).
+ * `/diff` — open an interactive working-tree review dialog (staged +
+ * unstaged + untracked) with per-file change stats and clustered diffs.
+ * Optional argument filters files by path substring (`/diff src/foo.ts`).
  */
 
-import { GitDiffPanel } from '../components/messages/git-diff-panel';
-import { requestTUILayoutRender } from '../utils/frame-render';
 import { collectGitDiff } from '#/utils/git/git-diff';
 import type { SlashCommandHost } from './dispatch';
 
@@ -32,13 +30,14 @@ export function showDiff(host: SlashCommandHost, args?: string): void {
   const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
   const totalDeleted = files.reduce((sum, file) => sum + file.deleted, 0);
 
-  const panel = new GitDiffPanel({
-    branch: report.branch,
-    files,
-    totalAdded,
-    totalDeleted,
-    truncated: report.truncated,
-  });
-  host.state.transcriptContainer.addChild(panel);
-  requestTUILayoutRender(host.state);
+  host.showDiffReview(
+    {
+      branch: report.branch,
+      files,
+      totalAdded,
+      totalDeleted,
+      truncated: report.truncated,
+    },
+    filter,
+  );
 }

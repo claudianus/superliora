@@ -4,6 +4,7 @@ import type { LioraHarness, Session } from '@superliora/sdk';
 
 import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorToken, ThemeName } from '#/tui/theme';
+import type { GitDiffReport } from '#/utils/git/git-diff';
 
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
 import type { AuthFlowController } from '../controllers/auth-flow';
@@ -174,6 +175,7 @@ export interface SlashCommandHost {
   retryLastTurn(): Promise<void>;
   showHelpPanel(args?: string): void;
   showFileExplorer(): void;
+  showDiffReview(report: GitDiffReport, filter: string): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;

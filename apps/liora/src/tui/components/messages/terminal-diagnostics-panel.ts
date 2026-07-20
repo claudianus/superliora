@@ -2,7 +2,7 @@
  * TerminalDiagnosticsPanel — compact capability report shown by `/term`.
  *
  * Wraps the pure formatter from `terminal-diagnostics` in the shared rounded
- * frame, mirroring GitDiffPanel's layout contract.
+ * panel frame.
  */
 
 import type { Component } from '#/tui/renderer';
