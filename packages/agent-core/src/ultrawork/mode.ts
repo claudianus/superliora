@@ -371,6 +371,7 @@ export class UltraworkMode {
       reason: reason ?? 'unknown',
       run_id: run.id,
       status: run.status,
+      stage_duration_ms: stageDurationMs(run, from),
     });
     if (this.activation !== undefined && from !== to) {
       const input = {
@@ -425,4 +426,20 @@ export class UltraworkMode {
       this.writeCheckpoint(options);
     }, 1000);
   }
+}
+
+/** Calculate milliseconds spent in the `from` stage based on stageHistory. */
+function stageDurationMs(run: UltraworkRun, from: UltraworkStage | undefined): number | undefined {
+  if (from === undefined) return undefined;
+  const history = run.stageHistory ?? [];
+  // Find the last entry for the `from` stage
+  for (let i = history.length - 1; i >= 0; i--) {
+    const entry = history[i];
+    if (entry !== undefined && entry.stage === from) {
+      const entered = Date.parse(entry.enteredAt);
+      if (Number.isFinite(entered)) return Date.now() - entered;
+      return undefined;
+    }
+  }
+  return undefined;
 }

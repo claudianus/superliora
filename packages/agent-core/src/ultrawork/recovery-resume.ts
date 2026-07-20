@@ -254,6 +254,15 @@ export function reconcileUltraworkRunForResume(
     ),
   );
 
+  agent.telemetry.track('ultrawork_resume', {
+    run_id: run.id,
+    stage: reconciledRun.stage,
+    orphaned_nodes: orphanedWorkNodes.length,
+    orphaned_experts: orphanedExperts.length,
+    lost_tasks: lostBackgroundTasks.length,
+    run_age_ms: Date.now() - Date.parse(run.createdAt),
+  });
+
   return {
     run: reconciledRun,
     workGraph,
