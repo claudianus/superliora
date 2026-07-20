@@ -977,18 +977,28 @@ export function applySkyToLetterboxRegions(
   return bands.map((band, i) => {
     const lines = cache.linesByBand[i]!;
     // Restore bg under last sky scatter (avoids full-band Array.from each tick).
+    // Create a fresh row reference on mutation so the compositor's lineKey
+    // WeakMap (keyed by array identity) recomputes the row key and the
+    // composition cache does not skip the changed row.
     for (const packed of cache.prevSkyByBand[i]!) {
       const lx = packed & 0xffff;
       const ly = (packed >>> 16) & 0xffff;
       const row = lines[ly];
-      if (row !== undefined && lx < row.length) row[lx] = cache.emptyCell;
+      if (row !== undefined && lx < row.length) {
+        const copy = [...row];
+        copy[lx] = cache.emptyCell;
+        lines[ly] = copy;
+      }
     }
     const nextKeys: number[] = [];
     for (const cell of byBand[i]!) {
       const lx = cell.x - band.x;
       const ly = cell.y - band.y;
       if (ly < 0 || ly >= band.height || lx < 0 || lx >= band.width) continue;
-      lines[ly]![lx] = skyRendererCell(cell.char, cell.fg, canvasBg, cell.bold);
+      const row = lines[ly]!;
+      const copy = [...row];
+      copy[lx] = skyRendererCell(cell.char, cell.fg, canvasBg, cell.bold);
+      lines[ly] = copy;
       nextKeys.push(skyCellKey(lx, ly));
     }
     cache.prevSkyByBand[i] = nextKeys;
