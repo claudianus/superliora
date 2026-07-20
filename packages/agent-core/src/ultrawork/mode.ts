@@ -352,6 +352,9 @@ export class UltraworkMode {
       run_id: run.id,
       run_age_ms: Date.now() - Date.parse(run.createdAt),
       stage_transitions: (run.stageHistory ?? []).length,
+      total_nodes: run.workGraph?.nodes.length ?? 0,
+      done_nodes: run.workGraph?.nodes.filter((n) => n.status === 'done').length ?? 0,
+      failed_nodes: run.workGraph?.nodes.filter((n) => n.status === 'failed').length ?? 0,
     });
     if (this.agent.swarmMode.isActive) {
       this.agent.swarmMode.exit();
