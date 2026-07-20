@@ -19,25 +19,59 @@ import {
 import type { IdleFish, IdleTankFx, IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
 
 /**
- * Ornamental school — single-row silhouettes (no fake top/bottom fins).
- * Large ≈ clownfish (white ═ bands). Compact ≈ betta (flowing ∽/≈ fins).
+ * Ornamental school — multi-row silhouettes with dorsal/ventral fins.
+ * Large ≈ clownfish (3-row with flowing fins). Compact ≈ betta (2-row).
+ * Tiny ≈ neon danios (single-row darts).
  */
-export const FISH_LARGE_RIGHT = ['>═((º═>'] as const;
+export const FISH_LARGE_RIGHT = [
+  '  /~\\  ',
+  '>═((º═>',
+  '  \\~/  ',
+] as const;
 
-/** Lead fish — left. */
-export const FISH_LARGE_LEFT = ['<═º))═<'] as const;
+/** Lead fish — left (3-row). */
+export const FISH_LARGE_LEFT = [
+  '  /~\\  ',
+  '<═º))═<',
+  '  \\~/  ',
+] as const;
 
-/** Mid-size betta companion — right. */
-export const FISH_COMPACT_RIGHT = ['>∽((º≈'] as const;
+/** Mid-size betta companion — right (2-row with dorsal crest). */
+export const FISH_COMPACT_RIGHT = [
+  ' .~~. ',
+  '>∽((º≈',
+] as const;
 
-/** Mid-size betta companion — left. */
-export const FISH_COMPACT_LEFT = ['≈º))∽<'] as const;
+/** Mid-size betta companion — left (2-row). */
+export const FISH_COMPACT_LEFT = [
+  ' .~~. ',
+  '≈º))∽<',
+] as const;
 
 /** Tiny neon danios (right / left pairs). */
 export const FISH_TINY = [
   ['>◦≡>', '<≡◦<'],
   ['>º≡>', '<≡º<'],
   ['>◦~>', '<~◦<'],
+] as const;
+
+/**
+ * Jellyfish — pulsing bell with trailing tentacles (3 rows).
+ * Adds vertical movement and bioluminescent glow to the mid-water column.
+ */
+export const JELLYFISH_FRAMES = [
+  [' .oOo. ', ' )~~~( ', '  )|(| '],
+  [' .oOo. ', ' )~~~( ', '  |)|  '],
+  ['  oOo  ', '  )~(  ', '  )|(  '],
+  [' .oOo. ', ' )~~~( ', '  )|(| '],
+] as const;
+
+/** Seahorse — slow drift, curled tail (3 rows). */
+export const SEAHORSE_FRAMES = [
+  [' .o. ', ' (º) ', '  )~ '],
+  [' .o. ', ' (º) ', '  ~( '],
+  [' .o. ', ' (º) ', '  )~ '],
+  [' .o. ', ' (º) ', '  ~( '],
 ] as const;
 
 /**
@@ -60,21 +94,33 @@ export const PLANT_BROAD = [
   ['(_)_ ', '(_)( ', '(_)_ ', '(_)( '],
 ] as const;
 
-/** Tall sword / java-fern leaves — right bank hero. */
+/** Tall sword / java-fern leaves — right bank hero (8-row grand sword). */
 export const PLANT_TALL = [
-  ['  )  ', '  (  ', '  )  ', '  (  '],
-  [' )/  ', ' \\(  ', ' )/  ', ' \\(  '],
-  [' )~( ', ' (~) ', ' )~( ', ' (~) '],
-  [')~~( ', '(~~) ', ')~~( ', '(~~) '],
-  [')~~( ', '(~~) ', ')~~( ', '(~~) '],
-  ['(~)~ ', '~(~) ', '(~)~ ', '~(~) '],
+  ['   )   ', '   (   ', '   )   ', '   (   '],
+  ['   )   ', '   (   ', '   )   ', '   (   '],
+  ['  )/   ', '  \\(  ', '  )/   ', '  \\(  '],
+  ['  )~(  ', '  (~)  ', '  )~(  ', '  (~)  '],
+  [' )~)~( ', ' (~(~) ', ' )~)~( ', ' (~(~) '],
+  [' )~~)( ', ' (~~(~ ', ' )~~)( ', ' (~~(~ '],
+  ['(~)~~( ', '~(~)~) ', '(~)~~( ', '~(~)~) '],
+  ['(~)~~(~', '~(~)~~)', '(~)~~(~', '~(~)~~)'],
 ] as const;
 
-/** Slim stem plant for a single magenta/red accent. */
+/** Slim stem plant for a single magenta/red accent (taller). */
 export const PLANT_STEM = [
+  ['   )   ', '   (   ', '   )   ', '   (   '],
+  ['  )|(  ', '  (|\\ ', '  )|(  ', '  (/|  '],
+  ['  )~(  ', '  (~)  ', '  )~(  ', '  (~)  '],
+  [' )~)~( ', ' (~(~) ', ' )~)~( ', ' (~(~) '],
+  ['(~)~(~ ', '~(~)~) ', '(~)~(~ ', '~(~)~) '],
+] as const;
+
+/** Tall grass / vallisneria — flowing ribbon leaves for left bank. */
+export const PLANT_GRASS = [
+  ['  |  ', '  |  ', '  |  ', '  |  '],
   ['  )  ', '  (  ', '  )  ', '  (  '],
-  [' )|( ', ' (|\\ ', ' )|( ', ' (/| '],
-  [' )~( ', ' (~) ', ' )~( ', ' (~) '],
+  [' )~  ', ' (~  ', ' )~  ', ' (~  '],
+  [' )~) ', ' (~( ', ' )~) ', ' (~( '],
   ['(~)~ ', '~(~) ', '(~)~ ', '~(~) '],
 ] as const;
 
@@ -505,7 +551,7 @@ export function resolveFoxGlyphRows(
   return resolveFishGlyphRows(width, availableRows, elapsedMs);
 }
 
-/** Soft cheek / fin pulse — ≥4 frames, never a hard blink. */
+/** Soft cheek / fin pulse — ≥4 frames, never a hard blink. Multi-row aware. */
 export function applyFishTail(
   rows: readonly string[],
   elapsedMs: number,
@@ -525,15 +571,29 @@ export function applyFishTail(
       ? (['>═((º═>', '>═(º═> ', '>═((º═>', '>═((º≈>'] as const)
       : (['<═º))═<', '<═º)═< ', '<═º))═<', '<≈º))═<'] as const);
     out[bodyIdx] = cheeks[frame] ?? cheeks[0]!;
+    // Animate dorsal/ventral fin rows with subtle wave.
+    const finFrames = ['  /~\\  ', '  /~\\  ', '  /~~\\ ', '  /~\\  '] as const;
+    const finFramesB = ['  \\~/  ', '  \\~~/ ', '  \\~/  ', '  \\~/  '] as const;
+    if (bodyIdx > 0 && out[bodyIdx - 1] !== undefined && /[\\/]/.test(out[bodyIdx - 1]!)) {
+      out[bodyIdx - 1] = finFrames[frame] ?? finFrames[0]!;
+    }
+    if (bodyIdx + 1 < out.length && out[bodyIdx + 1] !== undefined && /[\\/]/.test(out[bodyIdx + 1]!)) {
+      out[bodyIdx + 1] = finFramesB[frame] ?? finFramesB[0]!;
+    }
     return out;
   }
 
-  // Betta flowing fins.
+  // Betta flowing fins (2-row: crest + body).
   if (line.includes('∽((º') || line.includes('º))∽')) {
     const fins = facingRight
       ? (['∽((º≈', '∼((º≈', '∽((º∼', '≈((º∽'] as const)
       : (['≈º))∽', '∼º))∽', '∽º))∼', '∽º))≈'] as const);
     out[bodyIdx] = fins[frame] ?? fins[0]!;
+    // Dorsal crest wave.
+    const crestFrames = [' .~~. ', ' .~~. ', '  .~. ', ' .~~. '] as const;
+    if (bodyIdx > 0 && out[bodyIdx - 1] !== undefined && /[.~]/.test(out[bodyIdx - 1]!)) {
+      out[bodyIdx - 1] = crestFrames[frame] ?? crestFrames[0]!;
+    }
     return out;
   }
 
@@ -551,6 +611,7 @@ export function applyFishTail(
 /**
  * Per-cell ornamental shading — punchy bands, fin accents, specular highlight.
  * Clownfish / betta / neon lighting with bold jewel hues (not theme-muted).
+ * Handles multi-row fish: fin rows (top/bottom) get translucent fin coloring.
  */
 export function colorizeFishLine(
   line: string,
@@ -560,6 +621,7 @@ export function colorizeFishLine(
   palette: AquariumPalette,
   paint: (hex: string, text: string) => string,
   showAmbient: boolean,
+  isFinRow = false,
 ): string {
   if (!showAmbient) return paint(palette.dim, line);
 
@@ -589,6 +651,20 @@ export function colorizeFishLine(
   const nose = mixHexColor(body, ink, 0.35);
   const rim = mixHexColor(hot, '#FFFFFF', 0.35);
 
+  // Fin rows (dorsal/ventral) — translucent flowing fin color.
+  if (isFinRow) {
+    const finHex = mixHexColor(body, finAccent, 0.55);
+    const finTip = mixHexColor(finHex, '#FFFFFF', 0.3);
+    let out = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]!;
+      if (ch === ' ') { out += ' '; continue; }
+      const isEdge = ch === '/' || ch === '\\';
+      out += paint(isEdge ? finTip : finHex, ch);
+    }
+    return out;
+  }
+
   let bodySeen = 0;
   let out = '';
   for (let i = 0; i < line.length; i++) {
@@ -615,6 +691,9 @@ export function colorizeFishLine(
       if (atNose) hex = nose;
       else if (atTail) hex = kind === 'compact' ? finAccent : shade;
       else hex = rim;
+    } else if (ch === '.' && kind === 'compact') {
+      // Betta crest dots.
+      hex = finAccent;
     }
 
     out += paint(hex, ch);
@@ -1075,9 +1154,12 @@ function paintFishFromSnapshot(
   fish: IdleTankSnapshot['fish'],
 ): void {
   for (const actor of fish) {
-    const lines = glyphForSnapshotFish(actor, elapsedMs).map((line) =>
-      colorizeFishLine(line, actor.kind, actor.color, actor.goesRight, palette, paint, showAmbient),
-    );
+    const glyphLines = glyphForSnapshotFish(actor, elapsedMs);
+    const bodyIdx = glyphLines.findIndex((l) => /[<>]/.test(l));
+    const lines = glyphLines.map((line, rowIdx) => {
+      const isFin = bodyIdx >= 0 && rowIdx !== bodyIdx && !/[<>]/.test(line);
+      return colorizeFishLine(line, actor.kind, actor.color, actor.goesRight, palette, paint, showAmbient, isFin);
+    });
     blitAt(canvas, lines, Math.trunc(actor.y), Math.trunc(actor.x), width);
   }
 }
@@ -1169,9 +1251,12 @@ function paintFishSchool(
       : width + 8 - Math.floor(travel % loop);
     const bob = Math.sin(elapsedMs / FISH_SWIM_MS + actor.phase * Math.PI * 2) * 0.95;
     const y = Math.max(1, Math.min(floor - 1, Math.floor(actor.baseYRatio * floor + bob)));
-    const lines = glyphForActor(actor, elapsedMs).map((line) =>
-      colorizeFishLine(line, actor.kind, actor.color, actor.goesRight, palette, paint, showAmbient),
-    );
+    const glyphLines = glyphForActor(actor, elapsedMs);
+    const bodyIdx = glyphLines.findIndex((l) => /[<>]/.test(l));
+    const lines = glyphLines.map((line, rowIdx) => {
+      const isFin = bodyIdx >= 0 && rowIdx !== bodyIdx && !/[<>]/.test(line);
+      return colorizeFishLine(line, actor.kind, actor.color, actor.goesRight, palette, paint, showAmbient, isFin);
+    });
     blitAt(canvas, lines, y, x, width);
   }
 }
@@ -1377,6 +1462,30 @@ function paintSeaweed(
       );
     }
   }
+
+  // 6) Left bank vallisneria grass — flowing ribbon leaves beside the aerator
+  if (width >= 48 && storyRows >= 10) {
+    const grassXs = width >= 72 ? [left + 13, left + 16] : [left + 12];
+    for (let i = 0; i < grassXs.length; i++) {
+      const x = grassXs[i]!;
+      if (x < 2 || x > width - 6) continue;
+      const seed = hash2(i * 59 + 11, 127);
+      paintPlantKit(
+        canvas,
+        width,
+        sandY,
+        elapsedMs,
+        paint,
+        PLANT_GRASS,
+        x,
+        greenSoft,
+        seed,
+        0.2 + i * 0.08,
+        bedDeep,
+        tipLite,
+      );
+    }
+  }
 }
 
 /** One warm centerpiece rock (reference hardscape), plus a small companion. */
@@ -1444,6 +1553,197 @@ function paintAirStone(
 }
 
 /**
+ * Volumetric light cones — wide triangular beams from the surface that
+ * widen as they descend, with soft edges and slow drift.
+ */
+export function paintVolumetricLight(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  shaft: string,
+  cool: string,
+): void {
+  if (width < 48 || storyRows < 10) return;
+  const motionMs =
+    Math.floor(Math.max(0, elapsedMs) / IDLE_SURFACE_MOTION_QUANTUM_MS) *
+    IDLE_SURFACE_MOTION_QUANTUM_MS;
+  const sandY = storyRows - 1;
+  const cones = width >= 80 ? 3 : 2;
+
+  for (let i = 0; i < cones; i++) {
+    const seed = hash2(i * 67 + 13, 157);
+    const baseX = Math.floor(((i + 0.5) / cones) * (width - 12)) + 6;
+    const drift = Math.floor(Math.sin(motionMs / 2_400 + seed * 0.7) * 3);
+    const centerX = Math.max(4, Math.min(width - 4, baseX + drift));
+    const maxDepth = Math.min(sandY - 2, 5 + (seed % 4));
+    // Cone widens as it descends.
+    const topWidth = 1;
+    const bottomWidth = Math.max(3, Math.floor(maxDepth * 0.8));
+
+    for (let d = 0; d < maxDepth; d++) {
+      const y = 1 + d;
+      if (y >= sandY - 1) break;
+      const t = d / Math.max(1, maxDepth - 1);
+      const halfW = Math.floor(topWidth + (bottomWidth - topWidth) * t);
+      const fade = 1 - t * 0.7;
+      const hex = mixHexColor(shaft, cool, t * 0.5);
+      // Soft edge: center is brighter, edges fade.
+      for (let dx = -halfW; dx <= halfW; dx++) {
+        const x = centerX + dx;
+        if (x < 0 || x >= width) continue;
+        const edgeDist = Math.abs(dx) / Math.max(1, halfW);
+        if (edgeDist > 0.85 && (seed + d + dx) % 3 !== 0) continue; // Soft edge dropout.
+        const glyph = edgeDist < 0.3 ? '˚' : edgeDist < 0.6 ? '·' : '˙';
+        const cellHex = mixHexColor(hex, cool, edgeDist * 0.4);
+        // Only paint on soft cells — don't overwrite fish/plants.
+        if (fade > 0.3) {
+          putCell(canvas, y, x, width, paint(cellHex, glyph));
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Floating plankton / detritus motes — tiny particles drifting in the
+ * water column at various depths. Adds life to the open water space.
+ */
+export function paintPlankton(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  palette: AquariumPalette,
+): void {
+  if (width < 36 || storyRows < 8) return;
+  const sandY = storyRows - 1;
+  const count = Math.max(6, Math.floor(width * storyRows * 0.012));
+
+  for (let i = 0; i < count; i++) {
+    const seed = hash2(i * 37 + 7, 199);
+    // Slow horizontal drift + gentle vertical bob.
+    const driftX = Math.floor(elapsedMs / (3_800 + (seed % 2_000)) + seed * 0.1) % Math.max(1, width);
+    const x = (seed + driftX) % width;
+    const depthBias = (seed % 100) / 100;
+    const baseY = 2 + Math.floor(depthBias * Math.max(1, sandY - 4));
+    const bob = Math.sin(elapsedMs / (2_600 + (seed % 1_400)) + seed) * 0.8;
+    const y = Math.max(1, Math.min(sandY - 2, Math.round(baseY + bob)));
+
+    // Depth-based visibility: deeper = dimmer.
+    const depthT = (y - 1) / Math.max(1, sandY - 2);
+    const visibility = 1 - depthT * 0.6;
+    if ((seed % 100) / 100 > visibility + 0.3) continue;
+
+    const tone = seed % 4;
+    const hex =
+      tone === 0
+        ? mixHexColor(palette.bubble, palette.shaft, 0.3)
+        : tone === 1
+          ? mixHexColor(palette.water, palette.bubble, 0.4)
+          : tone === 2
+            ? mixHexColor(palette.plantSoft, palette.water, 0.6)
+            : mixHexColor(palette.shaft, palette.water, 0.5);
+    const glyph = tone === 0 ? '·' : tone === 1 ? '˙' : tone === 2 ? '.' : '˚';
+    putCell(canvas, y, x, width, paint(hex, glyph));
+  }
+}
+
+/**
+ * Jellyfish ambient creatures — slow vertical drift with pulsing bell.
+ * Purely visual (not part of the physics sim). 1–2 jellies in premium mode.
+ */
+export function paintJellyfish(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  palette: AquariumPalette,
+): void {
+  if (width < 56 || storyRows < 12) return;
+  const sandY = storyRows - 1;
+  const count = width >= 80 ? 2 : 1;
+
+  for (let i = 0; i < count; i++) {
+    const seed = hash2(i * 83 + 19, 241);
+    // Slow vertical oscillation (jellyfish pulse upward then drift down).
+    const period = 8_000 + (seed % 4_000);
+    const phase = (elapsedMs + seed * 137) % period;
+    const t = phase / period;
+    // Rise fast, sink slow (sawtooth-ish with easing).
+    const rise = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
+    const minY = 2;
+    const maxY = Math.max(3, Math.floor(sandY * 0.55));
+    const y = Math.max(minY, Math.min(maxY, Math.round(minY + (1 - rise) * (maxY - minY))));
+    // Gentle horizontal sway.
+    const baseX = Math.floor(width * (0.2 + (i * 0.45) + (seed % 20) / 100));
+    const sway = Math.floor(Math.sin(elapsedMs / 3_200 + seed) * 2);
+    const x = Math.max(1, Math.min(width - 8, baseX + sway));
+
+    // Pulse animation frame.
+    const pulseFrame = Math.floor(elapsedMs / 1_100 + seed) % JELLYFISH_FRAMES.length;
+    const frame = JELLYFISH_FRAMES[pulseFrame] ?? JELLYFISH_FRAMES[0]!;
+
+    // Bioluminescent coloring: bell is bright, tentacles fade.
+    const bellHex = mixHexColor(palette.fishSoft, palette.bubble, 0.35);
+    const bellHot = mixHexColor(bellHex, '#FFFFFF', 0.35);
+    const tentHex = mixHexColor(bellHex, palette.water, 0.5);
+
+    const lines = frame.map((row, rowIdx) => {
+      let painted = '';
+      for (const ch of row) {
+        if (ch === ' ') { painted += ' '; continue; }
+        const hex = rowIdx === 0 ? bellHot : rowIdx === 1 ? bellHex : tentHex;
+        painted += paint(hex, ch);
+      }
+      return painted;
+    });
+    blitAt(canvas, lines, y, x, width);
+  }
+}
+
+/**
+ * Seahorse ambient creature — slow drift near plants, curled tail animation.
+ * Premium-only accent near the right plant bank.
+ */
+export function paintSeahorse(
+  canvas: string[],
+  width: number,
+  storyRows: number,
+  elapsedMs: number,
+  paint: (hex: string, text: string) => string,
+  palette: AquariumPalette,
+): void {
+  if (width < 64 || storyRows < 12) return;
+  const sandY = storyRows - 1;
+  const seed = hash2(71, 313);
+  // Positioned near the right plant bank.
+  const x = Math.floor(width * 0.72) + (seed % 4);
+  // Gentle vertical bob near the plants.
+  const baseY = Math.floor(sandY * 0.45);
+  const bob = Math.sin(elapsedMs / 4_500 + seed) * 1.2;
+  const y = Math.max(2, Math.min(sandY - 4, Math.round(baseY + bob)));
+
+  const frame = SEAHORSE_FRAMES[Math.floor(elapsedMs / 1_400) % SEAHORSE_FRAMES.length] ?? SEAHORSE_FRAMES[0]!;
+  const bodyHex = mixHexColor(palette.fishGold, palette.coral, 0.4);
+  const hotHex = mixHexColor(bodyHex, '#FFE08A', 0.4);
+
+  const lines = frame.map((row, rowIdx) => {
+    let painted = '';
+    for (const ch of row) {
+      if (ch === ' ') { painted += ' '; continue; }
+      const hex = rowIdx === 0 ? hotHex : rowIdx === 1 ? bodyHex : mixHexColor(bodyHex, palette.water, 0.35);
+      painted += paint(hex, ch);
+    }
+    return painted;
+  });
+  blitAt(canvas, lines, y, x, width);
+}
+
+/**
  * Paint the Jewel Tank into `canvas[0..storyRows)`.
  *
  * Aquascape: sky surface, open mid-water, planted bed, rocks, left aerator,
@@ -1496,12 +1796,28 @@ export function paintIdleStoryScene(options: {
       }
     }
 
-    // 2) Dark gravel bed with warm light glints
+    // 2) Dark gravel bed with warm light glints (2-row substrate)
     const sandY = storyRows - 1;
     if (sandY > 0) {
       if (showAmbient) {
         const band = resolveSurfaceBandCells(width, motionMs, palette);
         storyCellRows![sandY] = cloneCellRow(band.sand);
+        // Upper substrate row: smaller pebbles, shell fragments, debris.
+        if (sandY > 1) {
+          const upperBed = renderSandLine(width, motionMs, 47);
+          const upperSand: RendererCell[] = [];
+          for (const ch of upperBed) {
+            const isGlint = ch === '˚';
+            const hex = isGlint
+              ? mixHexColor(palette.coral, palette.shaft, 0.35)
+              : mixHexColor(palette.sand, palette.waterAbyss, 0.45);
+            const fg = isGlint
+              ? mixHexColor(palette.shaft, '#FFF7ED', 0.5)
+              : mixHexColor(hex, palette.waterDeep, 0.3);
+            upperSand.push(waterCell(ch === 'o' ? '.' : ch === ':' ? '˙' : ch, fg, hex));
+          }
+          storyCellRows![sandY - 1] = upperSand;
+        }
       } else {
         const bed = renderSandLine(width, elapsedMs, 1);
         let sandPainted = '';
@@ -1532,7 +1848,20 @@ export function paintIdleStoryScene(options: {
       );
     }
 
-    // 4) Surface god-rays + warm caustic ribbon
+    // 4) Volumetric light cones (wide beams from surface)
+    if (showAmbient && premium) {
+      paintVolumetricLight(
+        canvas,
+        width,
+        storyRows,
+        elapsedMs,
+        paint,
+        palette.shaft,
+        mixHexColor(palette.water, palette.bubble, 0.4),
+      );
+    }
+
+    // 5) Surface god-rays + warm caustic ribbon
     if (showAmbient && premium) {
       paintSurfaceLight(
         canvas,
@@ -1545,7 +1874,12 @@ export function paintIdleStoryScene(options: {
       );
     }
 
-    // 5) Plants first (carpet / banks / stem)
+    // 6) Floating plankton / detritus motes in the water column
+    if (showAmbient) {
+      paintPlankton(canvas, width, storyRows, elapsedMs, paint, palette);
+    }
+
+    // 7) Plants first (carpet / banks / stem)
     if (showAmbient) {
       paintSeaweed(
         canvas,
@@ -1560,7 +1894,7 @@ export function paintIdleStoryScene(options: {
       );
     }
 
-    // 6) Centerpiece rock on top so hardscape stays readable
+    // 8) Centerpiece rock on top so hardscape stays readable
     if (showAmbient && premium) {
       paintCoral(
         canvas,
@@ -1574,7 +1908,7 @@ export function paintIdleStoryScene(options: {
       );
     }
 
-    // 7) Left filter + bubble column (bright jewel bubbles)
+    // 9) Left filter + bubble column (bright jewel bubbles)
     if (showAmbient && premium) {
       paintAirStone(
         canvas,
@@ -1588,7 +1922,17 @@ export function paintIdleStoryScene(options: {
       );
     }
 
-    // 8) Fish + food + interactive physics FX
+    // 10) Jellyfish — bioluminescent drifters in the mid-water column
+    if (showAmbient && premium) {
+      paintJellyfish(canvas, width, storyRows, elapsedMs, paint, palette);
+    }
+
+    // 11) Seahorse — accent creature near the right plant bank
+    if (showAmbient && premium) {
+      paintSeahorse(canvas, width, storyRows, elapsedMs, paint, palette);
+    }
+
+    // 12) Fish + food + interactive physics FX
     if (sim) {
       paintFoodFromSnapshot(canvas, width, paint, palette, sim.food);
       paintFishFromSnapshot(canvas, width, elapsedMs, showAmbient, paint, palette, sim.fish);
