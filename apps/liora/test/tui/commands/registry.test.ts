@@ -362,6 +362,7 @@ describe('built-in slash command registry', () => {
         'compact',
         'btw',
         'editor',
+        'errors',
         'exit',
         'export-debug-zip',
         'fork',

@@ -46,6 +46,16 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.retry.resending': 'Resending last message…',
   'tui.retry.none': 'Nothing to retry yet.',
 
+  // ── Session error navigator (/errors) ────────────────────────────────────
+  'tui.errors.title': 'Session errors',
+  'tui.errors.count': '{count} errors',
+  'tui.errors.empty': 'No errors in this session transcript.',
+  'tui.errors.noMatches': 'No matching errors',
+  'tui.errors.footer.move': 'move',
+  'tui.errors.footer.jump': 'jump',
+  'tui.errors.footer.close': 'close',
+  'tui.errors.footer.filter': 'type to filter',
+
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
     'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork',
@@ -381,6 +391,16 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.retry.hint': 'Ctrl-Y(또는 /retry)를 눌러 마지막 메시지를 다시 보내세요',
   'tui.retry.resending': '마지막 메시지를 다시 보내는 중…',
   'tui.retry.none': '다시 보낼 메시지가 없습니다.',
+
+  // ── Session error navigator (/errors) ────────────────────────────────────
+  'tui.errors.title': '세션 오류',
+  'tui.errors.count': '오류 {count}개',
+  'tui.errors.empty': '이 세션 기록에 오류가 없습니다.',
+  'tui.errors.noMatches': '일치하는 오류가 없습니다',
+  'tui.errors.footer.move': '이동',
+  'tui.errors.footer.jump': '점프',
+  'tui.errors.footer.close': '닫기',
+  'tui.errors.footer.filter': '입력하면 필터링',
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':

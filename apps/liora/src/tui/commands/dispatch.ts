@@ -181,6 +181,7 @@ export interface SlashCommandHost {
   showFileExplorer(): void;
   showDiffReview(report: GitDiffReport, filter: string): void;
   showCommitBrowser(report: GitLogReport, filter: string): void;
+  showErrors(): void;
   showSearchResults(results: SearchResults): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
@@ -392,6 +393,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'log':
       showLog(host, args);
+      return;
+    case 'errors':
+      host.showErrors();
       return;
     case 'term':
       showTerm(host);

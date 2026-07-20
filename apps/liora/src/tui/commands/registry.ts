@@ -559,6 +559,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'errors',
+    aliases: ['problems'],
+    description: 'Browse errors from the current session transcript',
+    priority: 81,
+    availability: 'always',
+  },
+  {
     name: 'files',
     aliases: ['tree', 'explorer'],
     description: 'Browse project files (git-aware)',

@@ -86,6 +86,7 @@ import {
 import { FileExplorerComponent } from './components/dialogs/file-explorer';
 import { DiffReviewComponent } from './components/dialogs/diff-review';
 import { CommitBrowserComponent } from './components/dialogs/commit-browser';
+import { ErrorNavigatorComponent } from './components/dialogs/error-navigator';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { SearchResultsComponent } from './components/dialogs/search-results';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
@@ -184,6 +185,7 @@ import {
 } from './utils/frame-render';
 import { createMotionBeatController, isMotionTheatreActive } from './utils/motion-beats';
 import { pickForegroundTasks } from './utils/foreground-task';
+import { collectTranscriptErrors } from './utils/transcript-errors';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
 import { hasPatchChanges } from './utils/object-patch';
@@ -3477,6 +3479,34 @@ export class LioraTUI {
   }
 
   private hideCommitBrowser(): void {
+    this.state.activeDialog = null;
+    this.restoreEditor();
+  }
+
+  showErrors(): void {
+    if (this.state.activeDialog !== null) return;
+    const items = collectTranscriptErrors(this.state.transcriptEntries);
+    if (items.length === 0) {
+      this.showStatus(ttui('tui.errors.empty'));
+      return;
+    }
+    this.state.activeDialog = 'error-navigator';
+    this.mountEditorReplacement(
+      new ErrorNavigatorComponent({
+        items,
+        onSelect: (item) => {
+          // Keep the dialog open so the user can jump to more errors; just
+          // scroll the failing entry into view.
+          this.scrollToTranscriptIndex(item.index);
+        },
+        onCancel: () => {
+          this.hideErrorNavigator();
+        },
+      }),
+    );
+  }
+
+  private hideErrorNavigator(): void {
     this.state.activeDialog = null;
     this.restoreEditor();
   }
