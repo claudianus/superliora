@@ -6,6 +6,7 @@ import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorToken, ThemeName } from '#/tui/theme';
 import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
+import type { GitLogReport } from '#/utils/git/git-log';
 
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
 import type { AuthFlowController } from '../controllers/auth-flow';
@@ -43,6 +44,7 @@ import {
 } from './config';
 import { handleGoalCommand } from './goal';
 import { showDiff } from './diff';
+import { showLog } from './log';
 import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
 import { handleAquariumCommand } from './aquarium';
@@ -178,6 +180,7 @@ export interface SlashCommandHost {
   showHelpPanel(args?: string): void;
   showFileExplorer(): void;
   showDiffReview(report: GitDiffReport, filter: string): void;
+  showCommitBrowser(report: GitLogReport, filter: string): void;
   showSearchResults(results: SearchResults): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
@@ -386,6 +389,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'diff':
       showDiff(host, args);
+      return;
+    case 'log':
+      showLog(host, args);
       return;
     case 'term':
       showTerm(host);

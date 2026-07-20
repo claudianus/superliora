@@ -78,6 +78,7 @@ export interface TUIState {
     | 'files'
     | 'file-viewer'
     | 'diff-review'
+    | 'commit-browser'
     | 'search'
     | 'command' // any command-driven editor-replacement dialog (api-key, provider picker, etc.)
     | null;

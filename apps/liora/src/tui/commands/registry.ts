@@ -551,6 +551,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'log',
+    aliases: ['git'],
+    description: 'Browse recent commits',
+    priority: 82,
+    argumentHint: '[filter]',
+    availability: 'always',
+  },
+  {
     name: 'files',
     aliases: ['tree', 'explorer'],
     description: 'Browse project files (git-aware)',

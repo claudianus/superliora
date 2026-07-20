@@ -31,6 +31,7 @@ import { loadFileForViewer } from '#/utils/fs/file-content';
 import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
 import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
+import { collectCommitDiff, type GitLogReport } from '#/utils/git/git-log';
 import { openUrl } from '#/utils/open-url';
 import { getInputHistoryFile } from '#/utils/paths';
 import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
@@ -84,6 +85,7 @@ import {
 } from './components/dialogs/help-panel';
 import { FileExplorerComponent } from './components/dialogs/file-explorer';
 import { DiffReviewComponent } from './components/dialogs/diff-review';
+import { CommitBrowserComponent } from './components/dialogs/commit-browser';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { SearchResultsComponent } from './components/dialogs/search-results';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
@@ -3437,6 +3439,44 @@ export class LioraTUI {
   }
 
   private hideDiffReview(): void {
+    this.state.activeDialog = null;
+    this.restoreEditor();
+  }
+
+  showCommitBrowser(report: GitLogReport, filter: string): void {
+    this.state.activeDialog = 'commit-browser';
+    this.mountEditorReplacement(
+      new CommitBrowserComponent({
+        report,
+        filter,
+        onOpenCommit: (commit) => {
+          this.hideCommitBrowser();
+          const files = collectCommitDiff(this.state.appState.workDir, commit.hash);
+          if (files === null || files.length === 0) {
+            this.showStatus(`No diff for ${commit.hash.slice(0, 7)}.`, 'warning');
+            return;
+          }
+          const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
+          const totalDeleted = files.reduce((sum, file) => sum + file.deleted, 0);
+          this.showDiffReview(
+            {
+              branch: commit.hash.slice(0, 7),
+              files,
+              totalAdded,
+              totalDeleted,
+              truncated: false,
+            },
+            '',
+          );
+        },
+        onClose: () => {
+          this.hideCommitBrowser();
+        },
+      }),
+    );
+  }
+
+  private hideCommitBrowser(): void {
     this.state.activeDialog = null;
     this.restoreEditor();
   }
