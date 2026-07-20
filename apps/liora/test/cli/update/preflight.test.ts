@@ -247,6 +247,10 @@ async function flushBackgroundInstall(): Promise<void> {
 
 describe('runUpdatePreflight', () => {
   beforeEach(() => {
+    // Keep ambient shell exports (e.g. a developer's SUPERLIORA_NO_AUTO_UPDATE=1)
+    // from leaking into tests that expect update work to run.
+    vi.stubEnv('SUPERLIORA_NO_AUTO_UPDATE', '');
+    vi.stubEnv('KIMI_CLI_NO_AUTO_UPDATE', '');
     mocks.readUpdateInstallState.mockResolvedValue(emptyUpdateInstallState());
     mocks.writeUpdateInstallState.mockResolvedValue(undefined);
     mocks.loadTuiConfig.mockResolvedValue(tuiConfig());
