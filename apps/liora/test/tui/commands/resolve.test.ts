@@ -376,10 +376,11 @@ describe('resolveSlashCommandInput', () => {
     });
   });
 
-  it('does not expose the retired Web UI handoff as a built-in TUI command', () => {
-    expect(resolve('/web')).toEqual({
-      kind: 'message',
-      input: '/web',
+  it('resolves /web as the built-in URL content viewer, not the retired Web UI handoff', () => {
+    expect(resolve('/web https://example.com')).toMatchObject({
+      kind: 'builtin',
+      name: 'web',
+      args: 'https://example.com',
     });
   });
 

@@ -63,7 +63,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('thinking')?.name).toBe('thinking');
     expect(findBuiltInSlashCommand('think')?.name).toBe('thinking');
     expect(findBuiltInSlashCommand('usage')?.aliases).not.toContain('status');
-    expect(findBuiltInSlashCommand('web')).toBeUndefined();
+    expect(findBuiltInSlashCommand('web')?.name).toBe('web');
+    expect(findBuiltInSlashCommand('fetch')?.name).toBe('web');
     expect(findBuiltInSlashCommand('unknown')).toBeUndefined();
   });
 
@@ -352,7 +353,7 @@ describe('built-in slash command registry', () => {
     const names = BUILTIN_SLASH_COMMANDS.map((command) => command.name);
 
     expect(new Set(names).size).toBe(names.length);
-    expect(names).not.toContain('web');
+    expect(names).toContain('web');
     expect(names).toContain('bench');
     expect(names).toContain('preflight');
     expect(names).toEqual(
@@ -387,6 +388,7 @@ describe('built-in slash command registry', () => {
         'undo',
         'usage',
         'version',
+        'web',
         'yolo',
       ]),
     );

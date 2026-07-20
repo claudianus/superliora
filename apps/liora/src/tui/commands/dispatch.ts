@@ -183,6 +183,7 @@ export interface SlashCommandHost {
   showCommitBrowser(report: GitLogReport, filter: string): void;
   showErrors(): void;
   showSearchResults(results: SearchResults): void;
+  showWebContent(url: string | undefined): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
@@ -320,6 +321,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'search':
       showSearch(host, args);
+      return;
+    case 'web':
+      host.showWebContent(args);
       return;
     case 'version':
       host.showStatus(`${PRODUCT_NAME} v${host.state.appState.version}`);

@@ -56,6 +56,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.errors.footer.close': 'close',
   'tui.errors.footer.filter': 'type to filter',
 
+  // ── Web content viewer (/web) ────────────────────────────────────────────
+  'tui.web.usage': 'Usage: /web <url>',
+  'tui.web.fetching': 'Fetching {url} …',
+
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
     'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork',
@@ -401,6 +405,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.errors.footer.jump': '점프',
   'tui.errors.footer.close': '닫기',
   'tui.errors.footer.filter': '입력하면 필터링',
+
+  // ── Web content viewer (/web) ────────────────────────────────────────────
+  'tui.web.usage': '사용법: /web <url>',
+  'tui.web.fetching': '{url} 가져오는 중…',
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':

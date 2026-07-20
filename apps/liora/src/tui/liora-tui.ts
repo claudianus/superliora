@@ -35,6 +35,7 @@ import { openUrl } from '#/utils/open-url';
 import { getInputHistoryFile } from '#/utils/paths';
 import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
 import { quoteShellArg } from '#/utils/shell-quote';
+import { fetchWebContent } from '#/utils/web/web-content';
 import { ttui } from './utils/tui-i18n';
 
 import { BannerProvider } from './banner/banner-provider';
@@ -3593,6 +3594,37 @@ export class LioraTUI {
 
   private returnToFileExplorer(): void {
     this.showFileExplorer();
+  }
+
+  showWebContent(rawUrl: string | undefined): void {
+    if (this.state.activeDialog !== null) return;
+    const target = (rawUrl ?? '').trim();
+    if (target.length === 0) {
+      this.showError(ttui('tui.web.usage'));
+      return;
+    }
+    this.showStatus(ttui('tui.web.fetching', { url: target }));
+    void (async () => {
+      try {
+        const content = await fetchWebContent(target);
+        if (this.state.activeDialog !== null) return;
+        this.state.activeDialog = 'file-viewer';
+        this.mountEditorReplacement(
+          new FileViewerComponent({
+            relativePath: content.title ?? content.url,
+            content: content.body,
+            bytes: Buffer.byteLength(content.body, 'utf8'),
+            palette: currentTheme.palette,
+            onClose: () => {
+              this.state.activeDialog = null;
+              this.restoreEditor();
+            },
+          }),
+        );
+      } catch (error) {
+        this.showError(formatErrorMessage(error));
+      }
+    })();
   }
 
   private helpModeFromArgs(args: string): SlashCommandHelpMode {

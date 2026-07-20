@@ -581,6 +581,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'web',
+    aliases: ['fetch'],
+    description: 'Fetch a URL and view its readable content',
+    priority: 80,
+    argumentHint: '<url>',
+    availability: 'always',
+  },
+  {
     name: 'aquarium',
     aliases: ['tank'],
     description: 'Overlay a Welcome-sized Jewel Tank (covers chat until the next message)',
