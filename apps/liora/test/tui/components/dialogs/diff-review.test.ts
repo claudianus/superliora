@@ -208,4 +208,62 @@ describe('DiffReviewComponent', () => {
     ).join('\n');
     expect(joined).toContain('No changes match "nope.ts"');
   });
+
+  describe('wrap toggle (w)', () => {
+    const longCode = 'x'.repeat(200);
+
+    function longLineReport(): GitDiffReport {
+      return report({
+        files: [
+          file({
+            path: 'src/long.ts',
+            status: 'added',
+            added: 1,
+            deleted: 0,
+            lines: [{ kind: 'add', lineNum: 1, code: longCode }],
+          }),
+        ],
+        totalAdded: 1,
+        totalDeleted: 0,
+      });
+    }
+
+    it('truncates long lines with an ellipsis by default', () => {
+      const lines = renderedLines(makeReview({ report: longLineReport() }), 60);
+      const codeLines = lines.filter((line) => line.includes('xxx'));
+      expect(codeLines).toHaveLength(1);
+      expect(codeLines[0]).toContain('…');
+    });
+
+    it('soft-wraps long lines across indented continuation rows after w', () => {
+      const review = makeReview({ report: longLineReport() });
+      review.handleInput('w');
+      const lines = renderedLines(review, 60);
+      // Continuation rows carry the six-column indent before wrapped code.
+      expect(lines.some((line) => / {6}x/.test(line))).toBe(true);
+      // Every wrapped character survives: no truncation, no lost tail.
+      expect(lines.join('').replaceAll(' ', '').replaceAll('│', '')).toContain(longCode);
+      const codeLines = lines.filter((line) => line.includes('xxx'));
+      expect(codeLines.join('\n')).not.toContain('…');
+    });
+
+    it('toggles back to truncation on a second w', () => {
+      const review = makeReview({ report: longLineReport() });
+      review.handleInput('w');
+      review.handleInput('w');
+      const lines = renderedLines(review, 60);
+      const codeLines = lines.filter((line) => line.includes('xxx'));
+      expect(codeLines).toHaveLength(1);
+      expect(codeLines[0]).toContain('…');
+    });
+
+    it('advertises the wrap state in the footer', () => {
+      const review = makeReview();
+      const footer = (): string => renderedLines(review).at(-1) ?? '';
+      expect(footer()).toContain('wrap');
+      expect(footer()).not.toContain('wrap·on');
+      review.handleInput('w');
+      expect(footer()).toContain('wrap·on');
+    });
+  });
 });

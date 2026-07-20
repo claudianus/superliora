@@ -2,8 +2,8 @@
  * DiffReview — modal `/diff` working-tree review. Lists changed files with a
  * status glyph and right-aligned `+a −d` counts per row; the selected file's
  * clustered diff renders inline below its row (one file expanded at a time).
- * `v` opens the selected file in the code viewer via `onOpenFile`; Esc/Q
- * closes through `onClose`.
+ * `v` opens the selected file in the code viewer via `onOpenFile`; `w`
+ * toggles soft wrap for long diff lines; Esc/Q closes through `onClose`.
  *
  * Mirrors the container-replacement pattern used by FileExplorer: the host
  * mounts the panel into `editorContainer`, focuses it, and tears it down
@@ -19,6 +19,7 @@ import {
   renderRendererFrameRows,
   truncateToWidth,
   visibleWidth,
+  wrapTextWithAnsi,
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
@@ -89,6 +90,8 @@ export class DiffReviewComponent extends Container implements Focusable {
   private readonly viewport: RendererSelectableListViewport;
   /** Whether the selected file's diff body is expanded. */
   private expanded = true;
+  /** Whether long diff lines soft-wrap instead of truncating (`w`). */
+  private wrap = false;
 
   constructor(opts: DiffReviewOptions) {
     super();
@@ -142,6 +145,11 @@ export class DiffReviewComponent extends Container implements Focusable {
       this.invalidate();
       return;
     }
+    if (k === 'w' || k === 'W') {
+      this.wrap = !this.wrap;
+      this.invalidate();
+      return;
+    }
     if (k === 'v' || k === 'V') {
       const file = this.selectedFile();
       if (file !== undefined && file.status !== 'binary') this.opts.onOpenFile?.(file.path);
@@ -178,7 +186,8 @@ export class DiffReviewComponent extends Container implements Focusable {
     const dim = (text: string): string => currentTheme.fg('textMuted', text);
     const line =
       ` ${key('↑/↓')} ${dim('move')}  ${key('enter')} ${dim('expand/collapse')}  ` +
-      `${key('v')} ${dim('view file')}  ${key('h')} ${dim('collapse')}  ${key('esc')} ${dim('close')} `;
+      `${key('v')} ${dim('view file')}  ${key('w')} ${dim(this.wrap ? 'wrap·on' : 'wrap')}  ` +
+      `${key('h')} ${dim('collapse')}  ${key('esc')} ${dim('close')} `;
     return fitLine(line, width);
   }
 
@@ -244,9 +253,19 @@ export class DiffReviewComponent extends Container implements Focusable {
     const maxLines = Math.max(8, innerHeight - this.opts.report.files.length - 2);
     // Drop the formatter's own `+N -N path` header (index 0); the file row
     // above already carries the path and per-file counts.
-    return renderClusteredDiffBody(file.lines, file.path, { maxLines })
-      .slice(1)
-      .map((line) => truncateToWidth(`  ${line}`, innerWidth, ELLIPSIS));
+    const body = renderClusteredDiffBody(file.lines, file.path, { maxLines }).slice(1);
+    if (!this.wrap) {
+      return body.map((line) => truncateToWidth(`  ${line}`, innerWidth, ELLIPSIS));
+    }
+    // Soft wrap: continuation lines carry a six-column indent so they read as
+    // spill-over from the gutter+marker prefix on the first visual line. The
+    // wrap budget reserves those columns so no row exceeds `innerWidth`.
+    const continuationIndent = '      ';
+    const wrapWidth = Math.max(8, innerWidth - continuationIndent.length);
+    return body.flatMap((line) => {
+      const rows = wrapTextWithAnsi(line, wrapWidth);
+      return rows.map((row, index) => (index === 0 ? `  ${row}` : continuationIndent + row));
+    });
   }
 
   private renderFileRow(file: GitDiffFile, selected: boolean, innerWidth: number): string {
