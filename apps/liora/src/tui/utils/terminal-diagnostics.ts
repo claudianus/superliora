@@ -10,10 +10,10 @@
 import {
   detectNativeTerminalCapabilities,
   detectNativeTerminalColorMode,
-  detectNativeTerminalImageProtocol,
   type RendererColorMode,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { getProbedKittyGraphics, resolveImageProtocol } from '#/tui/utils/image-protocol-detect';
 
 export interface TerminalDiagnosticsReport {
   readonly terminal: {
@@ -25,7 +25,10 @@ export interface TerminalDiagnosticsReport {
   /** Human-readable reasons behind `colorMode`, e.g. `COLORTERM=truecolor`. */
   readonly colorSignals: readonly string[];
   readonly imageProtocol: 'kitty' | 'iterm2' | 'none';
-  /** Human-readable reasons behind `imageProtocol`, e.g. `KITTY_WINDOW_ID set`. */
+  /**
+   * Human-readable reasons behind `imageProtocol`, e.g. `KITTY_WINDOW_ID set`
+   * or `runtime probe: supported`.
+   */
   readonly imageSignals: readonly string[];
   readonly features: readonly { readonly name: string; readonly enabled: boolean }[];
 }
@@ -49,8 +52,16 @@ export function collectTerminalDiagnostics(
 ): TerminalDiagnosticsReport {
   const capabilities = detectNativeTerminalCapabilities(env);
   const colorMode = detectNativeTerminalColorMode(env);
-  const imageProtocol = detectNativeTerminalImageProtocol(env);
+  // Effective protocol: env detection plus the runtime probe upgrade (and
+  // the SUPERLIORA_IMAGE_PROTOCOL override). `imageSignals` below still
+  // explains the env-only decision path; the probe adds its own note.
+  const imageProtocol = resolveImageProtocol(env);
   const multiplexer = detectMultiplexer(env);
+  const imageSignals = collectImageSignals(env, multiplexer);
+  const probed = getProbedKittyGraphics();
+  if (probed !== null) {
+    imageSignals.push(probed ? 'runtime probe: supported' : 'runtime probe: no response');
+  }
 
   return {
     terminal: {
@@ -61,7 +72,7 @@ export function collectTerminalDiagnostics(
     colorMode,
     colorSignals: collectColorSignals(env, colorMode),
     imageProtocol,
-    imageSignals: collectImageSignals(env, multiplexer),
+    imageSignals,
     features: [
       { name: 'keyboard protocol', enabled: capabilities.keyboardProtocol },
       { name: 'mouse tracking', enabled: capabilities.mouseTracking },

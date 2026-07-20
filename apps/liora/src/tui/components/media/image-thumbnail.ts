@@ -21,7 +21,6 @@ import { emitKittyGraphics } from '#/tui/media/kitty-graphics-channel';
 import {
   Text,
   detectNativeTerminalColorMode,
-  detectNativeTerminalImageProtocol,
   encodeKittyPlaceholderLines,
   encodeKittyPlaceholderTransmit,
   type Component,
@@ -29,6 +28,7 @@ import {
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
+import { resolveImageProtocol } from '#/tui/utils/image-protocol-detect';
 import { renderHalfBlockPreview } from '#/utils/image/half-block-preview';
 import { decodePng, type DecodedPng } from '#/utils/image/png-decode';
 import { computePreviewCellSize } from '#/utils/image/preview-size';
@@ -137,7 +137,7 @@ export class ImageThumbnail implements Component {
    * installed, so the caller falls back to half-block rendering.
    */
   private kittyPlaceholderLines(decoded: DecodedPng, maxWidth: number): string[] | undefined {
-    if (detectNativeTerminalImageProtocol(process.env) !== 'kitty') return undefined;
+    if (resolveImageProtocol() !== 'kitty') return undefined;
     const { columns, rows } = computePreviewCellSize(
       decoded.width,
       decoded.height,

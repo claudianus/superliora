@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import {
+  resetImageProtocolProbeForTests,
+  setProbedKittyGraphicsForTests,
+} from '#/tui/utils/image-protocol-detect';
 import {
   collectTerminalDiagnostics,
   formatTerminalDiagnosticsLines,
@@ -131,5 +135,43 @@ describe('formatTerminalDiagnosticsLines', () => {
       expect(line.charAt(20)).not.toBe(' ');
       expect(line.charAt(20)).not.toBe('');
     }
+  });
+});
+
+describe('runtime kitty probe integration', () => {
+  afterEach(() => {
+    resetImageProtocolProbeForTests();
+  });
+
+  it('upgrades imageProtocol to kitty and notes a supported probe', () => {
+    setProbedKittyGraphicsForTests(true);
+    const report = collectTerminalDiagnostics({ TERM: 'xterm-256color' });
+
+    expect(report.imageProtocol).toBe('kitty');
+    expect(report.imageSignals).toContain('runtime probe: supported');
+  });
+
+  it('keeps env detection and notes a failed probe', () => {
+    setProbedKittyGraphicsForTests(false);
+    const report = collectTerminalDiagnostics({ TERM: 'xterm-256color' });
+
+    expect(report.imageProtocol).toBe('none');
+    expect(report.imageSignals).toContain('runtime probe: no response');
+  });
+
+  it('omits the probe note when the probe never ran', () => {
+    const report = collectTerminalDiagnostics({ TERM: 'xterm-256color' });
+
+    expect(report.imageSignals.some((signal) => signal.includes('runtime probe'))).toBe(false);
+  });
+
+  it('renders the probe note in the formatted images row', () => {
+    setProbedKittyGraphicsForTests(true);
+    const report = collectTerminalDiagnostics({ TERM: 'xterm-256color' });
+
+    const joined = formatTerminalDiagnosticsLines(report).map(strip).join('\n');
+
+    expect(joined).toMatch(/images\s+kitty/);
+    expect(joined).toContain('runtime probe: supported');
   });
 });

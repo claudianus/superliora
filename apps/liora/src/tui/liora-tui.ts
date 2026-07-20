@@ -3,7 +3,6 @@ import { join, relative, sep } from 'node:path';
 
 import chalk from 'chalk';
 import {
-  detectNativeTerminalImageProtocol,
   encodeRendererClearInlineImages,
   LioraNativeRootUI,
   NativeTerminalSession,
@@ -188,6 +187,7 @@ import { pickForegroundTasks } from './utils/foreground-task';
 import { collectTranscriptErrors } from './utils/transcript-errors';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
+import { resolveImageProtocol } from './utils/image-protocol-detect';
 import { hasPatchChanges } from './utils/object-patch';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
@@ -2420,9 +2420,7 @@ export class LioraTUI {
   }
 
   private clearTerminalInlineImages(): void {
-    const sequence = encodeRendererClearInlineImages(
-      detectNativeTerminalImageProtocol(process.env),
-    );
+    const sequence = encodeRendererClearInlineImages(resolveImageProtocol());
     if (sequence.length > 0) this.state.terminal.write(sequence);
   }
 

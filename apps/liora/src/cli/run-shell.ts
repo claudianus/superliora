@@ -21,6 +21,7 @@ import { loadTuiConfig, TuiConfigParseError } from '#/tui/config';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { LioraTUI } from '#/tui/index';
 import { currentTheme, getColorPalette } from '#/tui/theme';
+import { initImageProtocolProbe } from '#/tui/utils/image-protocol-detect';
 import { combineStartupNotice } from '#/tui/utils/startup';
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 
@@ -44,6 +45,10 @@ export async function runShell(opts: CLIOptions, version: string): Promise<void>
   // Initialise the global Theme singleton before pi-tui grabs stdin.
   const palette = await getColorPalette(tuiConfig.theme);
   currentTheme.setPalette(palette);
+
+  // Probe runtime kitty graphics support in the same pre-raw-mode window —
+  // once the TUI owns stdin the probe reply would be eaten by the input loop.
+  await initImageProtocolProbe();
 
   const workDir = process.cwd();
   const telemetryBootstrap = createCliTelemetryBootstrap();
