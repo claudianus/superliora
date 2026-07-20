@@ -20,3 +20,8 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Emit ultrawork_mirror_reconcile telemetry when mirror wins over journal
 - Add detectStuckWorkGraphNodes helper and surface stuck nodes in recovery prompt, envelope, and resume telemetry
 - Add WorkGraph node counts (total/done/failed) to ultrawork_complete telemetry
+- Add stage duration watchdog (detectLongRunningStage) with per-stage thresholds to flag un-bounded loops
+- Add tool failure tracker with consecutive failure detection (warns at 3 failures per tool)
+- Add TurnResult.durationMs for turn-level wall-clock observability
+- Add loop repetition pattern detection (warns at 4 identical tool calls) for stagnation detection
+- Add source-of-truth principle to recovery prompts (repository state > chat memory)
