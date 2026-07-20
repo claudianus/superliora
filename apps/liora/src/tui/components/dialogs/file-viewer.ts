@@ -30,6 +30,8 @@ export interface FileViewerOptions {
   readonly content: string;
   readonly bytes: number;
   readonly palette?: ColorPalette;
+  /** 1-based line scrolled into view on open (e.g. a `/search` match). */
+  readonly initialLine?: number;
   readonly onClose: () => void;
   /** Body frame height (including its two border rows). Defaults to 24. */
   readonly maxVisible?: number;
@@ -65,6 +67,9 @@ export class FileViewerComponent extends Container implements Focusable {
     this.lang = langFromPath(opts.relativePath);
     this.lines = highlightLines(opts.content, this.lang, opts.palette);
     this.gutterWidth = Math.max(1, String(this.lines.length).length);
+    if (opts.initialLine !== undefined) {
+      this.topLine = Math.max(0, Math.min(opts.initialLine - 1, this.maxTopLine()));
+    }
   }
 
   private bodyHeight(): number {
@@ -174,10 +179,10 @@ export class FileViewerComponent extends Container implements Focusable {
   }
 
   private renderLine(index: number): string {
-    const number = currentTheme.fg(
-      'textMuted',
-      String(index + 1).padStart(this.gutterWidth, ' '),
-    );
+    const isTarget = this.opts.initialLine !== undefined && index + 1 === this.opts.initialLine;
+    const number = isTarget
+      ? currentTheme.boldFg('primary', String(index + 1).padStart(this.gutterWidth, ' '))
+      : currentTheme.fg('textMuted', String(index + 1).padStart(this.gutterWidth, ' '));
     const separator = currentTheme.fg('textDim', ' │ ');
     return number + separator + (this.lines[index] ?? '');
   }

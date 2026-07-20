@@ -21,6 +21,7 @@ interface MakeOptions {
   readonly relativePath?: string;
   readonly content?: string;
   readonly bytes?: number;
+  readonly initialLine?: number;
   readonly onClose?: () => void;
   readonly maxVisible?: number;
 }
@@ -31,6 +32,7 @@ function makeViewer(options: MakeOptions = {}): FileViewerComponent {
     relativePath: options.relativePath ?? 'src/app.ts',
     content,
     bytes: options.bytes ?? Buffer.byteLength(content),
+    initialLine: options.initialLine,
     onClose: options.onClose ?? vi.fn(),
     maxVisible: options.maxVisible ?? 8, // inner body height = 6 rows
   });
@@ -151,5 +153,20 @@ describe('FileViewerComponent', () => {
     expect(footer).toContain('page');
     expect(footer).toContain('top/bottom');
     expect(footer).toContain('close');
+  });
+
+  it('opens scrolled to initialLine with that line at the top', () => {
+    const viewer = makeViewer({ initialLine: 20 });
+
+    expect(bodyLines(viewer)[0]).toContain('20 │ line 20');
+    expect(bodyLines(viewer)[1]).toContain('21 │ line 21');
+  });
+
+  it('clamps initialLine beyond the file end to the last window', () => {
+    const viewer = makeViewer({ initialLine: 999 });
+
+    // 30 lines, inner height 6 → top line clamps to 25.
+    expect(bodyLines(viewer)[0]).toContain('25 │ line 25');
+    expect(bodyLines(viewer)[5]).toContain('30 │ line 30');
   });
 });

@@ -558,6 +558,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'search',
+    aliases: ['grep'],
+    description: 'Search project file contents',
+    priority: 83,
+    argumentHint: '<pattern>',
+    availability: 'always',
+  },
+  {
     name: 'aquarium',
     aliases: ['tank'],
     description: 'Overlay a Welcome-sized Jewel Tank (covers chat until the next message)',

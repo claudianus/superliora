@@ -78,6 +78,7 @@ export interface TUIState {
     | 'files'
     | 'file-viewer'
     | 'diff-review'
+    | 'search'
     | 'command' // any command-driven editor-replacement dialog (api-key, provider picker, etc.)
     | null;
   tasksBrowser: TasksBrowserState | undefined;

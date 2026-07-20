@@ -4,6 +4,7 @@ import type { LioraHarness, Session } from '@superliora/sdk';
 
 import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorToken, ThemeName } from '#/tui/theme';
+import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
@@ -67,6 +68,7 @@ import {
   handleInitCommand,
   handleTitleCommand,
 } from './session';
+import { showSearch } from './search';
 import { handleSwarmCommand } from './swarm';
 import { showTerm } from './term';
 import {
@@ -176,6 +178,7 @@ export interface SlashCommandHost {
   showHelpPanel(args?: string): void;
   showFileExplorer(): void;
   showDiffReview(report: GitDiffReport, filter: string): void;
+  showSearchResults(results: SearchResults): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
@@ -310,6 +313,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'files':
       host.showFileExplorer();
+      return;
+    case 'search':
+      showSearch(host, args);
       return;
     case 'version':
       host.showStatus(`${PRODUCT_NAME} v${host.state.appState.version}`);
