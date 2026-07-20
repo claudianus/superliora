@@ -261,6 +261,7 @@ export function reconcileUltraworkRunForResume(
     orphaned_experts: orphanedExperts.length,
     lost_tasks: lostBackgroundTasks.length,
     run_age_ms: Date.now() - Date.parse(run.createdAt),
+    resume_count: countResumeCycles(run),
   });
 
   return {
@@ -330,5 +331,14 @@ function collectOrphanedWorkNodes(graph: WorkGraph | undefined): string[] {
 function collectOrphanedExperts(teamPlan: TeamPlan | undefined): string[] {
   if (teamPlan === undefined) return [];
   return teamPlan.experts.filter((expert) => expert.status === 'running').map((expert) => expert.id);
+}
+
+/**
+ * Count blocked/failed entries in stageHistory as a proxy for resume cycles.
+ * High values indicate oscillation (repeated crash-recovery loops).
+ */
+function countResumeCycles(run: UltraworkRun): number {
+  const history = run.stageHistory ?? [];
+  return history.filter((entry) => entry.reason !== undefined && /block|fail|interrupt|crash/i.test(entry.reason)).length;
 }
 

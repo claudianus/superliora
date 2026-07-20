@@ -146,7 +146,7 @@ function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean):
     case 'integrate':
       return 'Merge specialist output and resolve conflicts before more product edits.';
     case 'verify':
-      return 'Re-run mechanical checks and capture runtime evidence for open AC. Prefer deterministic proof over claimed success.';
+      return 'Re-run mechanical checks and capture runtime evidence for open AC. Prefer deterministic proof over claimed success. Verification checklist: (1) typecheck/lint pass, (2) tests pass, (3) acceptance criteria have runtime evidence, (4) no regressions in adjacent surfaces.';
     case 'learn':
       return 'Promote only verified findings to Liora Recall or LLM Wiki.';
     default:

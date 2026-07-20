@@ -59,12 +59,19 @@ export function captureUltraworkEnvelopeSnapshot(
   };
 }
 
+/** Maximum characters for the objective field in the envelope. */
+const MAX_ENVELOPE_OBJECTIVE_CHARS = 200;
+
 export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror): string {
+  const objective =
+    snapshot.run.objective.length > MAX_ENVELOPE_OBJECTIVE_CHARS
+      ? `${snapshot.run.objective.slice(0, MAX_ENVELOPE_OBJECTIVE_CHARS)}…`
+      : snapshot.run.objective;
   const lines = [
     '## Ultrawork Run Envelope',
     'ultrawork_envelope:',
     `run_id: ${snapshot.run.id}`,
-    `objective: ${snapshot.run.objective}`,
+    `objective: ${objective}`,
     `stage: ${snapshot.run.stage}`,
     `status: ${snapshot.run.status}`,
     `last_updated: ${snapshot.run.updatedAt}`,
