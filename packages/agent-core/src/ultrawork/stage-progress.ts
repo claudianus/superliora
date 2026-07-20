@@ -270,3 +270,51 @@ export function analyzeFailedNodes(
       return { node, category, guidance: FAILURE_RECOVERY_GUIDANCE[category] };
     });
 }
+
+/**
+ * Context pressure levels. Based on context engineering best practices (2026):
+ * "context rot" — as tokens increase, model recall accuracy decreases.
+ */
+export type ContextPressureLevel = 'low' | 'moderate' | 'high' | 'critical';
+
+/**
+ * Context pressure thresholds (ratio of used context to max context).
+ * Aligned with compaction trigger ratios in the compaction strategy.
+ */
+const CONTEXT_PRESSURE_THRESHOLDS: Readonly<Record<ContextPressureLevel, number>> = {
+  low: 0.5, // Below 50% — plenty of room
+  moderate: 0.7, // 50-70% — normal operating range
+  high: 0.85, // 70-85% — approaching compaction trigger
+  critical: 1.0, // Above 85% — compaction imminent or overdue
+};
+
+/**
+ * Guidance per context pressure level. Helps the agent understand
+ * when to be more conservative with context usage.
+ */
+export const CONTEXT_PRESSURE_GUIDANCE: Readonly<Record<ContextPressureLevel, string>> = {
+  low: 'Context budget healthy; full tool output and detailed reasoning available.',
+  moderate: 'Context usage moderate; prefer concise tool outputs and focused reasoning.',
+  high: 'Context pressure high; truncate tool outputs, avoid verbose logging, consider compaction.',
+  critical: 'Context critical; minimize all non-essential output, compaction likely needed immediately.',
+};
+
+/**
+ * Assess context pressure level based on usage ratio.
+ * Returns the pressure level and corresponding guidance.
+ */
+export function assessContextPressure(usageRatio: number): {
+  readonly level: ContextPressureLevel;
+  readonly guidance: string;
+} {
+  if (usageRatio < CONTEXT_PRESSURE_THRESHOLDS.low) {
+    return { level: 'low', guidance: CONTEXT_PRESSURE_GUIDANCE.low };
+  }
+  if (usageRatio < CONTEXT_PRESSURE_THRESHOLDS.moderate) {
+    return { level: 'moderate', guidance: CONTEXT_PRESSURE_GUIDANCE.moderate };
+  }
+  if (usageRatio < CONTEXT_PRESSURE_THRESHOLDS.high) {
+    return { level: 'high', guidance: CONTEXT_PRESSURE_GUIDANCE.high };
+  }
+  return { level: 'critical', guidance: CONTEXT_PRESSURE_GUIDANCE.critical };
+}
