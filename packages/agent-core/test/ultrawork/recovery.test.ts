@@ -112,7 +112,7 @@ describe('Ultrawork goal completion', () => {
     });
     agent.ultrawork.syncWorkGraphFromStore();
 
-    maybeFinishUltraworkRun(agent);
+    void maybeFinishUltraworkRun(agent);
     expect(agent.ultrawork.getRun()?.status).toBe('done');
     await vi.waitFor(() => {
       expect(agent.goal.getGoal().goal).toBeNull();
@@ -141,7 +141,7 @@ describe('Ultrawork goal completion', () => {
       ],
     });
     agent.ultrawork.syncWorkGraphFromStore();
-    maybeFinishUltraworkRun(agent);
+    void maybeFinishUltraworkRun(agent);
 
     expect(agent.ultrawork.getRun()?.status).toBe('done');
     await vi.waitFor(() => {

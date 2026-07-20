@@ -297,7 +297,6 @@ export function createTUIStateNativeRenderCallback(
   let chromeCache: TUIStateNativeChromeCache | undefined;
   let transcriptLineCache: readonly RendererRegionLine[] | undefined;
   let transcriptLineCacheWidth: number | undefined;
-  let transcriptLineCacheRows: number | undefined;
   let transcriptLineCacheSelectionKey: string | undefined;
   return ({ frame, runtime, size, quality }) => {
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
@@ -442,7 +441,6 @@ export function createTUIStateNativeRenderCallback(
     if (!canReuseTranscript) {
       transcriptLineCache = nativeFrame.transcriptLines;
       transcriptLineCacheWidth = size.columns;
-      transcriptLineCacheRows = height;
       transcriptLineCacheSelectionKey = selectionKey;
     }
     // force/clear come from policy (pure input stays incremental). forceCursor

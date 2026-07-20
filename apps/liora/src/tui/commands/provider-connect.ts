@@ -60,7 +60,6 @@ import { applyCustomEndpointProvider, lookupModelCapability, probeModelsEndpoint
 import {
   applyQwenTokenPlanProvider,
   QWEN_TOKEN_PLAN_PROVIDER_ID,
-  QWEN_TOKEN_PLAN_KEY_PREFIX,
   validateQwenTokenPlanKeyFormat,
 } from '#/tui/utils/qwen-token-plan';
 import {

@@ -481,27 +481,6 @@ function applyRendererRegionVfx(
   ];
 }
 
-/**
- * Reference-keyed memoization for cell-array line keys. Serializing a cell row
- * (`c:${line.map(cellKey).join()}`) is O(cells) and runs for every visible row
- * on every frame just to probe the composition cache. When a region reuses the
- * same cell-array reference across frames (stable line identity), the key string
- * is computed once and reused. A WeakMap is exact (reference identity can never
- * collide) and self-cleaning (entries die with their line array), so this cannot
- * corrupt the row key or leak memory.
- */
-const cellLineKeyCache = new WeakMap<readonly RendererCell[], string>();
-
-function lineKey(line: RendererRegionLine | undefined): string {
-  if (line === undefined) return 'undefined';
-  if (typeof line === 'string') return `s:${line}`;
-  const cached = cellLineKeyCache.get(line);
-  if (cached !== undefined) return cached;
-  const key = `c:${line.map(cellKey).join('\u0001')}`;
-  cellLineKeyCache.set(line, key);
-  return key;
-}
-
 function cellKey(cell: RendererCell | undefined): string {
   if (cell === undefined) return '';
   return [
