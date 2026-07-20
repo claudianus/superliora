@@ -78,6 +78,15 @@ function reconcileUltraworkRunFromMirror(agent: Agent, mirror: UltraworkRunMirro
     : mirrorIsNewer || mirrorHasRicherGraph || mirrorHasTeamPlan;
   if (!shouldApply) return;
 
+  agent.telemetry.track('ultrawork_mirror_reconcile', {
+    run_id: current.id,
+    mirror_offset: mirrorOffset ?? -1,
+    journal_offset: journalOffset,
+    strategy: mirrorHasOffset ? 'offset' : 'heuristic',
+    mirror_stage: mirror.run.stage,
+    current_stage: current.stage,
+  });
+
   agent.ultrawork.applyMirrorRunQuiet({
     run: {
       ...mirror.run,

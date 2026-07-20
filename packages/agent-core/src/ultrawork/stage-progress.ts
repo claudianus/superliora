@@ -148,6 +148,20 @@ export function ultraworkStageIndex(stage: UltraworkStage): number {
   return index;
 }
 
+/**
+ * Identify potentially stuck nodes: nodes in 'running' or 'blocked' status
+ * that may indicate a stalled workflow. Used by recovery prompts and telemetry
+ * to surface work that needs attention or circuit-breaking.
+ */
+export function detectStuckWorkGraphNodes(
+  workGraph: WorkGraph | undefined,
+): readonly WorkGraphNode[] {
+  if (workGraph === undefined) return [];
+  return workGraph.nodes.filter(
+    (node) => node.status === 'running' || node.status === 'blocked',
+  );
+}
+
 function stageIndex(stage: UltraworkStage): number {
   return ultraworkStageIndex(stage);
 }
