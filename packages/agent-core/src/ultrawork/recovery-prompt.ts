@@ -147,7 +147,13 @@ export function buildUltraworkRecoveryPrompt(
     'Continue from stage; refresh evidence; keep WorkGraph current. Prefer tests/typecheck/real-surface proof; mark AC/nodes done only with evidence. Preserve durable ids.',
   );
   lines.push('</ultrawork_recovery>');
-  return lines.join('\n');
+  const result = lines.join('\n');
+  // Guard: clip excessively large recovery prompts to protect context budget.
+  const MAX_RECOVERY_PROMPT_CHARS = 4_000;
+  if (result.length > MAX_RECOVERY_PROMPT_CHARS) {
+    return `${result.slice(0, MAX_RECOVERY_PROMPT_CHARS)}\n… (truncated)\n</ultrawork_recovery>`;
+  }
+  return result;
 }
 
 export function suggestNextActions(
