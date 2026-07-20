@@ -37,3 +37,4 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Add run health score (0-100) aggregating failures, resumes, stuck nodes, stage duration, and context pressure
 - Add unified backpressure signal (none/light/moderate/heavy) combining context pressure, circuit breaker, health grade, and queue depth
 - Add information freshness indicator (fresh/recent/aging/stale) to compaction envelope for memory decay awareness
+- Add degradation level tracking (normal/degraded/severe/critical) with affected capabilities list
