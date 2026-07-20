@@ -143,12 +143,12 @@ describe('idle-stage helpers', () => {
     expect(resolveIdleTipKey(0)).toMatch(/^tui\.tip\./);
   });
 
-  it('resolves single-row fish glyphs (no fake top/bottom fins)', () => {
-    expect(FISH_LARGE_RIGHT).toEqual(['>═((º═>']);
-    expect(FISH_LARGE_LEFT).toEqual(['<═º))═<']);
-    expect(FISH_COMPACT_RIGHT).toEqual(['>∽((º≈']);
-    expect(resolveFishGlyphRows(80, 20).length).toBe(1);
-    expect(resolveFishGlyphRows(30, 12).length).toBe(1);
+  it('resolves multi-row fish glyphs (dorsal/ventral fins)', () => {
+    expect(FISH_LARGE_RIGHT).toEqual(['  /~\\  ', '>═((º═>', '  \\~/  ']);
+    expect(FISH_LARGE_LEFT).toEqual(['  /~\\  ', '<═º))═<', '  \\~/  ']);
+    expect(FISH_COMPACT_RIGHT).toEqual([' .~~. ', '>∽((º≈']);
+    expect(resolveFishGlyphRows(80, 20).length).toBe(3);
+    expect(resolveFishGlyphRows(30, 12).length).toBe(2);
     expect(FISH_LARGE_RIGHT.join('\n')).not.toMatch(/·/);
   });
 
