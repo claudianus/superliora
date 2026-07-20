@@ -83,6 +83,46 @@ function resetToolFailure(toolName: string): void {
 /** Reset all failure tracking state. Call at turn boundaries. */
 export function resetToolFailureTracker(): void {
   consecutiveFailures.clear();
+  recentToolCalls.clear();
+}
+
+/**
+ * Loop repetition detection threshold. When the same tool is called with
+ * identical arguments this many times within a turn, log a warning about
+ * potential loop stagnation. Based on the self-healing framework insight:
+ * "failure detection identifies abnormal agent behavior based on execution
+ * patterns and output consistency" (Jeong & Shin, 2026).
+ */
+const REPETITION_WARN_THRESHOLD = 4;
+
+/**
+ * Tracks recent tool call signatures (name + args hash) within a turn.
+ * Used to detect repetitive patterns that indicate the loop is stuck.
+ */
+const recentToolCalls = new Map<string, number>();
+
+function trackToolCallPattern(toolName: string, args: unknown, log?: Logger): void {
+  // Create a simple signature from tool name and args.
+  const argsKey = safeStringifyArgs(args);
+  const signature = `${toolName}:${argsKey}`;
+  const count = (recentToolCalls.get(signature) ?? 0) + 1;
+  recentToolCalls.set(signature, count);
+  if (count === REPETITION_WARN_THRESHOLD) {
+    log?.warn('repetitive tool call pattern detected; possible loop stagnation', {
+      toolName,
+      repetitionCount: count,
+    });
+  }
+}
+
+function safeStringifyArgs(args: unknown): string {
+  try {
+    const json = JSON.stringify(args);
+    // Truncate long args to avoid memory issues.
+    return json.length > 200 ? `${json.slice(0, 200)}...` : json;
+  } catch {
+    return '[unserializable]';
+  }
 }
 
 /**
@@ -839,6 +879,8 @@ async function dispatchToolCall(
   displayFields?: ToolCallDisplayFields | undefined,
 ): Promise<void> {
   const { toolCall, toolName } = call;
+  // Track call patterns for loop stagnation detection.
+  trackToolCallPattern(toolName, args, step.log);
   await dispatchSyntheticToolPreamble(step, call, displayFields);
   await step.dispatchEvent({
     type: 'tool.call',
