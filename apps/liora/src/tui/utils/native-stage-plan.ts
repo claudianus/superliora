@@ -30,10 +30,18 @@ export interface TUINativeStagePlan {
   /** Panel lines for the situational rail (empty when mode is stack). */
   readonly railLines: readonly RendererRegionLine[];
   readonly railRect?: RendererRect;
+  /** Whether any situational panel had content (drives rail vs stack probe). */
+  readonly hasRailContent: boolean;
 }
 
 export interface PlanTUINativeStageOptions {
   readonly reuseChrome?: TUINativeStageChrome;
+  /**
+   * When provided, skip the four panel probe renders (todo / activity / queue /
+   * btw) and use this value directly. Pure-input frames reuse chrome, so panel
+   * content has not changed and the probes are pure overhead.
+   */
+  readonly cachedHasRailContent?: boolean;
   /**
    * Editor fallback lines / row budget resolved at the final stage width so
    * wrap math matches the painted editor region.
@@ -61,15 +69,22 @@ export function planTUINativeStage(
   const rows = Math.max(1, Math.floor(terminalRows));
   const probeWidth = Math.min(cols, STAGE_MAX_WIDTH);
 
-  const probeTodo = state.todoPanelContainer.render(probeWidth);
-  const probeActivity = state.activityContainer.render(probeWidth);
-  const probeQueue = state.queueContainer.render(probeWidth);
-  const probeBtw = state.btwPanelContainer.render(probeWidth);
-  const hasRailContent =
-    probeTodo.length > 0 ||
-    probeActivity.length > 0 ||
-    probeQueue.length > 0 ||
-    probeBtw.length > 0;
+  let hasRailContent: boolean;
+  if (options.cachedHasRailContent !== undefined) {
+    // Pure-input fast path: panel content has not changed, skip the four
+    // container renders that only exist to probe for rail content.
+    hasRailContent = options.cachedHasRailContent;
+  } else {
+    const probeTodo = state.todoPanelContainer.render(probeWidth);
+    const probeActivity = state.activityContainer.render(probeWidth);
+    const probeQueue = state.queueContainer.render(probeWidth);
+    const probeBtw = state.btwPanelContainer.render(probeWidth);
+    hasRailContent =
+      probeTodo.length > 0 ||
+      probeActivity.length > 0 ||
+      probeQueue.length > 0 ||
+      probeBtw.length > 0;
+  }
 
   const stage = resolveStageLayout({
     width: cols,
@@ -167,5 +182,6 @@ export function planTUINativeStage(
     editorRows,
     railLines: railRect === undefined ? [] : railLines.slice(0, railRect.height),
     railRect,
+    hasRailContent,
   };
 }

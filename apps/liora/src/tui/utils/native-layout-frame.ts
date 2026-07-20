@@ -285,6 +285,8 @@ interface TUIStateNativeChromeCache extends TUINativeStageChrome {
    * activity starts/stops so a stale spinner is never reused.
    */
   readonly chromeEpoch: string;
+  /** Whether any situational panel had content when the cache was built. */
+  readonly hasRailContent: boolean;
 }
 
 export function createTUIStateNativeRenderCallback(
@@ -293,6 +295,9 @@ export function createTUIStateNativeRenderCallback(
 ): NativeTerminalRendererRender {
   let layoutTracking: TUIStateNativeLayoutTracking = {};
   let chromeCache: TUIStateNativeChromeCache | undefined;
+  let transcriptLineCache: readonly RendererRegionLine[] | undefined;
+  let transcriptLineCacheWidth: number | undefined;
+  let transcriptLineCacheRows: number | undefined;
   return ({ frame, runtime, size, quality }) => {
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
     advanceAppearanceAnimationClock(frame.timestamp);
@@ -381,6 +386,12 @@ export function createTUIStateNativeRenderCallback(
       idleAquariumMounted,
       fullscreenTakeover: isNativeFullscreenTakeover(state),
     });
+    // Pure-input fast path: skip panel probes and transcript rendering when
+    // the layout has not shifted. The editor is the only region that changes.
+    const canReuseTranscript =
+      pureInputFrame &&
+      transcriptLineCache !== undefined &&
+      transcriptLineCacheWidth === size.columns;
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
@@ -389,6 +400,11 @@ export function createTUIStateNativeRenderCallback(
       skipDecorativeEditorEffects: typingHoldoff || pureInputFrame,
       // Damage-only stage paint on ambient ticks — see ambientDamageOnly.
       ambientDamageOnly,
+      // Skip the four panel probe renders on pure-input frames.
+      cachedHasRailContent:
+        reuseChrome !== undefined ? chromeCache?.hasRailContent : undefined,
+      // Reuse transcript lines when the transcript has not changed.
+      reuseTranscriptLines: canReuseTranscript ? transcriptLineCache : undefined,
     });
     // Refresh the cache only when chrome was freshly built this frame. Reused
     // frames keep the existing cache (its lines already match nativeFrame.chrome).
@@ -398,6 +414,7 @@ export function createTUIStateNativeRenderCallback(
         stageWidth: nativeFrame.stageWidth,
         stageMode: nativeFrame.stageMode,
         chromeEpoch,
+        hasRailContent: nativeFrame.hasRailContent,
         header: nativeFrame.chrome.header,
         activity: nativeFrame.chrome.activity,
         todo: nativeFrame.chrome.todo,
@@ -405,6 +422,12 @@ export function createTUIStateNativeRenderCallback(
         btw: nativeFrame.chrome.btw,
         footer: nativeFrame.chrome.footer,
       };
+    }
+    // Cache transcript lines for pure-input frame reuse.
+    if (!canReuseTranscript) {
+      transcriptLineCache = nativeFrame.transcriptLines;
+      transcriptLineCacheWidth = size.columns;
+      transcriptLineCacheRows = height;
     }
     // force/clear come from policy (pure input stays incremental). forceCursor
     // is independent and always on for IME caret stickiness — see shouldForceNativeCursor.
@@ -579,6 +602,10 @@ interface TUIStateNativeFrame {
   readonly chrome: TUIStateNativeFrameChrome;
   readonly stageWidth: number;
   readonly stageMode: 'stack' | 'rail';
+  /** Whether any situational panel had content (drives rail vs stack mode). */
+  readonly hasRailContent: boolean;
+  /** Rendered transcript region lines (cacheable across pure-input frames). */
+  readonly transcriptLines: readonly RendererRegionLine[];
 }
 function isNativeFullscreenTakeover(state: TUIState): boolean {
   // Splash / tasks browser / approval preview replace the root tree. The native
@@ -661,6 +688,8 @@ function buildNativeFullscreenTakeoverFrame(
     chrome: emptyNativeFrameChrome(),
     stageWidth: width,
     stageMode: 'stack',
+    hasRailContent: false,
+    transcriptLines: [],
   };
 }
 
@@ -679,6 +708,17 @@ function buildTUIStateNativeFrame(
      * only damage-write changed cells (avoids clear→paint tear bands).
      */
     readonly ambientDamageOnly?: boolean;
+    /**
+     * Cached rail-content probe from a prior frame. When set, the four panel
+     * probe renders inside planTUINativeStage are skipped entirely.
+     */
+    readonly cachedHasRailContent?: boolean;
+    /**
+     * Cached transcript region lines from a prior frame. When set,
+     * nativeTranscriptRegionLines is skipped — the transcript has not changed
+     * on pure-input frames.
+     */
+    readonly reuseTranscriptLines?: readonly RendererRegionLine[];
   } = {},
 ): TUIStateNativeFrame {
   if (isNativeFullscreenTakeover(state)) {
@@ -686,6 +726,7 @@ function buildTUIStateNativeFrame(
   }
   const plan = planTUINativeStage(state, width, height, {
     reuseChrome: options.reuseChrome,
+    cachedHasRailContent: options.cachedHasRailContent,
     resolveEditorFallbackLines: (contentWidth) =>
       nativeEditorFallbackRegionLines(state, contentWidth),
     resolveEditorRows: ({ editorLineCount, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>
@@ -700,8 +741,12 @@ function buildTUIStateNativeFrame(
   const stageWidth = plan.stage.stage.width;
   const chrome = plan.chrome;
   const layout = plan.layout;
+  // Pure-input fast path: reuse cached transcript lines when the transcript
+  // has not changed (no structural shift, no viewport scroll).
+  const transcriptLines = options.reuseTranscriptLines ??
+    nativeTranscriptRegionLines(state, stageWidth, layout.transcriptRows);
   const linesByRegion = {
-    transcript: nativeTranscriptRegionLines(state, stageWidth, layout.transcriptRows),
+    transcript: transcriptLines,
     header: chrome.header,
     activity: chrome.activity,
     todo: chrome.todo,
@@ -828,6 +873,8 @@ function buildTUIStateNativeFrame(
     chrome,
     stageWidth,
     stageMode: plan.stage.mode,
+    hasRailContent: plan.hasRailContent,
+    transcriptLines,
   };
 }
 
