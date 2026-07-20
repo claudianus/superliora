@@ -427,3 +427,56 @@ export function computeRunHealthScore(signals: RunHealthSignals): {
 
   return { score: clampedScore, grade, factors };
 }
+
+// ---------------------------------------------------------------------------
+// Backpressure signal (adaptive throttling)
+// ---------------------------------------------------------------------------
+
+export type BackpressureLevel = 'none' | 'light' | 'moderate' | 'heavy';
+
+export interface BackpressureInputs {
+  readonly contextPressureRatio: number;
+  readonly circuitBreakerOpen: boolean;
+  readonly runHealthGrade: RunHealthGrade;
+  readonly pendingToolCalls: number;
+}
+
+export const BACKPRESSURE_GUIDANCE: Readonly<Record<BackpressureLevel, string>> = {
+  none: 'System operating normally; proceed at full speed.',
+  light: 'Minor pressure detected; consider batching operations or reducing verbosity.',
+  moderate: 'Significant pressure; slow down — defer non-critical work, reduce parallel operations.',
+  heavy: 'System under heavy pressure; pause non-essential operations, wait for recovery before continuing.',
+};
+
+/**
+ * Compute a unified backpressure signal from multiple system health indicators.
+ * Follows the "backpressure signaling" pattern: tell upstream to slow down
+ * before rejection becomes necessary.
+ */
+export function assessBackpressure(inputs: BackpressureInputs): {
+  readonly level: BackpressureLevel;
+  readonly guidance: string;
+} {
+  let pressure = 0;
+
+  // Context pressure contributes 0-3 points
+  if (inputs.contextPressureRatio >= 0.85) pressure += 3;
+  else if (inputs.contextPressureRatio >= 0.7) pressure += 2;
+  else if (inputs.contextPressureRatio >= 0.5) pressure += 1;
+
+  // Circuit breaker open contributes 2 points
+  if (inputs.circuitBreakerOpen) pressure += 2;
+
+  // Run health grade contributes 0-3 points
+  if (inputs.runHealthGrade === 'critical') pressure += 3;
+  else if (inputs.runHealthGrade === 'degraded') pressure += 1;
+
+  // Pending tool calls contribute 0-2 points (queue depth)
+  if (inputs.pendingToolCalls >= 10) pressure += 2;
+  else if (inputs.pendingToolCalls >= 5) pressure += 1;
+
+  const level: BackpressureLevel =
+    pressure >= 6 ? 'heavy' : pressure >= 4 ? 'moderate' : pressure >= 2 ? 'light' : 'none';
+
+  return { level, guidance: BACKPRESSURE_GUIDANCE[level] };
+}
