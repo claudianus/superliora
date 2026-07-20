@@ -480,6 +480,17 @@ function formatModelCatalogGate(options: StatusReportOptions): string {
   );
 }
 
+const QWEN_TOKEN_PLAN_PROVIDER_ID = 'qwen-token-plan';
+
+function formatQwenTokenPlanGate(options: StatusReportOptions): string {
+  const providers = options.availableProviders ?? {};
+  const tokenPlanProvider = providers[QWEN_TOKEN_PLAN_PROVIDER_ID];
+  if (tokenPlanProvider === undefined) return 'not connected';
+  const hasKey = tokenPlanProvider.apiKey !== undefined && tokenPlanProvider.apiKey.length > 0;
+  if (!hasKey) return 'configured (no key)';
+  return 'connected · text/image/video/harness';
+}
+
 function compactCatalogValue(value: string): string {
   const maxLength = 28;
   if (value.length <= maxLength) return value;
@@ -611,6 +622,7 @@ function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
     { label: 'Media', value: formatMediaGate(options) },
     { label: 'Office', value: OFFICE_GATE },
     { label: 'Catalog', value: formatModelCatalogGate(options) },
+    { label: 'Token Plan', value: formatQwenTokenPlanGate(options) },
     { label: 'Memory', value: formatMemoryGate(options) },
     formatUltraworkFlow(options),
     { label: 'Stages', value: formatUltraworkStageStatus(options) },

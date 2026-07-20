@@ -1,8 +1,12 @@
 /**
  * GenerateImageTool — text-to-image via provider keys already on the machine.
  *
- * Zero-config for beginners: if OPENAI_API_KEY or GOOGLE_API_KEY/GEMINI_API_KEY
- * is set, the tool is registered. No MCP or skill catalog required.
+ * Zero-config for beginners: if QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or
+ * GOOGLE_API_KEY/GEMINI_API_KEY is set, the tool is registered. No MCP or
+ * skill catalog required.
+ *
+ * Qwen Cloud Token Plan support: uses the multimodal-generation API with
+ * qwen-image-2.0 (default) or wan2.7-image models.
  */
 
 import type { Kaos } from '@superliora/kaos';
@@ -37,9 +41,9 @@ export const GenerateImageInputSchema = z.object({
     .optional()
     .describe('Output size when the selected provider supports it. Defaults to 1024x1024.'),
   provider: z
-    .enum(['auto', 'openai', 'google'])
+    .enum(['auto', 'openai', 'google', 'qwen'])
     .optional()
-    .describe('Force a provider. Default auto picks the first available key.'),
+    .describe('Force a provider. Default auto picks the first available key (qwen → openai → google).'),
 });
 
 export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
@@ -47,17 +51,22 @@ export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
 export interface GenerateImageProviderEnv {
   readonly openaiApiKey?: string;
   readonly googleApiKey?: string;
+  readonly qwenTokenPlanApiKey?: string;
   readonly fetchImpl?: typeof fetch;
 }
 
 export function resolveImageGenerationProvider(
-  preferred: 'auto' | 'openai' | 'google' | undefined,
+  preferred: 'auto' | 'openai' | 'google' | 'qwen' | undefined,
   env: GenerateImageProviderEnv = {},
-): 'openai' | 'google' | undefined {
+): 'openai' | 'google' | 'qwen' | undefined {
+  const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
   const openai = nonEmpty(env.openaiApiKey ?? process.env['OPENAI_API_KEY']);
   const google = nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']);
+  if (preferred === 'qwen') return qwen !== undefined ? 'qwen' : undefined;
   if (preferred === 'openai') return openai !== undefined ? 'openai' : undefined;
   if (preferred === 'google') return google !== undefined ? 'google' : undefined;
+  // Auto priority: qwen (Token Plan credits) → openai → google
+  if (qwen !== undefined) return 'qwen';
   if (openai !== undefined) return 'openai';
   if (google !== undefined) return 'google';
   return undefined;
@@ -123,9 +132,11 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
 
     try {
       const generated =
-        provider === 'openai'
-          ? await generateWithOpenAI(args, this.env)
-          : await generateWithGoogle(args, this.env);
+        provider === 'qwen'
+          ? await generateWithQwen(args, this.env)
+          : provider === 'openai'
+            ? await generateWithOpenAI(args, this.env)
+            : await generateWithGoogle(args, this.env);
       await this.kaos.writeBytes(safePath, generated.bytes);
       return {
         output: [
@@ -174,6 +185,85 @@ interface GeneratedImage {
   readonly mimeType: string;
   readonly model?: string;
 }
+
+// ── Qwen Cloud Token Plan image generation ─────────────────────────────
+
+const QWEN_IMAGE_API_URL =
+  'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+
+/** Maps the tool's size enum to Qwen's `size` parameter format (WxH → W*H). */
+function toQwenImageSize(size: string | undefined): string {
+  switch (size) {
+    case '1024x1024': return '1024*1024';
+    case '1536x1024': return '1536*1024';
+    case '1024x1536': return '1024*1536';
+    case '1792x1024': return '1792*1024';
+    case '1024x1792': return '1024*1792';
+    default: return '1024*1024';
+  }
+}
+
+async function generateWithQwen(
+  args: GenerateImageInput,
+  env: GenerateImageProviderEnv,
+): Promise<GeneratedImage> {
+  const apiKey = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
+  if (apiKey === undefined) throw new Error('QWEN_TOKEN_PLAN_API_KEY is not set.');
+  const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  const model = 'qwen-image-2.0';
+  const size = toQwenImageSize(args.size);
+
+  const response = await fetchImpl(QWEN_IMAGE_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      input: {
+        messages: [{ role: 'user', content: [{ text: args.prompt }] }],
+      },
+      parameters: { size },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Qwen image generation failed (${String(response.status)}): ${await response.text()}`);
+  }
+
+  const payload = (await response.json()) as {
+    output?: {
+      choices?: Array<{
+        message?: {
+          content?: Array<{ image?: string; text?: string }>;
+        };
+      }>;
+    };
+  };
+
+  // Extract image URL from output.choices[*].message.content[*].image
+  for (const choice of payload.output?.choices ?? []) {
+    for (const part of choice.message?.content ?? []) {
+      if (part.image !== undefined && part.image.length > 0) {
+        const imageResponse = await fetchImpl(part.image);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to download Qwen image (${String(imageResponse.status)})`);
+        }
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        return {
+          bytes: Buffer.from(arrayBuffer),
+          mimeType: imageResponse.headers.get('content-type') ?? 'image/png',
+          model,
+        };
+      }
+    }
+  }
+
+  throw new Error('Qwen image generation returned no image content.');
+}
+
+// ── OpenAI image generation ────────────────────────────────────────────
 
 async function generateWithOpenAI(
   args: GenerateImageInput,

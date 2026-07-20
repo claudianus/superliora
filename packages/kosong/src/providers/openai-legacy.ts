@@ -61,6 +61,55 @@ const OPENAI_CHAT_TOOL_CALL_ID_POLICY: ToolCallIdPolicy = {
   maxLength: 64,
 };
 
+// ── Qwen Token Plan harness tools ─────────────────────────────────────
+// Server-side built-in tools that the model invokes automatically when
+// enabled. Activated by including tool entries with `type` set to the
+// harness tool identifier (no function schema needed).
+
+const QWEN_TOKEN_PLAN_URL_MARKER = 'token-plan';
+const QWEN_TOKEN_PLAN_DOMAIN = 'maas.aliyuncs.com';
+
+function isQwenTokenPlanEndpoint(baseUrl: string | undefined): boolean {
+  if (baseUrl === undefined) return false;
+  return baseUrl.includes(QWEN_TOKEN_PLAN_URL_MARKER) && baseUrl.includes(QWEN_TOKEN_PLAN_DOMAIN);
+}
+
+const QWEN_HARNESS_TOOL_IDS = {
+  webSearch: 'web_search',
+  codeInterpreter: 'code_interpreter',
+  webScraping: 'web_scraping',
+  reverseImageSearch: 'reverse_image_search',
+  textToImageSearch: 'text_to_image_search',
+} as const;
+
+const QWEN_ALL_HARNESS_TOOLS: readonly string[] = [
+  QWEN_HARNESS_TOOL_IDS.webSearch,
+  QWEN_HARNESS_TOOL_IDS.codeInterpreter,
+  QWEN_HARNESS_TOOL_IDS.webScraping,
+  QWEN_HARNESS_TOOL_IDS.reverseImageSearch,
+  QWEN_HARNESS_TOOL_IDS.textToImageSearch,
+];
+
+const QWEN_CORE_HARNESS_TOOLS: readonly string[] = [
+  QWEN_HARNESS_TOOL_IDS.webSearch,
+  QWEN_HARNESS_TOOL_IDS.codeInterpreter,
+  QWEN_HARNESS_TOOL_IDS.webScraping,
+];
+
+function qwenHarnessToolsForModel(model: string): readonly string[] {
+  const normalized = model.toLowerCase();
+  // qwen3.8-max-preview and qwen3.7-plus support all harness tools.
+  if (normalized.includes('qwen3.8') || normalized.includes('qwen3.7-plus')) {
+    return QWEN_ALL_HARNESS_TOOLS;
+  }
+  // qwen3.7-max supports core tools only.
+  if (normalized.includes('qwen3.7')) {
+    return QWEN_CORE_HARNESS_TOOLS;
+  }
+  // Other models (e.g. deepseek-v4-pro) do not support harness tools.
+  return [];
+}
+
 function extractReasoningContent(
   source: unknown,
   explicitKey: string | undefined,
@@ -562,6 +611,18 @@ export class OpenAILegacyChatProvider implements ChatProvider {
 
     if (tools.length > 0) {
       createParams['tools'] = tools.map((t) => toolToOpenAI(t));
+    }
+
+    // Qwen Token Plan: inject server-side harness tools (web_search,
+    // code_interpreter, etc.) when the endpoint is a Token Plan URL.
+    // These are built-in tools the model invokes automatically.
+    if (isQwenTokenPlanEndpoint(this._baseUrl)) {
+      const harnessTools = qwenHarnessToolsForModel(this._model);
+      if (harnessTools.length > 0) {
+        const existingTools = (createParams['tools'] as unknown[] | undefined) ?? [];
+        const harnessToolEntries = harnessTools.map((toolType) => ({ type: toolType }));
+        createParams['tools'] = [...existingTools, ...harnessToolEntries];
+      }
     }
 
     if (this._stream) {

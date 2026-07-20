@@ -1,8 +1,12 @@
 /**
- * GenerateVideoTool — text/image-to-video via Google Gemini when a key exists.
+ * GenerateVideoTool — text/image-to-video via provider keys on the machine.
  *
- * Zero-config for beginners with GOOGLE_API_KEY or GEMINI_API_KEY. OpenAI
- * video APIs are intentionally out of scope until a stable public path exists.
+ * Zero-config with QWEN_TOKEN_PLAN_API_KEY (happyhorse models, async task)
+ * or GOOGLE_API_KEY/GEMINI_API_KEY (Gemini omni-flash).
+ *
+ * Qwen Cloud Token Plan: supports text-to-video (happyhorse-1.1-t2v),
+ * image-to-video (happyhorse-1.1-i2v), and reference-to-video
+ * (happyhorse-1.1-r2v) via an async task submission + polling pattern.
  */
 
 import type { Kaos } from '@superliora/kaos';
@@ -47,17 +51,42 @@ export const GenerateVideoInputSchema = z.object({
     .max(10)
     .optional()
     .describe('Clip length in seconds when the provider supports it (3–10). Defaults to 5.'),
+  resolution: z
+    .enum(['720P', '1080P'])
+    .optional()
+    .describe('Output resolution (Qwen Cloud only). Defaults to 720P.'),
+  provider: z
+    .enum(['auto', 'google', 'qwen'])
+    .optional()
+    .describe('Force a provider. Default auto picks the first available key (qwen → google).'),
 });
 
 export type GenerateVideoInput = z.infer<typeof GenerateVideoInputSchema>;
 
 export interface GenerateVideoProviderEnv {
   readonly googleApiKey?: string;
+  readonly qwenTokenPlanApiKey?: string;
   readonly fetchImpl?: typeof fetch;
 }
 
 export function isGenerateVideoAvailable(env: GenerateVideoProviderEnv = {}): boolean {
-  return nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']) !== undefined;
+  const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
+  const google = nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']);
+  return qwen !== undefined || google !== undefined;
+}
+
+function resolveVideoProvider(
+  preferred: 'auto' | 'google' | 'qwen' | undefined,
+  env: GenerateVideoProviderEnv = {},
+): 'google' | 'qwen' | undefined {
+  const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
+  const google = nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']);
+  if (preferred === 'qwen') return qwen !== undefined ? 'qwen' : undefined;
+  if (preferred === 'google') return google !== undefined ? 'google' : undefined;
+  // Auto priority: qwen (Token Plan credits) → google
+  if (qwen !== undefined) return 'qwen';
+  if (google !== undefined) return 'google';
+  return undefined;
 }
 
 export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
@@ -98,11 +127,12 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
     safePath: string,
     displayPath: string,
   ): Promise<ExecutableToolResult> {
-    if (!isGenerateVideoAvailable(this.env)) {
+    const provider = resolveVideoProvider(args.provider ?? 'auto', this.env);
+    if (provider === undefined) {
       return {
         isError: true,
         output:
-          'No video-generation provider key found. Set GOOGLE_API_KEY or GEMINI_API_KEY (no MCP setup), then retry. Check readiness with /status. Alternatively SearchSkill → gemini-omni-flash-api.',
+          'No video-generation provider key found. Set QWEN_TOKEN_PLAN_API_KEY or GOOGLE_API_KEY / GEMINI_API_KEY (no MCP setup), then retry. Check readiness with /status.',
       };
     }
 
@@ -112,11 +142,14 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
     }
 
     try {
-      const generated = await generateWithGeminiOmni(args, this.kaos, this.workspace, this.env);
+      const generated =
+        provider === 'qwen'
+          ? await generateWithQwenVideo(args, this.kaos, this.workspace, this.env)
+          : await generateWithGeminiOmni(args, this.kaos, this.workspace, this.env);
       await this.kaos.writeBytes(safePath, generated.bytes);
       return {
         output: [
-          'Generated video with google (gemini-omni-flash-preview).',
+          `Generated video with ${provider === 'qwen' ? 'qwen (happyhorse)' : 'google (gemini-omni-flash-preview)'}.`,
           `Path: ${displayPath}`,
           `Bytes: ${String(generated.bytes.byteLength)}`,
           `MIME: ${generated.mimeType}`,
@@ -161,6 +194,130 @@ interface GeneratedVideo {
   readonly mimeType: string;
   readonly model?: string;
 }
+
+// ── Qwen Cloud Token Plan video generation (async task) ────────────────
+
+const QWEN_VIDEO_API_URL =
+  'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis';
+const QWEN_TASK_URL =
+  'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/tasks';
+const QWEN_VIDEO_POLL_INTERVAL_MS = 15_000;
+const QWEN_VIDEO_MAX_POLL_ATTEMPTS = 40; // 10 minutes max
+
+async function generateWithQwenVideo(
+  args: GenerateVideoInput,
+  kaos: Kaos,
+  workspace: WorkspaceConfig,
+  env: GenerateVideoProviderEnv,
+): Promise<GeneratedVideo> {
+  const apiKey = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
+  if (apiKey === undefined) throw new Error('QWEN_TOKEN_PLAN_API_KEY is not set.');
+  const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
+
+  // Select model based on whether an image is provided.
+  const hasImage = args.image_path !== undefined && args.image_path.trim().length > 0;
+  const model = hasImage ? 'happyhorse-1.1-i2v' : 'happyhorse-1.1-t2v';
+
+  // Build input payload.
+  const input: Record<string, unknown> = { prompt: args.prompt };
+  if (hasImage) {
+    const imagePath = resolvePathAccessPath(args.image_path!.trim(), {
+      kaos,
+      workspace,
+      operation: 'read',
+    });
+    const bytes = await kaos.readBytes(imagePath);
+    // Qwen i2v expects an image URL or base64; use data URI.
+    const mime = sniffImageMime(bytes);
+    const b64 = Buffer.from(bytes).toString('base64');
+    input['img_url'] = `data:${mime};base64,${b64}`;
+  }
+
+  // Submit async task.
+  const submitResponse = await fetchImpl(QWEN_VIDEO_API_URL, {
+    method: 'POST',
+    headers: {
+      'X-DashScope-Async': 'enable',
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      input,
+      parameters: {
+        resolution: args.resolution ?? '720P',
+        ratio: args.aspect_ratio ?? '16:9',
+        duration: args.duration_seconds ?? 5,
+      },
+    }),
+  });
+
+  if (!submitResponse.ok) {
+    throw new Error(
+      `Qwen video submission failed (${String(submitResponse.status)}): ${await submitResponse.text()}`,
+    );
+  }
+
+  const submitPayload = (await submitResponse.json()) as {
+    output?: { task_id?: string; task_status?: string };
+  };
+  const taskId = submitPayload.output?.task_id;
+  if (taskId === undefined || taskId.length === 0) {
+    throw new Error('Qwen video generation returned no task_id.');
+  }
+
+  // Poll task status.
+  let videoUrl: string | undefined;
+  for (let attempt = 0; attempt < QWEN_VIDEO_MAX_POLL_ATTEMPTS; attempt++) {
+    await sleep(QWEN_VIDEO_POLL_INTERVAL_MS);
+    const pollResponse = await fetchImpl(`${QWEN_TASK_URL}/${taskId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!pollResponse.ok) {
+      throw new Error(`Qwen task poll failed (${String(pollResponse.status)}): ${await pollResponse.text()}`);
+    }
+    const pollPayload = (await pollResponse.json()) as {
+      output?: {
+        task_status?: string;
+        video_url?: string;
+        message?: string;
+      };
+    };
+    const status = pollPayload.output?.task_status;
+    if (status === 'SUCCEEDED') {
+      videoUrl = pollPayload.output?.video_url;
+      break;
+    }
+    if (status === 'FAILED') {
+      throw new Error(
+        `Qwen video generation failed: ${pollPayload.output?.message ?? 'unknown error'}`,
+      );
+    }
+    // PENDING / RUNNING — continue polling.
+  }
+
+  if (videoUrl === undefined || videoUrl.length === 0) {
+    throw new Error('Qwen video generation timed out waiting for task completion.');
+  }
+
+  // Download the video.
+  const videoResponse = await fetchImpl(videoUrl);
+  if (!videoResponse.ok) {
+    throw new Error(`Failed to download Qwen video (${String(videoResponse.status)})`);
+  }
+  const arrayBuffer = await videoResponse.arrayBuffer();
+  return {
+    bytes: Buffer.from(arrayBuffer),
+    mimeType: videoResponse.headers.get('content-type') ?? 'video/mp4',
+    model,
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ── Google Gemini video generation ─────────────────────────────────────
 
 async function generateWithGeminiOmni(
   args: GenerateVideoInput,
