@@ -119,17 +119,17 @@ describe('resolveSlashCommandInput', () => {
     });
     expect(resolve('/ultraplan Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'ultraplan',
       args: 'Ship feature X',
     });
     expect(resolve('/up Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'ultraplan',
       args: 'Ship feature X',
     });
     expect(resolve('/ultragoal replace Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'ultragoal',
       args: 'replace Ship feature X',
     });
     expect(resolve('/uw Ship feature X')).toMatchObject({
@@ -139,17 +139,17 @@ describe('resolveSlashCommandInput', () => {
     });
     expect(resolve('/ug Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'ultragoal',
       args: 'Ship feature X',
     });
     expect(resolve('/ultraswarm Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'ultraswarm',
       args: 'Ship feature X',
     });
     expect(resolve('/us Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'ultraswarm',
       args: 'Ship feature X',
     });
   });

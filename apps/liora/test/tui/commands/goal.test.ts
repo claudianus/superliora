@@ -172,14 +172,7 @@ function latestMountedPicker(host: SlashCommandHost): TestPicker {
 }
 
 function expectGoalWorkflowPrompt(host: SlashCommandHost, objective: string): void {
-  expect(host.sendNormalUserInput).toHaveBeenCalledWith(
-    expect.stringContaining('<ultrawork_flow>'),
-    { displayText: objective },
-  );
-  expect(host.sendNormalUserInput).toHaveBeenCalledWith(
-    expect.stringContaining('active_goal_already_created: true'),
-    { displayText: objective },
-  );
+  expect(host.sendNormalUserInput).toHaveBeenCalledWith(objective);
 }
 
 describe('parseGoalCommand', () => {
@@ -285,21 +278,14 @@ describe('handleGoalCommand', () => {
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
   });
 
-  it('/goal <objective> creates a goal and sends the Ultrawork contract with the objective displayed', async () => {
+  it('/goal <objective> creates a goal and sends the objective verbatim', async () => {
     await handleGoalCommand(host, 'Ship feature X');
     await confirmGoalStart(host, session, 'auto');
     expect(session.createGoal).toHaveBeenCalledWith(
-      expect.objectContaining({ objective: 'Ship feature X', replace: false }),
-    );
-    expect(session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
-    expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(session.setPremiumQuality).toHaveBeenCalledWith(true);
-    expect(host.setAppState).toHaveBeenCalledWith(
       expect.objectContaining({
-        planMode: true,
-        ultraworkMode: true,
-        premiumQualityMode: true,
-        swarmMode: true,
+        objective: 'Ship feature X',
+        replace: false,
+        source: 'standalone',
       }),
     );
     expectGoalWorkflowPrompt(host, 'Ship feature X');
@@ -317,8 +303,7 @@ describe('handleGoalCommand', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.receiver).toBe(host);
-    expect(calls[0]?.text).toContain('<ultrawork_flow>');
-    expect(calls[0]?.text).toContain('Ship feature X');
+    expect(calls[0]?.text).toBe('Ship feature X');
   });
 
   it('asks before starting a goal in Manual mode', async () => {
@@ -347,8 +332,6 @@ describe('handleGoalCommand', () => {
     });
     expect(s.setPermission).toHaveBeenCalledWith('auto');
     expect(manualHost.setAppState).toHaveBeenCalledWith({ permissionMode: 'auto' });
-    expect(s.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
-    expect(s.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expectGoalWorkflowPrompt(manualHost, 'Ship feature X');
   });
 
@@ -440,8 +423,6 @@ describe('handleGoalCommand', () => {
     });
     expect(s.setPermission).toHaveBeenCalledWith('auto');
     expect(yoloHost.setAppState).toHaveBeenCalledWith({ permissionMode: 'auto' });
-    expect(s.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
-    expect(s.setSwarmMode).toHaveBeenCalledWith(true, 'task');
     expectGoalWorkflowPrompt(yoloHost, 'Ship feature X');
   });
 
@@ -681,7 +662,7 @@ describe('handleGoalCommand', () => {
     expect(host.track).toHaveBeenCalledWith('goal_resume');
     expect(host.showStatus).not.toHaveBeenCalledWith('Goal resumed.');
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
-      'Continue from where you left off. Resume the active goal without restarting earlier Ultrawork stages or redoing completed work.',
+      'Continue from where you left off. Resume the active goal without redoing completed work.',
     );
   });
 

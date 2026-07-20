@@ -205,6 +205,7 @@ describe('SessionEventHandler goal queue promotion', () => {
       expect(session.createGoal).toHaveBeenCalledWith({
         objective: 'Ship queued goal',
         replace: false,
+        source: 'standalone',
       });
     });
     expect(removeGoalQueueItem).toHaveBeenCalledWith(session, { goalId: 'q1' });
@@ -256,6 +257,7 @@ describe('SessionEventHandler goal queue promotion', () => {
       expect(session.createGoal).toHaveBeenCalledWith({
         objective: 'Ship queued goal',
         replace: false,
+        source: 'standalone',
       });
     });
     expect(host.sendQueuedMessage).toHaveBeenLastCalledWith(session, { text: 'Ship queued goal' });
@@ -318,6 +320,7 @@ describe('SessionEventHandler goal queue promotion', () => {
     expect(session.createGoal).toHaveBeenCalledWith({
       objective: 'Ship queued goal',
       replace: false,
+      source: 'standalone',
     });
     expect(session.cancelGoal).toHaveBeenCalledOnce();
     expect(restoreGoalQueueItem).not.toHaveBeenCalled();
