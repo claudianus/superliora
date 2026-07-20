@@ -224,6 +224,12 @@ export class RendererViewport {
     return this.setOffset(this.offsetFromBottom - rows);
   }
 
+  jumpToLine(line: number): RendererViewportSnapshot {
+    const clampedLine = Math.max(0, Math.floor(line));
+    const offset = this.contentRows - this.viewportRows - clampedLine;
+    return this.setOffset(offset);
+  }
+
   toBottom(): RendererViewportSnapshot {
     this.offsetFromBottom = 0;
     this.followOutput = true;
@@ -300,6 +306,11 @@ export class RendererTranscriptViewport {
       rendererTranscriptScrollRows(action, this.current.viewportRows, this.lineScrollRows),
     );
     return viewportPositionChanged(previous, this.current);
+  }
+
+  jumpToLine(line: number): RendererViewportSnapshot {
+    this.current = this.viewport.jumpToLine(line);
+    return this.current;
   }
 
   start(): number {

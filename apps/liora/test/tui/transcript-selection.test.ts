@@ -178,6 +178,7 @@ describe('copyTranscriptSelectionToClipboard', () => {
       rect: { x: 0, y: 0, width: 40, height: 5 },
       viewportStart: 0,
       visibleRows: 5,
+      stageWidth: 40,
       leftPad: CHROME_GUTTER,
       rightPad: CHROME_GUTTER,
       contentWidth: 38,

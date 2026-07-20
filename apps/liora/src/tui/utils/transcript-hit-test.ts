@@ -17,6 +17,7 @@ export interface TranscriptHitTestContext {
   readonly rect: RendererRect;
   readonly viewportStart: number;
   readonly visibleRows: number;
+  readonly stageWidth: number;
   readonly leftPad: number;
   readonly rightPad: number;
   readonly contentWidth: number;
@@ -81,6 +82,7 @@ export function resolveTranscriptHitTestContext(
     rect,
     viewportStart: state.transcriptViewport.start(),
     visibleRows,
+    stageWidth,
     leftPad,
     rightPad,
     contentWidth,

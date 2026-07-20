@@ -196,6 +196,8 @@ import { notifyUserAttentionOnce } from './utils/terminal-notification';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
+import { resolveTranscriptEntryLineOffset } from './utils/transcript-entry-layout';
+import { resolveTranscriptHitTestContext } from './utils/transcript-hit-test';
 import {
   TRANSCRIPT_EXPAND_TURNS,
   TRANSCRIPT_HYSTERESIS,
@@ -206,6 +208,7 @@ import {
   turnsToTrim,
 } from './utils/transcript-window';
 import {
+  jumpTranscriptViewportToLine,
   scrollTranscriptViewport as applyTranscriptViewportScroll,
   type TranscriptScrollAction,
 } from './utils/transcript-viewport';
@@ -3321,6 +3324,20 @@ export class LioraTUI {
   }
 
   private scrollToTranscriptIndex(index: number): void {
+    const entry = this.state.transcriptEntries[index];
+    if (entry === undefined) return;
+    // Exact jump: resolve the entry's first line in the current transcript
+    // layout and move the viewport start there. Resolving the hit-test
+    // context also warms the cached transcript layout.
+    const context = resolveTranscriptHitTestContext(this.state);
+    if (context !== undefined) {
+      const line = resolveTranscriptEntryLineOffset(this.state, entry.id, context.stageWidth);
+      if (line !== undefined) {
+        jumpTranscriptViewportToLine(this.state.transcriptViewport, line);
+        requestTUIContentRender(this.state);
+        return;
+      }
+    }
     // Roughly map a transcript entry index to a scroll position. The viewport
     // is line-based; we approximate by scrolling to the entry proportionally.
     const total = this.state.transcriptEntries.length;

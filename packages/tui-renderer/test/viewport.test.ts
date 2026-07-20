@@ -243,6 +243,76 @@ describe('RendererViewport', () => {
     });
   });
 
+  it('jumps the viewport start to an exact line', () => {
+    const viewport = new RendererViewport({ contentRows: 100, viewportRows: 20 });
+
+    expect(viewport.jumpToLine(30)).toMatchObject({
+      start: 30,
+      followOutput: false,
+      offsetFromBottom: 50,
+    });
+    // Fractional lines floor to the previous whole line.
+    expect(viewport.jumpToLine(42.9)).toMatchObject({
+      start: 42,
+      followOutput: false,
+    });
+  });
+
+  it('pins jump targets beyond the tail to the bottom', () => {
+    const viewport = new RendererViewport({ contentRows: 100, viewportRows: 20 });
+
+    expect(viewport.jumpToLine(95)).toMatchObject({
+      start: 80,
+      followOutput: true,
+      offsetFromBottom: 0,
+    });
+  });
+
+  it('jumps to the top for line 0 and clamps negative lines to the top', () => {
+    const viewport = new RendererViewport({ contentRows: 100, viewportRows: 20 });
+
+    expect(viewport.jumpToLine(0)).toMatchObject({
+      start: 0,
+      followOutput: false,
+      offsetFromBottom: 80,
+    });
+    expect(viewport.jumpToLine(-5)).toMatchObject({
+      start: 0,
+      followOutput: false,
+      offsetFromBottom: 80,
+    });
+  });
+
+  it('leaves follow-output mode when jumping mid-content', () => {
+    const viewport = new RendererViewport({ contentRows: 100, viewportRows: 20 });
+    viewport.toBottom();
+    expect(viewport.snapshot().followOutput).toBe(true);
+
+    expect(viewport.jumpToLine(40)).toMatchObject({
+      start: 40,
+      followOutput: false,
+    });
+  });
+
+  it('jumps the transcript viewport to an exact line and refreshes its snapshot', () => {
+    const viewport = new RendererTranscriptViewport();
+    viewport.sync(100, 20);
+
+    expect(viewport.jumpToLine(30)).toMatchObject({
+      start: 30,
+      followOutput: false,
+      offsetFromBottom: 50,
+    });
+    expect(viewport.snapshot()).toMatchObject({ start: 30, offsetFromBottom: 50 });
+    expect(viewport.start()).toBe(30);
+
+    expect(viewport.jumpToLine(99)).toMatchObject({
+      start: 80,
+      followOutput: true,
+      offsetFromBottom: 0,
+    });
+  });
+
   it('keeps transcript manual scroll intent before content overflows', () => {
     const viewport = new RendererTranscriptViewport();
 

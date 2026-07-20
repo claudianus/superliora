@@ -36,3 +36,10 @@ export function scrollTranscriptViewport(
 ): boolean {
   return state.scroll(action);
 }
+
+export function jumpTranscriptViewportToLine(
+  state: TranscriptViewportState,
+  line: number,
+): RendererViewportSnapshot {
+  return state.jumpToLine(line);
+}
