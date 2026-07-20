@@ -50,17 +50,19 @@ export {
   analyzeFailedNodes,
   applyWorkGraphProgressToRun,
   assessContextPressure,
+  assessRecoveryEscalation,
   categorizeNodeFailure,
   CONTEXT_PRESSURE_GUIDANCE,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
+  ESCALATION_GUIDANCE,
   FAILURE_RECOVERY_GUIDANCE,
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
 } from './stage-progress';
-export type { ContextPressureLevel, LongRunningStageInfo, WorkGraphFailureCategory } from './stage-progress';
+export type { ContextPressureLevel, LongRunningStageInfo, RecoveryEscalationLevel, WorkGraphFailureCategory } from './stage-progress';
 export {
   buildUltraworkCompactionEnvelope,
   captureUltraworkEnvelopeSnapshot,
