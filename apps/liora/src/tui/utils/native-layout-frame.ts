@@ -310,12 +310,13 @@ export function createTUIStateNativeRenderCallback(
     );
     const ambientAnimationAllowed =
       shouldAnimate(state.appState.appearance ?? getActiveAppearancePreferences()) &&
-      shouldRenderAmbientAnimationFrame(
-        state.transcriptViewport.followOutput,
-        size.rows,
-        state.transcriptSelection.isDragging || state.transcriptSelection.hasSelection,
-        { nowMs: frame.timestamp },
-      );
+      (isNativeFullscreenTakeover(state) ||
+        shouldRenderAmbientAnimationFrame(
+          state.transcriptViewport.followOutput,
+          size.rows,
+          state.transcriptSelection.isDragging || state.transcriptSelection.hasSelection,
+          { nowMs: frame.timestamp },
+        ));
     const policy = resolveTUIStateNativeFramePolicy({
       causes: frame.causes,
       viewportScrolled: layoutShift.viewportScrolled,
@@ -438,10 +439,15 @@ export function createTUIStateNativeRenderer(
   nativeRenderer = new NativeTerminalRenderer({
     ...options,
     autoBeginFrame: false,
-    autoFrameHold: options.autoFrameHold ?? (() => shouldHoldTranscriptAnimation({
-      followOutput: state.transcriptViewport.followOutput,
-      transcriptSelection: state.transcriptSelection,
-    })),
+    autoFrameHold: options.autoFrameHold ?? (() => {
+      // Fullscreen takeover (splash, tasks browser, approval preview) owns its
+      // own animations — never hold frames based on transcript scroll state.
+      if (isNativeFullscreenTakeover(state)) return false;
+      return shouldHoldTranscriptAnimation({
+        followOutput: state.transcriptViewport.followOutput,
+        transcriptSelection: state.transcriptSelection,
+      });
+    }),
     outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
     regionVfxFrames: options.regionVfxFrames ?? premiumDefaults.regionVfxFrames,
     measureFrameHeight: options.growWithContent === true
