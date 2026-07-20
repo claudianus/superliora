@@ -22,6 +22,13 @@ export const ULTRAWORK_STAGE_ORDER: readonly UltraworkStage[] = [
   'done',
 ];
 
+/**
+ * Maximum stage history entries retained. Prevents unbounded memory growth in
+ * long-running oscillation scenarios (repeated block/resume cycles). Keeps the
+ * most recent entries which are most relevant for resume and telemetry.
+ */
+const MAX_STAGE_HISTORY = 100;
+
 const STAGE_INDEX = new Map<UltraworkStage, number>(
   ULTRAWORK_STAGE_ORDER.map((stage, index) => [stage, index]),
 );
@@ -112,7 +119,7 @@ export class UltraworkRunStateMachine {
       throw new Error(`Cannot skip Ultrawork stages from ${this.run.stage} to ${to}.`);
     }
 
-    const stageHistory = [...(this.run.stageHistory ?? [])];
+    const stageHistory = trimStageHistory([...(this.run.stageHistory ?? [])]);
     if (to !== this.run.stage) {
       stageHistory.push({ stage: to, enteredAt: now, reason });
     }
@@ -165,7 +172,7 @@ export class UltraworkRunStateMachine {
     const toIndex = stageIndex(to);
     if (toIndex <= fromIndex) return this.run;
 
-    const stageHistory = [...(this.run.stageHistory ?? [])];
+    const stageHistory = trimStageHistory([...(this.run.stageHistory ?? [])]);
     stageHistory.push({ stage: to, enteredAt: now, reason });
     this.run = {
       ...this.run,
@@ -292,4 +299,15 @@ function normalizeWaiver(waiver: string | undefined): string | undefined {
   if (waiver === undefined) return undefined;
   const trimmed = waiver.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Trim stage history to MAX_STAGE_HISTORY entries, keeping the most recent.
+ * The first entry (initial intake) is always preserved for run-age telemetry.
+ */
+function trimStageHistory<T>(history: T[]): T[] {
+  if (history.length <= MAX_STAGE_HISTORY) return history;
+  const first = history[0];
+  const recent = history.slice(history.length - (MAX_STAGE_HISTORY - 1));
+  return first !== undefined ? [first, ...recent] : recent;
 }
