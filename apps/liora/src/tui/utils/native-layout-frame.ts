@@ -58,7 +58,6 @@ import {
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers/appearance';
 import type { TUIState } from '../tui-state';
 import { IdleStageComponent } from '../components/chrome/idle-stage';
-import { isTUIInputInteractionActive } from './input-interaction';
 import {
   isPureInputFrame,
   resolveTUIStateNativeFramePolicy,
@@ -369,7 +368,6 @@ export function createTUIStateNativeRenderCallback(
       (pureInputFrame || chromeStatic)
         ? chromeCache
         : undefined;
-    const typingHoldoff = isTUIInputInteractionActive(frame.timestamp);
     // Animation / idle-aquarium ticks must not full-clear. Request-only frames
     // while Jewel Tank is mounted (e.g. thinking footer) used to clear:true the
     // whole transcript — ~70% frame rewrite that tears into black horizontal bands
@@ -396,8 +394,9 @@ export function createTUIStateNativeRenderCallback(
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
       reuseChrome,
-      // Skip Ultrawork perimeter repaint while typing — animation resumes after holdoff.
-      skipDecorativeEditorEffects: typingHoldoff || pureInputFrame,
+      // Skip Ultrawork perimeter repaint on pure-input frames; animation frames
+      // still paint it so the border chase stays smooth while typing.
+      skipDecorativeEditorEffects: pureInputFrame,
       // Damage-only stage paint on ambient ticks — see ambientDamageOnly.
       ambientDamageOnly,
       // Skip the four panel probe renders on pure-input frames.

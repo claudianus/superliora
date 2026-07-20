@@ -100,10 +100,12 @@ describe('AppearanceController', () => {
     expect(shouldRenderAmbientAnimationFrame(true, Number.NaN)).toBe(false);
   });
 
-  it('suppresses ambient animation for a short window after prompt input', () => {
+  it('allows ambient animation immediately after prompt input (no holdoff)', () => {
     resetTUIInputInteractionForTests();
     noteTUIInputInteraction(1_000);
-    expect(shouldRenderAmbientAnimationFrame(true, 24, false, { nowMs: 1_050 })).toBe(false);
+    // Input frames have priority (delay 0) and preempt animation frames, so
+    // the old 200ms typing holdoff is no longer needed.
+    expect(shouldRenderAmbientAnimationFrame(true, 24, false, { nowMs: 1_050 })).toBe(true);
     expect(shouldRenderAmbientAnimationFrame(true, 24, false, { nowMs: 1_250 })).toBe(true);
   });
 

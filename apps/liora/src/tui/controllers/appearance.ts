@@ -16,7 +16,6 @@ import {
   resolveAmbientEffectMode,
   setActiveAppearancePreferences,
 } from '#/tui/utils/appearance-effects';
-import { isTUIInputInteractionActive } from '#/tui/utils/input-interaction';
 
 export interface AppearanceControllerOptions {
   readonly terminal: RendererTerminalHost;
@@ -158,14 +157,14 @@ export function shouldRenderAmbientAnimationFrame(
   followOutput: boolean,
   terminalRows: number,
   transcriptSelectionActive = false,
-  options: { readonly nowMs?: number } = {},
+  _options: { readonly nowMs?: number } = {},
 ): boolean {
   if (transcriptSelectionActive) return false;
   if (!followOutput) return false;
   if (!Number.isFinite(terminalRows) || terminalRows <= 0) return false;
-  // Typing and ambient ticks share the same render loop. Hold decorative
-  // frames for a short window after input so prompt keystrokes stay snappy.
-  if (isTUIInputInteractionActive(options.nowMs)) return false;
+  // Input frames now have priority (delay 0) and preempt animation frames in
+  // the render loop, so ambient ticks no longer fight the editor for latency.
+  // The old 200ms typing holdoff froze all ambient animation on every keystroke.
   return true;
 }
 
