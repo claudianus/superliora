@@ -14,3 +14,9 @@ Harden the Ultrawork harness state machine and add loop-engineering observabilit
 - Emit ultrawork_stage_change and ultrawork_resume telemetry with stage duration and oscillation detection
 - Strengthen verify stage continuation guidance with a structured checklist
 - Clip compaction envelope objective to 200 characters
+- Add circuit breaker for all-terminal-with-failures WorkGraph state (prevents infinite stuck runs)
+- Cap stageHistory at 100 entries to prevent unbounded memory growth during oscillation
+- Add LRU eviction (max 16) to objective profile cache
+- Emit ultrawork_mirror_reconcile telemetry when mirror wins over journal
+- Add detectStuckWorkGraphNodes helper and surface stuck nodes in recovery prompt, envelope, and resume telemetry
+- Add WorkGraph node counts (total/done/failed) to ultrawork_complete telemetry
