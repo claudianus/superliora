@@ -170,6 +170,7 @@ import { FileExplorerPanel } from './workspace/panels/file-explorer-panel';
 import { TerminalPanel } from './workspace/panels/terminal-panel';
 import { GitDiffPanel } from './workspace/panels/git-diff-panel';
 import { ArtifactViewerPanel } from './workspace/panels/artifact-viewer-panel';
+import { SessionManagerPanel } from './workspace/panels/session-manager-panel';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -770,6 +771,28 @@ export class LioraTUI {
       const cwd = this.state.appState.workDir ?? process.cwd();
       this.workspaceController.addPanel(new FileExplorerPanel(cwd), 'left');
       this.workspaceController.addPanel(new GitDiffPanel(cwd), 'left');
+      this.workspaceController.addPanel(
+        new SessionManagerPanel({
+          listSessions: async () => {
+            const sessions = await this.harness.listSessions({ workDir: cwd });
+            return sessions.map((s) => ({
+              id: s.id,
+              title: s.title ?? null,
+              lastPrompt: s.lastPrompt ?? null,
+              workDir: s.workDir,
+              updatedAt: s.updatedAt ?? s.createdAt ?? 0,
+            }));
+          },
+          switchSession: async (id: string) => this.resumeSession(id),
+          createSession: async () => {
+            const session = await this.createSessionFromCurrentState();
+            await this.switchToSession(session, 'New session created.');
+            return true;
+          },
+          currentSessionId: () => this.state.appState.sessionId ?? '',
+        }),
+        'left',
+      );
       this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
       this.workspaceController.addPanel(new ArtifactViewerPanel(cwd), 'right');
       // Register keyboard shortcuts for panel management
