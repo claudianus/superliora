@@ -38,6 +38,10 @@ export class TerminalPanel implements PanelDefinition {
   private exited = false;
   private exitCode: number | null = null;
   private readonly cwd: string;
+  /** Output rate tracking */
+  private lastOutputTime = 0;
+  private recentBytes = 0;
+  private outputRate = 0;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -88,6 +92,14 @@ export class TerminalPanel implements PanelDefinition {
     if (this.pty && visible.length > 0) {
       const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)}`);
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 12) + pidLabel;
+    }
+    // Output rate indicator when actively streaming
+    const renderNow = Date.now();
+    if (renderNow - this.lastOutputTime < 1000 && this.outputRate > 100) {
+      const rateLabel = this.outputRate > 10000
+        ? currentTheme.fg('accent', ` ${String(Math.round(this.outputRate / 1024))}KB/s`)
+        : currentTheme.dimFg('textMuted', ` ${String(Math.round(this.outputRate))}B/s`);
+      visible[visible.length - 1] = (visible[visible.length - 1] ?? '').slice(0, this.cols - 10) + rateLabel;
     }
     return visible;
   }
@@ -236,6 +248,15 @@ export class TerminalPanel implements PanelDefinition {
     // Simple terminal output handling:
     // Split by newlines and append to buffer
     // This is a simplified renderer - full ANSI parsing would be more complex
+
+    // Track output rate
+    const rateNow = Date.now();
+    const rateElapsed = rateNow - this.lastOutputTime;
+    if (rateElapsed > 0 && rateElapsed < 2000) {
+      this.outputRate = (this.recentBytes + data.length) / (rateElapsed / 1000);
+    }
+    this.recentBytes = data.length;
+    this.lastOutputTime = rateNow;
 
     const parts = data.split('\n');
 
