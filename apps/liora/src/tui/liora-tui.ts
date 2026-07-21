@@ -39,6 +39,7 @@ import { quoteShellArg } from '#/utils/shell-quote';
 import { fetchWebContent } from '#/utils/web/web-content';
 import { ttui } from './utils/tui-i18n';
 import { renderStatusBar } from './utils/status-bar';
+import { renderActivityTicker } from './utils/activity-ticker';
 
 import { BannerProvider } from './banner/banner-provider';
 import { readBannerDisplayState, writeBannerDisplayState } from './banner/state';
@@ -866,6 +867,14 @@ export class LioraTUI {
         },
         postFrameRender: ({ frameRenderer, columns, rows }) => {
           if (!this.workspaceController?.isEnabled()) return;
+
+          // Activity ticker at the top row
+          const entries = this.activityFeed.getEntries();
+          const latestEntry = entries.length > 0 ? entries[entries.length - 1] : undefined;
+          const agentActive = this.state.appState.streamingPhase !== 'idle';
+          const tickerLine = renderActivityTicker(latestEntry, agentActive, columns);
+          frameRenderer.writeText(0, 0, tickerLine);
+
           const layout = this.workspaceController.computeLayout({
             terminalColumns: columns,
             terminalRows: rows,
