@@ -200,7 +200,17 @@ export function renderStatusBar(data: StatusBarData, columns: number, cwd: strin
   // Session cost
   let costSegment: string | undefined;
   if (data.sessionCostUsd !== undefined && data.sessionCostUsd > 0) {
-    costSegment = currentTheme.fg('textDim', formatCost(data.sessionCostUsd));
+    // Pulse cost during active work to draw attention to spend
+    const isWorking = data.agentStatus === 'working' || data.agentStatus === 'thinking';
+    if (isWorking) {
+      const appearance = getActiveAppearancePreferences();
+      const animate = shouldRenderAmbientEffects(appearance);
+      costSegment = animate
+        ? renderPulseText(`$${formatCost(data.sessionCostUsd).slice(1)}`, 'status:cost', 'warning', appearance)
+        : currentTheme.fg('warning', formatCost(data.sessionCostUsd));
+    } else {
+      costSegment = currentTheme.fg('textDim', formatCost(data.sessionCostUsd));
+    }
   }
 
   // Assemble the right side. Visual order: model │ context │ cost │ time.

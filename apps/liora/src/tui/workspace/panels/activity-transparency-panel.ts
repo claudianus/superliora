@@ -636,6 +636,10 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const token = KIND_TOKENS[entry.kind] ?? 'textDim';
     const time = formatTime(entry.timestamp);
 
+    // Subagent entries get a tree connector prefix for visual nesting
+    const isSubagent = entry.kind === 'agent-spawn' || entry.kind === 'agent-done' || entry.kind === 'agent-progress';
+    const treePrefix = isSubagent ? currentTheme.dimFg('border', '├─') : '';
+
     // Active entry: show elapsed time + pulse
     const isActive = entry.durationMs === undefined && !entry.isError &&
       (entry.kind === 'tool-start' || entry.kind === 'tool-progress' ||
@@ -689,8 +693,8 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     }
 
     const mainLine = entry.isError
-      ? `${timePart} ${iconPart} ${labelPart}${trailing} ${currentTheme.dimFg('error', '⚠')}`
-      : `${timePart} ${iconPart} ${labelPart}${trailing}`;
+      ? `${timePart} ${treePrefix}${iconPart} ${labelPart}${trailing} ${currentTheme.dimFg('error', '⚠')}`
+      : `${timePart} ${treePrefix}${iconPart} ${labelPart}${trailing}`;
     return this.pad(mainLine, width);
   }
 
