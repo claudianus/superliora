@@ -81,8 +81,14 @@ export class SideChatPanel implements PanelDefinition {
       const end = Math.min(this.messages.length, this.scrollTop + msgAreaHeight);
       for (let i = this.scrollTop; i < end; i++) {
         const msg = this.messages[i]!;
-        const timeStr = formatMsgTime(msg.timestamp);
-        const timePart = currentTheme.dimFg('textMuted', timeStr);
+        // Conversation grouping: suppress timestamp when same role within 60s
+        const prevMsg = i > 0 ? this.messages[i - 1] : undefined;
+        const isGrouped = prevMsg !== undefined && prevMsg.role === msg.role &&
+          (msg.timestamp - prevMsg.timestamp) < 60_000;
+        const timeStr = isGrouped ? '     ' : formatMsgTime(msg.timestamp);
+        const timePart = isGrouped
+          ? currentTheme.dimFg('border', '  ⋮  ')
+          : currentTheme.dimFg('textMuted', timeStr);
         const prefix = msg.role === 'user'
           ? currentTheme.fg('roleUser', '› ')
           : currentTheme.fg('accent', '· ');
