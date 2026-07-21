@@ -89,6 +89,7 @@ import type { ColorToken } from '#/tui/theme';
 import { errorReportHintLine } from '../constant/feedback';
 import { formatStepDebugTiming } from '#/utils/usage/debug-timing';
 import { formatTokenCount } from '#/utils/usage/usage-format';
+import { computeSessionCostUsd } from '#/tui/utils/session-cost';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { ttui } from '../utils/tui-i18n';
 import { nextTranscriptId } from '../utils/transcript-id';
@@ -837,6 +838,12 @@ export class SessionEventHandler {
     if (event.contextUsage !== undefined) patch.contextUsage = event.contextUsage;
     if (event.contextTokens !== undefined) patch.contextTokens = event.contextTokens;
     if (event.maxContextTokens !== undefined) patch.maxContextTokens = event.maxContextTokens;
+    if (event.usage?.total !== undefined) {
+      const modelId = event.model ?? this.host.state.appState.model;
+      const pricing = this.host.state.appState.availableModels[modelId]?.cost;
+      const costUsd = computeSessionCostUsd(event.usage.total, pricing);
+      if (costUsd !== undefined) patch.sessionCostUsd = costUsd;
+    }
     if ('contextOS' in event) patch.contextOS = event.contextOS ?? null;
     if ('microCompaction' in event) patch.microCompaction = event.microCompaction ?? null;
     if ('autoDream' in event) patch.autoDream = event.autoDream ?? null;

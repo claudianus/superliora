@@ -45,6 +45,7 @@ export function renderNativeLayoutFrame(
     readonly rewriteUnchanged?: boolean;
     readonly cursor?: RendererCursorState;
     readonly composition?: RendererCompositionOptions;
+    readonly beforePresent?: (renderer: NativeFrameRenderer) => void;
   } = {},
 ): NativeLayoutFrameResult {
   const layers = regions.map((region) => frameRegionToLayer(region));
@@ -72,6 +73,9 @@ export function renderNativeLayoutFrame(
   });
   if (options.cursor !== undefined) {
     renderer.setCursor(options.cursor);
+  }
+  if (options.beforePresent !== undefined) {
+    options.beforePresent(renderer);
   }
   const present = renderer.present({
     force: options.force,

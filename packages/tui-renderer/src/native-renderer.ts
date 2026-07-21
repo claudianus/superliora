@@ -221,6 +221,7 @@ export interface NativeTerminalRendererLayoutFrameOptions {
   readonly forceCursor?: boolean;
   readonly cursor?: RendererCursorState;
   readonly scheduleRegionVfx?: boolean;
+  readonly beforePresent?: (renderer: NativeFrameRenderer) => void;
 }
 
 export class NativeTerminalRenderer {
@@ -545,6 +546,7 @@ export class NativeTerminalRenderer {
       force: options.force,
       forceCursor: options.forceCursor,
       cursor: options.cursor,
+      beforePresent: options.beforePresent,
       composition: {
         lineCache: this.lineCache,
         cache: this.compositionCache,

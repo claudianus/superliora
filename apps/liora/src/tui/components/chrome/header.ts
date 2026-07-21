@@ -95,13 +95,35 @@ export class HeaderComponent implements Component {
         })
       : currentTheme.dimFg('textMuted', clockLabel);
 
+    const densityText = this.buildDensityText(safeWidth);
     const brandWidth = visibleWidth(BRAND_MARK);
-    const modelWidth = visibleWidth(modelLabel);
     const clockWidth = visibleWidth(clockLabel);
-    const gapWidth = modelLabel.length > 0 ? visibleWidth(CLOCK_GAP) : 0;
-    const rightWidth = modelWidth + gapWidth + clockWidth;
+    const gap = visibleWidth(CLOCK_GAP);
+
+    // Build the right cluster (model · density · clock). The density segment is
+    // dropped first when the terminal is too narrow to keep brand + clock.
+    const rightSegments: { text: string; width: number }[] = [];
+    if (modelLabel.length > 0) {
+      rightSegments.push({ text: modelText, width: visibleWidth(modelLabel) });
+    }
+    if (densityText) {
+      rightSegments.push({ text: densityText, width: visibleWidth(densityText) });
+    }
+    rightSegments.push({ text: clockText, width: clockWidth });
+
     const minDivider = 2;
-    const available = safeWidth - brandWidth - rightWidth - minDivider;
+    const clusterWidth = (segs: { width: number }[]): number =>
+      segs.reduce((sum, s) => sum + s.width, 0) + gap * (segs.length - 1);
+    let segments = rightSegments;
+    let available = safeWidth - brandWidth - clusterWidth(segments) - minDivider;
+
+    // Overflow: drop the density segment (middle) before dropping the model.
+    const modelSeg = segments[0];
+    const clockSeg = segments[2];
+    if (available < 0 && densityText && segments.length === 3 && modelSeg && clockSeg) {
+      segments = [modelSeg, clockSeg];
+      available = safeWidth - brandWidth - clusterWidth(segments) - minDivider;
+    }
 
     if (available < 0) {
       // Prefer keeping brand + clock when the model label will not fit.
@@ -121,9 +143,41 @@ export class HeaderComponent implements Component {
     const divider = shouldRenderAmbientEffects(appearance)
       ? renderParticleDivider(dividerWidth, 'header:divider', appearance)
       : currentTheme.fg('border', '─'.repeat(dividerWidth));
-    const right =
-      modelLabel.length > 0 ? `${modelText}${CLOCK_GAP}${clockText}` : clockText;
+    const right = segments.map((s) => s.text).join(CLOCK_GAP);
     return [`${brand}${divider}${right}`];
+  }
+
+  /**
+   * Live density segment for the header: context usage and session cost, e.g.
+   * `CTX 84.0k/200.0k · COST $0.42`. Theme-aware. Returns null when there is
+   * nothing to show or the terminal is too narrow to spare the room.
+   */
+  private buildDensityText(safeWidth: number): string | null {
+    if (safeWidth < 100) return null;
+    const usage = this.state.contextUsage;
+    const tokens = this.state.contextTokens;
+    const max = this.state.maxContextTokens;
+    const cost = this.state.sessionCostUsd;
+    const hasContext = typeof usage === 'number' && usage > 0;
+    const hasCost = typeof cost === 'number' && cost > 0;
+    if (!hasContext && !hasCost) return null;
+
+    const parts: string[] = [];
+    if (hasContext) {
+      const pct = Math.round((usage as number) * 100);
+      const token = pct > 80 ? 'error' : pct > 50 ? 'warning' : 'success';
+      const detail =
+        typeof tokens === 'number' && typeof max === 'number'
+          ? `${formatHeaderTokens(tokens)}/${formatHeaderTokens(max)}`
+          : `${pct}%`;
+      parts.push(`${currentTheme.dimFg('textMuted', 'CTX')} ${currentTheme.fg(token, detail)}`);
+    }
+    if (hasCost) {
+      parts.push(
+        `${currentTheme.dimFg('textMuted', 'COST')} ${currentTheme.fg('textDim', formatHeaderCost(cost as number))}`,
+      );
+    }
+    return parts.join(currentTheme.dimFg('textMuted', ' · '));
   }
 
   private startClock(): void {
@@ -154,4 +208,19 @@ export function formatLocalClock(nowMs: number = Date.now()): string {
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const seconds = date.getSeconds().toString().padStart(2, '0');
   return `${hours}:${minutes}:${seconds} ${period}`;
+}
+
+/** Compact token count for the header density segment (e.g. 12.3k, 1.2M). */
+function formatHeaderTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+/** Compact USD cost for the header density segment (e.g. $0.0042, $1.23). */
+function formatHeaderCost(usd: number): string {
+  if (usd <= 0) return '$0.00';
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
 }

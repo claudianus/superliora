@@ -8,6 +8,7 @@ import {
   NativeTerminalSession,
   type Component,
   type Focusable,
+  type NativeInputEvent,
   Spacer,
 } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
@@ -833,26 +834,12 @@ export class LioraTUI {
       this.nativeInputRouter.router.registerGlobalHandler({
         id: 'workspace-keyboard-shortcuts',
         onInput: (event) => {
-          // Stats overlay consumes all input when open
-          if (wc.handleStatsInput(event)) return true;
-          // Search overlay consumes all input when open
-          if (wc.handleSearchInput(event)) return true;
-          // Command palette consumes all input when open
-          if (wc.handlePaletteInput(event)) return true;
-          // Preset overlay consumes all input when open
-          if (wc.handlePresetInput(event)) return true;
-          // Help overlay consumes all input when open
-          if (wc.handleHelpInput(event)) return true;
-          // Panel switcher consumes all input when open
-          if (wc.handleSwitcherInput(event)) return true;
-          // Panel shortcuts: Ctrl+B (left dock), Ctrl+N (right dock), Ctrl+1-9 (focus)
-          if (wc.handlePanelShortcut(event)) {
-            this.workspaceLayoutPersistence?.scheduleSave();
-            return true;
-          }
-          // Tab/Shift+Tab: cycle panel focus
-          if (wc.handleTabCycle(event)) return true;
-          // Route to focused panel
+          // Overlays + panel-management shortcuts. Also installed as the
+          // editor's pre-editor hook so they win while the editor is focused
+          // (the router runs focused targets before global handlers).
+          if (this.handleWorkspaceOverlaysAndShortcuts(event)) return true;
+          // Route to the focused panel (only reachable when a panel, not the
+          // editor, is the focused router target).
           if (wc.routeInputToPanel(event)) return true;
           return false;
         },
@@ -887,20 +874,29 @@ export class LioraTUI {
           };
         },
         postFrameRender: ({ frameRenderer, columns, rows }) => {
-          if (!this.workspaceController?.isEnabled()) return;
-
-          // Activity ticker at the top row
+          // Activity ticker at the top row — always-on Bloomberg-style live band,
+          // rendered independently of workspace mode.
           const entries = this.activityFeed.getEntries();
           const latestEntry = entries.length > 0 ? entries[entries.length - 1] : undefined;
           const agentActive = this.state.appState.streamingPhase !== 'idle';
           const tickerLine = renderActivityTicker(latestEntry, agentActive, columns);
           frameRenderer.writeText(0, 0, tickerLine);
 
+          // Workspace-only docks/overlays. The bottom status bar renders in every
+          // path below so the live band stays visible even without workspace mode.
+          if (!this.workspaceController?.isEnabled()) {
+            this.renderBottomStatusBar(frameRenderer, columns, rows, undefined);
+            return;
+          }
+
           const layout = this.workspaceController.computeLayout({
             terminalColumns: columns,
             terminalRows: rows,
           });
-          if (!layout) return;
+          if (!layout) {
+            this.renderBottomStatusBar(frameRenderer, columns, rows, undefined);
+            return;
+          }
           const docks = this.workspaceController.renderDocks(layout);
           // Draw left dock panels (or maximized panel)
           const maximizedId = this.workspaceController.getMaximizedPanelId();
@@ -1004,22 +1000,11 @@ export class LioraTUI {
               }
             }
           }
-          // Status bar at the bottom row
+          // Status bar at the bottom row (always-on live band)
           const pm = this.workspaceController.panelManager;
           const focusedId = pm.getFocusedPanelId();
           const focusedPanel = focusedId ? pm.getPanel(focusedId) : undefined;
-          const phase = this.state.appState.streamingPhase;
-          const agentStatus = phase === 'thinking' ? 'thinking' as const
-            : phase === 'idle' ? 'idle' as const : 'working' as const;
-          const statusLine = renderStatusBar({
-            agentStatus,
-            contextUsage: this.state.appState.contextUsage,
-            activePanel: focusedPanel?.definition.title,
-            contextTokens: this.state.appState.contextTokens,
-            maxContextTokens: this.state.appState.maxContextTokens,
-            model: this.state.appState.model,
-          }, columns, process.cwd());
-          frameRenderer.writeText(0, rows - 1, statusLine);
+          this.renderBottomStatusBar(frameRenderer, columns, rows, focusedPanel?.definition.title);
         },
       }),
     );
@@ -1032,6 +1017,32 @@ export class LioraTUI {
     // the alternate screen blank, which is the opposite of the forced
     // full-screen occupation we want. It remains available for tests via
     // createTUIStateNativeRenderer({ growWithContent: true }).
+  }
+
+  /**
+   * Render the always-on Bloomberg-style status bar at the bottom row.
+   * Called from every postFrameRender path so the live band stays visible
+   * regardless of workspace mode.
+   */
+  private renderBottomStatusBar(
+    frameRenderer: import('@harness-kit/tui-renderer').NativeFrameRenderer,
+    columns: number,
+    rows: number,
+    activePanel: string | undefined,
+  ): void {
+    const phase = this.state.appState.streamingPhase;
+    const agentStatus = phase === 'thinking' ? 'thinking' as const
+      : phase === 'idle' ? 'idle' as const : 'working' as const;
+    const statusLine = renderStatusBar({
+      agentStatus,
+      contextUsage: this.state.appState.contextUsage,
+      activePanel,
+      contextTokens: this.state.appState.contextTokens,
+      maxContextTokens: this.state.appState.maxContextTokens,
+      model: this.state.appState.model,
+      sessionCostUsd: this.state.appState.sessionCostUsd,
+    }, columns, process.cwd());
+    frameRenderer.writeText(0, rows - 1, statusLine);
   }
 
   private startEventLoop(): void {
@@ -1163,7 +1174,33 @@ export class LioraTUI {
   private ensureNativeInputRouter(): void {
     this.nativeInputRouter ??= createTUIStateNativeInputRouter(this.state, {
       scrollTranscriptViewport: (action) => this.scrollTranscriptViewport(action),
+      handlePreEditorInput: (event) => this.handleWorkspaceOverlaysAndShortcuts(event),
     });
+  }
+
+  /**
+   * Workspace overlays (stats/search/palette/preset/help/switcher) and
+   * panel-management shortcuts (F1/F2/F3, Ctrl+B/N, Ctrl+1-9, Tab cycle).
+   * Runs both as the editor's pre-editor hook (so it wins while the editor is
+   * focused) and from the global input handler (for panel-focused states).
+   * Deliberately excludes routeInputToPanel, which must not steal typing from
+   * the editor.
+   */
+  private handleWorkspaceOverlaysAndShortcuts(event: NativeInputEvent): boolean {
+    const wc = this.workspaceController;
+    if (wc === undefined) return false;
+    if (wc.handleStatsInput(event)) return true;
+    if (wc.handleSearchInput(event)) return true;
+    if (wc.handlePaletteInput(event)) return true;
+    if (wc.handlePresetInput(event)) return true;
+    if (wc.handleHelpInput(event)) return true;
+    if (wc.handleSwitcherInput(event)) return true;
+    if (wc.handlePanelShortcut(event)) {
+      this.workspaceLayoutPersistence?.scheduleSave();
+      return true;
+    }
+    if (wc.handleTabCycle(event)) return true;
+    return false;
   }
 
   private stopNativeRendererAdapters(): void {

@@ -1,23 +1,30 @@
 /**
- * Activity ticker — a single-line bar at the top of the workspace showing
- * the agent's current action in real-time. Bloomberg Terminal ticker-tape style.
+ * Activity ticker — a single-line bar at the top of the workspace showing the
+ * agent's current action in real-time. Bloomberg Terminal ticker-tape style.
+ * Theme-aware (PREMIUM.md): colors flow through `currentTheme`; glyph/token
+ * maps are resolved at render time so theme switches apply within a frame.
  */
+
+import { currentTheme } from '#/tui/theme';
 
 import type { ActivityEntry } from '../workspace/panels/activity-transparency-panel';
 
-const KIND_TICKER_ICONS: Record<string, string> = {
-  'tool-start': '\u001B[36m⚡\u001B[0m',
-  'tool-progress': '\u001B[36m…\u001B[0m',
-  'tool-result': '\u001B[32m✓\u001B[0m',
-  'tool-error': '\u001B[31m✗\u001B[0m',
-  thinking: '\u001B[33m◌\u001B[0m',
-  decision: '\u001B[33m◆\u001B[0m',
-  'file-read': '\u001B[34m📖\u001B[0m',
-  'file-write': '\u001B[35m✏\u001B[0m',
-  command: '\u001B[36m▶\u001B[0m',
-  'agent-spawn': '\u001B[35m⑂\u001B[0m',
-  'agent-done': '\u001B[32m⑁\u001B[0m',
-  info: '\u001B[2mℹ\u001B[0m',
+type TickerToken = Parameters<typeof currentTheme.fg>[0];
+
+/** Glyph + theme token per activity kind, resolved at render time. */
+const KIND_TICKER_GLYPHS: Record<string, { glyph: string; token: TickerToken }> = {
+  'tool-start': { glyph: '⚡', token: 'accent' },
+  'tool-progress': { glyph: '…', token: 'accent' },
+  'tool-result': { glyph: '✓', token: 'success' },
+  'tool-error': { glyph: '✗', token: 'error' },
+  thinking: { glyph: '◌', token: 'warning' },
+  decision: { glyph: '◆', token: 'warning' },
+  'file-read': { glyph: '📖', token: 'primary' },
+  'file-write': { glyph: '✏', token: 'accent' },
+  command: { glyph: '▶', token: 'accent' },
+  'agent-spawn': { glyph: '⑂', token: 'accent' },
+  'agent-done': { glyph: '⑁', token: 'success' },
+  info: { glyph: 'ℹ', token: 'textMuted' },
 };
 
 /**
@@ -32,24 +39,23 @@ export function renderActivityTicker(
   const parts: string[] = [];
 
   // Activity indicator (pulsing dot when active)
-  if (agentActive) {
-    parts.push('\u001B[32m●\u001B[0m');
-  } else {
-    parts.push('\u001B[2m○\u001B[0m');
-  }
+  parts.push(agentActive ? currentTheme.fg('success', '●') : currentTheme.dimFg('textMuted', '○'));
 
   if (latestEntry) {
-    const icon = KIND_TICKER_ICONS[latestEntry.kind] ?? '\u001B[2m·\u001B[0m';
+    const meta = KIND_TICKER_GLYPHS[latestEntry.kind];
+    const icon = meta
+      ? currentTheme.fg(meta.token, meta.glyph)
+      : currentTheme.dimFg('textMuted', '·');
     const elapsed = formatElapsed(Date.now() - latestEntry.timestamp);
     const label = truncateText(latestEntry.label, Math.max(10, columns - 20));
-    parts.push(`${icon} ${label} \u001B[2m${elapsed}\u001B[0m`);
+    parts.push(`${icon} ${label} ${currentTheme.dimFg('textMuted', elapsed)}`);
   } else {
-    parts.push('\u001B[2m 대기 중\u001B[0m');
+    parts.push(currentTheme.dimFg('textMuted', ' 대기 중'));
   }
 
   const content = ` ${parts.join(' ')}`;
 
-  // Pad to full width with dim background
+  // Pad to full width.
   const visibleLen = content.replace(/\u001B\[[0-9;]*m/g, '').length;
   const padding = Math.max(0, columns - visibleLen);
 

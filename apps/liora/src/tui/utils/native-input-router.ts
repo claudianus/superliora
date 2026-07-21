@@ -32,6 +32,14 @@ export interface NativeLegacyInputTarget {
 export interface TUIStateNativeInputRouterOptions {
   readonly handleLegacyInput?: (data: string, event: NativeInputEvent) => void;
   readonly handleNativeEditorInput?: (event: NativeInputEvent) => boolean;
+  /**
+   * Checked before the editor's own key/text handling. Returning true
+   * consumes the event so it never reaches the editor (or its legacy-sequence
+   * fallback). Used for workspace-level shortcuts/overlays that must work even
+   * while the editor is focused — the router dispatches focused targets before
+   * global handlers, so a plain global handler would be shadowed by the editor.
+   */
+  readonly handlePreEditorInput?: (event: NativeInputEvent) => boolean;
   readonly requestRender?: boolean;
   readonly scrollTranscriptViewport?: (action: TranscriptScrollAction) => boolean;
 }
@@ -50,9 +58,13 @@ export class TUIStateNativeInputRouter {
         handleInput: (data) => {
           state.editor.handleInput(data);
         },
-        handleNativeInput:
-          options.handleNativeEditorInput ??
-          ((event) => handleTUIStateNativeEditorInput(state, event)),
+        handleNativeInput: (event) => {
+          if (options.handlePreEditorInput?.(event) === true) return true;
+          const handler =
+            options.handleNativeEditorInput ??
+            ((e) => handleTUIStateNativeEditorInput(state, e));
+          return handler(event);
+        },
       }),
     );
     this.disposers.push(

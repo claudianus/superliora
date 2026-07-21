@@ -471,12 +471,13 @@ export function createTUIStateNativeRenderCallback(
       clear: effectivePolicy.clear,
       cursor: nativeFrame.cursor,
       forceCursor,
-    });
-    // Post-frame hook: draw workspace panels into reserved dock areas.
-    options.postFrameRender?.({
-      frameRenderer: runtime.frameRenderer,
-      columns: size.columns,
-      rows: height,
+      // Draw workspace panels/ticker/status bar BEFORE present() so the writes
+      // are flushed within this frame. Calling this after renderLayoutFrame
+      // wrote into the back buffer past present(), where the next beginFrame()
+      // discarded it — so panels/ticker/status bar never reached the terminal.
+      beforePresent: (frameRenderer) => {
+        options.postFrameRender?.({ frameRenderer, columns: size.columns, rows: height });
+      },
     });
     return result;
   };

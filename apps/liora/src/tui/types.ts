@@ -56,6 +56,8 @@ export interface AppState {
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;
+  /** Accumulated session cost in USD (best-effort; undefined when unknown). */
+  sessionCostUsd?: number;
   /** Context OS continuity/evidence health when compacted pages exist. */
   contextOS?: {
     readonly pageCount: number;
