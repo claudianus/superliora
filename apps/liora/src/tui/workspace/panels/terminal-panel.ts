@@ -89,6 +89,8 @@ export class TerminalPanel implements PanelDefinition {
   /** Last command duration in ms */
   private lastCmdDurationMs = 0;
   private cmdOutputStartTime = 0;
+  /** Command suggestion based on history frequency */
+  private commandSuggestion: string | null = null;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -155,7 +157,11 @@ export class TerminalPanel implements PanelDefinition {
       const cmdDurBadge = this.lastCmdDurationMs > 0
         ? currentTheme.dimFg('textMuted', ` · ${this.lastCmdDurationMs > 1000 ? `${(this.lastCmdDurationMs / 1000).toFixed(1)}s` : `${String(this.lastCmdDurationMs)}ms`}`)
         : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + colorBadge + pipeBadge + cmdDurBadge + encBadge;
+      // Command suggestion when idle at prompt
+      const suggestBadge = !this.cmdRunning && this.commandSuggestion && this.lastPromptLine >= 0
+        ? currentTheme.dimFg('textMuted', ` · 💡${this.commandSuggestion}`)
+        : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + colorBadge + pipeBadge + cmdDurBadge + suggestBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -374,6 +380,16 @@ export class TerminalPanel implements PanelDefinition {
           // Detect piped commands
           if (cmd.includes('|') && !cmd.includes('||')) {
             this.hasPipedCommands = true;
+          }
+          // Update command suggestion (most frequent command)
+          if (this.commandHistory.length >= 3) {
+            const freq = new Map<string, number>();
+            for (const c of this.commandHistory) {
+              const base = c.split(/\s+/)[0] ?? c;
+              freq.set(base, (freq.get(base) ?? 0) + 1);
+            }
+            const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1]);
+            this.commandSuggestion = sorted[0]?.[0] ?? null;
           }
         }
       }
