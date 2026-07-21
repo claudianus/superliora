@@ -329,7 +329,10 @@ describe('LioraHarness config API', () => {
     const homeDir = await makeTempDir();
     const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
-    await expect(harness.getConfig()).resolves.toEqual({ providers: {} });
+    await expect(harness.getConfig()).resolves.toEqual({
+      providers: {},
+      defaultPermissionMode: 'yolo',
+    });
   });
 
   it('returns experimental feature metadata through the harness', async () => {

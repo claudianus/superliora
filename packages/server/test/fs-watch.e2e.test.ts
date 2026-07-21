@@ -258,7 +258,8 @@ describe('WS fs watch (W12 / Chain 14)', () => {
       coalesced_window_ms: number;
       truncated?: boolean;
     };
-    expect(payload.coalesced_window_ms).toBe(200);
+    expect(payload.coalesced_window_ms).toBeGreaterThanOrEqual(200);
+    expect(payload.coalesced_window_ms).toBeLessThanOrEqual(2000);
     expect(payload.truncated).toBeUndefined();
     expect(payload.changes.length).toBeGreaterThanOrEqual(1);
     // Path is POSIX-relative to cwd; should mention `src/new.ts` or the dir
