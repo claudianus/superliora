@@ -95,6 +95,11 @@ export class WorkspaceController {
   // Tab close button hit zones (populated during renderTabBar)
   private tabCloseZones: Array<{ dock: 'left' | 'right'; instanceId: string; x: number; width: number }> = [];
 
+  // Panel focus flash animation
+  private lastFocusedPanelId: string | null = null;
+  private focusFlashStart = 0;
+  private static readonly FOCUS_FLASH_DURATION = 400; // ms
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -209,7 +214,20 @@ export class WorkspaceController {
           icon: panel.definition.icon,
           focused: true,
           borderStyle: 'rounded',
-          borderColor: (text) => currentTheme.fg('primary', text),
+          borderColor: (text) => {
+          // Flash glow effect on recent focus change
+          const flashAge = Date.now() - this.focusFlashStart;
+          if (flashAge < WorkspaceController.FOCUS_FLASH_DURATION && activePanel.instanceId === this.lastFocusedPanelId) {
+            const intensity = 1 - flashAge / WorkspaceController.FOCUS_FLASH_DURATION;
+            const glowColor = mixHexColor(
+              currentTheme.color('accent'),
+              currentTheme.color('primary'),
+              intensity,
+            );
+            return chalk.hex(glowColor)(text);
+          }
+          return currentTheme.fg('primary', text);
+        },
           titleColor: (text) => currentTheme.boldFg('textStrong', text),
           iconColor: (text) => currentTheme.fg('accent', text),
           content,
@@ -333,6 +351,12 @@ export class WorkspaceController {
 
     // Active panel content (remaining height)
     const activePanel = panels.find((p) => p.instanceId === focusedId) ?? panels[0];
+
+    // Detect focus change for flash animation
+    if (focusedId !== null && focusedId !== this.lastFocusedPanelId) {
+      this.lastFocusedPanelId = focusedId;
+      this.focusFlashStart = Date.now();
+    }
     if (activePanel) {
       const contentWidth = dockRect.width - 2;
       const contentHeight = dockRect.height - 3; // tab bar + frame top/bottom
