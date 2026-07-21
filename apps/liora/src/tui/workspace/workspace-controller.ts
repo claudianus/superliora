@@ -1082,12 +1082,17 @@ export class WorkspaceController {
     if (!this.searchOpen) return null;
 
     const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
     const matchInfo = this.searchMatches.length > 0
       ? ` (${this.searchCurrentMatch + 1}/${this.searchMatches.length})`
       : this.searchQuery.length > 0 ? ' (0/0)' : '';
 
-    lines.push(`${currentTheme.boldFg('primary', ' 검색: ')}${currentTheme.fg('text', this.searchQuery)}${currentTheme.dimFg('textMuted', matchInfo)}`);
-    lines.push(currentTheme.dimFg('textMuted', 'Enter: 다음 | Esc: 닫기'));
+    const matchStyled = this.searchMatches.length > 0 && animated
+      ? renderPulseText(matchInfo, 'search:matches', 'success', appearance)
+      : currentTheme.dimFg('textMuted', matchInfo);
+    lines.push(`${currentTheme.boldFg('primary', ' 검색: ')}${currentTheme.fg('text', this.searchQuery)}${matchStyled}`);
+    lines.push(currentTheme.dimFg('textMuted', 'Enter: 다음 · Esc: 닫기'));
     return lines;
   }
 
