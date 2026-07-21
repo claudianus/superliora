@@ -187,13 +187,20 @@ export class SessionManagerPanel implements PanelDefinition {
       const isSelected = i === this.cursorIndex && focused;
 
       const isPinned = this.pinnedSessions.has(session.id);
+      // Session health: color based on recency
+      const ageMs = Date.now() - session.updatedAt;
+      const healthDot = ageMs < 300_000 // < 5min = active
+        ? currentTheme.fg('success', '●')
+        : ageMs < 3_600_000 // < 1h = idle
+          ? currentTheme.fg('warning', '●')
+          : currentTheme.dimFg('textMuted', '○'); // stale
       const marker = isCurrent
         ? currentTheme.fg('success', '●')
         : isSelected
           ? currentTheme.fg('primary', '▸')
           : isPinned
             ? currentTheme.fg('accent', '📌')
-            : ' ';
+            : healthDot;
       let title = session.title ?? session.lastPrompt ?? session.id.slice(0, 8);
       const time = styledRelativeTime(session.updatedAt);
 
