@@ -46,7 +46,7 @@ export class FileExplorerPanel implements PanelDefinition {
   // PanelDefinition implementation
   // -------------------------------------------------------------------------
 
-  render(width: number, height: number, focused: boolean): string[] {
+  render(width: number, height: number, focused: boolean, searchQuery?: string): string[] {
     this.lastWidth = width;
     this.lastHeight = height;
 
@@ -72,10 +72,29 @@ export class FileExplorerPanel implements PanelDefinition {
       const entry = visibleEntries[i]!;
       const globalIndex = this.scrollTop + i;
       const isCursor = focused && globalIndex === this.cursorIndex;
-      lines.push(this.renderEntry(entry, isCursor, width));
+      let line = this.renderEntry(entry, isCursor, width);
+      // Highlight search matches
+      if (searchQuery && searchQuery.length > 0) {
+        line = this.highlightSearch(line, searchQuery);
+      }
+      lines.push(line);
     }
 
     return lines;
+  }
+
+  /** Highlight search query matches in a line. */
+  private highlightSearch(line: string, query: string): string {
+    const lowerLine = line.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerLine.indexOf(lowerQuery);
+    if (idx === -1) return line;
+
+    // Wrap match in highlight ANSI codes (reverse video)
+    const before = line.slice(0, idx);
+    const match = line.slice(idx, idx + query.length);
+    const after = line.slice(idx + query.length);
+    return `${before}\u001B[7m${match}\u001B[0m${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {
