@@ -2,6 +2,11 @@ import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
 import { currentTheme } from '#/tui/theme';
+import {
+  renderPulseText,
+  getActiveAppearancePreferences,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +45,17 @@ function formatRelativeTime(ts: number): string {
   if (hours < 24) return `${String(hours)}h`;
   const days = Math.floor(hours / 24);
   return `${String(days)}d`;
+}
+
+/** Theme-aware relative time with recency-based coloring. */
+function styledRelativeTime(ts: number): string {
+  if (!Number.isFinite(ts) || ts <= 0) return '';
+  const diffSec = Math.floor(Math.max(0, Date.now() - ts) / 1000);
+  const label = formatRelativeTime(ts);
+  if (diffSec < 60) return currentTheme.fg('success', label);
+  if (diffSec < 300) return currentTheme.fg('accent', label);
+  if (diffSec < 3600) return currentTheme.fg('primary', label);
+  return currentTheme.dimFg('textMuted', label);
 }
 
 function truncate(text: string, max: number): string {
@@ -84,10 +100,14 @@ export class SessionManagerPanel implements PanelDefinition {
 
     const lines: string[] = [];
     const currentId = this.callbacks.currentSessionId();
+    const appearance = getActiveAppearancePreferences();
+    const animate = shouldRenderAmbientEffects(appearance);
 
     // Header line
     const countLabel = this.loading ? '…' : String(this.sessions.length);
-    const header = currentTheme.boldFg('primary', ` ${countLabel} sessions`);
+    const header = this.loading && animate
+      ? renderPulseText(` ${countLabel} sessions`, 'sessions:loading', 'primary', appearance)
+      : currentTheme.boldFg('primary', ` ${countLabel} sessions`);
     lines.push(this.pad(header, width));
 
     if (this.loading && this.sessions.length === 0) {
@@ -124,7 +144,7 @@ export class SessionManagerPanel implements PanelDefinition {
           ? currentTheme.fg('primary', '▸')
           : ' ';
       let title = session.title ?? session.lastPrompt ?? session.id.slice(0, 8);
-      const time = formatRelativeTime(session.updatedAt);
+      const time = styledRelativeTime(session.updatedAt);
 
       // Highlight search matches in title
       if (searchQuery && searchQuery.length > 0) {
@@ -147,7 +167,14 @@ export class SessionManagerPanel implements PanelDefinition {
 
     // Status bar
     if (this.statusMessage !== null) {
-      lines.push(this.pad(` ${this.statusMessage}`, width));
+      const statusStyled = this.statusMessage.includes('✓')
+        ? currentTheme.fg('success', ` ${this.statusMessage}`)
+        : this.statusMessage.includes('error') || this.statusMessage.includes('failed')
+          ? currentTheme.fg('error', ` ${this.statusMessage}`)
+          : animate
+            ? renderPulseText(` ${this.statusMessage}`, 'sessions:status', 'accent', appearance)
+            : currentTheme.fg('accent', ` ${this.statusMessage}`);
+      lines.push(this.pad(statusStyled, width));
     } else {
       const hint = focused ? ' ↵switch r:refresh n:new' : '';
       lines.push(this.pad(this.dim(hint), width));

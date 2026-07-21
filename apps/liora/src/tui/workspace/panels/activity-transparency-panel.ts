@@ -309,6 +309,11 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       lines.push(this.pad(this.renderFilterChips(width), width));
     }
 
+    // Session timeline bar (compact horizontal density map)
+    if (height > 6 && entries.length > 0) {
+      lines.push(this.pad(this.renderSessionTimeline(now, width), width));
+    }
+
     if (entries.length === 0) {
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '(no activity yet)')}`, width));
       return this.fillLines(lines, height, width);
@@ -714,6 +719,41 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       return SPARK_CHARS[level]!;
     }).join('');
     return ` ${currentTheme.dimFg('textMuted', spark)}`;
+  }
+
+  /**
+   * Render a compact session-wide timeline bar showing event density
+   * across the entire session duration. Uses block characters with
+   * theme-colored segments for different activity kinds.
+   */
+  private renderSessionTimeline(now: number, width: number): string {
+    const entries = this.feed.getEntries();
+    if (entries.length === 0) return '';
+
+    const BAR_WIDTH = Math.min(width - 2, 40);
+    if (BAR_WIDTH < 8) return '';
+
+    const firstTs = entries[0]?.timestamp ?? now;
+    const duration = Math.max(1, now - firstTs);
+    const buckets = new Array<number>(BAR_WIDTH).fill(0);
+
+    for (const entry of entries) {
+      const age = entry.timestamp - firstTs;
+      const idx = Math.min(BAR_WIDTH - 1, Math.floor((age / duration) * BAR_WIDTH));
+      buckets[idx] = (buckets[idx] ?? 0) + 1;
+    }
+
+    const max = Math.max(1, ...buckets);
+    const DENSITY_CHARS = ['░', '▒', '▓', '█'] as const;
+
+    const bar = buckets.map((count) => {
+      if (count === 0) return currentTheme.dimFg('border', '·');
+      const level = Math.min(DENSITY_CHARS.length - 1, Math.ceil((count / max) * DENSITY_CHARS.length) - 1);
+      return currentTheme.fg('primary', DENSITY_CHARS[level]!);
+    }).join('');
+
+    // Current position marker (rightmost = now)
+    return ` ${bar}`;
   }
 
   // -------------------------------------------------------------------------
