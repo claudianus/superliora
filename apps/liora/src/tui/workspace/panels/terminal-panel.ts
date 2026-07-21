@@ -71,6 +71,9 @@ export class TerminalPanel implements PanelDefinition {
   private detectedCwd: string | null = null;
   /** Line wrapping mode (vs truncation) */
   private wrapLines = false;
+  /** Timestamp gutter toggle */
+  private showTimestamps = false;
+  private lineTimestamps: number[] = [];
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -250,6 +253,12 @@ export class TerminalPanel implements PanelDefinition {
       // Ctrl+T: toggle line wrapping
       if (event.ctrl && event.key === 'character' && event.text === 't') {
         this.wrapLines = !this.wrapLines;
+        return true;
+      }
+
+      // Ctrl+G: toggle timestamp gutter
+      if (event.ctrl && event.key === 'character' && event.text === 'g') {
+        this.showTimestamps = !this.showTimestamps;
         return true;
       }
 
@@ -436,6 +445,7 @@ export class TerminalPanel implements PanelDefinition {
       } else {
         // New line
         this.lines.push(stripAnsi(part));
+        this.lineTimestamps.push(Date.now());
       }
     }
 
