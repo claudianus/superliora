@@ -71,6 +71,9 @@ export class WebBrowserPanel implements PanelDefinition {
   private consoleOpen = false;
   private consoleOutput: string[] = [];
   private consoleInput = '';
+  /** Page load time tracking */
+  private navStartTime = 0;
+  private lastLoadTimeMs = 0;
   // Form input mode
   private formMode = false;
   private selectedRef: string | null = null;
@@ -340,7 +343,8 @@ export class WebBrowserPanel implements PanelDefinition {
         if (dist <= 3) return currentTheme.fg('accent', '▓');
         return currentTheme.dimFg('border', '░');
       }).join('');
-      const loadingText = `  ${barChars} ${zoom}%`;
+      const loadTimeLabel = this.lastLoadTimeMs > 0 ? ` ${String(this.lastLoadTimeMs)}ms` : '';
+      const loadingText = `  ${barChars} ${zoom}%${loadTimeLabel}`;
       return this.pad(shouldRenderAmbientEffects(appearance)
         ? loadingText
         : this.dim(`  ⏳ Loading... (${zoom}%)`), width);
@@ -501,6 +505,7 @@ export class WebBrowserPanel implements PanelDefinition {
     this.state.loading = true;
     this.state.error = null;
     this.state.url = normalizedUrl;
+    this.navStartTime = Date.now();
     this.activeTab.url = normalizedUrl;
 
     try {
@@ -521,6 +526,7 @@ export class WebBrowserPanel implements PanelDefinition {
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : String(error);
     } finally {
+      this.lastLoadTimeMs = Date.now() - this.navStartTime;
       this.state.loading = false;
     }
   }
