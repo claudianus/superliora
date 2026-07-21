@@ -8,6 +8,7 @@ import {
   measureWorkspaceLayout,
   renderPanelFrame,
   hitTestPanelBorder,
+  mixHexColor,
 } from '@harness-kit/tui-renderer';
 
 import { DragController } from './drag-controller';
@@ -269,6 +270,16 @@ export class WorkspaceController {
           ? (text) => {
               const appearance = getActiveAppearancePreferences();
               if (shouldRenderAmbientEffects(appearance)) {
+                // Smooth focus transition: fade from primary → ultrawork glow over 600ms
+                const focusAge = appearanceAnimationNow() - this.panelManager.getLastFocusChangeAtMs();
+                const transitionMs = 600;
+                if (focusAge < transitionMs) {
+                  const t = focusAge / transitionMs;
+                  const s = t * t * (3 - 2 * t); // smoothstep
+                  const from = currentTheme.color('primary');
+                  const to = resolveUltraworkBorderGlowHex(appearanceAnimationNow());
+                  return chalk.hex(mixHexColor(from, to, s))(text);
+                }
                 return chalk.hex(resolveUltraworkBorderGlowHex(appearanceAnimationNow()))(text);
               }
               return currentTheme.fg('primary', text);
