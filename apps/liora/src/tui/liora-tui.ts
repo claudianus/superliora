@@ -931,6 +931,9 @@ export class LioraTUI {
             agentStatus,
             contextUsage: this.state.appState.contextUsage,
             activePanel: focusedPanel?.definition.title,
+            contextTokens: this.state.appState.contextTokens,
+            maxContextTokens: this.state.appState.maxContextTokens,
+            model: this.state.appState.model,
           }, columns, process.cwd());
           frameRenderer.writeText(0, rows - 1, statusLine);
         },

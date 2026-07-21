@@ -14,6 +14,12 @@ export interface StatusBarData {
   contextUsage?: number;
   /** Active panel title. */
   activePanel?: string;
+  /** Context tokens used. */
+  contextTokens?: number;
+  /** Max context tokens. */
+  maxContextTokens?: number;
+  /** Current model name. */
+  model?: string;
 }
 
 /** Cache git branch to avoid spawning a process every frame. */
@@ -60,6 +66,13 @@ function stripAnsi(s: string): string {
   return s.replace(/\u001B\[[0-9;]*m/g, '');
 }
 
+/** Format token count as human-readable (e.g. 12.3k, 1.2M). */
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
 /**
  * Render the status bar as a single line of terminal-width text.
  */
@@ -86,10 +99,20 @@ export function renderStatusBar(data: StatusBarData, columns: number, cwd: strin
   // Right side parts
   const rightParts: string[] = [];
 
+  // Model name (shortened)
+  if (data.model) {
+    const shortModel = data.model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
+    rightParts.push(`\u001B[2m${shortModel}\u001B[0m`);
+  }
+
   if (data.contextUsage !== undefined && data.contextUsage > 0) {
     const pct = Math.round(data.contextUsage * 100);
     const color = pct > 80 ? '\u001B[31m' : pct > 50 ? '\u001B[33m' : '\u001B[32m';
-    rightParts.push(`${color}ctx:${pct}%\u001B[0m`);
+    // Show token count if available
+    const tokenInfo = data.contextTokens !== undefined && data.maxContextTokens !== undefined
+      ? `${formatTokenCount(data.contextTokens)}/${formatTokenCount(data.maxContextTokens)}`
+      : `${pct}%`;
+    rightParts.push(`${color}${tokenInfo}\u001B[0m`);
   }
 
   // Time (HH:MM)
