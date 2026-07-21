@@ -23,6 +23,7 @@ interface DiffFile {
   readonly isTestFile?: boolean;
   readonly isConfigFile?: boolean;
   readonly isDocFile?: boolean;
+  readonly isLargeChange?: boolean;
 }
 
 interface DiffHunk {
@@ -377,6 +378,7 @@ export class GitDiffPanel implements PanelDefinition {
       const testBadge = file.isTestFile ? ` ${currentTheme.fg('accent', '[test]')}` : '';
       const configBadge = file.isConfigFile ? ` ${currentTheme.fg('primary', '[cfg]')}` : '';
       const docBadge = file.isDocFile ? ` ${currentTheme.fg('accent', '[doc]')}` : '';
+      const largeBadge = file.isLargeChange ? ` ${currentTheme.fg('error', '[LARGE]')}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
       // File age: show how recently the file was last modified on disk
       let fileAgeBadge = '';
@@ -389,7 +391,7 @@ export class GitDiffPanel implements PanelDefinition {
       } catch {
         // File may not exist (deleted)
       }
-      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${todoBadge}${testBadge}${configBadge}${docBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
+      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${todoBadge}${testBadge}${configBadge}${docBadge}${largeBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
     }
 
     lines.push('');
@@ -654,7 +656,10 @@ function parseDiff(output: string): DiffFile[] {
     // Detect documentation files
     const isDocFile = /(README|CHANGELOG|CONTRIBUTING|LICENSE|\.md$|\/docs?\/|\.mdx$|\.rst$)/.test(filePath);
 
-    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges, todoCount: todoCount > 0 ? todoCount : undefined, isTestFile, isConfigFile, isDocFile });
+    // Detect large changes (>500 lines total)
+    const isLargeChange = (additions + deletions) > 500;
+
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges, todoCount: todoCount > 0 ? todoCount : undefined, isTestFile, isConfigFile, isDocFile, isLargeChange });
   }
 
   return files;
