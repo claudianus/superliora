@@ -445,6 +445,18 @@ export class ActivityTransparencyPanel implements PanelDefinition {
         const slowLabel = `slowest: ${slowest.label.slice(0, 20)} ${formatDuration(slowest.durationMs!)}`;
         lines.push(this.pad(` ${currentTheme.fg('warning', '🐢')} ${currentTheme.dimFg('textMuted', slowLabel)}`, width));
       }
+      // Error category breakdown (when errors exist)
+      const errorEntries = entries.filter((e) => e.isError);
+      if (errorEntries.length > 0 && height > 13) {
+        const catCounts = new Map<string, number>();
+        for (const e of errorEntries) {
+          const cat = e.kind.replace(/-/g, ' ');
+          catCounts.set(cat, (catCounts.get(cat) ?? 0) + 1);
+        }
+        const topCats = [...catCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+        const catSummary = topCats.map(([cat, count]) => `${cat}×${String(count)}`).join(' ');
+        lines.push(this.pad(` ${currentTheme.fg('error', '✗')} ${currentTheme.dimFg('textMuted', catSummary)}`, width));
+      }
       hint = currentTheme.dimFg('textMuted', ' j/k c:clr f:filter a:auto e:exp') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
