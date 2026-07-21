@@ -436,6 +436,33 @@ export class WorkspaceController {
     return false;
   }
 
+  /**
+   * Handle Tab/Shift+Tab for panel cycling.
+   * Only active when a panel is already focused.
+   */
+  handleTabCycle(event: NativeInputEvent): boolean {
+    if (event.type !== 'key' || event.key !== 'tab') return false;
+    // Only cycle when a panel is focused
+    const currentFocus = this.panelManager.getFocusedPanelId();
+    if (currentFocus === null) return false;
+
+    const allPanels = [
+      ...this.panelManager.getPanelsInDock('left'),
+      ...this.panelManager.getPanelsInDock('right'),
+    ];
+    if (allPanels.length === 0) return false;
+
+    const currentIdx = allPanels.findIndex((p) => p.instanceId === currentFocus);
+    const direction = event.shift ? -1 : 1;
+    const nextIdx = ((currentIdx + direction) % allPanels.length + allPanels.length) % allPanels.length;
+    const nextPanel = allPanels[nextIdx];
+    if (nextPanel) {
+      this.panelManager.focusPanel(nextPanel.instanceId);
+      this.requestRender();
+    }
+    return true;
+  }
+
   // -------------------------------------------------------------------------
   // Panel registration helpers
   // -------------------------------------------------------------------------

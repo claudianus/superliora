@@ -838,6 +838,8 @@ export class LioraTUI {
             this.workspaceLayoutPersistence?.scheduleSave();
             return true;
           }
+          // Tab/Shift+Tab: cycle panel focus
+          if (wc.handleTabCycle(event)) return true;
           // Route to focused panel
           if (wc.routeInputToPanel(event)) return true;
           return false;
