@@ -386,6 +386,16 @@ export class ArtifactViewerPanel implements PanelDefinition {
         }
       } else if (line.startsWith('> ')) {
         rendered.push(`${currentTheme.fg('primary', '│')} ${currentTheme.dimFg('textDim', line.slice(2))}`);
+      } else if (line.includes('|') && line.trim().startsWith('|')) {
+        // Markdown table row
+        const cells = line.split('|').map((c) => c.trim()).filter((c) => c.length > 0);
+        // Skip separator rows (|---|---|)
+        if (cells.every((c) => /^[-:]+$/.test(c))) {
+          rendered.push(currentTheme.dimFg('border', `  ${cells.map(() => '───').join('─┼─')}`));
+        } else {
+          const styled = cells.map((c, idx) => idx === 0 ? currentTheme.boldFg('textStrong', c) : currentTheme.fg('text', c));
+          rendered.push(`  ${currentTheme.dimFg('border', '│')} ${styled.join(currentTheme.dimFg('border', ' │ '))} ${currentTheme.dimFg('border', '│')}`);
+        }
       } else if (line.trim() === '') {
         rendered.push('');
       } else if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
