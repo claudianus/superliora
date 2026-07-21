@@ -438,6 +438,12 @@ export class ArtifactViewerPanel implements PanelDefinition {
     result = result.replace(/<mark>(.+?)<\/mark>/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', p1)));
     // Replace ==text== (alternative mark syntax) with highlighted text
     result = result.replace(/==(.+?)==/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', p1)));
+    // Replace [^n] footnote references with superscript-style indicator
+    result = result.replace(/\[\^(\d+)\]/g, (_m, n: string) => currentTheme.fg('accent', `⁽${n}⁾`));
+    // Replace <sub>text</sub> with subscript indicator
+    result = result.replace(/<sub>(.+?)<\/sub>/g, (_m, p1: string) => currentTheme.dimFg('textMuted', `₁${p1}`));
+    // Replace <sup>text</sup> with superscript indicator
+    result = result.replace(/<sup>(.+?)<\/sup>/g, (_m, p1: string) => currentTheme.dimFg('textMuted', `⁺${p1}`));
     // If no formatting was applied, wrap in default text color
     if (result === text) {
       return currentTheme.fg('text', text);
