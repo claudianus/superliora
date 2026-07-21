@@ -50,6 +50,8 @@ export class SideChatPanel implements PanelDefinition {
   /** Message search */
   private searchActive = false;
   private searchQuery = '';
+  /** Pinned message IDs */
+  private pinnedMessages: Set<number> = new Set();
   private history: string[] = [];
   private historyIndex = -1;
 
@@ -116,9 +118,13 @@ export class SideChatPanel implements PanelDefinition {
           const lenMark = wi === 0 && msg.text.length > 100
             ? currentTheme.dimFg('textMuted', ` ${String(msg.text.length)}c`)
             : '';
+          // Pin indicator
+          const pinMark = wi === 0 && this.pinnedMessages.has(msg.id)
+            ? currentTheme.fg('accent', ' 📌')
+            : '';
           const styled = msg.role === 'user'
-            ? `${linePrefix}${currentTheme.fg('text', wl)}${deliveryMark}${lenMark}`
-            : `${linePrefix}${currentTheme.dimFg('textDim', wl)}${lenMark}`;
+            ? `${linePrefix}${currentTheme.fg('text', wl)}${deliveryMark}${lenMark}${pinMark}`
+            : `${linePrefix}${currentTheme.dimFg('textDim', wl)}${lenMark}${pinMark}`;
           lines.push(this.pad(styled, width));
         }
       }
@@ -268,6 +274,22 @@ export class SideChatPanel implements PanelDefinition {
         if (event.text === 'u') {
           this.inputBuffer = '';
           this.cursorPos = 0;
+          return true;
+        }
+        // Ctrl+P: pin/unpin the most recent user message
+        if (event.text === 'p') {
+          // Find the most recent user message
+          for (let i = this.messages.length - 1; i >= 0; i--) {
+            if (this.messages[i]!.role === 'user') {
+              const msgId = this.messages[i]!.id;
+              if (this.pinnedMessages.has(msgId)) {
+                this.pinnedMessages.delete(msgId);
+              } else {
+                this.pinnedMessages.add(msgId);
+              }
+              break;
+            }
+          }
           return true;
         }
         // Ctrl+W: delete word backward
