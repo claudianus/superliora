@@ -791,6 +791,10 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           chainPrefix = currentTheme.dimFg('border', '│'.repeat(Math.min(depth, 3)) + ' ');
         }
       }
+      // Dependency connector: tool-result/tool-error gets a └─ connector to its parent tool-start
+      if (entry.kind === 'tool-result' || entry.kind === 'tool-error') {
+        chainPrefix = currentTheme.dimFg('border', '└─ ');
+      }
     }
 
     // Active entry: show elapsed time + pulse
