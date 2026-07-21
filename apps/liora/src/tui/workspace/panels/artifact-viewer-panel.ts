@@ -39,11 +39,11 @@ export class ArtifactViewerPanel implements PanelDefinition {
   render(width: number, height: number, focused: boolean, searchQuery?: string): string[] {
     if (this.renderedLines.length === 0) {
       return [
-        dim('  No artifact loaded'),
-        dim('  Watching: ' + path.basename(this.watchDir)),
-        dim(''),
-        dim('  [n] next artifact'),
-        dim('  [r] rescan'),
+        `  ${currentTheme.dimFg('textMuted', 'No artifact loaded')}`,
+        `  ${currentTheme.dimFg('textMuted', 'Watching:')} ${currentTheme.fg('accent', path.basename(this.watchDir))}`,
+        '',
+        `  ${currentTheme.dimFg('textMuted', '[n] next artifact')}`,
+        `  ${currentTheme.dimFg('textMuted', '[r] rescan')}`,
       ];
     }
 
@@ -64,7 +64,7 @@ export class ArtifactViewerPanel implements PanelDefinition {
     // Scroll indicator
     if (this.renderedLines.length > height) {
       const pct = Math.round((this.scrollTop / maxScroll) * 100);
-      const footer = dim(` ── ${pct}% ──`);
+      const footer = `${currentTheme.dimFg('border', ' ── ')}${currentTheme.fg('accent', `${String(pct)}%`)}${currentTheme.dimFg('border', ' ──')}`;
       if (lines.length > 0) {
         lines[lines.length - 1] = footer;
       }
