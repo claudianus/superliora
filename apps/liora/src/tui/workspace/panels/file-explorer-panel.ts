@@ -88,6 +88,8 @@ export class FileExplorerPanel implements PanelDefinition {
       let stats = currentTheme.dimFg('textMuted', ` ${String(dirs)}d ${String(files)}f`);
       if (modified > 0) stats += currentTheme.fg('warning', ` ~${String(modified)}`);
       if (added > 0) stats += currentTheme.fg('success', ` +${String(added)}`);
+      // Sort mode indicator
+      if (this.sortMode === 'type') stats += currentTheme.fg('accent', ' [type]');
       lines.push(stats);
     }
 

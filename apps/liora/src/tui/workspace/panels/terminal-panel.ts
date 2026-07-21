@@ -77,7 +77,14 @@ export class TerminalPanel implements PanelDefinition {
       ];
     }
 
-    return this.getVisibleLines(height);
+    const visible = this.getVisibleLines(height);
+    // Line count indicator in last row when buffer is large
+    if (this.lines.length > 100 && visible.length > 0) {
+      const lineCount = currentTheme.dimFg('textMuted', ` ${String(this.lines.length)}L`);
+      const lastIdx = visible.length - 1;
+      visible[lastIdx] = (visible[lastIdx] ?? '').slice(0, this.cols - 8) + lineCount;
+    }
+    return visible;
   }
 
   onInput(event: NativeInputEvent): boolean {
