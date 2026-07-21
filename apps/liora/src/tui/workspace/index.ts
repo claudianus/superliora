@@ -5,3 +5,4 @@ export { DragController } from './drag-controller';
 export type { DragControllerCallbacks } from './drag-controller';
 export { WorkspaceController } from './workspace-controller';
 export type { WorkspaceControllerOptions, WorkspaceRenderContext, WorkspaceDockRender } from './workspace-controller';
+export { WorkspaceLayoutPersistence } from './layout-persistence';

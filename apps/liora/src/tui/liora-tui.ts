@@ -165,7 +165,7 @@ import {
 import {
   createTUIStateNativeRenderCallback,
 } from './utils/native-layout-frame';
-import { WorkspaceController, PanelManager } from './workspace';
+import { WorkspaceController, PanelManager, WorkspaceLayoutPersistence } from './workspace';
 import { FileExplorerPanel } from './workspace/panels/file-explorer-panel';
 import { TerminalPanel } from './workspace/panels/terminal-panel';
 import { GitDiffPanel } from './workspace/panels/git-diff-panel';
@@ -380,6 +380,7 @@ export class LioraTUI {
   private nativeInputModalSequence = 0;
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   private workspaceController: WorkspaceController | undefined;
+  private workspaceLayoutPersistence: WorkspaceLayoutPersistence | undefined;
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -801,12 +802,18 @@ export class LioraTUI {
         id: 'workspace-keyboard-shortcuts',
         onInput: (event) => {
           // Panel shortcuts: Ctrl+B (left dock), Ctrl+N (right dock), Ctrl+1-9 (focus)
-          if (wc.handlePanelShortcut(event)) return true;
+          if (wc.handlePanelShortcut(event)) {
+            this.workspaceLayoutPersistence?.scheduleSave();
+            return true;
+          }
           // Route to focused panel
           if (wc.routeInputToPanel(event)) return true;
           return false;
         },
       });
+      // Load persisted workspace layout (dock widths, visibility, panel order)
+      this.workspaceLayoutPersistence = new WorkspaceLayoutPersistence(panelManager);
+      this.workspaceLayoutPersistence.load();
     }
 
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
@@ -1223,6 +1230,9 @@ export class LioraTUI {
     this.disposeTerminalTracking();
     this.disposeStartupSplash();
     this.appearanceController.dispose();
+    // Persist workspace layout before shutdown
+    this.workspaceLayoutPersistence?.saveNow();
+    this.workspaceLayoutPersistence?.dispose();
     // BUG-2: dispose the footer's goal-timer interval and the header clock.
     this.state.footer.dispose();
     this.state.header.dispose();
