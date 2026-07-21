@@ -42,6 +42,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitStatusMap = new Map<string, string>();
   private gitBranch: string | null = null;
   private gitCommitCount = 0;
+  private gitTag: string | null = null;
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -102,6 +103,8 @@ export class FileExplorerPanel implements PanelDefinition {
       if (this.gitBranch) stats += ` ${currentTheme.fg('primary', ` ${this.gitBranch}`)}`;
       // Git commit count
       if (this.gitCommitCount > 0) stats += currentTheme.dimFg('textMuted', ` ${String(this.gitCommitCount)}c`);
+      // Git tag (latest)
+      if (this.gitTag) stats += ` ${currentTheme.fg('accent', `🏷${this.gitTag}`)}`;
       lines.push(stats);
     }
 
@@ -397,6 +400,17 @@ export class FileExplorerPanel implements PanelDefinition {
         this.gitCommitCount = parseInt(countStr, 10) || 0;
       } catch {
         // ignore commit count errors
+      }
+      // Get latest tag
+      try {
+        const tag = execSync('git describe --tags --abbrev=0 2>/dev/null', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim();
+        this.gitTag = tag || null;
+      } catch {
+        this.gitTag = null;
       }
       const output = execSync('git status --porcelain', {
         cwd: this.rootPath,
