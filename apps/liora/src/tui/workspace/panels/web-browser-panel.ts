@@ -53,6 +53,7 @@ export class WebBrowserPanel implements PanelDefinition {
   readonly minHeight = 10;
 
   private runtime: BrowserUseRuntime | null = null;
+  private runtimePromise: Promise<BrowserUseRuntime> | null = null;
   private tabs: Tab[] = [];
   private activeTabId = 0;
   private nextTabId = 1;
@@ -139,7 +140,7 @@ export class WebBrowserPanel implements PanelDefinition {
 
   /** Compute a cache key representing all state that affects rendering. */
   private computeRenderCacheKey(width: number, height: number, focused: boolean): string {
-    const tab = this.getActiveTab();
+    const tab = this.activeTab;
     const state = tab?.state;
     return [
       width,
@@ -226,8 +227,9 @@ export class WebBrowserPanel implements PanelDefinition {
         }
 
         // Tab switching with number keys
-        if (event.text >= '1' && event.text <= '9') {
-          const tabIndex = Number.parseInt(event.text, 10) - 1;
+        const text = event.text;
+        if (text && text >= '1' && text <= '9') {
+          const tabIndex = Number.parseInt(text, 10) - 1;
           if (tabIndex < this.tabs.length) {
             this.activeTabId = this.tabs[tabIndex]!.id;
             return true;
@@ -236,19 +238,19 @@ export class WebBrowserPanel implements PanelDefinition {
       }
 
       // Scroll
-      if (event.key === 'arrowUp') {
+      if (event.key === 'up') {
         this.scrollTop = Math.max(0, this.scrollTop - 1);
         return true;
       }
-      if (event.key === 'arrowDown') {
+      if (event.key === 'down') {
         this.scrollTop++;
         return true;
       }
-      if (event.key === 'pageUp') {
+      if (event.key === 'pageup') {
         this.scrollTop = Math.max(0, this.scrollTop - 10);
         return true;
       }
-      if (event.key === 'pageDown') {
+      if (event.key === 'pagedown') {
         this.scrollTop += 10;
         return true;
       }
@@ -267,6 +269,9 @@ export class WebBrowserPanel implements PanelDefinition {
   onBlur(): void {
     this.editingUrl = false;
     this.consoleOpen = false;
+    this.formMode = false;
+    this.selectedRef = null;
+    this.formInput = '';
   }
 
   onResize(_width: number, _height: number): void {}
@@ -278,7 +283,7 @@ export class WebBrowserPanel implements PanelDefinition {
       // have access to the terminal output. The image will be cleaned up
       // when the terminal exits alternate screen mode.
     }
-    void this.runtime?.close();
+    void this.runtime?.close().catch(() => {});
     this.runtime = null;
   }
 
@@ -537,6 +542,7 @@ export class WebBrowserPanel implements PanelDefinition {
       });
       const screenshot = await runtime.screenshot({});
       this.state.screenshot = screenshot;
+      this.observationVersion++;
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : String(error);
     }
@@ -577,16 +583,25 @@ export class WebBrowserPanel implements PanelDefinition {
     }
   }
 
-  private async getRuntime(): Promise<BrowserUseRuntime> {
-    if (this.runtime) return this.runtime;
+  private getRuntime(): Promise<BrowserUseRuntime> {
+    if (this.runtime) return Promise.resolve(this.runtime);
 
-    const { createBrowserUseRuntime } = await import('@superliora/sdk');
-    this.runtime = createBrowserUseRuntime({
-      headless: true,
-      viewport: { width: 1280, height: 720 },
+    // Share one in-flight creation so concurrent callers cannot spawn
+    // multiple browser processes.
+    this.runtimePromise ??= (async () => {
+      const { createBrowserUseRuntime } = await import('@superliora/sdk');
+      const runtime = createBrowserUseRuntime({
+        headless: true,
+        viewport: { width: 1280, height: 720 },
+      });
+      this.runtime = runtime;
+      return runtime;
+    })().catch((error: unknown) => {
+      this.runtimePromise = null;
+      throw error;
     });
 
-    return this.runtime;
+    return this.runtimePromise;
   }
 
   // -------------------------------------------------------------------------
@@ -776,12 +791,12 @@ export class WebBrowserPanel implements PanelDefinition {
       return true;
     }
 
-    if (event.key === 'arrowUp') {
+    if (event.key === 'up') {
       this.refsCursor = Math.max(0, this.refsCursor - 1);
       return true;
     }
 
-    if (event.key === 'arrowDown') {
+    if (event.key === 'down') {
       this.refsCursor = Math.min(this.refsList.length - 1, this.refsCursor + 1);
       return true;
     }
@@ -870,13 +885,15 @@ export class WebBrowserPanel implements PanelDefinition {
       return true;
     }
 
-    if (event.action === 'scrollUp') {
-      void this.scroll('up');
-      return true;
-    }
-    if (event.action === 'scrollDown') {
-      void this.scroll('down');
-      return true;
+    if (event.action === 'wheel') {
+      if (event.button === 'wheel-up') {
+        void this.scroll('up');
+        return true;
+      }
+      if (event.button === 'wheel-down') {
+        void this.scroll('down');
+        return true;
+      }
     }
 
     return false;
