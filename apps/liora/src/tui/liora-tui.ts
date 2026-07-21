@@ -165,6 +165,9 @@ import {
 import {
   createTUIStateNativeRenderCallback,
 } from './utils/native-layout-frame';
+import { WorkspaceController, PanelManager } from './workspace';
+import { FileExplorerPanel } from './workspace/panels/file-explorer-panel';
+import { TerminalPanel } from './workspace/panels/terminal-panel';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -373,6 +376,7 @@ export class LioraTUI {
   private nativeInputModalDispose: (() => void) | undefined;
   private nativeInputModalSequence = 0;
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
+  private workspaceController: WorkspaceController | undefined;
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -751,6 +755,21 @@ export class LioraTUI {
     if (this.nativeInputRouter !== undefined) {
       this.state.ui.setInputRouter(this.nativeInputRouter.router);
     }
+
+    // Initialize workspace controller for multi-panel layout
+    if (this.nativeInputRouter !== undefined && this.workspaceController === undefined) {
+      const panelManager = new PanelManager();
+      this.workspaceController = new WorkspaceController({
+        panelManager,
+        inputRouter: this.nativeInputRouter.router,
+        requestRender: () => this.state.ui.requestRender(),
+      });
+      // Register default panels
+      const cwd = this.state.appState.workDir ?? process.cwd();
+      this.workspaceController.addPanel(new FileExplorerPanel(cwd), 'left');
+      this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
+    }
+
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
     this.state.ui.setRenderCallback(
       createTUIStateNativeRenderCallback(this.state, {
