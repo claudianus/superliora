@@ -653,7 +653,7 @@ export class FileExplorerPanel implements PanelDefinition {
           timeout: 3000,
         });
         for (const line of submoduleOutput.split('\n')) {
-          const match = line.match(/^\s*[+- ]?[0-9a-f]+\s+(\S+)/);
+          const match = line.match(/^\s*[-+ ]?[0-9a-f]+\s+(\S+)/);
           if (match && match[1]) {
             this.submodulePaths.add(require('node:path').join(this.rootPath, match[1]));
           }

@@ -666,7 +666,7 @@ function parseDiff(output: string): DiffFile[] {
     for (const hunk of hunks) {
       for (const line of hunk.lines) {
         if ((line.type === 'add' || line.type === 'del') &&
-            /^(import |from |require(|export )/.test(line.content.trim())) {
+            /^(import |from |require\(|export )/.test(line.content.trim())) {
           hasImportChanges = true;
           break;
         }
