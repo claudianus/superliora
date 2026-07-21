@@ -346,7 +346,49 @@ export class WorkspaceController {
    * @returns true if the shortcut was handled.
    */
   handlePanelShortcut(event: NativeInputEvent): boolean {
-    if (event.type !== 'key' || !event.ctrl) return false;
+    if (event.type !== 'key') return false;
+
+    // F-key shortcuts (Bloomberg Terminal style)
+    if (event.key === 'f1') {
+      this.helpOpen = !this.helpOpen;
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'f2') {
+      this.switcherOpen = !this.switcherOpen;
+      this.switcherFilter = '';
+      this.switcherSelectedIndex = 0;
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'f3') {
+      this.paletteOpen = !this.paletteOpen;
+      this.paletteFilter = '';
+      this.paletteSelectedIndex = 0;
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'f5') {
+      // Refresh all panels that support it
+      for (const panel of this.panelManager.getAllPanels()) {
+        if (panel.definition.onInput) {
+          panel.definition.onInput({ type: 'key', key: 'character', text: 'r' } as NativeInputEvent);
+        }
+      }
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'f11') {
+      if (this.maximizedPanelId !== null) {
+        this.maximizedPanelId = null;
+      } else {
+        this.maximizedPanelId = this.panelManager.getFocusedPanelId();
+      }
+      this.requestRender();
+      return true;
+    }
+
+    if (!event.ctrl) return false;
 
     // Ctrl+B: toggle left dock
     if (event.key === 'character' && event.text === 'b') {
@@ -613,6 +655,11 @@ export class WorkspaceController {
     lines.push(`\u001B[1m 키보드 단축키 \u001B[0m`);
     lines.push('─'.repeat(w));
     const shortcuts: Array<[string, string]> = [
+      ['F1', '키보드 도움말'],
+      ['F2', '패널 퀵 스위처'],
+      ['F3', '명령 팔레트'],
+      ['F5', '패널 새로고침'],
+      ['F11', '패널 전체화면'],
       ['Ctrl+B', '왼쪽 독 표시/숨김'],
       ['Ctrl+N', '오른쪽 독 표시/숨김'],
       ['Ctrl+T', '독 모드 전환 (split/tabbed)'],
@@ -622,9 +669,9 @@ export class WorkspaceController {
       ['Ctrl+M', '패널 전체화면'],
       ['Ctrl+P', '레이아웃 프리셋'],
       ['Ctrl+G', '이 도움말'],
+      ['Tab/Shift+Tab', '패널 순환 이동'],
       ['마우스 드래그', '패널 이동/독 간 이동'],
       ['패널 테두리 드래그', '패널 리사이즈'],
-      ['탭 클릭', '탭 전환 (tabbed 모드)'],
     ];
     for (const [key, desc] of shortcuts) {
       const keyCol = `\u001B[36m${key}\u001B[0m`;
