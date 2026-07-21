@@ -1,4 +1,9 @@
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
+import {
+  encodeKittyPlaceholderTransmit,
+  encodeKittyPlaceholderLines,
+  encodeKittyDeleteImage,
+} from '@harness-kit/tui-renderer';
 import type {
   BrowserUseRuntime,
   BrowserObservation,
@@ -18,7 +23,23 @@ interface BrowserState {
   error: string | null;
   screenshot: RuntimeImage | null;
   observation: BrowserObservation | null;
+  zoom: number; // 0.5 to 2.0
 }
+
+interface Tab {
+  id: number;
+  url: string;
+  title: string;
+  state: BrowserState;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const IMAGE_ID_BASE = 1000; // Base ID for browser screenshots
+const MAX_TABS = 5;
+const ZOOM_LEVELS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
 // ---------------------------------------------------------------------------
 // WebBrowserPanel
@@ -32,21 +53,47 @@ export class WebBrowserPanel implements PanelDefinition {
   readonly minHeight = 10;
 
   private runtime: BrowserUseRuntime | null = null;
-  private state: BrowserState = {
-    url: '',
-    title: '',
-    loading: false,
-    error: null,
-    screenshot: null,
-    observation: null,
-  };
+  private tabs: Tab[] = [];
+  private activeTabId = 0;
+  private nextTabId = 1;
   private urlInput = '';
   private editingUrl = false;
   private scrollTop = 0;
   private readonly cwd: string;
+  private lastTransmittedImageId: number | null = null;
+  private consoleOpen = false;
+  private consoleOutput: string[] = [];
+  private consoleInput = '';
 
   constructor(cwd: string) {
     this.cwd = cwd;
+    // Create initial tab
+    this.tabs.push({
+      id: 0,
+      url: '',
+      title: 'New Tab',
+      state: this.createInitialState(),
+    });
+  }
+
+  private createInitialState(): BrowserState {
+    return {
+      url: '',
+      title: '',
+      loading: false,
+      error: null,
+      screenshot: null,
+      observation: null,
+      zoom: 1.0,
+    };
+  }
+
+  private get activeTab(): Tab {
+    return this.tabs.find((t) => t.id === this.activeTabId) ?? this.tabs[0]!;
+  }
+
+  private get state(): BrowserState {
+    return this.activeTab.state;
   }
 
   // -------------------------------------------------------------------------
@@ -56,69 +103,78 @@ export class WebBrowserPanel implements PanelDefinition {
   render(width: number, height: number, focused: boolean): string[] {
     const lines: string[] = [];
 
+    // Tab bar
+    lines.push(this.renderTabBar(width, focused));
+
     // URL bar
     lines.push(this.renderUrlBar(width, focused));
 
     // Status bar
-    if (this.state.loading) {
-      lines.push(this.pad(this.dim('  Loading...'), width));
-    } else if (this.state.error) {
-      lines.push(this.pad(this.red(`  Error: ${this.state.error}`), width));
-    } else if (this.state.title) {
-      lines.push(this.pad(this.dim(`  ${this.state.title}`), width));
-    } else {
-      lines.push(this.pad(this.dim('  Enter a URL to browse'), width));
-    }
+    lines.push(this.renderStatusBar(width));
 
     // Content area
-    const contentHeight = height - 2;
-    if (this.state.screenshot) {
-      // Display screenshot info (actual rendering via Kitty graphics)
-      lines.push(this.pad(this.dim('  [Screenshot captured - use Kitty graphics to display]'), width));
-      lines.push(this.pad(this.dim(`  Size: ${this.state.screenshot.width ?? '?'}x${this.state.screenshot.height ?? '?'}`), width));
-    } else if (this.state.observation) {
-      // Display page snapshot as text
-      const snapshotLines = this.state.observation.snapshot.split('\n');
-      for (let i = this.scrollTop; i < Math.min(snapshotLines.length, this.scrollTop + contentHeight - 2); i++) {
-        lines.push(this.pad(snapshotLines[i] ?? '', width));
-      }
-    } else {
-      lines.push(this.pad('', width));
-      lines.push(this.pad(this.dim('  Welcome to SuperLiora Browser'), width));
-      lines.push(this.pad(this.dim('  Type a URL and press Enter to start'), width));
-    }
+    const contentHeight = height - 3;
+    const contentLines = this.renderContent(width, contentHeight);
+    lines.push(...contentLines);
 
     return this.fillLines(lines, height, width);
   }
 
   onInput(event: NativeInputEvent): boolean {
     if (event.type === 'key') {
+      // Console mode
+      if (this.consoleOpen) {
+        return this.handleConsoleInput(event);
+      }
+
+      // URL editing mode
       if (this.editingUrl) {
         return this.handleUrlInput(event);
       }
 
-      // Navigation keys
+      // Global shortcuts
       if (event.key === 'character') {
-        if (event.text === 'l' || event.text === 'L') {
-          // Focus URL bar
-          this.editingUrl = true;
-          this.urlInput = this.state.url;
-          return true;
+        switch (event.text?.toLowerCase()) {
+          case 'l': // Focus URL bar
+            this.editingUrl = true;
+            this.urlInput = this.state.url;
+            return true;
+          case 'r': // Reload
+            void this.navigate(this.state.url);
+            return true;
+          case 'b': // Back
+            void this.goBack();
+            return true;
+          case 'f': // Forward
+            void this.goForward();
+            return true;
+          case 't': // New tab
+            this.createNewTab();
+            return true;
+          case 'w': // Close tab
+            this.closeActiveTab();
+            return true;
+          case 'c': // Console
+            this.consoleOpen = true;
+            return true;
+          case '+': // Zoom in
+            this.zoomIn();
+            return true;
+          case '-': // Zoom out
+            this.zoomOut();
+            return true;
+          case '0': // Reset zoom
+            this.state.zoom = 1.0;
+            return true;
         }
-        if (event.text === 'r' || event.text === 'R') {
-          // Reload
-          void this.navigate(this.state.url);
-          return true;
-        }
-        if (event.text === 'b' || event.text === 'B') {
-          // Back
-          void this.goBack();
-          return true;
-        }
-        if (event.text === 'f' || event.text === 'F') {
-          // Forward
-          void this.goForward();
-          return true;
+
+        // Tab switching with number keys
+        if (event.text >= '1' && event.text <= '9') {
+          const tabIndex = Number.parseInt(event.text, 10) - 1;
+          if (tabIndex < this.tabs.length) {
+            this.activeTabId = this.tabs[tabIndex]!.id;
+            return true;
+          }
         }
       }
 
@@ -141,7 +197,7 @@ export class WebBrowserPanel implements PanelDefinition {
       }
     }
 
-    // Mouse events for interaction
+    // Mouse events
     if (event.type === 'mouse') {
       return this.handleMouseEvent(event);
     }
@@ -149,21 +205,193 @@ export class WebBrowserPanel implements PanelDefinition {
     return false;
   }
 
-  onFocus(): void {
-    // Panel focused
-  }
+  onFocus(): void {}
 
   onBlur(): void {
     this.editingUrl = false;
+    this.consoleOpen = false;
   }
 
-  onResize(_width: number, _height: number): void {
-    // Handle resize
-  }
+  onResize(_width: number, _height: number): void {}
 
   dispose(): void {
+    // Clean up transmitted images
+    if (this.lastTransmittedImageId !== null) {
+      // Note: We can't actually send the delete command here since we don't
+      // have access to the terminal output. The image will be cleaned up
+      // when the terminal exits alternate screen mode.
+    }
     void this.runtime?.close();
     this.runtime = null;
+  }
+
+  // -------------------------------------------------------------------------
+  // Rendering
+  // -------------------------------------------------------------------------
+
+  private renderTabBar(width: number, focused: boolean): string {
+    const tabs = this.tabs.map((tab, index) => {
+      const isActive = tab.id === this.activeTabId;
+      const title = tab.title.slice(0, 15) || 'New Tab';
+      const marker = isActive ? this.cyan(`[${index + 1}]`) : this.dim(`[${index + 1}]`);
+      return `${marker} ${title}`;
+    });
+    const tabBar = tabs.join(this.dim(' │ '));
+    return this.pad(` ${tabBar}`, width);
+  }
+
+  private renderUrlBar(width: number, focused: boolean): string {
+    const prefix = ' 🔗 ';
+    const suffix = this.editingUrl ? '▏' : '';
+    const url = this.editingUrl ? this.urlInput : this.state.url;
+    const maxUrlWidth = width - prefix.length - suffix.length - 2;
+    const displayUrl = url.length > maxUrlWidth
+      ? url.slice(0, maxUrlWidth - 1) + '…'
+      : url;
+
+    const bar = `${prefix}${displayUrl}${suffix}`;
+    const border = focused ? this.cyan('│') : this.dim('│');
+    return `${border} ${this.pad(bar, width - 4)} ${border}`;
+  }
+
+  private renderStatusBar(width: number): string {
+    const zoom = Math.round(this.state.zoom * 100);
+    if (this.state.loading) {
+      return this.pad(this.dim(`  ⏳ Loading... (${zoom}%)`), width);
+    }
+    if (this.state.error) {
+      return this.pad(this.red(`  ❌ ${this.state.error}`), width);
+    }
+    if (this.state.title) {
+      return this.pad(this.dim(`  📄 ${this.state.title} (${zoom}%)`), width);
+    }
+    return this.pad(this.dim(`  Enter a URL to browse (${zoom}%)`), width);
+  }
+
+  private renderContent(width: number, height: number): string[] {
+    // Console overlay
+    if (this.consoleOpen) {
+      return this.renderConsole(width, height);
+    }
+
+    // Screenshot with Kitty graphics
+    if (this.state.screenshot && this.state.screenshot.base64) {
+      return this.renderScreenshotWithKitty(width, height);
+    }
+
+    // Text snapshot fallback
+    if (this.state.observation) {
+      return this.renderTextSnapshot(width, height);
+    }
+
+    // Welcome screen
+    return this.renderWelcome(width, height);
+  }
+
+  private renderScreenshotWithKitty(width: number, height: number): string[] {
+    const screenshot = this.state.screenshot!;
+    const lines: string[] = [];
+
+    // Calculate image dimensions based on zoom
+    const baseWidth = Math.min(width, 80);
+    const baseHeight = Math.min(height - 2, 40);
+    const imageWidth = Math.floor(baseWidth * this.state.zoom);
+    const imageHeight = Math.floor(baseHeight * this.state.zoom);
+
+    // Image ID for this tab
+    const imageId = IMAGE_ID_BASE + this.activeTabId;
+
+    // Transmit the image (this would be sent to the terminal)
+    // Note: In a real implementation, this would be sent via a side channel
+    // since the render method only returns text lines.
+    const transmitCommand = encodeKittyPlaceholderTransmit({
+      id: imageId,
+      base64: screenshot.base64,
+      columns: imageWidth,
+      rows: imageHeight,
+    });
+
+    // Store for later transmission
+    this.pendingTransmit = transmitCommand;
+    this.lastTransmittedImageId = imageId;
+
+    // Generate placeholder lines
+    const placeholderLines = encodeKittyPlaceholderLines({
+      id: imageId,
+      columns: Math.min(imageWidth, width),
+      rows: Math.min(imageHeight, height - 2),
+    });
+
+    lines.push(this.dim(`  [Kitty Graphics: ${screenshot.width ?? '?'}x${screenshot.height ?? '?'} → ${imageWidth}x${imageHeight}]`));
+    lines.push(...placeholderLines);
+
+    return lines;
+  }
+
+  private pendingTransmit: string | null = null;
+
+  /**
+   * Get pending Kitty graphics transmit command.
+   * Called by the frame renderer to send the image data.
+   */
+  getPendingTransmit(): string | null {
+    const transmit = this.pendingTransmit;
+    this.pendingTransmit = null;
+    return transmit;
+  }
+
+  private renderTextSnapshot(width: number, height: number): string[] {
+    const snapshotLines = this.state.observation!.snapshot.split('\n');
+    const lines: string[] = [];
+
+    lines.push(this.dim('  [Text Snapshot Mode]'));
+
+    for (let i = this.scrollTop; i < Math.min(snapshotLines.length, this.scrollTop + height - 2); i++) {
+      lines.push(this.pad(snapshotLines[i] ?? '', width));
+    }
+
+    return lines;
+  }
+
+  private renderWelcome(width: number, height: number): string[] {
+    const lines: string[] = [
+      '',
+      this.pad('  🌐 SuperLiora Browser', width),
+      '',
+      this.pad(this.dim('  Shortcuts:'), width),
+      this.pad(this.dim('    L     - Focus URL bar'), width),
+      this.pad(this.dim('    R     - Reload page'), width),
+      this.pad(this.dim('    B/F   - Back/Forward'), width),
+      this.pad(this.dim('    T     - New tab'), width),
+      this.pad(this.dim('    W     - Close tab'), width),
+      this.pad(this.dim('    C     - JavaScript console'), width),
+      this.pad(this.dim('    +/-   - Zoom in/out'), width),
+      this.pad(this.dim('    0     - Reset zoom'), width),
+      this.pad(this.dim('    1-9   - Switch to tab N'), width),
+      '',
+      this.pad(this.dim('  Mouse:'), width),
+      this.pad(this.dim('    Click - Click on page'), width),
+      this.pad(this.dim('    Wheel - Scroll page'), width),
+    ];
+    return lines;
+  }
+
+  private renderConsole(width: number, height: number): string[] {
+    const lines: string[] = [];
+    lines.push(this.cyan('  ┌─ JavaScript Console ─────────────────────────────────'));
+
+    const outputHeight = height - 3;
+    const output = this.consoleOutput.slice(-outputHeight);
+    for (const line of output) {
+      lines.push(this.pad(`  │ ${line}`, width));
+    }
+
+    lines.push(this.cyan('  ├─────────────────────────────────────────────────────'));
+    lines.push(this.pad(`  │ > ${this.consoleInput}▏`, width));
+    lines.push(this.cyan('  └─────────────────────────────────────────────────────'));
+    lines.push(this.dim('  Press Escape to close console'));
+
+    return lines;
   }
 
   // -------------------------------------------------------------------------
@@ -173,7 +401,6 @@ export class WebBrowserPanel implements PanelDefinition {
   async navigate(url: string): Promise<void> {
     if (!url || url.trim().length === 0) return;
 
-    // Normalize URL
     let normalizedUrl = url.trim();
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = `https://${normalizedUrl}`;
@@ -182,18 +409,17 @@ export class WebBrowserPanel implements PanelDefinition {
     this.state.loading = true;
     this.state.error = null;
     this.state.url = normalizedUrl;
+    this.activeTab.url = normalizedUrl;
 
     try {
       const runtime = await this.getRuntime();
-
-      // Navigate and get observation
       const observation = await runtime.observe({ url: normalizedUrl });
 
       if (observation.ok) {
         this.state.title = observation.title;
+        this.activeTab.title = observation.title;
         this.state.observation = observation;
 
-        // Take screenshot
         const screenshot = await runtime.screenshot({});
         this.state.screenshot = screenshot;
       } else {
@@ -210,14 +436,7 @@ export class WebBrowserPanel implements PanelDefinition {
     try {
       const runtime = await this.getRuntime();
       await runtime.act({ actions: [{ type: 'back' }] });
-      const observation = await runtime.observe({});
-      if (observation.ok) {
-        this.state.url = observation.url;
-        this.state.title = observation.title;
-        this.state.observation = observation;
-        const screenshot = await runtime.screenshot({});
-        this.state.screenshot = screenshot;
-      }
+      await this.refreshObservation();
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : String(error);
     }
@@ -227,14 +446,7 @@ export class WebBrowserPanel implements PanelDefinition {
     try {
       const runtime = await this.getRuntime();
       await runtime.act({ actions: [{ type: 'forward' }] });
-      const observation = await runtime.observe({});
-      if (observation.ok) {
-        this.state.url = observation.url;
-        this.state.title = observation.title;
-        this.state.observation = observation;
-        const screenshot = await runtime.screenshot({});
-        this.state.screenshot = screenshot;
-      }
+      await this.refreshObservation();
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : String(error);
     }
@@ -247,14 +459,7 @@ export class WebBrowserPanel implements PanelDefinition {
         actions: [{ type: 'click_xy', x, y }],
         captureAfter: true,
       });
-      const observation = await runtime.observe({});
-      if (observation.ok) {
-        this.state.url = observation.url;
-        this.state.title = observation.title;
-        this.state.observation = observation;
-        const screenshot = await runtime.screenshot({});
-        this.state.screenshot = screenshot;
-      }
+      await this.refreshObservation();
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : String(error);
     }
@@ -273,10 +478,43 @@ export class WebBrowserPanel implements PanelDefinition {
     }
   }
 
+  private async executeJavaScript(code: string): Promise<void> {
+    try {
+      const runtime = await this.getRuntime();
+      const result = await runtime.console({ expression: code });
+      if (result.ok) {
+        this.consoleOutput.push(`> ${code}`);
+        if (result.result !== undefined) {
+          this.consoleOutput.push(this.dim(`← ${JSON.stringify(result.result)}`));
+        }
+        if (result.error) {
+          this.consoleOutput.push(this.red(`✖ ${result.error}`));
+        }
+      } else {
+        this.consoleOutput.push(this.red(`✖ ${result.error ?? 'Execution failed'}`));
+      }
+    } catch (error) {
+      this.consoleOutput.push(this.red(`✖ ${error instanceof Error ? error.message : String(error)}`));
+    }
+  }
+
+  private async refreshObservation(): Promise<void> {
+    const runtime = await this.getRuntime();
+    const observation = await runtime.observe({});
+    if (observation.ok) {
+      this.state.url = observation.url;
+      this.activeTab.url = observation.url;
+      this.state.title = observation.title;
+      this.activeTab.title = observation.title;
+      this.state.observation = observation;
+      const screenshot = await runtime.screenshot({});
+      this.state.screenshot = screenshot;
+    }
+  }
+
   private async getRuntime(): Promise<BrowserUseRuntime> {
     if (this.runtime) return this.runtime;
 
-    // Dynamic import to avoid bundling issues
     const { createBrowserUseRuntime } = await import('@superliora/sdk');
     this.runtime = createBrowserUseRuntime({
       headless: true,
@@ -284,6 +522,58 @@ export class WebBrowserPanel implements PanelDefinition {
     });
 
     return this.runtime;
+  }
+
+  // -------------------------------------------------------------------------
+  // Tab management
+  // -------------------------------------------------------------------------
+
+  private createNewTab(): void {
+    if (this.tabs.length >= MAX_TABS) {
+      this.state.error = `Maximum ${MAX_TABS} tabs allowed`;
+      return;
+    }
+
+    const newId = this.nextTabId++;
+    this.tabs.push({
+      id: newId,
+      url: '',
+      title: 'New Tab',
+      state: this.createInitialState(),
+    });
+    this.activeTabId = newId;
+  }
+
+  private closeActiveTab(): void {
+    if (this.tabs.length <= 1) {
+      this.state.error = 'Cannot close the last tab';
+      return;
+    }
+
+    const index = this.tabs.findIndex((t) => t.id === this.activeTabId);
+    this.tabs.splice(index, 1);
+
+    // Switch to adjacent tab
+    const newIndex = Math.min(index, this.tabs.length - 1);
+    this.activeTabId = this.tabs[newIndex]!.id;
+  }
+
+  // -------------------------------------------------------------------------
+  // Zoom
+  // -------------------------------------------------------------------------
+
+  private zoomIn(): void {
+    const currentIndex = ZOOM_LEVELS.indexOf(this.state.zoom);
+    if (currentIndex < ZOOM_LEVELS.length - 1) {
+      this.state.zoom = ZOOM_LEVELS[currentIndex + 1]!;
+    }
+  }
+
+  private zoomOut(): void {
+    const currentIndex = ZOOM_LEVELS.indexOf(this.state.zoom);
+    if (currentIndex > 0) {
+      this.state.zoom = ZOOM_LEVELS[currentIndex - 1]!;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -318,21 +608,46 @@ export class WebBrowserPanel implements PanelDefinition {
     return false;
   }
 
+  private handleConsoleInput(event: NativeInputEvent): boolean {
+    if (event.type !== 'key') return false;
+
+    if (event.key === 'escape') {
+      this.consoleOpen = false;
+      return true;
+    }
+
+    if (event.key === 'enter') {
+      const code = this.consoleInput.trim();
+      if (code) {
+        void this.executeJavaScript(code);
+      }
+      this.consoleInput = '';
+      return true;
+    }
+
+    if (event.key === 'backspace') {
+      this.consoleInput = this.consoleInput.slice(0, -1);
+      return true;
+    }
+
+    if (event.key === 'character' && event.text) {
+      this.consoleInput += event.text;
+      return true;
+    }
+
+    return false;
+  }
+
   private handleMouseEvent(event: NativeInputEvent): boolean {
     if (event.type !== 'mouse') return false;
 
-    // Handle mouse click for interaction
     if (event.action === 'press' && event.button === 'left') {
-      // Convert terminal coordinates to browser coordinates
-      // This is a simplified mapping - actual implementation would need
-      // to account for the screenshot dimensions and panel position
-      const browserX = event.x * 10; // Approximate scaling
+      const browserX = event.x * 10;
       const browserY = event.y * 20;
       void this.clickAt(browserX, browserY);
       return true;
     }
 
-    // Handle mouse wheel for scrolling
     if (event.action === 'scrollUp') {
       void this.scroll('up');
       return true;
@@ -346,22 +661,8 @@ export class WebBrowserPanel implements PanelDefinition {
   }
 
   // -------------------------------------------------------------------------
-  // Rendering helpers
+  // Helpers
   // -------------------------------------------------------------------------
-
-  private renderUrlBar(width: number, focused: boolean): string {
-    const prefix = ' 🔗 ';
-    const suffix = this.editingUrl ? '▏' : '';
-    const url = this.editingUrl ? this.urlInput : this.state.url;
-    const maxUrlWidth = width - prefix.length - suffix.length - 2;
-    const displayUrl = url.length > maxUrlWidth
-      ? url.slice(0, maxUrlWidth - 1) + '…'
-      : url;
-
-    const bar = `${prefix}${displayUrl}${suffix}`;
-    const border = focused ? this.cyan('│') : this.dim('│');
-    return `${border} ${this.pad(bar, width - 4)} ${border}`;
-  }
 
   private pad(text: string, width: number): string {
     if (text.length >= width) return text.slice(0, width);
