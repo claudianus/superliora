@@ -35,6 +35,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private cursorIndex = 0;
   private scrollTop = 0;
   private sortMode: 'name' | 'type' = 'name';
+  private showHidden = false;
   private gitStatusMap = new Map<string, string>();
   private lastWidth = 30;
   private lastHeight = 20;
@@ -180,6 +181,14 @@ export class FileExplorerPanel implements PanelDefinition {
           this.renderCache = null;
           return true;
         }
+        if (event.text === 'h' || event.text === 'H') {
+          // Toggle hidden files visibility
+          this.showHidden = !this.showHidden;
+          this.rebuildEntries();
+          this.treeVersion++;
+          this.renderCache = null;
+          return true;
+        }
         return false;
       default:
         return false;
@@ -232,7 +241,7 @@ export class FileExplorerPanel implements PanelDefinition {
 
     for (const item of items) {
       // Skip hidden and common noise directories
-      if (item.name.startsWith('.') || item.name === 'node_modules' || item.name === '__pycache__') {
+      if ((!this.showHidden && item.name.startsWith('.')) || item.name === 'node_modules' || item.name === '__pycache__') {
         continue;
       }
 

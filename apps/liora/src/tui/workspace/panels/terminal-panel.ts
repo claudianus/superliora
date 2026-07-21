@@ -84,6 +84,11 @@ export class TerminalPanel implements PanelDefinition {
       const lastIdx = visible.length - 1;
       visible[lastIdx] = (visible[lastIdx] ?? '').slice(0, this.cols - 8) + lineCount;
     }
+    // PID indicator in first row when PTY is active
+    if (this.pty && visible.length > 0) {
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)}`);
+      visible[0] = (visible[0] ?? '').slice(0, this.cols - 12) + pidLabel;
+    }
     return visible;
   }
 
