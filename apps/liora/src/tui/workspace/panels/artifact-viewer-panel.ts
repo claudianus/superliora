@@ -380,6 +380,9 @@ export class ArtifactViewerPanel implements PanelDefinition {
         rendered.push(`${currentTheme.fg('primary', '│')} ${currentTheme.dimFg('textDim', line.slice(2))}`);
       } else if (line.trim() === '') {
         rendered.push('');
+      } else if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
+        // Horizontal rule
+        rendered.push(currentTheme.dimFg('border', '─'.repeat(Math.min(40, 40))));
       } else if (line.startsWith('**') && line.endsWith('**')) {
         rendered.push(currentTheme.boldFg('textStrong', line.slice(2, -2)));
       } else {
