@@ -384,6 +384,9 @@ export class GitDiffPanel implements PanelDefinition {
             default:
               if (this.showContext) {
                 lines.push({ text: currentTheme.dimFg('textMuted', ` ${line.content}`), type: 'context' });
+              } else {
+                // Show a collapse indicator for skipped context
+                lines.push({ text: currentTheme.dimFg('border', ' ···'), type: 'context' });
               }
           }
         }
