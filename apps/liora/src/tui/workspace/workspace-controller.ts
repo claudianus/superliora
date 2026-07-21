@@ -957,8 +957,13 @@ export class WorkspaceController {
     if (!this.paletteOpen) return null;
     const cmds = this.getFilteredCommands();
     const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const divider = animated
+      ? renderParticleDivider(38, 'palette:divider', appearance)
+      : currentTheme.fg('primary', '─'.repeat(38));
     lines.push(`${currentTheme.boldFg('primary', ' 명령')}  ${currentTheme.dimFg('textMuted', this.paletteFilter || '입력하여 검색…')}`);
-    lines.push(currentTheme.fg('primary', '─'.repeat(38)));
+    lines.push(divider);
     if (cmds.length === 0) {
       lines.push(`  ${currentTheme.dimFg('textMuted', '(결과 없음)')}`);
     } else {
@@ -970,7 +975,7 @@ export class WorkspaceController {
         lines.push(` ${marker} ${label}${shortcut}`);
       }
     }
-    lines.push(currentTheme.fg('primary', '─'.repeat(38)));
+    lines.push(divider);
     lines.push(` ${currentTheme.dimFg('textMuted', '↑↓ 이동 · Enter 실행 · Esc 닫기')}`);
     return lines;
   }
