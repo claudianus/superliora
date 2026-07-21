@@ -116,6 +116,16 @@ export class FileExplorerPanel implements PanelDefinition {
       // Git ahead/behind
       if (this.gitAhead > 0) stats += currentTheme.fg('success', ` ↑${String(this.gitAhead)}`);
       if (this.gitBehind > 0) stats += currentTheme.fg('warning', ` ↓${String(this.gitBehind)}`);
+      // Breadcrumb path for selected entry (compact, shows relative path segments)
+      const selectedEntry = this.entries[this.cursorIndex];
+      if (selectedEntry && selectedEntry.depth > 0) {
+        const relPath = selectedEntry.fullPath.replace(this.rootPath + '/', '');
+        const segments = relPath.split('/');
+        const breadcrumb = segments.length > 3
+          ? segments.slice(0, 2).join('/') + '/…/' + segments[segments.length - 1]
+          : relPath;
+        stats += currentTheme.dimFg('textMuted', ` 📍${breadcrumb}`);
+      }
       // Git stash count
       if (this.gitStashCount > 0) stats += currentTheme.fg('accent', ` ≡${String(this.gitStashCount)}`);
       lines.push(stats);
