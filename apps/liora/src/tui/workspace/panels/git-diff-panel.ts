@@ -106,6 +106,15 @@ export class GitDiffPanel implements PanelDefinition {
       if (searchQuery && searchQuery.length > 0) {
         truncated = this.highlightSearch(truncated, searchQuery);
       }
+      // Hunk context preview: when cursor is on a hunk header (@@ line),
+      // extract and show the function/class context after @@
+      if (isCursor && this.flatLines[globalIdx]?.type === 'header' && truncated.includes('@@')) {
+        const ctxMatch = truncated.match(/@@.*@@\s*(.*)/);
+        if (ctxMatch && ctxMatch[1] && ctxMatch[1].trim().length > 0) {
+          const ctxLabel = currentTheme.dimFg('textMuted', ` ⌁ ${ctxMatch[1].trim().slice(0, width - 6)}`);
+          truncated = truncated.slice(0, width - ctxLabel.replace(/\x1b\[[0-9;]*m/g, '').length) + ctxLabel;
+        }
+      }
       return isCursor ? inverse(truncated.padEnd(width)) : truncated;
     });
     this.renderCache = { key: cacheKey, lines: result };
