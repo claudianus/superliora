@@ -237,8 +237,25 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       return this.fillLines(lines, height, width);
     }
 
+    // Current operation spotlight: show the latest active entry prominently
+    if (activeCount > 0 && height > 4) {
+      const activeEntry = this.findLatestActiveEntry(entries);
+      if (activeEntry !== undefined) {
+        const icon = KIND_ICONS[activeEntry.kind] ?? '·';
+        const token = KIND_TOKENS[activeEntry.kind] ?? 'primary';
+        const elapsed = activeEntry.startedAtMs !== undefined
+          ? ` ${formatElapsedTime(activeEntry.startedAtMs, now)}`
+          : '';
+        const opText = `${icon} ${activeEntry.label}${elapsed}`;
+        const spotlight = animate
+          ? renderPulseText(opText, `spotlight:${activeEntry.id}`, token, appearance)
+          : currentTheme.fg(token, opText);
+        lines.push(this.pad(` ${spotlight}`, width));
+      }
+    }
+
     // Clamp scroll
-    const visibleRows = height - 2; // header + hint
+    const visibleRows = height - (activeCount > 0 && height > 4 ? 3 : 2); // header + spotlight + hint
     const maxScroll = Math.max(0, entries.length - visibleRows);
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, maxScroll));
 
@@ -370,6 +387,18 @@ export class ActivityTransparencyPanel implements PanelDefinition {
   private getFilteredEntries(): readonly ActivityEntry[] {
     if (this.filterKind === null) return this.feed.getEntries();
     return this.feed.getEntries().filter((e) => e.kind === this.filterKind);
+  }
+
+  /** Find the most recent in-progress entry for the spotlight row. */
+  private findLatestActiveEntry(entries: readonly ActivityEntry[]): ActivityEntry | undefined {
+    const ACTIVE_KINDS = new Set<ActivityKind>([
+      'tool-start', 'tool-progress', 'thinking', 'agent-spawn', 'agent-progress', 'command',
+    ]);
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i]!;
+      if (e.durationMs === undefined && !e.isError && ACTIVE_KINDS.has(e.kind)) return e;
+    }
+    return undefined;
   }
 
   private cycleFilter(): void {
