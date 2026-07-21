@@ -78,6 +78,8 @@ export class TerminalPanel implements PanelDefinition {
   private showLineNumbers = false;
   /** Output folding for repeated lines */
   private foldRepeated = true;
+  /** Output bookmark position */
+  private bookmarkLine = -1;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -138,7 +140,8 @@ export class TerminalPanel implements PanelDefinition {
       const compressBadge = this.bufferCompressed ? currentTheme.dimFg('textMuted', ` · ${String(this.totalLinesReceived)}L↑`) : '';
       const cwdBadge = this.detectedCwd ? currentTheme.dimFg('textMuted', ` · ${this.detectedCwd.split('/').slice(-2).join('/')}`) : '';
       const wrapBadge = this.wrapLines ? currentTheme.fg('accent', ' ↩') : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + encBadge;
+      const bookmarkBadge = this.bookmarkLine >= 0 ? currentTheme.fg('primary', ' ⚑') : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -275,6 +278,20 @@ export class TerminalPanel implements PanelDefinition {
       // Ctrl+Y: toggle repeated line folding
       if (event.ctrl && event.key === 'character' && event.text === 'y') {
         this.foldRepeated = !this.foldRepeated;
+        return true;
+      }
+
+      // Ctrl+B: set/jump bookmark
+      if (event.ctrl && event.key === 'character' && event.text === 'b') {
+        if (this.bookmarkLine === -1) {
+          // Set bookmark at current scroll position
+          this.bookmarkLine = this.scrollTop;
+        } else {
+          // Jump to bookmark
+          this.scrollTop = this.bookmarkLine;
+          this.followTail = false;
+          this.bookmarkLine = -1; // Clear after jump
+        }
         return true;
       }
 
