@@ -73,7 +73,7 @@ export class TerminalPanel implements PanelDefinition {
     if (!this.pty) {
       return [
         `  ${currentTheme.fg('accent', '▶')} ${currentTheme.dimFg('textMuted', 'Starting shell...')}`,
-        `  ${currentTheme.dimFg('textMuted', `(cwd: ${this.cwd.split('/').slice(-2).join('/')})`)}`,
+        `  ${currentTheme.dimFg('textMuted', `(${this.detectShell().split('/').pop() ?? 'sh'} · ${this.cwd.split('/').slice(-2).join('/')})`)}`,
       ];
     }
 
