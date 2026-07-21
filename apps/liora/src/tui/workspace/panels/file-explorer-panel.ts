@@ -65,6 +65,8 @@ export class FileExplorerPanel implements PanelDefinition {
   private branchDivergence: { ahead: number; behind: number } | null = null;
   /** Recently modified files (within 1 hour) */
   private recentlyModified: Set<string> = new Set();
+  /** Whether this is a git worktree */
+  private isWorktree = false;
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -128,6 +130,8 @@ export class FileExplorerPanel implements PanelDefinition {
       if (this.showHidden) stats += currentTheme.fg('accent', ' [dot]');
       // Git branch badge
       if (this.gitBranch) stats += ` ${currentTheme.fg('primary', ` ${this.gitBranch}`)}`;
+      // Git worktree indicator
+      if (this.isWorktree) stats += currentTheme.fg('accent', ' ⑂wt');
       // Git commit count
       if (this.gitCommitCount > 0) stats += currentTheme.dimFg('textMuted', ` ${String(this.gitCommitCount)}c`);
       // Git tag (latest)
@@ -612,6 +616,19 @@ export class FileExplorerPanel implements PanelDefinition {
         }
       } catch {
         // No upstream or not a tracking branch
+      }
+      // Detect git worktree
+      this.isWorktree = false;
+      try {
+        const gitDir = execSync('git rev-parse --git-dir 2>/dev/null', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 2000,
+        }).trim();
+        // In a worktree, .git is a file pointing to .git/worktrees/<name>
+        this.isWorktree = gitDir.includes('worktrees');
+      } catch {
+        // Not a git repo
       }
       // Get branch divergence from main/master
       this.branchDivergence = null;
