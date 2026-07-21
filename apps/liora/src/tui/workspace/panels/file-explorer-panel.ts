@@ -40,6 +40,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private sortMode: 'name' | 'type' = 'name';
   private showHidden = false;
   private gitStatusMap = new Map<string, string>();
+  private gitBranch: string | null = null;
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -96,6 +97,8 @@ export class FileExplorerPanel implements PanelDefinition {
       if (this.sortMode === 'type') stats += currentTheme.fg('accent', ' [type]');
       // Hidden files indicator
       if (this.showHidden) stats += currentTheme.fg('accent', ' [dot]');
+      // Git branch badge
+      if (this.gitBranch) stats += ` ${currentTheme.fg('primary', ` ${this.gitBranch}`)}`;
       lines.push(stats);
     }
 
@@ -366,8 +369,20 @@ export class FileExplorerPanel implements PanelDefinition {
 
   private loadGitStatus(): void {
     this.gitStatusMap.clear();
+    this.gitBranch = null;
     try {
       const { execSync } = require('node:child_process') as typeof import('node:child_process');
+      // Get current branch
+      try {
+        const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim();
+        if (branch && branch !== 'HEAD') this.gitBranch = branch;
+      } catch {
+        // ignore branch detection errors
+      }
       const output = execSync('git status --porcelain', {
         cwd: this.rootPath,
         encoding: 'utf-8',
