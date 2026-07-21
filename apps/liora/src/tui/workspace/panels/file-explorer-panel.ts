@@ -231,7 +231,16 @@ export class FileExplorerPanel implements PanelDefinition {
   }
 
   private walkDirectory(dirPath: string, depth: number): void {
-    if (depth > 8) return; // Prevent infinite recursion
+    if (depth > 8) {
+      // Add a depth limit indicator entry
+      this.entries.push({
+        name: '…',
+        fullPath: dirPath,
+        isDirectory: false,
+        depth,
+      });
+      return;
+    }
 
     let items: fs.Dirent[];
     try {
