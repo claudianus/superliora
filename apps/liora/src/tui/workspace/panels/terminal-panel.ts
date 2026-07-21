@@ -76,6 +76,23 @@ export class TerminalPanel implements PanelDefinition {
   }
 
   onInput(event: NativeInputEvent): boolean {
+    // Mouse wheel support for scrolling terminal output
+    if (event.type === 'mouse' && event.action === 'wheel') {
+      if (event.button === 'wheel-up') {
+        this.scrollTop = Math.max(0, this.scrollTop - 3);
+        this.followTail = false;
+        return true;
+      }
+      if (event.button === 'wheel-down') {
+        this.scrollTop += 3;
+        if (this.scrollTop >= Math.max(0, this.lines.length - this.rows)) {
+          this.followTail = true;
+        }
+        return true;
+      }
+      return false;
+    }
+
     if (event.type === 'key') {
       // Restart on 'r' when exited
       if (this.exited && event.key === 'character' && event.text === 'r') {
