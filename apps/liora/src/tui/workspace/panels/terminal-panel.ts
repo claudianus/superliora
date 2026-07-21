@@ -47,6 +47,9 @@ export class TerminalPanel implements PanelDefinition {
   private static readonly BELL_FLASH_DURATION = 300;
   /** Environment overlay */
   private envOverlayOpen = false;
+  /** Command execution time tracking */
+  private cmdStartTime = 0;
+  private cmdRunning = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -98,8 +101,14 @@ export class TerminalPanel implements PanelDefinition {
       const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)}`);
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 12) + pidLabel;
     }
-    // Output rate indicator when actively streaming
+    // Command execution time indicator
     const renderNow = Date.now();
+    if (this.cmdRunning && renderNow - this.cmdStartTime > 500) {
+      const elapsed = Math.round((renderNow - this.cmdStartTime) / 1000);
+      const cmdTimeLabel = currentTheme.fg('accent', ` ⏱${String(elapsed)}s`);
+      visible[visible.length - 1] = (visible[visible.length - 1] ?? '').slice(0, this.cols - 8) + cmdTimeLabel;
+    }
+    // Output rate indicator when actively streaming
     if (renderNow - this.lastOutputTime < 1000 && this.outputRate > 100) {
       const rateLabel = this.outputRate > 10000
         ? currentTheme.fg('accent', ` ${String(Math.round(this.outputRate / 1024))}KB/s`)
@@ -177,6 +186,12 @@ export class TerminalPanel implements PanelDefinition {
       }
 
       if (!this.pty || this.exited) return false;
+
+      // Track command execution timing
+      if (event.key === 'enter') {
+        this.cmdStartTime = Date.now();
+        this.cmdRunning = true;
+      }
 
       // Convert key event to terminal input
       const data = keyEventToTerminalInput(event);
@@ -287,6 +302,11 @@ export class TerminalPanel implements PanelDefinition {
     // Simple terminal output handling:
     // Split by newlines and append to buffer
     // This is a simplified renderer - full ANSI parsing would be more complex
+
+    // Detect command completion: output arriving after Enter was pressed
+    if (this.cmdRunning && Date.now() - this.cmdStartTime > 100) {
+      this.cmdRunning = false;
+    }
 
     // Track output rate
     const rateNow = Date.now();
