@@ -57,6 +57,8 @@ export class FileExplorerPanel implements PanelDefinition {
   /** File content preview cache */
   private previewCache: Map<string, string[]> = new Map();
   private previewEnabled = true;
+  /** Git commit count cache for selected file */
+  private fileCommitCache: Map<string, number> = new Map();
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -157,6 +159,23 @@ export class FileExplorerPanel implements PanelDefinition {
         const author = this.blameCache.get(blameKey);
         if (author && author.length > 0) {
           stats += currentTheme.dimFg('textMuted', ` ✍${author}`);
+        }
+        // Git commit count for the selected file
+        if (!this.fileCommitCache.has(blameKey)) {
+          try {
+            const countOutput = execSync(`git rev-list --count HEAD -- "${blameKey}" 2>/dev/null`, {
+              cwd: this.rootPath,
+              encoding: 'utf-8',
+              timeout: 2000,
+            }).trim();
+            this.fileCommitCache.set(blameKey, parseInt(countOutput, 10) || 0);
+          } catch {
+            this.fileCommitCache.set(blameKey, 0);
+          }
+        }
+        const commitCount = this.fileCommitCache.get(blameKey) ?? 0;
+        if (commitCount > 0) {
+          stats += currentTheme.dimFg('textMuted', ` ${String(commitCount)}c`);
         }
       }
       // Git stash count
