@@ -122,6 +122,10 @@ export class WorkspaceController {
   private quickSwitchFlash = 0;
   private static readonly QUICK_SWITCH_DURATION = 300; // ms
 
+  // Activity pulse: panels with recent activity get a pulsing border
+  private static readonly ACTIVITY_PULSE_INTERVAL = 2000; // ms between pulses
+  private static readonly ACTIVITY_PULSE_DURATION = 600; // ms pulse duration
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -247,6 +251,21 @@ export class WorkspaceController {
               intensity,
             );
             return chalk.hex(glowColor)(text);
+          }
+          // Activity pulse: subtle glow for panels with recent activity
+          const lastActivity = this.panelActivity.get(activePanel.instanceId) ?? 0;
+          const activityAge = Date.now() - lastActivity;
+          if (activityAge < WorkspaceController.ACTIVITY_PULSE_INTERVAL && activePanel.instanceId !== this.lastFocusedPanelId) {
+            const pulsePhase = (Date.now() % WorkspaceController.ACTIVITY_PULSE_DURATION) / WorkspaceController.ACTIVITY_PULSE_DURATION;
+            const pulseIntensity = Math.sin(pulsePhase * Math.PI) * 0.3;
+            if (pulseIntensity > 0.05) {
+              const pulseColor = mixHexColor(
+                currentTheme.color('primary'),
+                currentTheme.color('accent'),
+                pulseIntensity,
+              );
+              return chalk.hex(pulseColor)(text);
+            }
           }
           return currentTheme.fg('primary', text);
         },
