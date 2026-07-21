@@ -180,8 +180,24 @@ export class FileExplorerPanel implements PanelDefinition {
           stats += currentTheme.dimFg('textMuted', ` ${String(commitCount)}c`);
         }
       }
-      // Git stash count
-      if (this.gitStashCount > 0) stats += currentTheme.fg('accent', ` ≡${String(this.gitStashCount)}`);
+      // Git stash count + latest stash preview
+      if (this.gitStashCount > 0) {
+        stats += currentTheme.fg('accent', ` ≡${String(this.gitStashCount)}`);
+        // Show latest stash message (truncated)
+        try {
+          const stashMsg = execSync('git stash list -1 --format="%s" 2>/dev/null', {
+            cwd: this.rootPath,
+            encoding: 'utf-8',
+            timeout: 2000,
+          }).trim();
+          if (stashMsg.length > 0) {
+            const shortMsg = stashMsg.length > 20 ? stashMsg.slice(0, 19) + '…' : stashMsg;
+            stats += currentTheme.dimFg('textMuted', ` "${shortMsg}"`);
+          }
+        } catch {
+          // No stash or not a git repo
+        }
+      }
       lines.push(stats);
       // Git status summary bar (compact visual of modified/added/deleted/untracked)
       const modCount = this.entries.filter((e) => e.gitStatus === 'M').length;
