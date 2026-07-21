@@ -310,6 +310,15 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     if (entries.length > 0 && completionRate < 100) {
       headerText += ` · ${String(completionRate)}%✓`;
     }
+    // Tool success rate: ratio of successful completions to total completed
+    const toolResults = entries.filter((e) => e.kind === 'tool-result' || e.kind === 'tool-error');
+    if (toolResults.length > 0) {
+      const successes = toolResults.filter((e) => !e.isError).length;
+      const successRate = Math.round((successes / toolResults.length) * 100);
+      if (successRate < 100) {
+        headerText += ` · ${String(successRate)}%ok`;
+      }
+    }
     // Activity rate sparkline (last 30s, 10 buckets)
     const sparkline = this.renderActivitySparkline(now, width);
     // Rate-of-change indicator (events/sec over last 5s)
