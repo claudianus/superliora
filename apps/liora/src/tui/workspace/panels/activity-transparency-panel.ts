@@ -834,6 +834,11 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const completed = entries.filter((e) => e.durationMs !== undefined);
     if (completed.length < 3) return ''; // Not enough data
 
+    // Compute median duration
+    const durations = completed.map((e) => e.durationMs!).sort((a, b) => a - b);
+    const median = durations[Math.floor(durations.length / 2)] ?? 0;
+    const medianLabel = median < 1000 ? `${String(median)}ms` : `${(median / 1000).toFixed(1)}s`;
+
     const BUCKETS = [100, 500, 1000, 5000, 30000, Infinity] as const;
     const LABELS = ['<.1s', '<.5s', '<1s', '<5s', '<30s', '>30s'] as const;
     const counts = new Array<number>(BUCKETS.length).fill(0);
@@ -857,7 +862,7 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       const bar = level > 0 ? currentTheme.fg('accent', '█'.repeat(level)) : currentTheme.dimFg('border', '░');
       parts.push(`${bar}${currentTheme.dimFg('textMuted', LABELS[i]!)}`);
     }
-    return ` ${parts.join(' ')}`;
+    return ` ${parts.join(' ')} ${currentTheme.dimFg('textMuted', `x̃${medianLabel}`)}`;
   }
 
   private renderSessionTimeline(now: number, width: number): string {
