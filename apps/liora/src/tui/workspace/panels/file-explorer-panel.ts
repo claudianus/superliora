@@ -49,6 +49,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitAhead = 0;
   private gitBehind = 0;
   private gitStashCount = 0;
+  private gitTagAnnotation: string | null = null;
   /** Quick search navigation */
   private quickSearchActive = false;
   private quickSearchQuery = '';
@@ -137,7 +138,15 @@ export class FileExplorerPanel implements PanelDefinition {
       // Git commit count
       if (this.gitCommitCount > 0) stats += currentTheme.dimFg('textMuted', ` ${String(this.gitCommitCount)}c`);
       // Git tag (latest)
-      if (this.gitTag) stats += ` ${currentTheme.fg('accent', `🏷${this.gitTag}`)}`;
+      if (this.gitTag) {
+        stats += ` ${currentTheme.fg('accent', `🏷${this.gitTag}`)}`;
+        if (this.gitTagAnnotation) {
+          const shortAnnot = this.gitTagAnnotation.length > 25
+            ? this.gitTagAnnotation.slice(0, 24) + '…'
+            : this.gitTagAnnotation;
+          stats += currentTheme.dimFg('textMuted', ` "${shortAnnot}"`);
+        }
+      }
       // Git remote
       if (this.gitRemote) stats += currentTheme.dimFg('textMuted', ` ⬡${this.gitRemote}`);
       // Git ahead/behind
@@ -588,6 +597,20 @@ export class FileExplorerPanel implements PanelDefinition {
           timeout: 3000,
         }).trim();
         this.gitTag = tag || null;
+        // Fetch tag annotation if available
+        this.gitTagAnnotation = null;
+        if (tag) {
+          try {
+            const annotation = execSync(`git tag -l --format='%(contents:subject)' "${tag}" 2>/dev/null`, {
+              cwd: this.rootPath,
+              encoding: 'utf-8',
+              timeout: 2000,
+            }).trim();
+            if (annotation.length > 0) this.gitTagAnnotation = annotation;
+          } catch {
+            // Lightweight tag or no annotation
+          }
+        }
       } catch {
         this.gitTag = null;
       }
