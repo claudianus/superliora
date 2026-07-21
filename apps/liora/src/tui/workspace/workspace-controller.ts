@@ -834,34 +834,50 @@ export class WorkspaceController {
       : currentTheme.fg('primary', '─'.repeat(w));
     lines.push(currentTheme.boldFg('primary', ' 키보드 단축키'));
     lines.push(divider);
-    const shortcuts: Array<[string, string]> = [
-      ['F1', '키보드 도움말'],
-      ['F2', '패널 퀵 스위처'],
-      ['F3', '명령 팔레트'],
-      ['F5', '패널 새로고침'],
-      ['F11', '패널 전체화면'],
-      ['Ctrl+B', '왼쪽 독 표시/숨김'],
-      ['Ctrl+N', '오른쪽 독 표시/숨김'],
-      ['Ctrl+T', '독 모드 전환 (split/tabbed)'],
-      ['Ctrl+1~9', '패널 포커스 (순서대로)'],
-      ['Ctrl+/', '패널 퀵 스위처'],
-      ['Ctrl+F', '패널 콘텐츠 검색'],
-      ['Ctrl+K', '명령 팔레트'],
-      ['Ctrl+M', '패널 전체화면'],
-      ['Ctrl+P', '레이아웃 프리셋'],
-      ['Ctrl+G', '이 도움말'],
-      ['Tab/Shift+Tab', '패널 순환 이동'],
-      ['Ctrl+Shift+←/→', '독 너비 조절'],
-      ['마우스 드래그', '패널 이동/독 간 이동'],
-      ['패널 테두리 드래그', '패널 리사이즈'],
+    // Grouped sections for better scannability
+    const sections: Array<{ title: string; items: Array<[string, string]> }> = [
+      {
+        title: '패널',
+        items: [
+          ['F2 / Ctrl+/', '퀵 스위처'],
+          ['F3 / Ctrl+K', '명령 팔레트'],
+          ['F11 / Ctrl+M', '전체화면'],
+          ['Ctrl+1~9', '패널 포커스'],
+          ['Tab/S+Tab', '순환 이동'],
+          ['Ctrl+F', '콘텐츠 검색'],
+        ],
+      },
+      {
+        title: '독 / 레이아웃',
+        items: [
+          ['Ctrl+B', '왼쪽 독 토글'],
+          ['Ctrl+N', '오른쪽 독 토글'],
+          ['Ctrl+T', 'split/tabbed 전환'],
+          ['Ctrl+P', '레이아웃 프리셋'],
+          ['Ctrl+S+←/→', '독 너비 조절'],
+        ],
+      },
+      {
+        title: '마우스',
+        items: [
+          ['타이틀 드래그', '패널 이동'],
+          ['더블클릭', '전체화면 토글'],
+          ['테두리 드래그', '리사이즈'],
+          ['휠', '패널 스크롤'],
+          ['탭 ×', '패널 닫기'],
+        ],
+      },
     ];
-    for (const [key, desc] of shortcuts) {
-      const keyCol = currentTheme.fg('accent', key);
-      const pad = Math.max(1, 18 - key.length);
-      lines.push(` ${keyCol}${' '.repeat(pad)}${currentTheme.fg('text', desc)}`);
+    for (const section of sections) {
+      lines.push(` ${currentTheme.boldFg('accent', section.title)}`);
+      for (const [key, desc] of section.items) {
+        const keyCol = currentTheme.fg('primary', key);
+        const pad = Math.max(1, 16 - key.length);
+        lines.push(`   ${keyCol}${' '.repeat(pad)}${currentTheme.fg('text', desc)}`);
+      }
     }
     lines.push(divider);
-    lines.push(` ${currentTheme.dimFg('textMuted', '아무 키나 눌러 닫기')}`);
+    lines.push(` ${currentTheme.dimFg('textMuted', 'F1/Ctrl+G: 도움말 · 아무 키: 닫기')}`);
     return lines;
   }
 
