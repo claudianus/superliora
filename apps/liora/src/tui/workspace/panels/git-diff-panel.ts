@@ -48,6 +48,8 @@ export class GitDiffPanel implements PanelDefinition {
   /** Render cache: avoids re-computing lines when nothing changed. */
   private renderCache: { key: string; lines: string[] } | null = null;
   private diffVersion = 0;
+  /** Whether to show context (unchanged) lines in full diff mode. */
+  private showContext = true;
 
   constructor(cwd: string) {
     this.cwd = cwd;
@@ -160,6 +162,14 @@ export class GitDiffPanel implements PanelDefinition {
         }
         if (event.text === 'p' || event.text === 'P') {
           this.jumpToPrevHunk();
+          return true;
+        }
+        // Toggle context lines (show/hide unchanged lines in full mode)
+        if (event.text === 'c' || event.text === 'C') {
+          this.showContext = !this.showContext;
+          this.flatLines = this.buildFlatLines();
+          this.diffVersion++;
+          this.renderCache = null;
           return true;
         }
         return false;
@@ -332,7 +342,9 @@ export class GitDiffPanel implements PanelDefinition {
               break;
             }
             default:
-              lines.push({ text: currentTheme.dimFg('textMuted', ` ${line.content}`), type: 'context' });
+              if (this.showContext) {
+                lines.push({ text: currentTheme.dimFg('textMuted', ` ${line.content}`), type: 'context' });
+              }
           }
         }
       }
