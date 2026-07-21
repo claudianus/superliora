@@ -423,6 +423,12 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       if (kindBar.length > 0 && height > 10) {
         lines.push(this.pad(kindBar, width));
       }
+      // Slowest operation indicator
+      const slowest = this.findSlowestEntry(entries);
+      if (slowest !== null && height > 12) {
+        const slowLabel = `slowest: ${slowest.label.slice(0, 20)} ${formatDuration(slowest.durationMs!)}`;
+        lines.push(this.pad(` ${currentTheme.fg('warning', '🐢')} ${currentTheme.dimFg('textMuted', slowLabel)}`, width));
+      }
       hint = currentTheme.dimFg('textMuted', ' j/k c:clr f:filter a:auto e:exp') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
@@ -568,6 +574,20 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       if (e.durationMs === undefined && !e.isError && ACTIVE_KINDS.has(e.kind)) return e;
     }
     return undefined;
+  }
+
+  /** Find the slowest completed entry for the slowest-op indicator. */
+  private findSlowestEntry(entries: readonly ActivityEntry[]): ActivityEntry | null {
+    let slowest: ActivityEntry | null = null;
+    for (const e of entries) {
+      if (e.durationMs !== undefined && e.durationMs > 0) {
+        if (slowest === null || e.durationMs > (slowest.durationMs ?? 0)) {
+          slowest = e;
+        }
+      }
+    }
+    // Only show if slowest is notably slow (>2s)
+    return slowest !== null && (slowest.durationMs ?? 0) > 2000 ? slowest : null;
   }
 
   private cycleFilter(): void {
