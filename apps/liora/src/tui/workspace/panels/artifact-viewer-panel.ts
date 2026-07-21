@@ -432,6 +432,8 @@ export class ArtifactViewerPanel implements PanelDefinition {
     result = result.replace(/~~(.+?)~~/g, (_m, p1: string) => currentTheme.dimFg('textMuted', p1));
     // Replace <kbd>key</kbd> with themed keyboard shortcut
     result = result.replace(/<kbd>(.+?)<\/kbd>/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${p1} `)));
+    // Replace <abbr title="...">text</abbr> with text + tooltip
+    result = result.replace(/<abbr title="(.+?)">(.+?)<\/abbr>/g, (_m, title: string, text: string) => `${currentTheme.fg('text', text)}${currentTheme.dimFg('textMuted', ` (${title})`)}`);
     // If no formatting was applied, wrap in default text color
     if (result === text) {
       return currentTheme.fg('text', text);
