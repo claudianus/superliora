@@ -52,12 +52,24 @@ export class ArtifactViewerPanel implements PanelDefinition {
       ];
     }
 
+    const lines: string[] = [];
+
+    // Header with file info and word count (visible when focused)
+    if (focused && this.currentFile !== null) {
+      const fileName = path.basename(this.currentFile);
+      const wordCount = this.content.join(' ').split(/\s+/).filter(Boolean).length;
+      const lineCount = this.content.length;
+      const header = `${currentTheme.boldFg('textStrong', fileName)} ${currentTheme.dimFg('textMuted', `${String(wordCount)}w · ${String(lineCount)}L`)}`;
+      lines.push(header);
+    }
+
     // Clamp scroll
-    const maxScroll = Math.max(0, this.renderedLines.length - height);
+    const headerRows = focused && this.currentFile !== null ? 1 : 0;
+    const maxScroll = Math.max(0, this.renderedLines.length - height + headerRows);
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, maxScroll));
 
-    const visible = this.renderedLines.slice(this.scrollTop, this.scrollTop + height);
-    const lines = visible.map((line) => {
+    const visible = this.renderedLines.slice(this.scrollTop, this.scrollTop + height - headerRows);
+    const contentLines = visible.map((line) => {
       let truncated = (line ?? '').slice(0, width);
       // Highlight search matches
       if (searchQuery && searchQuery.length > 0) {
@@ -65,6 +77,7 @@ export class ArtifactViewerPanel implements PanelDefinition {
       }
       return truncated;
     });
+    lines.push(...contentLines);
 
     // Scroll indicator
     if (this.renderedLines.length > height) {
