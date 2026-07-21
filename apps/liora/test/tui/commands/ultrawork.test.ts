@@ -12,9 +12,9 @@ import {
   handleUltraworkModeToggle,
   isActiveUltraworkRun,
   parseUltraworkCommand,
-  shouldAutoActivateUltrawork,
 } from '#/tui/commands/ultrawork';
 import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import { dispatchInput } from '#/tui/commands/dispatch';
 import { currentTheme } from '#/tui/theme';
 
 const ENTER = '\r';
@@ -184,61 +184,31 @@ function renderedMarker(host: SlashCommandHost): string {
   return stripAnsi(component?.render(80).join('\n') ?? '');
 }
 
-describe('shouldAutoActivateUltrawork', () => {
-  it('activates when the session classifier returns activate=true', async () => {
-    const classify = vi.fn(async () => ({
-      activate: true,
-      confidence: 0.91,
-      reason: 'Multi-stage autonomous workflow requested',
-    }));
+describe('dispatchInput without pre-agent Ultrawork routing', () => {
+  it('sends natural language straight to the agent without classification', () => {
+    const classify = vi.fn();
+    const state = {
+      appState: {
+        streamingPhase: 'idle',
+        isCompacting: false,
+        ultraworkMode: false,
+      },
+    };
     const host = {
+      state,
       session: { classifyUltraworkAutoActivation: classify },
-    } as unknown as Pick<SlashCommandHost, 'session'>;
+      skillCommandMap: new Map<string, string>(),
+      pluginCommandMap: new Map<string, string>(),
+      sendNormalUserInput: vi.fn(),
+      track: vi.fn(),
+      showError: vi.fn(),
+    } as unknown as SlashCommandHost & { sendNormalUserInput: ReturnType<typeof vi.fn> };
 
-    await expect(
-      shouldAutoActivateUltrawork(host, 'Ship this feature end-to-end with plan and verification'),
-    ).resolves.toBe(true);
-    expect(classify).toHaveBeenCalledWith(
+    dispatchInput(host, 'Ship this feature end-to-end with plan and verification');
+
+    expect(host.sendNormalUserInput).toHaveBeenCalledWith(
       'Ship this feature end-to-end with plan and verification',
     );
-  });
-
-  it('does not activate when classifier declines or session is unavailable', async () => {
-    await expect(
-      shouldAutoActivateUltrawork({ session: undefined }, 'Implement the settings panel'),
-    ).resolves.toBe(false);
-
-    const declined = vi.fn(async () => ({
-      activate: false,
-      confidence: 0.88,
-      reason: 'Simple one-shot request',
-    }));
-    await expect(
-      shouldAutoActivateUltrawork(
-        { session: { classifyUltraworkAutoActivation: declined } } as never,
-        'Fix this typo',
-      ),
-    ).resolves.toBe(false);
-
-    const failing = vi.fn(async () => {
-      throw new Error('classifier offline');
-    });
-    await expect(
-      shouldAutoActivateUltrawork(
-        { session: { classifyUltraworkAutoActivation: failing } } as never,
-        'Use ultrawork to ship the memory workflow',
-      ),
-    ).resolves.toBe(false);
-  });
-
-  it('fails closed for empty prompts', async () => {
-    const classify = vi.fn(async () => ({ activate: true, confidence: 1, reason: 'x' }));
-    await expect(
-      shouldAutoActivateUltrawork(
-        { session: { classifyUltraworkAutoActivation: classify } } as never,
-        '   ',
-      ),
-    ).resolves.toBe(false);
     expect(classify).not.toHaveBeenCalled();
   });
 });

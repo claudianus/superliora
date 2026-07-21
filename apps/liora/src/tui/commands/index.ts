@@ -31,12 +31,7 @@ export {
   showSettingsSelector,
 } from './config';
 export { handleSwarmCommand } from './swarm';
-export {
-  buildUltraworkPrompt,
-  handleUltraworkCommand,
-  parseUltraworkCommand,
-  shouldAutoActivateUltrawork,
-} from './ultrawork';
+export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 export {
   buildMemoryReadinessLines,

@@ -591,6 +591,12 @@ export class Session {
     this.ensureOpen();
     return this.rpc.cancelUltrawork({ sessionId: this.id, ...input });
   }
+  /**
+   * @deprecated The TUI no longer routes prompts through a pre-agent
+   * classifier; natural language goes straight to the main agent, which
+   * decides itself whether to use Ultrawork/UltraSwarm tooling. Kept for
+   * SDK compatibility and slated for removal.
+   */
   async classifyUltraworkAutoActivation(
     text: string,
   ): Promise<UltraworkAutoActivationDecision> {

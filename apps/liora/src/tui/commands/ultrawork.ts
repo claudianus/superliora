@@ -58,26 +58,6 @@ export {
   type UltraworkActivationSource,
 };
 
-/**
- * LLM-backed Ultrawork auto-activation gate.
- * Fail-closed when session/model/classifier is unavailable.
- */
-export async function shouldAutoActivateUltrawork(
-  host: Pick<SlashCommandHost, 'session'>,
-  prompt: string,
-): Promise<boolean> {
-  const text = prompt.trim();
-  if (text.length === 0) return false;
-  const session = host.session;
-  if (session === undefined) return false;
-  if (typeof session.classifyUltraworkAutoActivation !== 'function') return false;
-  try {
-    const decision = await session.classifyUltraworkAutoActivation(text);
-    return decision.activate === true;
-  } catch {
-    return false;
-  }
-}
 async function resolveUltraworkObjectiveProfile(
   host: Pick<SlashCommandHost, 'session'>,
   objective: string,

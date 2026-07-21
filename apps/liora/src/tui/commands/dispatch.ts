@@ -78,11 +78,7 @@ import {
   handleUltraPlanCommand,
   handleUltraSwarmCommand,
 } from './ultra-standalone';
-import {
-  handleUltraworkCommand,
-  handleUltraworkModeToggle,
-  shouldAutoActivateUltrawork,
-} from './ultrawork';
+import { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
 import { handleUndoCommand } from './undo';
 import { handleUpgradeCommand } from './upgrade';
 
@@ -226,18 +222,9 @@ export function dispatchInput(host: SlashCommandHost, text: string): void {
     void handleUltraworkCommand(host, text, 'auto');
     return;
   }
-  void maybeAutoActivateUltrawork(host, text);
-}
-
-async function maybeAutoActivateUltrawork(host: SlashCommandHost, text: string): Promise<void> {
-  try {
-    if (await shouldAutoActivateUltrawork(host, text)) {
-      await handleUltraworkCommand(host, text, 'auto');
-      return;
-    }
-  } catch {
-    // Fail closed: send as a normal prompt when classification fails.
-  }
+  // No pre-agent routing: natural language goes straight to the main agent,
+  // which decides for itself whether to use Ultrawork/UltraSwarm tools.
+  // Ultrawork runs stay available through explicit /ultrawork activation.
   host.sendNormalUserInput(text);
 }
 
