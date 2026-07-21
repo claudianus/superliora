@@ -177,14 +177,33 @@ export class GitDiffPanel implements PanelDefinition {
     const totalDel = this.files.reduce((s, f) => s + f.deletions, 0);
 
     lines.push(bold(` ${this.files.length} file(s) changed`));
-    lines.push(` ${green(`+${totalAdd}`)} ${red(`-${totalDel}`)}`);
+    // Visual diff stats bar: green/red proportional blocks
+    const total = totalAdd + totalDel;
+    const BAR_WIDTH = Math.min(30, Math.max(10, width - 20));
+    if (total > 0) {
+      const addBlocks = Math.round((totalAdd / total) * BAR_WIDTH);
+      const delBlocks = BAR_WIDTH - addBlocks;
+      const bar = green('█'.repeat(addBlocks)) + red('█'.repeat(delBlocks));
+      lines.push(` ${bar} ${green(`+${totalAdd}`)} ${red(`-${totalDel}`)}`);
+    } else {
+      lines.push(` ${green(`+${totalAdd}`)} ${red(`-${totalDel}`)}`);
+    }
     lines.push('');
 
     for (const file of this.files) {
       const statusIcon = file.status === 'added' ? green('+') : file.status === 'deleted' ? red('-') : yellow('~');
       const stats = `${green(`+${file.additions}`)} ${red(`-${file.deletions}`)}`;
+      // Per-file mini bar
+      const fileTotal = file.additions + file.deletions;
+      const FILE_BAR_WIDTH = 8;
+      let fileBar = '';
+      if (fileTotal > 0) {
+        const fileAddBlocks = Math.round((file.additions / fileTotal) * FILE_BAR_WIDTH);
+        const fileDelBlocks = FILE_BAR_WIDTH - fileAddBlocks;
+        fileBar = ` ${green('▓'.repeat(fileAddBlocks))}${red('▓'.repeat(fileDelBlocks))}`;
+      }
       const path = file.path.length > width - 12 ? `...${file.path.slice(-(width - 15))}` : file.path;
-      lines.push(` ${statusIcon} ${path} ${stats}`);
+      lines.push(` ${statusIcon} ${path}${fileBar} ${stats}`);
     }
 
     lines.push('');
