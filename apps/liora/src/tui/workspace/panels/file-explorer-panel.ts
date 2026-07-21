@@ -697,9 +697,29 @@ export class FileExplorerPanel implements PanelDefinition {
       ? currentTheme.fg('accent', icon)
       : currentTheme.fg(getFileToken(entry.name), icon);
     const gitBadge = entry.gitStatus ? ` ${gitStatusStyled(entry.gitStatus)}` : '';
+    // Enhanced file type color coding based on extension category
+    const ext = entry.name.includes('.') ? entry.name.slice(entry.name.lastIndexOf('.') + 1).toLowerCase() : '';
+    const FILE_TYPE_TOKENS: Record<string, ColorToken> = {
+      // Source code
+      ts: 'primary', tsx: 'primary', js: 'warning', jsx: 'warning',
+      py: 'success', rs: 'error', go: 'accent', rb: 'error',
+      // Styles
+      css: 'accent', scss: 'accent', less: 'accent',
+      // Data/config
+      json: 'warning', yaml: 'warning', yml: 'warning', toml: 'warning',
+      // Docs
+      md: 'textDim', mdx: 'textDim', txt: 'textDim', rst: 'textDim',
+      // Images
+      png: 'particle', jpg: 'particle', svg: 'particle', gif: 'particle',
+      // Lock/generated
+      lock: 'textMuted', log: 'textMuted',
+    };
+    const fileTypeToken = FILE_TYPE_TOKENS[ext];
     const nameStyled = entry.isDirectory
       ? currentTheme.boldFg('textStrong', entry.name)
-      : currentTheme.fg(getFileNameToken(entry.name), entry.name);
+      : fileTypeToken
+        ? currentTheme.fg(fileTypeToken, entry.name)
+        : currentTheme.fg(getFileNameToken(entry.name), entry.name);
     // Symlink indicator
     const symlinkBadge = entry.isSymlink ? currentTheme.fg('accent', ' @') : '';
     const execBadge = entry.isExecutable ? currentTheme.fg('success', ' *') : '';
