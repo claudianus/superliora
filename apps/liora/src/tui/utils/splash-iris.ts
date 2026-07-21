@@ -9,15 +9,12 @@ import { padOrTrim } from '#/tui/utils/night-sky';
 /** Default length of the splash→Welcome morph handoff. */
 export const SPLASH_MORPH_MS = 1100;
 
-/** @deprecated Use {@link SPLASH_MORPH_MS}. Kept for call-site compatibility. */
-export const SPLASH_IRIS_MS = SPLASH_MORPH_MS;
-
 export function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
 
-/** Smoothstep ease shared with the former iris path. */
-export function easeSmoothstep(t: number): number {
+/** Smoothstep ease for morph progress. */
+function easeSmoothstep(t: number): number {
   const p = clamp01(t);
   return p * p * (3 - 2 * p);
 }
@@ -39,15 +36,6 @@ export function resolveMorphProgress(
 ): number {
   if (morphMs <= 0) return 1;
   return easeSmoothstep((elapsedMs - cinematicMs) / morphMs);
-}
-
-/** @deprecated Prefer {@link resolveMorphProgress}. */
-export function resolveIrisProgress(
-  elapsedMs: number,
-  cinematicMs: number,
-  irisMs: number,
-): number {
-  return resolveMorphProgress(elapsedMs, cinematicMs, irisMs);
 }
 
 export interface BrandMorphRect {
@@ -121,50 +109,4 @@ export function applyStageMorphReveal(options: {
   return out;
 }
 
-/**
- * Former elliptical iris — retained for unit tests / callers that still need it.
- */
-export function applyIrisReveal(options: {
-  readonly backdrop: readonly string[];
-  readonly reveal: readonly string[];
-  readonly width: number;
-  readonly rows: number;
-  readonly progress: number;
-  readonly paintRing: (text: string) => string;
-}): string[] {
-  const { backdrop, reveal, width, rows, progress, paintRing } = options;
-  const p = clamp01(progress);
-  const out: string[] = Array.from({ length: rows }, (_, y) =>
-    padOrTrim(backdrop[y] ?? ' '.repeat(width), width),
-  );
-  if (p <= 0 || rows <= 0 || width <= 0) return out;
 
-  const cx = (width - 1) / 2;
-  const cy = (rows - 1) / 2;
-  const rx = Math.max(0.6, p * (width * 0.62));
-  const ry = Math.max(0.6, p * (rows * 0.72));
-
-  for (let y = 0; y < rows; y++) {
-    const ny = (y - cy) / ry;
-    if (ny * ny > 1) continue;
-    const rowHalf = rx * Math.sqrt(Math.max(0, 1 - ny * ny));
-    const edgeBand = Math.max(0.7, rx * 0.08);
-    if (rowHalf < 0.45) continue;
-
-    const revealLine = padOrTrim(reveal[y] ?? ' '.repeat(width), width);
-    if (rowHalf < edgeBand + 1.2 && p < 0.97) {
-      const spark = y % 2 === 0 ? '˚ · ✦ · ˚' : '· ⋆ · ⋆ ·';
-      const pad = Math.max(0, Math.floor(cx - Math.ceil(spark.length / 2)));
-      out[y] = padOrTrim(`${' '.repeat(pad)}${paintRing(spark)}`, width);
-      continue;
-    }
-    out[y] = revealLine;
-  }
-
-  if (p >= 0.98) {
-    for (let y = 0; y < rows; y++) {
-      out[y] = padOrTrim(reveal[y] ?? ' '.repeat(width), width);
-    }
-  }
-  return out;
-}

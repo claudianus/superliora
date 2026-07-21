@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildReplay } from '../../../src';
+import { buildReplay } from '../../../src/agent/replay/build';
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
   InMemoryAgentRecordPersistence,

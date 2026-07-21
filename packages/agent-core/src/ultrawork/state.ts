@@ -58,39 +58,6 @@ export interface UltraworkStagePrediction {
   readonly recordedAt: string;
 }
 
-export type UltraworkSwarmGateDecision = 'ENGAGE' | 'DEFER';
-export type UltraworkSwarmGateVerdict = 'PASS' | 'BLOCKED' | 'FAIL';
-
-export interface UltraworkCoverageLane {
-  readonly id: string;
-  readonly label?: string;
-  readonly kind?: 'visual' | 'domain' | 'security' | 'performance' | 'review' | 'implementation' | 'qa' | 'research' | 'other';
-  readonly material?: boolean;
-}
-
-export interface UltraworkSwarmLaneVerdict {
-  readonly laneId: string;
-  readonly verdict: UltraworkSwarmGateVerdict;
-  readonly evidenceIds?: readonly string[];
-}
-
-export interface EvaluateUltraworkSwarmGateInput {
-  readonly lanes: readonly UltraworkCoverageLane[];
-  readonly decision?: UltraworkSwarmGateDecision;
-  readonly deferWaiver?: string;
-  readonly verdicts?: readonly UltraworkSwarmLaneVerdict[];
-}
-
-export interface UltraworkSwarmGateResult {
-  readonly decision: UltraworkSwarmGateDecision;
-  readonly requiredForCompletion: boolean;
-  readonly requiredLaneIds: readonly string[];
-  readonly canEnterVerify: boolean;
-  readonly missingLaneIds: readonly string[];
-  readonly failedLaneIds: readonly string[];
-  readonly waiverRequired: boolean;
-}
-
 export class UltraworkRunStateMachine {
   private run: UltraworkRun;
 
@@ -228,88 +195,6 @@ function stageIndex(stage: UltraworkStage): number {
   const index = STAGE_INDEX.get(stage);
   if (index === undefined) throw new Error(`Unknown Ultrawork stage: ${stage}`);
   return index;
-}
-
-export function evaluateUltraworkSwarmGate(
-  input: EvaluateUltraworkSwarmGateInput,
-): UltraworkSwarmGateResult {
-  const requiredLaneIds = requiredSwarmLaneIds(input.lanes);
-  const defaultDecision: UltraworkSwarmGateDecision =
-    requiredLaneIds.length > 0 ? 'ENGAGE' : 'DEFER';
-  const decision = input.decision ?? defaultDecision;
-  const waiverRequired =
-    decision === 'DEFER' &&
-    requiredLaneIds.length > 0 &&
-    normalizeWaiver(input.deferWaiver) === undefined;
-
-  if (decision === 'DEFER') {
-    return {
-      decision,
-      requiredForCompletion: false,
-      requiredLaneIds,
-      canEnterVerify: !waiverRequired,
-      missingLaneIds: [],
-      failedLaneIds: [],
-      waiverRequired,
-    };
-  }
-
-  const verdictByLane = new Map<string, UltraworkSwarmGateVerdict>();
-  for (const verdict of input.verdicts ?? []) {
-    verdictByLane.set(verdict.laneId, verdict.verdict);
-  }
-  const missingLaneIds: string[] = [];
-  const failedLaneIds: string[] = [];
-  for (const laneId of requiredLaneIds) {
-    const verdict = verdictByLane.get(laneId);
-    if (verdict === undefined) {
-      missingLaneIds.push(laneId);
-    } else if (verdict === 'FAIL') {
-      failedLaneIds.push(laneId);
-    }
-  }
-
-  return {
-    decision,
-    requiredForCompletion: requiredLaneIds.length > 0,
-    requiredLaneIds,
-    canEnterVerify: missingLaneIds.length === 0 && failedLaneIds.length === 0,
-    missingLaneIds,
-    failedLaneIds,
-    waiverRequired: false,
-  };
-}
-
-function requiredSwarmLaneIds(lanes: readonly UltraworkCoverageLane[]): string[] {
-  const materialLanes = lanes.filter(isMaterialLane);
-  const forcedKinds = new Set(['visual', 'domain', 'security', 'performance', 'review']);
-  const forcedLanes = lanes.filter((lane) => lane.kind !== undefined && forcedKinds.has(lane.kind));
-  if (materialLanes.length >= 2) return uniqueLaneIds([...materialLanes, ...forcedLanes]);
-  if (forcedLanes.length > 0) return uniqueLaneIds(forcedLanes);
-  return [];
-}
-
-function isMaterialLane(lane: UltraworkCoverageLane): boolean {
-  if (lane.material !== undefined) return lane.material;
-  return lane.kind !== undefined && lane.kind !== 'other';
-}
-
-function uniqueLaneIds(lanes: readonly UltraworkCoverageLane[]): string[] {
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  for (const lane of lanes) {
-    const id = lane.id.trim();
-    if (id.length === 0 || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-}
-
-function normalizeWaiver(waiver: string | undefined): string | undefined {
-  if (waiver === undefined) return undefined;
-  const trimmed = waiver.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 /**

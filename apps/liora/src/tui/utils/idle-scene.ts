@@ -124,9 +124,6 @@ export const PLANT_GRASS = [
   ['(~)~ ', '~(~) ', '(~)~ ', '~(~) '],
 ] as const;
 
-/** @deprecated Prefer PLANT_BUSH / PLANT_TALL; kept for spacing tests. */
-export const PLANT_FRAMES = PLANT_BUSH;
-
 const ANSI_RESET = '\u001B[0m';
 
 /** Centerpiece rock — warm hardscape mass, not coral theatre. */
@@ -136,9 +133,6 @@ export const ROCK_FORMS = [
   ['   /\\/\\    ', '  /____\\   '],
 ] as const;
 
-/** @deprecated alias — rocks replaced coral theatre. */
-export const CORAL_FORMS = ROCK_FORMS;
-
 export const BUBBLE_GLYPHS = ['·', 'o', '°', '○'] as const;
 
 export const FISH_SWIM_MS = 4_200;
@@ -146,11 +140,6 @@ export const FISH_TAIL_MS = 360;
 export const BUBBLE_STEP_MS = 170;
 export const PLANT_SWAY_MS = 2_400;
 export const CAUSTIC_DRIFT_MS = 55;
-
-/** @deprecated transitional aliases */
-export const FOX_BREATH_MS = FISH_SWIM_MS;
-export const FOX_TAIL_MS = FISH_TAIL_MS;
-export const RAIN_STEP_MS = BUBBLE_STEP_MS;
 
 export function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -542,15 +531,6 @@ export function resolveFishGlyphRows(
   return applyFishTail(base, elapsedMs, facingRight);
 }
 
-/** @deprecated */
-export function resolveFoxGlyphRows(
-  width: number,
-  availableRows: number,
-  elapsedMs = 0,
-): readonly string[] {
-  return resolveFishGlyphRows(width, availableRows, elapsedMs);
-}
-
 /** Soft cheek / fin pulse — ≥4 frames, never a hard blink. Multi-row aware. */
 export function applyFishTail(
   rows: readonly string[],
@@ -701,21 +681,11 @@ export function colorizeFishLine(
   return out;
 }
 
-/** @deprecated */
-export function applyFoxTail(rows: readonly string[], elapsedMs: number): string[] {
-  return applyFishTail(rows, elapsedMs, true);
-}
-
 /** Compact aerator head — soft bubble + gravel stone, no box-drawing theatre. */
 export function resolveAirStoneGlyph(elapsedMs: number, seed: number): readonly string[] {
   const frame = Math.floor((elapsedMs + seed * 40) / 220) % BUBBLE_GLYPHS.length;
   const top = BUBBLE_GLYPHS[frame] ?? 'o';
   return [` ${top} `, ' · ', '._.'];
-}
-
-/** @deprecated transitional alias */
-export function resolveLanternGlyph(elapsedMs: number, seed: number): readonly string[] {
-  return resolveAirStoneGlyph(elapsedMs, seed);
 }
 
 export function paintBubbles(
@@ -745,17 +715,6 @@ export function paintBubbles(
   }
 }
 
-/** @deprecated */
-export function paintRain(
-  canvas: string[],
-  width: number,
-  rows: number,
-  elapsedMs: number,
-  paintGlyph: (glyph: string, intensity?: number) => string,
-): void {
-  paintBubbles(canvas, width, rows, elapsedMs, (g, intensity) => paintGlyph(g, intensity));
-}
-
 /** Soft caustic light band drifting across mid-water. */
 export function paintCausticPath(
   canvas: string[],
@@ -777,18 +736,6 @@ export function paintCausticPath(
       putCell(canvas, y, x, width, paintCh(ch), true);
     }
   }
-}
-
-/** @deprecated transitional alias */
-export function paintMoonlightPath(
-  canvas: string[],
-  top: number,
-  bandRows: number,
-  width: number,
-  elapsedMs: number,
-  paintCh: (ch: string) => string,
-): void {
-  paintCausticPath(canvas, top, bandRows, width, elapsedMs, paintCh);
 }
 
 /** Quantize surface/bed motion so ambient ticks don't rewrite every water/sand cell. */
@@ -1028,28 +975,6 @@ export function paintWaterShimmer(
       (hash2(i * 13 + 7, 53) + Math.floor(elapsedMs / 1_400)) %
       Math.max(1, Math.floor(rows * 0.45));
     putCell(canvas, y, x, width, paintGlyph('·', 0.45));
-  }
-}
-
-/** @deprecated Prefer jewel {@link paintSurfaceLight}; intensity-based shafts. */
-export function paintSurfaceShafts(
-  canvas: string[],
-  width: number,
-  rows: number,
-  elapsedMs: number,
-  paintGlyph: (glyph: string, intensity: number) => string,
-): void {
-  if (width < 32 || rows < 5) return;
-  const shafts = Math.max(2, Math.min(4, Math.floor(width / 28)));
-  for (let i = 0; i < shafts; i++) {
-    const seed = hash2(i * 41 + 9, 113);
-    const x = 4 + (seed % Math.max(1, width - 8));
-    const len = 2 + (seed % 3);
-    const phase = Math.sin(elapsedMs / 1_100 + seed) > 0;
-    if (!phase && seed % 3 === 0) continue;
-    for (let d = 0; d < len; d++) {
-      putCell(canvas, 1 + d, x, width, paintGlyph(d === 0 ? '˚' : '·', 0.55 - d * 0.12));
-    }
   }
 }
 

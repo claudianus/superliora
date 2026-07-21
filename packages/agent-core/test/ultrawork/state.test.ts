@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { UltraworkRunStateMachine, evaluateUltraworkSwarmGate } from '../../src/ultrawork';
+import { UltraworkRunStateMachine } from '../../src/ultrawork';
 
 describe('UltraworkRunStateMachine', () => {
   it('creates a run and advances through the fixed Ultrawork spine', () => {
@@ -150,56 +150,5 @@ describe('UltraworkRunStateMachine', () => {
     machine.markBlocked('interrupted');
     const resumed = machine.resumeFromBlocked('2026-07-01T00:00:05.000Z');
     expect(resumed.status).toBe('running');
-  });
-});
-
-describe('evaluateUltraworkSwarmGate', () => {
-  it('engages by default when multiple material lanes need coverage', () => {
-    const gate = evaluateUltraworkSwarmGate({
-      lanes: [
-        { id: 'implementation', kind: 'implementation' },
-        { id: 'visual_qa', kind: 'visual' },
-      ],
-    });
-
-    expect(gate.decision).toBe('ENGAGE');
-    expect(gate.requiredForCompletion).toBe(true);
-    expect(gate.canEnterVerify).toBe(false);
-    expect(gate.missingLaneIds).toEqual(['implementation', 'visual_qa']);
-  });
-
-  it('allows verify when engaged lanes have PASS or BLOCKED verdicts', () => {
-    const gate = evaluateUltraworkSwarmGate({
-      lanes: [
-        { id: 'security_review', kind: 'security' },
-        { id: 'performance_review', kind: 'performance' },
-      ],
-      verdicts: [
-        { laneId: 'security_review', verdict: 'PASS', evidenceIds: ['ev_1'] },
-        { laneId: 'performance_review', verdict: 'BLOCKED', evidenceIds: ['ev_2'] },
-      ],
-    });
-
-    expect(gate.requiredLaneIds).toEqual(['security_review', 'performance_review']);
-    expect(gate.canEnterVerify).toBe(true);
-    expect(gate.missingLaneIds).toEqual([]);
-    expect(gate.failedLaneIds).toEqual([]);
-  });
-
-  it('requires an explicit waiver to defer required swarm coverage', () => {
-    const blocked = evaluateUltraworkSwarmGate({
-      lanes: [{ id: 'independent_review', kind: 'review' }],
-      decision: 'DEFER',
-    });
-    expect(blocked.canEnterVerify).toBe(false);
-    expect(blocked.waiverRequired).toBe(true);
-
-    const waived = evaluateUltraworkSwarmGate({
-      lanes: [{ id: 'independent_review', kind: 'review' }],
-      decision: 'DEFER',
-      deferWaiver: 'single-file documentation-only change',
-    });
-    expect(waived.canEnterVerify).toBe(true);
-    expect(waived.waiverRequired).toBe(false);
   });
 });

@@ -66,7 +66,7 @@ describe('RendererEditorAutocompleteController', () => {
     expect(rows[0]).toContain('Show help');
     expect(rows[1]).toContain('history');
     expect(rows[1]).not.toContain('Show history');
-    expect(controller.lines(24)[2]).toBe('  (1/3)');
+    expect(rows[2]).toBe('  (1/3)');
   });
 
   it('moves selection and returns a completion without mutating the source', async () => {

@@ -1,18 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  applyIrisReveal,
   applyStageMorphReveal,
   resolveBrandMorphRect,
   resolveMorphProgress,
-  SPLASH_IRIS_MS,
   SPLASH_MORPH_MS,
 } from '#/tui/utils/splash-iris';
 
 describe('splash morph handoff', () => {
   it('keeps default morph length near one second', () => {
     expect(SPLASH_MORPH_MS).toBe(1100);
-    expect(SPLASH_IRIS_MS).toBe(SPLASH_MORPH_MS);
   });
 
   it('eases morph progress across the window', () => {
@@ -62,19 +59,4 @@ describe('splash morph handoff', () => {
     expect(open.every((line) => line.replaceAll(/\s/g, '').includes('S'))).toBe(true);
   });
 
-  it('keeps legacy iris ellipse helper working', () => {
-    const width = 40;
-    const rows = 20;
-    const backdrop = Array.from({ length: rows }, () => 'B'.repeat(width));
-    const reveal = Array.from({ length: rows }, () => 'R'.repeat(width));
-    const open = applyIrisReveal({
-      backdrop,
-      reveal,
-      width,
-      rows,
-      progress: 1,
-      paintRing: (t) => t,
-    });
-    expect(open.every((line) => line.replaceAll(/\s/g, '').includes('R'))).toBe(true);
-  });
 });

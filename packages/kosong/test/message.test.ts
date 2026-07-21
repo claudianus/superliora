@@ -15,7 +15,6 @@ import {
   createToolMessage,
   createUserMessage,
   extractText,
-  getTextContent,
   isContentPart,
   isToolCall,
   isToolCallPart,
@@ -134,13 +133,6 @@ describe('extractText', () => {
   it('returns empty string for message with empty content', () => {
     const msg: Message = { role: 'assistant', content: [], toolCalls: [] };
     expect(extractText(msg)).toBe('');
-  });
-});
-
-describe('getTextContent (deprecated alias)', () => {
-  it('works the same as extractText', () => {
-    const msg = createUserMessage('test');
-    expect(getTextContent(msg)).toBe(extractText(msg));
   });
 });
 describe('ContentPart type narrowing', () => {

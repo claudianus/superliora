@@ -184,13 +184,6 @@ export function extractText(message: Message, sep: string = ''): string {
     .join(sep);
 }
 
-/**
- * @deprecated Use `extractText` instead.
- */
-export function getTextContent(message: Message): string {
-  return extractText(message);
-}
-
 /** Create a simple user message with a single text part. */
 export function createUserMessage(content: string): Message {
   return {

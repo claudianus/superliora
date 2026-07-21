@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Logger } from '#/logging/types';
 import type { ProviderConfig as KosongProviderConfig, ModelCapability, ProviderRequestAuth } from '@superliora/kosong';
-import { APIStatusError, getModelCapability, UNKNOWN_CAPABILITY } from '@superliora/kosong';
+import { APIStatusError, getModelCapability } from '@superliora/kosong';
 import {
   isXaiGrokBuildBaseUrl,
   xaiGrokBuildRequestHeaders,
@@ -84,32 +84,6 @@ export interface ModelProvider {
   resolveProviderConfig(model: string): ResolvedRuntimeProvider;
   resolveProviderRoute?(model: string): ResolvedRuntimeProviderRoute | undefined;
   resolveAuth?(model: string, options?: ResolveAuthOptions): AuthorizedRequest | undefined;
-}
-
-export class SingleModelProvider implements ModelProvider {
-  constructor(
-    private readonly providerConfig: KosongProviderConfig,
-    private readonly modelCapabilities: ModelCapability = UNKNOWN_CAPABILITY,
-  ) {}
-
-  get defaultModel(): string {
-    return this.providerConfig.model;
-  }
-
-  resolveProviderConfig(model: string): ResolvedRuntimeProvider {
-    if (model !== this.providerConfig.model) {
-      throw new LioraError(
-        ErrorCodes.CONFIG_INVALID,
-        `Model "${model}" is not supported by SingleModelProvider.`,
-      );
-    }
-    return {
-      modelAlias: model,
-      modelCapabilities: this.modelCapabilities,
-      providerName: 'single-model-provider',
-      provider: this.providerConfig,
-    };
-  }
 }
 
 export class ProviderManager implements ModelProvider {

@@ -13,8 +13,8 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 
 export const NextPhaseInputSchema = z.object({
-  phase: z.enum(['interview', 'design', 'review', 'write', 'exit']).describe(
-    'The target phase to advance to. Must be the next logical phase in the workflow.',
+  phase: z.enum(['research', 'interview', 'design', 'review', 'write', 'exit']).describe(
+    'The target phase to navigate to.',
   ),
   advance_with_defaults: z
     .boolean()
@@ -65,20 +65,17 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
     const currentPhase = this.agent.planMode.phase;
     const targetPhase = args.phase;
 
-    // Validate phase transition
-    const validTransitions: Record<string, string[]> = {
-      research: ['interview'],
-      interview: ['design'],
-      design: ['review'],
-      review: ['write'],
-      write: ['exit'],
-      exit: [],
-    };
-
-    if (!validTransitions[currentPhase]?.includes(targetPhase)) {
+    const allPhases = ['research', 'interview', 'design', 'review', 'write', 'exit'];
+    if (!allPhases.includes(targetPhase)) {
       return {
         isError: true,
-        output: `Invalid phase transition: cannot go from ${currentPhase} to ${targetPhase}. Valid transitions from ${currentPhase}: ${validTransitions[currentPhase]?.join(', ') ?? 'none'}.`,
+        output: `Unknown target phase: ${targetPhase}. Valid phases: ${allPhases.join(', ')}.`,
+      };
+    }
+    if (currentPhase === targetPhase) {
+      return {
+        isError: true,
+        output: `Already in ${currentPhase} phase.`,
       };
     }
 

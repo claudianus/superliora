@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   SyncDescriptor,
-  Emitter,
   getSingletonServiceDescriptors,
   type ApprovalRequest,
   type ApprovalResponse,
@@ -14,6 +13,7 @@ import {
   type QuestionRequest,
   type QuestionResult,
 } from '../../src';
+import { Emitter } from '../../src/base/common/event';
 import { TestInstantiationService } from '../../src/di/test';
 
 import {

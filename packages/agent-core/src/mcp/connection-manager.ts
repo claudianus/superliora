@@ -102,14 +102,6 @@ export class McpConnectionManager {
     return entry.config.url;
   }
 
-  /**
-   * @deprecated Use {@link getRemoteServerUrl}. Kept for in-repo callers that
-   * were written before legacy SSE support shared the same OAuth path.
-   */
-  getHttpServerUrl(name: string): string | undefined {
-    return this.getRemoteServerUrl(name);
-  }
-
   onStatusChange(listener: McpStatusListener): () => void {
     this.listeners.add(listener);
     return () => {

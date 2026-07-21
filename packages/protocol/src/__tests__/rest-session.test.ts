@@ -7,7 +7,6 @@ import {
   createSessionChildResponseSchema,
   createSessionRequestSchema,
   archiveSessionResponseSchema,
-  deleteSessionResponseSchema,
   forkSessionRequestSchema,
   forkSessionResponseSchema,
   getSessionProfileResponseSchema,
@@ -553,15 +552,5 @@ describe('archiveSessionResponseSchema', () => {
 
   it('rejects { archived: false }', () => {
     expect(archiveSessionResponseSchema.safeParse({ archived: false }).success).toBe(false);
-  });
-});
-
-describe('deleteSessionResponseSchema (deprecated alias)', () => {
-  it('accepts the canonical { archived: true } shape', () => {
-    expect(deleteSessionResponseSchema.parse({ archived: true })).toEqual({ archived: true });
-  });
-
-  it('rejects { archived: false }', () => {
-    expect(deleteSessionResponseSchema.safeParse({ archived: false }).success).toBe(false);
   });
 });

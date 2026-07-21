@@ -326,10 +326,6 @@ export class RendererEditorAutocompleteController {
     return lines;
   }
 
-  /** @deprecated Use {@link overlayLines} for styled cell output. */
-  lines(width: number): readonly string[] {
-    return this.overlayLines(width).map(regionLineToPlainText);
-  }
 }
 
 function normalizeAutocompleteMaxVisible(value: number | undefined): number {
@@ -407,9 +403,4 @@ function renderAutocompleteScrollLine(
       { width },
     ),
   );
-}
-
-function regionLineToPlainText(line: RendererRegionLine): string {
-  if (typeof line === 'string') return line;
-  return line.map((cell) => cell.char).join('');
 }

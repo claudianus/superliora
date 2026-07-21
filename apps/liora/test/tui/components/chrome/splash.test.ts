@@ -10,13 +10,13 @@ import {
   DEFAULT_SPLASH_DURATION_MS,
   resolveBannerRevealCount,
   resolveFadeAlpha,
-  resolveMoonRiseProgress,
+  resolveMarkRiseProgress,
   resolveSplashPhase,
   shouldPlaySplash,
   SplashComponent,
   SPLASH_DURATION_MAX_MS,
   SPLASH_DURATION_MIN_MS,
-  SPLASH_IRIS_MS,
+  SPLASH_MORPH_MS,
 } from '#/tui/components/chrome/splash';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import type { AppState } from '#/tui/types';
@@ -127,7 +127,7 @@ describe('splash phase / reveal', () => {
   it('enters morph after the cinematic when morphMs is set', () => {
     expect(resolveSplashPhase(1000, duration)).toBe('morph');
     expect(resolveSplashPhase(1000 + 500, duration)).toBe('morph');
-    expect(resolveSplashPhase(1000 + SPLASH_IRIS_MS, duration)).toBe('done');
+    expect(resolveSplashPhase(1000 + SPLASH_MORPH_MS, duration)).toBe('done');
   });
 
   it('reveals banner lines only during brand+ phases', () => {
@@ -141,10 +141,10 @@ describe('splash phase / reveal', () => {
   });
 
   it('progresses mark rise and fade alpha', () => {
-    expect(resolveMoonRiseProgress(0, duration)).toBe(0);
-    expect(resolveMoonRiseProgress(290, duration)).toBeGreaterThan(0);
-    expect(resolveMoonRiseProgress(290, duration)).toBeLessThan(1);
-    expect(resolveMoonRiseProgress(480, duration)).toBe(1);
+    expect(resolveMarkRiseProgress(0, duration)).toBe(0);
+    expect(resolveMarkRiseProgress(290, duration)).toBeGreaterThan(0);
+    expect(resolveMarkRiseProgress(290, duration)).toBeLessThan(1);
+    expect(resolveMarkRiseProgress(480, duration)).toBe(1);
     expect(resolveFadeAlpha(100, duration, 0)).toBe(1);
     expect(resolveFadeAlpha(950, duration, 0)).toBeLessThan(1);
     expect(resolveFadeAlpha(1000, duration, 0)).toBe(0);
@@ -246,7 +246,7 @@ describe('SplashComponent full-screen cinematic', () => {
       appearance: DEFAULT_APPEARANCE_PREFERENCES,
       requestRender,
       forcePlay: false,
-        irisMs: 0,
+        morphMs: 0,
       durationMs: 1600,
       getRows: () => 24,
     });
@@ -263,7 +263,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         getRows: () => 24,
       });
       expect(darkSplash.activePalettePrimary).toBe(darkColors.primary);
@@ -274,7 +274,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         getRows: () => 24,
       });
       expect(lightSplash.activePalettePrimary).toBe(lightColors.primary);
@@ -287,7 +287,7 @@ describe('SplashComponent full-screen cinematic', () => {
       requestRender: () => {},
       durationMs: 100,
       forcePlay: false,
-        irisMs: 0,
+        morphMs: 0,
       getRows: () => 20,
     });
     expect(short.clampedDurationMs).toBe(SPLASH_DURATION_MIN_MS);
@@ -296,7 +296,7 @@ describe('SplashComponent full-screen cinematic', () => {
       requestRender: () => {},
       durationMs: 9999,
       forcePlay: false,
-        irisMs: 0,
+        morphMs: 0,
       getRows: () => 20,
     });
     expect(long.clampedDurationMs).toBe(SPLASH_DURATION_MAX_MS);
@@ -309,7 +309,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         durationMs: 1600,
         now: () => 1_000_000,
         getRows: () => rows,
@@ -328,7 +328,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender,
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         durationMs: 1200,
         now: () => now,
         getRows: () => 24,
@@ -363,7 +363,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         durationMs: 1000,
         now: () => now,
         getRows: () => 24,
@@ -426,7 +426,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         durationMs: 1000,
         now: () => clock,
         getRows: () => 30,
@@ -463,7 +463,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         durationMs: 1000,
         now: () => now,
         getRows: () => 24,
@@ -490,7 +490,7 @@ describe('SplashComponent full-screen cinematic', () => {
         appearance: DEFAULT_APPEARANCE_PREFERENCES,
         requestRender: () => {},
         forcePlay: true,
-        irisMs: 0,
+        morphMs: 0,
         durationMs: 2000,
         now: () => Date.now(),
         getRows: () => 20,
@@ -518,7 +518,7 @@ describe('Welcome once after splash', () => {
     const splash = new SplashComponent({
       requestRender: () => {},
       forcePlay: false,
-        irisMs: 0,
+        morphMs: 0,
       getRows: () => 20,
     });
     order.push('splash-start');

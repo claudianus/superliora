@@ -119,6 +119,19 @@ function buildGoalReminder(goal: GoalSnapshot): string {
 
   lines.push(
     '',
+    '## Autonomous execution pattern',
+    '',
+    'When pursuing this goal:',
+    '1. If the objective references a spec file, design doc, or multi-part requirement: read it, decompose into concrete work items via TodoList, then iterate through them autonomously.',
+    '2. Prioritize by dependency order and impact. Complete each item fully before moving to the next.',
+    '3. After each significant milestone, verify with tests/build. Do not accumulate unverified changes.',
+    '4. If blocked on a decision that materially changes direction, pause and report. Otherwise, make the reasonable choice and continue.',
+    '5. On failure (test, build, tool error): diagnose root cause, fix, retry. Do not abandon the approach unless the failure proves it fundamentally wrong. Try at least two alternative fixes before escalating.',
+    '6. Human intervention points: spec approval (already done — the objective IS the spec) and final verification. Everything between is autonomous.',
+  );
+
+  lines.push(
+    '',
     'If objective/latest request states an explicit hard budget not recorded, call SetGoalBudget first. Do not invent budgets. If a requested budget is not reasonable, do not set it; tell the user.',
     '',
     'Goal mode is iterative. Keep the self-audit brief. If simple, already answered, impossible, unsafe, or contradictory: explain if useful, then UpdateGoal `complete` or `blocked` in the same turn. Otherwise do one coherent slice. UpdateGoal `complete` only when all required work is done, validation passed, and no useful next action remains — not after only a plan/summary/first pass/partial result. If blocked, UpdateGoal `blocked`. Call UpdateGoal as soon as done or stuck.',

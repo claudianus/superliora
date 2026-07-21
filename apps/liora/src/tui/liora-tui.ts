@@ -2450,12 +2450,14 @@ export class LioraTUI {
       if (hasDispose(child)) child.dispose();
     }
     this.state.transcriptContainer.clear();
+    this.state.transcriptContainer.invalidate();
     this.btwPanelController.clear();
     this.clearTerminalInlineImages();
     this.state.todoPanel.clear();
     this.state.todoPanelContainer.clear();
     this.imageStore.clear();
     this.renderWelcome();
+    requestTUILayoutRender(this.state);
   }
 
   private isTurnBoundaryComponent(child: Component): boolean {

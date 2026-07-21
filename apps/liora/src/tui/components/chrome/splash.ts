@@ -36,12 +36,11 @@ import {
   applyStageMorphReveal,
   resolveBrandMorphRect,
   resolveMorphProgress,
-  SPLASH_IRIS_MS,
   SPLASH_MORPH_MS,
 } from '#/tui/utils/splash-iris';
 import { renderWelcomeBanner } from './welcome-banner';
 
-export { SPLASH_IRIS_MS, SPLASH_MORPH_MS };
+export { SPLASH_MORPH_MS };
 
 /** Inclusive lower bound for splash duration. */
 export const SPLASH_DURATION_MIN_MS = 1000;
@@ -69,11 +68,9 @@ export interface SplashComponentOptions {
   readonly durationMs?: number;
   /**
    * Morph handoff length after the cinematic (0 disables).
-   * Default {@link SPLASH_MORPH_MS}. `irisMs` is accepted as a deprecated alias.
+   * Default {@link SPLASH_MORPH_MS}.
    */
   readonly morphMs?: number;
-  /** @deprecated Prefer {@link SplashComponentOptions.morphMs}. */
-  readonly irisMs?: number;
   /**
    * Live morph scene each handoff tick (centered Welcome + Tank + letterbox).
    * Prefer returning a fresh frame — do not freeze across the morph window.
@@ -82,11 +79,6 @@ export interface SplashComponentOptions {
     readonly lines: readonly string[];
     readonly brandTarget: { readonly x: number; readonly y: number; readonly width: number };
   };
-  /**
-   * @deprecated Prefer {@link SplashComponentOptions.getMorphScene}.
-   * Flat reveal lines (brand morph falls back to stage-center).
-   */
-  readonly getRevealFrame?: (width: number, rows: number) => readonly string[];
   /**
    * Force play/skip. When omitted, uses shouldPlaySplash(appearance).
    * Tests use this for skip-matrix isolation.
@@ -175,9 +167,6 @@ export function resolveMarkRiseProgress(elapsedMs: number, durationMs: number): 
   return Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, end - start)));
 }
 
-/** @deprecated Prefer resolveMarkRiseProgress */
-export const resolveMoonRiseProgress = resolveMarkRiseProgress;
-
 /** Fade-out alpha in the final phase (1 → 0). */
 export function resolveFadeAlpha(
   elapsedMs: number,
@@ -208,9 +197,6 @@ export class SplashComponent implements Component {
         readonly brandTarget: { readonly x: number; readonly y: number; readonly width: number };
       })
     | undefined;
-  private readonly getRevealFrame:
-    | ((width: number, rows: number) => readonly string[])
-    | undefined;
   private readonly forcePlay: boolean | undefined;
   private readonly nowFn: () => number;
   private readonly onSplashActiveChange: ((active: boolean) => void) | undefined;
@@ -236,10 +222,9 @@ export class SplashComponent implements Component {
     );
     this.morphMs = Math.max(
       0,
-      Math.round(options.morphMs ?? options.irisMs ?? SPLASH_MORPH_MS),
+      Math.round(options.morphMs ?? SPLASH_MORPH_MS),
     );
     this.getMorphScene = options.getMorphScene;
-    this.getRevealFrame = options.getRevealFrame;
     this.forcePlay = options.forcePlay;
     // Wall clock only. appearanceAnimationNow() is driven by the native frame
     // loop (performance.now) and freezes/regresses splash elapsed when mixed in.
@@ -532,7 +517,6 @@ export class SplashComponent implements Component {
     const fromHost = this.cachedMorphScene;
     const sceneLines =
       fromHost?.lines ??
-      this.getRevealFrame?.(width, rows) ??
       Array.from({ length: rows }, () => ' '.repeat(width));
     const scene = [...sceneLines].map((line) => padOrTrim(line, width));
     while (scene.length < rows) scene.push(' '.repeat(width));

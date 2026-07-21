@@ -174,11 +174,6 @@ export const archiveSessionResponseSchema = z.object({
 });
 export type ArchiveSessionResponse = z.infer<typeof archiveSessionResponseSchema>;
 
-/** @deprecated kept as an alias for backward compatibility; prefer archiveSessionResponseSchema. */
-export const deleteSessionResponseSchema = archiveSessionResponseSchema;
-/** @deprecated kept as an alias for backward compatibility; prefer ArchiveSessionResponse. */
-export type DeleteSessionResponse = ArchiveSessionResponse;
-
 export const sessionAbortResponseSchema = z.object({
   aborted: z.boolean(),
 });

@@ -18,7 +18,6 @@ import {
   resolveRendererEditorArgumentHint,
   resolveRendererEditorSurfaceStyles,
   stripRendererEditorSgr,
-  wrapRendererEditorSideBorders,
   type RendererCell,
   type RendererRegionLine,
 } from '../src';
@@ -106,18 +105,6 @@ describe('renderer editor chrome helpers', () => {
     expect(typeof first === 'object' ? first.style : undefined).toEqual({ fg: '#aaaaaa', bold: true });
     expect(typeof seventh === 'object' ? seventh.style : undefined).toEqual({ fg: '#aaaaaa', bold: true });
     expect(typeof sixth === 'object' ? sixth.style : undefined).toBeUndefined();
-  });
-
-  it('wraps legacy editor rows with painted side borders and labels', () => {
-    const top = '─'.repeat(24);
-    const rows = wrapRendererEditorSideBorders([top, '   x                  ', top], paint, {
-      connectedAbove: true,
-      label: ' ! shell mode ',
-    });
-
-    expect(stripRendererEditorSgr(rows[0]!)).toBe(`├ ! shell mode ${'─'.repeat(8)}┤`);
-    expect(stripRendererEditorSgr(rows[1]!)).toBe('│  x                 │');
-    expect(stripRendererEditorSgr(rows[2]!)).toBe('╰──────────────────────╯');
   });
 
   it('renders native editor frame cells with prompt, borders, scrollbar, and cursor', () => {

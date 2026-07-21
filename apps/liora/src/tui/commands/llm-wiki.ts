@@ -8,8 +8,6 @@ import {
 
 import type { UltraworkActivationSource } from './ultrawork-contract';
 
-/** @deprecated Use {@link CANONICAL_LLM_WIKI_ROOT} or {@link resolveLlmWikiRoot}. */
-export const LLM_WIKI_ROOT = CANONICAL_LLM_WIKI_ROOT;
 export const LLM_WIKI_INDEX_PATH = `${CANONICAL_LLM_WIKI_ROOT}/index.md`;
 export const LLM_WIKI_MANIFEST_PATH = `${CANONICAL_LLM_WIKI_ROOT}/manifest.json`;
 

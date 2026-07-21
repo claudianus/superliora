@@ -5,7 +5,6 @@ import {
   type CoreRPC,
   type ContextMessage,
   type CreateSessionPayload,
-  Emitter,
   type ForkSessionPayload,
   IInstantiationService,
   type RenameSessionPayload,
@@ -14,6 +13,7 @@ import {
   type SessionSummary,
   type UpdateSessionMetadataPayload,
 } from '../../src';
+import { Emitter } from '../../src/base/common/event';
 import { TestInstantiationService } from '../../src/di/test';
 import { emptySessionUsage, type Event, type Session } from '@superliora/protocol';
 

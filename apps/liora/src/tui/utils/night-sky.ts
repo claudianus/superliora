@@ -30,11 +30,6 @@ export const LIORA_MARK_COMPACT = [
   ' ██████████ ',
 ] as const;
 
-/** @deprecated Prefer LIORA_MARK_LARGE */
-export const MOON_LARGE = LIORA_MARK_LARGE;
-/** @deprecated Prefer LIORA_MARK_COMPACT */
-export const MOON_COMPACT = LIORA_MARK_COMPACT;
-
 export const STAR_GLYPHS = ['.', '·', '˚', '✦', '✧', '⋆', '+', '*'] as const;
 
 /** Pick the largest Liora mark that fits the stage budget. */
@@ -46,9 +41,6 @@ export function resolveMarkGlyphRows(width: number, availableRows: number): read
   // Last resort: top slice of compact mark (still ≥1 row when rows > 0).
   return LIORA_MARK_COMPACT.slice(0, Math.max(1, Math.min(LIORA_MARK_COMPACT.length, rows)));
 }
-
-/** @deprecated Prefer resolveMarkGlyphRows */
-export const resolveMoonGlyphRows = resolveMarkGlyphRows;
 
 /**
  * Scatter twinkling stars onto a plain-space canvas.

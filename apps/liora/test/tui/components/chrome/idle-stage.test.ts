@@ -36,7 +36,7 @@ import {
   paintWaterDepth,
   JEWEL_TANK_DARK,
   resolveAquariumPalette,
-  resolveLanternGlyph,
+  resolveAirStoneGlyph,
   resolveSeaweedSpacing,
   resetIdleScenePaintCachesForTests,
   stripAnsi,
@@ -163,7 +163,7 @@ describe('idle-stage helpers', () => {
 
   it('flickers air-stone helper glyphs over time (helper-only; not painted in story scene)', () => {
     const samples = [0, 80, 160, 240, 400, 800, 1_200].map((t) =>
-      resolveLanternGlyph(t, 1).join('|'),
+      resolveAirStoneGlyph(t, 1).join('|'),
     );
     expect(new Set(samples).size).toBeGreaterThanOrEqual(2);
     for (const s of samples) {

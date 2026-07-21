@@ -159,8 +159,3 @@ async function applyPlanCheckpointQuiet(
     ultraPlan,
   });
 }
-
-/** @deprecated Use {@link reconcileUltraworkFromMirror} */
-export async function reconcileUltraworkPlanAfterResume(agent: Agent): Promise<void> {
-  await reconcileUltraworkFromMirror(agent);
-}

@@ -7,11 +7,11 @@ export const NO_AI_SLOP_SKILL_NAMES = {
   metaPrompt: 'no-ai-slop-meta-prompt',
 } as const;
 
-export type NoAiSlopSkillName =
+type NoAiSlopSkillName =
   (typeof NO_AI_SLOP_SKILL_NAMES)[keyof typeof NO_AI_SLOP_SKILL_NAMES];
 
 /** When anti-slop work should not run — avoid bottlenecking code-first or low-stakes turns. */
-export const NO_AI_SLOP_SKIP_WHEN = [
+const NO_AI_SLOP_SKIP_WHEN = [
   'Skip anti-slop skill loads and heavy rewrites when:',
   '- The turn is code, commands, paths, identifiers, or tool output with no user-facing prose.',
   '- The reply is a one-line confirmation, status, or error with no marketing/doc tone.',
@@ -21,7 +21,7 @@ export const NO_AI_SLOP_SKIP_WHEN = [
 ].join('\n');
 
 /** Lightweight pass — default for most replies; no skill round-trip. */
-export const NO_AI_SLOP_LIGHT_PASS = [
+const NO_AI_SLOP_LIGHT_PASS = [
   'Light anti-slop (default): follow system.md writing rules; vary rhythm; ban Tier-1 AI-isms; no template intros/outros.',
   '5-second inline scan for buzzwords/filler before send. Load a skill only if the light pass is not enough.',
 ].join('\n');
@@ -54,6 +54,3 @@ export const NO_AI_SLOP_PROSE_GATE = [
 /** Compact reminder for plan-mode sparse refreshes. */
 export const NO_AI_SLOP_SKILL_MANDATE_COMPACT =
   'No-AI-Slop: light pass by default; SearchSkill → Skill only when shipping user-visible prose (include response language in keywords).';
-
-/** @deprecated alias — use NO_AI_SLOP_PROSE_GATE */
-export const NO_AI_SLOP_SKILL_MANDATE = NO_AI_SLOP_PROSE_GATE;

@@ -2,6 +2,7 @@ import type { SessionSkillRegistry } from '../registry';
 import { CUSTOM_THEME_SKILL } from './custom-theme';
 import { IMPORT_FROM_CC_CODEX_SKILL } from './import-from-cc-codex';
 import { MCP_CONFIG_SKILL } from './mcp-config';
+import { RECURSIVE_IMPROVE_SKILL } from './recursive-improve';
 import {
   SUB_SKILL_CONSOLIDATE,
   SUB_SKILL_PARENT,
@@ -27,6 +28,7 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(UPDATE_CONFIG_SKILL);
   registry.registerBuiltinSkill(CUSTOM_THEME_SKILL);
   registry.registerBuiltinSkill(WRITE_GOAL_SKILL);
+  registry.registerBuiltinSkill(RECURSIVE_IMPROVE_SKILL);
   registry.registerBuiltinSkill(ULTRAWORK_SKILL);
   for (const skill of NO_AI_SLOP_BUILTIN_SKILLS) {
     registry.registerBuiltinSkill(skill);
@@ -51,6 +53,7 @@ export {
   NO_AI_SLOP_META_PROMPT_SKILL,
   NO_AI_SLOP_SKILL,
   NO_AI_SLOP_UI_SKILL,
+  RECURSIVE_IMPROVE_SKILL,
   SUB_SKILL_CONSOLIDATE,
   SUB_SKILL_PARENT,
   SUB_SKILL_REVIEW,

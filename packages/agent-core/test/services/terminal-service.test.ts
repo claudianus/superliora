@@ -3,7 +3,7 @@ import { realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { Emitter } from '../../src';
+import { Emitter } from '../../src/base/common/event';
 import type { Session } from '@superliora/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 

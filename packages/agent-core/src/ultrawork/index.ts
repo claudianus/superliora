@@ -79,7 +79,6 @@ export {
 export {
   inferUltraPlanPhaseFromPlanContent,
   reconcileUltraworkFromMirror,
-  reconcileUltraworkPlanAfterResume,
 } from './mirror-reconcile';
 export { readUltraworkMirrorFromDisk, validateCheckpointMirror } from './run-store';
 export type { CheckpointValidationResult } from './run-store';

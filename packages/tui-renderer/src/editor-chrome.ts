@@ -32,11 +32,6 @@ export const RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY: Readonly<
   contentBottomInset: RENDERER_EDITOR_CONTENT_BOTTOM_INSET,
 });
 
-export interface RendererEditorSideBorderOptions {
-  readonly connectedAbove?: boolean;
-  readonly label?: string;
-}
-
 export interface RendererEditorFrameOptions {
   readonly width: number;
   readonly height: number;
@@ -293,45 +288,6 @@ export function projectRendererEditorArgumentHint(
     ? first + projected
     : [...first, ...textToCells(projected, options.style)];
   return [projectedFirst, ...lines.slice(1)];
-}
-
-/** @deprecated Prefer {@link renderRendererEditorFrame} with `topLabel` for cell-native chrome. */
-export function wrapRendererEditorSideBorders(
-  lines: string[],
-  paint: RendererEditorPaint,
-  options: RendererEditorSideBorderOptions = {},
-): string[] {
-  let seenTop = false;
-  return lines.map((line) => {
-    const plain = stripRendererEditorSgr(line);
-    if (plain.length > 0 && plain[0] === '─') {
-      const isTop = !seenTop;
-      const leftCorner = seenTop ? '╰' : options.connectedAbove === true ? '├' : '╭';
-      const rightCorner = seenTop ? '╯' : options.connectedAbove === true ? '┤' : '╮';
-      seenTop = true;
-      if (plain.length === 1) return paint(leftCorner);
-      const middle = plain.slice(1, -1);
-      if (isTop && options.label !== undefined && /^─+$/.test(middle)) {
-        const labelWidth = visibleWidth(options.label);
-        if (labelWidth <= middle.length) {
-          return (
-            paint(leftCorner) +
-            options.label +
-            paint(renderRendererDividerRow({ width: middle.length - labelWidth })) +
-            paint(rightCorner)
-          );
-        }
-      }
-      return paint(leftCorner + middle + rightCorner);
-    }
-    if (line.length === 0) return line;
-    const firstChar = line[0];
-    const lastChar = line.at(-1);
-    const head = firstChar === ' ' ? paint('│') : (firstChar ?? '');
-    const tail = line.length > 1 && lastChar === ' ' ? paint('│') : (lastChar ?? '');
-    if (line.length === 1) return head;
-    return head + line.slice(1, -1) + tail;
-  });
 }
 
 export function renderRendererEditorFrame(

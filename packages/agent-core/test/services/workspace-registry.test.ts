@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { Emitter } from '../../src';
+import { Emitter } from '../../src/base/common/event';
 import type { Event } from '@superliora/protocol';
 import type { IEnvironmentService } from '../../src/services/environment/environment';
 import type { IEventService } from '../../src/services/event/event';

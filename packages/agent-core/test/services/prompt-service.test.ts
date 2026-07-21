@@ -31,7 +31,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { Emitter } from '../../src';
+import { Emitter } from '../../src/base/common/event';
 
 import type {
   CoreRPC,

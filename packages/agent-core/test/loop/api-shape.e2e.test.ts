@@ -50,7 +50,6 @@ import type {
   LoopStoppedStepContext,
   LoopTerminalStepStopReason,
   LoopTurnStopReason,
-  StopReason,
   ToolCallDelta,
   ToolCall,
   ExecutableToolContext,
@@ -366,17 +365,6 @@ function _typeOnlyChecks(): void {
     'aborted',
   ];
   void _validTurnStops;
-
-  const _deprecatedStopAlias: StopReason[] = [
-    'end_turn',
-    'max_tokens',
-    'tool_use',
-    'filtered',
-    'paused',
-    'unknown',
-    'aborted',
-  ];
-  void _deprecatedStopAlias;
 
   // @ts-expect-error - stop reasons that flow through throws are not in the union
   const _badStop1: LoopTurnStopReason = 'error';

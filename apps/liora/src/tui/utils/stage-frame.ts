@@ -21,15 +21,6 @@ export const STAGE_FRAME_ENTRANCE_MS = 360;
 export const STAGE_FRAME_CHASE_MS_PER_CELL = 95;
 export const STAGE_FRAME_TRAIL_LEN = 10;
 
-/** @deprecated Corner-arm API removed; full box only. */
-export const STAGE_FRAME_ARM_TARGET = 0;
-/** @deprecated */
-export const STAGE_FRAME_ARM_MIN = 0;
-/** @deprecated */
-export const STAGE_FRAME_BLOOM = 0;
-/** @deprecated */
-export const STAGE_FRAME_BREATHE_MS = 0;
-
 export interface StageFrameBand {
   readonly x: number;
   readonly y: number;
@@ -79,21 +70,6 @@ export function stageFrameEntranceProgress(
   if (span <= 0) return 1;
   const t = Math.min(1, Math.max(0, (nowMs - startedAtMs) / span));
   return 1 - (1 - t) ** 3;
-}
-
-/** @deprecated Full box has no arms — returns 1 when progress > 0. */
-export function stageFrameEntranceArmLength(_fullArm: number, progress: number): number {
-  return progress <= 0 ? 0 : 1;
-}
-
-/** @deprecated */
-export function stageFrameArmLength(_bundle: StageFrameBand): number {
-  return 0;
-}
-
-/** @deprecated */
-export function stageFrameBreathePhase(_nowMs: number): number {
-  return 0;
 }
 
 /** Outer centered bundle: stage alone, or stage+gap+rail. */
@@ -241,25 +217,6 @@ export function stageFrameLetterboxBands(
     bands.push({ x: right + 1, y: top, width: cols - (right + 1), height: midH });
   }
   return bands.filter((b) => b.width > 0 && b.height > 0);
-}
-
-/** @deprecated Prefer {@link stageFrameLetterboxBands} for paint cost. */
-export function stageFrameLetterboxCells(
-  bundle: StageFrameBand,
-  cols: number,
-  rows: number,
-  bg: string | undefined,
-): readonly StageFramePaintCell[] {
-  if (bg === undefined) return [];
-  const out: StageFramePaintCell[] = [];
-  for (const band of stageFrameLetterboxBands(bundle, cols, rows)) {
-    for (let y = band.y; y < band.y + band.height; y++) {
-      for (let x = band.x; x < band.x + band.width; x++) {
-        out.push({ x, y, char: ' ', fg: bg, bg });
-      }
-    }
-  }
-  return out;
 }
 
 export function paintStageFrameCells(input: {
@@ -533,15 +490,4 @@ function noteRimBandScatter(index: number, lx: number, ly: number): void {
   rimRegionCache?.prevByBand[index]?.push(((ly & 0xffff) << 16) | (lx & 0xffff));
 }
 
-/** @deprecated Prefer {@link createStageFrameOverlayRegions}. */
-export function createStageFrameOverlayRegion(input: {
-  readonly bundle: StageFrameBand;
-  readonly cols: number;
-  readonly rows: number;
-  readonly nowMs: number;
-  readonly appearance: AppearancePreferences;
-  readonly freezeChase?: boolean;
-}): RendererFrameRegion | undefined {
-  const regions = createStageFrameOverlayRegions(input);
-  return regions.find((r) => r.id?.startsWith('stageFrame:'));
-}
+

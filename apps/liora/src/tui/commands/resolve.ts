@@ -129,11 +129,21 @@ export function resolveSlashCommandInput(options: ResolveSlashCommandInput): Sla
   };
 }
 
+/** Short aliases for builtin skills that users invoke frequently. */
+const SKILL_ALIASES: Readonly<Record<string, string>> = {
+  improve: 'recursive-improve',
+  slop: 'no-ai-slop',
+  goal: 'write-goal',
+};
+
 export function resolveSkillCommand(
   skillCommandMap: ReadonlyMap<string, string>,
   commandName: string,
 ): string | undefined {
-  const mapped = skillCommandMap.get(commandName) ?? skillCommandMap.get(`skill:${commandName}`);
+  const mapped =
+    skillCommandMap.get(commandName) ??
+    skillCommandMap.get(`skill:${commandName}`) ??
+    SKILL_ALIASES[commandName];
   if (mapped !== undefined) return mapped;
   if (!commandName.startsWith('skill:')) return undefined;
   const skillName = commandName.slice('skill:'.length).trim();

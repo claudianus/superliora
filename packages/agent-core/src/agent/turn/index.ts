@@ -100,18 +100,13 @@ const GOAL_PROVIDER_FILTERED_PAUSE_REASON = 'Paused after provider safety policy
  * stop by calling `UpdateGoal`; otherwise the driver runs another turn.
  */
 const GOAL_CONTINUATION_PROMPT = [
-  'Continue working toward the active goal.',
-  'Keep the self-audit brief. Do not explore unrelated interpretations once the goal can be',
-  'decided. If the objective is simple, already answered, impossible, unsafe, or contradictory,',
-  'do not run another goal turn. Explain briefly if useful, then call UpdateGoal with `complete`',
-  'or `blocked` in the same turn. Otherwise, weigh the objective and any completion criteria',
-  'against the work done so far. Goal mode is iterative: do one coherent slice of work, then',
-  'reassess. Call UpdateGoal with `complete` only when all required work is done, any stated',
-  'validation has passed, and there is no useful next action. Do not mark complete after only',
-  'a plan/summary/first pass/partial result. If an external condition or required',
-  'user input prevents progress, or the objective cannot be completed as stated, call UpdateGoal',
-  'with `blocked`. Otherwise keep going — use existing conversation context and tools;',
-  'do not ask the user for input unless a real blocker prevents progress.',
+  'Continue. Pick the next highest-impact action toward the goal and execute it now.',
+  'Use TodoList to track progress — mark items done as you complete them, add new items as work emerges.',
+  'Do not re-explore or re-plan what is already decided; act on the current state.',
+  'Make reasonable decisions autonomously. Do not ask the user unless a decision materially changes direction and cannot be inferred from context.',
+  'Mark `complete` only when all required work is done and validated (tests pass, build clean).',
+  'Mark `blocked` only when a real external condition prevents progress.',
+  'Otherwise keep going.',
 ].join(' ');
 
 export class TurnFlow {

@@ -146,7 +146,7 @@ describe('goal session end-to-end', () => {
     // instead of spending another round over-interpreting the goal.
     const continuationHistory = JSON.stringify(scripted.calls[1]?.history ?? []);
     expect(continuationHistory).toContain('Keep the self-audit brief');
-    expect(continuationHistory).toContain('do not run another goal turn');
+    expect(continuationHistory).toContain('Otherwise keep going');
 
     // Terminal UpdateGoal asks the model for one final user-facing summary.
     expect(scripted.calls).toHaveLength(3);
@@ -235,7 +235,7 @@ describe('goal session end-to-end', () => {
 
     expect(scripted.calls.length).toBeGreaterThanOrEqual(4);
     expect(JSON.stringify(scripted.calls[0]?.history ?? [])).toContain('currently paused');
-    expect(JSON.stringify(scripted.calls[2]?.history ?? [])).toContain('Continue working toward the active goal');
+    expect(JSON.stringify(scripted.calls[2]?.history ?? [])).toContain('Pick the next highest-impact action');
     expect(JSON.stringify(scripted.calls[3]?.history ?? [])).toContain('Write a concise final message for the user');
     expect((await api.getGoal({ agentId: 'main' })).goal).toBeNull();
   });
@@ -275,7 +275,7 @@ describe('goal session end-to-end', () => {
     // the UpdateGoal('complete') the standalone turn never would have.
     expect(scripted.calls.length).toBeGreaterThanOrEqual(4);
     expect(JSON.stringify(scripted.calls[2]?.history ?? [])).toContain(
-      'Continue working toward the active goal',
+      'Pick the next highest-impact action',
     );
     const turnStarts = events.filter((e) => e['type'] === 'turn.started').length;
     expect(turnStarts).toBeGreaterThanOrEqual(2);

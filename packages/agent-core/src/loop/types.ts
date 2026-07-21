@@ -47,12 +47,6 @@ export type LoopTerminalStepStopReason = Exclude<LoopStepStopReason, 'tool_use'>
  */
 export type LoopTurnStopReason = LoopTerminalStepStopReason | 'aborted';
 
-/**
- * @deprecated Legacy umbrella union. Use `LoopStepStopReason` for per-step
- * model responses and `LoopTurnStopReason` for `TurnResult`.
- */
-export type StopReason = LoopStepStopReason | 'aborted';
-
 export interface TurnResult {
   stopReason: LoopTurnStopReason;
   steps: number;

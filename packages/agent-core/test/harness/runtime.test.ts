@@ -6,8 +6,6 @@ import type { Kaos } from '@superliora/kaos';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  FLAG_DEFINITIONS,
-  MASTER_ENV,
   createRPC,
   ErrorCodes,
   LioraCore,
@@ -16,6 +14,8 @@ import {
   type CoreAPI,
   type SDKAPI,
 } from '../../src';
+import { FLAG_DEFINITIONS } from '../../src/flags/registry';
+import { MASTER_ENV } from '../../src/flags/resolver';
 import {
   __resetRootLoggerForTest,
   getRootLogger,

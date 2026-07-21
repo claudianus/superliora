@@ -4,7 +4,7 @@ import type { LioraSlashCommand } from '#/tui/commands/index';
 import { BUILTIN_SLASH_COMMANDS, slashCommandsForHelp } from '#/tui/commands/registry';
 import {
   ADVANCED_HELP_INTRO,
-  ADVANCED_KEYBOARD_SHORTCUTS,
+  advancedKeyboardShortcuts,
   HelpPanelComponent,
 } from '#/tui/components/dialogs/help-panel';
 
@@ -79,7 +79,7 @@ describe('HelpPanelComponent', () => {
         cmd('ultrawork', 'Run Ultrawork: UltraPlan interview, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn', ['uw']),
       ],
       intro: ADVANCED_HELP_INTRO,
-      shortcuts: ADVANCED_KEYBOARD_SHORTCUTS,
+      shortcuts: advancedKeyboardShortcuts(),
       commandSectionTitle: 'Advanced Ultrawork controls',
       onClose: () => {},
     });
@@ -114,7 +114,7 @@ describe('HelpPanelComponent', () => {
     const advancedPanel = new HelpPanelComponent({
       commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced'),
       intro: ADVANCED_HELP_INTRO,
-      shortcuts: ADVANCED_KEYBOARD_SHORTCUTS,
+      shortcuts: advancedKeyboardShortcuts(),
       commandSectionTitle: 'Advanced Ultrawork controls',
       maxVisible: 200,
       onClose: () => {},
@@ -137,7 +137,7 @@ describe('HelpPanelComponent', () => {
     const advancedPanel = new HelpPanelComponent({
       commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced'),
       intro: ADVANCED_HELP_INTRO,
-      shortcuts: ADVANCED_KEYBOARD_SHORTCUTS,
+      shortcuts: advancedKeyboardShortcuts(),
       commandSectionTitle: 'Advanced Ultrawork controls',
       maxVisible: 24,
       onClose: () => {},

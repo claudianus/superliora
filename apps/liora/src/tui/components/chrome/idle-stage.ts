@@ -353,5 +353,3 @@ export class IdleStageComponent implements Component {
 
 /** @internal exported for tests — multi-row character art contract. */
 export { resolveFishGlyphRows };
-/** @deprecated transitional alias */
-export { resolveFishGlyphRows as resolveFoxGlyphRows };

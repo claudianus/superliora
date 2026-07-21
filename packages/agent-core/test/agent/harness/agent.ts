@@ -10,8 +10,8 @@ import {
   Agent,
   type AgentOptions,
   type AgentRecord,
-  type AgentRecordPersistence,
 } from '../../../src/agent';
+import type { AgentRecordPersistence } from '../../../src/agent/records';
 import type { CompactionStrategy } from '../../../src/agent/compaction';
 import type { GoalMode } from '../../../src/agent/goal';
 import type { ApprovalResponse } from '../../../src/agent/permission';

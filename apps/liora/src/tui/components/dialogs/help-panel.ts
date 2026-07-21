@@ -67,11 +67,6 @@ export function advancedKeyboardShortcuts(): readonly KeyboardShortcut[] {
   ];
 }
 
-/** @deprecated Prefer defaultKeyboardShortcuts() for live locale. */
-export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = defaultKeyboardShortcuts();
-/** @deprecated Prefer advancedKeyboardShortcuts() for live locale. */
-export const ADVANCED_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = advancedKeyboardShortcuts();
-
 export function defaultHelpIntro(): string {
   return ttui('tui.help.intro.default');
 }

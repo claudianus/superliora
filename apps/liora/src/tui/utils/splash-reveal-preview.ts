@@ -178,15 +178,6 @@ export function buildSplashMorphScene(options: {
   };
 }
 
-/** @deprecated Prefer {@link buildSplashMorphScene}. */
-export function buildSplashRevealPreview(options: {
-  readonly width: number;
-  readonly rows: number;
-  readonly appState: AppState;
-}): string[] {
-  return [...buildSplashMorphScene(options).lines];
-}
-
 function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
