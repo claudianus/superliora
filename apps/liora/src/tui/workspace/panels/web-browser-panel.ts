@@ -70,6 +70,9 @@ export class WebBrowserPanel implements PanelDefinition {
   private formInput = '';
   private refsList: { ref: string; role: string; name: string }[] = [];
   private refsCursor = 0;
+  // Render cache for incremental rendering
+  private renderCache: { key: string; lines: string[] } | null = null;
+  private observationVersion = 0;
 
   constructor(cwd: string) {
     this.cwd = cwd;
@@ -107,6 +110,12 @@ export class WebBrowserPanel implements PanelDefinition {
   // -------------------------------------------------------------------------
 
   render(width: number, height: number, focused: boolean): string[] {
+    // Check render cache for incremental rendering
+    const cacheKey = this.computeRenderCacheKey(width, height, focused);
+    if (this.renderCache && this.renderCache.key === cacheKey) {
+      return this.renderCache.lines;
+    }
+
     const lines: string[] = [];
 
     // Tab bar
@@ -123,7 +132,41 @@ export class WebBrowserPanel implements PanelDefinition {
     const contentLines = this.renderContent(width, contentHeight);
     lines.push(...contentLines);
 
-    return this.fillLines(lines, height, width);
+    const result = this.fillLines(lines, height, width);
+    this.renderCache = { key: cacheKey, lines: result };
+    return result;
+  }
+
+  /** Compute a cache key representing all state that affects rendering. */
+  private computeRenderCacheKey(width: number, height: number, focused: boolean): string {
+    const tab = this.getActiveTab();
+    const state = tab?.state;
+    return [
+      width,
+      height,
+      focused ? 1 : 0,
+      this.activeTabId,
+      this.tabs.length,
+      tab?.url ?? '',
+      tab?.title ?? '',
+      state?.loading ? 1 : 0,
+      state?.error ?? '',
+      state?.screenshot ? 1 : 0,
+      state?.observation ? 1 : 0,
+      this.observationVersion,
+      state?.zoom ?? 1,
+      this.urlInput,
+      this.editingUrl ? 1 : 0,
+      this.scrollTop,
+      this.consoleOpen ? 1 : 0,
+      this.consoleOutput.length,
+      this.consoleInput,
+      this.formMode ? 1 : 0,
+      this.selectedRef ?? '',
+      this.formInput,
+      this.refsCursor,
+      this.lastTransmittedImageId ?? -1,
+    ].join('|');
   }
 
   onInput(event: NativeInputEvent): boolean {
@@ -439,6 +482,7 @@ export class WebBrowserPanel implements PanelDefinition {
         this.state.title = observation.title;
         this.activeTab.title = observation.title;
         this.state.observation = observation;
+        this.observationVersion++;
 
         const screenshot = await runtime.screenshot({});
         this.state.screenshot = screenshot;
@@ -527,6 +571,7 @@ export class WebBrowserPanel implements PanelDefinition {
       this.state.title = observation.title;
       this.activeTab.title = observation.title;
       this.state.observation = observation;
+      this.observationVersion++;
       const screenshot = await runtime.screenshot({});
       this.state.screenshot = screenshot;
     }
