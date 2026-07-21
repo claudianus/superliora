@@ -45,6 +45,8 @@ export class TerminalPanel implements PanelDefinition {
   /** Bell flash effect */
   private bellFlashStart = 0;
   private static readonly BELL_FLASH_DURATION = 300;
+  /** Environment overlay */
+  private envOverlayOpen = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -104,6 +106,24 @@ export class TerminalPanel implements PanelDefinition {
         : currentTheme.dimFg('textMuted', ` ${String(Math.round(this.outputRate))}B/s`);
       visible[visible.length - 1] = (visible[visible.length - 1] ?? '').slice(0, this.cols - 10) + rateLabel;
     }
+    // Environment overlay (Ctrl+E)
+    if (this.envOverlayOpen) {
+      const envKeys = ['SHELL', 'TERM', 'PATH', 'HOME', 'USER', 'NODE_VERSION', 'PWD'];
+      const envLines = envKeys
+        .filter((k) => process.env[k] !== undefined)
+        .map((k) => {
+          const val = process.env[k]!;
+          const shortVal = val.length > this.cols - 14 ? val.slice(0, this.cols - 17) + '…' : val;
+          return `  ${currentTheme.fg('accent', k)}=${currentTheme.dimFg('textMuted', shortVal)}`;
+        });
+      const header = currentTheme.boldFg('primary', ' Environment (Ctrl+E to close)');
+      const overlay = [header, ...envLines];
+      // Overlay on top of visible content
+      for (let i = 0; i < overlay.length && i < visible.length; i++) {
+        visible[i] = (overlay[i] ?? '').slice(0, this.cols);
+      }
+    }
+
     // Bell flash overlay: brief border flash when bell is received
     const bellAge = Date.now() - this.bellFlashStart;
     if (bellAge < TerminalPanel.BELL_FLASH_DURATION && visible.length > 0) {
@@ -147,6 +167,12 @@ export class TerminalPanel implements PanelDefinition {
         this.lines = [''];
         this.scrollTop = 0;
         this.followTail = true;
+        return true;
+      }
+
+      // Ctrl+E: toggle environment overlay
+      if (event.ctrl && event.key === 'character' && event.text === 'e') {
+        this.envOverlayOpen = !this.envOverlayOpen;
         return true;
       }
 
