@@ -288,6 +288,20 @@ export class GitDiffPanel implements PanelDefinition {
     const totalLines = this.flatLines.length;
 
     lines.push(bold(` ${this.files.length} file(s) changed`) + dim(` · ${String(totalLines)} lines`));
+    // Show last commit message for context
+    try {
+      const lastCommit = execSync('git log -1 --format="%s" 2>/dev/null', {
+        cwd: this.cwd,
+        encoding: 'utf-8',
+        timeout: 2000,
+      }).trim();
+      if (lastCommit.length > 0) {
+        const truncatedMsg = lastCommit.length > width - 6 ? lastCommit.slice(0, width - 9) + '…' : lastCommit;
+        lines.push(dim(` HEAD: ${truncatedMsg}`));
+      }
+    } catch {
+      // Not a git repo
+    }
     // Patch size indicator
     const patchBytes = this.files.reduce((s, f) => s + f.additions * 40 + f.deletions * 40, 0);
     const patchSize = patchBytes > 1024 * 1024 ? `${(patchBytes / (1024 * 1024)).toFixed(1)}MB` : patchBytes > 1024 ? `${(patchBytes / 1024).toFixed(0)}KB` : `${String(patchBytes)}B`;
