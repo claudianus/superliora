@@ -119,6 +119,25 @@ export class FileExplorerPanel implements PanelDefinition {
       // Git stash count
       if (this.gitStashCount > 0) stats += currentTheme.fg('accent', ` ≡${String(this.gitStashCount)}`);
       lines.push(stats);
+      // Git status summary bar (compact visual of modified/added/deleted/untracked)
+      const modCount = this.entries.filter((e) => e.gitStatus === 'M').length;
+      const addCount = this.entries.filter((e) => e.gitStatus === 'A').length;
+      const delCount = this.entries.filter((e) => e.gitStatus === 'D').length;
+      const untrackedCount = this.entries.filter((e) => e.gitStatus === '??').length;
+      if (modCount + addCount + delCount + untrackedCount > 0) {
+        const SUMMARY_W = Math.min(20, width - 4);
+        const total = modCount + addCount + delCount + untrackedCount;
+        const mW = Math.round((modCount / total) * SUMMARY_W);
+        const aW = Math.round((addCount / total) * SUMMARY_W);
+        const dW = Math.round((delCount / total) * SUMMARY_W);
+        const uW = SUMMARY_W - mW - aW - dW;
+        const summaryBar =
+          currentTheme.fg('warning', '▓'.repeat(mW)) +
+          currentTheme.fg('success', '▓'.repeat(aW)) +
+          currentTheme.fg('error', '▓'.repeat(dW)) +
+          currentTheme.dimFg('textMuted', '░'.repeat(Math.max(0, uW)));
+        lines.push(` ${summaryBar}`);
+      }
     }
 
     const visibleEntries = this.entries.slice(this.scrollTop, this.scrollTop + height - headerRows);
