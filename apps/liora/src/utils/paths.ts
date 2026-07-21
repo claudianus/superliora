@@ -102,3 +102,11 @@ export function getInputHistoryFile(workDir: string): string {
   const hash = createHash('md5').update(workDir, 'utf-8').digest('hex');
   return join(getDataDir(), SUPERLIORA_INPUT_HISTORY_DIR_NAME, `${hash}.jsonl`);
 }
+
+/**
+ * Return the global (cross-workdir) input history file.
+ * Layout: `<share_dir>/user-history/_global.jsonl`.
+ */
+export function getGlobalInputHistoryFile(): string {
+  return join(getDataDir(), SUPERLIORA_INPUT_HISTORY_DIR_NAME, '_global.jsonl');
+}

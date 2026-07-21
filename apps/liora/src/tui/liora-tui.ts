@@ -25,7 +25,12 @@ import { resolve } from 'pathe';
 
 import type { CLIOptions } from '#/cli/options';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
-import { appendInputHistory, loadInputHistory } from '#/utils/history/input-history';
+import {
+  appendGlobalInputHistory,
+  appendInputHistory,
+  loadGlobalInputHistory,
+  loadInputHistory,
+} from '#/utils/history/input-history';
 import { loadFileForViewer } from '#/utils/fs/file-content';
 import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
 import type { SearchResults } from '#/utils/fs/project-search';
@@ -33,7 +38,7 @@ import { collectGitBlame } from '#/utils/git/git-blame';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import { collectCommitDiff, type GitLogReport } from '#/utils/git/git-log';
 import { openUrl } from '#/utils/open-url';
-import { getInputHistoryFile } from '#/utils/paths';
+import { getGlobalInputHistoryFile, getInputHistoryFile } from '#/utils/paths';
 import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
 import { quoteShellArg } from '#/utils/shell-quote';
 import { fetchWebContent } from '#/utils/web/web-content';
@@ -1766,12 +1771,29 @@ export class LioraTUI {
     try {
       const file = getInputHistoryFile(this.state.appState.workDir);
       const entries = await loadInputHistory(file);
+      const workdirContents = new Set(entries.map((entry) => entry.content));
+
+      // Load global (cross-workdir) history as a fallback. Entries not already
+      // present in the workdir-specific file are added first (older / less
+      // relevant), so the workdir entries remain the most recent when the user
+      // navigates backwards with ↑.
+      try {
+        const globalEntries = await loadGlobalInputHistory(getGlobalInputHistoryFile());
+        for (const entry of globalEntries) {
+          if (!workdirContents.has(entry.content)) {
+            this.state.editor.addToHistory(entry.content);
+          }
+        }
+      } catch {
+        // Global history is best-effort.
+      }
+
       for (const entry of entries) {
         this.state.editor.addToHistory(entry.content);
       }
       this.lastHistoryContent = entries.at(-1)?.content;
-    } catch {
-      // best-effort
+    } catch (error) {
+      console.warn('Failed to load input history:', error);
     }
   }
 
@@ -1784,8 +1806,16 @@ export class LioraTUI {
       const file = getInputHistoryFile(this.state.appState.workDir);
       const written = await appendInputHistory(file, trimmed, this.lastHistoryContent);
       if (written) this.lastHistoryContent = trimmed;
-    } catch {
+    } catch (error) {
+      console.warn('Failed to persist input history:', error);
       this.lastHistoryContent = trimmed;
+    }
+    // Also persist to the global (cross-workdir) history. Best-effort; the load
+    // path dedupes, so we append unconditionally here.
+    try {
+      await appendGlobalInputHistory(getGlobalInputHistoryFile(), trimmed);
+    } catch {
+      // Global history is best-effort.
     }
   }
 

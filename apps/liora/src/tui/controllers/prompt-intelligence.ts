@@ -142,8 +142,8 @@ export class PromptIntelligenceController {
       if (result.completion.length > 0) {
         editor.setGhostText(result.completion, 'inline');
       }
-    } catch {
-      // Silent: do not disturb typing on transient failures.
+    } catch (error) {
+      console.debug('[prompt-intelligence] inline completion failed:', error);
     } finally {
       if (this.abortController === ac) this.abortController = undefined;
     }
@@ -186,8 +186,8 @@ export class PromptIntelligenceController {
         this.suggestionIndex = 0;
         editor.setGhostText(this.suggestionCache[0], 'suggestion');
       }
-    } catch {
-      // Silent.
+    } catch (error) {
+      console.debug('[prompt-intelligence] suggestion request failed:', error);
     } finally {
       if (this.abortController === ac) this.abortController = undefined;
     }
@@ -209,12 +209,27 @@ export class PromptIntelligenceController {
   // ---------------------------------------------------------------------------
 
   private canRequestIntelligence(): boolean {
-    if (!isExperimentalFlagEnabled('prompt_intelligence')) return false;
+    if (!isExperimentalFlagEnabled('prompt_intelligence')) {
+      console.debug('[prompt-intelligence] disabled: flag not enabled');
+      return false;
+    }
     const { state } = this.host;
-    if (state.appState.streamingPhase !== 'idle') return false;
-    if (state.appState.inputMode !== 'prompt') return false;
-    if (state.editor.isShowingAutocomplete()) return false;
-    if (this.host.session === undefined) return false;
+    if (state.appState.streamingPhase !== 'idle') {
+      console.debug(`[prompt-intelligence] disabled: streamingPhase=${state.appState.streamingPhase}`);
+      return false;
+    }
+    if (state.appState.inputMode !== 'prompt') {
+      console.debug(`[prompt-intelligence] disabled: inputMode=${state.appState.inputMode}`);
+      return false;
+    }
+    if (state.editor.isShowingAutocomplete()) {
+      console.debug('[prompt-intelligence] disabled: autocomplete menu open');
+      return false;
+    }
+    if (this.host.session === undefined) {
+      console.debug('[prompt-intelligence] disabled: no session');
+      return false;
+    }
     return true;
   }
 

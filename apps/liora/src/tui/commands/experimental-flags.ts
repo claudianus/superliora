@@ -11,9 +11,7 @@ function envExperimentalFeatures(): ReadonlyArray<{ id: string; enabled: boolean
   return Object.keys(process.env)
     .filter((key) => key.startsWith('SUPERLIORA_EXPERIMENTAL_'))
     .map((key) => {
-      const flag = key.slice('SUPERLIORA_EXPERIMENTAL_'.length)
-        .toLowerCase()
-        .replaceAll('_', '-');
+      const flag = key.slice('SUPERLIORA_EXPERIMENTAL_'.length).toLowerCase();
       return { id: flag, enabled: process.env[key] === '1' || process.env[key] === 'true' };
     });
 }
