@@ -64,6 +64,12 @@ export class WebBrowserPanel implements PanelDefinition {
   private consoleOpen = false;
   private consoleOutput: string[] = [];
   private consoleInput = '';
+  // Form input mode
+  private formMode = false;
+  private selectedRef: string | null = null;
+  private formInput = '';
+  private refsList: { ref: string; role: string; name: string }[] = [];
+  private refsCursor = 0;
 
   constructor(cwd: string) {
     this.cwd = cwd;
@@ -127,6 +133,11 @@ export class WebBrowserPanel implements PanelDefinition {
         return this.handleConsoleInput(event);
       }
 
+      // Form input mode
+      if (this.formMode) {
+        return this.handleFormInput(event);
+      }
+
       // URL editing mode
       if (this.editingUrl) {
         return this.handleUrlInput(event);
@@ -156,6 +167,9 @@ export class WebBrowserPanel implements PanelDefinition {
             return true;
           case 'c': // Console
             this.consoleOpen = true;
+            return true;
+          case 'i': // Form input mode
+            this.enterFormMode();
             return true;
           case '+': // Zoom in
             this.zoomIn();
@@ -274,6 +288,11 @@ export class WebBrowserPanel implements PanelDefinition {
       return this.renderConsole(width, height);
     }
 
+    // Form input mode
+    if (this.formMode) {
+      return this.renderFormMode(width, height);
+    }
+
     // Screenshot with Kitty graphics
     if (this.state.screenshot && this.state.screenshot.base64) {
       return this.renderScreenshotWithKitty(width, height);
@@ -365,6 +384,7 @@ export class WebBrowserPanel implements PanelDefinition {
       this.pad(this.dim('    T     - New tab'), width),
       this.pad(this.dim('    W     - Close tab'), width),
       this.pad(this.dim('    C     - JavaScript console'), width),
+      this.pad(this.dim('    I     - Form input mode'), width),
       this.pad(this.dim('    +/-   - Zoom in/out'), width),
       this.pad(this.dim('    0     - Reset zoom'), width),
       this.pad(this.dim('    1-9   - Switch to tab N'), width),
@@ -636,6 +656,163 @@ export class WebBrowserPanel implements PanelDefinition {
     }
 
     return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Form input mode
+  // -------------------------------------------------------------------------
+
+  private enterFormMode(): void {
+    const observation = this.state.observation;
+    if (!observation || observation.refs.length === 0) {
+      this.state.error = 'No interactive elements found on this page';
+      return;
+    }
+
+    // Filter to input-capable elements
+    this.refsList = observation.refs
+      .filter((ref) =>
+        ref.role === 'textbox' ||
+        ref.role === 'searchbox' ||
+        ref.role === 'combobox' ||
+        ref.tag === 'input' ||
+        ref.tag === 'textarea' ||
+        ref.tag === 'select'
+      )
+      .map((ref) => ({
+        ref: ref.ref,
+        role: ref.role,
+        name: ref.name || ref.selector,
+      }));
+
+    if (this.refsList.length === 0) {
+      this.state.error = 'No input fields found on this page';
+      return;
+    }
+
+    this.formMode = true;
+    this.refsCursor = 0;
+    this.selectedRef = null;
+    this.formInput = '';
+  }
+
+  private handleFormInput(event: NativeInputEvent): boolean {
+    if (event.type !== 'key') return false;
+
+    // If we're typing into a field
+    if (this.selectedRef !== null) {
+      if (event.key === 'escape') {
+        this.selectedRef = null;
+        this.formInput = '';
+        return true;
+      }
+
+      if (event.key === 'enter') {
+        void this.submitFormInput();
+        return true;
+      }
+
+      if (event.key === 'backspace') {
+        this.formInput = this.formInput.slice(0, -1);
+        return true;
+      }
+
+      if (event.key === 'character' && event.text) {
+        this.formInput += event.text;
+        return true;
+      }
+
+      return false;
+    }
+
+    // Selecting a field
+    if (event.key === 'escape') {
+      this.formMode = false;
+      return true;
+    }
+
+    if (event.key === 'arrowUp') {
+      this.refsCursor = Math.max(0, this.refsCursor - 1);
+      return true;
+    }
+
+    if (event.key === 'arrowDown') {
+      this.refsCursor = Math.min(this.refsList.length - 1, this.refsCursor + 1);
+      return true;
+    }
+
+    if (event.key === 'enter') {
+      const selected = this.refsList[this.refsCursor];
+      if (selected) {
+        this.selectedRef = selected.ref;
+        this.formInput = '';
+        void this.focusFormField(selected.ref);
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  private async focusFormField(ref: string): Promise<void> {
+    try {
+      const runtime = await this.getRuntime();
+      await runtime.act({
+        actions: [{ type: 'click_ref', ref }],
+      });
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  private async submitFormInput(): Promise<void> {
+    if (this.selectedRef === null) return;
+
+    try {
+      const runtime = await this.getRuntime();
+      await runtime.act({
+        actions: [
+          { type: 'type_text', text: this.formInput, ref: this.selectedRef, clear: true },
+        ],
+        captureAfter: true,
+      });
+      await this.refreshObservation();
+      this.selectedRef = null;
+      this.formInput = '';
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  private renderFormMode(width: number, height: number): string[] {
+    const lines: string[] = [];
+    lines.push(this.cyan('  ┌─ Form Input Mode ────────────────────────────────────'));
+
+    if (this.selectedRef !== null) {
+      // Typing into a field
+      const selected = this.refsList.find((r) => r.ref === this.selectedRef);
+      lines.push(this.pad(`  │ Field: ${selected?.name ?? this.selectedRef}`, width));
+      lines.push(this.cyan('  ├─────────────────────────────────────────────────────'));
+      lines.push(this.pad(`  │ > ${this.formInput}▏`, width));
+      lines.push(this.dim('  │ Press Enter to submit, Escape to cancel'));
+    } else {
+      // Selecting a field
+      const listHeight = height - 4;
+      lines.push(this.pad('  │ Select an input field:', width));
+      lines.push(this.cyan('  ├─────────────────────────────────────────────────────'));
+
+      for (let i = 0; i < Math.min(this.refsList.length, listHeight); i++) {
+        const item = this.refsList[i]!;
+        const marker = i === this.refsCursor ? this.cyan('▸') : ' ';
+        const role = this.dim(`[${item.role}]`);
+        lines.push(this.pad(`  │ ${marker} ${role} ${item.name}`, width));
+      }
+
+      lines.push(this.dim('  │ ↑/↓ to select, Enter to edit, Escape to exit'));
+    }
+
+    lines.push(this.cyan('  └─────────────────────────────────────────────────────'));
+    return lines;
   }
 
   private handleMouseEvent(event: NativeInputEvent): boolean {
