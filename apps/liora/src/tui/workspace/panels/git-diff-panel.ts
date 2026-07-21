@@ -53,6 +53,9 @@ export class GitDiffPanel implements PanelDefinition {
   private diffVersion = 0;
   /** Whether to show context (unchanged) lines in full diff mode. */
   private showContext = true;
+  /** Whether to show blame hints (last author) for changed files. */
+  private blameMode = false;
+  private blameCache: Map<string, string> = new Map();
 
   constructor(cwd: string) {
     this.cwd = cwd;
@@ -175,6 +178,14 @@ export class GitDiffPanel implements PanelDefinition {
           this.renderCache = null;
           return true;
         }
+        // Toggle blame hints (last author for changed files)
+        if (event.text === 'b' || event.text === 'B') {
+          this.blameMode = !this.blameMode;
+          if (this.blameMode) this.computeBlameHints();
+          this.diffVersion++;
+          this.renderCache = null;
+          return true;
+        }
         return false;
       default:
         return false;
@@ -184,6 +195,25 @@ export class GitDiffPanel implements PanelDefinition {
   dispose(): void {
     this.files = [];
     this.flatLines = [];
+  }
+
+  /** Compute blame hints for changed files (last author + relative date). */
+  private computeBlameHints(): void {
+    this.blameCache.clear();
+    for (const file of this.files) {
+      try {
+        const blameOutput = execSync(`git log -1 --format="%an %ar" -- "${file.path}"`, {
+          cwd: this.cwd,
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim();
+        if (blameOutput.length > 0) {
+          this.blameCache.set(file.path, blameOutput);
+        }
+      } catch {
+        // File may be new or not tracked
+      }
+    }
   }
 
   /** Jump to the next hunk header or file header in the flat lines. */
@@ -310,7 +340,7 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     lines.push('');
-    lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk jump  [r] refresh`));
+    lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk  [b] blame  [r] refresh`));
     // Color legend
     lines.push(dim(` ${green('+')}added ${red('-')}deleted ${yellow('~')}modified ${currentTheme.fg('accent', '→')}renamed`));
     return lines;
@@ -344,7 +374,10 @@ export class GitDiffPanel implements PanelDefinition {
         : file.status === 'deleted' ? red(' [del]')
         : file.status === 'renamed' ? currentTheme.fg('accent', ' [renamed]')
         : '';
-      lines.push({ text: bold(`── ${file.path} ──`) + statusTag, type: 'header' });
+      const blameHint = this.blameMode && this.blameCache.has(file.path)
+        ? ` ${currentTheme.dimFg('textMuted', `(${this.blameCache.get(file.path)!})`)}`
+        : '';
+      lines.push({ text: bold(`── ${file.path} ──`) + statusTag + blameHint, type: 'header' });
       for (const hunk of file.hunks) {
         lines.push({ text: cyan(hunk.header), type: 'header' });
         // Render with inline word-level diff highlighting
