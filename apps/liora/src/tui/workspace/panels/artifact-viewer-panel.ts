@@ -35,7 +35,7 @@ export class ArtifactViewerPanel implements PanelDefinition {
   // PanelDefinition implementation
   // -------------------------------------------------------------------------
 
-  render(width: number, height: number, focused: boolean): string[] {
+  render(width: number, height: number, focused: boolean, searchQuery?: string): string[] {
     if (this.renderedLines.length === 0) {
       return [
         dim('  No artifact loaded'),
@@ -51,7 +51,14 @@ export class ArtifactViewerPanel implements PanelDefinition {
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, maxScroll));
 
     const visible = this.renderedLines.slice(this.scrollTop, this.scrollTop + height);
-    const lines = visible.map((line) => (line ?? '').slice(0, width));
+    const lines = visible.map((line) => {
+      let truncated = (line ?? '').slice(0, width);
+      // Highlight search matches
+      if (searchQuery && searchQuery.length > 0) {
+        truncated = this.highlightSearch(truncated, searchQuery);
+      }
+      return truncated;
+    });
 
     // Scroll indicator
     if (this.renderedLines.length > height) {
@@ -63,6 +70,20 @@ export class ArtifactViewerPanel implements PanelDefinition {
     }
 
     return lines;
+  }
+
+  /** Highlight search query matches in a line. */
+  private highlightSearch(line: string, query: string): string {
+    const lowerLine = line.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerLine.indexOf(lowerQuery);
+    if (idx === -1) return line;
+
+    // Wrap match in highlight ANSI codes (reverse video)
+    const before = line.slice(0, idx);
+    const match = line.slice(idx, idx + query.length);
+    const after = line.slice(idx + query.length);
+    return `${before}\u001B[7m${match}\u001B[0m${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {

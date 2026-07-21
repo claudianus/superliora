@@ -74,7 +74,7 @@ export class SessionManagerPanel implements PanelDefinition {
   // PanelDefinition implementation
   // -------------------------------------------------------------------------
 
-  render(width: number, height: number, focused: boolean): string[] {
+  render(width: number, height: number, focused: boolean, searchQuery?: string): string[] {
     // Auto-refresh every 10 seconds
     const now = Date.now();
     if (now - this.lastRefresh > 10_000 && !this.loading) {
@@ -118,8 +118,13 @@ export class SessionManagerPanel implements PanelDefinition {
       const isSelected = i === this.cursorIndex && focused;
 
       const marker = isCurrent ? '●' : isSelected ? '▸' : ' ';
-      const title = session.title ?? session.lastPrompt ?? session.id.slice(0, 8);
+      let title = session.title ?? session.lastPrompt ?? session.id.slice(0, 8);
       const time = formatRelativeTime(session.updatedAt);
+
+      // Highlight search matches in title
+      if (searchQuery && searchQuery.length > 0) {
+        title = this.highlightSearch(title, searchQuery);
+      }
 
       // Line 1: marker + title + time
       const timeStr = time.length > 0 ? ` ${time}` : '';
@@ -144,6 +149,20 @@ export class SessionManagerPanel implements PanelDefinition {
     }
 
     return this.fillLines(lines, height, width);
+  }
+
+  /** Highlight search query matches in a line. */
+  private highlightSearch(line: string, query: string): string {
+    const lowerLine = line.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerLine.indexOf(lowerQuery);
+    if (idx === -1) return line;
+
+    // Wrap match in highlight ANSI codes (reverse video)
+    const before = line.slice(0, idx);
+    const match = line.slice(idx, idx + query.length);
+    const after = line.slice(idx + query.length);
+    return `${before}\u001B[7m${match}\u001B[0m${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {
