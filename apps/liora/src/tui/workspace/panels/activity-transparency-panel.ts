@@ -323,14 +323,21 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const sparkline = this.renderActivitySparkline(now, width);
     // Rate-of-change indicator (events/sec over last 5s)
     const rateIndicator = this.renderRateIndicator(now);
+    // Burst detection: flag when rate is significantly above average
+    const recentCount = entries.filter((e) => now - e.timestamp < 5000).length;
+    const avgRate = entries.length > 0 ? entries.length / Math.max(1, (now - (entries[0]?.timestamp ?? now)) / 1000) : 0;
+    const currentRate = recentCount / 5;
+    const burstIndicator = currentRate > avgRate * 3 && currentRate > 2
+      ? ` ${currentTheme.fg('warning', '⚡burst')}`
+      : '';
     if (animate && activeCount > 0) {
       const headerStyled = errorCount > 0
         ? renderPulseText(headerText, 'activity-header', 'error', appearance)
         : renderPulseText(headerText, 'activity-header', 'primary', appearance);
-      lines.push(this.pad(` ${headerStyled}${sparkline}${rateIndicator}`, width));
+      lines.push(this.pad(` ${headerStyled}${sparkline}${rateIndicator}${burstIndicator}`, width));
     } else {
       const headerToken = errorCount > 0 ? 'error' : 'primary';
-      lines.push(this.pad(` ${currentTheme.boldFg(headerToken, headerText)}${sparkline}${rateIndicator}`, width));
+      lines.push(this.pad(` ${currentTheme.boldFg(headerToken, headerText)}${sparkline}${rateIndicator}${burstIndicator}`, width));
     }
 
     // Filter chip row (visible when focused, compact single-row chips)
