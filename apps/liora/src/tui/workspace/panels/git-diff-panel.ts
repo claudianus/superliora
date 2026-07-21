@@ -18,6 +18,7 @@ interface DiffFile {
   readonly isBinary?: boolean;
   readonly modeChange?: string;
   readonly whitespaceOnly?: boolean;
+  readonly hasImportChanges?: boolean;
 }
 
 interface DiffHunk {
@@ -367,6 +368,7 @@ export class GitDiffPanel implements PanelDefinition {
       const binaryBadge = file.isBinary ? ` ${currentTheme.fg('warning', '[bin]')}` : '';
       const modeBadge = file.modeChange ? ` ${currentTheme.fg('accent', `[${file.modeChange}]`)}` : '';
       const wsBadge = file.whitespaceOnly ? ` ${currentTheme.dimFg('textMuted', '[ws]')}` : '';
+      const importBadge = file.hasImportChanges ? ` ${currentTheme.fg('warning', '[imp]')}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
       // File age: show how recently the file was last modified on disk
       let fileAgeBadge = '';
@@ -379,7 +381,7 @@ export class GitDiffPanel implements PanelDefinition {
       } catch {
         // File may not exist (deleted)
       }
-      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
+      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
     }
 
     lines.push('');
@@ -614,7 +616,20 @@ function parseDiff(output: string): DiffFile[] {
       whitespaceOnly = addLines.length === delLines.length && addLines.every((l, i) => l === delLines[i]);
     }
 
-    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly });
+    // Detect import/require statement changes
+    let hasImportChanges = false;
+    for (const hunk of hunks) {
+      for (const line of hunk.lines) {
+        if ((line.type === 'add' || line.type === 'del') &&
+            /^(import |from |require(|export )/.test(line.content.trim())) {
+          hasImportChanges = true;
+          break;
+        }
+      }
+      if (hasImportChanges) break;
+    }
+
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges });
   }
 
   return files;
