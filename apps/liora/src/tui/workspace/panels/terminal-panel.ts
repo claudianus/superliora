@@ -54,6 +54,9 @@ export class TerminalPanel implements PanelDefinition {
   private hasNonUtf8 = false;
   /** Session start time for uptime display */
   private sessionStart = Date.now();
+  /** Terminal output search */
+  private searchQuery = '';
+  private searchActive = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -127,6 +130,12 @@ export class TerminalPanel implements PanelDefinition {
         : currentTheme.dimFg('textMuted', ` ${String(Math.round(this.outputRate))}B/s`);
       visible[visible.length - 1] = (visible[visible.length - 1] ?? '').slice(0, this.cols - 10) + rateLabel;
     }
+    // Search bar overlay (Ctrl+F)
+    if (this.searchActive && visible.length > 0) {
+      const searchLabel = currentTheme.fg('primary', `/${this.searchQuery}`) + currentTheme.fg('primary', '▏');
+      visible[0] = searchLabel + ' '.repeat(Math.max(0, this.cols - this.searchQuery.length - 2));
+    }
+
     // Environment overlay (Ctrl+E)
     if (this.envOverlayOpen) {
       const envKeys = ['SHELL', 'TERM', 'PATH', 'HOME', 'USER', 'NODE_VERSION', 'PWD'];
@@ -194,6 +203,36 @@ export class TerminalPanel implements PanelDefinition {
       // Ctrl+E: toggle environment overlay
       if (event.ctrl && event.key === 'character' && event.text === 'e') {
         this.envOverlayOpen = !this.envOverlayOpen;
+        return true;
+      }
+
+      // Ctrl+F: toggle output search
+      if (event.ctrl && event.key === 'character' && event.text === 'f') {
+        this.searchActive = !this.searchActive;
+        if (!this.searchActive) this.searchQuery = '';
+        return true;
+      }
+
+      // Handle search input when search is active
+      if (this.searchActive && event.key === 'character' && event.text !== undefined && !event.ctrl) {
+        if (event.key === 'escape') {
+          this.searchActive = false;
+          this.searchQuery = '';
+          return true;
+        }
+        this.searchQuery += event.text;
+        // Scroll to first match
+        this.scrollToMatch();
+        return true;
+      }
+      if (this.searchActive && event.key === 'backspace') {
+        this.searchQuery = this.searchQuery.slice(0, -1);
+        this.scrollToMatch();
+        return true;
+      }
+      if (this.searchActive && event.key === 'escape') {
+        this.searchActive = false;
+        this.searchQuery = '';
         return true;
       }
 
@@ -372,6 +411,19 @@ export class TerminalPanel implements PanelDefinition {
     }
   }
 
+  /** Scroll to the first line matching the search query. */
+  private scrollToMatch(): void {
+    if (this.searchQuery.length === 0) return;
+    const lowerQuery = this.searchQuery.toLowerCase();
+    for (let i = 0; i < this.lines.length; i++) {
+      if ((this.lines[i] ?? '').toLowerCase().includes(lowerQuery)) {
+        this.scrollTop = Math.max(0, i - 2);
+        this.followTail = false;
+        return;
+      }
+    }
+  }
+
   private getVisibleLines(height: number): string[] {
     const start = Math.max(0, Math.min(this.scrollTop, this.lines.length - 1));
     const visible = this.lines.slice(start, start + height);
@@ -381,7 +433,20 @@ export class TerminalPanel implements PanelDefinition {
       visible.push('');
     }
 
-    const result = visible.map((line) => (line ?? '').slice(0, this.cols));
+    const result = visible.map((line) => {
+      let l = (line ?? '').slice(0, this.cols);
+      // Highlight search matches
+      if (this.searchActive && this.searchQuery.length > 0) {
+        const idx = l.toLowerCase().indexOf(this.searchQuery.toLowerCase());
+        if (idx !== -1) {
+          const before = l.slice(0, idx);
+          const match = l.slice(idx, idx + this.searchQuery.length);
+          const after = l.slice(idx + this.searchQuery.length);
+          l = before + currentTheme.bg('selectionBg', currentTheme.fg('selectionText', match)) + after;
+        }
+      }
+      return l;
+    });
 
     // Scroll position indicator when not following tail
     if (!this.followTail && this.lines.length > height) {
