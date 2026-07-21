@@ -36,6 +36,8 @@ export interface StatusBarData {
   currentStep?: number;
   /** Total expected steps (0 = indeterminate). */
   totalSteps?: number;
+  /** Total turns completed in this session. */
+  turnCount?: number;
 }
 
 /** Cache git branch to avoid spawning a process every frame. */
@@ -160,6 +162,11 @@ export function renderStatusBar(data: StatusBarData, columns: number, cwd: strin
 
   // Agent status
   leftParts.push(renderStatusBadge(data.agentStatus));
+
+  // Turn counter (compact, always visible when > 0)
+  if (data.turnCount !== undefined && data.turnCount > 0) {
+    leftParts.push(currentTheme.dimFg('textMuted', `T${String(data.turnCount)}`));
+  }
 
   // Streaming progress (step dots or spinner)
   const progressSegment = renderStreamingProgress(data);
