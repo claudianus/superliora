@@ -86,6 +86,9 @@ export class TerminalPanel implements PanelDefinition {
   private hasAnsiColors = false;
   /** Whether piped commands were detected */
   private hasPipedCommands = false;
+  /** Last command duration in ms */
+  private lastCmdDurationMs = 0;
+  private cmdOutputStartTime = 0;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -149,7 +152,10 @@ export class TerminalPanel implements PanelDefinition {
       const bookmarkBadge = this.bookmarkLine >= 0 ? currentTheme.fg('primary', ' ⚑') : '';
       const colorBadge = this.hasAnsiColors ? currentTheme.fg('accent', ' 🎨') : '';
       const pipeBadge = this.hasPipedCommands ? currentTheme.dimFg('textMuted', ' |') : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + colorBadge + pipeBadge + encBadge;
+      const cmdDurBadge = this.lastCmdDurationMs > 0
+        ? currentTheme.dimFg('textMuted', ` · ${this.lastCmdDurationMs > 1000 ? `${(this.lastCmdDurationMs / 1000).toFixed(1)}s` : `${String(this.lastCmdDurationMs)}ms`}`)
+        : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + colorBadge + pipeBadge + cmdDurBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -356,6 +362,7 @@ export class TerminalPanel implements PanelDefinition {
       // Track command execution timing and history
       if (event.key === 'enter') {
         this.cmdStartTime = Date.now();
+        this.cmdOutputStartTime = Date.now();
         this.cmdRunning = true;
         // Capture the current line as a command
         const currentLine = this.lines[this.lines.length - 1] ?? '';
@@ -483,6 +490,7 @@ export class TerminalPanel implements PanelDefinition {
 
     // Detect command completion: output arriving after Enter was pressed
     if (this.cmdRunning && Date.now() - this.cmdStartTime > 100) {
+      this.lastCmdDurationMs = Date.now() - this.cmdOutputStartTime;
       this.cmdRunning = false;
     }
 
