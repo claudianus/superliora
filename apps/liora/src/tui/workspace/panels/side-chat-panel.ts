@@ -52,6 +52,8 @@ export class SideChatPanel implements PanelDefinition {
   private searchQuery = '';
   /** Pinned message IDs */
   private pinnedMessages: Set<number> = new Set();
+  /** Message reactions */
+  private messageReactions: Map<number, string> = new Map();
   private history: string[] = [];
   private historyIndex = -1;
 
@@ -122,9 +124,12 @@ export class SideChatPanel implements PanelDefinition {
           const pinMark = wi === 0 && this.pinnedMessages.has(msg.id)
             ? currentTheme.fg('accent', ' 📌')
             : '';
+          // Reaction indicator
+          const reaction = wi === 0 ? this.messageReactions.get(msg.id) : undefined;
+          const reactionMark = reaction ? ` ${reaction}` : '';
           const styled = msg.role === 'user'
-            ? `${linePrefix}${currentTheme.fg('text', wl)}${deliveryMark}${lenMark}${pinMark}`
-            : `${linePrefix}${currentTheme.dimFg('textDim', wl)}${lenMark}${pinMark}`;
+            ? `${linePrefix}${currentTheme.fg('text', wl)}${deliveryMark}${lenMark}${pinMark}${reactionMark}`
+            : `${linePrefix}${currentTheme.dimFg('textDim', wl)}${lenMark}${pinMark}${reactionMark}`;
           lines.push(this.pad(styled, width));
         }
       }
@@ -274,6 +279,20 @@ export class SideChatPanel implements PanelDefinition {
         if (event.text === 'u') {
           this.inputBuffer = '';
           this.cursorPos = 0;
+          return true;
+        }
+        // Ctrl+R: add reaction to the most recent message
+        if (event.text === 'r') {
+          // Find the most recent message
+          if (this.messages.length > 0) {
+            const lastMsg = this.messages[this.messages.length - 1]!;
+            const current = this.messageReactions.get(lastMsg.id);
+            if (current) {
+              this.messageReactions.delete(lastMsg.id);
+            } else {
+              this.messageReactions.set(lastMsg.id, '👍');
+            }
+          }
           return true;
         }
         // Ctrl+P: pin/unpin the most recent user message
