@@ -182,9 +182,9 @@ export class TerminalPanel implements PanelDefinition {
       });
     } catch (err) {
       this.lines = [
-        dim('  Failed to start terminal.'),
-        dim(`  Error: ${err instanceof Error ? err.message : String(err)}`),
-        dim('  Ensure node-pty is installed.'),
+        `  ${currentTheme.boldFg('error', 'Failed to start terminal.')}`,
+        `  ${currentTheme.fg('error', `Error: ${err instanceof Error ? err.message : String(err)}`)}`,
+        `  ${currentTheme.dimFg('textMuted', 'Ensure node-pty is installed.')}`,
       ];
     }
   }
