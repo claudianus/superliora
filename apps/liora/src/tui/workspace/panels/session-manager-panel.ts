@@ -299,6 +299,16 @@ export class SessionManagerPanel implements PanelDefinition {
       void this.switchToSelected();
       return true;
     }
+    if (event.key === 'pageup') {
+      this.cursorIndex = Math.max(0, this.cursorIndex - 10);
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'pagedown') {
+      this.cursorIndex = Math.min(this.sessions.length - 1, this.cursorIndex + 10);
+      this.requestRender();
+      return true;
+    }
 
     // Handle character keys
     if (event.key === 'character' && event.text !== undefined) {
