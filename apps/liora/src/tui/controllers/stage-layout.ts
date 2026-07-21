@@ -39,6 +39,10 @@ export interface StageLayout {
   readonly mode: StageLayoutMode;
   readonly stage: StageBand;
   readonly rail?: StageBand;
+  /** Left workspace dock (file explorer, etc.). */
+  readonly leftDock?: StageBand;
+  /** Right workspace dock (terminal, etc.). Overrides rail when present. */
+  readonly rightDock?: StageBand;
   /** Width of the centered bundle (stage, or stage+gap+rail). */
   readonly bundleWidth: number;
   /** Height of the centered stage band. */
@@ -50,6 +54,10 @@ export interface ResolveStageLayoutInput {
   readonly height?: number;
   /** True when todo/activity/queue/btw would paint at least one row. */
   readonly hasRailContent: boolean;
+  /** Width of the left workspace dock (0 or undefined = no dock). */
+  readonly leftDockWidth?: number;
+  /** Width of the right workspace dock (0 or undefined = no dock). */
+  readonly rightDockWidth?: number;
 }
 
 /**
@@ -73,39 +81,56 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
     width: cols,
     height: Number.isFinite(rows) ? rows : undefined,
   });
+
+  // Workspace docks consume horizontal space from the edges inward.
+  const leftDockW = input.leftDockWidth ?? 0;
+  const rightDockW = input.rightDockWidth ?? 0;
+  const availableCols = Math.max(0, cols - leftDockW - rightDockW);
+
   // Only wide+ terminals get a capped, centered reading column. Narrower
   // profiles stay full-bleed so small windows do not lose horizontal space.
   const railEligible = profile === 'wide' || profile === 'ultrawide';
-  const wantsRail = input.hasRailContent && railEligible && cols >= RAIL_MIN_COLS;
+  const wantsRail = input.hasRailContent && railEligible && availableCols >= RAIL_MIN_COLS;
   // Once the rail opens, narrow the stage so the fixed-width rail always
   // fits; stack mode keeps the capped reading column.
   const stageWidth = wantsRail
-    ? Math.min(STAGE_MAX_WIDTH, cols - (STAGE_RAIL_GAP + RAIL_WIDTH))
+    ? Math.min(STAGE_MAX_WIDTH, availableCols - (STAGE_RAIL_GAP + RAIL_WIDTH))
     : railEligible
-      ? Math.min(cols, STAGE_MAX_WIDTH)
-      : cols;
+      ? Math.min(availableCols, STAGE_MAX_WIDTH)
+      : availableCols;
   const stageHeight = Number.isFinite(rows) ? Math.min(rows, STAGE_MAX_HEIGHT) : STAGE_MAX_HEIGHT;
   const railBundle = stageWidth + STAGE_RAIL_GAP + RAIL_WIDTH;
-  const mode: StageLayoutMode = wantsRail && railBundle <= cols ? 'rail' : 'stack';
+  const mode: StageLayoutMode = wantsRail && railBundle <= availableCols ? 'rail' : 'stack';
   const bundleWidth = mode === 'rail' ? railBundle : stageWidth;
   const bundleHeight = stageHeight;
-  const x = cols > bundleWidth ? Math.floor((cols - bundleWidth) / 2) : 0;
+  // Center the bundle within the available space (between docks).
+  const xOffset = leftDockW + (availableCols > bundleWidth ? Math.floor((availableCols - bundleWidth) / 2) : 0);
   const y =
     Number.isFinite(rows) && rows > bundleHeight
       ? Math.floor((rows - bundleHeight) / 2)
       : 0;
 
+  // Build dock bands
+  const leftDock: StageBand | undefined = leftDockW > 0
+    ? { x: 0, y: 0, width: leftDockW, height: Number.isFinite(rows) ? rows : stageHeight }
+    : undefined;
+  const rightDock: StageBand | undefined = rightDockW > 0
+    ? { x: cols - rightDockW, y: 0, width: rightDockW, height: Number.isFinite(rows) ? rows : stageHeight }
+    : undefined;
+
   if (mode === 'rail') {
     return {
       profile,
       mode,
-      stage: { x, y, width: stageWidth, height: stageHeight },
+      stage: { x: xOffset, y, width: stageWidth, height: stageHeight },
       rail: {
-        x: x + stageWidth + STAGE_RAIL_GAP,
+        x: xOffset + stageWidth + STAGE_RAIL_GAP,
         y,
         width: RAIL_WIDTH,
         height: stageHeight,
       },
+      leftDock,
+      rightDock,
       bundleWidth,
       bundleHeight,
     };
@@ -114,7 +139,9 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
   return {
     profile,
     mode,
-    stage: { x, y, width: stageWidth, height: stageHeight },
+    stage: { x: xOffset, y, width: stageWidth, height: stageHeight },
+    leftDock,
+    rightDock,
     bundleWidth,
     bundleHeight,
   };

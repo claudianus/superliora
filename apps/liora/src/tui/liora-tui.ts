@@ -777,6 +777,16 @@ export class LioraTUI {
         onAuthoritativeFrame: () => {
           this.appearanceController.reapplyTerminalPalette();
         },
+        workspaceDockWidths: () => {
+          if (!this.workspaceController?.isEnabled()) return null;
+          const pm = this.workspaceController.panelManager;
+          const layoutOpts = pm.getLayoutOptions();
+          if (!layoutOpts.leftDockVisible && !layoutOpts.rightDockVisible) return null;
+          return {
+            leftDockWidth: layoutOpts.leftDockVisible ? layoutOpts.leftDockWidth : 0,
+            rightDockWidth: layoutOpts.rightDockVisible ? layoutOpts.rightDockWidth : 0,
+          };
+        },
       }),
     );
     // Occupy the full terminal viewport. The renderer is created with the

@@ -164,6 +164,11 @@ export interface TUIStateNativeRenderCallbackOptions {
    * terminal), matching the previous fixed full-viewport behavior.
    */
   readonly growWithContent?: boolean;
+  /**
+   * Workspace dock widths for multi-panel layout.
+   * When provided, the stage layout reserves space for side panels.
+   */
+  readonly workspaceDockWidths?: () => { leftDockWidth: number; rightDockWidth: number } | null;
 }
 
 export interface TUIStateNativeRendererOptions
@@ -359,6 +364,7 @@ export function createTUIStateNativeRenderCallback(
       width: size.columns,
       height,
       hasRailContent: chromeCache?.stageMode === 'rail',
+      ...(options.workspaceDockWidths?.() ?? {}),
     });
     // Chrome (header/footer/panels) only carries time-based content while the
     // agent is active — the activity pane's moon spinner and the footer's
