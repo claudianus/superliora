@@ -62,6 +62,9 @@ export class TerminalPanel implements PanelDefinition {
   /** Command history tracking */
   private commandHistory: string[] = [];
   private currentCmdBuffer = '';
+  /** Whether buffer has been compressed (earlier output discarded) */
+  private bufferCompressed = false;
+  private totalLinesReceived = 0;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -119,7 +122,8 @@ export class TerminalPanel implements PanelDefinition {
           ? `${String(Math.floor(uptimeSec / 60))}m`
           : `${String(Math.floor(uptimeSec / 3600))}h${String(Math.floor((uptimeSec % 3600) / 60))}m`;
       const cmdCount = this.commandHistory.length > 0 ? currentTheme.dimFg('textMuted', ` · ${String(this.commandHistory.length)}cmd`) : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + encBadge;
+      const compressBadge = this.bufferCompressed ? currentTheme.dimFg('textMuted', ` · ${String(this.totalLinesReceived)}L↑`) : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -424,8 +428,10 @@ export class TerminalPanel implements PanelDefinition {
 
     // Cap buffer size
     const MAX_LINES = 1000;
+    this.totalLinesReceived += parts.length - 1; // Count newlines received
     if (this.lines.length > MAX_LINES) {
       this.lines = this.lines.slice(this.lines.length - MAX_LINES);
+      this.bufferCompressed = true;
     }
 
     // Detect shell prompt line for visual highlighting
