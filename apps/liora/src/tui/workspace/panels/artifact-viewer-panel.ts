@@ -408,6 +408,13 @@ export class ArtifactViewerPanel implements PanelDefinition {
         rendered.push(`  ${currentTheme.fg('accent', '🖼')} ${currentTheme.dimFg('textMuted', `[${alt}]`)}`);
       } else if (line.startsWith('**') && line.endsWith('**')) {
         rendered.push(currentTheme.boldFg('textStrong', line.slice(2, -2)));
+      } else if (line.match(/^: /)) {
+        // Definition list: ": definition" follows a term
+        rendered.push(`    ${currentTheme.dimFg('textDim', line.slice(2))}`);
+      } else if (line.match(/^\S.*[^:]$/) && rendered.length > 0 && rendered[rendered.length - 1] === '') {
+        // Potential definition term (non-empty line after blank, no trailing colon)
+        // Check if next line is a definition
+        rendered.push(currentTheme.boldFg('textStrong', line));
       } else {
         rendered.push(this.renderInlineFormatting(line));
       }
