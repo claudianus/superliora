@@ -43,6 +43,7 @@ import {
   showSettingsSelector,
 } from './config';
 import { handleGoalCommand } from './goal';
+import { handleCronCommand } from './cron';
 import { showDiff } from './diff';
 import { showLog } from './log';
 import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from './info';
@@ -328,6 +329,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'tasks':
       void host.tasksBrowserController.show();
+      return;
+    case 'cron':
+      handleCronCommand(host, args);
       return;
     case 'mcp':
       void showMcpServers(host);

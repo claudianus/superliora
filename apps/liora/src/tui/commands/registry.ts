@@ -416,6 +416,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'cron',
+    aliases: [],
+    description: 'Manage scheduled jobs (list / delete)',
+    priority: 60,
+    argumentHint: 'list | delete <jobId>',
+    availability: 'always',
+  },
+  {
     name: 'term',
     aliases: ['terminal'],
     description: 'Show detected terminal capabilities',
