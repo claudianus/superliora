@@ -334,9 +334,11 @@ export class GitDiffPanel implements PanelDefinition {
               if (prev && prev.type === 'del') {
                 // Inline word diff: highlight changed words
                 const highlighted = this.inlineWordDiff(prev.content, line.content, 'add');
-                lines.push({ text: green('+') + highlighted, type: 'add' });
+                const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
+                lines.push({ text: green('+') + highlighted + longWarn, type: 'add' });
               } else {
-                lines.push({ text: green(`+${line.content}`), type: 'add' });
+                const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
+                lines.push({ text: green(`+${line.content}`) + longWarn, type: 'add' });
               }
               break;
             }
@@ -345,9 +347,11 @@ export class GitDiffPanel implements PanelDefinition {
               const next = i + 1 < hunk.lines.length ? hunk.lines[i + 1] : undefined;
               if (next && next.type === 'add') {
                 const highlighted = this.inlineWordDiff(line.content, next.content, 'del');
-                lines.push({ text: red('-') + highlighted, type: 'del' });
+                const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
+                lines.push({ text: red('-') + highlighted + longWarn, type: 'del' });
               } else {
-                lines.push({ text: red(`-${line.content}`), type: 'del' });
+                const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
+                lines.push({ text: red(`-${line.content}`) + longWarn, type: 'del' });
               }
               break;
             }
