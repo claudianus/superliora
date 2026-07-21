@@ -148,7 +148,7 @@ export class PromptIntelligenceController {
 
       this.lruSet(cacheKey, result.completion);
       process.stderr.write(`[pi-debug] got completion: ${result.completion.length} chars: "${result.completion.slice(0, 50)}"\n`);
-      if (result.completion.length > 0) {
+      if (result.completion.length >= INLINE_MIN_CHARS) {
         editor.setGhostText(result.completion, 'inline');
       }
     } catch (error) {

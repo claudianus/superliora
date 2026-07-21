@@ -170,10 +170,12 @@ export class WorkspaceController {
       if (panel) {
         const fullWidth = (layout.leftDock?.rect.width ?? 0) + (layout.rightDock?.rect.width ?? 0) + 40;
         const fullHeight = layout.leftDock?.rect.height ?? layout.rightDock?.rect.height ?? 30;
+        const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
         const content = panel.definition.render(
           Math.max(1, fullWidth - 2),
           Math.max(1, fullHeight - 2),
           true,
+          searchQuery,
         );
         const framed = renderPanelFrame({
           width: fullWidth,
@@ -233,11 +235,13 @@ export class WorkspaceController {
       const contentWidth = dockRect.width - 2; // minus frame borders
       const contentHeight = panelHeight - 2; // minus top/bottom frame
 
-      // Get panel content
+      // Get panel content (pass search query if focused and search is open)
+      const searchQuery = isFocused && this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
       const content = panel.definition.render(
         Math.max(1, contentWidth),
         Math.max(1, contentHeight),
         isFocused,
+        searchQuery,
       );
 
       // Wrap in frame
@@ -265,7 +269,7 @@ export class WorkspaceController {
   private renderDockTabbed(
     dockId: 'left' | 'right',
     dockRect: RendererRect,
-    panels: Array<{ instanceId: string; definition: { id: string; title: string; icon: string; render: (w: number, h: number, f: boolean) => string[] } }>,
+    panels: Array<{ instanceId: string; definition: { id: string; title: string; icon: string; render: (w: number, h: number, f: boolean, s?: string) => string[] } }>,
     focusedId: string | null,
   ): string[] {
     const allLines: string[] = [];
@@ -280,10 +284,13 @@ export class WorkspaceController {
       const contentWidth = dockRect.width - 2;
       const contentHeight = dockRect.height - 3; // tab bar + frame top/bottom
 
+      // Pass search query if search is open
+      const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
       const content = activePanel.definition.render(
         Math.max(1, contentWidth),
         Math.max(1, contentHeight),
         true,
+        searchQuery,
       );
 
       const framed = renderPanelFrame({

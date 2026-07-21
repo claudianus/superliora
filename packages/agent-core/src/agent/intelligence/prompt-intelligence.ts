@@ -18,7 +18,7 @@ import type { Agent } from '../index';
  */
 
 /** Max completion tokens for an inline next-words prediction. */
-export const INLINE_MAX_TOKENS = 48;
+export const INLINE_MAX_TOKENS = 128;
 /** Max completion tokens for the next-task suggestion list. */
 export const SUGGEST_MAX_TOKENS = 96;
 /** Upper bound on suggestions returned to the TUI. */

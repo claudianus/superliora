@@ -25,9 +25,10 @@ export interface PanelDefinition {
    * @param width - Available width in columns (inside the frame border).
    * @param height - Available height in rows (inside the frame border).
    * @param focused - Whether this panel currently has input focus.
+   * @param searchQuery - Optional search query to highlight matches.
    * @returns Array of content lines, each at most `width` characters.
    */
-  render(width: number, height: number, focused: boolean): string[];
+  render(width: number, height: number, focused: boolean, searchQuery?: string): string[];
 
   /**
    * Handle an input event when this panel is focused.
