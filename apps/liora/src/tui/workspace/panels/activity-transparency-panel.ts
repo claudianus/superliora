@@ -457,6 +457,26 @@ export class ActivityTransparencyPanel implements PanelDefinition {
         const catSummary = topCats.map(([cat, count]) => `${cat}×${String(count)}`).join(' ');
         lines.push(this.pad(` ${currentTheme.fg('error', '✗')} ${currentTheme.dimFg('textMuted', catSummary)}`, width));
       }
+      // Peak activity time (busiest 10s window in the session)
+      if (entries.length > 10 && height > 14) {
+        const WINDOW = 10_000;
+        let peakCount = 0;
+        let peakStart = 0;
+        for (let i = 0; i < entries.length; i++) {
+          const windowEnd = entries[i]!.timestamp + WINDOW;
+          let count = 0;
+          for (let j = i; j < entries.length && entries[j]!.timestamp <= windowEnd; j++) count++;
+          if (count > peakCount) {
+            peakCount = count;
+            peakStart = entries[i]!.timestamp;
+          }
+        }
+        if (peakCount > 5) {
+          const peakTime = new Date(peakStart);
+          const peakLabel = `${String(peakTime.getHours()).padStart(2, '0')}:${String(peakTime.getMinutes()).padStart(2, '0')}`;
+          lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
+        }
+      }
       hint = currentTheme.dimFg('textMuted', ' j/k c:clr f:filter a:auto e:exp') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
