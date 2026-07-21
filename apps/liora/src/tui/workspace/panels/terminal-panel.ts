@@ -42,6 +42,9 @@ export class TerminalPanel implements PanelDefinition {
   private lastOutputTime = 0;
   private recentBytes = 0;
   private outputRate = 0;
+  /** Bell flash effect */
+  private bellFlashStart = 0;
+  private static readonly BELL_FLASH_DURATION = 300;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -100,6 +103,16 @@ export class TerminalPanel implements PanelDefinition {
         ? currentTheme.fg('accent', ` ${String(Math.round(this.outputRate / 1024))}KB/s`)
         : currentTheme.dimFg('textMuted', ` ${String(Math.round(this.outputRate))}B/s`);
       visible[visible.length - 1] = (visible[visible.length - 1] ?? '').slice(0, this.cols - 10) + rateLabel;
+    }
+    // Bell flash overlay: brief border flash when bell is received
+    const bellAge = Date.now() - this.bellFlashStart;
+    if (bellAge < TerminalPanel.BELL_FLASH_DURATION && visible.length > 0) {
+      const intensity = 1 - bellAge / TerminalPanel.BELL_FLASH_DURATION;
+      const flashChar = intensity > 0.5 ? '█' : '▓';
+      const flashColor = currentTheme.fg('warning', flashChar);
+      // Flash the top-right corner
+      const lastLine = visible.length - 1;
+      visible[lastLine] = (visible[lastLine] ?? '').slice(0, this.cols - 2) + flashColor;
     }
     return visible;
   }
@@ -257,6 +270,11 @@ export class TerminalPanel implements PanelDefinition {
     }
     this.recentBytes = data.length;
     this.lastOutputTime = rateNow;
+
+    // Detect bell character (\x07) for flash effect
+    if (data.includes('\x07')) {
+      this.bellFlashStart = Date.now();
+    }
 
     const parts = data.split('\n');
 
