@@ -67,6 +67,8 @@ export class FileExplorerPanel implements PanelDefinition {
   private recentlyModified: Set<string> = new Set();
   /** Whether this is a git worktree */
   private isWorktree = false;
+  /** Git ignore patterns cache */
+  private gitignorePatterns: string[] = [];
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -617,6 +619,21 @@ export class FileExplorerPanel implements PanelDefinition {
       } catch {
         // No upstream or not a tracking branch
       }
+      // Load gitignore patterns
+      this.gitignorePatterns = [];
+      try {
+        const gitignoreContent = execSync('cat .gitignore 2>/dev/null || true', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 2000,
+        });
+        this.gitignorePatterns = gitignoreContent
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0 && !l.startsWith('#'));
+      } catch {
+        // No .gitignore
+      }
       // Detect git worktree
       this.isWorktree = false;
       try {
@@ -794,7 +811,17 @@ export class FileExplorerPanel implements PanelDefinition {
     const hotBadge = !entry.isDirectory && this.recentlyModified.has(entry.fullPath)
       ? currentTheme.fg('warning', ' 🔥')
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}${hotBadge}`;
+    // Git ignore pattern match indicator
+    const ignoreMatch = entry.gitStatus === '!!' && this.gitignorePatterns.length > 0
+      ? this.gitignorePatterns.find((p) => {
+          const cleanPattern = p.replace(/^\//, '').replace(/\/$/, '');
+          return entry.name.includes(cleanPattern) || entry.fullPath.includes(cleanPattern);
+        })
+      : undefined;
+    const ignoreBadge = ignoreMatch
+      ? currentTheme.dimFg('textMuted', ` (${ignoreMatch})`)
+      : '';
+    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}${hotBadge}${ignoreBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
