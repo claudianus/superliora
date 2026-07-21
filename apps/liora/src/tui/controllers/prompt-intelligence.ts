@@ -107,22 +107,22 @@ export class PromptIntelligenceController {
   }
 
   private async requestInlineCompletion(): Promise<void> {
-    if (!this.canRequestIntelligence()) {
-      process.stderr.write(`[pi-debug] canRequest=false session=${this.host.session !== undefined} phase=${this.host.state.appState.streamingPhase} mode=${this.host.state.appState.inputMode}\n`);
-      return;
-    }
+    if (!this.canRequestIntelligence()) return;
 
     const editor = this.host.state.editor;
     const text = editor.getText();
     if (text.length < INLINE_MIN_CHARS) return;
     if (this.isAutocompleteTrigger(text)) return;
-    process.stderr.write(`[pi-debug] requesting inline completion for ${text.length} chars\n`);
 
+    // Cache key: text before the cursor (the prefix the completion extends).
+    // This gives cache hits when the user backspaces to a previous prefix.
     const cursor = editor.getCursor();
-    const cacheKey = `${cursor.line}:${cursor.col}:${text}`;
+    const lines = text.split('\n');
+    const prefix = (lines.slice(0, cursor.line).join('\n') + (cursor.line > 0 ? '\n' : '') + (lines[cursor.line] ?? '').slice(0, cursor.col)).trimEnd();
+    const cacheKey = prefix;
     const cached = this.lruGet(cacheKey);
     if (cached !== undefined) {
-      if (cached.length > 0) editor.setGhostText(cached, 'inline');
+      if (cached.length >= INLINE_MIN_CHARS) editor.setGhostText(cached, 'inline');
       return;
     }
 
@@ -133,21 +133,18 @@ export class PromptIntelligenceController {
     try {
       const session = this.host.session;
       if (session === undefined) return;
-      process.stderr.write(`[pi-debug] calling session.inlineComplete...\n`);
       const result = await session.inlineComplete({
         text,
         cursorLine: cursor.line,
         cursorCol: cursor.col,
         signal: ac.signal,
       });
-      process.stderr.write(`[pi-debug] rpc returned, aborted=${ac.signal.aborted} textChanged=${editor.getText() !== text}\n`);
       if (ac.signal.aborted) return;
       // Guard: editor state may have changed while the request was in flight.
       if (editor.getText() !== text) return;
       if (editor.isShowingAutocomplete()) return;
 
       this.lruSet(cacheKey, result.completion);
-      process.stderr.write(`[pi-debug] got completion: ${result.completion.length} chars: "${result.completion.slice(0, 50)}"\n`);
       if (result.completion.length >= INLINE_MIN_CHARS) {
         editor.setGhostText(result.completion, 'inline');
       }
@@ -155,10 +152,8 @@ export class PromptIntelligenceController {
       // AbortError is expected when a newer keystroke cancels the in-flight
       // request — do not surface it.  Genuine failures go to stderr so they
       // stay out of the TUI render surface.
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        process.stderr.write(`[pi-debug] inline aborted (user typed more)\n`);
-      } else {
-        process.stderr.write(`[pi-debug] inline error: ${error}\n`);
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        process.stderr.write(`[prompt-intelligence] inline completion failed: ${error}\n`);
       }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;
