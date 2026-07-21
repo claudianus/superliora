@@ -72,10 +72,10 @@ export class ImagePreviewPanel implements PanelDefinition {
     const lines: string[] = [];
 
     // Header
-    lines.push(this.pad(` ${String(this.images.length)} images`, width));
+    lines.push(this.pad(currentTheme.boldFg('primary', ` ${String(this.images.length)} images`), width));
 
     if (this.images.length === 0) {
-      lines.push(this.pad(this.dim('  (no images found)'), width));
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '(no images found)')}`, width));
       return this.fillLines(lines, height, width);
     }
 
@@ -97,10 +97,12 @@ export class ImagePreviewPanel implements PanelDefinition {
     for (let i = this.scrollTop; i < end; i++) {
       const img = this.images[i]!;
       const selected = i === this.cursorIndex;
-      const marker = selected ? '▸' : ' ';
+      const marker = selected ? currentTheme.fg('primary', '▸') : ' ';
       const size = formatSize(img.sizeBytes);
       const name = truncate(img.name, width - 10);
-      const line = `${marker} ${name} ${size}`;
+      const nameStyled = selected ? currentTheme.boldFg('textStrong', name) : currentTheme.fg('text', name);
+      const sizeStyled = currentTheme.dimFg('textMuted', size);
+      const line = `${marker} ${nameStyled} ${sizeStyled}`;
       if (selected && focused) {
         lines.push(this.pad(currentTheme.bg('selectionBg', currentTheme.fg('selectionText', line)), width));
       } else {
@@ -114,7 +116,7 @@ export class ImagePreviewPanel implements PanelDefinition {
     }
 
     // Separator
-    lines.push(this.pad(this.dim(' ─── preview ───'), width));
+    lines.push(this.pad(`${currentTheme.dimFg('border', ' ─── ')}${currentTheme.fg('accent', 'preview')}${currentTheme.dimFg('border', ' ───')}`, width));
 
     // Preview area (bottom half)
     const selected = this.images[this.cursorIndex];
@@ -125,17 +127,17 @@ export class ImagePreviewPanel implements PanelDefinition {
       if (this.statusMessage !== null) {
         lines.push(this.pad(` ${this.statusMessage}`, width));
       } else {
-        lines.push(this.pad(` ${selected.name}`, width));
-        lines.push(this.pad(this.dim(` ${formatSize(selected.sizeBytes)} · ${selected.ext.slice(1).toUpperCase()}`), width));
+        lines.push(this.pad(` ${currentTheme.boldFg('textStrong', selected.name)}`, width));
+        lines.push(this.pad(` ${currentTheme.dimFg('textMuted', `${formatSize(selected.sizeBytes)} · ${selected.ext.slice(1).toUpperCase()}`)}`, width));
         // Kitty graphics placeholder indicator
-        lines.push(this.pad(this.dim(' [Kitty graphics: inline display'), width));
-        lines.push(this.pad(this.dim('  active in supported terminals]'), width));
+        lines.push(this.pad(` ${currentTheme.dimFg('textMuted', '[Kitty graphics: inline display')}`, width));
+        lines.push(this.pad(` ${currentTheme.dimFg('textMuted', ' active in supported terminals]')}`, width));
       }
     }
 
     // Hint
     if (focused) {
-      lines.push(this.pad(this.dim(' j/k:nav enter:preview r:rescan'), width));
+      lines.push(this.pad(` ${currentTheme.dimFg('textMuted', 'j/k:nav enter:preview r:rescan')}`, width));
     }
 
     return this.fillLines(lines, height, width);
